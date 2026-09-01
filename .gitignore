@@ -1,0 +1,5 @@
+/.lake/
+/AxiomAudit.lean
+*.olean
+*.ilean
+*.trace
