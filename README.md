@@ -4,14 +4,59 @@ Machine-checked specification of ZKsync Era's atomic interop **protocol**, in Le
 depending on Mathlib and nothing else.
 
 No EVM semantics. No compiler output. Every theorem here is about abstract states
-and operations, and every one is fully proved — 471 theorems, 0 depending on
-anything beyond Lean's three standard axioms, 0 `sorry`, 0 axioms declared.
+and operations, and every one is fully proved — 577 theorems, 0 depending on
+anything beyond Lean's three standard axioms, 0 `sorry`, 0 axioms declared. The
+guarantees themselves are catalogued as 47 named properties, 46 proved and 1 open.
 
 ```bash
 lake build                      # ~2 min with a warm Mathlib
+./scripts/check-properties.sh   # every stated property: PROVED (by which theorem) or OPEN
 ./scripts/audit-axioms.sh       # what every theorem actually rests on
 ./scripts/check-word-fidelity.sh
 ```
+
+## How to review this without reading proofs
+
+The package is split into three layers, one folder each, with the same four files
+in every folder:
+
+```
+EraSpec/
+  Contracts/     MODEL       — state, guards, operations. Definitions only.
+  Properties/    STATEMENTS  — one `def … : Prop` per guarantee. No proofs.
+  Proofs/        PROOFS      — the proofs, plus one certificate theorem per property.
+    ├─ InteropCommitmentTree   the indexed Merkle tree contract
+    ├─ AtomicFlowManager       the per-leg refund state machine
+    ├─ Protocol                the multi-chain composition
+    └─ TreeRoot                the hash-tree root and the two proof verifiers
+```
+
+A review is two readings and one script:
+
+1. **Read `Contracts/` against the Solidity.** Is `InsertGuard` the guard `insert`
+   enforces? Is `NonInclusionAccepted` what `verifyNonInclusion` returns `true` on?
+   These files contain nothing but transcribed definitions, so a mismatch is
+   visible on the page.
+2. **Read `Properties/`.** Each declaration is a `Prop` with a docstring saying what
+   it means in protocol terms. Does `ProofsExclusive` say what you want "no double
+   spend at the root" to mean? Nothing in these files is trusted either — a
+   mis-stated property is caught by reading it.
+3. **Run `./scripts/check-properties.sh`.** It lists every property and the theorem
+   that certifies it. A *certificate* is a theorem whose type is *exactly* the
+   property constant, e.g.
+
+   ```lean
+   theorem Proofs.TreeRoot.ProofsExclusive : Properties.TreeRoot.ProofsExclusive := @proofs_exclusive
+   ```
+
+   so the kernel, not a reviewer, checks that the proof proves the statement as
+   written. `./scripts/audit-axioms.sh` then confirms no theorem rests on `sorry`
+   or a declared axiom.
+
+Nobody has to read `Proofs/`. `OPEN` properties are statements written down before
+being proved; they carry no `sorry` and the checker keeps the list honest.
+`EraSpec/Properties.lean` is the catalogue, with the open items and the roadmap
+of properties that still need a model extension before they can be stated.
 
 ## Why this repo exists separately
 
@@ -31,79 +76,100 @@ Those are two different questions:
 
 Splitting them buys three things. The design-level results become readable and
 auditable without a 2,700-module corpus or a 30-minute cold build. They survive
-era-contracts pin bumps untouched — content-hashed block ids and solc helper
-specialization cannot reach them. And, most usefully, **they can state things the
-compiled-code proofs structurally cannot** — see `EraSpec/Contracts/Protocol.lean`.
+era-contracts pin bumps untouched. And they can state things the compiled-code
+proofs structurally cannot — cross-chain statements (`Protocol`), and statements
+about what the verifier accepts for *any* index and path length (`TreeRoot`).
 
-## Layout
+## What is proved, by file
 
-```
-EraSpec/
-  Word.lean            256-bit machine word (vendored from Clear; see its header)
-  Core/                the mathematics: Merkle fold, indexed Merkle tree order theory
-  Contracts/           one abstract state machine per deployed contract
-  Properties/          security theorems and attack countermodels
-  Refinement.lean      what the compiled-code proofs must supply, named
-```
+### `InteropCommitmentTree` — the indexed Merkle tree
 
-### `Core/` — inherited mathematics
+`Core/IMT.lean` models the tree as a `Finset AbsLeaf`, which erases exactly the
+parts of the contract that do the work on chain: leaf indices, `nextIndex` links,
+the `valueToIndex` map, and the bounded search loop. The model puts them back and
+the properties discharge them into the `Finset` layer. The load-bearing ones:
+`DedupGateSound` (the contract's *storage* dedup gate implies the *set-level*
+freshness the order theory assumes — a step nothing previously bridged),
+`InsertProjects` (the three-write index manipulation and `imtInsert` are the same
+operation), `SearchYieldsGuard` (the actual `insert` flow — three reverts, then the
+walk from the caller's hint — establishes the guard), and
+`RunIsGuardedEvolution`, which lifts a real contract run into the history shape
+`Core/IMT` reasons about, so the entire security corpus applies to it. The headline
+is `GenesisRunReclaimableIffAbsent`: at every step of every run from `setup`, a
+value is reclaimable exactly when it was never delivered.
 
-Extracted from `contracts-formal-verification`, unchanged except for imports.
-`Core/IMT.lean` is the indexed-Merkle-tree order theory: the `GapSound`/`KeyInj`
-invariants, insert preservation, and the exclusivity theorem the whole refund story
-rests on.
+### `AtomicFlowManager` — the per-leg lifecycle
 
-### `Contracts/` — the new layer
+`Unset → Committed → Revertable → Reverted`. Every refund guarantee falls out of one
+observation: each operation guards on the exact predecessor state, so rank is
+monotone and `Reverted` is absorbing. `NoDoubleClaim` is a corollary, as is
+`ClaimClosesGateBeforeInteraction`, the formal content of the source's
+"no `nonReentrant` needed" comment.
 
-`Core/` models the tree as a `Finset AbsLeaf`, which erases exactly the parts of
-the contract that do the work on chain. `Contracts/` puts them back:
+### `Protocol` — the multi-chain composition
 
-- **`InteropCommitmentTree.lean`** — the indexed state machine: leaf indices,
-  `nextIndex` links, the `valueToIndex` map, and the bounded search loop. The
-  load-bearing results are `dedup_gate_sound` (the contract's *storage* dedup gate
-  implies the *set-level* freshness the order theory assumes — a step nothing
-  previously bridged), `insert_projects` (the three-write index manipulation and
-  `imtInsert` are the same operation), `insert_preserves_valid`, and
-  `run_isGuardedEvolution`, which lifts a real contract run into the history shape
-  `Core/IMT` reasons about, so the entire security corpus applies to it.
+`Core/IMT`'s exclusivity is about one tree and mentions no chain id, so a reader of
+it alone would conclude the multi-chain case was handled. It was not.
+`commitValue = keccak(TAG, flowId, specHash)` contains no chain id: membership
+self-binds (a value is only ever *found* in the tree it was inserted into) but
+**absence does not** — the same number is truthfully absent from every other
+chain's tree. So a delivered leg can be refunded by pointing the gate at an
+unrelated chain, unless `authorizeRefund` compares the proof's `sourceChainId`
+against the leg's declared one. `UnboundGateRefundsDeliveredLeg` is an explicit
+two-chain countermodel with both trees sound; `ChainsNoDoubleSpend` shows the
+comparison suffices for real per-chain deployments.
 
-- **`AtomicFlowManager.lean`** — the per-leg lifecycle
-  `Unset → Committed → Revertable → Reverted`. Every refund guarantee falls out of
-  one observation: each operation guards on the exact predecessor state, so rank is
-  monotone and `Reverted` is absorbing. No-double-refund is then a corollary, as is
-  the formal content of the source's "no `nonReentrant` needed" comment.
+### `TreeRoot` — the hash side
 
-- **`Protocol.lean`** — the multi-chain composition, **and the reason the split
-  earns its keep.** `Core/IMT`'s exclusivity is about one tree and mentions no
-  chain id, so a reader of it alone would conclude the multi-chain case was handled.
-  It was not. `commitValue = keccak(TAG, flowId, specHash)` contains no chain id:
-  membership self-binds (a value is only ever *found* in the tree it was inserted
-  into) but **absence does not** — the same number is truthfully absent from every
-  other chain's tree. So a delivered leg can be refunded by pointing the gate at an
-  unrelated chain, unless `authorizeRefund` compares the proof's `sourceChainId`
-  against the leg's declared one.
+The root `FullMerkle` publishes over the list state, and the verifiers
+`verifyInclusion` / `verifyNonInclusion` exactly as they consume an
+attacker-supplied proof. The verifier is a pure function of a 32-byte root: it
+checks neither that the index is occupied nor that the path is as long as the tree
+is high, because it cannot know either. `AcceptedPathPinsLeaf` handles both — for
+*any* index and path length the prover chose, an accepted path names an occupied
+index whose stored leaf is the presented one. So `NonInclusionSound` lands a
+witness `W ∈ toAbs T`, the hypothesis `IMTAbstract.forged_padding_witness_breaks_exclusivity`
+proves cannot be dropped, and `ProofsExclusive` is delivered-XOR-refundable as the
+deployed verifiers see it. `RootAfterInsert` fixes what "the root after `insert`"
+means (the `pushNewLeaf` walk over the post-`updateLeaf` list), which is the
+list-level target the compiled-code correspondence must hit.
 
-  `unbound_gate_refunds_delivered_leg` is an explicit two-chain countermodel with
-  both trees sound, so it cannot be dismissed as a degenerate state;
-  `bound_gate_excludes_delivered` shows the comparison suffices. Together they make
-  that one line's necessity a theorem instead of a comment. The concrete repo
-  cannot express this — its proofs are per-deployment, and a cross-chain statement
-  has nowhere to live there.
+The hypotheses are bundled in `HashAssumptions`, and one of them is **false at the
+extraction pin**: `padNotLeaf`, that the padding constant is not a leaf hash. The
+pinned `setup` pads with `hashLeaf({0,0,0})`, so an empty slot verifies as the
+`{0,0,0}` leaf, whose window `(0, ∞)` excludes nothing.
+`PaddingCollisionRefundsDeliveredLeg` runs the real contract (`setup`, two guarded
+inserts, three leaves at height 2) and exhibits an accepted non-inclusion proof
+for the delivered value — with no hash assumption at all, because the proof is
+honest. Later era-contracts revisions pad with a dedicated `IMT_EMPTY_LEAF_HASH`;
+this theorem is what that constant buys.
 
-### `Properties/` — security theorems
+### `Core/` — the mathematics
 
-Extracted. Delivered-XOR-reclaimed over arbitrary append-only histories, timeout
-soundness, flow canonicity, bundle status machine, recovery limits, and the attack
-countermodels (`InsertGuard` shows each insert-guard conjunct is load-bearing, with
-concrete states where dropping one breaks an invariant).
+Extracted from `contracts-formal-verification`, unchanged except for imports:
+`IMT.lean` (the `GapSound`/`KeyInj` order theory and the exclusivity theorem the
+whole refund story rests on), `Merkle.lean` (the `FullMerkle` fold, M-A–M-D),
+`MerkleProofSound.lean`, `MerkleCachedInj.lean`, `FinBits.lean`. One module is new:
+`MerkleVerifier.lean` removes `MerkleProofSound`'s two range hypotheses — occupied
+index, path length equal to the height — so that an accepted path pins the level-0
+entry at *any* index, padding included, and the path length is forced to be the
+tree's height under domain separation.
+
+### `AttackVectors/` — the extracted security corpus
+
+21 files, extracted verbatim: delivered-XOR-reclaimed over arbitrary append-only
+histories, timeout soundness, flow canonicity, bundle status machine, recovery
+limits, and the attack countermodels. These predate the three-layer split and mix
+statements with proofs; they stay as they are until the migration in
+[PROVENANCE.md](PROVENANCE.md) is done, after which splitting them is its own change.
 
 ## What is NOT here
 
 Deliberately, so the boundary stays legible:
 
 - **Anything about compiled code.** Storage layout, ABI encoding, revert paths, gas.
-- **The hash tree.** `Contracts/` carries list state only; `Core/Merkle.lean` has the
-  fold, but tying a stored root to these leaves is `#31`/`#32` in the sibling repo.
+- **The compiled hash-tree writes.** That `FullMerkle.updateLeaf`/`pushNewLeaf`
+  compute the root `TreeRoot` defines is `#31`/`#32` in the sibling repo (O7).
 - **Access control.** Caller identity constrains *who* may step, not what a step
   does; recorded as obligation O5 in `Refinement.lean`.
 - **Events, memory copies, external call results.** Not modelled on either side —
@@ -112,24 +178,29 @@ Deliberately, so the boundary stays legible:
 `Refinement.lean` lists all seven obligations with their current status, including
 the ones that are **open**: the compiled search loop is not yet tied to `lowSearch`
 (O3), the flow manager's concrete side is blocked upstream by a Clear/generator
-mismatch (O4), and the multi-chain binding is source-inspected only (O6 — the one
-most worth mechanizing next, since its failure mode is a live double-spend).
+mismatch (O4), and the multi-chain binding is source-inspected only (O6).
 
 ## Verification hygiene
 
-Two checkers, both self-tested in the failing direction, because a checker that has
-never failed has never been tested:
+Three checkers, each reading the Lean *environment* rather than source text, and
+each self-tested in the failing direction, because a checker that has never failed
+has never been tested:
 
-- **`scripts/audit-axioms.sh`** → `scripts/Audit.lean`. Enumerates the Lean
-  *environment*, not source text. An earlier regex version found 327 theorems and
-  called them all clean; the environment finds 471 — it was silently missing 144,
-  every `private lemma` among them. It also asserts EraSpec declares no axioms.
+- **`scripts/check-properties.sh`** → `scripts/Properties.lean`. Every
+  `Prop`-valued `def` under `EraSpec.Properties` is a stated property; every
+  theorem whose type is exactly that constant is its certificate. Prints `PROVED`
+  or `OPEN` per property. Failing direction: a planted `def Bogus : Prop := False`
+  shows as `OPEN`.
+- **`scripts/audit-axioms.sh`** → `scripts/Audit.lean`. Enumerates every theorem and
+  the axioms it depends on. An earlier regex version found 327 theorems and called
+  them all clean; the environment found 471 (577 now) — it was silently missing
+  144, every `private lemma` among them. It also asserts EraSpec declares no axioms.
 - **`scripts/check-word-fidelity.sh`**. `Word.lean` is a trimmed copy of Clear's
   `UInt256.lean`; a copy is only worth having while it is still a copy. Diffs all 23
   vendored declarations against the Clear submodule.
 
 Neither a green build nor a `sorry`-free grep is a progress metric. Believe the
-audit.
+checkers.
 
 ## Provenance and the pending migration
 

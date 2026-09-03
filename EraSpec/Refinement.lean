@@ -1,6 +1,7 @@
-import EraSpec.Contracts.InteropCommitmentTree
-import EraSpec.Contracts.AtomicFlowManager
-import EraSpec.Contracts.Protocol
+import EraSpec.Proofs.InteropCommitmentTree
+import EraSpec.Proofs.AtomicFlowManager
+import EraSpec.Proofs.Protocol
+import EraSpec.Proofs.TreeRoot
 
 /-!
 # Refinement obligations
@@ -107,15 +108,31 @@ comparison whose presence a script can assert.
 
 ### O7 — the hash side
 
-`Tree` carries list state only. Membership and non-inclusion proofs are checked
-against a Merkle root, so `EraSpec.Core.Merkle` plus the concrete `updateWalk`
-correspondence (`#31`, `#32`) must certify that the root authenticates exactly
-the leaves this model talks about.
+`Tree` carries list state only; `Contracts.TreeRoot` adds the root over it —
+`root h z0 hl T height = rootOf h z0 (leafHashes hl T) height` — and
+`Properties.TreeRoot` states the two verifiers sound (`AcceptedPathPinsLeaf`,
+`ProofsExclusive`) and complete (`InclusionComplete`, `NonInclusionComplete`)
+against that root, for attacker-chosen indices and path lengths, under the
+`HashAssumptions` bundle. So the protocol-level content of root binding is closed
+here, and what the compiled side must supply narrows to one statement: that
+`FullMerkle.updateLeaf` followed by `pushNewLeaf` computes `rootOf` over
+`leafHashes` of the new state. `RootAfterInsert` fixes the target exactly (the
+`pushNewLeaf` walk over the post-`updateLeaf` list), so `#31`/`#32` have a
+definite list-level statement to hit.
 
 *Discharged by:* `#31` (`fun_updateLeaf` ≡ `updateWalk`), `#32` (the verifier's
 fold replays that walk), and `root_pins_written_leaf`. These rest on the keccak
 idealization axioms, or on the weaker `_of_config` pool-consistency assumptions —
 a change of trusted base, not its elimination.
+
+*The hypothesis that is FALSE at the pin.* `HashAssumptions.padNotLeaf` says the
+`FullMerkle` padding constant is not a leaf hash. The pinned
+`IndexedMerkleTree.setup` pads with `hashLeaf({0,0,0})`, so it is a leaf hash, and
+`Properties.TreeRoot.PaddingCollisionRefundsDeliveredLeg` shows the consequence
+on a real contract run: an accepted `verifyNonInclusion` for a delivered value.
+Later era-contracts revisions pad with `IMT_EMPTY_LEAF_HASH`. The compiled-code
+side cannot see this — its verifier theorems take the root as given — so when the
+pin moves, this is the first thing to re-check.
 
 ## Known model boundaries inherited from the concrete side
 
@@ -140,23 +157,34 @@ namespace EraSpec.Refinement
 
 /-! ## Machine-checkable summary of what IS proved here
 
-The three statements below are the top of this package's dependency graph — the
-protocol-level guarantees the obligations above are meant to transfer to the
-compiled code. They are `abbrev`s rather than restatements so there is exactly
-one proof of each, and `#print axioms` on them reports the real profile. -/
+`EraSpec.Properties.*` states every protocol-level guarantee as a `Prop`, and
+`EraSpec.Proofs.*` supplies a *certificate* — a theorem of exactly that type — for
+each; `scripts/check-properties.sh` lists them. The abbreviations below name the
+certificates the obligations above are meant to transfer to the compiled code, so
+`#print axioms` on them reports the real profile. -/
 
 /-- The commitment tree: every run from `setup` keeps the reclaim gate firing on
 exactly the never-delivered legs. -/
-abbrev tree_guarantee := @Contracts.InteropCommitmentTree.genesis_run_reclaimable_iff_absent
+abbrev tree_guarantee := @Proofs.InteropCommitmentTree.GenesisRunReclaimableIffAbsent
 
 /-- The flow manager: a refunded leg stays refunded, so no leg is refunded twice. -/
-abbrev manager_guarantee := @Contracts.AtomicFlowManager.no_double_claim
+abbrev manager_guarantee := @Proofs.AtomicFlowManager.NoDoubleClaim
 
 /-- The multi-chain protocol: with the source-chain binding, delivery and refund
 are mutually exclusive system-wide; without it, they are not. -/
-abbrev protocol_guarantee := @Contracts.Protocol.chains_no_double_spend
+abbrev protocol_guarantee := @Proofs.Protocol.ChainsNoDoubleSpend
 
 /-- The countermodel that makes O6 necessary rather than advisory. -/
-abbrev binding_necessity := @Contracts.Protocol.unbound_gate_refunds_delivered_leg
+abbrev binding_necessity := @Proofs.Protocol.UnboundGateRefundsDeliveredLeg
+
+/-- The hash side: against a valid tree's root, no value has both an accepted
+inclusion proof and an accepted non-inclusion proof, for any indices and path
+lengths the provers choose. -/
+abbrev root_guarantee := @Proofs.TreeRoot.ProofsExclusive
+
+/-- The countermodel that makes `HashAssumptions.padNotLeaf` load-bearing: with
+`hashLeaf({0,0,0})` as the padding constant, a delivered leg has an accepted
+absence proof. -/
+abbrev padding_necessity := @Proofs.TreeRoot.PaddingCollisionRefundsDeliveredLeg
 
 end EraSpec.Refinement

@@ -15,7 +15,7 @@ without importing `generated.*` (solc output) or any `Clear.*` module other than
 | `EraSpec/Core/MerkleProofSound.lean` | `specs/MerkleProofSound.lean` |
 | `EraSpec/Core/MerkleCachedInj.lean` | `specs/MerkleCachedInj.lean` |
 | `EraSpec/Core/IMT.lean` | `specs/IMTAbstract.lean` |
-| `EraSpec/Properties/*.lean` (21) | `specs/AttackVectors/*.lean` |
+| `EraSpec/AttackVectors/*.lean` (21) | `specs/AttackVectors/*.lean` |
 
 Namespaces were left alone (`IMTAbstract`, `AttackVectors.*`), so only module paths
 changed. That keeps the eventual migration a one-line-per-file edit.
@@ -26,8 +26,9 @@ the EVM opcodes and byte serialization. It is vendored rather than imported so t
 package stays Clear-free. `scripts/check-word-fidelity.sh` diffs the 23 kept
 declarations against the Clear submodule and fails on any divergence.
 
-Newly written here, not extracted: `EraSpec/Contracts/*` and
-`EraSpec/Refinement.lean`.
+Newly written here, not extracted: `EraSpec/Contracts/*` (the model),
+`EraSpec/Properties/*` (the statements), `EraSpec/Proofs/*` (the proofs and
+certificates), `EraSpec/Core/MerkleVerifier.lean` and `EraSpec/Refinement.lean`.
 
 ## The drift hazard — read this before relying on either repo
 
@@ -56,7 +57,7 @@ So the copies are a temporary state, not a design.
 
 2. Rewrite the imports in that repo (26 modules plus their dependents):
    `specs.IMTAbstract` → `EraSpec.Core.IMT`, `specs.MerkleSpec` →
-   `EraSpec.Core.Merkle`, `specs.AttackVectors.X` → `EraSpec.Properties.X`.
+   `EraSpec.Core.Merkle`, `specs.AttackVectors.X` → `EraSpec.AttackVectors.X`.
    Namespaces are unchanged, so `open IMTAbstract` and every use site still
    resolve.
 
@@ -100,4 +101,7 @@ the copy here.
   Unlike the compiled-code proofs, nothing here breaks when that pin moves — but
   the contract specs can become *stale* rather than wrong, which is harder to
   notice. When the pin moves, re-read those five files against
-  `EraSpec/Contracts/` and check that the guards still transcribe.
+  `EraSpec/Contracts/` and check that the guards still transcribe. Check first the
+  padding constant `IndexedMerkleTree.setup` passes to `FullMerkle.setup`: at this
+  pin it is `hashLeaf({0,0,0})`, which falsifies `HashAssumptions.padNotLeaf`
+  (see `padding_collision_refunds_delivered_leg`).
