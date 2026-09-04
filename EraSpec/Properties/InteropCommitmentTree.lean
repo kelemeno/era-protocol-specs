@@ -118,17 +118,34 @@ def GenesisRunReclaimableIffAbsent : Prop :=
   ∀ (R : ℕ → Tree), Run R → R 0 = setup → ∀ (n : ℕ) (v : UInt256), v ≠ 0 →
     ((∃ W ∈ toAbs (R n), W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)) ↔ v ∉ keys (toAbs (R n)))
 
-/-! ## Open
+/-! ## Liveness of the hint mechanism -/
 
-Stated, not yet proved.  `scripts/check-properties.sh` reports these as `OPEN`. -/
+/-- **THE SEARCH TERMINATES WITH ENOUGH FUEL.**  From any occupied hint, `leafCount`
+hops suffice to reach a leaf whose successor is not below `v` — so a correct low
+leaf always exists and the walk finds it, for every value and every starting hint.
 
-/-- The search terminates with enough fuel: from any occupied hint, `leafCount`
-hops suffice to reach a leaf whose successor is not below `v`.  (Values strictly
-increase along `nextIndex` links and there are finitely many leaves.)  This is
-the liveness half of the hint mechanism; `LowSearchSound`/`LowSearchWindow` are
-the safety half. -/
+Values strictly increase along `nextIndex` links (`WindowPos` plus `linkAgree`) and
+there are finitely many leaves, so each hop removes one leaf from the interval
+between the current value and `v`.  This is the liveness half of the hint
+mechanism; `LowSearchSound` and `LowSearchWindow` are the safety half. -/
 def LowSearchTerminates : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (i : ℕ), i < T.leafCount →
     ∃ j, lowSearch T v T.leafCount i = some j
+
+/-- **BUT THE DEPLOYED FUEL IS A CONSTANT, AND THE REVERT IS REACHABLE.**
+`MAX_LOW_INDEX_SEARCH_ATTEMPTS` does not scale with `leafCount`, so a hint far
+enough from the right place makes `insert` revert with `IMTLowLeafNextTooSmall`
+even though a correct low leaf exists.  Minimal witness: a two-leaf tree, where
+zero hops revert and one hop succeeds.
+
+This is a liveness caveat, not a safety defect — the caller retries with a fresh
+hint — and it is why `LowSearchTerminates` is stated with `leafCount` fuel rather
+than the contract's constant.  The general statement (for every fixed `k`, a tree
+needing more than `k` hops) needs an inductively built chain of leaves and is not
+constructed here. -/
+def LowSearchCanRevert : Prop :=
+  ∀ (a v : UInt256), 0 < a → a < v →
+    lowSearch (insert setup a 0) v 0 0 = none
+      ∧ lowSearch (insert setup a 0) v 1 0 = some 1
 
 end Properties.InteropCommitmentTree

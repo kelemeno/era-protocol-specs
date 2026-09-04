@@ -30,10 +30,26 @@ bundle may run — the source comment says so in as many words:
     IAtomicFlowManager(L2_ATOMIC_FLOW_MANAGER_ADDR).requireFlowFinalized(bundleHash, _finality);
 
 So mixed *tree states* are reachable (that countermodel stands), but a mixed
-*outcome* is not: in a state where one leg is missing, no leg executes.  That is
-partial atomicity — none-or-all — and it is what `Properties.Atomicity` states.
+*outcome* is not: in a state where one leg is missing, no leg executes.
 
-## What the model has to carry that `TreeRoot` does not
+## Which flow, though?
+
+The flow is **calldata**.  `AtomicFlow` carries `flowId` as a *field* next to the
+leg list, and the commit value each proof is checked against is
+`commitValue(flow.flowId, flow.legBundleHashes[i])` — computed from the *claimed*
+id.  So an executing party who could present its own leg list would simply omit
+the legs that were never committed, and every remaining proof would still verify,
+because the values are the ones that were inserted.
+
+`_checkFlowId` is what closes that: it recomputes
+`keccak256(abi.encode(legBundleHashes, legSourceChainIds, deadline,
+settlementLayerChainId))` and compares against the claimed id.  So the model keeps
+`Flow.flowId` a field, `FlowIdChecked` as the recomputation, and
+`ExecutedViaUncheckedFlowId` as the counterfactual gate — see
+`Properties.Atomicity.SubsetFlowPassesUncheckedGate`.  Modelling the commit value
+as a free-standing per-leg number would hide this entirely.
+
+## What else the model carries that `TreeRoot` does not
 
 1. **Many chains.** Each leg's proof is resolved against its own declared source
    chain's tree (`ProofSourceChainMismatch` enforces the match), so the state is a
@@ -47,9 +63,7 @@ partial atomicity — none-or-all — and it is what `Properties.Atomicity` stat
    the single flow `deadline`, and the flow's `settlementLayerChainId` must equal
    every proof's resolved settlement layer (`_checkSettlementLayerIsL1` plus the
    `ProofSettlementLayerMismatch` check).  That shared settlement layer is what
-   licenses comparing different chains' batch timestamps to one deadline, and it
-   is why `System.time` is a single ℕ-valued clock per chain rather than
-   per-chain-incomparable.
+   licenses comparing different chains' batch timestamps to one deadline.
 4. **Data availability.** The verifier is a pure function: it accepts any
    well-formed proof.  But someone has to *build* the proof, and that needs the
    leaf preimage and the sibling path — chain data.  `Access` is what a prover can
@@ -79,23 +93,50 @@ abbrev Chain := UInt256
 /-! ## Flows -/
 
 /-- One leg of a flow: its declared source chain (`legSourceChainIds[i]`) and its
-commit value (`commitValue(flowId, legBundleHashes[i])`). -/
+bundle hash (`legBundleHashes[i]`).
+
+The leg's commit value is NOT a field: it is `commitValue(flowId, bundleHash)`,
+which depends on the flow the leg is presented under.  See `legValue`. -/
 structure FlowLeg where
   chain : Chain
-  commit : UInt256
+  bundleHash : UInt256
 deriving DecidableEq
 
-/-- An `AtomicFlow`, at the level this file reasons about: the legs and the
-deadline.  `flowId` and the settlement layer are not carried — `flowId` is the
-hash that binds these fields together (`_checkFlowId`), and the settlement layer
-is what makes the one `deadline` meaningful across chains (see the header). -/
+/-- An `AtomicFlow` as it arrives in calldata: the claimed `flowId` next to the
+fields the real one hashes over.  `flowId` is a field rather than a derived value
+precisely because that is the struct's shape, and it is what `_checkFlowId` exists
+to police. -/
 structure Flow where
+  flowId : UInt256
   legs : List FlowLeg
   deadline : ℕ
 
+/-- `keccak256(abi.encode(legBundleHashes, legSourceChainIds, deadline,
+settlementLayerChainId))`.  The leg list covers both arrays, since a `FlowLeg`
+pairs a bundle hash with its source chain; the settlement layer is elided because
+the model already fixes one shared clock. -/
+abbrev FlowHash := List FlowLeg → ℕ → UInt256
+
+/-- `AtomicInteropProof.commitValue(flowId, bundleHash)`. -/
+abbrev CommitValue := UInt256 → UInt256 → UInt256
+
+/-- Keccak injectivity on the `flowId` preimage: distinct leg lists or deadlines
+hash differently.  The same idealization `HashAssumptions.nodeInj` makes for node
+hashes; the encoding half is `AttackVectors.BundleHashEncoding`. -/
+def FlowHashInj (fh : FlowHash) : Prop :=
+  ∀ l₁ d₁ l₂ d₂, fh l₁ d₁ = fh l₂ d₂ → l₁ = l₂ ∧ d₁ = d₂
+
+/-- `_checkFlowId`: the claimed id is the hash of the presented fields. -/
+def FlowIdChecked (fh : FlowHash) (F : Flow) : Prop := fh F.legs F.deadline = F.flowId
+
+/-- The value leg `leg` of flow `F` has in its source chain's tree — computed from
+the flow's CLAIMED id, exactly as the contract computes it. -/
+def legValue (cv : CommitValue) (F : Flow) (leg : FlowLeg) : UInt256 :=
+  cv F.flowId leg.bundleHash
+
 /-- Commit values are keccak hashes, so nonzero; `0` is the tree's sentinel key
 and can never be a leg's commit value. -/
-def FlowWf (F : Flow) : Prop := ∀ leg ∈ F.legs, leg.commit ≠ 0
+def FlowWf (cv : CommitValue) (F : Flow) : Prop := ∀ leg ∈ F.legs, legValue cv F leg ≠ 0
 
 /-! ## The system: a tree per chain per batch -/
 
@@ -196,30 +237,41 @@ against that batch's END root.
 
 The declared source chain is the only chain considered, which is the
 `ProofSourceChainMismatch` check; the timestamp bound is `ProofDeadlineExceeded`. -/
-def LegFinalized (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System)
-    (D : ℕ) (leg : FlowLeg) : Prop :=
-  ∃ (n : ℕ) (p : ImtProof), S.time leg.chain n ≤ D ∧ Accepts h z0 hl S leg.chain n leg.commit p
+def LegFinalized (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
+  ∃ (n : ℕ) (p : ImtProof),
+    S.time leg.chain n ≤ F.deadline ∧ Accepts h z0 hl S leg.chain n (legValue cv F leg) p
 
-/-- **THE ATOMICITY GATE.**  `requireFlowFinalized`: every leg of the flow carries
-finality evidence.  The loop is over all `n` legs, so this is a conjunction over
-the whole flow, not a statement about the executing leg. -/
-def FlowFinalized (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (F : Flow) : Prop :=
-  ∀ leg ∈ F.legs, LegFinalized h z0 hl S F.deadline leg
+/-- **THE ATOMICITY GATE.**  `requireFlowFinalized`: every leg of the presented
+flow carries finality evidence.  The loop is over all `n` legs, so this is a
+conjunction over the whole flow, not a statement about the executing leg. -/
+def FlowFinalized (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (F : Flow) : Prop :=
+  ∀ leg ∈ F.legs, LegFinalized h z0 hl cv S F leg
 
-/-- A leg is executed on its destination only through the gate:
-`executeAtomicBundle` calls `requireFlowFinalized` with the full flow, and
-`ManagerExecutingBundleNotInFlow` requires the executing bundle to be one of the
-legs, before any call runs. -/
-def ExecutedVia (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System)
-    (F : Flow) (leg : FlowLeg) : Prop :=
-  leg ∈ F.legs ∧ FlowFinalized h z0 hl S F
+/-- A leg is executed on its destination only through the gate as deployed:
+`executeAtomicBundle` calls `requireFlowFinalized`, which runs `_checkFlowId`,
+requires the executing bundle to be one of the legs
+(`ManagerExecutingBundleNotInFlow`), and verifies every leg — all before any call
+runs. -/
+def ExecutedVia (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (fh : FlowHash) (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
+  leg ∈ F.legs ∧ FlowIdChecked fh F ∧ FlowFinalized h z0 hl cv S F
+
+/-- **THE GATE WITHOUT `_checkFlowId`**: every leg of whatever leg list the
+executing party presents is verified, but nothing ties that list to the flow the
+legs were committed under.  `Properties.Atomicity.SubsetFlowPassesUncheckedGate` is
+what that costs. -/
+def ExecutedViaUncheckedFlowId (h : Hash) (z0 : UInt256) (hl : LeafHash)
+    (cv : CommitValue) (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
+  leg ∈ F.legs ∧ FlowFinalized h z0 hl cv S F
 
 /-- **THE GATE A NAIVE IMPLEMENTATION WOULD WRITE**: check only the executing
 leg's own inclusion, the way a non-atomic bundle checks its own L1 message.
 `Properties.Atomicity.SelfOnlyGateAdmitsMixedOutcome` is what that costs. -/
-def SelfOnlyGate (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System)
-    (F : Flow) (leg : FlowLeg) : Prop :=
-  leg ∈ F.legs ∧ LegFinalized h z0 hl S F.deadline leg
+def SelfOnlyGate (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
+  leg ∈ F.legs ∧ LegFinalized h z0 hl cv S F leg
 
 /-! ## Finalizability — what a prover can actually do -/
 
@@ -227,16 +279,17 @@ def SelfOnlyGate (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System)
 present for it, and the verifier accepts that proof.  This is `LegFinalized`
 strengthened by presentability, which is what makes it an operational claim rather
 than an existence claim. -/
-def LegFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (A : Access)
-    (D : ℕ) (leg : FlowLeg) : Prop :=
+def LegFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (A : Access) (F : Flow) (leg : FlowLeg) : Prop :=
   ∃ (n : ℕ) (p : ImtProof),
-    S.time leg.chain n ≤ D ∧ A leg.chain n p ∧ Accepts h z0 hl S leg.chain n leg.commit p
+    S.time leg.chain n ≤ F.deadline ∧ A leg.chain n p ∧
+      Accepts h z0 hl S leg.chain n (legValue cv F leg) p
 
 /-- The whole flow's gate can be satisfied with presentable proofs: every leg's
 destination can run `requireFlowFinalized` and pass. -/
-def FlowFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (A : Access)
-    (F : Flow) : Prop :=
-  ∀ leg ∈ F.legs, LegFinalizableBy h z0 hl S A F.deadline leg
+def FlowFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (A : Access) (F : Flow) : Prop :=
+  ∀ leg ∈ F.legs, LegFinalizableBy h z0 hl cv S A F leg
 
 /-! ## The refund side -/
 
@@ -263,30 +316,40 @@ in-time batch.
 
 Both are against the leg's declared source chain — the `ProofSourceChainMismatch`
 check in `authorizeRefund`, whose necessity is `Properties.Protocol`. -/
-def LegRefundable (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System)
-    (D : ℕ) (leg : FlowLeg) : Prop :=
+def LegRefundable (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
   ∃ (N : ℕ) (p : ImtProof),
-    (D < S.time leg.chain N ∧
+    (F.deadline < S.time leg.chain N ∧
         AbsenceAccepted h z0 hl (beginTree S leg.chain N) (beginHeight S leg.chain N)
-          leg.commit p)
-      ∨ (IsLastOnTime S leg.chain D N ∧
-          AbsenceAccepted h z0 hl (S.tree leg.chain N) (S.height leg.chain N) leg.commit p)
+          (legValue cv F leg) p)
+      ∨ (IsLastOnTime S leg.chain F.deadline N ∧
+          AbsenceAccepted h z0 hl (S.tree leg.chain N) (S.height leg.chain N)
+            (legValue cv F leg) p)
 
-/-! ## A concrete configuration, for the countermodels
+/-! ## Concrete configurations, for the countermodels
 
-Two chains.  Chain `0` commits `a` during batch 0; chain `1` never commits
-anything.  Batch numbers double as settlement timestamps, so with deadline `0`
-batch 0 is on time and every later batch is late. -/
+Two chains.  Chain `0` commits the value `a` during batch 0; chain `1` never
+commits anything.  Batch numbers double as settlement timestamps, so with deadline
+`0` batch 0 is on time and every later batch is late. -/
 
-/-- The mixed-state system: one leg committed, its sibling never committed. -/
+/-- The mixed-state system: one value committed, another never committed. -/
 def mixedSystem (a : UInt256) : System where
   tree := fun c _ => if c = 0 then insert setup a 0 else setup
   time := fun _ n => n
   height := fun c _ => if c = 0 then 1 else 0
 
-/-- The two-leg flow over `mixedSystem`: leg `a` on chain `0`, leg `b` on chain `1`. -/
-def mixedFlow (a b : UInt256) : Flow where
-  legs := [⟨0, a⟩, ⟨1, b⟩]
+/-- The real two-leg flow: leg `hA` on chain `0`, leg `hB` on chain `1`. -/
+def mixedFlow (id hA hB : UInt256) : Flow where
+  flowId := id
+  legs := [⟨0, hA⟩, ⟨1, hB⟩]
+  deadline := 0
+
+/-- The truncated flow an executing party would present without `_checkFlowId`:
+the SAME claimed `flowId`, with the uncommitted leg omitted.  Its legs' commit
+values are unchanged, since they are computed from the claimed id. -/
+def subsetFlow (id hA : UInt256) : Flow where
+  flowId := id
+  legs := [⟨0, hA⟩]
   deadline := 0
 
 end Contracts.Atomicity

@@ -154,6 +154,104 @@ theorem lowSearch_sound {T : Tree} (hV : Valid T) {v : UInt256} :
       cases Option.some.inj h
       exact ⟨hi, hlow⟩
 
+/-! ### Termination
+
+The measure: the occupied leaves whose value lies strictly between the current
+leaf's value and `v`.  Each hop lands on one of them and removes it, because the
+interval's lower endpoint rises to that leaf's own value. -/
+
+/-- The termination measure. -/
+private def above (T : Tree) (v : UInt256) (i : ℕ) : Finset ℕ :=
+  (Finset.range T.leafCount).filter
+    (fun k => (T.leaf i).value < (T.leaf k).value ∧ (T.leaf k).value < v)
+
+private lemma mem_above {T : Tree} {v : UInt256} {i k : ℕ} :
+    k ∈ above T v i ↔
+      k < T.leafCount ∧ (T.leaf i).value < (T.leaf k).value ∧ (T.leaf k).value < v := by
+  simp [above, Finset.mem_filter, Finset.mem_range, and_assoc]
+
+private lemma above_card_le (T : Tree) (v : UInt256) (i : ℕ) :
+    (above T v i).card ≤ T.leafCount := by
+  have h : above T v i ⊆ Finset.range T.leafCount :=
+    fun k hk => Finset.mem_range.mpr (mem_above.mp hk).1
+  simpa using Finset.card_le_card h
+
+/-- The hop target is one of the leaves the measure counts: `linkAgree` puts it in
+range with value `nextValue`, and `WindowPos` puts that value above the current
+leaf's own. -/
+private lemma next_mem_above {T : Tree} (hV : Valid T) {v : UInt256} {i : ℕ}
+    (hi : i < T.leafCount) (hnz : (T.leaf i).nextValue ≠ 0)
+    (hlt : (T.leaf i).nextValue < v) : (T.leaf i).nextIndex ∈ above T v i := by
+  obtain ⟨hb, hval⟩ := hV.linkAgree i hi hnz
+  have hpos : (T.leaf i).value < (T.leaf i).nextValue := by
+    rcases hV.absSound.2.2.2 (lowAbs T i) (lowAbs_mem hi) with h0 | hgt
+    · exact absurd (h0 : (T.leaf i).nextValue = 0) hnz
+    · exact hgt
+  exact mem_above.mpr ⟨hb, by rw [hval]; exact hpos, by rw [hval]; exact hlt⟩
+
+/-- …and the measure strictly decreases, because the target is above the current
+leaf but not above itself. -/
+private lemma above_card_lt {T : Tree} (hV : Valid T) {v : UInt256} {i : ℕ}
+    (hi : i < T.leafCount) (hnz : (T.leaf i).nextValue ≠ 0)
+    (hlt : (T.leaf i).nextValue < v) :
+    (above T v (T.leaf i).nextIndex).card < (above T v i).card := by
+  have hn := next_mem_above hV hi hnz hlt
+  have hsub : above T v (T.leaf i).nextIndex ⊆ above T v i := by
+    intro k hk
+    obtain ⟨hk1, hk2, hk3⟩ := mem_above.mp hk
+    exact mem_above.mpr ⟨hk1, lt_trans (mem_above.mp hn).2.1 hk2, hk3⟩
+  refine Finset.card_lt_card ?_
+  rw [Finset.ssubset_iff_of_subset hsub]
+  exact ⟨(T.leaf i).nextIndex, hn, fun hmem => absurd (mem_above.mp hmem).2.1 (lt_irrefl _)⟩
+
+/-- **THE SEARCH RETURNS WHENEVER THE FUEL COVERS THE MEASURE.** -/
+theorem lowSearch_of_fuel_ge {T : Tree} (hV : Valid T) {v : UInt256} :
+    ∀ (fuel i : ℕ), i < T.leafCount → (above T v i).card ≤ fuel →
+      ∃ j, lowSearch T v fuel i = some j := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro i hi hcard
+    unfold lowSearch
+    by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
+    · exfalso
+      have hpos : 0 < (above T v i).card :=
+        Finset.card_pos.mpr ⟨_, next_mem_above hV hi hc.1 hc.2⟩
+      omega
+    · rw [if_neg hc]; exact ⟨i, rfl⟩
+  | succ fuel ih =>
+    intro i hi hcard
+    unfold lowSearch
+    by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
+    · rw [if_pos hc]
+      obtain ⟨hb, _⟩ := hV.linkAgree i hi hc.1
+      have hdec := above_card_lt hV hi hc.1 hc.2
+      exact ih _ hb (by omega)
+    · rw [if_neg hc]; exact ⟨i, rfl⟩
+
+/-- **THE SEARCH TERMINATES.**  `leafCount` hops always suffice. -/
+theorem lowSearch_terminates {T : Tree} (hV : Valid T) (v : UInt256) (i : ℕ)
+    (hi : i < T.leafCount) : ∃ j, lowSearch T v T.leafCount i = some j :=
+  lowSearch_of_fuel_ge hV _ i hi (above_card_le T v i)
+
+/-- **THE REVERT IS REACHABLE.**  Minimal witness that a fixed fuel is not enough
+in general: with zero hops the walk reverts, with one it succeeds. -/
+theorem lowSearch_can_revert {a v : UInt256} (ha : 0 < a) (hav : a < v) :
+    lowSearch (insert setup a 0) v 0 0 = none
+      ∧ lowSearch (insert setup a 0) v 1 0 = some 1 := by
+  have h0 : ((insert setup a 0).leaf 0).nextValue = a := by simp [insert, setup]
+  have h0i : ((insert setup a 0).leaf 0).nextIndex = 1 := by simp [insert, setup]
+  have h1 : ((insert setup a 0).leaf 1).nextValue = 0 := by simp [insert, setup]
+  have hcond : ((insert setup a 0).leaf 0).nextValue ≠ 0
+      ∧ ((insert setup a 0).leaf 0).nextValue < v := by
+    rw [h0]; exact ⟨ne_of_gt ha, hav⟩
+  refine ⟨?_, ?_⟩
+  · unfold lowSearch; rw [if_pos hcond]
+  · unfold lowSearch
+    rw [if_pos hcond, h0i]
+    unfold lowSearch
+    rw [if_neg (by simp [h1])]
+
 /-- The contract's `insert` flow establishes the guard at the index the search
 returns. -/
 theorem search_yields_guard {T : Tree} (hV : Valid T) {v : UInt256} {fuel i j : ℕ}
@@ -446,6 +544,10 @@ theorem RegisteredIsKey : Properties.InteropCommitmentTree.RegisteredIsKey := @r
 theorem GateIffAbsent : Properties.InteropCommitmentTree.GateIffAbsent := @gate_iff_absent
 theorem LowSearchWindow : Properties.InteropCommitmentTree.LowSearchWindow := @lowSearch_window
 theorem LowSearchSound : Properties.InteropCommitmentTree.LowSearchSound := @lowSearch_sound
+theorem LowSearchTerminates : Properties.InteropCommitmentTree.LowSearchTerminates :=
+  @lowSearch_terminates
+theorem LowSearchCanRevert : Properties.InteropCommitmentTree.LowSearchCanRevert :=
+  @lowSearch_can_revert
 theorem SearchYieldsGuard : Properties.InteropCommitmentTree.SearchYieldsGuard :=
   @search_yields_guard
 theorem InsertProjects : Properties.InteropCommitmentTree.InsertProjects := @insert_projects

@@ -4,9 +4,9 @@ Machine-checked specification of ZKsync Era's atomic interop **protocol**, in Le
 depending on Mathlib and nothing else.
 
 No EVM semantics. No compiler output. Every theorem here is about abstract states
-and operations, and every one is fully proved — 637 theorems, 0 depending on
+and operations, and every one is fully proved — 668 theorems, 0 depending on
 anything beyond Lean's three standard axioms, 0 `sorry`, 0 axioms declared. The
-guarantees themselves are catalogued as 60 named properties, 59 proved and 1 open.
+guarantees themselves are catalogued as 70 named properties, all 70 proved.
 
 ```bash
 lake build                      # ~2 min with a warm Mathlib
@@ -29,7 +29,8 @@ EraSpec/
     ├─ AtomicFlowManager       the per-leg refund state machine
     ├─ Protocol                the multi-chain composition
     ├─ TreeRoot                the hash-tree root and the two proof verifiers
-    └─ Atomicity               the flow gate: partial atomicity, none-or-all
+    ├─ Atomicity               the flow gate: partial atomicity, none-or-all
+    └─ Refund                  manager × tree × time: all-or-nothing
 ```
 
 A review is two readings and one script:
@@ -177,7 +178,7 @@ is the other half: once any leg executes, no leg of the flow can pass the timeou
 gate on either branch — a late batch comes after every on-time one, and so does the
 last on-time batch.
 
-Both hypotheses are load-bearing, each with a countermodel.
+Three hypotheses are load-bearing, each with a countermodel.
 `SelfOnlyGateAdmitsMixedOutcome` builds a well-formed two-chain system in which a
 gate checking only the executing leg lets one leg execute while its sibling is
 refundable; `FullGateBlocksMixedOutcome` shows the real gate refuses in that same
@@ -185,6 +186,34 @@ state. `WithoutDaCommittedLegIsStuck` shows that without DA a committed leg is
 neither finalizable (no proof is presentable) nor refundable (it really is in the
 tree), so the failure mode there is stranded funds rather than a double spend — and
 it is not a contract defect, which is why DA is an assumption and not an obligation.
+
+The third is about *which* flow. The flow is calldata, and `flowId` is a field next
+to the leg list, so the commit value each proof is checked against is computed from
+the *claimed* id. An executing party that could present its own leg list would omit
+the legs that were never committed, and every remaining proof would still verify.
+`SubsetFlowPassesUncheckedGate` is that attack; `_checkFlowId` is what stops it,
+and `FlowIdCheckPinsLegList` proves the recomputation makes "the checked flow with
+id X" unique, so `ExecutedImpliesRealFlowFinalizable` is the guarantee about the
+real flow rather than the presented one. Modelling a leg's commit value as a
+free-standing number would have hidden this entirely — it did, in the first version
+of this file.
+
+### `Refund` — all or nothing
+
+`AtomicFlowManager` says a refund cannot be taken twice. `Atomicity` says an
+executed leg cannot be proven absent. Neither says a refund cannot happen *after*
+an execution, because neither knows about both halves at once. This file composes
+them: the same per-leg state machine with the guard `authorizeRefund` actually
+checks, a verified timeout proof.
+
+`NoExecutedLegAndRefundedLeg` is the capstone. No flow has both a leg executed on
+its destination and a leg refunded on its source chain. The manager side is one
+induction: only `authorize` can lift a leg past `Committed`, and it carries the
+proof, while `claim` needs `Revertable` already and so inherits it. The tree side
+is `ExecutedExcludesAnyRefund`. And the other branch is live:
+`TimeoutProofRefundsEveryCommittedLeg` shows that once a timeout proof exists,
+every leg still `Committed` can be moved to `Revertable`, which is why a timed-out
+flow refunds all of its committed legs rather than some of them.
 
 ### `Core/` — the mathematics
 
@@ -235,7 +264,7 @@ has never been tested:
   shows as `OPEN`.
 - **`scripts/audit-axioms.sh`** → `scripts/Audit.lean`. Enumerates every theorem and
   the axioms it depends on. An earlier regex version found 327 theorems and called
-  them all clean; the environment found 471 (637 now) — it was silently missing
+  them all clean; the environment found 471 (668 now) — it was silently missing
   144, every `private lemma` among them. It also asserts EraSpec declares no axioms.
 - **`scripts/check-word-fidelity.sh`**. `Word.lean` is a trimmed copy of Clear's
   `UInt256.lean`; a copy is only worth having while it is still a copy. Diffs all 23

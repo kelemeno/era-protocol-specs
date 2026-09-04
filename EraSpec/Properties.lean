@@ -3,6 +3,7 @@ import EraSpec.Properties.AtomicFlowManager
 import EraSpec.Properties.Protocol
 import EraSpec.Properties.TreeRoot
 import EraSpec.Properties.Atomicity
+import EraSpec.Properties.Refund
 
 /-!
 # The property catalogue
@@ -45,16 +46,24 @@ anywhere, and the checker keeps the list honest.
 * `Atomicity` — **partial atomicity, none-or-all**: if any leg of a flow is
   executed then every leg can be finalized, given data availability; equivalently,
   either all legs are finalizable or none executes.  Also: execution excludes every
-  refund in the flow, on both timeout branches; finalizability does not decay; and
-  two countermodels showing the all-legs gate and the DA assumption are each
+  refund in the flow, on both timeout branches; finalizability does not decay; the
+  flow-id check pins which leg list "the flow" means; and three countermodels
+  showing the all-legs loop, the flow-id check and the DA assumption are each
   load-bearing.  This answers the question `AttackVectors.FlowAtomicity`'s header
   leaves open — same-outcome *is* forced, by `requireFlowFinalized`'s loop.
+* `Refund` — the manager × tree × time composition: no leg leaves `Committed`
+  without a verified timeout proof, and **no flow has both an executed leg and a
+  refunded leg** (`NoExecutedLegAndRefundedLeg`) — all-or-nothing at the outcome
+  level.  The other branch is live: once a timeout proof exists, every committed
+  leg can be moved to `Revertable`.
 
 ## Open (stated in Lean, no certificate yet)
 
-* `InteropCommitmentTree.LowSearchTerminates` — with `leafCount` fuel the search
-  from any occupied hint returns.  Provable now: values strictly increase along
-  `nextIndex` links and there are finitely many leaves.
+None.  Every stated property has a certificate; `scripts/check-properties.sh`
+reports `open: 0`.  That is a fact about the catalogue, not about the protocol —
+what is *not stated* is the roadmap below, and the checker cannot see it.  The
+`OPEN` path stays exercised by the checker's own self-test (plant a
+`def Bogus : Prop := False` in any `Properties/` file and it must report it).
 
 ## Roadmap — properties worth stating next, and what the model needs first
 
@@ -62,36 +71,32 @@ These are the high-level guarantees the protocol is *for*, in rough order of
 value.  Each needs a model extension before it can be a `def` here; the pieces
 that already exist are named.
 
-1. **Composed refund soundness** (manager × tree × time).  `Atomicity` has the
-   half that matters most — an executed leg is unrefundable, system-wide
-   (`ExecutedExcludesAnyRefund`) — but it says nothing about the manager's own
-   state.  The missing statement is *a leg the manager marks `Reverted` was never
-   delivered on time*: `AtomicFlowManager.Step.authorize` guarded by
-   `LegRefundable`, composed with `Atomicity.System`.  Needs the two models joined
-   into one state; both halves already exist.
-
-2. **Once-per-leg across contracts.**  *A commit value enters its source tree at
-   most once in any composed run.*  `NoDoubleAppend` (manager) composed with
-   `DedupGateSound` (tree).  Needs the composed state of (1).
-
-3. **Height and capacity.**  Model `FullMerkle._height` in `Tree` and prove
+1. **Height and capacity.**  Model `FullMerkle._height` in `Tree` and prove
    `leafCount ≤ 2^height` along runs, discharging `TreeRoot`'s `hcap` hypotheses
-   and `Atomicity.Wf.capacity` instead of assuming them.  Small model change, and
-   it is now load-bearing in two files rather than one.
+   and `Atomicity.Wf.capacity` instead of assuming them.  A refactor rather than a
+   new argument — `pushNewLeaf` grows the height exactly when the new leaf would
+   not fit, so the bound is inductive — but it touches the model files a reviewer
+   reads, and the assumption is now load-bearing in two of them.
 
-4. **`IsLastOnTime` from the aggregation tree.**  `Atomicity` assumes the END-root
+2. **`IsLastOnTime` from the aggregation tree.**  `Atomicity` assumes the END-root
    timeout branch really identifies the chain's last in-time batch; that is what
    `_verifyLastBatchInRoot` plus a post-deadline settlement-layer root establish.
-   `AttackVectors.LastBatchInRoot` has the path argument. Composing them needs a
+   `AttackVectors.LastBatchInRoot` has the path argument.  Composing them needs a
    model of the aggregation tree — the largest extension here, and the last
    assumption in the refund story that is not either a hash idealization or DA.
 
-5. **The flow-id binding** (obligation O8 in `EraSpec.Refinement`).  `Atomicity`
-   takes the flow as given.  What stops a prover from presenting a *subset* flow
-   containing only the committed legs is `_checkFlowId` recomputing
-   `keccak(legBundleHashes, legSourceChainIds, deadline, settlementLayerChainId)`.
-   Stating that here needs the flow-hash injectivity assumption
-   (`AttackVectors.BundleHashEncoding` is the encoding half).
+3. **Once-per-leg across contracts.**  *A commit value enters its source tree at
+   most once in any composed run.*  `AtomicFlowManager.NoDoubleAppend` composed
+   with `InteropCommitmentTree.DedupGateSound`.  Needs the manager key
+   `(flowId, bundleHash)` tied to the tree value `commitValue(flowId, bundleHash)`,
+   which `Contracts.Refund` deliberately leaves unrelated — so it needs
+   `commitValue` injectivity as a further hash assumption.
+
+4. **The compiled side of O8.**  `Properties.Atomicity.FlowIdCheckPinsLegList` is
+   the protocol half of the flow-id binding.  The other half — that the compiled
+   `_checkFlowId` recomputes that exact hash and reverts on mismatch, and that the
+   verification loop covers every index — is source inspection, recorded as O8 in
+   `EraSpec.Refinement`.
 
 What is deliberately NOT on this list: anything about compiled code (obligations
 O1–O7 in `EraSpec.Refinement`), which belongs to the sibling repo.

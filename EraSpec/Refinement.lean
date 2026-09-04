@@ -3,6 +3,7 @@ import EraSpec.Proofs.AtomicFlowManager
 import EraSpec.Proofs.Protocol
 import EraSpec.Proofs.TreeRoot
 import EraSpec.Proofs.Atomicity
+import EraSpec.Proofs.Refund
 
 /-!
 # Refinement obligations
@@ -157,10 +158,17 @@ transfer:
    `legBundleHashes` is what makes the preimage canonical, so the same leg set has
    one encoding.
 
-*Status:* source inspection. The loop is a plain `for` over the array whose length
-was just checked, so (1) is a reading task rather than a proof task; (2) reduces to
-keccak injectivity over the flow encoding, the same assumption
+*Status:* (2) is now proved at protocol level:
+`Properties.Atomicity.FlowIdCheckPinsLegList` shows two checked flows claiming one
+id are the same flow, `SubsetFlowPassesUncheckedGate` is the attack without the
+check, and `SubsetFlowRejectedByCheck` is the check refusing it. What remains on
+the compiled side is that `_checkFlowId` recomputes *that* hash and reverts on
+mismatch — plus flow-hash injectivity, the same keccak assumption
 `AttackVectors.BundleHashEncoding` isolates for bundle hashes.
+
+(1) is source inspection. The loop is a plain `for` over the array whose length was
+just checked, so it is a reading task rather than a proof task — but it is the kind
+that an edit can break while every proof stays green.
 
 ### DA is an assumption of neither repo
 
@@ -236,5 +244,12 @@ abbrev all_legs_gate_necessity := @Proofs.Atomicity.SelfOnlyGateAdmitsMixedOutco
 
 /-- The countermodel that makes the DA hypothesis load-bearing. -/
 abbrev da_necessity := @Proofs.Atomicity.WithoutDaCommittedLegIsStuck
+
+/-- The countermodel that makes O8's flow-id recomputation load-bearing: without
+it, a truncated flow passes the gate. -/
+abbrev flowid_necessity := @Proofs.Atomicity.SubsetFlowPassesUncheckedGate
+
+/-- All or nothing: no flow has both an executed leg and a refunded leg. -/
+abbrev all_or_nothing := @Proofs.Refund.NoExecutedLegAndRefundedLeg
 
 end EraSpec.Refinement

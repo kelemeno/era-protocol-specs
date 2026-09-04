@@ -14,6 +14,7 @@ import EraSpec.Contracts.AtomicFlowManager
 import EraSpec.Contracts.Protocol
 import EraSpec.Contracts.TreeRoot
 import EraSpec.Contracts.Atomicity
+import EraSpec.Contracts.Refund
 
 -- PROPERTIES: the statements, one `Prop` each, no proofs
 import EraSpec.Properties
@@ -24,6 +25,7 @@ import EraSpec.Proofs.AtomicFlowManager
 import EraSpec.Proofs.Protocol
 import EraSpec.Proofs.TreeRoot
 import EraSpec.Proofs.Atomicity
+import EraSpec.Proofs.Refund
 
 -- The obligations that connect this package to the compiled-code proofs
 import EraSpec.Refinement

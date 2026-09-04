@@ -7,8 +7,8 @@ import EraSpec.Proofs.TreeRoot
 Proofs of `EraSpec.Properties.Atomicity`.  Three ingredients do the work, and each
 comes from a layer below: `inclusion_sound` (the finality signal means membership),
 `reaches_keys_mono` (the signal is permanent), and `inclusion_complete` (a member
-has an honest proof).  What this file adds is the batch/chain bookkeeping and the
-timestamp arguments for the two timeout branches.
+has an honest proof).  What this file adds is the batch/chain bookkeeping, the
+timestamp arguments for the two timeout branches, and the flow-id reasoning.
 -/
 
 namespace Contracts.Atomicity
@@ -59,19 +59,20 @@ theorem honest_accepts {h : Hash} {z0 : UInt256} {hl : LeafHash} {S : System}
   exact hcomp
 
 /-- A committed value at an on-time batch is finalized: the evidence exists. -/
-theorem member_is_finalized {h : Hash} {z0 : UInt256} {hl : LeafHash} {S : System}
-    (hS : Wf S) {D : ℕ} {leg : FlowLeg} {n : ℕ} (hon : S.time leg.chain n ≤ D)
-    (hmem : leg.commit ∈ keys (toAbs (S.tree leg.chain n))) :
-    LegFinalized h z0 hl S D leg := by
+theorem member_is_finalized {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {S : System} (hS : Wf S) {F : Flow} {leg : FlowLeg} {n : ℕ}
+    (hon : S.time leg.chain n ≤ F.deadline)
+    (hmem : legValue cv F leg ∈ keys (toAbs (S.tree leg.chain n))) :
+    LegFinalized h z0 hl cv S F leg := by
   obtain ⟨i, _, hacc⟩ := honest_accepts hS hmem
   exact ⟨n, honestProof h z0 hl S leg.chain n i, hon, hacc⟩
 
 /-- **MEMBERSHIP PLUS DA GIVES A PRESENTABLE, ACCEPTED PROOF.** -/
-theorem member_is_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash} {S : System}
-    (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A) {D : ℕ} {leg : FlowLeg}
-    {n : ℕ} (hon : S.time leg.chain n ≤ D)
-    (hmem : leg.commit ∈ keys (toAbs (S.tree leg.chain n))) :
-    LegFinalizableBy h z0 hl S A D leg := by
+theorem member_is_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {S : System} (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A)
+    {F : Flow} {leg : FlowLeg} {n : ℕ} (hon : S.time leg.chain n ≤ F.deadline)
+    (hmem : legValue cv F leg ∈ keys (toAbs (S.tree leg.chain n))) :
+    LegFinalizableBy h z0 hl cv S A F leg := by
   obtain ⟨i, hi, hacc⟩ := honest_accepts hS hmem
   exact ⟨n, honestProof h z0 hl S leg.chain n i, hon, hDA _ _ _ hi, hacc⟩
 
@@ -79,20 +80,20 @@ theorem member_is_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash} {S : Sys
 
 /-- **PARTIAL ATOMICITY.**  One leg executed ⟹ every leg finalizable. -/
 theorem executed_implies_all_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {S : System} (hS : Wf S) {A : Access}
-    (hDA : DataAvailable h z0 hl S A) {F : Flow} {leg : FlowLeg}
-    (hex : ExecutedVia h z0 hl S F leg) :
-    FlowFinalizableBy h z0 hl S A F := by
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {S : System}
+    (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A) {F : Flow} {leg : FlowLeg}
+    (hex : ExecutedVia h z0 hl cv fh S F leg) :
+    FlowFinalizableBy h z0 hl cv S A F := by
   intro other hother
-  obtain ⟨n, p, hon, hacc⟩ := hex.2 other hother
+  obtain ⟨n, p, hon, hacc⟩ := hex.2.2 other hother
   exact member_is_finalizable hS hDA hon (finality_means_membership hA hacc)
 
 /-- **NONE OR ALL.** -/
 theorem none_or_all {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {S : System} (hS : Wf S) {A : Access}
-    (hDA : DataAvailable h z0 hl S A) (F : Flow) :
-    FlowFinalizableBy h z0 hl S A F ∨ ∀ leg, ¬ ExecutedVia h z0 hl S F leg := by
-  by_cases hex : ∃ leg, ExecutedVia h z0 hl S F leg
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {S : System}
+    (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A) (F : Flow) :
+    FlowFinalizableBy h z0 hl cv S A F ∨ ∀ leg, ¬ ExecutedVia h z0 hl cv fh S F leg := by
+  by_cases hex : ∃ leg, ExecutedVia h z0 hl cv fh S F leg
   · obtain ⟨leg, hleg⟩ := hex
     exact Or.inl (executed_implies_all_finalizable hA hS hDA hleg)
   · push_neg at hex
@@ -100,14 +101,14 @@ theorem none_or_all {h : Hash} {z0 : UInt256} {hl : LeafHash}
 
 /-- **FINALIZABILITY DOES NOT DECAY.** -/
 theorem executed_implies_finality_persists {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {S : System} (hS : Wf S) {A : Access}
-    (hDA : DataAvailable h z0 hl S A) {F : Flow} {leg : FlowLeg}
-    (hex : ExecutedVia h z0 hl S F leg) :
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {S : System}
+    (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A) {F : Flow} {leg : FlowLeg}
+    (hex : ExecutedVia h z0 hl cv fh S F leg) :
     ∀ other ∈ F.legs, ∃ n, S.time other.chain n ≤ F.deadline ∧
       ∀ m, n ≤ m → S.time other.chain m ≤ F.deadline →
-        ∃ p, A other.chain m p ∧ Accepts h z0 hl S other.chain m other.commit p := by
+        ∃ p, A other.chain m p ∧ Accepts h z0 hl S other.chain m (legValue cv F other) p := by
   intro other hother
-  obtain ⟨n, p, hon, hacc⟩ := hex.2 other hother
+  obtain ⟨n, p, hon, hacc⟩ := hex.2.2 other hother
   refine ⟨n, hon, ?_⟩
   intro m hnm _
   obtain ⟨i, hi, hacc'⟩ :=
@@ -126,10 +127,11 @@ the one that proved inclusion", where membership persists and
 * END branch — the batch is the last on-time one, so it is at or after every
   on-time batch, the inclusion batch included. -/
 theorem executed_excludes_any_refund {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {S : System} (hS : Wf S) {F : Flow} {leg : FlowLeg}
-    (hex : ExecutedVia h z0 hl S F leg) (other : FlowLeg) (hother : other ∈ F.legs) :
-    ¬ LegRefundable h z0 hl S F.deadline other := by
-  obtain ⟨n, p, hon, hacc⟩ := hex.2 other hother
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {S : System}
+    (hS : Wf S) {F : Flow} {leg : FlowLeg} (hex : ExecutedVia h z0 hl cv fh S F leg)
+    (other : FlowLeg) (hother : other ∈ F.legs) :
+    ¬ LegRefundable h z0 hl cv S F other := by
+  obtain ⟨n, p, hon, hacc⟩ := hex.2.2 other hother
   have hmem := finality_means_membership hA hacc
   rintro ⟨N, q, hbranch⟩
   rcases hbranch with ⟨hlate, habs⟩ | ⟨⟨_, hlast⟩, habs⟩
@@ -149,6 +151,27 @@ theorem executed_excludes_any_refund {h : Hash} {z0 : UInt256} {hl : LeafHash}
     exact verified_absence_excludes_delivered hA (valid_batch hS other.chain N) habs
       (keys_mono_batch hS other.chain hnN hmem)
 
+/-! ## The flow-id check -/
+
+/-- **`_checkFlowId` PINS THE LEG LIST.**  Two checked flows claiming the same id
+are the same flow, so "the checked flow with id `X`" is well defined. -/
+theorem flowId_check_pins_legList {fh : FlowHash} (hinj : FlowHashInj fh) {F F' : Flow}
+    (hF : FlowIdChecked fh F) (hF' : FlowIdChecked fh F') (hid : F.flowId = F'.flowId) :
+    F = F' := by
+  obtain ⟨hlegs, hdl⟩ := hinj _ _ _ _ (hF.trans (hid.trans hF'.symm))
+  cases F; cases F'
+  simp_all
+
+/-- **PARTIAL ATOMICITY OVER THE REAL FLOW.** -/
+theorem executed_implies_real_flow_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} (hinj : FlowHashInj fh)
+    {S : System} (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A)
+    {F F' : Flow} {leg : FlowLeg} (hex : ExecutedVia h z0 hl cv fh S F leg)
+    (hF' : FlowIdChecked fh F') (hid : F.flowId = F'.flowId) :
+    FlowFinalizableBy h z0 hl cv S A F' := by
+  obtain rfl : F = F' := flowId_check_pins_legList hinj hex.2.1 hF' hid
+  exact executed_implies_all_finalizable hA hS hDA hex
+
 /-! ## The concrete configuration -/
 
 @[simp] lemma mixedSystem_tree_zero (a : UInt256) (n : ℕ) :
@@ -167,9 +190,6 @@ lemma mixedSystem_height_other {a : UInt256} {c : Chain} (hc : c ≠ 0) (n : ℕ
     (mixedSystem a).time c n = n := rfl
 
 lemma insertSetup_leafCount (a : UInt256) : (insert setup a 0).leafCount = 2 := rfl
-
-lemma insertSetup_valid {a : UInt256} (ha : 0 < a) : Valid (insert setup a 0) :=
-  insert_preserves_valid setup_valid (setup_insertGuard ha)
 
 /-- The committed leg really is a key of chain `0`'s tree. -/
 lemma mem_insertSetup {a : UInt256} (ha : 0 < a) : a ∈ keys (toAbs (insert setup a 0)) := by
@@ -212,90 +232,135 @@ lemma mixedSystem_wf {a : UInt256} (ha : 0 < a) : Wf (mixedSystem a) := by
       show (1 : ℕ) ≤ 2 ^ 0
       norm_num
 
-/-- **THE ALL-LEGS LOOP IS NECESSARY.**  A self-only gate admits one leg executed
-with its sibling refundable. -/
+/-- Leg `hA` is finalized under any flow claiming id `id` — including a truncated
+one, since the commit value is computed from the claimed id. -/
+private lemma legA_finalized {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {id hA : UInt256} (ha : 0 < cv id hA) (F : Flow) (hid : F.flowId = id) :
+    LegFinalized h z0 hl cv (mixedSystem (cv id hA)) F ⟨0, hA⟩ := by
+  refine member_is_finalized (mixedSystem_wf ha) (leg := ⟨0, hA⟩) (n := 0) (by simp) ?_
+  show legValue cv F ⟨0, hA⟩ ∈ keys (toAbs ((mixedSystem (cv id hA)).tree 0 0))
+  rw [mixedSystem_tree_zero]
+  show cv F.flowId hA ∈ _
+  rw [hid]
+  exact mem_insertSetup ha
+
+/-- Leg `hB` is refundable: absent from chain `1`'s tree, and batch 1 settled after
+the deadline. -/
+private lemma legB_refundable {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {id hA hB : UInt256} (hb : 0 < cv id hB) :
+    LegRefundable h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨1, hB⟩ := by
+  obtain ⟨ℓ, idx, habs⟩ :=
+    non_inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := setup) (height := 0)
+      setup_valid (by norm_num [setup]) (ne_of_gt hb) (not_mem_setup hb)
+  refine ⟨1, ⟨ℓ, idx, honestSibs h z0 (leafHashes hl setup) idx, 0⟩, Or.inl ⟨?_, ?_⟩⟩
+  · show (mixedFlow id hA hB).deadline < (mixedSystem (cv id hA)).time 1 1
+    simp [mixedFlow]
+  · show AbsenceAccepted h z0 hl (beginTree (mixedSystem (cv id hA)) 1 1)
+      (beginHeight (mixedSystem (cv id hA)) 1 1) (legValue cv (mixedFlow id hA hB) ⟨1, hB⟩) _
+    show AbsenceAccepted h z0 hl ((mixedSystem (cv id hA)).tree 1 0)
+      ((mixedSystem (cv id hA)).height 1 0) (cv id hB) _
+    rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0),
+        mixedSystem_height_other (by decide : (1 : Chain) ≠ 0)]
+    exact habs
+
+/-- Leg `hB` is not finalized: chain `1`'s only on-time batch has an empty tree. -/
+private lemma legB_not_finalized {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    (hA' : HashAssumptions h z0 hl) {id hA hB : UInt256} (hb : 0 < cv id hB) :
+    ¬ LegFinalized h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨1, hB⟩ := by
+  rintro ⟨n, p, hon, hacc⟩
+  obtain rfl : n = 0 := by
+    have : n ≤ 0 := by simpa [mixedFlow] using hon
+    omega
+  have hmem := finality_means_membership hA' hacc
+  rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0)] at hmem
+  exact not_mem_setup hb (by simpa [mixedFlow, legValue] using hmem)
+
+/-! ## What is load-bearing -/
+
+/-- **WITHOUT `_checkFlowId`, A TRUNCATED FLOW PASSES THE GATE.** -/
+theorem subset_flow_passes_unchecked_gate {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (_hA : HashAssumptions h z0 hl) {cv : CommitValue} {id hA hB : UInt256}
+    (ha : 0 < cv id hA) (hb : 0 < cv id hB) :
+    Wf (mixedSystem (cv id hA))
+      ∧ ExecutedViaUncheckedFlowId h z0 hl cv (mixedSystem (cv id hA))
+          (subsetFlow id hA) ⟨0, hA⟩
+      ∧ LegRefundable h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨1, hB⟩ := by
+  refine ⟨mixedSystem_wf ha, ⟨by simp [subsetFlow], ?_⟩, legB_refundable hb⟩
+  intro leg hleg
+  obtain rfl : leg = ⟨0, hA⟩ := List.mem_singleton.mp hleg
+  exact legA_finalized ha _ rfl
+
+/-- **THE CHECK REJECTS IT.** -/
+theorem subset_flow_rejected_by_check {fh : FlowHash} (hinj : FlowHashInj fh)
+    (id hA hB : UInt256) (hreal : FlowIdChecked fh (mixedFlow id hA hB)) :
+    ¬ FlowIdChecked fh (subsetFlow id hA) := by
+  intro hsub
+  have heq := flowId_check_pins_legList hinj hreal hsub rfl
+  have hlegs := congrArg Flow.legs heq
+  simp [mixedFlow, subsetFlow] at hlegs
+
+/-- **THE ALL-LEGS LOOP IS NECESSARY.** -/
 theorem selfOnly_gate_admits_mixed_outcome {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (_hA : HashAssumptions h z0 hl) {a b : UInt256} (ha : 0 < a) (hb : 0 < b) :
-    Wf (mixedSystem a) ∧ FlowWf (mixedFlow a b)
-      ∧ SelfOnlyGate h z0 hl (mixedSystem a) (mixedFlow a b) ⟨0, a⟩
-      ∧ LegRefundable h z0 hl (mixedSystem a) (mixedFlow a b).deadline ⟨1, b⟩ := by
-  have hS := mixedSystem_wf ha
-  refine ⟨hS, ?_, ⟨by simp [mixedFlow], ?_⟩, ?_⟩
-  · intro leg hleg
-    have hleg' : leg = ⟨0, a⟩ ∨ leg = ⟨1, b⟩ := by
-      rcases List.mem_cons.mp hleg with hh | hh
-      · exact Or.inl hh
-      · exact Or.inr (List.mem_singleton.mp hh)
-    rcases hleg' with hh | hh <;> rw [hh]
-    · exact ne_of_gt ha
-    · exact ne_of_gt hb
-  · -- leg `a` is committed on chain 0 at batch 0, which is on time for deadline 0
-    refine member_is_finalized hS (leg := ⟨0, a⟩) (n := 0) (by simp [mixedFlow]) ?_
-    show a ∈ keys (toAbs ((mixedSystem a).tree 0 0))
-    rw [mixedSystem_tree_zero]
-    exact mem_insertSetup ha
-  · -- leg `b` is absent from chain 1's tree, and batch 1 settled after the deadline
-    obtain ⟨ℓ, idx, habs⟩ :=
-      non_inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := setup) (height := 0)
-        setup_valid (by norm_num [setup]) (ne_of_gt hb) (not_mem_setup hb)
-    refine ⟨1, ⟨ℓ, idx, honestSibs h z0 (leafHashes hl setup) idx, 0⟩, Or.inl ⟨?_, ?_⟩⟩
-    · show (mixedFlow a b).deadline < (mixedSystem a).time 1 1
-      simp [mixedFlow]
-    · show AbsenceAccepted h z0 hl (beginTree (mixedSystem a) 1 1)
-        (beginHeight (mixedSystem a) 1 1) b _
-      show AbsenceAccepted h z0 hl ((mixedSystem a).tree 1 0)
-        ((mixedSystem a).height 1 0) b _
-      rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0),
-          mixedSystem_height_other (by decide : (1 : Chain) ≠ 0)]
-      exact habs
+    (_hA : HashAssumptions h z0 hl) {cv : CommitValue} {id hA hB : UInt256}
+    (ha : 0 < cv id hA) (hb : 0 < cv id hB) :
+    Wf (mixedSystem (cv id hA)) ∧ FlowWf cv (mixedFlow id hA hB)
+      ∧ SelfOnlyGate h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩
+      ∧ LegRefundable h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨1, hB⟩ := by
+  refine ⟨mixedSystem_wf ha, ?_, ⟨by simp [mixedFlow], legA_finalized ha _ rfl⟩,
+    legB_refundable hb⟩
+  intro leg hleg
+  have hleg' : leg = ⟨0, hA⟩ ∨ leg = ⟨1, hB⟩ := by
+    rcases List.mem_cons.mp hleg with hh | hh
+    · exact Or.inl hh
+    · exact Or.inr (List.mem_singleton.mp hh)
+  rcases hleg' with hh | hh <;> rw [hh]
+  · exact ne_of_gt ha
+  · exact ne_of_gt hb
 
 /-- **THE REAL GATE REFUSES IN THAT STATE.** -/
 theorem full_gate_blocks_mixed_outcome {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {a b : UInt256} (_ha : 0 < a) (hb : 0 < b) :
-    ¬ FlowFinalized h z0 hl (mixedSystem a) (mixedFlow a b)
-      ∧ ∀ leg, ¬ ExecutedVia h z0 hl (mixedSystem a) (mixedFlow a b) leg := by
-  have hno : ¬ FlowFinalized h z0 hl (mixedSystem a) (mixedFlow a b) := by
+    (hA' : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {id hA hB : UInt256}
+    (_ha : 0 < cv id hA) (hb : 0 < cv id hB) :
+    ¬ FlowFinalized h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB)
+      ∧ ∀ leg, ¬ ExecutedVia h z0 hl cv fh (mixedSystem (cv id hA)) (mixedFlow id hA hB) leg := by
+  have hno : ¬ FlowFinalized h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) := by
     intro hall
-    obtain ⟨n, p, hon, hacc⟩ := hall ⟨1, b⟩ (by simp [mixedFlow])
-    -- on time for deadline `0` forces batch `0`, whose tree on chain 1 is `setup`
-    obtain rfl : n = 0 := by
-      have : n ≤ 0 := by simpa [mixedFlow] using hon
-      omega
-    have hmem := finality_means_membership hA hacc
-    rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0)] at hmem
-    exact not_mem_setup hb hmem
-  exact ⟨hno, fun _ hex => hno hex.2⟩
+    exact legB_not_finalized hA' hb (hall ⟨1, hB⟩ (by simp [mixedFlow]))
+  exact ⟨hno, fun _ hex => hno hex.2.2⟩
 
-/-- **DATA AVAILABILITY IS NECESSARY.**  Without it the committed leg is stuck:
-its finality proof exists but cannot be presented, and it cannot be refunded
-either, because it really is in the tree. -/
+/-- **DATA AVAILABILITY IS NECESSARY.** -/
 theorem without_da_committed_leg_is_stuck {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {a : UInt256} (ha : 0 < a) :
-    Wf (mixedSystem a)
-      ∧ ¬ DataAvailable h z0 hl (mixedSystem a) noAccess
-      ∧ LegFinalized h z0 hl (mixedSystem a) 0 ⟨0, a⟩
-      ∧ ¬ LegFinalizableBy h z0 hl (mixedSystem a) noAccess 0 ⟨0, a⟩
-      ∧ ¬ LegRefundable h z0 hl (mixedSystem a) 0 ⟨0, a⟩ := by
+    (hA' : HashAssumptions h z0 hl) {cv : CommitValue} {id hA hB : UInt256}
+    (ha : 0 < cv id hA) :
+    Wf (mixedSystem (cv id hA))
+      ∧ ¬ DataAvailable h z0 hl (mixedSystem (cv id hA)) noAccess
+      ∧ LegFinalized h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩
+      ∧ ¬ LegFinalizableBy h z0 hl cv (mixedSystem (cv id hA)) noAccess
+            (mixedFlow id hA hB) ⟨0, hA⟩
+      ∧ ¬ LegRefundable h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩ := by
   have hS := mixedSystem_wf ha
-  have hmem0 : a ∈ keys (toAbs ((mixedSystem a).tree 0 0)) := by
-    rw [mixedSystem_tree_zero]; exact mem_insertSetup ha
-  refine ⟨hS, ?_, member_is_finalized hS (leg := ⟨0, a⟩) (n := 0) (by simp) hmem0, ?_, ?_⟩
+  refine ⟨hS, ?_, legA_finalized ha _ rfl, ?_, ?_⟩
   · -- index 0 of chain 0's tree is occupied, so DA would have to supply its proof
     intro hDA
     exact hDA 0 0 0 (by rw [mixedSystem_tree_zero, insertSetup_leafCount]; omega)
   · rintro ⟨n, p, _, hpres, _⟩
     exact hpres
   · rintro ⟨N, q, hbranch⟩
-    have hmemN : ∀ m : ℕ, a ∈ keys (toAbs ((mixedSystem a).tree 0 m)) := by
-      intro m; rw [mixedSystem_tree_zero]; exact mem_insertSetup ha
+    have hval : legValue cv (mixedFlow id hA hB) ⟨0, hA⟩ = cv id hA := rfl
+    have hmemN : ∀ m : ℕ,
+        legValue cv (mixedFlow id hA hB) ⟨0, hA⟩
+          ∈ keys (toAbs ((mixedSystem (cv id hA)).tree 0 m)) := by
+      intro m
+      rw [hval, mixedSystem_tree_zero]
+      exact mem_insertSetup ha
     rcases hbranch with ⟨hlate, habs⟩ | ⟨_, habs⟩
     · -- batch 0 is on time, so a late batch is some `N' + 1`, whose begin root is `end N'`
       obtain ⟨N', rfl⟩ : ∃ N', N = N' + 1 := by
         cases N with
-        | zero => exact absurd hlate (by simp)
+        | zero => exact absurd hlate (by simp [mixedFlow])
         | succ N' => exact ⟨N', rfl⟩
-      exact verified_absence_excludes_delivered hA (valid_batch hS 0 N') habs (hmemN N')
-    · exact verified_absence_excludes_delivered hA (valid_batch hS 0 N) habs (hmemN N)
+      exact verified_absence_excludes_delivered hA' (valid_batch hS 0 N') habs (hmemN N')
+    · exact verified_absence_excludes_delivered hA' (valid_batch hS 0 N) habs (hmemN N)
 
 end Contracts.Atomicity
 
@@ -306,26 +371,36 @@ namespace Proofs.Atomicity
 open Contracts.Atomicity
 
 theorem GateRequiresEveryLeg : Properties.Atomicity.GateRequiresEveryLeg :=
-  fun _ _ _ _ _ _ hex other hother => hex.2 other hother
+  fun _ _ _ _ _ _ _ _ hex other hother => hex.2.2 other hother
 theorem FinalitySignalMeansMembership : Properties.Atomicity.FinalitySignalMeansMembership :=
   fun _ _ _ hA _ _ _ _ _ hacc => finality_means_membership hA hacc
 theorem FinalitySignalPersists : Properties.Atomicity.FinalitySignalPersists :=
   fun _ hS c _ _ hnm => keys_mono_batch hS c hnm
 theorem MemberIsFinalizable : Properties.Atomicity.MemberIsFinalizable :=
-  fun _ _ _ _ hS _ hDA _ _ _ hon hmem => member_is_finalizable hS hDA hon hmem
+  fun _ _ _ _ _ hS _ hDA _ _ _ hon hmem => member_is_finalizable hS hDA hon hmem
 theorem ExecutedImpliesAllFinalizable : Properties.Atomicity.ExecutedImpliesAllFinalizable :=
-  fun _ _ _ hA _ hS _ hDA _ _ hex => executed_implies_all_finalizable hA hS hDA hex
+  fun _ _ _ hA _ _ _ hS _ hDA _ _ hex => executed_implies_all_finalizable hA hS hDA hex
 theorem NoneOrAll : Properties.Atomicity.NoneOrAll :=
-  fun _ _ _ hA _ hS _ hDA F => none_or_all hA hS hDA F
+  fun _ _ _ hA _ _ _ hS _ hDA F => none_or_all hA hS hDA F
 theorem ExecutedImpliesFinalityPersists : Properties.Atomicity.ExecutedImpliesFinalityPersists :=
-  fun _ _ _ hA _ hS _ hDA _ _ hex => executed_implies_finality_persists hA hS hDA hex
+  fun _ _ _ hA _ _ _ hS _ hDA _ _ hex => executed_implies_finality_persists hA hS hDA hex
 theorem ExecutedExcludesAnyRefund : Properties.Atomicity.ExecutedExcludesAnyRefund :=
-  fun _ _ _ hA _ hS _ _ hex => executed_excludes_any_refund hA hS hex
+  fun _ _ _ hA _ _ _ hS _ _ hex => executed_excludes_any_refund hA hS hex
+theorem FlowIdCheckPinsLegList : Properties.Atomicity.FlowIdCheckPinsLegList :=
+  fun _ hinj _ _ hF hF' hid => flowId_check_pins_legList hinj hF hF' hid
+theorem SubsetFlowPassesUncheckedGate : Properties.Atomicity.SubsetFlowPassesUncheckedGate :=
+  fun _ _ _ hA _ _ _ _ ha hb => subset_flow_passes_unchecked_gate hA ha hb
+theorem SubsetFlowRejectedByCheck : Properties.Atomicity.SubsetFlowRejectedByCheck :=
+  fun _ hinj id hA hB hreal => subset_flow_rejected_by_check hinj id hA hB hreal
+theorem ExecutedImpliesRealFlowFinalizable :
+    Properties.Atomicity.ExecutedImpliesRealFlowFinalizable :=
+  fun _ _ _ hA _ _ hinj _ hS _ hDA _ _ _ hex hF' hid =>
+    executed_implies_real_flow_finalizable hA hinj hS hDA hex hF' hid
 theorem SelfOnlyGateAdmitsMixedOutcome : Properties.Atomicity.SelfOnlyGateAdmitsMixedOutcome :=
-  fun _ _ _ hA _ _ ha hb => selfOnly_gate_admits_mixed_outcome hA ha hb
+  fun _ _ _ hA _ _ _ _ ha hb => selfOnly_gate_admits_mixed_outcome hA ha hb
 theorem FullGateBlocksMixedOutcome : Properties.Atomicity.FullGateBlocksMixedOutcome :=
-  fun _ _ _ hA _ _ ha hb => full_gate_blocks_mixed_outcome hA ha hb
+  fun _ _ _ hA _ _ _ _ _ ha hb => full_gate_blocks_mixed_outcome hA ha hb
 theorem WithoutDaCommittedLegIsStuck : Properties.Atomicity.WithoutDaCommittedLegIsStuck :=
-  fun _ _ _ hA _ ha => without_da_committed_leg_is_stuck hA ha
+  fun _ _ _ hA _ _ _ _ ha => without_da_committed_leg_is_stuck hA ha
 
 end Proofs.Atomicity
