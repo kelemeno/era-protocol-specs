@@ -239,10 +239,8 @@ theorem padding_collision_forges_absence (h : Hash) (hl : LeafHash) (T : Tree) (
 
 theorem threeLeafTree_guards {a b : UInt256} (ha : 0 < a) (hab : a < b) :
     InsertGuard setup a 0 ∧ InsertGuard (insert setup a 0) b 1 := by
-  refine ⟨⟨?_, (ne_of_lt ha).symm, rfl, ?_, ha, Or.inl rfl⟩,
+  refine ⟨setup_insertGuard ha,
           ⟨?_, (ne_of_lt (lt_trans ha hab)).symm, ?_, ?_, ?_, ?_⟩⟩
-  · show (1 : ℕ) ≠ 0; omega
-  · show (0 : ℕ) < 1; omega
   · show (1 : ℕ) + 1 ≠ 0; omega
   · rw [insert_vti_other (ne_of_gt hab)]; rfl
   · show (1 : ℕ) < 1 + 1; omega

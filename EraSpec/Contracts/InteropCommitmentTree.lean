@@ -189,4 +189,14 @@ def Run (R : ℕ → Tree) : Prop :=
   ∀ n, R (n + 1) = R n
     ∨ ∃ (v : UInt256) (low : ℕ), InsertGuard (R n) v low ∧ R (n + 1) = insert (R n) v low
 
+/-- Reachability by ANY number of guarded inserts.
+
+`Run` steps one `insert` at a time, which is the right grain for the history the
+order theory reasons about.  A *batch*, though, may contain any number of `append`
+calls, so relating consecutive batch boundaries needs the transitive closure. -/
+inductive Reaches : Tree → Tree → Prop
+  | refl {T} : Reaches T T
+  | tail {T U} (h : Reaches T U) {v : UInt256} {low : ℕ} (hg : InsertGuard U v low) :
+      Reaches T (insert U v low)
+
 end Contracts.InteropCommitmentTree

@@ -33,6 +33,17 @@ def InsertPreservesValid : Prop :=
 def RunValid : Prop :=
   ∀ (R : ℕ → Tree), Run R → Valid (R 0) → ∀ n, Valid (R n)
 
+/-- Validity survives any number of guarded inserts — the batch-sized step. -/
+def ReachesValid : Prop :=
+  ∀ (T U : Tree), Reaches T U → Valid T → Valid U
+
+/-- **THE KEY SET ONLY GROWS.**  Over any number of guarded inserts, no key is ever
+removed: a value committed in one batch is still committed in every later one.  This
+is the append-only content of the IMT's *finality signal* — a leg's commitment cannot
+be revoked by later batches. -/
+def ReachesKeysMono : Prop :=
+  ∀ (T U : Tree), Reaches T U → Valid T → keys (toAbs T) ⊆ keys (toAbs U)
+
 /-! ## The dedup gate
 
 The contract's freshness check reads `valueToIndex`; the order theory wants

@@ -13,6 +13,7 @@ import EraSpec.Contracts.InteropCommitmentTree
 import EraSpec.Contracts.AtomicFlowManager
 import EraSpec.Contracts.Protocol
 import EraSpec.Contracts.TreeRoot
+import EraSpec.Contracts.Atomicity
 
 -- PROPERTIES: the statements, one `Prop` each, no proofs
 import EraSpec.Properties
@@ -22,6 +23,7 @@ import EraSpec.Proofs.InteropCommitmentTree
 import EraSpec.Proofs.AtomicFlowManager
 import EraSpec.Proofs.Protocol
 import EraSpec.Proofs.TreeRoot
+import EraSpec.Proofs.Atomicity
 
 -- The obligations that connect this package to the compiled-code proofs
 import EraSpec.Refinement

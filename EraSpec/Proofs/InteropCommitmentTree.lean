@@ -37,6 +37,18 @@ lemma lowAbs_mem {T : Tree} {low : ℕ} (h : low < T.leafCount) :
     lowAbs T low ∈ toAbs T :=
   mem_toAbs.mpr ⟨low, h, rfl, rfl⟩
 
+/-- A value is a key exactly when some occupied index carries it. -/
+lemma mem_keys_iff_index {T : Tree} {v : UInt256} :
+    v ∈ keys (toAbs T) ↔ ∃ i < T.leafCount, (T.leaf i).value = v := by
+  constructor
+  · intro hmem
+    obtain ⟨X, hX, hXv⟩ := Finset.mem_image.mp hmem
+    obtain ⟨i, hi, hival, _⟩ := mem_toAbs.mp hX
+    exact ⟨i, hi, hival.trans hXv⟩
+  · rintro ⟨i, hi, hval⟩
+    exact Finset.mem_image.mpr
+      ⟨⟨v, (T.leaf i).nextValue⟩, mem_toAbs.mpr ⟨i, hi, hval, rfl⟩, rfl⟩
+
 /-! ## `setup` -/
 
 /-- **`setup` ESTABLISHES A VALID STATE.** -/
@@ -150,6 +162,12 @@ theorem search_yields_guard {T : Tree} (hV : Valid T) {v : UInt256} {fuel i j : 
     InsertGuard T v j :=
   ⟨hinit, hv, hfresh, (lowSearch_sound hV fuel i j hi hlow hs).1,
    (lowSearch_sound hV fuel i j hi hlow hs).2, lowSearch_window fuel i j hs⟩
+
+/-- The genesis insert: any nonzero value goes in through the sentinel. -/
+theorem setup_insertGuard {a : UInt256} (ha : 0 < a) : InsertGuard setup a 0 := by
+  refine ⟨?_, (ne_of_lt ha).symm, rfl, ?_, ha, Or.inl rfl⟩
+  · show (1 : ℕ) ≠ 0; omega
+  · show (0 : ℕ) < 1; omega
 
 /-! ## `insert` projects to `imtInsert` -/
 
@@ -367,6 +385,22 @@ theorem run_valid {R : ℕ → Tree} (hR : Run R) (h0 : Valid (R 0)) : ∀ n, Va
     · rw [heq]; exact ih
     · rw [heq]; exact insert_preserves_valid ih hg
 
+/-! ### Batch-sized steps -/
+
+theorem reaches_valid {T U : Tree} (h : Reaches T U) (h0 : Valid T) : Valid U := by
+  induction h with
+  | refl => exact h0
+  | tail _ hg ih => exact insert_preserves_valid ih hg
+
+theorem reaches_keys_mono {T U : Tree} (h : Reaches T U) (h0 : Valid T) :
+    keys (toAbs T) ⊆ keys (toAbs U) := by
+  induction h with
+  | refl => exact fun _ hx => hx
+  | @tail U hr v low hg ih =>
+    intro x hx
+    rw [(insert_sound_step (reaches_valid hr h0) hg).2]
+    exact Finset.mem_insert_of_mem (ih hx)
+
 theorem run_isGuardedEvolution {R : ℕ → Tree} (hR : Run R) (h0 : Valid (R 0)) :
     GuardedEvolution (fun n => toAbs (R n)) := by
   intro n
@@ -405,6 +439,8 @@ theorem SetupValid : Properties.InteropCommitmentTree.SetupValid := setup_valid
 theorem InsertPreservesValid : Properties.InteropCommitmentTree.InsertPreservesValid :=
   @insert_preserves_valid
 theorem RunValid : Properties.InteropCommitmentTree.RunValid := @run_valid
+theorem ReachesValid : Properties.InteropCommitmentTree.ReachesValid := @reaches_valid
+theorem ReachesKeysMono : Properties.InteropCommitmentTree.ReachesKeysMono := @reaches_keys_mono
 theorem DedupGateSound : Properties.InteropCommitmentTree.DedupGateSound := @dedup_gate_sound
 theorem RegisteredIsKey : Properties.InteropCommitmentTree.RegisteredIsKey := @registered_is_key
 theorem GateIffAbsent : Properties.InteropCommitmentTree.GateIffAbsent := @gate_iff_absent

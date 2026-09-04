@@ -2,6 +2,7 @@ import EraSpec.Proofs.InteropCommitmentTree
 import EraSpec.Proofs.AtomicFlowManager
 import EraSpec.Proofs.Protocol
 import EraSpec.Proofs.TreeRoot
+import EraSpec.Proofs.Atomicity
 
 /-!
 # Refinement obligations
@@ -134,6 +135,42 @@ Later era-contracts revisions pad with `IMT_EMPTY_LEAF_HASH`. The compiled-code
 side cannot see this — its verifier theorems take the root as given — so when the
 pin moves, this is the first thing to re-check.
 
+### O8 — the atomicity gate covers every leg, and the flow is pinned
+
+`Contracts.Atomicity.FlowFinalized` is a conjunction over *all* legs, and
+`Properties.Atomicity`'s none-or-all result is exactly as strong as that
+conjunction. Two things in the compiled `requireFlowFinalized` must hold for it to
+transfer:
+
+1. **The loop covers every leg and reverts on any failure.** `n =
+   flow.legBundleHashes.length`, `_finality.proofs.length != n` reverts
+   (`ManagerProofCountMismatch`), the loop runs `i = 0 .. n-1`, and
+   `verifyInclusion` reverts rather than returning a flag. A loop bound off by one,
+   or a `verifyInclusion` whose failure were swallowed, would leave a leg
+   unchecked — and one unchecked leg is exactly the mixed outcome
+   `SelfOnlyGateAdmitsMixedOutcome` exhibits.
+2. **`flowId` pins which legs those are.** The model takes the flow as given. On
+   chain, what stops a prover from presenting a *subset* flow containing only the
+   legs that were committed is `_checkFlowId`: it recomputes
+   `keccak256(abi.encode(legBundleHashes, legSourceChainIds, deadline,
+   settlementLayerChainId))` and compares. The ascending-order check on
+   `legBundleHashes` is what makes the preimage canonical, so the same leg set has
+   one encoding.
+
+*Status:* source inspection. The loop is a plain `for` over the array whose length
+was just checked, so (1) is a reading task rather than a proof task; (2) reduces to
+keccak injectivity over the flow encoding, the same assumption
+`AttackVectors.BundleHashEncoding` isolates for bundle hashes.
+
+### DA is an assumption of neither repo
+
+`Properties.Atomicity`'s none-or-all result carries a data-availability
+hypothesis (`DataAvailable`), and `WithoutDaCommittedLegIsStuck` shows it cannot be
+dropped: with a chain's data unavailable, a committed leg can be neither finalized
+nor refunded. That is not a contract defect and no compiled-code proof can
+discharge it — it is a statement about the world, and it is recorded here so the
+combined claim is not read as stronger than it is.
+
 ## Known model boundaries inherited from the concrete side
 
 Recorded here so a reader of this package alone is not misled about what the
@@ -186,5 +223,18 @@ abbrev root_guarantee := @Proofs.TreeRoot.ProofsExclusive
 `hashLeaf({0,0,0})` as the padding constant, a delivered leg has an accepted
 absence proof. -/
 abbrev padding_necessity := @Proofs.TreeRoot.PaddingCollisionRefundsDeliveredLeg
+
+/-- Partial atomicity: if any leg of a flow is executed, every leg can be
+finalized — given data availability. -/
+abbrev atomicity_guarantee := @Proofs.Atomicity.ExecutedImpliesAllFinalizable
+
+/-- …and no leg of that flow can be refunded, on either timeout branch. -/
+abbrev atomicity_no_refund := @Proofs.Atomicity.ExecutedExcludesAnyRefund
+
+/-- The countermodel that makes O8's all-legs loop load-bearing. -/
+abbrev all_legs_gate_necessity := @Proofs.Atomicity.SelfOnlyGateAdmitsMixedOutcome
+
+/-- The countermodel that makes the DA hypothesis load-bearing. -/
+abbrev da_necessity := @Proofs.Atomicity.WithoutDaCommittedLegIsStuck
 
 end EraSpec.Refinement

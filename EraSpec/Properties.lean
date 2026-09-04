@@ -2,6 +2,7 @@ import EraSpec.Properties.InteropCommitmentTree
 import EraSpec.Properties.AtomicFlowManager
 import EraSpec.Properties.Protocol
 import EraSpec.Properties.TreeRoot
+import EraSpec.Properties.Atomicity
 
 /-!
 # The property catalogue
@@ -41,6 +42,13 @@ anywhere, and the checker keeps the list honest.
   proof (any index, any path length) pins an occupied leaf; **inclusion and
   non-inclusion proofs are mutually exclusive at a valid root**; honest proofs
   are accepted; and the padding countermodel.
+* `Atomicity` — **partial atomicity, none-or-all**: if any leg of a flow is
+  executed then every leg can be finalized, given data availability; equivalently,
+  either all legs are finalizable or none executes.  Also: execution excludes every
+  refund in the flow, on both timeout branches; finalizability does not decay; and
+  two countermodels showing the all-legs gate and the DA assumption are each
+  load-bearing.  This answers the question `AttackVectors.FlowAtomicity`'s header
+  leaves open — same-outcome *is* forced, by `requireFlowFinalized`'s loop.
 
 ## Open (stated in Lean, no certificate yet)
 
@@ -54,31 +62,36 @@ These are the high-level guarantees the protocol is *for*, in rough order of
 value.  Each needs a model extension before it can be a `def` here; the pieces
 that already exist are named.
 
-1. **Composed refund soundness** (manager × tree × time).  *A leg the manager
-   marks `Reverted` was never delivered on time on its source chain, and a leg
-   delivered on time never becomes `Revertable`.*  This is what `authorizeRefund`
-   is for, end to end.  Needs: a composed state — per-chain `Run`s with
-   settlement timestamps, plus the `Manager` — and the `authorize` step guarded by
-   `NonInclusionAccepted` against the deadline-pinned root.  Pieces:
-   `AttackVectors.NoTheft` (set level, temporal), `Properties.TreeRoot`
-   (root level, atemporal), `Properties.AtomicFlowManager` (state machine).
+1. **Composed refund soundness** (manager × tree × time).  `Atomicity` has the
+   half that matters most — an executed leg is unrefundable, system-wide
+   (`ExecutedExcludesAnyRefund`) — but it says nothing about the manager's own
+   state.  The missing statement is *a leg the manager marks `Reverted` was never
+   delivered on time*: `AtomicFlowManager.Step.authorize` guarded by
+   `LegRefundable`, composed with `Atomicity.System`.  Needs the two models joined
+   into one state; both halves already exist.
 
 2. **Once-per-leg across contracts.**  *A commit value enters its source tree at
    most once in any composed run.*  `NoDoubleAppend` (manager) composed with
    `DedupGateSound` (tree).  Needs the composed state of (1).
 
-3. **Height and capacity.**  Model `FullMerkle._height` in `Tree`, prove
-   `leafCount ≤ 2^height` along runs, and discharge the `hcap` hypotheses of the
-   completeness properties instead of assuming them.  Small model change.
+3. **Height and capacity.**  Model `FullMerkle._height` in `Tree` and prove
+   `leafCount ≤ 2^height` along runs, discharging `TreeRoot`'s `hcap` hypotheses
+   and `Atomicity.Wf.capacity` instead of assuming them.  Small model change, and
+   it is now load-bearing in two files rather than one.
 
-4. **Atomicity in the sanctioned sense, at root level.**  *Once all legs of a
-   flow are delivered, every leg's inclusion proof verifies against every later
-   root.*  `AttackVectors.FlowAtomicity` has it at set level; lifting it through
-   `InclusionComplete` and key-set monotonicity is mostly bookkeeping.  Needs (3)
-   for the capacity hypothesis.
+4. **`IsLastOnTime` from the aggregation tree.**  `Atomicity` assumes the END-root
+   timeout branch really identifies the chain's last in-time batch; that is what
+   `_verifyLastBatchInRoot` plus a post-deadline settlement-layer root establish.
+   `AttackVectors.LastBatchInRoot` has the path argument. Composing them needs a
+   model of the aggregation tree — the largest extension here, and the last
+   assumption in the refund story that is not either a hash idealization or DA.
 
-5. **The END-branch timeout** (`AttackVectors.LastBatchInRoot`) composed with the
-   IMT.  Needs a model of the aggregation tree; the largest extension here.
+5. **The flow-id binding** (obligation O8 in `EraSpec.Refinement`).  `Atomicity`
+   takes the flow as given.  What stops a prover from presenting a *subset* flow
+   containing only the committed legs is `_checkFlowId` recomputing
+   `keccak(legBundleHashes, legSourceChainIds, deadline, settlementLayerChainId)`.
+   Stating that here needs the flow-hash injectivity assumption
+   (`AttackVectors.BundleHashEncoding` is the encoding half).
 
 What is deliberately NOT on this list: anything about compiled code (obligations
 O1–O7 in `EraSpec.Refinement`), which belongs to the sibling repo.
