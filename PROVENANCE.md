@@ -30,6 +30,10 @@ Newly written here, not extracted: `EraSpec/Contracts/*` (the model),
 `EraSpec/Properties/*` (the statements), `EraSpec/Proofs/*` (the proofs and
 certificates), `EraSpec/Core/MerkleVerifier.lean` and `EraSpec/Refinement.lean`.
 
+The bridge models (`Contracts/NativeTokenVault.lean`, `Contracts/AssetRouter.lean`)
+depend on Mathlib only, not even on `EraSpec.Core` — they are state machines over
+mappings, with the keccak idealizations as named hypotheses.
+
 ## The drift hazard — read this before relying on either repo
 
 **Right now the 26 modules exist twice.** `contracts-formal-verification` still
@@ -95,8 +99,11 @@ the copy here.
   `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (that repo's submodule pin at the
   time), and the contract specs in `EraSpec/Contracts/` were written against the
   Solidity at that commit: `contracts/common/libraries/IndexedMerkleTree.sol`,
-  `contracts/atomic-interop/{L2InteropCommitmentTree,AtomicFlowManager}.sol`, and
-  `contracts/atomic-interop/libraries/AtomicInteropProof.sol`.
+  `contracts/atomic-interop/{L2InteropCommitmentTree,AtomicFlowManager}.sol`,
+  `contracts/atomic-interop/libraries/AtomicInteropProof.sol`,
+  `contracts/bridge/ntv/{NativeTokenVaultBase,L1NativeTokenVault}.sol`,
+  `contracts/bridge/asset-router/AssetRouterBase.sol` and
+  `contracts/common/libraries/DataEncoding.sol`.
 
   Unlike the compiled-code proofs, nothing here breaks when that pin moves — but
   the contract specs can become *stale* rather than wrong, which is harder to

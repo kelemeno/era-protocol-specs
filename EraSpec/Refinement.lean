@@ -170,6 +170,28 @@ mismatch — plus flow-hash injectivity, the same keccak assumption
 just checked, so it is a reading task rather than a proof task — but it is the kind
 that an edit can break while every proof stays green.
 
+### O9 — the bridge models are the compiled bridge
+
+`Contracts.NativeTokenVault.Vault` must correspond to `NativeTokenVaultBase`'s
+storage (`originChainId`, `tokenAddress`, `assetId`, and L1's `bridgedOut`), and
+`Contracts.AssetRouter.Router` to `AssetRouterBase`'s `assetHandlerAddress` /
+`assetDeploymentTracker`. Two parts of those models are NOT storage and carry their
+own obligations:
+
+* `Vault.escrowed` is the token contract's balance of the vault. Modelling it as an
+  exact counter is what `_depositFunds`' balance comparison
+  (`TokensWithFeesNotSupported`) and `require(_depositAmount == msg.value)` buy;
+  a fee-on-transfer or rebasing token is outside both the model and the contract's
+  support.
+* `Vault.originToken` is `tokenAddress[assetId]` for a native asset and an external
+  call (`IBridgedStandardToken.originToken()`) for a bridged one. The invariant
+  `idShape` is about it, so the compiled side must agree that a bridged token
+  reports the origin token its asset id was checked against.
+
+*Status:* source inspection, and narrower than it looks — the vault results are
+about two counters and three mappings, so the correspondence is per-slot rather
+than per-path.
+
 ### DA is an assumption of neither repo
 
 `Properties.Atomicity`'s none-or-all result carries a data-availability

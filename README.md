@@ -1,12 +1,12 @@
 # era-protocol-specs
 
-Machine-checked specification of ZKsync Era's atomic interop **protocol**, in Lean 4,
-depending on Mathlib and nothing else.
+Machine-checked specification of ZKsync Era's interop and bridge **protocol**, in
+Lean 4, depending on Mathlib and nothing else.
 
 No EVM semantics. No compiler output. Every theorem here is about abstract states
-and operations, and every one is fully proved — 668 theorems, 0 depending on
+and operations, and every one is fully proved — 833 theorems, 0 depending on
 anything beyond Lean's three standard axioms, 0 `sorry`, 0 axioms declared. The
-guarantees themselves are catalogued as 70 named properties, all 70 proved.
+guarantees themselves are catalogued as 92 named properties, all 92 proved.
 
 ```bash
 lake build                      # ~2 min with a warm Mathlib
@@ -30,7 +30,9 @@ EraSpec/
     ├─ Protocol                the multi-chain composition
     ├─ TreeRoot                the hash-tree root and the two proof verifiers
     ├─ Atomicity               the flow gate: partial atomicity, none-or-all
-    └─ Refund                  manager × tree × time: all-or-nothing
+    ├─ Refund                  manager × tree × time: all-or-nothing
+    ├─ NativeTokenVault        the bridge vault: registry and escrow solvency
+    └─ AssetRouter             who may point an asset at a handler
 ```
 
 A review is two readings and one script:
@@ -215,6 +217,55 @@ is `ExecutedExcludesAnyRefund`. And the other branch is live:
 every leg still `Committed` can be moved to `Revertable`, which is why a timed-out
 flow refunds all of its committed legs rather than some of them.
 
+### `NativeTokenVault` — solvency, and what it does not cover
+
+The vault escrows this chain's native tokens that have been bridged away.
+`bridgedOut[assetId]` is the net amount outstanding: the outbound hook adds to it,
+the inbound hook subtracts and reverts with `InsufficientChainBalance` if the
+inbound amount exceeds it. `Solvency` is that this never exceeds what the vault
+holds, at every point of every run, so every permitted payout is covered
+(`GuardedInflowIsBacked`) and the surplus — including direct transfers into the
+vault — never shrinks (`SurplusMonotone`). `NoInflation` is the flow-level form:
+for an asset native to this chain, no more was ever bridged in than out.
+
+The registry half turns a comment into an invariant. The source says three times
+that `originChainId`, `tokenAddress` and `assetId` "are always atomically
+populated", and `_registerToken` guards only on the token being unregistered — it
+never checks that the asset id is free. It does not have to:
+`encodeNTVAssetId(chainid, token)` derives the id from the token, so
+`RegisterNativeIdFresh` gets id-freshness out of token-freshness through
+injectivity. The proof leans on three other invariant fields to do it, which is a
+fair measure of how much that one-sided guard depends on the rest of the registry
+holding.
+
+`PerChainIsolationFails` is the honest other half. The outbound hook takes the
+chain id as an unnamed parameter, so the ledger is aggregated: an explicit
+two-chain run has the books balancing exactly while one chain withdraws an asset it
+never deposited. The source is explicit that this is the design — "there is no
+on-chain per-chain balance enforcement", with the sending chain's ZK proof standing
+where a per-chain balance used to. The theorem is not a defect report; it is the
+boundary of what the vault's own arithmetic protects.
+
+### `AssetRouter` — no hijacking a route
+
+`assetHandlerAddress[assetId]` is where the bridge sends funds, so the question is
+who can write it. There are two protections and they fail differently, so they are
+stated separately.
+
+`NoHijack` is structural. `_setAssetHandlerAddressThisChain` folds the caller into
+the *key*: the id it writes is `keccak(chainid, msg.sender, registrationData)`. So
+a caller cannot even name an id that encodes somebody else, whatever data it
+supplies, and this holds regardless of the `require`. `OnlyTrackerOrNtvWrites` is
+the guard: among the ids a caller can name, only one whose recorded deployment
+tracker is already itself may be re-pointed. The native token vault is normalised
+to the fixed system address before hashing and bypasses the tracker check, but
+`NtvTouchesOnlyItsOwnIds` shows even it cannot reach a custom registrant's asset.
+
+`FreshIdNeedsNtv` is what the two together imply: a non-vault caller cannot make
+the *first* registration even for its own id, because the tracker starts at zero
+and `msg.sender` never does. A custom deployment tracker has to be bootstrapped
+through the vault or the L1-to-L2 counterpart path, not by calling the router.
+
 ### `Core/` — the mathematics
 
 Extracted from `contracts-formal-verification`, unchanged except for imports:
@@ -264,7 +315,7 @@ has never been tested:
   shows as `OPEN`.
 - **`scripts/audit-axioms.sh`** → `scripts/Audit.lean`. Enumerates every theorem and
   the axioms it depends on. An earlier regex version found 327 theorems and called
-  them all clean; the environment found 471 (668 now) — it was silently missing
+  them all clean; the environment found 471 (833 now) — it was silently missing
   144, every `private lemma` among them. It also asserts EraSpec declares no axioms.
 - **`scripts/check-word-fidelity.sh`**. `Word.lean` is a trimmed copy of Clear's
   `UInt256.lean`; a copy is only worth having while it is still a copy. Diffs all 23

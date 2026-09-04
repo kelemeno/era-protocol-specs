@@ -15,6 +15,8 @@ import EraSpec.Contracts.Protocol
 import EraSpec.Contracts.TreeRoot
 import EraSpec.Contracts.Atomicity
 import EraSpec.Contracts.Refund
+import EraSpec.Contracts.NativeTokenVault
+import EraSpec.Contracts.AssetRouter
 
 -- PROPERTIES: the statements, one `Prop` each, no proofs
 import EraSpec.Properties
@@ -26,6 +28,8 @@ import EraSpec.Proofs.Protocol
 import EraSpec.Proofs.TreeRoot
 import EraSpec.Proofs.Atomicity
 import EraSpec.Proofs.Refund
+import EraSpec.Proofs.NativeTokenVault
+import EraSpec.Proofs.AssetRouter
 
 -- The obligations that connect this package to the compiled-code proofs
 import EraSpec.Refinement

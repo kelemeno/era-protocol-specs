@@ -4,6 +4,8 @@ import EraSpec.Properties.Protocol
 import EraSpec.Properties.TreeRoot
 import EraSpec.Properties.Atomicity
 import EraSpec.Properties.Refund
+import EraSpec.Properties.NativeTokenVault
+import EraSpec.Properties.AssetRouter
 
 /-!
 # The property catalogue
@@ -51,6 +53,20 @@ anywhere, and the checker keeps the list honest.
   showing the all-legs loop, the flow-id check and the DA assumption are each
   load-bearing.  This answers the question `AttackVectors.FlowAtomicity`'s header
   leaves open — same-outcome *is* forced, by `requireFlowFinalized`'s loop.
+* `NativeTokenVault` — the bridge vault: the registry invariant the source states
+  as a comment, **solvency** (`bridgedOut` never exceeds what the vault holds) along
+  every run, no inflation for this chain's native assets, and the surplus never
+  shrinking.  Two boundaries: the `InsufficientChainBalance` check is load-bearing,
+  and **per-chain isolation does not hold** — the ledger carries no chain index, so
+  one chain can withdraw against another's deposit.  That is the design (the source
+  says correctness of minted amounts rests on the sending chain's ZK proofs), stated
+  so `Solvency` is not read as more than it is.
+* `AssetRouter` — who may point an asset at a handler.  `NoHijack` is structural:
+  the asset id is hashed from the caller, so a caller cannot even name an id
+  encoding somebody else, guard or no guard.  `OnlyTrackerOrNtvWrites` is the guard.
+  `FreshIdNeedsNtv` is the consequence — a non-vault caller cannot make the first
+  registration even for its own id, so custom deployment trackers must be
+  bootstrapped through the vault or the counterpart path.
 * `Refund` — the manager × tree × time composition: no leg leaves `Committed`
   without a verified timeout proof, and **no flow has both an executed leg and a
   refunded leg** (`NoExecutedLegAndRefundedLeg`) — all-or-nothing at the outcome
@@ -98,6 +114,14 @@ that already exist are named.
    verification loop covers every index — is source inspection, recorded as O8 in
    `EraSpec.Refinement`.
 
+5. **The bridge, beyond the vault and the router.**  `NativeTokenVault` models the
+   escrow ledger and the registry; it does not model the bridged token's own supply,
+   so "no inflation" is stated for assets native to this chain, where the money is.
+   The mirror statement for a bridged representation — that its local supply tracks
+   what was burned elsewhere — needs `BridgedStandardERC20` and the counterpart
+   chain in one model.  `L1Nullifier`'s replay guard and the base-token holder are
+   likewise unmodelled.
+
 What is deliberately NOT on this list: anything about compiled code (obligations
-O1–O7 in `EraSpec.Refinement`), which belongs to the sibling repo.
+O1–O8 in `EraSpec.Refinement`), which belongs to the sibling repo.
 -/
