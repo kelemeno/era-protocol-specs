@@ -1,6 +1,9 @@
-import EraSpec.Contracts.InteropCommitmentTree
-import EraSpec.Contracts.AtomicFlowManager
-import EraSpec.Contracts.Protocol
+import EraSpec.Proofs.InteropCommitmentTree
+import EraSpec.Proofs.AtomicFlowManager
+import EraSpec.Proofs.Protocol
+import EraSpec.Proofs.TreeRoot
+import EraSpec.Proofs.Atomicity
+import EraSpec.Proofs.Refund
 
 /-!
 # Refinement obligations
@@ -107,15 +110,96 @@ comparison whose presence a script can assert.
 
 ### O7 — the hash side
 
-`Tree` carries list state only. Membership and non-inclusion proofs are checked
-against a Merkle root, so `EraSpec.Core.Merkle` plus the concrete `updateWalk`
-correspondence (`#31`, `#32`) must certify that the root authenticates exactly
-the leaves this model talks about.
+`Tree` carries list state only; `Contracts.TreeRoot` adds the root over it —
+`root h z0 hl T height = rootOf h z0 (leafHashes hl T) height` — and
+`Properties.TreeRoot` states the two verifiers sound (`AcceptedPathPinsLeaf`,
+`ProofsExclusive`) and complete (`InclusionComplete`, `NonInclusionComplete`)
+against that root, for attacker-chosen indices and path lengths, under the
+`HashAssumptions` bundle. So the protocol-level content of root binding is closed
+here, and what the compiled side must supply narrows to one statement: that
+`FullMerkle.updateLeaf` followed by `pushNewLeaf` computes `rootOf` over
+`leafHashes` of the new state. `RootAfterInsert` fixes the target exactly (the
+`pushNewLeaf` walk over the post-`updateLeaf` list), so `#31`/`#32` have a
+definite list-level statement to hit.
 
 *Discharged by:* `#31` (`fun_updateLeaf` ≡ `updateWalk`), `#32` (the verifier's
 fold replays that walk), and `root_pins_written_leaf`. These rest on the keccak
 idealization axioms, or on the weaker `_of_config` pool-consistency assumptions —
 a change of trusted base, not its elimination.
+
+*The hypothesis that is FALSE at the pin.* `HashAssumptions.padNotLeaf` says the
+`FullMerkle` padding constant is not a leaf hash. The pinned
+`IndexedMerkleTree.setup` pads with `hashLeaf({0,0,0})`, so it is a leaf hash, and
+`Properties.TreeRoot.PaddingCollisionRefundsDeliveredLeg` shows the consequence
+on a real contract run: an accepted `verifyNonInclusion` for a delivered value.
+Later era-contracts revisions pad with `IMT_EMPTY_LEAF_HASH`. The compiled-code
+side cannot see this — its verifier theorems take the root as given — so when the
+pin moves, this is the first thing to re-check.
+
+### O8 — the atomicity gate covers every leg, and the flow is pinned
+
+`Contracts.Atomicity.FlowFinalized` is a conjunction over *all* legs, and
+`Properties.Atomicity`'s none-or-all result is exactly as strong as that
+conjunction. Two things in the compiled `requireFlowFinalized` must hold for it to
+transfer:
+
+1. **The loop covers every leg and reverts on any failure.** `n =
+   flow.legBundleHashes.length`, `_finality.proofs.length != n` reverts
+   (`ManagerProofCountMismatch`), the loop runs `i = 0 .. n-1`, and
+   `verifyInclusion` reverts rather than returning a flag. A loop bound off by one,
+   or a `verifyInclusion` whose failure were swallowed, would leave a leg
+   unchecked — and one unchecked leg is exactly the mixed outcome
+   `SelfOnlyGateAdmitsMixedOutcome` exhibits.
+2. **`flowId` pins which legs those are.** The model takes the flow as given. On
+   chain, what stops a prover from presenting a *subset* flow containing only the
+   legs that were committed is `_checkFlowId`: it recomputes
+   `keccak256(abi.encode(legBundleHashes, legSourceChainIds, deadline,
+   settlementLayerChainId))` and compares. The ascending-order check on
+   `legBundleHashes` is what makes the preimage canonical, so the same leg set has
+   one encoding.
+
+*Status:* (2) is now proved at protocol level:
+`Properties.Atomicity.FlowIdCheckPinsLegList` shows two checked flows claiming one
+id are the same flow, `SubsetFlowPassesUncheckedGate` is the attack without the
+check, and `SubsetFlowRejectedByCheck` is the check refusing it. What remains on
+the compiled side is that `_checkFlowId` recomputes *that* hash and reverts on
+mismatch — plus flow-hash injectivity, the same keccak assumption
+`AttackVectors.BundleHashEncoding` isolates for bundle hashes.
+
+(1) is source inspection. The loop is a plain `for` over the array whose length was
+just checked, so it is a reading task rather than a proof task — but it is the kind
+that an edit can break while every proof stays green.
+
+### O9 — the bridge models are the compiled bridge
+
+`Contracts.NativeTokenVault.Vault` must correspond to `NativeTokenVaultBase`'s
+storage (`originChainId`, `tokenAddress`, `assetId`, and L1's `bridgedOut`), and
+`Contracts.AssetRouter.Router` to `AssetRouterBase`'s `assetHandlerAddress` /
+`assetDeploymentTracker`. Two parts of those models are NOT storage and carry their
+own obligations:
+
+* `Vault.escrowed` is the token contract's balance of the vault. Modelling it as an
+  exact counter is what `_depositFunds`' balance comparison
+  (`TokensWithFeesNotSupported`) and `require(_depositAmount == msg.value)` buy;
+  a fee-on-transfer or rebasing token is outside both the model and the contract's
+  support.
+* `Vault.originToken` is `tokenAddress[assetId]` for a native asset and an external
+  call (`IBridgedStandardToken.originToken()`) for a bridged one. The invariant
+  `idShape` is about it, so the compiled side must agree that a bridged token
+  reports the origin token its asset id was checked against.
+
+*Status:* source inspection, and narrower than it looks — the vault results are
+about two counters and three mappings, so the correspondence is per-slot rather
+than per-path.
+
+### DA is an assumption of neither repo
+
+`Properties.Atomicity`'s none-or-all result carries a data-availability
+hypothesis (`DataAvailable`), and `WithoutDaCommittedLegIsStuck` shows it cannot be
+dropped: with a chain's data unavailable, a committed leg can be neither finalized
+nor refunded. That is not a contract defect and no compiled-code proof can
+discharge it — it is a statement about the world, and it is recorded here so the
+combined claim is not read as stronger than it is.
 
 ## Known model boundaries inherited from the concrete side
 
@@ -140,23 +224,54 @@ namespace EraSpec.Refinement
 
 /-! ## Machine-checkable summary of what IS proved here
 
-The three statements below are the top of this package's dependency graph — the
-protocol-level guarantees the obligations above are meant to transfer to the
-compiled code. They are `abbrev`s rather than restatements so there is exactly
-one proof of each, and `#print axioms` on them reports the real profile. -/
+`EraSpec.Properties.*` states every protocol-level guarantee as a `Prop`, and
+`EraSpec.Proofs.*` supplies a *certificate* — a theorem of exactly that type — for
+each; `scripts/check-properties.sh` lists them. The abbreviations below name the
+certificates the obligations above are meant to transfer to the compiled code, so
+`#print axioms` on them reports the real profile. -/
 
 /-- The commitment tree: every run from `setup` keeps the reclaim gate firing on
 exactly the never-delivered legs. -/
-abbrev tree_guarantee := @Contracts.InteropCommitmentTree.genesis_run_reclaimable_iff_absent
+abbrev tree_guarantee := @Proofs.InteropCommitmentTree.GenesisRunReclaimableIffAbsent
 
 /-- The flow manager: a refunded leg stays refunded, so no leg is refunded twice. -/
-abbrev manager_guarantee := @Contracts.AtomicFlowManager.no_double_claim
+abbrev manager_guarantee := @Proofs.AtomicFlowManager.NoDoubleClaim
 
 /-- The multi-chain protocol: with the source-chain binding, delivery and refund
 are mutually exclusive system-wide; without it, they are not. -/
-abbrev protocol_guarantee := @Contracts.Protocol.chains_no_double_spend
+abbrev protocol_guarantee := @Proofs.Protocol.ChainsNoDoubleSpend
 
 /-- The countermodel that makes O6 necessary rather than advisory. -/
-abbrev binding_necessity := @Contracts.Protocol.unbound_gate_refunds_delivered_leg
+abbrev binding_necessity := @Proofs.Protocol.UnboundGateRefundsDeliveredLeg
+
+/-- The hash side: against a valid tree's root, no value has both an accepted
+inclusion proof and an accepted non-inclusion proof, for any indices and path
+lengths the provers choose. -/
+abbrev root_guarantee := @Proofs.TreeRoot.ProofsExclusive
+
+/-- The countermodel that makes `HashAssumptions.padNotLeaf` load-bearing: with
+`hashLeaf({0,0,0})` as the padding constant, a delivered leg has an accepted
+absence proof. -/
+abbrev padding_necessity := @Proofs.TreeRoot.PaddingCollisionRefundsDeliveredLeg
+
+/-- Partial atomicity: if any leg of a flow is executed, every leg can be
+finalized — given data availability. -/
+abbrev atomicity_guarantee := @Proofs.Atomicity.ExecutedImpliesAllFinalizable
+
+/-- …and no leg of that flow can be refunded, on either timeout branch. -/
+abbrev atomicity_no_refund := @Proofs.Atomicity.ExecutedExcludesAnyRefund
+
+/-- The countermodel that makes O8's all-legs loop load-bearing. -/
+abbrev all_legs_gate_necessity := @Proofs.Atomicity.SelfOnlyGateAdmitsMixedOutcome
+
+/-- The countermodel that makes the DA hypothesis load-bearing. -/
+abbrev da_necessity := @Proofs.Atomicity.WithoutDaCommittedLegIsStuck
+
+/-- The countermodel that makes O8's flow-id recomputation load-bearing: without
+it, a truncated flow passes the gate. -/
+abbrev flowid_necessity := @Proofs.Atomicity.SubsetFlowPassesUncheckedGate
+
+/-- All or nothing: no flow has both an executed leg and a refunded leg. -/
+abbrev all_or_nothing := @Proofs.Refund.NoExecutedLegAndRefundedLeg
 
 end EraSpec.Refinement

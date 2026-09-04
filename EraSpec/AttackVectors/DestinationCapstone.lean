@@ -1,5 +1,5 @@
-import EraSpec.Properties.BundleStatusMachine
-import EraSpec.Properties.AtomicSourceBinding
+import EraSpec.AttackVectors.BundleStatusMachine
+import EraSpec.AttackVectors.AtomicSourceBinding
 
 /- EXTRACTED from contracts-formal-verification (`specs/specs/AttackVectors/DestinationCapstone.lean`) — protocol-level,
    no EVM semantics.  The sibling copy is still the one that repo builds against; see
