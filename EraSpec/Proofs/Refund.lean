@@ -1,90 +1,161 @@
 import EraSpec.Properties.Refund
-import EraSpec.Proofs.Atomicity
+import EraSpec.Proofs.Timeout
 import EraSpec.Proofs.AtomicFlowManager
 
 /-!
-# Proofs: the refund path, composed
+# Proofs: one outcome per obligation
 
-The manager side is one induction over runs: only `authorize` can lift a leg to
-rank 2, and it carries the timeout proof; `claim` needs rank 2 already, so it
-inherits the witness.  The composition with the tree side is then a single
-application of `Atomicity.executed_excludes_any_refund`.
+One induction and one substitution.
+
+The induction (`refund_needs_own_flow_timeout`) walks an arbitrary interleaving of
+arbitrary chains' calls and shows that whatever lifted an obligation past
+`Committed` was an `authorize` carrying a timeout proof: `append` lands below it,
+and `claim` needs to be above it already, so it inherits the witness rather than
+creating one.
+
+The substitution is `Atomicity.flowId_check_pins_legList`: the flow that authorized
+and the flow that was executed are both checked and claim one id, so they are the
+same flow — and then the tree side (`executed_excludes_any_refund`) closes it.
 -/
 
 namespace Contracts.Refund
 
-open MerkleSpec Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.AtomicFlowManager
+open MerkleSpec Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
+open Contracts.AtomicFlowManager
 
-/-! ## The manager side -/
+/-! ## Reading the composed state -/
 
-/-- **NO REFUND WITHOUT A TIMEOUT PROOF.** -/
-theorem refund_needs_timeout_proof {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    {cv : CommitValue} {S : System} {F : Flow} {M N : Manager}
-    (hreach : GuardedReach h z0 hl cv S F M N) (hM : NoRefundYet M) :
-    SomeRefund N → RefundAuthorized h z0 hl cv S F := by
-  induction hreach with
+@[simp] lemma stateOf_emptyManagers (o : Obligation) : stateOf emptyManagers o = .Unset := rfl
+
+lemma stateOf_setAt_self (Ms : Managers) (c : Chain) (f b : UInt256) (s : LegState) :
+    stateOf (setAt Ms c ((Ms c).set f b s)) ⟨f, b, c⟩ = s := by
+  simp [stateOf, setAt, Manager.set]
+
+lemma stateOf_setAt_other {Ms : Managers} {c : Chain} {f b : UInt256} {s : LegState}
+    {o : Obligation} (h : o ≠ ⟨f, b, c⟩) :
+    stateOf (setAt Ms c ((Ms c).set f b s)) o = stateOf Ms o := by
+  by_cases hc : o.chain = c
+  · have hkey : ¬ (o.flowId = f ∧ o.bundleHash = b) := by
+      rintro ⟨h1, h2⟩
+      apply h
+      cases o with | mk fid bh ch => simp_all
+    show (setAt Ms c ((Ms c).set f b s) o.chain).legState o.flowId o.bundleHash
+      = (Ms o.chain).legState o.flowId o.bundleHash
+    simp only [setAt, if_pos hc]
+    rw [set_other hkey, hc]
+  · show (setAt Ms c ((Ms c).set f b s) o.chain).legState o.flowId o.bundleHash
+      = (Ms o.chain).legState o.flowId o.bundleHash
+    simp only [setAt, if_neg hc]
+
+/-- The obligation an `authorize` step writes to. -/
+lemma obligationOf_eq (F : Flow) (leg : FlowLeg) :
+    obligationOf F leg = ⟨F.flowId, leg.bundleHash, leg.chain⟩ := rfl
+
+/-! ## No refund without a timeout proof for this obligation's flow -/
+
+/-- **A REFUNDED OBLIGATION HAS A TIMEOUT PROOF BEHIND IT.** -/
+theorem refund_needs_own_flow_timeout {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {fh : FlowHash} {S : System} {Ms : Managers}
+    (hr : Reach h z0 hl cv fh S emptyManagers Ms) :
+    ∀ (o : Obligation), Refunded Ms o →
+      ∃ F', FlowIdChecked fh F' ∧ ∃ leg ∈ F'.legs, obligationOf F' leg = o
+        ∧ RefundAuthorized h z0 hl cv S F' := by
+  induction hr with
   | refl =>
-    rintro ⟨f, b, hf⟩
-    exact absurd hf (by have := hM f b; omega)
-  | @tail N P hr hs ih =>
-    rintro ⟨f, b, hf⟩
+    intro o hrf
+    exfalso
+    simp only [Refunded, stateOf_emptyManagers] at hrf
+    simp [rank] at hrf
+  | @tail Ns Ps _ hs ih =>
+    intro o hrf
     cases hs with
-    | @append f' b' hg =>
-      -- `append` lands on rank 1, so the witness must be elsewhere
-      by_cases he : f = f' ∧ b = b'
-      · obtain ⟨rfl, rfl⟩ := he
-        rw [set_same] at hf
-        simp only [rank_committed] at hf
-        omega
-      · rw [set_other he] at hf
-        exact ih ⟨f, b, hf⟩
-    | @authorize f' b' _ hwit =>
-      -- the step that authorizes carries the proof
-      exact hwit
-    | @claim f' b' hg =>
-      -- `claim` needs `Revertable`, so the previous state already had rank 2
-      refine ih ⟨f', b', ?_⟩
-      rw [(hg : N.legState f' b' = .Revertable)]
-      simp
+    | @append c f b hg =>
+      by_cases heq : o = ⟨f, b, c⟩
+      · exfalso
+        subst heq
+        simp only [Refunded, stateOf_setAt_self] at hrf
+        simp [rank] at hrf
+      · refine ih o ?_
+        simpa only [Refunded, stateOf_setAt_other heq] using hrf
+    | @authorize F leg hchk hmem hauth _ =>
+      by_cases heq : o = obligationOf F leg
+      · exact ⟨F, hchk, leg, hmem, heq.symm, hauth⟩
+      · refine ih o ?_
+        rw [obligationOf_eq] at heq
+        simpa only [Refunded, stateOf_setAt_other heq] using hrf
+    | @claim c f b hg =>
+      by_cases heq : o = ⟨f, b, c⟩
+      · -- `claim` needs `Revertable`, so the previous state was already past `Committed`
+        subst heq
+        refine ih _ ?_
+        simp only [Refunded, stateOf]
+        rw [show (Ns c).legState f b = LegState.Revertable from hg]
+        simp [rank]
+      · refine ih o ?_
+        simpa only [Refunded, stateOf_setAt_other heq] using hrf
 
-theorem refund_from_empty_needs_timeout_proof {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    {cv : CommitValue} {S : System} {F : Flow} {N : Manager}
-    (hreach : GuardedReach h z0 hl cv S F empty N) :
-    SomeRefund N → RefundAuthorized h z0 hl cv S F :=
-  refund_needs_timeout_proof hreach (fun _ _ => by simp [empty])
+/-- **AND IT IS THE OBLIGATION'S OWN FLOW'S.** -/
+theorem refund_implies_own_flow_timeout {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {fh : FlowHash} (hinj : FlowHashInj fh) {S : System}
+    {F : Flow} {leg : FlowLeg} (hchk : FlowIdChecked fh F) (_hmem : leg ∈ F.legs)
+    {Ms : Managers} (hr : Reach h z0 hl cv fh S emptyManagers Ms)
+    (hrf : Refunded Ms (obligationOf F leg)) : RefundAuthorized h z0 hl cv S F := by
+  obtain ⟨F', hchk', leg', _, hobl, hauth⟩ := refund_needs_own_flow_timeout hr _ hrf
+  have hid : F'.flowId = F.flowId := congrArg Obligation.flowId hobl
+  obtain rfl : F' = F := flowId_check_pins_legList hinj hchk' hchk hid
+  exact hauth
 
-/-! ## The composition -/
+/-! ## The milestone -/
 
-/-- **ONCE A LEG EXECUTES, NO REFUND IS EVER AUTHORIZED.** -/
-theorem executed_implies_no_refund_reachable {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {S : System}
-    (hS : Wf S) {F : Flow} {leg : FlowLeg} (hex : ExecutedVia h z0 hl cv fh S F leg)
-    {M N : Manager} (hreach : GuardedReach h z0 hl cv S F M N) (hM : NoRefundYet M) :
-    NoRefundYet N := by
-  intro f b
-  by_contra hcon
-  push_neg at hcon
-  obtain ⟨other, hother, href⟩ :=
-    refund_needs_timeout_proof hreach hM ⟨f, b, by omega⟩
+/-- **AN EXECUTED FLOW'S OBLIGATIONS ARE FROZEN.**  Stated for every obligation
+carrying the flow's id, which covers the executed leg and its siblings alike. -/
+theorem executed_freezes_flow {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash}
+    (hinj : FlowHashInj fh) {S : System} (hS : Wf S) {F : Flow} {leg : FlowLeg}
+    (hchk : FlowIdChecked fh F) (hex : ExecutedVia h z0 hl cv fh S F leg)
+    {Ms : Managers} (hr : Reach h z0 hl cv fh S emptyManagers Ms)
+    (o : Obligation) (ho : o.flowId = F.flowId) : ¬ Refunded Ms o := by
+  intro hrf
+  obtain ⟨F', hchk', leg', _, hobl, hauth⟩ := refund_needs_own_flow_timeout hr o hrf
+  have h1 : F'.flowId = o.flowId := congrArg Obligation.flowId hobl
+  have hid : F'.flowId = F.flowId := by rw [← ho]; exact h1
+  obtain rfl : F' = F := flowId_check_pins_legList hinj hchk' hchk hid
+  obtain ⟨other, hother, href⟩ := hauth
   exact executed_excludes_any_refund hA hS hex other hother href
 
-/-- **ALL OR NOTHING.**  No flow has both an executed leg and a refunded leg. -/
-theorem no_executed_leg_and_refunded_leg {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {S : System}
-    (hS : Wf S) {F : Flow} {N : Manager} (hreach : GuardedReach h z0 hl cv S F empty N) :
-    ¬ ((∃ leg, ExecutedVia h z0 hl cv fh S F leg) ∧ SomeRefund N) := by
-  rintro ⟨⟨leg, hex⟩, ⟨f, b, hf⟩⟩
-  have hno := executed_implies_no_refund_reachable hA hS hex hreach
-    (fun _ _ => by simp [empty])
-  have := hno f b
-  omega
+/-- **AN EXECUTED OBLIGATION IS NEVER REFUNDED.** -/
+theorem executed_obligation_never_refunded {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash}
+    (hinj : FlowHashInj fh) {S : System} (hS : Wf S) {F : Flow} {leg : FlowLeg}
+    (hchk : FlowIdChecked fh F) (hex : ExecutedVia h z0 hl cv fh S F leg)
+    {Ms : Managers} (hr : Reach h z0 hl cv fh S emptyManagers Ms) :
+    ¬ Refunded Ms (obligationOf F leg) :=
+  executed_freezes_flow hA hinj hS hchk hex hr _ rfl
 
-/-- **THE REFUND BRANCH IS LIVE.** -/
-theorem timeout_proof_refunds_every_committed_leg {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    {cv : CommitValue} {S : System} {F : Flow} {M : Manager}
-    (hwit : RefundAuthorized h z0 hl cv S F) (f b : UInt256) (hg : AuthorizeGuard M f b) :
-    GuardedStep h z0 hl cv S F M (M.set f b .Revertable) :=
-  GuardedStep.authorize hg hwit
+/-! ## Timeout validity, derived -/
+
+/-- **A VERIFIED TIMEOUT ENABLES THE REFUND.** -/
+theorem verified_timeout_authorizes {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {R : SlRoot} (hagg : Aggregates S R)
+    {F : Flow} {leg : FlowLeg} (hmem : leg ∈ F.legs)
+    (hv : LegRefundableVerified h z0 hl cv S R F leg) : RefundAuthorized h z0 hl cv S F :=
+  ⟨leg, hmem, verified_implies_refundable hagg hv⟩
+
+/-! ## The supporting cryptographic claim -/
+
+/-- **A CROSS-FLOW REFUND EXHIBITS A HASH COLLISION.**  No injectivity hypothesis. -/
+theorem cross_flow_refund_yields_collision {fh : FlowHash} {F F' : Flow}
+    (hF : FlowIdChecked fh F) (hF' : FlowIdChecked fh F') (hid : F.flowId = F'.flowId)
+    (hne : F ≠ F') :
+    ∃ (l₁ : List FlowLeg) (d₁ : ℕ) (l₂ : List FlowLeg) (d₂ : ℕ),
+      (l₁, d₁) ≠ (l₂, d₂) ∧ fh l₁ d₁ = fh l₂ d₂ := by
+  refine ⟨F.legs, F.deadline, F'.legs, F'.deadline, ?_, ?_⟩
+  · intro hpair
+    apply hne
+    have hl : F.legs = F'.legs := congrArg Prod.fst hpair
+    have hd : F.deadline = F'.deadline := congrArg Prod.snd hpair
+    cases F; cases F'; simp_all
+  · rw [hF, hF']; exact hid
 
 end Contracts.Refund
 
@@ -94,17 +165,25 @@ namespace Proofs.Refund
 
 open Contracts.Refund
 
-theorem RefundNeedsTimeoutProof : Properties.Refund.RefundNeedsTimeoutProof :=
-  fun _ _ _ _ _ _ _ _ hreach hM hsome => refund_needs_timeout_proof hreach hM hsome
-theorem RefundFromEmptyNeedsTimeoutProof : Properties.Refund.RefundFromEmptyNeedsTimeoutProof :=
-  fun _ _ _ _ _ _ _ hreach hsome => refund_from_empty_needs_timeout_proof hreach hsome
-theorem ExecutedImpliesNoRefundReachable : Properties.Refund.ExecutedImpliesNoRefundReachable :=
-  fun _ _ _ hA _ _ _ hS _ _ hex _ _ hreach hM =>
-    executed_implies_no_refund_reachable hA hS hex hreach hM
-theorem NoExecutedLegAndRefundedLeg : Properties.Refund.NoExecutedLegAndRefundedLeg :=
-  fun _ _ _ hA _ _ _ hS _ _ hreach => no_executed_leg_and_refunded_leg hA hS hreach
-theorem TimeoutProofRefundsEveryCommittedLeg :
-    Properties.Refund.TimeoutProofRefundsEveryCommittedLeg :=
-  fun _ _ _ _ _ _ _ hwit f b hg => timeout_proof_refunds_every_committed_leg hwit f b hg
+theorem RefundNeedsOwnFlowTimeout : Properties.Refund.RefundNeedsOwnFlowTimeout :=
+  fun _ _ _ _ _ _ _ hr o hrf => refund_needs_own_flow_timeout hr o hrf
+theorem RefundImpliesOwnFlowTimeout : Properties.Refund.RefundImpliesOwnFlowTimeout :=
+  fun _ _ _ _ _ hinj _ _ _ hchk hmem _ hr hrf =>
+    refund_implies_own_flow_timeout hinj hchk hmem hr hrf
+theorem ExecutedObligationNeverRefunded : Properties.Refund.ExecutedObligationNeverRefunded :=
+  fun _ _ _ hA _ _ hinj _ hS _ _ _ hchk hex _ hr =>
+    executed_obligation_never_refunded hA hinj hS hchk hex hr
+theorem OneExecutionFreezesTheFlow : Properties.Refund.OneExecutionFreezesTheFlow :=
+  fun _ _ _ hA _ _ hinj _ hS _ _ _ hchk hex _ hr _ _ =>
+    executed_freezes_flow hA hinj hS hchk hex hr _ rfl
+theorem VerifiedTimeoutAuthorizes : Properties.Refund.VerifiedTimeoutAuthorizes :=
+  fun _ _ _ _ _ _ hagg _ _ hmem hv => verified_timeout_authorizes hagg hmem hv
+theorem RefundedFlowMissedDeadline : Properties.Refund.RefundedFlowMissedDeadline :=
+  fun _ _ _ hA _ _ hS _ hagg _ _ hv n hon =>
+    Contracts.Timeout.timeout_means_missed_deadline hA hS hagg hv n hon
+theorem CrossFlowRefundYieldsCollision : Properties.Refund.CrossFlowRefundYieldsCollision :=
+  fun _ _ _ hF hF' hid hne => cross_flow_refund_yields_collision hF hF' hid hne
+theorem TimeoutProofRefundsCommittedLeg : Properties.Refund.TimeoutProofRefundsCommittedLeg :=
+  fun _ _ _ _ _ _ _ _ _ hchk hmem hauth hg => Step.authorize hchk hmem hauth hg
 
 end Proofs.Refund

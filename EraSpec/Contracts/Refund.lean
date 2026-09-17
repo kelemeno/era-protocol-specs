@@ -1,84 +1,128 @@
-import EraSpec.Contracts.Atomicity
+import EraSpec.Contracts.Timeout
 import EraSpec.Contracts.AtomicFlowManager
 
 /-!
-# Model: the refund path, composed
+# Model: obligations, and the whole system's transitions
 
-`Contracts.AtomicFlowManager` models the per-leg state machine with no reference to
-the tree: its `authorize` step just requires the leg to be `Committed`.  That is
-the right level for the no-double-refund results, but it leaves out the guard that
-makes a refund *justified* — `authorizeRefund` will not move a leg unless a timeout
-absence proof verifies.
-
-This file is the composition: the same state machine with the tree-side guard
-attached, so a refund and a delivery are finally statements about one system.
+`Contracts.AtomicFlowManager` models one chain's per-leg state machine with no
+reference to the tree.  `Contracts.Atomicity` models the trees with no reference to
+the managers.  This file is the composition, and it is where "the same economic
+obligation" becomes something one can quantify over.
 
 **This file is definitions only.**  The results are in `EraSpec.Properties.Refund`
 and proved in `EraSpec.Proofs.Refund`.
 
-## Where the two contracts meet
+## The obligation
 
-Exactly one place.  `authorizeRefund` runs
-`AtomicInteropProof.verifyTimeoutAbsence` against the missing leg's declared source
-chain, and only then loops over the flow's legs on this chain marking the committed
-ones `Revertable`:
+A leg's commitment is keyed three ways in three places, and the whole safety
+question is whether they stay tied together:
 
-    uint256 value = AtomicInteropProof.commitValue(_flow.flowId, _flow.legBundleHashes[_missingLegIndex]);
-    AtomicInteropProof.verifyTimeoutAbsence(_absence, value, _flow.deadline, _flow.settlementLayerChainId);
-    // …then: for each leg of the flow, Committed -> Revertable
+| where | key |
+|---|---|
+| the manager's `_state` | `(flowId, bundleHash)` |
+| the source chain's tree | `commitValue(flowId, bundleHash)` |
+| which chain escrowed | the leg's `legSourceChainIds[i]` |
 
-`append` and `claimRefund` touch no proof, so their guards are unchanged.
+`Obligation` is the triple, `obligationOf` builds it from a flow and a leg, and
+`legValue` (in `Contracts.Atomicity`) is the tree's view of the same thing.  Every
+result below is about one obligation, so "delivered and refunded" is a statement
+about one economic commitment rather than about two coincidentally-related keys.
 
-## What the model deliberately does not relate
+## Where the binding actually lives
 
-The manager keys legs by `(flowId, bundleHash)`; the tree holds
-`commitValue(flowId, bundleHash)`.  Those are different keyings of the same leg,
-related by a keccak hash.  Nothing below needs the relation, because the
-conclusion — "some leg of the flow had a verified timeout proof" — quantifies over
-the flow's legs existentially.  Tying a manager key to its commit value would need
-`commitValue` injectivity, which belongs with the encoding assumptions in
-`AttackVectors.BundleHashEncoding`.
+Only one of the three manager operations is flow-bound, and the asymmetry is
+faithful:
+
+* `append` — called by the `InteropCenter` at send time, which sees only the opaque
+  `flowId`.  No `_checkFlowId`.
+* `claimRefund(_flowId, _bundle)` — takes the key directly and is guarded only by
+  the leg being `Revertable`.  No `_checkFlowId`.
+* `authorizeRefund(_flow, _missingLegIndex, _absence)` — recomputes the flow id
+  (`_checkFlowId`), verifies a timeout proof against **one** missing leg, and then
+  marks **that flow's** legs on this chain `Revertable`.
+
+So `Step.authorize` is the only constructor carrying `FlowIdChecked`, and it marks
+`(F.flowId, leg.bundleHash)` for a leg of `F` on `leg.chain`.  That the timeout is
+proven for one leg and refunds the flow's other legs is not sloppiness — it is the
+protocol: a flow that cannot finalize cannot finalize for any of its legs.  Which
+is exactly why the binding that has to hold is at *flow* granularity, and why
+`_checkFlowId` is the load-bearing check rather than anything per-leg.
+
+## Interleaving
+
+`Managers` is a manager per chain and a `Step` may touch any chain, so `Reach`
+ranges over every interleaving of every chain's calls, in any order, for any number
+of flows at once.  The tree side is already a fixed multi-chain, multi-batch
+history and the refund gate quantifies existentially over batches, so a timeout
+proof "at some point in the history" is what the model admits — the conservative
+reading, and the one that makes the exclusion result independent of when each call
+happens.
 -/
 
 namespace Contracts.Refund
 
-open MerkleSpec Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.AtomicFlowManager
+open MerkleSpec Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
+open Contracts.AtomicFlowManager
 
-/-- **A TIMEOUT PROOF FOR THE FLOW VERIFIED.**  `authorizeRefund` accepted an
-absence proof for one of the flow's legs against that leg's declared source chain.
+/-- The economic obligation a leg represents: which flow it belongs to, which
+bundle it is, and which chain escrowed for it. -/
+structure Obligation where
+  flowId : UInt256
+  bundleHash : UInt256
+  chain : Chain
+deriving DecidableEq
 
-The contract names the leg (`_missingLegIndex`); which one it is does not matter
-downstream, so the model quantifies existentially. -/
+/-- The obligation a leg of a flow carries. -/
+def obligationOf (F : Flow) (leg : FlowLeg) : Obligation :=
+  ⟨F.flowId, leg.bundleHash, leg.chain⟩
+
+/-- One `AtomicFlowManager` per source chain. -/
+abbrev Managers := Chain → Manager
+
+/-- Fresh storage everywhere. -/
+def emptyManagers : Managers := fun _ => Contracts.AtomicFlowManager.empty
+
+/-- Replace one chain's manager. -/
+def setAt (Ms : Managers) (c : Chain) (M : Manager) : Managers :=
+  fun x => if x = c then M else Ms x
+
+/-- The lifecycle state of an obligation, wherever it lives. -/
+def stateOf (Ms : Managers) (o : Obligation) : LegState :=
+  (Ms o.chain).legState o.flowId o.bundleHash
+
+/-- **A TIMEOUT PROOF FOR THIS FLOW VERIFIED.**  `authorizeRefund` accepted an
+absence proof for one of `F`'s legs, against that leg's own declared source chain —
+the `ProofSourceChainMismatch` check, whose necessity is `Properties.Protocol`. -/
 def RefundAuthorized (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (F : Flow) : Prop :=
   ∃ leg ∈ F.legs, LegRefundable h z0 hl cv S F leg
 
-/-- One step of a source chain's flow manager, with the tree-side guard.
+/-- One protocol action, on some chain's manager.
 
-`Contracts.AtomicFlowManager.Step` with one addition: `authorize` carries a
-verified timeout proof.  That single extra hypothesis is what turns the
-state-machine results into statements about justified refunds. -/
-inductive GuardedStep (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
-    (S : System) (F : Flow) : Manager → Manager → Prop
-  | append {M f b} : AppendGuard M f b → GuardedStep h z0 hl cv S F M (M.set f b .Committed)
-  | authorize {M f b} : AuthorizeGuard M f b → RefundAuthorized h z0 hl cv S F →
-      GuardedStep h z0 hl cv S F M (M.set f b .Revertable)
-  | claim {M f b} : ClaimGuard M f b → GuardedStep h z0 hl cv S F M (M.set f b .Reverted)
+`append` and `claim` take a raw `(flowId, bundleHash)` key on a chain, because
+neither runs `_checkFlowId` and both are guarded only by the leg's own state.
+`authorize` is the flow-bound one. -/
+inductive Step (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (fh : FlowHash) (S : System) : Managers → Managers → Prop
+  | append {Ms c f b} : AppendGuard (Ms c) f b →
+      Step h z0 hl cv fh S Ms (setAt Ms c ((Ms c).set f b .Committed))
+  | authorize {Ms F leg} : FlowIdChecked fh F → leg ∈ F.legs →
+      RefundAuthorized h z0 hl cv S F →
+      AuthorizeGuard (Ms leg.chain) F.flowId leg.bundleHash →
+      Step h z0 hl cv fh S Ms
+        (setAt Ms leg.chain ((Ms leg.chain).set F.flowId leg.bundleHash .Revertable))
+  | claim {Ms c f b} : ClaimGuard (Ms c) f b →
+      Step h z0 hl cv fh S Ms (setAt Ms c ((Ms c).set f b .Reverted))
 
-/-- Reachability over any number of guarded steps. -/
-inductive GuardedReach (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
-    (S : System) (F : Flow) : Manager → Manager → Prop
-  | refl {M} : GuardedReach h z0 hl cv S F M M
-  | tail {M N P} : GuardedReach h z0 hl cv S F M N → GuardedStep h z0 hl cv S F N P →
-      GuardedReach h z0 hl cv S F M P
+/-- Every interleaving of every chain's calls. -/
+inductive Reach (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (fh : FlowHash) (S : System) : Managers → Managers → Prop
+  | refl {Ms} : Reach h z0 hl cv fh S Ms Ms
+  | tail {Ms Ns Ps} : Reach h z0 hl cv fh S Ms Ns → Step h z0 hl cv fh S Ns Ps →
+      Reach h z0 hl cv fh S Ms Ps
 
-/-- No leg of this manager has been authorized for refund yet: every leg is
-`Unset` or `Committed`.  True of `empty`, and the induction hypothesis of
-`Properties.Refund.RefundNeedsTimeoutProof`. -/
-def NoRefundYet (M : Manager) : Prop := ∀ f b, rank (M.legState f b) ≤ 1
-
-/-- Some leg of this manager has been authorized for refund (`Revertable`) or
-already refunded (`Reverted`). -/
-def SomeRefund (M : Manager) : Prop := ∃ f b, 2 ≤ rank (M.legState f b)
+/-- The obligation has been authorized for refund, or already refunded.  `rank`
+is `Contracts.AtomicFlowManager.rank`, so this is "past `Committed`". -/
+def Refunded (Ms : Managers) (o : Obligation) : Prop := 2 ≤ rank (stateOf Ms o)
 
 end Contracts.Refund

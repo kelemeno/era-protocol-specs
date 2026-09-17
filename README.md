@@ -4,9 +4,9 @@ Machine-checked specification of ZKsync Era's interop and bridge **protocol**, i
 Lean 4, depending on Mathlib and nothing else.
 
 No EVM semantics. No compiler output. Every theorem here is about abstract states
-and operations, and every one is fully proved — 833 theorems, 0 depending on
+and operations, and every one is fully proved — 872 theorems, 0 depending on
 anything beyond Lean's three standard axioms, 0 `sorry`, 0 axioms declared. The
-guarantees themselves are catalogued as 92 named properties, all 92 proved.
+guarantees themselves are catalogued as 100 named properties, all 100 proved.
 
 ```bash
 lake build                      # ~2 min with a warm Mathlib
@@ -30,7 +30,8 @@ EraSpec/
     ├─ Protocol                the multi-chain composition
     ├─ TreeRoot                the hash-tree root and the two proof verifiers
     ├─ Atomicity               the flow gate: partial atomicity, none-or-all
-    ├─ Refund                  manager × tree × time: all-or-nothing
+    ├─ Timeout                 why a refund is justified, not just permitted
+    ├─ Refund                  one outcome per obligation, system-wide
     ├─ NativeTokenVault        the bridge vault: registry and escrow solvency
     └─ AssetRouter             who may point an asset at a handler
 ```
@@ -200,22 +201,53 @@ real flow rather than the presented one. Modelling a leg's commit value as a
 free-standing number would have hidden this entirely — it did, in the first version
 of this file.
 
-### `Refund` — all or nothing
+### `Timeout` — why a refund is justified
 
-`AtomicFlowManager` says a refund cannot be taken twice. `Atomicity` says an
-executed leg cannot be proven absent. Neither says a refund cannot happen *after*
-an execution, because neither knows about both halves at once. This file composes
-them: the same per-leg state machine with the guard `authorizeRefund` actually
-checks, a verified timeout proof.
+`Atomicity.LegRefundable` used to take "batch `N` is the chain's last batch that
+settled by the deadline" as a branch condition with nothing behind it. It comes
+from the settlement layer, and this file derives it.
 
-`NoExecutedLegAndRefundedLeg` is the capstone. No flow has both a leg executed on
-its destination and a leg refunded on its source chain. The manager side is one
-induction: only `authorize` can lift a leg past `Committed`, and it carries the
-proof, while `claim` needs `Revertable` already and so inherits it. The tree side
-is `ExecutedExcludesAnyRefund`. And the other branch is live:
-`TimeoutProofRefundsEveryCommittedLeg` shows that once a timeout proof exists,
-every leg still `Committed` can be moved to `Revertable`, which is why a timed-out
-flow refunds all of its committed legs rather than some of them.
+What `verifyTimeoutAbsence` really checks is three comparisons against an imported
+aggregation root: the root post-dates the deadline, the batch settled by the
+deadline, and the batch is that chain's last one *in that root*.
+`IsLastOnTimeDerived` turns those into the fact the refund gate needs, given one
+named property of the settlement layer — a batch that had settled when a root was
+created is inside it. `StaleRootRefundsDeliveredLeg` is the countermodel: with a
+root that omits an already-settled batch, a leg delivered on time passes the
+timeout gate. That is the exchange this file makes, an unexplained condition inside
+the refund gate for a named property of the layer below it.
+
+`TimeoutMeansMissedDeadline` is the positive statement and the one worth reading: a
+leg with a verified timeout proof was absent from its own source chain's tree at
+**every** batch that settled by the deadline. The refund is deserved, not merely
+permitted.
+
+### `Refund` — one outcome per obligation
+
+An obligation is the triple `(flowId, bundleHash, chain)`: the manager's key, the
+tree's commit value, and the chain that escrowed. Keeping them tied together is the
+whole safety question, so every result here is about one obligation rather than
+about keys that happen to be related.
+
+`ExecutedObligationNeverRefunded` is the capstone. If an obligation is executed on
+its destination, then across **every** interleaving of **every** chain's manager
+calls it never gets past `Committed` — no `authorizeRefund` succeeds for it, so no
+`claimRefund` ever opens. Three things combine: only `authorize` lifts an
+obligation past `Committed` and it carries a timeout proof; that proof has to be
+this obligation's *own* flow's, because `authorize` marks the flow it checked and
+`_checkFlowId` makes two checked flows with one id the same flow; and a flow with a
+verified timeout cannot have delivered.
+
+The middle step is the interesting one. `RefundImpliesOwnFlowTimeout` says another
+flow's timeout, however genuine, refunds nothing here.
+`CrossFlowRefundYieldsCollision` states it in the form that assumes nothing: if one
+flow's timeout ever refunds another's obligation, the two `flowId` preimages
+collide. The protocol guarantee is unconditional; keccak enters only to say the
+violation is as hard as finding a collision.
+
+Only `authorize` is flow-bound, and that asymmetry is faithful: `append` is called
+at send time with an opaque `flowId`, and `claimRefund` takes the key directly. The
+binding that has to hold is at the refund gate, which is where the check is.
 
 ### `NativeTokenVault` — solvency, and what it does not cover
 
@@ -315,7 +347,7 @@ has never been tested:
   shows as `OPEN`.
 - **`scripts/audit-axioms.sh`** → `scripts/Audit.lean`. Enumerates every theorem and
   the axioms it depends on. An earlier regex version found 327 theorems and called
-  them all clean; the environment found 471 (833 now) — it was silently missing
+  them all clean; the environment found 471 (872 now) — it was silently missing
   144, every `private lemma` among them. It also asserts EraSpec declares no axioms.
 - **`scripts/check-word-fidelity.sh`**. `Word.lean` is a trimmed copy of Clear's
   `UInt256.lean`; a copy is only worth having while it is still a copy. Diffs all 23

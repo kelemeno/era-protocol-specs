@@ -3,6 +3,7 @@ import EraSpec.Proofs.AtomicFlowManager
 import EraSpec.Proofs.Protocol
 import EraSpec.Proofs.TreeRoot
 import EraSpec.Proofs.Atomicity
+import EraSpec.Proofs.Timeout
 import EraSpec.Proofs.Refund
 
 /-!
@@ -271,7 +272,16 @@ abbrev da_necessity := @Proofs.Atomicity.WithoutDaCommittedLegIsStuck
 it, a truncated flow passes the gate. -/
 abbrev flowid_necessity := @Proofs.Atomicity.SubsetFlowPassesUncheckedGate
 
-/-- All or nothing: no flow has both an executed leg and a refunded leg. -/
-abbrev all_or_nothing := @Proofs.Refund.NoExecutedLegAndRefundedLeg
+/-- One outcome per obligation: an executed obligation is never refunded, in any
+interleaving of any chains' calls. -/
+abbrev all_or_nothing := @Proofs.Refund.ExecutedObligationNeverRefunded
+
+/-- The timeout decision is justified rather than assumed: a leg with a verified
+timeout was absent from its source chain at every batch that settled in time. -/
+abbrev timeout_justified := @Proofs.Timeout.TimeoutMeansMissedDeadline
+
+/-- The countermodel that makes the settlement layer's aggregation guarantee
+load-bearing. -/
+abbrev aggregation_necessity := @Proofs.Timeout.StaleRootRefundsDeliveredLeg
 
 end EraSpec.Refinement

@@ -14,6 +14,7 @@ import EraSpec.Contracts.AtomicFlowManager
 import EraSpec.Contracts.Protocol
 import EraSpec.Contracts.TreeRoot
 import EraSpec.Contracts.Atomicity
+import EraSpec.Contracts.Timeout
 import EraSpec.Contracts.Refund
 import EraSpec.Contracts.NativeTokenVault
 import EraSpec.Contracts.AssetRouter
@@ -27,6 +28,7 @@ import EraSpec.Proofs.AtomicFlowManager
 import EraSpec.Proofs.Protocol
 import EraSpec.Proofs.TreeRoot
 import EraSpec.Proofs.Atomicity
+import EraSpec.Proofs.Timeout
 import EraSpec.Proofs.Refund
 import EraSpec.Proofs.NativeTokenVault
 import EraSpec.Proofs.AssetRouter
