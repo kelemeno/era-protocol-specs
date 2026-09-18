@@ -1,5 +1,5 @@
 import Mathlib.Tactic
-import EraSpec.Properties.TimeoutSoundness
+import EraSpec.AttackVectors.TimeoutSoundness
 
 /- EXTRACTED from contracts-formal-verification (`specs/specs/AttackVectors/LastBatchInRoot.lean`) — protocol-level,
    no EVM semantics.  The sibling copy is still the one that repo builds against; see
