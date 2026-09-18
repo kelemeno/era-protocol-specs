@@ -20,7 +20,8 @@ same flow — and then the tree side (`executed_excludes_any_refund`) closes it.
 
 namespace Contracts.Refund
 
-open MerkleSpec Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
+open MerkleSpec MerkleSpec.LastLeaf Contracts.InteropCommitmentTree Contracts.Atomicity
+open Contracts.Timeout
 open Contracts.AtomicFlowManager
 
 /-! ## Reading the composed state -/
@@ -141,6 +142,47 @@ theorem verified_timeout_authorizes {h : Hash} {z0 : UInt256} {hl : LeafHash}
     (hv : LegRefundableVerified h z0 hl cv S R F leg) : RefundAuthorized h z0 hl cv S F :=
   ⟨leg, hmem, verified_implies_refundable hagg hv⟩
 
+/-! ## The chain, end to end -/
+
+theorem accepted_timeout_authorizes {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {S : System} {ze : UInt256}
+    {R : SlRoot} {B : RootBacking h ze R} (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg}
+    (hmem : leg ∈ F.legs) (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
+    RefundAuthorized h z0 hl cv S F ∨ HashBreak h ze (B.leaves leg.chain) := by
+  rcases accepted_implies_refundable hA.nodeInj hagg ha with hr | hb
+  · exact Or.inl ⟨leg, hmem, hr⟩
+  · exact Or.inr hb
+
+/-- **THE PUNCHLINE.**  An accepted timeout proof for a flow that delivered is a
+hash break. -/
+theorem accepted_timeout_for_delivered_flow_is_a_break {h : Hash} {z0 : UInt256}
+    {hl : LeafHash} (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash}
+    {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
+    (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg}
+    (hex : ExecutedVia h z0 hl cv fh S F leg) (other : FlowLeg) (hother : other ∈ F.legs)
+    (ha : LegRefundableAccepted h z0 hl cv S B F other) :
+    HashBreak h ze (B.leaves other.chain) := by
+  rcases accepted_implies_refundable hA.nodeInj hagg ha with hr | hb
+  · exact absurd hr (executed_excludes_any_refund hA hS hex other hother)
+  · exact hb
+
+/-! ## What a shared commitment means -/
+
+theorem shared_commitment_yields_collision (cv : CommitValue) (o o' : Obligation)
+    (heq : cv o.flowId o.bundleHash = cv o'.flowId o'.bundleHash) :
+    (o.flowId = o'.flowId ∧ o.bundleHash = o'.bundleHash)
+      ∨ ∃ f₁ b₁ f₂ b₂, (f₁, b₁) ≠ (f₂, b₂) ∧ cv f₁ b₁ = cv f₂ b₂ := by
+  by_cases hsame : o.flowId = o'.flowId ∧ o.bundleHash = o'.bundleHash
+  · exact Or.inl hsame
+  · refine Or.inr ⟨o.flowId, o.bundleHash, o'.flowId, o'.bundleHash, ?_, heq⟩
+    intro hpair
+    exact hsame ⟨congrArg Prod.fst hpair, congrArg Prod.snd hpair⟩
+
+theorem commitment_pins_leg {cv : CommitValue} (hinj : CommitValueInj cv) (o o' : Obligation)
+    (heq : cv o.flowId o.bundleHash = cv o'.flowId o'.bundleHash) :
+    o.flowId = o'.flowId ∧ o.bundleHash = o'.bundleHash :=
+  hinj _ _ _ _ heq
+
 /-! ## The supporting cryptographic claim -/
 
 /-- **A CROSS-FLOW REFUND EXHIBITS A HASH COLLISION.**  No injectivity hypothesis. -/
@@ -183,6 +225,16 @@ theorem RefundedFlowMissedDeadline : Properties.Refund.RefundedFlowMissedDeadlin
     Contracts.Timeout.timeout_means_missed_deadline hA hS hagg hv n hon
 theorem CrossFlowRefundYieldsCollision : Properties.Refund.CrossFlowRefundYieldsCollision :=
   fun _ _ _ hF hF' hid hne => cross_flow_refund_yields_collision hF hF' hid hne
+theorem AcceptedTimeoutAuthorizes : Properties.Refund.AcceptedTimeoutAuthorizes :=
+  fun _ _ _ hA _ _ _ _ _ hagg _ _ hmem ha => accepted_timeout_authorizes hA hagg hmem ha
+theorem AcceptedTimeoutForDeliveredFlowIsABreak :
+    Properties.Refund.AcceptedTimeoutForDeliveredFlowIsABreak :=
+  fun _ _ _ hA _ _ _ hS _ _ _ hagg _ _ hex other hother ha =>
+    accepted_timeout_for_delivered_flow_is_a_break hA hS hagg hex other hother ha
+theorem SharedCommitmentYieldsCollision : Properties.Refund.SharedCommitmentYieldsCollision :=
+  shared_commitment_yields_collision
+theorem CommitmentPinsLeg : Properties.Refund.CommitmentPinsLeg :=
+  fun _ hinj o o' heq => commitment_pins_leg hinj o o' heq
 theorem TimeoutProofRefundsCommittedLeg : Properties.Refund.TimeoutProofRefundsCommittedLeg :=
   fun _ _ _ _ _ _ _ _ _ hchk hmem hauth hg => Step.authorize hchk hmem hauth hg
 

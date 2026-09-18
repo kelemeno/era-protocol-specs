@@ -14,12 +14,17 @@ three comparisons `verifyTimeoutAbsence` actually makes — the root post-dates 
 deadline, the batch settled by the deadline, the batch is last in that root — plus
 the settlement layer's `Aggregates`, the "last in-time batch" fact follows.
 
-`VerifiedImpliesRefundable` is the consequence for everything already proved: a
+`VerifiedImpliesRefundable` carries that over to everything already proved: a
 timeout the contract really verifies is an instance of the looser `LegRefundable`
-that `Properties.Atomicity` and `Properties.Refund` are stated over, so those
-safety results cover the real path **without** assuming the aggregation fact
-anywhere.  They are stated over the looser predicate, which admits more refunds,
-so excluding them is the stronger claim.
+that `Properties.Atomicity` and `Properties.Refund` are stated over, and those are
+stated over the *looser* predicate, which admits more refunds — so excluding them
+is the stronger claim.
+
+Be precise about what that buys, because it is easy to overstate.  The safety
+results' own statements do not mention `Aggregates`.  But a conclusion about a
+**verified** refund goes through `VerifiedImpliesRefundable`, so it inherits
+`Aggregates` — the real-path claim carries that hypothesis, and the only
+assumption-free statements are the ones about the looser predicate itself.
 
 ## What it adds
 
@@ -42,7 +47,7 @@ below it, with a countermodel showing the property is load-bearing.
 namespace Properties.Timeout
 
 open Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
-open MerkleSpec IMTAbstract
+open MerkleSpec MerkleSpec.LastLeaf IMTAbstract
 
 /-! ## The derivation -/
 
@@ -56,7 +61,9 @@ def IsLastOnTimeDerived : Prop :=
 /-- **A VERIFIED TIMEOUT IS A REFUNDABLE LEG.**  So every safety result stated over
 `LegRefundable` — `Properties.Atomicity.ExecutedExcludesAnyRefund` and the
 composition in `Properties.Refund` — applies to the path the contract actually
-takes, with no aggregation fact assumed in their statements. -/
+takes.  Note the hypothesis: applying them to a verified refund goes through this
+lemma, so that conclusion carries `Aggregates` even though their own statements do
+not mention it. -/
 def VerifiedImpliesRefundable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (R : SlRoot),
     Aggregates S R → ∀ (F : Flow) (leg : FlowLeg),
@@ -86,6 +93,62 @@ def TimeoutExcludesFinality : Prop :=
     ∀ (cv : CommitValue) (S : System), Wf S → ∀ (R : SlRoot), Aggregates S R →
     ∀ (F : Flow) (leg : FlowLeg), LegRefundableVerified h z0 hl cv S R F leg →
       ¬ LegFinalized h z0 hl cv S F leg
+
+/-! ## The last-batch proof itself
+
+`EndBranchVerified.lastInRoot` was still a conclusion taken as given.  These close
+that gap: the accepted proof identifies the last included batch, or exhibits a
+concrete hash break. -/
+
+/-- **AN ACCEPTED LAST-BATCH PROOF IDENTIFIES THE LAST INCLUDED BATCH.**  What
+`_verifyLastBatchInRoot` checks — every left-child sibling on the batch leaf's
+authenticated path is that level's empty-subtree hash — pins the leaf to the end of
+the chain's batch tree, or yields a `HashBreak`. -/
+def LastBatchProofIdentifiesLastBatch : Prop :=
+  ∀ (h : Hash) (ze : UInt256), (∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) →
+    ∀ (R : SlRoot) (B : RootBacking h ze R) (c : Chain) (N : ℕ) (sibs : ℕ → UInt256)
+      (x : UInt256), LastBatchAccepted B c N sibs x →
+      N = R.upTo c ∨ HashBreak h ze (B.leaves c)
+
+/-- So the END branch as the contract runs it implies the END branch as the safety
+argument assumed it. -/
+def EndBranchAcceptedImpliesVerified : Prop :=
+  ∀ (h : Hash) (ze : UInt256), (∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) →
+    ∀ (R : SlRoot) (B : RootBacking h ze R) (S : System) (c : Chain) (D N : ℕ)
+      (sibs : ℕ → UInt256) (x : UInt256), EndBranchAccepted B S c D N sibs x →
+      EndBranchVerified S R c D N ∨ HashBreak h ze (B.leaves c)
+
+/-- **THE COMPLETE CHAIN.**  Accepted proof → last included batch → no later in-time
+batch → the obligation was absent at every batch that settled in time.
+
+Every link is now a theorem.  What is left on the far side is `Aggregates`, which is
+a property of the settlement layer, and the `HashBreak` escape, which
+`NoBreakUnderIdealizations` closes for anyone willing to assume keccak behaves. -/
+def AcceptedTimeoutMeansMissedDeadline : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
+    ∀ (cv : CommitValue) (S : System), Wf S → ∀ (ze : UInt256) (R : SlRoot)
+      (B : RootBacking h ze R), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg), LegRefundableAccepted h z0 hl cv S B F leg →
+      (∀ n, S.time leg.chain n ≤ F.deadline →
+          legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+        ∨ HashBreak h ze (B.leaves leg.chain)
+
+/-- The gate as run implies the looser predicate every safety result is stated over,
+so `Properties.Refund`'s exclusivity covers the real path. -/
+def AcceptedImpliesRefundable : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    (∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) →
+    ∀ (cv : CommitValue) (S : System) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R),
+      Aggregates S R → ∀ (F : Flow) (leg : FlowLeg),
+      LegRefundableAccepted h z0 hl cv S B F leg →
+        LegRefundable h z0 hl cv S F leg ∨ HashBreak h ze (B.leaves leg.chain)
+
+/-- With node injectivity and the chain tree's domain separation, the escape hatch
+is empty — so the disjunctions above collapse. -/
+def NoBreakUnderIdealizations : Prop :=
+  ∀ (h : Hash) (ze : UInt256) (L : List UInt256),
+    (∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) →
+    EntriesNotEmpty ze L → ¬ HashBreak h ze L
 
 /-! ## What is load-bearing -/
 

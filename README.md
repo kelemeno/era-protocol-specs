@@ -4,9 +4,9 @@ Machine-checked specification of ZKsync Era's interop and bridge **protocol**, i
 Lean 4, depending on Mathlib and nothing else.
 
 No EVM semantics. No compiler output. Every theorem here is about abstract states
-and operations, and every one is fully proved — 872 theorems, 0 depending on
+and operations, and every one is fully proved — 907 theorems, 0 depending on
 anything beyond Lean's three standard axioms, 0 `sorry`, 0 axioms declared. The
-guarantees themselves are catalogued as 100 named properties, all 100 proved.
+guarantees themselves are catalogued as 109 named properties, all 109 proved.
 
 ```bash
 lake build                      # ~2 min with a warm Mathlib
@@ -217,10 +217,24 @@ root that omits an already-settled batch, a leg delivered on time passes the
 timeout gate. That is the exchange this file makes, an unexplained condition inside
 the refund gate for a named property of the layer below it.
 
+`_verifyLastBatchInRoot` is derived too, rather than taken as a conclusion.
+`LastBatchProofIdentifiesLastBatch` shows that an accepted last-batch proof — the
+batch leaf's authenticated path, with the zero-sibling check the contract runs —
+pins the chain's last included batch, **or exhibits a concrete hash collision**.
+The argument is the one the source comment gestures at: below the first left turn
+every step went right, so the right sibling's subtree begins exactly at the next
+leaf, and a zero node over an occupied subtree peels down to either a colliding node
+or an entry equal to the empty constant.
+
 `TimeoutMeansMissedDeadline` is the positive statement and the one worth reading: a
 leg with a verified timeout proof was absent from its own source chain's tree at
 **every** batch that settled by the deadline. The refund is deserved, not merely
 permitted.
+
+One caveat stated precisely, because it is easy to get wrong: the safety results'
+own statements do not mention `Aggregates`, but a conclusion about a *verified*
+refund routes through `VerifiedImpliesRefundable`, so it inherits that hypothesis.
+Only the statements about the looser predicate are assumption-free.
 
 ### `Refund` — one outcome per obligation
 
@@ -242,8 +256,18 @@ The middle step is the interesting one. `RefundImpliesOwnFlowTimeout` says anoth
 flow's timeout, however genuine, refunds nothing here.
 `CrossFlowRefundYieldsCollision` states it in the form that assumes nothing: if one
 flow's timeout ever refunds another's obligation, the two `flowId` preimages
-collide. The protocol guarantee is unconditional; keccak enters only to say the
-violation is as hard as finding a collision.
+collide. `AcceptedTimeoutForDeliveredFlowIsABreak` is that shape for the whole
+chain — producing an accepted timeout proof for a flow that delivered *is*
+producing a hash break. The protocol guarantee is unconditional; keccak enters only
+to say the violation is as hard as finding a collision.
+
+What the interleaving covers is worth stating precisely. Every chain's manager calls
+interleave in any order, for any number of flows, but over a *fixed* tree history: a
+step may cite evidence from anywhere in the timeline, which admits more of both
+outcomes than an operational model would, so excluding them is the stronger claim.
+It is not yet the operational statement in which root publication, commitment,
+authorization and claim are transitions of one system — that needs either such a
+model or a projection theorem, and it is on the roadmap.
 
 Only `authorize` is flow-bound, and that asymmetry is faithful: `append` is called
 at send time with an opaque `flowId`, and `claimRefund` takes the key directly. The
@@ -347,7 +371,7 @@ has never been tested:
   shows as `OPEN`.
 - **`scripts/audit-axioms.sh`** → `scripts/Audit.lean`. Enumerates every theorem and
   the axioms it depends on. An earlier regex version found 327 theorems and called
-  them all clean; the environment found 471 (872 now) — it was silently missing
+  them all clean; the environment found 471 (907 now) — it was silently missing
   144, every `private lemma` among them. It also asserts EraSpec declares no axioms.
 - **`scripts/check-word-fidelity.sh`**. `Word.lean` is a trimmed copy of Clear's
   `UInt256.lean`; a copy is only worth having while it is still a copy. Diffs all 23

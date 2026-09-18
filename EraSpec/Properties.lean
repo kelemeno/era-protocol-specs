@@ -76,7 +76,11 @@ anywhere, and the checker keeps the list honest.
   was absent from its own chain at **every** batch that settled by the deadline —
   the refund is deserved, not merely permitted.  What is left is one named property
   of the settlement layer (`Aggregates`), with `StaleRootRefundsDeliveredLeg` as the
-  countermodel showing it is load-bearing.
+  countermodel showing it is load-bearing.  `_verifyLastBatchInRoot` is derived too:
+  `LastBatchProofIdentifiesLastBatch` shows an accepted last-batch proof pins the
+  chain's last included batch **or exhibits a concrete hash collision**, so the whole
+  chain — accepted proof → last included batch → no later in-time batch → justified
+  timeout — is theorems end to end.
 * `Refund` — **one outcome per obligation, system-wide.**  An `Obligation` is the
   triple `(flowId, bundleHash, chain)` that ties the manager's key, the tree's
   commit value and the escrowing chain together, so "delivered and refunded" is a
@@ -85,7 +89,9 @@ anywhere, and the checker keeps the list honest.
   chains' calls.  `RefundImpliesOwnFlowTimeout` is the binding — another flow's
   timeout, however genuine, refunds nothing here — and
   `CrossFlowRefundYieldsCollision` states it in the form that assumes nothing: a
-  violation exhibits a keccak collision.
+  violation exhibits a keccak collision.  `AcceptedTimeoutForDeliveredFlowIsABreak`
+  is the same shape for the whole chain: producing an accepted timeout proof for a
+  flow that delivered *is* producing a hash break.
 
 ## Open (stated in Lean, no certificate yet)
 
@@ -108,22 +114,25 @@ that already exist are named.
    nor refund can create a second payout.  Needs `BridgedStandardERC20` and the
    counterpart chain in one model, and is the largest remaining piece.
 
-2. **When funds can get stuck.**  Everything proved so far is safety.  The liveness
+2. **An operational model, or a projection into this one.**  `Contracts.Refund`
+   interleaves every chain's manager calls, but over a *fixed* tree history: root
+   publication, commitment, authorization and claim are not transitions of one
+   system.  The fixed-history model is the conservative direction — a step may cite
+   evidence from anywhere in the timeline, so it admits more of both outcomes — but
+   the operational statement needs either that model or a theorem showing every
+   execution of it induces a `System` and a `Reach` over that history.
+
+3. **When funds can get stuck.**  Everything proved so far is safety.  The liveness
    question is whether every committed obligation eventually executes or refunds,
    under explicit progress assumptions, and which exceptions are unavoidable.  The
    distinction to keep sharp is between "every leg has valid commitment evidence"
    (`Properties.Atomicity.ExecutedImpliesAllFinalizable`, proved) and "every
    destination call can actually execute", which nothing here addresses.
 
-3. **The aggregation path.**  `Contracts.Timeout.EndBranchVerified.lastInRoot` is
-   `_verifyLastBatchInRoot`'s conclusion, taken as given.  The Merkle-path argument
-   behind it is `AttackVectors.LastBatchInRoot`; composing them would remove the
-   last structural gap in the timeout story.
-
-4. **Once-per-leg across contracts.**  `Contracts.Refund.Obligation` now ties the
-   manager key to the tree value through `legValue`, so what remains is
-   `commitValue` injectivity: distinct `(flowId, bundleHash)` pairs must get
-   distinct tree values for `NoDoubleAppend` and `DedupGateSound` to compose.
+4. **Once-per-leg across contracts.**  `Properties.Refund.CommitmentPinsLeg` now
+   supplies the missing step under `CommitValueInj`, so what remains is composing it
+   with `AtomicFlowManager.NoDoubleAppend` and `InteropCommitmentTree.DedupGateSound`
+   over the composed state.
 
 5. **Height and capacity.**  Model `FullMerkle._height` in `Tree` and prove
    `leafCount ≤ 2^height` along runs, discharging `TreeRoot`'s `hcap` hypotheses

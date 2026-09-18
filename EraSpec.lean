@@ -6,6 +6,7 @@ import EraSpec.Core.Merkle
 import EraSpec.Core.MerkleProofSound
 import EraSpec.Core.MerkleCachedInj
 import EraSpec.Core.MerkleVerifier
+import EraSpec.Core.LastLeaf
 import EraSpec.Core.IMT
 
 -- MODEL: one abstract state machine per deployed contract, definitions only

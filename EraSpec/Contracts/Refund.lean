@@ -72,6 +72,16 @@ structure Obligation where
   chain : Chain
 deriving DecidableEq
 
+/-- Keccak injectivity on the `commitValue` preimage.
+
+Note what is *not* in it: `commitValue(flowId, bundleHash)` has no chain, so two
+obligations differing only in their chain share a commit value by construction and
+no collision is implied.  The chain is bound elsewhere — membership self-binds, and
+`authorizeRefund` compares the proof's source chain with the leg's declared one
+(`Properties.Protocol`). -/
+def CommitValueInj (cv : CommitValue) : Prop :=
+  ∀ f₁ b₁ f₂ b₂, cv f₁ b₁ = cv f₂ b₂ → f₁ = f₂ ∧ b₁ = b₂
+
 /-- The obligation a leg of a flow carries. -/
 def obligationOf (F : Flow) (leg : FlowLeg) : Obligation :=
   ⟨F.flowId, leg.bundleHash, leg.chain⟩

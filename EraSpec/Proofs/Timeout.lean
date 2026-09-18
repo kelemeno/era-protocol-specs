@@ -14,7 +14,8 @@ two timestamp arguments.
 
 namespace Contracts.Timeout
 
-open Contracts.InteropCommitmentTree Contracts.Atomicity MerkleSpec MerkleSpec.Verifier IMTAbstract
+open Contracts.InteropCommitmentTree Contracts.Atomicity MerkleSpec MerkleSpec.Verifier
+open MerkleSpec.LastLeaf IMTAbstract
 
 /-! ## The derivation -/
 
@@ -77,6 +78,63 @@ theorem timeout_excludes_finality {h : Hash} {z0 : UInt256} {hl : LeafHash}
     ¬ LegFinalized h z0 hl cv S F leg := by
   rintro ⟨n, p, hon, hacc⟩
   exact timeout_means_missed_deadline hA hS hagg hv n hon (finality_means_membership hA hacc)
+
+/-! ## The last-batch proof -/
+
+theorem lastBatch_identifies_last {h : Hash} {ze : UInt256}
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {R : SlRoot} {B : RootBacking h ze R} {c : Chain} {N : ℕ} {sibs : ℕ → UInt256}
+    {x : UInt256} (ha : LastBatchAccepted B c N sibs x) :
+    N = R.upTo c ∨ HashBreak h ze (B.leaves c) := by
+  rcases accepted_last_leaf_or_break h ze hinj (B.leaves c) sibs (B.height c) N x
+    (B.capacity c) ha.inRange ha.authenticated ha.zeroRightSiblings with hlast | hbreak
+  · refine Or.inl ?_
+    have hlen := B.upToLast c
+    omega
+  · exact Or.inr hbreak
+
+theorem endBranch_of_accepted {h : Hash} {ze : UInt256}
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {R : SlRoot} {B : RootBacking h ze R} {S : System} {c : Chain} {D N : ℕ}
+    {sibs : ℕ → UInt256} {x : UInt256} (ha : EndBranchAccepted B S c D N sibs x) :
+    EndBranchVerified S R c D N ∨ HashBreak h ze (B.leaves c) := by
+  rcases lastBatch_identifies_last hinj ha.lastBatch with hlast | hbreak
+  · exact Or.inl ⟨ha.rootAfterDeadline, ha.onTime, hlast⟩
+  · exact Or.inr hbreak
+
+theorem verified_of_accepted {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
+    {F : Flow} {leg : FlowLeg} (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
+    LegRefundableVerified h z0 hl cv S R F leg ∨ HashBreak h ze (B.leaves leg.chain) := by
+  obtain ⟨N, p, hbr⟩ := ha
+  rcases hbr with ⟨hb, habs⟩ | ⟨sibs, x, he, habs⟩
+  · exact Or.inl ⟨N, p, Or.inl ⟨hb, habs⟩⟩
+  · rcases endBranch_of_accepted hinj he with hv | hbreak
+    · exact Or.inl ⟨N, p, Or.inr ⟨hv, habs⟩⟩
+    · exact Or.inr hbreak
+
+theorem accepted_implies_refundable {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
+    {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
+    (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg}
+    (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
+    LegRefundable h z0 hl cv S F leg ∨ HashBreak h ze (B.leaves leg.chain) := by
+  rcases verified_of_accepted hinj ha with hv | hbreak
+  · exact Or.inl (verified_implies_refundable hagg hv)
+  · exact Or.inr hbreak
+
+/-- **THE COMPLETE CHAIN.** -/
+theorem accepted_timeout_means_missed_deadline {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    (hA : HashAssumptions h z0 hl) {cv : CommitValue} {S : System} (hS : Wf S)
+    {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R} (hagg : Aggregates S R)
+    {F : Flow} {leg : FlowLeg} (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
+    (∀ n, S.time leg.chain n ≤ F.deadline →
+        legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+      ∨ HashBreak h ze (B.leaves leg.chain) := by
+  rcases verified_of_accepted hA.nodeInj ha with hv | hbreak
+  · exact Or.inl (fun n hon => timeout_means_missed_deadline hA hS hagg hv n hon)
+  · exact Or.inr hbreak
 
 /-! ## The stale-root countermodel -/
 
@@ -167,5 +225,19 @@ theorem TimeoutExcludesFinality : Properties.Timeout.TimeoutExcludesFinality :=
   fun _ _ _ hA _ _ hS _ hagg _ _ hv => timeout_excludes_finality hA hS hagg hv
 theorem StaleRootRefundsDeliveredLeg : Properties.Timeout.StaleRootRefundsDeliveredLeg :=
   fun _ _ _ hA _ _ _ hD hv => stale_root_refunds_delivered_leg hA hD hv
+theorem LastBatchProofIdentifiesLastBatch :
+    Properties.Timeout.LastBatchProofIdentifiesLastBatch :=
+  fun _ _ hinj _ _ _ _ _ _ ha => lastBatch_identifies_last hinj ha
+theorem EndBranchAcceptedImpliesVerified :
+    Properties.Timeout.EndBranchAcceptedImpliesVerified :=
+  fun _ _ hinj _ _ _ _ _ _ _ _ ha => endBranch_of_accepted hinj ha
+theorem AcceptedTimeoutMeansMissedDeadline :
+    Properties.Timeout.AcceptedTimeoutMeansMissedDeadline :=
+  fun _ _ _ hA _ _ hS _ _ _ hagg _ _ ha =>
+    accepted_timeout_means_missed_deadline hA hS hagg ha
+theorem AcceptedImpliesRefundable : Properties.Timeout.AcceptedImpliesRefundable :=
+  fun _ _ _ hinj _ _ _ _ _ hagg _ _ ha => accepted_implies_refundable hinj hagg ha
+theorem NoBreakUnderIdealizations : Properties.Timeout.NoBreakUnderIdealizations :=
+  fun _ _ _ hinj hsep => MerkleSpec.LastLeaf.not_hashBreak hinj hsep
 
 end Proofs.Timeout
