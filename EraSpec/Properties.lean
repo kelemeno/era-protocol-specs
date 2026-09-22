@@ -7,6 +7,7 @@ import EraSpec.Properties.Timeout
 import EraSpec.Properties.Refund
 import EraSpec.Properties.NativeTokenVault
 import EraSpec.Properties.AssetRouter
+import EraSpec.Properties.ProxyUpgrade
 
 /-!
 # The property catalogue

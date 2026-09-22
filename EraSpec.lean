@@ -19,6 +19,7 @@ import EraSpec.Contracts.Timeout
 import EraSpec.Contracts.Refund
 import EraSpec.Contracts.NativeTokenVault
 import EraSpec.Contracts.AssetRouter
+import EraSpec.Contracts.ProxyUpgrade
 
 -- PROPERTIES: the statements, one `Prop` each, no proofs
 import EraSpec.Properties
@@ -33,6 +34,7 @@ import EraSpec.Proofs.Timeout
 import EraSpec.Proofs.Refund
 import EraSpec.Proofs.NativeTokenVault
 import EraSpec.Proofs.AssetRouter
+import EraSpec.Proofs.ProxyUpgrade
 
 -- The obligations that connect this package to the compiled-code proofs
 import EraSpec.Refinement
