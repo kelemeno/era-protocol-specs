@@ -1,0 +1,28 @@
+{
+  "description": "Local review baseline for Word.lean declarations; historical derivation recorded in PROVENANCE.md. Hashes detect definition changes, not mathematical correctness.",
+  "declarations_sha256": {
+    "Bool.toUInt256": "a5e89670780337a18ac1b88338793187d3332ea702a26d20367233450d79f1b5",
+    "Bool.toUInt256_false": "37e5b9c06aa190b0a41b26b0f987fc53e632c76acb3f8f1bca80b07e11758a59",
+    "Bool.toUInt256_true": "b34e4f8f8f6045bb1ec4a05e2abf256e11fb46d8404cea1b2cc0b48d9deb87ac",
+    "Clear.UInt256.complement": "9dc72246a9198038aa153d79f3a78f654d9134c3f221225c7d55a87b865fd290",
+    "Nat.toUInt256": "accfe1d6600514371055c17286046415da9ec2160a913af1c5bba42235a2d4fe",
+    "UInt256": "1ca6e6453a38c537e7088e26cdfea5243447a2d2d612af62f2ea389cd93edf46",
+    "UInt256.size": "f1419ff67b43f89944b0967b23ff20b7bd80f84208e2eded42fd886d2fc1255b",
+    "UInt256_pow_def": "2227172fcd46af22332a7a5d8ad6b1189158f15fdb826b54f827041f0c50ffed",
+    "UInt256_pow_succ": "7a15673ca69d63735da1dc5f837400c477b172112b9420bf7b2716cadb9de251",
+    "UInt256_pow_zero": "188c401480cd755ec400eee4d6b0c622c3d8c97c24ffa7c6ddb111dbf8ac3923",
+    "UInt256_zero_pow": "e522ce2e4eab4760e7f5a4521bd5413eadabcfc5f46b968b25a32eb7dc5ae3bb",
+    "UInt8.toUInt256": "3fc89160f1c12a5ad3db23d4f2f20e96b01bf00c719507071a890fecfe89f210",
+    "eq0": "0aabd25e5d2d7bc2317da18b22ff9094ad308131c36ae07e381508b164861c79",
+    "instance:instance (n : \u2115) : OfNat UInt256 n := \u27e8Fin.ofNat n\u27e9": "fde3ee1b810d66b19c5a577076a6b6b1d6c820292c5b6c321aa05e171268d58e",
+    "instance:instance : Complement UInt256 := \u27e8Clear.UInt256.complement\u27e9": "10a67b70856fc13f539ebe43161ee379b12ebd3d6a04137dd14e8c72577a23f8",
+    "instance:instance : DecidableEq UInt256 := instDecidableEqFin UInt256.size": "ad04b26b9919a785c59f900db79dce96f02bd2cc257ca3604d078718bee8db5e",
+    "instance:instance : HMod UInt256 \u2115 UInt256 := \u27e8Fin.modn\u27e9": "4725d57dbad5af895735396d23471c1319fe97b95bdc1147346da0210aa744d9",
+    "instance:instance : HPow UInt256 UInt256 UInt256 where": "f608eac336f060f678452fb5503a916735110f98913b1bcc7ee9ca8812f39b23",
+    "instance:instance : Inhabited UInt256 := \u27e80\u27e9": "4ce5d8b50a8b4ebafe220eca795797de8bc66823f5aaec05fcdce750dea906fa",
+    "instance:instance : NatCast UInt256 := \u27e8Fin.ofNat\u27e9": "ff386c1768ec04ddfe17c2ea8041c27061ef821495c2d8b17e6fa66f0fa86a55",
+    "instance:instance : NeZero UInt256.size := \u27e8by decide\u27e9": "be57398b7b0b8468ef72780c6b2b0fb1a4558b3b033083de392ab2d36f673dbc",
+    "instance:instance : SizeOf UInt256 where": "f95228fbae5aeced7e71f4b241c6d9af9af98d31165ea3fbfdbc119237fa8f4c",
+    "lnot": "97f842385cf94c968106179e9009af76de92a169bf8b9d91dd2723c4e66c2175"
+  }
+}

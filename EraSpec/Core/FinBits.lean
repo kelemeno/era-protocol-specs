@@ -1,4 +1,4 @@
-import EraSpec.Word
+import EraSpec.Core.Word
 
 /- EXTRACTED from contracts-formal-verification (`specs/specs/FinBits.lean`) — protocol-level,
    no EVM semantics.  The sibling copy is still the one that repo builds against; see

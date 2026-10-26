@@ -5,6 +5,9 @@
 # Quot.sound, Classical.choice. Anything else, above all `sorryAx`, is a finding.
 # The audit also asserts that EraSpec declares NO axioms of its own.
 #
+# Also checks every separated contract property has a theorem referencing its
+# exact statement and proving it for all parameters, not just a special case.
+#
 # The real work is scripts/Audit.lean, which enumerates the ENVIRONMENT rather
 # than grepping source text. That matters:
 #
