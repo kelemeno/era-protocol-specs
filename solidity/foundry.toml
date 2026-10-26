@@ -1,0 +1,32 @@
+# Comparison suite: the generated slice and the original BridgedStandardERC20,
+# built with the SAME settings as era-contracts' l1-contracts at the pin
+# (solc 0.8.28, evm prague, optimizer 9999999 runs).  Run
+# scripts/fetch-solidity-deps.sh first to populate vendor/.
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = ["vendor"]
+solc_version = "0.8.28"
+evm_version = "prague"
+optimizer = true
+optimizer_runs = 9999999
+remappings = [
+  "forge-std/=vendor/forge-std/src/",
+  "@openzeppelin/contracts-v4/=vendor/openzeppelin-contracts-v4/contracts/",
+  "@openzeppelin/contracts-upgradeable-v4/=vendor/openzeppelin-contracts-upgradeable-v4/contracts/",
+  "era-contracts/=vendor/era-contracts/l1-contracts/contracts/",
+  "contracts/=vendor/era-contracts/l1-contracts/contracts/",
+  "system-contracts/=vendor/era-contracts/system-contracts/",
+  "l2-contracts/=vendor/era-contracts/l2-contracts/contracts/",
+  "@matterlabs/=vendor/era-contracts/lib/@matterlabs/",
+]
+ignored_error_codes = ["missing-receive-ether", "code-size"]
+ignored_warnings_from = ["vendor"]
+
+[fuzz]
+runs = 512
+seed = "0x45726153706563"
+
+[profile.ci.fuzz]
+runs = 4096

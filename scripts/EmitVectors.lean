@@ -1,0 +1,124 @@
+import EraSpec.Codegen.BridgedTokenSlice.Specs.Program
+
+/-!
+Prints `solidity/test/generated/LeanVectors.t.sol`: seeded call sequences run
+through the **Lean interpreter** (`Codegen.call`), with every outcome it computed
+written out as a Solidity assertion — success or the exact revert data, the return
+bytes, the logs, and every balance and the supply after the call.
+
+The generated suite runs against both Solidity implementations, so it checks the
+emitter boundary (`GEN-EMIT`: the printed source does what the interpreter says)
+and, on these traces, the original against the semantics the proofs are about.
+-/
+
+open Codegen Codegen.BridgedTokenSlice
+
+def size : ℕ := 2 ^ 256
+
+/-- The actors, as words: vault, three users, and the zero address. -/
+def actors : List ℕ := [0x1000, 0x1001, 0x1002, 0x1003, 0]
+def vaultW : ℕ := 0x1000
+
+def lcg (x : ℕ) : ℕ := (x * 6364136223846793005 + 1442695040888963407) % 2 ^ 64
+
+def solAddr (n : ℕ) : String := s!"address(uint160({n}))"
+def solU (n : ℕ) : String := s!"uint256({n})"
+
+def tyName : Ty → String
+  | .uint256 => "uint256" | .address => "address" | .bool => "bool"
+
+def solVal (t : Ty) (n : ℕ) : String :=
+  match t with
+  | .address => solAddr n
+  | .uint256 => solU n
+  | .bool => if n = 0 then "false" else "true"
+
+def signature (name : String) (tys : List Ty) : String :=
+  name ++ "(" ++ ",".intercalate (tys.map tyName) ++ ")"
+
+def failureBytes : Failure → String
+  | .message m => s!"abi.encodeWithSignature(\"Error(string)\", \"{m}\")"
+  | .panic c => s!"abi.encodeWithSignature(\"Panic(uint256)\", {solU c})"
+  | .custom n args =>
+      match program.errors.find? (fun e => e.name = n) with
+      | some d =>
+          let tys := d.params.map (·.ty)
+          let vals := (tys.zip args).map fun (t, v) => solVal t v.val
+          s!"abi.encodeWithSignature(\"{signature n tys}\"{String.join (vals.map (", " ++ ·))})"
+      | none => "UNKNOWN_ERROR"
+
+def logExpr (l : Log) : String :=
+  match program.events.find? (fun e => e.name = l.event) with
+  | none => "UNKNOWN_EVENT"
+  | some d =>
+      let ps := d.params.zip l.args
+      let topics := ps.filter (·.1.indexed) |>.map fun (_, v) => s!"bytes32({solU v.val})"
+      let data := ps.filter (!·.1.indexed) |>.map fun (p, v) => solVal p.ty v.val
+      s!"_log(\"{signature d.name (d.params.map (·.ty))}\", _topics({", ".intercalate topics}), abi.encode({", ".intercalate data}))"
+
+def logsExpr (ls : List Log) : String :=
+  s!"_logs({", ".intercalate (ls.map logExpr)})"
+
+structure Gen where
+  out : Array String := #[]
+  st : Storage
+
+def bal (st : Storage) (a : ℕ) : ℕ := (st.maps "_balances" (a : Word)).val
+def supply (st : Storage) : ℕ := (st.scalars "_totalSupply").val
+
+def pickAmount (r : ℕ) (st : Storage) (holder : ℕ) : ℕ :=
+  let b := bal st holder
+  let s := supply st
+  match r % 10 with
+  | 0 => 0 | 1 => 1 | 2 => b | 3 => min (b + 1) (size - 1) | 4 => size - 1
+  | 5 => size - 1 - s | 6 => (size - s) % size | 7 => b / 2 | 8 => (r / 256) % 1000
+  | _ => (r / 256) % size
+
+/-- One call: run the interpreter, print the assertion, thread the storage. -/
+def step (g : Gen) (r : ℕ) : Gen :=
+  let kind := r % 3
+  let target := actors[(r / 256) % 5]!
+  let caller := if kind < 2 ∧ (r / 65536) % 4 ≠ 0 then vaultW else actors[(r / 16777216) % 5]!
+  let amount := pickAmount (r / 4294967296) g.st (if kind = 2 then caller else target)
+  let fname := match kind with | 0 => "bridgeMint" | 1 => "bridgeBurn" | _ => "transfer"
+  let calldata := s!"abi.encodeWithSignature(\"{fname}(address,uint256)\", {solAddr target}, {solU amount})"
+  match call program fname (caller : Word) [(target : Word), (amount : Word)] g.st with
+  | some (.ok r) =>
+      let ret := match r.ret with | some v => s!"abi.encode({if v.val = 0 then "false" else "true"})" | none => "\"\""
+      let line := s!"        _call({solAddr caller}, {calldata}, true, {ret}, {logsExpr r.logs});"
+      { g with out := g.out.push line |>.push (stateLine r.st), st := r.st }
+  | some (.error f) =>
+      let line := s!"        _call({solAddr caller}, {calldata}, false, {failureBytes f}, {logsExpr []});"
+      { g with out := g.out.push line |>.push (stateLine g.st) }
+  | none => { g with out := g.out.push "        revert(\"no such function\");" }
+where
+  stateLine (st : Storage) : String :=
+    s!"        _state([{", ".intercalate (actors.map fun a => solU (bal st a))}], {solU (supply st)});"
+
+def runSequence (idx : ℕ) (steps : ℕ) (st0 : Storage) : Array String := Id.run do
+  let mut g : Gen := { st := st0 }
+  let mut x := lcg (idx + 0x5eed)
+  for _ in [0:steps] do
+    x := lcg x
+    g := step g (x * 18446744073709551629 + x / 7)
+  pure (#[s!"    function test_sequence_{idx}() public \{"] ++ g.out ++ #["    }", ""])
+
+def main : IO UInt32 := do
+  let some (.ok d) := deploy program (vaultW : Word) [(vaultW : Word)]
+    | IO.eprintln "deployment failed"; pure 1
+  let header := #[
+    "// SPDX-License-Identifier: MIT",
+    "// GENERATED by scripts/EmitVectors.lean from the Lean interpreter's own runs of",
+    "// `Codegen.BridgedTokenSlice.program`. Do not edit: regenerate with scripts/emit-solidity.sh.",
+    "pragma solidity 0.8.28;",
+    "",
+    "import {LeanVectorsBase} from \"../LeanVectorsBase.sol\";",
+    "",
+    "/// Every expected value below was computed by `Codegen.call`, not by Solidity.",
+    "abstract contract LeanVectors is LeanVectorsBase {"]
+  let mut lines := header
+  for i in [0:24] do
+    lines := lines ++ runSequence i 40 d.st
+  lines := lines.push "}"
+  IO.println ("\n".intercalate lines.toList)
+  pure 0

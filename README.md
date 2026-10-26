@@ -66,7 +66,9 @@ EraSpec/
   Core/                      words, arithmetic, preparation, safety simulation
   Protocol/                  cross-contract and multi-chain composition
   Examples/BurnMintBridge/   illustrative model and conditional composition
+  Codegen/                   contract language, Solidity emitter, generated token slice
   Refinement.lean            compiled-code implementation obligations
+solidity/                    one Foundry suite run against original and generated Solidity
 ```
 
 1. **Review `Specs/`** against the intended behavior and Solidity: state, operation
@@ -107,8 +109,11 @@ or does not reference the property statement.
 
 The proposed [Lean-to-Solidity generation route](CODE_GENERATION.md) describes
 restricted executable contract definitions, preservation proofs, and one shared
-test suite plus differential sequences for existing/generated Solidity. There is
-no generator or second Solidity implementation in this package yet.
+test suite plus differential sequences for existing/generated Solidity. Its
+first experiment — the bridged-token slice — is built: see
+[EraSpec/Codegen/README.md](EraSpec/Codegen/README.md) for what is proved and
+[solidity/README.md](solidity/README.md) for the comparison against the original.
+The emitter itself is trusted (`GEN-EMIT`), not proved.
 
 ### What belongs in Core
 

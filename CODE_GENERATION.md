@@ -126,6 +126,28 @@ semantics and assumptions. Neither implies that the specification captures every
 intended bridge property, so manual review of `Specs/` and `Properties/` remains
 necessary.
 
-This turn adds the assumption register and generic safety-composition foundation.
-It does not add a Solidity generator, a second Solidity implementation, or report
-any shared Solidity tests as having run.
+## Status of the first experiment
+
+The bounded experiment above has been run for the bridged-token slice. Review
+guide: [EraSpec/Codegen/README.md](EraSpec/Codegen/README.md); test report:
+[solidity/README.md](solidity/README.md).
+
+| Step | Status |
+|---|---|
+| 1. Typed contract language; token slice in it; connection to the token model | Done. [`Codegen/Lang.lean`](EraSpec/Codegen/Lang.lean) is the language and its interpreter; the slice is transcribed from the pinned source and OZ v4 with the source's check order, revert data and `unchecked` placement. Proved: both-direction agreement with `Contracts.BridgedStandardERC20` for every entry point and deployment, a `Simulation` instance, and the model's ledger invariant transferred to every reachable concrete storage. |
+| 2. Emit reviewable Solidity; build both with recorded settings | Done. [`Codegen/Emit.lean`](EraSpec/Codegen/Emit.lean) prints [`BridgedTokenSlice.sol`](solidity/src/generated/BridgedTokenSlice.sol); `scripts/emit-solidity.sh --check` keeps it current. Both implementations build with the pin's own settings (solc 0.8.28, `prague`, optimizer 9 999 999). |
+| 3. Shared assertions and differential stateful sequences, including failures | Done, all passing: 28 shared tests × 2 implementations (upstream's in-scope tests ported, exclusions listed by name), a differential fuzzer comparing after every call, and Lean-interpreter-generated vectors replayed against both. A mutation check shows the suite fails on each of 8 planted bugs. |
+| 4. Prove the translation rules or validate each output | **Open.** The emitter is a trusted pretty-printer (`GEN-EMIT` in ASSUMPTIONS.md): there is no Solidity semantics here to prove it against. The Lean-generated vectors test it on 960 calls; that is evidence, not a proof. |
+
+What this does and does not establish:
+
+* The **generated** contract has a proved meaning — up to `GEN-EMIT`, `BUILD-*`
+  and `VM-*` — and that meaning provably satisfies every property already proved
+  of the token model.
+* The **original** contract agrees with it on every tested input. No theorem
+  mentions the original; its correspondence (`REP-TOKEN`) remains open as a
+  proof obligation, now with substantial test evidence.
+
+Natural next steps: extend the slice to the vault's preparation path
+(`REP-VAULT`), and replace `GEN-EMIT` with translation validation once a
+Solidity or Yul semantics is chosen.

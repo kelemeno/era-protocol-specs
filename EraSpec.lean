@@ -55,6 +55,12 @@ import EraSpec.Protocol.DestinationCapstone
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Model
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
 
+-- Lean-to-Solidity generation: a restricted contract language, its emitter, and
+-- the bridged-token slice proved to refine the token model (CODE_GENERATION.md)
+import EraSpec.Codegen.Lang
+import EraSpec.Codegen.Emit
+import EraSpec.Codegen.BridgedTokenSlice.Proofs.Refinement
+
 -- Reference application, distinct from the deployed router/vault implementation
 import EraSpec.Examples.BurnMintBridge.Model
 import EraSpec.Examples.BurnMintBridge.ProtocolComposition

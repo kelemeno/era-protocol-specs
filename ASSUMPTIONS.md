@@ -62,6 +62,7 @@ model; it does not establish that an actual proxy starts in that model's state.
 | `SOL-ABI` | Input/output decoding, byte layout, hashing preimages, and decoding failures match typed model values. | Open. `MintData` and `List UInt8` do not prove an ABI layout. |
 | `SOL-CONTROL` | Modifiers, evaluation order, high/low-level call results, and try/catch follow the chosen source semantics. | Open source correspondence; initializer guards are library behavior, not a language guarantee. |
 | `BUILD-PRESERVATION` | Exact solc/zksolc versions, optimizer, target, libraries, and relevant flags preserve the source semantics used. | Not proved here; pin and explicitly trust or discharge this boundary for a concrete claim. |
+| `GEN-EMIT` | Solidity printed by `EraSpec/Codegen/Emit.lean` behaves as `Codegen.call`/`Codegen.deploy` say: one construct, one line (the table in `Emit.lean`), with mixed checked/unchecked statements and panicking error arguments refused. | **Trusted**, not proved — no Solidity semantics here. Evidence: `solc` type-checks every output, `scripts/emit-solidity.sh --check`, and Lean-interpreter-generated vectors replayed in `solidity/` (960 calls, all agreeing). |
 | `BUILD-IDENTITY` | Full source/dependency pins and build inputs identify the runtime code, proxy/beacon implementation, initialization data, and configuration being verified. | Source context pinned at `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`; no deployed-artifact claim yet. |
 
 Solidity's documented distinction between propagated exceptions and caught or
@@ -128,6 +129,8 @@ the axiom checker does not infer or validate this mapping.
 | Vault `preparation_backed` | `WellFormed` and successful modeled preparation. Universally quantified over the hook functions of the stated type. | `REP-TOKEN`, `REP-VAULT`, `DEP-FRAME`, ledger representation, call/ABI/arithmetic/build connections. |
 | Vault `failed_preparation_atomic` | `prepare = none`; result follows from the definition of `transact`. | `MODEL-COMMIT`, `VM-REVERT`, `SOL-CONTROL`, and actual call/frame coverage. |
 | Vault `preparation_enabled` | Named guards, sufficient balance, valid identity/origin, and explicit successful account/metadata equations. | The same representation/call connections plus `DEP-RESULTS` and execution resources. It does not prove eventual submission. |
+| `Codegen.BridgedTokenSlice.mint_refines` / `burn_refines` / `transfer_refines` | `WellFormed` model state, `Rel` between interpreter storage and it, ABI-valid arguments. Both directions: model rejection iff revert; acceptance gives a related state, exact logs and return value. | `GEN-EMIT` for the generated contract; then `BUILD-*`, `VM-*`. Says nothing about the original contract (`REP-TOKEN` stays open; see `solidity/README.md` for test evidence). |
+| `Codegen.BridgedTokenSlice.reachable_ledger` | A nonzero-vault deployment; any sequence of successful ABI-valid calls. Transferred from the model by `safety_transfer`. | As above. |
 | `initialized_preparation_trace` | Successful registration, a local token-operation funding phase, and the closed preparation/spending trace. Derives both invariants and supply-plus-pending conservation. | All participating representation obligations, `MODEL-TRACE`, `REP-PUBLISH`, and `OPS-CONFIG`. Funding authorization/backing for the initial mint phase remains separate. |
 
 Read the authoritative statements in
@@ -148,6 +151,9 @@ composition, with no VM or Solidity dependency:
    states, an abstract safety proof, and a relation that reflects that predicate.
 
 There are currently **no concrete VM, Solidity, or compiler simulation instances**.
+The one concrete instance is one level up: `Codegen.BridgedTokenSlice.simulation`
+relates the `Codegen` *interpreter* to the token model. Its connection to
+Solidity is `GEN-EMIT`, which is trusted.
 An actual instance must prove the per-step obligation; there is no global
 `EVMCorrect` or `SolidityCorrect` axiom. Explicit initial-state witnesses prevent
 an empty relation from establishing a deployment claim.
