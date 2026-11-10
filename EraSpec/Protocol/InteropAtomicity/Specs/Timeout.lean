@@ -183,6 +183,58 @@ def LegRefundableAccepted (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : Commit
             AbsenceAccepted h z0 hl (S.tree leg.chain N) (S.height leg.chain N)
               (legValue cv F leg) p)
 
+/-- **THE GATE FOR ONE SUBMITTED PROOF.**  `LegRefundableAccepted` with its
+witnesses named: batch `N`, IMT absence proof `p`, and on the END branch the
+batch-leaf path `(sibs, x)`.  Naming them is what lets a collision be pinned to the
+proof that was actually submitted (`Properties.AcceptedImpliesRefundablePinned`);
+`Properties.LegRefundableAcceptedIffBy` shows nothing is lost. -/
+def LegRefundableAcceptedBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) {ze : UInt256} {R : SlRoot} (B : RootBacking h ze R) (F : Flow)
+    (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256) : Prop :=
+  (BeginBranchVerified S R leg.chain F.deadline N ∧
+      AbsenceAccepted h z0 hl (beginTree S leg.chain N) (beginHeight S leg.chain N)
+        (legValue cv F leg) p)
+    ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x ∧
+        AbsenceAccepted h z0 hl (S.tree leg.chain N) (S.height leg.chain N)
+          (legValue cv F leg) p)
+
+/-! ## A concrete instance for the anti-vacuity witnesses
+
+Every chain's batch tree holds two batch leaves `[5, 7]` at height 2 under the toy
+hash `demoHash`; the root was created at time 1 and includes batches `0, 1`.  Batches
+`0, 1` settle at time 0 and later ones at time 2, so `Aggregates` holds. -/
+
+/-- A root created at time 1 holding every chain's batches `0, 1`. -/
+def demoRoot : SlRoot where
+  created := 1
+  upTo := fun _ => 1
+
+/-- Every chain's batch tree: leaves `[5, 7]`, height 2. -/
+def demoBacking : RootBacking demoHash 0 demoRoot where
+  leaves := fun _ => [5, 7]
+  height := fun _ => 2
+  upToLast := fun _ => rfl
+  capacity := fun _ => by norm_num
+
+/-- A system whose IMT never grows past `setup`, with batches `0, 1` settling at time
+0 and the rest at time 2. -/
+def demoSystem : System where
+  tree := fun _ _ => setup
+  time := fun _ n => if n ≤ 1 then 0 else 2
+  height := fun _ _ => 0
+
+/-- `demoBacking` with a third batch leaf, so batch 1 is NOT the last: the instance
+on which the pinned disjuncts are shown false. -/
+def demoRoot3 : SlRoot where
+  created := 1
+  upTo := fun _ => 2
+
+def demoBacking3 : RootBacking demoHash 0 demoRoot3 where
+  leaves := fun _ => [5, 7, 9]
+  height := fun _ => 2
+  upToLast := fun _ => rfl
+  capacity := fun _ => by norm_num
+
 /-! ## A stale root, for the countermodel
 
 One chain, two batches, both settled at time `0`, so both are on time for deadline
