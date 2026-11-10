@@ -96,6 +96,145 @@ theorem run_valid {enc : AssetIdOf} {thisChain : Chain} {ntv ntvAddr : Address} 
   | refl => exact empty_valid
   | tail _ hs ih => exact step_preserves_valid hs ih
 
+/-! ## Repaired forms: only the two triples compared -/
+
+/-- Injectivity on a two-element set is just the two ids differing. -/
+theorem idInjOn_pair {enc : AssetIdOf} {p q : Chain × Address × AssetData}
+    (hne : enc p.1 p.2.1 p.2.2 ≠ enc q.1 q.2.1 q.2.2) : IdInjOn enc {p, q} := by
+  intro x hx y hy hxy
+  simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx hy
+  rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
+  · rfl
+  · exact absurd hxy hne
+  · exact absurd hxy.symm hne
+  · rfl
+
+theorem idInjOn_of_global {enc : AssetIdOf} (he : IdAssumptions enc)
+    (S : Set (Chain × Address × AssetData)) : IdInjOn enc S := by
+  rintro ⟨c₁, s₁, d₁⟩ _ ⟨c₂, s₂, d₂⟩ _ h
+  obtain ⟨h1, h2, h3⟩ := he.inj _ _ _ _ _ _ h
+  subst h1; subst h2; subst h3; rfl
+
+/-- **A FINITE SET ADMITS AN INJECTIVE ENCODING.**  Number its elements. -/
+theorem idInjOn_of_card (S : Finset (Chain × Address × AssetData))
+    (hS : S.card ≤ UInt256.size) : ∃ enc : AssetIdOf, IdInjOn enc ↑S := by
+  classical
+  let f := S.equivFin
+  refine ⟨fun c s d => if h : (c, s, d) ∈ S then
+      ⟨(f ⟨(c, s, d), h⟩).val, by have := (f ⟨(c, s, d), h⟩).isLt; omega⟩ else 0, ?_⟩
+  rintro ⟨c₁, s₁, d₁⟩ h₁ ⟨c₂, s₂, d₂⟩ h₂ heq
+  rw [Finset.mem_coe] at h₁ h₂
+  simp only [dif_pos h₁, dif_pos h₂, Fin.mk.injEq] at heq
+  have hf : f ⟨(c₁, s₁, d₁), h₁⟩ = f ⟨(c₂, s₂, d₂), h₂⟩ := Fin.ext heq
+  exact congrArg Subtype.val (f.injective hf)
+
+theorem no_hijack_or_collision (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address)
+    (R : Router) {caller : Address} (d : AssetData) (h : Address) (hcaller : caller ≠ ntv)
+    (s : Address) (d' : AssetData) :
+    (setHandler enc thisChain ntv ntvAddr R caller d h).handler (enc thisChain s d')
+      = R.handler (enc thisChain s d')
+    ∨ enc thisChain s d' = enc thisChain caller d := by
+  by_cases heq : enc thisChain s d' = enc thisChain caller d
+  · exact Or.inr heq
+  · refine Or.inl (handler_frame enc thisChain ntv ntvAddr R caller d h _ ?_)
+    simp only [writtenId, senderOf_ne hcaller]
+    exact heq
+
+theorem no_hijack_on {enc : AssetIdOf} {thisChain : Chain} {ntv ntvAddr : Address}
+    (R : Router) {caller : Address} (d : AssetData) (h : Address) (hcaller : caller ≠ ntv)
+    (s : Address) (d' : AssetData) (hs : s ≠ caller)
+    (hinj : IdInjOn enc {(thisChain, caller, d), (thisChain, s, d')}) :
+    (setHandler enc thisChain ntv ntvAddr R caller d h).handler (enc thisChain s d')
+      = R.handler (enc thisChain s d') := by
+  refine (no_hijack_or_collision enc thisChain ntv ntvAddr R d h hcaller s d').resolve_right ?_
+  intro heq
+  have := hinj _ (Set.mem_insert_of_mem _ (Set.mem_singleton _)) _ (Set.mem_insert _ _) heq
+  exact hs (congrArg (fun p => p.2.1) this)
+
+theorem ntv_touches_only_its_own_ids_or_collision (enc : AssetIdOf) (thisChain : Chain)
+    (ntv ntvAddr : Address) (R : Router) (d : AssetData) (h : Address)
+    (s : Address) (d' : AssetData) :
+    (setHandler enc thisChain ntv ntvAddr R ntv d h).handler (enc thisChain s d')
+      = R.handler (enc thisChain s d')
+    ∨ enc thisChain s d' = enc thisChain ntvAddr d := by
+  by_cases heq : enc thisChain s d' = enc thisChain ntvAddr d
+  · exact Or.inr heq
+  · refine Or.inl (handler_frame enc thisChain ntv ntvAddr R ntv d h _ ?_)
+    simp only [writtenId, senderOf_self]
+    exact heq
+
+theorem ntv_touches_only_its_own_ids_on {enc : AssetIdOf} {thisChain : Chain}
+    {ntv ntvAddr : Address} (R : Router) (d : AssetData) (h : Address)
+    (s : Address) (d' : AssetData) (hs : s ≠ ntvAddr)
+    (hinj : IdInjOn enc {(thisChain, ntvAddr, d), (thisChain, s, d')}) :
+    (setHandler enc thisChain ntv ntvAddr R ntv d h).handler (enc thisChain s d')
+      = R.handler (enc thisChain s d') := by
+  refine (ntv_touches_only_its_own_ids_or_collision enc thisChain ntv ntvAddr R d h s d').resolve_right ?_
+  intro heq
+  have := hinj _ (Set.mem_insert_of_mem _ (Set.mem_singleton _)) _ (Set.mem_insert _ _) heq
+  exact hs (congrArg (fun p => p.2.1) this)
+
+/-! ### Concrete instances -/
+
+/-- The honest instance: the id is the sender.  Injective on any set of triples
+with distinct senders. -/
+def honestEnc : AssetIdOf := fun _ s _ => s
+
+/-- A colliding instance: every triple gets id `1`. -/
+def constEnc : AssetIdOf := fun _ _ _ => 1
+
+/-- A router in which address `1` is the recorded tracker of every id, so its
+calls pass the guard. -/
+def trackerOne : Router := ⟨fun _ => 0, fun _ => 1⟩
+
+lemma trackerOne_guard (enc : AssetIdOf) :
+    SetGuard enc 1 9 8 trackerOne 1 0 := ⟨Or.inr rfl, by decide⟩
+
+lemma ntv_guard (enc : AssetIdOf) (R : Router) :
+    SetGuard enc 1 9 8 R 9 0 := ⟨Or.inl rfl, by decide⟩
+
+theorem no_hijack_on_satisfiable :
+    ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+      (caller : Address) (d : AssetData) (s : Address) (d' : AssetData),
+      SetGuard enc thisChain ntv ntvAddr R caller d ∧ caller ≠ ntv ∧ s ≠ caller
+      ∧ IdInjOn enc {(thisChain, caller, d), (thisChain, s, d')} :=
+  ⟨honestEnc, 1, 9, 8, trackerOne, 1, 0, 2, 0, trackerOne_guard _, by decide, by decide,
+    idInjOn_pair (by decide)⟩
+
+theorem ntv_on_satisfiable :
+    ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+      (d : AssetData) (s : Address) (d' : AssetData),
+      SetGuard enc thisChain ntv ntvAddr R ntv d ∧ s ≠ ntvAddr
+      ∧ IdInjOn enc {(thisChain, ntvAddr, d), (thisChain, s, d')} :=
+  ⟨honestEnc, 1, 9, 8, empty, 0, 2, 0, ntv_guard _ _, by decide, idInjOn_pair (by decide)⟩
+
+theorem no_hijack_collision_not_tautology :
+    ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+      (caller : Address) (d : AssetData) (s : Address) (d' : AssetData),
+      SetGuard enc thisChain ntv ntvAddr R caller d ∧ caller ≠ ntv ∧ s ≠ caller
+      ∧ ¬ (enc thisChain s d' = enc thisChain caller d) :=
+  ⟨honestEnc, 1, 9, 8, trackerOne, 1, 0, 2, 0, trackerOne_guard _, by decide, by decide,
+    by decide⟩
+
+theorem ntv_collision_not_tautology :
+    ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+      (d : AssetData) (s : Address) (d' : AssetData),
+      SetGuard enc thisChain ntv ntvAddr R ntv d ∧ s ≠ ntvAddr
+      ∧ ¬ (enc thisChain s d' = enc thisChain ntvAddr d) :=
+  ⟨honestEnc, 1, 9, 8, empty, 0, 2, 0, ntv_guard _ _, by decide, by decide⟩
+
+theorem hijack_under_collision :
+    ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+      (caller : Address) (d : AssetData) (h : Address) (s : Address) (d' : AssetData),
+      SetGuard enc thisChain ntv ntvAddr R caller d ∧ caller ≠ ntv ∧ s ≠ caller
+      ∧ (setHandler enc thisChain ntv ntvAddr R caller d h).handler (enc thisChain s d')
+          ≠ R.handler (enc thisChain s d') := by
+  refine ⟨constEnc, 1, 9, 8, trackerOne, 1, 0, 5, 2, 0, trackerOne_guard _, by decide,
+    by decide, ?_⟩
+  show (if (1 : AssetId) = 1 then (5 : Address) else 0) ≠ (0 : Address)
+  rw [if_pos rfl]
+  decide
+
 end Contracts.AssetRouter
 
 /-! ## Certificates -/
@@ -134,5 +273,27 @@ theorem IdAssumptionsUnsatisfiable : Properties.IdAssumptionsUnsatisfiable := by
   obtain ⟨d⟩ : Nonempty AssetData := inferInstance
   exact not_pair_inj (fun c s => enc c s d) fun c₁ s₁ c₂ s₂ he =>
     let h := hA.inj c₁ s₁ d c₂ s₂ d he; ⟨h.1, h.2.1⟩
+
+/-! ### Repaired forms -/
+
+theorem NoHijackOrCollision : Properties.NoHijackOrCollision :=
+  fun enc c ntv ntvAddr R _ d h hc s d' _ => no_hijack_or_collision enc c ntv ntvAddr R d h hc s d'
+theorem NoHijackOn : Properties.NoHijackOn :=
+  fun _ _ _ _ R _ d h hc s d' hs hinj => no_hijack_on R d h hc s d' hs hinj
+theorem NtvTouchesOnlyItsOwnIdsOrCollision : Properties.NtvTouchesOnlyItsOwnIdsOrCollision :=
+  fun enc c ntv ntvAddr R d h s d' _ =>
+    ntv_touches_only_its_own_ids_or_collision enc c ntv ntvAddr R d h s d'
+theorem NtvTouchesOnlyItsOwnIdsOn : Properties.NtvTouchesOnlyItsOwnIdsOn :=
+  fun _ _ _ _ R d h s d' hs hinj => ntv_touches_only_its_own_ids_on R d h s d' hs hinj
+theorem IdInjOnSatisfiable : Properties.IdInjOnSatisfiable := idInjOn_of_card
+theorem IdInjOnOfGlobal : Properties.IdInjOnOfGlobal := fun _ he S => idInjOn_of_global he S
+theorem NoHijackOnSatisfiable : Properties.NoHijackOnSatisfiable := no_hijack_on_satisfiable
+theorem NtvTouchesOnlyItsOwnIdsOnSatisfiable :
+    Properties.NtvTouchesOnlyItsOwnIdsOnSatisfiable := ntv_on_satisfiable
+theorem NoHijackCollisionNotTautology : Properties.NoHijackCollisionNotTautology :=
+  no_hijack_collision_not_tautology
+theorem NtvCollisionNotTautology : Properties.NtvCollisionNotTautology :=
+  ntv_collision_not_tautology
+theorem HijackUnderCollision : Properties.HijackUnderCollision := hijack_under_collision
 
 end Contracts.AssetRouter

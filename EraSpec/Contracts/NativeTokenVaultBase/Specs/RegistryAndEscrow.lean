@@ -335,4 +335,51 @@ inductive Reach (e : NtvAssetId) (thisChain : Chain) : World → World → Prop
   | refl {W} : Reach e thisChain W W
   | tail {W X Y} : Reach e thisChain W X → Step e thisChain X Y → Reach e thisChain W Y
 
+/-! ## The bounded hash assumption
+
+`IdAssumptions` asks `e` to be injective on ALL (chain, token) pairs, which no map
+into `UInt256` is (`Contracts.NativeTokenVault.IdAssumptionsUnsatisfiable`).  What
+the registry argument actually uses is far less: injectivity and non-zeroness on the
+pairs the run registers.  The definitions below restrict the assumption to an
+explicit set `S` of pairs, and restrict the run to registrations hashing pairs in
+`S`.  Every run is such a run for the finite set of pairs it registers
+(`Contracts.NativeTokenVault.ReachCoveredByFinitePairs`), so the restriction loses
+nothing; and for any finite `S` that is not astronomically large there is an
+encoding satisfying it (`Contracts.NativeTokenVault.IdAssumptionsOnSatisfiable`). -/
+
+/-- `IdAssumptions`, but only on the pairs in `S`. -/
+structure IdAssumptionsOn (e : NtvAssetId) (S : Set (Chain × Address)) : Prop where
+  /-- Distinct pairs of `S` get distinct asset ids. -/
+  inj : ∀ p ∈ S, ∀ q ∈ S, e p.1 p.2 = e q.1 q.2 → p = q
+  /-- No pair of `S` hashes to the unset sentinel. -/
+  nonzero : ∀ p ∈ S, e p.1 p.2 ≠ 0
+
+/-- Every registered asset was hashed from a pair of `S`: its recorded origin chain
+and origin token lie in `S`.  Carried alongside `Valid` along bounded runs. -/
+def PairsIn (S : Set (Chain × Address)) (V : Vault) : Prop :=
+  ∀ a, Registered V a → (V.originChain a, V.originToken a) ∈ S
+
+/-- `Step`, with every registration hashing a pair of `S`: `(thisChain, t)` for a
+native registration, `(origin, ot)` for a bridged one.  Flows and donations are
+unrestricted — they hash nothing. -/
+inductive StepIn (e : NtvAssetId) (thisChain : Chain) (S : Set (Chain × Address)) :
+    World → World → Prop
+  | registerNative {W t} : (thisChain, t) ∈ S → RegisterNativeGuard W.vault t →
+      StepIn e thisChain S W { W with vault := registerNative e thisChain W.vault t }
+  | registerBridged {W a t ot origin} : (origin, ot) ∈ S →
+      RegisterBridgedGuard e thisChain W.vault a t ot origin →
+      StepIn e thisChain S W { W with vault := registerBridged W.vault a t ot origin }
+  | bridgeOut {W c a amt} : FlowOutGuard W.vault a amt →
+      StepIn e thisChain S W (bridgeOut thisChain W c a amt)
+  | bridgeIn {W c a amt} : FlowInGuard thisChain W.vault a amt →
+      StepIn e thisChain S W (bridgeIn thisChain W c a amt)
+  | donate {W a amt} : StepIn e thisChain S W (donate W a amt)
+
+/-- Reachability through `StepIn`: a run whose registrations all hash pairs of `S`. -/
+inductive ReachIn (e : NtvAssetId) (thisChain : Chain) (S : Set (Chain × Address)) :
+    World → World → Prop
+  | refl {W} : ReachIn e thisChain S W W
+  | tail {W X Y} : ReachIn e thisChain S W X → StepIn e thisChain S X Y →
+      ReachIn e thisChain S W Y
+
 end Contracts.NativeTokenVault

@@ -111,4 +111,112 @@ out, so every property here taking `IdAssumptions` is vacuously true as stated. 
 def Properties.IdAssumptionsUnsatisfiable : Prop :=
   ∀ (enc : AssetIdOf), ¬ IdAssumptions enc
 
+/-! ## Repaired forms: the two triples being compared
+
+`NoHijack` and `NtvTouchesOnlyItsOwnIds` compare exactly two triples: the one the
+call writes, `(thisChain, senderOf caller, d)`, and the one it is claimed not to
+touch, `(thisChain, s, d')`.  Each is restated twice: with a pinned-collision
+disjunct on those two triples and no hash premise (`…OrCollision`), and with
+injectivity on just those two triples (`…On`).  Anti-vacuity: the `…On` premises
+hold on a concrete authorized call (`NoHijackOnSatisfiable`,
+`NtvTouchesOnlyItsOwnIdsOnSatisfiable`, and `IdInjOnSatisfiable` for any finite
+set); each collision disjunct is false on an honest instance
+(`…CollisionNotTautology`); and when the two triples DO collide, an authorized
+non-vault call really does re-point the other registrant's asset
+(`HijackUnderCollision`), so the disjunct cannot be dropped. -/
+
+/-- **NO HIJACK, OR THE TWO TRIPLES COLLIDE.**  A non-vault caller leaves the
+handler of `enc thisChain s d'` (for any `s ≠ caller`) unchanged — unless that id
+equals the id the call writes, `enc thisChain caller d`, i.e. the two distinct
+triples `(thisChain, s, d')` and `(thisChain, caller, d)` collide.  No hash premise. -/
+def Properties.NoHijackOrCollision : Prop :=
+  ∀ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (caller : Address) (d : AssetData) (h : Address), caller ≠ ntv →
+    ∀ (s : Address) (d' : AssetData), s ≠ caller →
+      (setHandler enc thisChain ntv ntvAddr R caller d h).handler (enc thisChain s d')
+        = R.handler (enc thisChain s d')
+      ∨ enc thisChain s d' = enc thisChain caller d
+
+/-- **NO HIJACK**, with the encoding injective only on the two triples compared. -/
+def Properties.NoHijackOn : Prop :=
+  ∀ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (caller : Address) (d : AssetData) (h : Address), caller ≠ ntv →
+    ∀ (s : Address) (d' : AssetData), s ≠ caller →
+      IdInjOn enc {(thisChain, caller, d), (thisChain, s, d')} →
+      (setHandler enc thisChain ntv ntvAddr R caller d h).handler (enc thisChain s d')
+        = R.handler (enc thisChain s d')
+
+/-- **THE VAULT IS NO EXCEPTION, OR THE TWO TRIPLES COLLIDE.**  The vault's call
+leaves `enc thisChain s d'` (for `s ≠ ntvAddr`) unchanged unless it equals the id
+the vault writes, `enc thisChain ntvAddr d`. -/
+def Properties.NtvTouchesOnlyItsOwnIdsOrCollision : Prop :=
+  ∀ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (d : AssetData) (h : Address),
+    ∀ (s : Address) (d' : AssetData), s ≠ ntvAddr →
+      (setHandler enc thisChain ntv ntvAddr R ntv d h).handler (enc thisChain s d')
+        = R.handler (enc thisChain s d')
+      ∨ enc thisChain s d' = enc thisChain ntvAddr d
+
+/-- **THE VAULT IS NO EXCEPTION**, with injectivity only on the two triples. -/
+def Properties.NtvTouchesOnlyItsOwnIdsOn : Prop :=
+  ∀ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (d : AssetData) (h : Address),
+    ∀ (s : Address) (d' : AssetData), s ≠ ntvAddr →
+      IdInjOn enc {(thisChain, ntvAddr, d), (thisChain, s, d')} →
+      (setHandler enc thisChain ntv ntvAddr R ntv d h).handler (enc thisChain s d')
+        = R.handler (enc thisChain s d')
+
+/-- **THE BOUNDED ASSUMPTION IS SATISFIABLE.**  Any set of triples no larger than
+the id space has an encoding injective on it. -/
+def Properties.IdInjOnSatisfiable : Prop :=
+  ∀ (S : Finset (Chain × Address × AssetData)), S.card ≤ UInt256.size →
+    ∃ enc : AssetIdOf, IdInjOn enc ↑S
+
+/-- The global assumption gives the bounded one on every set. -/
+def Properties.IdInjOnOfGlobal : Prop :=
+  ∀ (enc : AssetIdOf), IdAssumptions enc → ∀ (S : Set (Chain × Address × AssetData)),
+    IdInjOn enc S
+
+/-- **`NoHijackOn`'s PREMISES ARE SATISFIABLE**, on an authorized call. -/
+def Properties.NoHijackOnSatisfiable : Prop :=
+  ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (caller : Address) (d : AssetData) (s : Address) (d' : AssetData),
+    SetGuard enc thisChain ntv ntvAddr R caller d ∧ caller ≠ ntv ∧ s ≠ caller
+    ∧ IdInjOn enc {(thisChain, caller, d), (thisChain, s, d')}
+
+/-- **`NtvTouchesOnlyItsOwnIdsOn`'s PREMISES ARE SATISFIABLE**, on an authorized
+vault call. -/
+def Properties.NtvTouchesOnlyItsOwnIdsOnSatisfiable : Prop :=
+  ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (d : AssetData) (s : Address) (d' : AssetData),
+    SetGuard enc thisChain ntv ntvAddr R ntv d ∧ s ≠ ntvAddr
+    ∧ IdInjOn enc {(thisChain, ntvAddr, d), (thisChain, s, d')}
+
+/-- **THE `NoHijackOrCollision` DISJUNCT IS NOT A TAUTOLOGY.**  An authorized
+non-vault call and a different registrant whose triple does not collide with the
+written one. -/
+def Properties.NoHijackCollisionNotTautology : Prop :=
+  ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (caller : Address) (d : AssetData) (s : Address) (d' : AssetData),
+    SetGuard enc thisChain ntv ntvAddr R caller d ∧ caller ≠ ntv ∧ s ≠ caller
+    ∧ ¬ (enc thisChain s d' = enc thisChain caller d)
+
+/-- **THE `NtvTouchesOnlyItsOwnIdsOrCollision` DISJUNCT IS NOT A TAUTOLOGY.** -/
+def Properties.NtvCollisionNotTautology : Prop :=
+  ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (d : AssetData) (s : Address) (d' : AssetData),
+    SetGuard enc thisChain ntv ntvAddr R ntv d ∧ s ≠ ntvAddr
+    ∧ ¬ (enc thisChain s d' = enc thisChain ntvAddr d)
+
+/-- **UNDER A COLLISION, THE HIJACK IS REAL.**  An encoding, an authorized
+non-vault call, and a different registrant `s ≠ caller` whose asset's handler the
+call changes — so `NoHijack` fails without a hash assumption, and the collision
+disjunct of `NoHijackOrCollision` is necessary. -/
+def Properties.HijackUnderCollision : Prop :=
+  ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
+    (caller : Address) (d : AssetData) (h : Address) (s : Address) (d' : AssetData),
+    SetGuard enc thisChain ntv ntvAddr R caller d ∧ caller ≠ ntv ∧ s ≠ caller
+    ∧ (setHandler enc thisChain ntv ntvAddr R caller d h).handler (enc thisChain s d')
+        ≠ R.handler (enc thisChain s d')
+
 end Contracts.AssetRouter
