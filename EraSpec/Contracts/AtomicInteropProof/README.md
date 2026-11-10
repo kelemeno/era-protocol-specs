@@ -21,7 +21,9 @@ only import a shared specification when the topic needs no additional definition
 sibling on the path is the empty-subtree hash, the proven leaf is the last leaf,
 **or** a concrete `HashBreak` (node collision, or an entry equal to the empty-entry
 constant) is exhibited. No hash injectivity is assumed for that disjunction over the
-tree's own siblings (`LastLeafOrBreak`). The submitted-path version
+tree's own siblings (`LastLeafOrBreak`), but `HashBreak`'s node-collision case takes any
+four words, so it is always inhabited (`HashBreakAlways`) and the disjunction is
+trivially true; a break pinned to a tree node is open. The submitted-path version
 (`AcceptedLastLeafOrBreak`) and `NotHashBreak` take global pair-injectivity, which no
 `UInt256` hash meets, so they are vacuous as stated (ASSUMPTIONS.md).
 

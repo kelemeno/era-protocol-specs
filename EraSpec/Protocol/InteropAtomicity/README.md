@@ -23,8 +23,10 @@ Read them in that order; each builds on the one before.
 > vacuous as stated; the full list is in `ASSUMPTIONS.md`. What stands: the
 > countermodels `SelfOnlyGateAdmitsMixedOutcome`, `SubsetFlowPassesUncheckedGate`
 > and `StaleRootRefundsDeliveredLeg` (they never needed a hash premise and no longer
-> take one), the collision-form `CrossFlowRefundYieldsCollision` and
-> `SharedCommitmentYieldsCollision`, and the premise-free structural results.
+> take one), the pinned `CrossFlowIdClashIsPinnedCollision`, and the premise-free
+> structural results. `CrossFlowRefundYieldsCollision` and
+> `SharedCommitmentYieldsCollision` take no premise but end in an unpinned "some
+> collision exists", which is always true (`UnpinnedCollisionsAlwaysExist`).
 > Restating the rest as "the property holds, or a concrete collision exists" is open.
 
 - **Atomicity.** The gate requires an inclusion proof for every leg. If any leg of a
@@ -41,8 +43,8 @@ Read them in that order; each builds on the one before.
   so real-path claims inherit it.
 - **Refund.** One outcome per obligation over every interleaving of every chain's
   manager calls (`ExecutedObligationNeverRefunded`). A cross-flow refund yields a
-  flow-id hash collision (`CrossFlowRefundYieldsCollision`); this is stated as a
-  collision, not as an injectivity assumption.
+  collision of the flow-id hash on the two flows' own preimages
+  (`CrossFlowIdClashIsPinnedCollision`).
 
 The tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

@@ -111,7 +111,7 @@ discharge it.
 | `PROTO-EVIDENCE` | Evidence authenticates the correct source/destination, commitment, settlement layer, history, deadline, and finality. A source chain supplies the funded preparation being authenticated. | Abstract interop results are conditional. An authenticated commitment alone does not establish honest execution on an arbitrary admitted chain. |
 | `OPS-CONFIG` | Actual initialization, upgrades, registry changes, pause/admin actions, and dependency selection stay within the verified transition system or preserve its invariants. | Most such transitions are outside the current trace. Fixed config is a model boundary, not a theorem about arbitrary upgrades. |
 | `CRYPTO-MERKLE-BUNDLE` | `HashAssumptions` (`L2InteropCommitmentTree/Specs/TreeRoot.lean`): global node-pair injectivity, leaf-hash injectivity, leaf/node and padding domain separation. | **Unsatisfiable** — `HashAssumptionsUnsatisfiable` proves no `h`, `z0`, `hl` meet it. Every result taking it is vacuous until restated in collision form (see the table below). The countermodels `SubsetFlowPassesUncheckedGate`, `SelfOnlyGateAdmitsMixedOutcome` and `StaleRootRefundsDeliveredLeg` never used it and no longer take it. Separately, `padNotLeaf` is false at the pin (`PaddingCollisionRefundsDeliveredLeg`, which needs no premise). |
-| `CRYPTO-PAIR-INJ` | Direct global-injectivity premises outside the bundles: a `hinj : ∀ a b c d, h a b = h c d → a = c ∧ b = d` argument (Merkle `Verifier`, `LastLeaf`'s accepted-path results, Timeout's last-batch results, and the pre-existing FullMerkle/Merkle results), `FlowHashInj` (`List FlowLeg → ℕ → UInt256` injective) and `CommitValueInj` (pair-injective commit value). | **Unsatisfiable**, proved: `Contracts.InteropCommitmentTree.not_nodeInj`, `Contracts.Atomicity.FlowHashInjUnsatisfiable`, `Contracts.Refund.CommitValueInjUnsatisfiable`. The collision forms `CrossFlowRefundYieldsCollision`, `SharedCommitmentYieldsCollision` and `LastLeafOrBreak` take none of these. |
+| `CRYPTO-PAIR-INJ` | Direct global-injectivity premises outside the bundles: a `hinj : ∀ a b c d, h a b = h c d → a = c ∧ b = d` argument (Merkle `Verifier`, `LastLeaf`'s accepted-path results, Timeout's last-batch results, and the pre-existing FullMerkle/Merkle results), `FlowHashInj` (`List FlowLeg → ℕ → UInt256` injective) and `CommitValueInj` (pair-injective commit value). | **Unsatisfiable**, proved: `Contracts.InteropCommitmentTree.not_nodeInj`, `Contracts.Atomicity.FlowHashInjUnsatisfiable`, `Contracts.Refund.CommitValueInjUnsatisfiable`. `CrossFlowRefundYieldsCollision`, `SharedCommitmentYieldsCollision` and `LastLeafOrBreak` take none of these, but their collision disjuncts are unpinned and therefore always true (`UnpinnedCollisionsAlwaysExist`, `HashBreakAlways`). |
 | `PROTO-DA` | `DataAvailable`: the provers can obtain the paths the gate needs. | Theorem premise of the none-or-all results; `WithoutDaCommittedLegIsStuck` is meant to show it is load-bearing, but that countermodel uses `HashAssumptions` in its proof, so it is vacuous until restated (`CRYPTO-MERKLE-BUNDLE`). Not dischargeable by source correspondence. |
 | `PROTO-AGGREGATES` | `Aggregates`: an imported settlement-layer root aggregates every batch that settled before it. | Premise of the derived timeout decision; load-bearing by `StaleRootRefundsDeliveredLeg`, which takes no hash premise. |
 | `OPS-PROGRESS` | Required gas/resources, usable dependencies, submissions, inclusion, and chain progress are available. | Needed for deliverability/eventual completion, not silently assumed by a safety proof conditional on success. |
@@ -132,11 +132,19 @@ Each premise below is proved unsatisfiable (`CRYPTO-MERKLE-BUNDLE`, `CRYPTO-ID`,
 claims and proof structure, not guarantees. The list was computed from the property
 statements; `global-hinj` means an unrestricted `∀ a b c d, h a b = h c d → a = c ∧ b = d`
 argument (the `_on` variants restricted to a predicate `P` are satisfiable and not listed).
-The FullMerkle and Merkle rows predate the consolidation. The only premise-free
-collision-form results so far are `LastLeafOrBreak` (over the tree's own siblings,
-not a submitted path), `CrossFlowRefundYieldsCollision` and
-`SharedCommitmentYieldsCollision`. Restating the rest as "the property holds, or a
-concrete collision among the compared values exists" is the open repair.
+The FullMerkle and Merkle rows predate the consolidation.
+
+A collision conclusion helps only if it is **pinned**: its colliding inputs must be
+determined by the instance. "…or some collision exists" is always true, because every
+map into `UInt256` from a larger domain has collisions (`exists_pair_collision`). So
+`LastLeafOrBreak` (`HashBreakAlways`), `CrossFlowRefundYieldsCollision` and
+`SharedCommitmentYieldsCollision` (`UnpinnedCollisionsAlwaysExist`) are trivially true
+and carry no information either. Pinned results so far: `WalkPinsOrCollision` and
+`AcceptPinsEntryOrCollision` (`Merkle/Properties/PathCollision.lean`; the collision is
+at a named level of the submitted path, and `HonestWalkNoCollision` shows the
+predicate is not a tautology), and `CrossFlowIdClashIsPinnedCollision` (a collision on
+the two flows' own preimages). Restating the rest in pinned form, or with a bounded
+no-collision premise on instance-determined inputs, is the open repair.
 
 | Folder | Topic | Properties (premise) |
 |---|---|---|

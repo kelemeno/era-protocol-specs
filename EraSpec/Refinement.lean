@@ -115,8 +115,8 @@ conjunction. Two source facts are needed for them to apply to
    `SubsetFlowPassesUncheckedGate` is the attack without the check (it takes no hash
    premise). `FlowIdCheckPinsLegList` and `SubsetFlowRejectedByCheck` take
    `FlowHashInj`, which `FlowHashInjUnsatisfiable` shows cannot hold, so the check's
-   sufficiency is not yet proved; `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`
-   is the collision form to build on. The source side must show `_checkFlowId`
+   sufficiency is not yet proved; `Contracts.Refund.Properties.CrossFlowIdClashIsPinnedCollision`
+   (a collision on the two flows' own preimages) is the form to build on. The source side must show `_checkFlowId`
    recomputes that hash and reverts on mismatch.
 
 Item 1 is a reading task rather than a proof task, but an edit can break it while

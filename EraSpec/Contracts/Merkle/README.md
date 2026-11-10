@@ -14,6 +14,7 @@ only import a shared specification when the topic needs no additional definition
 | RootBinding | [Specs/RootBinding.lean](Specs/RootBinding.lean) | [Properties/RootBinding.lean](Properties/RootBinding.lean) | [Proofs/RootBinding.lean](Proofs/RootBinding.lean) |
 | RootForgery | [Specs/RootForgery.lean](Specs/RootForgery.lean) | [Properties/RootForgery.lean](Properties/RootForgery.lean) | [Proofs/RootForgery.lean](Proofs/RootForgery.lean) |
 | Verifier | [Specs/Verifier.lean](Specs/Verifier.lean) | [Properties/Verifier.lean](Properties/Verifier.lean) | [Proofs/Verifier.lean](Proofs/Verifier.lean) |
+| PathCollision | [Specs/PathCollision.lean](Specs/PathCollision.lean) | [Properties/PathCollision.lean](Properties/PathCollision.lean) | [Proofs/PathCollision.lean](Proofs/PathCollision.lean) |
 
 `Verifier` drops `ProofSound`'s two hypotheses (occupied index, path length equal to
 the tree height), which `Merkle.calculateRootMemory` does not check: an accepted
@@ -23,6 +24,12 @@ separation the accepted path length is the tree height. All four non-padded resu
 `AcceptPinsEntryAnyLength`) take a global pair-injectivity premise `hinj`, which no
 `UInt256` hash satisfies (`Contracts.InteropCommitmentTree.not_nodeInj`), so they are
 vacuous as stated. The honest-walk and padded-slot results take no such premise.
+
+`PathCollision` is the repair: an accepted path opens the tree's entry, **or** the
+theorem names the level at which the verifier hashed a pair different from the tree's
+pair to the same value (`AcceptPinsEntryOrCollision`, no hash premise). The collision
+is pinned to the instance, and `HonestWalkNoCollision` shows it is false on the honest
+path, so the disjunction is not trivially true.
 
 The tree levels and walk definitions are in `../FullMerkle/Specs/Model.lean`; capacity,
 padding, and cached-hash properties are alongside that model. A pure root theorem
