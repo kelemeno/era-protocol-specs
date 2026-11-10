@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Merkle.Specs.Verifier
+import EraSpec.Contracts.Merkle.Specs.PathCollision
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.Model
 
 /-!
@@ -100,6 +101,43 @@ structure HashAssumptions (h : Hash) (z0 : UInt256) (hl : LeafHash) : Prop where
   padNotLeaf : ∀ ℓ : Leaf, hl ℓ ≠ z0
   /-- The padding constant is never a node hash. -/
   padNotNode : ∀ a b : UInt256, z0 ≠ h a b
+
+/-! ## The located break, replacing `HashAssumptions`
+
+`HashAssumptions` is unsatisfiable (`HashAssumptionsUnsatisfiable`), so everything
+stated under it is vacuous.  What the soundness argument actually extracts from an
+accepted path that does NOT name an occupied index holding the presented leaf is one
+of the following, each about values determined by the instance (the tree, the
+submitted siblings, length, index and leaf). -/
+
+/-- **A located break of the root check.**  `PathAccepts h (root h z0 hl T height) sibs k
+idx (hl ℓ)` holds, yet the path does not open `T.leaf idx = ℓ` at the tree's height,
+only because of one of:
+
+* `wrongLength` — the submitted length is not the height, located by `HeightBreak`
+  on the leaf-hash list (the claimed leaf hash is the node hash of a specific tree
+  pair, or a level-0 entry — a leaf hash or the padding constant — is the node hash of
+  the verifier's own pair, or a positional collision on the re-anchored / split walk);
+* `pathCollision` — the right length, and a `PathCollision` on the submitted path;
+* `leafCollision` — the opened index is occupied by a DIFFERENT leaf with the same
+  leaf hash as the presented one (a `hashLeaf` collision between these two leaves);
+* `paddingHit` — the opened index is empty and the presented leaf's hash IS the
+  padding constant.  At the extraction pin `z0 = hl ⟨0,0,0⟩`, so this disjunct holds
+  for `ℓ = ⟨0,0,0⟩` with no cryptographic work: it is the forged-absence bug
+  (`PaddingCollisionRefundsDeliveredLeg`), which `IMT_EMPTY_LEAF_HASH` turns into a
+  preimage problem. -/
+inductive TreeRootBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ)
+    (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) : Prop
+  | wrongLength :
+      HeightBreak h z0 (leafHashes hl T) sibs k height idx (hl ℓ) →
+      TreeRootBreak h z0 hl T height sibs k idx ℓ
+  | pathCollision : k = height →
+      PathCollision h z0 (leafHashes hl T) sibs 0 k idx (hl ℓ) →
+      TreeRootBreak h z0 hl T height sibs k idx ℓ
+  | leafCollision : idx < T.leafCount → T.leaf idx ≠ ℓ → hl (T.leaf idx) = hl ℓ →
+      TreeRootBreak h z0 hl T height sibs k idx ℓ
+  | paddingHit : T.leafCount ≤ idx → hl ℓ = z0 →
+      TreeRootBreak h z0 hl T height sibs k idx ℓ
 
 /-! ## A concrete run, for the countermodel -/
 

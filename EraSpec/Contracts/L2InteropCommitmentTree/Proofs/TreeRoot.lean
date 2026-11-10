@@ -3,6 +3,7 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Reaches
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearch
 import EraSpec.Contracts.Merkle.Proofs.Verifier
+import EraSpec.Contracts.Merkle.Proofs.PathCollision
 
 /-!
 # Proofs: the root and the two proof gates
@@ -268,6 +269,143 @@ theorem padding_collision_refunds_delivered_leg (h : Hash) (hl : LeafHash) {a b 
     rw [hcount] at this
     exact this
 
+/-! ## Soundness without hash premises: the property, or a located break -/
+
+theorem accepted_path_pins_leaf_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
+    {height : ℕ} {sibs : ℕ → UInt256} {k idx : ℕ} {ℓ : Leaf}
+    (hp : PathAccepts h (root h z0 hl T height) sibs k idx (hl ℓ)) :
+    (k = height ∧ idx < T.leafCount ∧ T.leaf idx = ℓ)
+      ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ := by
+  rcases accept_pins_entry_any_length_or_break h z0 (leafHashes hl T) sibs k height idx (hl ℓ)
+      hp.inBounds hp.recompute with ⟨hk, hget⟩ | ⟨hk, hc⟩ | hb
+  · by_cases hidx : idx < T.leafCount
+    · rw [leafHashes_getD hidx] at hget
+      by_cases hle : T.leaf idx = ℓ
+      · exact Or.inl ⟨hk, hidx, hle⟩
+      · exact Or.inr (TreeRootBreak.leafCollision hidx hle hget)
+    · rw [getD_default _ _ _ (by rw [leafHashes_length]; omega)] at hget
+      exact Or.inr (TreeRootBreak.paddingHit (by omega) hget.symm)
+  · exact Or.inr (TreeRootBreak.pathCollision hk hc)
+  · exact Or.inr (TreeRootBreak.wrongLength hb)
+
+theorem inclusion_sound_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
+    {height : ℕ} {v : UInt256} {ℓ : Leaf} {idx : ℕ} {sibs : ℕ → UInt256} {k : ℕ}
+    (hI : InclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k) :
+    v ∈ keys (toAbs T) ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ := by
+  rcases accepted_path_pins_leaf_or_break hI.path with ⟨_, hidx, hleaf⟩ | hb
+  · exact Or.inl (Finset.mem_image.mpr
+      ⟨⟨v, ℓ.nextValue⟩,
+       mem_toAbs.mpr ⟨idx, hidx, by rw [hleaf]; exact hI.valueMatch, by rw [hleaf]⟩, rfl⟩)
+  · exact Or.inr hb
+
+theorem non_inclusion_sound_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
+    {height : ℕ} {v : UInt256} {ℓ : Leaf} {idx : ℕ} {sibs : ℕ → UInt256} {k : ℕ}
+    (hN : NonInclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k) :
+    (∃ W ∈ toAbs T, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
+      ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ := by
+  rcases accepted_path_pins_leaf_or_break hN.path with ⟨_, hidx, hleaf⟩ | hb
+  · exact Or.inl ⟨⟨ℓ.value, ℓ.nextValue⟩,
+      mem_toAbs.mpr ⟨idx, hidx, by rw [hleaf], by rw [hleaf]⟩, hN.lowBelow, hN.window⟩
+  · exact Or.inr hb
+
+theorem verified_absence_excludes_delivered_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {T : Tree} (hV : Valid T) {height : ℕ} {v : UInt256} {ℓ : Leaf} {idx : ℕ}
+    {sibs : ℕ → UInt256} {k : ℕ}
+    (hN : NonInclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k) :
+    v ∉ keys (toAbs T) ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ := by
+  rcases non_inclusion_sound_or_break hN with hW | hb
+  · exact Or.inl (fun hmem => present_not_reclaimable hV.absSound.1 hmem hW)
+  · exact Or.inr hb
+
+theorem proofs_exclusive_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
+    (hV : Valid T) {height : ℕ} {v : UInt256} {ℓ₁ ℓ₂ : Leaf} {i₁ i₂ : ℕ}
+    {s₁ s₂ : ℕ → UInt256} {k₁ k₂ : ℕ}
+    (hI : InclusionAccepted h hl (root h z0 hl T height) v ℓ₁ i₁ s₁ k₁)
+    (hN : NonInclusionAccepted h hl (root h z0 hl T height) v ℓ₂ i₂ s₂ k₂) :
+    TreeRootBreak h z0 hl T height s₁ k₁ i₁ ℓ₁ ∨ TreeRootBreak h z0 hl T height s₂ k₂ i₂ ℓ₂ := by
+  rcases inclusion_sound_or_break hI with hmem | hb₁
+  · rcases verified_absence_excludes_delivered_or_break hV hN with hnot | hb₂
+    · exact absurd hmem hnot
+    · exact Or.inr hb₂
+  · exact Or.inl hb₁
+
+theorem run_roots_exclusive_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {R : ℕ → Tree}
+    (hR : Run R) (h0 : R 0 = setup) {n height : ℕ} {v : UInt256} {ℓ₁ ℓ₂ : Leaf} {i₁ i₂ : ℕ}
+    {s₁ s₂ : ℕ → UInt256} {k₁ k₂ : ℕ}
+    (hI : InclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₁ i₁ s₁ k₁)
+    (hN : NonInclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₂ i₂ s₂ k₂) :
+    TreeRootBreak h z0 hl (R n) height s₁ k₁ i₁ ℓ₁
+      ∨ TreeRootBreak h z0 hl (R n) height s₂ k₂ i₂ ℓ₂ :=
+  proofs_exclusive_or_break (run_valid hR (by rw [h0]; exact setup_valid) n) hI hN
+
+open Contracts.Protocol in
+theorem verified_absence_is_witness_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {T : Chain → Tree} {c : Chain} {height : ℕ} {v : UInt256} {ℓ : Leaf} {idx : ℕ}
+    {sibs : ℕ → UInt256} {k : ℕ}
+    (hN : NonInclusionAccepted h hl (root h z0 hl (T c) height) v ℓ idx sibs k) :
+    AbsenceWitnessAt (ofChains T) c v ∨ TreeRootBreak h z0 hl (T c) height sibs k idx ℓ :=
+  non_inclusion_sound_or_break hN
+
+/-! ### Anti-vacuity -/
+
+theorem honest_proof_no_break (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree)
+    (height i : ℕ) (hi : i < T.leafCount) :
+    ¬ TreeRootBreak h z0 hl T height (honestSibs h z0 (leafHashes hl T) i) height i (T.leaf i) := by
+  intro hb
+  cases hb with
+  | wrongLength hh => exact heightBreak_not_tautology.1 _ _ _ _ _ _ _ hh
+  | pathCollision _ hc =>
+      apply honest_walk_no_collision h z0 (leafHashes hl T) height i
+      rw [leafHashes_getD hi]
+      exact hc
+  | leafCollision _ hne _ => exact hne rfl
+  | paddingHit hle _ => omega
+
+theorem threeLeafTree_leaf_one_value (a b : UInt256) : ((threeLeafTree a b).leaf 1).value = a := by
+  simp [threeLeafTree, insert, setup]
+
+theorem proofs_exclusive_or_break_satisfiable (h : Hash) (hl : LeafHash) (a b : UInt256)
+    (ha : 0 < a) (hab : a < b) :
+    Valid (threeLeafTree a b)
+      ∧ InclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2) a
+          ((threeLeafTree a b).leaf 1) 1
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 1) 2
+      ∧ NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2) a ⟨0, 0, 0⟩ 3
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 := by
+  obtain ⟨hV, _, hN⟩ := padding_collision_refunds_delivered_leg h hl ha hab
+  refine ⟨hV, ?_, hN⟩
+  have hcount : (threeLeafTree a b).leafCount = 3 := rfl
+  have hI := inclusion_complete (h := h) (z0 := hl ⟨0, 0, 0⟩) (hl := hl) (T := threeLeafTree a b)
+    (height := 2) (by rw [hcount]; norm_num) (i := 1) (by rw [hcount]; norm_num)
+  rw [threeLeafTree_leaf_one_value] at hI
+  exact hI
+
+theorem padding_countermodel_locates_padding_hit (h : Hash) (hl : LeafHash) (a b : UInt256) :
+    ¬ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
+        (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 1) 2 1
+        ((threeLeafTree a b).leaf 1)
+      ∧ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
+        (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ := by
+  have hcount : (threeLeafTree a b).leafCount = 3 := rfl
+  exact ⟨honest_proof_no_break h _ hl _ 2 1 (by rw [hcount]; norm_num),
+    TreeRootBreak.paddingHit (by rw [hcount]) rfl⟩
+
+theorem run_roots_exclusive_or_break_satisfiable (h : Hash) (hl : LeafHash) (a b : UInt256)
+    (ha : 0 < a) (hab : a < b) :
+    ∃ R : ℕ → Tree, Run R ∧ R 0 = setup ∧ R 2 = threeLeafTree a b
+      ∧ InclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (R 2) 2) a ((R 2).leaf 1) 1
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (R 2)) 1) 2
+      ∧ NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (R 2) 2) a ⟨0, 0, 0⟩ 3
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (R 2)) 3) 2 := by
+  obtain ⟨hg1, hg2⟩ := threeLeafTree_guards ha hab
+  refine ⟨fun n => if n = 0 then setup else if n = 1 then insert setup a 0 else threeLeafTree a b,
+    ?_, rfl, rfl, (proofs_exclusive_or_break_satisfiable h hl a b ha hab).2⟩
+  intro n
+  match n with
+  | 0 => exact Or.inr ⟨a, 0, hg1, rfl⟩
+  | 1 => exact Or.inr ⟨b, 1, hg2, rfl⟩
+  | n + 2 => exact Or.inl (by simp)
+
 end Contracts.InteropCommitmentTree
 
 /-! ## Certificates -/
@@ -311,5 +449,26 @@ theorem not_nodeInj (h : MerkleSpec.Hash) : ¬ ∀ a b c d : UInt256, h a b = h 
 
 theorem HashAssumptionsUnsatisfiable : Properties.HashAssumptionsUnsatisfiable :=
   fun h _ _ hA => not_nodeInj h hA.nodeInj
+
+theorem AcceptedPathPinsLeafOrBreak : Properties.AcceptedPathPinsLeafOrBreak :=
+  @accepted_path_pins_leaf_or_break
+theorem InclusionSoundOrBreak : Properties.InclusionSoundOrBreak := @inclusion_sound_or_break
+theorem NonInclusionSoundOrBreak : Properties.NonInclusionSoundOrBreak :=
+  @non_inclusion_sound_or_break
+theorem VerifiedAbsenceExcludesDeliveredOrBreak :
+    Properties.VerifiedAbsenceExcludesDeliveredOrBreak :=
+  @verified_absence_excludes_delivered_or_break
+theorem ProofsExclusiveOrBreak : Properties.ProofsExclusiveOrBreak := @proofs_exclusive_or_break
+theorem RunRootsExclusiveOrBreak : Properties.RunRootsExclusiveOrBreak :=
+  @run_roots_exclusive_or_break
+theorem VerifiedAbsenceIsWitnessOrBreak : Properties.VerifiedAbsenceIsWitnessOrBreak :=
+  @verified_absence_is_witness_or_break
+theorem HonestProofNoBreak : Properties.HonestProofNoBreak := honest_proof_no_break
+theorem ProofsExclusiveOrBreakSatisfiable : Properties.ProofsExclusiveOrBreakSatisfiable :=
+  proofs_exclusive_or_break_satisfiable
+theorem PaddingCountermodelLocatesPaddingHit : Properties.PaddingCountermodelLocatesPaddingHit :=
+  padding_countermodel_locates_padding_hit
+theorem RunRootsExclusiveOrBreakSatisfiable : Properties.RunRootsExclusiveOrBreakSatisfiable :=
+  run_roots_exclusive_or_break_satisfiable
 
 end Contracts.InteropCommitmentTree
