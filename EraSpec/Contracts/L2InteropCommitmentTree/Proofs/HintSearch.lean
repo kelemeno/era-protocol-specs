@@ -1,5 +1,6 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Properties.HintSearch
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Reaches
 
 /-! # Proofs: the hint search -/
 
@@ -123,5 +124,18 @@ theorem setup_insertGuard {a : UInt256} (ha : 0 < a) : InsertGuard setup a 0 := 
 theorem SearchYieldsGuard : Properties.SearchYieldsGuard := @search_yields_guard
 theorem LowSearchTerminates : Properties.LowSearchTerminates := @lowSearch_terminates
 theorem LowSearchCanRevert : Properties.LowSearchCanRevert := @lowSearch_can_revert
+
+
+private lemma chain_guard (n : ℕ) (hn : n < 6) :
+    InsertGuard (chainTree n) ((n + 1 : ℕ) : UInt256) n := by
+  interval_cases n <;> exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, by decide⟩
+
+private lemma chain_reaches : ∀ n, n ≤ 6 → Reaches setup (chainTree n)
+  | 0, _ => .refl
+  | n + 1, hn => .tail (chain_reaches n (by omega)) (chain_guard n (by omega))
+
+theorem HonestInsertRevertsAtDeployedFuel : Properties.HonestInsertRevertsAtDeployedFuel :=
+  ⟨chain_reaches 6 le_rfl, by decide, by decide, by decide, by decide,
+    ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, by decide⟩⟩
 
 end Contracts.InteropCommitmentTree

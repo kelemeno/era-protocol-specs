@@ -32,9 +32,11 @@ results take `HashAssumptions`, which `HashAssumptionsUnsatisfiable` shows no ha
 meets, so they are vacuous as stated; the padding countermodels take no such
 premise and stand.
 
-Open: `LowSearchCanRevert` witnesses fuel 0 and 1, not the deployed
-`MAX_LOW_INDEX_SEARCH_ATTEMPTS`; a fixed-constant instance (a longer honest run)
-would show the revert at the deployed fuel. The `T.leafCount ≤ 2 ^ height`
+`HonestInsertRevertsAtDeployedFuel` shows the revert at the deployed
+`MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5`: on an honest seven-leaf run, an insert from a valid
+but distant hint reverts although a correct low leaf exists.
+
+Open: the `T.leafCount ≤ 2 ^ height`
 premises of `TreeRoot` (and `Wf.capacity` in `Protocol/InteropAtomicity`) could be
 discharged from `../FullMerkle/` capacity results by modelling `_height` along runs.
 

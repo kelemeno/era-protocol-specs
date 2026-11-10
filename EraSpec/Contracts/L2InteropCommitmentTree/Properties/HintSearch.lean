@@ -52,4 +52,18 @@ def Properties.LowSearchCanRevert : Prop :=
     lowSearch (insert setup a 0) v 0 0 = none
       ∧ lowSearch (insert setup a 0) v 1 0 = some 1
 
+
+/-- **THE DEPLOYED FUEL MAKES AN HONEST INSERT REVERT.**  Strengthens
+`Properties.LowSearchCanRevert` (fuel 0) to the deployed constant: on the honest
+seven-leaf run `chainTree 6`, inserting `7` from the hint `0` (a valid starting leaf,
+value `0 < 7`) exhausts `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5` hops and reverts, although
+a correct low leaf exists (`InsertGuard … 7 6`) and `leafCount` fuel finds it.  A
+liveness caveat: the caller must supply a hint within five hops. -/
+def Properties.HonestInsertRevertsAtDeployedFuel : Prop :=
+  Reaches setup (chainTree 6) ∧ (chainTree 6).leafCount = 7
+    ∧ ((chainTree 6).leaf 0).value < 7
+    ∧ lowSearch (chainTree 6) 7 maxLowIndexSearchAttempts 0 = none
+    ∧ lowSearch (chainTree 6) 7 (chainTree 6).leafCount 0 = some 6
+    ∧ InsertGuard (chainTree 6) 7 6
+
 end Contracts.InteropCommitmentTree
