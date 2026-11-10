@@ -253,4 +253,111 @@ def Properties.CrossFlowIdClashIsPinnedCollision : Prop :=
     F.flowId = F'.flowId → F ≠ F' →
       (F.legs, F.deadline) ≠ (F'.legs, F'.deadline) ∧ fh F.legs F.deadline = fh F'.legs F'.deadline
 
+/-! ## Repaired: pinned and bounded forms
+
+Added with the collision-form repair.  `Properties.RefundImpliesOwnFlowTimeout` takes
+`FlowHashInj` and `Properties.CommitmentPinsLeg` takes `CommitValueInj`; neither can
+hold.  The replacements below carry no global injectivity premise.
+
+Which of them have protocol content:
+
+* `Properties.RefundImpliesOwnFlowTimeoutOrCollision` and its flow-level form
+  `Properties.RefundOfFlowIdImpliesOwnFlowTimeoutOrCollision` **do**.  The collision
+  disjunct is not the negation of the conclusion: to get from "this obligation is
+  refunded" to "some checked flow `F'` sharing `F`'s id and owning this obligation had
+  a timeout proof" takes the induction over every interleaving of every chain's calls
+  (`refund_needs_own_flow_timeout`).  `Properties.RefundOrCollisionNeedsReach` shows that
+  the conclusion fails without the reachability premise, and
+  `Properties.RefundImpliesOwnFlowTimeoutOrCollisionWitness` that on a concrete
+  reachable refund the collision disjunct is false.
+* `Properties.CommitmentPinsLegOrCollision` **does not**: given the shared commitment,
+  its collision disjunct is the negation of its first disjunct, so it is excluded
+  middle.  It is recorded as the honest pinned shape of the old statement; the bounded
+  form `Properties.CommitmentPinsLegOn` is the usable one. -/
+
+/-- **A REFUNDED OBLIGATION OF A CHECKED FLOW HAS THAT FLOW'S TIMEOUT BEHIND IT, OR
+`fh` COLLIDES ON TWO NAMED FLOWS.**  If an obligation of checked flow `F` is past
+`Committed` in a reachable state, then `F` itself had a verified timeout proof, or some
+checked flow `F'` that owns this same obligation and had a verified timeout proof
+collides with `F` on exactly their two `(legs, deadline)` preimages.
+
+The pinned form of `Properties.RefundImpliesOwnFlowTimeout`. -/
+def Properties.RefundImpliesOwnFlowTimeoutOrCollision : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (F : Flow) (leg : FlowLeg),
+    FlowIdChecked fh F → leg ∈ F.legs → ∀ (Ms : Managers),
+    Reach h z0 hl cv fh S emptyManagers Ms → Refunded Ms (obligationOf F leg) →
+      RefundAuthorized h z0 hl cv S F
+        ∨ ∃ F', FlowIdChecked fh F'
+            ∧ (∃ leg' ∈ F'.legs, obligationOf F' leg' = obligationOf F leg)
+            ∧ RefundAuthorized h z0 hl cv S F' ∧ FlowIdClash fh F F'
+
+/-- **THE SAME, FOR EVERY OBLIGATION CARRYING THE FLOW'S ID.**  Any obligation with
+`F`'s id — the executed leg's or a sibling's, on any chain — that is refunded in a
+reachable state has `F`'s own timeout behind it, or a pinned collision between `F`
+and a checked, timed-out flow `F'` owning that obligation.  This is the form a
+flow-level freeze composes with. -/
+def Properties.RefundOfFlowIdImpliesOwnFlowTimeoutOrCollision : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (F : Flow), FlowIdChecked fh F → ∀ (Ms : Managers),
+    Reach h z0 hl cv fh S emptyManagers Ms → ∀ (o : Obligation), o.flowId = F.flowId →
+    Refunded Ms o →
+      RefundAuthorized h z0 hl cv S F
+        ∨ ∃ F', FlowIdChecked fh F' ∧ (∃ leg' ∈ F'.legs, obligationOf F' leg' = o)
+            ∧ RefundAuthorized h z0 hl cv S F' ∧ FlowIdClash fh F F'
+
+/-- **THE CONTENT IS IN THE REACHABILITY PREMISE.**  Drop `Reach … emptyManagers Ms`
+and the conclusion of `Properties.RefundImpliesOwnFlowTimeoutOrCollision` fails: there
+is a checked flow, a leg of it, and a manager state in which that leg's obligation is
+`Revertable` while neither the flow nor any other flow has a timeout proof.  So the
+statement is not a rearrangement of its other hypotheses. -/
+def Properties.RefundOrCollisionNeedsReach : Prop :=
+  ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (F : Flow) (leg : FlowLeg) (Ms : Managers),
+    FlowIdChecked fh F ∧ leg ∈ F.legs ∧ Refunded Ms (obligationOf F leg) ∧
+      ¬ (RefundAuthorized h z0 hl cv S F
+          ∨ ∃ F', FlowIdChecked fh F'
+              ∧ (∃ leg' ∈ F'.legs, obligationOf F' leg' = obligationOf F leg)
+              ∧ RefundAuthorized h z0 hl cv S F' ∧ FlowIdClash fh F F')
+
+/-- **ANTI-VACUITY WITNESS.**  The premises of
+`Properties.RefundImpliesOwnFlowTimeoutOrCollision` hold together — a checked flow, a
+reachable run (`append` then `authorize`) and a refunded obligation — while its
+collision disjunct is false on that same instance.  So on this run the theorem
+delivers its first disjunct, and the disjunct is no tautology. -/
+def Properties.RefundImpliesOwnFlowTimeoutOrCollisionWitness : Prop :=
+  ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (F : Flow) (leg : FlowLeg) (Ms : Managers),
+    FlowIdChecked fh F ∧ leg ∈ F.legs ∧ Reach h z0 hl cv fh S emptyManagers Ms
+      ∧ Refunded Ms (obligationOf F leg)
+      ∧ ¬ ∃ F', FlowIdChecked fh F'
+          ∧ (∃ leg' ∈ F'.legs, obligationOf F' leg' = obligationOf F leg)
+          ∧ RefundAuthorized h z0 hl cv S F' ∧ FlowIdClash fh F F'
+
+/-- **A SHARED COMMITMENT: THE SAME LEG, OR `cv` COLLIDES ON THESE TWO INPUTS.**  The
+pinned form of `Properties.CommitmentPinsLeg`.  Tautological given its hypothesis (see
+the section header): recorded for its shape, not its content. -/
+def Properties.CommitmentPinsLegOrCollision : Prop :=
+  ∀ (cv : CommitValue) (o o' : Obligation),
+    cv o.flowId o.bundleHash = cv o'.flowId o'.bundleHash →
+      (o.flowId = o'.flowId ∧ o.bundleHash = o'.bundleHash) ∨ CommitClash cv o o'
+
+/-- **A SHARED COMMITMENT PINS THE LEG, BOUNDED.**  If `cv` has no collision among the
+obligations of a finite list `os`, two of them with one commitment have the same
+`(flowId, bundleHash)` — the chain still to be pinned separately. -/
+def Properties.CommitmentPinsLegOn : Prop :=
+  ∀ (cv : CommitValue) (os : List Obligation), CommitValueInjOn cv os →
+    ∀ o ∈ os, ∀ o' ∈ os, cv o.flowId o.bundleHash = cv o'.flowId o'.bundleHash →
+      o.flowId = o'.flowId ∧ o.bundleHash = o'.bundleHash
+
+/-- **THE BOUNDED PREMISE IS SATISFIABLE.**  For every list of fewer than `2^256`
+obligations there is a commit value with no collision among them. -/
+def Properties.CommitValueInjOnSatisfiable : Prop :=
+  ∀ os : List Obligation, os.length < UInt256.size → ∃ cv : CommitValue, CommitValueInjOn cv os
+
+/-- **THE PINNED DISJUNCT IS NOT A TAUTOLOGY.**  For every obligation `o`, the commit
+value `honestCommitValue o` has no `CommitClash` between `o` and any obligation. -/
+def Properties.HonestCommitValueNoClash : Prop :=
+  ∀ o o' : Obligation, ¬ CommitClash (honestCommitValue o) o o'
+
 end Contracts.Refund

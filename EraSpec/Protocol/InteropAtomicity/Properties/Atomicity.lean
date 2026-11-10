@@ -252,4 +252,71 @@ to be injective; the deadline argument alone ranges over all of `ℕ`, so no suc
 collision form is `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`. -/
 def Properties.FlowHashInjUnsatisfiable : Prop := ∀ fh : FlowHash, ¬ FlowHashInj fh
 
+/-! ## The flow-id check, repaired: pinned and bounded forms
+
+Added with the collision-form repair.  `Properties.FlowIdCheckPinsLegList` and
+`Properties.SubsetFlowRejectedByCheck` take `FlowHashInj`, which cannot hold.  Their
+replacements come in two shapes:
+
+* **pinned** — the conclusion holds or `fh` collides on exactly the two flows'
+  own `(legs, deadline)` preimages (`FlowIdClash`);
+* **bounded** — the premise is injectivity on an explicit finite list of flows
+  (`FlowHashInjOn`), which is satisfiable.
+
+A reviewer should read the pinned forms here for what they are: given that both flows
+pass `_checkFlowId` and claim one id, `F ≠ F'` and `FlowIdClash fh F F'` are
+equivalent by unfolding.  So these two carry no protocol reasoning; they are the
+honest statement that `_checkFlowId` reduces flow identity to a collision on these
+two specific preimages.  The pinned form with protocol content is
+`Contracts.Refund.Properties.RefundImpliesOwnFlowTimeoutOrCollision`. -/
+
+/-- **`_checkFlowId` PINS THE LEG LIST, OR `fh` COLLIDES ON THESE TWO FLOWS.**  Two
+checked flows claiming one id are the same flow, or their own preimages collide. -/
+def Properties.FlowIdCheckPinsLegListOrCollision : Prop :=
+  ∀ (fh : FlowHash) (F F' : Flow),
+    FlowIdChecked fh F → FlowIdChecked fh F' → F.flowId = F'.flowId →
+      F = F' ∨ FlowIdClash fh F F'
+
+/-- **`_checkFlowId` PINS THE LEG LIST, BOUNDED.**  If `fh` has no collision among the
+flows of a finite list `Fs`, two checked flows of `Fs` claiming one id are equal. -/
+def Properties.FlowIdCheckPinsLegListOn : Prop :=
+  ∀ (fh : FlowHash) (Fs : List Flow), FlowHashInjOn fh Fs →
+    ∀ F ∈ Fs, ∀ F' ∈ Fs,
+      FlowIdChecked fh F → FlowIdChecked fh F' → F.flowId = F'.flowId → F = F'
+
+/-- **THE BOUNDED PREMISE IS SATISFIABLE.**  For every list of fewer than `2^256`
+flows there is a flow hash with no collision among them. -/
+def Properties.FlowHashInjOnSatisfiable : Prop :=
+  ∀ Fs : List Flow, Fs.length < UInt256.size → ∃ fh : FlowHash, FlowHashInjOn fh Fs
+
+/-- **THE PINNED DISJUNCT IS NOT A TAUTOLOGY.**  For every flow `F`, the flow hash
+`honestFlowHash F` passes `F`'s check and has no `FlowIdClash` between `F` and any
+flow at all. -/
+def Properties.HonestFlowHashNoClash : Prop :=
+  ∀ F : Flow, FlowIdChecked (honestFlowHash F) F ∧ ∀ F' : Flow, ¬ FlowIdClash (honestFlowHash F) F F'
+
+/-- **THE TRUNCATED FLOW PASSES THE CHECK ONLY BY A COLLISION ON THESE TWO
+PREIMAGES.**  If the real flow and the truncated one both pass `_checkFlowId`, then `fh`
+collides on exactly `([⟨0, hA⟩, ⟨1, hB⟩], 0)` and `([⟨0, hA⟩], 0)`.  The pinned form of
+`Properties.SubsetFlowRejectedByCheck`. -/
+def Properties.SubsetFlowCheckedOnlyByCollision : Prop :=
+  ∀ (fh : FlowHash) (id hA hB : UInt256),
+    FlowIdChecked fh (mixedFlow id hA hB) → FlowIdChecked fh (subsetFlow id hA) →
+      FlowIdClash fh (mixedFlow id hA hB) (subsetFlow id hA)
+
+/-- **THE CHECK REJECTS IT, BOUNDED.**  If `fh` separates just the real and truncated
+flows' preimages, the truncated flow fails `_checkFlowId` whenever the real one
+passes.  The bounded form of `Properties.SubsetFlowRejectedByCheck`. -/
+def Properties.SubsetFlowRejectedByCheckOn : Prop :=
+  ∀ (fh : FlowHash) (id hA hB : UInt256),
+    FlowHashInjOn fh [mixedFlow id hA hB, subsetFlow id hA] →
+    FlowIdChecked fh (mixedFlow id hA hB) → ¬ FlowIdChecked fh (subsetFlow id hA)
+
+/-- **ITS PREMISES ARE SATISFIABLE.**  For every `id hA hB`, the honest flow hash of
+the real flow separates the two preimages and passes the real flow's check. -/
+def Properties.SubsetFlowRejectedByCheckOnSatisfiable : Prop :=
+  ∀ (id hA hB : UInt256),
+    FlowHashInjOn (honestFlowHash (mixedFlow id hA hB)) [mixedFlow id hA hB, subsetFlow id hA]
+      ∧ FlowIdChecked (honestFlowHash (mixedFlow id hA hB)) (mixedFlow id hA hB)
+
 end Contracts.Atomicity

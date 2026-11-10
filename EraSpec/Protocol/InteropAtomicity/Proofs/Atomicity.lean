@@ -409,4 +409,108 @@ theorem FlowHashInjUnsatisfiable : Properties.FlowHashInjUnsatisfiable := by
   have hf : Function.Injective (fun d : ℕ => fh [] d) := fun d₁ d₂ he => (hinj [] d₁ [] d₂ he).2
   exact not_injective_infinite_finite _ hf
 
+/-! ## The flow-id check, repaired -/
+
+/-- `x + 1 ≠ x` in `UInt256`: the honest flow hash really separates. -/
+lemma uint256_succ_ne_self (x : UInt256) : x + 1 ≠ x := by
+  intro h
+  have hv := congrArg Fin.val h
+  rw [Fin.val_add] at hv
+  have h1 : (1 : UInt256).val = 1 := rfl
+  rw [h1] at hv
+  have := x.isLt
+  simp only [UInt256.size] at this hv
+  omega
+
+/-- The position of `x` in `P`, as a `UInt256` (or `0` past `2^256`).  Injective on the
+members of any list shorter than `2^256`, which is what the bounded-injectivity
+satisfiability witnesses need. -/
+def indexHash {α : Type} [DecidableEq α] (P : List α) (x : α) : UInt256 :=
+  if hi : P.indexOf x < UInt256.size then ⟨P.indexOf x, hi⟩ else 0
+
+lemma indexHash_inj_on {α : Type} [DecidableEq α] {P : List α} (hP : P.length < UInt256.size)
+    {x y : α} (hx : x ∈ P) (hy : y ∈ P) (he : indexHash P x = indexHash P y) : x = y := by
+  have hlt := lt_trans (List.indexOf_lt_length.mpr hx) hP
+  have hlt' := lt_trans (List.indexOf_lt_length.mpr hy) hP
+  unfold indexHash at he
+  rw [dif_pos hlt, dif_pos hlt'] at he
+  exact (List.indexOf_inj hx hy).mp (Fin.mk.inj_iff.mp he)
+
+/-- Equal preimages and equal claimed ids make equal flows. -/
+lemma flow_eq_of_preimage {F F' : Flow} (hid : F.flowId = F'.flowId)
+    (hp : (F.legs, F.deadline) = (F'.legs, F'.deadline)) : F = F' := by
+  obtain ⟨hl, hd⟩ := Prod.mk.inj hp
+  cases F; cases F'
+  simp_all
+
+/-- **`_checkFlowId` PINS THE LEG LIST, OR `fh` COLLIDES ON THESE TWO FLOWS.** -/
+theorem flowId_check_pins_legList_or_collision {fh : FlowHash} {F F' : Flow}
+    (hF : FlowIdChecked fh F) (hF' : FlowIdChecked fh F') (hid : F.flowId = F'.flowId) :
+    F = F' ∨ FlowIdClash fh F F' := by
+  by_cases hp : (F.legs, F.deadline) = (F'.legs, F'.deadline)
+  · exact Or.inl (flow_eq_of_preimage hid hp)
+  · exact Or.inr ⟨hp, hF.trans (hid.trans hF'.symm)⟩
+
+theorem honest_flowHash_no_clash (F : Flow) :
+    FlowIdChecked (honestFlowHash F) F ∧ ∀ F' : Flow, ¬ FlowIdClash (honestFlowHash F) F F' := by
+  refine ⟨by simp [FlowIdChecked, honestFlowHash], ?_⟩
+  rintro F' ⟨hne, heq⟩
+  have hne' : ¬ (F'.legs, F'.deadline) = (F.legs, F.deadline) := fun h => hne h.symm
+  simp only [honestFlowHash, if_pos rfl, if_neg hne'] at heq
+  exact uint256_succ_ne_self _ heq.symm
+
+end Contracts.Atomicity
+
+/-! ## Certificates for the repaired flow-id results -/
+
+namespace Contracts.Atomicity
+
+theorem FlowIdCheckPinsLegListOrCollision : Properties.FlowIdCheckPinsLegListOrCollision :=
+  fun _ _ _ hF hF' hid => flowId_check_pins_legList_or_collision hF hF' hid
+
+theorem FlowIdCheckPinsLegListOn : Properties.FlowIdCheckPinsLegListOn := by
+  intro fh Fs hinj F hFs F' hF's hF hF' hid
+  rcases flowId_check_pins_legList_or_collision hF hF' hid with h | h
+  · exact h
+  · exact absurd h (hinj F hFs F' hF's)
+
+theorem FlowHashInjOnSatisfiable : Properties.FlowHashInjOnSatisfiable := by
+  intro Fs hlen
+  let P : List (List FlowLeg × ℕ) := Fs.map (fun F => (F.legs, F.deadline))
+  have hPlen : P.length < UInt256.size := by
+    show (Fs.map _).length < _
+    rw [List.length_map]; exact hlen
+  refine ⟨fun l d => indexHash P (l, d), ?_⟩
+  rintro F hF F' hF' ⟨hne, heq⟩
+  exact hne (indexHash_inj_on hPlen (List.mem_map_of_mem (fun F => (F.legs, F.deadline)) hF)
+    (List.mem_map_of_mem (fun F => (F.legs, F.deadline)) hF') heq)
+
+theorem HonestFlowHashNoClash : Properties.HonestFlowHashNoClash := honest_flowHash_no_clash
+
+theorem SubsetFlowCheckedOnlyByCollision : Properties.SubsetFlowCheckedOnlyByCollision := by
+  intro fh id hA hB hreal hsub
+  refine ⟨?_, hreal.trans hsub.symm⟩
+  intro hp
+  have := congrArg (fun p => p.1.length) hp
+  simp [mixedFlow, subsetFlow] at this
+
+theorem SubsetFlowRejectedByCheckOn : Properties.SubsetFlowRejectedByCheckOn := by
+  intro fh id hA hB hinj hreal hsub
+  exact hinj _ (List.mem_cons_self _ _) _ (List.mem_cons_of_mem _ (List.mem_singleton_self _))
+    (SubsetFlowCheckedOnlyByCollision fh id hA hB hreal hsub)
+
+theorem SubsetFlowRejectedByCheckOnSatisfiable :
+    Properties.SubsetFlowRejectedByCheckOnSatisfiable := by
+  intro id hA hB
+  obtain ⟨hchk, hno⟩ := honest_flowHash_no_clash (mixedFlow id hA hB)
+  refine ⟨?_, hchk⟩
+  intro F hF F' hF' hcl
+  have hF : F = mixedFlow id hA hB ∨ F = subsetFlow id hA := by simpa using hF
+  have hF' : F' = mixedFlow id hA hB ∨ F' = subsetFlow id hA := by simpa using hF'
+  rcases hF with rfl | rfl <;> rcases hF' with rfl | rfl
+  · exact hcl.1 rfl
+  · exact hno _ hcl
+  · exact hno _ ⟨fun h => hcl.1 h.symm, hcl.2.symm⟩
+  · exact hcl.1 rfl
+
 end Contracts.Atomicity

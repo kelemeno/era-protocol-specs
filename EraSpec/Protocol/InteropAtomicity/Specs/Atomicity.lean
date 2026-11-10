@@ -139,6 +139,30 @@ def legValue (cv : CommitValue) (F : Flow) (leg : FlowLeg) : UInt256 :=
 and can never be a leg's commit value. -/
 def FlowWf (cv : CommitValue) (F : Flow) : Prop := ∀ leg ∈ F.legs, legValue cv F leg ≠ 0
 
+/-- **A PINNED `flowId` COLLISION.**  `fh` collides on exactly the `(legs, deadline)`
+preimages of the two given flows: they differ, and they hash equal.
+
+This replaces `FlowHashInj` in the repaired statements.  `FlowHashInj` is unsatisfiable
+(`Contracts.Atomicity.Properties.FlowHashInjUnsatisfiable`), and the unpinned form
+"`fh` has some collision" is always true
+(`Contracts.Refund.Properties.UnpinnedCollisionsAlwaysExist`); this one names the
+colliding inputs, so it is false for a hash that separates those two preimages
+(`Contracts.Atomicity.Properties.HonestFlowHashNoClash`). -/
+def FlowIdClash (fh : FlowHash) (F F' : Flow) : Prop :=
+  (F.legs, F.deadline) ≠ (F'.legs, F'.deadline) ∧ fh F.legs F.deadline = fh F'.legs F'.deadline
+
+/-- **BOUNDED FLOW-HASH INJECTIVITY.**  No two flows of the explicit finite list `Fs`
+have a `FlowIdClash`.  Unlike `FlowHashInj` this is satisfiable whenever `Fs` has fewer
+than `2^256` entries (`Contracts.Atomicity.Properties.FlowHashInjOnSatisfiable`). -/
+def FlowHashInjOn (fh : FlowHash) (Fs : List Flow) : Prop :=
+  ∀ F ∈ Fs, ∀ F' ∈ Fs, ¬ FlowIdClash fh F F'
+
+/-- A flow hash that is honest about one flow `F`: it maps `F`'s own preimage to
+`F.flowId` and every other preimage to `F.flowId + 1`.  Used to show the pinned
+collision disjuncts are not tautologies. -/
+def honestFlowHash (F : Flow) : FlowHash :=
+  fun l d => if (l, d) = (F.legs, F.deadline) then F.flowId else F.flowId + 1
+
 /-! ## The system: a tree per chain per batch -/
 
 /-- The multi-chain, multi-batch state.
