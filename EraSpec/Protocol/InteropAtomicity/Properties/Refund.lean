@@ -234,4 +234,23 @@ map `UInt256 → UInt256 → UInt256`, which counting rules out, so
 `Properties.SharedCommitmentYieldsCollision`. -/
 def Properties.CommitValueInjUnsatisfiable : Prop := ∀ cv : CommitValue, ¬ CommitValueInj cv
 
+
+/-- **THE UNPINNED COLLISION CONCLUSIONS ARE ALWAYS TRUE.**  Added during the
+collision-form repair.  The conclusions of `Properties.CrossFlowRefundYieldsCollision`
+and `Properties.SharedCommitmentYieldsCollision` existentially quantify the colliding
+inputs, and every `fh` and every `cv` has a collision, so those two properties say
+nothing as stated. -/
+def Properties.UnpinnedCollisionsAlwaysExist : Prop :=
+  (∀ fh : FlowHash, ∃ (l₁ : List FlowLeg) (d₁ : ℕ) (l₂ : List FlowLeg) (d₂ : ℕ),
+      (l₁, d₁) ≠ (l₂, d₂) ∧ fh l₁ d₁ = fh l₂ d₂)
+  ∧ (∀ cv : CommitValue, ∃ f₁ b₁ f₂ b₂, (f₁, b₁) ≠ (f₂, b₂) ∧ cv f₁ b₁ = cv f₂ b₂)
+
+/-- **A CROSS-FLOW ID CLASH IS A COLLISION ON THE TWO FLOWS' OWN PREIMAGES.**  The pinned
+form of `Properties.CrossFlowRefundYieldsCollision`: two distinct checked flows with one
+id give `fh` a collision on exactly their `(legs, deadline)` preimages. -/
+def Properties.CrossFlowIdClashIsPinnedCollision : Prop :=
+  ∀ (fh : FlowHash) (F F' : Flow), FlowIdChecked fh F → FlowIdChecked fh F' →
+    F.flowId = F'.flowId → F ≠ F' →
+      (F.legs, F.deadline) ≠ (F'.legs, F'.deadline) ∧ fh F.legs F.deadline = fh F'.legs F'.deadline
+
 end Contracts.Refund

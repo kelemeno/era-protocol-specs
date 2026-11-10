@@ -1,5 +1,6 @@
 import EraSpec.Contracts.AtomicInteropProof.Properties.LastLeaf
 import EraSpec.Contracts.Merkle.Proofs.Verifier
+import EraSpec.Contracts.Merkle.Proofs.PathCollision
 
 /-! # Proofs: the last-leaf check (see `../Specs/LastLeaf.lean`) -/
 
@@ -127,5 +128,14 @@ theorem accepted_last_leaf_or_break (h : Hash) (z0 : UInt256)
 theorem NotHashBreak : Properties.NotHashBreak := @not_hashBreak
 theorem LastLeafOrBreak : Properties.LastLeafOrBreak := last_leaf_or_break
 theorem AcceptedLastLeafOrBreak : Properties.AcceptedLastLeafOrBreak := accepted_last_leaf_or_break
+
+
+theorem HashBreakAlways : Properties.HashBreakAlways := by
+  intro h z0 L
+  obtain ⟨a, b, c, d, hne, he⟩ := MerkleSpec.Verifier.exists_pair_collision h
+  refine .nodeCollision a b c d ?_ he
+  by_contra hcd
+  push_neg at hcd
+  exact hne (by rw [hcd.1, hcd.2])
 
 end MerkleSpec.LastLeaf

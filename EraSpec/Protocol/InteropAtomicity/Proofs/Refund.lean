@@ -1,5 +1,6 @@
 import EraSpec.Protocol.InteropAtomicity.Properties.Refund
 import EraSpec.Protocol.InteropAtomicity.Proofs.Timeout
+import EraSpec.Contracts.Merkle.Proofs.PathCollision
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 
 /-!
@@ -241,5 +242,25 @@ theorem TimeoutProofRefundsCommittedLeg : Contracts.Refund.Properties.TimeoutPro
 
 theorem CommitValueInjUnsatisfiable : Properties.CommitValueInjUnsatisfiable :=
   fun cv hinj => Contracts.InteropCommitmentTree.not_nodeInj cv hinj
+
+
+theorem UnpinnedCollisionsAlwaysExist : Properties.UnpinnedCollisionsAlwaysExist := by
+  refine ⟨fun fh => ?_, fun cv => MerkleSpec.Verifier.exists_pair_collision cv⟩
+  by_contra hno
+  push_neg at hno
+  have hinj : Contracts.Atomicity.FlowHashInj fh := by
+    intro l₁ d₁ l₂ d₂ he
+    by_contra hne
+    exact hno l₁ d₁ l₂ d₂ (fun hp => hne (Prod.mk.inj hp)) he
+  exact Contracts.Atomicity.FlowHashInjUnsatisfiable fh hinj
+
+theorem CrossFlowIdClashIsPinnedCollision : Properties.CrossFlowIdClashIsPinnedCollision := by
+  intro fh F F' hF hF' hid hne
+  refine ⟨?_, hF.trans (hid.trans hF'.symm)⟩
+  intro hp
+  apply hne
+  obtain ⟨hl, hd⟩ := Prod.mk.inj hp
+  cases F; cases F'
+  simp_all
 
 end Contracts.Refund

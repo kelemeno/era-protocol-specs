@@ -45,4 +45,13 @@ def Properties.AcceptedLastLeafOrBreak : Prop :=
       (∀ l < height, (j / 2 ^ l) % 2 = 0 → sibs l = zeros h z0 l) →
       j + 1 = L.length ∨ HashBreak h z0 L
 
+
+/-- **`HashBreak` IS ALWAYS INHABITED.**  Added during the collision-form repair.
+`nodeCollision` accepts any four words, and every `UInt256` hash has a collision, so
+"last leaf, or a `HashBreak`" is true of every tree and every hash: the
+disjunctions above carry no information as stated.  `Properties.LastLeafOrPinnedBreak`
+(planned) pins the break to a node of the tree. -/
+def Properties.HashBreakAlways : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (L : List UInt256), HashBreak h z0 L
+
 end MerkleSpec.LastLeaf
