@@ -136,7 +136,7 @@ def Properties.VerifiedTimeoutAuthorizes : Prop :=
       LegRefundableVerified h z0 hl cv S R F leg → RefundAuthorized h z0 hl cv S F
 
 /-- **AND A REFUNDED FLOW REALLY MISSED ITS DEADLINE.**  Composed with
-`Properties.Timeout`: if an obligation is refunded on the strength of a verified
+`Protocol/InteropAtomicity/Properties/Timeout.lean`: if an obligation is refunded on the strength of a verified
 timeout for its own flow, no leg of that flow was committed in time on its own
 chain.  The refund is deserved, not merely permitted. -/
 def Properties.RefundedFlowMissedDeadline : Prop :=
@@ -224,5 +224,14 @@ def Properties.TimeoutProofRefundsCommittedLeg : Prop :=
     AuthorizeGuard (Ms leg.chain) F.flowId leg.bundleHash →
       Step h z0 hl cv fh S Ms
         (setAt Ms leg.chain ((Ms leg.chain).set F.flowId leg.bundleHash .Revertable))
+
+
+/-! ## `CommitValueInj` is unsatisfiable
+
+Added during the consolidation.  `CommitValueInj` is global pair-injectivity of a
+map `UInt256 → UInt256 → UInt256`, which counting rules out, so
+`Properties.CommitmentPinsLeg` is vacuously true.  The collision form is
+`Properties.SharedCommitmentYieldsCollision`. -/
+def Properties.CommitValueInjUnsatisfiable : Prop := ∀ cv : CommitValue, ¬ CommitValueInj cv
 
 end Contracts.Refund

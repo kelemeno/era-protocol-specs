@@ -279,7 +279,7 @@ private lemma legB_not_finalized {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv :
 
 /-- **WITHOUT `_checkFlowId`, A TRUNCATED FLOW PASSES THE GATE.** -/
 theorem subset_flow_passes_unchecked_gate {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (_hA : HashAssumptions h z0 hl) {cv : CommitValue} {id hA hB : UInt256}
+    {cv : CommitValue} {id hA hB : UInt256}
     (ha : 0 < cv id hA) (hb : 0 < cv id hB) :
     Wf (mixedSystem (cv id hA))
       ∧ ExecutedViaUncheckedFlowId h z0 hl cv (mixedSystem (cv id hA))
@@ -301,7 +301,7 @@ theorem subset_flow_rejected_by_check {fh : FlowHash} (hinj : FlowHashInj fh)
 
 /-- **THE ALL-LEGS LOOP IS NECESSARY.** -/
 theorem selfOnly_gate_admits_mixed_outcome {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (_hA : HashAssumptions h z0 hl) {cv : CommitValue} {id hA hB : UInt256}
+    {cv : CommitValue} {id hA hB : UInt256}
     (ha : 0 < cv id hA) (hb : 0 < cv id hB) :
     Wf (mixedSystem (cv id hA)) ∧ FlowWf cv (mixedFlow id hA hB)
       ∧ SelfOnlyGate h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩
@@ -389,7 +389,7 @@ theorem ExecutedExcludesAnyRefund : Contracts.Atomicity.Properties.ExecutedExclu
 theorem FlowIdCheckPinsLegList : Contracts.Atomicity.Properties.FlowIdCheckPinsLegList :=
   fun _ hinj _ _ hF hF' hid => flowId_check_pins_legList hinj hF hF' hid
 theorem SubsetFlowPassesUncheckedGate : Contracts.Atomicity.Properties.SubsetFlowPassesUncheckedGate :=
-  fun _ _ _ hA _ _ _ _ ha hb => subset_flow_passes_unchecked_gate hA ha hb
+  fun _ _ _ _ _ _ _ ha hb => subset_flow_passes_unchecked_gate ha hb
 theorem SubsetFlowRejectedByCheck : Contracts.Atomicity.Properties.SubsetFlowRejectedByCheck :=
   fun _ hinj id hA hB hreal => subset_flow_rejected_by_check hinj id hA hB hreal
 theorem ExecutedImpliesRealFlowFinalizable :
@@ -397,10 +397,16 @@ theorem ExecutedImpliesRealFlowFinalizable :
   fun _ _ _ hA _ _ hinj _ hS _ hDA _ _ _ hex hF' hid =>
     executed_implies_real_flow_finalizable hA hinj hS hDA hex hF' hid
 theorem SelfOnlyGateAdmitsMixedOutcome : Contracts.Atomicity.Properties.SelfOnlyGateAdmitsMixedOutcome :=
-  fun _ _ _ hA _ _ _ _ ha hb => selfOnly_gate_admits_mixed_outcome hA ha hb
+  fun _ _ _ _ _ _ _ ha hb => selfOnly_gate_admits_mixed_outcome ha hb
 theorem FullGateBlocksMixedOutcome : Contracts.Atomicity.Properties.FullGateBlocksMixedOutcome :=
   fun _ _ _ hA _ _ _ _ _ ha hb => full_gate_blocks_mixed_outcome hA ha hb
 theorem WithoutDaCommittedLegIsStuck : Contracts.Atomicity.Properties.WithoutDaCommittedLegIsStuck :=
   fun _ _ _ hA _ _ _ _ ha => without_da_committed_leg_is_stuck hA ha
+
+
+theorem FlowHashInjUnsatisfiable : Properties.FlowHashInjUnsatisfiable := by
+  intro fh hinj
+  have hf : Function.Injective (fun d : ℕ => fh [] d) := fun d₁ d₂ he => (hinj [] d₁ [] d₂ he).2
+  exact not_injective_infinite_finite _ hf
 
 end Contracts.Atomicity

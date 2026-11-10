@@ -16,7 +16,7 @@ the settlement layer's `Aggregates`, the "last in-time batch" fact follows.
 
 `Properties.VerifiedImpliesRefundable` carries that over to everything already proved: a
 timeout the contract really verifies is an instance of the looser `LegRefundable`
-that `Properties.Atomicity` and `Properties.Refund` are stated over, and those are
+that `Protocol/InteropAtomicity/Properties/Atomicity.lean` and `Protocol/InteropAtomicity/Properties/Refund.lean` are stated over, and those are
 stated over the *looser* predicate, which admits more refunds — so excluding them
 is the stronger claim.
 
@@ -60,7 +60,7 @@ def Properties.IsLastOnTimeDerived : Prop :=
 
 /-- **A VERIFIED TIMEOUT IS A REFUNDABLE LEG.**  So every safety result stated over
 `LegRefundable` — `Contracts.Atomicity.Properties.ExecutedExcludesAnyRefund` and the
-composition in `Properties.Refund` — applies to the path the contract actually
+composition in `Protocol/InteropAtomicity/Properties/Refund.lean` — applies to the path the contract actually
 takes.  Note the hypothesis: applying them to a verified refund goes through this
 lemma, so that conclusion carries `Aggregates` even though their own statements do
 not mention it. -/
@@ -134,7 +134,7 @@ def Properties.AcceptedTimeoutMeansMissedDeadline : Prop :=
         ∨ HashBreak h ze (B.leaves leg.chain)
 
 /-- The gate as run implies the looser predicate every safety result is stated over,
-so `Properties.Refund`'s exclusivity covers the real path. -/
+so `Protocol/InteropAtomicity/Properties/Refund.lean`'s exclusivity covers the real path. -/
 def Properties.AcceptedImpliesRefundable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     (∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) →
@@ -161,7 +161,7 @@ last one *in that root* — while the leg was committed in time.
 `Aggregates` is exactly what excludes this, which is why it is a hypothesis of
 everything above rather than a remark. -/
 def Properties.StaleRootRefundsDeliveredLeg : Prop :=
-  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∀ (cv : CommitValue) (F : Flow) (leg : FlowLeg), F.deadline = 0 →
       0 < legValue cv F leg →
       Wf (staleSystem (legValue cv F leg))

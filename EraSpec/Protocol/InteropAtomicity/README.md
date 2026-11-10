@@ -13,17 +13,25 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 
 Read them in that order; each builds on the one before.
 
-> **Caveat.** The headline results and three countermodels below take
-> `HashAssumptions`, which `HashAssumptionsUnsatisfiable`
-> (`Contracts/L2InteropCommitmentTree/Properties/TreeRoot.lean`) proves no hash
-> meets. As stated they are vacuous. They record the intended claims and proof
-> structure; restating them as "the property holds, or a concrete collision
-> exists" is open.
+> **Caveat.** Most results here take a premise proved unsatisfiable:
+> `HashAssumptions` (`HashAssumptionsUnsatisfiable`), `FlowHashInj`
+> (`FlowHashInjUnsatisfiable`), `CommitValueInj` (`CommitValueInjUnsatisfiable`) or
+> a global pair-injective `hinj` (`not_nodeInj`). Those results, including every
+> headline (`NoneOrAll`, `ExecutedExcludesAnyRefund`, `FlowIdCheckPinsLegList`,
+> `ExecutedObligationNeverRefunded`, `TimeoutMeansMissedDeadline`) and the
+> countermodels `FullGateBlocksMixedOutcome` and `WithoutDaCommittedLegIsStuck`, are
+> vacuous as stated; the full list is in `ASSUMPTIONS.md`. What stands: the
+> countermodels `SelfOnlyGateAdmitsMixedOutcome`, `SubsetFlowPassesUncheckedGate`
+> and `StaleRootRefundsDeliveredLeg` (they never needed a hash premise and no longer
+> take one), the collision-form `CrossFlowRefundYieldsCollision` and
+> `SharedCommitmentYieldsCollision`, and the premise-free structural results.
+> Restating the rest as "the property holds, or a concrete collision exists" is open.
 
 - **Atomicity.** The gate requires an inclusion proof for every leg. If any leg of a
   flow executes, every leg is finalizable and no leg can be refunded on either
   timeout branch (`NoneOrAll`, `ExecutedExcludesAnyRefund`). The flow-id
-  recomputation pins the leg list (`FlowIdCheckPinsLegList`). Countermodels: a
+  recomputation is meant to pin the leg list (`FlowIdCheckPinsLegList`, vacuous via
+  `FlowHashInj`). Countermodels: a
   self-only gate admits a mixed outcome, a subset flow passes a gate without the
   id check, and without data availability a committed leg is stuck.
 - **Timeout.** The "last batch that settled by the deadline" fact is derived from
@@ -39,7 +47,10 @@ Read them in that order; each builds on the one before.
 The tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an
 operational model, so excluding both is the stronger claim. An operational model
-(or a projection theorem from one) is open. Source-side obligations are O7–O9 in
+(or a projection theorem from one) is open. Also open: liveness (every committed
+obligation eventually executes or refunds), and composing `CommitmentPinsLeg`
+(once restated) with the manager's `no_double_append` and the tree's
+`dedup_gate_sound` into a once-per-leg result. Source-side obligations are O7–O9 in
 `../../Refinement.lean`.
 
 These modules keep the namespaces they had on the `claude/proof-attempt-4f3778`

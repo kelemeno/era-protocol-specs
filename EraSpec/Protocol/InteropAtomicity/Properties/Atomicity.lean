@@ -172,7 +172,7 @@ unchecked gate passes, and the omitted leg of the real flow is refundable.
 One leg executed, its sibling refunded — the mixed outcome atomicity excludes,
 reached without breaking a single hash. -/
 def Properties.SubsetFlowPassesUncheckedGate : Prop :=
-  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∀ (cv : CommitValue) (id hA hB : UInt256), 0 < cv id hA → 0 < cv id hB →
       Wf (mixedSystem (cv id hA))
         ∧ ExecutedViaUncheckedFlowId h z0 hl cv (mixedSystem (cv id hA))
@@ -208,7 +208,7 @@ refundable through the timeout gate.  One leg delivered, its sibling refunded.
 This is the answer to the open question in `AttackVectors.FlowAtomicity`'s header:
 same-outcome is forced, and it is forced *here*, by the loop over all legs. -/
 def Properties.SelfOnlyGateAdmitsMixedOutcome : Prop :=
-  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∀ (cv : CommitValue) (id hA hB : UInt256), 0 < cv id hA → 0 < cv id hB →
       Wf (mixedSystem (cv id hA)) ∧ FlowWf cv (mixedFlow id hA hB)
         ∧ SelfOnlyGate h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩
@@ -242,5 +242,14 @@ def Properties.WithoutDaCommittedLegIsStuck : Prop :=
         ∧ ¬ LegFinalizableBy h z0 hl cv (mixedSystem (cv id hA)) noAccess
               (mixedFlow id hA hB) ⟨0, hA⟩
         ∧ ¬ LegRefundable h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩
+
+
+/-! ## `FlowHashInj` is unsatisfiable
+
+Added during the consolidation.  `FlowHashInj` asks `fh : List FlowLeg → ℕ → UInt256`
+to be injective; the deadline argument alone ranges over all of `ℕ`, so no such
+`fh` exists, and every property here taking `FlowHashInj` is vacuously true.  The
+collision form is `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`. -/
+def Properties.FlowHashInjUnsatisfiable : Prop := ∀ fh : FlowHash, ¬ FlowHashInj fh
 
 end Contracts.Atomicity

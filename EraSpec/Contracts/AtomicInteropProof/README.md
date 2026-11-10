@@ -20,7 +20,10 @@ only import a shared specification when the topic needs no additional definition
 `LastLeaf` is the hash side of `_verifyLastBatchInRoot`: if every left-child
 sibling on the path is the empty-subtree hash, the proven leaf is the last leaf,
 **or** a concrete `HashBreak` (node collision, or an entry equal to the empty-entry
-constant) is exhibited. No hash injectivity is assumed for that disjunction.
+constant) is exhibited. No hash injectivity is assumed for that disjunction over the
+tree's own siblings (`LastLeafOrBreak`). The submitted-path version
+(`AcceptedLastLeafOrBreak`) and `NotHashBreak` take global pair-injectivity, which no
+`UInt256` hash meets, so they are vacuous as stated (ASSUMPTIONS.md).
 
 These modules expose the hypotheses used by the library's argument. They do not
 prove the compiled verifier, authenticate imported roots, or establish settlement

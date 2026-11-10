@@ -186,7 +186,8 @@ hold by counting.  So every statement in this package of the form
 `HashAssumptions h z0 hl → …` is vacuously true and is NOT a security guarantee,
 and a countermodel stated under that premise exhibits nothing.  The padding
 countermodels above do not take the premise and are unaffected.  The repair is the
-collision form used in `AtomicInteropProof/Properties/LastLeaf.lean`: conclude
+collision form of `LastLeafOrBreak` (`AtomicInteropProof/Properties/LastLeaf.lean`; its
+accepted-path variant still needs the repair) and `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`: conclude
 "the property holds, or a concrete collision among the compared values exists". -/
 def Properties.HashAssumptionsUnsatisfiable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), ¬ HashAssumptions h z0 hl

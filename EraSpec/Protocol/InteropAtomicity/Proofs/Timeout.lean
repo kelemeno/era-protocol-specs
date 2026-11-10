@@ -180,7 +180,7 @@ lemma staleSystem_wf {a : UInt256} (ha : 0 < a) : Wf (staleSystem a) := by
 
 /-- **A STALE ROOT REFUNDS A DELIVERED LEG.** -/
 theorem stale_root_refunds_delivered_leg {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    (_hA : HashAssumptions h z0 hl) {cv : CommitValue} {F : Flow} {leg : FlowLeg}
+    {cv : CommitValue} {F : Flow} {leg : FlowLeg}
     (hD : F.deadline = 0) (hv : 0 < legValue cv F leg) :
     Wf (staleSystem (legValue cv F leg))
       ∧ ¬ Aggregates (staleSystem (legValue cv F leg)) staleRoot
@@ -225,7 +225,7 @@ theorem TimeoutMeansMissedDeadline : Contracts.Timeout.Properties.TimeoutMeansMi
 theorem TimeoutExcludesFinality : Contracts.Timeout.Properties.TimeoutExcludesFinality :=
   fun _ _ _ hA _ _ hS _ hagg _ _ hv => timeout_excludes_finality hA hS hagg hv
 theorem StaleRootRefundsDeliveredLeg : Contracts.Timeout.Properties.StaleRootRefundsDeliveredLeg :=
-  fun _ _ _ hA _ _ _ hD hv => stale_root_refunds_delivered_leg hA hD hv
+  fun _ _ _ _ _ _ hD hv => stale_root_refunds_delivered_leg hD hv
 theorem LastBatchProofIdentifiesLastBatch :
     Contracts.Timeout.Properties.LastBatchProofIdentifiesLastBatch :=
   fun _ _ hinj _ _ _ _ _ _ ha => lastBatch_identifies_last hinj ha

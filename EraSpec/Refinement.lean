@@ -79,9 +79,9 @@ results are vacuous until restated (see `HashAssumptionsUnsatisfiable` below).
 `Contracts.InteropCommitmentTree` (topic `TreeRoot`, under
 `Contracts/L2InteropCommitmentTree/`) defines the root over the list state,
 `root h z0 hl T height = rootOf h z0 (leafHashes hl T) height`, and states the two
-verifiers sound (`AcceptedPathPinsLeaf`, `ProofsExclusive`) and complete
-(`InclusionComplete`, `NonInclusionComplete`) against it, for prover-chosen indices
-and path lengths, under the explicit `HashAssumptions` bundle. The deployed
+verifiers complete (`InclusionComplete`, `NonInclusionComplete`, no hash premise)
+and sound (`AcceptedPathPinsLeaf`, `ProofsExclusive`, under the `HashAssumptions`
+bundle, so vacuous for now) against it, for prover-chosen indices and path lengths. The deployed
 verifier's missing range and height checks are handled in
 `Contracts/Merkle/Properties/Verifier.lean`. So the source side of O7 narrows to
 one statement: `FullMerkle.updateLeaf` followed by `pushNewLeaf` computes `rootOf`
@@ -112,11 +112,12 @@ conjunction. Two source facts are needed for them to apply to
    chain, `_checkFlowId` recomputes `keccak256(abi.encode(legBundleHashes,
    legSourceChainIds, deadline, settlementLayerChainId))` and compares; the
    ascending-order check makes the preimage canonical. Locally,
-   `FlowIdCheckPinsLegList` shows two checked flows claiming one id are the same
-   flow, `SubsetFlowPassesUncheckedGate` is the attack without the check, and
-   `SubsetFlowRejectedByCheck` is the check refusing it. The source side must show
-   `_checkFlowId` recomputes that hash and reverts on mismatch; flow-hash
-   injectivity is a theorem premise, not an axiom.
+   `SubsetFlowPassesUncheckedGate` is the attack without the check (it takes no hash
+   premise). `FlowIdCheckPinsLegList` and `SubsetFlowRejectedByCheck` take
+   `FlowHashInj`, which `FlowHashInjUnsatisfiable` shows cannot hold, so the check's
+   sufficiency is not yet proved; `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`
+   is the collision form to build on. The source side must show `_checkFlowId`
+   recomputes that hash and reverts on mismatch.
 
 Item 1 is a reading task rather than a proof task, but an edit can break it while
 every local proof stays green.
@@ -146,10 +147,11 @@ model; relating or unifying them is open.
 
 The none-or-all result carries a data-availability hypothesis (`DataAvailable`), and
 `WithoutDaCommittedLegIsStuck` shows it cannot be dropped: with a chain's data
-unavailable, a committed leg can be neither finalized nor refunded. No source
+unavailable, a committed leg can be neither finalized nor refunded. That countermodel
+uses `HashAssumptions` in its proof, so it is vacuous until restated. No source
 correspondence can discharge it. Likewise the timeout results carry the settlement
-layer's `Aggregates` invariant, and `StaleRootRefundsDeliveredLeg` shows that one is
-load-bearing too.
+layer's `Aggregates` invariant, and `StaleRootRefundsDeliveredLeg` (no hash premise)
+shows that one is load-bearing too.
 
 ## Additional bridge correspondence
 
@@ -204,10 +206,14 @@ abbrev protocol_guarantee := @Contracts.Protocol.chains_no_double_spend
 /-- The countermodel that makes O6 necessary rather than advisory. -/
 abbrev binding_necessity := @Contracts.Protocol.unbound_gate_refunds_delivered_leg
 
-/-! **Read the next block with `HashAssumptionsUnsatisfiable` in mind.** Every
-summary below except `padding_necessity` takes `HashAssumptions`, which no hash
-meets, so as stated they are vacuous; they name what the collision-form restatement
-must recover. -/
+/-! **Read the next block with the unsatisfiability theorems in mind.**
+`root_guarantee`, `atomicity_guarantee`, `atomicity_no_refund`, `da_necessity`,
+`all_or_nothing` and `timeout_justified` take `HashAssumptions` and, for
+`all_or_nothing`, also `FlowHashInj`; neither can hold
+(`HashAssumptionsUnsatisfiable`, `FlowHashInjUnsatisfiable`), so they are vacuous as
+stated and name what the collision-form restatement must recover.
+`padding_necessity`, `all_legs_gate_necessity`, `flowid_necessity` and
+`aggregation_necessity` take no hash premise and stand. -/
 
 /-- The hash side: against a valid tree's root, no value has both an accepted
 inclusion proof and an accepted non-inclusion proof, for any indices and path

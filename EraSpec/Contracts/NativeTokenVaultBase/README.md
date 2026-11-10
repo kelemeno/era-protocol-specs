@@ -22,6 +22,28 @@ discharge these concrete obligations.
 | Router, pause, amount, and asset guard properties | [Properties/PreparationGuards.lean](Properties/PreparationGuards.lean) |
 | Checked preparation derivations | [Proofs/RepresentationPreparation.lean](Proofs/RepresentationPreparation.lean) |
 | Checked guard derivations | [Proofs/PreparationGuards.lean](Proofs/PreparationGuards.lean) |
+| Registry-wide asset registry and escrow ledger (separate model, namespace `Contracts.NativeTokenVault`) | [Specs/RegistryAndEscrow.lean](Specs/RegistryAndEscrow.lean) |
+| Registry coherence, solvency, net-flow, and two boundary countermodels | [Properties/RegistryAndEscrow.lean](Properties/RegistryAndEscrow.lean) |
+| Checked registry and ledger derivations | [Proofs/RegistryAndEscrow.lean](Proofs/RegistryAndEscrow.lean) |
+
+## Two overlapping models
+
+`RegistryAndEscrow` is a separate, older model in its own namespace,
+`Contracts.NativeTokenVault`. It is not built on the `Contracts.NativeTokenVaultBase`
+models above. It covers the whole registry (`originChainId`, `tokenAddress`,
+`assetId` written by `_setNewTokenStorage`), both registration paths, and the
+aggregate `bridgedOut` escrow ledger. The ledger hooks themselves are in
+`L1NativeTokenVault.sol` at the same pin. The two models overlap on registration
+and the registry maps and use different state types. Unifying them is open.
+Neither model's results transfer to the other.
+
+Twelve of its fourteen properties take `IdAssumptions e`, whose `inj` field
+asserts that `encodeNTVAssetId` is injective on all (chain, token) pairs of 256-bit
+words. No function into 256-bit words can satisfy that, so as stated those twelve
+hold vacuously, including the two countermodels. Only `EmptyValid` and
+`GuardedInflowIsBacked` are free of it. See `CRYPTO-ID` in the
+[assumption register](../../../ASSUMPTIONS.md). The model also treats the vault's
+token balance as an exact counter (`MODEL-ESCROW`).
 
 ## Invariants and initialization
 

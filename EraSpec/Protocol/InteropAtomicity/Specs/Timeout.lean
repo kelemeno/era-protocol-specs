@@ -58,7 +58,8 @@ safety argument really needs it.  What it replaces is strictly worse: an unexpla
 carries the *proof* instead: the batch-leaf path, authenticated against the chain
 tree's root, with the zero-sibling check `_verifyLastBatchInRoot` runs.
 `EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeaf` turns that into "this is the last leaf, or here is a hash
-collision", so the dependency chain runs all the way from the accepted proof to the
+collision" (premise-free only over the tree's own siblings: the accepted-path versions take global
+pair-injectivity, which cannot hold; see ASSUMPTIONS.md), so the dependency chain runs all the way from the accepted proof to the
 justified timeout.
 -/
 

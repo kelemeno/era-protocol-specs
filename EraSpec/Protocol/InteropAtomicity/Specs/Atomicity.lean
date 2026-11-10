@@ -4,7 +4,7 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.Reaches
 /-!
 # Model: the atomicity gate, across chains and across batches
 
-`Contracts.TreeRoot` models one chain's tree and the proofs over its root.  This
+`Contracts.InteropCommitmentTree` (topic `TreeRoot`) models one chain's tree and the proofs over its root.  This
 file models the multi-chain, multi-batch system those proofs are resolved against,
 and the gate the destination runs before executing an atomic bundle:
 `AtomicFlowManager.requireFlowFinalized`.
@@ -316,7 +316,7 @@ settled after the deadline, or absence from the END root of the chain's last
 in-time batch.
 
 Both are against the leg's declared source chain — the `ProofSourceChainMismatch`
-check in `authorizeRefund`, whose necessity is `Properties.Protocol`. -/
+check in `authorizeRefund`, whose necessity is `Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/Spec.lean`). -/
 def LegRefundable (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
   ∃ (N : ℕ) (p : ImtProof),

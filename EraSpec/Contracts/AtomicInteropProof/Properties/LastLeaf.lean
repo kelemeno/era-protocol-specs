@@ -4,9 +4,12 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.LastLeaf
 # Properties: the last-leaf check identifies the last leaf, or breaks the hash
 
 `_verifyLastBatchInRoot` requires every left-child sibling on the proven leaf's
-path to be the empty-subtree hash.  The statements below do not assume hash
+path to be the empty-subtree hash.  `LastLeafOrBreak` does not assume hash
 injectivity: the conclusion is "the leaf is last, **or** a `HashBreak` is
-exhibited".  Proofs: `../Proofs/LastLeaf.lean`.
+exhibited".  `NotHashBreak` and `AcceptedLastLeafOrBreak` (the version for a submitted
+path) take global pair-injectivity, which no `UInt256` hash meets
+(`Contracts.InteropCommitmentTree.not_nodeInj`), so they are vacuous as stated.
+Proofs: `../Proofs/LastLeaf.lean`.
 -/
 
 namespace MerkleSpec.LastLeaf

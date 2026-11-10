@@ -18,9 +18,11 @@ only import a shared specification when the topic needs no additional definition
 `Verifier` drops `ProofSound`'s two hypotheses (occupied index, path length equal to
 the tree height), which `Merkle.calculateRootMemory` does not check: an accepted
 walk pins the level-0 entry at any index (padding included), and under domain
-separation the accepted path length is the tree height. Its pinning results take a
-global pair-injectivity premise `hinj`, which no `UInt256` hash satisfies (see
-`ASSUMPTIONS.md`); the padded-slot results do not.
+separation the accepted path length is the tree height. All four non-padded results
+(`AcceptPinsEntry`, `AcceptPinsEntryCases`, `AcceptForcesHeight`,
+`AcceptPinsEntryAnyLength`) take a global pair-injectivity premise `hinj`, which no
+`UInt256` hash satisfies (`Contracts.InteropCommitmentTree.not_nodeInj`), so they are
+vacuous as stated. The honest-walk and padded-slot results take no such premise.
 
 The tree levels and walk definitions are in `../FullMerkle/Specs/Model.lean`; capacity,
 padding, and cached-hash properties are alongside that model. A pure root theorem

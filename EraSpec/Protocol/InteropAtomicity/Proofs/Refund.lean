@@ -238,4 +238,8 @@ theorem CommitmentPinsLeg : Contracts.Refund.Properties.CommitmentPinsLeg :=
 theorem TimeoutProofRefundsCommittedLeg : Contracts.Refund.Properties.TimeoutProofRefundsCommittedLeg :=
   fun _ _ _ _ _ _ _ _ _ hchk hmem hauth hg => Step.authorize hchk hmem hauth hg
 
+
+theorem CommitValueInjUnsatisfiable : Properties.CommitValueInjUnsatisfiable :=
+  fun cv hinj => Contracts.InteropCommitmentTree.not_nodeInj cv hinj
+
 end Contracts.Refund

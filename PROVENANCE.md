@@ -67,15 +67,28 @@ deployed asset router or token vault.
 ### Ported from the `claude/proof-attempt-4f3778` line
 
 That branch used an older flat `Contracts/`, `Properties/`, `Proofs/` layout. Its
-new material was ported here without changing any statement: the commitment-tree
-`Reaches`, `HintSearch` and `TreeRoot` topics; `Merkle` `Verifier` (was
-`Core/MerkleVerifier.lean`); `AtomicInteropProof` `LastLeaf` (was
-`Core/LastLeaf.lean`); and `Protocol/InteropAtomicity/` (`Atomicity`, `Timeout`,
-`Refund`). Its restatements of the commitment-tree, flow-manager and protocol
-theorems duplicated properties already split out here, so they were dropped.
-Properties became `Properties.X` in the model's namespace, with certificates at
-`X`, as the audit requires. `HashAssumptionsUnsatisfiable` was added during the
-port; it shows that the line's `HashAssumptions` premise cannot hold.
+new material was ported here: the commitment-tree `Reaches`, `HintSearch` and
+`TreeRoot` topics; `Merkle` `Verifier` (was `Core/MerkleVerifier.lean`);
+`AtomicInteropProof` `LastLeaf` (was `Core/LastLeaf.lean`);
+`Protocol/InteropAtomicity/` (`Atomicity`, `Timeout`, `Refund`); and the bridge and
+upgrade models `NativeTokenVaultBase` `RegistryAndEscrow`, `AssetRouterBase`
+`HandlerRegistration` and `ProxyUpgradeRowLib` `Rows`. Properties became
+`Properties.X` in the model's namespace, with certificates at `X`, as the audit
+requires. Models and statements were compared mechanically with the originals and
+are unchanged, with four exceptions that only remove a premise the proof never used
+(so each becomes stronger): `SubsetFlowPassesUncheckedGate`,
+`SelfOnlyGateAdmitsMixedOutcome`, `StaleRootRefundsDeliveredLeg` (dropped
+`HashAssumptions`) and `PerChainIsolationFails` (dropped `IdAssumptions` and
+`thisChain ≠ 0`). Added: the unsatisfiability theorems for `HashAssumptions`, both
+`IdAssumptions`, `FlowHashInj` and `CommitValueInj` (see ASSUMPTIONS.md).
+
+That branch also restated base theorems as separate properties. The
+commitment-tree and flow-manager restatements duplicate properties already split
+out here and were dropped. Its nine `Properties.Protocol` statements (bound gate,
+`ChainsNoDoubleSpend`, the unbound-gate countermodel) were dropped too, but their
+counterparts in `Protocol/Spec.lean` are plain theorems, outside the
+Specs/Properties/Proofs split and the audit's property coverage. Splitting that file
+is open.
 
 ## Implementation correspondence remains open
 
@@ -96,6 +109,25 @@ supplying that correspondence.
   `contracts/atomic-interop/L2InteropCommitmentTree.sol`,
   `contracts/atomic-interop/AtomicFlowManager.sol`, and
   `contracts/atomic-interop/libraries/AtomicInteropProof.sol`.
+* `EraSpec/Contracts/NativeTokenVaultBase/*/RegistryAndEscrow.lean` and
+  `EraSpec/Contracts/AssetRouterBase/*/HandlerRegistration.lean` were authored in
+  this repository's earlier flat layout (branch `claude/proof-attempt-4f3778`) and
+  ported to the per-contract layout. Their quotations match
+  `contracts/bridge/ntv/NativeTokenVaultBase.sol`,
+  `contracts/bridge/ntv/L1NativeTokenVault.sol`,
+  `contracts/bridge/asset-router/AssetRouterBase.sol` and the encodings in
+  `contracts/common/libraries/DataEncoding.sol` (`encodeNTVAssetId`,
+  `encodeAssetId`, `assetIdCheck`) at the pin above. Re-read all four when the pin
+  moves. Each models one writer of its mappings; other writers exist at the pin (see
+  the two READMEs).
+* `EraSpec/Contracts/ProxyUpgradeRowLib/` is **outside** that pin. It models
+  `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on
+  branch `feat/upgrade-simplification` of the zksync-era `contracts` repository
+  (formerly `claude/musing-clarke-8b5f2c`). The branch moves. The model's header and
+  commit cite no source commit. The library was found unchanged at
+  `612a71cccb65d6db97674997b21427a50bec6206` (last library change `ae0698588`), so
+  treat the model as a snapshot at that commit. The library has changed since; see
+  that contract's README.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.

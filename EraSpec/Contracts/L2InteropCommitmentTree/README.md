@@ -25,12 +25,18 @@ key set only grows. `HintSearch` proves the contract's insert flow yields
 `InsertGuard`, that `leafCount` hops always suffice, and that the deployed
 constant fuel can make an honest insert revert (a liveness caveat).
 `TreeRoot` adds the root over the list state and the two verifiers as they
-consume an attacker's proof: sound and complete under `HashAssumptions`, and a
+consume an attacker's proof: complete (no hash premise), sound under `HashAssumptions`, and a
 countermodel on a real run showing `padNotLeaf` is load-bearing and **false at
 the pinned commit** (the setup pads with `hashLeaf({0,0,0})`). The soundness
 results take `HashAssumptions`, which `HashAssumptionsUnsatisfiable` shows no hash
 meets, so they are vacuous as stated; the padding countermodels take no such
 premise and stand.
+
+Open: `LowSearchCanRevert` witnesses fuel 0 and 1, not the deployed
+`MAX_LOW_INDEX_SEARCH_ATTEMPTS`; a fixed-constant instance (a longer honest run)
+would show the revert at the deployed fuel. The `T.leafCount ≤ 2 ^ height`
+premises of `TreeRoot` (and `Wf.capacity` in `Protocol/InteropAtomicity`) could be
+discharged from `../FullMerkle/` capacity results by modelling `_height` along runs.
 
 Root authentication and hash assumptions have separate proofs under `../Merkle/`
 and `../FullMerkle/`. Caller authorization, compiled search, and dispatcher-to-model

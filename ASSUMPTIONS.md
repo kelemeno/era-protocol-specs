@@ -89,11 +89,14 @@ interpreter is another execution profile. See
 | `REP-INIT` | Vault registration allocates, initializes with the vault caller, checks the address, installs both registry maps, then calls the tracker. | Match the actual allocation/caller/control flow, resolved origin, independently stored fields, and omitted origin/index/count writes. |
 | `REP-VAULT` | Preparation selects the tracked token, checks the reverse map, accounts before burn, and reads origin/metadata after burn. | Match the real branch, exact calls and ordering, concrete payload bytes, state frame, and propagated failures. |
 | `REP-PUBLISH` | Pending entries pair the returned mint tuple with outer destination/asset context. | Match router/center publication, authentication, and replay identity; these are not fields of the returned tuple. |
+| `MODEL-ESCROW` | `Contracts.NativeTokenVault` treats `escrowed` (the token's balance of the vault) as an exact counter. A fee-on-transfer or rebasing token is outside the model. The aggregate `bridgedOut` ledger has no chain index. | Relate `escrowed` to the token's actual balance; `_depositFunds` rejecting fee tokens is part of that. `PerChainIsolationFails` states the aggregate-only boundary (it takes no hash premise). |
+| `MODEL-ROWS` | `Contracts.ProxyUpgrade` models a revert as the absence of a step. Admin ownership is fixed configuration. The live implementation is one mapping, read as if each row names the admin that actually administers its proxy. `callInitializeUpgrade` and events have no effect. The source is a snapshot of a moving branch outside the source pin (PROVENANCE.md). | Re-check the snapshot against the current library before use. Connect the mapping to `getProxyImplementation` reads and the revert to the actual call frames. |
 
-`EraSpec/Refinement.lean` retains the existing O1–O7 obligation names. Their
+`EraSpec/Refinement.lean` names obligations O1–O9. Their
 primary representation owners are: O1 tree storage/updates, O2 insertion guards,
 O3 bounded search, O4 manager transitions, O5 caller authority, O6 source-chain
-binding, and O7 root correspondence. They require the applicable VM, language,
+binding, O7 root correspondence, O8 the all-legs gate and flow-id check, and O9
+the vault and router models. They require the applicable VM, language,
 build, dependency, and cryptographic laws above; naming an obligation does not
 discharge it.
 
@@ -104,11 +107,13 @@ discharge it.
 | `DEP-FRAME` | A dependency's calls/callbacks can change only the modeled state, or all further effects are represented and preserved. | Hook types restrict writes to `Accounting`; that restriction is not a proof about real callbacks or reentrancy. The token getter is a local field read. |
 | `DEP-RESULTS` | The particular dependency results required for enabledness are available. Concrete tokens, deployers, metadata, encoders, and trackers meet their declared interfaces. | Success equations are explicit premises of enabledness results. Safety conditional on successful preparation does not assume every hook succeeds or has correct economic accounting. |
 | `CRYPTO-BINDING` | Encodings are unambiguous and the hashes used by the claim bind the relevant inputs/domains. | Conditional mathematical results exist. Concrete cryptographic interpretation remains separate. |
+| `CRYPTO-ID` | `IdAssumptions` in `Contracts.NativeTokenVault` and `Contracts.AssetRouter` is a theorem premise. It asserts that the asset-id encoding is injective on all 256-bit (chain, token) pairs or (chain, sender, data) triples, and never zero. | **Unsatisfiable**, proved: `Contracts.NativeTokenVault.IdAssumptionsUnsatisfiable`, `Contracts.AssetRouter.IdAssumptionsUnsatisfiable`. No function from pairs of 256-bit words to 256-bit words is injective, so every property taking this premise holds vacuously. That is eleven vault properties, including the `UnguardedInflowUnbacked` countermodel (only its `Valid` conjunct uses the premise), and the router's `NoHijack` and `NtvTouchesOnlyItsOwnIds`. `PerChainIsolationFails` no longer takes it. Restating the rest with a bounded or reduction-style premise is open. |
 | `PROTO-EVIDENCE` | Evidence authenticates the correct source/destination, commitment, settlement layer, history, deadline, and finality. A source chain supplies the funded preparation being authenticated. | Abstract interop results are conditional. An authenticated commitment alone does not establish honest execution on an arbitrary admitted chain. |
 | `OPS-CONFIG` | Actual initialization, upgrades, registry changes, pause/admin actions, and dependency selection stay within the verified transition system or preserve its invariants. | Most such transitions are outside the current trace. Fixed config is a model boundary, not a theorem about arbitrary upgrades. |
-| `CRYPTO-MERKLE-BUNDLE` | `HashAssumptions` (`L2InteropCommitmentTree/Specs/TreeRoot.lean`): global node-pair injectivity, leaf-hash injectivity, leaf/node and padding domain separation. | **Unsatisfiable** — `HashAssumptionsUnsatisfiable` proves no `h`, `z0`, `hl` meet it. Every result taking it (TreeRoot soundness, and the Atomicity/Timeout/Refund headlines and the countermodels stated under it) is vacuous until restated in collision form. Separately, `padNotLeaf` is false at the pin (`PaddingCollisionRefundsDeliveredLeg`, which needs no premise). |
-| `PROTO-DA` | `DataAvailable`: the provers can obtain the paths the gate needs. | Theorem premise of the none-or-all results; load-bearing by `WithoutDaCommittedLegIsStuck` (that countermodel currently sits under `CRYPTO-MERKLE-BUNDLE`). Not dischargeable by source correspondence. |
-| `PROTO-AGGREGATES` | `Aggregates`: an imported settlement-layer root aggregates every batch that settled before it. | Premise of the derived timeout decision; load-bearing by `StaleRootRefundsDeliveredLeg` (also under `CRYPTO-MERKLE-BUNDLE`). |
+| `CRYPTO-MERKLE-BUNDLE` | `HashAssumptions` (`L2InteropCommitmentTree/Specs/TreeRoot.lean`): global node-pair injectivity, leaf-hash injectivity, leaf/node and padding domain separation. | **Unsatisfiable** — `HashAssumptionsUnsatisfiable` proves no `h`, `z0`, `hl` meet it. Every result taking it is vacuous until restated in collision form (see the table below). The countermodels `SubsetFlowPassesUncheckedGate`, `SelfOnlyGateAdmitsMixedOutcome` and `StaleRootRefundsDeliveredLeg` never used it and no longer take it. Separately, `padNotLeaf` is false at the pin (`PaddingCollisionRefundsDeliveredLeg`, which needs no premise). |
+| `CRYPTO-PAIR-INJ` | Direct global-injectivity premises outside the bundles: a `hinj : ∀ a b c d, h a b = h c d → a = c ∧ b = d` argument (Merkle `Verifier`, `LastLeaf`'s accepted-path results, Timeout's last-batch results, and the pre-existing FullMerkle/Merkle results), `FlowHashInj` (`List FlowLeg → ℕ → UInt256` injective) and `CommitValueInj` (pair-injective commit value). | **Unsatisfiable**, proved: `Contracts.InteropCommitmentTree.not_nodeInj`, `Contracts.Atomicity.FlowHashInjUnsatisfiable`, `Contracts.Refund.CommitValueInjUnsatisfiable`. The collision forms `CrossFlowRefundYieldsCollision`, `SharedCommitmentYieldsCollision` and `LastLeafOrBreak` take none of these. |
+| `PROTO-DA` | `DataAvailable`: the provers can obtain the paths the gate needs. | Theorem premise of the none-or-all results; `WithoutDaCommittedLegIsStuck` is meant to show it is load-bearing, but that countermodel uses `HashAssumptions` in its proof, so it is vacuous until restated (`CRYPTO-MERKLE-BUNDLE`). Not dischargeable by source correspondence. |
+| `PROTO-AGGREGATES` | `Aggregates`: an imported settlement-layer root aggregates every batch that settled before it. | Premise of the derived timeout decision; load-bearing by `StaleRootRefundsDeliveredLeg`, which takes no hash premise. |
 | `OPS-PROGRESS` | Required gas/resources, usable dependencies, submissions, inclusion, and chain progress are available. | Needed for deliverability/eventual completion, not silently assumed by a safety proof conditional on success. |
 
 Some historical Merkle results assume *global* pair-injectivity of a
@@ -117,14 +122,38 @@ Some historical Merkle results assume *global* pair-injectivity of a
 by itself a concrete security guarantee. Prefer the existing restricted-pair
 results where applicable, and ultimately state a collision-finding reduction or
 an explicitly bounded no-collision premise for the values the proof compares.
-Do not relabel global injectivity as a proved property of Keccak.
+Do not relabel global injectivity as a proved property of Keccak. The ported
+vault and router models carry the same kind of premise: see `CRYPTO-ID`.
 
-The interop results ported from the `claude/proof-attempt-4f3778` line bundle that
-global premise as `HashAssumptions`, and `HashAssumptionsUnsatisfiable` now proves
-the bundle cannot hold. Read every theorem with that premise as an unchecked
-claim. `MerkleSpec.LastLeaf` already uses the intended form ("last leaf, or a
-`HashBreak`"); the other ported Merkle results (`Merkle/Properties/Verifier.lean`)
-still take a global `hinj` and need the same repair.
+### Results whose premises cannot hold
+
+Each premise below is proved unsatisfiable (`CRYPTO-MERKLE-BUNDLE`, `CRYPTO-ID`,
+`CRYPTO-PAIR-INJ`), so these properties are vacuously true: they record intended
+claims and proof structure, not guarantees. The list was computed from the property
+statements; `global-hinj` means an unrestricted `∀ a b c d, h a b = h c d → a = c ∧ b = d`
+argument (the `_on` variants restricted to a predicate `P` are satisfiable and not listed).
+The FullMerkle and Merkle rows predate the consolidation. The only premise-free
+collision-form results so far are `LastLeafOrBreak` (over the tree's own siblings,
+not a submitted path), `CrossFlowRefundYieldsCollision` and
+`SharedCommitmentYieldsCollision`. Restating the rest as "the property holds, or a
+concrete collision among the compared values exists" is the open repair.
+
+| Folder | Topic | Properties (premise) |
+|---|---|---|
+| `AssetRouterBase` | HandlerRegistration | `NoHijack` (IdAssumptions), `NtvTouchesOnlyItsOwnIds` (IdAssumptions) |
+| `AtomicInteropProof` | LastLeaf | `NotHashBreak` (global-hinj), `AcceptedLastLeafOrBreak` (global-hinj) |
+| `FullMerkle` | CachedHashInjectivity | `rootOf_inj_of_h_inj_of_on` (global-hinj) |
+| `FullMerkle` | Model | `levelUp_inj` (global-hinj), `levels_inj` (global-hinj), `rootOf_inj_of_h_inj` (global-hinj), `rootOf_append_inj` (global-hinj), `rootOf_set_inj` (global-hinj), `walkPure_inj` (global-hinj), `rootOf_inj_of_h_inj'` (global-hinj) |
+| `FullMerkle` | TreeShape | `capacity_ok_root_commits` (global-hinj) |
+| `L2InteropCommitmentTree` | TreeRoot | `AcceptedPathPinsLeaf` (HashAssumptions), `InclusionSound` (HashAssumptions), `NonInclusionSound` (HashAssumptions), `VerifiedAbsenceExcludesDelivered` (HashAssumptions), `ProofsExclusive` (HashAssumptions), `RunRootsExclusive` (HashAssumptions), `VerifiedAbsenceIsWitness` (HashAssumptions) |
+| `Merkle` | ProofSound | `walk_pins_leaf_and_sibs` (global-hinj), `no_forged_walk` (global-hinj), `walk_accept_pins_leaf_free_sibs` (global-hinj) |
+| `Merkle` | RootBinding | `mem_of_rootOf_eq` (global-hinj), `getD_of_rootOf_eq` (global-hinj), `rootOf_ne_of_not_mem` (global-hinj) |
+| `Merkle` | RootForgery | `no_false_inclusion` (global-hinj), `root_ne_of_leaf_ne` (global-hinj), `no_path_forgery` (global-hinj), `path_forgery_changes_walk` (global-hinj), `walk_accept_pins_leaf` (global-hinj), `leaf_only_substitution_changes_root` (global-hinj), `single_sibling_substitution` (global-hinj), `no_append_forgery` (global-hinj), `no_append_forgery_walk` (global-hinj) |
+| `Merkle` | Verifier | `AcceptPinsEntry` (global-hinj), `AcceptPinsEntryCases` (global-hinj), `AcceptForcesHeight` (global-hinj), `AcceptPinsEntryAnyLength` (global-hinj) |
+| `NativeTokenVaultBase` | RegistryAndEscrow | `RegisterNativeIdFresh` (IdAssumptions), `RegisterNativePreservesValid` (IdAssumptions), `RegisterBridgedPreservesValid` (IdAssumptions), `StepPreservesValid` (IdAssumptions), `RunValid` (IdAssumptions), `Solvency` (IdAssumptions), `SurplusMonotone` (IdAssumptions), `RunAudited` (IdAssumptions), `LedgerIsNetFlow` (IdAssumptions), `NoInflation` (IdAssumptions), `UnguardedInflowUnbacked` (IdAssumptions) |
+| `Protocol` | Atomicity | `FinalitySignalMeansMembership` (HashAssumptions), `ExecutedImpliesAllFinalizable` (HashAssumptions), `NoneOrAll` (HashAssumptions), `ExecutedImpliesFinalityPersists` (HashAssumptions), `ExecutedExcludesAnyRefund` (HashAssumptions), `FlowIdCheckPinsLegList` (FlowHashInj), `SubsetFlowRejectedByCheck` (FlowHashInj), `ExecutedImpliesRealFlowFinalizable` (HashAssumptions,FlowHashInj), `FullGateBlocksMixedOutcome` (HashAssumptions), `WithoutDaCommittedLegIsStuck` (HashAssumptions) |
+| `Protocol` | Refund | `RefundImpliesOwnFlowTimeout` (FlowHashInj), `ExecutedObligationNeverRefunded` (HashAssumptions,FlowHashInj), `OneExecutionFreezesTheFlow` (HashAssumptions,FlowHashInj), `RefundedFlowMissedDeadline` (HashAssumptions), `AcceptedTimeoutAuthorizes` (HashAssumptions), `AcceptedTimeoutForDeliveredFlowIsABreak` (HashAssumptions), `CommitmentPinsLeg` (CommitValueInj) |
+| `Protocol` | Timeout | `TimeoutMeansMissedDeadline` (HashAssumptions), `TimeoutExcludesFinality` (HashAssumptions), `LastBatchProofIdentifiesLastBatch` (global-hinj), `EndBranchAcceptedImpliesVerified` (global-hinj), `AcceptedTimeoutMeansMissedDeadline` (HashAssumptions), `AcceptedImpliesRefundable` (global-hinj), `NoBreakUnderIdealizations` (global-hinj) |
 
 ## Current bridge claims and their dependencies
 
@@ -142,6 +171,9 @@ the axiom checker does not infer or validate this mapping.
 | `Codegen.BridgedTokenSlice.mint_refines` / `burn_refines` / `transfer_refines` | `WellFormed` model state, `Rel` between interpreter storage and it, ABI-valid arguments. Both directions: model rejection iff revert; acceptance gives a related state, exact logs and return value. | `GEN-EMIT` for the generated contract; then `BUILD-*`, `VM-*`. Says nothing about the original contract (`REP-TOKEN` stays open; see `solidity/README.md` for test evidence). |
 | `Codegen.BridgedTokenSlice.reachable_ledger` | A nonzero-vault deployment; any sequence of successful ABI-valid calls. Transferred from the model by `safety_transfer`. | As above. |
 | `initialized_preparation_trace` | Successful registration, a local token-operation funding phase, and the closed preparation/spending trace. Derives both invariants and supply-plus-pending conservation. | All participating representation obligations, `MODEL-TRACE`, `REP-PUBLISH`, and `OPS-CONFIG`. Funding authorization/backing for the initial mint phase remains separate. |
+| `Contracts.NativeTokenVault.Solvency` / `RunValid` / `NoInflation` | Any run of the registry-and-escrow model from fresh storage, with `IdAssumptions` and a nonzero chain id. | Vacuous as stated (`CRYPTO-ID`). Otherwise `MODEL-ESCROW`, registry and ledger representation, and `OPS-CONFIG`. Separate from the `NativeTokenVaultBase` preparation model. |
+| `Contracts.AssetRouter.NoHijack` | One modelled `_setAssetHandlerAddressThisChain` call by a non-vault caller, with `IdAssumptions`. | Vacuous as stated (`CRYPTO-ID`). `OnlyTrackerOrNtvWrites`, `FreshIdNeedsNtv`, and `RunValid` do not use the premise. Router storage and call correspondence are open. |
+| `Contracts.ProxyUpgrade.AppliedGatePasses` | `validateRows` holds, no row is left to a foreign admin, and there is an explicit frame premise that nothing moved the rows' proxies between apply and check. | `MODEL-ROWS`. The frame premise is `OPS-CONFIG`: any `ProxyAdmin` owner can break it. The model describes a snapshot of a moving branch. |
 
 Read the authoritative statements in
 [token properties](EraSpec/Contracts/BridgedStandardERC20/Properties/Model.lean),

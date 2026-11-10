@@ -78,7 +78,7 @@ Note what is *not* in it: `commitValue(flowId, bundleHash)` has no chain, so two
 obligations differing only in their chain share a commit value by construction and
 no collision is implied.  The chain is bound elsewhere — membership self-binds, and
 `authorizeRefund` compares the proof's source chain with the leg's declared one
-(`Properties.Protocol`). -/
+(`Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/Spec.lean`)). -/
 def CommitValueInj (cv : CommitValue) : Prop :=
   ∀ f₁ b₁ f₂ b₂, cv f₁ b₁ = cv f₂ b₂ → f₁ = f₂ ∧ b₁ = b₂
 
@@ -102,7 +102,7 @@ def stateOf (Ms : Managers) (o : Obligation) : LegState :=
 
 /-- **A TIMEOUT PROOF FOR THIS FLOW VERIFIED.**  `authorizeRefund` accepted an
 absence proof for one of `F`'s legs, against that leg's own declared source chain —
-the `ProofSourceChainMismatch` check, whose necessity is `Properties.Protocol`. -/
+the `ProofSourceChainMismatch` check, whose necessity is `Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/Spec.lean`). -/
 def RefundAuthorized (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (F : Flow) : Prop :=
   ∃ leg ∈ F.legs, LegRefundable h z0 hl cv S F leg
