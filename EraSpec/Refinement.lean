@@ -1,13 +1,17 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Protocol.Spec
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRoot
+import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
+import EraSpec.Protocol.InteropAtomicity.Proofs.Timeout
+import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
 
 /-!
 # Refinement obligations
 
 The theorems in this package describe local abstract models. They do not establish
 that Solidity source or deployed bytecode implements those models. The following
-seven source-correspondence obligations are open work for this repository. They
+nine source-correspondence obligations are open work for this repository. They
 are recorded as prose rather than Lean theorems because this package has no EVM or
 Solidity semantics; placeholder theorem bodies would not discharge them. The older
 `contracts-formal-verification` repository is not a dependency, and its proofs are
@@ -16,7 +20,7 @@ not evidence for these obligations.
 `ASSUMPTIONS.md` is the layer register: VM execution, Solidity constructs,
 compiler/artifact identity, contract representation, dependency behavior,
 cryptographic/protocol evidence, and operational conditions are distinct.
-O1–O7 below are contract correspondence obligations, not VM or Solidity axioms.
+O1–O9 below are contract correspondence obligations, not VM or Solidity axioms.
 `Core/Simulation.lean` proves generic safety-refinement composition; no concrete
 VM/Solidity/compiler instance has been supplied. `CODE_GENERATION.md` records the
 proposed restricted Lean-to-Solidity route and shared/differential tests, with a
@@ -70,6 +74,83 @@ stored-root updates, and inclusion/non-inclusion verification. Establish that th
 root used by the source authenticates exactly the leaves represented by the local
 tree model, under explicit hash and encoding assumptions.
 
+The protocol-level part of root binding is now stated locally, but its soundness
+results are vacuous until restated (see `HashAssumptionsUnsatisfiable` below).
+`Contracts.InteropCommitmentTree` (topic `TreeRoot`, under
+`Contracts/L2InteropCommitmentTree/`) defines the root over the list state,
+`root h z0 hl T height = rootOf h z0 (leafHashes hl T) height`, and states the two
+verifiers sound (`AcceptedPathPinsLeaf`, `ProofsExclusive`) and complete
+(`InclusionComplete`, `NonInclusionComplete`) against it, for prover-chosen indices
+and path lengths, under the explicit `HashAssumptions` bundle. The deployed
+verifier's missing range and height checks are handled in
+`Contracts/Merkle/Properties/Verifier.lean`. So the source side of O7 narrows to
+one statement: `FullMerkle.updateLeaf` followed by `pushNewLeaf` computes `rootOf`
+over `leafHashes` of the new state. `RootAfterInsert` fixes that target exactly.
+
+*A hypothesis that is false at the pin.* `HashAssumptions.padNotLeaf` says the
+`FullMerkle` padding constant is not a leaf hash. The pinned
+`IndexedMerkleTree.setup` pads with `hashLeaf({0,0,0})`, so it is one, and
+`Contracts.InteropCommitmentTree.Properties.PaddingCollisionRefundsDeliveredLeg`
+shows the consequence on a real contract run: an accepted `verifyNonInclusion` for
+a delivered value. Later era-contracts revisions pad with `IMT_EMPTY_LEAF_HASH`.
+When the pin moves, re-check this first.
+
+## O8 — the atomicity gate covers every leg, and the flow is pinned
+
+`Contracts.Atomicity.FlowFinalized` is a conjunction over all legs, and the
+none-or-all results in `Protocol/InteropAtomicity/` are exactly as strong as that
+conjunction. Two source facts are needed for them to apply to
+`requireFlowFinalized`:
+
+1. **The loop covers every leg and reverts on any failure.** `n =
+   flow.legBundleHashes.length`, `_finality.proofs.length != n` reverts
+   (`ManagerProofCountMismatch`), the loop runs `i = 0 .. n-1`, and
+   `verifyInclusion` reverts rather than returning a flag. An off-by-one bound or a
+   swallowed failure leaves one leg unchecked, which is the mixed outcome
+   `SelfOnlyGateAdmitsMixedOutcome` exhibits.
+2. **`flowId` pins which legs those are.** The model takes the flow as given. On
+   chain, `_checkFlowId` recomputes `keccak256(abi.encode(legBundleHashes,
+   legSourceChainIds, deadline, settlementLayerChainId))` and compares; the
+   ascending-order check makes the preimage canonical. Locally,
+   `FlowIdCheckPinsLegList` shows two checked flows claiming one id are the same
+   flow, `SubsetFlowPassesUncheckedGate` is the attack without the check, and
+   `SubsetFlowRejectedByCheck` is the check refusing it. The source side must show
+   `_checkFlowId` recomputes that hash and reverts on mismatch; flow-hash
+   injectivity is a theorem premise, not an axiom.
+
+Item 1 is a reading task rather than a proof task, but an edit can break it while
+every local proof stays green.
+
+## O9 — the bridge models are the source bridge
+
+`Contracts.NativeTokenVault.Vault` must correspond to `NativeTokenVaultBase`'s
+storage (`originChainId`, `tokenAddress`, `assetId`, and L1's `bridgedOut`), and
+`Contracts.AssetRouter.Router` to `AssetRouterBase`'s `assetHandlerAddress` /
+`assetDeploymentTracker`. Two parts of those models are not storage and carry their
+own obligations:
+
+* `Vault.escrowed` is the token contract's balance of the vault. Modelling it as an
+  exact counter is what `_depositFunds`' balance comparison
+  (`TokensWithFeesNotSupported`) and `require(_depositAmount == msg.value)` buy;
+  a fee-on-transfer or rebasing token is outside both the model and the contract's
+  support.
+* `Vault.originToken` is `tokenAddress[assetId]` for a native asset and an external
+  call (`IBridgedStandardToken.originToken()`) for a bridged one. The invariant
+  `idShape` is about it, so the source side must agree that a bridged token reports
+  the origin token its asset id was checked against.
+
+These two models overlap the separately written `Contracts.NativeTokenVaultBase`
+model; relating or unifying them is open.
+
+## Data availability is an assumption, not an obligation
+
+The none-or-all result carries a data-availability hypothesis (`DataAvailable`), and
+`WithoutDaCommittedLegIsStuck` shows it cannot be dropped: with a chain's data
+unavailable, a committed leg can be neither finalized nor refunded. No source
+correspondence can discharge it. Likewise the timeout results carry the settlement
+layer's `Aggregates` invariant, and `StaleRootRefundsDeliveredLeg` shows that one is
+load-bearing too.
+
 ## Additional bridge correspondence
 
 The first `BridgedStandardERC20` slice models the nonlegacy token branch.
@@ -122,5 +203,49 @@ abbrev protocol_guarantee := @Contracts.Protocol.chains_no_double_spend
 
 /-- The countermodel that makes O6 necessary rather than advisory. -/
 abbrev binding_necessity := @Contracts.Protocol.unbound_gate_refunds_delivered_leg
+
+/-! **Read the next block with `HashAssumptionsUnsatisfiable` in mind.** Every
+summary below except `padding_necessity` takes `HashAssumptions`, which no hash
+meets, so as stated they are vacuous; they name what the collision-form restatement
+must recover. -/
+
+/-- The hash side: against a valid tree's root, no value has both an accepted
+inclusion proof and an accepted non-inclusion proof, for any indices and path
+lengths the provers choose. -/
+abbrev root_guarantee := @Contracts.InteropCommitmentTree.ProofsExclusive
+
+/-- The countermodel that makes `HashAssumptions.padNotLeaf` load-bearing: with
+`hashLeaf({0,0,0})` as the padding constant, a delivered leg has an accepted
+absence proof. -/
+abbrev padding_necessity := @Contracts.InteropCommitmentTree.PaddingCollisionRefundsDeliveredLeg
+
+/-- Partial atomicity: if any leg of a flow is executed, every leg can be
+finalized, given data availability. -/
+abbrev atomicity_guarantee := @Contracts.Atomicity.ExecutedImpliesAllFinalizable
+
+/-- …and no leg of that flow can be refunded, on either timeout branch. -/
+abbrev atomicity_no_refund := @Contracts.Atomicity.ExecutedExcludesAnyRefund
+
+/-- The countermodel that makes O8's all-legs loop load-bearing. -/
+abbrev all_legs_gate_necessity := @Contracts.Atomicity.SelfOnlyGateAdmitsMixedOutcome
+
+/-- The countermodel that makes the DA hypothesis load-bearing. -/
+abbrev da_necessity := @Contracts.Atomicity.WithoutDaCommittedLegIsStuck
+
+/-- The countermodel that makes O8's flow-id recomputation load-bearing: without
+it, a truncated flow passes the gate. -/
+abbrev flowid_necessity := @Contracts.Atomicity.SubsetFlowPassesUncheckedGate
+
+/-- One outcome per obligation: an executed obligation is never refunded, in any
+interleaving of any chains' calls. -/
+abbrev all_or_nothing := @Contracts.Refund.ExecutedObligationNeverRefunded
+
+/-- The timeout decision is justified rather than assumed: a leg with a verified
+timeout was absent from its source chain at every batch that settled in time. -/
+abbrev timeout_justified := @Contracts.Timeout.TimeoutMeansMissedDeadline
+
+/-- The countermodel that makes the settlement layer's aggregation guarantee
+load-bearing. -/
+abbrev aggregation_necessity := @Contracts.Timeout.StaleRootRefundsDeliveredLeg
 
 end EraSpec.Refinement

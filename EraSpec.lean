@@ -22,14 +22,18 @@ import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarity
 import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRoot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.Timestamps
+import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeaf
 
 -- IndexedMerkleTree: abstract list model and insertion requirements
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.InsertGuard
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZero
 
--- L2InteropCommitmentTree: the wrapper's indexed state machine
+-- L2InteropCommitmentTree: the wrapper's indexed state machine, batches, hint search, and root
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Reaches
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearch
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRoot
 
 -- Interop handlers and the bundle encoding library
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
@@ -37,7 +41,7 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthority
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
 
--- Solidity Merkle libraries: capacity, padding, and root authentication
+-- Solidity Merkle libraries: capacity, padding, root authentication, and the verifier
 import EraSpec.Contracts.FullMerkle.Proofs.Model
 import EraSpec.Contracts.FullMerkle.Proofs.CachedHashInjectivity
 import EraSpec.Contracts.FullMerkle.Proofs.CapacityInvariant
@@ -45,6 +49,7 @@ import EraSpec.Contracts.FullMerkle.Proofs.TreeShape
 import EraSpec.Contracts.Merkle.Proofs.ProofSound
 import EraSpec.Contracts.Merkle.Proofs.RootBinding
 import EraSpec.Contracts.Merkle.Proofs.RootForgery
+import EraSpec.Contracts.Merkle.Proofs.Verifier
 
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec
@@ -52,6 +57,9 @@ import EraSpec.Protocol.LocalHonesty
 import EraSpec.Protocol.NoTheft
 import EraSpec.Protocol.FlowAtomicity
 import EraSpec.Protocol.DestinationCapstone
+import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
+import EraSpec.Protocol.InteropAtomicity.Proofs.Timeout
+import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Model
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
 

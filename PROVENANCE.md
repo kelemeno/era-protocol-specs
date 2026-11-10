@@ -64,6 +64,19 @@ none of their assumptions or implementation correspondence.
 The reference bridge is illustrative, not a transcription or verification of the
 deployed asset router or token vault.
 
+### Ported from the `claude/proof-attempt-4f3778` line
+
+That branch used an older flat `Contracts/`, `Properties/`, `Proofs/` layout. Its
+new material was ported here without changing any statement: the commitment-tree
+`Reaches`, `HintSearch` and `TreeRoot` topics; `Merkle` `Verifier` (was
+`Core/MerkleVerifier.lean`); `AtomicInteropProof` `LastLeaf` (was
+`Core/LastLeaf.lean`); and `Protocol/InteropAtomicity/` (`Atomicity`, `Timeout`,
+`Refund`). Its restatements of the commitment-tree, flow-manager and protocol
+theorems duplicated properties already split out here, so they were dropped.
+Properties became `Properties.X` in the model's namespace, with certificates at
+`X`, as the audit requires. `HashAssumptionsUnsatisfiable` was added during the
+port; it shows that the line's `HashAssumptions` premise cannot hold.
+
 ## Implementation correspondence remains open
 
 The abstract proofs establish properties of the definitions and assumptions in

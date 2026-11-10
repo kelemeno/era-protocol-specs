@@ -15,6 +15,12 @@ only import a shared specification when the topic needs no additional definition
 | StaleSnapshot | [Specs/StaleSnapshot.lean](Specs/StaleSnapshot.lean) | [Properties/StaleSnapshot.lean](Properties/StaleSnapshot.lean) | [Proofs/StaleSnapshot.lean](Proofs/StaleSnapshot.lean) |
 | TimeoutSoundness | [Specs/TimeoutSoundness.lean](Specs/TimeoutSoundness.lean) | [Properties/TimeoutSoundness.lean](Properties/TimeoutSoundness.lean) | [Proofs/TimeoutSoundness.lean](Proofs/TimeoutSoundness.lean) |
 | Timestamps | [Specs/Timestamps.lean](Specs/Timestamps.lean) | [Properties/Timestamps.lean](Properties/Timestamps.lean) | [Proofs/Timestamps.lean](Proofs/Timestamps.lean) |
+| LastLeaf | [Specs/LastLeaf.lean](Specs/LastLeaf.lean) | [Properties/LastLeaf.lean](Properties/LastLeaf.lean) | [Proofs/LastLeaf.lean](Proofs/LastLeaf.lean) |
+
+`LastLeaf` is the hash side of `_verifyLastBatchInRoot`: if every left-child
+sibling on the path is the empty-subtree hash, the proven leaf is the last leaf,
+**or** a concrete `HashBreak` (node collision, or an entry equal to the empty-entry
+constant) is exhibited. No hash injectivity is assumed for that disjunction.
 
 These modules expose the hypotheses used by the library's argument. They do not
 prove the compiled verifier, authenticate imported roots, or establish settlement

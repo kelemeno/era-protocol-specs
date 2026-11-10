@@ -18,6 +18,10 @@ and properties remain under `../Contracts/<SolidityName>/`.
   prepared data across arbitrary preparation/spending traces. This topic uses
   separate specification, property, and proof folders; its pending ledger is
   trace bookkeeping rather than vault storage or a publication guarantee.
+- [InteropAtomicity](InteropAtomicity/README.md): the destination's all-legs gate
+  across chains and batches (none-or-all, given data availability), the timeout
+  decision derived from what `verifyTimeoutAbsence` checks, and one outcome per
+  obligation over every interleaving of every chain's manager calls.
 
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.

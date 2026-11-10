@@ -106,6 +106,9 @@ discharge it.
 | `CRYPTO-BINDING` | Encodings are unambiguous and the hashes used by the claim bind the relevant inputs/domains. | Conditional mathematical results exist. Concrete cryptographic interpretation remains separate. |
 | `PROTO-EVIDENCE` | Evidence authenticates the correct source/destination, commitment, settlement layer, history, deadline, and finality. A source chain supplies the funded preparation being authenticated. | Abstract interop results are conditional. An authenticated commitment alone does not establish honest execution on an arbitrary admitted chain. |
 | `OPS-CONFIG` | Actual initialization, upgrades, registry changes, pause/admin actions, and dependency selection stay within the verified transition system or preserve its invariants. | Most such transitions are outside the current trace. Fixed config is a model boundary, not a theorem about arbitrary upgrades. |
+| `CRYPTO-MERKLE-BUNDLE` | `HashAssumptions` (`L2InteropCommitmentTree/Specs/TreeRoot.lean`): global node-pair injectivity, leaf-hash injectivity, leaf/node and padding domain separation. | **Unsatisfiable** — `HashAssumptionsUnsatisfiable` proves no `h`, `z0`, `hl` meet it. Every result taking it (TreeRoot soundness, and the Atomicity/Timeout/Refund headlines and the countermodels stated under it) is vacuous until restated in collision form. Separately, `padNotLeaf` is false at the pin (`PaddingCollisionRefundsDeliveredLeg`, which needs no premise). |
+| `PROTO-DA` | `DataAvailable`: the provers can obtain the paths the gate needs. | Theorem premise of the none-or-all results; load-bearing by `WithoutDaCommittedLegIsStuck` (that countermodel currently sits under `CRYPTO-MERKLE-BUNDLE`). Not dischargeable by source correspondence. |
+| `PROTO-AGGREGATES` | `Aggregates`: an imported settlement-layer root aggregates every batch that settled before it. | Premise of the derived timeout decision; load-bearing by `StaleRootRefundsDeliveredLeg` (also under `CRYPTO-MERKLE-BUNDLE`). |
 | `OPS-PROGRESS` | Required gas/resources, usable dependencies, submissions, inclusion, and chain progress are available. | Needed for deliverability/eventual completion, not silently assumed by a safety proof conditional on success. |
 
 Some historical Merkle results assume *global* pair-injectivity of a
@@ -115,6 +118,13 @@ by itself a concrete security guarantee. Prefer the existing restricted-pair
 results where applicable, and ultimately state a collision-finding reduction or
 an explicitly bounded no-collision premise for the values the proof compares.
 Do not relabel global injectivity as a proved property of Keccak.
+
+The interop results ported from the `claude/proof-attempt-4f3778` line bundle that
+global premise as `HashAssumptions`, and `HashAssumptionsUnsatisfiable` now proves
+the bundle cannot hold. Read every theorem with that premise as an unchecked
+claim. `MerkleSpec.LastLeaf` already uses the intended form ("last leaf, or a
+`HashBreak`"); the other ported Merkle results (`Merkle/Properties/Verifier.lean`)
+still take a global `hinj` and need the same repair.
 
 ## Current bridge claims and their dependencies
 
