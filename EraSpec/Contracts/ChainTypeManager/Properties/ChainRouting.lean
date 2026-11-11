@@ -15,6 +15,13 @@ version (`FreshChainsRunTheirVersionsRelease`). The proof is an induction over t
 ways a chain's routing changes: genesis, migration in, the bootstrap reset and a
 transition (`StepPreservesSysInvariant`).
 
+`R_v`'s routing is `W.relRows R_v`, one list for the whole run. That assumes every facet a
+release names answers `selectors()` with one list, constant and independent of the caller (see
+`World.relRows`). The release object does not store the selectors, so a genuine `CTMRelease`
+does not discharge this. Topic `MutableSelectors` shows the assumption is load-bearing
+(`MutableSelectorsSplitRouting`) and re-proves the headline with it as an explicit premise
+(`ChainsRunTheirVersionsReleaseStable`).
+
 ## What a break-glass cut does
 
 A break-glass cut can leave a chain at `v` routing something other than `R_v`; the
@@ -61,7 +68,14 @@ def Properties.StepPreservesSysInvariant : Prop :=
 /-- **HEADLINE: EVERY CHAIN AT VERSION `v` HAS EXACTLY `R_v`'S ROUTING.** Along any run from
 an invariant state that uses no break-glass cut, every chain at a version `v` for which
 the CTM has a release `R_v` routes exactly `R_v`'s selectors, each to `R_v`'s facet with
-`R_v`'s freezability, and nothing else; and `R_v` is a release of version `v`. -/
+`R_v`'s freezability, and nothing else; and `R_v` is a release of version `v`.
+
+`R_v`'s selectors are `W.relRows R_v`, fixed for the whole run. That is a premise about the
+facets a release names, not about the release object: each must answer `selectors()` with one
+list, constant and independent of the caller. Genuine `CTMRelease` and `CTMTransition` objects do
+not discharge it. With one facet's answer changed between a commit and a crossing the conclusion
+fails (`MutableSelectorsSplitRouting`); with the premise explicit (`StableSelectors`) it holds
+(`ChainsRunTheirVersionsReleaseStable`). -/
 def Properties.ChainsRunTheirVersionsRelease : Prop :=
   ∀ (W : World) (s s' : Sys) (ls : List Label), SysInv W s → Run W s ls s' →
     (∀ l ∈ ls, ¬ l.isArbitrary) →
@@ -70,7 +84,9 @@ def Properties.ChainsRunTheirVersionsRelease : Prop :=
       c.routing = rowsRouting (W.relRows (s'.ctm.relAt c.pv))
 
 /-- **ON A FRESHLY INITIALIZED CTM, EVERY CHAIN HAS ITS VERSION'S RELEASE.** No chain is
-ever at a version without a release, so the headline applies to all of them. -/
+ever at a version without a release, so the headline applies to all of them. The headline's
+premise on the facets' `selectors()` answers applies here too; with it explicit, this is
+`FreshChainsRunTheirVersionsReleaseStable`. -/
 def Properties.FreshChainsRunTheirVersionsRelease : Prop :=
   ∀ (W : World) (R : Address) (s' : Sys) (ls : List Label), R ≠ 0 →
     Run W ⟨initState W R, fun _ => none⟩ ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →

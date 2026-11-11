@@ -67,6 +67,10 @@ repeats its nonempty selector list.
   transition is built from it (`CTMTransition.sol:74-75`), while the check re-reads
   `selectors()` when a chain upgrades. A facet whose answer changes over time (a call through
   a `pure` interface is a `STATICCALL`, which may still read state) is outside the model.
+  This is an assumption about the facet code governance approves; genuine release and
+  transition objects do not discharge it. Topic `MutableSelectors` models such a facet
+  (`MutableSelectorsSplitRouting`, `MutableSelectorsBlockNextEdge`) and re-derives the headline
+  with stable answers as an explicit premise (`ChainsRunTheirVersionsReleaseStable`).
 * **`validate()` is checked when a release is installed** (`DStep.ctm`, through
   `_setCurrentRelease`, `ChainTypeManager.sol:305-323`), and by the starting states; it is
   the only check of the facet rows in the system. The duplicate-selector scan is an
@@ -76,7 +80,8 @@ repeats its nonempty selector list.
 * **The transition's cuts** are `TransitionDerivationLib.deriveFacetCuts(fromRelease,
   newRelease)` (`TransitionDerivationLib.sol:47-80`), which `CTMTransition` freezes at
   construction (`CTMTransition.sol:114-121`); with fixed `selectors()` that is the same as
-  deriving them now. The shortcut compares `keccak256(abi.encode(fromFacets))` with
+  deriving them now (`MutableSelectors` keeps the stored cuts apart from the derivation). The
+  shortcut compares `keccak256(abi.encode(fromFacets))` with
   `keccak256(abi.encode(newFacets))` (:56); the model compares the two row lists, as
   `ChainRouting.applyDerived` does.
 * **The rest of the engine and the omitted checks** are as in `ChainRouting`: reject-only

@@ -65,6 +65,25 @@ and `_commitVersionEdge` (:528-542) is shared by both commits:
   constructor's derivation `derivedOldProtocolVersion = ICTMRelease(fromRelease).protocolVersion()`
   (`CTMTransition.sol:61-64`) is the predicate `World.Genuine`, used only where a result
   needs it.
+* **A release's routing is fixed for two reasons, and write-once storage gives only one.**
+  `World.relRows` reads the release's `genesisFacets()`, which is write-once, and each listed
+  facet's `selectors()`, which the release does not store ("The facet's selector routing is NOT
+  stored", `upgrades/registry/RegistryTypes.sol:17-21`). Every reader asks the facet when it
+  runs: `upgrades/registry/objects/CTMRelease.sol:118` (`validate()`),
+  `upgrades/registry/libraries/TransitionDerivationLib.sol:180` (the derivation),
+  `upgrades/registry/libraries/ReleaseFacetReader.sol:23` (genesis) and
+  `upgrades/registry/libraries/LiveRoutingReader.sol:47` (the guard). So `relRows` also
+  **assumes** that each facet answers `selectors()` with one list, constant over time and
+  independent of who asks. Every facet in the tree is `public pure` with a hard-coded list
+  (`state-transition/chain-deps/facets/Admin.sol:615`, `Executor.sol:276`, `Getters.sol:356`,
+  `Mailbox.sol:385`, `Committer.sol:335`, `Migrator.sol:382`), and the interface declares the
+  function `pure` (`state-transition/chain-interfaces/ISelfDescribingFacet.sol:24`). The call
+  site does not enforce that: the call is a `STATICCALL`, which may read state, as
+  `dev-contracts/test/MockSelfDescribingFacet.sol:19` does. Genuine `CTMRelease` and
+  `CTMTransition` objects do not discharge the assumption; it is a premise about the facet code
+  governance approves. Topic `MutableSelectors` drops it: one changed answer splits a release's
+  routing (`MutableSelectorsSplitRouting`), and with stable answers the routing headline holds
+  (`ChainsRunTheirVersionsReleaseStable`).
 * **Checks that only reject, and read nothing the model tracks, are omitted**:
   `_requireExecutable` (`T.validate()` and published L2 bytecodes, :454-457),
   `release.validate()` (:310), the genesis-batch-hash check (:316-319) and the deadline
@@ -133,7 +152,10 @@ deriving DecidableEq
 structure World where
   /-- `ICTMRelease(R).protocolVersion()`. -/
   relVersion : Address → ℕ
-  /-- A release's flattened routing (`genesisFacets()` and each facet's `selectors()`). -/
+  /-- A release's flattened routing (`genesisFacets()` and each facet's `selectors()`). It is a
+  fixed function of the address for two reasons: the rows are write-once, and every facet is
+  assumed to answer `selectors()` with one list, constant and independent of the caller (see the
+  modelling choices; dropped in topic `MutableSelectors`). -/
   relRows : Address → ReleaseRows
   /-- A transition's getters. -/
   tr : Address → TransitionView

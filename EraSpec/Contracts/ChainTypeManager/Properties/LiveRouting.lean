@@ -164,7 +164,9 @@ CHECK.** Along any run from an invariant state that uses no break-glass cut, eve
 version `v` for which the CTM has a release `R_v`: `R_v` is a release of version `v`; the
 chain's proxy routes exactly `R_v`'s selectors, each to `R_v`'s facet with `R_v`'s
 freezability, and nothing else; the chain passes `requireReleaseRouting(R_v)`; and its
-diamond storage is consistent. -/
+diamond storage is consistent. As in `ChainRouting`, `DWorld.selectors` gives each facet one
+answer for the whole run; `ChainsRunTheirVersionsReleaseStable` (topic `MutableSelectors`) is
+this result with that premise explicit. -/
 def Properties.ChainsRunTheirVersionsReleaseCounted : Prop :=
   ∀ (D : DWorld) (s s' : DSys) (ls : List DLabel), DSysInv D s → DRun D s ls s' →
     (∀ l ∈ ls, ¬ l.isArbitrary) →

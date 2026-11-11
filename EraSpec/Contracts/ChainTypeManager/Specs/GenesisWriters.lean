@@ -448,7 +448,9 @@ structure GenesisFacet where
 deriving DecidableEq
 
 /-- What the creation path reads outside the diamond. Releases and facets are their getters,
-fixed functions of their address, as in the rest of this folder. -/
+fixed functions of their address, as in the rest of this folder. For a facet's `selectors()`
+that is an assumption about the facet's code (one answer, constant and independent of the
+caller), not a property of the release; topic `MutableSelectors` drops it. -/
 structure Env where
   /-- The CTM's own address: `msg.sender` of the proxy's constructor and of the CTM's calls. -/
   ctm : Address
