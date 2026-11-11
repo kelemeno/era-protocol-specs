@@ -160,6 +160,12 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.Operational
 import EraSpec.Protocol.InteropAtomicity.Proofs.Pause
 import EraSpec.Protocol.InteropAtomicity.Proofs.SharedCommitment
 
+-- Strengthened padding-ambiguity and zero-sentinel statements (FullMerkle, Merkle, IndexedMerkleTree)
+import EraSpec.Contracts.FullMerkle.Proofs.TreeShapeStrong
+import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
