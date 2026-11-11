@@ -10,8 +10,8 @@ That code is **not** in the pinned era-contracts tree. It lives on branch
 was written against commit **`e561b9cc2`** (2026-10-19). **The branch moves**: every
 `file:line` quoted in the specs is at that commit, and the results describe that commit,
 not the current branch. Re-check the source before relying on them.
-`../ProxyUpgradeRowLib/` models an older snapshot of the same branch and is not updated
-here.
+`../ProxyUpgradeRowLib/` models the row library at an older snapshot (`Rows`) and at this
+commit (`RowsCurrent`); the `ExecutorForward` topic below uses the latter.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those
@@ -22,6 +22,7 @@ exact named propositions, plus auxiliary lemmas.
 | VersionRegistry | [Specs/VersionRegistry.lean](Specs/VersionRegistry.lean) | [Properties/VersionRegistry.lean](Properties/VersionRegistry.lean) | [Proofs/VersionRegistry.lean](Proofs/VersionRegistry.lean) |
 | ChainRouting | [Specs/ChainRouting.lean](Specs/ChainRouting.lean) | [Properties/ChainRouting.lean](Properties/ChainRouting.lean) | [Proofs/ChainRouting.lean](Proofs/ChainRouting.lean) |
 | ChainMigration | [Specs/ChainMigration.lean](Specs/ChainMigration.lean) | [Properties/ChainMigration.lean](Properties/ChainMigration.lean) | [Proofs/ChainMigration.lean](Proofs/ChainMigration.lean) |
+| ExecutorForward | [Specs/ExecutorForward.lean](Specs/ExecutorForward.lean) | [Properties/ExecutorForward.lean](Properties/ExecutorForward.lean) | [Proofs/ExecutorForward.lean](Proofs/ExecutorForward.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
@@ -78,6 +79,30 @@ the `Properties` segment.
   commits the next edge, the returned chain can neither upgrade nor leave
   (`DriftedReturnerIsStuck`).
 
+**ExecutorForward** (the `CTMUpgradeExecutor` that owns the CTM and its `ProxyAdmin`,
+including `UpgradeExecutorBase.forward`, `governance/UpgradeExecutorBase.sol:32-46`):
+
+- A `forward` of calls to the CTM relates exactly the states a `ChainRouting` run relates
+  and moves no proxy (`ForwardOfCtmCallsIsARun`). The CTM's checks are in the CTM, so every
+  run result above applies to such forwards, under its own premises. The break-glass
+  `executeUpgrade` is reachable only through `forward`.
+- **Survives** along executor runs whose transactions are `Tame` (no infrastructure row
+  names the CTM proxy; no forwarded break-glass cut or CTM code swap), with reinitializers
+  that move at most their own proxy: `SysInv`, hence `CtmInv` and everything derived from
+  it (`TransitionsChain`, `CurrentReleaseIsVersionsRelease`), the version never decreasing,
+  and the routing headline (`TameRunPreservesSysInv`, `TameRunKeepsChainsOnTheirRelease`).
+  The fixed entry points move a CTM-domain proxy only along a row's edge
+  (`FixedEntrypointsMoveProxiesOnlyAlongRows`).
+- **Does not survive**: replay safety of proxy rows. A tame `forward` of
+  `CTM_PROXY_ADMIN.upgrade` moves a proxy back from `11` to `10`, which no row allows
+  (`ForwardDowngradesAProxy`). **Nor** do the CTM's invariants once its code is swapped:
+  one forwarded `upgradeAndCall` on the CTM proxy takes an invariant system with a chain at
+  version 2 to a CTM at version 1, so the version decreased and `SysInv` fails
+  (`ForwardCtmSwapBreaksInvariants`). In the model an infrastructure transition whose rows
+  move the CTM proxy has the same effect; `Tame` excludes both.
+- `ExecutorWitness` is a tame run that uses every entry point, including a `forward` that
+  replaces a committed transition and upgrades a proxy.
+
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises.
 
@@ -96,5 +121,9 @@ timer, at the earlier commit `afa407085`; deleted by `e561b9cc2`).
   `_release`'s routing"). Its counting implementation is not re-proved.
 - The upgrade engine named by a transition is assumed to run `DefaultUpgrade`'s logic.
   A transition's cuts are assumed to be `CTMTransition`'s derived cuts.
+- In `ExecutorForward`, a CTM code swap (forwarded, or by an infrastructure row naming the
+  CTM proxy) leaves the CTM's version state arbitrary; ownership transfers through
+  `forward`, CTM owner functions that touch no modelled state, and calls to other targets
+  are not modelled; the `ProxyAdmin`'s owner is fixed configuration.
 - Callers and timing are not modelled. Upgrade timestamps, deadlines and the
   all-batches-executed check are not modelled either.

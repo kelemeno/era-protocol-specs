@@ -17,14 +17,17 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistryAndEscrow
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 
 -- Registry-driven upgrades: the proxy row state machine (a snapshot of a moving
--- branch outside the pinned era-contracts tree; see PROVENANCE.md)
+-- branch outside the pinned era-contracts tree; see PROVENANCE.md), at 612a71ccc and at
+-- e561b9cc2
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrent
 
 -- Registry-driven upgrades: the CTM's version state, its transition registry, and the facet
 -- routing of its chains (a snapshot of a moving branch at e561b9cc2; see the folder README)
 import EraSpec.Contracts.ChainTypeManager.Proofs.VersionRegistry
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainMigration
+import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
 
 -- Registry-driven upgrades: who holds the CTM domain's authority across the bootstrap edge
 -- (e561b9cc2), and the staged coordinator with its timer (afa407085; deleted by e561b9cc2)
