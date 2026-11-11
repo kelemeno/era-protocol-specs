@@ -32,6 +32,11 @@ results take `HashAssumptions`, which `HashAssumptionsUnsatisfiable` shows no ha
 meets, so they are vacuous as stated; the padding countermodels take no such
 premise and stand.
 
+The repaired forms (`ProofsExclusiveOrBreak` and the other `…OrBreak` results) take
+no hash premise: the property holds, or a `TreeRootBreak` is located on the submitted
+path (wrong length, a path collision, a leaf-hash collision with the opened leaf, or a
+padding/domain hit). `HonestProofNoBreak` shows the break is not a tautology.
+
 `HonestInsertRevertsAtDeployedFuel` shows the revert at the deployed
 `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5`: on an honest seven-leaf run, an insert from a valid
 but distant hint reverts although a correct low leaf exists.

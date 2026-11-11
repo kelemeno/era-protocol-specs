@@ -342,10 +342,9 @@ into `UInt256` is (`Contracts.NativeTokenVault.IdAssumptionsUnsatisfiable`).  Wh
 the registry argument actually uses is far less: injectivity and non-zeroness on the
 pairs the run registers.  The definitions below restrict the assumption to an
 explicit set `S` of pairs, and restrict the run to registrations hashing pairs in
-`S`.  Every run is such a run for the finite set of pairs it registers
-(`Contracts.NativeTokenVault.ReachCoveredByFinitePairs`), so the restriction loses
-nothing; and for any finite `S` that is not astronomically large there is an
-encoding satisfying it (`Contracts.NativeTokenVault.IdAssumptionsOnSatisfiable`). -/
+`S`.  For any `S` that is not astronomically large there is an encoding satisfying
+it (`Contracts.NativeTokenVault.IdAssumptionsOnSatisfiable`).  Relating a given run
+to the small set of pairs it registers is open (a trace-level statement). -/
 
 /-- `IdAssumptions`, but only on the pairs in `S`. -/
 structure IdAssumptionsOn (e : NtvAssetId) (S : Set (Chain × Address)) : Prop where

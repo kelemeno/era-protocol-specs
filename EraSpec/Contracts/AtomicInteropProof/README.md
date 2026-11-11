@@ -23,7 +23,8 @@ sibling on the path is the empty-subtree hash, the proven leaf is the last leaf,
 constant) is exhibited. No hash injectivity is assumed for that disjunction over the
 tree's own siblings (`LastLeafOrBreak`), but `HashBreak`'s node-collision case takes any
 four words, so it is always inhabited (`HashBreakAlways`) and the disjunction is
-trivially true; a break pinned to a tree node is open. The submitted-path version
+trivially true; `LastLeafOrPinnedBreak` and `AcceptedLastLeafOrPinnedBreak` pin the break to a
+named tree node (`PinnedBreakNotAlways` shows it is not always inhabited). The submitted-path version
 (`AcceptedLastLeafOrBreak`) and `NotHashBreak` take global pair-injectivity, which no
 `UInt256` hash meets, so they are vacuous as stated (ASSUMPTIONS.md).
 

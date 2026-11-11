@@ -172,11 +172,6 @@ def Properties.IdInjOnSatisfiable : Prop :=
   ∀ (S : Finset (Chain × Address × AssetData)), S.card ≤ UInt256.size →
     ∃ enc : AssetIdOf, IdInjOn enc ↑S
 
-/-- The global assumption gives the bounded one on every set. -/
-def Properties.IdInjOnOfGlobal : Prop :=
-  ∀ (enc : AssetIdOf), IdAssumptions enc → ∀ (S : Set (Chain × Address × AssetData)),
-    IdInjOn enc S
-
 /-- **`NoHijackOn`'s PREMISES ARE SATISFIABLE**, on an authorized call. -/
 def Properties.NoHijackOnSatisfiable : Prop :=
   ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
@@ -208,10 +203,11 @@ def Properties.NtvCollisionNotTautology : Prop :=
     SetGuard enc thisChain ntv ntvAddr R ntv d ∧ s ≠ ntvAddr
     ∧ ¬ (enc thisChain s d' = enc thisChain ntvAddr d)
 
-/-- **UNDER A COLLISION, THE HIJACK IS REAL.**  An encoding, an authorized
-non-vault call, and a different registrant `s ≠ caller` whose asset's handler the
-call changes — so `NoHijack` fails without a hash assumption, and the collision
-disjunct of `NoHijackOrCollision` is necessary. -/
+/-- **UNDER A COLLISION, `NoHijack`'s CONCLUSION FAILS.**  An encoding, an authorized
+non-vault call, and an id `enc thisChain s d'` with `s ≠ caller` whose handler the
+call changes — so `NoHijack` needs a hash premise or the collision disjunct of
+`NoHijackOrCollision`.  (In the witness that id was not yet registered by `s`; this
+shows the mechanism, not the takeover of a live route.) -/
 def Properties.HijackUnderCollision : Prop :=
   ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
     (caller : Address) (d : AssetData) (h : Address) (s : Address) (d' : AssetData),

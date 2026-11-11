@@ -225,6 +225,11 @@ abbrev root_guarantee := @Contracts.InteropCommitmentTree.ProofsExclusive
 absence proof. -/
 abbrev padding_necessity := @Contracts.InteropCommitmentTree.PaddingCollisionRefundsDeliveredLeg
 
+/-- The hash side, with no hash premise: if one value has both an accepted inclusion
+proof and an accepted non-inclusion proof against a valid tree's root, a located
+`TreeRootBreak` exists on one of the two paths. -/
+abbrev root_guarantee_or_break := @Contracts.InteropCommitmentTree.ProofsExclusiveOrBreak
+
 /-- Partial atomicity: if any leg of a flow is executed, every leg can be
 finalized, given data availability. -/
 abbrev atomicity_guarantee := @Contracts.Atomicity.ExecutedImpliesAllFinalizable

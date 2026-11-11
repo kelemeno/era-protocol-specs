@@ -183,9 +183,10 @@ def Properties.IdAssumptionsUnsatisfiable : Prop :=
 Every property above that takes `IdAssumptions` is restated here with
 `IdAssumptionsOn e S` — injective and nonzero only on an explicit set `S` of
 (chain, token) pairs — over runs whose registrations hash pairs of `S`
-(`ReachIn`).  `ReachCoveredByFinitePairs` says every run is such a run for a FINITE
-`S` (the pairs it registers), and `IdAssumptionsOnSatisfiable` says such an `S`
-always admits an encoding, so neither restriction is vacuous.  The satisfiability
+(`ReachIn`).  `IdAssumptionsOnSatisfiable` says any `S` smaller than the id space
+admits such an encoding.  OPEN: that a given run is a `ReachIn` run for a SMALL `S`
+(its own registered pairs) needs a trace-level statement; "some finite `S`" alone is
+trivially true (`S := univ`), so it was not stated.  The satisfiability
 of the full premise lists, on concrete nontrivial instances, is
 `RunOnSatisfiable` / `RegisterNativeOnSatisfiable` / `RegisterBridgedOnSatisfiable`. -/
 
@@ -195,22 +196,10 @@ def Properties.IdAssumptionsOnSatisfiable : Prop :=
   ∀ (S : Finset (Chain × Address)), S.card < UInt256.size →
     ∃ e : NtvAssetId, IdAssumptionsOn e ↑S
 
-/-- The global assumption is the `S := univ` instance of the bounded one (so the
-`…On` results generalize the originals). -/
-def Properties.IdAssumptionsOnOfGlobal : Prop :=
-  ∀ (e : NtvAssetId), IdAssumptions e → ∀ (S : Set (Chain × Address)), IdAssumptionsOn e S
-
 /-- A bounded run is a run. -/
 def Properties.ReachInIsReach : Prop :=
   ∀ (e : NtvAssetId) (thisChain : Chain) (S : Set (Chain × Address)) (W X : World),
     ReachIn e thisChain S W X → Reach e thisChain W X
-
-/-- **EVERY RUN IS BOUNDED BY ITS OWN PAIRS.**  Any run is a `ReachIn` run for some
-finite set of pairs — the ones its registrations hash — so the `…On` results below
-apply to every run, under injectivity on finitely many inputs. -/
-def Properties.ReachCoveredByFinitePairs : Prop :=
-  ∀ (e : NtvAssetId) (thisChain : Chain) (W X : World), Reach e thisChain W X →
-    ∃ S : Finset (Chain × Address), ReachIn e thisChain ↑S W X
 
 /-- **THE DERIVED ID IS FREE, under injectivity on the pairs at hand.**  As
 `RegisterNativeIdFresh`, with `e` injective and nonzero only on a set `S` holding

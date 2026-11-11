@@ -134,7 +134,8 @@ def Properties.AcceptedTimeoutMeansMissedDeadline : Prop :=
         ∨ HashBreak h ze (B.leaves leg.chain)
 
 /-- The gate as run implies the looser predicate every safety result is stated over,
-so `Protocol/InteropAtomicity/Properties/Refund.lean`'s exclusivity covers the real path. -/
+so `Protocol/InteropAtomicity/Properties/Refund.lean`'s exclusivity covers the real path (but those
+exclusivity results still take the unsatisfiable `HashAssumptions`). -/
 def Properties.AcceptedImpliesRefundable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     (∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) →
@@ -240,7 +241,9 @@ def Properties.AcceptedImpliesRefundablePinned : Prop :=
         LegRefundable h z0 hl cv S F leg ∨ PinnedBreak h ze (B.leaves leg.chain) N
           ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
 
-/-- The same, collapsed under the bounded premise on the submitted proof. -/
+/-- The same, collapsed under the bounded premise on the submitted proof.  The `Refund`
+exclusivity results this feeds still take `HashAssumptions`, so they do not yet inherit
+this bounded form. -/
 def Properties.AcceptedImpliesRefundableOn : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
     (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →

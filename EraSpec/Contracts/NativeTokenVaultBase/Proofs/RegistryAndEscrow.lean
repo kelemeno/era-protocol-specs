@@ -1134,12 +1134,8 @@ theorem IdAssumptionsUnsatisfiable : Properties.IdAssumptionsUnsatisfiable :=
 
 theorem IdAssumptionsOnSatisfiable : Properties.IdAssumptionsOnSatisfiable :=
   idAssumptionsOn_of_card
-theorem IdAssumptionsOnOfGlobal : Properties.IdAssumptionsOnOfGlobal :=
-  fun _ he S => idAssumptionsOn_of_global he S
 theorem ReachInIsReach : Properties.ReachInIsReach :=
   fun _ _ _ _ _ hr => reachIn_reach hr
-theorem ReachCoveredByFinitePairs : Properties.ReachCoveredByFinitePairs :=
-  fun _ _ _ _ hr => reach_reachIn_finset hr
 theorem RegisterNativeIdFreshOn : Properties.RegisterNativeIdFreshOn :=
   fun _ _ he _ _ hV hP _ hm hg => registerNative_id_fresh_on he hV hP hm hg
 theorem RegisterNativeIdFreshOrCollision : Properties.RegisterNativeIdFreshOrCollision :=

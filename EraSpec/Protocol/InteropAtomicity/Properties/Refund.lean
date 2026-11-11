@@ -281,7 +281,10 @@ Which of them have protocol content:
 checked flow `F'` that owns this same obligation and had a verified timeout proof
 collides with `F` on exactly their two `(legs, deadline)` preimages.
 
-The pinned form of `Properties.RefundImpliesOwnFlowTimeout`. -/
+The pinned form of `Properties.RefundImpliesOwnFlowTimeout`.  Only half-pinned: `F'`
+is existentially quantified and is not tied to a flow that appears in the run, so a
+reviewer showed the collision disjunct can be met by any second checked flow sharing
+`F`'s id.  A run-level form naming the `authorize` call's flow is open. -/
 def Properties.RefundImpliesOwnFlowTimeoutOrCollision : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
     (S : System) (F : Flow) (leg : FlowLeg),

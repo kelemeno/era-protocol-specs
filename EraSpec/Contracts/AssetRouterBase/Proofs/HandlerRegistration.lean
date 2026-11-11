@@ -286,7 +286,6 @@ theorem NtvTouchesOnlyItsOwnIdsOrCollision : Properties.NtvTouchesOnlyItsOwnIdsO
 theorem NtvTouchesOnlyItsOwnIdsOn : Properties.NtvTouchesOnlyItsOwnIdsOn :=
   fun _ _ _ _ R d h s d' hs hinj => ntv_touches_only_its_own_ids_on R d h s d' hs hinj
 theorem IdInjOnSatisfiable : Properties.IdInjOnSatisfiable := idInjOn_of_card
-theorem IdInjOnOfGlobal : Properties.IdInjOnOfGlobal := fun _ he S => idInjOn_of_global he S
 theorem NoHijackOnSatisfiable : Properties.NoHijackOnSatisfiable := no_hijack_on_satisfiable
 theorem NtvTouchesOnlyItsOwnIdsOnSatisfiable :
     Properties.NtvTouchesOnlyItsOwnIdsOnSatisfiable := ntv_on_satisfiable

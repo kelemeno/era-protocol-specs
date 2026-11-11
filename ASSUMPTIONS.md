@@ -163,6 +163,34 @@ no-collision premise on instance-determined inputs, is the open repair.
 | `Protocol` | Refund | `RefundImpliesOwnFlowTimeout` (FlowHashInj), `ExecutedObligationNeverRefunded` (HashAssumptions,FlowHashInj), `OneExecutionFreezesTheFlow` (HashAssumptions,FlowHashInj), `RefundedFlowMissedDeadline` (HashAssumptions), `AcceptedTimeoutAuthorizes` (HashAssumptions), `AcceptedTimeoutForDeliveredFlowIsABreak` (HashAssumptions), `CommitmentPinsLeg` (CommitValueInj) |
 | `Protocol` | Timeout | `TimeoutMeansMissedDeadline` (HashAssumptions), `TimeoutExcludesFinality` (HashAssumptions), `LastBatchProofIdentifiesLastBatch` (global-hinj), `EndBranchAcceptedImpliesVerified` (global-hinj), `AcceptedTimeoutMeansMissedDeadline` (HashAssumptions), `AcceptedImpliesRefundable` (global-hinj), `NoBreakUnderIdealizations` (global-hinj) |
 
+### Repaired forms that stand
+
+Restatements with no unsatisfiable premise. Each was checked by an adversarial
+reviewer for vacuity (premises satisfiable) and triviality (the collision disjunct is
+pinned to the instance and false on a named instance). The vacuous originals above
+are unchanged, for comparison.
+
+| Topic | Result | Form | Non-vacuity / non-triviality evidence |
+|---|---|---|---|
+| Merkle `PathCollision` | `WalkPinsOrCollision`, `AcceptPinsEntryOrCollision` | opens the entry, or a collision at a named level of the submitted path | `HonestWalkNoCollision` |
+| Merkle `Verifier` | `AcceptForcesHeightOrBreak`, `AcceptPinsEntryAnyLengthOrBreak` | right length, or a located `HeightBreak` | `HeightBreakNotTautology`; `ZeroLengthPathAcceptsRoot` shows the deployed verifier accepts a wrong length |
+| `L2InteropCommitmentTree` `TreeRoot` | `ProofsExclusiveOrBreak` (headline), `RunRootsExclusiveOrBreak`, `InclusionSoundOrBreak`, `NonInclusionSoundOrBreak`, `AcceptedPathPinsLeafOrBreak`, `VerifiedAbsenceExcludesDeliveredOrBreak`, `VerifiedAbsenceIsWitnessOrBreak` | property, or a located `TreeRootBreak` on the proof's path | `HonestProofNoBreak`, `ProofsExclusiveOrBreakSatisfiable`, `PaddingCountermodelLocatesPaddingHit` |
+| `AtomicInteropProof` `LastLeaf` | `LastLeafOrPinnedBreak`, `AcceptedLastLeafOrPinnedBreak`, bounded `AcceptedLastLeafOn` | last leaf, or a `PinnedBreak` at a named node, or a `PathCollision` | `PinnedBreakNotAlways`, `AcceptedPinnedConclusionNotAlways`, `AcceptedLastLeafOnSatisfiable` |
+| `InteropAtomicity` `Timeout` | `LastBatchProofIdentifiesLastBatchPinned`, `EndBranchAcceptedImpliesVerifiedPinned`, `AcceptedImpliesRefundablePinned`, and `…On` forms | as LastLeaf, per submitted proof | `LastBatchPinnedConclusionNotAlways`, `EndBranchAcceptedOnSatisfiable` |
+| `NativeTokenVaultBase` `RegistryAndEscrow` | `RunValidOn`, `SolvencyOn`, `NoInflationOn`, `LedgerIsNetFlowOn`, `RegisterNativeIdFreshOrCollision` | `IdAssumptionsOn e S` on an explicit set `S`, or a collision between the two named pairs | `IdAssumptionsOnSatisfiable`, `RunOnSatisfiable`, `RegisterNativeCollisionNotTautology`, `RegisterNativeCollisionReachable` |
+| `AssetRouterBase` `HandlerRegistration` | `NoHijackOrCollision`, `NoHijackOn`, `NtvTouchesOnlyItsOwnIdsOrCollision` | the two compared triples only | `IdInjOnSatisfiable`, `HijackUnderCollision` |
+| `InteropAtomicity` `Refund` | `RefundImpliesOwnFlowTimeoutOrCollision` (half-pinned: `F'` existential) | own timeout, or `fh` collides on `F` and a named `F'` | `RefundImpliesOwnFlowTimeoutOrCollisionWitness`, `RefundOrCollisionNeedsReach` |
+
+Recorded but without protocol content: `FlowIdCheckPinsLegListOrCollision`,
+`SubsetFlowCheckedOnlyByCollision`, `CommitmentPinsLegOrCollision` (excluded middle)
+and the bounded `FlowIdCheckPinsLegListOn`, `SubsetFlowRejectedByCheckOn`,
+`CommitmentPinsLegOn` (premise is the conclusion contraposed).
+
+Still open: the interop headlines (`NoneOrAll`, `ExecutedExcludesAnyRefund`,
+`ExecutedObligationNeverRefunded`, `TimeoutMeansMissedDeadline`) restated over
+`TreeRootBreak`; a run-level pinning of the refund's `F'`; and relating a vault run to
+the small set of pairs it registers.
+
 ## Current bridge claims and their dependencies
 
 These rows distinguish what is proved *inside the model* from the additional

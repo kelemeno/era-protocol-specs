@@ -28,6 +28,8 @@ Read them in that order; each builds on the one before.
 > `SharedCommitmentYieldsCollision` take no premise but end in an unpinned "some
 > collision exists", which is always true (`UnpinnedCollisionsAlwaysExist`).
 > Restating the rest as "the property holds, or a concrete collision exists" is open.
+> Repaired forms that stand are listed in `ASSUMPTIONS.md` ("Repaired forms that
+> stand"); the headlines above are not yet among them.
 
 - **Atomicity.** The gate requires an inclusion proof for every leg. If any leg of a
   flow executes, every leg is finalizable and no leg can be refunded on either
