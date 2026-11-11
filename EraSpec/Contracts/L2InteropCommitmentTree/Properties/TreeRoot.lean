@@ -427,4 +427,124 @@ def Properties.TreeRootBreakEveryCaseFires : Prop :=
       ∧ ¬ (k = 1 ∧ idx < setup.leafCount ∧ setup.leaf idx = ℓ)
       ∧ TreeRootBreakExactly toyNodeHash 1 toyLeafHash setup 1 sibs k idx ℓ c
 
+/-! ## Every sub-case of `wrongLength` fires, and is attributed alone
+
+`Properties.WrongLengthForgesInclusion` exhibits `wrongLength` firing on a too-short
+path (length 0 against height 1), whose `HeightBreak` is `shortInteriorLeaf`.  The
+other three `HeightBreak` constructors — `shortCollision`, and on the too-long side
+`longEntryIsNode` and `longCollision` — had no instance inside `TreeRootBreak` on
+which they fire.  The properties below give each one: on the single-leaf `setup`
+tree at a height within capacity, an inclusion proof for a value the tree does not
+hold is accepted with a path of the wrong length, the located `TreeRootBreak` is
+exactly `wrongLength` (`TreeRootBreakExactly`), and its `HeightBreak` is exactly the
+named sub-case (`HeightBreakExactly`).  Each is stated for every node hash, leaf hash
+and padding constant meeting a hypothesis on values fixed by the instance (the
+sentinel's leaf hash, the tree's own pairs and root), and
+`Properties.WrongLengthSubcasePremisesSatisfiable` exhibits all of those hypotheses on
+the toy hash pair. -/
+
+/-- **THE TWO VIEWS OF `HeightBreak` AGREE.**  `HeightBreak` holds iff the premise of
+one of its four constructors does. -/
+def Properties.HeightBreakIffSomeCase : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
+    (x : UInt256),
+    HeightBreak h z0 L sibs k height j x ↔ ∃ c, HeightBreakAt h z0 L sibs k height j x c
+
+/-- **THE EXISTING `wrongLength` WITNESS IS EXACTLY `shortInteriorLeaf`.**  Sharpens
+`Properties.WrongLengthForgesInclusion`: if `hl ℓ` is `setup`'s root at height 1, then on
+the empty path at index 0 presenting `ℓ` (any siblings) the `HeightBreak` is exactly
+`shortInteriorLeaf`. -/
+def Properties.WrongLengthShortIsInteriorLeaf : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf) (sibs : ℕ → UInt256),
+    hl ℓ = root h z0 hl setup 1 →
+      HeightBreakExactly h z0 (leafHashes hl setup) sibs 0 1 0 (hl ℓ) .shortInteriorLeaf
+
+/-- **`wrongLength` FIRES AS `shortCollision`, ALONE.**  On `setup` at height 2 (root
+`h (h (hl ⟨0,0,0⟩) z0) (h z0 z0)`): if `hl ℓ` is neither the sentinel's leaf hash nor
+the level-1 node `h (hl ⟨0,0,0⟩) z0`, and the node hash collides between the forged
+pair `(hl ℓ, s)` and the tree's level-1 pair `(h (hl ⟨0,0,0⟩) z0, h z0 z0)`, then the
+length-1 path with sibling `s`, presenting `ℓ` at index 0, is accepted as an inclusion
+proof for `ℓ.value`, which the tree does not hold; the located break is exactly
+`wrongLength`, and its `HeightBreak` exactly `shortCollision`. -/
+def Properties.ShortCollisionForgesInclusion : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf) (s : UInt256),
+    ℓ.value ≠ 0 → hl ℓ ≠ hl ⟨0, 0, 0⟩ → hl ℓ ≠ h (hl ⟨0, 0, 0⟩) z0 →
+    h (hl ℓ) s = h (h (hl ⟨0, 0, 0⟩) z0) (h z0 z0) →
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 2
+        ∧ InclusionAccepted h hl (root h z0 hl setup 2) ℓ.value ℓ 0 (fun _ => s) 1
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ TreeRootBreakExactly h z0 hl setup 2 (fun _ => s) 1 0 ℓ .wrongLength
+        ∧ HeightBreakExactly h z0 (leafHashes hl setup) (fun _ => s) 1 2 0 (hl ℓ) .shortCollision
+
+/-- **`wrongLength` FIRES AS `longEntryIsNode`, ALONE.**  On `setup` at height 0 (root
+`hl ⟨0,0,0⟩`): if `hl ℓ` is not the sentinel's leaf hash and the node hash maps the
+pair `(hl ℓ, s)` to it, then the length-1 path with sibling `s`, presenting `ℓ` at
+index 0, is accepted as an inclusion proof for `ℓ.value`, which the tree does not
+hold; the located break is exactly `wrongLength`, and its `HeightBreak` exactly
+`longEntryIsNode`. -/
+def Properties.LongEntryIsNodeForgesInclusion : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf) (s : UInt256),
+    ℓ.value ≠ 0 → hl ℓ ≠ hl ⟨0, 0, 0⟩ → h (hl ℓ) s = hl ⟨0, 0, 0⟩ →
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 0
+        ∧ InclusionAccepted h hl (root h z0 hl setup 0) ℓ.value ℓ 0 (fun _ => s) 1
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ TreeRootBreakExactly h z0 hl setup 0 (fun _ => s) 1 0 ℓ .wrongLength
+        ∧ HeightBreakExactly h z0 (leafHashes hl setup) (fun _ => s) 1 0 0 (hl ℓ)
+            .longEntryIsNode
+
+/-- **`wrongLength` FIRES AS `longCollision`, ALONE.**  On `setup` at height 1 (root
+`h (hl ⟨0,0,0⟩) z0`): if `hl ℓ` is not the sentinel's leaf hash, the verifier's first
+node `h (hl ℓ) s₀` is not the sentinel's leaf hash either, and the node hash collides
+between the pair `(h (hl ℓ) s₀, s₁)` and the tree's top pair `(hl ⟨0,0,0⟩, z0)`, then
+the length-2 path with siblings `s₀, s₁`, presenting `ℓ` at index 0, is accepted as an
+inclusion proof for `ℓ.value`, which the tree does not hold; the located break is
+exactly `wrongLength`, and its `HeightBreak` exactly `longCollision`. -/
+def Properties.LongCollisionForgesInclusion : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf) (s₀ s₁ : UInt256),
+    ℓ.value ≠ 0 → hl ℓ ≠ hl ⟨0, 0, 0⟩ → h (hl ℓ) s₀ ≠ hl ⟨0, 0, 0⟩ →
+    h (h (hl ℓ) s₀) s₁ = h (hl ⟨0, 0, 0⟩) z0 →
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+        ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0
+            (fun l => if l = 0 then s₀ else s₁) 2
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ TreeRootBreakExactly h z0 hl setup 1 (fun l => if l = 0 then s₀ else s₁) 2 0 ℓ
+            .wrongLength
+        ∧ HeightBreakExactly h z0 (leafHashes hl setup) (fun l => if l = 0 then s₀ else s₁) 2 1 0
+            (hl ℓ) .longCollision
+
+/-- **THE HYPOTHESES ABOVE ARE SATISFIABLE.**  With the toy node hash (addition), the
+toy leaf hash (`value - nextValue`) and padding constant `1`, where the sentinel's leaf
+hash is `0`: `⟨2,0,0⟩` with `s = 1` meets the `shortCollision` hypotheses
+(`2 + 1 = (0 + 1) + (1 + 1)`); `⟨1,0,0⟩` with `s = -1` meets the `longEntryIsNode`
+ones (`1 + (-1) = 0`); `⟨1,0,0⟩` with `s₀ = s₁ = 0` meets the `longCollision` ones
+(`(1 + 0) + 0 = 0 + 1`, and `1 + 0 ≠ 0`). -/
+def Properties.WrongLengthSubcasePremisesSatisfiable : Prop :=
+  ((⟨2, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨2, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+      ∧ toyLeafHash ⟨2, 0, 0⟩ ≠ toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1
+      ∧ toyNodeHash (toyLeafHash ⟨2, 0, 0⟩) 1
+          = toyNodeHash (toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1) (toyNodeHash 1 1))
+    ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+      ∧ toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) (-1) = toyLeafHash ⟨0, 0, 0⟩)
+    ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+      ∧ toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) 0 ≠ toyLeafHash ⟨0, 0, 0⟩
+      ∧ toyNodeHash (toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) 0) 0
+          = toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1)
+
+/-- **EVERY SUB-CASE OF `wrongLength` FIRES, IN ONE HASH CONFIGURATION.**  With the toy
+hash pair and padding constant `1`, for each of the four `HeightBreak` cases `c` there
+is a height (within `setup`'s capacity) and a proof (siblings, a length different from
+that height, index, presented leaf) that `verifyInclusion` accepts against the valid
+`setup` tree's root at that height for a value the tree does not hold, whose located
+`TreeRootBreak` is exactly `wrongLength` and whose `HeightBreak` is exactly `c`. -/
+def Properties.WrongLengthEverySubcaseFires : Prop :=
+  ∀ c : HeightBreakCase, ∃ (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf),
+    Valid setup ∧ setup.leafCount ≤ 2 ^ height
+      ∧ InclusionAccepted toyNodeHash toyLeafHash (root toyNodeHash 1 toyLeafHash setup height)
+          ℓ.value ℓ idx sibs k
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ k ≠ height
+      ∧ TreeRootBreakExactly toyNodeHash 1 toyLeafHash setup height sibs k idx ℓ .wrongLength
+      ∧ HeightBreakExactly toyNodeHash 1 (leafHashes toyLeafHash setup) sibs k height idx
+          (toyLeafHash ℓ) c
+
 end Contracts.InteropCommitmentTree

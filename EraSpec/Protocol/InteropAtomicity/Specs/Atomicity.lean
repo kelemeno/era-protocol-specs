@@ -243,6 +243,13 @@ partial atomicity fails without it. -/
 def DataAvailable (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (A : Access) : Prop :=
   ∀ (c : Chain) (n i : ℕ), i < (S.tree c n).leafCount → A c n (honestProof h z0 hl S c n i)
 
+/-- Prover access that is exactly the honest proofs: for chain `c`'s batch `n`, the
+honest proof of an occupied leaf of that batch's tree, and nothing else.  It meets
+`DataAvailable` by construction; used by the witnesses that need a stranded leg to stay
+stranded for every hash. -/
+def honestAccess (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) : Access :=
+  fun c n p => ∃ i, i < (S.tree c n).leafCount ∧ p = honestProof h z0 hl S c n i
+
 /-- No prover can present anything — total DA failure, for the countermodel. -/
 def noAccess : Access := fun _ _ _ => False
 

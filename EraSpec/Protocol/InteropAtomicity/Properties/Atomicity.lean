@@ -528,8 +528,9 @@ def Properties.NoneOrAllOrBreakPinned : Prop :=
 hash, leaf hash and padding constant there is a well-formed system with data
 availability and a flow executed on evidence `ev` for which `PinnedGateBreak` is
 false.  Weak as non-triviality evidence: in this witness the flow is finalizable, and
-`PinnedGateBreak` implies it is not, so no break is ever evaluated.  A witness with a
-stranded leg and no break is open. -/
+`PinnedGateBreak` implies it is not, so no break is ever evaluated.  The witness with a
+stranded leg on which the break is evaluated and false is
+`Properties.NoneOrAllOrBreakPinnedStrandedNotTautology`. -/
 def Properties.NoneOrAllOrBreakPinnedNotTautology : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)
@@ -560,5 +561,76 @@ def Properties.PinnedGateBreakFires : Prop :=
         ∧ legA ∈ F.legs ∧ legA ≠ legB
         ∧ LegFinalizableBy h z0 toyLeafHash cv S A F legA
         ∧ InclusionBreak h z0 toyLeafHash S legA.chain (ev legA).1 (ev legA).2
+
+/-! ### The pinned break, evaluated on a stranded leg
+
+`Properties.NoneOrAllOrBreakPinnedNotTautology`'s witness has a finalizable flow, so its
+`¬ PinnedGateBreak` holds without any leg being inspected.  The two properties below
+use one world in which the flow is NOT all finalizable — the well-formed `mixedSystem 1`
+(chain `0` commits `1`, chain `1` commits nothing), prover access exactly the honest
+proofs, the flow `mixedFlow 0 1 2` with commit value `cv _ b = b`, so leg `⟨0, 1⟩` is
+committed and leg `⟨1, 2⟩` never is — and vary only the evidence submitted for the
+stranded leg `⟨1, 2⟩`. -/
+
+/-- **HONEST ACCESS IS DATA AVAILABILITY.** -/
+def Properties.HonestAccessDataAvailable : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System),
+    DataAvailable h z0 hl S (honestAccess h z0 hl S)
+
+/-- **THE PINNED BREAK IS EVALUATED ON A STRANDED LEG, AND IS FALSE.**  For every node
+hash, leaf hash and padding constant: `mixedSystem 1` is well formed, honest access gives
+data availability, `mixedFlow 0 1 2` passes `_checkFlowId` under its honest flow hash,
+the flow is not all finalizable, and its first stranded leg is `⟨1, 2⟩`.  And there is
+evidence `ev` that submits, for `⟨1, 2⟩`, the honest proof of chain `1`'s only leaf at
+batch 0, and for `⟨0, 1⟩` a proof that passes that leg's check; on `ev` no leg executes,
+and `PinnedGateBreak` — which here inspects the proof submitted for `⟨1, 2⟩` — is false.
+So all premises of `Properties.NoneOrAllOrBreakPinned` hold, its first disjunct fails,
+its second holds, and its third is evaluated on a named leg and fails. -/
+def Properties.NoneOrAllOrBreakPinnedStrandedNotTautology : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    Wf (mixedSystem 1)
+      ∧ DataAvailable h z0 hl (mixedSystem 1) (honestAccess h z0 hl (mixedSystem 1))
+      ∧ FlowIdChecked (honestFlowHash (mixedFlow 0 1 2)) (mixedFlow 0 1 2)
+      ∧ ¬ FlowFinalizableBy h z0 hl (fun _ b => b) (mixedSystem 1)
+            (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2)
+      ∧ FirstStrandedLeg h z0 hl (fun _ b => b) (mixedSystem 1)
+            (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ⟨1, 2⟩
+      ∧ ∃ ev : GateEvidence,
+          ev ⟨1, 2⟩ = (0, honestProof h z0 hl (mixedSystem 1) 1 0 0)
+          ∧ LegFinalizedBy h z0 hl (fun _ b => b) (mixedSystem 1) (mixedFlow 0 1 2) ⟨0, 1⟩
+              (ev ⟨0, 1⟩).1 (ev ⟨0, 1⟩).2
+          ∧ (∀ leg, ¬ ExecutedViaBy h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+              (mixedSystem 1) (mixedFlow 0 1 2) ev leg)
+          ∧ ¬ PinnedGateBreak h z0 hl (fun _ b => b) (mixedSystem 1)
+              (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ev
+
+/-- **ON THE SAME WORLD, THE PINNED BREAK FIRES ON THE STRANDED LEG AND NOWHERE ELSE.**
+For every node hash and padding constant, with the toy leaf hash (`value - nextValue`),
+in the world of `Properties.NoneOrAllOrBreakPinnedStrandedNotTautology` (well formed,
+data available, first stranded leg `⟨1, 2⟩`): there are two evidences `evH` and `evF`
+that agree on leg `⟨0, 1⟩`, whose proof there carries no break.  On `evF` leg `⟨0, 1⟩`
+executes, the proof `evF` submits for `⟨1, 2⟩` carries a break, and `PinnedGateBreak`
+holds; on `evH` no leg executes and `PinnedGateBreak` is false.  So the third disjunct
+of `Properties.NoneOrAllOrBreakPinned` is decided by the proof submitted for the
+stranded leg, and when it fires, the leg it inspects is the only leg of the flow whose
+submitted proof carries a break. -/
+def Properties.PinnedGateBreakFiresOnlyOnStrandedLeg : Prop :=
+  ∀ (h : Hash) (z0 : UInt256),
+    Wf (mixedSystem 1)
+      ∧ DataAvailable h z0 toyLeafHash (mixedSystem 1) (honestAccess h z0 toyLeafHash (mixedSystem 1))
+      ∧ FirstStrandedLeg h z0 toyLeafHash (fun _ b => b) (mixedSystem 1)
+          (honestAccess h z0 toyLeafHash (mixedSystem 1)) (mixedFlow 0 1 2) ⟨1, 2⟩
+      ∧ ∃ evH evF : GateEvidence,
+          evH ⟨0, 1⟩ = evF ⟨0, 1⟩
+          ∧ ¬ InclusionBreak h z0 toyLeafHash (mixedSystem 1) 0 (evF ⟨0, 1⟩).1 (evF ⟨0, 1⟩).2
+          ∧ ExecutedViaBy h z0 toyLeafHash (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+              (mixedSystem 1) (mixedFlow 0 1 2) evF ⟨0, 1⟩
+          ∧ InclusionBreak h z0 toyLeafHash (mixedSystem 1) 1 (evF ⟨1, 2⟩).1 (evF ⟨1, 2⟩).2
+          ∧ PinnedGateBreak h z0 toyLeafHash (fun _ b => b) (mixedSystem 1)
+              (honestAccess h z0 toyLeafHash (mixedSystem 1)) (mixedFlow 0 1 2) evF
+          ∧ (∀ leg, ¬ ExecutedViaBy h z0 toyLeafHash (fun _ b => b)
+              (honestFlowHash (mixedFlow 0 1 2)) (mixedSystem 1) (mixedFlow 0 1 2) evH leg)
+          ∧ ¬ PinnedGateBreak h z0 toyLeafHash (fun _ b => b) (mixedSystem 1)
+              (honestAccess h z0 toyLeafHash (mixedSystem 1)) (mixedFlow 0 1 2) evH
 
 end Contracts.Atomicity
