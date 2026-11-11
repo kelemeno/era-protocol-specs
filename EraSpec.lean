@@ -39,6 +39,8 @@ import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonical
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
+import EraSpec.Contracts.AtomicFlowManager.Proofs.ModelStrong
+import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimitsStrong
 
 -- AtomicInteropProof: finalization, timeout, source binding, and proof snapshots
 import EraSpec.Contracts.AtomicInteropProof.Proofs.TimeoutSoundness
