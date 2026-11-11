@@ -100,6 +100,7 @@ import EraSpec.Codegen.Lang
 import EraSpec.Codegen.Emit
 import EraSpec.Codegen.BridgedTokenSlice.Proofs.Refinement
 import EraSpec.Codegen.BridgedTokenSlice.Proofs.AtMostOneStep
+import EraSpec.Codegen.EmitRefusals.Proofs.BoolLiterals
 
 -- Reference application, distinct from the deployed router/vault implementation
 import EraSpec.Examples.BurnMintBridge.Model
