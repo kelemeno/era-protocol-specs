@@ -138,6 +138,7 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.PublishedRootCommits
 import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinned
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.LegacyFallback
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistrationUnified
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistrationUnifiedStrong
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Reinitialization
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Resolution
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ResolutionCorrespondence

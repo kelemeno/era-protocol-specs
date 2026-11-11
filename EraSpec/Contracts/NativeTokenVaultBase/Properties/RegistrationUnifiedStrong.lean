@@ -64,9 +64,9 @@ and the registered pair; the matched steps are flows, which hash nothing.
 
 `UnifiedLifecycleTracedSatisfiable`: every premise of `UnifiedLifecycleTraced`,
 `UnifiedLifecycleSupplyConjunctFree` and `LifecycleLoggedSupply`, with a registry prefix
-holding a native asset and a two-operation logged run (a mint of one unit, then a
-preparation of it towards chain `4`) whose matched registry log is one `bridgeIn` and
-one `bridgeOut`, each of one unit.  `LifecycleRepReachIffReachLog` has no premise.
+that registers an asset and a logged run whose prepared-or-burned and minted totals are
+both one and whose matched registry log is one `bridgeIn` and then one `bridgeOut`, each
+of one unit (the proof's witness: a mint of one unit, then a preparation of it).  `LifecycleRepReachIffReachLog` has no premise.
 -/
 
 namespace Contracts.NativeTokenVaultBase
@@ -187,9 +187,10 @@ def Properties.UnifiedLifecycleSupplyConjunctFree : Prop :=
 /-- **THE PREMISES ARE SATISFIABLE, NONTRIVIALLY.**  Every premise of
 `UnifiedLifecycleTraced`, of `UnifiedLifecycleSupplyConjunctFree` (the unlogged run) and
 of `LifecycleLoggedSupply` (the registered state is `WellFormed`), on a registry prefix
-that holds a native asset, with a logged run that mints one unit and then prepares it:
-both totals are one, and the matched registry log is one `bridgeIn` and one `bridgeOut`,
-each of one unit of the tracked asset. -/
+that registers an asset, with a logged run whose prepared-or-burned and minted totals
+are both one and whose matched registry log (chain `c` taken to be the origin chain) is
+one `bridgeIn` and then one `bridgeOut` towards some chain, each of one unit of the
+tracked asset.  The proof's run mints one unit and then prepares it. -/
 def Properties.UnifiedLifecycleTracedSatisfiable : Prop :=
   ∃ (rhooks : RegistrationHooks Unit) (hooks : Hooks Unit) (s : RegistrationState Unit)
     (origin : Address) (reg : Registered Unit) (t : State Unit) (trace : List LifecycleOp)
