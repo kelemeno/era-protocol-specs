@@ -1076,6 +1076,304 @@ theorem register_bridged_on_satisfiable :
     Set.mem_singleton _,
     ⟨by decide, by decide, rfl, by decide, rfl, fun h => h rfl⟩⟩
 
+/-! ## Logged runs
+
+A logged run is a `Reach` run with its operations written down.  Each logged
+operation hashes at most the one pair `Op.pair` names, and that pair is in
+`registeredPairs` of any log containing it, so a logged run is a `ReachIn` run for
+its own `registeredPairs` (`reachLog_reachIn`), and the bounded results apply. -/
+
+section Logged
+variable {e : NtvAssetId} {thisChain : Chain}
+
+lemma mem_registeredPairs {log : List Op} {p : Chain × Address} :
+    p ∈ registeredPairs thisChain log ↔ ∃ o ∈ log, o.pair thisChain = some p := by
+  simp [registeredPairs]
+
+lemma registeredPairs_append (log log' : List Op) :
+    registeredPairs thisChain (log ++ log')
+      = registeredPairs thisChain log ∪ registeredPairs thisChain log' := by
+  rw [registeredPairs, registeredPairs, registeredPairs, List.filterMap_append, List.toFinset_append]
+
+theorem registeredPairs_card_le (log : List Op) :
+    (registeredPairs thisChain log).card ≤ log.length :=
+  le_trans (List.toFinset_card_le _) (List.length_filterMap_le _ _)
+
+theorem stepOp_step {o : Op} {W X : World} (hs : StepOp e thisChain o W X) :
+    Step e thisChain W X := by
+  cases hs with
+  | registerNative hg => exact Step.registerNative hg
+  | registerBridged hg => exact Step.registerBridged hg
+  | bridgeOut hg => exact Step.bridgeOut hg
+  | bridgeIn hg => exact Step.bridgeIn hg
+  | donate => exact Step.donate
+
+theorem step_stepOp {W X : World} (hs : Step e thisChain W X) :
+    ∃ o, StepOp e thisChain o W X := by
+  cases hs with
+  | registerNative hg => exact ⟨_, StepOp.registerNative hg⟩
+  | registerBridged hg => exact ⟨_, StepOp.registerBridged hg⟩
+  | bridgeOut hg => exact ⟨_, StepOp.bridgeOut hg⟩
+  | bridgeIn hg => exact ⟨_, StepOp.bridgeIn hg⟩
+  | donate => exact ⟨_, StepOp.donate⟩
+
+theorem reachLog_reach {W X : World} {log : List Op} (hr : ReachLog e thisChain W X log) :
+    Reach e thisChain W X := by
+  induction hr with
+  | refl => exact Reach.refl
+  | tail _ hs ih => exact Reach.tail ih (stepOp_step hs)
+
+theorem reach_reachLog {W X : World} (hr : Reach e thisChain W X) :
+    ∃ log, ReachLog e thisChain W X log := by
+  induction hr with
+  | refl => exact ⟨[], ReachLog.refl⟩
+  | tail _ hs ih =>
+    obtain ⟨log, hl⟩ := ih
+    obtain ⟨o, ho⟩ := step_stepOp hs
+    exact ⟨log ++ [o], ReachLog.tail hl ho⟩
+
+/-- A labelled step is a bounded step for any `S` holding the pair it hashes. -/
+theorem stepOp_stepIn {S : Set (Chain × Address)} {o : Op} {W X : World}
+    (hs : StepOp e thisChain o W X) (hS : ∀ p, o.pair thisChain = some p → p ∈ S) :
+    StepIn e thisChain S W X := by
+  cases hs with
+  | registerNative hg => exact StepIn.registerNative (hS _ rfl) hg
+  | registerBridged hg => exact StepIn.registerBridged (hS _ rfl) hg
+  | bridgeOut hg => exact StepIn.bridgeOut hg
+  | bridgeIn hg => exact StepIn.bridgeIn hg
+  | donate => exact StepIn.donate
+
+/-- **A LOGGED RUN IS A `ReachIn` RUN FOR ITS OWN PAIRS.** -/
+theorem reachLog_reachIn {W X : World} {log : List Op} (hr : ReachLog e thisChain W X log) :
+    ReachIn e thisChain ↑(registeredPairs thisChain log) W X := by
+  induction hr with
+  | refl => exact ReachIn.refl
+  | @tail X Y log o _ hs ih =>
+    refine ReachIn.tail (reachIn_mono ?_ ih) (stepOp_stepIn hs ?_)
+    · intro p hp
+      rw [Finset.mem_coe] at hp
+      rw [Finset.mem_coe, registeredPairs_append]
+      exact Finset.mem_union_left _ hp
+    · intro p hp
+      rw [Finset.mem_coe, mem_registeredPairs]
+      exact ⟨o, List.mem_append_right _ (List.mem_singleton_self _), hp⟩
+
+/-- `PairsIn` needs no hash assumption: each registration records the pair it hashed. -/
+theorem stepIn_preserves_pairsIn {S : Set (Chain × Address)} {W X : World}
+    (hs : StepIn e thisChain S W X) (hP : PairsIn S W.vault) : PairsIn S X.vault := by
+  cases hs with
+  | registerNative hm _ => exact setNewTokenStorage_pairsIn hP hm
+  | registerBridged hm _ => exact setNewTokenStorage_pairsIn hP hm
+  | bridgeOut _ => exact fun a h => by simpa using hP a (by simpa using h)
+  | bridgeIn _ => exact fun a h => by simpa using hP a (by simpa using h)
+  | donate => exact fun a h => by simpa using hP a (by simpa using h)
+
+theorem reachIn_pairsIn {S : Set (Chain × Address)} {W : World}
+    (hr : ReachIn e thisChain S empty W) : PairsIn S W.vault := by
+  induction hr with
+  | refl => exact pairsIn_empty S
+  | tail _ hs ih => exact stepIn_preserves_pairsIn hs ih
+
+theorem reachLog_pairsIn {W : World} {log : List Op} (hr : ReachLog e thisChain empty W log) :
+    PairsIn ↑(registeredPairs thisChain log) W.vault :=
+  reachIn_pairsIn (reachLog_reachIn hr)
+
+theorem stepOp_det {o : Op} {W X Y : World} (h1 : StepOp e thisChain o W X)
+    (h2 : StepOp e thisChain o W Y) : X = Y := by
+  cases h1 <;> cases h2 <;> rfl
+
+lemma reachLog_nil {W X : World} (hr : ReachLog e thisChain W X []) : X = W := by
+  generalize hl : ([] : List Op) = l at hr
+  cases hr with
+  | refl => rfl
+  | tail _ _ => simp at hl
+
+lemma reachLog_snoc {W Y : World} {log : List Op} {o : Op}
+    (hr : ReachLog e thisChain W Y (log ++ [o])) :
+    ∃ X, ReachLog e thisChain W X log ∧ StepOp e thisChain o X Y := by
+  generalize hl : log ++ [o] = l at hr
+  cases hr with
+  | refl => simp at hl
+  | tail h hs =>
+    obtain ⟨rfl, h'⟩ := List.append_inj' hl rfl
+    obtain rfl := List.singleton_injective h'
+    exact ⟨_, h, hs⟩
+
+/-- **THE LOG DETERMINES THE RUN.** -/
+theorem reachLog_det {W X Y : World} {log : List Op} (h1 : ReachLog e thisChain W X log)
+    (h2 : ReachLog e thisChain W Y log) : X = Y := by
+  induction h1 generalizing Y with
+  | refl => exact (reachLog_nil h2).symm
+  | tail _ hs ih =>
+    obtain ⟨X', h2', hs'⟩ := reachLog_snoc h2
+    obtain rfl := ih h2'
+    exact stepOp_det hs hs'
+
+/-- **THE HEADLINE, RUN-LOCAL.** -/
+theorem logged_run_sound (hc0 : thisChain ≠ 0) {W : World} {log : List Op}
+    (hr : ReachLog e thisChain empty W log)
+    (he : IdAssumptionsOn e ↑(registeredPairs thisChain log)) :
+    Valid e thisChain W.vault ∧ Audited thisChain W
+      ∧ (∀ a, W.vault.bridgedOut a ≤ W.vault.escrowed a)
+      ∧ (∀ a, Native thisChain W.vault a → W.audit.totalIn a ≤ W.audit.totalOut a)
+      ∧ PairsIn ↑(registeredPairs thisChain log) W.vault :=
+  have hin := reachLog_reachIn hr
+  have hinv := run_inv_on he hc0 hin
+  ⟨hinv.1, run_audited_on he hc0 hin, hinv.1.solvent,
+    fun a hnat => no_inflation_on he hc0 hin a hnat, hinv.2⟩
+
+theorem log_assumption_satisfiable (log : List Op) (hlen : log.length < UInt256.size) :
+    ∃ e : NtvAssetId, IdAssumptionsOn e ↑(registeredPairs thisChain log) :=
+  idAssumptionsOn_of_card _ (lt_of_le_of_lt (registeredPairs_card_le log) hlen)
+
+end Logged
+
+/-! ### The nontrivial logged run
+
+On chain `1`: register tokens `1` and `2`, bridge one unit of the first out to chain
+`5`, and one unit back in from chain `6`.  It is a logged run for any encoding that
+separates the two ids. -/
+
+/-- The two registrations. -/
+def twoRegLog : List Op := [.registerNative 1, .registerNative 2]
+
+/-- The whole log: two registrations and two flows of the first asset. -/
+def twoRunLog (e : NtvAssetId) : List Op :=
+  twoRegLog ++ [.bridgeOut 5 (e 1 1) 1, .bridgeIn 6 (e 1 1) 1]
+
+lemma twoRunLog_pairs (e : NtvAssetId) :
+    registeredPairs 1 (twoRunLog e) = registeredPairs 1 twoRegLog := by
+  rw [twoRunLog, registeredPairs_append]
+  simp [registeredPairs, Op.pair]
+
+lemma twoRegLog_pairs :
+    registeredPairs 1 twoRegLog = {((1 : Chain), (1 : Address)), (1, 2)} := by
+  simp [registeredPairs, twoRegLog, Op.pair]
+
+lemma twoRegLog_card : (registeredPairs 1 twoRegLog).card = 2 := by
+  rw [twoRegLog_pairs]
+  exact Finset.card_pair (by decide)
+
+/-- Token `1` registered on chain `1`, then token `2`. -/
+def twoRegWorld (e : NtvAssetId) : World :=
+  { afterRegister e 1 1 with vault := registerNative e 1 (afterRegister e 1 1).vault 2 }
+
+/-- …then one unit out to `5` and one unit in from `6`. -/
+def twoRunWorld (e : NtvAssetId) : World :=
+  bridgeIn 1 (bridgeOut 1 (twoRegWorld e) 5 (e 1 1) 1) 6 (e 1 1) 1
+
+lemma twoRegWorld_registered {e : NtvAssetId} (h12 : e 1 1 ≠ e 1 2) :
+    Registered (twoRegWorld e).vault (e 1 1) := by
+  show Registered (setNewTokenStorage (afterRegister e 1 1).vault (e 1 2) 2 2 1) (e 1 1)
+  rw [sn_registered_of_ne _ _ _ _ _ h12]
+  exact afterRegister_registered (by decide)
+
+lemma twoRegWorld_native {e : NtvAssetId} (h12 : e 1 1 ≠ e 1 2) :
+    Native 1 (twoRegWorld e).vault (e 1 1) := by
+  show Native 1 (setNewTokenStorage (afterRegister e 1 1).vault (e 1 2) 2 2 1) (e 1 1)
+  rw [sn_native_of_ne _ _ _ _ _ _ h12]
+  exact afterRegister_native
+
+lemma twoReg_reachLog {e : NtvAssetId} : ReachLog e 1 empty (twoRegWorld e) twoRegLog := by
+  have h1 : ReachLog e 1 empty (afterRegister e 1 1) [.registerNative 1] :=
+    ReachLog.tail (log := []) ReachLog.refl (StepOp.registerNative ⟨by decide, rfl⟩)
+  refine ReachLog.tail (log := [.registerNative 1]) h1 (StepOp.registerNative ⟨by decide, ?_⟩)
+  show (setNewTokenStorage empty.vault (e 1 1) 1 1 1).assetOf 2 = 0
+  rw [sn_assetOf_of_ne _ _ _ _ _ (by decide)]
+  rfl
+
+lemma twoRun_reachLog {e : NtvAssetId} (h12 : e 1 1 ≠ e 1 2) :
+    ReachLog e 1 empty (twoRunWorld e) (twoRunLog e) := by
+  have hreg := twoRegWorld_registered h12
+  have hnat := twoRegWorld_native h12
+  have h3 := ReachLog.tail twoReg_reachLog (StepOp.bridgeOut (c := 5) ⟨hreg, one_ne_zero⟩)
+  have hin : FlowInGuard 1 (bridgeOut 1 (twoRegWorld e) 5 (e 1 1) 1).vault (e 1 1) 1 := by
+    refine ⟨by simpa using hreg, ?_⟩
+    intro _
+    rw [bridgeOut_bridgedOut_native _ _ _ _ _ hnat, upd_same]
+    omega
+  have h4 := ReachLog.tail h3 (StepOp.bridgeIn (c := 6) hin)
+  simpa [twoRunLog, twoRunWorld] using h4
+
+lemma twoRun_flowed {e : NtvAssetId} (h12 : e 1 1 ≠ e 1 2) :
+    Registered (twoRunWorld e).vault (e 1 1) ∧ Native 1 (twoRunWorld e).vault (e 1 1)
+      ∧ (twoRunWorld e).audit.totalOut (e 1 1) ≠ 0
+      ∧ (twoRunWorld e).audit.totalIn (e 1 1) ≠ 0 := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · exact (bridgeIn_registered _ _ _ _ _).mpr
+      ((bridgeOut_registered _ _ _ _ _).mpr (twoRegWorld_registered h12))
+  · exact (bridgeIn_native _ _ _ _ _).mpr
+      ((bridgeOut_native _ _ _ _ _).mpr (twoRegWorld_native h12))
+  · rw [twoRunWorld, bridgeIn_totalOut, bridgeOut_totalOut, upd_same]; omega
+  · rw [twoRunWorld, bridgeIn_totalIn, upd_same]; omega
+
+/-- **THE HEADLINE'S PREMISES HOLD ON A NONTRIVIAL RUN**, with the encoding taken from
+`idAssumptionsOn_of_card` through the card bound. -/
+theorem logged_run_sound_satisfiable :
+    ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
+      thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
+      ∧ IdAssumptionsOn e ↑(registeredPairs thisChain log)
+      ∧ 2 ≤ (registeredPairs thisChain log).card
+      ∧ ∃ a, Registered W.vault a ∧ Native thisChain W.vault a
+        ∧ W.audit.totalOut a ≠ 0 ∧ W.audit.totalIn a ≠ 0 := by
+  obtain ⟨e, he⟩ := log_assumption_satisfiable (thisChain := 1) twoRegLog (by decide)
+  have h12 : e 1 1 ≠ e 1 2 := by
+    intro h
+    have := he.inj ((1 : Chain), (1 : Address)) (by rw [twoRegLog_pairs]; simp)
+      ((1 : Chain), (2 : Address)) (by rw [twoRegLog_pairs]; simp) h
+    exact absurd this (by decide)
+  refine ⟨e, 1, twoRunWorld e, twoRunLog e, by decide, twoRun_reachLog h12, ?_, ?_,
+    e 1 1, twoRun_flowed h12⟩
+  · rw [twoRunLog_pairs]; exact he
+  · rw [twoRunLog_pairs, twoRegLog_card]
+
+/-- **STRICTLY WEAKER THAN THE GLOBAL ASSUMPTION**: `honestId` on the nontrivial run. -/
+theorem log_assumption_weaker_than_global :
+    ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
+      thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
+      ∧ IdAssumptionsOn e ↑(registeredPairs thisChain log)
+      ∧ 2 ≤ (registeredPairs thisChain log).card
+      ∧ ¬ IdAssumptions e
+      ∧ (∃ p ∈ registeredPairs thisChain log, ∃ q, q ∉ registeredPairs thisChain log
+          ∧ e p.1 p.2 = e q.1 q.2)
+      ∧ (∃ q : Chain × Address, e q.1 q.2 = 0) := by
+  have hpairs : registeredPairs 1 (twoRunLog honestId)
+      = {((1 : Chain), (1 : Address)), (1, 2)} := by
+    rw [twoRunLog_pairs, twoRegLog_pairs]
+  have hset : (↑({((1 : Chain), (1 : Address)), (1, 2)} : Finset (Chain × Address))
+      : Set (Chain × Address)) = honestPairs := by
+    simp [honestPairs]
+  refine ⟨honestId, 1, twoRunWorld honestId, twoRunLog honestId, by decide,
+    twoRun_reachLog (by decide), ?_, ?_, fun h => h.nonzero 1 0 rfl, ?_, ⟨(1, 0), rfl⟩⟩
+  · rw [hpairs, hset]; exact honestId_on
+  · rw [hpairs, Finset.card_pair (by decide)]
+  · refine ⟨((1 : Chain), (1 : Address)), by rw [hpairs]; simp, ((2 : Chain), (1 : Address)),
+      ?_, rfl⟩
+    rw [hpairs]
+    simp only [Finset.mem_insert, Finset.mem_singleton, not_or]
+    exact ⟨by decide, by decide⟩
+
+/-- **WHY THE LOG, NOT THE END STATE**: with `constId`, registering `2` after `1`
+overwrites asset `1`'s recorded pair. -/
+theorem log_pairs_can_outlive_end_state :
+    ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
+      thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
+      ∧ ∃ p ∈ registeredPairs thisChain log,
+        ¬ ∃ a, Registered W.vault a ∧ (W.vault.originChain a, W.vault.originToken a) = p := by
+  refine ⟨constId, 1, twoRegWorld constId, twoRegLog, by decide, twoReg_reachLog,
+    ((1 : Chain), (1 : Address)), by rw [twoRegLog_pairs]; simp, ?_⟩
+  rintro ⟨a, hreg, hp⟩
+  have hV : (twoRegWorld constId).vault
+      = setNewTokenStorage (setNewTokenStorage empty.vault 1 1 1 1) 1 2 2 1 := rfl
+  rw [hV] at hreg hp
+  by_cases ha : a = 1
+  · subst ha
+    rw [sn_originToken_self] at hp
+    exact absurd (Prod.mk.inj_iff.mp hp).2 (by decide)
+  · apply hreg
+    rw [sn_token_of_ne _ _ _ _ _ ha, sn_token_of_ne _ _ _ _ _ ha]
+    rfl
+
 end Contracts.NativeTokenVault
 
 /-! ## Certificates -/
@@ -1170,5 +1468,30 @@ theorem RegisterNativeOnSatisfiable : Properties.RegisterNativeOnSatisfiable :=
   register_native_on_satisfiable
 theorem RegisterBridgedOnSatisfiable : Properties.RegisterBridgedOnSatisfiable :=
   register_bridged_on_satisfiable
+
+/-! ### Logged runs -/
+
+theorem ReachLogIsReachIn : Properties.ReachLogIsReachIn :=
+  fun _ _ _ _ _ hr => reachLog_reachIn hr
+theorem RegisteredPairsCardLe : Properties.RegisteredPairsCardLe :=
+  fun _ log => registeredPairs_card_le log
+theorem MemRegisteredPairs : Properties.MemRegisteredPairs :=
+  fun _ _ _ => mem_registeredPairs
+theorem ReachIffReachLog : Properties.ReachIffReachLog :=
+  fun _ _ _ _ => ⟨reach_reachLog, fun ⟨_, hl⟩ => reachLog_reach hl⟩
+theorem ReachLogDeterministic : Properties.ReachLogDeterministic :=
+  fun _ _ _ _ _ _ h1 h2 => reachLog_det h1 h2
+theorem ReachLogPairsIn : Properties.ReachLogPairsIn :=
+  fun _ _ _ _ hr => reachLog_pairsIn hr
+theorem LoggedRunSound : Properties.LoggedRunSound :=
+  fun _ _ hc0 _ _ hr he => logged_run_sound hc0 hr he
+theorem LogAssumptionSatisfiable : Properties.LogAssumptionSatisfiable :=
+  fun _ log hlen => log_assumption_satisfiable log hlen
+theorem LoggedRunSoundSatisfiable : Properties.LoggedRunSoundSatisfiable :=
+  logged_run_sound_satisfiable
+theorem LogAssumptionWeakerThanGlobal : Properties.LogAssumptionWeakerThanGlobal :=
+  log_assumption_weaker_than_global
+theorem LogPairsCanOutliveEndState : Properties.LogPairsCanOutliveEndState :=
+  log_pairs_can_outlive_end_state
 
 end Contracts.NativeTokenVault

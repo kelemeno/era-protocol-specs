@@ -184,9 +184,10 @@ Every property above that takes `IdAssumptions` is restated here with
 `IdAssumptionsOn e S` — injective and nonzero only on an explicit set `S` of
 (chain, token) pairs — over runs whose registrations hash pairs of `S`
 (`ReachIn`).  `IdAssumptionsOnSatisfiable` says any `S` smaller than the id space
-admits such an encoding.  OPEN: that a given run is a `ReachIn` run for a SMALL `S`
-(its own registered pairs) needs a trace-level statement; "some finite `S`" alone is
-trivially true (`S := univ`), so it was not stated.  The satisfiability
+admits such an encoding.  That a given run is a `ReachIn` run for a SMALL `S` — the
+pairs its own registrations hash — is the trace-level section at the end of this
+file (`ReachLogIsReachIn`, `LoggedRunSound`); "some finite `S`" alone is trivially
+true (`S := univ`), so it is not stated.  The satisfiability
 of the full premise lists, on concrete nontrivial instances, is
 `RunOnSatisfiable` / `RegisterNativeOnSatisfiable` / `RegisterBridgedOnSatisfiable`. -/
 
@@ -356,5 +357,102 @@ def Properties.RegisterBridgedOnSatisfiable : Prop :=
     (a : AssetId) (t ot : Address) (origin : Chain),
     IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
     ∧ (origin, ot) ∈ S ∧ RegisterBridgedGuard e thisChain V a t ot origin
+
+/-! ## Logged runs: the hash assumption on the pairs the run itself hashes
+
+The `…On` results above hold for `ReachIn e thisChain S` runs under
+`IdAssumptionsOn e S`.  This section supplies the `S` for an arbitrary run: log the
+run (`ReachLog`, which has the same reachable states as `Reach`), and take
+`S := registeredPairs thisChain log`, the pairs its registration steps hash — at
+most one per logged step.  The headline `LoggedRunSound` then needs the id hash to
+be injective and nonzero on those pairs only. -/
+
+/-- **A LOGGED RUN IS A BOUNDED RUN FOR THE PAIRS IT HASHES.** -/
+def Properties.ReachLogIsReachIn : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (W X : World) (log : List Op),
+    ReachLog e thisChain W X log → ReachIn e thisChain ↑(registeredPairs thisChain log) W X
+
+/-- **AT MOST ONE PAIR PER STEP.** -/
+def Properties.RegisteredPairsCardLe : Prop :=
+  ∀ (thisChain : Chain) (log : List Op), (registeredPairs thisChain log).card ≤ log.length
+
+/-- `registeredPairs` is exactly the pairs hashed by operations in the log. -/
+def Properties.MemRegisteredPairs : Prop :=
+  ∀ (thisChain : Chain) (log : List Op) (p : Chain × Address),
+    p ∈ registeredPairs thisChain log ↔ ∃ o ∈ log, o.pair thisChain = some p
+
+/-- **LOGGING LOSES NO RUN.**  `Reach` and `ReachLog` have the same reachable states. -/
+def Properties.ReachIffReachLog : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (W X : World),
+    Reach e thisChain W X ↔ ∃ log, ReachLog e thisChain W X log
+
+/-- **THE LOG DETERMINES THE RUN.**  Two logged runs from the same state with the same
+log end in the same state, so `registeredPairs thisChain log` is a property of the
+run, not of a choice of log. -/
+def Properties.ReachLogDeterministic : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (W X Y : World) (log : List Op),
+    ReachLog e thisChain W X log → ReachLog e thisChain W Y log → X = Y
+
+/-- **EVERY REGISTERED ASSET CAME FROM A LOGGED PAIR**, with no hash assumption: at the
+end of a logged run from fresh storage, each registered asset's recorded (origin
+chain, origin token) is a pair some logged registration hashed. -/
+def Properties.ReachLogPairsIn : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
+    ReachLog e thisChain empty W log → PairsIn ↑(registeredPairs thisChain log) W.vault
+
+/-- **THE HEADLINE, RUN-LOCAL.**  For every logged run from fresh storage, if the id
+hash is injective and nonzero on the pairs the run's own registrations hash, then at
+the end the registry is coherent (`Valid`, which includes solvency), the audit
+invariant holds, solvency and no-inflation hold, and every registered asset's
+recorded pair is one of the logged pairs. -/
+def Properties.LoggedRunSound : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (W : World) (log : List Op), ReachLog e thisChain empty W log →
+      IdAssumptionsOn e ↑(registeredPairs thisChain log) →
+        Valid e thisChain W.vault ∧ Audited thisChain W
+        ∧ (∀ a, W.vault.bridgedOut a ≤ W.vault.escrowed a)
+        ∧ (∀ a, Native thisChain W.vault a → W.audit.totalIn a ≤ W.audit.totalOut a)
+        ∧ PairsIn ↑(registeredPairs thisChain log) W.vault
+
+/-- **THE RUN-LOCAL ASSUMPTION IS SATISFIABLE FOR EVERY REALISTIC LOG.**  Any log
+shorter than the id space has an encoding injective and nonzero on its pairs. -/
+def Properties.LogAssumptionSatisfiable : Prop :=
+  ∀ (thisChain : Chain) (log : List Op), log.length < UInt256.size →
+    ∃ e : NtvAssetId, IdAssumptionsOn e ↑(registeredPairs thisChain log)
+
+/-- **THE HEADLINE'S PREMISES HOLD ON A NONTRIVIAL RUN.**  An encoding and a logged
+run satisfying every premise of `LoggedRunSound`, in which two distinct pairs are
+registered and a native asset has been bridged both out and in. -/
+def Properties.LoggedRunSoundSatisfiable : Prop :=
+  ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
+    thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
+    ∧ IdAssumptionsOn e ↑(registeredPairs thisChain log)
+    ∧ 2 ≤ (registeredPairs thisChain log).card
+    ∧ ∃ a, Registered W.vault a ∧ Native thisChain W.vault a
+      ∧ W.audit.totalOut a ≠ 0 ∧ W.audit.totalIn a ≠ 0
+
+/-- **THE RUN-LOCAL ASSUMPTION IS STRICTLY WEAKER THAN THE GLOBAL ONE.**  A nontrivial
+logged run whose encoding meets `LoggedRunSound`'s premise, yet fails `IdAssumptions`
+— explicitly: it maps a pair the run hashes and a pair the run never hashes to the
+same id, and maps some pair to zero. -/
+def Properties.LogAssumptionWeakerThanGlobal : Prop :=
+  ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
+    thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
+    ∧ IdAssumptionsOn e ↑(registeredPairs thisChain log)
+    ∧ 2 ≤ (registeredPairs thisChain log).card
+    ∧ ¬ IdAssumptions e
+    ∧ (∃ p ∈ registeredPairs thisChain log, ∃ q, q ∉ registeredPairs thisChain log
+        ∧ e p.1 p.2 = e q.1 q.2)
+    ∧ (∃ q : Chain × Address, e q.1 q.2 = 0)
+
+/-- **WHY THE LOG, NOT THE END STATE.**  With a colliding encoding, a logged run whose
+second registration overwrites the first: a pair the run hashed is recorded by no
+registered asset at the end.  So "the pairs registered at the end" is not a sound
+choice of `S` without injectivity; `registeredPairs` of the log is. -/
+def Properties.LogPairsCanOutliveEndState : Prop :=
+  ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
+    thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
+    ∧ ∃ p ∈ registeredPairs thisChain log,
+      ¬ ∃ a, Registered W.vault a ∧ (W.vault.originChain a, W.vault.originToken a) = p
 
 end Contracts.NativeTokenVault

@@ -343,8 +343,9 @@ the registry argument actually uses is far less: injectivity and non-zeroness on
 pairs the run registers.  The definitions below restrict the assumption to an
 explicit set `S` of pairs, and restrict the run to registrations hashing pairs in
 `S`.  For any `S` that is not astronomically large there is an encoding satisfying
-it (`Contracts.NativeTokenVault.IdAssumptionsOnSatisfiable`).  Relating a given run
-to the small set of pairs it registers is open (a trace-level statement). -/
+it (`Contracts.NativeTokenVault.IdAssumptionsOnSatisfiable`).  A given run is related
+to the small set of pairs it registers by the logged runs below
+(`ReachLog`, `registeredPairs`). -/
 
 /-- `IdAssumptions`, but only on the pairs in `S`. -/
 structure IdAssumptionsOn (e : NtvAssetId) (S : Set (Chain × Address)) : Prop where
@@ -380,5 +381,70 @@ inductive ReachIn (e : NtvAssetId) (thisChain : Chain) (S : Set (Chain × Addres
   | refl {W} : ReachIn e thisChain S W W
   | tail {W X Y} : ReachIn e thisChain S W X → StepIn e thisChain S X Y →
       ReachIn e thisChain S W Y
+
+/-! ## The run, logged: naming the pairs each registration hashes
+
+`Reach` records states, not the operations that produced them, so the set of
+(chain, token) pairs a run hashed is not visible in it.  Taking `S := Set.univ`
+makes every run a `ReachIn` run, and says nothing; taking `S` to be the pairs
+recorded at the END of the run is wrong without injectivity, because a registration
+whose id collides with a live asset's overwrites that asset's recorded pair
+(`Contracts.NativeTokenVault.Properties.LogPairsCanOutliveEndState`).
+
+`ReachLog` is `Reach` with every operation written to a log, in order, with its
+arguments.  `registeredPairs thisChain log` is the set of pairs the log's
+registrations hashed — `(thisChain, t)` for a native one, `(origin, ot)` for a bridged
+one — and it is the `S` a logged run is a `ReachIn` run for
+(`Contracts.NativeTokenVault.Properties.ReachLogIsReachIn`).  It has at most one pair
+per logged operation. -/
+
+/-- One vault operation, with the arguments it was called with. -/
+inductive Op where
+  /-- `_registerToken(t)` for a token native to this chain. -/
+  | registerNative (t : Address)
+  /-- `_ensureAndSaveTokenDeployedInner`: id `a`, local token `t`, origin token `ot`
+  on chain `origin`. -/
+  | registerBridged (a : AssetId) (t ot : Address) (origin : Chain)
+  /-- `bridgeBurn` of `amt` of `a` towards chain `c`. -/
+  | bridgeOut (c : Chain) (a : AssetId) (amt : ℕ)
+  /-- `bridgeMint` of `amt` of `a` from chain `c`. -/
+  | bridgeIn (c : Chain) (a : AssetId) (amt : ℕ)
+  /-- A direct transfer of `amt` of `a` into the vault. -/
+  | donate (a : AssetId) (amt : ℕ)
+
+/-- The (chain, token) pair an operation feeds to the asset-id hash, if any: the pair
+a native registration derives its id from, and the pair a bridged registration's id
+is checked against (`assetIdCheck`).  Flows and donations hash nothing. -/
+def Op.pair (thisChain : Chain) : Op → Option (Chain × Address)
+  | .registerNative t => some (thisChain, t)
+  | .registerBridged _ _ ot origin => some (origin, ot)
+  | .bridgeOut .. => none
+  | .bridgeIn .. => none
+  | .donate .. => none
+
+/-- **The pairs a logged run hashes.** -/
+def registeredPairs (thisChain : Chain) (log : List Op) : Finset (Chain × Address) :=
+  (log.filterMap (Op.pair thisChain)).toFinset
+
+/-- `Step`, labelled by the operation taken. -/
+inductive StepOp (e : NtvAssetId) (thisChain : Chain) : Op → World → World → Prop
+  | registerNative {W t} : RegisterNativeGuard W.vault t →
+      StepOp e thisChain (.registerNative t) W
+        { W with vault := registerNative e thisChain W.vault t }
+  | registerBridged {W a t ot origin} :
+      RegisterBridgedGuard e thisChain W.vault a t ot origin →
+      StepOp e thisChain (.registerBridged a t ot origin) W
+        { W with vault := registerBridged W.vault a t ot origin }
+  | bridgeOut {W c a amt} : FlowOutGuard W.vault a amt →
+      StepOp e thisChain (.bridgeOut c a amt) W (bridgeOut thisChain W c a amt)
+  | bridgeIn {W c a amt} : FlowInGuard thisChain W.vault a amt →
+      StepOp e thisChain (.bridgeIn c a amt) W (bridgeIn thisChain W c a amt)
+  | donate {W a amt} : StepOp e thisChain (.donate a amt) W (donate W a amt)
+
+/-- `Reach`, with every operation logged, oldest first. -/
+inductive ReachLog (e : NtvAssetId) (thisChain : Chain) : World → World → List Op → Prop
+  | refl {W} : ReachLog e thisChain W W []
+  | tail {W X Y log o} : ReachLog e thisChain W X log → StepOp e thisChain o X Y →
+      ReachLog e thisChain W Y (log ++ [o])
 
 end Contracts.NativeTokenVault
