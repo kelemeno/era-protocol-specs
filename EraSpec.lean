@@ -161,10 +161,6 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
-import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
-import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
-import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
-import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
 
 -- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
 import EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery
@@ -182,6 +178,12 @@ import EraSpec.Contracts.FullMerkle.Proofs.TreeShapeStrong
 import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
+
+-- Strengthened handler statements (InteropHandlerBase, L2InteropHandler)
+import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
+import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop

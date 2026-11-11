@@ -38,7 +38,8 @@ import Mathlib.Tactic
   `ProofPolarity`, and therefore rests entirely on `HonestInsertion` (up to keccak collisions on
   named preimages).  Nothing else on that path constrains the field.  This file and its properties
   only state that answer; topic `AtomicSourceBindingStrong` derives it from the validator, the hash
-  computation, the flow gate and the honest insertion of the one tree that vouched.
+  computation, the flow gate and the honest insertion of the one tree that vouched, and topic
+  `SourceBindingReduced` from the vouching chain's whole source run.
 
   THREAT MODEL.  `_verifyBundle`'s comment states the premise plainly — "Asset correctness across
   chains is guaranteed by ZK proofs (assuming proofs are correct and CHAINS ARE NOT MALICIOUS)".  Under

@@ -41,7 +41,8 @@ set_option linter.unusedVariables false
   The answer: the atomic path's source binding is EXACTLY the inclusion-self-binding argument of
   `ProofPolarity`, and therefore rests entirely on `HonestInsertion` (up to keccak collisions on
   named preimages).  Nothing else on that path constrains the field.  The statements below only
-  record that answer (see `atomic_source_bound`); topic `AtomicSourceBindingStrong` derives it.
+  record that answer (see `atomic_source_bound`); topics `AtomicSourceBindingStrong` (from one
+  honest tree) and `SourceBindingReduced` (from the vouching chain's source run) derive it.
 
   THREAT MODEL.  `_verifyBundle`'s comment states the premise plainly — "Asset correctness across
   chains is guaranteed by ZK proofs (assuming proofs are correct and CHAINS ARE NOT MALICIOUS)".  Under
@@ -77,7 +78,9 @@ holds the leg's commit value, is the chain the presented bytes declare, so the i
 recipient is one that chain's tree vouched for — is derived in
 `AtomicSourceBindingStrong.AtomicSourceBoundToVouchingTreeOrLoggedClash`, from the decoded
 `sourceChainId`, the destination's own hash computation and the honest insertion of the one tree,
-up to the tree's sentinel and keccak collisions on named preimages. -/
+up to the tree's sentinel and keccak collisions on named preimages.  Topic `SourceBindingReduced`
+derives it from the vouching chain's whole source run instead, with no premise on its tree
+(`Contracts.SourceBinding.Properties.AtomicSourceBoundOrBreak`). -/
 abbrev Properties.atomic_source_bound (hhc : HonestCommits declared commit tree)
     {c : Chain} {h : Hash} (hproof : commit h ∈ tree c) :=
   declared h = c

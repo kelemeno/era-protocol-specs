@@ -32,6 +32,12 @@ bundle hash determines the source chain.
 * **What it rests on** (`ForeignCommitInTreeUnbindsSource`): a tree holding one foreign commit
   value lets bytes declaring chain `325` pass as vouched by chain `324`, with no collision on any
   named preimage. `AtomicSourceBindingStrongWitness` meets every premise on the honest run.
+
+Topic `SourceBindingReduced` (namespace `Contracts.SourceBinding`) proves the same binding from
+the vouching chain's whole source run, with links 1–2 derived rather than taken as
+`TreeBackedByManager`. This topic adds the validator by call site, the decoded field used by both
+the hash and the recipient's `sender`, and the flow-gate reading; its premise about the tree is
+`TreeHoldsOwnLegs` for that one tree.
 -/
 
 namespace AttackVectors.AtomicSourceBinding
