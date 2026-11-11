@@ -52,6 +52,7 @@ import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeaf
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.InsertGuard
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZero
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.ReclaimGateFaithful
 
 -- L2InteropCommitmentTree: the wrapper's indexed state machine, batches, hint search, and root
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
