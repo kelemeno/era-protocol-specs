@@ -69,10 +69,8 @@ contains the leg's commit value — IS the chain the bundle declares.  So the id
 recipient is the identity some chain's tree actually vouched for. -/
 theorem atomic_source_bound (hhc : HonestCommits declared commit tree)
     {c : Chain} {h : Hash} (hproof : commit h ∈ tree c) :
-    Properties.atomic_source_bound (hhc := hhc) (c := c) (h := h) (hproof := hproof) := by
-  unfold Properties.atomic_source_bound
-  exact
-    hhc c h hproof
+    Properties.atomic_source_bound (hhc := hhc) (c := c) (h := h) (hproof := hproof) :=
+  hhc c h hproof
 
 
 /-- **AND THAT IS THE WHOLE OF IT.**  Drop `HonestCommits` and the declared source is unconstrained:
@@ -82,22 +80,16 @@ and on the atomic path nothing else looks at the field — check (1) compares it
 Under the stated threat model ("chains are not malicious") this configuration does not arise.  The
 point is that it is the ONLY thing ruling it out here. -/
 theorem atomic_source_unbound_without_honest :
-    Properties.atomic_source_unbound_without_honest := by
-  unfold Properties.atomic_source_unbound_without_honest
-  exact
-    by
-      refine ⟨Bool, Unit, Unit, fun _ => true, fun _ => (), fun _ => Set.univ, false, (), ?_, ?_⟩
-      · exact Set.mem_univ _
-      · exact Bool.noConfusion
+    Properties.atomic_source_unbound_without_honest :=
+  ⟨Bool, Unit, Unit, fun _ => true, fun _ => (), fun _ => Set.univ, false, (), Set.mem_univ _,
+    Bool.noConfusion⟩
 
 
 /-- The vacuous check, stated so the asymmetry between the two paths is on the record: passing a
 value to be compared against itself constrains nothing, whatever the value is. -/
 theorem self_comparison_vacuous {α : Type*} (x : α) :
-    Properties.self_comparison_vacuous (α := α) (x := x) := by
-  unfold Properties.self_comparison_vacuous
-  exact
-    rfl
+    Properties.self_comparison_vacuous (α := α) (x := x) :=
+  rfl
 
 
 /-! ## The contrast, and why it is worth recording

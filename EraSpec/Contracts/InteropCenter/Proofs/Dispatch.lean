@@ -45,11 +45,8 @@ theorem fromBytesBE_toBytesBE_mod (k n : ℕ) : fromBytesBE (toBytesBE k n) = n 
   induction k generalizing n with
   | zero => simp [toBytesBE, fromBytesBE, Nat.mod_one]
   | succ k ih =>
-    have hmod : (UInt8.ofNat (n % 256)).toNat = n % 256 := by
-      unfold UInt8.toNat UInt8.ofNat
-      simp
-    rw [toBytesBE, fromBytesBE_append_singleton, ih, hmod]
-    rw [pow_succ, mul_comm (256 ^ k) 256, Nat.mod_mul]
+    rw [toBytesBE, fromBytesBE_append_singleton, ih, pow_succ, mul_comm (256 ^ k) 256, Nat.mod_mul]
+    simp
     ring
 
 theorem toBytesBE_eq_mod {k n m : ℕ} (h : toBytesBE k n = toBytesBE k m) :
@@ -63,31 +60,14 @@ theorem size_eq : (256 : ℕ) ^ 32 = UInt256.size := by rfl
 length word fixes the length modulo `2^256`, and the padded payload fixes it to within 32. -/
 theorem abiEncode_right_inj {c c' : ℕ} {x y : List UInt8}
     (h : abiEncode c x = abiEncode c' y) : x = y := by
-  have h96 : ∀ (c : ℕ) (x : List UInt8), abiEncode c x
-      = (word c ++ word 0x40) ++ (word x.length ++ pad32 x) := by
-    intro c x; simp [abiEncode, List.append_assoc]
-  have hl : ∀ c, (word c ++ word 0x40).length = 64 := by
-    intro c; simp [List.length_append, length_toBytesBE]
-  rw [h96, h96] at h
-  have h1 : word x.length ++ pad32 x = word y.length ++ pad32 y := by
-    have := congrArg (List.drop 64) h
-    rwa [List.drop_left' (hl c), List.drop_left' (hl c')] at this
-  have hw : word x.length = word y.length := by
-    have := congrArg (List.take 32) h1
-    rwa [List.take_left' (length_toBytesBE 32 _), List.take_left' (length_toBytesBE 32 _)] at this
-  have hp : pad32 x = pad32 y := by
-    have := congrArg (List.drop 32) h1
-    rwa [List.drop_left' (length_toBytesBE 32 _), List.drop_left' (length_toBytesBE 32 _)] at this
+  -- peel off the chain id word, the offset word and the length word
+  obtain ⟨-, h⟩ := List.append_inj h (by simp)
+  obtain ⟨-, h⟩ := List.append_inj h (by simp)
+  obtain ⟨hw, hp⟩ := List.append_inj h (by simp)
   have hmod := toBytesBE_eq_mod hw
-  have hlen : (pad32 x).length = (pad32 y).length := by rw [hp]
-  simp only [pad32, List.length_append, List.length_replicate] at hlen
-  have hN : (256 : ℕ) ^ 32 =
-      115792089237316195423570985008687907853269984665640564039457584007913129639936 := by
-    norm_num
-  rw [hN] at hmod
-  have hxy : x.length = y.length := by omega
-  have := congrArg (List.take x.length) hp
-  rwa [pad32, pad32, List.take_left' rfl, hxy, List.take_left' rfl] at this
+  have hlen := congrArg List.length hp
+  simp only [pad32, List.length_append, List.length_replicate, Nat.reducePow] at hmod hlen
+  exact List.append_inj_left hp (by omega)
 
 /-- **THE PACKED SALT PREIMAGE DETERMINES `(sender, salt)`** (`packed_addr_salt_inj`). -/
 theorem saltPreimage_inj {a a' : Address} {s s' : Word}
@@ -133,10 +113,8 @@ theorem afterSend_legState (P : Params) (S : State) (d : Dispatch) (f h : Word) 
     (S.afterSend P d).manager.legState f h =
       if d.isAtomic = true ∧ f = d.atomicSend.flowId ∧ h = bundleHash P d.bundle then .Committed
       else S.manager.legState f h := by
-  by_cases hat : d.isAtomic = true
-  · simp only [State.afterSend, hat, ite_true, legState_set, true_and]
-  · simp only [Bool.not_eq_true] at hat
-    simp [State.afterSend, hat]
+  unfold State.afterSend
+  split <;> simp_all
 
 theorem inv_step {K : Checks} {P : Params} {S S' : State} (hs : Step K P S S')
     (hI : Inv K P S) : Inv K P S' := by
@@ -144,19 +122,9 @@ theorem inv_step {K : Checks} {P : Params} {S S' : State} (hs : Step K P S S')
   | send d hsalt hform hval happ =>
     refine ⟨?_, ?_, ?_, ?_, ?_⟩
     · intro a s
-      simp only [State.afterSend, markSalt]
-      by_cases hk : a = d.sender ∧ s = d.salt
-      · rw [ite_eq_left hk]
-        simp only [true_iff]
-        exact ⟨d, by simp, hk.1.symm, hk.2.symm⟩
-      · rw [ite_eq_right hk, hI.salt a s]
-        constructor
-        · rintro ⟨d', hd', h1, h2⟩; exact ⟨d', by simp [hd'], h1, h2⟩
-        · rintro ⟨d', hd', h1, h2⟩
-          simp only [List.mem_append, List.mem_singleton] at hd'
-          rcases hd' with hd' | rfl
-          · exact ⟨d', hd', h1, h2⟩
-          · exact absurd ⟨h1.symm, h2.symm⟩ hk
+      have := hI.salt a s
+      simp only [State.afterSend, markSalt, List.mem_append, List.mem_singleton]
+      grind
     · intro d' hd'
       rcases mem_afterSend.mp hd' with hd' | rfl
       · exact hI.formed d' hd'
@@ -167,41 +135,24 @@ theorem inv_step {K : Checks} {P : Params} {S S' : State} (hs : Step K P S S')
       · exact hval hat hK
     · intro hK
       simp only [State.afterSend, List.map_append, List.map_singleton]
-      refine List.Nodup.append (hI.keys hK) (List.nodup_singleton _) ?_
-      intro x hx hx'
-      simp only [List.mem_singleton] at hx'
-      subst hx'
-      obtain ⟨d', hd', hkey⟩ := List.mem_map.mp hx
-      have hused : S.saltUsed d.sender d.salt = true := by
-        rw [hI.salt]
-        exact ⟨d', hd', congrArg Prod.fst hkey, congrArg Prod.snd hkey⟩
-      rw [hsalt hK] at hused
-      exact Bool.false_ne_true hused
+      refine (hI.keys hK).append (List.nodup_singleton _) fun x hx hx' => ?_
+      obtain ⟨d', hd', rfl⟩ := List.mem_map.mp hx
+      simp only [List.mem_singleton, Dispatch.key, Prod.mk.injEq] at hx'
+      have := (hI.salt d.sender d.salt).2 ⟨d', hd', hx'.1, hx'.2⟩
+      simp [hsalt hK] at this
     · intro hK f h hne
       rw [afterSend_legState] at hne
-      by_cases hc : d.isAtomic = true ∧ f = d.atomicSend.flowId ∧ h = bundleHash P d.bundle
+      split_ifs at hne with hc
       · exact ⟨d, by simp [State.afterSend], hc.1, hc.2.1.symm, hc.2.2.symm⟩
-      · rw [ite_eq_right hc] at hne
-        obtain ⟨d', hd', h1, h2, h3⟩ := hI.legs hK f h hne
+      · obtain ⟨d', hd', h1, h2, h3⟩ := hI.legs hK f h hne
         exact ⟨d', by simp [State.afterSend, hd'], h1, h2, h3⟩
-  | authorize f h hg =>
-    refine ⟨hI.salt, hI.formed, hI.validated, hI.keys, ?_⟩
-    intro hK f' h' hne
+  | authorize f h hg | claim f h hg =>
+    refine ⟨hI.salt, hI.formed, hI.validated, hI.keys, fun hK f' h' hne => hI.legs hK f' h' ?_⟩
     simp only [legState_set] at hne
-    by_cases hfh : f' = f ∧ h' = h
+    split_ifs at hne with hfh
     · obtain ⟨rfl, rfl⟩ := hfh
-      refine hI.legs hK f' h' ?_
-      rw [hg]; exact LegState.noConfusion
-    · rw [ite_eq_right hfh] at hne; exact hI.legs hK f' h' hne
-  | claim f h hg =>
-    refine ⟨hI.salt, hI.formed, hI.validated, hI.keys, ?_⟩
-    intro hK f' h' hne
-    simp only [legState_set] at hne
-    by_cases hfh : f' = f ∧ h' = h
-    · obtain ⟨rfl, rfl⟩ := hfh
-      refine hI.legs hK f' h' ?_
-      rw [hg]; exact LegState.noConfusion
-    · rw [ite_eq_right hfh] at hne; exact hI.legs hK f' h' hne
+      rw [hg]; nofun
+    · exact hne
   | foreignAppend caller f h hne hmod _ =>
     exact ⟨hI.salt, hI.formed, hI.validated, hI.keys, fun hK => absurd (hmod hK) hne⟩
 
@@ -224,27 +175,8 @@ structure LegInv (P : Params) (S : State) : Prop where
 /-- No step writes `Unset`. -/
 theorem step_keeps_set {K : Checks} {P : Params} {S S' : State} (hs : Step K P S S') (f h : Word)
     (hne : S.manager.legState f h ≠ .Unset) : S'.manager.legState f h ≠ .Unset := by
-  cases hs with
-  | send d _ _ _ _ =>
-    rw [afterSend_legState]
-    split_ifs
-    · exact LegState.noConfusion
-    · exact hne
-  | authorize f' h' _ =>
-    simp only [legState_set]
-    split_ifs
-    · exact LegState.noConfusion
-    · exact hne
-  | claim f' h' _ =>
-    simp only [legState_set]
-    split_ifs
-    · exact LegState.noConfusion
-    · exact hne
-  | foreignAppend _ f' h' _ _ _ =>
-    simp only [legState_set]
-    split_ifs
-    · exact LegState.noConfusion
-    · exact hne
+  cases hs <;> simp only [afterSend_legState, legState_set] <;> split_ifs <;>
+    first | exact hne | exact LegState.noConfusion
 
 theorem legInv_step {K : Checks} {P : Params} {S S' : State} (hs : Step K P S S')
     (hI : LegInv P S) : LegInv P S' := by
@@ -259,31 +191,17 @@ theorem legInv_step {K : Checks} {P : Params} {S S' : State} (hs : Step K P S S'
       · exact hstay d' hd' hat
       · rw [afterSend_legState, ite_eq_left ⟨hat, rfl, rfl⟩]
         exact LegState.noConfusion
-    · by_cases hat : d.isAtomic = true
-      · have hf : (S.log ++ [d]).filter Dispatch.isAtomic = S.log.filter Dispatch.isAtomic ++ [d] := by
-          simp [List.filter_append, hat]
-        show ((S.log ++ [d]).filter Dispatch.isAtomic |>.map (legKey P)).Nodup
-        rw [hf, List.map_append, List.map_singleton]
-        refine List.Nodup.append hI.once (List.nodup_singleton _) ?_
-        intro x hx hx'
-        simp only [List.mem_singleton] at hx'
-        subst hx'
-        obtain ⟨d', hd', hkey⟩ := List.mem_map.mp hx
+    · show ((S.log ++ [d]).filter Dispatch.isAtomic |>.map (legKey P)).Nodup
+      by_cases hat : d.isAtomic = true
+      · simp only [List.filter_append, List.filter_singleton, hat, Bool.cond_true, List.map_append,
+          List.map_singleton]
+        refine hI.once.append (List.nodup_singleton _) fun x hx hx' => ?_
+        obtain ⟨d', hd', rfl⟩ := List.mem_map.mp hx
         obtain ⟨hd'log, hat'⟩ := List.mem_filter.mp hd'
-        have hset := hI.stay d' hd'log hat'
-        have hk1 : d'.atomicSend.flowId = d.atomicSend.flowId := congrArg Prod.fst hkey
-        have hk2 : bundleHash P d'.bundle = bundleHash P d.bundle := congrArg Prod.snd hkey
-        rw [hk1, hk2] at hset
-        exact hset (happ hat)
-      · have hat' : d.isAtomic = false := by simpa using hat
-        have hf : (S.log ++ [d]).filter Dispatch.isAtomic = S.log.filter Dispatch.isAtomic := by
-          simp [List.filter_append, hat']
-        show ((S.log ++ [d]).filter Dispatch.isAtomic |>.map (legKey P)).Nodup
-        rw [hf]
-        exact hI.once
-  | authorize f h _ => exact ⟨hstay, hI.once⟩
-  | claim f h _ => exact ⟨hstay, hI.once⟩
-  | foreignAppend _ f h _ _ _ => exact ⟨hstay, hI.once⟩
+        simp only [List.mem_singleton, legKey, Prod.mk.injEq] at hx'
+        exact hI.stay d' hd'log hat' (by rw [hx'.1, hx'.2]; exact happ hat)
+      · simpa [List.filter_append, hat] using hI.once
+  | authorize | claim | foreignAppend => exact ⟨hstay, hI.once⟩
 
 theorem legInv_reach {K : Checks} {P : Params} {S : State} (hr : Reach K P init S) :
     LegInv P S := by
@@ -293,49 +211,30 @@ theorem legInv_reach {K : Checks} {P : Params} {S : State} (hr : Reach K P init 
 
 /-! ## (a) Sender salts -/
 
-theorem SaltFlagRecordsDispatches : Properties.SaltFlagRecordsDispatches := by
-  intro K P S hr a s
-  exact (inv_reach hr).salt a s
+theorem SaltFlagRecordsDispatches : Properties.SaltFlagRecordsDispatches :=
+  fun _ _ _ hr => (inv_reach hr).salt
 
 theorem SaltFlagsNeverCleared : Properties.SaltFlagsNeverCleared := by
   intro K P S S' hs a s h
   cases hs with
-  | send d _ _ _ _ =>
-    simp only [State.afterSend, markSalt]
-    split_ifs
-    · rfl
-    · exact h
-  | authorize => exact h
-  | claim => exact h
-  | foreignAppend => exact h
+  | send d _ _ _ _ => simp [State.afterSend, markSalt, h]
+  | authorize | claim | foreignAppend => exact h
 
 theorem UsedSaltHasNoDispatch : Properties.UsedSaltHasNoDispatch := by
   intro P S S' d hused hs hlog
   cases hs with
   | send d' hsalt _ _ _ =>
-    have hdd : d' = d := by simpa [State.afterSend] using hlog
-    subst hdd
-    rw [hsalt rfl] at hused
-    exact Bool.false_ne_true hused
-  | authorize =>
-    have := congrArg List.length hlog
-    simp at this
-  | claim =>
-    have := congrArg List.length hlog
-    simp at this
-  | foreignAppend =>
-    have := congrArg List.length hlog
-    simp at this
+    obtain rfl : d' = d := by simpa [State.afterSend] using hlog
+    simp [hsalt rfl] at hused
+  | authorize | claim | foreignAppend => simp at hlog
 
-theorem EachSaltDispatchesOnce : Properties.EachSaltDispatchesOnce := by
-  intro P S hr
-  exact (inv_reach hr).keys rfl
+theorem EachSaltDispatchesOnce : Properties.EachSaltDispatchesOnce :=
+  fun _ _ hr => (inv_reach hr).keys rfl
 
 /-! ## (b) The atomic-value check and the only `append` -/
 
-theorem AtomicDispatchesCarryNoValue : Properties.AtomicDispatchesCarryNoValue := by
-  intro P S hr
-  exact (inv_reach hr).validated rfl
+theorem AtomicDispatchesCarryNoValue : Properties.AtomicDispatchesCarryNoValue :=
+  fun _ _ hr => (inv_reach hr).validated rfl
 
 theorem map_value_of_forall₂ {sender : Address} {cs : List CallStarter} {calls : List InteropCall}
     (h : List.Forall₂ (FormsCall sender) cs calls) :
@@ -362,32 +261,22 @@ theorem OnlyADispatchCommitsALeg : Properties.OnlyADispatchCommitsALeg := by
   cases hs with
   | send d hsalt hform hval happ =>
     rw [afterSend_legState] at hne
-    by_cases hc : d.isAtomic = true ∧ f = d.atomicSend.flowId ∧ h = bundleHash P d.bundle
+    split_ifs at hne with hc
     · exact ⟨d, rfl, hc.1, hc.2.1.symm, hc.2.2.symm, hval hc.1 rfl⟩
-    · rw [ite_eq_right hc] at hne; exact absurd hU hne
-  | authorize f' h' hg =>
+    · exact absurd hU hne
+  | authorize f' h' hg | claim f' h' hg =>
     simp only [legState_set] at hne
-    by_cases hfh : f = f' ∧ h = h'
+    split_ifs at hne with hfh
     · obtain ⟨rfl, rfl⟩ := hfh
-      have hg' : S.manager.legState f h = .Committed := hg
-      rw [hU] at hg'; exact absurd hg' LegState.noConfusion
-    · rw [ite_eq_right hfh] at hne; exact absurd hU hne
-  | claim f' h' hg =>
-    simp only [legState_set] at hne
-    by_cases hfh : f = f' ∧ h = h'
-    · obtain ⟨rfl, rfl⟩ := hfh
-      have hg' : S.manager.legState f h = .Revertable := hg
-      rw [hU] at hg'; exact absurd hg' LegState.noConfusion
-    · rw [ite_eq_right hfh] at hne; exact absurd hU hne
+      exact LegState.noConfusion (hU.symm.trans hg)
+    · exact absurd hU hne
   | foreignAppend caller f' h' hne' hmod _ => exact absurd (hmod rfl) hne'
 
-theorem AppendedLegsStayCommitted : Properties.AppendedLegsStayCommitted := by
-  intro K P S hr
-  exact (legInv_reach hr).stay
+theorem AppendedLegsStayCommitted : Properties.AppendedLegsStayCommitted :=
+  fun _ _ _ hr => (legInv_reach hr).stay
 
-theorem EachLegAppendedOnce : Properties.EachLegAppendedOnce := by
-  intro K P S hr
-  exact (legInv_reach hr).once
+theorem EachLegAppendedOnce : Properties.EachLegAppendedOnce :=
+  fun _ _ _ hr => (legInv_reach hr).once
 
 theorem CommittedLegsAreValidatedDispatches : Properties.CommittedLegsAreValidatedDispatches := by
   intro P S hr f h hne
@@ -408,20 +297,18 @@ theorem ValidationUnbypassableDischarged : Properties.ValidationUnbypassableDisc
 theorem PresentedBundleValidatedOrClash : Properties.PresentedBundleValidatedOrClash := by
   intro P S hr f b hne
   obtain ⟨d, hd, hat, hf, hh, hval, -⟩ := CommittedLegsAreValidatedDispatches P S hr f _ hne
-  by_cases hb : b = d.bundle
-  · left; rw [hb]; exact hval
-  · right; exact ⟨d, hd, hat, hf, hb, hh.symm⟩
+  rcases eq_or_ne b d.bundle with rfl | hb
+  · exact .inl hval
+  · exact .inr ⟨d, hd, hat, hf, hb, hh.symm⟩
 
 theorem ClaimedBundleValidatedOrCollision : Properties.ClaimedBundleValidatedOrCollision := by
   intro P dec S hr hdec f x hne
   obtain ⟨d, hd, hat, hf, hh, hval, -⟩ := CommittedLegsAreValidatedDispatches P S hr f _ hne
   by_cases hpre : claimPreimage dec x = bundlePreimage P d.bundle
   · left
-    have hx : x = P.enc d.bundle := abiEncode_right_inj hpre
-    rw [hx, hdec d hd]
+    rw [abiEncode_right_inj hpre, hdec d hd]
     exact hval
-  · right
-    exact ⟨d, hd, hat, hf, hpre, hh.symm⟩
+  · exact .inr ⟨d, hd, hat, hf, hpre, hh.symm⟩
 
 /-! ### Countermodels for (b) -/
 
@@ -480,44 +367,29 @@ theorem DistinctDispatchesDistinctBundles : Properties.DistinctDispatchesDistinc
   intro P S hr i j hi hj hij
   have hI := inv_reach hr
   have hkeys : (S.log.map Dispatch.key).Nodup := hI.keys rfl
-  have hk : S.log[i].key ≠ S.log[j].key := by
-    intro heq
-    have hi' : i < (S.log.map Dispatch.key).length := by simpa using hi
-    have hj' : j < (S.log.map Dispatch.key).length := by simpa using hj
-    have heq' : (S.log.map Dispatch.key)[i] = (S.log.map Dispatch.key)[j] := by
-      simpa [List.getElem_map] using heq
-    exact hij ((List.Nodup.getElem_inj_iff hkeys).mp heq')
-  by_cases hb : S.log[i].bundle = S.log[j].bundle
-  · right
-    have hsalt : S.log[i].salt = S.log[j].salt := by simp [Dispatch.salt, hb]
-    have hsender : S.log[i].sender ≠ S.log[j].sender := by
-      intro hs; exact hk (by simp [Dispatch.key, hs, hsalt])
-    refine ⟨hsalt, hsender, ?_, ?_⟩
-    · intro hpre; exact hsender (saltPreimage_inj hpre).1
-    · have h1 := (hI.formed _ (List.getElem_mem hi)).salt
-      have h2 := (hI.formed _ (List.getElem_mem hj)).salt
-      rw [← h1, ← h2, hb]
-  · left; exact hb
+  have hk : S.log[i].key ≠ S.log[j].key := fun heq =>
+    hij ((hkeys.getElem_inj_iff (hi := by simpa) (hj := by simpa)).mp (by simpa using heq))
+  rcases eq_or_ne S.log[i].bundle S.log[j].bundle with hb | hb
+  · have hsalt : S.log[i].salt = S.log[j].salt := by simp [Dispatch.salt, hb]
+    have hsender : S.log[i].sender ≠ S.log[j].sender := fun hs =>
+      hk (by simp [Dispatch.key, hs, hsalt])
+    refine .inr ⟨hsalt, hsender, fun hpre => hsender (saltPreimage_inj hpre).1, ?_⟩
+    rw [← (hI.formed _ (List.getElem_mem hi)).salt, ← (hI.formed _ (List.getElem_mem hj)).salt,
+      hb]
+  · exact .inl hb
 
 theorem DistinctDispatchesDistinctPreimages : Properties.DistinctDispatchesDistinctPreimages := by
   intro P S hr henc i j hi hj hij
-  rcases DistinctDispatchesDistinctBundles P S hr i j hi hj hij with hb | hc
-  · left
-    intro hpre
-    apply hb
-    have hencEq : P.enc S.log[i].bundle = P.enc S.log[j].bundle := abiEncode_right_inj hpre
-    exact henc _ (List.mem_map_of_mem (List.getElem_mem hi)) _
-      (List.mem_map_of_mem (List.getElem_mem hj)) hencEq
-  · right; exact hc
+  refine (DistinctDispatchesDistinctBundles P S hr i j hi hj hij).imp_left fun hb hpre => hb ?_
+  exact henc _ (List.mem_map_of_mem (List.getElem_mem hi)) _
+    (List.mem_map_of_mem (List.getElem_mem hj)) (abiEncode_right_inj hpre)
 
 theorem DistinctDispatchesDistinctBundleHashes :
     Properties.DistinctDispatchesDistinctBundleHashes := by
   intro P S hr henc i j hi hj hij
   rcases DistinctDispatchesDistinctPreimages P S hr henc i j hi hj hij with hp | hc
-  · by_cases hh : bundleHash P S.log[i].bundle = bundleHash P S.log[j].bundle
-    · right; right; exact ⟨hp, hh⟩
-    · left; exact hh
-  · right; left; exact hc
+  · exact (em' _).imp_right fun hh => .inr ⟨hp, hh⟩
+  · exact .inr (.inl hc)
 
 theorem LoggedRunBundleHashesUnique : Properties.LoggedRunBundleHashesUnique := by
   intro P S hr henc hsaltInj hbundleInj
@@ -541,14 +413,10 @@ theorem AtomicBytesNeverPublished : Properties.AtomicBytesNeverPublished := by
   obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hd'
   have hij : i ≠ j := by
     rintro rfl
-    rw [hat] at hat'
-    exact Bool.noConfusion hat'
-  rcases DistinctDispatchesDistinctBundles P S hr i j hi hj hij with hb | hc
-  · left
-    intro he
-    exact hb (henc _ (List.mem_map_of_mem (List.getElem_mem hi)) _
-      (List.mem_map_of_mem (List.getElem_mem hj)) he)
-  · right; exact hc
+    simp [hat] at hat'
+  refine (DistinctDispatchesDistinctBundles P S hr i j hi hj hij).imp_left fun hb he => hb ?_
+  exact henc _ (List.mem_map_of_mem (List.getElem_mem hi)) _
+    (List.mem_map_of_mem (List.getElem_mem hj)) he
 
 /-! ## Non-vacuity -/
 
@@ -579,7 +447,7 @@ theorem lastWord_append_word (l : List UInt8) (n : ℕ) :
   rw [add_comm, Nat.add_mul_mod_self_right, Nat.mod_mod]
 
 theorem ofNat_val (s : Word) : (Fin.ofNat UInt256.size s.val : Word) = s :=
-  Fin.ext (by rw [Fin.val_ofNat]; exact Nat.mod_eq_of_lt s.isLt)
+  Fin.ext (Nat.mod_eq_of_lt s.isLt)
 
 theorem lastWord_saltPreimage (a : Address) (s : Word) : lastWord (saltPreimage a s) = s := by
   rw [saltPreimage, lastWord_append_word, ofNat_val]
@@ -602,21 +470,13 @@ theorem keccakInjOn_pair {k : List UInt8 → Word} {x y : List UInt8} (h : k x �
     KeccakInjOn k [x, y] := by
   intro u hu v hv huv
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hu hv
-  rcases hu with rfl | rfl <;> rcases hv with rfl | rfl
-  · rfl
-  · exact absurd huv h
-  · exact absurd huv.symm h
-  · rfl
+  grind
 
 theorem encInjOn_pair {enc : Bundle → List UInt8} {b b' : Bundle} (h : enc b ≠ enc b') :
     EncInjOn enc [b, b'] := by
   intro u hu v hv huv
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hu hv
-  rcases hu with rfl | rfl <;> rcases hv with rfl | rfl
-  · rfl
-  · exact absurd huv h
-  · exact absurd huv.symm h
-  · rfl
+  grind
 
 theorem wD1_formed : FormedBy wParams wD1 :=
   ⟨rfl, rfl, List.Forall₂.cons (formsCall_direct 1 0) List.Forall₂.nil⟩
@@ -643,10 +503,9 @@ theorem wStep1 : Step deployed wParams init wS1 := by
   subst hc; rfl
 
 theorem wStep2 : Step deployed wParams wS1 wS2 := by
-  refine Step.send wD2 (fun _ => ?_) wD2_formed ?_ ?_
-  · simp [wS1, State.afterSend, markSalt, init, wD1, wD2, Dispatch.salt, wBundle, wAttrs]
-  · intro h; exact absurd h (by decide)
-  · intro h; exact absurd h (by decide)
+  refine Step.send wD2 (fun _ => ?_) wD2_formed (fun h => absurd h (by decide))
+    (fun h => absurd h (by decide))
+  simp [wS1, State.afterSend, markSalt, init, wD1, wD2, Dispatch.salt, wBundle, wAttrs]
 
 theorem wS1_leg : wS1.manager.legState 7 (bundleHash wParams wD1.bundle) = .Committed := by
   rw [wS1, afterSend_legState, ite_eq_left ⟨rfl, rfl, rfl⟩]
@@ -660,7 +519,8 @@ theorem wReach : Reach deployed wParams init wS3 :=
   .tail (.tail (.tail .refl wStep1) wStep2) wStep3
 
 theorem StepWitness : Properties.StepWitness := by
-  refine ⟨wStep2, ?_, wStep1, rfl, ?_, ⟨wD1, by simp [wS3, wS2, wS1, State.afterSend, init], rfl, rfl⟩⟩
+  refine ⟨wStep2, ?_, wStep1, rfl, ?_,
+    ⟨wD1, by simp [wS3, wS2, wS1, State.afterSend, init], rfl, rfl⟩⟩
   · simp [wS1, State.afterSend, markSalt, Dispatch.salt]
   · show wS1.manager.legState 7 (bundleHash wParams wD1.bundle) ≠ .Unset
     rw [wS1_leg]; exact LegState.noConfusion
@@ -687,8 +547,7 @@ theorem DispatchWitness : Properties.DispatchWitness := by
   · rw [hlog]
     exact encInjOn_pair wEnc_ne
   · rw [hlog]
-    refine keccakInjOn_pair ?_
-    rw [hsalt1, hsalt2]; exact h12
+    exact keccakInjOn_pair (by rw [hsalt1, hsalt2]; exact h12)
   · rw [hlog]
     refine keccakInjOn_pair ?_
     change bundleHash wParams wD1.bundle ≠ bundleHash wParams wD2.bundle
@@ -730,8 +589,7 @@ theorem ClaimWitness : Properties.ClaimWitness := by
     rw [hlog] at hd
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hd
     rcases hd with rfl | rfl
-    · exact wDec_wD1
-    · exact wDec_wD2
+    exacts [wDec_wD1, wDec_wD2]
   · rw [wClaimPreimage]
     show (wS2.manager.set 7 (bundleHash wParams wD1.bundle) .Revertable).legState 7
       (bundleHash wParams wD1.bundle) = .Revertable
@@ -766,8 +624,6 @@ theorem SaltClashLetsTwoSendersShareABundle :
     (collidingParams_keccak _).trans (collidingParams_keccak _).symm⟩
   · show (1 : Address) ≠ 2
     decide
-  · intro hpre
-    have := (saltPreimage_inj hpre).1
-    exact absurd this (by decide)
+  · exact fun hpre => absurd (saltPreimage_inj hpre).1 (by decide)
 
 end Contracts.InteropCenter

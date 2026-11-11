@@ -25,7 +25,7 @@ theorem word_length (n : ℕ) : (word n).length = 32 := length_toBytesBE 32 n
 
 theorem packedSalt_length {a : ℕ} {s : List UInt8} (hs : s.length = 32) :
     (packedSalt a s).length = 52 := by
-  simp [packedSalt, length_toBytesBE, hs]
+  simp [packedSalt, hs]
 
 /-- Distinct well-formed `(sender, salt)` pairs give distinct packed preimages. -/
 theorem packedSalt_ne {a a' : ℕ} {s s' : List UInt8} (ha : a < 256 ^ 20) (ha' : a' < 256 ^ 20)
@@ -42,10 +42,8 @@ theorem word_val_inj {x y : UInt256} (h : word x.val = word y.val) : x = y := by
   rw [fromBytesBE_toBytesBE (uint256_val_lt x), fromBytesBE_toBytesBE (uint256_val_lt y)] at this
   exact Fin.ext this
 
-theorem toUInt256_val (x : UInt256) : Nat.toUInt256 x.val = x := by
-  apply Fin.ext
-  show x.val % UInt256.size = x.val
-  exact Nat.mod_eq_of_lt x.isLt
+theorem toUInt256_val (x : UInt256) : Nat.toUInt256 x.val = x :=
+  Fin.ext (Nat.mod_eq_of_lt x.isLt)
 
 /-- A salt slot that holds a full word means the bytes reach past byte 192. -/
 theorem length_of_saltSlot {B w : List UInt8} (h : bundleSaltSlot B = w) (hw : w.length = 32) :
@@ -56,12 +54,8 @@ theorem length_of_saltSlot {B w : List UInt8} (h : bundleSaltSlot B = w) (hw : w
 
 /-- The bundle bytes start at byte 96 of `abi.encode(chainId, B)`, padded. -/
 theorem abiEncode_drop96 (c : ℕ) (B : List UInt8) : (abiEncode c B).drop 96 = pad32 B := by
-  have hlen3 : (word c ++ word 0x40 ++ word B.length).length = 96 := by
-    simp [length_toBytesBE]
-  have : abiEncode c B = (word c ++ word 0x40 ++ word B.length) ++ pad32 B := by
-    simp [abiEncode, List.append_assoc]
-  rw [this]
-  exact List.drop_left' hlen3
+  rw [abiEncode, ← List.append_assoc, ← List.append_assoc]
+  exact List.drop_left' (by simp)
 
 /-- The chain id is the leading word of `abi.encode(chainId, B)`. -/
 theorem abiEncode_take32 (c : ℕ) (B : List UInt8) : (abiEncode c B).take 32 = word c := by
@@ -99,7 +93,7 @@ theorem bundleSaltSlot_bundleEncoding (version : UInt8) (src dst base salt oc oa
 
 theorem bundleEncoding_length (version : UInt8) (src dst base salt oc oa : ℕ) (tail : List UInt8) :
     256 ≤ (bundleEncoding version src dst base salt oc oa tail).length := by
-  simp [bundleEncoding, bytes1Word, length_toBytesBE]
+  simp [bundleEncoding, bytes1Word]
   omega
 
 theorem preimageSaltSlot_bundleEncoding (c : ℕ) (version : UInt8) (src dst base salt oc oa : ℕ)
@@ -136,18 +130,7 @@ theorem salt_hash_inj_unsatisfiable (saltHash : List UInt8 → UInt256) :
 
 theorem injOn_pair_iff_no_collision {α : Type u} {β : Type v} (f : α → β) (x y : α) :
     Set.InjOn f {x, y} ↔ ¬ HashCollision f x y := by
-  constructor
-  · rintro hinj ⟨hne, heq⟩
-    exact hne (hinj (Set.mem_insert _ _) (Set.mem_insert_of_mem _ rfl) heq)
-  · intro hno p hp q hq hpq
-    simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hp hq
-    rcases hp with rfl | rfl <;> rcases hq with rfl | rfl
-    · rfl
-    · by_contra hne
-      exact hno ⟨hne, hpq⟩
-    · by_contra hne
-      exact hno ⟨fun h => hne h.symm, hpq.symm⟩
-    · rfl
+  rw [Set.injOn_pair, HashCollision, not_and', not_not]
 
 /-! ## The abstract layer -/
 
@@ -159,10 +142,9 @@ theorem distinct_sends_distinct_bundles_or_salt_collision {Bundle : Type u} {Has
     (hb' : saltField b' = saltHash (packedSalt a' s'))
     (hne : ¬ (a = a' ∧ s = s')) :
     b ≠ b' ∨ HashCollision saltHash (packedSalt a s) (packedSalt a' s') := by
-  by_cases hbb : b = b'
-  · subst hbb
-    exact Or.inr ⟨packedSalt_ne ha ha' hs hs' hne, hb.symm.trans hb'⟩
-  · exact Or.inl hbb
+  rcases eq_or_ne b b' with rfl | hbb
+  · exact .inr ⟨packedSalt_ne ha ha' hs hs' hne, hb.symm.trans hb'⟩
+  · exact .inl hbb
 
 theorem distinct_sends_distinct_hashes_or_collision {Bundle : Type u} {Hash : Type v}
     (saltHash : List UInt8 → Hash) (bundleHashOf : Bundle → Hash) (saltField : Bundle → Hash)
@@ -175,11 +157,9 @@ theorem distinct_sends_distinct_hashes_or_collision {Bundle : Type u} {Hash : Ty
       ∨ HashCollision bundleHashOf b b'
       ∨ HashCollision saltHash (packedSalt a s) (packedSalt a' s') := by
   by_cases hh : bundleHashOf b = bundleHashOf b'
-  · rcases distinct_sends_distinct_bundles_or_salt_collision saltHash saltField ha ha' hs hs'
-      hb hb' hne with hbb | hcoll
-    · exact Or.inr (Or.inl ⟨hbb, hh⟩)
-    · exact Or.inr (Or.inr hcoll)
-  · exact Or.inl hh
+  · exact .inr ((distinct_sends_distinct_bundles_or_salt_collision saltHash saltField ha ha' hs hs'
+      hb hb' hne).imp (⟨·, hh⟩) id)
+  · exact .inl hh
 
 theorem distinct_sends_distinct_hashes_on {Bundle : Type u} {Hash : Type v}
     (saltHash : List UInt8 → Hash) (bundleHashOf : Bundle → Hash) (saltField : Bundle → Hash)
@@ -310,7 +290,7 @@ theorem senderKeccak_packedSalt {a : ℕ} {s : List UInt8} (ha : a < 256 ^ 20)
     List.take_left' (length_toBytesBE 20 a), fromBytesBE_toBytesBE ha]
 
 theorem abiEncode_length_ne (c : ℕ) (B : List UInt8) : (abiEncode c B).length ≠ 52 := by
-  simp [abiEncode, length_toBytesBE]
+  simp [abiEncode]
   omega
 
 theorem toyKeccak_abiEncode_witnessBundle (c c₀ : ℕ) (x : UInt256) :

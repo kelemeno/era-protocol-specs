@@ -45,10 +45,8 @@ ORIGINAL sender, then a gate passing via its self-call disjunct still had the at
 the outer handler, one frame up.  Authority is relayed, not widened. -/
 theorem selfCall_relays_authority {a : Attr} {thisChain senderChain senderAddr : ℕ}
     (checked : attrAllows a senderChain senderChain senderAddr) :
-    Properties.selfCall_relays_authority (a := a) (thisChain := thisChain) (senderChain := senderChain) (senderAddr := senderAddr) (checked := checked) := by
-  unfold Properties.selfCall_relays_authority
-  exact
-    ⟨senderChain, senderAddr, checked⟩
+    Properties.selfCall_relays_authority (a := a) (thisChain := thisChain) (senderChain := senderChain) (senderAddr := senderAddr) (checked := checked) :=
+  ⟨senderChain, senderAddr, checked⟩
 
 
 /-- **AND AN UNCHECKED SELF-CALL SITE WOULD WIDEN IT.**  The disjunct passes on `isSelf` alone,
@@ -56,22 +54,15 @@ whatever the attribute says — so a self-call added without the preceding check
 to anyone who can get a bundle executed.  This is why the enumeration, not the gate, is what makes the
 pattern safe. -/
 theorem unchecked_selfCall_widens_authority :
-    Properties.unchecked_selfCall_widens_authority := by
-  unfold Properties.unchecked_selfCall_widens_authority
-  exact
-    by
-      refine ⟨some (1, 7), 1, 1, 9, Or.inl trivial, ?_⟩
-      rintro ⟨-, h, -⟩
-      exact absurd h (by decide)
+    Properties.unchecked_selfCall_widens_authority :=
+  ⟨some (1, 7), 1, 1, 9, Or.inl trivial, fun ⟨_, h, _⟩ => absurd h (by decide)⟩
 
 
 /-- The permissionless case needs no relay: an absent attribute allows everyone, so
 `this.verifyBundle` is safe without a preceding check. -/
 theorem absent_attr_permissionless {thisChain callerChain callerAddr : ℕ} :
-    Properties.absent_attr_permissionless (thisChain := thisChain) (callerChain := callerChain) (callerAddr := callerAddr) := by
-  unfold Properties.absent_attr_permissionless
-  exact
-    trivial
+    Properties.absent_attr_permissionless (thisChain := thisChain) (callerChain := callerChain) (callerAddr := callerAddr) :=
+  trivial
 
 
 /-! ## An inert disjunct, worth knowing about

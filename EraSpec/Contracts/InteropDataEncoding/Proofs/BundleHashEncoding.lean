@@ -45,39 +45,26 @@ namespace AttackVectors.BundleHashEncoding
 @[simp] theorem length_toBytesBE (k n : ℕ) :
     Properties.length_toBytesBE (k := k) (n := n) := by
   unfold Properties.length_toBytesBE
-  exact
-    by
-      induction k generalizing n with
-      | zero => rfl
-      | succ k ih => simp [toBytesBE, ih]
+  induction k generalizing n with
+  | zero => rfl
+  | succ k ih => simp [toBytesBE, ih]
 
 
 theorem fromBytesBE_append_singleton (l : List UInt8) (x : UInt8) :
     Properties.fromBytesBE_append_singleton (l := l) (x := x) := by
-  unfold Properties.fromBytesBE_append_singleton
-  exact
-    by
-      simp [fromBytesBE, List.foldl_append]
+  simp [Properties.fromBytesBE_append_singleton, fromBytesBE]
 
 
 /-- **WORDS ARE RECOVERABLE.**  Below `256 ^ k`, reading back `k` big-endian bytes returns the value. -/
 theorem fromBytesBE_toBytesBE {k n : ℕ} (h : n < 256 ^ k) :
     Properties.fromBytesBE_toBytesBE (k := k) (n := n) (h := h) := by
   unfold Properties.fromBytesBE_toBytesBE
-  exact
-    by
-      induction k generalizing n with
-      | zero => simpa [toBytesBE, fromBytesBE] using (Nat.lt_one_iff.mp (by simpa using h)).symm
-      | succ k ih =>
-        have hdiv : n / 256 < 256 ^ k := by
-          apply Nat.div_lt_of_lt_mul
-          calc n < 256 ^ (k + 1) := h
-            _ = 256 * 256 ^ k := by ring
-        have hmod : (UInt8.ofNat (n % 256)).toNat = n % 256 := by
-          unfold UInt8.toNat UInt8.ofNat
-          simp
-        rw [toBytesBE, fromBytesBE_append_singleton, ih hdiv, hmod]
-        omega
+  induction k generalizing n with
+  | zero => simp_all [toBytesBE, fromBytesBE]
+  | succ k ih =>
+    rw [toBytesBE, fromBytesBE_append_singleton, ih (by rw [pow_succ] at h; omega)]
+    simp
+    omega
 
 
 /-- **ROUND TRIP.**  The encoding of a bundle determines — indeed yields back — the pair it was built
@@ -86,30 +73,17 @@ theorem abiDecode_abiEncode {c : ℕ} {b : List UInt8}
     (hc : c < 256 ^ 32) (hb : b.length < 256 ^ 32) :
     Properties.abiDecode_abiEncode (c := c) (b := b) (hc := hc) (hb := hb) := by
   unfold Properties.abiDecode_abiEncode
-  exact
-    by
-      have hlen : (word c).length = 32 := length_toBytesBE 32 c
-      have hlen2 : (word c ++ word 0x40).length = 64 := by
-        simp [List.length_append, length_toBytesBE]
-      have hlen3 : (word c ++ word 0x40 ++ word b.length).length = 96 := by
-        simp [List.length_append, length_toBytesBE]
-      -- peel the three head words off with `take_left'` / `drop_left'`
-      have h1 : (abiEncode c b).take 32 = word c := by
-        rw [abiEncode]; exact List.take_left' hlen
-      have h2 : (abiEncode c b).drop 64 = word b.length ++ pad32 b := by
-        have : abiEncode c b = (word c ++ word 0x40) ++ (word b.length ++ pad32 b) := by
-          simp [abiEncode, List.append_assoc]
-        rw [this]; exact List.drop_left' hlen2
-      have h3 : (abiEncode c b).drop 96 = pad32 b := by
-        have : abiEncode c b = (word c ++ word 0x40 ++ word b.length) ++ pad32 b := by
-          simp [abiEncode, List.append_assoc]
-        rw [this]; exact List.drop_left' hlen3
-      have h4 : ((abiEncode c b).drop 64).take 32 = word b.length := by
-        rw [h2]; exact List.take_left' (length_toBytesBE 32 b.length)
-      -- and the padding is dropped by taking exactly `b.length` bytes
-      have h5 : (pad32 b).take b.length = b := by
-        rw [pad32]; exact List.take_left' rfl
-      simp only [abiDecode, h1, h3, h4, h5, fromBytesBE_toBytesBE hc, fromBytesBE_toBytesBE hb]
+  -- peel the three head words off with `take_left'` / `drop_left'`
+  have h1 : (abiEncode c b).take 32 = word c := List.take_left' (length_toBytesBE 32 c)
+  have h2 : (abiEncode c b).drop 64 = word b.length ++ pad32 b := by
+    rw [abiEncode, ← List.append_assoc]; exact List.drop_left' (by simp)
+  have h3 : (abiEncode c b).drop 96 = pad32 b := by
+    rw [abiEncode, ← List.append_assoc, ← List.append_assoc]; exact List.drop_left' (by simp)
+  have h4 : ((abiEncode c b).drop 64).take 32 = word b.length := by
+    rw [h2]; exact List.take_left' (length_toBytesBE 32 b.length)
+  -- and the padding is dropped by taking exactly `b.length` bytes
+  have h5 : (pad32 b).take b.length = b := List.take_left' rfl
+  simp only [abiDecode, h1, h3, h4, h5, fromBytesBE_toBytesBE hc, fromBytesBE_toBytesBE hb]
 
 
 /-- **INJECTIVITY**, the form the binding results use: equal encodings force equal pairs, so a bundle
@@ -120,13 +94,9 @@ theorem abiEncode_inj {c c' : ℕ} {b b' : List UInt8}
     (hc' : c' < 256 ^ 32) (hb' : b'.length < 256 ^ 32)
     (h : abiEncode c b = abiEncode c' b') :
     Properties.abiEncode_inj (c := c) (c' := c') (b := b) (b' := b') (hc := hc) (hb := hb) (hc' := hc') (hb' := hb') (h := h) := by
-  unfold Properties.abiEncode_inj
-  exact
-    by
-      have := abiDecode_abiEncode hc hb
-      unfold Properties.abiDecode_abiEncode at this
-      rw [h, abiDecode_abiEncode hc' hb'] at this
-      exact ⟨(Prod.mk.injEq .. ▸ this).1.symm, (Prod.mk.injEq .. ▸ this).2.symm⟩
+  have : abiDecode (abiEncode c b) = (c, b) := abiDecode_abiEncode hc hb
+  rw [h, abiDecode_abiEncode hc' hb', Prod.mk.injEq] at this
+  exact ⟨this.1.symm, this.2.symm⟩
 
 
 /-! ### Model validation
@@ -160,20 +130,10 @@ theorem packed_inj {c c' : ℕ} {b b' : List UInt8}
     (hc : c < 256 ^ 32) (hc' : c' < 256 ^ 32)
     (h : packed c b = packed c' b') :
     Properties.packed_inj (c := c) (c' := c') (b := b) (b' := b') (hc := hc) (hc' := hc') (h := h) := by
-  unfold Properties.packed_inj
-  exact
-    by
-      have hw : word c = word c' ∧ b = b' := by
-        constructor
-        · have := congrArg (List.take 32) h
-          simpa [packed, List.take_left' (length_toBytesBE 32 c),
-            List.take_left' (length_toBytesBE 32 c')] using this
-        · have := congrArg (List.drop 32) h
-          simpa [packed, List.drop_left' (length_toBytesBE 32 c),
-            List.drop_left' (length_toBytesBE 32 c')] using this
-      refine ⟨?_, hw.2⟩
-      have := congrArg fromBytesBE hw.1
-      rwa [fromBytesBE_toBytesBE hc, fromBytesBE_toBytesBE hc'] at this
+  obtain ⟨hw, hb⟩ := List.append_inj h (by simp)
+  refine ⟨?_, hb⟩
+  have := congrArg fromBytesBE hw
+  rwa [fromBytesBE_toBytesBE hc, fromBytesBE_toBytesBE hc'] at this
 
 
 /-- **WHERE THE LENGTH PREFIX ACTUALLY EARNS ITS KEEP.**  With TWO dynamic arguments the packed form
@@ -181,12 +141,8 @@ collides outright — no hash break, no word bound, just a different split of th
 why the pattern must not be copied to a two-`bytes` signature, and it is the concrete reason the
 library exists rather than each call site rolling its own. -/
 theorem packedPair_not_inj :
-    Properties.packedPair_not_inj := by
-  unfold Properties.packedPair_not_inj
-  exact
-    by
-      refine ⟨[1], [2, 3], [1, 2], [3], ?_, rfl⟩
-      simp
+    Properties.packedPair_not_inj :=
+  ⟨[1], [2, 3], [1, 2], [3], by simp, rfl⟩
 
 
 /-! ## A second call site: the salt derivation, and why bundle hashes are unique
@@ -214,19 +170,10 @@ theorem packed_fixed_inj {k m : ℕ} {a a' : ℕ} {b b' : List UInt8}
     (hb : b.length = m) (hb' : b'.length = m)
     (h : toBytesBE k a ++ b = toBytesBE k a' ++ b') :
     Properties.packed_fixed_inj (k := k) (m := m) (a := a) (a' := a') (b := b) (b' := b') (ha := ha) (ha' := ha') (hb := hb) (hb' := hb') (h := h) := by
-  unfold Properties.packed_fixed_inj
-  exact
-    by
-      have hlen : (toBytesBE k a).length = k := length_toBytesBE k a
-      have hlen' : (toBytesBE k a').length = k := length_toBytesBE k a'
-      constructor
-      · have hw : toBytesBE k a = toBytesBE k a' := by
-          have := congrArg (List.take k) h
-          rwa [List.take_left' hlen, List.take_left' hlen'] at this
-        have := congrArg fromBytesBE hw
-        rwa [fromBytesBE_toBytesBE ha, fromBytesBE_toBytesBE ha'] at this
-      · have := congrArg (List.drop k) h
-        rwa [List.drop_left' hlen, List.drop_left' hlen'] at this
+  obtain ⟨hw, hbb⟩ := List.append_inj h (by simp)
+  refine ⟨?_, hbb⟩
+  have := congrArg fromBytesBE hw
+  rwa [fromBytesBE_toBytesBE ha, fromBytesBE_toBytesBE ha'] at this
 
 
 /-- The deployed instance: `abi.encodePacked(address, bytes32)` determines the pair.  So distinct
@@ -236,10 +183,8 @@ theorem packed_addr_salt_inj {a a' : ℕ} {s s' : List UInt8}
     (ha : a < 256 ^ 20) (ha' : a' < 256 ^ 20)
     (hs : s.length = 32) (hs' : s'.length = 32)
     (h : toBytesBE 20 a ++ s = toBytesBE 20 a' ++ s') :
-    Properties.packed_addr_salt_inj (a := a) (a' := a') (s := s) (s' := s') (ha := ha) (ha' := ha') (hs := hs) (hs' := hs') (h := h) := by
-  unfold Properties.packed_addr_salt_inj
-  exact
-    packed_fixed_inj ha ha' hs hs' h
+    Properties.packed_addr_salt_inj (a := a) (a' := a') (s := s) (s' := s') (ha := ha) (ha' := ha') (hs := hs) (hs' := hs') (h := h) :=
+  packed_fixed_inj ha ha' hs hs' h
 
 
 /-- **DISTINCT SENDS, DISTINCT BUNDLE HASHES.**  The composition, with the two hash steps as
@@ -259,16 +204,12 @@ theorem distinct_sends_distinct_hashes {Bundle Hash : Type*}
     (hb' : saltField b' = saltHash (toBytesBE 20 a' ++ s'))
     (hne : ¬ (a = a' ∧ s = s')) :
     Properties.distinct_sends_distinct_hashes (Bundle := Bundle) (Hash := Hash) (saltHash := saltHash) (bundleHashOf := bundleHashOf) (saltField := saltField) (hsalt_inj := hsalt_inj) (hbundle_inj := hbundle_inj) (a := a) (a' := a') (s := s) (s' := s') (b := b) (b' := b') (ha := ha) (ha' := ha') (hs := hs) (hs' := hs') (hb := hb) (hb' := hb') (hne := hne) := by
-  unfold Properties.distinct_sends_distinct_hashes
-  exact
-    by
-      intro hcollide
-      -- a hash collision would make the bundles equal, hence their salt fields equal
-      have hbb : b = b' := hbundle_inj hcollide
-      subst hbb
-      -- `hb ▸ hb'` would make Lean search for a motive here and time out; compose explicitly
-      have heq : saltHash (toBytesBE 20 a ++ s) = saltHash (toBytesBE 20 a' ++ s') := hb.symm.trans hb'
-      exact hne (packed_addr_salt_inj ha ha' hs hs' (hsalt_inj heq))
+  intro hcollide
+  -- a hash collision would make the bundles equal, hence their salt fields equal
+  have hbb : b = b' := hbundle_inj hcollide
+  subst hbb
+  -- `hb ▸ hb'` would make Lean search for a motive here and time out; compose explicitly
+  exact hne (packed_addr_salt_inj ha ha' hs hs' (hsalt_inj (hb.symm.trans hb')))
 
 
 end AttackVectors.BundleHashEncoding

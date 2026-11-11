@@ -32,22 +32,16 @@ namespace AttackVectors.BundleStatusMachine
 /-- **DELIVERY IS TERMINAL.**  No guard admits `FullyExecuted`, so nothing follows it — the CEI write
 that precedes the calls is what makes a reentrant or repeated execution hit a closed door. -/
 theorem fullyExecuted_terminal {t : Status} :
-    Properties.fullyExecuted_terminal (t := t) := by
-  unfold Properties.fullyExecuted_terminal
-  exact
-    by
-      rintro ⟨⟩
+    Properties.fullyExecuted_terminal (t := t) := nofun
 
 
 /-- Hence a delivered bundle stays delivered. -/
 theorem reach_from_fullyExecuted {t : Status} (h : Reach .FullyExecuted t) :
     Properties.reach_from_fullyExecuted (t := t) (h := h) := by
   unfold Properties.reach_from_fullyExecuted
-  exact
-    by
-      induction h with
-      | refl => rfl
-      | tail _ hstep ih => exact absurd (ih ▸ hstep) fullyExecuted_terminal
+  induction h with
+  | refl => rfl
+  | tail _ hstep ih => subst ih; cases hstep
 
 
 /-- **THE UNBUNDLED ROUTE IS ABSORBING TOO.**  Once unbundled, the whole-bundle execution path is
@@ -55,36 +49,24 @@ closed: the only edge out of `Unbundled` returns to `Unbundled`. -/
 theorem reach_from_unbundled {t : Status} (h : Reach .Unbundled t) :
     Properties.reach_from_unbundled (t := t) (h := h) := by
   unfold Properties.reach_from_unbundled
-  exact
-    by
-      induction h with
-      | refl => rfl
-      | tail _ hstep ih =>
-        subst ih
-        cases hstep
-        rfl
+  induction h with
+  | refl => rfl
+  | tail _ hstep ih => subst ih; cases hstep; rfl
 
 
 /-- **THE TWO DELIVERY ROUTES EXCLUDE EACH OTHER.**  A bundle cannot be both executed as a whole and
 unbundled for per-call execution, in either order — so the same call cannot be delivered twice by
 taking one route and then the other. -/
 theorem routes_exclusive :
-    Properties.routes_exclusive := by
-  unfold Properties.routes_exclusive
-  exact
-    by
-      constructor
-      · intro h; exact absurd (reach_from_fullyExecuted h) (by simp [Properties.reach_from_fullyExecuted])
-      · intro h; exact absurd (reach_from_unbundled h) (by simp [Properties.reach_from_unbundled])
+    Properties.routes_exclusive :=
+  ⟨(nomatch reach_from_fullyExecuted ·), (nomatch reach_from_unbundled ·)⟩
 
 
 /-- Both delivery states are reachable from a fresh bundle, so the exclusivity above is not vacuous —
 each route is genuinely available until the other is taken. -/
 theorem both_routes_available :
-    Properties.both_routes_available := by
-  unfold Properties.both_routes_available
-  exact
-    ⟨.tail (.refl _) .executeFresh, .tail (.tail (.refl _) .verify) .unbundleFirst⟩
+    Properties.both_routes_available :=
+  ⟨.tail (.refl _) .executeFresh, .tail (.tail (.refl _) .verify) .unbundleFirst⟩
 
 
 /-! ## The cross-contract dependency the guards rely on
@@ -113,42 +95,28 @@ correct. -/
 permanently unavailable — `Verified` has no edge to `FullyExecuted` via the atomic entry point, whose
 only enabling state is `Unreceived`, and no edge returns to `Unreceived`. -/
 theorem verified_blocks_atomic_execution :
-    Properties.verified_blocks_atomic_execution := by
-  unfold Properties.verified_blocks_atomic_execution
-  exact
-    by
-      rintro ⟨⟩
+    Properties.verified_blocks_atomic_execution := nofun
 
 
 /-- And no state returns to `Unreceived` at all: it is the machine's unique initial state, so a bundle
 that leaves it can never be treated as fresh again. -/
 theorem unreceived_unreachable {s : Status} :
-    Properties.unreceived_unreachable (s := s) := by
-  unfold Properties.unreceived_unreachable
-  exact
-    by
-      cases s <;> rintro ⟨⟩
+    Properties.unreceived_unreachable (s := s) := nofun
 
 
 /-- **A CALL IS EXECUTED AT MOST ONCE.**  `Executed` has no outgoing edge: the `require(recorded ==
 Unprocessed)` on the execute branch is what makes a second execution of the same call impossible, no
 matter how many `unbundleBundle` transactions are submitted. -/
 theorem callExecuted_terminal {t : CallStatus} :
-    Properties.callExecuted_terminal (t := t) := by
-  unfold Properties.callExecuted_terminal
-  exact
-    by
-      rintro ⟨⟩
+    Properties.callExecuted_terminal (t := t) := nofun
 
 
 theorem callReach_from_executed {t : CallStatus} (h : CallReach .Executed t) :
     Properties.callReach_from_executed (t := t) (h := h) := by
   unfold Properties.callReach_from_executed
-  exact
-    by
-      induction h with
-      | refl => rfl
-      | tail _ hstep ih => exact absurd (ih ▸ hstep) callExecuted_terminal
+  induction h with
+  | refl => rfl
+  | tail _ hstep ih => subst ih; cases hstep
 
 
 /-- **AND A CANCELLED CALL IS NEVER EXECUTED.**  The execute branch demands `Unprocessed`, so
@@ -156,33 +124,21 @@ cancellation is a one-way door — `Cancelled` only loops to itself. -/
 theorem callReach_from_cancelled {t : CallStatus} (h : CallReach .Cancelled t) :
     Properties.callReach_from_cancelled (t := t) (h := h) := by
   unfold Properties.callReach_from_cancelled
-  exact
-    by
-      induction h with
-      | refl => rfl
-      | tail _ hstep ih =>
-        subst ih
-        cases hstep
-        rfl
+  induction h with
+  | refl => rfl
+  | tail _ hstep ih => subst ih; cases hstep; rfl
 
 
 /-- The per-call counterpart of `routes_exclusive`: executed and cancelled are mutually unreachable. -/
 theorem call_outcomes_exclusive :
-    Properties.call_outcomes_exclusive := by
-  unfold Properties.call_outcomes_exclusive
-  exact
-    by
-      constructor
-      · intro h; exact absurd (callReach_from_executed h) (by simp [Properties.callReach_from_executed])
-      · intro h; exact absurd (callReach_from_cancelled h) (by simp [Properties.callReach_from_cancelled])
+    Properties.call_outcomes_exclusive :=
+  ⟨(nomatch callReach_from_executed ·), (nomatch callReach_from_cancelled ·)⟩
 
 
 /-- Both outcomes are reachable from a fresh call, so the exclusivity is not vacuous. -/
 theorem call_outcomes_available :
-    Properties.call_outcomes_available := by
-  unfold Properties.call_outcomes_available
-  exact
-    ⟨.tail (.refl _) .execute, .tail (.refl _) .cancel⟩
+    Properties.call_outcomes_available :=
+  ⟨.tail (.refl _) .execute, .tail (.refl _) .cancel⟩
 
 
 /-- **CANCELLATION IS IDEMPOTENT, EXECUTION IS NOT.**  Re-cancelling is a legal edge; there is no
@@ -190,10 +146,8 @@ theorem call_outcomes_available :
 revert on entries already cancelled) and it is why `Cancelled` needs its self-loop while `Executed`
 does not. -/
 theorem cancel_idempotent_execute_not :
-    Properties.cancel_idempotent_execute_not := by
-  unfold Properties.cancel_idempotent_execute_not
-  exact
-    ⟨.cancelAgain, callExecuted_terminal⟩
+    Properties.cancel_idempotent_execute_not :=
+  ⟨.cancelAgain, callExecuted_terminal⟩
 
 
 /-! ## The two levels compose
@@ -245,10 +199,8 @@ status that does. -/
 /-- **PAID AT MOST ONCE.**  The two facts that jointly bound base-token release per call: no second
 entry into `Executed` within a route, and no taking both routes. -/
 theorem value_released_at_most_once :
-    Properties.value_released_at_most_once := by
-  unfold Properties.value_released_at_most_once
-  exact
-    ⟨fun _ => callExecuted_terminal, routes_exclusive⟩
+    Properties.value_released_at_most_once :=
+  ⟨fun _ => callExecuted_terminal, routes_exclusive⟩
 
 
 /-- The gap the whole-bundle route leaves at the call level, stated so the reliance on bundle status is
@@ -275,10 +227,8 @@ All three blocks of that loop body now have proven specs
 (`block_2862394693737849679`, `block_5612315614323394231`, `block_8179420195348823280`); the loop's own
 closed form is the remaining piece. -/
 theorem wholeBundle_route_does_not_check_callStatus :
-    Properties.wholeBundle_route_does_not_check_callStatus := by
-  unfold Properties.wholeBundle_route_does_not_check_callStatus
-  exact
-    ⟨.tail (.refl _) .execute, callExecuted_terminal⟩
+    Properties.wholeBundle_route_does_not_check_callStatus :=
+  ⟨.tail (.refl _) .execute, callExecuted_terminal⟩
 
 
 /-- **NO INFLATION.**  Whatever the per-call outcomes, the destination releases no more than the source
@@ -286,44 +236,31 @@ collected for that bundle. -/
 theorem released_le_collected (l : Ledger) :
     Properties.released_le_collected (l := l) := by
   unfold Properties.released_le_collected
-  exact
-    by
-      induction l with
-      | nil => simp [releasedSum, collectedSum]
-      | cons hd tl ih =>
-        obtain ⟨v, st⟩ := hd
-        by_cases h : st = CallStatus.Executed <;>
-          simp [releasedSum, collectedSum, h] <;> omega
+  induction l with
+  | nil => rfl
+  | cons hd tl ih =>
+    simp only [releasedSum, collectedSum]
+    split <;> omega
 
 
 /-- **AND THE BOUND IS TIGHT.**  A bundle whose calls all execute releases exactly what was collected,
 so the inequality is not slack hiding a systematic shortfall. -/
 theorem released_eq_collected_of_all_executed :
     Properties.released_eq_collected_of_all_executed := by
-  unfold Properties.released_eq_collected_of_all_executed
-  exact
-    by
-      intro l
-      induction l with
-      | nil => intro _; rfl
-      | cons hd tl ih =>
-        intro h
-        obtain ⟨v, st⟩ := hd
-        have hhd : st = CallStatus.Executed := h (v, st) (List.mem_cons_self ..)
-        have htl : ∀ p ∈ tl, p.2 = CallStatus.Executed := fun p hp => h p (List.mem_cons_of_mem _ hp)
-        simp [releasedSum, collectedSum, hhd, ih htl]
+  intro l h
+  induction l with
+  | nil => rfl
+  | cons hd tl ih => simp_all [releasedSum, collectedSum]
 
 
 /-- The shortfall named: value collected for calls that did not execute.  Recorded so the gap is
 visible rather than implied by the inequality. -/
 theorem shortfall_is_unexecuted (v : ℕ) (tl : Ledger) :
     Properties.shortfall_is_unexecuted (v := v) (tl := tl) := by
-  unfold Properties.shortfall_is_unexecuted
-  exact
-    by
-      have h := released_le_collected tl
-      simp [releasedSum, collectedSum]
-      omega
+  have := released_le_collected tl
+  simp only [Properties.shortfall_is_unexecuted, releasedSum, collectedSum, reduceCtorEq,
+    ↓reduceIte]
+  omega
 
 
 /-! ### Scope: where the no-inflation result is non-trivial
@@ -348,18 +285,9 @@ Stating this because the inequality reads like a global conservation law and is 
 theorem atomic_ledger_trivial (l : Ledger) (h : ∀ p ∈ l, p.1 = 0) :
     Properties.atomic_ledger_trivial (l := l) (h := h) := by
   unfold Properties.atomic_ledger_trivial
-  exact
-    by
-      induction l with
-      | nil => exact ⟨rfl, rfl⟩
-      | cons hd tl ih =>
-        obtain ⟨v, st⟩ := hd
-        have hv : v = 0 := h (v, st) (List.mem_cons_self ..)
-        have htl := ih (fun p hp => h p (List.mem_cons_of_mem _ hp))
-        subst hv
-        constructor
-        · by_cases hst : st = CallStatus.Executed <;> simp [releasedSum, hst, htl.1]
-        · simp [collectedSum, htl.2]
+  induction l with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons hd tl ih => simp_all [releasedSum, collectedSum]
 
 
 /-- **AN ATOMIC BUNDLE HAS ONE ROUTE.**  From fresh, the only reachable states are fresh and
@@ -367,32 +295,22 @@ delivered. -/
 theorem atomic_reach_two_states {t : Status} (h : AtomicReach .Unreceived t) :
     Properties.atomic_reach_two_states (t := t) (h := h) := by
   unfold Properties.atomic_reach_two_states
-  exact
-    by
-      induction h with
-      | refl => exact Or.inl rfl
-      | tail _ hstep _ => cases hstep; exact Or.inr rfl
+  induction h with
+  | refl => exact Or.inl rfl
+  | tail _ hstep _ => cases hstep; exact Or.inr rfl
 
 
 /-- **SO IT IS NEVER UNBUNDLED**, and `routes_exclusive` holds vacuously for it — the per-call route
 does not exist on this path. -/
 theorem atomic_never_unbundled :
-    Properties.atomic_never_unbundled := by
-  unfold Properties.atomic_never_unbundled
-  exact
-    by
-      intro h
-      rcases atomic_reach_two_states h with h1 | h1 <;> exact absurd h1 (by decide)
+    Properties.atomic_never_unbundled := fun h => by
+  rcases atomic_reach_two_states h with h1 | h1 <;> cases h1
 
 
 /-- And delivery-once for an atomic bundle needs only the BUNDLE machine: `FullyExecuted` is terminal
 here too, since `AtomicStep` has no edge out of it. -/
 theorem atomic_delivery_terminal {t : Status} :
-    Properties.atomic_delivery_terminal (t := t) := by
-  unfold Properties.atomic_delivery_terminal
-  exact
-    by
-      rintro ⟨⟩
+    Properties.atomic_delivery_terminal (t := t) := nofun
 
 
 end AttackVectors.BundleStatusMachine
