@@ -47,7 +47,8 @@ The proxy's fallback routes a call by `selectorToFacet[msg.sig]` alone and refus
   modelled by its consequence for address zero, which has no code: adding or replacing with
   facet `0` reverts. For a nonzero codeless address the check only rejects, so it is omitted.
   (Address zero routes nothing: a zero `facetAddress` *means* unrouted.)
-* **`isFrozen` is omitted**: no cut writes it, and routing does not read it.
+* **`isFrozen` is omitted**: no cut writes it, and which facet a selector routes to does not
+  depend on it (freezing only blocks calls to freezable facets, `DiamondProxy.sol:36`).
 * **The init call is not modelled here.** `diamondCut` below is the facet-cut loop
   (`Diamond.sol:114-133`) with `initAddress == address(0)` and empty calldata, which is what
   every diamond cut this folder models has once the engine runs (`DiamondInit.sol:84-86`,

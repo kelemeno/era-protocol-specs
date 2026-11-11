@@ -70,7 +70,9 @@ repeats its nonempty selector list.
 * **`validate()` is checked when a release is installed** (`DStep.ctm`, through
   `_setCurrentRelease`, `ChainTypeManager.sol:305-323`), and by the starting states; it is
   the only check of the facet rows in the system. The duplicate-selector scan is an
-  open-addressing set (`CTMRelease.sol:190-213`), modelled by its meaning: no selector twice.
+  open-addressing set (`CTMRelease.sol:190-213`), modelled here by its meaning: no selector
+  twice. The `DuplicateSelectorScan` topic transcribes the scan and proves it checks exactly
+  that for 4-byte selectors (`Properties.DuplicateScanIffNodup`, `ValidateRowsIffRowsWf`).
 * **The transition's cuts** are `TransitionDerivationLib.deriveFacetCuts(fromRelease,
   newRelease)` (`TransitionDerivationLib.sol:47-80`), which `CTMTransition` freezes at
   construction (`CTMTransition.sol:114-121`); with fixed `selectors()` that is the same as
@@ -79,7 +81,9 @@ repeats its nonempty selector list.
   `ChainRouting.applyDerived` does.
 * **The rest of the engine and the omitted checks** are as in `ChainRouting`: reject-only
   checks are omitted, a transition lands on `newProtocolVersion()`, and every engine runs
-  `DefaultUpgrade` / `BootstrapUpgrade` logic.
+  `DefaultUpgrade` / `BootstrapUpgrade` logic. In that logic the only writer of diamond
+  storage is `_applyDerivedFacetCuts` (`BaseZkSyncUpgrade.sol:118-123`), a `diamondCut` with
+  init zero; `_upgrade` writes the chain's own storage, not the diamond's.
 * **A break-glass cut leaves any storage** (`DLabel.arbitraryCut`): its init can
   `delegatecall` code that writes diamond storage directly, so even the storage invariant
   may fail after it. A break-glass cut made only of facet cuts keeps the invariant
