@@ -231,9 +231,9 @@ DURING an in-time batch is absent from that batch's begin root while being final
 it would let `authorizeRefund` mark a live leg `Revertable` — a refund of a leg that did commit before
 the deadline.
 
-This is what the `_leafProofMask` binding actually buys: without it the end branch would admit exactly
-this witness.  The end branch's own `l1BatchTimestamp <= _deadline` check does NOT catch it — the batch
-here IS in time; it is the ROOT that is wrong. -/
+The witness below settles every batch at time `0`, so it omits the end branch's `hlast` and does not by
+itself isolate the root as the cause (see `end_branch_needs_hlast`).  The swap with every end-branch
+premise in place is `end_branch_begin_root_admits_finalized` in `TimeoutSoundnessStrong`. -/
 theorem end_branch_with_begin_root_unsound :
     Properties.end_branch_with_begin_root_unsound := by
   unfold Properties.end_branch_with_begin_root_unsound

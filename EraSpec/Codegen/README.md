@@ -28,8 +28,11 @@ For the **interpreter**, with ABI-valid arguments:
   simulation alone would admit an always-reverting implementation; this does not.
 * `views_exact`: the getters return the represented values and change nothing.
 * `simulation`: every successful call, to any function, by any caller, is
-  matched by at most one model step — an instance of
-  [`Core/Simulation.lean`](../Core/Simulation.lean).
+  matched by a finite run of model steps — an instance of
+  [`Core/Simulation.lean`](../Core/Simulation.lean), whose type fixes no bound.
+  `call_matches_at_most_one_step` and `simulation_at_most_one_step`
+  (`BridgedTokenSlice/Properties/AtMostOneStep.lean`) state the bound: no step or
+  exactly one.
 * `reachable_ledger`: in every storage reachable from a deployment, the balances
   of all `2^160` addresses sum to the supply slot and the vault is unchanged.
   Obtained from the model's proof by `safety_transfer`, not reproved.

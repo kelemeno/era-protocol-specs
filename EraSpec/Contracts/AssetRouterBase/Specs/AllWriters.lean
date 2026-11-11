@@ -255,9 +255,17 @@ route.  `HandlerRegistration.Valid` is the first disjunct alone. -/
 def WeakValid (K : Cfg) (R : Router) : Prop :=
   ∀ a, R.handler a ≠ 0 → R.tracker a ≠ 0 ∨ VaultRoute K R a
 
-/-- Every recorded tracker sits at an id hashed, on this chain, from that tracker
-itself, or (for the vault, which is normalised before hashing) from
-`L2_NATIVE_TOKEN_VAULT_ADDR`. -/
+/-- Every recorded tracker sits at an id that has a preimage, on this chain, whose sender
+is that tracker itself, or (for the vault, which is normalised before hashing)
+`L2_NATIVE_TOKEN_VAULT_ADDR`.
+
+Like `IsNtvId`, this is existential in the data word, and the word is not tied to any call.
+An encoding that reaches every id as the data word varies satisfies it in every router
+state, reachable or not (`AllWritersStrong.TrackerHashedAdmitsUnreachableRouter`).  For a
+keccak-like encoding, heuristically about `1 - 1/e` of all ids have such a preimage for any
+fixed tracker.  It also does not exclude that an id with such a preimage is hashed from
+someone else as well.  The pinned form, which names the logged call that recorded each
+tracker, is `TrackerRecorded` (`Specs/AllWritersStrong.lean`). -/
 def TrackerHashed (K : Cfg) (R : Router) : Prop :=
   ∀ a, R.tracker a ≠ 0 →
     ∃ d : AssetData, a = K.enc K.thisChain (R.tracker a) d
