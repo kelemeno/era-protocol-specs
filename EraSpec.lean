@@ -24,6 +24,12 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows
 -- routing of its chains (a snapshot of a moving branch at e561b9cc2; see the folder README)
 import EraSpec.Contracts.ChainTypeManager.Proofs.VersionRegistry
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainRouting
+import EraSpec.Contracts.ChainTypeManager.Proofs.ChainMigration
+
+-- Registry-driven upgrades: who holds the CTM domain's authority across the bootstrap edge
+-- (e561b9cc2), and the staged coordinator with its timer (afa407085; deleted by e561b9cc2)
+import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Authority
+import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle
 
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
