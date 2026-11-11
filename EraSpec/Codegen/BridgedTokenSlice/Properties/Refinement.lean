@@ -94,8 +94,12 @@ abbrev Properties.views_exact {st : Storage} {s : State} (hr : Rel st s) (caller
 
 /-! ## Every call, and what follows -/
 
-/-- **A FORWARD SIMULATION.**  Every successful call — mutating or not, to any
-function, with any ABI-valid arguments — is matched by at most one model step. -/
+/-- **A FORWARD SIMULATION**, with the relation `Rel ∧ WellFormed`.  Every successful call,
+mutating or not, to any function, with any ABI-valid arguments, is matched by a run of zero or
+more model steps.  `LayeredVerification.Simulation` does not bound the length of a match, so
+this statement does not either.  That every match is a stutter or a single model step is
+`Properties.step_matched_by_at_most_one`.  The same bundled with a simulation is
+`Properties.simulation_at_most_one` (`Properties/RefinementStrong.lean`). -/
 abbrev Properties.simulation :=
   ∃ sim : LayeredVerification.Simulation Step Contracts.BridgedStandardERC20.Step,
     ∀ st s, sim.Rel st s ↔ Rel st s ∧ WellFormed s
