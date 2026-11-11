@@ -1,11 +1,11 @@
 import Init.Data.Nat.Div
-import Mathlib.Data.Nat.Defs
+import Mathlib.Data.Nat.Basic
 import Mathlib.Data.Fin.Basic
 import Mathlib.Data.Vector.Basic
 import Mathlib.Algebra.Group.Defs
 import Mathlib.Algebra.GroupWithZero.Defs
 import Mathlib.Algebra.Ring.Basic
-import Mathlib.Algebra.Order.Floor
+import Mathlib.Algebra.Order.Floor.Semiring
 import Mathlib.Data.ZMod.Defs
 import Mathlib.Tactic
 
@@ -44,14 +44,17 @@ instance : NeZero UInt256.size := ⟨by decide⟩
 
 abbrev UInt256 := Fin UInt256.size
 
+/-- Mathlib scopes `Fin.instCommRing`; the word type keeps it as a global instance. -/
+instance : CommRing UInt256 := Fin.instCommRing UInt256.size
+
 instance : SizeOf UInt256 where
   sizeOf := 1
 
-instance (n : ℕ) : OfNat UInt256 n := ⟨Fin.ofNat n⟩
+instance (n : ℕ) : OfNat UInt256 n := ⟨Fin.ofNat UInt256.size n⟩
 instance : Inhabited UInt256 := ⟨0⟩
-instance : NatCast UInt256 := ⟨Fin.ofNat⟩
+instance : NatCast UInt256 := ⟨Fin.ofNat UInt256.size⟩
 
-abbrev Nat.toUInt256 : ℕ → UInt256 := Fin.ofNat
+abbrev Nat.toUInt256 : ℕ → UInt256 := Fin.ofNat UInt256.size
 abbrev UInt8.toUInt256 (a : UInt8) : UInt256 := a.toNat.toUInt256
 
 def Bool.toUInt256 (b : Bool) : UInt256 := if b then 1 else 0
@@ -83,14 +86,14 @@ lemma UInt256_pow_def {a b : UInt256} : a ^ b = a ^ b.val := by
 
 lemma UInt256_pow_succ {a b : UInt256} (h : b.val + 1 < UInt256.size) : a * a ^ b = a ^ (b + 1) := by
   rw [UInt256_pow_def, UInt256_pow_def]
-  have : (↑(b + 1) : ℕ) = (b + 1 : ℕ) := by rw [Fin.val_add, Nat.mod_eq_of_lt (by norm_cast)]; rfl
-  rw [this]
-  ring
+  have h1 : ((1 : UInt256) : ℕ) = 1 := rfl
+  have : (↑(b + 1) : ℕ) = (b + 1 : ℕ) := by rw [Fin.val_add, h1, Nat.mod_eq_of_lt h]
+  rw [this, pow_succ, mul_comm]
 
-lemma UInt256_zero_pow {a : UInt256} (h : a.val ≠ 0) : (0 : UInt256) ^ a = 0 := zero_pow h
+lemma UInt256_zero_pow {a : UInt256} (h : a.val ≠ 0) : (0 : UInt256) ^ a = 0 := by
+  rw [UInt256_pow_def]; exact zero_pow h
 
 lemma UInt256_pow_zero {a : UInt256} : a ^ (0 : UInt256) = 1 := by
-  unfold HPow.hPow instHPowUInt256
-  simp
+  rw [UInt256_pow_def]; exact pow_zero a
 
 end Clear.UInt256

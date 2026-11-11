@@ -20,7 +20,7 @@ open Lake DSL
   imported.
 -/
 require mathlib from git
-  "https://github.com/leanprover-community/mathlib4.git" @ "09d33efc68d3ad52db77b731d7253675395a14aa"
+  "https://github.com/leanprover-community/mathlib4.git" @ "v4.35.0"
 
 package «era-protocol-specs» {
   leanOptions := #[⟨`autoImplicit, false⟩]
