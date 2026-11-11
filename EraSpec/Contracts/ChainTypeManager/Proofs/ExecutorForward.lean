@@ -55,7 +55,7 @@ lemma frun_keeps {X : XConfig} {s s' : XState} {cs : List FCall} (h : FRun X s c
   | nil => intro hI _; exact ⟨hI, le_rfl, rfl⟩
   | cons hstep _ ih =>
       intro hI ht
-      have h₁ := fstep_keeps hI hstep (ht _ (List.mem_cons_self _ _))
+      have h₁ := fstep_keeps hI hstep (ht _ (List.mem_cons_self))
       exact keeps_trans h₁ (ih h₁.1 (fun c hc => ht c (List.mem_cons_of_mem _ hc)))
 
 lemma xstep_keeps {X : XConfig} {s s' : XState} {x : XLabel}
@@ -81,7 +81,7 @@ lemma xrun_keeps {X : XConfig} {s s' : XState} {xs : List XLabel}
   | nil => intro hI _; exact ⟨hI, le_rfl, rfl⟩
   | cons hstep _ ih =>
       intro hI ht
-      have h₁ := xstep_keeps hf hI hstep (ht _ (List.mem_cons_self _ _))
+      have h₁ := xstep_keeps hf hI hstep (ht _ (List.mem_cons_self))
       exact keeps_trans h₁ (ih h₁.1 (fun x hx => ht x (List.mem_cons_of_mem _ hx)))
 
 /-! ## Forwarded CTM calls -/
@@ -196,7 +196,7 @@ theorem ForwardCtmSwapBreaksInvariants : Properties.ForwardCtmSwapBreaksInvarian
           (applyDerived_rows_eq xNodup100 xNodup200) (by decide))) XRun.nil))
   have htame : ∀ x ∈ [XLabel.env (.genesis 0), .commit 300, .upgradeChain 0], x.Tame wX := by
     intro x hx
-    simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
     rcases hx with rfl | rfl | rfl <;> trivial
   refine ⟨wX0_inv, _, _, hrun, htame,
     (xrun_keeps (X := wX) ProxyUpgradeCurrent.wConfig_frames hrun wX0_inv htame).1,
@@ -227,7 +227,7 @@ theorem ExecutorWitness : Properties.ExecutorWitness := by
   refine ⟨ProxyUpgradeCurrent.wConfig_frames, wX0_inv, wInfra_distinct, ?_, _, hrun,
     ?_, ?_, by decide, by decide, by decide, by decide, _, rfl, by decide⟩
   · intro x hx
-    simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hx
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hx
     rcases hx with rfl | rfl | rfl | rfl | rfl
     · intro r hr
       rcases ProxyUpgradeCurrent.mem_AB hr with rfl | rfl <;> decide
@@ -235,7 +235,7 @@ theorem ExecutorWitness : Properties.ExecutorWitness := by
     · trivial
     · trivial
     · intro c hc
-      simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hc
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
       rcases hc with rfl | rfl
       · simp [FCall.Tame, Label.isArbitrary]
       · trivial

@@ -43,11 +43,11 @@ lemma stateOf_setAt_other {Ms : Managers} {c : Chain} {f b : UInt256} {s : LegSt
       cases o with | mk fid bh ch => simp_all
     show (setAt Ms c ((Ms c).set f b s) o.chain).legState o.flowId o.bundleHash
       = (Ms o.chain).legState o.flowId o.bundleHash
-    simp only [setAt, if_pos hc]
+    simp only [setAt, ite_eq_left hc]
     rw [set_other hkey, hc]
   · show (setAt Ms c ((Ms c).set f b s) o.chain).legState o.flowId o.bundleHash
       = (Ms o.chain).legState o.flowId o.bundleHash
-    simp only [setAt, if_neg hc]
+    simp only [setAt, ite_eq_right hc]
 
 /-- The obligation an `authorize` step writes to. -/
 lemma obligationOf_eq (F : Flow) (leg : FlowLeg) :
@@ -247,7 +247,7 @@ theorem CommitValueInjUnsatisfiable : Properties.CommitValueInjUnsatisfiable :=
 theorem UnpinnedCollisionsAlwaysExist : Properties.UnpinnedCollisionsAlwaysExist := by
   refine ⟨fun fh => ?_, fun cv => MerkleSpec.Verifier.exists_pair_collision cv⟩
   by_contra hno
-  push_neg at hno
+  push Not at hno
   have hinj : Contracts.Atomicity.FlowHashInj fh := by
     intro l₁ d₁ l₂ d₂ he
     by_contra hne
@@ -375,13 +375,13 @@ theorem CommitValueInjOnSatisfiable : Properties.CommitValueInjOnSatisfiable := 
     rw [List.length_map]; exact hlen
   refine ⟨fun f b => indexHash P (f, b), ?_⟩
   rintro o ho o' ho' ⟨hne, heq⟩
-  exact hne (indexHash_inj_on hPlen (List.mem_map_of_mem (fun o => (o.flowId, o.bundleHash)) ho)
-    (List.mem_map_of_mem (fun o => (o.flowId, o.bundleHash)) ho') heq)
+  exact hne (indexHash_inj_on hPlen (List.mem_map_of_mem (f := fun o => (o.flowId, o.bundleHash)) ho)
+    (List.mem_map_of_mem (f := fun o => (o.flowId, o.bundleHash)) ho') heq)
 
 theorem HonestCommitValueNoClash : Properties.HonestCommitValueNoClash := by
   rintro o o' ⟨hne, heq⟩
   have hne' : ¬ (o'.flowId, o'.bundleHash) = (o.flowId, o.bundleHash) := fun h => hne h.symm
-  simp only [honestCommitValue, if_pos rfl, if_neg hne'] at heq
+  simp only [honestCommitValue, ite_eq_right hne'] at heq
   exact absurd heq (by decide)
 
 end Contracts.Refund
@@ -451,7 +451,7 @@ theorem refund_logged {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValu
   | @authorize Ns log a _ hv _ ih =>
     intro o hrf
     by_cases heq : o = obligationOf a.flow a.leg
-    · exact ⟨a, List.mem_cons_self _ _, hv, heq.symm⟩
+    · exact ⟨a, List.mem_cons_self, hv, heq.symm⟩
     · rw [obligationOf_eq] at heq
       obtain ⟨a', ha', hv', hobl⟩ :=
         ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)

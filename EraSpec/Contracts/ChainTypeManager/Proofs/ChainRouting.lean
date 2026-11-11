@@ -37,7 +37,7 @@ lemma removeAll_spec {ρ σ : Routing} {ks : List Selector} (h : removeAll ρ ks
     simp only [removeAll, removeSel] at h
     split_ifs at h with hx
     · simp at h
-    · simp only [Option.some_bind] at h
+    · simp only [Option.bind_some] at h
       rw [ih h y]
       by_cases hyx : y = x
       · subst hyx; simp
@@ -51,7 +51,7 @@ lemma addAll_fresh {ρ σ : Routing} {B : ReleaseRows} (h : addAll ρ B = some �
     obtain ⟨x, r⟩ := hd
     simp only [addAll, addSel] at h
     split_ifs at h with hx
-    · simp only [Option.some_bind] at h
+    · simp only [Option.bind_some] at h
       intro y hy
       simp only [List.map_cons, List.mem_cons] at hy
       rcases hy with rfl | hy
@@ -71,7 +71,7 @@ lemma addAll_spec {ρ σ : Routing} {B : ReleaseRows} (h : addAll ρ B = some σ
     have hfr := addAll_fresh h
     simp only [addAll, addSel] at h
     split_ifs at h with hx
-    · simp only [Option.some_bind] at h
+    · simp only [Option.bind_some] at h
       -- `x` is not added again later: it is routed after its own `Add`
       have hxrs : x ∉ rs.map Prod.fst := by
         intro hm
@@ -96,11 +96,11 @@ lemma addAll_empty {σ : Routing} {B : ReleaseRows} (h : addAll emptyRouting B =
 lemma applyDerived_spec {ρ σ : Routing} {A B : ReleaseRows} (h : applyDerived ρ A B = some σ)
     (hne : A ≠ B) : ∀ y, σ y =
       if y ∈ B.map Prod.fst then rowsRouting B y else if y ∈ A.map Prod.fst then none else ρ y := by
-  simp only [applyDerived, hne, if_false] at h
+  simp only [applyDerived, hne, ite_false] at h
   cases hr : removeAll ρ (A.map Prod.fst) with
   | none => rw [hr] at h; simp at h
   | some τ =>
-    rw [hr, Option.some_bind] at h
+    rw [hr, Option.bind_some] at h
     intro y
     rw [addAll_spec h y, removeAll_spec hr y]
 
@@ -126,7 +126,7 @@ lemma addAll_ok {ρ : Routing} {B : ReleaseRows} (hnd : (B.map Prod.fst).Nodup)
     obtain ⟨x, r⟩ := hd
     simp only [List.map_cons, List.nodup_cons] at hnd
     have hx : ρ x = none := hfresh x (by simp)
-    simp only [addAll, addSel, hx, if_true, Option.some_bind]
+    simp only [addAll, addSel, hx, ite_true, Option.bind_some]
     apply ih hnd.2
     intro y hy
     have hyx : y ≠ x := fun h => hnd.1 (h ▸ hy)
@@ -140,7 +140,7 @@ lemma removeAll_ok {ρ : Routing} {ks : List Selector} (hnd : ks.Nodup)
   | cons x xs ih =>
     simp only [List.nodup_cons] at hnd
     have hx : ρ x ≠ none := hp x (by simp)
-    simp only [removeAll, removeSel, hx, if_false, Option.some_bind]
+    simp only [removeAll, removeSel, hx, ite_false, Option.bind_some]
     apply ih hnd.2
     intro y hy
     have hyx : y ≠ x := fun h => hnd.1 (h ▸ hy)
@@ -167,7 +167,7 @@ lemma applyDerived_rows_eq {A B : ReleaseRows} (hA : (A.map Prod.fst).Nodup)
       · exact rowsRouting_eq_none.mpr hy
     obtain ⟨σ, hσ⟩ := addAll_ok (ρ := τ) hB (fun y _ => hτe y)
     have : applyDerived (rowsRouting A) A B = some σ := by
-      simp only [applyDerived, hAB, if_false, hτ, Option.some_bind, hσ]
+      simp only [applyDerived, hAB, ite_false, hτ, Option.bind_some, hσ]
     rw [this, applyDerived_rows this]
 
 /-! ## The CTM part of the system -/
@@ -263,7 +263,7 @@ lemma run_sysInv {W : World} {s s' : Sys} {ls : List Label} (hI : SysInv W s)
   induction h with
   | nil => exact hI
   | cons hs _ ih =>
-    exact ih (step_sysInv hI hs (hl _ (List.mem_cons_self _ _)))
+    exact ih (step_sysInv hI hs (hl _ (List.mem_cons_self)))
       (fun l hm => hl l (List.mem_cons_of_mem _ hm))
 
 /-- On a chain-by-chain basis: every chain is at a version with a release. -/
@@ -334,7 +334,7 @@ theorem FreshChainsRunTheirVersionsRelease : Properties.FreshChainsRunTheirVersi
     induction hr with
     | nil => exact ⟨hI, hA⟩
     | cons hs _ ih =>
-      have hl0 := hl _ (List.mem_cons_self _ _)
+      have hl0 := hl _ (List.mem_cons_self)
       exact ih (step_sysInv hI hs hl0) (step_allRegistry hI hA hs hl0)
         (fun l hm => hl l (List.mem_cons_of_mem _ hm))
   obtain ⟨⟨hC, hch⟩, hA⟩ := key (FreshSystemSatisfiesInvariant W R hR)
@@ -391,7 +391,7 @@ lemma removeAll_none {ρ : Routing} {ks : List Selector} {y : Selector} (hy : y 
     simp only [removeAll, removeSel]
     split_ifs with hx
     · rfl
-    · simp only [Option.some_bind]
+    · simp only [Option.bind_some]
       have hyx : y ≠ x := fun h => hx (h ▸ hρ)
       apply ih (List.mem_of_ne_of_mem hyx hy)
       rw [upd_ne _ _ hyx]; exact hρ
@@ -400,7 +400,7 @@ lemma removeAll_none {ρ : Routing} {ks : List Selector} {y : Selector} (hy : y 
 changing edge, even without the guard. -/
 lemma applyDerived_none_of_missing {ρ : Routing} {A B : ReleaseRows} {y : Selector}
     (hAB : A ≠ B) (hy : y ∈ A.map Prod.fst) (hρ : ρ y = none) : applyDerived ρ A B = none := by
-  simp only [applyDerived, hAB, if_false, removeAll_none hy hρ, Option.none_bind]
+  simp only [applyDerived, hAB, ite_false, removeAll_none hy hρ, Option.bind_none]
 
 /-- The unguarded cut applies when the live routing has every departing selector and
 none of the arriving ones that are new. -/
@@ -416,7 +416,7 @@ lemma applyDerived_ok {ρ : Routing} {A B : ReleaseRows} (hA : (A.map Prod.fst).
       split_ifs with hyA
       · rfl
       · exact hfree y hy hyA)
-    exact ⟨σ, by simp only [applyDerived, hAB, if_false, hτ, Option.some_bind, hσ]⟩
+    exact ⟨σ, by simp only [applyDerived, hAB, ite_false, hτ, Option.bind_some, hσ]⟩
 
 private lemma wNodup100 : ((wWorld.relRows 100).map Prod.fst).Nodup := by decide
 private lemma wNodup200 : ((wWorld.relRows 200).map Prod.fst).Nodup := by decide
@@ -455,7 +455,7 @@ theorem MissingSelectorBricksTransition : Properties.MissingSelectorBricksTransi
   subst hcc
   have h2 : applyDerived bgMissing (wWorld.relRows 100) (wWorld.relRows 200) = some ρ := happ
   rw [hnone] at h2
-  exact Option.noConfusion h2
+  exact absurd h2 (by simp)
 
 theorem ChainRoutingWitness : Properties.ChainRoutingWitness := by
   have hrun := Run.cons (W := wWorld)

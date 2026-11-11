@@ -181,22 +181,22 @@ theorem lowSearch_window {T : Tree} {v : UInt256} :
         intro i j h
         unfold lowSearch at h
         by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [if_pos hc] at h; exact absurd h (by simp)
-        · rw [if_neg hc] at h
+        · rw [ite_eq_left hc] at h; exact absurd h (by simp)
+        · rw [ite_eq_right hc] at h
           cases Option.some.inj h
           rcases not_and_or.mp hc with h1 | h2
           · exact Or.inl (by simpa using h1)
-          · exact Or.inr (le_of_not_lt h2)
+          · exact Or.inr (not_lt.mp h2)
       | succ fuel ih =>
         intro i j h
         unfold lowSearch at h
         by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [if_pos hc] at h; exact ih _ _ h
-        · rw [if_neg hc] at h
+        · rw [ite_eq_left hc] at h; exact ih _ _ h
+        · rw [ite_eq_right hc] at h
           cases Option.some.inj h
           rcases not_and_or.mp hc with h1 | h2
           · exact Or.inl (by simpa using h1)
-          · exact Or.inr (le_of_not_lt h2)
+          · exact Or.inr (not_lt.mp h2)
 
 
 /-- **THE WALK STAYS IN BOUNDS AND STAYS BELOW `v`.**  Starting from an occupied
@@ -215,19 +215,19 @@ theorem lowSearch_sound {T : Tree} (hV : Valid T) {v : UInt256} :
         intro i j hi hlow h
         unfold lowSearch at h
         by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [if_pos hc] at h; exact absurd h (by simp)
-        · rw [if_neg hc] at h
+        · rw [ite_eq_left hc] at h; exact absurd h (by simp)
+        · rw [ite_eq_right hc] at h
           cases Option.some.inj h
           exact ⟨hi, hlow⟩
       | succ fuel ih =>
         intro i j hi hlow h
         unfold lowSearch at h
         by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [if_pos hc] at h
+        · rw [ite_eq_left hc] at h
           obtain ⟨hnz, hlt⟩ := hc
           obtain ⟨hbound, hval⟩ := hV.linkAgree i hi hnz
           exact ih _ _ hbound (by rw [hval]; exact hlt) h
-        · rw [if_neg hc] at h
+        · rw [ite_eq_right hc] at h
           cases Option.some.inj h
           exact ⟨hi, hlow⟩
 
@@ -268,15 +268,15 @@ theorem insert_projects {T : Tree} (hV : Valid T) {v : UInt256} {low : ℕ}
         simp only [insert] at hi hval hnext
         by_cases hilow : i = low
         · subst hilow
-          simp only [if_pos rfl] at hval hnext
+          simp only at hval hnext
           left
           cases X; simp_all
         · by_cases hin : i = T.leafCount
           · subst hin
-            rw [if_neg hilow, if_pos rfl] at hval hnext
+            rw [ite_eq_right hilow, ite_eq_left rfl] at hval hnext
             right; left
             cases X; simp_all
-          · rw [if_neg hilow, if_neg hin] at hval hnext
+          · rw [ite_eq_right hilow, ite_eq_right hin] at hval hnext
             right; right
             refine ⟨?_, ⟨i, by omega, hval, hnext⟩⟩
             -- X ≠ the low leaf: else `idxInj` forces i = low
@@ -293,14 +293,14 @@ theorem insert_projects {T : Tree} (hV : Valid T) {v : UInt256} {low : ℕ}
         · refine ⟨T.leafCount, ?_, ?_, ?_⟩
           · simp only [insert]; omega
           · simp only [insert]
-            rw [if_neg (by omega : ¬ T.leafCount = low)]
+            rw [ite_eq_right (by omega : ¬ T.leafCount = low)]
             simp
           · simp only [insert]
-            rw [if_neg (by omega : ¬ T.leafCount = low)]
+            rw [ite_eq_right (by omega : ¬ T.leafCount = low)]
             simp
         · refine ⟨i, by simp only [insert]; omega, ?_, ?_⟩
           · simp only [insert]
-            rw [if_neg ?hne, if_neg (by omega : ¬ i = T.leafCount)]
+            rw [ite_eq_right ?hne, ite_eq_right (by omega : ¬ i = T.leafCount)]
             · exact hval
             case hne =>
               intro hil
@@ -308,7 +308,7 @@ theorem insert_projects {T : Tree} (hV : Valid T) {v : UInt256} {low : ℕ}
               subst hil
               cases X; simp_all
           · simp only [insert]
-            rw [if_neg ?hne, if_neg (by omega : ¬ i = T.leafCount)]
+            rw [ite_eq_right ?hne, ite_eq_right (by omega : ¬ i = T.leafCount)]
             · exact hnext
             case hne =>
               intro hil
@@ -354,7 +354,7 @@ lemma insert_leaf_new {T : Tree} {v : UInt256} {low : ℕ} (h : low < T.leafCoun
   exact
     by
       simp only [insert]
-      rw [if_neg (by omega : ¬ T.leafCount = low)]
+      rw [ite_eq_right (by omega : ¬ T.leafCount = low)]
       simp
 
 
@@ -365,7 +365,7 @@ lemma insert_leaf_other {T : Tree} {v : UInt256} {low i : ℕ}
   exact
     by
       simp only [insert]
-      rw [if_neg hlow, if_neg hnew]
+      rw [ite_eq_right hlow, ite_eq_right hnew]
 
 
 /-- The dedup gate, in index form: no occupied leaf already carries `v`. -/
@@ -442,24 +442,24 @@ theorem insert_preserves_valid {T : Tree} (hV : Valid T) {v : UInt256} {low : �
           intro k hk
           by_cases hkn : k = T.leafCount
           · subst hkn; rw [insert_leaf_new hlow]; simp
-          · rw [if_neg hkn]
+          · rw [ite_eq_right hkn]
             by_cases hkl : k = low
             · subst hkl; rw [insert_leaf_low]
             · rw [insert_leaf_other hkl hkn]
         rw [hval i hi, hval j hj] at hEq
         by_cases hin : i = T.leafCount <;> by_cases hjn : j = T.leafCount
         · omega
-        · rw [if_pos hin, if_neg hjn] at hEq
+        · rw [ite_eq_left hin, ite_eq_right hjn] at hEq
           exact absurd hEq.symm (hfresh j (by omega))
-        · rw [if_neg hin, if_pos hjn] at hEq
+        · rw [ite_eq_right hin, ite_eq_left hjn] at hEq
           exact absurd hEq (hfresh i (by omega))
-        · rw [if_neg hin, if_neg hjn] at hEq
+        · rw [ite_eq_right hin, ite_eq_right hjn] at hEq
           exact hV.idxInj i (by omega) j (by omega) hEq
       case vtiA =>
         intro i hipos hi
         simp only [insert_leafCount] at hi
         by_cases hin : i = T.leafCount
-        · subst hin; rw [insert_leaf_new hlow]; simpa using insert_vti_self
+        · subst hin; rw [insert_leaf_new hlow]; simp
         · have hlt : i < T.leafCount := by omega
           have hne : (T.leaf i).value ≠ v := hfresh i hlt
           by_cases hil : i = low

@@ -115,7 +115,7 @@ theorem revert_anywhere_blocks (pre post : List Outcome) :
   exact
     by
       rintro ⟨hloop, -⟩
-      exact hloop (List.mem_append.mpr (Or.inr (List.mem_cons_self _ _)))
+      exact hloop (List.mem_append.mpr (Or.inr List.mem_cons_self))
 
 
 /-- And retrying does not help: the condition depends only on the outcomes, so a second attempt against

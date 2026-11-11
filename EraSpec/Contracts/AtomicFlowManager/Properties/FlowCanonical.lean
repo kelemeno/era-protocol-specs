@@ -81,12 +81,12 @@ cost the same gas.  It is also unsound, and this is the reason the deployed chec
 would put the same bundle hash in one flow twice -- the case `no_duplicate_leg` rules out only because
 the deployed relation is transitive. -/
 abbrev Properties.neighbour_distinct_insufficient :=
-  ∃ l : List ℕ, l.Chain' (· ≠ ·) ∧ ¬ l.Nodup
+  ∃ l : List ℕ, l.IsChain (· ≠ ·) ∧ ¬ l.Nodup
 
 
 /-- And it admits a permuted re-presentation too: same legs, different list, both passing. -/
 abbrev Properties.neighbour_distinct_admits_permutation :=
-  ∃ l₁ l₂ : List ℕ, l₁.Chain' (· ≠ ·) ∧ l₂.Chain' (· ≠ ·) ∧ l₁.Perm l₂ ∧ l₁ ≠ l₂
+  ∃ l₁ l₂ : List ℕ, l₁.IsChain (· ≠ ·) ∧ l₂.IsChain (· ≠ ·) ∧ l₁.Perm l₂ ∧ l₁ ≠ l₂
 
 
 /-- **EVERY LEG HAS EXACTLY ONE SOURCE CHAIN.**  The zipped pairing has distinct keys and loses no

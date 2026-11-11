@@ -345,7 +345,7 @@ theorem levels_length_le (h : Hash) (z0 : UInt256) (leaves : List UInt256) (l : 
   exact
     by
       by_cases hne : leaves.length = 0
-      · rw [List.length_eq_zero.mp hne, levels_nil]
+      · rw [List.length_eq_zero_iff.mp hne, levels_nil]
         simp
       · rw [levels_length h z0 leaves hne l]
         exact Nat.add_le_add_right
@@ -359,7 +359,7 @@ theorem div_le_levels_length (h : Hash) (z0 : UInt256) (leaves : List UInt256) (
   exact
     by
       by_cases hne : leaves.length = 0
-      · rw [hne, List.length_eq_zero.mp hne, levels_nil]
+      · rw [hne, List.length_eq_zero_iff.mp hne, levels_nil]
         simp
       · have h2 : 0 < (2 : ℕ) ^ l := pow_pos (by norm_num) l
         rw [levels_length h z0 leaves hne l]
@@ -415,7 +415,7 @@ theorem levels_set_off_path (h : Hash) (z0 : UInt256) (leaves : List UInt256)
           levelUp_getD h (zeros h z0 l) d _ j hlt,
           levels_set_off_path h z0 leaves idx x l (2 * j) d h2j,
           levels_set_off_path h z0 leaves idx x l (2 * j + 1) (zeros h z0 l) h2j1]
-    · push_neg at hlt
+    · push Not at hlt
       rw [levels_succ, levels_succ,
           getD_default _ _ _ (by
             rw [levelUp_length, levels_set_length h z0 leaves idx x l]; omega),
@@ -457,11 +457,11 @@ theorem walkPure_levels (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
           by_cases hpar : j % 2 = 1
           · rw [show 2 * (j / 2) = j - 1 from by omega] at hup
             rw [show j - 1 + 1 = j from by omega] at hup
-            rw [if_pos hpar, hs, hup,
+            rw [ite_eq_left hpar, hs, hup,
                 show sibIdx j = j - 1 from by simp [sibIdx, hpar]]
             exact congrArg (fun w => h w _) (getD_congr _ _ _ _ (by omega))
           · rw [show 2 * (j / 2) = j from by omega] at hup
-            rw [if_neg hpar, hs, hup,
+            rw [ite_eq_right hpar, hs, hup,
                 show sibIdx j = j + 1 from by simp [sibIdx, hpar]]
             exact congrArg (fun w => h w _) (getD_congr _ _ _ _ hj)
         rw [hacc]
@@ -549,13 +549,13 @@ theorem levels_append (h : Hash) (z0 : UInt256) (leaves : List UInt256) (x : UIn
     rw [levels_succ, levels_append h z0 leaves x l, levels_succ, appendPath_succ]
     by_cases hpar : leaves.length / 2 ^ l % 2 = 1
     · -- odd path index: the lone old tail entry pairs with the new path node
-      rw [if_pos hpar]
+      rw [ite_eq_left hpar]
       have hp2 : 2 * (leaves.length / 2 ^ (l + 1)) + 1 = leaves.length / 2 ^ l := by
         rw [show (2 : ℕ) ^ (l + 1) = 2 ^ l * 2 from by ring, ← Nat.div_div_eq_div_mul]
         omega
       have h2Q : 2 * (leaves.length / 2 ^ (l + 1)) < (levels h z0 leaves l).length := by
         omega
-      rw [← hp2, Nat.add_sub_cancel, List.take_succ, List.get?_eq_get h2Q]
+      rw [← hp2, Nat.add_sub_cancel, List.take_add_one, List.getElem?_eq_getElem h2Q]
       simp only [Option.toList_some]
       rw [List.append_assoc, List.singleton_append]
       have hAeven :
@@ -565,9 +565,9 @@ theorem levels_append (h : Hash) (z0 : UInt256) (leaves : List UInt256) (x : UIn
         omega
       rw [levelUp_append_even h (zeros h z0 l) _ _ hAeven, levelUp_pair,
           levelUp_take_even h (zeros h z0 l) _ _ (le_of_lt h2Q),
-          getD_eq_get _ _ _ h2Q]
+          getD_eq_get _ _ _ h2Q, List.get_eq_getElem]
     · -- even path index: the new path node is a lone tail, paired with zeros l
-      rw [if_neg hpar]
+      rw [ite_eq_right hpar]
       have hp2 : 2 * (leaves.length / 2 ^ (l + 1)) = leaves.length / 2 ^ l := by
         rw [show (2 : ℕ) ^ (l + 1) = 2 ^ l * 2 from by ring, ← Nat.div_div_eq_div_mul]
         omega
@@ -604,10 +604,10 @@ theorem walkPure_appendPath (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
             = appendPath h z0 leaves x (lvl + 1) := by
           rw [appendPath_succ, hs]
           by_cases hpar : leaves.length / 2 ^ lvl % 2 = 1
-          · rw [if_pos hpar, if_pos hpar,
+          · rw [ite_eq_left hpar, ite_eq_left hpar,
                 show sibIdx (leaves.length / 2 ^ lvl) = leaves.length / 2 ^ lvl - 1 from by
                   simp [sibIdx, hpar]]
-          · rw [if_neg hpar, if_neg hpar,
+          · rw [ite_eq_right hpar, ite_eq_right hpar,
                 show sibIdx (leaves.length / 2 ^ lvl) = leaves.length / 2 ^ lvl + 1 from by
                   simp [sibIdx, hpar],
                 getD_default _ _ _ (levels_length_le h z0 leaves lvl)]
@@ -714,7 +714,7 @@ theorem levels_height_singleton (h : Hash) (z0 : UInt256) (L : List UInt256)
     by
       have hlen1 : (levels h z0 L height).length = 1 := by
         rw [levels_length h z0 L hne height, Nat.div_eq_of_lt (by omega)]
-      obtain ⟨a, ha⟩ := List.length_eq_one.mp hlen1
+      obtain ⟨a, ha⟩ := List.length_eq_one_iff.mp hlen1
       rw [rootOf_def, ha]
       rfl
 
@@ -794,9 +794,9 @@ theorem walkPure_inj (h : Hash) (sibs : ℕ → UInt256)
       intro hh
       have hcomb := walkPure_inj h sibs hinj k (lvl + 1) (idx / 2) _ _ hh
       by_cases hpar : idx % 2 = 1
-      · rw [if_pos hpar, if_pos hpar] at hcomb
+      · rw [ite_eq_left hpar, ite_eq_left hpar] at hcomb
         exact (hinj _ _ _ _ hcomb).2
-      · rw [if_neg hpar, if_neg hpar] at hcomb
+      · rw [ite_eq_right hpar, ite_eq_right hpar] at hcomb
         exact (hinj _ _ _ _ hcomb).1
 
 
@@ -832,8 +832,8 @@ theorem rootOf_inj_of_h_inj' (h : Hash) (z0 : UInt256)
   exact
     by
       by_cases hne : L₁.length = 0
-      · have h1 : L₁ = [] := List.length_eq_zero.mp hne
-        have h2 : L₂ = [] := List.length_eq_zero.mp (by rw [← hlen]; exact hne)
+      · have h1 : L₁ = [] := List.length_eq_zero_iff.mp hne
+        have h2 : L₂ = [] := List.length_eq_zero_iff.mp (by rw [← hlen]; exact hne)
         rw [h1, h2]
       · exact rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot
 

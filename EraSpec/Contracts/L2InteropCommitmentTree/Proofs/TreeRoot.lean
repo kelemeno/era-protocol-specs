@@ -27,7 +27,7 @@ open IMTAbstract MerkleSpec MerkleSpec.Verifier
 
 lemma leafHashes_getD {hl : LeafHash} {T : Tree} {i : ℕ} (hi : i < T.leafCount) (d : UInt256) :
     (leafHashes hl T).getD i d = hl (T.leaf i) := by
-  simp [leafHashes, List.getD_eq_get?, List.get?_map, List.get?_range hi]
+  simp [leafHashes, List.getElem?_range hi]
 
 lemma mem_leafHashes {hl : LeafHash} {T : Tree} {y : UInt256} :
     y ∈ leafHashes hl T ↔ ∃ i < T.leafCount, hl (T.leaf i) = y := by

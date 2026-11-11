@@ -309,7 +309,7 @@ theorem released_eq_collected_of_all_executed :
       | cons hd tl ih =>
         intro h
         obtain ⟨v, st⟩ := hd
-        have hhd : st = CallStatus.Executed := h (v, st) (List.mem_cons_self _ _)
+        have hhd : st = CallStatus.Executed := h (v, st) (List.mem_cons_self ..)
         have htl : ∀ p ∈ tl, p.2 = CallStatus.Executed := fun p hp => h p (List.mem_cons_of_mem _ hp)
         simp [releasedSum, collectedSum, hhd, ih htl]
 
@@ -354,7 +354,7 @@ theorem atomic_ledger_trivial (l : Ledger) (h : ∀ p ∈ l, p.1 = 0) :
       | nil => exact ⟨rfl, rfl⟩
       | cons hd tl ih =>
         obtain ⟨v, st⟩ := hd
-        have hv : v = 0 := h (v, st) (List.mem_cons_self _ _)
+        have hv : v = 0 := h (v, st) (List.mem_cons_self ..)
         have htl := ih (fun p hp => h p (List.mem_cons_of_mem _ hp))
         subst hv
         constructor

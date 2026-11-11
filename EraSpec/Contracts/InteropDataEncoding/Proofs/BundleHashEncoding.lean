@@ -75,7 +75,7 @@ theorem fromBytesBE_toBytesBE {k n : ℕ} (h : n < 256 ^ k) :
             _ = 256 * 256 ^ k := by ring
         have hmod : (UInt8.ofNat (n % 256)).toNat = n % 256 := by
           unfold UInt8.toNat UInt8.ofNat
-          simp [Fin.ofNat]
+          simp
         rw [toBytesBE, fromBytesBE_append_singleton, ih hdiv, hmod]
         omega
 
@@ -141,15 +141,15 @@ set_option maxRecDepth 8000
 
 example : (abiEncode 1 [0xaa]).length = 128 := by decide
           -- four words
-example : (abiEncode 1 [0xaa]).get! 31 = 1 := by decide
+example : (abiEncode 1 [0xaa])[31]! = 1 := by decide
            -- chainId, low byte of word 0
-example : (abiEncode 1 [0xaa]).get! 63 = 0x40 := by decide
+example : (abiEncode 1 [0xaa])[63]! = 0x40 := by decide
         -- offset word = 0x40
-example : (abiEncode 1 [0xaa]).get! 95 = 1 := by decide
+example : (abiEncode 1 [0xaa])[95]! = 1 := by decide
            -- length word
-example : (abiEncode 1 [0xaa]).get! 96 = 0xaa := by decide
+example : (abiEncode 1 [0xaa])[96]! = 0xaa := by decide
         -- payload starts at 96
-example : (abiEncode 1 [0xaa]).get! 97 = 0 := by decide
+example : (abiEncode 1 [0xaa])[97]! = 0 := by decide
            -- right-padded with zeros
 example : (abiEncode 7 (List.replicate 33 9)).length = 160 := by decide
 

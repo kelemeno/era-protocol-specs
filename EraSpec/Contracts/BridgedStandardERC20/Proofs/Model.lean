@@ -21,7 +21,7 @@ private theorem burn_view {s t : State} {caller owner : Address} {amount : UInt2
   split at h
   · rename_i hg
     exact ⟨hg, (Option.some.inj h).symm⟩
-  · simp only [Option.noConfusion] at h
+  · exact absurd h (by simp)
 
 private theorem mint_view {s t : State} {caller recipient : Address} {amount : UInt256}
     (h : mint s caller recipient amount = some t) :
@@ -30,7 +30,7 @@ private theorem mint_view {s t : State} {caller recipient : Address} {amount : U
   split at h
   · rename_i hg
     exact ⟨hg, (Option.some.inj h).symm⟩
-  · simp only [Option.noConfusion] at h
+  · exact absurd h (by simp)
 
 private theorem transfer_view {s t : State} {owner recipient : Address} {amount : UInt256}
     (h : transfer s owner recipient amount = some t) :
@@ -39,7 +39,7 @@ private theorem transfer_view {s t : State} {owner recipient : Address} {amount 
   split at h
   · rename_i hg
     exact ⟨hg, (Option.some.inj h).symm⟩
-  · simp only [Option.noConfusion] at h
+  · exact absurd h (by simp)
 
 theorem balance_bounded {s : State} (h : WellFormed s) (a : Address) :
     Properties.balance_bounded h a := by
@@ -49,7 +49,7 @@ theorem unauthorized_bridge_calls {s : State} {caller account : Address}
     {amount : UInt256} (h : caller ≠ s.config.vault) :
     Properties.unauthorized_bridge_calls (account := account) (amount := amount) h := by
   simp only [Properties.unauthorized_bridge_calls, burn, mint, BurnAllowed, MintAllowed,
-    h, false_and, and_false, if_false, and_self]
+    h, false_and, and_false, ite_false, and_self]
 
 theorem burn_exact {s t : State} {caller owner : Address} {amount : UInt256}
     (hw : WellFormed s) (h : burn s caller owner amount = some t) :
@@ -57,10 +57,10 @@ theorem burn_exact {s t : State} {caller owner : Address} {amount : UInt256}
   obtain ⟨ha, rfl⟩ := burn_view h
   rcases ha with ⟨hv, hc, _hn, hb⟩
   refine ⟨hc, hv, ?_, ?_, ?_, rfl⟩
-  · simpa only [burnEffect, Function.update_same] using Nat.sub_add_cancel hb
+  · simpa only [burnEffect, Function.update_self] using Nat.sub_add_cancel hb
   · exact Nat.sub_add_cancel (hb.trans (balance_le_supply hw owner))
   · intro other ho
-    exact Function.update_noteq ho _ _
+    exact Function.update_of_ne ho _ _
 
 theorem burn_preserves_ledger {s t : State} {caller owner : Address}
     {amount : UInt256} (hw : WellFormed s)
@@ -77,7 +77,7 @@ theorem burn_preserves_ledger {s t : State} {caller owner : Address}
     omega
   · exact lt_of_le_of_lt (Nat.sub_le _ _) hw.2.1
   · change Function.update s.balances owner (s.balances owner - amount.val) 0 = 0
-    rw [Function.update_noteq (Ne.symm hn)]
+    rw [Function.update_of_ne (Ne.symm hn)]
     exact hw.2.2
 
 theorem mint_exact {s t : State} {caller recipient : Address} {amount : UInt256}
@@ -86,9 +86,9 @@ theorem mint_exact {s t : State} {caller recipient : Address} {amount : UInt256}
   obtain ⟨ha, rfl⟩ := mint_view h
   rcases ha with ⟨hv, hc, _hn, _hs⟩
   refine ⟨hc, hv, ?_, rfl, ?_, rfl⟩
-  · exact Function.update_same _ _ _
+  · exact Function.update_self _ _ _
   · intro other ho
-    exact Function.update_noteq ho _ _
+    exact Function.update_of_ne ho _ _
 
 theorem mint_preserves_ledger {s t : State} {caller recipient : Address}
     {amount : UInt256} (hw : WellFormed s)
@@ -103,7 +103,7 @@ theorem mint_preserves_ledger {s t : State} {caller recipient : Address}
     rw [hw.1] at hu
     omega
   · change Function.update s.balances recipient (s.balances recipient + amount.val) 0 = 0
-    rw [Function.update_noteq (Ne.symm hn)]
+    rw [Function.update_of_ne (Ne.symm hn)]
     exact hw.2.2
 
 theorem transfer_preserves_ledger {s t : State} {owner recipient : Address}
@@ -128,7 +128,7 @@ theorem transfer_preserves_ledger {s t : State} {owner recipient : Address}
       (s.balances owner - amount.val)) recipient
       ((Function.update s.balances owner (s.balances owner - amount.val)) recipient +
         amount.val) 0 = 0
-    rw [Function.update_noteq (Ne.symm hr), Function.update_noteq (Ne.symm ho)]
+    rw [Function.update_of_ne (Ne.symm hr), Function.update_of_ne (Ne.symm ho)]
     exact hw.2.2
 
 theorem self_transfer_identity {s t : State} {account : Address}
@@ -136,7 +136,7 @@ theorem self_transfer_identity {s t : State} {account : Address}
     Properties.self_transfer_identity h := by
   obtain ⟨ha, rfl⟩ := transfer_view h
   change transferEffect s account account amount = s
-  simp only [transferEffect, Function.update_same, Nat.sub_add_cancel ha.2.2,
+  simp only [transferEffect, Function.update_self, Nat.sub_add_cancel ha.2.2,
     Function.update_idem, Function.update_eq_self]
 
 theorem reachable_ledger {s t : State} (hw : WellFormed s) (h : Reach s t) :
@@ -160,13 +160,13 @@ theorem insufficient_burn_rejected {s : State} {caller owner : Address}
     {amount : UInt256} (h : s.balances owner < amount.val) :
     Properties.insufficient_burn_rejected (caller := caller) h := by
   simp only [Properties.insufficient_burn_rejected, burn, BurnAllowed,
-    Nat.not_le_of_gt h, and_false, if_false]
+    Nat.not_le_of_gt h, and_false, ite_false]
 
 theorem overflowing_mint_rejected {s : State} {caller recipient : Address}
     {amount : UInt256} (h : UInt256.size ≤ s.totalSupply + amount.val) :
     Properties.overflowing_mint_rejected (caller := caller) (recipient := recipient) h := by
   simp only [Properties.overflowing_mint_rejected, mint, MintAllowed,
-    Nat.not_lt_of_ge h, and_false, if_false]
+    Nat.not_lt_of_ge h, and_false, ite_false]
 
 theorem one_unit_roundtrip (config : Config) (account : Address)
     (hv : config.vault ≠ 0) (ha : account ≠ 0) :
@@ -178,14 +178,15 @@ theorem one_unit_roundtrip (config : Config) (account : Address)
   have hm : MintAllowed (empty config) config.vault account 1 := by
     norm_num [MintAllowed, empty, hv, ha, UInt256.size]
   have hmint : mint (empty config) config.vault account 1 =
-      some (mintEffect (empty config) account 1) := if_pos hm
+      some (mintEffect (empty config) account 1) := ite_eq_left hm
   refine ⟨hw, mintEffect (empty config) account 1, hmint,
     mint_preserves_ledger hw hmint, ?_⟩
   have hb : BurnAllowed (mintEffect (empty config) account 1) config.vault account 1 := by
     simp [BurnAllowed, mintEffect, empty, hv, ha]
-  rw [burn, if_pos hb]
+  rw [burn, ite_eq_left hb]
   congr 1
-  simp only [burnEffect, mintEffect, empty, Function.update_same, Function.update_idem]
-  norm_num only [Fin.val_one, Nat.sub_self, Function.update_eq_self]
+  simp only [burnEffect, mintEffect, empty, Function.update_self, Function.update_idem]
+  have h1 : (1 : UInt256).val = 1 := rfl
+  simp only [h1, Nat.zero_add, Nat.sub_self, Function.update_eq_self]
 
 end Contracts.BridgedStandardERC20

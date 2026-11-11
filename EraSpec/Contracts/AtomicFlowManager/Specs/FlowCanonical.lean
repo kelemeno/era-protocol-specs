@@ -38,7 +38,7 @@ variable {α : Type*} [LinearOrder α]
 
 
 /-- The deployed check, verbatim in shape: every ADJACENT pair strictly ascends. -/
-def Ascending (l : List α) : Prop := l.Chain' (· < ·)
+def Ascending (l : List α) : Prop := l.IsChain (· < ·)
 
 
 /-! ## The flow, and the pairing the length check protects

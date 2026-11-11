@@ -19,19 +19,19 @@ private theorem prepare_view {hooks : Hooks Accounting} {s : State Accounting}
   split at h
   · rename_i hg
     cases ha : hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha] at h
+    | none => simp only [ha, reduceCtorEq] at h
     | some accounted =>
       simp only [ha] at h
       split at h
       · rename_i hv
         cases hb : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount with
-        | none => simp only [hb] at h
+        | none => simp only [hb, reduceCtorEq] at h
         | some burned =>
           simp only [hb] at h
           split at h
           · rename_i ho
             cases hm : hooks.metadata burned s.config.originChainId with
-            | none => simp only [hm] at h
+            | none => simp only [hm, reduceCtorEq] at h
             | some metadata =>
               simp only [hm] at h
               exact ⟨hg.1, hg.2, hv, accounted, burned, metadata, rfl, rfl,
@@ -154,12 +154,12 @@ theorem preparation_enabled {hooks : Hooks Accounting} {s : State Accounting}
   have hg : BridgedStandardERC20.BurnAllowed s.token s.config.vault r.depositor r.data.amount :=
     ⟨by rw [hw.2.1]; exact hs.1, hw.2.1.symm, hd, hb⟩
   have hburn : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount =
-      some (BridgedStandardERC20.burnEffect s.token r.depositor r.data.amount) := if_pos hg
+      some (BridgedStandardERC20.burnEffect s.token r.depositor r.data.amount) := ite_eq_left hg
   have hentry : InScope s r ∧ EntryAllowed s r := ⟨hs, he⟩
   have horigin : (BridgedStandardERC20.burnEffect s.token r.depositor r.data.amount).config.originToken ≠ 0 ∧
       s.config.originChainId ≠ 0 := ⟨ho, hc⟩
   unfold Properties.preparation_enabled
-  simp only [prepare, if_pos hentry, ha, if_pos hv, hburn, if_pos horigin, hm]
+  simp only [prepare, ite_eq_left hentry, ha, ite_eq_left hv, hburn, ite_eq_left horigin, hm]
   exact ⟨_, rfl⟩
 
 end Contracts.NativeTokenVaultBase

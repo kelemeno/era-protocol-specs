@@ -96,7 +96,7 @@ theorem none_or_all {h : Hash} {z0 : UInt256} {hl : LeafHash}
   by_cases hex : ∃ leg, ExecutedVia h z0 hl cv fh S F leg
   · obtain ⟨leg, hleg⟩ := hex
     exact Or.inl (executed_implies_all_finalizable hA hS hDA hleg)
-  · push_neg at hex
+  · push Not at hex
     exact Or.inr hex
 
 /-- **FINALIZABILITY DOES NOT DECAY.** -/
@@ -138,7 +138,7 @@ theorem executed_excludes_any_refund {h : Hash} {z0 : UInt256} {hl : LeafHash}
   · -- a late batch comes strictly after every on-time one
     have hnN : n < N := by
       by_contra hcon
-      push_neg at hcon
+      push Not at hcon
       exact absurd hlate (not_lt.mpr (le_trans (hS.timeOrdered other.chain hcon) hon))
     obtain ⟨N', rfl⟩ : ∃ N', N = N' + 1 := ⟨N - 1, by omega⟩
     exact verified_absence_excludes_delivered hA (valid_batch hS other.chain N') habs
@@ -146,7 +146,7 @@ theorem executed_excludes_any_refund {h : Hash} {z0 : UInt256} {hl : LeafHash}
   · -- the last on-time batch comes at or after every on-time one
     have hnN : n ≤ N := by
       by_contra hcon
-      push_neg at hcon
+      push Not at hcon
       exact absurd hon (not_le.mpr (hlast n hcon))
     exact verified_absence_excludes_delivered hA (valid_batch hS other.chain N) habs
       (keys_mono_batch hS other.chain hnN hmem)
@@ -426,15 +426,15 @@ lemma uint256_succ_ne_self (x : UInt256) : x + 1 ≠ x := by
 members of any list shorter than `2^256`, which is what the bounded-injectivity
 satisfiability witnesses need. -/
 def indexHash {α : Type} [DecidableEq α] (P : List α) (x : α) : UInt256 :=
-  if hi : P.indexOf x < UInt256.size then ⟨P.indexOf x, hi⟩ else 0
+  if hi : P.idxOf x < UInt256.size then ⟨P.idxOf x, hi⟩ else 0
 
 lemma indexHash_inj_on {α : Type} [DecidableEq α] {P : List α} (hP : P.length < UInt256.size)
     {x y : α} (hx : x ∈ P) (hy : y ∈ P) (he : indexHash P x = indexHash P y) : x = y := by
-  have hlt := lt_trans (List.indexOf_lt_length.mpr hx) hP
-  have hlt' := lt_trans (List.indexOf_lt_length.mpr hy) hP
+  have hlt := lt_trans (List.idxOf_lt_length_iff.mpr hx) hP
+  have hlt' := lt_trans (List.idxOf_lt_length_iff.mpr hy) hP
   unfold indexHash at he
-  rw [dif_pos hlt, dif_pos hlt'] at he
-  exact (List.indexOf_inj hx hy).mp (Fin.mk.inj_iff.mp he)
+  rw [dite_eq_left hlt, dite_eq_left hlt'] at he
+  exact (List.idxOf_inj hx).mp (Fin.mk.inj_iff.mp he)
 
 /-- Equal preimages and equal claimed ids make equal flows. -/
 lemma flow_eq_of_preimage {F F' : Flow} (hid : F.flowId = F'.flowId)
@@ -456,7 +456,7 @@ theorem honest_flowHash_no_clash (F : Flow) :
   refine ⟨by simp [FlowIdChecked, honestFlowHash], ?_⟩
   rintro F' ⟨hne, heq⟩
   have hne' : ¬ (F'.legs, F'.deadline) = (F.legs, F.deadline) := fun h => hne h.symm
-  simp only [honestFlowHash, if_pos rfl, if_neg hne'] at heq
+  simp only [honestFlowHash, ite_eq_right hne'] at heq
   exact uint256_succ_ne_self _ heq.symm
 
 end Contracts.Atomicity
@@ -482,8 +482,8 @@ theorem FlowHashInjOnSatisfiable : Properties.FlowHashInjOnSatisfiable := by
     rw [List.length_map]; exact hlen
   refine ⟨fun l d => indexHash P (l, d), ?_⟩
   rintro F hF F' hF' ⟨hne, heq⟩
-  exact hne (indexHash_inj_on hPlen (List.mem_map_of_mem (fun F => (F.legs, F.deadline)) hF)
-    (List.mem_map_of_mem (fun F => (F.legs, F.deadline)) hF') heq)
+  exact hne (indexHash_inj_on hPlen (List.mem_map_of_mem (f := fun F : Flow => (F.legs, F.deadline)) hF)
+    (List.mem_map_of_mem (f := fun F : Flow => (F.legs, F.deadline)) hF') heq)
 
 theorem HonestFlowHashNoClash : Properties.HonestFlowHashNoClash := honest_flowHash_no_clash
 
@@ -496,7 +496,7 @@ theorem SubsetFlowCheckedOnlyByCollision : Properties.SubsetFlowCheckedOnlyByCol
 
 theorem SubsetFlowRejectedByCheckOn : Properties.SubsetFlowRejectedByCheckOn := by
   intro fh id hA hB hinj hreal hsub
-  exact hinj _ (List.mem_cons_self _ _) _ (List.mem_cons_of_mem _ (List.mem_singleton_self _))
+  exact hinj _ (List.mem_cons_self) _ (List.mem_cons_of_mem _ (List.mem_singleton_self _))
     (SubsetFlowCheckedOnlyByCollision fh id hA hB hreal hsub)
 
 theorem SubsetFlowRejectedByCheckOnSatisfiable :
@@ -535,7 +535,7 @@ theorem executedVia_iff_by {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Commi
         (Classical.choose (hfin l hl'), Classical.choose (Classical.choose_spec (hfin l hl')))
       else (0, ⟨⟨0, 0, 0⟩, 0, fun _ => 0, 0⟩), hmem, hchk, ?_⟩
     intro l hl'
-    simp only [dif_pos hl']
+    simp only [dite_eq_left hl']
     exact Classical.choose_spec (Classical.choose_spec (hfin l hl'))
   · rintro ⟨ev, hmem, hchk, hfin⟩
     exact ⟨hmem, hchk, fun l hl' => ⟨(ev l).1, (ev l).2, hfin l hl'⟩⟩
@@ -577,7 +577,7 @@ theorem none_or_all_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Com
       rcases executed_implies_all_finalizable_or_break hS hDA hleg other hother with hf | hbo
       · exact hf
       · exact absurd ⟨other, hother, hbo⟩ hb
-  · push_neg at hex
+  · push Not at hex
     exact Or.inr (Or.inl hex)
 
 theorem executed_implies_finality_persists_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
@@ -609,7 +609,7 @@ theorem member_not_refundable_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
     rcases hr with ⟨hlate, habs⟩ | ⟨⟨hon', hlast⟩, habs⟩
     · have hnN : n < N := by
         by_contra hcon
-        push_neg at hcon
+        push Not at hcon
         exact absurd hlate (not_lt.mpr (le_trans (hS.timeOrdered other.chain hcon) hon))
       obtain ⟨N', rfl⟩ : ∃ N', N = N' + 1 := ⟨N - 1, by omega⟩
       rcases verified_absence_excludes_delivered_or_break (valid_batch hS other.chain N') habs
@@ -618,7 +618,7 @@ theorem member_not_refundable_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
       · exact Or.inl ⟨hlate, hb⟩
     · have hnN : n ≤ N := by
         by_contra hcon
-        push_neg at hcon
+        push Not at hcon
         exact absurd hon (not_le.mpr (hlast n hcon))
       rcases verified_absence_excludes_delivered_or_break (valid_batch hS other.chain N) habs
         with hnot | hb
@@ -915,11 +915,11 @@ theorem first_failure_unique {P : FlowLeg → Prop} :
   | [], y :: ys, _, _, l₁, _, he, _, n₁, h₂, _ => by
       simp only [List.nil_append, List.cons_append, List.cons.injEq] at he
       rw [he.1] at n₁
-      exact absurd (h₂ y (List.mem_cons_self _ _)) n₁
+      exact absurd (h₂ y (List.mem_cons_self)) n₁
   | x :: xs, [], _, _, _, l₂, he, h₁, _, _, n₂ => by
       simp only [List.nil_append, List.cons_append, List.cons.injEq] at he
       rw [← he.1] at n₂
-      exact absurd (h₁ x (List.mem_cons_self _ _)) n₂
+      exact absurd (h₁ x (List.mem_cons_self)) n₂
   | x :: xs, y :: ys, post₁, post₂, l₁, l₂, he, h₁, n₁, h₂, n₂ => by
       simp only [List.cons_append, List.cons.injEq] at he
       exact first_failure_unique xs ys post₁ post₂ l₁ l₂ he.2
@@ -931,7 +931,7 @@ theorem first_failure_exists {P : FlowLeg → Prop} :
     ∀ L : List FlowLeg, (∃ l ∈ L, ¬ P l) →
       ∃ (pre : List FlowLeg) (l : FlowLeg) (post : List FlowLeg),
         L = pre ++ l :: post ∧ (∀ x ∈ pre, P x) ∧ ¬ P l
-  | [], ⟨_, hl, _⟩ => absurd hl (List.not_mem_nil _)
+  | [], ⟨_, hl, _⟩ => absurd hl (List.not_mem_nil)
   | a :: t, hex => by
       by_cases ha : P a
       · obtain ⟨l, hl, hnl⟩ := hex
@@ -945,7 +945,7 @@ theorem first_failure_exists {P : FlowLeg → Prop} :
         rcases List.mem_cons.mp hx with rfl | hx
         · exact ha
         · exact hpre x hx
-      · exact ⟨[], a, t, rfl, fun x hx => absurd hx (List.not_mem_nil _), ha⟩
+      · exact ⟨[], a, t, rfl, fun x hx => absurd hx (List.not_mem_nil), ha⟩
 
 theorem first_stranded_leg_unique {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
     {S : System} {A : Access} {F : Flow} {l₁ l₂ : FlowLeg}
@@ -960,7 +960,7 @@ theorem firstStrandedLeg_mem {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Com
     (hf : FirstStrandedLeg h z0 hl cv S A F leg) : leg ∈ F.legs := by
   obtain ⟨pre, post, he, _, _⟩ := hf
   rw [he]
-  exact List.mem_append_right _ (List.mem_cons_self _ _)
+  exact List.mem_append_right _ (List.mem_cons_self)
 
 theorem first_stranded_leg_iff_not_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {cv : CommitValue} {S : System} {A : Access} {F : Flow} :
@@ -973,7 +973,7 @@ theorem first_stranded_leg_iff_not_finalizable {h : Hash} {z0 : UInt256} {hl : L
   · intro hnot
     have hex : ∃ l ∈ F.legs, ¬ LegFinalizableBy h z0 hl cv S A F l := by
       by_contra hno
-      push_neg at hno
+      push Not at hno
       exact hnot hno
     obtain ⟨pre, l, post, he, hpre, hn⟩ := first_failure_exists F.legs hex
     exact ⟨l, pre, post, he, hpre, hn⟩
@@ -1002,7 +1002,7 @@ theorem none_or_all_or_break_pinned {h : Hash} {z0 : UInt256} {hl : LeafHash} {c
       with hf | hb
     · exact absurd hf hn
     · exact Or.inr (Or.inr ⟨l, hfirst, hb⟩)
-  · push_neg at hex
+  · push Not at hex
     exact Or.inr (Or.inl hex)
 
 theorem none_or_all_or_break_pinned_not_tautology (h : Hash) (z0 : UInt256) (hl : LeafHash) :
@@ -1048,11 +1048,11 @@ theorem pinned_gate_break_fires (h : Hash) (z0 : UInt256) :
   have hAB : legA ≠ legB := by
     show (⟨0, 1⟩ : FlowLeg) ≠ ⟨1, 2⟩
     decide
-  have evA : ev legA = (0, pA) := if_pos rfl
-  have evB : ev legB = (0, pB) := if_neg (fun he => hAB he.symm)
+  have evA : ev legA = (0, pA) := ite_eq_left rfl
+  have evB : ev legB = (0, pB) := ite_eq_right (fun he => hAB he.symm)
   have hS : Wf S := mixedSystem_wf h1
   have hDA : DataAvailable h z0 hl S A := fun c n i hi => ⟨i, hi, rfl⟩
-  have hmemA : legA ∈ F.legs := List.mem_cons_self _ _
+  have hmemA : legA ∈ F.legs := List.mem_cons_self
   have hmemB : legB ∈ F.legs := List.mem_cons_of_mem _ (List.mem_singleton_self _)
   -- Leg A: the forged proof is accepted (a leaf-hash collision with the stored leaf 1).
   have hcountA : TA.leafCount = 2 := rfl
@@ -1242,7 +1242,7 @@ theorem none_or_all_or_break_pinned_stranded_not_tautology (h : Hash) (z0 : UInt
   let ev : GateEvidence := fun l =>
     if l = ⟨0, 1⟩ then (0, honestProof h z0 hl (mixedSystem 1) 0 0 1)
     else (0, honestProof h z0 hl (mixedSystem 1) 1 0 0)
-  have evB : ev ⟨1, 2⟩ = (0, honestProof h z0 hl (mixedSystem 1) 1 0 0) := if_neg (by decide)
+  have evB : ev ⟨1, 2⟩ = (0, honestProof h z0 hl (mixedSystem 1) 1 0 0) := ite_eq_right (by decide)
   obtain ⟨hnex, _, hnp⟩ := honest_legB_evidence h z0 hl (honestFlowHash (mixedFlow 0 1 2)) ev evB
   refine ⟨mixedSystem_wf h1, honestAccess_dataAvailable h z0 hl _,
     (honest_flowHash_no_clash _).1, fun hall => nfinB (hall _ hmemB), hfirst, ev, evB, ?_,
@@ -1293,9 +1293,9 @@ theorem pinned_gate_break_fires_only_on_stranded_leg (h : Hash) (z0 : UInt256) :
   let pB : ImtProof := ⟨⟨2, 0, 2⟩, 0, fun _ => 0, 0⟩
   let evH : GateEvidence := fun l => if l = ⟨0, 1⟩ then (0, pA) else (0, honestProof h z0 hl S 1 0 0)
   let evF : GateEvidence := fun l => if l = ⟨0, 1⟩ then (0, pA) else (0, pB)
-  have evFA : evF ⟨0, 1⟩ = (0, pA) := if_pos rfl
-  have evFB : evF ⟨1, 2⟩ = (0, pB) := if_neg (by decide)
-  have evHB : evH ⟨1, 2⟩ = (0, honestProof h z0 hl S 1 0 0) := if_neg (by decide)
+  have evFA : evF ⟨0, 1⟩ = (0, pA) := ite_eq_left rfl
+  have evFB : evF ⟨1, 2⟩ = (0, pB) := ite_eq_right (by decide)
+  have evHB : evH ⟨1, 2⟩ = (0, honestProof h z0 hl S 1 0 0) := ite_eq_right (by decide)
   have accB : Accepts h z0 hl S 1 0 2 pB := by
     show InclusionAccepted h hl (root h z0 hl ((mixedSystem 1).tree 1 0)
       ((mixedSystem 1).height 1 0)) 2 ⟨2, 0, 2⟩ 0 (fun _ => 0) 0
@@ -1311,7 +1311,7 @@ theorem pinned_gate_break_fires_only_on_stranded_leg (h : Hash) (z0 : UInt256) :
     exact TreeRootBreak.leafCollision (by norm_num [setup]) (by decide) (by decide)
   have hex : ExecutedViaBy h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2)) S
       (mixedFlow 0 1 2) evF ⟨0, 1⟩ := by
-    refine ⟨List.mem_cons_self _ _, (honest_flowHash_no_clash _).1, ?_⟩
+    refine ⟨List.mem_cons_self, (honest_flowHash_no_clash _).1, ?_⟩
     intro l hl'
     rcases List.mem_cons.mp hl' with rfl | hl'
     · rw [evFA]; exact ⟨le_refl _, accA⟩

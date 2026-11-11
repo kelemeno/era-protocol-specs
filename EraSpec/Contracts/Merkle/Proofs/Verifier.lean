@@ -26,7 +26,7 @@ theorem getD_default : ∀ (L : List UInt256) (n : ℕ) (d : UInt256),
 theorem getD_mem : ∀ (L : List UInt256) (n : ℕ) (d : UInt256),
     n < L.length → L.getD n d ∈ L
   | [], _, _, hn => absurd hn (by simp)
-  | a :: t, 0, _, _ => List.mem_cons_self a t
+  | a :: t, 0, _, _ => List.mem_cons_self
   | _ :: t, n + 1, d, hn =>
     List.mem_cons_of_mem _ (getD_mem t n d (by simp only [List.length_cons] at hn; omega))
 
@@ -104,9 +104,9 @@ theorem walkPure_levels_all (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
       by_cases hpar : j % 2 = 1
       · rw [show 2 * (j / 2) = j - 1 from by omega,
             show j - 1 + 1 = j from by omega] at hup
-        rw [if_pos hpar, hs, hup, show sibIdx j = j - 1 from by simp [sibIdx, hpar]]
+        rw [ite_eq_left hpar, hs, hup, show sibIdx j = j - 1 from by simp [sibIdx, hpar]]
       · rw [show 2 * (j / 2) = j from by omega] at hup
-        rw [if_neg hpar, hs, hup, show sibIdx j = j + 1 from by simp [sibIdx, hpar]]
+        rw [ite_eq_right hpar, hs, hup, show sibIdx j = j + 1 from by simp [sibIdx, hpar]]
     rw [walkPure_succ, hacc]
     have hsibs' : ∀ l, lvl + 1 ≤ l → l < (lvl + 1) + k →
         sibs l = (levels h z0 L l).getD (sibIdx (j / 2 / 2 ^ (l - (lvl + 1))))
@@ -188,7 +188,7 @@ theorem walk_pins (h : Hash) (z0 : UInt256)
           show (l - lvl - 1) + 1 = l - lvl from by omega] at this
       exact this
     by_cases hpar : j % 2 = 1
-    · rw [if_pos hpar] at hIH
+    · rw [ite_eq_left hpar] at hIH
       rw [show 2 * (j / 2) = j - 1 from by omega,
           show j - 1 + 1 = j from by omega] at hIH
       obtain ⟨hs, hx⟩ := hinj _ _ _ _ hIH.symm
@@ -199,7 +199,7 @@ theorem walk_pins (h : Hash) (z0 : UInt256)
             show sibIdx j = j - 1 from by simp [sibIdx, hpar]]
         exact hs
       · exact habove l (by omega) h2
-    · rw [if_neg hpar] at hIH
+    · rw [ite_eq_right hpar] at hIH
       rw [show 2 * (j / 2) = j from by omega] at hIH
       obtain ⟨hx, hs⟩ := hinj _ _ _ _ hIH.symm
       refine ⟨hx.symm, ?_⟩
@@ -274,8 +274,8 @@ theorem walkPure_succ_is_node (h : Hash) (sibs : ℕ → UInt256) :
   | 0, lvl, idx, x => by
       rw [walkPure_succ, walkPure_zero]
       by_cases hpar : idx % 2 = 1
-      · exact ⟨_, _, if_pos hpar⟩
-      · exact ⟨_, _, if_neg hpar⟩
+      · exact ⟨_, _, ite_eq_left hpar⟩
+      · exact ⟨_, _, ite_eq_right hpar⟩
   | k + 1, lvl, idx, x => by
       rw [walkPure_succ]
       exact walkPure_succ_is_node h sibs k (lvl + 1) (idx / 2) _

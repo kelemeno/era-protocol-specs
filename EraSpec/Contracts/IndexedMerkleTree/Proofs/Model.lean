@@ -241,7 +241,7 @@ theorem delivered_and_reclaimed_impossible {S : ℕ → Finset AbsLeaf} {t : ℕ
     by
       have hij : i ≤ j := by
         by_contra hgt
-        push_neg at hgt
+        push Not at hgt
         exact absurd hti (not_le.mpr (lt_of_lt_of_le htj1 (htmono hgt)))
       have hkeys : v ∈ keys (S j) := evolution_keys_mono hevo hij hdel
       obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hkeys
@@ -279,7 +279,7 @@ theorem empty_gapSound :
   exact
     by
       intro W hW
-      exact absurd hW (Finset.not_mem_empty W)
+      exact absurd hW (Finset.notMem_empty W)
 
 
 /-- The empty base has unique keys. -/
@@ -289,7 +289,7 @@ theorem empty_keyInj :
   exact
     by
       intro A hA
-      exact absurd hA (Finset.not_mem_empty A)
+      exact absurd hA (Finset.notMem_empty A)
 
 
 /-- **INSERT PRESERVES `NextClosed`.** -/
@@ -870,7 +870,7 @@ theorem evolution_keys_ledger {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) 
                   (keys (S (n+1)) \ keys (S n))]
           _ = keys (S 0)
                 ∪ (Finset.range (n+1)).biUnion (fun m => keys (S (m+1)) \ keys (S m)) := by
-              rw [Finset.range_succ, Finset.biUnion_insert]
+              rw [Finset.range_add_one, Finset.biUnion_insert]
 
 
 /-- **THE SIZE LEDGER.**  The number of keys at step `n` is the genesis count
@@ -885,21 +885,21 @@ theorem evolution_card_ledger {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) 
       induction n with
       | zero => simp
       | succ n ih =>
-        rw [Finset.range_succ, Finset.filter_insert]
+        rw [Finset.range_add_one, Finset.filter_insert]
         by_cases hch : keys (S (n+1)) ≠ keys (S n)
-        · rw [if_pos hch,
-            Finset.card_insert_of_not_mem
-              (fun h => absurd (Finset.mem_filter.mp h).1 Finset.not_mem_range_self)]
+        · rw [ite_eq_left hch,
+            Finset.card_insert_of_notMem
+              (fun h => absurd (Finset.mem_filter.mp h).1 Finset.notMem_range_self)]
           have hcard : (keys (S (n+1))).card = (keys (S n)).card + 1 := by
             rcases evolution_step_keys hevo n with heq | ⟨v, hv⟩
             · exact absurd heq hch
             · have hvnot : v ∉ keys (S n) := fun hmem =>
                 hch (by rw [hv]; exact Finset.insert_eq_self.mpr hmem)
-              rw [hv, Finset.card_insert_of_not_mem hvnot]
+              rw [hv, Finset.card_insert_of_notMem hvnot]
           rw [hcard, ih]
           omega
-        · rw [if_neg hch]
-          push_neg at hch
+        · rw [ite_eq_right hch]
+          push Not at hch
           rw [hch]
           exact ih
 
@@ -1214,7 +1214,7 @@ theorem forged_padding_witness_breaks_exclusivity {a : UInt256} (ha : a ≠ 0) :
         exact Finset.mem_image.mpr ⟨⟨a, 0⟩, by simp, rfl⟩
       · -- the forged witness is NOT a leaf
         simp only [Finset.mem_insert, Finset.mem_singleton]
-        push_neg
+        push Not
         constructor
         · intro h; exact ha (congrArg AbsLeaf.nextKey h).symm
         · intro h; exact ha (congrArg AbsLeaf.key h).symm

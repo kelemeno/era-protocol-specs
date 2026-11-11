@@ -23,12 +23,12 @@ private theorem registration_view {hooks : RegistrationHooks Accounting}
   split at h
   · rename_i hg
     cases hd : hooks.deploy s.config.originChainId origin with
-    | none => simp only [hd] at h
+    | none => simp only [hd, reduceCtorEq] at h
     | some deployed =>
       simp only [hd] at h
       cases hi : BridgedStandardERC20.initializeToken BridgedStandardERC20.freshProxy
           s.config.vault s.config.assetId origin hooks.metadataDecoded with
-      | none => simp only [hi] at h
+      | none => simp only [hi, reduceCtorEq] at h
       | some initialized =>
         simp only [hi] at h
         split at h
@@ -36,7 +36,7 @@ private theorem registration_view {hooks : RegistrationHooks Accounting}
           cases ht : hooks.registerTracker s.accounting
               (installRegistry s.registry s.config.assetId deployed) initialized.token
               s.config.assetId s.config.originChainId with
-          | none => simp only [ht] at h
+          | none => simp only [ht, reduceCtorEq] at h
           | some accounting =>
             simp only [ht] at h
             exact ⟨hg, deployed, initialized, accounting, rfl, rfl, he,
@@ -56,10 +56,10 @@ theorem registration_establishes_representation {hooks : RegistrationHooks Accou
   obtain ⟨_hc, deployed, initialized, accounting, _hd, hi, he, _ht, rfl⟩ := registration_view h
   rcases BridgedStandardERC20.initialization_binds_inputs hi with ⟨hv, ha, _, _, _⟩
   refine ⟨hv, ha, ?_, ?_⟩
-  · exact (Function.update_same _ _ _).trans he
+  · exact (Function.update_self _ _ _).trans he
   · dsimp only [installRegistry]
     rw [← he]
-    exact Function.update_same _ _ _
+    exact Function.update_self _ _ _
 
 theorem registration_establishes_ledger {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
@@ -90,10 +90,10 @@ theorem registration_registry_frame {hooks : RegistrationHooks Accounting}
   obtain ⟨_hc, deployed, initialized, accounting, _hd, _hi, he, _ht, rfl⟩ := registration_view h
   refine ⟨rfl, rfl, ?_, ?_⟩
   · intro asset ha
-    exact Function.update_noteq ha _ _
+    exact Function.update_of_ne ha _ _
   · intro token ht
     have hn : token ≠ deployed := by simpa only [he] using ht
-    exact Function.update_noteq hn _ _
+    exact Function.update_of_ne hn _ _
 
 theorem registration_hook_snapshot {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
@@ -123,7 +123,7 @@ theorem existing_asset_not_freshly_deployed {hooks : RegistrationHooks Accountin
     {s : RegistrationState Accounting} {origin : Address}
     (h : s.registry.tokenForAsset s.config.assetId ≠ 0) :
     Properties.existing_asset_not_freshly_deployed (hooks := hooks) (origin := origin) h := by
-  exact if_neg h
+  exact ite_eq_right h
 
 theorem fresh_registration_preconditions {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
@@ -151,7 +151,7 @@ theorem registration_enabled {hooks : RegistrationHooks Accounting}
     simp [BridgedStandardERC20.initializeToken, BridgedStandardERC20.InitializeAllowed,
       BridgedStandardERC20.freshProxy, BridgedStandardERC20.empty, registeredToken, ho, hm]
   unfold Properties.registration_enabled
-  simp only [registerRepresentation, if_pos hg, hd, hi, if_pos rfl, ht]
+  simp only [registerRepresentation, ite_eq_left hg, hd, hi, ht]
   exact ⟨_, rfl⟩
 
 theorem wrong_initializer_caller_breaks_consistency (s : RegistrationState Accounting)

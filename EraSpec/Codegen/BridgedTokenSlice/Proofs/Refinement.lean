@@ -133,38 +133,38 @@ theorem mint_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Rel st
   unfold Properties.mint_refines Contracts.BridgedStandardERC20.mint
   rw [call_mint]
   by_cases hg : Contracts.BridgedStandardERC20.MintAllowed s caller recipient amount
-  · rw [if_pos hg]
+  · rw [ite_eq_left hg]
     obtain ⟨-, hc, hr0, hsz⟩ := hg
     refine ⟨fun h => (nomatch h), ?_⟩
     rintro t ⟨⟩
-    rw [if_neg (by rw [hr.vault, hc]; exact fun h => h rfl),
-      if_neg (fun h => hr0 (addrWord_eq_zero.mp h)),
-      if_neg (by rw [hr.supply]; omega)]
+    rw [ite_eq_right (by rw [hr.vault, hc]; exact fun h => h rfl),
+      ite_eq_right (fun h => hr0 (addrWord_eq_zero.mp h)),
+      ite_eq_right (by rw [hr.supply]; omega)]
     refine ⟨_, rfl, ⟨?_, hr.vault_ne, ?_, ?_⟩, rfl, rfl⟩
     · simp [upd, hr.vault, Contracts.BridgedStandardERC20.mintEffect]
-    · simp only [upd, if_true]
+    · simp only [upd, ite_true]
       rw [val_add_of_lt (by rw [hr.supply]; omega), hr.supply]
       rfl
     · intro a
-      simp only [setBal, upd, if_true]
+      simp only [setBal, upd, ite_true]
       by_cases ha : a = recipient
       · subst ha
-        simp only [if_true, Contracts.BridgedStandardERC20.mintEffect, Function.update_same]
+        simp only [ite_true, Contracts.BridgedStandardERC20.mintEffect, Function.update_self]
         rw [val_add_of_lt (by rw [hr.balances]; omega), hr.balances]
       · have : addrWord a ≠ addrWord recipient := fun h => ha (addrWord_inj.mp h)
-        simp only [this, if_false, Contracts.BridgedStandardERC20.mintEffect,
-          Function.update_noteq ha]
+        simp only [this, ite_false, Contracts.BridgedStandardERC20.mintEffect,
+          Function.update_of_ne ha]
         exact hr.balances a
-  · rw [if_neg hg]
+  · rw [ite_eq_right hg]
     refine ⟨fun _ => ?_, fun t h => (nomatch h)⟩
     by_cases h1 : addrWord caller ≠ st.scalars "_nativeTokenVault"
-    · rw [if_pos h1]; exact ⟨_, rfl⟩
-    rw [if_neg h1]
+    · rw [ite_eq_left h1]; exact ⟨_, rfl⟩
+    rw [ite_eq_right h1]
     by_cases h2 : addrWord recipient = 0
-    · rw [if_pos h2]; exact ⟨_, rfl⟩
-    rw [if_neg h2]
+    · rw [ite_eq_left h2]; exact ⟨_, rfl⟩
+    rw [ite_eq_right h2]
     by_cases h3 : UInt256.size ≤ (st.scalars "_totalSupply").val + amount.val
-    · rw [if_pos h3]; exact ⟨_, rfl⟩
+    · rw [ite_eq_left h3]; exact ⟨_, rfl⟩
     exfalso
     apply hg
     refine ⟨hr.vault_ne, ?_, fun h => h2 (by rw [h, addrWord_zero]), ?_⟩
@@ -178,39 +178,39 @@ theorem burn_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Rel st
   unfold Properties.burn_refines Contracts.BridgedStandardERC20.burn
   rw [call_burn]
   by_cases hg : Contracts.BridgedStandardERC20.BurnAllowed s caller account amount
-  · rw [if_pos hg]
+  · rw [ite_eq_left hg]
     obtain ⟨-, hc, ha0, hamt⟩ := hg
     refine ⟨fun h => (nomatch h), ?_⟩
     rintro t ⟨⟩
     have hamt' : amount.val ≤ (st.maps "_balances" (addrWord account)).val := by
       rw [hr.balances]; exact hamt
-    rw [if_neg (by rw [hr.vault, hc]; exact fun h => h rfl),
-      if_neg (fun h => ha0 (addrWord_eq_zero.mp h)), if_neg (not_not.mpr hamt')]
+    rw [ite_eq_right (by rw [hr.vault, hc]; exact fun h => h rfl),
+      ite_eq_right (fun h => ha0 (addrWord_eq_zero.mp h)), ite_eq_right (not_not.mpr hamt')]
     refine ⟨_, rfl, ⟨?_, hr.vault_ne, ?_, ?_⟩, rfl, rfl⟩
     · simp [upd, hr.vault, Contracts.BridgedStandardERC20.burnEffect]
-    · simp only [upd, if_true]
+    · simp only [upd, ite_true]
       rw [val_sub_of_le (by rw [hr.supply]; omega), hr.supply]
       rfl
     · intro a
-      simp only [setBal, upd, if_true]
+      simp only [setBal, upd, ite_true]
       by_cases ha : a = account
       · subst ha
-        simp only [if_true, Contracts.BridgedStandardERC20.burnEffect, Function.update_same]
+        simp only [ite_true, Contracts.BridgedStandardERC20.burnEffect, Function.update_self]
         rw [val_sub_of_le hamt', hr.balances]
       · have : addrWord a ≠ addrWord account := fun h => ha (addrWord_inj.mp h)
-        simp only [this, if_false, Contracts.BridgedStandardERC20.burnEffect,
-          Function.update_noteq ha]
+        simp only [this, ite_false, Contracts.BridgedStandardERC20.burnEffect,
+          Function.update_of_ne ha]
         exact hr.balances a
-  · rw [if_neg hg]
+  · rw [ite_eq_right hg]
     refine ⟨fun _ => ?_, fun t h => (nomatch h)⟩
     by_cases h1 : addrWord caller ≠ st.scalars "_nativeTokenVault"
-    · rw [if_pos h1]; exact ⟨_, rfl⟩
-    rw [if_neg h1]
+    · rw [ite_eq_left h1]; exact ⟨_, rfl⟩
+    rw [ite_eq_right h1]
     by_cases h2 : addrWord account = 0
-    · rw [if_pos h2]; exact ⟨_, rfl⟩
-    rw [if_neg h2]
+    · rw [ite_eq_left h2]; exact ⟨_, rfl⟩
+    rw [ite_eq_right h2]
     by_cases h3 : ¬ amount.val ≤ (st.maps "_balances" (addrWord account)).val
-    · rw [if_pos h3]; exact ⟨_, rfl⟩
+    · rw [ite_eq_left h3]; exact ⟨_, rfl⟩
     exfalso
     apply hg
     refine ⟨hr.vault_ne, ?_, fun h => h2 (by rw [h, addrWord_zero]), ?_⟩
@@ -223,14 +223,14 @@ theorem transfer_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Re
   unfold Properties.transfer_refines Contracts.BridgedStandardERC20.transfer
   rw [call_transfer]
   by_cases hg : Contracts.BridgedStandardERC20.TransferAllowed s owner recipient amount
-  · rw [if_pos hg]
+  · rw [ite_eq_left hg]
     obtain ⟨ho0, hr0, hamt⟩ := hg
     refine ⟨fun h => (nomatch h), ?_⟩
     rintro t ⟨⟩
     have hamt' : amount.val ≤ (st.maps "_balances" (addrWord owner)).val := by
       rw [hr.balances]; exact hamt
-    rw [if_neg (fun h => ho0 (addrWord_eq_zero.mp h)),
-      if_neg (fun h => hr0 (addrWord_eq_zero.mp h)), if_neg (not_not.mpr hamt')]
+    rw [ite_eq_right (fun h => ho0 (addrWord_eq_zero.mp h)),
+      ite_eq_right (fun h => hr0 (addrWord_eq_zero.mp h)), ite_eq_right (not_not.mpr hamt')]
     refine ⟨_, rfl, ⟨hr.vault, hr.vault_ne, hr.supply, ?_⟩, rfl, rfl⟩
     intro a
     simp only [Contracts.BridgedStandardERC20.transferEffect]
@@ -238,42 +238,42 @@ theorem transfer_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Re
     · subst hself
       by_cases ha : a = recipient
       · subst ha
-        simp only [setBal, upd, if_true, Function.update_same]
+        simp only [setBal, upd, ite_true, Function.update_self]
         have hlt := (Contracts.BridgedStandardERC20.balance_bounded hw a).2
         have hsub : (st.maps "_balances" (addrWord a) - amount).val = s.balances a - amount.val := by
           rw [val_sub_of_le hamt', hr.balances]
         rw [val_add_of_lt (by rw [hsub]; omega), hsub]
       · have : addrWord a ≠ addrWord recipient := fun h => ha (addrWord_inj.mp h)
-        simp only [setBal, upd, if_true, this, if_false, Function.update_noteq ha]
+        simp only [setBal, upd, ite_true, this, ite_false, Function.update_of_ne ha]
         exact hr.balances a
     · have hne : addrWord recipient ≠ addrWord owner := fun h => hself (addrWord_inj.mp h)
       have hpair := two_le_supply hw (Ne.symm hself)
       have hlt := (Contracts.BridgedStandardERC20.balance_bounded hw owner).2
       by_cases ha : a = recipient
       · subst ha
-        simp only [setBal, upd, if_true, hne, if_false, Function.update_same,
-          Function.update_noteq hself]
+        simp only [setBal, upd, ite_true, hne, ite_false, Function.update_self,
+          Function.update_of_ne hself]
         have hs := hw.2.1
         rw [val_add_of_lt (by rw [hr.balances]; omega), hr.balances]
       · have ha' : addrWord a ≠ addrWord recipient := fun h => ha (addrWord_inj.mp h)
-        simp only [setBal, upd, if_true, ha', if_false, Function.update_noteq ha]
+        simp only [setBal, upd, ite_true, ha', ite_false, Function.update_of_ne ha]
         by_cases hao : a = owner
         · subst hao
-          simp only [if_true, Function.update_same]
+          simp only [ite_true, Function.update_self]
           rw [val_sub_of_le hamt', hr.balances]
         · have hao' : addrWord a ≠ addrWord owner := fun h => hao (addrWord_inj.mp h)
-          simp only [hao', if_false, Function.update_noteq hao]
+          simp only [hao', ite_false, Function.update_of_ne hao]
           exact hr.balances a
-  · rw [if_neg hg]
+  · rw [ite_eq_right hg]
     refine ⟨fun _ => ?_, fun t h => (nomatch h)⟩
     by_cases h1 : addrWord owner = 0
-    · rw [if_pos h1]; exact ⟨_, rfl⟩
-    rw [if_neg h1]
+    · rw [ite_eq_left h1]; exact ⟨_, rfl⟩
+    rw [ite_eq_right h1]
     by_cases h2 : addrWord recipient = 0
-    · rw [if_pos h2]; exact ⟨_, rfl⟩
-    rw [if_neg h2]
+    · rw [ite_eq_left h2]; exact ⟨_, rfl⟩
+    rw [ite_eq_right h2]
     by_cases h3 : ¬ amount.val ≤ (st.maps "_balances" (addrWord owner)).val
-    · rw [if_pos h3]; exact ⟨_, rfl⟩
+    · rw [ite_eq_left h3]; exact ⟨_, rfl⟩
     exfalso
     apply hg
     refine ⟨fun h => h1 (by rw [h, addrWord_zero]), fun h => h2 (by rw [h, addrWord_zero]), ?_⟩
@@ -283,14 +283,14 @@ theorem views_exact {st : Storage} {s : State} (hr : Rel st s) (caller a : Addre
     Properties.views_exact hr caller a := by
   refine ⟨⟨_, call_balanceOf _ _ _, rfl, rfl, ?_⟩, ⟨_, call_totalSupply _ _, rfl, rfl, ?_⟩,
     ⟨_, call_nativeTokenVault _ _, rfl, rfl, by rw [hr.vault]⟩⟩
-  · simp [hr.balances]
-  · simp [hr.supply]
+  · exact congrArg some (hr.balances a)
+  · exact congrArg some hr.supply
 
 theorem deploy_establishes (deployer : Address) (config : Config) (hv : config.vault ≠ 0) :
     Properties.deploy_establishes deployer config hv := by
   have hv' : addrWord config.vault ≠ 0 := fun h => hv (addrWord_eq_zero.mp h)
   unfold Properties.deploy_establishes
-  rw [deploy_eq, if_neg hv']
+  rw [deploy_eq, ite_eq_right hv']
   refine ⟨_, rfl, ⟨?_, hv, ?_, ?_⟩, rfl⟩
   · simp [upd, empty]
   · simp [upd, Storage.zero, empty]
@@ -299,7 +299,7 @@ theorem deploy_establishes (deployer : Address) (config : Config) (hv : config.v
 theorem deploy_zero_vault_reverts (deployer : Address) :
     Properties.deploy_zero_vault_reverts deployer := by
   unfold Properties.deploy_zero_vault_reverts
-  rw [deploy_eq, if_pos addrWord_zero]
+  rw [deploy_eq, ite_eq_left addrWord_zero]
 
 /-! ## Every call -/
 
@@ -332,7 +332,7 @@ theorem match_step {st st' : Storage} {s : State} (hr : Rel st s) (hw : WellForm
   rename_i fname caller args r
   have hmem := List.mem_of_find?_eq_some hfind
   have hname : fn.name = fname := by simpa using List.find?_some hfind
-  simp only [program, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hmem
+  simp only [program, List.mem_cons, List.not_mem_nil, or_false] at hmem
   -- getters: storage is unchanged, so the model stutters
   have stutter : r.st = st → ∃ t, Run Contracts.BridgedStandardERC20.Step s t ∧
       Rel r.st t ∧ WellFormed t := fun h => ⟨s, Run.refl s, h ▸ hr, hw⟩

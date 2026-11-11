@@ -34,7 +34,7 @@ lemma executorAccept_nongenuine {K : Config} {e : ExecView} (he : K.exec K.m.E =
 /-- The executor is not the migration: the migration answers no executor getter. -/
 lemma exec_ne_mig {K : Config} {a : Address} {e : ExecView} (he : K.exec a = some e) :
     a ≠ K.M := by
-  intro h; subst h; rw [K.migNoExec] at he; exact Option.noConfusion he
+  intro h; subst h; rw [K.migNoExec] at he; exact nomatch he
 
 lemma executorAuthorities_E {K : Config} (h : ExecutorAuthorities K) :
     ∃ e, K.exec K.m.E = some e := by
@@ -86,7 +86,7 @@ theorem NoReparkingAfterMigrate : Properties.NoReparkingAfterMigrate := by
   induction h with
   | nil => exact hp
   | @cons s1 s2 s3 l ls hs _ ih =>
-    have hl0 : ¬ l.handsToMigration K := hl l (List.mem_cons_self _ _)
+    have hl0 : ¬ l.handsToMigration K := hl l (List.mem_cons_self)
     have hx2 := (step_spent hx hs).1
     apply ih hx2 _ (fun l' hm => hl l' (List.mem_cons_of_mem _ hm))
     simp only [ParkedOnMigration, not_or] at hp ⊢

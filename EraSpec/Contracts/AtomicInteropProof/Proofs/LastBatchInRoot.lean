@@ -72,7 +72,7 @@ theorem exists_first_left (i : ℕ) :
           obtain ⟨k, hk1, hk2⟩ := ih m hmlt
           refine ⟨k + 1, ?_, ?_⟩
           · have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
-            have hd : 0 < 2 ^ k := Nat.pos_pow_of_pos _ (by norm_num)
+            have hd : 0 < 2 ^ k := Nat.pow_pos (by norm_num)
             rw [hpow, mod_two_mul i _ hd]
             have hhalf : i / 2 = m := by omega
             have hpar : i % 2 = 1 := by omega

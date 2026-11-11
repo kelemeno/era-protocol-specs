@@ -37,11 +37,11 @@ theorem OnlyUpgradesAndCutsWriteADiamond : Properties.OnlyUpgradesAndCutsWriteAD
     | ctm _ => exact absurd (Option.some.inj (hc.symm.trans hc')).symm hcc
     | @genesis id' ρ hnone _ =>
       by_cases hid : id' = id
-      · subst hid; rw [hc] at hnone; exact Option.noConfusion hnone
+      · subst hid; rw [hc] at hnone; exact absurd hnone (by simp)
       · exact (keep hid hc hc' hcc).elim
     | @migrateIn id' ρ v _ hnone _ =>
       by_cases hid : id' = id
-      · subst hid; rw [hc] at hnone; exact Option.noConfusion hnone
+      · subst hid; rw [hc] at hnone; exact absurd hnone (by simp)
       · exact (keep hid hc hc' hcc).elim
     | @transition id' _ _ _ _ _ _ _ =>
       by_cases hid : id' = id
@@ -72,7 +72,7 @@ lemma mrun_sysInv {W : World} {s s' : MSys} {ls : List MLabel} (hI : SysInv W s.
   induction h with
   | nil => exact hI
   | cons hs _ ih =>
-    exact ih (mstep_sysInv hI hs (hl _ (List.mem_cons_self _ _)))
+    exact ih (mstep_sysInv hI hs (hl _ (List.mem_cons_self ..)))
       (fun l hm => hl l (List.mem_cons_of_mem _ hm))
 
 theorem ChainsRunTheirVersionsReleaseAcrossMigration :

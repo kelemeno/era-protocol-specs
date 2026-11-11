@@ -145,7 +145,7 @@ theorem step_inv {W : World} {s s' : CTM} {op : Op} (hI : CtmInv W s)
         simp only [upd_same] at hb
         cases b
         · simp at hb
-        · simp only [if_true, LegacyCut.bootstrap.injEq] at hb
+        · simp only [ite_true, LegacyCut.bootstrap.injEq] at hb
           subst hb
           exact ⟨hlt, by simp, hR⟩
       · rw [upd_ne _ _ hvp] at hb
@@ -276,7 +276,7 @@ theorem CommitWritesEachSlotOnce : Properties.CommitWritesEachSlotOnce := by
         have := run_departure_ge hr op' hop' v (of_decide_eq_true hd')
         omega
       simp [hd, hzero]
-    · simp only [hd, decide_False, ite_false, add_zero]
+    · simp only [hd, decide_false]
       exact ih v
 
 theorem OnlyCommitOrReplaceWritesSlots : Properties.OnlyCommitOrReplaceWritesSlots := by
@@ -341,7 +341,7 @@ theorem SlotsDepartFromTheirVersion : Properties.SlotsDepartFromTheirVersion := 
         have he : s.ut (W.tr e).old ≠ 0 := by rw [hslot]; exact he0
         obtain ⟨_, k2, k3, _, _, _⟩ := hI.slots _ he
         rw [hslot] at k2
-        rw [hgen e r (List.mem_cons_self _ _), hfrom, k2]
+        rw [hgen e r (List.mem_cons_self), hfrom, k2]
         exact (hI.relAtSound _ k3).2
       · rw [upd_ne _ _ hvo] at hv ⊢; exact hold v hv
     | legacyCommit _ _ => exact hold v hv

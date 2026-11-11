@@ -297,7 +297,7 @@ theorem ReservationTracksSlot : Properties.ReservationTracksSlot := by
     | @cons sa sb sc l ls hs _ ih =>
       intro hl heq
       apply ih (fun l' hm => hl l' (List.mem_cons_of_mem _ hm))
-      have hl0 := hl l (List.mem_cons_self _ _)
+      have hl0 := hl l (List.mem_cons_self)
       cases hs with
       | stage0 _ _ _ _ _ => rfl
       | forwardBegin _ => exact absurd trivial hl0
@@ -330,7 +330,7 @@ lemma no_stage0_after_start {K : Config} {s s' : Sys} {ls : List Label} {op t : 
     by_cases hl : l = .stage0 op
     · subst hl
       exact absurd (Stage0RefusesForeignOrStartedTimer K sa op t d a g ht hk (Or.inr h0) ⟨_, hs⟩) id
-    · rw [if_neg (fun h => hl h.symm)]
+    · simp [hl]
 
 theorem GovernanceTimerPreparesOnce : Properties.GovernanceTimerPreparesOnce := by
   intro K s0 s ls op t d a g hpos ht hk h
@@ -349,7 +349,7 @@ theorem GovernanceTimerPreparesOnce : Properties.GovernanceTimerPreparesOnce := 
           rw [startEffect_deadline_gov hk, upd_eq]; omega
       rw [no_stage0_after_start hr ht hk hb]; simp
     · have := ih (lt_of_lt_of_le hpos (step_now_mono hs))
-      rw [if_neg (fun h => hl h.symm)]; simpa using this
+      simpa [hl] using this
 
 /-! ## The timer -/
 

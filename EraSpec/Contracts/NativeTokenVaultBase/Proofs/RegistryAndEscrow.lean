@@ -103,43 +103,43 @@ variable (thisChain : Chain) (W : World) (c : Chain) (a : AssetId) (amt : ℕ)
 @[simp] lemma bridgeOut_originChain :
     (bridgeOut thisChain W c a amt).vault.originChain = W.vault.originChain := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, if_pos hnat]
-  · simp [bridgeOut, if_neg hnat]
+  · simp [bridgeOut, ite_eq_left hnat]
+  · simp [bridgeOut, ite_eq_right hnat]
 @[simp] lemma bridgeOut_token :
     (bridgeOut thisChain W c a amt).vault.token = W.vault.token := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, if_pos hnat]
-  · simp [bridgeOut, if_neg hnat]
+  · simp [bridgeOut, ite_eq_left hnat]
+  · simp [bridgeOut, ite_eq_right hnat]
 @[simp] lemma bridgeOut_assetOf :
     (bridgeOut thisChain W c a amt).vault.assetOf = W.vault.assetOf := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, if_pos hnat]
-  · simp [bridgeOut, if_neg hnat]
+  · simp [bridgeOut, ite_eq_left hnat]
+  · simp [bridgeOut, ite_eq_right hnat]
 @[simp] lemma bridgeOut_originToken :
     (bridgeOut thisChain W c a amt).vault.originToken = W.vault.originToken := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, if_pos hnat]
-  · simp [bridgeOut, if_neg hnat]
+  · simp [bridgeOut, ite_eq_left hnat]
+  · simp [bridgeOut, ite_eq_right hnat]
 @[simp] lemma bridgeIn_originChain :
     (bridgeIn thisChain W c a amt).vault.originChain = W.vault.originChain := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, if_pos hnat]
-  · simp [bridgeIn, if_neg hnat]
+  · simp [bridgeIn, ite_eq_left hnat]
+  · simp [bridgeIn, ite_eq_right hnat]
 @[simp] lemma bridgeIn_token :
     (bridgeIn thisChain W c a amt).vault.token = W.vault.token := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, if_pos hnat]
-  · simp [bridgeIn, if_neg hnat]
+  · simp [bridgeIn, ite_eq_left hnat]
+  · simp [bridgeIn, ite_eq_right hnat]
 @[simp] lemma bridgeIn_assetOf :
     (bridgeIn thisChain W c a amt).vault.assetOf = W.vault.assetOf := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, if_pos hnat]
-  · simp [bridgeIn, if_neg hnat]
+  · simp [bridgeIn, ite_eq_left hnat]
+  · simp [bridgeIn, ite_eq_right hnat]
 @[simp] lemma bridgeIn_originToken :
     (bridgeIn thisChain W c a amt).vault.originToken = W.vault.originToken := by
   by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, if_pos hnat]
-  · simp [bridgeIn, if_neg hnat]
+  · simp [bridgeIn, ite_eq_left hnat]
+  · simp [bridgeIn, ite_eq_right hnat]
 @[simp] lemma donate_originChain :
     (donate W a amt).vault.originChain = W.vault.originChain := rfl
 @[simp] lemma donate_token : (donate W a amt).vault.token = W.vault.token := rfl
@@ -188,25 +188,25 @@ variable (thisChain : Chain) (W : World) (c : Chain) (a : AssetId) (amt : ℕ)
 lemma bridgeOut_bridgedOut_native (hnat : Native thisChain W.vault a) :
     (bridgeOut thisChain W c a amt).vault.bridgedOut
       = upd W.vault.bridgedOut a (W.vault.bridgedOut a + amt) := by
-  simp [bridgeOut, if_pos hnat]
+  simp [bridgeOut, ite_eq_left hnat]
 lemma bridgeOut_escrowed_native (hnat : Native thisChain W.vault a) :
     (bridgeOut thisChain W c a amt).vault.escrowed
       = upd W.vault.escrowed a (W.vault.escrowed a + amt) := by
-  simp [bridgeOut, if_pos hnat]
+  simp [bridgeOut, ite_eq_left hnat]
 lemma bridgeOut_vault_foreign (hnat : ¬ Native thisChain W.vault a) :
     (bridgeOut thisChain W c a amt).vault = W.vault := by
-  simp [bridgeOut, if_neg hnat]
+  simp [bridgeOut, ite_eq_right hnat]
 lemma bridgeIn_bridgedOut_native (hnat : Native thisChain W.vault a) :
     (bridgeIn thisChain W c a amt).vault.bridgedOut
       = upd W.vault.bridgedOut a (W.vault.bridgedOut a - amt) := by
-  simp [bridgeIn, if_pos hnat]
+  simp [bridgeIn, ite_eq_left hnat]
 lemma bridgeIn_escrowed_native (hnat : Native thisChain W.vault a) :
     (bridgeIn thisChain W c a amt).vault.escrowed
       = upd W.vault.escrowed a (W.vault.escrowed a - amt) := by
-  simp [bridgeIn, if_pos hnat]
+  simp [bridgeIn, ite_eq_left hnat]
 lemma bridgeIn_vault_foreign (hnat : ¬ Native thisChain W.vault a) :
     (bridgeIn thisChain W c a amt).vault = W.vault := by
-  simp [bridgeIn, if_neg hnat]
+  simp [bridgeIn, ite_eq_right hnat]
 @[simp] lemma donate_bridgedOut : (donate W a amt).vault.bridgedOut = W.vault.bridgedOut := rfl
 @[simp] lemma donate_escrowed :
     (donate W a amt).vault.escrowed = upd W.vault.escrowed a (W.vault.escrowed a + amt) := rfl
@@ -579,7 +579,7 @@ theorem registerNative_id_fresh_on {e : NtvAssetId} {S : Set (Chain × Address)}
     (hg : RegisterNativeGuard V t) : ¬ Registered V (e thisChain t) := by
   intro hreg
   have hpair := he.inj _ (hP _ hreg) _ hmem (hV.idShape _ hreg).symm
-  obtain ⟨hc, hot⟩ := Prod.mk.inj_iff.mp hpair
+  obtain ⟨hc, hot⟩ := Prod.mk_inj.mp hpair
   have hnative : Native thisChain V (e thisChain t) := hc
   have htok : V.token (e thisChain t) = t := by
     rw [← hV.nativeToken _ hreg hnative, hot]
@@ -939,7 +939,7 @@ theorem registerNative_id_fresh_or_collision {e : NtvAssetId} {thisChain : Chain
     · exact Or.inr (Or.inl h0)
     · refine Or.inr (Or.inr ⟨hreg, ?_, (hV.idShape _ hreg).symm⟩)
       intro hpair
-      obtain ⟨hc, hot⟩ := Prod.mk.inj_iff.mp hpair
+      obtain ⟨hc, hot⟩ := Prod.mk_inj.mp hpair
       have hnative : Native thisChain V (e thisChain t) := hc
       have htok : V.token (e thisChain t) = t := by
         rw [← hV.nativeToken _ hreg hnative, hot]
@@ -958,12 +958,12 @@ theorem idAssumptionsOn_of_card (S : Finset (Chain × Address)) (hS : S.card < U
       ⟨(f ⟨(c, t), h⟩).val + 1, by have := (f ⟨(c, t), h⟩).isLt; omega⟩ else 0, ?_, ?_⟩
   · rintro ⟨c₁, t₁⟩ h₁ ⟨c₂, t₂⟩ h₂ heq
     rw [Finset.mem_coe] at h₁ h₂
-    simp only [dif_pos h₁, dif_pos h₂, Fin.mk.injEq, add_left_inj] at heq
+    simp only [dite_eq_left h₁, dite_eq_left h₂, Fin.mk.injEq, add_left_inj] at heq
     have hf : f ⟨(c₁, t₁), h₁⟩ = f ⟨(c₂, t₂), h₂⟩ := Fin.ext heq
     exact congrArg Subtype.val (f.injective hf)
   · rintro ⟨c, t⟩ h
     rw [Finset.mem_coe] at h
-    simp only [dif_pos h]
+    simp only [dite_eq_left h]
     intro h0
     have := congrArg Fin.val h0
     simp at this
@@ -1244,7 +1244,7 @@ def twoRunLog (e : NtvAssetId) : List Op :=
 lemma twoRunLog_pairs (e : NtvAssetId) :
     registeredPairs 1 (twoRunLog e) = registeredPairs 1 twoRegLog := by
   rw [twoRunLog, registeredPairs_append]
-  simp [registeredPairs, Op.pair]
+  simp [registeredPairs, Op.pair, List.filterMap_cons]
 
 lemma twoRegLog_pairs :
     registeredPairs 1 twoRegLog = {((1 : Chain), (1 : Address)), (1, 2)} := by
@@ -1369,7 +1369,7 @@ theorem log_pairs_can_outlive_end_state :
   by_cases ha : a = 1
   · subst ha
     rw [sn_originToken_self] at hp
-    exact absurd (Prod.mk.inj_iff.mp hp).2 (by decide)
+    exact absurd (Prod.mk_inj.mp hp).2 (by decide)
   · apply hreg
     rw [sn_token_of_ne _ _ _ _ _ ha, sn_token_of_ne _ _ _ _ _ ha]
     rfl

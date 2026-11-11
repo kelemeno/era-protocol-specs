@@ -82,7 +82,7 @@ lemma applyLoop_frame {C : Config} (hf : ReinitFrames C) {I J : Impl} {rows : Li
   | @cons I J K r rs hstep _ ih =>
       intro p hp
       rw [ih p (fun t ht => hp t (List.mem_cons_of_mem _ ht))]
-      exact applyRow_frame hf hstep p (fun hq => hp r (List.mem_cons_self _ _) hq.symm)
+      exact applyRow_frame hf hstep p (fun hq => hp r (List.mem_cons_self) hq.symm)
 
 /-- Under distinct proxies, each row finds its proxy at its target or its source: no
 earlier row has touched it. -/
@@ -90,7 +90,7 @@ lemma applyLoop_source {C : Config} (hf : ReinitFrames C) {I J : Impl} {rows : L
     (h : ApplyLoop C I rows J) : rows.Pairwise (fun a b => a.proxy ≠ b.proxy) →
     ∀ r ∈ rows, I r.proxy = r.implNew ∨ I r.proxy = r.expectedOldImpl := by
   induction h with
-  | nil => intro _ r hr; exact absurd hr (List.not_mem_nil r)
+  | nil => intro _ r hr; exact absurd hr List.not_mem_nil
   | @cons I J K r rs hstep _ ih =>
       intro hd t ht
       rcases List.mem_cons.mp ht with rfl | ht'
@@ -107,7 +107,7 @@ lemma applyLoop_skip {C : Config} {I : Impl} {rows : List Row} (h : RowsApplied 
   induction rows with
   | nil => exact ApplyLoop.nil
   | cons r rs ih =>
-      exact ApplyLoop.cons (ApplyRow.alreadyAtTarget (h r (List.mem_cons_self _ _)))
+      exact ApplyLoop.cons (ApplyRow.alreadyAtTarget (h r (List.mem_cons_self)))
         (ih (fun t ht => h t (List.mem_cons_of_mem _ ht)))
 
 lemma applyLoop_unowned {C : Config} (hne : C.adminOwner ≠ C.self) {I J : Impl}
@@ -125,7 +125,7 @@ lemma mem_toRows {slots : List Row} {r : Row} : r ∈ toRows slots ↔ r ∈ slo
   simp [toRows, dropInertSlots, List.mem_filter]
 
 lemma toRows_sublist (slots : List Row) : (toRows slots).Sublist slots :=
-  List.filter_sublist _
+  List.filter_sublist
 
 end Contracts.ProxyUpgradeCurrent
 
@@ -261,7 +261,7 @@ theorem DuplicateRowsBreakOrder : Properties.DuplicateRowsBreakOrder := by
       ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide))
         (ApplyLoop.cons (ApplyRow.alreadyAtTarget (by decide)) ApplyLoop.nil), ?_⟩
     intro r hr
-    simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hr
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hr
     rcases hr with rfl | rfl <;> decide
   · exact StaleObjectReverts wConfig wImpl rowA3 [rowA] (by decide) (by decide)
 

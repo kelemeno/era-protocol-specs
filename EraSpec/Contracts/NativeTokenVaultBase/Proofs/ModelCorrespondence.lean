@@ -69,8 +69,8 @@ theorem registryCorr_write {R R' : Registry} {V : Vault} (h : RegistryCorr R V)
 theorem registryCorr_install {R : Registry} {V : Vault} (h : RegistryCorr R V)
     (A : UInt256) (T : Address) (ot : NativeTokenVault.Address) (oc : Chain) :
     RegistryCorr (installRegistry R A T) (NativeTokenVault.setNewTokenStorage V A (widen T) ot oc) :=
-  registryCorr_write h ot oc (fun _ ha => Function.update_noteq ha _ _) (Function.update_same _ _ _)
-    (fun _ ht => Function.update_noteq ht _ _) (Function.update_same _ _ _)
+  registryCorr_write h ot oc (fun _ ha => Function.update_of_ne ha _ _) (Function.update_self _ _ _)
+    (fun _ ht => Function.update_of_ne ht _ _) (Function.update_self _ _ _)
 
 theorem registryCorr_empty :
     RegistryCorr ⟨fun _ => 0, fun _ => 0⟩ NativeTokenVault.empty.vault :=
@@ -181,17 +181,17 @@ private theorem prepare_view' {hooks : Hooks Accounting} {s : State Accounting}
   split at h
   · rename_i hg
     cases ha : hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha] at h
+    | none => simp only [ha, reduceCtorEq] at h
     | some accounted =>
       simp only [ha] at h
       split at h
       · cases hb : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount with
-        | none => simp only [hb] at h
+        | none => simp only [hb, reduceCtorEq] at h
         | some burned =>
           simp only [hb] at h
           split at h
           · cases hm : hooks.metadata burned s.config.originChainId with
-            | none => simp only [hm] at h
+            | none => simp only [hm, reduceCtorEq] at h
             | some metadata =>
               simp only [hm] at h
               exact ⟨hg.1, hg.2, accounted, burned, metadata, rfl, (Option.some.inj h).symm⟩
@@ -236,7 +236,7 @@ theorem preparationIsForeignBridgeOut {hooks : Hooks Accounting} {s : State Acco
   have hamt : r.data.amount.val ≠ 0 := fun h0 => he.2.2.2.2.2 (Fin.ext h0)
   have hvault : (NativeTokenVault.bridgeOut thisChain W r.destinationChain r.assetId
       r.data.amount.val).vault = W.vault := by
-    simp [NativeTokenVault.bridgeOut, if_neg hforeign]
+    simp [NativeTokenVault.bridgeOut, ite_eq_right hforeign]
   refine ⟨NativeTokenVault.Step.bridgeOut ⟨hreg, hamt⟩, hforeign, hvault, ?_⟩
   refine ⟨hc.chain, hc.registry, ?_⟩
   intro hreg'
@@ -301,7 +301,7 @@ theorem toy_registration (R : Registry) (token origin : Address) (chain oc : UIn
       ⟨toyConfig token (oc + 1) chain oc, R, false, ()⟩ origin = some out := by
   have hb : registerFreshBranch (toyHooks token) ⟨toyConfig token (oc + 1) chain oc, R, false, ()⟩
       origin = registerRepresentation (toyHooks token)
-        ⟨toyConfig token (oc + 1) chain oc, R, false, ()⟩ origin := if_pos hfree
+        ⟨toyConfig token (oc + 1) chain oc, R, false, ()⟩ origin := ite_eq_left hfree
   rw [hb]
   exact registration_enabled (hooks := toyHooks token)
     (s := ⟨toyConfig token (oc + 1) chain oc, R, false, ()⟩) (accounting := ())
@@ -364,16 +364,16 @@ def rebindState : RegistrationState Unit := ⟨toyConfig 5 (2 + 1) 1 2, nativeRe
 theorem nativeRegistry_token_ne (n : Address) {a : UInt256} (ha : a ≠ 1 + 1) :
     (nativeRegistry n).tokenForAsset a = 0 := by
   show Function.update (fun _ => (0 : Address)) (toyId 1 (widen n)) n a = 0
-  exact Function.update_noteq ha _ _
+  exact Function.update_of_ne ha _ _
 
 theorem nativeRegistry_asset_self (n : Address) : (nativeRegistry n).assetForToken n = 1 + 1 := by
   show Function.update (fun _ => (0 : UInt256)) n (toyId 1 (widen n)) n = 1 + 1
-  exact Function.update_same _ _ _
+  exact Function.update_self _ _ _
 
 theorem nativeRegistry_asset_ne (n : Address) {t : Address} (ht : t ≠ n) :
     (nativeRegistry n).assetForToken t = 0 := by
   show Function.update (fun _ => (0 : UInt256)) n (toyId 1 (widen n)) t = 0
-  exact Function.update_noteq ht _ _
+  exact Function.update_of_ne ht _ _
 
 theorem nativeVault_token (n : Address) : (nativeVault n).token (1 + 1) = widen n :=
   NativeTokenVault.sn_token_self NativeTokenVault.empty.vault (toyId 1 (widen n)) (widen n)
@@ -525,7 +525,7 @@ theorem witnessToken_ledger : BridgedStandardERC20.WellFormed witnessToken := by
   have hmint : BridgedStandardERC20.mint (BridgedStandardERC20.empty ⟨1, 7, 2 + 1⟩) 1 11 1
       = some witnessToken := by
     unfold BridgedStandardERC20.mint
-    rw [if_pos]
+    rw [ite_eq_left]
     · rfl
     · refine ⟨by decide, rfl, by decide, ?_⟩
       norm_num [BridgedStandardERC20.empty, UInt256.size]
@@ -544,12 +544,12 @@ def witnessPrepHooks : Hooks Unit := ⟨fun a _ _ _ _ => some a, fun _ _ => some
 theorem witnessPrep_token :
     witnessPrepState.registry.tokenForAsset (2 + 1) = 5 := by
   show Function.update (nativeRegistry 9).tokenForAsset (2 + 1) 5 (2 + 1) = 5
-  exact Function.update_same _ _ _
+  exact Function.update_self _ _ _
 
 theorem witnessPrep_asset :
     witnessPrepState.registry.assetForToken 5 = 2 + 1 := by
   show Function.update (nativeRegistry 9).assetForToken 5 (2 + 1) 5 = 2 + 1
-  exact Function.update_same _ _ _
+  exact Function.update_self _ _ _
 
 theorem witnessPrep_rc : RepresentationConsistent witnessPrepState :=
   ⟨rfl, rfl, witnessPrep_token, witnessPrep_asset⟩
@@ -566,7 +566,7 @@ theorem preparationCorrespondenceSatisfiable : Properties.PreparationCorresponde
   have hs : InScope witnessPrepState witnessRequest := by
     refine ⟨by decide, by decide, by decide, by decide, ?_⟩
     show (if (0 : Address) = 0 then witnessPrepState.registry.tokenForAsset (2 + 1) else 0) = 5
-    rw [if_pos rfl, htok]
+    rw [ite_eq_left rfl, htok]
   have hsel : selectedToken witnessPrepState witnessRequest = 5 := hs.2.2.2.2
   have he : EntryAllowed witnessPrepState witnessRequest := by
     refine ⟨rfl, rfl, rfl, ?_, ?_, by decide⟩
@@ -574,7 +574,7 @@ theorem preparationCorrespondenceSatisfiable : Properties.PreparationCorresponde
     · rw [hsel]; exact witnessPrep_asset
   have hb : witnessRequest.data.amount.val ≤ witnessPrepState.token.balances 11 := by
     show (1 : UInt256).val ≤ Function.update (fun _ => 0) (11 : Address) (0 + (1 : UInt256).val) 11
-    rw [Function.update_same]
+    rw [Function.update_self]
     decide
   obtain ⟨out, hout⟩ := preparation_enabled (hooks := witnessPrepHooks) (accounted := ())
     (metadata := []) hw hs he rfl (by decide) hb (by decide) (by decide) rfl rfl

@@ -88,7 +88,7 @@ lemma applyRows_frame {C : Config} {I J : Impl} {rows : List Row} (h : ApplyRows
       have htail : K p = J p := ih p (fun t ht => hp t (List.mem_cons_of_mem _ ht))
       have hhead : J p = I p := by
         by_cases hq : p = r.proxy
-        · exact congrFun (applyRow_fixed hstep (hp r (List.mem_cons_self _ _) hq.symm)) p
+        · exact congrFun (applyRow_fixed hstep (hp r List.mem_cons_self hq.symm)) p
         · exact applyRow_frame hstep p hq
       exact htail.trans hhead
 
@@ -100,7 +100,7 @@ lemma applyRows_target {C : Config} {I J : Impl} {rows : List Row} (h : ApplyRow
     rows.Pairwise (fun a b => a.proxy ≠ b.proxy) →
     ∀ r ∈ rows, ¬ LeftToAdministrator C r → J r.proxy = r.implNew := by
   induction h with
-  | nil => intro _ r hr; exact absurd hr (List.not_mem_nil r)
+  | nil => intro _ r hr; exact absurd hr List.not_mem_nil
   | @cons I J K r rs hstep _ ih =>
       intro hd t ht hf
       rcases List.mem_cons.mp ht with rfl | ht'
@@ -132,7 +132,7 @@ lemma applyRows_idem {C : Config} {I J : Impl} {rows : List Row}
         (fun t ht => key t (List.mem_cons_of_mem _ ht)))
       by_cases hl : LeftToAdministrator C r
       · exact ApplyRow.leftToAdmin hl
-      · exact ApplyRow.alreadyAtTarget hl (key r (List.mem_cons_self _ _) hl)
+      · exact ApplyRow.alreadyAtTarget hl (key r List.mem_cons_self hl)
 
 end Contracts.ProxyUpgrade
 
@@ -187,7 +187,7 @@ lemma mem_toRows {slots : List Row} {r : Row} : r ∈ toRows slots ↔ r ∈ slo
   simp [toRows, dropInertSlots, List.mem_filter]
 
 lemma toRows_sublist (slots : List Row) : (toRows slots).Sublist slots :=
-  List.filter_sublist _
+  List.filter_sublist
 
 end Contracts.ProxyUpgrade
 
@@ -237,7 +237,7 @@ theorem OrderIndependent : Properties.OrderIndependent := by
   · obtain ⟨r, hr, rfl, hf⟩ := hex
     rw [applyRows_target h hd r hr hf,
         applyRows_target h' hd' r (hperm.mem_iff.mp hr) hf]
-  · push_neg at hex
+  · push Not at hex
     have hall : ∀ r ∈ rows, r.proxy = p → LeftToAdministrator C r := by
       intro r hr hq
       by_contra hc
@@ -251,7 +251,7 @@ theorem DuplicateRowsBreakPostcondition :
       · exact cm_owned _ rfl
       · rcases List.mem_cons.mp hr' with rfl | hr''
         · exact cm_owned _ rfl
-        · exact absurd hr'' (List.not_mem_nil _),
+        · exact absurd hr'' List.not_mem_nil,
    cm_run, cm_gate_fails⟩
 
 theorem DuplicateRowsBreakOrder : Properties.DuplicateRowsBreakOrder :=
@@ -264,7 +264,7 @@ theorem ForeignRowLeavesGateOpen : Properties.ForeignRowLeavesGateOpen :=
   ⟨⟨by intro r hr
        rcases List.mem_cons.mp hr with rfl | hr'
        · exact ⟨by decide, by decide, by decide⟩
-       · exact absurd hr' (List.not_mem_nil _),
+       · exact absurd hr' List.not_mem_nil,
      by simp⟩,
    fgn_left, fgn_run, fgn_gate_fails⟩
 

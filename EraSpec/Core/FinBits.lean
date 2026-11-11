@@ -40,7 +40,7 @@ theorem shiftRight_one_val (idx : UInt256) :
     (Fin.shiftRight idx 1).val = idx.val / 2 := by
   have h := idx.isLt
   have hd : idx.val / 2 ≤ idx.val := Nat.div_le_self _ _
-  simp only [Fin.shiftRight, Nat.shiftRight_eq_div_pow, pow_one]
+  simp only [Fin.shiftRight, Nat.shiftRight_eq_div_pow]
   exact Nat.mod_eq_of_lt (lt_of_le_of_lt hd h)
 
 /-- Masking with `1` extracts the low bit: the value of `idx &&& 1` is
@@ -54,8 +54,8 @@ theorem land_one_val (idx : UInt256) :
   have h2 : idx.val % 2 < 2 := Nat.mod_lt _ (by norm_num)
   have hs : (2 : ℕ) < UInt256.size := by norm_num [UInt256.size]
   simp only [Fin.land]
-  have hone : (1 : ℕ) % (115792089237316195423570985008687907853269984665640564039457584007913129639935 + 1) = 1 :=
-    Nat.mod_eq_of_lt (by norm_num)
+  have hone : (1 : ℕ) % UInt256.size = 1 :=
+    Nat.mod_eq_of_lt (by norm_num [UInt256.size])
   rw [hone]
   rw [show Nat.land idx.val 1 = idx.val % 2 from Nat.and_one_is_mod idx.val]
   exact Nat.mod_eq_of_lt (lt_trans h2 hs)
@@ -81,8 +81,9 @@ the read lands above the keccak scratch one has to know its address, and the add
 is `path + 32*i + 32`.  The no-wrap hypothesis is necessary — `shiftLeft` truncates. -/
 theorem shiftLeft_five_val (i : UInt256) (h : 32 * i.val < UInt256.size) :
     (Fin.shiftLeft i 5).val = 32 * i.val := by
-  have h5 : ((5 : UInt256)).val = 5 := by decide
-  simp only [Fin.shiftLeft, h5, Nat.shiftLeft_eq]
+  have h5 : (5 : ℕ) % UInt256.size = 5 := Nat.mod_eq_of_lt (by norm_num [UInt256.size])
+  simp only [Fin.shiftLeft, Nat.shiftLeft_eq]
+  rw [h5]
   rw [show i.val * 2 ^ 5 = 32 * i.val by ring]
   exact Nat.mod_eq_of_lt h
 
@@ -125,7 +126,6 @@ why the mask lemma is a subtraction argument rather than a bit-by-bit one. -/
 @[simp] theorem shiftLeft_zero (x : UInt256) : Fin.shiftLeft x 0 = x := by
   simp only [Fin.shiftLeft]
   apply Fin.ext
-  simp only [Fin.val_zero, Nat.shiftLeft_zero]
   exact Nat.mod_eq_of_lt x.isLt
 
 /-- Shifting ZERO, as opposed to shifting BY zero: `shl(k, 0) = 0`.  Both directions come
@@ -137,11 +137,12 @@ up in the mask -- `shiftBits := shl(3, offset)` needs this one, the mask itself 
 
 @[simp] theorem land_zero (x : UInt256) : Fin.land x 0 = 0 := by
   apply Fin.ext
-  simp [Fin.land, Nat.land, Nat.bitwise_zero_right]
+  simp [Fin.land]
 
 @[simp] theorem zero_lor (x : UInt256) : Fin.lor 0 x = x := by
   apply Fin.ext
-  simp [Fin.lor, Nat.lor, Nat.bitwise_zero_left, Nat.mod_eq_of_lt x.isLt]
+  simp [Fin.lor]
+  exact x.isLt
 
 /-- The full-word mask is zero: `not (not 0) = 0`, so the old word is cleared outright. -/
 theorem lnot_lnot_zero : UInt256.lnot (UInt256.lnot 0) = 0 := by

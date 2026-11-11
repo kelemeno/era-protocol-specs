@@ -44,7 +44,7 @@ theorem ascending_iff_pairwise {l : List α} :
     Properties.ascending_iff_pairwise (l := l) := by
   unfold Properties.ascending_iff_pairwise
   exact
-    List.chain'_iff_pairwise
+    List.isChain_iff_pairwise
 
 
 /-- Strictly ascending at every earlier/later position pair. -/
@@ -84,8 +84,8 @@ theorem ascending_unique {l₁ l₂ : List α}
   unfold Properties.ascending_unique
   exact
     by
-      haveI : IsAntisymm α (· < ·) := ⟨fun _ _ h₁ h₂ => absurd h₁ (asymm h₂)⟩
-      exact List.eq_of_perm_of_sorted hp (ascending_iff_pairwise.mp h₁) (ascending_iff_pairwise.mp h₂)
+      exact hp.eq_of_pairwise (fun _ _ _ _ hab hba => absurd hab (asymm hba))
+        (ascending_iff_pairwise.mp h₁) (ascending_iff_pairwise.mp h₂)
 
 
 /-! ## Why the check is an ORDERING and not merely distinctness
@@ -102,7 +102,7 @@ theorem neighbour_distinct_insufficient :
   unfold Properties.neighbour_distinct_insufficient
   exact
     by
-      refine ⟨[1, 2, 1], by simp [List.chain'_cons], by decide⟩
+      refine ⟨[1, 2, 1], by simp [List.isChain_cons], by decide⟩
 
 
 /-- And it admits a permuted re-presentation too: same legs, different list, both passing. -/
@@ -111,7 +111,7 @@ theorem neighbour_distinct_admits_permutation :
   unfold Properties.neighbour_distinct_admits_permutation
   exact
     by
-      refine ⟨[1, 2], [2, 1], by simp [List.chain'_cons], by simp [List.chain'_cons], ?_, by decide⟩
+      refine ⟨[1, 2], [2, 1], by simp [List.isChain_cons], by simp [List.isChain_cons], ?_, by decide⟩
       exact List.Perm.swap _ _ _
 
 
