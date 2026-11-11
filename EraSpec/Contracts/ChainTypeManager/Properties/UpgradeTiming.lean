@@ -58,10 +58,19 @@ a `ChainRouting` run (`TimedRunIsARun`), so the routing headline holds along tim
 
 ## The deadline
 
-A schedule that passed `requireValidEdge` leaves no dead time on its edge. At every
-instant, chains at the departing version may still commit batches, or may already cross
-the edge (`ValidEdgeHasNoDeadTime`), as long as the owner has not overridden the deadline.
-An override can open dead time (`DeadlineOverrideOpensDeadTime`).
+`ValidEdgeHasNoDeadTime` is arithmetic on the deadline getter, for an arbitrary CTM state,
+reachable or not. Suppose the schedule in slot `v` passed `requireValidEdge` and the owner has
+not overridden `v`'s deadline. Then at every instant `protocolVersionIsActive(v)` holds or the
+manifest's time gate of the edge is open. That gate is one of the conditions of an upgrade
+(`UpgradeChainEnabledIffTimed`), so this alone does not say that chains at `v` can cross the
+edge. An override can close both at once (`DeadlineOverrideOpensDeadTime`).
+
+The statement about the system is in `UpgradeTimingStrong`. Every reachable slot has a valid
+schedule (`ReachableSlotsHaveValidSchedules`). Along validated timed runs, take a chain at a
+version with a committed edge, with every batch executed and its settlement layer at the
+target version. It is never in dead time: at every instant its version is active, or its admin
+and the CTM's owner can upgrade it (`ValidatedTimedRunsHaveNoDeadTime`). Without those two
+gates a valid schedule does leave dead time (`ValidScheduleAloneLeavesDeadTime`).
 
 ## Witnesses
 
@@ -275,10 +284,18 @@ def Properties.ReplacementMovesTheTimeGate : Prop :=
 
 /-! ## The departing version's deadline -/
 
-/-- **A VALID SCHEDULE LEAVES NO DEAD TIME.** For the transition committed at `v`, if its
-schedule passed `requireValidEdge` and the owner has not overridden `v`'s deadline:
-* at every instant, chains at `v` may still commit batches, or the edge's time gate is open;
+/-- **A VALID SCHEDULE LEAVES NO GAP BETWEEN ITS TWO TIME WINDOWS.** This is a fact about the
+`protocolVersionDeadline` getter (`versionDeadline`) for an arbitrary CTM state `s`, reachable
+or not. Take the transition in slot `v`. Suppose its schedule passed `requireValidEdge` and the
+owner has not overridden `v`'s deadline. Then:
+* at every instant, `protocolVersionIsActive(v)` holds, or the manifest's time gate of the edge
+  is open;
 * at the upgrade timestamp itself, both hold.
+
+The time gate is one of the conditions of an upgrade (`UpgradeChainEnabledIffTimed`). So this
+does not say that an upgrade step exists, or that a reachable slot has a valid schedule. Those
+are `ValidatedTimedRunsHaveNoDeadTime` and `ReachableSlotsHaveValidSchedules`
+(`UpgradeTimingStrong`).
 -/
 def Properties.ValidEdgeHasNoDeadTime : Prop :=
   ∀ (T : TimedConfig) (d : ℕ → ℕ) (s : CTM) (v τ : ℕ), s.ut v ≠ 0 → d v = 0 →
@@ -288,9 +305,12 @@ def Properties.ValidEdgeHasNoDeadTime : Prop :=
 
 /-- **AN OVERRIDDEN DEADLINE CAN OPEN DEAD TIME.** On the witness CTM after committing `300`,
 whose schedule is valid (time `10`, deadline `20`):
-* without an override there is no dead time;
+* without an override, at every instant version 1 is active or the edge's time gate is open;
 * after `setProtocolVersionDeadline(1, 1)`, at time `5` chains at version 1 can no longer
-  commit batches and cannot yet cross the edge.
+  commit batches, and the edge's time gate is still closed, so they cannot yet cross the edge.
+
+The same override on a reachable timed state, with every upgrade step ruled out, is in
+`NoDeadTimeNeedsItsOtherPremises` (`UpgradeTimingStrong`).
 -/
 def Properties.DeadlineOverrideOpensDeadTime : Prop :=
   ∃ s, CRun wWorld (initState wWorld 100) [.commit 300] s ∧ s.ut 1 = 300 ∧
