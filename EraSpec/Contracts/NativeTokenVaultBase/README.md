@@ -25,6 +25,9 @@ discharge these concrete obligations.
 | Registry-wide asset registry and escrow ledger (separate model, namespace `Contracts.NativeTokenVault`) | [Specs/RegistryAndEscrow.lean](Specs/RegistryAndEscrow.lean) |
 | Registry coherence, solvency, net-flow, and two boundary countermodels | [Properties/RegistryAndEscrow.lean](Properties/RegistryAndEscrow.lean) |
 | Checked registry and ledger derivations | [Proofs/RegistryAndEscrow.lean](Proofs/RegistryAndEscrow.lean) |
+| Correspondence relation between the two models (no new transitions) | [Specs/ModelCorrespondence.lean](Specs/ModelCorrespondence.lean) |
+| Agreement, guard gap, invariant agreement, four disagreement countermodels | [Properties/ModelCorrespondence.lean](Properties/ModelCorrespondence.lean) |
+| Checked correspondence derivations and witnesses | [Proofs/ModelCorrespondence.lean](Proofs/ModelCorrespondence.lean) |
 
 ## Two overlapping models
 
@@ -34,8 +37,9 @@ models above. It covers the whole registry (`originChainId`, `tokenAddress`,
 `assetId` written by `_setNewTokenStorage`), both registration paths, and the
 aggregate `bridgedOut` escrow ledger. The ledger hooks themselves are in
 `L1NativeTokenVault.sol` at the same pin. The two models overlap on registration
-and the registry maps and use different state types. Unifying them is open.
-Neither model's results transfer to the other.
+and the registry maps and use different state types. `ModelCorrespondence` relates them on that
+overlap (see [below](#how-the-two-models-relate)); results transfer only through
+the statements proved there.
 
 Twelve of its fourteen properties take `IdAssumptions e`, whose `inj` field
 asserts that `encodeNTVAssetId` is injective on all (chain, token) pairs of 256-bit
@@ -139,3 +143,47 @@ destination execution, refund, replay protection, unique resolution, or completi
 of the first end-to-end bridge milestone. See the
 [asset-bridging verification plan](../../../ASSET_BRIDGING_VERIFICATION_PLAN.md)
 and [refinement obligations](../../Refinement.lean) for the broader open work.
+
+## How the two models relate
+
+`Specs/ModelCorrespondence.lean` defines `Corr`: same chain id, the two shared maps
+agree pointwise (`tokenAddress[assetId]`, `assetId[token]`, with 160-bit addresses
+zero-extended by `widen` and non-address words unset), and, once the registry model
+has the tracked asset registered, the same origin chain and origin token for it.
+The representation model has no `originChainId` map, so origin data of other
+assets is unconstrained.
+
+Proved agreement:
+
+* `RegistrationEffectCorresponds`: a successful `registerRepresentation` writes the
+  overlap exactly as the registry model's `registerBridged` does.
+* `RegistrationGuardGap`: after a successful `registerFreshBranch` on a
+  corresponding state, `RegisterBridgedGuard` holds iff three conditions the
+  representation model does not check hold (`RegistryOnlyGuards`: token address
+  nonzero, token address not yet mapped, origin chain nonzero). The other three
+  registry guards follow from the representation model's checks, given that its
+  asset encoder agrees with `e` at the one pair it checks.
+* `RegistrationIsRegistryStep`, `RegistrationPreservesValidOn`: with those three
+  conditions, the registration is a registry `Step` and carries `Valid` under the
+  bounded hash premise `IdAssumptionsOn`.
+* `PreparationIsForeignBridgeOut`: under `RepresentationConsistent`, a successful
+  `prepare` is a registry `bridgeOut` of a non-native asset, which leaves the vault
+  unchanged. Correspondence persists.
+* `ValidRegistryHalvesAgree`: under `Valid`, the forward and reverse map conjuncts
+  of `RepresentationConsistent` imply each other for nonzero entries.
+
+Disagreements (countermodels, each on a `Valid` corresponding vault with the hash
+premise on every pair involved):
+
+| Result | Representation model | Registry model | Source at the pin |
+|---|---|---|---|
+| `RepRegistrationRebindsLiveToken` | registers at an address already mapped to a live asset; `WellFormed` holds after | `freshToken` guard rejects; the corresponding write breaks `Valid.inverse` | no explicit check in `_ensureAndSaveTokenDeployedInner`; freshness rests on CREATE2 reverting at an occupied address. The representation header says the deploy hook allocates a new proxy, but its type does not enforce it. |
+| `RepRegistrationAcceptsZeroOriginChain` | registers with origin chain `0` | `originNonzero` guard rejects; the write breaks `Valid.originIff` | `tokenDataOriginChainId` replaces `0` with `_l1ChainId()` before the inner helper, so the registry model matches when `_l1ChainId() ≠ 0`. |
+| `RepRegistrationAcceptsZeroToken` | registers with deployed address `0` | `tokenNonzero` guard rejects; the write breaks `Valid.zeroTokenFree` | CREATE2 deployment never yields address `0` (`Create2.deploy` reverts on it on L1). |
+| `RegistryBridgedAcceptsZeroOriginToken` | never registers origin token `0` | accepts it and stays `Valid` | `bridgeInitialize` requires `_originToken != address(0)`, so the representation model matches. |
+
+So each model is missing a source-implied condition the other has. Adding the three
+registry-only conditions to the representation model's registration (or proving
+them from deployment and chain-ID normalization), and `ot ≠ 0` to
+`RegisterBridgedGuard`, would close the gap. Neither model is changed here.
+

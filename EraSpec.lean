@@ -14,6 +14,7 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.PreparationGuards
 -- Asset bridge: the vault's registry and escrow ledger, and the router's handler
 -- table (registry-wide models; see the contract READMEs for how they relate)
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistryAndEscrow
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ModelCorrespondence
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 
 -- Registry-driven upgrades: the proxy row state machine (a snapshot of a moving
