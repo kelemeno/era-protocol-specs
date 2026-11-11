@@ -53,7 +53,7 @@ shared module with Clear, and identical origins do not establish a connection
 between theorem statements in the two repositories.
 
 Material authored for this repository includes the AtomicFlowManager and
-L2InteropCommitmentTree state-machine models, `Protocol/Spec.lean`,
+L2InteropCommitmentTree state-machine models, `Protocol/MultichainGate/` (was `Protocol/Spec.lean`),
 `Core/PreparedApplication.lean`, `Examples/BurnMintBridge/*`, and `Refinement.lean`.
 The `BridgedStandardERC20`, `NativeTokenVaultBase`, and protocol
 `AssetBridgePreparation` developments were also authored locally; they do not
@@ -85,10 +85,9 @@ are unchanged, with four exceptions that only remove a premise the proof never u
 That branch also restated base theorems as separate properties. The
 commitment-tree and flow-manager restatements duplicate properties already split
 out here and were dropped. Its nine `Properties.Protocol` statements (bound gate,
-`ChainsNoDoubleSpend`, the unbound-gate countermodel) were dropped too, but their
-counterparts in `Protocol/Spec.lean` are plain theorems, outside the
-Specs/Properties/Proofs split and the audit's property coverage. Splitting that file
-is open.
+`ChainsNoDoubleSpend`, the unbound-gate countermodel) were dropped too; their
+counterparts are the split `Protocol/MultichainGate/` properties (the old
+`Protocol/Spec.lean` is now a compatibility import of it).
 
 ## Implementation correspondence remains open
 
@@ -133,6 +132,12 @@ supplying that correspondence.
   sources are under `l1-contracts/contracts/upgrades/registry/` and the
   `ChainTypeManager`, `Admin`, `DefaultUpgrade`, `BootstrapUpgrade` and `DiamondInit`
   contracts. Specs docstrings quote the transcribed guards with file:line at that commit.
+* `EraSpec/Contracts/RegistryBootstrapMigration/` (bootstrap authority) is pinned at
+  `e561b9cc2` too. `EraSpec/Contracts/EcosystemUpgradeExecutor/` (the coordinator and
+  its timer) is pinned at **`afa407085`**, because the coordinator and
+  `GovernanceUpgradeTimer` were deleted from the branch before `e561b9cc2`
+  (`f64622022d`, `469310c94e`); it describes a design that no longer exists at the
+  newer pin.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.

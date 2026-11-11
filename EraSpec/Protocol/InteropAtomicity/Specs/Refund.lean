@@ -76,8 +76,8 @@ deriving DecidableEq
 
 Note what is *not* in it: `commitValue(flowId, bundleHash)` has no chain, so two
 obligations differing only in their chain share a commit value by construction and
-no collision is implied.  The chain is bound elsewhere — membership self-binds, and
-`authorizeRefund` compares the proof's source chain with the leg's declared one
+no collision is implied.  The chain is bound elsewhere: the gate consults the declared
+source chain's tree, and `authorizeRefund` compares the proof's source chain with the leg's declared one
 (`Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/MultichainGate/Properties/Model.lean`)). -/
 def CommitValueInj (cv : CommitValue) : Prop :=
   ∀ f₁ b₁ f₂ b₂, cv f₁ b₁ = cv f₂ b₂ → f₁ = f₂ ∧ b₁ = b₂

@@ -45,7 +45,8 @@ namespace Contracts.EcosystemUpgradeExecutor
 /-- **EACH STAGE'S GUARD.** `stage0` needs the slot free, the CTM domain idle, a nonzero
 operation naming a timer, and that timer's `startTimer()` to succeed; `stage1` needs the
 operation pending at `Prepared` and its timer's deadline passed; `stage2` the same at
-`Executed`; abandonment needs something pending. -/
+`Executed`; abandonment needs something pending.  These are necessary conditions (one
+direction), and the `active ≠ 0` conjunct of `stage1`/`stage2`/`abandon` is not listed. -/
 def Properties.StageGuards : Prop :=
   ∀ (K : Config) (s s' : Sys) (op : Address),
     (Step K s (.stage0 op) s' →

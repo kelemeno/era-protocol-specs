@@ -66,7 +66,9 @@ def Properties.DriftSurvivesMigrationRoundTrip : Prop :=
 /-- **A DRIFTED RETURNER IS STUCK ONCE THE CTM MOVES ON.** After the round trip above, the
 CTM commits `300` (1→2). Chain `0`, still at version 1 with the drifted routing, has no
 transition (the guard refuses its routing) and cannot leave again (it is not at the CTM's
-version). -/
+version).  The round trip adds nothing here: a drifted chain that never left is stuck
+the same way (`DriftBlocksTransition` plus version lag).  The content is only that
+migration does not reset routing (`DriftSurvivesMigrationRoundTrip`). -/
 def Properties.DriftedReturnerIsStuck : Prop :=
   ∃ s, MRun wWorld wMSys0
       [.base (.genesis 0), .base (.arbitraryCut 0 1 bgExtra), .migrateOut 0, .migrateReturn 0,

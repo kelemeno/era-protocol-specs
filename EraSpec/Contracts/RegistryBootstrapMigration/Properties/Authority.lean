@@ -99,7 +99,10 @@ def Properties.NonGenuineExecutorParksTheCTM : Prop :=
 /-- **WHILE THE SPENT MIGRATION OWNS THE CTM, ONLY THE NOMINEE'S ACCEPT MOVES IT.** From a
 state where the migration owns the CTM and the edge is spent, every transaction leaves
 the owner and the nominee unchanged, except an `acceptOwnership()` by the nominee, which
-makes the nominee the owner. -/
+makes the nominee the owner.  Within the model: it omits one real writer of the CTM's
+owner slot, the CTM-domain `ProxyAdmin`, whose owner can swap the CTM implementation
+(`CTMUpgradeExecutor.sol:38-39`).  In the parked states this model reaches, that owner
+is the nominee too. -/
 def Properties.ParkedCTMLeavesOnlyByNomineeAccept : Prop :=
   ∀ (K : Config) (s s' : AState) (l : Label), s.ctmOwner = K.M → s.executed = true →
     AStep K s l s' →
