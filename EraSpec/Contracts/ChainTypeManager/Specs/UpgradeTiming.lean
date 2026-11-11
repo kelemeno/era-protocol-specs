@@ -119,7 +119,11 @@ upgrade timestamp. The owner may override the deadline with any nonzero value
 * **Transition schedules are getters** (`TimedConfig.sched`): `upgradeTimestamp()` and
   `oldProtocolVersionDeadline()` of the object at each address, fixed because the object is
   write-once (`CTMTransition.sol:48-49`). `ValidSchedule` is what the constructor's
-  `requireValidEdge` establishes; it is a premise only where a result needs it.
+  `requireValidEdge` establishes; it is a premise only where a result needs it. Neither it nor
+  the same-deadline check of a replacement (`_requireSameDeadline`, `ChainTypeManager.sol:488-494`)
+  is a condition of `CStep`, so the model's commit and replacement steps admit a transition
+  with any schedule. `Specs/UpgradeTimingStrong.lean` states both as premises on a run's labels
+  (`Op.CommitsValidSchedule`, `Op.KeepsDeadline`).
 * **`s.chainTypeManager` is this CTM for every chain.** `DiamondInit.initialize` sets
   `s.chainTypeManager = msg.sender` (`state-transition/chain-deps/DiamondInit.sol:91`), and the
   CTM is the deployer (`ChainTypeManager.sol:693`), so `msg.sender` is the CTM. A source search

@@ -585,9 +585,12 @@ abbrev Properties.guardedEvolution_delivery_exactly_once {S : ℕ → Finset Abs
 only for a witness that is *in* the leaf set (`W ∈ s`).  That hypothesis is not
 decorative: the theorem below exhibits a fully `SoundState` tree in which a
 DELIVERED value `v` nonetheless admits a straddling window carried by a
-NON-member leaf `⟨0, 0⟩`.  So no invariant on the leaf set alone can save the
-reclaim gate — the contract must separately guarantee that a presented low leaf
-really is a tree leaf.
+NON-member leaf.  (Its proof uses `{⟨0, a⟩, ⟨a, 0⟩}` and the leaf `⟨0, 0⟩`; its
+statement pins neither.  `ModelStrong` pins them, and shows more: in EVERY
+`GapSound` tree the leaf `⟨0, 0⟩` is a non-member straddling EVERY delivered
+nonzero value, `IMTAbstract.ModelStrong.Properties.padding_leaf_forges_every_delivered`.)
+So no invariant on the leaf set alone can save the reclaim gate — the contract
+must separately guarantee that a presented low leaf really is a tree leaf.
 
 This is exactly the forged-non-inclusion attack that the padding-hash fix
 addresses: when empty positions are padded with `hashLeaf {0,0,0}`, a *padded*
@@ -597,11 +600,18 @@ empty positions with a dedicated constant distinct from `hashLeaf {0,0,0}`
 is what makes `W ∈ s` discharge-able, and hence what makes the exclusivity
 theorems applicable. -/
 
-/-- **THE FORGED-PADDING WITNESS BREAKS EXCLUSIVITY.**  For any nonzero `a`
-there is a sound tree (`{⟨0, a⟩, ⟨a, 0⟩}`) in which `a` is delivered, yet the
-non-member leaf `⟨0, 0⟩` — the hash-of-`{0,0,0}` padding leaf — carries a window
-straddling `a`.  Hence `W ∈ s` in `present_not_reclaimable` cannot be dropped,
-and empty-slot padding must be distinguishable from the real zero leaf. -/
+/-- **THE FORGED-PADDING WITNESS BREAKS EXCLUSIVITY (unpinned).**  There are a
+sound tree, a delivered value `v` and a NON-member leaf `W` whose window
+straddles `v`; hence `W ∈ s` in `present_not_reclaimable` cannot be dropped.
+The proof uses the tree `{⟨0, a⟩, ⟨a, 0⟩}`, `v = a` and the padding leaf
+`⟨0, 0⟩` (the abstract leaf of `hashLeaf({0,0,0})`), but the statement does not
+mention `a` and leaves `W` free: for every `a` it is also met by one fixed tree
+built at `1` with the non-padding leaf `⟨0, 2⟩`.  The pinned statement is
+`IMTAbstract.ModelStrong.Properties.forged_padding_witness_pinned`, and the
+general one `ModelStrong.padding_leaf_forges_every_delivered`: in every
+`GapSound` tree, for every delivered nonzero value, `⟨0, 0⟩` is a non-member
+whose window straddles it.  Empty-slot padding must be distinguishable from the
+real zero leaf. -/
 abbrev Properties.forged_padding_witness_breaks_exclusivity {a : UInt256} (ha : a ≠ 0) :=
   ∃ (s : Finset AbsLeaf) (v : UInt256) (W : AbsLeaf),
         SoundState s ∧ v ∈ keys s ∧ W ∉ s
