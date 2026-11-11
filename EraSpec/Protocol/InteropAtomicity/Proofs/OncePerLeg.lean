@@ -55,16 +55,14 @@ lemma InsertSucceeds.not_key {T : Tree} (hV : Valid T) {v : UInt256} {hint low :
 /-- Inserting changes no value except at the new index. -/
 lemma insert_value_of_ne {T : Tree} {v : UInt256} {low i : ℕ} (hi : i ≠ T.leafCount) :
     ((Contracts.InteropCommitmentTree.insert T v low).leaf i).value = (T.leaf i).value := by
-  by_cases hl : i = low
-  · subst hl
-    rw [insert_leaf_low]
+  rcases eq_or_ne i low with rfl | hl
+  · rw [insert_leaf_low]
   · rw [insert_leaf_other hl hi]
 
 /-- In a valid tree, a nonzero key is registered in `valueToIndex`. -/
 lemma registered_of_key {T : Tree} (hV : Valid T) {v : UInt256} (hv : v ≠ 0)
-    (hk : v ∈ keys (toAbs T)) : T.valueToIndex v ≠ 0 := by
-  intro h0
-  exact dedup_gate_sound hV hv h0 hk
+    (hk : v ∈ keys (toAbs T)) : T.valueToIndex v ≠ 0 :=
+  fun h0 => dedup_gate_sound hV hv h0 hk
 
 /-! ## The run invariant -/
 
@@ -137,14 +135,8 @@ lemma inv_append {cv : CommitValue} {c : Chain} {t : ChainState} {log : List Obl
       Finset.insert_comm]
   · rw [List.map_cons, List.nodup_cons]
     exact ⟨hnotin, hI.valsNodup⟩
-  · intro o ho
-    rcases List.mem_cons.mp ho with rfl | ho
-    · exact h.treeInsert.nonzero
-    · exact hI.valsNe o ho
-  · intro o ho
-    rcases List.mem_cons.mp ho with rfl | ho
-    · rfl
-    · exact hI.chainEq o ho
+  · exact List.forall_mem_cons.mpr ⟨h.treeInsert.nonzero, hI.valsNe⟩
+  · exact List.forall_mem_cons.mpr ⟨rfl, hI.chainEq⟩
   · intro f' b'
     by_cases hk : f' = f ∧ b' = b
     · obtain ⟨rfl, rfl⟩ := hk
@@ -152,13 +144,10 @@ lemma inv_append {cv : CommitValue} {c : Chain} {t : ChainState} {log : List Obl
       simp
     · simp only [appended_mgr]
       rw [set_other hk, hI.mgrUnset f' b']
-      constructor
-      · intro hnot hmem
-        rcases List.mem_cons.mp hmem with he | hmem
-        · exact hk ⟨congrArg Obligation.flowId he, congrArg Obligation.bundleHash he⟩
-        · exact hnot hmem
-      · intro hnot hmem
-        exact hnot (List.mem_cons_of_mem _ hmem)
+      refine ⟨fun hnot hmem => ?_, fun hnot hmem => hnot (List.mem_cons_of_mem _ hmem)⟩
+      rcases List.mem_cons.mp hmem with he | hmem
+      · exact hk ⟨congrArg Obligation.flowId he, congrArg Obligation.bundleHash he⟩
+      · exact hnot hmem
   · have hlow : low < t.tree.leafCount := hg.inBounds
     show (List.range (log.length + 1)).map
         (fun k => ((Contracts.InteropCommitmentTree.insert t.tree (cv f b) low).leaf (k + 1)).value)
@@ -184,10 +173,7 @@ lemma inv_authorize {cv : CommitValue} {c : Chain} {t : ChainState} {log : List 
     have hc : t.mgr.legState f' b' = .Committed := hg
     rw [hc] at hold
     simp only [set_same]
-    constructor
-    · intro h; cases h
-    · intro hnot
-      exact absurd (hold.mpr hnot) (by decide)
+    exact ⟨nofun, fun hnot => absurd (hold.mpr hnot) (by decide)⟩
   · show (t.mgr.set f b .Revertable).legState f' b' = .Unset ↔ _
     rw [set_other hk]
     exact hI.mgrUnset f' b'
@@ -203,10 +189,7 @@ lemma inv_claim {cv : CommitValue} {c : Chain} {t : ChainState} {log : List Obli
     have hc : t.mgr.legState f' b' = .Revertable := hg
     rw [hc] at hold
     simp only [set_same]
-    constructor
-    · intro h; cases h
-    · intro hnot
-      exact absurd (hold.mpr hnot) (by decide)
+    exact ⟨nofun, fun hnot => absurd (hold.mpr hnot) (by decide)⟩
   · show (t.mgr.set f b .Reverted).legState f' b' = .Unset ↔ _
     rw [set_other hk]
     exact hI.mgrUnset f' b'
@@ -220,7 +203,6 @@ theorem inv_of_steps {cv : CommitValue} {c : Chain} {s : ChainState} {log : List
   | authorize _ hg ih => exact inv_authorize ih hg
   | claim _ hg ih => exact inv_claim ih hg
   | initL2 _ h0 ih =>
-    exfalso
     have := ih.count
     omega
 
@@ -263,7 +245,6 @@ theorem steps_tree_reaches {cv : CommitValue} {c : Chain} {s t : ChainState}
   | authorize _ _ ih => exact ih
   | claim _ _ ih => exact ih
   | initL2 _ h0 ih =>
-    exfalso
     have := (reaches_valid ih hV).occupied
     omega
 
@@ -301,13 +282,8 @@ theorem one_index_per_logged_obligation {cv : CommitValue} {c : Chain} {s : Chai
   have hreg : s.tree.valueToIndex (commitOf cv o) ≠ 0 :=
     registered_of_key hV (hI.valsNe o ho) (hI.key_of_mem ho)
   obtain ⟨hlt, hval⟩ := hV.vtiSound _ hreg
-  refine ⟨Nat.pos_of_ne_zero hreg, hlt, ?_⟩
-  intro i hi
-  constructor
-  · intro hvi
-    exact hV.idxInj i hi _ hlt (hvi.trans hval.symm)
-  · rintro rfl
-    exact hval
+  exact ⟨Nat.pos_of_ne_zero hreg, hlt, fun i hi =>
+    ⟨fun hvi => hV.idxInj i hi _ hlt (hvi.trans hval.symm), fun hi' => hi' ▸ hval⟩⟩
 
 end Contracts.AppendPath
 
@@ -384,9 +360,7 @@ theorem NoSecondAppend : Properties.NoSecondAppend := by
   intro cv c s log f b hint low t log' hrun happ hseg
   refine ⟨?_, ?_⟩
   · -- the manager: `no_double_append` on the continuation's manager run
-    have hreach : Contracts.AtomicFlowManager.Reach (s.mgr.set f b .Committed) t.mgr :=
-      steps_mgr_reach hseg
-    exact no_double_append happ.legUnset hreach
+    exact no_double_append happ.legUnset (steps_mgr_reach hseg)
   · -- the tree: the value stays a key (`ReachesKeysMono`), so the dedup gate refuses it
     intro hint' low' hins
     have hV : Valid s.tree := (inv_of_steps hrun).valid
@@ -405,9 +379,7 @@ theorem RefundedLegWasAppendedOnce : Properties.RefundedLegWasAppendedOnce := by
   have hI := inv_of_steps h
   have hmem : (⟨f, b, c⟩ : Obligation) ∈ log := by
     by_contra hnot
-    have hunset := (hI.mgrUnset f b).mpr hnot
-    rw [hunset] at hrank
-    simp [rank] at hrank
+    simp [(hI.mgrUnset f b).mpr hnot, rank] at hrank
   exact ⟨List.count_eq_one_of_mem (AppendedAtMostOnce cv c s log h) hmem, hI.key_of_mem hmem⟩
 
 end Contracts.AppendPath
@@ -423,13 +395,7 @@ open Contracts.AtomicFlowManager Contracts.Refund
 lemma lowSearch_stop {T : Tree} {v : UInt256} {i : ℕ}
     (h : ¬ ((T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v)) (fuel : ℕ) :
     lowSearch T v fuel i = some i := by
-  cases fuel with
-  | zero =>
-    simp only [lowSearch]
-    exact ite_eq_right h
-  | succ n =>
-    simp only [lowSearch]
-    exact ite_eq_right h
+  cases fuel <;> simp only [lowSearch] <;> exact ite_eq_right h
 
 theorem KeyPinsAppendedLegOrClash : Properties.KeyPinsAppendedLegOrClash := by
   intro cv c s log h f b hv0 hkey
@@ -464,9 +430,7 @@ theorem GatesDisagreeOnlyOnLoggedClash : Properties.GatesDisagreeOnlyOnLoggedCla
   constructor
   · rintro ⟨hunset, hreg⟩
     have hkey : cv f b ∈ keys (toAbs s.tree) := registered_is_key hI.valid hreg
-    rcases (hpin hkey).1 with hmem | hcl
-    · exact absurd hmem ((hI.mgrUnset f b).mp hunset)
-    · exact hcl
+    exact (hpin hkey).1.resolve_left ((hI.mgrUnset f b).mp hunset)
   · rintro ⟨o, ho, hcl⟩
     have hkey : cv f b ∈ keys (toAbs s.tree) := by
       rw [show cv f b = commitOf cv o from hcl.2]
@@ -506,9 +470,7 @@ theorem AppendEnabledIff : Properties.AppendEnabledIff := by
       · apply lowSearch_stop
         rintro ⟨hne, hlt⟩
         rw [hinext] at hne hlt
-        rcases hWwin with h0 | hgt
-        · exact hne h0
-        · exact absurd hlt (not_lt.mpr hgt.le)
+        exact hWwin.elim hne fun hgt => absurd hlt (not_lt.mpr hgt.le)
 
 theorem AppendBlockedOnlyByClash : Properties.AppendBlockedOnlyByClash := by
   intro cv c s log h f b hunset hv0
@@ -519,9 +481,8 @@ theorem AppendBlockedOnlyByClash : Properties.AppendBlockedOnlyByClash := by
     have hkey : cv f b ∈ keys (toAbs s.tree) := by
       by_contra hk
       exact hblocked ⟨hv0, hk⟩
-    rcases (KeyPinsAppendedLegOrClash cv c s log h f b hv0 hkey).1 with hmem | hcl
-    · exact absurd hmem ((hI.mgrUnset f b).mp hunset)
-    · exact hcl
+    exact (KeyPinsAppendedLegOrClash cv c s log h f b hv0 hkey).1.resolve_left
+      ((hI.mgrUnset f b).mp hunset)
   · rintro ⟨o, ho, hcl⟩ ⟨_, hk⟩
     apply hk
     rw [show cv f b = commitOf cv o from hcl.2]
@@ -551,10 +512,7 @@ lemma update_other (X : Chains) {c x : Chain} (s : ChainState) (h : x ≠ c) :
 lemma mgrs_update (X : Chains) (c : Chain) (s : ChainState) :
     (X.update c s).mgrs = setAt X.mgrs c s.mgr := by
   funext x
-  by_cases hx : x = c
-  · subst hx
-    simp [Chains.mgrs, setAt, Chains.update]
-  · simp [Chains.mgrs, setAt, Chains.update, hx]
+  by_cases hx : x = c <;> simp [Chains.mgrs, setAt, Chains.update, hx]
 
 lemma mgrs_update_same (X : Chains) (c : Chain) (s : ChainState) (h : s.mgr = (X c).mgr) :
     (X.update c s).mgrs = X.mgrs := by
@@ -687,9 +645,7 @@ theorem SystemRefundedWasAppendedOnce : Properties.SystemRefundedWasAppendedOnce
   intro h z0 hl cv fh S Y log alog hr o hrf
   obtain ⟨hcount, hkey⟩ := RefundedLegWasAppendedOnce cv o.chain (Y o.chain) _
     (sysSteps_chain hr o.chain) o.flowId o.bundleHash hrf
-  refine ⟨?_, hkey⟩
-  rw [← count_filter_chain log o]
-  exact hcount
+  exact ⟨count_filter_chain log o ▸ hcount, hkey⟩
 
 theorem SystemAuthorizedWereAppended : Properties.SystemAuthorizedWereAppended := by
   intro h z0 hl cv fh S Y log alog hr
@@ -881,14 +837,8 @@ theorem SystemWitness : Properties.SystemWitness := by
       intro he
       have hid : (1 : UInt256) = 0 := congrArg Obligation.flowId he
       exact absurd hid (by decide)
-    intro hb
-    cases hb with
-    | flowIdClash a ha hobl _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
-    | inclusion a ha hobl _ _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
-    | absence a ha hobl _ _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
+    rintro (⟨a, ha, hobl, _⟩ | ⟨a, ha, hobl, _, _⟩ | ⟨a, ha, hobl, _, _⟩) <;>
+      (rw [List.mem_singleton] at ha; subst ha; exact hneq hobl)
   · -- the executed obligation is still `Committed` on chain `0`
     show ¬ 2 ≤ rank ((sysY2.update 1 ⟨(sysY2 1).mgr.set 1 2 .Revertable, (sysY2 1).tree⟩ 0).mgr.legState
       0 1)

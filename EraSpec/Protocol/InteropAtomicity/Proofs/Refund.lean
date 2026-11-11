@@ -65,36 +65,26 @@ theorem refund_needs_own_flow_timeout {h : Hash} {z0 : UInt256} {hl : LeafHash}
   induction hr with
   | refl =>
     intro o hrf
-    exfalso
-    simp only [Refunded, stateOf_emptyManagers] at hrf
-    simp [rank] at hrf
+    simp [Refunded, rank] at hrf
   | @tail Ns Ps _ hs ih =>
     intro o hrf
     cases hs with
     | @append c f b hg =>
       by_cases heq : o = ⟨f, b, c⟩
-      · exfalso
-        subst heq
-        simp only [Refunded, stateOf_setAt_self] at hrf
-        simp [rank] at hrf
-      · refine ih o ?_
-        simpa only [Refunded, stateOf_setAt_other heq] using hrf
+      · subst heq
+        simp [Refunded, stateOf_setAt_self, rank] at hrf
+      · exact ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
     | @authorize F leg hchk hmem hauth _ =>
       by_cases heq : o = obligationOf F leg
       · exact ⟨F, hchk, leg, hmem, heq.symm, hauth⟩
-      · refine ih o ?_
-        rw [obligationOf_eq] at heq
-        simpa only [Refunded, stateOf_setAt_other heq] using hrf
+      · rw [obligationOf_eq] at heq
+        exact ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
     | @claim c f b hg =>
       by_cases heq : o = ⟨f, b, c⟩
       · -- `claim` needs `Revertable`, so the previous state was already past `Committed`
         subst heq
-        refine ih _ ?_
-        simp only [Refunded, stateOf]
-        rw [show (Ns c).legState f b = LegState.Revertable from hg]
-        simp [rank]
-      · refine ih o ?_
-        simpa only [Refunded, stateOf_setAt_other heq] using hrf
+        exact ih _ (by simp [Refunded, stateOf, show (Ns c).legState f b = .Revertable from hg, rank])
+      · exact ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
 
 /-- **AND IT IS THE OBLIGATION'S OWN FLOW'S.** -/
 theorem refund_implies_own_flow_timeout {h : Hash} {z0 : UInt256} {hl : LeafHash}
@@ -119,8 +109,7 @@ theorem executed_freezes_flow {h : Hash} {z0 : UInt256} {hl : LeafHash}
     (o : Obligation) (ho : o.flowId = F.flowId) : ¬ Refunded Ms o := by
   intro hrf
   obtain ⟨F', hchk', leg', _, hobl, hauth⟩ := refund_needs_own_flow_timeout hr o hrf
-  have h1 : F'.flowId = o.flowId := congrArg Obligation.flowId hobl
-  have hid : F'.flowId = F.flowId := by rw [← ho]; exact h1
+  have hid : F'.flowId = F.flowId := (congrArg Obligation.flowId hobl).trans ho
   obtain rfl : F' = F := flowId_check_pins_legList hinj hchk' hchk hid
   obtain ⟨other, hother, href⟩ := hauth
   exact executed_excludes_any_refund hA hS hex other hother href
@@ -149,10 +138,8 @@ theorem accepted_timeout_authorizes {h : Hash} {z0 : UInt256} {hl : LeafHash}
     (hA : HashAssumptions h z0 hl) {cv : CommitValue} {S : System} {ze : UInt256}
     {R : SlRoot} {B : RootBacking h ze R} (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg}
     (hmem : leg ∈ F.legs) (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
-    RefundAuthorized h z0 hl cv S F ∨ HashBreak h ze (B.leaves leg.chain) := by
-  rcases accepted_implies_refundable hA.nodeInj hagg ha with hr | hb
-  · exact Or.inl ⟨leg, hmem, hr⟩
-  · exact Or.inr hb
+    RefundAuthorized h z0 hl cv S F ∨ HashBreak h ze (B.leaves leg.chain) :=
+  (accepted_implies_refundable hA.nodeInj hagg ha).imp_left (⟨leg, hmem, ·⟩)
 
 /-- **THE PUNCHLINE.**  An accepted timeout proof for a flow that delivered is a
 hash break. -/
@@ -162,10 +149,9 @@ theorem accepted_timeout_for_delivered_flow_is_a_break {h : Hash} {z0 : UInt256}
     (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg}
     (hex : ExecutedVia h z0 hl cv fh S F leg) (other : FlowLeg) (hother : other ∈ F.legs)
     (ha : LegRefundableAccepted h z0 hl cv S B F other) :
-    HashBreak h ze (B.leaves other.chain) := by
-  rcases accepted_implies_refundable hA.nodeInj hagg ha with hr | hb
-  · exact absurd hr (executed_excludes_any_refund hA hS hex other hother)
-  · exact hb
+    HashBreak h ze (B.leaves other.chain) :=
+  (accepted_implies_refundable hA.nodeInj hagg ha).resolve_left
+    (executed_excludes_any_refund hA hS hex other hother)
 
 /-! ## What a shared commitment means -/
 
@@ -173,11 +159,8 @@ theorem shared_commitment_yields_collision (cv : CommitValue) (o o' : Obligation
     (heq : cv o.flowId o.bundleHash = cv o'.flowId o'.bundleHash) :
     (o.flowId = o'.flowId ∧ o.bundleHash = o'.bundleHash)
       ∨ ∃ f₁ b₁ f₂ b₂, (f₁, b₁) ≠ (f₂, b₂) ∧ cv f₁ b₁ = cv f₂ b₂ := by
-  by_cases hsame : o.flowId = o'.flowId ∧ o.bundleHash = o'.bundleHash
-  · exact Or.inl hsame
-  · refine Or.inr ⟨o.flowId, o.bundleHash, o'.flowId, o'.bundleHash, ?_, heq⟩
-    intro hpair
-    exact hsame ⟨congrArg Prod.fst hpair, congrArg Prod.snd hpair⟩
+  refine or_iff_not_imp_left.mpr fun hsame =>
+    ⟨o.flowId, o.bundleHash, o'.flowId, o'.bundleHash, fun hpair => hsame (Prod.mk.inj hpair), heq⟩
 
 theorem commitment_pins_leg {cv : CommitValue} (hinj : CommitValueInj cv) (o o' : Obligation)
     (heq : cv o.flowId o.bundleHash = cv o'.flowId o'.bundleHash) :
@@ -246,8 +229,7 @@ theorem CommitValueInjUnsatisfiable : Properties.CommitValueInjUnsatisfiable :=
 
 theorem UnpinnedCollisionsAlwaysExist : Properties.UnpinnedCollisionsAlwaysExist := by
   refine ⟨fun fh => ?_, fun cv => MerkleSpec.Verifier.exists_pair_collision cv⟩
-  by_contra hno
-  push Not at hno
+  by_contra! hno
   have hinj : Contracts.Atomicity.FlowHashInj fh := by
     intro l₁ d₁ l₂ d₂ he
     by_contra hne
@@ -281,8 +263,7 @@ theorem refund_of_flowId_implies_own_flow_timeout_or_collision {h : Hash} {z0 : 
       ∨ ∃ F', FlowIdChecked fh F' ∧ (∃ leg' ∈ F'.legs, obligationOf F' leg' = o)
           ∧ RefundAuthorized h z0 hl cv S F' ∧ FlowIdClash fh F F' := by
   obtain ⟨F', hchk', leg', hmem', hobl, hauth⟩ := refund_needs_own_flow_timeout hr o hrf
-  have hid : F.flowId = F'.flowId := by
-    rw [← ho]; exact (congrArg Obligation.flowId hobl).symm
+  have hid : F.flowId = F'.flowId := ho.symm.trans (congrArg Obligation.flowId hobl).symm
   rcases flowId_check_pins_legList_or_collision hchk hchk' hid with rfl | hcl
   · exact Or.inl hauth
   · exact Or.inr ⟨F', hchk', ⟨leg', hmem', hobl⟩, hauth, hcl⟩
@@ -363,16 +344,12 @@ theorem CommitmentPinsLegOrCollision : Properties.CommitmentPinsLegOrCollision :
 
 theorem CommitmentPinsLegOn : Properties.CommitmentPinsLegOn := by
   intro cv os hinj o ho o' ho' heq
-  rcases CommitmentPinsLegOrCollision cv o o' heq with h | h
-  · exact h
-  · exact absurd h (hinj o ho o' ho')
+  exact (CommitmentPinsLegOrCollision cv o o' heq).resolve_right (hinj o ho o' ho')
 
 theorem CommitValueInjOnSatisfiable : Properties.CommitValueInjOnSatisfiable := by
   intro os hlen
   let P : List (UInt256 × UInt256) := os.map (fun o => (o.flowId, o.bundleHash))
-  have hPlen : P.length < UInt256.size := by
-    show (os.map _).length < _
-    rw [List.length_map]; exact hlen
+  have hPlen : P.length < UInt256.size := by simpa [P] using hlen
   refine ⟨fun f b => indexHash P (f, b), ?_⟩
   rintro o ho o' ho' ⟨hne, heq⟩
   exact hne (indexHash_inj_on hPlen (List.mem_map_of_mem (f := fun o => (o.flowId, o.bundleHash)) ho)
@@ -437,16 +414,12 @@ theorem refund_logged {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValu
   induction hr with
   | refl =>
     intro o hrf
-    exfalso
-    simp only [Refunded, stateOf_emptyManagers] at hrf
-    simp [rank] at hrf
+    simp [Refunded, rank] at hrf
   | @append Ns log c f b _ _ ih =>
     intro o hrf
     by_cases heq : o = ⟨f, b, c⟩
-    · exfalso
-      subst heq
-      simp only [Refunded, stateOf_setAt_self] at hrf
-      simp [rank] at hrf
+    · subst heq
+      simp [Refunded, stateOf_setAt_self, rank] at hrf
     · exact ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
   | @authorize Ns log a _ hv _ ih =>
     intro o hrf
@@ -460,10 +433,7 @@ theorem refund_logged {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValu
     intro o hrf
     by_cases heq : o = ⟨f, b, c⟩
     · subst heq
-      refine ih _ ?_
-      simp only [Refunded, stateOf]
-      rw [show (Ns c).legState f b = LegState.Revertable from hg]
-      simp [rank]
+      exact ih _ (by simp [Refunded, stateOf, show (Ns c).legState f b = .Revertable from hg, rank])
     · exact ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
 
 theorem refund_implies_own_flow_timeout_or_logged_clash {h : Hash} {z0 : UInt256}
@@ -486,22 +456,19 @@ theorem executed_freezes_flow_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {log : List AuthCall} (hr : ReachLog h z0 hl cv fh S emptyManagers Ms log)
     (o : Obligation) (ho : o.flowId = F.flowId) :
     ¬ Refunded Ms o ∨ RefundBreak h z0 hl fh S F ev o log := by
-  by_cases hrf : Refunded Ms o
-  · refine Or.inr ?_
-    obtain ⟨a, ha, ⟨hchk', _, hmiss, href⟩, hobl⟩ := refund_logged hr o hrf
-    have hid : F.flowId = a.flow.flowId := by
-      rw [← ho, ← hobl]; rfl
-    rcases flowId_check_pins_legList_or_collision hex.2.1 hchk' hid with heq | hcl
-    · have hmiss' : a.missing ∈ F.legs := by rw [heq]; exact hmiss
-      have href' : LegRefundableBy h z0 hl cv S F a.missing a.batch a.proof := by
-        rw [heq]; exact href
-      rcases executed_excludes_any_refund_or_break hS hex a.missing hmiss' a.batch a.proof
-        with hn | hb | hb
-      · exact absurd href' hn
-      · exact RefundBreak.inclusion a ha hobl heq.symm hb
-      · exact RefundBreak.absence a ha hobl heq.symm hb
-    · exact RefundBreak.flowIdClash a ha hobl hcl
-  · exact Or.inl hrf
+  refine or_iff_not_imp_left.mpr fun hrf => ?_
+  obtain ⟨a, ha, ⟨hchk', _, hmiss, href⟩, hobl⟩ := refund_logged hr o (not_not.mp hrf)
+  have hid : F.flowId = a.flow.flowId := by
+    rw [← ho, ← hobl]; rfl
+  rcases flowId_check_pins_legList_or_collision hex.2.1 hchk' hid with heq | hcl
+  · have hmiss' : a.missing ∈ F.legs := by rwa [heq]
+    have href' : LegRefundableBy h z0 hl cv S F a.missing a.batch a.proof := by rwa [heq]
+    rcases executed_excludes_any_refund_or_break hS hex a.missing hmiss' a.batch a.proof
+      with hn | hb | hb
+    · exact absurd href' hn
+    · exact RefundBreak.inclusion a ha hobl heq.symm hb
+    · exact RefundBreak.absence a ha hobl heq.symm hb
+  · exact RefundBreak.flowIdClash a ha hobl hcl
 
 /-! ### Anti-vacuity witnesses -/
 
@@ -521,8 +488,7 @@ theorem subsetFlow_executes (h : Hash) (z0 : UInt256) (hl : LeafHash) (fh : Flow
       (height := (mixedSystem 1).height 0 0) (hS.capacity 0 0) (i := 1) (by rw [hcount]; norm_num)
     have hv : (((mixedSystem 1).tree 0 0).leaf 1).value = 1 := by
       rw [mixedSystem_tree_zero, insertSetup_leaf_one_value]
-    rw [hv] at this
-    exact this
+    rwa [hv] at this
   refine ⟨⟨List.mem_singleton_self _, hchk, ?_⟩,
     honestProof_no_break h z0 hl _ 0 0 1 (by rw [hcount]; norm_num)⟩
   intro l hl'
@@ -587,14 +553,8 @@ theorem executed_obligation_never_refunded_or_break_witness (h : Hash) (z0 : UIn
       intro he
       have hid : (1 : UInt256) = 0 := congrArg Obligation.flowId he
       exact absurd hid (by decide)
-    intro hb
-    cases hb with
-    | flowIdClash a ha hobl _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
-    | inclusion a ha hobl _ _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
-    | absence a ha hobl _ _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
+    rintro (⟨a, ha, hobl, _⟩ | ⟨a, ha, hobl, _, _⟩ | ⟨a, ha, hobl, _, _⟩) <;>
+      (rw [List.mem_singleton] at ha; subst ha; exact hneq hobl)
   · show ¬ 2 ≤ rank (stateOf (setAt twoFlowM1 1 ((twoFlowM1 1).set 1 2 .Revertable)) ⟨0, 1, 0⟩)
     have hne : (⟨0, 1, 0⟩ : Obligation) ≠ ⟨1, 2, 1⟩ := by decide
     rw [stateOf_setAt_other hne]
@@ -616,8 +576,7 @@ theorem refund_implies_own_flow_timeout_or_logged_clash_witness (h : Hash) (z0 :
   · show 2 ≤ rank (stateOf (setAt twoFlowM1 1 ((twoFlowM1 1).set 1 2 .Revertable)) ⟨1, 2, 1⟩)
     rw [stateOf_setAt_self]; simp [rank]
   · rintro ⟨a, ha, _, hcl⟩
-    rw [List.mem_singleton] at ha
-    subst ha
+    obtain rfl := List.mem_singleton.mp ha
     exact hcl.1 rfl
 
 theorem padding_refund_of_executed_obligation_locates_absence_break (h : Hash) (hl : LeafHash)
@@ -663,8 +622,7 @@ theorem padding_refund_of_executed_obligation_locates_absence_break (h : Hash) (
   · show 2 ≤ rank (stateOf (setAt M1 0 ((M1 0).set 0 0 .Revertable)) ⟨0, 0, 0⟩)
     rw [stateOf_setAt_self]; simp [rank]
   · intro c hc
-    rw [List.mem_singleton] at hc
-    subst hc
+    obtain rfl := List.mem_singleton.mp hc
     exact ⟨rfl, fun hcl => hcl.1 rfl, hnb, hab'⟩
 
 end Contracts.Refund
@@ -713,10 +671,8 @@ theorem accepted_timeout_authorizes_pinned {h : Hash} {z0 : UInt256} {hl : LeafH
     (ha : LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x) :
     RefundAuthorized h z0 hl cv S F ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
           ∧ (PinnedBreak h ze (B.leaves leg.chain) N
-            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
-  rcases accepted_implies_refundable_pinned hagg ha with hr | hrest
-  · exact Or.inl ⟨leg, hmem, hr⟩
-  · exact Or.inr hrest
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) :=
+  (accepted_implies_refundable_pinned hagg ha).imp_left (⟨leg, hmem, ·⟩)
 
 theorem executed_excludes_accepted_refund_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {cv : CommitValue} {fh : FlowHash} {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot}
@@ -729,24 +685,21 @@ theorem executed_excludes_accepted_refund_or_break {h : Hash} {z0 : UInt256} {hl
       ∨ (EndBranchAccepted B S other.chain F.deadline N sibs x
           ∧ (PinnedBreak h ze (B.leaves other.chain) N
             ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x)) := by
-  by_cases ha : LegRefundableAcceptedBy h z0 hl cv S B F other N p sibs x
-  · refine Or.inr ?_
-    have hv : LegRefundableBy h z0 hl cv S F other N p
-        ∨ (EndBranchAccepted B S other.chain F.deadline N sibs x
-          ∧ (PinnedBreak h ze (B.leaves other.chain) N
-            ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x)) := by
-      rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
-      · exact Or.inl (refundableBy_of_verifiedBy hagg (Or.inl ⟨hb, habs⟩))
-      · rcases endBranch_of_accepted_pinned he with hver | hrest
-        · exact Or.inl (refundableBy_of_verifiedBy hagg (Or.inr ⟨hver, habs⟩))
-        · exact Or.inr ⟨he, hrest⟩
-    rcases hv with hr | hrest
-    · rcases executed_excludes_any_refund_or_break hS hex other hother N p with hn | hb | hb
-      · exact absurd hr hn
-      · exact Or.inl hb
-      · exact Or.inr (Or.inl hb)
-    · exact Or.inr (Or.inr hrest)
-  · exact Or.inl ha
+  refine or_iff_not_imp_left.mpr fun ha => ?_
+  have hv : LegRefundableBy h z0 hl cv S F other N p
+      ∨ (EndBranchAccepted B S other.chain F.deadline N sibs x
+        ∧ (PinnedBreak h ze (B.leaves other.chain) N
+          ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x)) := by
+    rcases not_not.mp ha with ⟨hb, habs⟩ | ⟨he, habs⟩
+    · exact Or.inl (refundableBy_of_verifiedBy hagg (Or.inl ⟨hb, habs⟩))
+    · exact (endBranch_of_accepted_pinned he).imp
+        (fun hver => refundableBy_of_verifiedBy hagg (Or.inr ⟨hver, habs⟩)) (⟨he, ·⟩)
+  rcases hv with hr | hrest
+  · rcases executed_excludes_any_refund_or_break hS hex other hother N p with hn | hb | hb
+    · exact absurd hr hn
+    · exact Or.inl hb
+    · exact Or.inr (Or.inl hb)
+  · exact Or.inr (Or.inr hrest)
 
 /-! ### Anti-vacuity witnesses -/
 

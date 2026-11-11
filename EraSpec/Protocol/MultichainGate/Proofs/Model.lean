@@ -45,36 +45,30 @@ lemma genesis_mem : (⟨0, 0⟩ : AbsLeaf) ∈ ({⟨0, 0⟩} : Finset AbsLeaf) :
 lemma genesis_fresh {v : UInt256} (hv : 0 < v) : v ∉ keys ({⟨0, 0⟩} : Finset AbsLeaf) := by
   intro hmem
   obtain ⟨X, hX, hXv⟩ := Finset.mem_image.mp hmem
-  rw [Finset.mem_singleton] at hX
-  subst hX
-  have hz : (0 : UInt256) = v := hXv
-  exact absurd hz (ne_of_lt hv)
+  obtain rfl := Finset.mem_singleton.mp hX
+  exact absurd (hXv : (0 : UInt256) = v) (ne_of_lt hv)
 
 theorem attackProtocol_allSound {v : UInt256} (hv : 0 < v) :
     Properties.attackProtocol_allSound (v := v) hv := by
   unfold Properties.attackProtocol_allSound
   intro c
   unfold attackProtocol
-  by_cases hc : c = 0
-  · simp only [hc, if_pos rfl]
-    exact (guarded_insert_sound_step genesis_soundState genesis_mem hv
+  dsimp only
+  split_ifs
+  · exact (guarded_insert_sound_step genesis_soundState genesis_mem hv
       (Or.inl rfl) (genesis_fresh hv)).1
-  · simp only [if_neg hc]
-    exact genesis_soundState
+  · exact genesis_soundState
 
 theorem attackProtocol_delivered {v : UInt256} :
     Properties.attackProtocol_delivered (v := v) := by
   unfold Properties.attackProtocol_delivered
   unfold Delivered attackProtocol
-  simp only [if_pos rfl]
   exact imtInsert_key_mem genesis_mem
 
 theorem attackProtocol_witness_elsewhere {v : UInt256} (hv : 0 < v) :
     Properties.attackProtocol_witness_elsewhere (v := v) hv := by
   unfold Properties.attackProtocol_witness_elsewhere
   refine ⟨⟨0, 0⟩, ?_, hv, Or.inl rfl⟩
-  unfold attackProtocol
-  simp only [if_neg (by decide : ¬ (1 : Chain) = 0)]
   exact genesis_mem
 
 theorem unbound_gate_refunds_delivered_leg {v : UInt256} (hv : 0 < v) :
@@ -102,9 +96,7 @@ theorem chains_no_double_spend {T : Chain → Tree} (hV : ∀ c, Valid (T c))
     {src : Chain} {v : UInt256} :
     Properties.chains_no_double_spend (T := T) hV (src := src) (v := v) := by
   unfold Properties.chains_no_double_spend
-  refine no_double_spend_multichain ?_
-  intro c
-  exact (hV c).absSound
+  exact no_double_spend_multichain fun c => (hV c).absSound
 
 open Contracts.InteropCommitmentTree in
 /-- A valid tree's key set contains the sentinel value `0`. -/
@@ -139,11 +131,9 @@ theorem attackChains_valid {v : UInt256} (hv : 0 < v) :
   unfold Properties.attackChains_valid
   intro c
   unfold attackChains
-  by_cases hc : c = 0
-  · simp only [hc, if_pos rfl]
-    exact insert_preserves_valid setup_valid (setup_insert_guard hv)
-  · simp only [if_neg hc]
-    exact setup_valid
+  split_ifs
+  · exact insert_preserves_valid setup_valid (setup_insert_guard hv)
+  · exact setup_valid
 
 open Contracts.InteropCommitmentTree in
 theorem chains_unbound_gate_refunds_delivered_leg {v : UInt256} (hv : 0 < v) :
@@ -152,15 +142,12 @@ theorem chains_unbound_gate_refunds_delivered_leg {v : UInt256} (hv : 0 < v) :
   have hval : ∀ c, Valid (attackChains v c) := attackChains_valid hv
   have hdel : Delivered (ofChains (attackChains v)) 0 v := by
     show v ∈ keys (toAbs (attackChains v 0))
-    have h0 : attackChains v 0 = Contracts.InteropCommitmentTree.insert setup v 0 := by
-      unfold attackChains; exact if_pos rfl
-    rw [h0, (insert_sound_step setup_valid (setup_insert_guard hv)).2]
+    rw [show attackChains v 0 = Contracts.InteropCommitmentTree.insert setup v 0 from rfl,
+      (insert_sound_step setup_valid (setup_insert_guard hv)).2]
     exact Finset.mem_insert_self _ _
   have hw1 : BoundGate (ofChains (attackChains v)) 1 v := by
-    have h1 : attackChains v 1 = setup := by
-      unfold attackChains; simp only [if_neg (by decide : ¬ (1 : Chain) = 0)]
-    show ∃ W ∈ toAbs (attackChains v 1), W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)
-    rw [h1, toAbs_setup]
+    show ∃ W ∈ toAbs setup, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)
+    rw [toAbs_setup]
     exact ⟨⟨0, 0⟩, genesis_mem, hv, Or.inl rfl⟩
   have hsep : ¬ BoundGate (ofChains (attackChains v)) 0 v := fun hg =>
     chains_no_double_spend hval ⟨hdel, hg⟩

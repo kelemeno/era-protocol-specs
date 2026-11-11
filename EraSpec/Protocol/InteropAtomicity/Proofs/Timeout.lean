@@ -23,10 +23,8 @@ open MerkleSpec.LastLeaf IMTAbstract
 /-- **"LAST BATCH IN THIS ROOT" MEANS "LAST BATCH IN TIME".** -/
 theorem isLastOnTime_of_verified {S : System} {R : SlRoot} (hagg : Aggregates S R)
     {c : Chain} {D N : ℕ} (he : EndBranchVerified S R c D N) : IsLastOnTime S c D N := by
-  refine ⟨he.onTime, ?_⟩
-  intro m hm
-  by_contra hcon
-  push_neg at hcon
+  refine ⟨he.onTime, fun m hm => ?_⟩
+  by_contra! hcon
   have hin : m ≤ R.upTo c := hagg c m (le_trans hcon (le_of_lt he.rootAfterDeadline))
   rw [← he.lastInRoot] at hin
   omega
@@ -56,8 +54,7 @@ theorem timeout_means_missed_deadline {h : Hash} {z0 : UInt256} {hl : LeafHash}
   rcases hbr with ⟨hb, habs⟩ | ⟨he, habs⟩
   · -- a late batch comes strictly after every on-time one
     have hlt : n < N := by
-      by_contra hcon
-      push_neg at hcon
+      by_contra! hcon
       exact absurd hb.late (not_lt.mpr (le_trans (hS.timeOrdered leg.chain hcon) hon))
     obtain ⟨N', rfl⟩ : ∃ N', N = N' + 1 := ⟨N - 1, by omega⟩
     exact verified_absence_excludes_delivered hA (valid_batch hS leg.chain N') habs
@@ -65,8 +62,7 @@ theorem timeout_means_missed_deadline {h : Hash} {z0 : UInt256} {hl : LeafHash}
   · -- the derived last-on-time batch is at or after every on-time one
     have hlast := isLastOnTime_of_verified hagg he
     have hle : n ≤ N := by
-      by_contra hcon
-      push_neg at hcon
+      by_contra! hcon
       exact absurd hon (not_le.mpr (hlast.2 n hcon))
     exact verified_absence_excludes_delivered hA (valid_batch hS leg.chain N) habs
       (keys_mono_batch hS leg.chain hle hmem)
@@ -87,43 +83,35 @@ theorem lastBatch_identifies_last {h : Hash} {ze : UInt256}
     {R : SlRoot} {B : RootBacking h ze R} {c : Chain} {N : ℕ} {sibs : ℕ → UInt256}
     {x : UInt256} (ha : LastBatchAccepted B c N sibs x) :
     N = R.upTo c ∨ HashBreak h ze (B.leaves c) := by
-  rcases accepted_last_leaf_or_break h ze hinj (B.leaves c) sibs (B.height c) N x
-    (B.capacity c) ha.inRange ha.authenticated ha.zeroRightSiblings with hlast | hbreak
-  · refine Or.inl ?_
-    have hlen := B.upToLast c
-    omega
-  · exact Or.inr hbreak
+  refine (accepted_last_leaf_or_break h ze hinj (B.leaves c) sibs (B.height c) N x
+    (B.capacity c) ha.inRange ha.authenticated ha.zeroRightSiblings).imp_left fun hlast => ?_
+  have hlen := B.upToLast c
+  omega
 
 theorem endBranch_of_accepted {h : Hash} {ze : UInt256}
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     {R : SlRoot} {B : RootBacking h ze R} {S : System} {c : Chain} {D N : ℕ}
     {sibs : ℕ → UInt256} {x : UInt256} (ha : EndBranchAccepted B S c D N sibs x) :
-    EndBranchVerified S R c D N ∨ HashBreak h ze (B.leaves c) := by
-  rcases lastBatch_identifies_last hinj ha.lastBatch with hlast | hbreak
-  · exact Or.inl ⟨ha.rootAfterDeadline, ha.onTime, hlast⟩
-  · exact Or.inr hbreak
+    EndBranchVerified S R c D N ∨ HashBreak h ze (B.leaves c) :=
+  (lastBatch_identifies_last hinj ha.lastBatch).imp_left
+    fun hlast => ⟨ha.rootAfterDeadline, ha.onTime, hlast⟩
 
 theorem verified_of_accepted {h : Hash} {z0 : UInt256} {hl : LeafHash}
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
     {F : Flow} {leg : FlowLeg} (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
     LegRefundableVerified h z0 hl cv S R F leg ∨ HashBreak h ze (B.leaves leg.chain) := by
-  obtain ⟨N, p, hbr⟩ := ha
-  rcases hbr with ⟨hb, habs⟩ | ⟨sibs, x, he, habs⟩
+  obtain ⟨N, p, ⟨hb, habs⟩ | ⟨sibs, x, he, habs⟩⟩ := ha
   · exact Or.inl ⟨N, p, Or.inl ⟨hb, habs⟩⟩
-  · rcases endBranch_of_accepted hinj he with hv | hbreak
-    · exact Or.inl ⟨N, p, Or.inr ⟨hv, habs⟩⟩
-    · exact Or.inr hbreak
+  · exact (endBranch_of_accepted hinj he).imp_left fun hv => ⟨N, p, Or.inr ⟨hv, habs⟩⟩
 
 theorem accepted_implies_refundable {h : Hash} {z0 : UInt256} {hl : LeafHash}
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
     (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg}
     (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
-    LegRefundable h z0 hl cv S F leg ∨ HashBreak h ze (B.leaves leg.chain) := by
-  rcases verified_of_accepted hinj ha with hv | hbreak
-  · exact Or.inl (verified_implies_refundable hagg hv)
-  · exact Or.inr hbreak
+    LegRefundable h z0 hl cv S F leg ∨ HashBreak h ze (B.leaves leg.chain) :=
+  (verified_of_accepted hinj ha).imp_left (verified_implies_refundable hagg)
 
 /-- **THE COMPLETE CHAIN.** -/
 theorem accepted_timeout_means_missed_deadline {h : Hash} {z0 : UInt256} {hl : LeafHash}
@@ -132,10 +120,9 @@ theorem accepted_timeout_means_missed_deadline {h : Hash} {z0 : UInt256} {hl : L
     {F : Flow} {leg : FlowLeg} (ha : LegRefundableAccepted h z0 hl cv S B F leg) :
     (∀ n, S.time leg.chain n ≤ F.deadline →
         legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
-      ∨ HashBreak h ze (B.leaves leg.chain) := by
-  rcases verified_of_accepted hA.nodeInj ha with hv | hbreak
-  · exact Or.inl (fun n hon => timeout_means_missed_deadline hA hS hagg hv n hon)
-  · exact Or.inr hbreak
+      ∨ HashBreak h ze (B.leaves leg.chain) :=
+  (verified_of_accepted hA.nodeInj ha).imp_left
+    fun hv n hon => timeout_means_missed_deadline hA hS hagg hv n hon
 
 /-! ## The last-batch chain, pinned -/
 
@@ -158,12 +145,10 @@ theorem lastBatch_identifies_last_pinned {h : Hash} {ze : UInt256}
     {x : UInt256} (ha : LastBatchAccepted B c N sibs x) :
     N = R.upTo c ∨ PinnedBreak h ze (B.leaves c) N
       ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x := by
-  rcases accepted_last_leaf_or_pinned_break h ze (B.leaves c) sibs (B.height c) N x
-    (B.capacity c) ha.inRange ha.authenticated ha.zeroRightSiblings with hlast | hrest
-  · refine Or.inl ?_
-    have hlen := B.upToLast c
-    omega
-  · exact Or.inr hrest
+  refine (accepted_last_leaf_or_pinned_break h ze (B.leaves c) sibs (B.height c) N x
+    (B.capacity c) ha.inRange ha.authenticated ha.zeroRightSiblings).imp_left fun hlast => ?_
+  have hlen := B.upToLast c
+  omega
 
 theorem lastBatch_identifies_last_on {h : Hash} {ze : UInt256}
     {R : SlRoot} {B : RootBacking h ze R} {c : Chain} {N : ℕ} {sibs : ℕ → UInt256}
@@ -180,10 +165,9 @@ theorem endBranch_of_accepted_pinned {h : Hash} {ze : UInt256}
     {R : SlRoot} {B : RootBacking h ze R} {S : System} {c : Chain} {D N : ℕ}
     {sibs : ℕ → UInt256} {x : UInt256} (ha : EndBranchAccepted B S c D N sibs x) :
     EndBranchVerified S R c D N ∨ PinnedBreak h ze (B.leaves c) N
-      ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x := by
-  rcases lastBatch_identifies_last_pinned ha.lastBatch with hlast | hrest
-  · exact Or.inl ⟨ha.rootAfterDeadline, ha.onTime, hlast⟩
-  · exact Or.inr hrest
+      ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x :=
+  (lastBatch_identifies_last_pinned ha.lastBatch).imp_left
+    fun hlast => ⟨ha.rootAfterDeadline, ha.onTime, hlast⟩
 
 theorem endBranch_of_accepted_on {h : Hash} {ze : UInt256}
     {R : SlRoot} {B : RootBacking h ze R} {S : System} {c : Chain} {D N : ℕ}
@@ -203,9 +187,8 @@ theorem accepted_implies_refundable_pinned {h : Hash} {z0 : UInt256} {hl : LeafH
             ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
   rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
   · exact Or.inl (verified_implies_refundable hagg ⟨N, p, Or.inl ⟨hb, habs⟩⟩)
-  · rcases endBranch_of_accepted_pinned he with hv | hrest
-    · exact Or.inl (verified_implies_refundable hagg ⟨N, p, Or.inr ⟨hv, habs⟩⟩)
-    · exact Or.inr ⟨he, hrest⟩
+  · exact (endBranch_of_accepted_pinned he).imp
+      (fun hv => verified_implies_refundable hagg ⟨N, p, Or.inr ⟨hv, habs⟩⟩) (⟨he, ·⟩)
 
 theorem accepted_implies_refundable_on {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
@@ -233,9 +216,8 @@ theorem demoSystem_aggregates : Aggregates demoSystem demoRoot := by
   intro c n hn
   show n ≤ 1
   by_contra hc
-  have h2 : demoSystem.time c n = 2 := if_neg hc
-  rw [h2] at hn
-  exact absurd hn (by decide)
+  have h2 : demoSystem.time c n = 2 := ite_eq_right hc
+  exact absurd (h2 ▸ hn) (by decide)
 
 /-- The honest END branch for batch 1 of `demoBacking`. -/
 theorem demo_endBranchAccepted :
@@ -323,9 +305,7 @@ theorem stale_root_refunds_delivered_leg {h : Hash} {z0 : UInt256} {hl : LeafHas
   refine ⟨staleSystem_wf hv, ?_, ?_, ?_, ?_⟩
   · -- batch 1 had settled when the root was created, yet the root stops at batch 0
     intro hagg
-    have := hagg leg.chain 1 (by norm_num [staleRoot])
-    simp only [staleRoot] at this
-    omega
+    simpa [staleRoot] using hagg leg.chain 1 (by norm_num [staleRoot])
   · simp [hD]
   · rw [staleSystem_tree_succ]
     exact mem_insertSetup hv
@@ -438,12 +418,10 @@ theorem timeout_means_missed_deadline_or_break {h : Hash} {z0 : UInt256} {hl : L
     (∀ n, S.time leg.chain n ≤ F.deadline →
         legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
       ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p := by
-  by_cases hb : AbsenceBreak h z0 hl S F.deadline leg.chain N p
-  · exact Or.inr hb
-  · refine Or.inl fun n hon hmem => ?_
-    rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
-    · exact hn (refundableBy_of_verifiedBy hagg hv)
-    · exact hb hb'
+  refine or_iff_not_imp_right.mpr fun hb n hon hmem => ?_
+  rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
+  · exact hn (refundableBy_of_verifiedBy hagg hv)
+  · exact hb hb'
 
 theorem timeout_excludes_finality_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {cv : CommitValue} {S : System} (hS : Wf S) {R : SlRoot} (hagg : Aggregates S R)
@@ -452,14 +430,13 @@ theorem timeout_excludes_finality_or_break {h : Hash} {z0 : UInt256} {hl : LeafH
     ¬ LegFinalizedBy h z0 hl cv S F leg n p'
       ∨ InclusionBreak h z0 hl S leg.chain n p'
       ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p := by
-  by_cases hfin : LegFinalizedBy h z0 hl cv S F leg n p'
-  · obtain ⟨hon, hacc⟩ := hfin
-    rcases finality_means_membership_or_break hacc with hmem | hb
-    · rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
-      · exact absurd (refundableBy_of_verifiedBy hagg hv) hn
-      · exact Or.inr (Or.inr hb')
-    · exact Or.inr (Or.inl hb)
-  · exact Or.inl hfin
+  refine or_iff_not_imp_left.mpr fun hfin => ?_
+  obtain ⟨hon, hacc⟩ := not_not.mp hfin
+  rcases finality_means_membership_or_break hacc with hmem | hb
+  · rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
+    · exact absurd (refundableBy_of_verifiedBy hagg hv) hn
+    · exact Or.inr hb'
+  · exact Or.inl hb
 
 theorem accepted_timeout_means_missed_deadline_or_break {h : Hash} {z0 : UInt256}
     {hl : LeafHash} {cv : CommitValue} {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot}
@@ -478,13 +455,9 @@ theorem accepted_timeout_means_missed_deadline_or_break {h : Hash} {z0 : UInt256
             ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
     rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
     · exact Or.inl (Or.inl ⟨hb, habs⟩)
-    · rcases endBranch_of_accepted_pinned he with hver | hrest
-      · exact Or.inl (Or.inr ⟨hver, habs⟩)
-      · exact Or.inr ⟨he, hrest⟩
+    · exact (endBranch_of_accepted_pinned he).imp (fun hver => Or.inr ⟨hver, habs⟩) (⟨he, ·⟩)
   rcases hv with hv | hrest
-  · rcases timeout_means_missed_deadline_or_break hS hagg hv with hm | hb
-    · exact Or.inl hm
-    · exact Or.inr (Or.inl hb)
+  · exact (timeout_means_missed_deadline_or_break hS hagg hv).imp_right Or.inl
   · exact Or.inr (Or.inr hrest)
 
 /-! ### Anti-vacuity witnesses -/

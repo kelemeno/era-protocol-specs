@@ -81,7 +81,7 @@ the standard elastic-chain one, not a new assumption introduced by the atomic-in
 theorem honestInsertion_of_guards_everywhere
     (g : ∀ c : Chain, Guards srcOf c (· ∈ tree c) (Inserted c) (Appended c)) :
     ∀ c v, v ∈ tree c → srcOf v = c :=
-  fun c v h => local_honest_insertion srcOf c (· ∈ tree c) (Inserted c) (Appended c) (g c) h
+  fun c _ h => local_honest_insertion srcOf c (· ∈ tree c) (Inserted c) (Appended c) (g c) h
 
 /-- Conversely the guards are not stronger than needed: `HonestInsertion` is exactly what they give,
 so a chain satisfying it vacuously (an empty tree, say) needs no guards at all.  Recorded so the

@@ -51,18 +51,14 @@ private theorem step_pending_names {hooks : NativeTokenVaultBase.Hooks Accountin
     rcases List.mem_append.mp ho with hold | hnew
     · rw [hc]
       exact hp o hold
-    · rw [List.mem_singleton] at hnew
-      subst hnew
+    · obtain rfl := List.mem_singleton.mp hnew
       obtain ⟨_, hasset, _⟩ := NativeTokenVaultBase.preparation_asset_binding hw hprep
       obtain ⟨_, _, horigin, _, _, _⟩ := NativeTokenVaultBase.preparation_payload hw hprep
       refine ⟨hasset.symm, ?_⟩
       change out.data.originToken = out.state.token.config.originToken
       rw [horigin]
       exact (congrArg BridgedStandardERC20.Config.originToken hc).symm
-  | spend ht =>
-    intro o ho
-    rw [hc]
-    exact hp o ho
+  | spend ht => exact fun o ho => hc ▸ hp o ho
 
 /-- One extended step: conservation, identity, and `PendingNamesToken`, from `WellFormed`. -/
 private theorem reinit_step_conservation {hooks : NativeTokenVaultBase.MetaHooks Accounting}
@@ -121,10 +117,7 @@ theorem PendingObligationsKeepTheirAsset : Properties.PendingObligationsKeepThei
   intro Accounting hooks s t hw hp h
   obtain ⟨_, _, _, htok, hpend⟩ := reach_invariants hw h
   have hpt := hpend hp
-  refine ⟨hpt, ?_⟩
-  intro o ho
-  rw [← htok]
-  exact hpt o ho
+  exact ⟨hpt, fun o ho => htok ▸ hpt o ho⟩
 
 theorem InitializedTraceWithReinitialization :
     Properties.InitializedTraceWithReinitialization := by
@@ -138,8 +131,7 @@ theorem InitializedTraceWithReinitialization :
   have hw₀ : BridgedStandardERC20.WellFormed s₀.token := hw.1
   have hv₀ : s₀.version ≠ 0 := by
     change registered.tokenVersion ≠ 0
-    rw [hver]
-    decide
+    simp [hver]
   have hwf := (BridgedStandardERC20.RunsPreserveLedger s₀ funded hw₀ hf).1
   have hcfg := (BridgedStandardERC20.InitializedIdentityIsFixed s₀ funded hv₀ hf).1
   have hs : NativeTokenVaultBase.WellFormed
@@ -152,14 +144,8 @@ theorem InitializedTraceWithReinitialization :
       funded.metadata⟩
   have hs' : NativeTokenVaultBase.WellFormed start'.ledger.vault := hs
   obtain ⟨hwt, hsum, _, htok, hpend⟩ := reach_invariants (s := start') hs' hr
-  have hp0 : PendingNamesToken start'.ledger := by
-    intro o ho
-    cases ho
-  refine ⟨hwt.1, hwt.2, ?_, hpend hp0, ?_⟩
-  · rw [hsum]
-    rfl
-  · rw [htok]
-    exact hcfg
+  have hp0 : PendingNamesToken start'.ledger := nofun
+  exact ⟨hwt.1, hwt.2, hsum, hpend hp0, htok ▸ hcfg⟩
 
 /-! ## Witness -/
 

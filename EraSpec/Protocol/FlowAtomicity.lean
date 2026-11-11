@@ -113,9 +113,8 @@ theorem no_leg_both_executed_and_refundable
       t i ≤ D → v ∈ keys (S i) →
       D < t (j+1) → W ∈ S j → W.key < v →
       ¬ (W.nextKey = 0 ∨ v < W.nextKey) := by
-  intro v _ i j W hti hdel htj1 hW hlow
-  exact (guardedEvolution_delivered_available_forever hge hgen htmono
-    hti hdel).2 j W htj1 hW hlow
+  exact fun v _ i j W hti hdel htj1 hW hlow =>
+    (guardedEvolution_delivered_available_forever hge hgen htmono hti hdel).2 j W htj1 hW hlow
 
 /-- **FLOW OUTCOME DICHOTOMY (the honest flow-level statement).**  Along a
 guarded history from genesis, EVERY nonzero leg of the flow, at every
@@ -136,12 +135,7 @@ theorem flow_outcome_dichotomy
   intro v hv
   have hiff := guardedEvolution_reclaimable_iff_absent hge hgen
     (j := j) (hnz v hv)
-  constructor
-  · by_cases hmem : v ∈ keys (S j)
-    · exact Or.inl hmem
-    · exact Or.inr (hiff.mpr hmem)
-  · rintro ⟨hmem, hwit⟩
-    exact hiff.mp hwit hmem
+  exact ⟨(em _).imp_right hiff.mpr, fun ⟨hmem, hwit⟩ => hiff.mp hwit hmem⟩
 
 /-- **MIXED OUTCOMES ARE PERMITTED — the sharpness witness.**  For any
 distinct nonzero commit values `a, b` (the two legs of the flow `[a, b]`),
@@ -173,21 +167,13 @@ theorem mixed_outcomes_permitted
   have hanot : a ∉ keys ({⟨0, 0⟩} : Finset AbsLeaf) := by
     intro hmem
     obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hmem
-    rw [Finset.mem_singleton] at hL
-    rw [hL] at hLkey
+    obtain rfl := Finset.mem_singleton.mp hL
     exact ha hLkey.symm
   have hge : GuardedEvolution S := by
     intro n
     cases n with
-    | zero =>
-      right
-      refine ⟨⟨0, 0⟩, a, ?_, hapos, Or.inl rfl, ?_, ?_⟩
-      · rw [hS0]; exact hzero_mem
-      · rw [hS0]; exact hanot
-      · rw [hS1 0, hS0]
-    | succ k =>
-      left
-      rw [hS1 (k+1), hS1 k]
+    | zero => exact Or.inr ⟨⟨0, 0⟩, a, hzero_mem, hapos, Or.inl rfl, hanot, rfl⟩
+    | succ k => exact Or.inl rfl
   have hdel : a ∈ keys (S 1) := by
     rw [hS1 0]
     exact imtInsert_key_mem hzero_mem
@@ -197,8 +183,7 @@ theorem mixed_outcomes_permitted
     rcases (mem_keys_imtInsert hzero_mem).mp hmem with heq | hmem0
     · exact hab heq.symm
     · obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hmem0
-      rw [Finset.mem_singleton] at hL
-      rw [hL] at hLkey
+      obtain rfl := Finset.mem_singleton.mp hL
       exact hb hLkey.symm
   exact ⟨S, hge, hS0, by simp, by simp, hdel, habs,
     (guardedEvolution_reclaimable_iff_absent hge hS0 hb).mpr habs⟩

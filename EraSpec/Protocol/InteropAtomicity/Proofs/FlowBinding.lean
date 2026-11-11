@@ -36,18 +36,10 @@ theorem logged_calls_verified {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Co
     (hr : RunLog h z0 hl cv fh S Ms Ns log) :
     ∀ c ∈ log, c.Verified h z0 hl cv fh S := by
   induction hr with
-  | refl => intro c hc; exact absurd hc List.not_mem_nil
+  | refl => exact fun _ hc => absurd hc List.not_mem_nil
   | append _ _ ih => exact ih
-  | execute e _ hv ih =>
-    intro c hc
-    rcases List.mem_cons.mp hc with rfl | hc
-    · exact hv
-    · exact ih c hc
-  | authorize a _ hv _ ih =>
-    intro c hc
-    rcases List.mem_cons.mp hc with rfl | hc
-    · exact hv
-    · exact ih c hc
+  | execute e _ hv ih => exact List.forall_mem_cons.mpr ⟨hv, ih⟩
+  | authorize a _ hv _ ih => exact List.forall_mem_cons.mpr ⟨hv, ih⟩
   | claim _ _ ih => exact ih
 
 /-- A logged execution is an execution through the deployed gate. -/
@@ -85,8 +77,8 @@ theorem runLog_reachLog {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitVa
   induction hr with
   | refl => exact ReachLog.refl
   | append _ hg ih => exact ReachLog.append ih hg
-  | execute e _ _ ih => rw [authCalls_execute]; exact ih
-  | authorize a _ hv hg ih => rw [authCalls_authorize]; exact ReachLog.authorize a ih hv hg
+  | execute e _ _ ih => exact ih
+  | authorize a _ hv hg ih => exact ReachLog.authorize a ih hv hg
   | claim _ hg ih => exact ReachLog.claim ih hg
 
 /-- **A `ReachLog` IS A `RunLog` WITHOUT EXECUTIONS.** -/
@@ -135,9 +127,7 @@ theorem executed_implies_real_flow_leg_finalizable_or_logged_clash {h : Hash} {z
   have hchk : FlowIdChecked fh c.flow := (logged_calls_verified hr c hc).flowIdChecked
   rcases flowId_check_pins_legList_or_collision hex.2.1 hchk hid.symm with heq | hcl
   · rw [← heq] at hother ⊢
-    rcases executed_implies_all_finalizable_or_break hS hDA hex other hother with hf | hb
-    · exact Or.inl hf
-    · exact Or.inr (Or.inl hb)
+    exact (executed_implies_all_finalizable_or_break hS hDA hex other hother).imp_right Or.inl
   · exact Or.inr (Or.inr hcl)
 
 /-! ## The refund side -/
@@ -156,11 +146,8 @@ theorem logged_execution_excludes_logged_refund_or_break {h : Hash} {z0 : UInt25
   obtain ⟨hchk, _, hmiss, href⟩ := logged_authorize_verified hr ha
   rcases flowId_check_pins_legList_or_collision hex.2.1 hchk hid.symm with heq | hcl
   · rw [← heq] at hmiss href ⊢
-    rcases executed_excludes_any_refund_or_break hS hex a.missing hmiss a.batch a.proof
-      with hn | hb | hb
-    · exact absurd href hn
-    · exact Or.inl hb
-    · exact Or.inr (Or.inl hb)
+    exact ((executed_excludes_any_refund_or_break hS hex a.missing hmiss a.batch
+      a.proof).resolve_left (not_not.mpr href)).imp_right Or.inl
   · exact Or.inr (Or.inr hcl)
 
 end Contracts.FlowBinding
@@ -211,8 +198,7 @@ theorem honestProof_accepts {h : Hash} {z0 : UInt256} {hl : LeafHash} {S : Syste
     (hv : ((S.tree c n).leaf i).value = v) :
     Accepts h z0 hl S c n v (honestProof h z0 hl S c n i) := by
   have := inclusion_complete (h := h) (z0 := z0) (hl := hl) (hS.capacity c n) hi
-  rw [hv] at this
-  exact this
+  rwa [hv] at this
 
 /-- The honest absence proof against `setup`: the sentinel at index 0, at height 0. -/
 def setupAbsence (h : Hash) (z0 : UInt256) (hl : LeafHash) : ImtProof :=
@@ -254,9 +240,8 @@ theorem no_pinned_break_of_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash}
 
 /-- Leg lists of different lengths are different preimages. -/
 theorem preimage_ne_of_legs_length_ne {F F' : Flow} (hlen : F.legs.length ≠ F'.legs.length) :
-    (F.legs, F.deadline) ≠ (F'.legs, F'.deadline) := by
-  intro hp
-  exact hlen (congrArg (fun p => p.1.length) hp)
+    (F.legs, F.deadline) ≠ (F'.legs, F'.deadline) :=
+  fun hp => hlen (congrArg (fun p => p.1.length) hp)
 
 /-! ### The two-chain system
 
@@ -294,32 +279,20 @@ lemma pairSystem_height_other {a b : UInt256} {c : Chain} (h0 : c ≠ 0) (h1 : c
     (pairSystem a b).time c n = n := rfl
 
 lemma pairSystem_wf {a b : UInt256} (ha : 0 < a) (hb : 0 < b) : Wf (pairSystem a b) := by
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro c
-    by_cases h0 : c = 0
-    · subst h0
-      rw [pairSystem_tree_zero]
-      exact Reaches.tail Reaches.refl (setup_insertGuard ha)
-    by_cases h1 : c = 1
-    · subst h1
-      rw [pairSystem_tree_one]
-      exact Reaches.tail Reaches.refl (setup_insertGuard hb)
-    rw [pairSystem_tree_other h0 h1]
+  refine ⟨fun c => ?_, fun _ _ => Reaches.refl, fun c i j hij => by simpa using hij, fun c n => ?_⟩
+  all_goals rcases eq_or_ne c 0 with rfl | h0
+  all_goals try rcases eq_or_ne c 1 with rfl | h1
+  · rw [pairSystem_tree_zero]
+    exact Reaches.tail Reaches.refl (setup_insertGuard ha)
+  · rw [pairSystem_tree_one]
+    exact Reaches.tail Reaches.refl (setup_insertGuard hb)
+  · rw [pairSystem_tree_other h0 h1]
     exact Reaches.refl
-  · intro c n
-    exact Reaches.refl
-  · intro c i j hij
-    simpa using hij
-  · intro c n
-    by_cases h0 : c = 0
-    · subst h0
-      rw [pairSystem_tree_zero, pairSystem_height_zero, insertSetup_leafCount]
-      norm_num
-    by_cases h1 : c = 1
-    · subst h1
-      rw [pairSystem_tree_one, pairSystem_height_one, insertSetup_leafCount]
-      norm_num
-    rw [pairSystem_tree_other h0 h1, pairSystem_height_other h0 h1]
+  · rw [pairSystem_tree_zero, pairSystem_height_zero, insertSetup_leafCount]
+    norm_num
+  · rw [pairSystem_tree_one, pairSystem_height_one, insertSetup_leafCount]
+    norm_num
+  · rw [pairSystem_tree_other h0 h1, pairSystem_height_other h0 h1]
     show (1 : ℕ) ≤ 2 ^ 0
     norm_num
 
@@ -448,11 +421,9 @@ theorem executed_implies_real_flow_finalizable_or_logged_clash_witness (h : Hash
       (honestAccess h z0 hl (pairSystem 1 2)) strandedFlow := by
     intro hall
     obtain ⟨n, p, _, ⟨i, _, rfl⟩, hacc⟩ := hall ⟨2, 3⟩ (List.mem_singleton_self _)
-    have hv := hacc.valueMatch
-    change (((pairSystem 1 2).tree 2 n).leaf i).value = 3 at hv
+    have hv : (((pairSystem 1 2).tree 2 n).leaf i).value = 3 := hacc.valueMatch
     rw [pairSystem_tree_other h20 h21] at hv
-    change (0 : UInt256) = 3 at hv
-    exact absurd hv (by decide)
+    exact absurd (show (0 : UInt256) = 3 from hv) (by decide)
   refine ⟨fun _ b => b, lengthFlowHash, pairSystem 1 2, honestAccess h z0 hl (pairSystem 1 2),
     pairMs, pairLog h z0 hl, pairExec h z0 hl ⟨0, 1⟩, pairExec h z0 hl ⟨1, 2⟩,
     .execute (pairExec h z0 hl ⟨1, 2⟩), .authorize (strandedAuth h z0 hl), strandedAuth h z0 hl,
@@ -468,9 +439,7 @@ theorem executed_implies_real_flow_finalizable_or_logged_clash_witness (h : Hash
     · exact hnoclashF
     · exact hnoclashG
   · rintro (hf | hp | hcl)
-    · exact hnfinG hf
-    · exact hnp hp
-    · exact hnoclashG hcl
+    exacts [hnfinG hf, hnp hp, hnoclashG hcl]
 
 /-! ### The subset-flow attack, as a run -/
 
@@ -555,11 +524,9 @@ theorem subset_flow_attack_lands_in_logged_clash (h : Hash) (z0 : UInt256) (hl :
   have hnleg : ¬ LegFinalizableBy h z0 hl cv (mixedSystem (cv id hA))
       (honestAccess h z0 hl (mixedSystem (cv id hA))) (mixedFlow id hA hB) ⟨1, hB⟩ := by
     rintro ⟨n, p, _, ⟨i, _, rfl⟩, hacc⟩
-    have hv := hacc.valueMatch
-    change (((mixedSystem (cv id hA)).tree 1 n).leaf i).value = cv id hB at hv
+    have hv : (((mixedSystem (cv id hA)).tree 1 n).leaf i).value = cv id hB := hacc.valueMatch
     rw [mixedSystem_tree_other h10] at hv
-    change (0 : UInt256) = cv id hB at hv
-    exact absurd hv (ne_of_lt hb)
+    exact absurd (show (0 : UInt256) = cv id hB from hv) (ne_of_lt hb)
   -- The truncated flow is all finalizable, so it has no stranded leg to break on.
   have hfinSub : FlowFinalizableBy h z0 hl cv (mixedSystem (cv id hA))
       (honestAccess h z0 hl (mixedSystem (cv id hA))) (subsetFlow id hA) := by

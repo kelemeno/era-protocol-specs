@@ -30,9 +30,7 @@ theorem pendingAmountTo_append_one (c : UInt256) (pending : List Obligation) (o 
       pendingAmountTo c pending + if o.destinationChain = c then o.data.amount.val else 0 := by
   unfold pendingAmountTo
   rw [List.filter_append]
-  by_cases h : o.destinationChain = c
-  · simp [h]
-  · simp [h]
+  by_cases h : o.destinationChain = c <;> simp [h]
 
 /-! ## Token-model runs are representation-model runs -/
 
@@ -79,9 +77,8 @@ theorem trace_outflow {hooks : NativeTokenVaultBase.Hooks Accounting}
     · rw [hpend₀]; simp
   | @tail u₀ u₁ _ hstep ih =>
     obtain ⟨W', hin, hv, hcorr, hwf, hcfg, htin, htout, hto, hassets⟩ := ih
-    have hreg : NativeTokenVault.Registered W'.vault cfg.assetId := by rw [hv]; exact hregf
-    have hfor : ¬ NativeTokenVault.Native thisChain W'.vault cfg.assetId := by
-      rw [hv]; exact hforf
+    have hreg : NativeTokenVault.Registered W'.vault cfg.assetId := by rwa [hv]
+    have hfor : ¬ NativeTokenVault.Native thisChain W'.vault cfg.assetId := by rwa [hv]
     cases hstep with
     | @prepare r out hp =>
       obtain ⟨hwf', hcfg', _, _, _⟩ := NativeTokenVaultBase.preparation_preserves_ledger hwf hp
@@ -126,8 +123,7 @@ theorem trace_outflow {hooks : NativeTokenVaultBase.Hooks Accounting}
       · intro o ho
         rcases List.mem_append.mp ho with ho | ho
         · exact hassets o ho
-        · rw [List.mem_singleton] at ho
-          rw [ho]
+        · obtain rfl := List.mem_singleton.mp ho
           exact hra
     | @spend owner recipient amount token htr =>
       obtain ⟨hl, _, htcfg⟩ := BridgedStandardERC20.transfer_preserves_ledger hwf.1 htr
@@ -189,11 +185,8 @@ theorem tightTraceIsRegistryOutflow
   obtain ⟨W', hin', hv', hcorr', hwf', _, htin, htout, hto, hassets⟩ :=
     trace_outflow (e := e) (S := S) (cfg := start.config) hregf hforf hp hcorrf hwff hcfg₀ rfl
   have hsupply := (initialized_preparation_trace hfresh ht hp).2.2
-  refine ⟨Wf, W', hinf, hin', hvf, hv', ?_, ?_, hwf', hsumf, htin, htout, hto, hassets, hsupply⟩
-  · rw [hv']
-    exact hcorr'
-  · rw [hv']
-    exact hvalf
+  exact ⟨Wf, W', hinf, hin', hvf, hv', by rwa [hv'], by rwa [hv'], hwf', hsumf, htin, htout, hto,
+    hassets, hsupply⟩
 
 theorem TightTraceIsRegistryOutflow : Properties.TightTraceIsRegistryOutflow :=
   fun _ _ _ _ _ _ _ _ _ _ _ _ he hc0 hW hmem hc h henc ht hp =>

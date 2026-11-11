@@ -176,8 +176,7 @@ private lemma genesis_absent
   rw [hgen]
   intro hmem
   obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hmem
-  rw [Finset.mem_singleton] at hL
-  rw [hL] at hLkey
+  obtain rfl := Finset.mem_singleton.mp hL
   exact hv0 hLkey.symm
 
 /-- The genesis singleton discharges `SoundState (S 0)`. -/
@@ -221,12 +220,7 @@ theorem exactly_one_outcome
     (Delivered S v j ∨ Reclaimable S v j)
       ∧ ¬ (Delivered S v j ∧ Reclaimable S v j) := by
   have hiff := guardedEvolution_reclaimable_iff_absent hge hgen (j := j) hv0
-  constructor
-  · by_cases h : v ∈ keys (S j)
-    · exact Or.inl h
-    · exact Or.inr (hiff.mpr h)
-  · rintro ⟨hdel, hrec⟩
-    exact hiff.mp hrec hdel
+  exact ⟨(em _).imp_right hiff.mpr, fun ⟨hdel, hrec⟩ => hiff.mp hrec hdel⟩
 
 /-- **NO SECOND DELIVERY.**  Along any guarded history from genesis there are
 no two DISTINCT steps at which the same commit value transitions from absent
@@ -257,9 +251,7 @@ theorem delivery_is_final
       ∧ (∀ j, D < t (j + 1) → ¬ Reclaimable S v j) := by
   obtain ⟨hpers, hnorec⟩ :=
     guardedEvolution_delivered_available_forever hge hgen htmono hti hdel
-  refine ⟨hpers, ?_⟩
-  rintro j htj ⟨W, hW, hlow, hwin⟩
-  exact hnorec j W htj hW hlow hwin
+  exact ⟨hpers, fun j htj ⟨W, hW, hlow, hwin⟩ => hnorec j W htj hW hlow hwin⟩
 
 /-! ## The headline -/
 
@@ -304,19 +296,12 @@ theorem no_theft
     ∧ (∀ m₁ m₂ : ℕ, EntersAt S v m₁ → EntersAt S v m₂ → m₁ = m₂) := by
   have h0 := genesis_sound hgen
   have hevo := guardedEvolution_isEvolution hge h0
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · intro j hpin
-    exact exactly_one_outcome hge hgen hv0 hpin
-  · intro i j hti hdel hpin hrec
-    exact no_double_redemption hge hgen htmono hti hdel hpin hrec
-  · intro i j hdel hij
-    exact evolution_keys_mono hevo hij hdel
-  · intro n hdel
-    obtain ⟨m, hmn, habs, hstep⟩ :=
-      evolution_key_origin hevo n hdel (genesis_absent hgen hv0)
-    exact ⟨m, hmn, habs, by rw [hstep]; exact Finset.mem_insert_self _ _⟩
-  · intro m₁ m₂ h1 h2
-    exact evolution_key_origin_unique hevo h1 h2
+  refine ⟨fun j hpin => exactly_one_outcome hge hgen hv0 hpin,
+    fun i j hti hdel hpin hrec => no_double_redemption hge hgen htmono hti hdel hpin hrec,
+    fun i j hdel hij => evolution_keys_mono hevo hij hdel, fun n hdel => ?_,
+    fun m₁ m₂ h1 h2 => evolution_key_origin_unique hevo h1 h2⟩
+  obtain ⟨m, hmn, habs, hstep⟩ := evolution_key_origin hevo n hdel (genesis_absent hgen hv0)
+  exact ⟨m, hmn, habs, by rw [hstep]; exact Finset.mem_insert_self _ _⟩
 
 /-! ## The capstone from an arbitrary sound start
 
@@ -355,23 +340,13 @@ theorem no_theft_of_sound_start
     ∧ (∀ i j : ℕ, Delivered S v i → i ≤ j → Delivered S v j)
     ∧ (∀ n : ℕ, Delivered S v n → ∃ m, m < n ∧ EntersAt S v m)
     ∧ (∀ m₁ m₂ : ℕ, EntersAt S v m₁ → EntersAt S v m₂ → m₁ = m₂) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · intro j _
-    constructor
-    · by_cases hd : v ∈ keys (S j)
-      · exact Or.inl hd
-      · exact Or.inr (reclaim_witness_available hevo h0 hzero hv0 hd)
-    · rintro ⟨hd, hr⟩
-      exact present_not_reclaimable (evolution_sound hevo h0 j).1 hd hr
-  · intro i j hti hdel hpin hrec
-    obtain ⟨W, hW, hlow, hwin⟩ := hrec
-    exact delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono hti hdel hpin hW hlow hwin
-  · intro i j hdel hij
-    exact evolution_keys_mono hevo hij hdel
-  · intro n hdel
-    obtain ⟨m, hmn, habs, hstep⟩ := evolution_key_origin hevo n hdel hvabs
-    exact ⟨m, hmn, habs, by rw [hstep]; exact Finset.mem_insert_self _ _⟩
-  · intro m₁ m₂ h1 h2
-    exact evolution_key_origin_unique hevo h1 h2
+  refine ⟨fun j _ => ⟨(em _).imp_right (reclaim_witness_available hevo h0 hzero hv0),
+      fun ⟨hd, hr⟩ => present_not_reclaimable (evolution_sound hevo h0 j).1 hd hr⟩,
+    fun i j hti hdel hpin ⟨W, hW, hlow, hwin⟩ =>
+      delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono hti hdel hpin hW hlow hwin,
+    fun i j hdel hij => evolution_keys_mono hevo hij hdel, fun n hdel => ?_,
+    fun m₁ m₂ h1 h2 => evolution_key_origin_unique hevo h1 h2⟩
+  obtain ⟨m, hmn, habs, hstep⟩ := evolution_key_origin hevo n hdel hvabs
+  exact ⟨m, hmn, habs, by rw [hstep]; exact Finset.mem_insert_self _ _⟩
 
 end AttackVectors.NoTheft

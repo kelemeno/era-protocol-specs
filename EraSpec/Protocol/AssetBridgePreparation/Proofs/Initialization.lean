@@ -27,10 +27,6 @@ theorem initialized_preparation_trace
     · exact (congrArg BridgedStandardERC20.Config.assetId hconfig).trans hw.2.2.1
   obtain ⟨hfinal, hsum, _hc⟩ := reachable_conservation
     (s := ⟨{ registered.state with token := fundedToken }, []⟩) (t := t) (hooks := hooks) hs hp
-  refine ⟨hfinal.1, hfinal.2, ?_⟩
-  change t.vault.token.totalSupply + pendingAmount t.pending =
-    fundedToken.totalSupply + pendingAmount [] at hsum
-  rw [show pendingAmount [] = 0 from rfl, Nat.add_zero] at hsum
-  exact hsum
+  exact ⟨hfinal.1, hfinal.2, hsum⟩
 
 end AssetBridgePreparation
