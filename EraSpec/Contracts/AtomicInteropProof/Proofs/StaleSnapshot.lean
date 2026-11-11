@@ -87,14 +87,10 @@ theorem witness_precedes_delivery {S : ℕ → Finset AbsLeaf} {v : UInt256}
     (hW : W ∈ S j) (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey)
     (hdel : v ∈ keys (S n)) :
     Properties.witness_precedes_delivery (S := S) (v := v) (hevo := hevo) (h0 := h0) (j := j) (n := n) (W := W) (hW := hW) (hlow := hlow) (hwin := hwin) (hdel := hdel) := by
-  unfold Properties.witness_precedes_delivery
-  exact
-    by
-      by_contra h
-      push_neg at h
-      have hkeys : v ∈ keys (S j) := evolution_keys_mono hevo h hdel
-      exact present_not_reclaimable (evolution_sound hevo h0 j).1 hkeys
-        ⟨W, hW, hlow, hwin⟩
+  by_contra! h
+  have hkeys : v ∈ keys (S j) := evolution_keys_mono hevo h hdel
+  exact present_not_reclaimable (evolution_sound hevo h0 j).1 hkeys
+    ⟨W, hW, hlow, hwin⟩
 
 
 /-- **(b) A STALE WITNESS CANNOT BE REDEEMED AFTER AN ON-TIME DELIVERY.**
@@ -110,13 +106,9 @@ theorem stale_witness_not_redeemable {S : ℕ → Finset AbsLeaf} {t : ℕ → U
     {j : ℕ} {W : AbsLeaf}
     (hpin : D < t (j+1))
     (hW : W ∈ S j) (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey) :
-    Properties.stale_witness_not_redeemable (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (htmono := htmono) (j := j) (W := W) (hpin := hpin) (hW := hW) (hlow := hlow) (hwin := hwin) := by
-  unfold Properties.stale_witness_not_redeemable
-  exact
-    by
-      intro i hti hmem
-      exact delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono
-        hti hmem hpin hW hlow hwin
+    Properties.stale_witness_not_redeemable (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (htmono := htmono) (j := j) (W := W) (hpin := hpin) (hW := hW) (hlow := hlow) (hwin := hwin) :=
+  fun _ hti hmem => delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono
+    hti hmem hpin hW hlow hwin
 
 
 /-- **(b, attacker's view) THE PINNING CHECK IS EXACTLY WHAT FAILS.**  Given
@@ -131,11 +123,9 @@ theorem pinning_gate_rejects_stale_witness {S : ℕ → Finset AbsLeaf} {t : ℕ
     {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i))
     {j : ℕ} {W : AbsLeaf}
     (hW : W ∈ S j) (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey) :
-    Properties.pinning_gate_rejects_stale_witness (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) (j := j) (W := W) (hW := hW) (hlow := hlow) (hwin := hwin) := by
-  unfold Properties.pinning_gate_rejects_stale_witness
-  exact
-    fun hpin => delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono
-        hti hdel hpin hW hlow hwin
+    Properties.pinning_gate_rejects_stale_witness (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) (j := j) (W := W) (hW := hW) (hlow := hlow) (hwin := hwin) :=
+  fun hpin => delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono
+    hti hdel hpin hW hlow hwin
 
 
 /-- The stale-witness history is a genuine `Evolution`: step 0 is the
@@ -143,13 +133,10 @@ guarded insert of `a` through the genesis leaf's window, every later step
 is a no-op. -/
 private theorem staleHistory_evolution {a : UInt256} (ha : a ≠ 0) :
     Evolution (staleHistory a) := by
-  intro n
-  cases n with
-  | zero =>
-    exact Or.inr ⟨⟨0, 0⟩, a, Finset.mem_singleton_self _,
+  rintro (_ | _)
+  · exact Or.inr ⟨⟨0, 0⟩, a, Finset.mem_singleton_self _,
       Fin.pos_of_ne_zero ha, Or.inl rfl, rfl⟩
-  | succ k =>
-    exact Or.inl rfl
+  · exact Or.inl rfl
 
 
 /-- **(c) SHARPNESS: WITHOUT THE DEADLINE GATE, THE ATTACK STATE EXISTS.**
@@ -169,14 +156,11 @@ no monotone timestamps can satisfy both gates for this pair (that is
 `stale_witness_not_redeemable`).  The timestamp comparison, and it alone,
 is what separates this sound-but-dangerous state from an actual theft. -/
 theorem deadline_gate_indispensable {a : UInt256} (ha : a ≠ 0) :
-    Properties.deadline_gate_indispensable (a := a) (ha := ha) := by
-  unfold Properties.deadline_gate_indispensable
-  exact
-    by
-      refine ⟨staleHistory a, 0, 1, ⟨0, 0⟩,
-        staleHistory_evolution ha, genesis_soundState, Nat.zero_lt_one,
-        Finset.mem_singleton_self _, Fin.pos_of_ne_zero ha, Or.inl rfl, ?_⟩
-      exact imtInsert_key_mem (Finset.mem_singleton_self _)
+    Properties.deadline_gate_indispensable (a := a) (ha := ha) :=
+  ⟨staleHistory a, 0, 1, ⟨0, 0⟩,
+    staleHistory_evolution ha, genesis_soundState, Nat.zero_lt_one,
+    Finset.mem_singleton_self _, Fin.pos_of_ne_zero ha, Or.inl rfl,
+    imtInsert_key_mem (Finset.mem_singleton_self _)⟩
 
 
 end AttackVectors.StaleSnapshot

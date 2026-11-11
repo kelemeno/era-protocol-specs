@@ -57,19 +57,15 @@ variable (tree : Chain → Set Value)
 equality check adds nothing on this path — the "defense-in-depth" reading. -/
 theorem inclusion_self_binds (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hmem : v ∈ tree c) :
-    Properties.inclusion_self_binds (h := h) (c := c) (v := v) (hmem := hmem) := by
-  unfold Properties.inclusion_self_binds
-  exact
-    h c v hmem
+    Properties.inclusion_self_binds (h := h) (c := c) (v := v) (hmem := hmem) :=
+  h c v hmem
 
 
 /-- Equivalently: a proof against the wrong chain's root cannot be produced at all. -/
 theorem inclusion_wrong_chain_impossible (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hne : srcOf v ≠ c) :
-    Properties.inclusion_wrong_chain_impossible (h := h) (c := c) (v := v) (hne := hne) := by
-  unfold Properties.inclusion_wrong_chain_impossible
-  exact
-    fun hmem => hne (h c v hmem)
+    Properties.inclusion_wrong_chain_impossible (h := h) (c := c) (v := v) (hne := hne) :=
+  fun hmem => hne (h c v hmem)
 
 
 /-! ## Negative polarity: absence carries NO chain binding
@@ -83,10 +79,8 @@ witness to every wrong chain.  So on the refund path the explicit check is the O
 proof to the leg's chain. -/
 theorem absence_at_every_wrong_chain (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hne : srcOf v ≠ c) :
-    Properties.absence_at_every_wrong_chain (h := h) (c := c) (v := v) (hne := hne) := by
-  unfold Properties.absence_at_every_wrong_chain
-  exact
-    inclusion_wrong_chain_impossible srcOf tree h hne
+    Properties.absence_at_every_wrong_chain (h := h) (c := c) (v := v) (hne := hne) :=
+  inclusion_wrong_chain_impossible srcOf tree h hne
 
 
 /-- **THE ATTACK THE CHECK BLOCKS.**  A leg that is committed and finalized on its own chain — the
@@ -95,21 +89,16 @@ other chain.  Without the equality check, `authorizeRefund` would accept one, ma
 `Revertable`: the double-mint the source comment names. -/
 theorem finalized_leg_still_absent_elsewhere (h : HonestInsertion srcOf tree)
     {v : Value} {c : Chain} (hlive : v ∈ tree (srcOf v)) (hne : srcOf v ≠ c) :
-    Properties.finalized_leg_still_absent_elsewhere (h := h) (v := v) (c := c) (hlive := hlive) (hne := hne) := by
-  unfold Properties.finalized_leg_still_absent_elsewhere
-  exact
-    ⟨hlive, absence_at_every_wrong_chain srcOf tree h hne⟩
+    Properties.finalized_leg_still_absent_elsewhere (h := h) (v := v) (c := c) (hlive := hlive) (hne := hne) :=
+  ⟨hlive, absence_at_every_wrong_chain srcOf tree h hne⟩
 
 
 /-- **THE CHECK RESTORES SOUNDNESS.**  With the proof's chain pinned to the leg's declared chain, a
 committed leg leaves no absence witness — the refund gate cannot pass. -/
 theorem refund_blocked_when_chain_pinned {v : Value} {c : Chain}
     (hpinned : c = srcOf v) (hlive : v ∈ tree (srcOf v)) :
-    Properties.refund_blocked_when_chain_pinned (v := v) (c := c) (hpinned := hpinned) (hlive := hlive) := by
-  unfold Properties.refund_blocked_when_chain_pinned
-  exact
-    by
-      rw [hpinned]; exact hlive
+    Properties.refund_blocked_when_chain_pinned (v := v) (c := c) (hpinned := hpinned) (hlive := hlive) :=
+  hpinned ▸ hlive
 
 
 /-! ## Sharpening the "defense-in-depth" label
@@ -125,23 +114,16 @@ different amounts of trust, which the comment does not say. -/
 leg's commit value, so a membership witness exists against the wrong chain and the explicit equality
 check becomes the only barrier on the inclusion path too. -/
 theorem inclusion_binding_requires_honesty :
-    Properties.inclusion_binding_requires_honesty := by
-  unfold Properties.inclusion_binding_requires_honesty
-  exact
-    by
-      refine ⟨Bool, Unit, fun _ => true, fun _ => Set.univ, false, (), ?_, ?_⟩
-      · exact Set.mem_univ _
-      · exact Bool.noConfusion
+    Properties.inclusion_binding_requires_honesty :=
+  ⟨Bool, Unit, fun _ => true, fun _ => Set.univ, false, (), Set.mem_univ _, Bool.noConfusion⟩
 
 
 /-- The two paths, side by side: one hypothesis, opposite consequences.  This is the whole content of
 the asymmetry, and it is why no amount of care in `commitValue` could have removed the refund-path
 check — the binding is not missing there, it is unavailable in principle to a negative property. -/
 theorem polarity_summary (h : HonestInsertion srcOf tree) {v : Value} {c : Chain} (hne : srcOf v ≠ c) :
-    Properties.polarity_summary (h := h) (v := v) (c := c) (hne := hne) := by
-  unfold Properties.polarity_summary
-  exact
-    ⟨fun hmem => h c v hmem, absence_at_every_wrong_chain srcOf tree h hne⟩
+    Properties.polarity_summary (h := h) (v := v) (c := c) (hne := hne) :=
+  ⟨h c v, absence_at_every_wrong_chain srcOf tree h hne⟩
 
 
 end AttackVectors.ProofPolarity

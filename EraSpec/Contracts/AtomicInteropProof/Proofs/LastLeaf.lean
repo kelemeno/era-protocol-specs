@@ -43,10 +43,7 @@ theorem zero_subtree_or_break (h : Hash) (z0 : UInt256) (L : List UInt256) :
     rw [levels_succ_getD, zeros_succ] at heq
     by_cases hA : (levels h z0 L l).getD (2 * m) (zeros h z0 l) = zeros h z0 l
     · by_cases hB : (levels h z0 L l).getD (2 * m + 1) (zeros h z0 l) = zeros h z0 l
-      · refine ih (2 * m) ?_ hA
-        have : 2 * m * 2 ^ l = m * 2 ^ (l + 1) := by rw [pow_succ]; ring
-        rw [this]
-        exact hm
+      · exact ih (2 * m) (by convert hm using 1; ring) hA
       · exact HashBreak.nodeCollision _ _ _ _ (Or.inr hB) heq
     · exact HashBreak.nodeCollision _ _ _ _ (Or.inl hA) heq
 
@@ -75,8 +72,7 @@ theorem exists_left_level : ∀ (height N : ℕ), N + 1 < 2 ^ height →
         omega
       obtain ⟨l, hl, hev, heq⟩ := ih (N / 2) hN2
       refine ⟨l + 1, by omega, ?_, ?_⟩
-      · rw [div_pow_succ]
-        exact hev
+      · rwa [div_pow_succ]
       · rw [div_pow_succ, pow_succ, ← mul_assoc, heq]
         omega
 
@@ -133,10 +129,7 @@ theorem AcceptedLastLeafOrBreak : Properties.AcceptedLastLeafOrBreak := accepted
 theorem HashBreakAlways : Properties.HashBreakAlways := by
   intro h z0 L
   obtain ⟨a, b, c, d, hne, he⟩ := MerkleSpec.Verifier.exists_pair_collision h
-  refine .nodeCollision a b c d ?_ he
-  by_contra hcd
-  push_neg at hcd
-  exact hne (by rw [hcd.1, hcd.2])
+  exact .nodeCollision a b c d (not_and_or.mp fun ⟨hac, hbd⟩ => hne (by rw [hac, hbd])) he
 
 /-! ## Pinned forms -/
 
@@ -192,13 +185,9 @@ theorem no_pinned_break_at_end (h : Hash) (z0 : UInt256) (L : List UInt256) (j :
 theorem demo_no_pinned_break : ¬ PinnedBreak demoHash 0 [5, 7, 9] 1 := by
   rintro (⟨l, m, _, hm, _, heq⟩ | ⟨_, he⟩)
   · rcases l with _ | l
-    · have hm1 : m = 1 := by simp at hm; omega
-      subst hm1
+    · obtain rfl : m = 1 := by simp at hm; omega
       exact absurd heq (by decide)
-    · exfalso
-      have h4 : 4 ≤ 2 ^ (l + 1 + 1) :=
-        calc 4 = 2 ^ 2 := by norm_num
-          _ ≤ 2 ^ (l + 1 + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
+    · have h4 : 2 ^ 2 ≤ 2 ^ (l + 1 + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
       rcases m with _ | m
       · simp at hm
       · nlinarith
@@ -226,9 +215,7 @@ theorem accepted_last_leaf_or_pinned_break (h : Hash) (z0 : UInt256)
       intro l hl
       have := hpin l (by omega) (by omega)
       rwa [Nat.sub_zero] at this
-    rcases last_leaf_or_pinned_break h z0 L sibs height j hcap hj honest hzero with h1 | h1
-    · exact Or.inl h1
-    · exact Or.inr (Or.inl h1)
+    exact (last_leaf_or_pinned_break h z0 L sibs height j hcap hj honest hzero).imp_right Or.inl
   · exact Or.inr (Or.inr hc)
 
 theorem accepted_last_leaf_or_pinned_break_satisfiable :
@@ -255,16 +242,10 @@ theorem no_pinned_break_on (h : Hash) (z0 : UInt256) (L : List UInt256) (height 
     (hinj : PairInjOn h (TreePair h z0 L height)) : ¬ PinnedBreak h z0 L j := by
   rintro (⟨l, m, hnext, hm, hne, heq⟩ | ⟨hnext, he⟩)
   · apply hne
-    have hm1 : 1 ≤ m := by
-      rcases m with _ | m
-      · simp at hm
-      · omega
-    have hlt : 2 ^ (l + 1) < 2 ^ height := by
-      have : 2 ^ (l + 1) ≤ m * 2 ^ (l + 1) := by nlinarith
-      omega
+    have hm1 : 0 < m := Nat.pos_of_ne_zero (by rintro rfl; simp at hm)
+    have hlt : 2 ^ (l + 1) < 2 ^ height := (Nat.le_mul_of_pos_left _ hm1).trans_lt (by omega)
     have hl : l < height := by
-      by_contra hcon
-      have : 2 ^ height ≤ 2 ^ (l + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
+      have := (Nat.pow_lt_pow_iff_right (by norm_num : 1 < 2)).mp hlt
       omega
     exact hinj _ _ (Or.inl ⟨l, hl, m, by omega, rfl⟩) (Or.inr ⟨l, hl, rfl⟩) heq
   · exact hsep (j + 1) hnext he
@@ -275,10 +256,8 @@ lemma treePair_mem (h : Hash) (z0 : UInt256) (L : List UInt256) (height j i : �
     (hj : j < L.length) (hi : i < height) :
     TreePair h z0 L height (treePair h z0 L (0 + i) (j / 2 ^ i)) := by
   refine Or.inl ⟨i, hi, j / 2 ^ i / 2, ?_, by rw [Nat.zero_add]; rfl⟩
-  have hd : j / 2 ^ i / 2 = j / 2 ^ (i + 1) := by
-    rw [Nat.div_div_eq_div_mul, show 2 ^ i * 2 = (2 : ℕ) ^ (i + 1) from by ring]
-  rw [hd]
-  exact lt_of_le_of_lt (Nat.div_mul_le_self j _) hj
+  rw [Nat.div_div_eq_div_mul, ← pow_succ]
+  exact (Nat.div_mul_le_self j _).trans_lt hj
 
 /-- **AN ACCEPTED PATH WITH THE CHECK IS THE LAST LEAF, UNDER A BOUNDED PREMISE.** -/
 theorem accepted_last_leaf_on (h : Hash) (z0 : UInt256)
@@ -302,11 +281,7 @@ lemma demo_pairs_mem (p : UInt256 × UInt256)
       ∨ VerifiedPair demoHash (honestSibs demoHash 0 [5, 7] 1) 2 1 7 p) :
     p ∈ ([(5, 7), (20, 1), (0, 0), (1, 1)] : List (UInt256 × UInt256)) := by
   rcases hp with (⟨l, hl, m, hm, rfl⟩ | ⟨l, hl, rfl⟩) | ⟨i, hi, rfl⟩
-  · interval_cases l
-    · have : m = 0 := by simp at hm; omega
-      subst this; decide
-    · have : m = 0 := by simp at hm; omega
-      subst this; decide
+  · interval_cases l <;> (obtain rfl : m = 0 := by simp at hm; omega) <;> decide
   · interval_cases l <;> decide
   · interval_cases i <;> decide
 
@@ -317,7 +292,7 @@ theorem demo_pairInjOn : PairInjOn demoHash (fun p => TreePair demoHash 0 [5, 7]
       ∀ q ∈ ([(5, 7), (20, 1), (0, 0), (1, 1)] : List (UInt256 × UInt256)),
         demoHash p.1 p.2 = demoHash q.1 q.2 → p = q := by
     intro p hp q hq he
-    simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hp hq
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hp hq
     rcases hp with rfl | rfl | rfl | rfl <;> rcases hq with rfl | rfl | rfl | rfl <;>
       first | rfl | exact absurd he (by decide)
   exact fun p q hp hq he => hW p (demo_pairs_mem p hp) q (demo_pairs_mem q hq) he

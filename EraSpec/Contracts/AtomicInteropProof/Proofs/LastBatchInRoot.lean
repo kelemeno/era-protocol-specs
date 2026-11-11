@@ -42,63 +42,36 @@ namespace AttackVectors.LastBatchInRoot
 theorem mod_two_mul (a d : ℕ) (hd : 0 < d) :
     Properties.mod_two_mul (a := a) (d := d) (hd := hd) := by
   unfold Properties.mod_two_mul
-  exact
-    by
-      have hpar : a % 2 < 2 := Nat.mod_lt _ (by norm_num)
-      have hmd : a / 2 % d < d := Nat.mod_lt _ hd
-      have hlt : 2 * (a / 2 % d) + a % 2 < 2 * d := by omega
-      have hsmall : a % 2 % (2 * d) = a % 2 := Nat.mod_eq_of_lt (by omega)
-      have key : 2 * (a / 2) % (2 * d) = 2 * (a / 2 % d) := Nat.mul_mod_mul_left 2 (a / 2) d
-      calc a % (2 * d)
-          = (2 * (a / 2) + a % 2) % (2 * d) := by rw [Nat.div_add_mod]
-        _ = (2 * (a / 2) % (2 * d) + a % 2 % (2 * d)) % (2 * d) := by rw [Nat.add_mod]
-        _ = (2 * (a / 2 % d) + a % 2) % (2 * d) := by rw [key, hsmall]
-        _ = 2 * (a / 2 % d) + a % 2 := Nat.mod_eq_of_lt hlt
+  rw [Nat.mod_mul]
+  omega
 
 
 /-- **THE FIRST LEFT TURN EXISTS.**  Every index has a level at which its path turns left, namely its
 count of trailing ones: below that level the path went right, at it the node is a left child. -/
 theorem exists_first_left (i : ℕ) :
     Properties.exists_first_left (i := i) := by
-  unfold Properties.exists_first_left
-  exact
-    by
-      induction i using Nat.strong_induction_on with
-      | _ i ih =>
-        rcases Nat.even_or_odd i with he | ho
-        · exact ⟨0, by simp [Nat.mod_one], by simpa [Nat.even_iff] using he⟩
-        · obtain ⟨m, hm⟩ := ho
-          have hmlt : m < i := by omega
-          obtain ⟨k, hk1, hk2⟩ := ih m hmlt
-          refine ⟨k + 1, ?_, ?_⟩
-          · have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
-            have hd : 0 < 2 ^ k := Nat.pow_pos (by norm_num)
-            rw [hpow, mod_two_mul i _ hd]
-            have hhalf : i / 2 = m := by omega
-            have hpar : i % 2 = 1 := by omega
-            rw [hhalf, hk1, hpar]
-            have : 1 ≤ 2 ^ k := Nat.one_le_two_pow
-            omega
-          · have hpow : (2 : ℕ) ^ (k + 1) = 2 * 2 ^ k := by ring
-            have hhalf : i / 2 = m := by omega
-            rw [hpow, ← Nat.div_div_eq_div_mul, hhalf]
-            exact hk2
+  induction i using Nat.strong_induction_on with
+  | _ i ih =>
+    rcases Nat.even_or_odd' i with ⟨m, rfl | rfl⟩
+    · exact ⟨0, by simp [Nat.mod_one], by simp⟩
+    · obtain ⟨k, hk1, hk2⟩ := ih m (by omega)
+      have hhalf : (2 * m + 1) / 2 = m := by omega
+      have := Nat.one_le_two_pow (n := k)
+      refine ⟨k + 1, ?_, ?_⟩
+      · rw [pow_succ', Nat.mod_mul, hhalf, hk1]
+        omega
+      · rwa [pow_succ', ← Nat.div_div_eq_div_mul, hhalf]
 
 
 /-- At the first left turn, the right sibling subtree starts exactly at `i + 1`. -/
 theorem right_sibling_starts_at_succ {i k : ℕ}
     (h1 : i % 2 ^ k = 2 ^ k - 1) :
     Properties.right_sibling_starts_at_succ (i := i) (k := k) (h1 := h1) := by
+  have := Nat.div_add_mod' i (2 ^ k)
+  have := Nat.one_le_two_pow (n := k)
   unfold Properties.right_sibling_starts_at_succ
-  exact
-    by
-      have hd : 0 < 2 ^ k := by positivity
-      have h2 : i % 2 ^ k + 1 = 2 ^ k := by omega
-      calc (i / 2 ^ k + 1) * 2 ^ k
-          = 2 ^ k * (i / 2 ^ k) + 2 ^ k := by ring
-        _ = 2 ^ k * (i / 2 ^ k) + (i % 2 ^ k + 1) := by rw [h2]
-        _ = (2 ^ k * (i / 2 ^ k) + i % 2 ^ k) + 1 := by ring
-        _ = i + 1 := by rw [Nat.div_add_mod]
+  rw [add_mul, one_mul]
+  omega
 
 
 /-- **SOUNDNESS OF THE ZERO-CASCADE CHECK.**  If the check passes for leaf `i` in a tree holding
@@ -107,30 +80,19 @@ what discharges `TimeoutSoundness`'s `hlast`: no batch of this chain sits after 
 theorem last_of_rightEmpty {i n h : ℕ} (hi : i < n) (hn : n ≤ 2 ^ h)
     (hemp : RightEmpty i n h) :
     Properties.last_of_rightEmpty (i := i) (n := n) (h := h) (hi := hi) (hn := hn) (hemp := hemp) := by
-  unfold Properties.last_of_rightEmpty
-  exact
-    by
-      by_contra hne
-      have hgt : i + 1 < n := by omega
-      obtain ⟨k, hk1, hk2⟩ := exists_first_left i
-      have hstart : (i / 2 ^ k + 1) * 2 ^ k = i + 1 := right_sibling_starts_at_succ hk1
-      have hd : 0 < 2 ^ k := by positivity
-      -- the witnessing level lies inside the path: otherwise `i + 1` would already fill the tree
-      have hklt : k < h := by
-        by_contra hkh
-        have hle : (2 : ℕ) ^ h ≤ 2 ^ k := Nat.pow_le_pow_right (by norm_num) (by omega)
-        have hk_le : (2 : ℕ) ^ k ≤ i + 1 := by
-          calc (2 : ℕ) ^ k = 1 * 2 ^ k := (one_mul _).symm
-            _ ≤ (i / 2 ^ k + 1) * 2 ^ k := Nat.mul_le_mul_right _ (Nat.le_add_left 1 _)
-            _ = i + 1 := hstart
-        omega
-      -- leaf `i + 1` is filled and sits in the right sibling's range, contradicting the check
-      have hub : i + 1 < (i / 2 ^ k + 2) * 2 ^ k := by
-        have hsplit : (i / 2 ^ k + 2) * 2 ^ k = (i / 2 ^ k + 1) * 2 ^ k + 2 ^ k := by ring
-        rw [hsplit, hstart]
-        omega
-      have := hemp k hklt hk2 (i + 1) (le_of_eq hstart) hub
-      omega
+  by_contra hne
+  have hgt : i + 1 < n := by omega
+  obtain ⟨k, hk1, hk2⟩ := exists_first_left i
+  have hstart : (i / 2 ^ k + 1) * 2 ^ k = i + 1 := right_sibling_starts_at_succ hk1
+  have hd : 0 < 2 ^ k := by positivity
+  have hsplit : (i / 2 ^ k + 2) * 2 ^ k = (i / 2 ^ k + 1) * 2 ^ k + 2 ^ k := by ring
+  -- the witnessing level lies inside the path: otherwise `i + 1` would already fill the tree
+  have hklt : k < h := by
+    have : 2 ^ k ≤ i + 1 := (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)).trans hstart.le
+    exact (Nat.pow_lt_pow_iff_right (by norm_num : 1 < 2)).mp (by omega)
+  -- leaf `i + 1` is filled and sits in the right sibling's range, contradicting the check
+  have := hemp k hklt hk2 (i + 1) hstart.le (by omega)
+  omega
 
 
 /-- **AND THE CHECK IS NECESSARY, NOT JUST SUFFICIENT.**  The last filled leaf does satisfy it, so an
@@ -138,17 +100,11 @@ honest prover can always produce the witness -- the gate does not lock out legit
 timeouts. -/
 theorem rightEmpty_of_last {i h : ℕ} :
     Properties.rightEmpty_of_last (i := i) (h := h) := by
-  unfold Properties.rightEmpty_of_last
-  exact
-    by
-      intro k _ _ j hj _
-      have hd : 0 < 2 ^ k := by positivity
-      have h1 : i % 2 ^ k < 2 ^ k := Nat.mod_lt _ hd
-      have hlt : i < (i / 2 ^ k + 1) * 2 ^ k := by
-        calc i = 2 ^ k * (i / 2 ^ k) + i % 2 ^ k := (Nat.div_add_mod i (2 ^ k)).symm
-          _ < 2 ^ k * (i / 2 ^ k) + 2 ^ k := Nat.add_lt_add_left h1 _
-          _ = (i / 2 ^ k + 1) * 2 ^ k := by ring
-      exact lt_of_lt_of_le hlt hj
+  intro k _ _ j hj _
+  have := Nat.div_add_mod' i (2 ^ k)
+  have := Nat.mod_lt i (by positivity : 0 < 2 ^ k)
+  rw [add_mul, one_mul] at hj
+  omega
 
 
 /-- **THE BRIDGE.**  Last-in-root (an index fact, from the zero-cascade check) plus aggregation
@@ -156,22 +112,16 @@ ordering (a time fact, assumed) gives exactly `TimeoutSoundness`'s `hlast`. -/
 theorem hlast_of_last_in_root {inRoot : ℕ → Prop} {time : ℕ → ℕ} {T B : ℕ}
     (hlastIdx : ∀ m, inRoot m → m ≤ B)
     (hout : OutsideRootLate inRoot time T) :
-    Properties.hlast_of_last_in_root (inRoot := inRoot) (time := time) (T := T) (B := B) (hlastIdx := hlastIdx) (hout := hout) := by
-  unfold Properties.hlast_of_last_in_root
-  exact
-    fun n hn => hout n (fun hin => absurd (hlastIdx n hin) (by omega))
+    Properties.hlast_of_last_in_root (inRoot := inRoot) (time := time) (T := T) (B := B) (hlastIdx := hlastIdx) (hout := hout) :=
+  fun n hn => hout n (fun hin => absurd (hlastIdx n hin) (by omega))
 
 
 /-- The zero-cascade check supplies `hlastIdx` when the root holds batches `0 .. n-1`. -/
 theorem lastIdx_of_rightEmpty {i n h : ℕ} (hi : i < n) (hn : n ≤ 2 ^ h)
     (hemp : RightEmpty i n h) :
     Properties.lastIdx_of_rightEmpty (i := i) (n := n) (h := h) (hi := hi) (hn := hn) (hemp := hemp) := by
-  unfold Properties.lastIdx_of_rightEmpty
-  exact
-    by
-      intro m hm
-      have := last_of_rightEmpty hi hn hemp
-      omega
+  have := last_of_rightEmpty hi hn hemp
+  omega
 
 
 /-- **THE WHOLE END-BRANCH CHAIN, COMPOSED.**  On-chain zero-cascade check ⇒ `B` is the last batch in
@@ -188,12 +138,9 @@ theorem end_branch_from_onchain_check {H : AttackVectors.TimeoutSoundness.BatchH
     (hout : OutsideRootLate (· < nBatches) time T)
     (habsent : v ∉ H.endSet B) :
     Properties.end_branch_from_onchain_check (H := H) (time := time) (hao := hao) (B := B) (nBatches := nBatches) (hDepth := hDepth) (D := D) (T := T) (v := v) (htime := htime) (hroot := hroot) (hin := hin) (hcap := hcap) (hemp := hemp) (hout := hout) (habsent := habsent) := by
-  unfold Properties.end_branch_from_onchain_check
-  exact
-    by
-      subst htime
-      exact AttackVectors.TimeoutSoundness.end_absence_implies_never_finalized' hao hroot
-        (hlast_of_last_in_root (lastIdx_of_rightEmpty hin hcap hemp) hout) habsent
+  subst htime
+  exact AttackVectors.TimeoutSoundness.end_absence_implies_never_finalized' hao hroot
+    (hlast_of_last_in_root (lastIdx_of_rightEmpty hin hcap hemp) hout) habsent
 
 
 /-! ## The deployed counterpart

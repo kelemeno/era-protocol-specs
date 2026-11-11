@@ -96,26 +96,17 @@ private lemma attackTime_two (a : UInt256) : attackTime a 2 = 0 := by
 /-- `a` is not a genesis key (the genesis leaf's key is `0`). -/
 private lemma a_not_mem_genesis {a : UInt256} (ha : a ≠ 0) :
     a ∉ keys ({⟨0, 0⟩} : Finset AbsLeaf) := by
-  intro hmem
-  obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hmem
-  rw [Finset.mem_singleton] at hL
-  rw [hL] at hLkey
-  exact ha hLkey.symm
+  simpa [keys, eq_comm] using ha
 
 
 /-- The attack history is a genuine `Evolution`: one guarded insert of `a`
 through the genesis leaf's window, then no-ops. -/
 theorem attackHistory_evolution {a : UInt256} (ha : a ≠ 0) :
     Properties.attackHistory_evolution (a := a) (ha := ha) := by
-  unfold Properties.attackHistory_evolution
-  exact
-    by
-      intro n
-      cases n with
-      | zero =>
-        exact Or.inr ⟨⟨0, 0⟩, a, Finset.mem_singleton_self _,
-          Fin.pos_of_ne_zero ha, Or.inl rfl, rfl⟩
-      | succ k => exact Or.inl rfl
+  rintro (_ | _)
+  · exact Or.inr ⟨⟨0, 0⟩, a, Finset.mem_singleton_self _,
+      Fin.pos_of_ne_zero ha, Or.inl rfl, rfl⟩
+  · exact Or.inl rfl
 
 
 /-- Stronger: the attack history is a `GuardedEvolution` — its single insert
@@ -125,15 +116,10 @@ counterexample is not an artifact of the abstract `Evolution` relation: it is a
 history the real insert path can produce. -/
 theorem attackHistory_guardedEvolution {a : UInt256} (ha : a ≠ 0) :
     Properties.attackHistory_guardedEvolution (a := a) (ha := ha) := by
-  unfold Properties.attackHistory_guardedEvolution
-  exact
-    by
-      intro n
-      cases n with
-      | zero =>
-        exact Or.inr ⟨⟨0, 0⟩, a, Finset.mem_singleton_self _,
-          Fin.pos_of_ne_zero ha, Or.inl rfl, a_not_mem_genesis ha, rfl⟩
-      | succ k => exact Or.inl rfl
+  rintro (_ | _)
+  · exact Or.inr ⟨⟨0, 0⟩, a, Finset.mem_singleton_self _,
+      Fin.pos_of_ne_zero ha, Or.inl rfl, a_not_mem_genesis ha, rfl⟩
+  · exact Or.inl rfl
 
 
 /-- **THE TIMESTAMP ASSIGNMENT IS NOT MONOTONE.**  `1 ≤ 2` but
@@ -141,14 +127,10 @@ theorem attackHistory_guardedEvolution {a : UInt256} (ha : a ≠ 0) :
 earlier settlement time. -/
 theorem attackTime_not_monotone {a : UInt256} (ha : a ≠ 0) :
     Properties.attackTime_not_monotone (a := a) (ha := ha) := by
-  unfold Properties.attackTime_not_monotone
-  exact
-    by
-      intro hmono
-      have h12 : attackTime a 1 ≤ attackTime a 2 :=
-        hmono (by omega : (1 : ℕ) ≤ 2)
-      rw [attackTime_one, attackTime_two] at h12
-      exact absurd h12 (not_le.mpr (Fin.pos_of_ne_zero ha))
+  intro hmono
+  have h12 := hmono (by decide : (1 : ℕ) ≤ 2)
+  rw [attackTime_one, attackTime_two] at h12
+  exact absurd h12 (not_le.mpr (Fin.pos_of_ne_zero ha))
 
 
 /-! ## (A) Monotonicity is indispensable -/
@@ -176,26 +158,15 @@ comparison entirely; here the deadline comparisons are both performed and both
 pass, because they read different timestamps and those timestamps are
 inverted.) -/
 theorem monotone_timestamps_indispensable {a : UInt256} (ha : a ≠ 0) :
-    Properties.monotone_timestamps_indispensable (a := a) (ha := ha) := by
-  unfold Properties.monotone_timestamps_indispensable
-  exact
-    by
-      refine ⟨attackHistory a, attackTime a, 0, a, 2, 0, ⟨0, 0⟩,
-        attackHistory_evolution ha, attackHistory_guardedEvolution ha,
-        attackHistory_zero a, ?_, attackTime_not_monotone ha, ⟨?_, ?_⟩,
-        ⟨?_, ?_, ?_, Or.inl rfl⟩⟩
-      · rw [attackHistory_zero]; exact genesis_soundState
-      · -- delivery is ON TIME at snapshot 2: t 2 = 0 ≤ 0 = D
-        rw [attackTime_two]
-      · -- a IS a key of snapshot 2 (the set is constant from snapshot 1 on)
-        rw [attackHistory_two]
-        exact imtInsert_key_mem (Finset.mem_singleton_self _)
-      · -- snapshot 0 is deadline-PINNED: D = 0 < a = t 1
-        rw [attackTime_one]
-        exact Fin.pos_of_ne_zero ha
-      · rw [attackHistory_zero]
-        exact Finset.mem_singleton_self _
-      · exact Fin.pos_of_ne_zero ha
+    Properties.monotone_timestamps_indispensable (a := a) (ha := ha) :=
+  ⟨attackHistory a, attackTime a, 0, a, 2, 0, ⟨0, 0⟩,
+    attackHistory_evolution ha, attackHistory_guardedEvolution ha,
+    attackHistory_zero a, attackHistory_zero a ▸ genesis_soundState, attackTime_not_monotone ha,
+    -- delivery is ON TIME at snapshot 2 (`t 2 = 0 ≤ 0 = D`), and `a` IS a key of snapshot 2
+    ⟨(attackTime_two a).le, attackHistory_two a ▸ imtInsert_key_mem (Finset.mem_singleton_self _)⟩,
+    -- snapshot 0 is deadline-PINNED (`D = 0 < a = t 1`) and the genesis leaf straddles `a`
+    ⟨attackTime_one a ▸ Fin.pos_of_ne_zero ha, Finset.mem_singleton_self _,
+      Fin.pos_of_ne_zero ha, Or.inl rfl⟩⟩
 
 
 /-- **MONOTONICITY BLOCKS IT.**  With `Monotone t` restored, the configuration
@@ -209,11 +180,9 @@ theorem monotone_blocks_the_attack {S : ℕ → Finset AbsLeaf} {t : ℕ → UIn
     {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i))
     {j : ℕ} {W : AbsLeaf} (hpin : D < t (j + 1)) (hW : W ∈ S j)
     (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey) :
-    Properties.monotone_blocks_the_attack (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) (j := j) (W := W) (hpin := hpin) (hW := hW) (hlow := hlow) (hwin := hwin) := by
-  unfold Properties.monotone_blocks_the_attack
-  exact
-    delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono hti hdel
-        hpin hW hlow hwin
+    Properties.monotone_blocks_the_attack (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) (j := j) (W := W) (hpin := hpin) (hW := hW) (hlow := hlow) (hwin := hwin) :=
+  delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono hti hdel
+      hpin hW hlow hwin
 
 
 /-! ## (B) Only LOCAL monotonicity matters
@@ -237,26 +206,17 @@ theorem delivered_and_reclaimed_impossible_local {S : ℕ → Finset AbsLeaf} {t
     {W : AbsLeaf} (hpin : D < t (j + 1)) (hW : W ∈ S j)
     (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey) :
     Properties.delivered_and_reclaimed_impossible_local (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (hinj0 := hinj0) (i := i) (j := j) (hloc := hloc) (hti := hti) (hdel := hdel) (W := W) (hpin := hpin) (hW := hW) (hlow := hlow) (hwin := hwin) := by
-  unfold Properties.delivered_and_reclaimed_impossible_local
-  exact
-    by
-      have hij : i ≤ j := by
-        by_contra hgt
-        push_neg at hgt
-        exact absurd hti
-          (not_le.mpr (lt_of_lt_of_le hpin (hloc (Nat.succ_le_of_lt hgt))))
-      have hkeys : v ∈ keys (S j) := evolution_keys_mono hevo hij hdel
-      obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hkeys
-      exact gap_excludes_member (evolution_invariant hevo h0 hinj0 j).1
-        hW hL hlow hwin hLkey
+  have hij : i ≤ j := not_lt.mp fun hgt => absurd hti (not_le.mpr (hpin.trans_le (hloc hgt)))
+  have hkeys : v ∈ keys (S j) := evolution_keys_mono hevo hij hdel
+  obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hkeys
+  exact gap_excludes_member (evolution_invariant hevo h0 hinj0 j).1
+    hW hL hlow hwin hLkey
 
 
 /-- Global monotonicity gives the local hypothesis for every index pair. -/
 theorem monotone_gives_local {t : ℕ → UInt256} (htmono : Monotone t) (i j : ℕ) :
-    Properties.monotone_gives_local (t := t) (htmono := htmono) (i := i) (j := j) := by
-  unfold Properties.monotone_gives_local
-  exact
-    fun h => htmono h
+    Properties.monotone_gives_local (t := t) (htmono := htmono) (i := i) (j := j) :=
+  fun h => htmono h
 
 
 /-- **THE GLOBAL THEOREM IS A COROLLARY OF THE LOCAL ONE.**  Re-derives
@@ -269,11 +229,9 @@ theorem delivered_and_reclaimed_impossible_of_local {S : ℕ → Finset AbsLeaf}
     {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i))
     {j : ℕ} {W : AbsLeaf} (hpin : D < t (j + 1)) (hW : W ∈ S j)
     (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey) :
-    Properties.delivered_and_reclaimed_impossible_of_local (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (hinj0 := hinj0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) (j := j) (W := W) (hpin := hpin) (hW := hW) (hlow := hlow) (hwin := hwin) := by
-  unfold Properties.delivered_and_reclaimed_impossible_of_local
-  exact
-    delivered_and_reclaimed_impossible_local hevo h0 hinj0
-        (monotone_gives_local htmono i j) hti hdel hpin hW hlow hwin
+    Properties.delivered_and_reclaimed_impossible_of_local (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (hinj0 := hinj0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) (j := j) (W := W) (hpin := hpin) (hW := hW) (hlow := hlow) (hwin := hwin) :=
+  delivered_and_reclaimed_impossible_local hevo h0 hinj0
+      (monotone_gives_local htmono i j) hti hdel hpin hW hlow hwin
 
 
 /-- **THE COUNTEREXAMPLE VIOLATES EXACTLY THE LOCAL CONDITION.**  For the
@@ -284,13 +242,10 @@ the local hypothesis `j + 1 ≤ i → t (j+1) ≤ t i` fails: `1 ≤ 2` holds wh
 about reported settlement times on which delivery/reclaim exclusivity rests. -/
 theorem attack_violates_local_hypothesis {a : UInt256} (ha : a ≠ 0) :
     Properties.attack_violates_local_hypothesis (a := a) (ha := ha) := by
-  unfold Properties.attack_violates_local_hypothesis
-  exact
-    by
-      intro h
-      have h12 : attackTime a 1 ≤ attackTime a 2 := h (by omega)
-      rw [attackTime_one, attackTime_two] at h12
-      exact absurd h12 (not_le.mpr (Fin.pos_of_ne_zero ha))
+  intro h
+  have h12 := h (by decide)
+  rw [attackTime_one, attackTime_two] at h12
+  exact absurd h12 (not_le.mpr (Fin.pos_of_ne_zero ha))
 
 
 end AttackVectors.Timestamps
