@@ -367,7 +367,11 @@ representation-model step is matched either by no registry step or by one step t
 is both a bounded step (`StepIn`, for any pair set: the matched steps are flows,
 which hash nothing) and a tightened step (`Step'`).  The registry vault is unchanged,
 the representation model's configuration is kept, and the relation persists.  No
-hash premise. -/
+hash premise.  (A token-model mint or burn carries no chain id, so the chain of the
+matching `bridgeIn` / `bridgeOut` is the proof's choice; only the per-asset totals
+`totalIn` / `totalOut` are claimed.  A preparation's matching `bridgeOut` uses the
+request's own destination chain, which `AssetBridgePreparation`'s
+`TightTraceIsRegistryOutflow` uses per destination.) -/
 def Properties.LifecycleRelIsSimulation : Prop :=
   ∀ (Accounting : Type) (hooks : Hooks Accounting) (e : NtvAssetId)
     (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
