@@ -111,11 +111,8 @@ theorem no_false_inclusion (h : Hash) (z0 : UInt256)
     (hcap : L₁.length ≤ 2 ^ height)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height)
     (i : ℕ) (d : UInt256) :
-    Properties.no_false_inclusion (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (hroot := hroot) (i := i) (d := d) := by
-  unfold Properties.no_false_inclusion
-  exact
-    congrArg (fun L => List.getD L i d)
-        (rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot)
+    Properties.no_false_inclusion (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (hroot := hroot) (i := i) (d := d) :=
+  congrArg (·.getD i d) (rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot)
 
 
 /-- **(a), contrapositive.**  Differing at a single index already forces
@@ -126,11 +123,8 @@ theorem root_ne_of_leaf_ne (h : Hash) (z0 : UInt256)
     (hlen : L₁.length = L₂.length)
     (hcap : L₁.length ≤ 2 ^ height)
     (i : ℕ) (d : UInt256) (hdiff : L₁.getD i d ≠ L₂.getD i d) :
-    Properties.root_ne_of_leaf_ne (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (i := i) (d := d) (hdiff := hdiff) := by
-  unfold Properties.root_ne_of_leaf_ne
-  exact
-    fun hroot =>
-      hdiff (no_false_inclusion h z0 hinj L₁ L₂ height hlen hcap hroot i d)
+    Properties.root_ne_of_leaf_ne (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (i := i) (d := d) (hdiff := hdiff) :=
+  fun hroot => hdiff (no_false_inclusion h z0 hinj L₁ L₂ height hlen hcap hroot i d)
 
 
 /-! ## (b) Path forgery is impossible -/
@@ -144,10 +138,8 @@ theorem no_path_forgery (h : Hash) (sibs : ℕ → UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     (k lvl idx : ℕ) (x y : UInt256)
     (hwalk : walkPure h sibs lvl k idx x = walkPure h sibs lvl k idx y) :
-    Properties.no_path_forgery (h := h) (sibs := sibs) (hinj := hinj) (k := k) (lvl := lvl) (idx := idx) (x := x) (y := y) (hwalk := hwalk) := by
-  unfold Properties.no_path_forgery
-  exact
-    walkPure_inj h sibs hinj k lvl idx x y hwalk
+    Properties.no_path_forgery (h := h) (sibs := sibs) (hinj := hinj) (k := k) (lvl := lvl) (idx := idx) (x := x) (y := y) (hwalk := hwalk) :=
+  walkPure_inj h sibs hinj k lvl idx x y hwalk
 
 
 /-- **(b), contrapositive.**  Two distinct claimed leaves on the same path
@@ -155,11 +147,8 @@ produce distinct walk results. -/
 theorem path_forgery_changes_walk (h : Hash) (sibs : ℕ → UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d)
     (k lvl idx : ℕ) (x y : UInt256) (hxy : x ≠ y) :
-    Properties.path_forgery_changes_walk (h := h) (sibs := sibs) (hinj := hinj) (k := k) (lvl := lvl) (idx := idx) (x := x) (y := y) (hxy := hxy) := by
-  unfold Properties.path_forgery_changes_walk
-  exact
-    fun hwalk =>
-      hxy (no_path_forgery h sibs hinj k lvl idx x y hwalk)
+    Properties.path_forgery_changes_walk (h := h) (sibs := sibs) (hinj := hinj) (k := k) (lvl := lvl) (idx := idx) (x := x) (y := y) (hxy := hxy) :=
+  fun hwalk => hxy (no_path_forgery h sibs hinj k lvl idx x y hwalk)
 
 
 /-! ## (b) composite — an accepted walk pins the leaf against the tree -/
@@ -183,15 +172,9 @@ theorem walk_accept_pins_leaf (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
     (hsibs : ∀ l, l < height →
       sibs l = (levels h z0 leaves l).getD (sibIdx (idx / 2 ^ l)) (zeros h z0 l))
     (haccept : walkPure h sibs 0 height idx x = root) :
-    Properties.walk_accept_pins_leaf (h := h) (z0 := z0) (sibs := sibs) (hinj := hinj) (leaves := leaves) (idx := idx) (x := x) (height := height) (root := root) (hidx := hidx) (hcap := hcap) (hsibs := hsibs) (haccept := haccept) := by
-  unfold Properties.walk_accept_pins_leaf
-  exact
-    by
-      refine ⟨?_, ?_⟩
-      · rw [← walkPure_update_orig h z0 sibs leaves idx x height hidx hcap hsibs]
-        exact haccept
-      · intro y hy
-        exact walkPure_inj h sibs hinj height 0 idx y x (by rw [hy, haccept])
+    Properties.walk_accept_pins_leaf (h := h) (z0 := z0) (sibs := sibs) (hinj := hinj) (leaves := leaves) (idx := idx) (x := x) (height := height) (root := root) (hidx := hidx) (hcap := hcap) (hsibs := hsibs) (haccept := haccept) :=
+  ⟨(walkPure_update_orig h z0 sibs leaves idx x height hidx hcap hsibs).symm.trans haccept,
+    fun y hy => walkPure_inj h sibs hinj height 0 idx y x (hy.trans haccept.symm)⟩
 
 
 /-! ## (c) Sibling substitution
@@ -209,10 +192,8 @@ a pure no-op — it neither forges nor invalidates anything.  (Re-export of
 theorem walk_congr_sibs_on_climbed (h : Hash) (s₁ s₂ : ℕ → UInt256)
     (k lvl idx : ℕ) (x : UInt256)
     (hagree : ∀ l, lvl ≤ l → l < lvl + k → s₁ l = s₂ l) :
-    Properties.walk_congr_sibs_on_climbed (h := h) (s₁ := s₁) (s₂ := s₂) (k := k) (lvl := lvl) (idx := idx) (x := x) (hagree := hagree) := by
-  unfold Properties.walk_congr_sibs_on_climbed
-  exact
-    walkPure_congr_sibs h s₁ s₂ k lvl idx x hagree
+    Properties.walk_congr_sibs_on_climbed (h := h) (s₁ := s₁) (s₂ := s₂) (k := k) (lvl := lvl) (idx := idx) (x := x) (hagree := hagree) :=
+  walkPure_congr_sibs h s₁ s₂ k lvl idx x hagree
 
 
 /-- **(c) LEAF-ONLY SUBSTITUTION.**  An attacker who changes ONLY the leaf,
@@ -225,11 +206,9 @@ theorem leaf_only_substitution_changes_root (h : Hash) (z0 : UInt256)
     (sibs : ℕ → UInt256) (leaves : List UInt256) (idx : ℕ) (x y : UInt256)
     (height : ℕ) (hidx : idx < leaves.length) (hcap : leaves.length ≤ 2 ^ height)
     (hxy : x ≠ y) :
-    Properties.leaf_only_substitution_changes_root (h := h) (z0 := z0) (hinj := hinj) (sibs := sibs) (leaves := leaves) (idx := idx) (x := x) (y := y) (height := height) (hidx := hidx) (hcap := hcap) (hxy := hxy) := by
-  unfold Properties.leaf_only_substitution_changes_root
-  exact
-    ⟨fun hwalk => hxy (walkPure_inj h sibs hinj height 0 idx x y hwalk),
-       fun hroot => hxy (rootOf_set_inj h z0 hinj leaves idx x y height hidx hcap hroot)⟩
+    Properties.leaf_only_substitution_changes_root (h := h) (z0 := z0) (hinj := hinj) (sibs := sibs) (leaves := leaves) (idx := idx) (x := x) (y := y) (height := height) (hidx := hidx) (hcap := hcap) (hxy := hxy) :=
+  ⟨fun hwalk => hxy (walkPure_inj h sibs hinj height 0 idx x y hwalk),
+     fun hroot => hxy (rootOf_set_inj h z0 hinj leaves idx x y height hidx hcap hroot)⟩
 
 
 /-- Splitting a walk: `k₁ + k₂` steps from `lvl` is `k₁` steps from `lvl`
@@ -240,10 +219,10 @@ theorem walkPure_add (h : Hash) (sibs : ℕ → UInt256) :
   | 0, k₂, lvl, idx, x => by simp
   | k₁ + 1, k₂, lvl, idx, x => by
       have hidx : idx / 2 / 2 ^ k₁ = idx / 2 ^ (k₁ + 1) := by
-        rw [Nat.div_div_eq_div_mul, show 2 * 2 ^ k₁ = (2 : ℕ) ^ (k₁ + 1) from by ring]
-      rw [show k₁ + 1 + k₂ = (k₁ + k₂) + 1 from by omega, walkPure_succ, walkPure_succ,
+        rw [Nat.div_div_eq_div_mul, show 2 * 2 ^ k₁ = (2 : ℕ) ^ (k₁ + 1) by ring]
+      rw [show k₁ + 1 + k₂ = (k₁ + k₂) + 1 by omega, walkPure_succ, walkPure_succ,
           walkPure_add h sibs k₁ k₂ (lvl + 1) (idx / 2), hidx,
-          show lvl + 1 + k₁ = lvl + (k₁ + 1) from by omega]
+          show lvl + 1 + k₁ = lvl + (k₁ + 1) by omega]
 
 
 /-- **(c) SINGLE-SIBLING SUBSTITUTION.**  If two sibling streams agree
@@ -259,30 +238,28 @@ theorem single_sibling_substitution (h : Hash) (s₁ s₂ : ℕ → UInt256)
     (heq : walkPure h s₁ lvl k idx x = walkPure h s₂ lvl k idx x) :
     Properties.single_sibling_substitution (h := h) (s₁ := s₁) (s₂ := s₂) (hinj := hinj) (k := k) (lvl := lvl) (m := m) (idx := idx) (x := x) (hm1 := hm1) (hm2 := hm2) (hagree := hagree) (heq := heq) := by
   unfold Properties.single_sibling_substitution
-  exact
-    by
-      -- split `k` as (m - lvl) + (k₂ + 1): the prefix below `m`, the step at `m`,
-      -- and the suffix above `m`.
-      obtain ⟨k₂, hk⟩ : ∃ k₂, k = (m - lvl) + (k₂ + 1) := ⟨k - (m - lvl) - 1, by omega⟩
-      have hlvl : lvl + (m - lvl) = m := by omega
-      -- the prefix walks agree (all levels below `m` are ≠ m)
-      have hpre : walkPure h s₁ lvl (m - lvl) idx x = walkPure h s₂ lvl (m - lvl) idx x :=
-        walkPure_congr_sibs h s₁ s₂ (m - lvl) lvl idx x
-          (fun l _ hl2 => hagree l (by omega))
-      -- split both walks at level `m`, then rewrite the `s₂` suffix walk into an
-      -- `s₁` one (the streams agree above `m`)
-      rw [hk, walkPure_add h s₁ (m - lvl) (k₂ + 1) lvl idx x,
-          walkPure_add h s₂ (m - lvl) (k₂ + 1) lvl idx x, hpre, hlvl,
-          walkPure_succ, walkPure_succ,
-          walkPure_congr_sibs h s₂ s₁ k₂ (m + 1) (idx / 2 ^ (m - lvl) / 2) _
-            (fun l hl1 _ => (hagree l (by omega)).symm)] at heq
-      -- the suffix walk is injective in its accumulator
-      have hstep := walkPure_inj h s₁ hinj k₂ (m + 1) (idx / 2 ^ (m - lvl) / 2) _ _ heq
-      by_cases hpar : idx / 2 ^ (m - lvl) % 2 = 1
-      · rw [if_pos hpar, if_pos hpar] at hstep
-        exact (hinj _ _ _ _ hstep).1
-      · rw [if_neg hpar, if_neg hpar] at hstep
-        exact (hinj _ _ _ _ hstep).2
+  -- split `k` as (m - lvl) + (k₂ + 1): the prefix below `m`, the step at `m`,
+  -- and the suffix above `m`.
+  obtain ⟨k₂, hk⟩ : ∃ k₂, k = (m - lvl) + (k₂ + 1) := ⟨k - (m - lvl) - 1, by omega⟩
+  have hlvl : lvl + (m - lvl) = m := by omega
+  -- the prefix walks agree (all levels below `m` are ≠ m)
+  have hpre : walkPure h s₁ lvl (m - lvl) idx x = walkPure h s₂ lvl (m - lvl) idx x :=
+    walkPure_congr_sibs h s₁ s₂ (m - lvl) lvl idx x
+      (fun l _ hl2 => hagree l (by omega))
+  -- split both walks at level `m`, then rewrite the `s₂` suffix walk into an
+  -- `s₁` one (the streams agree above `m`)
+  rw [hk, walkPure_add h s₁ (m - lvl) (k₂ + 1) lvl idx x,
+      walkPure_add h s₂ (m - lvl) (k₂ + 1) lvl idx x, hpre, hlvl,
+      walkPure_succ, walkPure_succ,
+      walkPure_congr_sibs h s₂ s₁ k₂ (m + 1) (idx / 2 ^ (m - lvl) / 2) _
+        (fun l hl1 _ => (hagree l (by omega)).symm)] at heq
+  -- the suffix walk is injective in its accumulator
+  have hstep := walkPure_inj h s₁ hinj k₂ (m + 1) (idx / 2 ^ (m - lvl) / 2) _ _ heq
+  by_cases hpar : idx / 2 ^ (m - lvl) % 2 = 1
+  · rw [ite_eq_left hpar, ite_eq_left hpar] at hstep
+    exact (hinj _ _ _ _ hstep).1
+  · rw [ite_eq_right hpar, ite_eq_right hpar] at hstep
+    exact (hinj _ _ _ _ hstep).2
 
 
 /-! ## (d) Append forgery is impossible -/
@@ -294,10 +271,8 @@ theorem no_append_forgery (h : Hash) (z0 : UInt256)
     (leaves : List UInt256) (x y : UInt256) (height : ℕ)
     (hcap : (leaves ++ [x]).length ≤ 2 ^ height)
     (hroot : rootOf h z0 (leaves ++ [x]) height = rootOf h z0 (leaves ++ [y]) height) :
-    Properties.no_append_forgery (h := h) (z0 := z0) (hinj := hinj) (leaves := leaves) (x := x) (y := y) (height := height) (hcap := hcap) (hroot := hroot) := by
-  unfold Properties.no_append_forgery
-  exact
-    rootOf_append_inj h z0 hinj leaves x y height hcap hroot
+    Properties.no_append_forgery (h := h) (z0 := z0) (hinj := hinj) (leaves := leaves) (x := x) (y := y) (height := height) (hcap := hcap) (hroot := hroot) :=
+  rootOf_append_inj h z0 hinj leaves x y height hcap hroot
 
 
 /-- **(d) APPEND FORGERY — walk form (what the contract performs).**  The
@@ -314,12 +289,9 @@ theorem no_append_forgery_walk (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256
         (zeros h z0 l))
     (hforge : walkPure h sibs 0 height leaves.length y
       = rootOf h z0 (leaves ++ [x]) height) :
-    Properties.no_append_forgery_walk (h := h) (z0 := z0) (sibs := sibs) (hinj := hinj) (leaves := leaves) (x := x) (y := y) (height := height) (hcap := hcap) (hsibs := hsibs) (hforge := hforge) := by
-  unfold Properties.no_append_forgery_walk
-  exact
-    by
-      rw [rootOf_append h z0 sibs leaves x height hcap hsibs] at hforge
-      exact walkPure_inj h sibs hinj height 0 leaves.length y x hforge
+    Properties.no_append_forgery_walk (h := h) (z0 := z0) (sibs := sibs) (hinj := hinj) (leaves := leaves) (x := x) (y := y) (height := height) (hcap := hcap) (hsibs := hsibs) (hforge := hforge) :=
+  walkPure_inj h sibs hinj height 0 leaves.length y x
+    (hforge.trans (rootOf_append h z0 sibs leaves x height hcap hsibs))
 
 
 end AttackVectors.RootForgery

@@ -94,34 +94,26 @@ theorem walkPure_levels_all (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
   | succ k ih =>
     intro lvl j hsibs
     have hs : sibs lvl = (levels h z0 L lvl).getD (sibIdx j) (zeros h z0 lvl) := by
-      have := hsibs lvl (le_refl _) (by omega)
-      simpa using this
+      simpa using hsibs lvl le_rfl (by omega)
     have hup := levels_succ_getD h z0 L lvl (j / 2)
     have hacc : (if j % 2 = 1
           then h (sibs lvl) ((levels h z0 L lvl).getD j (zeros h z0 lvl))
           else h ((levels h z0 L lvl).getD j (zeros h z0 lvl)) (sibs lvl))
         = (levels h z0 L (lvl + 1)).getD (j / 2) (zeros h z0 (lvl + 1)) := by
       by_cases hpar : j % 2 = 1
-      · rw [show 2 * (j / 2) = j - 1 from by omega,
-            show j - 1 + 1 = j from by omega] at hup
-        rw [ite_eq_left hpar, hs, hup, show sibIdx j = j - 1 from by simp [sibIdx, hpar]]
-      · rw [show 2 * (j / 2) = j from by omega] at hup
-        rw [ite_eq_right hpar, hs, hup, show sibIdx j = j + 1 from by simp [sibIdx, hpar]]
+      · rw [show 2 * (j / 2) = j - 1 by omega,
+            show j - 1 + 1 = j by omega] at hup
+        rw [ite_eq_left hpar, hs, hup, show sibIdx j = j - 1 by simp [sibIdx, hpar]]
+      · rw [show 2 * (j / 2) = j by omega] at hup
+        rw [ite_eq_right hpar, hs, hup, show sibIdx j = j + 1 by simp [sibIdx, hpar]]
     rw [walkPure_succ, hacc]
     have hsibs' : ∀ l, lvl + 1 ≤ l → l < (lvl + 1) + k →
         sibs l = (levels h z0 L l).getD (sibIdx (j / 2 / 2 ^ (l - (lvl + 1))))
           (zeros h z0 l) := by
       intro l hl1 hl2
-      have hidx : j / 2 / 2 ^ (l - (lvl + 1)) = j / 2 ^ (l - lvl) := by
-        rw [Nat.div_div_eq_div_mul,
-            show 2 * 2 ^ (l - (lvl + 1)) = 2 ^ (l - lvl) from by
-              rw [show l - lvl = (l - (lvl + 1)) + 1 from by omega]; ring]
-      rw [hidx]
+      rw [div_div_pow, show l - (lvl + 1) + 1 = l - lvl by omega]
       exact hsibs l (by omega) (by omega)
-    rw [ih (lvl + 1) (j / 2) hsibs',
-        show lvl + 1 + k = lvl + (k + 1) from by omega,
-        show j / 2 / 2 ^ k = j / 2 ^ (k + 1) from by
-          rw [Nat.div_div_eq_div_mul, show 2 * 2 ^ k = (2 : ℕ) ^ (k + 1) from by ring]]
+    rw [ih (lvl + 1) (j / 2) hsibs', show lvl + 1 + k = lvl + (k + 1) by omega, div_div_pow]
 
 
 /-- **THE HONEST WALK RECOMPUTES THE ROOT, AT EVERY INDEX BELOW CAPACITY.**  For
@@ -165,9 +157,7 @@ theorem walk_pins (h : Hash) (z0 : UInt256)
   induction k with
   | zero =>
     intro lvl j x hw
-    refine ⟨?_, fun l _ h2 => absurd h2 (by omega)⟩
-    rw [walkPure_zero] at hw
-    simpa using hw.symm
+    exact ⟨by simpa using hw.symm, fun l _ h2 => absurd h2 (by omega)⟩
   | succ k ih =>
     intro lvl j x hw
     have harg : walkPure h sibs (lvl + 1) k (j / 2)
@@ -175,39 +165,27 @@ theorem walk_pins (h : Hash) (z0 : UInt256)
         = (levels h z0 L ((lvl + 1) + k)).getD (j / 2 / 2 ^ k)
             (zeros h z0 ((lvl + 1) + k)) := by
       rw [walkPure_succ] at hw
-      rw [show (lvl + 1) + k = lvl + (k + 1) from by omega, div_div_pow]
-      exact hw
+      rwa [show (lvl + 1) + k = lvl + (k + 1) by omega, div_div_pow]
     obtain ⟨hIH, hsIH⟩ := ih (lvl + 1) (j / 2) _ harg
     rw [levels_succ_getD] at hIH
     have habove : ∀ l, lvl + 1 ≤ l → l < lvl + (k + 1) →
         sibs l = (levels h z0 L l).getD (sibIdx (j / 2 ^ (l - lvl))) (zeros h z0 l) := by
       intro l h1 h2
       have := hsIH l h1 (by omega)
-      rw [show l - (lvl + 1) = (l - lvl) - 1 from by omega] at this
-      rw [show j / 2 / 2 ^ (l - lvl - 1) = j / 2 ^ ((l - lvl - 1) + 1) from div_div_pow _ _,
-          show (l - lvl - 1) + 1 = l - lvl from by omega] at this
-      exact this
+      rwa [show l - (lvl + 1) = (l - lvl) - 1 by omega, div_div_pow,
+        show (l - lvl - 1) + 1 = l - lvl by omega] at this
     by_cases hpar : j % 2 = 1
-    · rw [ite_eq_left hpar] at hIH
-      rw [show 2 * (j / 2) = j - 1 from by omega,
-          show j - 1 + 1 = j from by omega] at hIH
+    · rw [ite_eq_left hpar, show 2 * (j / 2) = j - 1 by omega, show j - 1 + 1 = j by omega] at hIH
       obtain ⟨hs, hx⟩ := hinj _ _ _ _ hIH.symm
-      refine ⟨hx.symm, ?_⟩
-      intro l h1 h2
-      rcases Nat.eq_or_lt_of_le h1 with heq | h1'
-      · rw [← heq, show lvl - lvl = 0 from by omega, pow_zero, Nat.div_one,
-            show sibIdx j = j - 1 from by simp [sibIdx, hpar]]
-        exact hs
+      refine ⟨hx.symm, fun l h1 h2 => ?_⟩
+      rcases Nat.eq_or_lt_of_le h1 with rfl | h1'
+      · simpa [sibIdx, hpar] using hs
       · exact habove l (by omega) h2
-    · rw [ite_eq_right hpar] at hIH
-      rw [show 2 * (j / 2) = j from by omega] at hIH
+    · rw [ite_eq_right hpar, show 2 * (j / 2) = j by omega] at hIH
       obtain ⟨hx, hs⟩ := hinj _ _ _ _ hIH.symm
-      refine ⟨hx.symm, ?_⟩
-      intro l h1 h2
-      rcases Nat.eq_or_lt_of_le h1 with heq | h1'
-      · rw [← heq, show lvl - lvl = 0 from by omega, pow_zero, Nat.div_one,
-            show sibIdx j = j + 1 from by simp [sibIdx, hpar]]
-        exact hs
+      refine ⟨hx.symm, fun l h1 h2 => ?_⟩
+      rcases Nat.eq_or_lt_of_le h1 with rfl | h1'
+      · simpa [sibIdx, hpar] using hs
       · exact habove l (by omega) h2
 
 /-- **ROOT FORM.**  An accepted walk of length `k` from any index `j < 2^k`
@@ -224,8 +202,7 @@ theorem accept_pins_entry (h : Hash) (z0 : UInt256)
   have hroot : (levels h z0 L (0 + k)).getD (j / 2 ^ k) (zeros h z0 (0 + k))
       = rootOf h z0 L k := by
     rw [Nat.zero_add, Nat.div_eq_of_lt hj, rootOf_def, getD_zero_headD]
-  have := (walk_pins h z0 hinj L sibs k 0 j x (by rw [hroot]; exact haccept)).1
-  simpa using this
+  simpa using (walk_pins h z0 hinj L sibs k 0 j x (by rwa [hroot])).1
 
 /-- The two cases of `accept_pins_entry`, spelled out: either the index is
 occupied and the walk's leaf IS that entry, or it is padding and the walk's
@@ -239,9 +216,7 @@ theorem accept_pins_entry_cases (h : Hash) (z0 : UInt256)
   have hx := accept_pins_entry h z0 hinj L sibs k j x hj haccept
   by_cases hjL : j < L.length
   · exact Or.inl ⟨hjL, hx⟩
-  · refine Or.inr ⟨by omega, ?_⟩
-    rw [← hx]
-    exact getD_default L j z0 (by omega)
+  · exact Or.inr ⟨by omega, hx ▸ getD_default L j z0 (by omega)⟩
 
 /-! ## Wrong path lengths -/
 
@@ -253,9 +228,9 @@ theorem walkPure_add (h : Hash) (sibs : ℕ → UInt256) :
         = walkPure h sibs (lvl + k₁) k₂ (idx / 2 ^ k₁) (walkPure h sibs lvl k₁ idx x)
   | 0, k₂, lvl, idx, x => by simp
   | k₁ + 1, k₂, lvl, idx, x => by
-      rw [show k₁ + 1 + k₂ = (k₁ + k₂) + 1 from by omega, walkPure_succ,
+      rw [show k₁ + 1 + k₂ = (k₁ + k₂) + 1 by omega, walkPure_succ,
           walkPure_add h sibs k₁ k₂ (lvl + 1) (idx / 2) _,
-          show lvl + 1 + k₁ = lvl + (k₁ + 1) from by omega, div_div_pow,
+          show lvl + 1 + k₁ = lvl + (k₁ + 1) by omega, div_div_pow,
           walkPure_succ]
 
 /-- The starting level only decides which sibling entries are read: a walk from
@@ -265,7 +240,7 @@ theorem walkPure_shift (h : Hash) (sibs : ℕ → UInt256) (d : ℕ) :
       walkPure h sibs (lvl + d) k idx x = walkPure h (fun l => sibs (l + d)) lvl k idx x
   | 0, _, _, _ => by rw [walkPure_zero, walkPure_zero]
   | k + 1, lvl, idx, x => by
-      rw [walkPure_succ, walkPure_succ, show lvl + d + 1 = (lvl + 1) + d from by omega]
+      rw [walkPure_succ, walkPure_succ, show lvl + d + 1 = (lvl + 1) + d by omega]
       exact walkPure_shift h sibs d k (lvl + 1) (idx / 2) _
 
 /-- Any walk of positive length ends in a node hash. -/
@@ -273,9 +248,7 @@ theorem walkPure_succ_is_node (h : Hash) (sibs : ℕ → UInt256) :
     ∀ (k lvl idx : ℕ) (x : UInt256), ∃ a b : UInt256, walkPure h sibs lvl (k + 1) idx x = h a b
   | 0, lvl, idx, x => by
       rw [walkPure_succ, walkPure_zero]
-      by_cases hpar : idx % 2 = 1
-      · exact ⟨_, _, ite_eq_left hpar⟩
-      · exact ⟨_, _, ite_eq_right hpar⟩
+      split <;> exact ⟨_, _, rfl⟩
   | k + 1, lvl, idx, x => by
       rw [walkPure_succ]
       exact walkPure_succ_is_node h sibs k (lvl + 1) (idx / 2) _
@@ -316,10 +289,7 @@ theorem accept_forces_height (h : Hash) (z0 : UInt256)
     have hsplit := walkPure_add h sibs (m + 1) height 0 j x
     rw [← hm, haccept, walkPure_shift] at hsplit
     have hj' : j / 2 ^ (m + 1) < 2 ^ height := by
-      rw [Nat.div_lt_iff_lt_mul (by positivity), ← pow_add]
-      have e : height + (m + 1) = k := by omega
-      rw [e]
-      exact hj
+      rwa [Nat.div_lt_iff_lt_mul (by positivity), ← pow_add, show height + (m + 1) = k by omega]
     obtain ⟨a, b, hab⟩ := walkPure_succ_is_node h sibs m 0 j x
     rcases accept_pins_entry_cases h z0 hinj L _ height (j / 2 ^ (m + 1)) _ hj' hsplit.symm
       with ⟨hlt, hget⟩ | ⟨_, hpad⟩
@@ -339,8 +309,7 @@ theorem accept_pins_entry_any_length (h : Hash) (z0 : UInt256)
     (hj : j < 2 ^ k)
     (haccept : walkPure h sibs 0 k j x = rootOf h z0 L height) :
     k = height ∧ L.getD j z0 = x := by
-  have hk := accept_forces_height h z0 hinj L hL hz0 sibs k height j x hx hj haccept
-  subst hk
+  obtain rfl := accept_forces_height h z0 hinj L hL hz0 sibs k height j x hx hj haccept
   exact ⟨rfl, accept_pins_entry h z0 hinj L sibs k j x hj haccept⟩
 
 /-! ## Certificates -/

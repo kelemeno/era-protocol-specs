@@ -97,13 +97,11 @@ theorem path_nodes_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt
   | k + 1, he => by
     by_cases hk : (levels h z0 L₁ k).getD (i / 2 ^ k) (zeros h z0 k)
         = (levels h z0 L₂ k).getD (i / 2 ^ k) (zeros h z0 k)
-    · rcases path_nodes_or_collision h z0 L₁ L₂ i k hk with h0 | ⟨l, hl, hne, heq⟩
-      · exact Or.inl h0
-      · exact Or.inr ⟨l, by omega, hne, heq⟩
+    · exact (path_nodes_or_collision h z0 L₁ L₂ i k hk).imp_right
+        fun ⟨l, hl, hne, heq⟩ => ⟨l, by omega, hne, heq⟩
     · right
       refine ⟨k, by omega, fun hp => hk (getD_eq_of_treePair_eq h z0 L₁ L₂ k _ hp), ?_⟩
-      rw [hash_treePair_path h z0 L₁ i k, hash_treePair_path h z0 L₂ i k]
-      exact he
+      rwa [hash_treePair_path h z0 L₁ i k, hash_treePair_path h z0 L₂ i k]
 
 /-- The root form of engine 1: at `height`, index `i < 2^height` sits under the root. -/
 theorem root_pins_entry_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256)
@@ -111,8 +109,7 @@ theorem root_pins_entry_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ : List
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
     L₁.getD i z0 = L₂.getD i z0 ∨ TreeCollision h z0 L₁ L₂ height i := by
   apply path_nodes_or_collision
-  rw [Nat.div_eq_of_lt hi, getD_zero_headD, getD_zero_headD, ← rootOf_def, ← rootOf_def]
-  exact hroot
+  rwa [Nat.div_eq_of_lt hi, getD_zero_headD, getD_zero_headD, ← rootOf_def, ← rootOf_def]
 
 /-! ## Engine 2: walk versus walk -/
 
@@ -131,8 +128,7 @@ theorem walk_vs_walk_or_collision (h : Hash) (s₁ s₂ : ℕ → UInt256) :
     intro lvl j x y hw
     have hw' : walkPure h s₁ (lvl + 1) k (j / 2) (h (walkStep s₁ lvl j x).1 (walkStep s₁ lvl j x).2)
         = walkPure h s₂ (lvl + 1) k (j / 2) (h (walkStep s₂ lvl j y).1 (walkStep s₂ lvl j y).2) := by
-      rw [walkStep_hash h s₁ lvl j x, walkStep_hash h s₂ lvl j y]
-      exact hw
+      rwa [walkStep_hash h s₁ lvl j x, walkStep_hash h s₂ lvl j y]
     rcases ih (lvl + 1) (j / 2) _ _ hw' with ⟨hacc, hsib⟩ | ⟨i, hi, hne, heq⟩
     · by_cases hpe : walkStep s₁ lvl j x = walkStep s₂ lvl j y
       · left
@@ -144,11 +140,10 @@ theorem walk_vs_walk_or_collision (h : Hash) (s₁ s₂ : ℕ → UInt256) :
           · rw [ite_eq_right hpar, ite_eq_right hpar, Prod.mk.injEq] at hpe
             exact ⟨hpe.1, hpe.2⟩
         refine ⟨hboth.1, fun l h1 h2 => ?_⟩
-        rcases Nat.eq_or_lt_of_le h1 with he | h1'
-        · rw [← he]; exact hboth.2
+        rcases Nat.eq_or_lt_of_le h1 with rfl | h1'
+        · exact hboth.2
         · exact hsib l (by omega) (by omega)
-      · right
-        exact ⟨0, by omega, hpe, hacc⟩
+      · exact Or.inr ⟨0, by omega, hpe, hacc⟩
     · right
       refine ⟨i + 1, by omega, ?_, ?_⟩
       · rw [walkPair_succ, walkPair_succ]; exact hne
@@ -174,9 +169,7 @@ theorem levelUp_inj_or_collision (h : Hash) (z : UInt256) (L₁ L₂ : List UInt
     push Not at hall
     obtain ⟨m, hm, hne⟩ := hall
     refine ⟨m, hm, hne, ?_⟩
-    have hg := congrArg (fun L => L.getD m (h z z)) he
-    simp only [levelUp_getD_all] at hg
-    exact hg
+    simpa only [levelUp_getD_all, parentPair] using congrArg (fun L => L.getD m (h z z)) he
 
 /-- Engine 3 lifted through the levels. -/
 theorem levels_inj_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256)
@@ -188,9 +181,8 @@ theorem levels_inj_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt
     rw [levels_succ, levels_succ] at he
     rcases levelUp_inj_or_collision h (zeros h z0 l) _ _ (levels_length_eq h z0 L₁ L₂ hlen l) he
       with hl | hc
-    · rcases levels_inj_or_collision h z0 L₁ L₂ hlen l hl with h0 | ⟨l', hl', hc'⟩
-      · exact Or.inl h0
-      · exact Or.inr ⟨l', by omega, hc'⟩
+    · exact (levels_inj_or_collision h z0 L₁ L₂ hlen l hl).imp_right
+        fun ⟨l', hl', hc'⟩ => ⟨l', by omega, hc'⟩
     · exact Or.inr ⟨l, by omega, hc⟩
 
 /-! ## FullMerkle `Model`, `CachedHashInjectivity`, `TreeShape` -/
@@ -201,12 +193,10 @@ theorem root_of_inj_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ : List UIn
     L₁ = L₂ ∨ ∃ i < L₁.length, L₁.getD i z0 ≠ L₂.getD i z0 ∧ TreeCollision h z0 L₁ L₂ height i := by
   by_cases hall : ∀ i < L₁.length, L₁.getD i z0 = L₂.getD i z0
   · exact Or.inl (ext_getD' z0 L₁ L₂ hlen hall)
-  · right
-    push Not at hall
+  · push Not at hall
     obtain ⟨i, hi, hne⟩ := hall
-    rcases root_pins_entry_or_collision h z0 L₁ L₂ height i (by omega) hroot with he | hc
-    · exact absurd he hne
-    · exact ⟨i, hi, hne, hc⟩
+    exact Or.inr ⟨i, hi, hne,
+      (root_pins_entry_or_collision h z0 L₁ L₂ height i (by omega) hroot).resolve_left hne⟩
 
 theorem root_of_append_inj_or_collision (h : Hash) (z0 : UInt256) (leaves : List UInt256)
     (x y : UInt256) (height : ℕ) (hcap : (leaves ++ [x]).length ≤ 2 ^ height)
@@ -214,24 +204,20 @@ theorem root_of_append_inj_or_collision (h : Hash) (z0 : UInt256) (leaves : List
     x = y ∨ TreeCollision h z0 (leaves ++ [x]) (leaves ++ [y]) height leaves.length := by
   have hi : leaves.length < 2 ^ height := by
     simp only [List.length_append, List.length_cons, List.length_nil] at hcap; omega
-  rcases root_pins_entry_or_collision h z0 _ _ height leaves.length hi hroot with he | hc
-  · left; rwa [getD_append_singleton, getD_append_singleton] at he
-  · exact Or.inr hc
+  exact (root_pins_entry_or_collision h z0 _ _ height leaves.length hi hroot).imp_left
+    fun he => by rwa [getD_append_singleton, getD_append_singleton] at he
 
 theorem root_of_set_inj_or_collision (h : Hash) (z0 : UInt256) (leaves : List UInt256) (idx : ℕ)
     (x y : UInt256) (height : ℕ) (hidx : idx < leaves.length) (hcap : leaves.length ≤ 2 ^ height)
     (hroot : rootOf h z0 (leaves.set idx x) height = rootOf h z0 (leaves.set idx y) height) :
     x = y ∨ TreeCollision h z0 (leaves.set idx x) (leaves.set idx y) height idx := by
-  rcases root_pins_entry_or_collision h z0 _ _ height idx (by omega) hroot with he | hc
-  · left; rwa [getD_set_eq x leaves idx z0 hidx, getD_set_eq y leaves idx z0 hidx] at he
-  · exact Or.inr hc
+  exact (root_pins_entry_or_collision h z0 _ _ height idx (by omega) hroot).imp_left
+    fun he => by rwa [getD_set_eq x leaves idx z0 hidx, getD_set_eq y leaves idx z0 hidx] at he
 
 theorem walk_pure_inj_or_collision (h : Hash) (sibs : ℕ → UInt256) (k lvl idx : ℕ)
     (x y : UInt256) (hw : walkPure h sibs lvl k idx x = walkPure h sibs lvl k idx y) :
-    x = y ∨ WalkCollision h sibs sibs lvl k idx x y := by
-  rcases walk_vs_walk_or_collision h sibs sibs k lvl idx x y hw with ⟨he, _⟩ | hc
-  · exact Or.inl he
-  · exact Or.inr hc
+    x = y ∨ WalkCollision h sibs sibs lvl k idx x y :=
+  (walk_vs_walk_or_collision h sibs sibs k lvl idx x y hw).imp_left (·.1)
 
 theorem root_commits_list_or_break (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256)
     (height : ℕ) (hcap₁ : L₁.length ≤ 2 ^ height) (hcap₂ : L₂.length ≤ 2 ^ height)
@@ -248,34 +234,24 @@ theorem root_commits_list_or_break (h : Hash) (z0 : UInt256) (L₁ L₂ : List U
     · refine Or.inr (Or.inl (Or.inr ⟨hgt, ?_⟩))
       rw [hall L₂.length (by omega)]
       exact getD_default L₂ L₂.length z0 le_rfl
-  · right; right
-    push Not at hall
+  · push Not at hall
     obtain ⟨i, hi, hne⟩ := hall
-    rcases root_pins_entry_or_collision h z0 L₁ L₂ height i (by omega) hroot with he | hc
-    · exact absurd he hne
-    · exact ⟨i, hi, hne, hc⟩
+    exact Or.inr (Or.inr ⟨i, hi, hne,
+      (root_pins_entry_or_collision h z0 L₁ L₂ height i (by omega) hroot).resolve_left hne⟩)
 
 theorem padding_hit_needs_padding_leaf (z0 : UInt256) (L₁ L₂ : List UInt256)
     (hp : PaddingHit z0 L₁ L₂) : z0 ∈ L₁ ∨ z0 ∈ L₂ := by
   rcases hp with ⟨hlt, he⟩ | ⟨hlt, he⟩
-  · right
-    have hm := getD_mem L₂ L₁.length z0 hlt
-    rwa [he] at hm
-  · left
-    have hm := getD_mem L₁ L₂.length z0 hlt
-    rwa [he] at hm
+  · exact Or.inr (he ▸ getD_mem L₂ L₁.length z0 hlt)
+  · exact Or.inl (he ▸ getD_mem L₁ L₂.length z0 hlt)
 
 theorem root_commits_list_under_pad_separation (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256)
     (height : ℕ) (hz₁ : z0 ∉ L₁) (hz₂ : z0 ∉ L₂) (hcap₁ : L₁.length ≤ 2 ^ height)
     (hcap₂ : L₂.length ≤ 2 ^ height) (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
     L₁ = L₂ ∨ ∃ i < max L₁.length L₂.length,
-      L₁.getD i z0 ≠ L₂.getD i z0 ∧ TreeCollision h z0 L₁ L₂ height i := by
-  rcases root_commits_list_or_break h z0 L₁ L₂ height hcap₁ hcap₂ hroot with he | hp | hc
-  · exact Or.inl he
-  · rcases padding_hit_needs_padding_leaf z0 L₁ L₂ hp with hm | hm
-    · exact absurd hm hz₁
-    · exact absurd hm hz₂
-  · exact Or.inr hc
+      L₁.getD i z0 ≠ L₂.getD i z0 ∧ TreeCollision h z0 L₁ L₂ height i :=
+  (root_commits_list_or_break h z0 L₁ L₂ height hcap₁ hcap₂ hroot).imp_right
+    (·.resolve_left fun hp => (padding_hit_needs_padding_leaf z0 L₁ L₂ hp).elim hz₁ hz₂)
 
 /-! ## Merkle `ProofSound` -/
 
@@ -283,10 +259,8 @@ theorem no_forged_walk_or_collision (h : Hash) (z0 : UInt256) (L : List UInt256)
     (x : UInt256) (hne : (levels h z0 L lvl).getD j (zeros h z0 lvl) ≠ x) (sibs : ℕ → UInt256)
     (hw : walkPure h sibs lvl k j x
       = (levels h z0 L (lvl + k)).getD (j / 2 ^ k) (zeros h z0 (lvl + k))) :
-    PathCollision h z0 L sibs lvl k j x := by
-  rcases walk_pins_or_collision h z0 L sibs k lvl j x hw with ⟨he, _⟩ | hc
-  · exact absurd he hne
-  · exact hc
+    PathCollision h z0 L sibs lvl k j x :=
+  (walk_pins_or_collision h z0 L sibs k lvl j x hw).resolve_left fun he => hne he.1
 
 theorem walk_accept_pins_leaf_free_sibs_or_collision (h : Hash) (z0 : UInt256) (L : List UInt256)
     (sibs : ℕ → UInt256) (height j : ℕ) (x : UInt256) (hj : j < 2 ^ height)
@@ -297,12 +271,8 @@ theorem walk_accept_pins_leaf_free_sibs_or_collision (h : Hash) (z0 : UInt256) (
   have hroot : (levels h z0 L (0 + height)).getD (j / 2 ^ height) (zeros h z0 (0 + height))
       = rootOf h z0 L height := by
     rw [Nat.zero_add, Nat.div_eq_of_lt hj, rootOf_def, getD_zero_headD]
-  rcases walk_pins_or_collision h z0 L sibs height 0 j x (by rw [hroot]; exact hacc)
-    with ⟨he, hs⟩ | hc
-  · refine Or.inl ⟨by simpa using he, fun l hl => ?_⟩
-    have hsl := hs l (Nat.zero_le l) (by omega)
-    simpa using hsl
-  · exact Or.inr hc
+  exact (walk_pins_or_collision h z0 L sibs height 0 j x (by rwa [hroot])).imp_left
+    fun ⟨he, hs⟩ => ⟨by simpa using he, fun l hl => by simpa using hs l (Nat.zero_le l) (by omega)⟩
 
 /-! ## Merkle `RootBinding` -/
 
@@ -337,9 +307,8 @@ theorem root_of_ne_of_not_mem_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ 
     rootOf h z0 L₁ height ≠ rootOf h z0 L₂ height
       ∨ TreeCollision h z0 L₁ L₂ height (L₁.idxOf x) := by
   by_cases hr : rootOf h z0 L₁ height = rootOf h z0 L₂ height
-  · rcases mem_of_root_of_eq_or_collision h z0 L₁ L₂ height x hlen hcap hr hx with hm | hc
-    · exact absurd hm hnx
-    · exact Or.inr hc
+  · exact (mem_of_root_of_eq_or_collision h z0 L₁ L₂ height x hlen hcap hr hx).imp_left
+      (absurd · hnx)
   · exact Or.inl hr
 
 /-! ## Merkle `RootForgery` -/
@@ -349,9 +318,8 @@ theorem root_ne_of_leaf_ne_or_collision (h : Hash) (z0 : UInt256) (L₁ L₂ : L
     (hdiff : L₁.getD i d ≠ L₂.getD i d) :
     rootOf h z0 L₁ height ≠ rootOf h z0 L₂ height ∨ TreeCollision h z0 L₁ L₂ height i := by
   by_cases hr : rootOf h z0 L₁ height = rootOf h z0 L₂ height
-  · rcases getD_of_root_of_eq_or_collision h z0 L₁ L₂ height hlen hcap hr i d with he | hc
-    · exact absurd he hdiff
-    · exact Or.inr hc
+  · exact (getD_of_root_of_eq_or_collision h z0 L₁ L₂ height hlen hcap hr i d).imp_left
+      (absurd · hdiff)
   · exact Or.inl hr
 
 theorem path_forgery_changes_walk_or_collision (h : Hash) (sibs : ℕ → UInt256) (k lvl idx : ℕ)
@@ -359,9 +327,7 @@ theorem path_forgery_changes_walk_or_collision (h : Hash) (sibs : ℕ → UInt25
     walkPure h sibs lvl k idx x ≠ walkPure h sibs lvl k idx y
       ∨ WalkCollision h sibs sibs lvl k idx x y := by
   by_cases hw : walkPure h sibs lvl k idx x = walkPure h sibs lvl k idx y
-  · rcases walk_pure_inj_or_collision h sibs k lvl idx x y hw with he | hc
-    · exact absurd he hxy
-    · exact Or.inr hc
+  · exact (walk_pure_inj_or_collision h sibs k lvl idx x y hw).imp_left (absurd · hxy)
   · exact Or.inl hw
 
 theorem walk_accept_pins_leaf_or_collision (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
@@ -373,10 +339,8 @@ theorem walk_accept_pins_leaf_or_collision (h : Hash) (z0 : UInt256) (sibs : ℕ
     rootOf h z0 (leaves.set idx x) height = root
       ∧ ∀ y : UInt256, walkPure h sibs 0 height idx y = root →
           y = x ∨ WalkCollision h sibs sibs 0 height idx y x := by
-  refine ⟨?_, fun y hy => ?_⟩
-  · rw [← walkPure_update_orig h z0 sibs leaves idx x height hidx hcap hsibs]
-    exact haccept
-  · exact walk_pure_inj_or_collision h sibs height 0 idx y x (by rw [hy, haccept])
+  exact ⟨(walkPure_update_orig h z0 sibs leaves idx x height hidx hcap hsibs).symm.trans haccept,
+    fun y hy => walk_pure_inj_or_collision h sibs height 0 idx y x (hy.trans haccept.symm)⟩
 
 theorem leaf_only_substitution_changes_root_or_collision (h : Hash) (z0 : UInt256)
     (sibs : ℕ → UInt256) (leaves : List UInt256) (idx : ℕ) (x y : UInt256) (height : ℕ)
@@ -387,19 +351,16 @@ theorem leaf_only_substitution_changes_root_or_collision (h : Hash) (z0 : UInt25
         ∨ TreeCollision h z0 (leaves.set idx x) (leaves.set idx y) height idx) := by
   refine ⟨path_forgery_changes_walk_or_collision h sibs height 0 idx x y hxy, ?_⟩
   by_cases hr : rootOf h z0 (leaves.set idx x) height = rootOf h z0 (leaves.set idx y) height
-  · rcases root_of_set_inj_or_collision h z0 leaves idx x y height hidx hcap hr with he | hc
-    · exact absurd he hxy
-    · exact Or.inr hc
+  · exact (root_of_set_inj_or_collision h z0 leaves idx x y height hidx hcap hr).imp_left
+      (absurd · hxy)
   · exact Or.inl hr
 
 theorem single_sibling_substitution_or_collision (h : Hash) (s₁ s₂ : ℕ → UInt256)
     (k lvl m idx : ℕ) (x : UInt256) (hm1 : lvl ≤ m) (hm2 : m < lvl + k)
     (_hagree : ∀ l, l ≠ m → s₁ l = s₂ l)
     (heq : walkPure h s₁ lvl k idx x = walkPure h s₂ lvl k idx x) :
-    s₁ m = s₂ m ∨ WalkCollision h s₁ s₂ lvl k idx x x := by
-  rcases walk_vs_walk_or_collision h s₁ s₂ k lvl idx x x heq with ⟨_, hs⟩ | hc
-  · exact Or.inl (hs m hm1 hm2)
-  · exact Or.inr hc
+    s₁ m = s₂ m ∨ WalkCollision h s₁ s₂ lvl k idx x x :=
+  (walk_vs_walk_or_collision h s₁ s₂ k lvl idx x x heq).imp_left (·.2 m hm1 hm2)
 
 theorem no_append_forgery_walk_or_collision (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
     (leaves : List UInt256) (x y : UInt256) (height : ℕ) (hcap : leaves.length < 2 ^ height)
@@ -420,9 +381,7 @@ theorem accept_pins_entry_cases_or_collision (h : Hash) (z0 : UInt256) (L : List
   rcases accept_pins_entry_or_collision h z0 L sibs k j x hj haccept with he | hc
   · by_cases hjL : j < L.length
     · exact Or.inl ⟨hjL, he⟩
-    · refine Or.inr (Or.inl ⟨by omega, ?_⟩)
-      rw [← he]
-      exact getD_default L j z0 (by omega)
+    · exact Or.inr (Or.inl ⟨by omega, he ▸ getD_default L j z0 (by omega)⟩)
   · exact Or.inr (Or.inr hc)
 
 /-! ## Certificates -/

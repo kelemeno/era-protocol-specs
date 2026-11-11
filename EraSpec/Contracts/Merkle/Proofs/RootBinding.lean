@@ -56,10 +56,7 @@ theorem mem_of_rootOf_eq (h : Hash) (z0 : UInt256)
     {x : UInt256} (hx : x ∈ L₁) :
     Properties.mem_of_rootOf_eq (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (hroot := hroot) (x := x) (hx := hx) := by
   unfold Properties.mem_of_rootOf_eq
-  exact
-    by
-      rw [← rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot]
-      exact hx
+  rwa [← rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot]
 
 
 /-- **THE INDEXED FORM.**  The same fact at a position: equal roots force equal
@@ -72,11 +69,8 @@ theorem getD_of_rootOf_eq (h : Hash) (z0 : UInt256)
     (hcap : L₁.length ≤ 2 ^ height)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height)
     (i : ℕ) (d : UInt256) :
-    Properties.getD_of_rootOf_eq (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (hroot := hroot) (i := i) (d := d) := by
-  unfold Properties.getD_of_rootOf_eq
-  exact
-    by
-      rw [rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot]
+    Properties.getD_of_rootOf_eq (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (hroot := hroot) (i := i) (d := d) :=
+  congrArg (·.getD i d) (rootOf_inj_of_h_inj' h z0 hinj L₁ L₂ height hlen hcap hroot)
 
 
 /-- **CONTRAPOSITIVE: A FORGED LEAF CHANGES THE ROOT.**  If a leaf appears in one
@@ -88,12 +82,8 @@ theorem rootOf_ne_of_not_mem (h : Hash) (z0 : UInt256)
     (hlen : L₁.length = L₂.length)
     (hcap : L₁.length ≤ 2 ^ height)
     {x : UInt256} (hx : x ∈ L₁) (hnx : x ∉ L₂) :
-    Properties.rootOf_ne_of_not_mem (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (x := x) (hx := hx) (hnx := hnx) := by
-  unfold Properties.rootOf_ne_of_not_mem
-  exact
-    by
-      intro hroot
-      exact hnx (mem_of_rootOf_eq h z0 hinj L₁ L₂ height hlen hcap hroot hx)
+    Properties.rootOf_ne_of_not_mem (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (x := x) (hx := hx) (hnx := hnx) :=
+  fun hroot => hnx (mem_of_rootOf_eq h z0 hinj L₁ L₂ height hlen hcap hroot hx)
 
 
 /-! ## Piece (3): the list/set correspondence, abstract kernel
@@ -114,14 +104,7 @@ theorem mem_image_range_iff_mem_map_range {α : Type*} [DecidableEq α]
     (f : ℕ → α) (n : ℕ) (x : α) :
     Properties.mem_image_range_iff_mem_map_range (α := α) (f := f) (n := n) (x := x) := by
   unfold Properties.mem_image_range_iff_mem_map_range
-  exact
-    by
-      rw [Finset.mem_image, List.mem_map]
-      constructor
-      · rintro ⟨i, hi, hfi⟩
-        exact ⟨i, List.mem_range.mpr (Finset.mem_range.mp hi), hfi⟩
-      · rintro ⟨i, hi, hfi⟩
-        exact ⟨i, Finset.mem_range.mpr (List.mem_range.mp hi), hfi⟩
+  simp
 
 
 /-- The `leafSetOf`-shaped direction, spelled out: a value is in the image exactly
@@ -130,14 +113,7 @@ theorem mem_image_range_iff {α : Type*} [DecidableEq α]
     (f : ℕ → α) (n : ℕ) (x : α) :
     Properties.mem_image_range_iff (α := α) (f := f) (n := n) (x := x) := by
   unfold Properties.mem_image_range_iff
-  exact
-    by
-      rw [Finset.mem_image]
-      constructor
-      · rintro ⟨i, hi, hfi⟩
-        exact ⟨i, Finset.mem_range.mp hi, hfi⟩
-      · rintro ⟨i, hi, hfi⟩
-        exact ⟨i, Finset.mem_range.mpr hi, hfi⟩
+  simp
 
 
 end AttackVectors.RootBinding
