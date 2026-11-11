@@ -514,3 +514,385 @@ theorem SubsetFlowRejectedByCheckOnSatisfiable :
   · exact hcl.1 rfl
 
 end Contracts.Atomicity
+
+/-! ## The headlines without hash premises
+
+Each proof is the vacuous one with `inclusion_sound hA` replaced by
+`inclusion_sound_or_break` and `verified_absence_excludes_delivered hA` replaced by
+`verified_absence_excludes_delivered_or_break`, the break threaded to the conclusion. -/
+
+namespace Contracts.Atomicity
+
+open IMTAbstract MerkleSpec MerkleSpec.Verifier Contracts.InteropCommitmentTree
+
+theorem executedVia_iff_by {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {F : Flow} {leg : FlowLeg} :
+    ExecutedVia h z0 hl cv fh S F leg ↔ ∃ ev : GateEvidence, ExecutedViaBy h z0 hl cv fh S F ev leg := by
+  classical
+  constructor
+  · rintro ⟨hmem, hchk, hfin⟩
+    refine ⟨fun l => if hl' : l ∈ F.legs then
+        (Classical.choose (hfin l hl'), Classical.choose (Classical.choose_spec (hfin l hl')))
+      else (0, ⟨⟨0, 0, 0⟩, 0, fun _ => 0, 0⟩), hmem, hchk, ?_⟩
+    intro l hl'
+    simp only [dif_pos hl']
+    exact Classical.choose_spec (Classical.choose_spec (hfin l hl'))
+  · rintro ⟨ev, hmem, hchk, hfin⟩
+    exact ⟨hmem, hchk, fun l hl' => ⟨(ev l).1, (ev l).2, hfin l hl'⟩⟩
+
+theorem legRefundable_iff_by {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {S : System} {F : Flow} {leg : FlowLeg} :
+    LegRefundable h z0 hl cv S F leg ↔ ∃ (N : ℕ) (p : ImtProof), LegRefundableBy h z0 hl cv S F leg N p :=
+  Iff.rfl
+
+/-- **AN ACCEPTED INCLUSION PROOF MEANS THE LEG IS COMMITTED, OR IT CARRIES A BREAK.** -/
+theorem finality_means_membership_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {S : System} {c : Chain} {n : ℕ} {v : UInt256} {p : ImtProof}
+    (hacc : Accepts h z0 hl S c n v p) :
+    v ∈ keys (toAbs (S.tree c n)) ∨ InclusionBreak h z0 hl S c n p :=
+  inclusion_sound_or_break hacc
+
+theorem executed_implies_all_finalizable_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {fh : FlowHash} {S : System} (hS : Wf S) {A : Access}
+    (hDA : DataAvailable h z0 hl S A) {F : Flow} {ev : GateEvidence} {leg : FlowLeg}
+    (hex : ExecutedViaBy h z0 hl cv fh S F ev leg) (other : FlowLeg) (hother : other ∈ F.legs) :
+    LegFinalizableBy h z0 hl cv S A F other
+      ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2 := by
+  obtain ⟨hon, hacc⟩ := hex.2.2 other hother
+  rcases finality_means_membership_or_break hacc with hmem | hb
+  · exact Or.inl (member_is_finalizable hS hDA hon hmem)
+  · exact Or.inr hb
+
+theorem none_or_all_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A)
+    (F : Flow) (ev : GateEvidence) :
+    FlowFinalizableBy h z0 hl cv S A F
+      ∨ (∀ leg, ¬ ExecutedViaBy h z0 hl cv fh S F ev leg)
+      ∨ GateBreak h z0 hl S F ev := by
+  by_cases hex : ∃ leg, ExecutedViaBy h z0 hl cv fh S F ev leg
+  · obtain ⟨leg, hleg⟩ := hex
+    by_cases hb : GateBreak h z0 hl S F ev
+    · exact Or.inr (Or.inr hb)
+    · refine Or.inl fun other hother => ?_
+      rcases executed_implies_all_finalizable_or_break hS hDA hleg other hother with hf | hbo
+      · exact hf
+      · exact absurd ⟨other, hother, hbo⟩ hb
+  · push_neg at hex
+    exact Or.inr (Or.inl hex)
+
+theorem executed_implies_finality_persists_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {fh : FlowHash} {S : System} (hS : Wf S) {A : Access}
+    (hDA : DataAvailable h z0 hl S A) {F : Flow} {ev : GateEvidence} {leg : FlowLeg}
+    (hex : ExecutedViaBy h z0 hl cv fh S F ev leg) (other : FlowLeg) (hother : other ∈ F.legs) :
+    (∃ n, S.time other.chain n ≤ F.deadline ∧
+      ∀ m, n ≤ m → S.time other.chain m ≤ F.deadline →
+        ∃ p, A other.chain m p ∧ Accepts h z0 hl S other.chain m (legValue cv F other) p)
+      ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2 := by
+  obtain ⟨hon, hacc⟩ := hex.2.2 other hother
+  rcases finality_means_membership_or_break hacc with hmem | hb
+  · refine Or.inl ⟨(ev other).1, hon, ?_⟩
+    intro m hnm _
+    obtain ⟨i, hi, hacc'⟩ := honest_accepts hS (keys_mono_batch hS other.chain hnm hmem)
+    exact ⟨honestProof h z0 hl S other.chain m i, hDA _ _ _ hi, hacc'⟩
+  · exact Or.inr hb
+
+/-- The core of the refund exclusion, for one leg: committed by an on-time batch `n`,
+so the absence proof `q` at batch `N` passes the gate only with a break on `q`. -/
+theorem member_not_refundable_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} (hS : Wf S) {F : Flow} {other : FlowLeg} {n : ℕ}
+    (hon : S.time other.chain n ≤ F.deadline)
+    (hmem : legValue cv F other ∈ keys (toAbs (S.tree other.chain n))) (N : ℕ) (q : ImtProof) :
+    ¬ LegRefundableBy h z0 hl cv S F other N q
+      ∨ AbsenceBreak h z0 hl S F.deadline other.chain N q := by
+  by_cases hr : LegRefundableBy h z0 hl cv S F other N q
+  · refine Or.inr ?_
+    rcases hr with ⟨hlate, habs⟩ | ⟨⟨hon', hlast⟩, habs⟩
+    · have hnN : n < N := by
+        by_contra hcon
+        push_neg at hcon
+        exact absurd hlate (not_lt.mpr (le_trans (hS.timeOrdered other.chain hcon) hon))
+      obtain ⟨N', rfl⟩ : ∃ N', N = N' + 1 := ⟨N - 1, by omega⟩
+      rcases verified_absence_excludes_delivered_or_break (valid_batch hS other.chain N') habs
+        with hnot | hb
+      · exact absurd (keys_mono_batch hS other.chain (by omega) hmem) hnot
+      · exact Or.inl ⟨hlate, hb⟩
+    · have hnN : n ≤ N := by
+        by_contra hcon
+        push_neg at hcon
+        exact absurd hon (not_le.mpr (hlast n hcon))
+      rcases verified_absence_excludes_delivered_or_break (valid_batch hS other.chain N) habs
+        with hnot | hb
+      · exact absurd (keys_mono_batch hS other.chain hnN hmem) hnot
+      · exact Or.inr ⟨hon', hb⟩
+  · exact Or.inl hr
+
+theorem executed_excludes_any_refund_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {fh : FlowHash} {S : System} (hS : Wf S) {F : Flow} {ev : GateEvidence}
+    {leg : FlowLeg} (hex : ExecutedViaBy h z0 hl cv fh S F ev leg)
+    (other : FlowLeg) (hother : other ∈ F.legs) (N : ℕ) (q : ImtProof) :
+    ¬ LegRefundableBy h z0 hl cv S F other N q
+      ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
+      ∨ AbsenceBreak h z0 hl S F.deadline other.chain N q := by
+  obtain ⟨hon, hacc⟩ := hex.2.2 other hother
+  rcases finality_means_membership_or_break hacc with hmem | hb
+  · rcases member_not_refundable_or_break hS hon hmem N q with hn | hb'
+    · exact Or.inl hn
+    · exact Or.inr (Or.inr hb')
+  · exact Or.inr (Or.inl hb)
+
+theorem full_gate_blocks_mixed_outcome_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {id hA hB : UInt256} (hb : 0 < cv id hB) (ev : GateEvidence) :
+    ¬ FlowFinalizedBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ev
+      ∨ InclusionBreak h z0 hl (mixedSystem (cv id hA)) 1 (ev ⟨1, hB⟩).1 (ev ⟨1, hB⟩).2 := by
+  by_cases hfin : FlowFinalizedBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ev
+  · refine Or.inr ?_
+    obtain ⟨_, hacc⟩ := hfin ⟨1, hB⟩ (by simp [mixedFlow])
+    rcases finality_means_membership_or_break hacc with hmem | hbr
+    · exfalso
+      rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0)] at hmem
+      exact not_mem_setup hb (by simpa [mixedFlow, legValue] using hmem)
+    · exact hbr
+  · exact Or.inl hfin
+
+/-! ### Anti-vacuity witnesses -/
+
+/-- The honest proof of leaf `i` of chain `c`'s batch `n` carries no break. -/
+theorem honestProof_no_break (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (c : Chain)
+    (n i : ℕ) (hi : i < (S.tree c n).leafCount) :
+    ¬ InclusionBreak h z0 hl S c n (honestProof h z0 hl S c n i) :=
+  honest_proof_no_break h z0 hl (S.tree c n) (S.height c n) i hi
+
+/-- `insert setup a 0` holds `a` at index 1. -/
+lemma insertSetup_leaf_one_value (a : UInt256) : ((insert setup a 0).leaf 1).value = a := by
+  simp [Contracts.InteropCommitmentTree.insert, setup]
+
+theorem executed_or_break_satisfiable (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)
+      (ev : GateEvidence) (leg : FlowLeg) (N : ℕ) (q : ImtProof),
+      Wf S ∧ DataAvailable h z0 hl S A ∧ ExecutedViaBy h z0 hl cv fh S F ev leg
+        ∧ ¬ GateBreak h z0 hl S F ev
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N q
+        ∧ FlowFinalizableBy h z0 hl cv S A F
+        ∧ ¬ LegRefundableBy h z0 hl cv S F leg N q := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  let cv : CommitValue := fun _ _ => 1
+  let S : System := mixedSystem 1
+  let F : Flow := subsetFlow 0 1
+  let p : ImtProof := honestProof h z0 hl S 0 0 1
+  have hS : Wf S := mixedSystem_wf h1
+  have hcount : (S.tree 0 0).leafCount = 2 := by
+    show ((mixedSystem 1).tree 0 0).leafCount = 2
+    rw [mixedSystem_tree_zero]; rfl
+  have hacc : Accepts h z0 hl S 0 0 1 p := by
+    have := inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := S.tree 0 0)
+      (height := S.height 0 0) (hS.capacity 0 0) (i := 1) (by rw [hcount]; norm_num)
+    have hv : ((S.tree 0 0).leaf 1).value = 1 := by
+      show (((mixedSystem 1).tree 0 0).leaf 1).value = 1
+      rw [mixedSystem_tree_zero, insertSetup_leaf_one_value]
+    rw [hv] at this
+    exact this
+  have hnb : ¬ InclusionBreak h z0 hl S 0 0 p :=
+    honestProof_no_break h z0 hl S 0 0 1 (by rw [hcount]; norm_num)
+  have hmem : (⟨0, 1⟩ : FlowLeg) ∈ F.legs := List.mem_singleton_self _
+  have hex : ExecutedViaBy h z0 hl cv (honestFlowHash F) S F (fun _ => (0, p)) ⟨0, 1⟩ := by
+    refine ⟨hmem, (honest_flowHash_no_clash F).1, ?_⟩
+    intro l hl'
+    obtain rfl : l = ⟨0, 1⟩ := List.mem_singleton.mp hl'
+    exact ⟨by simp [S, F, subsetFlow], hacc⟩
+  have hDA : DataAvailable h z0 hl S (fun _ _ _ => True) := fun _ _ _ _ => trivial
+  refine ⟨cv, honestFlowHash F, S, fun _ _ _ => True, F, fun _ => (0, p), ⟨0, 1⟩, 0, p,
+    hS, hDA, hex, ?_, ?_, ?_, ?_⟩
+  · rintro ⟨l, hl', hb⟩
+    obtain rfl : l = ⟨0, 1⟩ := List.mem_singleton.mp hl'
+    exact hnb hb
+  · rintro (⟨hlate, _⟩ | ⟨_, hb⟩)
+    · exact absurd hlate (by simp [S, F, subsetFlow])
+    · exact hnb hb
+  · intro other hother
+    rcases executed_implies_all_finalizable_or_break hS hDA hex other hother with hf | hb
+    · exact hf
+    · obtain rfl : other = ⟨0, 1⟩ := List.mem_singleton.mp hother
+      exact absurd hb hnb
+  · rcases executed_excludes_any_refund_or_break hS hex ⟨0, 1⟩ hmem 0 p with hn | hb | hb
+    · exact hn
+    · exact absurd hb hnb
+    · rcases hb with ⟨hlate, _⟩ | ⟨_, hb⟩
+      · exact absurd hlate (by simp [S, F, subsetFlow])
+      · exact absurd hb hnb
+
+theorem full_gate_or_break_not_tautology (h : Hash) (z0 : UInt256) (hl : LeafHash)
+    (cv : CommitValue) (id hA hB : UInt256) (_ha : 0 < cv id hA) (hb : 0 < cv id hB) :
+    ∃ ev : GateEvidence,
+      ¬ InclusionBreak h z0 hl (mixedSystem (cv id hA)) 1 (ev ⟨1, hB⟩).1 (ev ⟨1, hB⟩).2
+        ∧ ¬ FlowFinalizedBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ev := by
+  have hcount : ((mixedSystem (cv id hA)).tree 1 0).leafCount = 1 := by
+    rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0)]; rfl
+  have hnb := honestProof_no_break h z0 hl (mixedSystem (cv id hA)) 1 0 0 (by rw [hcount]; norm_num)
+  refine ⟨fun _ => (0, honestProof h z0 hl (mixedSystem (cv id hA)) 1 0 0), hnb, ?_⟩
+  intro hfin
+  rcases full_gate_blocks_mixed_outcome_or_break (h := h) (z0 := z0) (hl := hl) (hA := hA) hb
+      (fun _ => (0, honestProof h z0 hl (mixedSystem (cv id hA)) 1 0 0)) with hn | hbr
+  · exact hn hfin
+  · exact hnb hbr
+
+/-! ### The padded system -/
+
+@[simp] lemma paddedSystem_tree_zero (a b : UInt256) (n : ℕ) :
+    (paddedSystem a b).tree 0 n = threeLeafTree a b := by simp [paddedSystem]
+
+lemma paddedSystem_tree_other {a b : UInt256} {c : Chain} (hc : c ≠ 0) (n : ℕ) :
+    (paddedSystem a b).tree c n = setup := by simp [paddedSystem, hc]
+
+@[simp] lemma paddedSystem_height_zero (a b : UInt256) (n : ℕ) :
+    (paddedSystem a b).height 0 n = 2 := by simp [paddedSystem]
+
+lemma paddedSystem_height_other {a b : UInt256} {c : Chain} (hc : c ≠ 0) (n : ℕ) :
+    (paddedSystem a b).height c n = 0 := by simp [paddedSystem, hc]
+
+@[simp] lemma paddedSystem_time (a b : UInt256) (c : Chain) (n : ℕ) :
+    (paddedSystem a b).time c n = n := rfl
+
+lemma paddedSystem_wf {a b : UInt256} (ha : 0 < a) (hab : a < b) : Wf (paddedSystem a b) := by
+  obtain ⟨hg1, hg2⟩ := threeLeafTree_guards ha hab
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro c
+    by_cases hc : c = 0
+    · subst hc
+      rw [paddedSystem_tree_zero]
+      exact Reaches.tail (Reaches.tail Reaches.refl hg1) hg2
+    · rw [paddedSystem_tree_other hc]
+      exact Reaches.refl
+  · intro c n
+    by_cases hc : c = 0
+    · subst hc
+      rw [paddedSystem_tree_zero, paddedSystem_tree_zero]
+      exact Reaches.refl
+    · rw [paddedSystem_tree_other hc, paddedSystem_tree_other hc]
+      exact Reaches.refl
+  · intro c i j hij
+    simpa using hij
+  · intro c n
+    by_cases hc : c = 0
+    · subst hc
+      rw [paddedSystem_tree_zero, paddedSystem_height_zero]
+      show (3 : ℕ) ≤ 2 ^ 2
+      norm_num
+    · rw [paddedSystem_tree_other hc, paddedSystem_height_other hc]
+      show (1 : ℕ) ≤ 2 ^ 0
+      norm_num
+
+theorem padding_refund_of_executed_leg_locates_absence_break (h : Hash) (hl : LeafHash)
+    (a b : UInt256) (ha : 0 < a) (hab : a < b) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (F : Flow) (ev : GateEvidence) (leg : FlowLeg)
+      (N : ℕ) (q : ImtProof),
+      Wf (paddedSystem a b)
+        ∧ ExecutedViaBy h (hl ⟨0, 0, 0⟩) hl cv fh (paddedSystem a b) F ev leg
+        ∧ LegRefundableBy h (hl ⟨0, 0, 0⟩) hl cv (paddedSystem a b) F leg N q
+        ∧ ¬ InclusionBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) leg.chain (ev leg).1 (ev leg).2
+        ∧ AbsenceBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) F.deadline leg.chain N q
+        ∧ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2 q.sibs q.pathLen q.index q.leaf
+        ∧ (threeLeafTree a b).leafCount ≤ q.index ∧ hl q.leaf = hl ⟨0, 0, 0⟩ := by
+  let z0 := hl ⟨0, 0, 0⟩
+  let T := threeLeafTree a b
+  let F : Flow := subsetFlow 0 0
+  let p : ImtProof := ⟨T.leaf 1, 1, honestSibs h z0 (leafHashes hl T) 1, 2⟩
+  let q : ImtProof := ⟨⟨0, 0, 0⟩, 3, honestSibs h z0 (leafHashes hl T) 3, 2⟩
+  obtain ⟨_, hI, hN⟩ := proofs_exclusive_or_break_satisfiable h hl a b ha hab
+  obtain ⟨hnb, hpad⟩ := padding_countermodel_locates_padding_hit h hl a b
+  have hcount : T.leafCount = 3 := rfl
+  refine ⟨fun _ _ => a, honestFlowHash F, F, fun _ => (0, p), ⟨0, 0⟩, 0, q,
+    paddedSystem_wf ha hab, ⟨List.mem_singleton_self _, (honest_flowHash_no_clash F).1, ?_⟩,
+    Or.inr ⟨⟨le_refl 0, fun m hm => hm⟩, hN⟩, hnb, Or.inr ⟨le_refl 0, hpad⟩, hpad,
+    by show T.leafCount ≤ 3; rw [hcount], rfl⟩
+  intro l hl'
+  obtain rfl : l = ⟨0, 0⟩ := List.mem_singleton.mp hl'
+  exact ⟨le_refl 0, hI⟩
+
+end Contracts.Atomicity
+
+/-! ## Certificates for the repaired headlines -/
+
+namespace Contracts.Atomicity
+
+theorem ExecutedViaIffBy : Properties.ExecutedViaIffBy :=
+  fun _ _ _ _ _ _ _ _ => executedVia_iff_by
+theorem LegRefundableIffBy : Properties.LegRefundableIffBy :=
+  fun _ _ _ _ _ _ _ => legRefundable_iff_by
+theorem FinalitySignalMeansMembershipOrBreak : Properties.FinalitySignalMeansMembershipOrBreak :=
+  fun _ _ _ _ _ _ _ _ hacc => finality_means_membership_or_break hacc
+theorem ExecutedImpliesAllFinalizableOrBreak : Properties.ExecutedImpliesAllFinalizableOrBreak :=
+  fun _ _ _ _ _ _ hS _ hDA _ _ _ hex other hother =>
+    executed_implies_all_finalizable_or_break hS hDA hex other hother
+theorem NoneOrAllOrBreak : Properties.NoneOrAllOrBreak :=
+  fun _ _ _ _ _ _ hS _ hDA F ev => none_or_all_or_break hS hDA F ev
+theorem ExecutedImpliesFinalityPersistsOrBreak : Properties.ExecutedImpliesFinalityPersistsOrBreak :=
+  fun _ _ _ _ _ _ hS _ hDA _ _ _ hex other hother =>
+    executed_implies_finality_persists_or_break hS hDA hex other hother
+theorem ExecutedExcludesAnyRefundOrBreak : Properties.ExecutedExcludesAnyRefundOrBreak :=
+  fun _ _ _ _ _ _ hS _ _ _ hex other hother N q =>
+    executed_excludes_any_refund_or_break hS hex other hother N q
+theorem FullGateBlocksMixedOutcomeOrBreak : Properties.FullGateBlocksMixedOutcomeOrBreak :=
+  fun _ _ _ _ _ _ _ hb ev => full_gate_blocks_mixed_outcome_or_break hb ev
+theorem ExecutedOrBreakSatisfiable : Properties.ExecutedOrBreakSatisfiable :=
+  executed_or_break_satisfiable
+theorem FullGateOrBreakNotTautology : Properties.FullGateOrBreakNotTautology :=
+  full_gate_or_break_not_tautology
+theorem PaddingRefundOfExecutedLegLocatesAbsenceBreak :
+    Properties.PaddingRefundOfExecutedLegLocatesAbsenceBreak :=
+  padding_refund_of_executed_leg_locates_absence_break
+
+end Contracts.Atomicity
+
+/-! ## Data availability is necessary, without hash premises -/
+
+namespace Contracts.Atomicity
+
+open IMTAbstract MerkleSpec MerkleSpec.Verifier Contracts.InteropCommitmentTree
+
+theorem without_da_committed_leg_is_stuck_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {id hA hB : UInt256} (ha : 0 < cv id hA) :
+    Wf (mixedSystem (cv id hA))
+      ∧ ¬ DataAvailable h z0 hl (mixedSystem (cv id hA)) noAccess
+      ∧ LegFinalized h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩
+      ∧ ¬ LegFinalizableBy h z0 hl cv (mixedSystem (cv id hA)) noAccess
+            (mixedFlow id hA hB) ⟨0, hA⟩
+      ∧ ∀ (N : ℕ) (q : ImtProof),
+          ¬ LegRefundableBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩ N q
+            ∨ AbsenceBreak h z0 hl (mixedSystem (cv id hA)) (mixedFlow id hA hB).deadline 0 N q := by
+  have hS := mixedSystem_wf ha
+  refine ⟨hS, ?_, legA_finalized ha _ rfl, ?_, ?_⟩
+  · intro hDA
+    exact hDA 0 0 0 (by rw [mixedSystem_tree_zero, insertSetup_leafCount]; omega)
+  · rintro ⟨n, p, _, hpres, _⟩
+    exact hpres
+  · intro N q
+    refine member_not_refundable_or_break hS (n := 0) (by simp [mixedFlow]) ?_ N q
+    show cv id hA ∈ keys (toAbs ((mixedSystem (cv id hA)).tree 0 0))
+    rw [mixedSystem_tree_zero]
+    exact mem_insertSetup ha
+
+theorem without_da_or_break_not_tautology (h : Hash) (z0 : UInt256) (hl : LeafHash)
+    (cv : CommitValue) (id hA hB : UInt256) (ha : 0 < cv id hA) :
+    ∃ (N : ℕ) (q : ImtProof),
+      ¬ AbsenceBreak h z0 hl (mixedSystem (cv id hA)) (mixedFlow id hA hB).deadline 0 N q
+        ∧ ¬ LegRefundableBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩ N q := by
+  have hcount : ((mixedSystem (cv id hA)).tree 0 0).leafCount = 2 := by
+    rw [mixedSystem_tree_zero]; rfl
+  have hnb := honestProof_no_break h z0 hl (mixedSystem (cv id hA)) 0 0 1 (by rw [hcount]; norm_num)
+  have hnab : ¬ AbsenceBreak h z0 hl (mixedSystem (cv id hA)) (mixedFlow id hA hB).deadline 0 0
+      (honestProof h z0 hl (mixedSystem (cv id hA)) 0 0 1) := by
+    rintro (⟨hlate, _⟩ | ⟨_, hb⟩)
+    · exact absurd hlate (by simp [mixedFlow])
+    · exact hnb hb
+  refine ⟨0, honestProof h z0 hl (mixedSystem (cv id hA)) 0 0 1, hnab, ?_⟩
+  rcases (without_da_committed_leg_is_stuck_or_break (h := h) (z0 := z0) (hl := hl) (hB := hB)
+      ha).2.2.2.2 0 (honestProof h z0 hl (mixedSystem (cv id hA)) 0 0 1) with hn | hb
+  · exact hn
+  · exact absurd hb hnab
+
+theorem WithoutDaCommittedLegIsStuckOrBreak : Properties.WithoutDaCommittedLegIsStuckOrBreak :=
+  fun _ _ _ _ _ _ _ ha => without_da_committed_leg_is_stuck_or_break ha
+theorem WithoutDaOrBreakNotTautology : Properties.WithoutDaOrBreakNotTautology :=
+  without_da_or_break_not_tautology
+
+end Contracts.Atomicity

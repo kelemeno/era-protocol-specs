@@ -406,3 +406,260 @@ theorem NoPinnedBreakUnderBoundedInjectivity :
   fun _ _ _ B c N hsep hinj => no_pinned_break_bounded B c N hsep hinj
 
 end Contracts.Timeout
+
+/-! ## The justification without hash premises -/
+
+namespace Contracts.Timeout
+
+open Contracts.InteropCommitmentTree Contracts.Atomicity MerkleSpec MerkleSpec.Verifier
+open MerkleSpec.LastLeaf IMTAbstract
+
+theorem legRefundableVerified_iff_by {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {R : SlRoot} {F : Flow} {leg : FlowLeg} :
+    LegRefundableVerified h z0 hl cv S R F leg
+      ↔ ∃ (N : ℕ) (p : ImtProof), LegRefundableVerifiedBy h z0 hl cv S R F leg N p :=
+  Iff.rfl
+
+/-- A verified timeout, witnesses named, is a refundable leg, witnesses named. -/
+theorem refundableBy_of_verifiedBy {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {R : SlRoot} (hagg : Aggregates S R)
+    {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
+    (hv : LegRefundableVerifiedBy h z0 hl cv S R F leg N p) :
+    LegRefundableBy h z0 hl cv S F leg N p := by
+  rcases hv with ⟨hb, habs⟩ | ⟨he, habs⟩
+  · exact Or.inl ⟨hb.late, habs⟩
+  · exact Or.inr ⟨isLastOnTime_of_verified hagg he, habs⟩
+
+theorem timeout_means_missed_deadline_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} (hS : Wf S) {R : SlRoot} (hagg : Aggregates S R)
+    {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
+    (hv : LegRefundableVerifiedBy h z0 hl cv S R F leg N p) :
+    (∀ n, S.time leg.chain n ≤ F.deadline →
+        legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+      ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p := by
+  by_cases hb : AbsenceBreak h z0 hl S F.deadline leg.chain N p
+  · exact Or.inr hb
+  · refine Or.inl fun n hon hmem => ?_
+    rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
+    · exact hn (refundableBy_of_verifiedBy hagg hv)
+    · exact hb hb'
+
+theorem timeout_excludes_finality_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} (hS : Wf S) {R : SlRoot} (hagg : Aggregates S R)
+    {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
+    (hv : LegRefundableVerifiedBy h z0 hl cv S R F leg N p) (n : ℕ) (p' : ImtProof) :
+    ¬ LegFinalizedBy h z0 hl cv S F leg n p'
+      ∨ InclusionBreak h z0 hl S leg.chain n p'
+      ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p := by
+  by_cases hfin : LegFinalizedBy h z0 hl cv S F leg n p'
+  · obtain ⟨hon, hacc⟩ := hfin
+    rcases finality_means_membership_or_break hacc with hmem | hb
+    · rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
+      · exact absurd (refundableBy_of_verifiedBy hagg hv) hn
+      · exact Or.inr (Or.inr hb')
+    · exact Or.inr (Or.inl hb)
+  · exact Or.inl hfin
+
+theorem accepted_timeout_means_missed_deadline_or_break {h : Hash} {z0 : UInt256}
+    {hl : LeafHash} {cv : CommitValue} {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot}
+    {B : RootBacking h ze R} (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg} {N : ℕ}
+    {p : ImtProof} {sibs : ℕ → UInt256} {x : UInt256}
+    (ha : LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x) :
+    (∀ n, S.time leg.chain n ≤ F.deadline →
+        legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+      ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+      ∨ PinnedBreak h ze (B.leaves leg.chain) N
+      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+  have hv : LegRefundableVerifiedBy h z0 hl cv S R F leg N p
+      ∨ PinnedBreak h ze (B.leaves leg.chain) N
+      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+    rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
+    · exact Or.inl (Or.inl ⟨hb, habs⟩)
+    · rcases endBranch_of_accepted_pinned he with hver | hrest
+      · exact Or.inl (Or.inr ⟨hver, habs⟩)
+      · exact Or.inr hrest
+  rcases hv with hv | hrest
+  · rcases timeout_means_missed_deadline_or_break hS hagg hv with hm | hb
+    · exact Or.inl hm
+    · exact Or.inr (Or.inl hb)
+  · exact Or.inr (Or.inr hrest)
+
+/-! ### Anti-vacuity witnesses -/
+
+theorem timeOneRoot_aggregates_mixed (a : UInt256) : Aggregates (mixedSystem a) timeOneRoot :=
+  fun _ _ hn => hn
+
+theorem timeOneRoot_aggregates_padded (a b : UInt256) :
+    Aggregates (paddedSystem a b) timeOneRoot :=
+  fun _ _ hn => hn
+
+/-- The honest absence proof against `setup`: the sentinel `{0,0,0}` is the low leaf of
+every nonzero value. -/
+theorem setup_absence_accepted (h : Hash) (z0 : UInt256) (hl : LeafHash) {v : UInt256}
+    (hv : 0 < v) :
+    NonInclusionAccepted h hl (root h z0 hl setup 0) v ⟨0, 0, 0⟩ 0
+      (honestSibs h z0 (leafHashes hl setup) 0) 0 where
+  nonzero := (ne_of_lt hv).symm
+  lowBelow := hv
+  window := Or.inl rfl
+  path := (inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := setup) (height := 0)
+    (by norm_num [setup]) (i := 0) (by norm_num [setup])).path
+
+theorem timeout_or_break_satisfiable (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ∃ (cv : CommitValue) (S : System) (R : SlRoot) (F : Flow) (leg : FlowLeg) (N : ℕ)
+      (p : ImtProof),
+      Wf S ∧ Aggregates S R ∧ LegRefundableVerifiedBy h z0 hl cv S R F leg N p
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+        ∧ (∀ n, S.time leg.chain n ≤ F.deadline →
+            legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n))) := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have hne : (1 : Chain) ≠ 0 := by decide
+  have hbegin : beginTree (mixedSystem 1) 1 1 = setup := mixedSystem_tree_other hne 0
+  have hbeginH : beginHeight (mixedSystem 1) 1 1 = 0 := mixedSystem_height_other hne 0
+  refine ⟨fun _ _ => 1, mixedSystem 1, timeOneRoot, mixedFlow 0 1 2, ⟨1, 2⟩, 1,
+    ⟨⟨0, 0, 0⟩, 0, honestSibs h z0 (leafHashes hl setup) 0, 0⟩,
+    mixedSystem_wf h1, timeOneRoot_aggregates_mixed 1, ?_, ?_, ?_⟩
+  · refine Or.inl ⟨⟨by norm_num [timeOneRoot, mixedFlow], by norm_num [mixedFlow]⟩, ?_⟩
+    show AbsenceAccepted h z0 hl (beginTree (mixedSystem 1) 1 1)
+      (beginHeight (mixedSystem 1) 1 1) 1 _
+    rw [hbegin, hbeginH]
+    exact setup_absence_accepted h z0 hl h1
+  · rintro (⟨_, hb⟩ | ⟨hon, _⟩)
+    · unfold ImtProofBreak at hb
+      rw [hbegin, hbeginH] at hb
+      exact honest_proof_no_break h z0 hl setup 0 0 (by norm_num [setup]) hb
+    · exact absurd hon (by norm_num [mixedFlow])
+  · intro n _ hmem
+    rw [mixedSystem_tree_other hne] at hmem
+    exact not_mem_setup h1 hmem
+
+theorem padding_timeout_locates_absence_break (h : Hash) (hl : LeafHash) (a b : UInt256)
+    (ha : 0 < a) (hab : a < b) :
+    ∃ (cv : CommitValue) (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof),
+      Wf (paddedSystem a b) ∧ Aggregates (paddedSystem a b) timeOneRoot
+        ∧ LegRefundableVerifiedBy h (hl ⟨0, 0, 0⟩) hl cv (paddedSystem a b) timeOneRoot F leg N p
+        ∧ ¬ (∀ n, (paddedSystem a b).time leg.chain n ≤ F.deadline →
+            legValue cv F leg ∉ keys (toAbs ((paddedSystem a b).tree leg.chain n)))
+        ∧ AbsenceBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) F.deadline leg.chain N p
+        ∧ (threeLeafTree a b).leafCount ≤ p.index ∧ hl p.leaf = hl ⟨0, 0, 0⟩ := by
+  let z0 := hl ⟨0, 0, 0⟩
+  let T := threeLeafTree a b
+  have hbegin : beginTree (paddedSystem a b) 0 1 = T := paddedSystem_tree_zero a b 0
+  have hbeginH : beginHeight (paddedSystem a b) 0 1 = 2 := paddedSystem_height_zero a b 0
+  obtain ⟨_, _, hN⟩ := proofs_exclusive_or_break_satisfiable h hl a b ha hab
+  obtain ⟨_, hpad⟩ := padding_countermodel_locates_padding_hit h hl a b
+  have hmemA : a ∈ keys (toAbs T) := (padding_collision_refunds_delivered_leg h hl ha hab).2.1
+  have hcount : T.leafCount = 3 := rfl
+  refine ⟨fun _ _ => a, subsetFlow 0 0, ⟨0, 0⟩, 1,
+    ⟨⟨0, 0, 0⟩, 3, honestSibs h z0 (leafHashes hl T) 3, 2⟩,
+    paddedSystem_wf ha hab, timeOneRoot_aggregates_padded a b, ?_, ?_, ?_,
+    by show T.leafCount ≤ 3; rw [hcount], rfl⟩
+  · refine Or.inl ⟨⟨by norm_num [timeOneRoot, subsetFlow], by norm_num [subsetFlow]⟩, ?_⟩
+    show AbsenceAccepted h z0 hl (beginTree (paddedSystem a b) 0 1)
+      (beginHeight (paddedSystem a b) 0 1) a _
+    rw [hbegin, hbeginH]
+    exact hN
+  · intro hall
+    refine hall 0 (by norm_num [subsetFlow]) ?_
+    show a ∈ keys (toAbs ((paddedSystem a b).tree 0 0))
+    rw [paddedSystem_tree_zero]
+    exact hmemA
+  · refine Or.inl ⟨by norm_num [subsetFlow], ?_⟩
+    unfold ImtProofBreak
+    rw [hbegin, hbeginH]
+    exact hpad
+
+end Contracts.Timeout
+
+namespace Contracts.Timeout
+
+theorem LegRefundableVerifiedIffBy : Properties.LegRefundableVerifiedIffBy :=
+  fun _ _ _ _ _ _ _ _ => legRefundableVerified_iff_by
+theorem TimeoutMeansMissedDeadlineOrBreak : Properties.TimeoutMeansMissedDeadlineOrBreak :=
+  fun _ _ _ _ _ hS _ hagg _ _ _ _ hv => timeout_means_missed_deadline_or_break hS hagg hv
+theorem TimeoutExcludesFinalityOrBreak : Properties.TimeoutExcludesFinalityOrBreak :=
+  fun _ _ _ _ _ hS _ hagg _ _ _ _ hv n p' => timeout_excludes_finality_or_break hS hagg hv n p'
+theorem AcceptedTimeoutMeansMissedDeadlineOrBreak :
+    Properties.AcceptedTimeoutMeansMissedDeadlineOrBreak :=
+  fun _ _ _ _ _ hS _ _ _ hagg _ _ _ _ _ _ ha =>
+    accepted_timeout_means_missed_deadline_or_break hS hagg ha
+theorem TimeoutOrBreakSatisfiable : Properties.TimeoutOrBreakSatisfiable :=
+  timeout_or_break_satisfiable
+theorem PaddingTimeoutLocatesAbsenceBreak : Properties.PaddingTimeoutLocatesAbsenceBreak :=
+  padding_timeout_locates_absence_break
+
+end Contracts.Timeout
+
+/-! ## More anti-vacuity witnesses for the repaired timeout results -/
+
+namespace Contracts.Timeout
+
+open Contracts.InteropCommitmentTree Contracts.Atomicity MerkleSpec MerkleSpec.Verifier
+open MerkleSpec.LastLeaf IMTAbstract
+
+theorem timeout_excludes_finality_or_break_witness :
+    Properties.TimeoutExcludesFinalityOrBreakWitness := by
+  intro h z0 hl
+  -- the instance of `timeout_or_break_satisfiable`: `mixedSystem 1`, leg `⟨1, 2⟩`
+  have hne : (1 : Chain) ≠ 0 := by decide
+  have hcount : ((mixedSystem 1).tree 1 0).leafCount = 1 := by
+    rw [mixedSystem_tree_other hne]; rfl
+  have hnb := honestProof_no_break h z0 hl (mixedSystem 1) 1 0 0 (by rw [hcount]; norm_num)
+  have h1 : (0 : UInt256) < 1 := by decide
+  have hbegin : beginTree (mixedSystem 1) 1 1 = setup := mixedSystem_tree_other hne 0
+  have hbeginH : beginHeight (mixedSystem 1) 1 1 = 0 := mixedSystem_height_other hne 0
+  have hv' : LegRefundableVerifiedBy h z0 hl (fun _ _ => 1) (mixedSystem 1) timeOneRoot
+      (mixedFlow 0 1 2) ⟨1, 2⟩ 1 ⟨⟨0, 0, 0⟩, 0, honestSibs h z0 (leafHashes hl setup) 0, 0⟩ := by
+    refine Or.inl ⟨⟨by norm_num [timeOneRoot, mixedFlow], by norm_num [mixedFlow]⟩, ?_⟩
+    show AbsenceAccepted h z0 hl (beginTree (mixedSystem 1) 1 1)
+      (beginHeight (mixedSystem 1) 1 1) 1 _
+    rw [hbegin, hbeginH]
+    exact setup_absence_accepted h z0 hl h1
+  have hnab' : ¬ AbsenceBreak h z0 hl (mixedSystem 1) (mixedFlow 0 1 2).deadline 1 1
+      ⟨⟨0, 0, 0⟩, 0, honestSibs h z0 (leafHashes hl setup) 0, 0⟩ := by
+    rintro (⟨_, hb⟩ | ⟨hon, _⟩)
+    · unfold ImtProofBreak at hb
+      rw [hbegin, hbeginH] at hb
+      exact honest_proof_no_break h z0 hl setup 0 0 (by norm_num [setup]) hb
+    · exact absurd hon (by norm_num [mixedFlow])
+  have hS' := mixedSystem_wf h1
+  have hagg' := timeOneRoot_aggregates_mixed 1
+  refine ⟨fun _ _ => 1, mixedSystem 1, timeOneRoot, mixedFlow 0 1 2, ⟨1, 2⟩, 1, _, 0,
+    honestProof h z0 hl (mixedSystem 1) 1 0 0, hS', hagg', hv', hnb, hnab', ?_⟩
+  rcases timeout_excludes_finality_or_break hS' hagg' hv' 0
+      (honestProof h z0 hl (mixedSystem 1) 1 0 0) with hn | hb | hb
+  · exact hn
+  · exact absurd hb hnb
+  · exact absurd hb hnab'
+
+theorem demoSystem_wf : Wf demoSystem := by
+  refine ⟨fun _ => Reaches.refl, fun _ _ => Reaches.refl, ?_, fun _ _ => by norm_num [demoSystem, setup]⟩
+  intro c i j hij
+  simp only [demoSystem]
+  split_ifs <;> omega
+
+theorem accepted_timeout_or_break_witness : Properties.AcceptedTimeoutOrBreakWitness := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have habs : AbsenceAccepted demoHash 0 (fun _ => 0) (demoSystem.tree 0 1) (demoSystem.height 0 1)
+      1 ⟨⟨0, 0, 0⟩, 0, honestSibs demoHash 0 (leafHashes (fun _ => 0) setup) 0, 0⟩ :=
+    setup_absence_accepted demoHash 0 (fun _ => 0) h1
+  have hnab : ¬ AbsenceBreak demoHash 0 (fun _ => 0) demoSystem 0 0 1
+      ⟨⟨0, 0, 0⟩, 0, honestSibs demoHash 0 (leafHashes (fun _ => 0) setup) 0, 0⟩ := by
+    rintro (⟨hlate, _⟩ | ⟨_, hb⟩)
+    · exact absurd hlate (by decide)
+    · exact honest_proof_no_break demoHash 0 (fun _ => 0) setup 0 0 (by norm_num [setup]) hb
+  refine ⟨demoHash, 0, fun _ => 0, fun _ _ => 1, demoSystem, 0, demoRoot, demoBacking,
+    ⟨0, [⟨0, 0⟩], 0⟩, ⟨0, 0⟩, 1, _, honestSibs demoHash 0 [5, 7] 1, 7, demoSystem_wf,
+    demoSystem_aggregates, Or.inr ⟨demo_endBranchAccepted, habs⟩, hnab,
+    no_pinned_break_bounded demoBacking 0 1 demo_entriesNotEmpty
+      (fun p q hp hq => demo_pairInjOn p q (Or.inl hp) (Or.inl hq)),
+    honest_walk_no_collision demoHash 0 [5, 7] 2 1, ?_⟩
+  intro n _ hmem
+  exact not_mem_setup h1 hmem
+
+theorem TimeoutExcludesFinalityOrBreakWitness : Properties.TimeoutExcludesFinalityOrBreakWitness :=
+  timeout_excludes_finality_or_break_witness
+theorem AcceptedTimeoutOrBreakWitness : Properties.AcceptedTimeoutOrBreakWitness :=
+  accepted_timeout_or_break_witness
+
+end Contracts.Timeout

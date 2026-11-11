@@ -319,4 +319,168 @@ def Properties.SubsetFlowRejectedByCheckOnSatisfiable : Prop :=
     FlowHashInjOn (honestFlowHash (mixedFlow id hA hB)) [mixedFlow id hA hB, subsetFlow id hA]
       ∧ FlowIdChecked (honestFlowHash (mixedFlow id hA hB)) (mixedFlow id hA hB)
 
+/-! ## The headlines without hash premises: the property, or a located break
+
+`Properties.FinalitySignalMeansMembership`, `ExecutedImpliesAllFinalizable`, `NoneOrAll`,
+`ExecutedImpliesFinalityPersists`, `ExecutedExcludesAnyRefund` and
+`FullGateBlocksMixedOutcome` take `HashAssumptions`, which cannot hold.  Each is
+restated below with no hash premise, over the NAMED evidence (`ExecutedViaBy`,
+`LegRefundableBy`), concluding the original property or a `TreeRootBreak` located on
+a specific submitted proof: the inclusion proof `ev other` submitted for a named leg
+(`InclusionBreak`), or the absence proof `q` at batch `N` on the root its branch selects
+(`AbsenceBreak`).  The only call to the hash side is the matching `…OrBreak` lemma of
+`Contracts.InteropCommitmentTree` (`TreeRoot`).
+
+Anti-vacuity: `Properties.ExecutedOrBreakSatisfiable` exhibits all the premises at
+once (a well-formed system, data availability, an executed flow with its evidence)
+with every break false and the original conclusions true, and
+`Properties.PaddingRefundOfExecutedLegLocatesAbsenceBreak` exhibits the premises with a
+refund proof accepted, where the theorem's break is the absence proof's `paddingHit`
+and not the honest inclusion proof. -/
+
+/-- **NAMING THE GATE'S EVIDENCE LOSES NOTHING.** -/
+def Properties.ExecutedViaIffBy : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (F : Flow) (leg : FlowLeg),
+    ExecutedVia h z0 hl cv fh S F leg ↔ ∃ ev : GateEvidence, ExecutedViaBy h z0 hl cv fh S F ev leg
+
+/-- **NAMING THE REFUND PROOF LOSES NOTHING.** -/
+def Properties.LegRefundableIffBy : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (F : Flow)
+    (leg : FlowLeg),
+    LegRefundable h z0 hl cv S F leg ↔ ∃ (N : ℕ) (p : ImtProof), LegRefundableBy h z0 hl cv S F leg N p
+
+/-- **THE FINALITY SIGNAL MEANS MEMBERSHIP, OR THE PROOF CARRIES A BREAK.** -/
+def Properties.FinalitySignalMeansMembershipOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (c : Chain) (n : ℕ) (v : UInt256)
+    (p : ImtProof),
+    Accepts h z0 hl S c n v p → v ∈ keys (toAbs (S.tree c n)) ∨ InclusionBreak h z0 hl S c n p
+
+/-- **PARTIAL ATOMICITY, OR A LOCATED BREAK, PER LEG.**  If a leg executed on the
+evidence `ev`, then every leg `other` of the flow is finalizable by a presentable
+proof, or the inclusion proof `ev other` submitted for that very leg carries a
+`TreeRootBreak` against `other`'s chain at the submitted batch. -/
+def Properties.ExecutedImpliesAllFinalizableOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+    ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg), ExecutedViaBy h z0 hl cv fh S F ev leg →
+    ∀ other ∈ F.legs,
+      LegFinalizableBy h z0 hl cv S A F other
+        ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
+
+/-- **NONE OR ALL, OR A LOCATED BREAK.**  For every flow and every evidence `ev`
+presented to the gate: every leg is finalizable, or `ev` executes no leg, or the
+inclusion proof `ev` submits for one of the flow's own legs carries a break. -/
+def Properties.NoneOrAllOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (A : Access), DataAvailable h z0 hl S A → ∀ (F : Flow) (ev : GateEvidence),
+      FlowFinalizableBy h z0 hl cv S A F
+        ∨ (∀ leg, ¬ ExecutedViaBy h z0 hl cv fh S F ev leg)
+        ∨ GateBreak h z0 hl S F ev
+
+/-- **FINALIZABILITY DOES NOT DECAY, OR A LOCATED BREAK.** -/
+def Properties.ExecutedImpliesFinalityPersistsOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+    ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg), ExecutedViaBy h z0 hl cv fh S F ev leg →
+    ∀ other ∈ F.legs,
+      (∃ n, S.time other.chain n ≤ F.deadline ∧
+        ∀ m, n ≤ m → S.time other.chain m ≤ F.deadline →
+          ∃ p, A other.chain m p ∧ Accepts h z0 hl S other.chain m (legValue cv F other) p)
+        ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
+
+/-- **EXECUTION EXCLUDES EVERY REFUND IN THE FLOW, OR A LOCATED BREAK.**  If a leg
+executed on the evidence `ev`, then for every leg `other` of the flow and every
+submitted timeout evidence `(N, q)` for it: `(N, q)` does not pass the timeout gate,
+or the inclusion proof `ev other` carries a break, or the absence proof `q` carries a
+break on the batch-`N` root its branch selects. -/
+def Properties.ExecutedExcludesAnyRefundOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg), ExecutedViaBy h z0 hl cv fh S F ev leg →
+    ∀ other ∈ F.legs, ∀ (N : ℕ) (q : ImtProof),
+      ¬ LegRefundableBy h z0 hl cv S F other N q
+        ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
+        ∨ AbsenceBreak h z0 hl S F.deadline other.chain N q
+
+/-- **THE REAL GATE REFUSES THE MIXED STATE, OR A LOCATED BREAK.**  On the mixed
+configuration, no evidence passes the all-legs gate unless the inclusion proof it
+submits for the never-committed leg `hB` carries a break against chain `1`. -/
+def Properties.FullGateBlocksMixedOutcomeOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (id hA hB : UInt256),
+    0 < cv id hB → ∀ ev : GateEvidence,
+      ¬ FlowFinalizedBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ev
+        ∨ InclusionBreak h z0 hl (mixedSystem (cv id hA)) 1 (ev ⟨1, hB⟩).1 (ev ⟨1, hB⟩).2
+
+/-! ### Anti-vacuity -/
+
+/-- **THE PREMISES ARE SATISFIABLE, THE BREAKS ARE NOT TAUTOLOGIES.**  For every node
+hash, leaf hash and padding constant: the one-leg flow `subsetFlow 0 1` in
+`mixedSystem 1`, checked by its honest flow hash, executes on honest evidence, with
+full data availability; the evidence has no `GateBreak`, the submitted timeout
+evidence (batch 0, the honest proof) has no `AbsenceBreak` and does not pass the gate,
+and the original conclusions hold. -/
+def Properties.ExecutedOrBreakSatisfiable : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)
+      (ev : GateEvidence) (leg : FlowLeg) (N : ℕ) (q : ImtProof),
+      Wf S ∧ DataAvailable h z0 hl S A ∧ ExecutedViaBy h z0 hl cv fh S F ev leg
+        ∧ ¬ GateBreak h z0 hl S F ev
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N q
+        ∧ FlowFinalizableBy h z0 hl cv S A F
+        ∧ ¬ LegRefundableBy h z0 hl cv S F leg N q
+
+/-- **ON THE MIXED STATE THE BREAK IS NOT A TAUTOLOGY.**  The honest proof for
+chain `1`'s only leaf, submitted for leg `hB`, carries no break — and does not pass
+the gate. -/
+def Properties.FullGateOrBreakNotTautology : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (id hA hB : UInt256),
+    0 < cv id hA → 0 < cv id hB →
+    ∃ ev : GateEvidence,
+      ¬ InclusionBreak h z0 hl (mixedSystem (cv id hA)) 1 (ev ⟨1, hB⟩).1 (ev ⟨1, hB⟩).2
+        ∧ ¬ FlowFinalizedBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ev
+
+/-- **THE BREAK FIRES WHERE THE BUG IS.**  With the extraction-pin padding
+`z0 = hl ⟨0,0,0⟩`, in `paddedSystem a b` a one-leg flow whose commit value is `a`
+executes on the honest inclusion proof, AND the forged padding absence proof at
+batch 0 passes the timeout gate for that same leg.  `ExecutedExcludesAnyRefundOrBreak`
+must then return a break, and it is located correctly: the inclusion proof carries
+none, the absence proof carries one, and it is `paddingHit`. -/
+def Properties.PaddingRefundOfExecutedLegLocatesAbsenceBreak : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
+    ∃ (cv : CommitValue) (fh : FlowHash) (F : Flow) (ev : GateEvidence) (leg : FlowLeg)
+      (N : ℕ) (q : ImtProof),
+      Wf (paddedSystem a b)
+        ∧ ExecutedViaBy h (hl ⟨0, 0, 0⟩) hl cv fh (paddedSystem a b) F ev leg
+        ∧ LegRefundableBy h (hl ⟨0, 0, 0⟩) hl cv (paddedSystem a b) F leg N q
+        ∧ ¬ InclusionBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) leg.chain (ev leg).1 (ev leg).2
+        ∧ AbsenceBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) F.deadline leg.chain N q
+        ∧ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2 q.sibs q.pathLen q.index q.leaf
+        ∧ (threeLeafTree a b).leafCount ≤ q.index ∧ hl q.leaf = hl ⟨0, 0, 0⟩
+
+/-- **DATA AVAILABILITY IS NECESSARY, WITHOUT HASH PREMISES.**  The countermodel of
+`Properties.WithoutDaCommittedLegIsStuck` with its last conjunct repaired: the committed
+leg is finalized but not finalizable without DA, and no timeout evidence `(N, q)` for it
+passes the gate unless `q` carries a located break.  (The first four conjuncts never
+needed a hash premise.) -/
+def Properties.WithoutDaCommittedLegIsStuckOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (id hA hB : UInt256),
+    0 < cv id hA →
+      Wf (mixedSystem (cv id hA))
+        ∧ ¬ DataAvailable h z0 hl (mixedSystem (cv id hA)) noAccess
+        ∧ LegFinalized h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩
+        ∧ ¬ LegFinalizableBy h z0 hl cv (mixedSystem (cv id hA)) noAccess
+              (mixedFlow id hA hB) ⟨0, hA⟩
+        ∧ ∀ (N : ℕ) (q : ImtProof),
+            ¬ LegRefundableBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩ N q
+              ∨ AbsenceBreak h z0 hl (mixedSystem (cv id hA)) (mixedFlow id hA hB).deadline 0 N q
+
+/-- **ITS BREAK IS NOT A TAUTOLOGY.**  The honest proof of the committed leaf, submitted
+as timeout evidence at batch 0, carries no `AbsenceBreak` and does not pass. -/
+def Properties.WithoutDaOrBreakNotTautology : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (id hA hB : UInt256),
+    0 < cv id hA → ∃ (N : ℕ) (q : ImtProof),
+      ¬ AbsenceBreak h z0 hl (mixedSystem (cv id hA)) (mixedFlow id hA hB).deadline 0 N q
+        ∧ ¬ LegRefundableBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩ N q
+
+
 end Contracts.Atomicity

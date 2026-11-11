@@ -279,6 +279,125 @@ def Properties.NoPinnedBreakUnderBoundedInjectivity : Prop :=
     PairInjOn h (TreePair h ze (B.leaves c) (B.height c)) →
     ¬ PinnedBreak h ze (B.leaves c) N
 
+/-! ## The justification without hash premises: the property, or a located break
+
+`Properties.TimeoutMeansMissedDeadline`, `TimeoutExcludesFinality` and
+`AcceptedTimeoutMeansMissedDeadline` take `HashAssumptions`, which cannot hold.  The
+forms below take none.  Their break is located on the submitted absence proof `p` at
+batch `N`, on the root its branch selects (`AbsenceBreak`), and for the gate as run
+also on the submitted batch-leaf path (`PinnedBreak` / `PathCollision`, from
+`Properties.EndBranchAcceptedImpliesVerifiedPinned`). -/
+
+/-- Naming the verified gate's witnesses loses nothing. -/
+def Properties.LegRefundableVerifiedIffBy : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (R : SlRoot)
+    (F : Flow) (leg : FlowLeg),
+    LegRefundableVerified h z0 hl cv S R F leg
+      ↔ ∃ (N : ℕ) (p : ImtProof), LegRefundableVerifiedBy h z0 hl cv S R F leg N p
+
+/-- **A REFUNDED LEG REALLY MISSED ITS DEADLINE, OR THE ABSENCE PROOF CARRIES A
+BREAK.**  If the timeout gate verifies for a leg on the absence proof `p` at batch
+`N`, then the leg's commit value was absent from its source chain's tree at every
+on-time batch, or `p` carries a `TreeRootBreak` against batch `N`'s root on the branch
+the gate took. -/
+def Properties.TimeoutMeansMissedDeadlineOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
+    ∀ (R : SlRoot), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof),
+      LegRefundableVerifiedBy h z0 hl cv S R F leg N p →
+      (∀ n, S.time leg.chain n ≤ F.deadline →
+          legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+        ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+
+/-- **A VERIFIED TIMEOUT EXCLUDES FINALITY, OR A LOCATED BREAK.**  No inclusion
+proof `p'` at an on-time batch `n` passes for a leg whose timeout verified on `(N, p)`,
+unless `p'` or `p` carries a break. -/
+def Properties.TimeoutExcludesFinalityOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
+    ∀ (R : SlRoot), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof),
+      LegRefundableVerifiedBy h z0 hl cv S R F leg N p → ∀ (n : ℕ) (p' : ImtProof),
+      ¬ LegFinalizedBy h z0 hl cv S F leg n p'
+        ∨ InclusionBreak h z0 hl S leg.chain n p'
+        ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+
+/-- **THE COMPLETE CHAIN, WITHOUT HASH PREMISES.**  For the gate as the contract runs
+it, with submitted batch `N`, absence proof `p` and batch-leaf path `(sibs, x)`: the
+leg missed its deadline, or `p` carries a located break, or the last-batch proof
+pins a collision (`PinnedBreak` right after batch `N` in the chain tree, or a
+`PathCollision` on `(sibs, x)`). -/
+def Properties.AcceptedTimeoutMeansMissedDeadlineOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
+    ∀ (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+      LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x →
+      (∀ n, S.time leg.chain n ≤ F.deadline →
+          legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+        ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+        ∨ PinnedBreak h ze (B.leaves leg.chain) N
+        ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+
+/-- **THE PREMISES ARE SATISFIABLE, THE BREAK IS NOT A TAUTOLOGY.**  For every node
+hash, leaf hash and padding constant: in `mixedSystem 1` with `timeOneRoot`
+(`Aggregates` holds), leg `⟨1, 2⟩` of `mixedFlow 0 1 2` (never committed) has a
+verified BEGIN-branch timeout at batch 1 on the honest low-leaf proof of `setup`; that
+proof carries no `AbsenceBreak`, and the leg really missed its deadline. -/
+def Properties.TimeoutOrBreakSatisfiable : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (S : System) (R : SlRoot) (F : Flow) (leg : FlowLeg) (N : ℕ)
+      (p : ImtProof),
+      Wf S ∧ Aggregates S R ∧ LegRefundableVerifiedBy h z0 hl cv S R F leg N p
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+        ∧ (∀ n, S.time leg.chain n ≤ F.deadline →
+            legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+
+/-- **THE BREAK FIRES WHERE THE BUG IS.**  With the extraction-pin padding
+`z0 = hl ⟨0,0,0⟩`, in `paddedSystem a b` with `timeOneRoot` (`Aggregates` holds), a leg
+whose commit value `a` WAS committed on time passes the verified timeout gate on the
+BEGIN branch at batch 1, on the forged padding proof.  The original conclusion is
+false, so the theorem's break must carry it, and it does: an `AbsenceBreak` on exactly
+that proof, a `paddingHit`. -/
+def Properties.PaddingTimeoutLocatesAbsenceBreak : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
+    ∃ (cv : CommitValue) (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof),
+      Wf (paddedSystem a b) ∧ Aggregates (paddedSystem a b) timeOneRoot
+        ∧ LegRefundableVerifiedBy h (hl ⟨0, 0, 0⟩) hl cv (paddedSystem a b) timeOneRoot F leg N p
+        ∧ ¬ (∀ n, (paddedSystem a b).time leg.chain n ≤ F.deadline →
+            legValue cv F leg ∉ keys (toAbs ((paddedSystem a b).tree leg.chain n)))
+        ∧ AbsenceBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) F.deadline leg.chain N p
+        ∧ (threeLeafTree a b).leafCount ≤ p.index ∧ hl p.leaf = hl ⟨0, 0, 0⟩
+
+
+/-- **`TimeoutExcludesFinalityOrBreak`: PREMISES SATISFIABLE, BOTH BREAKS FALSE.**  The
+instance of `Properties.TimeoutOrBreakSatisfiable`, with the honest proof of chain `1`'s
+only leaf at batch 0 submitted as inclusion evidence: neither proof carries a break, and
+the inclusion evidence does not finalize the leg. -/
+def Properties.TimeoutExcludesFinalityOrBreakWitness : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (S : System) (R : SlRoot) (F : Flow) (leg : FlowLeg) (N : ℕ)
+      (p : ImtProof) (n : ℕ) (p' : ImtProof),
+      Wf S ∧ Aggregates S R ∧ LegRefundableVerifiedBy h z0 hl cv S R F leg N p
+        ∧ ¬ InclusionBreak h z0 hl S leg.chain n p'
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+        ∧ ¬ LegFinalizedBy h z0 hl cv S F leg n p'
+
+/-- **`AcceptedTimeoutMeansMissedDeadlineOrBreak`: PREMISES SATISFIABLE, ALL THREE BREAKS
+FALSE.**  `demoSystem` with `demoRoot`/`demoBacking` under the colliding `demoHash`: an
+END-branch accepted timeout at batch 1 on the honest low-leaf proof of `setup` and the
+honest batch-leaf path.  No `AbsenceBreak`, `PinnedBreak` or `PathCollision`, and the leg
+really missed its deadline. -/
+def Properties.AcceptedTimeoutOrBreakWitness : Prop :=
+  ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
+    (R : SlRoot) (B : RootBacking h ze R) (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof)
+    (sibs : ℕ → UInt256) (x : UInt256),
+      Wf S ∧ Aggregates S R ∧ LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+        ∧ ¬ PinnedBreak h ze (B.leaves leg.chain) N
+        ∧ ¬ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+        ∧ (∀ n, S.time leg.chain n ≤ F.deadline →
+            legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+
+
 /-! ## What is load-bearing -/
 
 /-- **A STALE ROOT REFUNDS A DELIVERED LEG.**  One chain, two batches, both settled

@@ -377,4 +377,81 @@ def subsetFlow (id hA : UInt256) : Flow where
   legs := [⟨0, hA⟩]
   deadline := 0
 
+/-! ## Named evidence and located breaks, replacing `HashAssumptions`
+
+`HashAssumptions` is unsatisfiable (`Contracts.InteropCommitmentTree.Properties.HashAssumptionsUnsatisfiable`),
+so the headline results stated under it are vacuous.  Their repaired forms conclude
+"the original property, or a located `TreeRootBreak` on a submitted proof".  To
+locate a break on a proof the proof has to be named, and `ExecutedVia`,
+`LegFinalized` and `LegRefundable` quantify their proofs existentially.  The `…By`
+forms below name them; `Contracts.Atomicity.Properties.ExecutedViaIffBy` and
+`LegRefundableIffBy` show that nothing is lost by doing so. -/
+
+/-- The evidence an executor submits to `requireFlowFinalized`: for each leg, the
+batch whose END root it proves against and the IMT inclusion proof. -/
+abbrev GateEvidence := FlowLeg → ℕ × ImtProof
+
+/-- `LegFinalized` with its batch `n` and inclusion proof `p` named. -/
+def LegFinalizedBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (F : Flow) (leg : FlowLeg) (n : ℕ) (p : ImtProof) : Prop :=
+  S.time leg.chain n ≤ F.deadline ∧ Accepts h z0 hl S leg.chain n (legValue cv F leg) p
+
+/-- `FlowFinalized` with every leg's evidence taken from `ev`. -/
+def FlowFinalizedBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (F : Flow) (ev : GateEvidence) : Prop :=
+  ∀ leg ∈ F.legs, LegFinalizedBy h z0 hl cv S F leg (ev leg).1 (ev leg).2
+
+/-- `ExecutedVia` with the gate's evidence named: `leg` executed through the
+deployed gate on the strength of exactly the proofs `ev`. -/
+def ExecutedViaBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (fh : FlowHash) (S : System) (F : Flow) (ev : GateEvidence) (leg : FlowLeg) : Prop :=
+  leg ∈ F.legs ∧ FlowIdChecked fh F ∧ FlowFinalizedBy h z0 hl cv S F ev
+
+/-- `LegRefundable` with its batch `N` and absence proof `p` named. -/
+def LegRefundableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) : Prop :=
+  (F.deadline < S.time leg.chain N ∧
+      AbsenceAccepted h z0 hl (beginTree S leg.chain N) (beginHeight S leg.chain N)
+        (legValue cv F leg) p)
+    ∨ (IsLastOnTime S leg.chain F.deadline N ∧
+        AbsenceAccepted h z0 hl (S.tree leg.chain N) (S.height leg.chain N)
+          (legValue cv F leg) p)
+
+/-- **A LOCATED BREAK ON ONE SUBMITTED IMT PROOF.**  `TreeRootBreak` on exactly the
+leaf, index, siblings and path length of `p`, against tree `T` at `height`. -/
+def ImtProofBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ)
+    (p : ImtProof) : Prop :=
+  TreeRootBreak h z0 hl T height p.sibs p.pathLen p.index p.leaf
+
+/-- A located break on the inclusion proof `p` submitted against chain `c`'s
+batch-`n` END root (the root `Accepts` checks). -/
+def InclusionBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (c : Chain)
+    (n : ℕ) (p : ImtProof) : Prop :=
+  ImtProofBreak h z0 hl (S.tree c n) (S.height c n) p
+
+/-- A located break on the absence proof `p` submitted for chain `c`'s batch `N`
+against deadline `D`, on the root the timeout branch selects: the BEGIN root when the
+batch is late (`D < time`), the END root otherwise.  This is the contract's own
+`ProofTimeoutBranchMismatch` choice, so the tree the break is located on is determined
+by the instance, not by the prover. -/
+def AbsenceBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (D : ℕ) (c : Chain)
+    (N : ℕ) (p : ImtProof) : Prop :=
+  (D < S.time c N ∧ ImtProofBreak h z0 hl (beginTree S c N) (beginHeight S c N) p)
+    ∨ (S.time c N ≤ D ∧ ImtProofBreak h z0 hl (S.tree c N) (S.height c N) p)
+
+/-- A located break in the gate evidence `ev` for flow `F`: the inclusion proof
+submitted for one of `F`'s own legs, at the batch submitted for it. -/
+def GateBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (F : Flow)
+    (ev : GateEvidence) : Prop :=
+  ∃ leg ∈ F.legs, InclusionBreak h z0 hl S leg.chain (ev leg).1 (ev leg).2
+
+/-- The padding countermodel lifted to the multi-chain system: chain `0` holds the
+contract run `setup; insert a; insert b` (`threeLeafTree a b`, height 2, slot 3
+empty) from batch 0 on; every other chain stays at `setup`.  Batch numbers are
+timestamps.  Used to show the located breaks fire where the bug is. -/
+def paddedSystem (a b : UInt256) : System where
+  tree := fun c _ => if c = 0 then threeLeafTree a b else setup
+  time := fun _ n => n
+  height := fun c _ => if c = 0 then 2 else 0
+
 end Contracts.Atomicity

@@ -363,4 +363,203 @@ value `honestCommitValue o` has no `CommitClash` between `o` and any obligation.
 def Properties.HonestCommitValueNoClash : Prop :=
   ∀ o o' : Obligation, ¬ CommitClash (honestCommitValue o) o o'
 
+/-! ## The milestone without hash premises: the property, or a located break
+
+`Properties.ExecutedObligationNeverRefunded` and `OneExecutionFreezesTheFlow` take
+`HashAssumptions` and `FlowHashInj`, neither of which can hold.  The forms below take
+neither.  They are stated over the logged run `ReachLog` (same reachable states as
+`Reach`: `Properties.ReachIffReachLog`) and the named gate evidence `ExecutedViaBy`, and
+their break is a `RefundBreak`: a call in the run's own log that marked the obligation,
+with a `FlowIdClash` between the executed flow and that call's flow, or a
+`TreeRootBreak` on the executed flow's inclusion proof for the call's missing leg, or on
+the call's own absence proof. -/
+
+/-- **LOGGING THE CALLS LOSES NOTHING.** -/
+def Properties.ReachIffReachLog : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (Ms Ns : Managers),
+    Reach h z0 hl cv fh S Ms Ns ↔ ∃ log, ReachLog h z0 hl cv fh S Ms Ns log
+
+/-- **A REFUNDED OBLIGATION WAS MARKED BY A LOGGED, VERIFIED CALL.**  The run-level
+form of `Properties.RefundNeedsOwnFlowTimeout`: the authorizing flow is the flow of a
+call in the log. -/
+def Properties.RefundNeedsLoggedAuthorize : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (Ms : Managers) (log : List AuthCall),
+    ReachLog h z0 hl cv fh S emptyManagers Ms log → ∀ (o : Obligation), Refunded Ms o →
+      ∃ a ∈ log, a.Verified h z0 hl cv fh S ∧ obligationOf a.flow a.leg = o
+
+/-- **A REFUNDED OBLIGATION OF A CHECKED FLOW HAS THAT FLOW'S TIMEOUT BEHIND IT, OR
+`fh` COLLIDES ON THAT FLOW AND A LOGGED CALL'S FLOW.**  The run-level pinning of
+`Properties.RefundImpliesOwnFlowTimeoutOrCollision`, whose `F'` was existential: here
+the other flow is the flow of a call in the run's log that marked this very
+obligation. -/
+def Properties.RefundImpliesOwnFlowTimeoutOrLoggedClash : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+    (S : System) (F : Flow) (leg : FlowLeg), FlowIdChecked fh F → leg ∈ F.legs →
+    ∀ (Ms : Managers) (log : List AuthCall), ReachLog h z0 hl cv fh S emptyManagers Ms log →
+      Refunded Ms (obligationOf F leg) →
+      RefundAuthorized h z0 hl cv S F
+        ∨ ∃ a ∈ log, obligationOf a.flow a.leg = obligationOf F leg ∧ FlowIdClash fh F a.flow
+
+/-- **AN EXECUTED OBLIGATION IS NEVER REFUNDED, OR A LOCATED BREAK.**  If leg `leg` of
+`F` executed on gate evidence `ev`, then in every logged run its obligation stays at
+`Committed` or below, or a call in the run's log that marked it carries a
+`RefundBreak`. -/
+def Properties.ExecutedObligationNeverRefundedOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg), ExecutedViaBy h z0 hl cv fh S F ev leg →
+    ∀ (Ms : Managers) (log : List AuthCall), ReachLog h z0 hl cv fh S emptyManagers Ms log →
+      ¬ Refunded Ms (obligationOf F leg)
+        ∨ RefundBreak h z0 hl fh S F ev (obligationOf F leg) log
+
+/-- **ONE EXECUTION FREEZES THE FLOW, OR A LOCATED BREAK.**  The same for every leg of
+the flow. -/
+def Properties.OneExecutionFreezesTheFlowOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg), ExecutedViaBy h z0 hl cv fh S F ev leg →
+    ∀ (Ms : Managers) (log : List AuthCall), ReachLog h z0 hl cv fh S emptyManagers Ms log →
+    ∀ other ∈ F.legs,
+      ¬ Refunded Ms (obligationOf F other)
+        ∨ RefundBreak h z0 hl fh S F ev (obligationOf F other) log
+
+/-- **A REFUNDED FLOW REALLY MISSED ITS DEADLINE, OR A LOCATED BREAK.**  The refund
+form of `Contracts.Timeout.Properties.TimeoutMeansMissedDeadlineOrBreak`. -/
+def Properties.RefundedFlowMissedDeadlineOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
+    ∀ (R : SlRoot), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof),
+      LegRefundableVerifiedBy h z0 hl cv S R F leg N p →
+      (∀ n, S.time leg.chain n ≤ F.deadline →
+          legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
+        ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+
+/-! ### Anti-vacuity -/
+
+/-- **THE PREMISES ARE SATISFIABLE WITH A LIVE REFUND PATH, AND THE BREAK IS FALSE.**
+For every node hash, leaf hash and padding constant: in `mixedSystem 1` the one-leg flow
+`subsetFlow 0 1` executes on honest evidence, while in the same run a DIFFERENT checked
+flow `mixedFlow 1 1 2` is appended and authorized for refund (log nonempty).  No
+`RefundBreak` is located for the executed obligation, and it is not refunded. -/
+def Properties.ExecutedObligationNeverRefundedOrBreakWitness : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (F : Flow) (ev : GateEvidence)
+      (leg : FlowLeg) (Ms : Managers) (log : List AuthCall),
+      Wf S ∧ ExecutedViaBy h z0 hl cv fh S F ev leg
+        ∧ ReachLog h z0 hl cv fh S emptyManagers Ms log ∧ log ≠ []
+        ∧ ¬ RefundBreak h z0 hl fh S F ev (obligationOf F leg) log
+        ∧ ¬ Refunded Ms (obligationOf F leg)
+
+/-- **THE LOGGED-CLASH DISJUNCT IS NOT A TAUTOLOGY.**  On that same run, the refunded
+obligation of `mixedFlow 1 1 2` has all the premises of
+`Properties.RefundImpliesOwnFlowTimeoutOrLoggedClash`, and no logged call clashes. -/
+def Properties.RefundImpliesOwnFlowTimeoutOrLoggedClashWitness : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (F : Flow) (leg : FlowLeg)
+      (Ms : Managers) (log : List AuthCall),
+      FlowIdChecked fh F ∧ leg ∈ F.legs ∧ ReachLog h z0 hl cv fh S emptyManagers Ms log
+        ∧ Refunded Ms (obligationOf F leg)
+        ∧ ¬ ∃ a ∈ log, obligationOf a.flow a.leg = obligationOf F leg ∧ FlowIdClash fh F a.flow
+
+/-- **THE BREAK FIRES WHERE THE BUG IS.**  With the extraction-pin padding
+`z0 = hl ⟨0,0,0⟩`, in `paddedSystem a b` a one-leg flow executes on the honest inclusion
+proof, and the run appends its obligation and then authorizes its refund on the forged
+padding absence proof.  The obligation IS refunded, so the theorem must return a
+`RefundBreak`; every logged call is the executed flow's own (no `FlowIdClash`), the
+executed flow's inclusion proof carries no break, and the call's absence proof does. -/
+def Properties.PaddingRefundOfExecutedObligationLocatesAbsenceBreak : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
+    ∃ (cv : CommitValue) (fh : FlowHash) (F : Flow) (ev : GateEvidence) (leg : FlowLeg)
+      (Ms : Managers) (log : List AuthCall),
+      Wf (paddedSystem a b) ∧ ExecutedViaBy h (hl ⟨0, 0, 0⟩) hl cv fh (paddedSystem a b) F ev leg
+        ∧ ReachLog h (hl ⟨0, 0, 0⟩) hl cv fh (paddedSystem a b) emptyManagers Ms log
+        ∧ Refunded Ms (obligationOf F leg)
+        ∧ RefundBreak h (hl ⟨0, 0, 0⟩) hl fh (paddedSystem a b) F ev (obligationOf F leg) log
+        ∧ ∀ c ∈ log, c.flow = F ∧ ¬ FlowIdClash fh F c.flow
+            ∧ ¬ InclusionBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) c.missing.chain
+                (ev c.missing).1 (ev c.missing).2
+            ∧ AbsenceBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) F.deadline c.missing.chain
+                c.batch c.proof
+
+open MerkleSpec.Verifier
+
+/-! ### The accepted-timeout chain without hash premises
+
+`Properties.AcceptedTimeoutAuthorizes` and `AcceptedTimeoutForDeliveredFlowIsABreak`
+take `HashAssumptions` and conclude an unpinned `HashBreak`, which is always inhabited.
+The forms below take no hash premise and locate the break on the submitted proofs:
+the batch-leaf path `(sibs, x)` (`PinnedBreak` / `PathCollision`), the absence proof
+`p` (`AbsenceBreak`), and the executed flow's inclusion proof (`InclusionBreak`). -/
+
+/-- **AN ACCEPTED TIMEOUT PROOF AUTHORIZES THE REFUND, OR PINS A COLLISION ON ITS
+LAST-BATCH PATH.** -/
+def Properties.AcceptedTimeoutAuthorizesPinned : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
+    (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+      leg ∈ F.legs → LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x →
+        RefundAuthorized h z0 hl cv S F ∨ PinnedBreak h ze (B.leaves leg.chain) N
+          ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+
+/-- **ITS PREMISES HOLD AND ITS BREAKS ARE FALSE ON THE DEMO INSTANCE.**  `demoSystem`
+with `demoRoot`/`demoBacking` under the colliding `demoHash`, an END-branch accepted
+timeout for batch 1 on the honest batch-leaf path: no `PinnedBreak`, no
+`PathCollision`, and the refund is authorized. -/
+def Properties.AcceptedTimeoutAuthorizesPinnedWitness : Prop :=
+  ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
+    (R : SlRoot) (B : RootBacking h ze R) (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof)
+    (sibs : ℕ → UInt256) (x : UInt256),
+      Aggregates S R ∧ leg ∈ F.legs ∧ LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
+        ∧ EndBranchAccepted B S leg.chain F.deadline N sibs x
+        ∧ ¬ PinnedBreak h ze (B.leaves leg.chain) N
+        ∧ ¬ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+        ∧ RefundAuthorized h z0 hl cv S F
+
+/-- **EXECUTION EXCLUDES EVERY ACCEPTED TIMEOUT IN THE FLOW, OR A LOCATED BREAK.**  The
+repaired `Properties.AcceptedTimeoutForDeliveredFlowIsABreak`: if a leg executed on gate
+evidence `ev`, then no leg `other` of the flow passes the timeout gate as the contract
+runs it on `(N, p, sibs, x)`, unless `ev other` carries a break, or `p` does, or the
+last-batch path `(sibs, x)` pins a collision. -/
+def Properties.ExecutedExcludesAcceptedRefundOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →
+    ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg), ExecutedViaBy h z0 hl cv fh S F ev leg →
+    ∀ other ∈ F.legs, ∀ (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+      ¬ LegRefundableAcceptedBy h z0 hl cv S B F other N p sibs x
+        ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
+        ∨ AbsenceBreak h z0 hl S F.deadline other.chain N p
+        ∨ PinnedBreak h ze (B.leaves other.chain) N
+        ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x
+
+/-- **ITS PREMISES HOLD AND ALL FOUR BREAKS ARE FALSE.**  `subsetFlow 0 1` executes in
+`mixedSystem 1` under `demoHash`, with `demoRoot`/`demoBacking` (`Aggregates` holds);
+for the submitted evidence (batch 0, the honest IMT proof, the honest batch-leaf path
+for batch 0) no break is located, and the timeout gate does not pass. -/
+def Properties.ExecutedExcludesAcceptedRefundOrBreakWitness : Prop :=
+  ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System)
+    (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (F : Flow) (ev : GateEvidence)
+    (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+      Wf S ∧ Aggregates S R ∧ ExecutedViaBy h z0 hl cv fh S F ev leg
+        ∧ ¬ InclusionBreak h z0 hl S leg.chain (ev leg).1 (ev leg).2
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+        ∧ ¬ PinnedBreak h ze (B.leaves leg.chain) N
+        ∧ ¬ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+        ∧ ¬ LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
+
+/-- **THE BREAK FIRES WHERE THE BUG IS.**  With the extraction-pin padding, in
+`paddedSystem a b` with `timeOneRoot` (`Aggregates` holds), an executed one-leg flow
+passes the timeout gate as run, on the BEGIN branch at batch 1 with the forged padding
+proof.  The located break is on the absence proof, not on the inclusion proof. -/
+def Properties.PaddingAcceptedRefundLocatesAbsenceBreak : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
+    ∃ (ze : UInt256) (B : RootBacking h ze timeOneRoot) (cv : CommitValue) (fh : FlowHash)
+      (F : Flow) (ev : GateEvidence) (leg : FlowLeg) (N : ℕ) (p : ImtProof),
+      Wf (paddedSystem a b) ∧ Aggregates (paddedSystem a b) timeOneRoot
+        ∧ ExecutedViaBy h (hl ⟨0, 0, 0⟩) hl cv fh (paddedSystem a b) F ev leg
+        ∧ (∀ (sibs : ℕ → UInt256) (x : UInt256),
+            LegRefundableAcceptedBy h (hl ⟨0, 0, 0⟩) hl cv (paddedSystem a b) B F leg N p sibs x)
+        ∧ ¬ InclusionBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) leg.chain (ev leg).1 (ev leg).2
+        ∧ AbsenceBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) F.deadline leg.chain N p
+
+
 end Contracts.Refund
