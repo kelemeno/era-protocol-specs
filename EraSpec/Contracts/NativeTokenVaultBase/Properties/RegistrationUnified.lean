@@ -84,8 +84,17 @@ transfers (and zero burns) no step.  At the end:
 * **the tracked token's total supply plus the asset's total recorded outflow equals
   its total recorded inflow.**  The registry model alone constrains its flow audit
   only for native assets (`LedgerIsNetFlowOn`); for this bridged asset the
-  representation model's supply is the missing term, so in particular the run never
-  records more outflow than inflow of it.
+  representation model's supply is the missing term.
+
+The registry run in these conclusions is a witness that the proof builds from the
+representation model's run, by the matching above.  So the identity, and with it
+"recorded outflow does not exceed recorded inflow", holds for that matching run; it
+says nothing about other registry runs.  `LifecycleIdentityNotRegistryInvariant`
+makes this precise: the registry's flow guards for a registered non-native asset ask
+only that it be registered and, on the way out, that the amount be nonzero.  So from
+every related pair of states, one bounded, tightened registry `bridgeOut` of the
+tracked asset leaves the vault and the correspondence unchanged, records more
+outflow than inflow, and breaks the identity.
 
 ## Anti-vacuity
 
@@ -98,7 +107,9 @@ a native and a bridged registration), `LifecycleRelSatisfiable` (related states 
 supply-changing step) and `UnifiedLifecycleSatisfiable` (every premise of (c), with a
 run that funds the token and then prepares a transfer).  The (b)
 statements and `SourceInputPremisesLoadBearing`, `InnerRegistrationNeedsFreshSlot`,
-`RunCanRecordZeroOriginToken` are negative results.
+`RunCanRecordZeroOriginToken` are negative results, and so is
+`LifecycleIdentityNotRegistryInvariant`, whose one premise `LifecycleRel` is met by
+`LifecycleRelSatisfiable`.
 -/
 
 namespace Contracts.NativeTokenVault
@@ -371,7 +382,9 @@ hash premise.  (A token-model mint or burn carries no chain id, so the chain of 
 matching `bridgeIn` / `bridgeOut` is the proof's choice; only the per-asset totals
 `totalIn` / `totalOut` are claimed.  A preparation's matching `bridgeOut` uses the
 request's own destination chain, which `AssetBridgePreparation`'s
-`TightTraceIsRegistryOutflow` uses per destination.) -/
+`TightTraceIsRegistryOutflow` uses per destination.)  The relation persists along the
+MATCHING step chosen here; the registry model does not keep it along its other
+steps (`LifecycleIdentityNotRegistryInvariant`). -/
 def Properties.LifecycleRelIsSimulation : Prop :=
   ∀ (Accounting : Type) (hooks : Hooks Accounting) (e : NtvAssetId)
     (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
@@ -411,7 +424,13 @@ Conclusion: some extension `W'` of the registry run is still a bounded run from 
 storage, and still a tightened run if the prefix was one; its vault is the
 registration's write, unchanged since; `t` corresponds to it; both models' invariants
 hold; and the tracked token's total supply plus the asset's total recorded outflow
-equals its total recorded inflow. -/
+equals its total recorded inflow.
+
+`W'` is existential: it is the registry run the simulation builds, with each mint
+mapped to a `bridgeIn`, each preparation and nonzero burn to a `bridgeOut`, and each
+transfer and zero burn to no step.  So the identity holds for that matching run, and
+says nothing about other registry runs from `W`
+(`LifecycleIdentityNotRegistryInvariant`). -/
 def Properties.UnifiedLifecycleCorresponds : Prop :=
   ∀ (Accounting : Type) (rhooks : RegistrationHooks Accounting) (hooks : Hooks Accounting)
     (s : RegistrationState Accounting) (origin : Address) (reg : Registered Accounting)
@@ -431,6 +450,27 @@ def Properties.UnifiedLifecycleCorresponds : Prop :=
         ∧ Corr t thisChain W'.vault ∧ Valid e thisChain W'.vault ∧ WellFormed t
         ∧ t.token.totalSupply + W'.audit.totalOut s.config.assetId
             = W'.audit.totalIn s.config.assetId
+
+/-- **THE IDENTITY IS NOT A REGISTRY INVARIANT.**  The supply/flow identity of
+`LifecycleRel` and `UnifiedLifecycleCorresponds` holds for the registry step or run
+that the simulation builds, not for every registry run.  For a registered asset that
+is not native here, the registry's outbound flow guard `FlowOutGuard` asks only that
+the asset be registered and the amount nonzero.  So from every pair of related states
+there is one bounded and tightened registry step, a `bridgeOut` of the tracked asset
+of one more than the token's total supply, with this property: the vault (hence the
+correspondence) is unchanged, and the asset's recorded outflow then exceeds its
+recorded inflow, so the identity fails for the unchanged representation state.
+Negative result; its one premise is met by `LifecycleRelSatisfiable`. -/
+def Properties.LifecycleIdentityNotRegistryInvariant : Prop :=
+  ∀ (Accounting : Type) (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address))
+    (thisChain : Chain) (u : State Accounting) (W : World),
+    LifecycleRel thisChain u W →
+      ∃ W' : World,
+        NativeTokenVault.StepIn e thisChain S W W' ∧ NativeTokenVault.Step' e thisChain W W'
+        ∧ W'.vault = W.vault ∧ Corr u thisChain W'.vault
+        ∧ W'.audit.totalIn u.config.assetId < W'.audit.totalOut u.config.assetId
+        ∧ u.token.totalSupply + W'.audit.totalOut u.config.assetId
+            ≠ W'.audit.totalIn u.config.assetId
 
 /-! ## Anti-vacuity -/
 

@@ -20,7 +20,7 @@ to `l1-contracts/contracts/` unless they start with `system-contracts/`):
 |---|---|---|
 | `registerRepresentation'` | origin chain `≠ 0` | `tokenDataOriginChainId` replaces a decoded `0` by `_l1ChainId()` (`bridge/ntv/NativeTokenVaultBase.sol:565-571`) and the result is the inner helper's `_tokenOriginChainId` (`:544-551`); it is nonzero when `_l1ChainId() ≠ 0` |
 | `registerRepresentation'` | token address `≠ 0` | the token address is checked against the address the CREATE2 deployment returned (`:582-583`), which is never `0`: L1 and ZKsync OS deploy with `Create2.deploy` (`bridge/ntv/L1NativeTokenVault.sol:249-257`, `bridge/ntv/L2NativeTokenVaultZKOS.sol:21-35`), and EraVM's `ContractDeployer` refuses kernel-space addresses (`system-contracts/contracts/ContractDeployer.sol:434-436`) |
-| `registerRepresentation'` | token address unmapped | the same deployment reverts at an occupied address (`ContractDeployer.sol:438-446`; a CREATE2 collision under `Create2.deploy`), and a mapped token address is occupied |
+| `registerRepresentation'` | token address unmapped | the same deployment reverts at an occupied address (`ContractDeployer.sol:438-446`; a CREATE2 collision under `Create2.deploy`), and every mapped token address is occupied except L1's ETH sentinel `address(1)`, which `registerEthToken` maps with no code check (`bridge/ntv/L1NativeTokenVault.sol:135-138`); CREATE2 returns that address only for a keccak preimage (`DeployFresh`) |
 | `RegisterBridgedGuard'` | origin token `≠ 0` | `bridgeInitialize` requires `_originToken != address(0)` (`bridge/BridgedStandardERC20.sol:86`); `_deployBridgedToken` calls it (`NativeTokenVaultBase.sol:630`) before the registry write (`:585`) |
 
 The source has no `require` for the first three.  They follow from mechanisms the
@@ -51,8 +51,10 @@ relation under which registry-model runs simulate it
 
 Unchanged from `Specs/ModelCorrespondence.lean`.  In addition: `DeployFresh` is a
 premise about one deployment call, not a model of code storage, so the step from
-"occupied addresses make CREATE2 revert" to "mapped addresses are not returned"
-(every mapped token address carries code) is part of the premise.  On L2,
+"occupied addresses make CREATE2 revert" to "mapped addresses are not returned" is
+part of the premise.  That step needs every mapped token address to carry code, and
+one does not: L1's ETH sentinel `address(1)`.  For it the premise rests on CREATE2
+addresses being keccak outputs instead (see `DeployFresh`).  On L2,
 `_l1ChainId()` is whatever `updateL2` stored, which it does not check for zero
 (`bridge/ntv/L2NativeTokenVault.sol:160-164`); `SourceRegistrationInput.l1Nonzero`
 is configuration there (`OPS-CONFIG`).
@@ -125,15 +127,32 @@ own:
   `_nonSystemDeployOnAddress` path (`system-contracts/contracts/ContractDeployer.sol:167-173,
   287-299, 422-450`) reverts for any address up to `MAX_SYSTEM_CONTRACT_ADDRESS`
   (`:434-436`);
-* unmapped: both revert at an occupied address (`ContractDeployer.sol:438-446`;
-  CREATE2 fails on a collision on the EVM), and every address with `assetId[t] ≠ 0` is
-  occupied.  At the pin the map is written only by `_setNewTokenStorage`
+* unmapped, for a mapped address that carries code: both revert at an occupied
+  address (`ContractDeployer.sol:438-446`; CREATE2 fails on a collision on the EVM).
+  At the pin the map is written only by `_setNewTokenStorage`
   (`NativeTokenVaultBase.sol:588-598`) and by `updateL2` for the base token
-  (`L2NativeTokenVault.sol:170-172`): a native token had code when registered
-  (`NativeTokenVaultBase.sol:139`, called before `:517`), a bridged one was deployed
-  here (`:582-585`), and the L2 base token is a system contract.  That every such
-  address keeps its code is a fact about code storage, which no model here has, so it
-  is part of this premise. -/
+  (`L2NativeTokenVault.sol:170-172`).  `_setNewTokenStorage` is reached from
+  `_ensureAndSaveTokenDeployedInner`, for a bridged token deployed here (`:582-585`),
+  and from `_unsafeRegisterNativeToken` (`:515-522`), which checks nothing about the
+  token (`:513`).  `_registerToken` calls it only after
+  `require(_nativeToken.code.length > 0)` (`:139`, `:141`).  The L2 base token is the
+  system contract at `L2_BASE_TOKEN_SYSTEM_CONTRACT_ADDR`
+  (`common/l2-helpers/L2ContractAddresses.sol:63`), which the genesis and upgrade
+  helper calls (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:446`);
+* unmapped, for the one address mapped with no code: L1's `registerEthToken`
+  (`L1NativeTokenVault.sol:135-138`) calls `_unsafeRegisterNativeToken` directly, with
+  no code check, for the ETH sentinel `ETH_TOKEN_ADDRESS = address(1)`
+  (`common/Config.sol:159`).  On Ethereum that is the `ecrecover` precompile, which has
+  no code, so no collision revert protects it.  The premise rests instead on CREATE2
+  addresses being keccak outputs: L1's `Create2.deploy` returns `address(1)` only if
+  the keccak hash of (vault, salt, init code) has low 160 bits equal to `1`, a
+  preimage search.
+
+That every code-carrying mapped address keeps its code is a fact about code storage,
+which no model here has, so it is part of this premise.  (On L1, for instance, a token
+created, registered and self-destructed in one transaction keeps its asset id but
+loses its code, EIP-6780; for it, too, the premise rests on CREATE2 address-collision
+resistance.) -/
 structure DeployFresh (hooks : RegistrationHooks Accounting) (s : RegistrationState Accounting)
     (origin : Address) : Prop where
   nonzero : ∀ d, hooks.deploy s.config.originChainId origin = some d → d ≠ 0

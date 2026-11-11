@@ -26,8 +26,15 @@ segments, registration plus funding (`Wf`) and then the trace (`W'`), such that:
 * every pending obligation is for the tracked asset;
 * (as in `initialized_preparation_trace`) supply plus pending equals the funded supply.
 
-So the trace's ghost pending list and the registry model's ghost flow audit count the
-same outflows.  Neither is evidence of publication (`REP-PUBLISH`, `MODEL-TRACE`).
+`Wf` and `W'` are existential: they are the registry run the simulation builds, with
+each funding mint mapped to a `bridgeIn`, each nonzero funding burn and each
+preparation to a `bridgeOut` (a preparation's towards its own destination chain), and
+transfers, zero burns and spends to no step.  So the trace's ghost pending list and
+the ghost flow audit of that matching run count the same outflows.  This says nothing
+about other registry runs from `W`, whose flows of a registered non-native asset the
+registry model does not bound
+(`NativeTokenVaultBase.Properties.LifecycleIdentityNotRegistryInvariant`).  Neither
+ghost record is evidence of publication (`REP-PUBLISH`, `MODEL-TRACE`).
 
 `TightTraceIsRegistryOutflowSatisfiable` meets every premise with a nonempty pending
 list.
@@ -38,7 +45,10 @@ namespace AssetBridgePreparation
 open Contracts
 
 /-- **THE PENDING LIST IS THE REGISTRY'S RECORDED OUTFLOW.**  See the module header for
-the premises and conclusions in words. -/
+the premises and conclusions in words.  `Wf` and `W'` are the registry run the
+simulation builds (mints to `bridgeIn`, nonzero burns and preparations to
+`bridgeOut`), so the audit equalities hold for that matching run and constrain no
+other registry run. -/
 def Properties.TightTraceIsRegistryOutflow : Prop :=
   ∀ (Accounting : Type) (initHooks : NativeTokenVaultBase.RegistrationHooks Accounting)
     (start : NativeTokenVaultBase.RegistrationState Accounting)

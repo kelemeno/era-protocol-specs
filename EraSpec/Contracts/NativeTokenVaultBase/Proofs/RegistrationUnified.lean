@@ -551,6 +551,38 @@ theorem UnifiedLifecycleCorresponds : Properties.UnifiedLifecycleCorresponds :=
   fun _ _ _ _ _ _ _ _ _ _ _ he hc0 hW hmem hc h henc hrun =>
     unifiedLifecycleCorresponds he hc0 hW hmem hc h henc hrun
 
+/-- From related states, a registry `bridgeOut` of the tracked asset, of one more than
+the token's supply, passes the flow guard (registered, nonzero), leaves the vault of
+the non-native asset unchanged, and overdraws the recorded flows. -/
+theorem lifecycleIdentity_not_registry_invariant {e : NtvAssetId}
+    {S : Set (Chain × NativeTokenVault.Address)} {thisChain : Chain}
+    {u : State Accounting} {W : World} (hrel : LifecycleRel thisChain u W) :
+    ∃ W' : World,
+      NativeTokenVault.StepIn e thisChain S W W' ∧ NativeTokenVault.Step' e thisChain W W'
+      ∧ W'.vault = W.vault ∧ Corr u thisChain W'.vault
+      ∧ W'.audit.totalIn u.config.assetId < W'.audit.totalOut u.config.assetId
+      ∧ u.token.totalSupply + W'.audit.totalOut u.config.assetId
+          ≠ W'.audit.totalIn u.config.assetId := by
+  have hguard : NativeTokenVault.FlowOutGuard W.vault u.config.assetId
+      (u.token.totalSupply + 1) := ⟨hrel.registered, by omega⟩
+  have hvault := NativeTokenVault.bridgeOut_vault_foreign thisChain W u.config.originChainId
+    u.config.assetId (u.token.totalSupply + 1) hrel.foreign
+  have hsum := hrel.supply
+  refine ⟨NativeTokenVault.bridgeOut thisChain W u.config.originChainId u.config.assetId
+      (u.token.totalSupply + 1),
+    NativeTokenVault.StepIn.bridgeOut hguard, NativeTokenVault.Step'.bridgeOut hguard, hvault,
+    by rw [hvault]; exact hrel.corr, ?_, ?_⟩
+  · rw [NativeTokenVault.bridgeOut_totalOut, NativeTokenVault.bridgeOut_totalIn,
+      NativeTokenVault.upd_same]
+    omega
+  · rw [NativeTokenVault.bridgeOut_totalOut, NativeTokenVault.bridgeOut_totalIn,
+      NativeTokenVault.upd_same]
+    omega
+
+theorem LifecycleIdentityNotRegistryInvariant :
+    Properties.LifecycleIdentityNotRegistryInvariant :=
+  fun _ e S _ _ _ hrel => lifecycleIdentity_not_registry_invariant (e := e) (S := S) hrel
+
 /-! ## Concrete instances
 
 The toy encoding `toyId : (c, t) ↦ c + 1` and the states of
