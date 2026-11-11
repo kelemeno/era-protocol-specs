@@ -55,7 +55,10 @@ in the `VaultMintGate` topic (`VaultModelDischargesMintPremise`).
 * **The counterpart is the trusted exception, made explicit.**  On L2 it can point any
   id at any handler from any state (`CounterpartRepointsAnyRoute`).  In particular it
   re-points a route that the vault itself registered, with no collision involved
-  (`CounterpartRepointsVaultRoute`).
+  (`CounterpartRepointsVaultRoute`).  Both are about the L2 router alone.  With the L1
+  router's own check modelled (the `CounterpartGate` topic), a vault triple's id on L2
+  can only be pointed at the L2 vault (`CounterpartCannotMisrouteVaultTriple`).  The
+  exception remains for custom assets (`CustomTrackerNamesAnyHandler`).
 * **On L2 only the vault ever registers** (`L2OnlyVaultRegisters`, no hash premise).
   So on L2, outside the counterpart, only vault ids ever change handler
   (`L2OnlyCounterpartTouchesNonVaultIds`, no hash premise; witness
@@ -303,7 +306,9 @@ made explicit.  On an L2 router with a well-behaved vault, a run from fresh stor
 no counterpart write leaves a vault route whose tracker is the vault.  One
 `setAssetHandlerAddress` then points that id at a nonzero handler other than the vault.
 No collision is involved: the counterpart's id is an argument, not a hash of its
-caller. -/
+caller.  This is the L2 router taken alone.  With trackers that behave as at the pin
+(`VaultApprovals`), the L1 router would not send that message for a vault triple's id
+unless its own log holds a clash (`CounterpartGate.L1CounterpartAtVaultIdOrLoggedClash`). -/
 def Properties.CounterpartRepointsVaultRoute : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R R' : Router) (a : AssetId) (h : Address),
     K.side = .l2 ∧ K.ntv = K.ntvAddr ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧

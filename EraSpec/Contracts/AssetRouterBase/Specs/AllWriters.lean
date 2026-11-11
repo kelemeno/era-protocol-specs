@@ -111,8 +111,9 @@ vault calls the router only from registration, which is a separate `register` st
   any handler.  Its only check on L2 is the caller.  On L1 the message is built by
   `_setAssetHandlerAddressOnCounterpart` (`AR/L1AssetRouter.sol:182-206`), which asks the
   id's L1 tracker to approve (:188-193; the vault approves only
-  `L2_NATIVE_TOKEN_VAULT_ADDR`, `NTV/L1NativeTokenVault.sol:146-153`).  That L1 check is
-  outside this model.
+  `L2_NATIVE_TOKEN_VAULT_ADDR`, `NTV/L1NativeTokenVault.sol:146-153`).  This model's L2
+  step does not see that check.  The `CounterpartGate` topic models it and narrows the
+  exception to ids that are not vault triples' ids.
 * **The seeded id.**  On L1 it is `ETH_TOKEN_ASSET_ID = encodeNTVAssetId(block.chainid,
   ETH_TOKEN_ADDRESS)` (`AR/L1AssetRouter.sol:125`), a vault id by construction.  On L2 it
   is the upgrader's `_baseTokenAssetId`; that it is a vault id is a premise on the
@@ -227,7 +228,14 @@ inductive ARun (K : Cfg) : Router → List Op → Router → Prop
 /-- `a` is a vault id: `encodeNTVAssetId(c, d) = encodeAssetId(c, d,
 L2_NATIVE_TOKEN_VAULT_ADDR)` for some chain `c` and token `d`
 (`common/libraries/DataEncoding.sol:126-128, 151-153`).  The chain is the token's
-origin chain, not necessarily this one. -/
+origin chain, not necessarily this one.
+
+This is existential.  For a keccak-like encoding over full 256-bit words, nearly every
+id has some vault preimage, so the condition is weak.  The informative part of
+`VaultRoute` is its handler conjunct.  Where a specific preimage matters, results name
+it: a registration's triple, or a vault triple `q` given as an argument
+(`NoHijackOnExceptCounterpart`, the `CounterpartGate` topic).  The vault's own record
+of each id's preimage is `VaultMintGate.VaultRunIdShape`. -/
 def IsNtvId (enc : AssetIdOf) (ntvAddr : Address) (a : AssetId) : Prop :=
   ∃ (c : Chain) (d : AssetData), a = enc c ntvAddr d
 
