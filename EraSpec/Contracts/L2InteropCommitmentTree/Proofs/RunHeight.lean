@@ -50,11 +50,9 @@ theorem fmHeight_tight (n : ℕ) (hn : 0 < n) : 2 ^ fmHeight n < 2 * n := by
     rcases Nat.eq_zero_or_pos n with rfl | hpos
     · decide
     · have ih := ih hpos
-      by_cases hfull : n = 2 ^ fmHeight n
-      · rw [if_pos hfull, pow_succ]
-        omega
-      · rw [if_neg hfull]
-        omega
+      split_ifs with hfull
+      · rw [pow_succ]; omega
+      · omega
 
 lemma setupDims_eq : setupDims = ⟨1, fmHeight 1⟩ := push_dimsOf 0
 
@@ -98,7 +96,7 @@ theorem hReaches_capacity {S : HState} (hR : HReaches hSetup S) :
 theorem hRun_reaches {R : ℕ → HState} (hR : HRun R) (h0 : R 0 = hSetup) (n : ℕ) :
     HReaches hSetup (R n) := by
   induction n with
-  | zero => rw [h0]; exact HReaches.refl
+  | zero => exact h0 ▸ HReaches.refl
   | succ n ih =>
     rcases hR n with heq | ⟨v, low, hg, heq⟩
     · rw [heq]; exact ih
@@ -125,18 +123,9 @@ theorem run_lifts_to_hRun {R : ℕ → Tree} (hR : Run R) (h0 : R 0 = setup) :
   refine ⟨fun n => ⟨(R n).leafCount, fmHeight (R n).leafCount⟩, ?_, ?_⟩
   · intro n
     rcases hR n with heq | ⟨v, low, hg, heq⟩
-    · left
-      show (⟨R (n + 1), ⟨(R (n + 1)).leafCount, fmHeight (R (n + 1)).leafCount⟩⟩ : HState)
-        = ⟨R n, ⟨(R n).leafCount, fmHeight (R n).leafCount⟩⟩
-      rw [heq]
-    · right
-      refine ⟨v, low, hg, ?_⟩
-      show (⟨R (n + 1), ⟨(R (n + 1)).leafCount, fmHeight (R (n + 1)).leafCount⟩⟩ : HState)
-        = hInsert ⟨R n, ⟨(R n).leafCount, fmHeight (R n).leafCount⟩⟩ v low
-      rw [hInsert_dimsOf, heq]
-  · show (⟨(R 0).leafCount, fmHeight (R 0).leafCount⟩ : TreeDims) = setupDims
-    rw [h0, setupDims_eq]
-    rfl
+    · exact Or.inl (by simp only [heq])
+    · exact Or.inr ⟨v, low, hg, by simp only [heq, hInsert_dimsOf]⟩
+  · simp only [h0, setupDims_eq]; rfl
 
 theorem hReaches_projects {S U : HState} (hR : HReaches S U) : Reaches S.tree U.tree := by
   induction hR with
@@ -147,10 +136,7 @@ theorem reaches_lifts {T U : Tree} (hR : Reaches T U) :
     HReaches ⟨T, ⟨T.leafCount, fmHeight T.leafCount⟩⟩ ⟨U, ⟨U.leafCount, fmHeight U.leafCount⟩⟩ := by
   induction hR with
   | refl => exact HReaches.refl
-  | tail _ hg ih =>
-    have := HReaches.tail ih hg
-    rw [hInsert_dimsOf] at this
-    exact this
+  | tail _ hg ih => simpa only [hInsert_dimsOf] using HReaches.tail ih hg
 
 /-! ## Fold correspondence at the source's heights -/
 
@@ -196,11 +182,10 @@ private lemma non_inclusion_complete_at {h : Hash} {z0 : UInt256} {hl : LeafHash
      by show (T.leaf 0).value < v; rw [hV.sentinel]; exact Fin.pos_of_ne_zero hv⟩
   obtain ⟨W, hW, hlow, hwin⟩ := gap_witness_exists hnc hwp hbelow habs
   obtain ⟨i, hi, hval, hnext⟩ := mem_toAbs.mp hW
-  refine ⟨i, hi, hv, by rw [hval]; exact hlow, by rw [hnext]; exact hwin,
+  refine ⟨i, hi, hv, by rwa [hval], by rwa [hnext],
     ⟨lt_of_lt_of_le hi hcap, ?_⟩⟩
   have := honest_walk_root h z0 (leafHashes hl T) height i (lt_of_lt_of_le hi hcap)
-  rw [leafHashes_getD hi] at this
-  exact this
+  rwa [leafHashes_getD hi] at this
 
 theorem proofs_exclusive_or_break_at_own_height (h : Hash) (z0 : UInt256) (hl : LeafHash)
     (S : HState) (hR : HReaches hSetup S) :
@@ -228,8 +213,7 @@ theorem proofs_exclusive_or_break_at_own_height (h : Hash) (z0 : UInt256) (hl : 
     obtain ⟨i, hi, hval⟩ := mem_keys_iff_index.mp hv
     refine ⟨i, hi, hval, ?_, honest_proof_no_break h z0 hl S.tree S.height i hi⟩
     have hI := inclusion_complete (h := h) (z0 := z0) (hl := hl) hcap hi
-    rw [hval] at hI
-    exact hI
+    rwa [hval] at hI
   · intro v hv0 habs
     obtain ⟨i, hi, hN⟩ := non_inclusion_complete_at (h := h) (z0 := z0) (hl := hl) hV hcap hv0 habs
     exact ⟨i, hi, hN, honest_proof_no_break h z0 hl S.tree S.height i hi⟩
@@ -282,9 +266,8 @@ theorem hThreeRun_witness (a b : UInt256) (ha : 0 < a) (hab : a < b) :
       ∧ (hThreeRun a b 2).tree.leafCount = 3
       ∧ (hThreeRun a b 2).tree.leafCount < 2 ^ (hThreeRun a b 2).height := by
   have hR := hThreeRun_hRun ha hab
-  refine ⟨hR, rfl, hRun_reaches hR rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_⟩
-  show (3 : ℕ) < 2 ^ 2
-  norm_num
+  exact ⟨hR, rfl, hRun_reaches hR rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    by show (3 : ℕ) < 2 ^ 2; norm_num⟩
 
 theorem padding_forgery_at_own_height (h : Hash) (hl : LeafHash) (a b : UInt256)
     (ha : 0 < a) (hab : a < b) :

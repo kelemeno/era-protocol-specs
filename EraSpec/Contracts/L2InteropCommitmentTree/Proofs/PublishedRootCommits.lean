@@ -21,7 +21,7 @@ theorem published_root_commits_or_collision (h : Hash) (z0 : UInt256) (hl : Leaf
       ∨ ∃ i < S.tree.leafCount, L.getD i z0 ≠ hl (S.tree.leaf i)
           ∧ TreeCollision h z0 L (leafHashes hl S.tree) S.height i := by
   have hcap := hReaches_capacity hR
-  have hlen' : L.length = (leafHashes hl S.tree).length := by rw [leafHashes_length]; exact hlen
+  have hlen' : L.length = (leafHashes hl S.tree).length := by rwa [leafHashes_length]
   rcases root_of_inj_or_collision h z0 L (leafHashes hl S.tree) S.height hlen' (by omega) hroot
     with he | ⟨i, hi, hne, hc⟩
   · exact Or.inl he
@@ -134,9 +134,7 @@ theorem published_root_padding_hit_fires (h : Hash) (z0 : UInt256) (hl : LeafHas
     Or.inr ⟨by simp, getD_append_singleton _ _ _⟩, hsame.2⟩
   · rw [List.length_append, leafHashes_length, hc, hH, List.length_singleton]
     decide
-  · intro he
-    have hlen := congrArg List.length he
-    simp at hlen
+  · exact fun he => by simpa using congrArg List.length he
 
 /-! ## Certificates -/
 

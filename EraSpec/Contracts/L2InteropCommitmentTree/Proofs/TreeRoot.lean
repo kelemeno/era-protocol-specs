@@ -36,47 +36,31 @@ lemma mem_leafHashes {hl : LeafHash} {T : Tree} {y : UInt256} :
 /-! ## Fold correspondence -/
 
 private theorem getD_set_ne (x : UInt256) : ∀ (L : List UInt256) (i j : ℕ) (d : UInt256),
-    i ≠ j → (L.set i x).getD j d = L.getD j d
-  | [], _, _, _, _ => rfl
-  | _ :: _, 0, 0, _, hij => absurd rfl hij
-  | _ :: _, 0, _ + 1, _, _ => rfl
-  | _ :: _, _ + 1, 0, _, _ => rfl
-  | _ :: t, i + 1, j + 1, d, hij =>
-    getD_set_ne x t i j d (fun hcon => hij (by rw [hcon]))
+    i ≠ j → (L.set i x).getD j d = L.getD j d := by
+  intro L i j d hij
+  simp [List.getD_eq_getElem?_getD, List.getElem?_set_ne hij]
 
 private theorem getD_set_self (x : UInt256) : ∀ (L : List UInt256) (i : ℕ) (d : UInt256),
-    i < L.length → (L.set i x).getD i d = x
-  | [], _, _, hi => absurd hi (by simp)
-  | _ :: _, 0, _, _ => rfl
-  | _ :: t, i + 1, d, hi =>
-    getD_set_self x t i d (by simp only [List.length_cons] at hi; omega)
+    i < L.length → (L.set i x).getD i d = x := by
+  intro L i d hi
+  simp [List.getD_eq_getElem?_getD, hi]
 
 private theorem getD_append_lt : ∀ (A B : List UInt256) (n : ℕ) (d : UInt256),
-    n < A.length → (A ++ B).getD n d = A.getD n d
-  | [], _, _, _, hn => absurd hn (by simp)
-  | _ :: _, _, 0, _, _ => rfl
-  | _ :: t, B, n + 1, d, hn =>
-    getD_append_lt t B n d (by simp only [List.length_cons] at hn; omega)
+    n < A.length → (A ++ B).getD n d = A.getD n d := by
+  intro A B n d hn
+  simp [List.getD_eq_getElem?_getD, List.getElem?_append_left hn]
 
 private theorem getD_append_len : ∀ (A : List UInt256) (y d : UInt256) (n : ℕ),
-    n = A.length → (A ++ [y]).getD n d = y
-  | [], _, _, 0, _ => rfl
-  | [], _, _, _ + 1, hn => absurd hn (by simp)
-  | _ :: _, _, _, 0, hn => absurd hn (by simp)
-  | _ :: t, y, d, n + 1, hn =>
-    getD_append_len t y d n (by simp only [List.length_cons] at hn; omega)
+    n = A.length → (A ++ [y]).getD n d = y := by
+  rintro A y d n rfl
+  simp [List.getD_eq_getElem?_getD]
 
 /-- Two lists agreeing in length and at every in-range `getD` are equal. -/
 private theorem ext_getD (d : UInt256) : ∀ (L₁ L₂ : List UInt256),
-    L₁.length = L₂.length → (∀ n, n < L₁.length → L₁.getD n d = L₂.getD n d) → L₁ = L₂
-  | [], [], _, _ => rfl
-  | [], _ :: _, hlen, _ => absurd hlen (by simp)
-  | _ :: _, [], hlen, _ => absurd hlen (by simp)
-  | a :: t, b :: u, hlen, hget => by
-    have hab : a = b := hget 0 (by simp)
-    have htu : t = u := ext_getD d t u (by simpa using hlen)
-      (fun n hn => hget (n + 1) (by simp only [List.length_cons]; omega))
-    rw [hab, htu]
+    L₁.length = L₂.length → (∀ n, n < L₁.length → L₁.getD n d = L₂.getD n d) → L₁ = L₂ := by
+  intro L₁ L₂ hlen hget
+  refine List.ext_getElem hlen fun n h₁ h₂ => ?_
+  simpa [List.getD_eq_getElem?_getD, h₁, h₂] using hget n h₁
 
 /-- **`insert` IS `updateLeaf` THEN `pushNewLeaf` ON THE LEAF-HASH LIST.** -/
 theorem leafHashes_insert {hl : LeafHash} {T : Tree} {v : UInt256} {low : ℕ}
@@ -88,13 +72,13 @@ theorem leafHashes_insert {hl : LeafHash} {T : Tree} {v : UInt256} {low : ℕ}
   · simp
   · intro n hn
     rw [leafHashes_length, insert_leafCount] at hn
-    rw [leafHashes_getD (by rw [insert_leafCount]; exact hn)]
+    rw [leafHashes_getD (by rwa [insert_leafCount])]
     by_cases hnew : n = T.leafCount
     · rw [hnew, insert_leaf_new hlow, getD_append_len _ _ _ _ (by simp)]
     · have hn' : n < T.leafCount := by omega
-      rw [getD_append_lt _ _ _ _ (by rw [List.length_set, leafHashes_length]; exact hn')]
+      rw [getD_append_lt _ _ _ _ (by rwa [List.length_set, leafHashes_length])]
       by_cases hl : n = low
-      · rw [hl, insert_leaf_low, getD_set_self _ _ _ _ (by rw [leafHashes_length]; exact hlow)]
+      · rw [hl, insert_leaf_low, getD_set_self _ _ _ _ (by rwa [leafHashes_length])]
       · rw [insert_leaf_other hl hnew, getD_set_ne _ _ _ _ _ (fun e => hl e.symm),
             leafHashes_getD hn']
 
@@ -104,7 +88,7 @@ theorem root_after_updateLeaf {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tre
     rootOf h z0 ((leafHashes hl T).set low x) height
       = walkPure h (honestSibs h z0 (leafHashes hl T) low) 0 height low x :=
   (walkPure_update_orig h z0 (honestSibs h z0 (leafHashes hl T) low) (leafHashes hl T) low x
-    height (by rw [leafHashes_length]; exact hlow) (by rw [leafHashes_length]; exact hcap)
+    height (by rwa [leafHashes_length]) (by rwa [leafHashes_length])
     (fun l _ => rfl)).symm
 
 /-- M-B with the honest sibling stream. -/
@@ -124,7 +108,7 @@ theorem root_after_insert {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree} {
           0 height T.leafCount (hl ⟨v, (T.leaf low).nextIndex, (T.leaf low).nextValue⟩) := by
   unfold root
   rw [leafHashes_insert hlow,
-      rootOf_append_honest h z0 _ _ height (by rw [List.length_set, leafHashes_length]; exact hcap),
+      rootOf_append_honest h z0 _ _ height (by rwa [List.length_set, leafHashes_length]),
       List.length_set, leafHashes_length]
 
 /-! ## Soundness -/
@@ -187,7 +171,7 @@ theorem run_roots_exclusive {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {n height : ℕ} {v : UInt256} {ℓ₁ ℓ₂ : Leaf} {i₁ i₂ : ℕ} {s₁ s₂ : ℕ → UInt256} {k₁ k₂ : ℕ} :
     ¬ (InclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₁ i₁ s₁ k₁
         ∧ NonInclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₂ i₂ s₂ k₂) :=
-  proofs_exclusive hA (run_valid hR (by rw [h0]; exact setup_valid) n)
+  proofs_exclusive hA (run_valid hR (h0 ▸ setup_valid) n)
 
 open Contracts.Protocol in
 theorem verified_absence_is_witness {h : Hash} {z0 : UInt256} {hl : LeafHash}
@@ -206,8 +190,7 @@ theorem inclusion_complete {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree} 
   valueMatch := rfl
   path := ⟨lt_of_lt_of_le hi hcap, by
     have := honest_walk_root h z0 (leafHashes hl T) height i (lt_of_lt_of_le hi hcap)
-    rw [leafHashes_getD hi] at this
-    exact this⟩
+    rwa [leafHashes_getD hi] at this⟩
 
 theorem non_inclusion_complete {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
     (hV : Valid T) {height : ℕ} (hcap : T.leafCount ≤ 2 ^ height)
@@ -222,11 +205,10 @@ theorem non_inclusion_complete {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tr
      by show (T.leaf 0).value < v; rw [hV.sentinel]; exact Fin.pos_of_ne_zero hv⟩
   obtain ⟨W, hW, hlow, hwin⟩ := gap_witness_exists hnc hwp hbelow habs
   obtain ⟨i, hi, hval, hnext⟩ := mem_toAbs.mp hW
-  refine ⟨T.leaf i, i, hv, by rw [hval]; exact hlow, by rw [hnext]; exact hwin,
+  refine ⟨T.leaf i, i, hv, by rwa [hval], by rwa [hnext],
     ⟨lt_of_lt_of_le hi hcap, ?_⟩⟩
   have := honest_walk_root h z0 (leafHashes hl T) height i (lt_of_lt_of_le hi hcap)
-  rw [leafHashes_getD hi] at this
-  exact this
+  rwa [leafHashes_getD hi] at this
 
 /-! ## The padding countermodel -/
 
@@ -248,7 +230,7 @@ theorem threeLeafTree_guards {a b : UInt256} (ha : 0 < a) (hab : a < b) :
   · show (1 : ℕ) + 1 ≠ 0; omega
   · rw [insert_vti_other (ne_of_gt hab)]; rfl
   · show (1 : ℕ) < 1 + 1; omega
-  · simp [insert, setup]; exact hab
+  · simpa [insert, setup] using hab
   · left; simp [insert, setup]
 
 theorem padding_collision_refunds_delivered_leg (h : Hash) (hl : LeafHash) {a b : UInt256}
@@ -266,8 +248,7 @@ theorem padding_collision_refunds_delivered_leg (h : Hash) (hl : LeafHash) {a b 
   · have hcount : (threeLeafTree a b).leafCount = 3 := rfl
     have := padding_collision_forges_absence h hl (threeLeafTree a b) 2
       (by rw [hcount]; norm_num) a ha
-    rw [hcount] at this
-    exact this
+    rwa [hcount] at this
 
 /-! ## Soundness without hash premises: the property, or a located break -/
 
@@ -336,7 +317,7 @@ theorem run_roots_exclusive_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash} {
     (hN : NonInclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₂ i₂ s₂ k₂) :
     TreeRootBreak h z0 hl (R n) height s₁ k₁ i₁ ℓ₁
       ∨ TreeRootBreak h z0 hl (R n) height s₂ k₂ i₂ ℓ₂ :=
-  proofs_exclusive_or_break (run_valid hR (by rw [h0]; exact setup_valid) n) hI hN
+  proofs_exclusive_or_break (run_valid hR (h0 ▸ setup_valid) n) hI hN
 
 open Contracts.Protocol in
 theorem verified_absence_is_witness_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
@@ -377,8 +358,7 @@ theorem proofs_exclusive_or_break_satisfiable (h : Hash) (hl : LeafHash) (a b : 
   have hcount : (threeLeafTree a b).leafCount = 3 := rfl
   have hI := inclusion_complete (h := h) (z0 := hl ⟨0, 0, 0⟩) (hl := hl) (T := threeLeafTree a b)
     (height := 2) (by rw [hcount]; norm_num) (i := 1) (by rw [hcount]; norm_num)
-  rw [threeLeafTree_leaf_one_value] at hI
-  exact hI
+  rwa [threeLeafTree_leaf_one_value] at hI
 
 theorem padding_countermodel_locates_padding_hit (h : Hash) (hl : LeafHash) (a b : UInt256) :
     ¬ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
@@ -503,13 +483,9 @@ theorem treeRootBreakExactly_of {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : T
     (hc : TreeRootBreakAt h z0 hl T height sibs k idx ℓ c)
     (hno : ∀ c', c' ≠ c → ¬ TreeRootBreakAt h z0 hl T height sibs k idx ℓ c') :
     TreeRootBreakExactly h z0 hl T height sibs k idx ℓ c := by
-  intro c'
-  constructor
-  · intro hc'
-    by_contra hne
-    exact hno c' hne hc'
-  · rintro rfl
-    exact hc
+  refine fun c' => ⟨fun hc' => ?_, by rintro rfl; exact hc⟩
+  by_contra hne
+  exact hno c' hne hc'
 
 /-- At the right length no `wrongLength` break holds. -/
 theorem not_wrongLength_at_height {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
@@ -544,7 +520,7 @@ theorem path_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash
       ∧ TreeRootBreakExactly h z0 hl setup 1 (fun _ => s) 1 0 ℓ .pathCollision := by
   refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv, ?_⟩
   · show h (hl ℓ) s = root h z0 hl setup 1
-    rw [setup_root]; exact hc
+    rwa [setup_root]
   · refine treeRootBreakExactly_of ⟨rfl, 0, by norm_num, ?_, ?_⟩ ?_
     · show (hl ℓ, s) ≠ (hl ⟨0, 0, 0⟩, z0)
       intro hp; exact hne (congrArg Prod.fst hp)
@@ -571,8 +547,7 @@ theorem leaf_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash
   have hget : (leafHashes hl setup).getD 0 z0 = hl ℓ := by rw [setup_leafHashes, he]; rfl
   refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv, ?_⟩
   · have := honest_walk_root h z0 (leafHashes hl setup) 1 0 (by norm_num)
-    rw [hget] at this
-    exact this
+    rwa [hget] at this
   · refine treeRootBreakExactly_of ⟨by norm_num [setup], fun hl0 => hv (setup_leaf_eq_value hl0),
       he.symm⟩ ?_
     intro c' hc'
@@ -581,7 +556,7 @@ theorem leaf_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash
     | pathCollision =>
         rintro ⟨_, hpc⟩
         apply honest_walk_no_collision h z0 (leafHashes hl setup) 1 0
-        rw [hget]; exact hpc
+        rwa [hget]
     | leafCollision => exact absurd rfl hc'
     | paddingHit =>
         rintro ⟨hle, _⟩
@@ -597,8 +572,8 @@ theorem wrong_length_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) 
   refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, hr⟩, not_mem_keys_setup hv, ?_⟩
   refine treeRootBreakExactly_of ?_ ?_
   · show HeightBreak h z0 (leafHashes hl setup) sibs 0 1 0 (hl ℓ)
-    have := (zero_length_path_accepts_root h z0 (leafHashes hl setup) sibs 1 (by norm_num)).2
-    rw [hr]; exact this
+    rw [hr]
+    exact (zero_length_path_accepts_root h z0 (leafHashes hl setup) sibs 1 (by norm_num)).2
   · intro c' hc'
     cases c' with
     | wrongLength => exact absurd rfl hc'
@@ -624,8 +599,7 @@ theorem padding_hit_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (
     rw [getD_default _ _ _ (by rw [leafHashes_length]; rfl), hz]
   refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv, ?_⟩
   · have := honest_walk_root h z0 (leafHashes hl setup) 1 1 (by norm_num)
-    rw [hget] at this
-    exact this
+    rwa [hget] at this
   · refine treeRootBreakExactly_of ⟨le_refl _, hz⟩ ?_
     intro c' hc'
     cases c' with
@@ -633,7 +607,7 @@ theorem padding_hit_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (
     | pathCollision =>
         rintro ⟨_, hpc⟩
         apply honest_walk_no_collision h z0 (leafHashes hl setup) 1 1
-        rw [hget]; exact hpc
+        rwa [hget]
     | leafCollision =>
         rintro ⟨hlt, _⟩
         exact absurd hlt (by norm_num [setup])
@@ -653,7 +627,7 @@ theorem padding_countermodel_exactly_padding_hit (h : Hash) (hl : LeafHash) (a b
   | pathCollision =>
       rintro ⟨_, hpc⟩
       apply honest_walk_no_collision h _ (leafHashes hl (threeLeafTree a b)) 2 3
-      rw [hget]; exact hpc
+      rwa [hget]
   | leafCollision =>
       rintro ⟨hlt, _⟩
       rw [hcount] at hlt
@@ -750,13 +724,9 @@ theorem heightBreakExactly_of {h : Hash} {z0 : UInt256} {L : List UInt256}
     (hc : HeightBreakAt h z0 L sibs k height j x c)
     (hno : ∀ c', c' ≠ c → ¬ HeightBreakAt h z0 L sibs k height j x c') :
     HeightBreakExactly h z0 L sibs k height j x c := by
-  intro c'
-  constructor
-  · intro hc'
-    by_contra hne
-    exact hno c' hne hc'
-  · rintro rfl
-    exact hc
+  refine fun c' => ⟨fun hc' => ?_, by rintro rfl; exact hc⟩
+  by_contra hne
+  exact hno c' hne hc'
 
 /-- A located collision over zero steps is impossible. -/
 theorem not_pathCollision_zero {h : Hash} {z0 : UInt256} {L : List UInt256}
@@ -832,7 +802,7 @@ theorem short_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHas
   refine ⟨setup_valid, by norm_num [setup], ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv,
     setup_exactly_wrongLength (by norm_num) hne (HeightBreak.shortCollision (by norm_num) hpc), hx⟩
   show h (hl ℓ) s = root h z0 hl setup 2
-  rw [setup_root_two]; exact hc
+  rwa [setup_root_two]
 
 theorem long_entry_is_node_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
     (s : UInt256) (hv : ℓ.value ≠ 0) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩) (hc : h (hl ℓ) s = hl ⟨0, 0, 0⟩) :
@@ -859,7 +829,7 @@ theorem long_entry_is_node_forges_inclusion (h : Hash) (z0 : UInt256) (hl : Leaf
   refine ⟨setup_valid, by norm_num [setup], ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv,
     setup_exactly_wrongLength (by norm_num) hne (HeightBreak.longEntryIsNode (by norm_num) hent), hx⟩
   show h (hl ℓ) s = root h z0 hl setup 0
-  rw [setup_root_at_zero]; exact hc
+  rwa [setup_root_at_zero]
 
 theorem long_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
     (s₀ s₁ : UInt256) (hv : ℓ.value ≠ 0) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩)
@@ -893,7 +863,7 @@ theorem long_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash
   refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv,
     setup_exactly_wrongLength (by norm_num) hne (HeightBreak.longCollision (by norm_num) hpc), hx⟩
   show h (h (hl ℓ) s₀) s₁ = root h z0 hl setup 1
-  rw [setup_root]; exact hc
+  rwa [setup_root]
 
 theorem wrong_length_subcase_premises_satisfiable :
     ((⟨2, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨2, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩

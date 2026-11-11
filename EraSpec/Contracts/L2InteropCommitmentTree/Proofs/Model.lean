@@ -60,27 +60,21 @@ open IMTAbstract
 
 lemma mem_toAbs {T : Tree} {X : AbsLeaf} :
     Properties.mem_toAbs (T := T) (X := X) := by
-  unfold Properties.mem_toAbs
-  exact
-    by
-      unfold toAbs
-      simp only [Finset.mem_image, Finset.mem_range]
-      constructor
-      · rintro ⟨i, hi, hEq⟩
-        exact ⟨i, hi, by rw [← hEq], by rw [← hEq]⟩
-      · rintro ⟨i, hi, h1, h2⟩
-        exact ⟨i, hi, by cases X; simp_all⟩
+  unfold Properties.mem_toAbs toAbs
+  simp only [Finset.mem_image, Finset.mem_range]
+  constructor
+  · rintro ⟨i, hi, hEq⟩
+    exact ⟨i, hi, by rw [← hEq], by rw [← hEq]⟩
+  · rintro ⟨i, hi, h1, h2⟩
+    exact ⟨i, hi, by cases X; simp_all⟩
 
 
 /-! ## `setup` -/
 
 @[simp] lemma toAbs_setup :
     Properties.toAbs_setup := by
-  unfold Properties.toAbs_setup
-  exact
-    by
-      unfold toAbs setup
-      simp
+  unfold Properties.toAbs_setup toAbs setup
+  simp
 
 
 /-- **`setup` ESTABLISHES A VALID STATE.**  From fresh storage the sentinel is
@@ -89,22 +83,14 @@ every order invariant holds by `IMTAbstract.genesis_soundState`. -/
 theorem setup_valid :
     Properties.setup_valid := by
   unfold Properties.setup_valid
-  exact
-    by
-      refine ⟨by simp [setup], by norm_num [setup], ?_, ?_, ?_, ?_, ?_⟩
-      · intro i hi j hj _
-        simp only [setup] at hi hj
-        omega
-      · intro i hi hlt
-        simp only [setup] at hlt
-        omega
-      · intro v hv
-        simp only [setup] at hv
-        exact absurd rfl hv
-      · intro i hi h
-        simp only [setup] at h
-        exact absurd rfl h
-      · rw [toAbs_setup]; exact genesis_soundState
+  refine ⟨by simp [setup], by norm_num [setup], ?_, ?_, fun _ hv => absurd rfl hv,
+    fun _ _ h => absurd rfl h, by rw [toAbs_setup]; exact genesis_soundState⟩
+  · intro i hi j hj _
+    simp only [setup] at hi hj
+    omega
+  · intro i hi hlt
+    simp only [setup] at hlt
+    omega
 
 
 /-! ## The dedup gate
@@ -125,17 +111,15 @@ theorem dedup_gate_sound {T : Tree} (hV : Valid T) {v : UInt256}
     (hv0 : v ≠ 0) (hgate : T.valueToIndex v = 0) :
     Properties.dedup_gate_sound (T := T) (hV := hV) (v := v) (hv0 := hv0) (hgate := hgate) := by
   unfold Properties.dedup_gate_sound
-  exact
-    by
-      intro hmem
-      unfold keys at hmem
-      obtain ⟨X, hX, hXv⟩ := Finset.mem_image.mp hmem
-      obtain ⟨i, hi, hival, _⟩ := mem_toAbs.mp hX
-      rcases Nat.eq_zero_or_pos i with rfl | hipos
-      · exact hv0 (by rw [← hXv, ← hival, hV.sentinel])
-      · have := hV.vtiAgree i hipos hi
-        rw [hival, hXv, hgate] at this
-        omega
+  intro hmem
+  unfold keys at hmem
+  obtain ⟨X, hX, hXv⟩ := Finset.mem_image.mp hmem
+  obtain ⟨i, hi, hival, _⟩ := mem_toAbs.mp hX
+  rcases Nat.eq_zero_or_pos i with rfl | hipos
+  · exact hv0 (by rw [← hXv, ← hival, hV.sentinel])
+  · have := hV.vtiAgree i hipos hi
+    rw [hival, hXv, hgate] at this
+    omega
 
 
 /-- The converse direction, for the caller that must *establish* the gate: a
@@ -145,25 +129,21 @@ theorem registered_is_key {T : Tree} (hV : Valid T) {v : UInt256}
     (hreg : T.valueToIndex v ≠ 0) :
     Properties.registered_is_key (T := T) (hV := hV) (v := v) (hreg := hreg) := by
   unfold Properties.registered_is_key
-  exact
-    by
-      obtain ⟨hlt, hval⟩ := hV.vtiSound v hreg
-      exact Finset.mem_image.mpr
-        ⟨⟨v, (T.leaf (T.valueToIndex v)).nextValue⟩,
-         mem_toAbs.mpr ⟨T.valueToIndex v, hlt, hval, rfl⟩, rfl⟩
+  obtain ⟨hlt, hval⟩ := hV.vtiSound v hreg
+  exact Finset.mem_image.mpr
+    ⟨⟨v, (T.leaf (T.valueToIndex v)).nextValue⟩,
+     mem_toAbs.mpr ⟨T.valueToIndex v, hlt, hval, rfl⟩, rfl⟩
 
 
 /-- The gate is an exact membership test on nonzero values. -/
 theorem gate_iff_absent {T : Tree} (hV : Valid T) {v : UInt256} (hv0 : v ≠ 0) :
     Properties.gate_iff_absent (T := T) (hV := hV) (v := v) (hv0 := hv0) := by
   unfold Properties.gate_iff_absent
-  exact
-    by
-      constructor
-      · exact dedup_gate_sound hV hv0
-      · intro hnot
-        by_contra hreg
-        exact hnot (registered_is_key hV hreg)
+  constructor
+  · exact dedup_gate_sound hV hv0
+  · intro hnot
+    by_contra hreg
+    exact hnot (registered_is_key hV hreg)
 
 
 /-- **THE WALK EXITS IN THE WEAK WINDOW.**  Whenever the search returns an index,
@@ -173,30 +153,21 @@ dedup gate; see `insert_sound_step`.) -/
 theorem lowSearch_window {T : Tree} {v : UInt256} :
     Properties.lowSearch_window (T := T) (v := v) := by
   unfold Properties.lowSearch_window
-  exact
-    by
-      intro fuel
-      induction fuel with
-      | zero =>
-        intro i j h
-        unfold lowSearch at h
-        by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [ite_eq_left hc] at h; exact absurd h (by simp)
-        · rw [ite_eq_right hc] at h
-          cases Option.some.inj h
-          rcases not_and_or.mp hc with h1 | h2
-          · exact Or.inl (by simpa using h1)
-          · exact Or.inr (not_lt.mp h2)
-      | succ fuel ih =>
-        intro i j h
-        unfold lowSearch at h
-        by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [ite_eq_left hc] at h; exact ih _ _ h
-        · rw [ite_eq_right hc] at h
-          cases Option.some.inj h
-          rcases not_and_or.mp hc with h1 | h2
-          · exact Or.inl (by simpa using h1)
-          · exact Or.inr (not_lt.mp h2)
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro i j h
+    unfold lowSearch at h
+    split_ifs at h with hc
+    cases h
+    exact (not_and_or.mp hc).imp not_not.mp not_lt.mp
+  | succ fuel ih =>
+    intro i j h
+    unfold lowSearch at h
+    split_ifs at h with hc
+    · exact ih _ _ h
+    · cases h
+      exact (not_and_or.mp hc).imp not_not.mp not_lt.mp
 
 
 /-- **THE WALK STAYS IN BOUNDS AND STAYS BELOW `v`.**  Starting from an occupied
@@ -207,36 +178,28 @@ carries `nextValue`. -/
 theorem lowSearch_sound {T : Tree} (hV : Valid T) {v : UInt256} :
     Properties.lowSearch_sound (T := T) (hV := hV) (v := v) := by
   unfold Properties.lowSearch_sound
-  exact
-    by
-      intro fuel
-      induction fuel with
-      | zero =>
-        intro i j hi hlow h
-        unfold lowSearch at h
-        by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [ite_eq_left hc] at h; exact absurd h (by simp)
-        · rw [ite_eq_right hc] at h
-          cases Option.some.inj h
-          exact ⟨hi, hlow⟩
-      | succ fuel ih =>
-        intro i j hi hlow h
-        unfold lowSearch at h
-        by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-        · rw [ite_eq_left hc] at h
-          obtain ⟨hnz, hlt⟩ := hc
-          obtain ⟨hbound, hval⟩ := hV.linkAgree i hi hnz
-          exact ih _ _ hbound (by rw [hval]; exact hlt) h
-        · rw [ite_eq_right hc] at h
-          cases Option.some.inj h
-          exact ⟨hi, hlow⟩
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro i j hi hlow h
+    unfold lowSearch at h
+    split_ifs at h
+    cases h
+    exact ⟨hi, hlow⟩
+  | succ fuel ih =>
+    intro i j hi hlow h
+    unfold lowSearch at h
+    split_ifs at h with hc
+    · obtain ⟨hbound, hval⟩ := hV.linkAgree i hi hc.1
+      exact ih _ _ hbound (by rw [hval]; exact hc.2) h
+    · cases h
+      exact ⟨hi, hlow⟩
 
 
 lemma lowAbs_mem {T : Tree} {low : ℕ} (h : low < T.leafCount) :
     Properties.lowAbs_mem (T := T) (low := low) (h := h) := by
   unfold Properties.lowAbs_mem
-  exact
-    mem_toAbs.mpr ⟨low, h, rfl, rfl⟩
+  exact mem_toAbs.mpr ⟨low, h, rfl, rfl⟩
 
 
 /-- **THE INDEXED INSERT PROJECTS TO `imtInsert`.**  This is the load-bearing
@@ -251,121 +214,96 @@ theorem insert_projects {T : Tree} (hV : Valid T) {v : UInt256} {low : ℕ}
     (hg : InsertGuard T v low) :
     Properties.insert_projects (T := T) (hV := hV) (v := v) (low := low) (hg := hg) := by
   unfold Properties.insert_projects
-  exact
-    by
-      have hlowlt := hg.inBounds
-      apply Finset.ext
-      intro X
-      have hmem : X ∈ toAbs (insert T v low) ↔
-          ∃ i < (insert T v low).leafCount,
-            ((insert T v low).leaf i).value = X.key ∧
-              ((insert T v low).leaf i).nextValue = X.nextKey := mem_toAbs
-      rw [hmem]
-      unfold imtInsert
-      simp only [Finset.mem_insert, Finset.mem_erase, mem_toAbs, lowAbs]
-      constructor
-      · rintro ⟨i, hi, hval, hnext⟩
-        simp only [insert] at hi hval hnext
-        by_cases hilow : i = low
-        · subst hilow
-          simp only at hval hnext
-          left
-          cases X; simp_all
-        · by_cases hin : i = T.leafCount
-          · subst hin
-            rw [ite_eq_right hilow, ite_eq_left rfl] at hval hnext
-            right; left
-            cases X; simp_all
-          · rw [ite_eq_right hilow, ite_eq_right hin] at hval hnext
-            right; right
-            refine ⟨?_, ⟨i, by omega, hval, hnext⟩⟩
-            -- X ≠ the low leaf: else `idxInj` forces i = low
-            intro hXlow
-            apply hilow
-            refine hV.idxInj i (by omega) low hlowlt ?_
-            rw [hval, hXlow]
-        -- (all three branches discharged above)
-      · rintro (rfl | rfl | ⟨hXne, i, hi, hval, hnext⟩)
-        · refine ⟨low, ?_, ?_, ?_⟩
-          · simp only [insert]; omega
-          · simp [insert]
-          · simp [insert]
-        · refine ⟨T.leafCount, ?_, ?_, ?_⟩
-          · simp only [insert]; omega
-          · simp only [insert]
-            rw [ite_eq_right (by omega : ¬ T.leafCount = low)]
-            simp
-          · simp only [insert]
-            rw [ite_eq_right (by omega : ¬ T.leafCount = low)]
-            simp
-        · refine ⟨i, by simp only [insert]; omega, ?_, ?_⟩
-          · simp only [insert]
-            rw [ite_eq_right ?hne, ite_eq_right (by omega : ¬ i = T.leafCount)]
-            · exact hval
-            case hne =>
-              intro hil
-              apply hXne
-              subst hil
-              cases X; simp_all
-          · simp only [insert]
-            rw [ite_eq_right ?hne, ite_eq_right (by omega : ¬ i = T.leafCount)]
-            · exact hnext
-            case hne =>
-              intro hil
-              apply hXne
-              subst hil
-              cases X; simp_all
+  have hlowlt := hg.inBounds
+  apply Finset.ext
+  intro X
+  have hmem : X ∈ toAbs (insert T v low) ↔
+      ∃ i < (insert T v low).leafCount,
+        ((insert T v low).leaf i).value = X.key ∧
+          ((insert T v low).leaf i).nextValue = X.nextKey := mem_toAbs
+  rw [hmem]
+  unfold imtInsert
+  simp only [Finset.mem_insert, Finset.mem_erase, mem_toAbs, lowAbs]
+  constructor
+  · rintro ⟨i, hi, hval, hnext⟩
+    simp only [insert] at hi hval hnext
+    by_cases hilow : i = low
+    · subst hilow
+      simp only at hval hnext
+      left
+      cases X; simp_all
+    · by_cases hin : i = T.leafCount
+      · subst hin
+        rw [ite_eq_right hilow, ite_eq_left rfl] at hval hnext
+        right; left
+        cases X; simp_all
+      · rw [ite_eq_right hilow, ite_eq_right hin] at hval hnext
+        right; right
+        refine ⟨?_, ⟨i, by omega, hval, hnext⟩⟩
+        -- X ≠ the low leaf: else `idxInj` forces i = low
+        intro hXlow
+        apply hilow
+        refine hV.idxInj i (by omega) low hlowlt ?_
+        rw [hval, hXlow]
+    -- (all three branches discharged above)
+  · rintro (rfl | rfl | ⟨hXne, i, hi, hval, hnext⟩)
+    · refine ⟨low, ?_, ?_, ?_⟩
+      · simp only [insert]; omega
+      · simp [insert]
+      · simp [insert]
+    · have hne : ¬ T.leafCount = low := by omega
+      refine ⟨T.leafCount, by simp only [insert]; omega, ?_, ?_⟩ <;>
+        simp only [insert] <;> rw [ite_eq_right hne] <;> simp
+    · have hil : ¬ i = low := by
+        rintro rfl
+        apply hXne
+        cases X; simp_all
+      have hin : ¬ i = T.leafCount := by omega
+      refine ⟨i, by simp only [insert]; omega, ?_, ?_⟩ <;>
+        simp only [insert] <;> rw [ite_eq_right hil, ite_eq_right hin]
+      · exact hval
+      · exact hnext
 
 
 /-! ### Field-wise computation of `insert` -/
 
 @[simp] lemma insert_leafCount {T : Tree} {v : UInt256} {low : ℕ} :
     Properties.insert_leafCount (T := T) (v := v) (low := low) := by
-  unfold Properties.insert_leafCount
-  exact
-    rfl
+  rfl
 
 
 @[simp] lemma insert_vti_self {T : Tree} {v : UInt256} {low : ℕ} :
     Properties.insert_vti_self (T := T) (v := v) (low := low) := by
   unfold Properties.insert_vti_self
-  exact
-    by simp [insert]
+  simp [insert]
 
 
 lemma insert_vti_other {T : Tree} {v w : UInt256} {low : ℕ} (h : w ≠ v) :
     Properties.insert_vti_other (T := T) (v := v) (w := w) (low := low) (h := h) := by
   unfold Properties.insert_vti_other
-  exact
-    by simp [insert, h]
+  simp [insert, h]
 
 
 lemma insert_leaf_low {T : Tree} {v : UInt256} {low : ℕ} :
     Properties.insert_leaf_low (T := T) (v := v) (low := low) := by
   unfold Properties.insert_leaf_low
-  exact
-    by
-      simp [insert]
+  simp [insert]
 
 
 lemma insert_leaf_new {T : Tree} {v : UInt256} {low : ℕ} (h : low < T.leafCount) :
     Properties.insert_leaf_new (T := T) (v := v) (low := low) (h := h) := by
   unfold Properties.insert_leaf_new
-  exact
-    by
-      simp only [insert]
-      rw [ite_eq_right (by omega : ¬ T.leafCount = low)]
-      simp
+  simp only [insert]
+  rw [ite_eq_right (by omega : ¬ T.leafCount = low)]
+  simp
 
 
 lemma insert_leaf_other {T : Tree} {v : UInt256} {low i : ℕ}
     (hlow : i ≠ low) (hnew : i ≠ T.leafCount) :
     Properties.insert_leaf_other (T := T) (v := v) (low := low) (i := i) (hlow := hlow) (hnew := hnew) := by
   unfold Properties.insert_leaf_other
-  exact
-    by
-      simp only [insert]
-      rw [ite_eq_right hlow, ite_eq_right hnew]
+  simp only [insert]
+  rw [ite_eq_right hlow, ite_eq_right hnew]
 
 
 /-- The dedup gate, in index form: no occupied leaf already carries `v`. -/
@@ -373,11 +311,9 @@ lemma fresh_value {T : Tree} (hV : Valid T) {v : UInt256} {low : ℕ}
     (hg : InsertGuard T v low) :
     Properties.fresh_value (T := T) (hV := hV) (v := v) (low := low) (hg := hg) := by
   unfold Properties.fresh_value
-  exact
-    by
-      intro i hi hEq
-      refine dedup_gate_sound hV hg.nonzero hg.fresh (Finset.mem_image.mpr ?_)
-      exact ⟨⟨v, (T.leaf i).nextValue⟩, mem_toAbs.mpr ⟨i, hi, hEq, rfl⟩, rfl⟩
+  intro i hi hEq
+  refine dedup_gate_sound hV hg.nonzero hg.fresh (Finset.mem_image.mpr ?_)
+  exact ⟨⟨v, (T.leaf i).nextValue⟩, mem_toAbs.mpr ⟨i, hi, hEq, rfl⟩, rfl⟩
 
 
 /-! ## The insert is sound
@@ -399,12 +335,9 @@ theorem insert_sound_step {T : Tree} (hV : Valid T) {v : UInt256} {low : ℕ}
     (hg : InsertGuard T v low) :
     Properties.insert_sound_step (T := T) (hV := hV) (v := v) (low := low) (hg := hg) := by
   unfold Properties.insert_sound_step
-  exact
-    by
-      have hstep := guarded_insert_sound_step hV.absSound (lowAbs_mem hg.inBounds)
-        hg.lowBelow hg.window (dedup_gate_sound hV hg.nonzero hg.fresh)
-      rw [insert_projects hV hg]
-      exact hstep
+  have hstep := guarded_insert_sound_step hV.absSound (lowAbs_mem hg.inBounds)
+    hg.lowBelow hg.window (dedup_gate_sound hV hg.nonzero hg.fresh)
+  rwa [insert_projects hV hg]
 
 
 /-- **`insert` PRESERVES EVERY INVARIANT.**  The full inductive step: index
@@ -419,116 +352,109 @@ theorem insert_preserves_valid {T : Tree} (hV : Valid T) {v : UInt256} {low : �
     (hg : InsertGuard T v low) :
     Properties.insert_preserves_valid (T := T) (hV := hV) (v := v) (low := low) (hg := hg) := by
   unfold Properties.insert_preserves_valid
-  exact
-    by
-      have hlow := hg.inBounds
-      have hfresh := fresh_value hV hg
-      have hv0 := hg.nonzero
-      refine ⟨?sent, ?occ, ?inj, ?vtiA, ?vtiS, ?link, (insert_sound_step hV hg).1⟩
-      case sent =>
-        by_cases h0 : (0 : ℕ) = low
-        · rw [← h0] at hlow ⊢
-          rw [insert_leaf_low]
-          simpa using hV.sentinel
-        · rw [insert_leaf_other h0 (by omega)]
-          exact hV.sentinel
-      case occ => simp only [insert_leafCount]; omega
-      case inj =>
-        intro i hi j hj hEq
-        simp only [insert_leafCount] at hi hj
-        -- values at old indices are unchanged; the new index carries the fresh `v`
-        have hval : ∀ k, k < T.leafCount + 1 → ((insert T v low).leaf k).value
-            = if k = T.leafCount then v else (T.leaf k).value := by
-          intro k hk
-          by_cases hkn : k = T.leafCount
-          · subst hkn; rw [insert_leaf_new hlow]; simp
-          · rw [ite_eq_right hkn]
-            by_cases hkl : k = low
-            · subst hkl; rw [insert_leaf_low]
-            · rw [insert_leaf_other hkl hkn]
-        rw [hval i hi, hval j hj] at hEq
-        by_cases hin : i = T.leafCount <;> by_cases hjn : j = T.leafCount
-        · omega
-        · rw [ite_eq_left hin, ite_eq_right hjn] at hEq
-          exact absurd hEq.symm (hfresh j (by omega))
-        · rw [ite_eq_right hin, ite_eq_left hjn] at hEq
-          exact absurd hEq (hfresh i (by omega))
-        · rw [ite_eq_right hin, ite_eq_right hjn] at hEq
-          exact hV.idxInj i (by omega) j (by omega) hEq
-      case vtiA =>
-        intro i hipos hi
-        simp only [insert_leafCount] at hi
-        by_cases hin : i = T.leafCount
-        · subst hin; rw [insert_leaf_new hlow]; simp
-        · have hlt : i < T.leafCount := by omega
-          have hne : (T.leaf i).value ≠ v := hfresh i hlt
-          by_cases hil : i = low
-          · subst hil
-            rw [insert_leaf_low]
-            simpa [insert_vti_other hne] using hV.vtiAgree i hipos hlt
-          · rw [insert_leaf_other hil hin, insert_vti_other hne]
-            exact hV.vtiAgree i hipos hlt
-      case vtiS =>
-        intro w hw
-        by_cases hwv : w = v
-        · subst hwv
-          refine ⟨by rw [insert_vti_self, insert_leafCount]; omega, ?_⟩
-          rw [insert_vti_self, insert_leaf_new hlow]
-        · rw [insert_vti_other hwv] at hw ⊢
-          obtain ⟨hlt, hval⟩ := hV.vtiSound w hw
-          refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
-          by_cases hidl : T.valueToIndex w = low
-          · rw [hidl, insert_leaf_low]; rw [hidl] at hval; exact hval
-          · rw [insert_leaf_other hidl (by omega)]; exact hval
-      case link =>
-        intro i hi hnz
-        simp only [insert_leafCount] at hi
-        by_cases hil : i = low
-        -- the retargeted low leaf now points at the appended leaf
-        · subst hil
-          rw [insert_leaf_low] at hnz ⊢
-          refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
-          rw [insert_leaf_new hlow]
-        · by_cases hin : i = T.leafCount
-          -- the appended leaf inherits the low leaf's successor
-          · subst hin
-            rw [insert_leaf_new hlow] at hnz ⊢
-            obtain ⟨hb, hv⟩ := hV.linkAgree low hlow (by simpa using hnz)
-            -- a leaf is never its own successor: `WindowPos` puts its value strictly
-            -- below its `nextValue`, so `nextIndex = low` would force `x < x`
-            have hne : (T.leaf low).nextIndex ≠ low := by
-              intro hEq
-              rw [hEq] at hv
-              rcases hV.absSound.2.2.2 (lowAbs T low) (lowAbs_mem hlow) with h0 | hlt
-              · exact absurd (by simpa [lowAbs] using h0) (by simpa using hnz)
-              · simp only [lowAbs] at hlt
-                rw [hv] at hlt
-                exact absurd hlt (lt_irrefl _)
-            refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
-            rw [insert_leaf_other hne (by omega)]
-            exact hv
-          -- an untouched leaf: its successor may be the low leaf, whose value is unchanged
-          · rw [insert_leaf_other hil hin] at hnz ⊢
-            obtain ⟨hb, hv⟩ := hV.linkAgree i (by omega) hnz
-            refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
-            by_cases hnl : (T.leaf i).nextIndex = low
-            · rw [hnl, insert_leaf_low]; rw [hnl] at hv; exact hv
-            · rw [insert_leaf_other hnl (by omega)]; exact hv
+  have hlow := hg.inBounds
+  have hfresh := fresh_value hV hg
+  have hv0 := hg.nonzero
+  refine ⟨?sent, ?occ, ?inj, ?vtiA, ?vtiS, ?link, (insert_sound_step hV hg).1⟩
+  case sent =>
+    by_cases h0 : (0 : ℕ) = low
+    · subst h0
+      rw [insert_leaf_low]
+      exact hV.sentinel
+    · rw [insert_leaf_other h0 (by omega)]
+      exact hV.sentinel
+  case occ => simp only [insert_leafCount]; omega
+  case inj =>
+    intro i hi j hj hEq
+    simp only [insert_leafCount] at hi hj
+    -- values at old indices are unchanged; the new index carries the fresh `v`
+    have hval : ∀ k, k < T.leafCount + 1 → ((insert T v low).leaf k).value
+        = if k = T.leafCount then v else (T.leaf k).value := by
+      intro k hk
+      by_cases hkn : k = T.leafCount
+      · subst hkn; rw [insert_leaf_new hlow]; simp
+      · rw [ite_eq_right hkn]
+        by_cases hkl : k = low
+        · subst hkl; rw [insert_leaf_low]
+        · rw [insert_leaf_other hkl hkn]
+    rw [hval i hi, hval j hj] at hEq
+    by_cases hin : i = T.leafCount <;> by_cases hjn : j = T.leafCount
+    · omega
+    · rw [ite_eq_left hin, ite_eq_right hjn] at hEq
+      exact absurd hEq.symm (hfresh j (by omega))
+    · rw [ite_eq_right hin, ite_eq_left hjn] at hEq
+      exact absurd hEq (hfresh i (by omega))
+    · rw [ite_eq_right hin, ite_eq_right hjn] at hEq
+      exact hV.idxInj i (by omega) j (by omega) hEq
+  case vtiA =>
+    intro i hipos hi
+    simp only [insert_leafCount] at hi
+    by_cases hin : i = T.leafCount
+    · subst hin; rw [insert_leaf_new hlow]; simp
+    · have hlt : i < T.leafCount := by omega
+      have hne : (T.leaf i).value ≠ v := hfresh i hlt
+      by_cases hil : i = low
+      · subst hil
+        rw [insert_leaf_low]
+        simpa [insert_vti_other hne] using hV.vtiAgree i hipos hlt
+      · rw [insert_leaf_other hil hin, insert_vti_other hne]
+        exact hV.vtiAgree i hipos hlt
+  case vtiS =>
+    intro w hw
+    by_cases hwv : w = v
+    · subst hwv
+      refine ⟨by rw [insert_vti_self, insert_leafCount]; omega, ?_⟩
+      rw [insert_vti_self, insert_leaf_new hlow]
+    · rw [insert_vti_other hwv] at hw ⊢
+      obtain ⟨hlt, hval⟩ := hV.vtiSound w hw
+      refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
+      by_cases hidl : T.valueToIndex w = low
+      · rw [hidl, insert_leaf_low]; rwa [hidl] at hval
+      · rwa [insert_leaf_other hidl (by omega)]
+  case link =>
+    intro i hi hnz
+    simp only [insert_leafCount] at hi
+    by_cases hil : i = low
+    -- the retargeted low leaf now points at the appended leaf
+    · subst hil
+      rw [insert_leaf_low] at hnz ⊢
+      refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
+      rw [insert_leaf_new hlow]
+    · by_cases hin : i = T.leafCount
+      -- the appended leaf inherits the low leaf's successor
+      · subst hin
+        rw [insert_leaf_new hlow] at hnz ⊢
+        obtain ⟨hb, hv⟩ := hV.linkAgree low hlow (by simpa using hnz)
+        -- a leaf is never its own successor: `WindowPos` puts its value strictly
+        -- below its `nextValue`, so `nextIndex = low` would force `x < x`
+        have hne : (T.leaf low).nextIndex ≠ low := by
+          intro hEq
+          rw [hEq] at hv
+          have hlt := (hV.absSound.2.2.2 (lowAbs T low) (lowAbs_mem hlow)).resolve_left
+            (by simpa [lowAbs] using hnz)
+          exact ne_of_lt hlt hv
+        refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
+        rwa [insert_leaf_other hne (by omega)]
+      -- an untouched leaf: its successor may be the low leaf, whose value is unchanged
+      · rw [insert_leaf_other hil hin] at hnz ⊢
+        obtain ⟨hb, hv⟩ := hV.linkAgree i (by omega) hnz
+        refine ⟨by simp only [insert_leafCount]; omega, ?_⟩
+        by_cases hnl : (T.leaf i).nextIndex = low
+        · rw [hnl, insert_leaf_low]; rwa [hnl] at hv
+        · rwa [insert_leaf_other hnl (by omega)]
 
 
 /-- Every state of a run from a valid start is valid. -/
 theorem run_valid {R : ℕ → Tree} (hR : Run R) (h0 : Valid (R 0)) :
     Properties.run_valid (R := R) (hR := hR) (h0 := h0) := by
   unfold Properties.run_valid
-  exact
-    by
-      intro n
-      induction n with
-      | zero => exact h0
-      | succ n ih =>
-        rcases hR n with heq | ⟨v, low, hg, heq⟩
-        · rw [heq]; exact ih
-        · rw [heq]; exact insert_preserves_valid ih hg
+  intro n
+  induction n with
+  | zero => exact h0
+  | succ n ih =>
+    rcases hR n with heq | ⟨v, low, hg, heq⟩
+    · rw [heq]; exact ih
+    · rw [heq]; exact insert_preserves_valid ih hg
 
 
 /-- **A CONTRACT RUN IS A `GuardedEvolution`.**  Projecting a run index-wise
@@ -541,19 +467,17 @@ storage, and this is the bridge. -/
 theorem run_isGuardedEvolution {R : ℕ → Tree} (hR : Run R) (h0 : Valid (R 0)) :
     Properties.run_isGuardedEvolution (R := R) (hR := hR) (h0 := h0) := by
   unfold Properties.run_isGuardedEvolution
-  exact
-    by
-      intro n
-      rcases hR n with heq | ⟨v, low, hg, heq⟩
-      · left
-        show toAbs (R (n + 1)) = toAbs (R n)
-        rw [heq]
-      · right
-        refine ⟨lowAbs (R n) low, v, lowAbs_mem hg.inBounds, hg.lowBelow, hg.window, ?_, ?_⟩
-        · exact dedup_gate_sound (run_valid hR h0 n) hg.nonzero hg.fresh
-        · show toAbs (R (n + 1)) = imtInsert (toAbs (R n)) (lowAbs (R n) low) v
-          rw [heq]
-          exact insert_projects (run_valid hR h0 n) hg
+  intro n
+  rcases hR n with heq | ⟨v, low, hg, heq⟩
+  · left
+    show toAbs (R (n + 1)) = toAbs (R n)
+    rw [heq]
+  · right
+    refine ⟨lowAbs (R n) low, v, lowAbs_mem hg.inBounds, hg.lowBelow, hg.window, ?_, ?_⟩
+    · exact dedup_gate_sound (run_valid hR h0 n) hg.nonzero hg.fresh
+    · show toAbs (R (n + 1)) = imtInsert (toAbs (R n)) (lowAbs (R n) low) v
+      rw [heq]
+      exact insert_projects (run_valid hR h0 n) hg
 
 
 /-- **A RUN FROM `setup` INHERITS THE FULL SECURITY COROLLARY.**  Concretely: at
@@ -567,12 +491,10 @@ theorem genesis_run_reclaimable_iff_absent {R : ℕ → Tree}
     (hR : Run R) (h0 : R 0 = setup) (n : ℕ) (v : UInt256) (hv : v ≠ 0) :
     Properties.genesis_run_reclaimable_iff_absent (R := R) (hR := hR) (h0 := h0) (n := n) (v := v) (hv := hv) := by
   unfold Properties.genesis_run_reclaimable_iff_absent
-  exact
-    by
-      have hvalid0 : Valid (R 0) := by rw [h0]; exact setup_valid
-      have hgen : toAbs (R 0) = ({⟨0, 0⟩} : Finset AbsLeaf) := by rw [h0, toAbs_setup]
-      exact guardedEvolution_reclaimable_iff_absent
-        (run_isGuardedEvolution hR hvalid0) hgen hv
+  have hvalid0 : Valid (R 0) := h0 ▸ setup_valid
+  have hgen : toAbs (R 0) = ({⟨0, 0⟩} : Finset AbsLeaf) := by rw [h0, toAbs_setup]
+  exact guardedEvolution_reclaimable_iff_absent
+    (run_isGuardedEvolution hR hvalid0) hgen hv
 
 
 end Contracts.InteropCommitmentTree

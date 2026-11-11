@@ -22,7 +22,7 @@ private def above (T : Tree) (v : UInt256) (i : ℕ) : Finset ℕ :=
 private lemma mem_above {T : Tree} {v : UInt256} {i k : ℕ} :
     k ∈ above T v i ↔
       k < T.leafCount ∧ (T.leaf i).value < (T.leaf k).value ∧ (T.leaf k).value < v := by
-  simp [above, Finset.mem_filter, Finset.mem_range, and_assoc]
+  simp [above, Finset.mem_filter, Finset.mem_range]
 
 private lemma above_card_le (T : Tree) (v : UInt256) (i : ℕ) :
     (above T v i).card ≤ T.leafCount := by
@@ -37,11 +37,9 @@ private lemma next_mem_above {T : Tree} (hV : Valid T) {v : UInt256} {i : ℕ}
     (hi : i < T.leafCount) (hnz : (T.leaf i).nextValue ≠ 0)
     (hlt : (T.leaf i).nextValue < v) : (T.leaf i).nextIndex ∈ above T v i := by
   obtain ⟨hb, hval⟩ := hV.linkAgree i hi hnz
-  have hpos : (T.leaf i).value < (T.leaf i).nextValue := by
-    rcases hV.absSound.2.2.2 (lowAbs T i) (lowAbs_mem hi) with h0 | hgt
-    · exact absurd (h0 : (T.leaf i).nextValue = 0) hnz
-    · exact hgt
-  exact mem_above.mpr ⟨hb, by rw [hval]; exact hpos, by rw [hval]; exact hlt⟩
+  have hpos : (T.leaf i).value < (T.leaf i).nextValue :=
+    (hV.absSound.2.2.2 (lowAbs T i) (lowAbs_mem hi)).resolve_left hnz
+  exact mem_above.mpr ⟨hb, by rwa [hval], by rwa [hval]⟩
 
 /-- …and the measure strictly decreases, because the target is above the current
 leaf but not above itself. -/
@@ -67,21 +65,17 @@ theorem lowSearch_of_fuel_ge {T : Tree} (hV : Valid T) {v : UInt256} :
   | zero =>
     intro i hi hcard
     unfold lowSearch
-    by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-    · exfalso
-      have hpos : 0 < (above T v i).card :=
-        Finset.card_pos.mpr ⟨_, next_mem_above hV hi hc.1 hc.2⟩
+    split_ifs with hc
+    · have := Finset.card_pos.mpr ⟨_, next_mem_above hV hi hc.1 hc.2⟩
       omega
-    · rw [if_neg hc]; exact ⟨i, rfl⟩
+    · exact ⟨i, rfl⟩
   | succ fuel ih =>
     intro i hi hcard
     unfold lowSearch
-    by_cases hc : (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v
-    · rw [if_pos hc]
-      obtain ⟨hb, _⟩ := hV.linkAgree i hi hc.1
-      have hdec := above_card_lt hV hi hc.1 hc.2
-      exact ih _ hb (by omega)
-    · rw [if_neg hc]; exact ⟨i, rfl⟩
+    split_ifs with hc
+    · have := above_card_lt hV hi hc.1 hc.2
+      exact ih _ (hV.linkAgree i hi hc.1).1 (by omega)
+    · exact ⟨i, rfl⟩
 
 /-- **THE SEARCH TERMINATES.**  `leafCount` hops always suffice. -/
 theorem lowSearch_terminates {T : Tree} (hV : Valid T) (v : UInt256) (i : ℕ)
@@ -100,11 +94,8 @@ theorem lowSearch_can_revert {a v : UInt256} (ha : 0 < a) (hav : a < v) :
       ∧ ((insert setup a 0).leaf 0).nextValue < v := by
     rw [h0]; exact ⟨ne_of_gt ha, hav⟩
   refine ⟨?_, ?_⟩
-  · unfold lowSearch; rw [if_pos hcond]
-  · unfold lowSearch
-    rw [if_pos hcond, h0i]
-    unfold lowSearch
-    rw [if_neg (by simp [h1])]
+  · rw [lowSearch, ite_eq_left hcond]
+  · rw [lowSearch, ite_eq_left hcond, h0i, lowSearch, ite_eq_right (by simp [h1])]
 
 /-- The contract's `insert` flow establishes the guard at the index the search
 returns. -/
@@ -117,9 +108,7 @@ theorem search_yields_guard {T : Tree} (hV : Valid T) {v : UInt256} {fuel i j : 
 
 /-- The genesis insert: any nonzero value goes in through the sentinel. -/
 theorem setup_insertGuard {a : UInt256} (ha : 0 < a) : InsertGuard setup a 0 := by
-  refine ⟨?_, (ne_of_lt ha).symm, rfl, ?_, ha, Or.inl rfl⟩
-  · show (1 : ℕ) ≠ 0; omega
-  · show (0 : ℕ) < 1; omega
+  exact ⟨one_ne_zero, (ne_of_lt ha).symm, rfl, Nat.one_pos, ha, Or.inl rfl⟩
 
 theorem SearchYieldsGuard : Properties.SearchYieldsGuard := @search_yields_guard
 theorem LowSearchTerminates : Properties.LowSearchTerminates := @lowSearch_terminates

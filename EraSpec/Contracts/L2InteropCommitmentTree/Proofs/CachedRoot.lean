@@ -44,7 +44,7 @@ theorem cInsert_caches (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : CState) (v
       ∧ r = root h z0 hl S'.tree S'.fm.height := by
   obtain ⟨F₁, hu, hR₁, hH₁, hN₁⟩ := FullMerkle.updateLeaf_computes_root h z0 _ S.fm low
     (hl { S.tree.leaf low with nextIndex := S.tree.leafCount, nextValue := v }) hR
-    (by rw [leafHashes_length]; exact hlow)
+    (by rwa [leafHashes_length])
   obtain ⟨F₂, hp, hR₂, hd₂⟩ := FullMerkle.pushNewLeaf_computes_root h z0 _ F₁
     (hl ⟨v, (S.tree.leaf low).nextIndex, (S.tree.leaf low).nextValue⟩) hR₁
   refine ⟨⟨insert S.tree v low, F₂⟩, rootOf h z0
@@ -153,7 +153,7 @@ theorem hReaches_lifts (h : Hash) (hl : LeafHash) (S : HState) (hS : HReaches hS
     obtain ⟨C, hC, hCU⟩ := ih
     have hg' : InsertGuard C.tree v low := by
       have : C.tree = U.tree := congrArg HState.tree hCU
-      rw [this]; exact hg
+      rwa [this]
     obtain ⟨C', r, hins, _, htoH, _, _⟩ :=
       cInsert_caches h (zeroLeafHash hl) hl C v low (cReaches_caches hC).2 hg'.inBounds
     exact ⟨C', CReaches.insert hC hg' hins, by rw [htoH, hCU]⟩
@@ -186,7 +186,7 @@ private lemma liftRun_step {h : Hash} {hl : LeafHash} {R : ℕ → HState} (hR :
       InsertGuard (R n).tree v low ∧ R (n + 1) = hInsert (R n) v low
   · obtain ⟨hg, hnext⟩ := hex.choose_spec.choose_spec
     have hg' : InsertGuard (liftRun h hl R C₀ n).tree hex.choose hex.choose_spec.choose := by
-      rw [htree]; exact hg
+      rwa [htree]
     obtain ⟨C', r, hins, _, htoH, _, _⟩ := cInsert_caches h (zeroLeafHash hl) hl _ _ _
       (cReaches_caches hC).2 hg'.inBounds
     have hlift : liftRun h hl R C₀ (n + 1) = C' := by
@@ -212,7 +212,7 @@ theorem hRun_lifts_to_cRun (h : Hash) (hl : LeafHash) (R : ℕ → HState) (hR :
   have inv : ∀ n, CReaches h hl (liftRun h hl R C₀ n) ∧ (liftRun h hl R C₀ n).toH = R n := by
     intro n
     induction n with
-    | zero => exact ⟨CReaches.init hC₀, by rw [h0]; exact hH₀⟩
+    | zero => exact ⟨CReaches.init hC₀, by rwa [h0]⟩
     | succ n ih =>
       obtain ⟨hC, hview, _⟩ := liftRun_step hR C₀ n ih.1 ih.2
       exact ⟨hC, hview⟩
@@ -227,7 +227,7 @@ private lemma contract_path {h : Hash} {z0 : UInt256} {hl : LeafHash} {S : CStat
     (hi : i < S.tree.leafCount) :
     S.merklePath i
       = some ((List.range S.fm.height).map (honestSibs h z0 (leafHashes hl S.tree) i)) :=
-  FullMerkle.merklePath_is_honest h z0 _ S.fm i hR (by rw [leafHashes_length]; exact hi)
+  FullMerkle.merklePath_is_honest h z0 _ S.fm i hR (by rwa [leafHashes_length])
 
 /-- An accepted path at height `H` over the honest stream is accepted over the contract's
 returned path, which has length `H`. -/
@@ -336,15 +336,15 @@ theorem cThreeLeaf_witness (h : Hash) (hl : LeafHash) (a b : UInt256) (ha : 0 < 
     refine ⟨_, contract_path hR₂ hi, ?_⟩
     have hI' : InclusionAccepted h hl r₂ a (S₂.tree.leaf 1) 1
         (honestSibs h (zeroLeafHash hl) (leafHashes hl S₂.tree) 1) S₂.fm.height := by
-      rw [hr₂', htree₂, hheight₂]; exact hI
+      rwa [hr₂', htree₂, hheight₂]
     exact ⟨hI'.valueMatch, pathAccepts_contract hI'.path⟩
   · show FullMerkle.merklePath S₂.fm 3 = none
     refine FullMerkle.merklePath_out_of_range_reverts S₂.fm 3 ?_
     rw [hR₂.leafNumber_eq, leafHashes_length, htree₂]
     show 3 ≤ 3
     omega
-  · rw [hr₂', htree₂]; exact hN
-  · rw [htree₂]; exact hX
+  · rwa [hr₂', htree₂]
+  · rwa [htree₂]
 
 end Contracts.InteropCommitmentTree
 

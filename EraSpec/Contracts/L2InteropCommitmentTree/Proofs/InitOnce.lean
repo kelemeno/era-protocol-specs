@@ -43,8 +43,7 @@ lemma setupWrites_predeploy : setupWrites predeploy = setup := by
 lemma predeploy_not_initialized : ¬ Initialized predeploy := fun h => h rfl
 
 lemma setup_initialized : Initialized setup := by
-  show (1 : ℕ) ≠ 0
-  omega
+  exact one_ne_zero
 
 /-- `insert` leaves the value at every previously occupied index alone, whatever `low`. -/
 lemma insert_value_old {T : Tree} {v : UInt256} {low i : ℕ} (hi : i < T.leafCount) :
@@ -82,9 +81,7 @@ lemma insertChecks_of_guard {T : Tree} {v : UInt256} {low : ℕ} (hg : InsertGua
   refine ⟨hg.initialized, hg.nonzero, hg.fresh, hg.inBounds, hg.lowBelow, ?_⟩
   apply lowSearch_exit
   rintro ⟨hne, hlt⟩
-  rcases hg.window with h0 | hle
-  · exact hne h0
-  · exact absurd hle (not_le.mpr hlt)
+  exact hg.window.elim hne (not_le.mpr hlt)
 
 /-- `insert(a, 0)` passes the contract's checks on `setup`. -/
 lemma setup_insertChecks {a : UInt256} (ha : a ≠ 0) : InsertChecks setup a 0 0 :=
@@ -371,14 +368,10 @@ theorem predeploy_run_states (K : Roles) (R : ℕ → Tree) (tx : Trace)
     · right
       obtain ⟨j, rfl⟩ : ∃ j, n = k + 1 + j := ⟨n - (k + 1), by omega⟩
       have hreach : Reaches setup (R (k + 1 + j)) := by
-        have := run_reaches hrun j
-        simp only [Nat.add_zero] at this
-        rw [hR1] at this
-        exact this
+        simpa only [Nat.add_zero, hR1] using run_reaches hrun j
       refine ⟨hreach, reaches_valid hreach setup_valid, ?_⟩
       have := reaches_lifts hreach
-      rw [hSetup_eq_lift] at this
-      exact this
+      rwa [hSetup_eq_lift] at this
 
 theorem predeploy_run_reclaimable_iff_absent (K : Roles) (R : ℕ → Tree)
     (tx : Trace) (hR : TxRun K R tx) (h0 : R 0 = predeploy) (n : ℕ)
@@ -435,11 +428,11 @@ theorem genesisRun_witness :
   have hv1 : Valid (genesisRun a b 1) := setup_valid
   have hc3 : (genesisRun a b 3).leafCount = 3 := rfl
   refine ⟨hrun, rfl, rfl, rfl, rfl, predeploy_not_initialized, rfl, setup_initialized, rfl,
-    ?_, mem_keys_iff_index.mpr ⟨1, by rw [hc3]; omega, rfl⟩,
-    mem_keys_iff_index.mpr ⟨2, by rw [hc3]; omega, rfl⟩, htail, hv1,
+    ?_, mem_keys_iff_index.mpr ⟨1, by omega, rfl⟩,
+    mem_keys_iff_index.mpr ⟨2, by omega, rfl⟩, htail, hv1,
     txRun_from_valid_is_run K _ _ htail hv1, ?_⟩
   · show (genesisRun a b 3).leafCount ≠ 0
-    rw [hc3]; omega
+    omega
   · rintro ⟨U, hU⟩
     exact initL2_reverts_once_initialized K _ _ _ setup_initialized hU
 
@@ -449,7 +442,7 @@ lemma txStepNoGuard_value_zero {K : Roles} {T U : Tree} {c : Caller} {call : Cal
     (h : TxStepNoGuard K T c call U) (h0 : (T.leaf 0).value = 0) : (U.leaf 0).value = 0 := by
   cases h with
   | initL2 _ => rfl
-  | insert _ hch => rw [insert_value_zero hch.initialized]; exact h0
+  | insert _ hch => rwa [insert_value_zero hch.initialized]
 
 lemma txStepNoGuard_appendOnly {K : Roles} {T U : Tree} {c : Caller} {call : Call}
     (h : TxStepNoGuard K T c call U) (h0 : (T.leaf 0).value = 0) :
@@ -551,25 +544,25 @@ theorem guardless_reinit_breaks_exclusivity (K : Roles) (a : UInt256) (ha : a �
   have hc3 : (reinitRun a 3).leafCount = 3 := rfl
   -- the delivered value is still a key
   have hkey : a ∈ keys (toAbs (reinitRun a 3)) :=
-    mem_keys_iff_index.mpr ⟨1, by rw [hc3]; omega, rfl⟩
+    mem_keys_iff_index.mpr ⟨1, by omega, rfl⟩
   -- the reset sentinel straddles it
   have hW : ∃ W ∈ toAbs (reinitRun a 3), W.key < a ∧ (W.nextKey = 0 ∨ a < W.nextKey) :=
-    ⟨⟨0, 0⟩, mem_toAbs.mpr ⟨0, by rw [hc3]; omega, rfl, rfl⟩, hpos, Or.inl rfl⟩
+    ⟨⟨0, 0⟩, mem_toAbs.mpr ⟨0, by omega, rfl, rfl⟩, hpos, Or.inl rfl⟩
   -- the sentinel of the previous state has a successor
   have hL : (⟨0, a⟩ : AbsLeaf) ∈ toAbs (reinitRun a 2) :=
-    mem_toAbs.mpr ⟨0, by rw [hc2]; omega, rfl, rfl⟩
+    mem_toAbs.mpr ⟨0, by omega, rfl, rfl⟩
   obtain ⟨hne, hnins⟩ := not_step_into_terminal (reinitRun_three_nextKey (a := a)) hL ha
   refine ⟨hrun, rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_, ?_, rfl, rfl, rfl, rfl, ?_, hkey, hW,
     fun hiff => hiff.mp hW hkey, ?_, ?_, ?_⟩
   · rintro ⟨U, hU⟩
     exact initL2_reverts_once_initialized K _ _ _
-      (by show (reinitRun a 2).leafCount ≠ 0; rw [hc2]; omega) hU
+      (by show (reinitRun a 2).leafCount ≠ 0; omega) hU
   · show (reinitRun a 3).leafCount ≠ 0
-    rw [hc3]; omega
+    omega
   · show (insert setup a 0).valueToIndex a = 1
     simp [insert, setup]
   · intro hV
-    have := hV.idxInj 0 (by rw [hc3]; omega) 2 (by rw [hc3]; omega) rfl
+    have := hV.idxInj 0 (by omega) 2 (by omega) rfl
     omega
   · intro hevo
     rcases hevo 1 with h | ⟨W₀, v, _, hlt, _, h⟩
@@ -594,15 +587,11 @@ lemma levelWrites_insert {hl : LeafHash} {T : Tree} {H : LeafLevel} {v : UInt256
 lemma levelRun_some {hl : LeafHash} {R : ℕ → Tree} {tx : Trace} {L : ℕ → LeafLevel}
     (hL : LevelRun hl R tx L) {n : ℕ} {c : Caller} {call : Call} (h : tx n = some (c, call)) :
     L (n + 1) = levelWrites hl (R n) (L n) call := by
-  have := hL n
-  rw [h] at this
-  exact this
+  simpa only [h] using hL n
 
 lemma levelRun_none {hl : LeafHash} {R : ℕ → Tree} {tx : Trace} {L : ℕ → LeafLevel}
     (hL : LevelRun hl R tx L) {n : ℕ} (h : tx n = none) : L (n + 1) = L n := by
-  have := hL n
-  rw [h] at this
-  exact this
+  simpa only [h] using hL n
 
 /-- `initL2()` on an empty tree leaves the stored and list copies agreeing. -/
 lemma agrees_setupWrites {hl : LeafHash} {T : Tree} {H : LeafLevel} (h0 : T.leafCount = 0) :
@@ -727,7 +716,7 @@ theorem stored_root_witness (K : Roles) (h : Hash) (hl : LeafHash) (a b : UInt25
   have hmodel : storedLeaves (genesisLevel hl a b 3) 3 = leafHashes hl (genesisRun a b 3) := rfl
   have hc3 : (genesisRun a b 3).leafCount = 3 := rfl
   have hnb := honest_proof_no_break h (hl ⟨0, 0, 0⟩) hl (genesisRun a b 3) 2 1
-    (by rw [hc3]; omega)
+    (by omega)
   rw [← hmodel] at hnb
   refine ⟨hlev, hst, rfl, ⟨rfl, stored_path_accepts _ (by norm_num) (by rw [hst]; rfl)⟩,
     ⟨(ne_of_lt ha).symm, ha, Or.inl rfl,
