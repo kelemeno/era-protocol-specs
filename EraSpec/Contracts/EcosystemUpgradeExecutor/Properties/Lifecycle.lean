@@ -10,13 +10,13 @@ commit `afa407085`; the coordinator is deleted at `e561b9cc2`). Proofs are in
 ## The lifecycle
 
 * Each stage needs its transcribed guard (`StageGuards`: necessary conditions only, without
-  the CTM-reservation conjunct), and the slot moves only forward: free → `Prepared` →
-  `Executed` → free, or from occupied to free by abandonment; never back from `Executed` to
-  `Prepared` (`StagesMoveForward`). From an idle start the operation slot is empty exactly
-  when the stage is `None` (`SlotEmptyIffStageNone`).
+  the `active ≠ 0` conjunct of `stage1`, `stage2` and abandonment), and the slot moves only
+  forward: free → `Prepared` → `Executed` → free, or from occupied to free by abandonment;
+  never back from `Executed` to `Prepared` (`StagesMoveForward`). From an idle start the
+  operation slot is empty exactly when the stage is `None` (`SlotEmptyIffStageNone`).
 * `StageGuards` and `StagesMoveForward` are safety statements. Both would still hold if
   abandonment always reverted, and no witness below takes an `abandon` step. That the guards,
-  with the reservation conjunct, are also sufficient, and that abandonment succeeds whenever
+  with those `active` conjuncts, are also sufficient, and that abandonment succeeds whenever
   an operation is pending, are separate results in
   `EraSpec.Contracts.EcosystemUpgradeExecutor.Properties.LifecycleStrong`
   (`LifecycleStageGuardsExact`, `LifecycleAbandonEnabledWhilePending`).

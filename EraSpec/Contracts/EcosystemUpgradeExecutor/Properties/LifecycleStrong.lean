@@ -131,7 +131,8 @@ def Properties.LifecyclePreparedGovernanceOpStaysRefused : Prop :=
 /-- **THE OWNER CAN ALWAYS RETURN THE COORDINATOR TO IDLE, IN THE MODEL.** From every state
 reachable from an idle state, `forward` paths included, at most two transactions reach an
 idle state. They are abandonment and `forward` paths only, and they leave the clock and every
-timer's `deadline` unchanged. If an operation is pending and the CTM domain is reserved,
+timer's `deadline` unchanged. The statement asserts only that such a sequence exists; the
+proof builds it by cases. If an operation is pending and the CTM domain is reserved,
 abandonment suffices. If an operation is pending but the reservation was released through
 `forward`, a forwarded `beginOperation` comes first. If nothing is pending but a forwarded
 reservation is held, a forwarded release suffices; if neither, the state is already idle.
