@@ -66,3 +66,15 @@ outstanding, so the model tracks `ctmPending` separately.
   accept.
 - The CTM implementation swap applied by the bootstrap rows is assumed to keep the
   `Ownable2Step` storage.
+
+## The CTM executor's `forward`
+
+Not modelled as its own step here. What a genuine executor's `forward` can do to the
+authorities this model tracks is a sequence of steps the model already admits for any owner
+other than the migration: nominate on the CTM, transfer the `ProxyAdmin`, accept a
+nomination, move the CTM's version. The results that hold "along any run" therefore cover
+those forwarded calls (this is an argument about the label set, not a separate theorem).
+One forwarded call is outside the label set: `CTM_PROXY_ADMIN.upgradeAndCall` on the CTM
+proxy, which can rewrite the CTM's owner slot directly; `ParkedCTMLeavesOnlyByNomineeAccept`
+states that omission. Its effect on the CTM's version state is in
+`../ChainTypeManager/` (`ExecutorForward`, `ForwardCtmSwapBreaksInvariants`).
