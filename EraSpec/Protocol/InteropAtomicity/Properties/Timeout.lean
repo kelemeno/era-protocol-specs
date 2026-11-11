@@ -47,7 +47,7 @@ below it, with a countermodel showing the property is load-bearing.
 namespace Contracts.Timeout
 
 open Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
-open MerkleSpec MerkleSpec.LastLeaf IMTAbstract
+open MerkleSpec MerkleSpec.LastLeaf MerkleSpec.Verifier IMTAbstract
 
 /-! ## The derivation -/
 
@@ -149,6 +149,132 @@ def Properties.NoBreakUnderIdealizations : Prop :=
   ∀ (h : Hash) (ze : UInt256) (L : List UInt256),
     (∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) →
     EntriesNotEmpty ze L → ¬ HashBreak h ze L
+
+/-! ## The last-batch chain, pinned
+
+`LastBatchProofIdentifiesLastBatch`, `EndBranchAcceptedImpliesVerified`,
+`AcceptedImpliesRefundable` and `NoBreakUnderIdealizations` above all take global
+pair-injectivity, which no `UInt256` hash meets, and their `HashBreak` escape is
+always inhabited.  The versions below take no hash premise and replace the escape by
+a collision located on the submitted proof: a `PinnedBreak` on the chain tree's
+subtree right after batch `N`, or a `PathCollision` at a named level of the
+batch-leaf path `(sibs, x)`.  The `…On` versions collapse the escape under a
+bounded premise: injectivity only on the finite set of pairs this chain tree and
+this verification hash. -/
+
+/-- Naming the gate's witnesses loses nothing. -/
+def Properties.LegRefundableAcceptedIffBy : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
+    (R : SlRoot) (B : RootBacking h ze R) (F : Flow) (leg : FlowLeg),
+    LegRefundableAccepted h z0 hl cv S B F leg
+      ↔ ∃ (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+          LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
+
+/-- **AN ACCEPTED LAST-BATCH PROOF IDENTIFIES THE LAST BATCH, OR PINS A COLLISION.**
+No hash premise. -/
+def Properties.LastBatchProofIdentifiesLastBatchPinned : Prop :=
+  ∀ (h : Hash) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (c : Chain) (N : ℕ)
+    (sibs : ℕ → UInt256) (x : UInt256), LastBatchAccepted B c N sibs x →
+      N = R.upTo c ∨ PinnedBreak h ze (B.leaves c) N
+        ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x
+
+/-- **THE PINNED DISJUNCTS ARE NOT A TAUTOLOGY.**  An authenticated in-range batch
+path (honest, under the colliding `demoHash`) for a batch that is NOT the last, with
+neither a `PinnedBreak` nor a `PathCollision`: only `zeroRightSiblings` fails. -/
+def Properties.LastBatchPinnedConclusionNotAlways : Prop :=
+  ∃ (h : Hash) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (c : Chain) (N : ℕ)
+    (sibs : ℕ → UInt256) (x : UInt256),
+      N < (B.leaves c).length
+      ∧ walkPure h sibs 0 (B.height c) N x = rootOf h ze (B.leaves c) (B.height c)
+      ∧ ¬ (N = R.upTo c ∨ PinnedBreak h ze (B.leaves c) N
+            ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x)
+
+/-- **UNDER A BOUNDED PREMISE, THE ACCEPTED PROOF IS THE LAST BATCH.**  Injectivity
+only on this chain tree's pairs, its zero cascade, and the pairs this verification
+hashed; domain separation only for this chain tree's leaves. -/
+def Properties.LastBatchProofIdentifiesLastBatchOn : Prop :=
+  ∀ (h : Hash) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (c : Chain) (N : ℕ)
+    (sibs : ℕ → UInt256) (x : UInt256),
+      EntriesNotEmpty ze (B.leaves c) →
+      PairInjOn h (fun p => TreePair h ze (B.leaves c) (B.height c) p
+        ∨ VerifiedPair h sibs (B.height c) N x p) →
+      LastBatchAccepted B c N sibs x → N = R.upTo c
+
+/-- The END branch as run implies the END branch as assumed, or pins a collision. -/
+def Properties.EndBranchAcceptedImpliesVerifiedPinned : Prop :=
+  ∀ (h : Hash) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (S : System) (c : Chain)
+    (D N : ℕ) (sibs : ℕ → UInt256) (x : UInt256), EndBranchAccepted B S c D N sibs x →
+      EndBranchVerified S R c D N ∨ PinnedBreak h ze (B.leaves c) N
+        ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x
+
+/-- The same, collapsed under the bounded premise. -/
+def Properties.EndBranchAcceptedImpliesVerifiedOn : Prop :=
+  ∀ (h : Hash) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (S : System) (c : Chain)
+    (D N : ℕ) (sibs : ℕ → UInt256) (x : UInt256),
+      EntriesNotEmpty ze (B.leaves c) →
+      PairInjOn h (fun p => TreePair h ze (B.leaves c) (B.height c) p
+        ∨ VerifiedPair h sibs (B.height c) N x p) →
+      EndBranchAccepted B S c D N sibs x → EndBranchVerified S R c D N
+
+/-- **ITS PREMISES ARE SATISFIABLE, WITH THE ZERO CHECK EXERCISED.**  `demoBacking`,
+batch 1 on time for deadline 0, the honest batch-leaf path, and the bounded
+premises under the colliding `demoHash`. -/
+def Properties.EndBranchAcceptedOnSatisfiable : Prop :=
+  ∃ (h : Hash) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (S : System) (c : Chain)
+    (D N : ℕ) (sibs : ℕ → UInt256) (x : UInt256),
+      EndBranchAccepted B S c D N sibs x
+      ∧ EntriesNotEmpty ze (B.leaves c)
+      ∧ PairInjOn h (fun p => TreePair h ze (B.leaves c) (B.height c) p
+          ∨ VerifiedPair h sibs (B.height c) N x p)
+      ∧ (∃ l < B.height c, (N / 2 ^ l) % 2 = 0)
+      ∧ (∃ a b c d : UInt256, (a, b) ≠ (c, d) ∧ h a b = h c d)
+
+/-- **THE GATE AS RUN IMPLIES THE LOOSER PREDICATE, OR PINS A COLLISION ON THE
+SUBMITTED PROOF.**  `AcceptedImpliesRefundable` without its global-injectivity
+premise; the escape names the submitted batch `N` and batch-leaf path `(sibs, x)`. -/
+def Properties.AcceptedImpliesRefundablePinned : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
+    (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+      LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x →
+        LegRefundable h z0 hl cv S F leg ∨ PinnedBreak h ze (B.leaves leg.chain) N
+          ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+
+/-- The same, collapsed under the bounded premise on the submitted proof. -/
+def Properties.AcceptedImpliesRefundableOn : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
+    (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+      EntriesNotEmpty ze (B.leaves leg.chain) →
+      PairInjOn h (fun q => TreePair h ze (B.leaves leg.chain) (B.height leg.chain) q
+        ∨ VerifiedPair h sibs (B.height leg.chain) N x q) →
+      LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x →
+        LegRefundable h z0 hl cv S F leg
+
+/-- **ITS PREMISES ARE SATISFIABLE, ON THE END BRANCH.**  `demoSystem` with
+`demoRoot`/`demoBacking` (`Aggregates` holds), a leg with commit value 1 and
+deadline 0, an IMT absence proof against `setup`, and the honest batch-leaf path for
+batch 1, with the bounded premises under the colliding `demoHash`. -/
+def Properties.AcceptedImpliesRefundableOnSatisfiable : Prop :=
+  ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
+    (R : SlRoot) (B : RootBacking h ze R) (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof)
+    (sibs : ℕ → UInt256) (x : UInt256),
+      Aggregates S R
+      ∧ EntriesNotEmpty ze (B.leaves leg.chain)
+      ∧ PairInjOn h (fun q => TreePair h ze (B.leaves leg.chain) (B.height leg.chain) q
+          ∨ VerifiedPair h sibs (B.height leg.chain) N x q)
+      ∧ EndBranchAccepted B S leg.chain F.deadline N sibs x
+      ∧ LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
+
+/-- **`NoBreakUnderIdealizations`, BOUNDED.**  On a chain tree, injectivity on its own
+pairs and zero cascade, and domain separation for its own leaves, exclude a
+`PinnedBreak` after any batch.  Premises satisfiable: `EndBranchAcceptedOnSatisfiable`
+supplies them (its pair set contains `TreePair`). -/
+def Properties.NoPinnedBreakUnderBoundedInjectivity : Prop :=
+  ∀ (h : Hash) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R) (c : Chain) (N : ℕ),
+    EntriesNotEmpty ze (B.leaves c) →
+    PairInjOn h (TreePair h ze (B.leaves c) (B.height c)) →
+    ¬ PinnedBreak h ze (B.leaves c) N
 
 /-! ## What is load-bearing -/
 

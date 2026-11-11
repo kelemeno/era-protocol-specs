@@ -137,6 +137,137 @@ theorem accepted_timeout_means_missed_deadline {h : Hash} {z0 : UInt256} {hl : L
   · exact Or.inl (fun n hon => timeout_means_missed_deadline hA hS hagg hv n hon)
   · exact Or.inr hbreak
 
+/-! ## The last-batch chain, pinned -/
+
+theorem legRefundableAccepted_iff_by {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
+    {F : Flow} {leg : FlowLeg} :
+    LegRefundableAccepted h z0 hl cv S B F leg
+      ↔ ∃ (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+          LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x := by
+  constructor
+  · rintro ⟨N, p, ⟨hb, habs⟩ | ⟨sibs, x, he, habs⟩⟩
+    · exact ⟨N, p, fun _ => 0, 0, Or.inl ⟨hb, habs⟩⟩
+    · exact ⟨N, p, sibs, x, Or.inr ⟨he, habs⟩⟩
+  · rintro ⟨N, p, sibs, x, ⟨hb, habs⟩ | ⟨he, habs⟩⟩
+    · exact ⟨N, p, Or.inl ⟨hb, habs⟩⟩
+    · exact ⟨N, p, Or.inr ⟨sibs, x, he, habs⟩⟩
+
+theorem lastBatch_identifies_last_pinned {h : Hash} {ze : UInt256}
+    {R : SlRoot} {B : RootBacking h ze R} {c : Chain} {N : ℕ} {sibs : ℕ → UInt256}
+    {x : UInt256} (ha : LastBatchAccepted B c N sibs x) :
+    N = R.upTo c ∨ PinnedBreak h ze (B.leaves c) N
+      ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x := by
+  rcases accepted_last_leaf_or_pinned_break h ze (B.leaves c) sibs (B.height c) N x
+    (B.capacity c) ha.inRange ha.authenticated ha.zeroRightSiblings with hlast | hrest
+  · refine Or.inl ?_
+    have hlen := B.upToLast c
+    omega
+  · exact Or.inr hrest
+
+theorem lastBatch_identifies_last_on {h : Hash} {ze : UInt256}
+    {R : SlRoot} {B : RootBacking h ze R} {c : Chain} {N : ℕ} {sibs : ℕ → UInt256}
+    {x : UInt256} (hsep : EntriesNotEmpty ze (B.leaves c))
+    (hinj : PairInjOn h (fun p => TreePair h ze (B.leaves c) (B.height c) p
+      ∨ VerifiedPair h sibs (B.height c) N x p))
+    (ha : LastBatchAccepted B c N sibs x) : N = R.upTo c := by
+  have hlast := accepted_last_leaf_on h ze (B.leaves c) sibs (B.height c) N x
+    (B.capacity c) ha.inRange hsep hinj ha.authenticated ha.zeroRightSiblings
+  have hlen := B.upToLast c
+  omega
+
+theorem endBranch_of_accepted_pinned {h : Hash} {ze : UInt256}
+    {R : SlRoot} {B : RootBacking h ze R} {S : System} {c : Chain} {D N : ℕ}
+    {sibs : ℕ → UInt256} {x : UInt256} (ha : EndBranchAccepted B S c D N sibs x) :
+    EndBranchVerified S R c D N ∨ PinnedBreak h ze (B.leaves c) N
+      ∨ PathCollision h ze (B.leaves c) sibs 0 (B.height c) N x := by
+  rcases lastBatch_identifies_last_pinned ha.lastBatch with hlast | hrest
+  · exact Or.inl ⟨ha.rootAfterDeadline, ha.onTime, hlast⟩
+  · exact Or.inr hrest
+
+theorem endBranch_of_accepted_on {h : Hash} {ze : UInt256}
+    {R : SlRoot} {B : RootBacking h ze R} {S : System} {c : Chain} {D N : ℕ}
+    {sibs : ℕ → UInt256} {x : UInt256} (hsep : EntriesNotEmpty ze (B.leaves c))
+    (hinj : PairInjOn h (fun p => TreePair h ze (B.leaves c) (B.height c) p
+      ∨ VerifiedPair h sibs (B.height c) N x p))
+    (ha : EndBranchAccepted B S c D N sibs x) : EndBranchVerified S R c D N :=
+  ⟨ha.rootAfterDeadline, ha.onTime, lastBatch_identifies_last_on hsep hinj ha.lastBatch⟩
+
+theorem accepted_implies_refundable_pinned {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
+    (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
+    {sibs : ℕ → UInt256} {x : UInt256}
+    (ha : LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x) :
+    LegRefundable h z0 hl cv S F leg ∨ PinnedBreak h ze (B.leaves leg.chain) N
+      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+  rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
+  · exact Or.inl (verified_implies_refundable hagg ⟨N, p, Or.inl ⟨hb, habs⟩⟩)
+  · rcases endBranch_of_accepted_pinned he with hv | hrest
+    · exact Or.inl (verified_implies_refundable hagg ⟨N, p, Or.inr ⟨hv, habs⟩⟩)
+    · exact Or.inr hrest
+
+theorem accepted_implies_refundable_on {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
+    (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
+    {sibs : ℕ → UInt256} {x : UInt256}
+    (hsep : EntriesNotEmpty ze (B.leaves leg.chain))
+    (hinj : PairInjOn h (fun q => TreePair h ze (B.leaves leg.chain) (B.height leg.chain) q
+      ∨ VerifiedPair h sibs (B.height leg.chain) N x q))
+    (ha : LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x) :
+    LegRefundable h z0 hl cv S F leg := by
+  rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
+  · exact verified_implies_refundable hagg ⟨N, p, Or.inl ⟨hb, habs⟩⟩
+  · exact verified_implies_refundable hagg
+      ⟨N, p, Or.inr ⟨endBranch_of_accepted_on hsep hinj he, habs⟩⟩
+
+theorem no_pinned_break_bounded {h : Hash} {ze : UInt256} {R : SlRoot}
+    (B : RootBacking h ze R) (c : Chain) (N : ℕ) (hsep : EntriesNotEmpty ze (B.leaves c))
+    (hinj : PairInjOn h (TreePair h ze (B.leaves c) (B.height c))) :
+    ¬ PinnedBreak h ze (B.leaves c) N :=
+  no_pinned_break_on h ze (B.leaves c) (B.height c) N (B.capacity c) hsep hinj
+
+/-! ### Anti-vacuity witnesses -/
+
+theorem demoSystem_aggregates : Aggregates demoSystem demoRoot := by
+  intro c n hn
+  show n ≤ 1
+  by_contra hc
+  have h2 : demoSystem.time c n = 2 := if_neg hc
+  rw [h2] at hn
+  exact absurd hn (by decide)
+
+/-- The honest END branch for batch 1 of `demoBacking`. -/
+theorem demo_endBranchAccepted :
+    EndBranchAccepted demoBacking demoSystem 0 0 1 (honestSibs demoHash 0 [5, 7] 1) 7 :=
+  ⟨by decide, by decide, ⟨by decide, by decide, by decide⟩⟩
+
+theorem lastBatch_pinned_conclusion_not_always :
+    Properties.LastBatchPinnedConclusionNotAlways := by
+  refine ⟨demoHash, 0, demoRoot3, demoBacking3, 0, 1, honestSibs demoHash 0 [5, 7, 9] 1,
+    ([5, 7, 9] : List UInt256).getD 1 0, by decide,
+    honest_walk_root demoHash 0 [5, 7, 9] 2 1 (by norm_num), ?_⟩
+  rintro (h1 | hb | hc)
+  · exact absurd h1 (by decide)
+  · exact demo_no_pinned_break hb
+  · exact honest_walk_no_collision demoHash 0 [5, 7, 9] 2 1 hc
+
+theorem endBranch_accepted_on_satisfiable : Properties.EndBranchAcceptedOnSatisfiable :=
+  ⟨demoHash, 0, demoRoot, demoBacking, demoSystem, 0, 0, 1,
+    honestSibs demoHash 0 [5, 7] 1, 7, demo_endBranchAccepted, demo_entriesNotEmpty,
+    demo_pairInjOn, ⟨1, by decide, by decide⟩, demo_collides⟩
+
+theorem accepted_implies_refundable_on_satisfiable :
+    Properties.AcceptedImpliesRefundableOnSatisfiable := by
+  obtain ⟨ℓ, idx, habs⟩ :=
+    non_inclusion_complete (h := demoHash) (z0 := 0) (hl := fun _ => 0) (T := setup)
+      (height := 0) setup_valid (by norm_num [setup]) (v := 1) (by decide)
+      (not_mem_setup (by decide))
+  refine ⟨demoHash, 0, fun _ => 0, fun _ _ => 1, demoSystem, 0, demoRoot, demoBacking,
+    ⟨0, [], 0⟩, ⟨0, 0⟩, 1,
+    ⟨ℓ, idx, honestSibs demoHash 0 (leafHashes (fun _ => 0) setup) idx, 0⟩,
+    honestSibs demoHash 0 [5, 7] 1, 7, demoSystem_aggregates, demo_entriesNotEmpty,
+    demo_pairInjOn, demo_endBranchAccepted, Or.inr ⟨demo_endBranchAccepted, habs⟩⟩
+
 /-! ## The stale-root countermodel -/
 
 @[simp] lemma staleSystem_tree_zero (a : UInt256) (c : Chain) :
@@ -240,5 +371,38 @@ theorem AcceptedImpliesRefundable : Contracts.Timeout.Properties.AcceptedImplies
   fun _ _ _ hinj _ _ _ _ _ hagg _ _ ha => accepted_implies_refundable hinj hagg ha
 theorem NoBreakUnderIdealizations : Contracts.Timeout.Properties.NoBreakUnderIdealizations :=
   fun _ _ _ hinj hsep => MerkleSpec.LastLeaf.not_hashBreak hinj hsep
+
+theorem LegRefundableAcceptedIffBy : Contracts.Timeout.Properties.LegRefundableAcceptedIffBy :=
+  fun _ _ _ _ _ _ _ _ _ _ => legRefundableAccepted_iff_by
+theorem LastBatchProofIdentifiesLastBatchPinned :
+    Contracts.Timeout.Properties.LastBatchProofIdentifiesLastBatchPinned :=
+  fun _ _ _ _ _ _ _ _ ha => lastBatch_identifies_last_pinned ha
+theorem LastBatchPinnedConclusionNotAlways :
+    Contracts.Timeout.Properties.LastBatchPinnedConclusionNotAlways :=
+  lastBatch_pinned_conclusion_not_always
+theorem LastBatchProofIdentifiesLastBatchOn :
+    Contracts.Timeout.Properties.LastBatchProofIdentifiesLastBatchOn :=
+  fun _ _ _ _ _ _ _ _ hsep hinj ha => lastBatch_identifies_last_on hsep hinj ha
+theorem EndBranchAcceptedImpliesVerifiedPinned :
+    Contracts.Timeout.Properties.EndBranchAcceptedImpliesVerifiedPinned :=
+  fun _ _ _ _ _ _ _ _ _ _ ha => endBranch_of_accepted_pinned ha
+theorem EndBranchAcceptedImpliesVerifiedOn :
+    Contracts.Timeout.Properties.EndBranchAcceptedImpliesVerifiedOn :=
+  fun _ _ _ _ _ _ _ _ _ _ hsep hinj ha => endBranch_of_accepted_on hsep hinj ha
+theorem EndBranchAcceptedOnSatisfiable :
+    Contracts.Timeout.Properties.EndBranchAcceptedOnSatisfiable :=
+  endBranch_accepted_on_satisfiable
+theorem AcceptedImpliesRefundablePinned :
+    Contracts.Timeout.Properties.AcceptedImpliesRefundablePinned :=
+  fun _ _ _ _ _ _ _ _ hagg _ _ _ _ _ _ ha => accepted_implies_refundable_pinned hagg ha
+theorem AcceptedImpliesRefundableOn : Contracts.Timeout.Properties.AcceptedImpliesRefundableOn :=
+  fun _ _ _ _ _ _ _ _ hagg _ _ _ _ _ _ hsep hinj ha =>
+    accepted_implies_refundable_on hagg hsep hinj ha
+theorem AcceptedImpliesRefundableOnSatisfiable :
+    Contracts.Timeout.Properties.AcceptedImpliesRefundableOnSatisfiable :=
+  accepted_implies_refundable_on_satisfiable
+theorem NoPinnedBreakUnderBoundedInjectivity :
+    Contracts.Timeout.Properties.NoPinnedBreakUnderBoundedInjectivity :=
+  fun _ _ _ B c N hsep hinj => no_pinned_break_bounded B c N hsep hinj
 
 end Contracts.Timeout

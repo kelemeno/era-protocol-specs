@@ -82,6 +82,29 @@ no collision is implied.  The chain is bound elsewhere — membership self-binds
 def CommitValueInj (cv : CommitValue) : Prop :=
   ∀ f₁ b₁ f₂ b₂, cv f₁ b₁ = cv f₂ b₂ → f₁ = f₂ ∧ b₁ = b₂
 
+/-- **A PINNED `commitValue` COLLISION.**  `cv` collides on exactly the
+`(flowId, bundleHash)` inputs of the two given obligations: those inputs differ, and
+their commit values are equal.  The chain plays no part, as in `CommitValueInj`.
+
+This replaces `CommitValueInj` (unsatisfiable,
+`Contracts.Refund.Properties.CommitValueInjUnsatisfiable`) in the repaired statements;
+it is false for a `cv` that separates those two inputs
+(`Contracts.Refund.Properties.HonestCommitValueNoClash`). -/
+def CommitClash (cv : CommitValue) (o o' : Obligation) : Prop :=
+  (o.flowId, o.bundleHash) ≠ (o'.flowId, o'.bundleHash)
+    ∧ cv o.flowId o.bundleHash = cv o'.flowId o'.bundleHash
+
+/-- **BOUNDED COMMIT-VALUE INJECTIVITY.**  No two obligations of the explicit finite
+list `os` have a `CommitClash`.  Satisfiable whenever `os` has fewer than `2^256`
+entries (`Contracts.Refund.Properties.CommitValueInjOnSatisfiable`). -/
+def CommitValueInjOn (cv : CommitValue) (os : List Obligation) : Prop :=
+  ∀ o ∈ os, ∀ o' ∈ os, ¬ CommitClash cv o o'
+
+/-- A commit value that is honest about one obligation `o`: `0` on `o`'s own
+`(flowId, bundleHash)`, `1` everywhere else. -/
+def honestCommitValue (o : Obligation) : CommitValue :=
+  fun f b => if (f, b) = (o.flowId, o.bundleHash) then 0 else 1
+
 /-- The obligation a leg of a flow carries. -/
 def obligationOf (F : Flow) (leg : FlowLeg) : Obligation :=
   ⟨F.flowId, leg.bundleHash, leg.chain⟩

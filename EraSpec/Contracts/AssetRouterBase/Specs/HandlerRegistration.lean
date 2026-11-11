@@ -73,6 +73,14 @@ structure IdAssumptions (enc : AssetIdOf) : Prop where
   /-- No asset id collides with the mappings' unset sentinel. -/
   nonzero : ∀ c s d, enc c s d ≠ 0
 
+/-- Injectivity of the encoding ON a set `S` of (chain, sender, data) triples only.
+`IdAssumptions.inj` asks this for every triple, which no map into `UInt256` can do
+(`Contracts.AssetRouter.IdAssumptionsUnsatisfiable`); the router's results need it
+only on the two triples being compared — the one the call writes and the one it is
+claimed not to touch.  (`IdAssumptions.nonzero` is never used by them.) -/
+def IdInjOn (enc : AssetIdOf) (S : Set (Chain × Address × AssetData)) : Prop :=
+  ∀ p ∈ S, ∀ q ∈ S, enc p.1 p.2.1 p.2.2 = enc q.1 q.2.1 q.2.2 → p = q
+
 /-! ## State -/
 
 /-- The router's two mappings. -/

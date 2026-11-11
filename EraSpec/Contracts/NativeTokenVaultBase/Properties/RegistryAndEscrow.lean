@@ -178,4 +178,194 @@ out, so every property here taking `IdAssumptions` is vacuously true as stated. 
 def Properties.IdAssumptionsUnsatisfiable : Prop :=
   ∀ (e : NtvAssetId), ¬ IdAssumptions e
 
+/-! ## Repaired forms: the hash assumption bounded to the run's own pairs
+
+Every property above that takes `IdAssumptions` is restated here with
+`IdAssumptionsOn e S` — injective and nonzero only on an explicit set `S` of
+(chain, token) pairs — over runs whose registrations hash pairs of `S`
+(`ReachIn`).  `ReachCoveredByFinitePairs` says every run is such a run for a FINITE
+`S` (the pairs it registers), and `IdAssumptionsOnSatisfiable` says such an `S`
+always admits an encoding, so neither restriction is vacuous.  The satisfiability
+of the full premise lists, on concrete nontrivial instances, is
+`RunOnSatisfiable` / `RegisterNativeOnSatisfiable` / `RegisterBridgedOnSatisfiable`. -/
+
+/-- **THE BOUNDED ASSUMPTION IS SATISFIABLE.**  For any finite set of pairs smaller
+than the id space, some encoding is injective and nonzero on it. -/
+def Properties.IdAssumptionsOnSatisfiable : Prop :=
+  ∀ (S : Finset (Chain × Address)), S.card < UInt256.size →
+    ∃ e : NtvAssetId, IdAssumptionsOn e ↑S
+
+/-- The global assumption is the `S := univ` instance of the bounded one (so the
+`…On` results generalize the originals). -/
+def Properties.IdAssumptionsOnOfGlobal : Prop :=
+  ∀ (e : NtvAssetId), IdAssumptions e → ∀ (S : Set (Chain × Address)), IdAssumptionsOn e S
+
+/-- A bounded run is a run. -/
+def Properties.ReachInIsReach : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (S : Set (Chain × Address)) (W X : World),
+    ReachIn e thisChain S W X → Reach e thisChain W X
+
+/-- **EVERY RUN IS BOUNDED BY ITS OWN PAIRS.**  Any run is a `ReachIn` run for some
+finite set of pairs — the ones its registrations hash — so the `…On` results below
+apply to every run, under injectivity on finitely many inputs. -/
+def Properties.ReachCoveredByFinitePairs : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (W X : World), Reach e thisChain W X →
+    ∃ S : Finset (Chain × Address), ReachIn e thisChain ↑S W X
+
+/-- **THE DERIVED ID IS FREE, under injectivity on the pairs at hand.**  As
+`RegisterNativeIdFresh`, with `e` injective and nonzero only on a set `S` holding
+the new pair `(thisChain, t)` and the pairs of the already-registered assets. -/
+def Properties.RegisterNativeIdFreshOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain) (V : Vault), Valid e thisChain V → PairsIn S V →
+    ∀ (t : Address), (thisChain, t) ∈ S → RegisterNativeGuard V t →
+      ¬ Registered V (e thisChain t)
+
+/-- **THE DERIVED ID IS FREE, OR A PINNED COLLISION.**  No hash assumption at all:
+either the id `_registerToken` computes for `t` is unregistered, or it hashed to the
+unset sentinel, or it is already the id of an asset whose recorded
+(origin chain, origin token) pair differs from `(thisChain, t)` yet hashes to the
+same id.  All colliding inputs are named by the instance: the pair `(thisChain, t)`
+and the recorded pair of the asset at `e thisChain t`. -/
+def Properties.RegisterNativeIdFreshOrCollision : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (V : Vault), Valid e thisChain V →
+    ∀ (t : Address), RegisterNativeGuard V t →
+      ¬ Registered V (e thisChain t)
+      ∨ e thisChain t = 0
+      ∨ (Registered V (e thisChain t)
+          ∧ (V.originChain (e thisChain t), V.originToken (e thisChain t)) ≠ (thisChain, t)
+          ∧ e (V.originChain (e thisChain t)) (V.originToken (e thisChain t)) = e thisChain t)
+
+/-- **THE COLLISION DISJUNCTS ARE NOT A TAUTOLOGY.**  A valid vault with one asset
+registered, a second token passing the guard, and both collision disjuncts of
+`RegisterNativeIdFreshOrCollision` false. -/
+def Properties.RegisterNativeCollisionNotTautology : Prop :=
+  ∃ (e : NtvAssetId) (thisChain : Chain) (V : Vault) (t : Address),
+    Valid e thisChain V ∧ (∃ a, Registered V a) ∧ RegisterNativeGuard V t
+    ∧ ¬ (e thisChain t = 0)
+    ∧ ¬ (Registered V (e thisChain t)
+          ∧ (V.originChain (e thisChain t), V.originToken (e thisChain t)) ≠ (thisChain, t)
+          ∧ e (V.originChain (e thisChain t)) (V.originToken (e thisChain t)) = e thisChain t)
+
+/-- **…AND THEY ARE NEEDED.**  With an encoding that collides, a valid vault and a
+token passing the one-sided guard whose derived id is already taken — so the
+`RegisterNativeIdFresh` conclusion fails without some assumption on `e`, and it is
+the pinned-collision disjunct that holds. -/
+def Properties.RegisterNativeCollisionReachable : Prop :=
+  ∃ (e : NtvAssetId) (thisChain : Chain) (V : Vault) (t : Address),
+    Valid e thisChain V ∧ RegisterNativeGuard V t ∧ Registered V (e thisChain t)
+    ∧ (V.originChain (e thisChain t), V.originToken (e thisChain t)) ≠ (thisChain, t)
+    ∧ e (V.originChain (e thisChain t)) (V.originToken (e thisChain t)) = e thisChain t
+
+/-- Registering a native token preserves the registry invariant and the pair
+bound, under injectivity on `S`. -/
+def Properties.RegisterNativePreservesValidOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (V : Vault), Valid e thisChain V → PairsIn S V →
+    ∀ (t : Address), (thisChain, t) ∈ S → RegisterNativeGuard V t →
+      Valid e thisChain (registerNative e thisChain V t)
+        ∧ PairsIn S (registerNative e thisChain V t)
+
+/-- Registering a bridged token preserves them too. -/
+def Properties.RegisterBridgedPreservesValidOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (V : Vault), Valid e thisChain V → PairsIn S V →
+    ∀ (a : AssetId) (t ot : Address) (origin : Chain), (origin, ot) ∈ S →
+      RegisterBridgedGuard e thisChain V a t ot origin →
+      Valid e thisChain (registerBridged V a t ot origin)
+        ∧ PairsIn S (registerBridged V a t ot origin)
+
+/-- Every bounded step preserves them. -/
+def Properties.StepInPreservesValidOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (W X : World), StepIn e thisChain S W X →
+      Valid e thisChain W.vault → PairsIn S W.vault →
+      Valid e thisChain X.vault ∧ PairsIn S X.vault
+
+/-- **THE REGISTRY IS COHERENT ALONG EVERY RUN**, with the id hash injective and
+nonzero only on the pairs the run registers. -/
+def Properties.RunValidOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (W : World), ReachIn e thisChain S empty W → Valid e thisChain W.vault
+
+/-- **SOLVENCY**, under injectivity on the run's own pairs. -/
+def Properties.SolvencyOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (W : World), ReachIn e thisChain S empty W →
+      ∀ a, W.vault.bridgedOut a ≤ W.vault.escrowed a
+
+/-- **THE SURPLUS NEVER SHRINKS**, with no hash assumption: `SurplusMonotone` never
+used its `IdAssumptions` premise. -/
+def Properties.SurplusMonotoneNoHash : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain) (W X : World), Step e thisChain W X →
+    Valid e thisChain W.vault →
+      ∀ a, W.vault.escrowed a - W.vault.bridgedOut a
+        ≤ X.vault.escrowed a - X.vault.bridgedOut a
+
+/-- The audit invariant along every bounded run. -/
+def Properties.RunAuditedOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (W : World), ReachIn e thisChain S empty W → Audited thisChain W
+
+/-- **THE LEDGER IS THE NET FLOW**, under injectivity on the run's own pairs. -/
+def Properties.LedgerIsNetFlowOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (W : World), ReachIn e thisChain S empty W → ∀ a, Native thisChain W.vault a →
+      W.vault.bridgedOut a + W.audit.totalIn a = W.audit.totalOut a
+
+/-- **NO INFLATION**, under injectivity on the run's own pairs. -/
+def Properties.NoInflationOn : Prop :=
+  ∀ (e : NtvAssetId) (S : Set (Chain × Address)), IdAssumptionsOn e S →
+    ∀ (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (W : World), ReachIn e thisChain S empty W → ∀ a, Native thisChain W.vault a →
+      W.audit.totalIn a ≤ W.audit.totalOut a
+
+/-- **THE `InsufficientChainBalance` CHECK IS LOAD-BEARING**, with the only hash
+fact the witness needs: the one id it registers is nonzero. -/
+def Properties.UnguardedInflowUnbackedOn : Prop :=
+  ∀ (e : NtvAssetId) (thisChain : Chain), thisChain ≠ 0 →
+    ∀ (t : Address), t ≠ 0 → e thisChain t ≠ 0 →
+      ∃ W : World, ReachIn e thisChain {(thisChain, t)} empty W ∧ Valid e thisChain W.vault
+        ∧ Registered W.vault (e thisChain t)
+        ∧ Native thisChain W.vault (e thisChain t)
+        ∧ W.vault.escrowed (e thisChain t) = 0
+        ∧ FlowInGuardUnchecked W.vault (e thisChain t) 1
+        ∧ ¬ FlowInGuard thisChain W.vault (e thisChain t) 1
+
+/-! ### Anti-vacuity: the premises of the `…On` results hold on concrete instances -/
+
+/-- **THE RUN-LEVEL PREMISES ARE SATISFIABLE, NONTRIVIALLY.**  An encoding, a pair
+set and a run satisfying every premise of `RunValidOn` / `SolvencyOn` /
+`RunAuditedOn` / `LedgerIsNetFlowOn` / `NoInflationOn`, in which a native asset is
+registered and has been bridged both out and in. -/
+def Properties.RunOnSatisfiable : Prop :=
+  ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (W : World),
+    IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ ReachIn e thisChain S empty W
+    ∧ ∃ a, Registered W.vault a ∧ Native thisChain W.vault a
+      ∧ W.audit.totalOut a ≠ 0 ∧ W.audit.totalIn a ≠ 0
+
+/-- **THE NATIVE-REGISTRATION PREMISES ARE SATISFIABLE**, on a vault that already
+holds an asset — every premise of `RegisterNativeIdFreshOn` and
+`RegisterNativePreservesValidOn`. -/
+def Properties.RegisterNativeOnSatisfiable : Prop :=
+  ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (V : Vault)
+    (t : Address),
+    IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
+    ∧ (∃ a, Registered V a) ∧ (thisChain, t) ∈ S ∧ RegisterNativeGuard V t
+
+/-- **THE BRIDGED-REGISTRATION PREMISES ARE SATISFIABLE** — every premise of
+`RegisterBridgedPreservesValidOn`. -/
+def Properties.RegisterBridgedOnSatisfiable : Prop :=
+  ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (V : Vault)
+    (a : AssetId) (t ot : Address) (origin : Chain),
+    IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
+    ∧ (origin, ot) ∈ S ∧ RegisterBridgedGuard e thisChain V a t ot origin
+
 end Contracts.NativeTokenVault

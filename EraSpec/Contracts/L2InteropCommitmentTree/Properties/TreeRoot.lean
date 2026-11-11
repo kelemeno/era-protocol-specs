@@ -192,4 +192,122 @@ accepted-path variant still needs the repair) and `Contracts.Refund.Properties.C
 def Properties.HashAssumptionsUnsatisfiable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), ¬ HashAssumptions h z0 hl
 
+
+/-! ## Soundness without hash premises: the property, or a located break
+
+Each of these restates a soundness result above with `HashAssumptions` removed and
+`∨ TreeRootBreak …` added to the conclusion, the break naming the submitted path(s).
+`Properties.HonestProofNoBreak` shows `TreeRootBreak` is false on every honest proof,
+and `Properties.ProofsExclusiveOrBreakSatisfiable` / `RunRootsExclusiveOrBreakSatisfiable`
+exhibit instances of the premises (both proofs accepted on a valid tree, the padding
+countermodel). -/
+
+/-- An accepted path names an occupied index holding the presented leaf at the
+tree's height, or a located `TreeRootBreak` on that path. -/
+def Properties.AcceptedPathPinsLeafOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ) (sibs : ℕ → UInt256)
+    (k idx : ℕ) (ℓ : Leaf),
+    PathAccepts h (root h z0 hl T height) sibs k idx (hl ℓ) →
+      (k = height ∧ idx < T.leafCount ∧ T.leaf idx = ℓ)
+        ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ
+
+/-- A verified inclusion proof means delivered, or a located break on its path. -/
+def Properties.InclusionSoundOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ) (v : UInt256) (ℓ : Leaf)
+    (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
+    InclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k →
+      v ∈ keys (toAbs T) ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ
+
+/-- A verified non-inclusion proof is a reclaim witness in the tree, or a located
+break on the low leaf's path. -/
+def Properties.NonInclusionSoundOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ) (v : UInt256) (ℓ : Leaf)
+    (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
+    NonInclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k →
+      (∃ W ∈ toAbs T, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
+        ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ
+
+/-- A delivered value has no verified absence proof against a valid tree's root,
+unless that proof's path carries a located break. -/
+def Properties.VerifiedAbsenceExcludesDeliveredOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree), Valid T →
+    ∀ (height : ℕ) (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
+      NonInclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k →
+        v ∉ keys (toAbs T) ∨ TreeRootBreak h z0 hl T height sibs k idx ℓ
+
+/-- **The headline for the hash side, without hash premises.**  If a value has both
+an accepted inclusion proof and an accepted non-inclusion proof against a valid
+tree's root, then one of the two submitted paths carries a located `TreeRootBreak`.
+(The premises are satisfiable: `Properties.ProofsExclusiveOrBreakSatisfiable`.) -/
+def Properties.ProofsExclusiveOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree), Valid T →
+    ∀ (height : ℕ) (v : UInt256) (ℓ₁ ℓ₂ : Leaf) (i₁ i₂ : ℕ) (s₁ s₂ : ℕ → UInt256) (k₁ k₂ : ℕ),
+      InclusionAccepted h hl (root h z0 hl T height) v ℓ₁ i₁ s₁ k₁ →
+      NonInclusionAccepted h hl (root h z0 hl T height) v ℓ₂ i₂ s₂ k₂ →
+        TreeRootBreak h z0 hl T height s₁ k₁ i₁ ℓ₁ ∨ TreeRootBreak h z0 hl T height s₂ k₂ i₂ ℓ₂
+
+/-- The same at every step of every run from `setup`. -/
+def Properties.RunRootsExclusiveOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → Tree), Run R → R 0 = setup →
+    ∀ (n height : ℕ) (v : UInt256) (ℓ₁ ℓ₂ : Leaf) (i₁ i₂ : ℕ) (s₁ s₂ : ℕ → UInt256) (k₁ k₂ : ℕ),
+      InclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₁ i₁ s₁ k₁ →
+      NonInclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₂ i₂ s₂ k₂ →
+        TreeRootBreak h z0 hl (R n) height s₁ k₁ i₁ ℓ₁
+          ∨ TreeRootBreak h z0 hl (R n) height s₂ k₂ i₂ ℓ₂
+
+/-- The multi-chain hook: a non-inclusion proof verified against chain `c`'s root is
+an `AbsenceWitnessAt` for `c`, or its path carries a located break. -/
+def Properties.VerifiedAbsenceIsWitnessOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Chain → Tree) (c : Chain) (height : ℕ)
+    (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
+    NonInclusionAccepted h hl (root h z0 hl (T c) height) v ℓ idx sibs k →
+      AbsenceWitnessAt (ofChains T) c v ∨ TreeRootBreak h z0 hl (T c) height sibs k idx ℓ
+
+/-! ### Anti-vacuity -/
+
+/-- **NON-TRIVIALITY OF `TreeRootBreak`.**  On the honest proof for any occupied
+index (the tree's own siblings, at the tree's height, presenting the stored leaf) no
+break is located, for every node hash, leaf hash and padding constant. -/
+def Properties.HonestProofNoBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height i : ℕ), i < T.leafCount →
+    ¬ TreeRootBreak h z0 hl T height (honestSibs h z0 (leafHashes hl T) i) height i (T.leaf i)
+
+/-- **THE PREMISES OF `ProofsExclusiveOrBreak` ARE SATISFIABLE.**  For every node and
+leaf hash and every `0 < a < b`, on the valid run `threeLeafTree a b` at height 2
+with the extraction-pin padding `hl ⟨0,0,0⟩`, `a` has an accepted inclusion proof
+(the honest one for leaf 1) AND an accepted non-inclusion proof (the padding
+forgery at slot 3).  The same instance satisfies the premises of
+`VerifiedAbsenceExcludesDeliveredOrBreak`, `InclusionSoundOrBreak` and
+`NonInclusionSoundOrBreak`. -/
+def Properties.ProofsExclusiveOrBreakSatisfiable : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
+    Valid (threeLeafTree a b)
+      ∧ InclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2) a
+          ((threeLeafTree a b).leaf 1) 1
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 1) 2
+      ∧ NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2) a ⟨0, 0, 0⟩ 3
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2
+
+/-- **THE BREAK FIRES WHERE THE BUG IS.**  On that instance the honest inclusion
+proof locates no break, and the forged absence proof's break is `paddingHit`. -/
+def Properties.PaddingCountermodelLocatesPaddingHit : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256),
+    ¬ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
+        (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 1) 2 1
+        ((threeLeafTree a b).leaf 1)
+      ∧ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
+        (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
+
+/-- **THE PREMISES OF `RunRootsExclusiveOrBreak` ARE SATISFIABLE.**  The run
+`setup, insert a, insert b`, constant afterwards, is a `Run` from `setup`, and at
+step 2 the two proofs of `Properties.ProofsExclusiveOrBreakSatisfiable` are both
+accepted. -/
+def Properties.RunRootsExclusiveOrBreakSatisfiable : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
+    ∃ R : ℕ → Tree, Run R ∧ R 0 = setup ∧ R 2 = threeLeafTree a b
+      ∧ InclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (R 2) 2) a ((R 2).leaf 1) 1
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (R 2)) 1) 2
+      ∧ NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (R 2) 2) a ⟨0, 0, 0⟩ 3
+          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (R 2)) 3) 2
+
 end Contracts.InteropCommitmentTree

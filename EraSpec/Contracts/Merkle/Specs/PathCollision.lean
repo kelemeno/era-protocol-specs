@@ -54,4 +54,48 @@ def PathCollision (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → U
     ∧ h (walkPair h sibs lvl j x i).1 (walkPair h sibs lvl j x i).2
       = h (treePair h z0 L (lvl + i) (j / 2 ^ i)).1 (treePair h z0 L (lvl + i) (j / 2 ^ i)).2
 
+/-! ## A wrong path length, located
+
+`Merkle.calculateRootMemory` does not know the tree's height, so a path of length
+`k ≠ height` can be submitted.  `accept_forces_height` excluded that under global
+pair-injectivity and global domain separation, both of which are unsatisfiable or
+false for `keccak`.  `HeightBreak` is what an accepted wrong-length walk actually
+yields, with every compared value a function of the instance:
+
+* **too short** (`k < height`): re-anchor the walk at level `height - k` (the stream
+  `l ↦ sibs (l - (height - k))` reads the submitted siblings at the levels they now
+  sit on).  Either the claimed leaf `x` IS the node hash of the tree's level
+  `height - k - 1` pair below index `j` (an interior node presented as a leaf), or
+  the re-anchored walk exhibits a `PathCollision`.
+* **too long** (`height < k`): split off the first `k - height` steps.  Either the
+  level-0 entry at `j / 2^(k - height)` (a leaf hash, or the padding constant) IS the
+  node hash of the pair the verifier hashed at its last step below the split, or the
+  remaining `height` steps (stream `l ↦ sibs (l + (k - height))`) exhibit a
+  `PathCollision`. -/
+
+/-- **An accepted walk of the wrong length, located.**  See the section comment.
+Arguments: node hash `h`, padding `z0`, level-0 list `L`, submitted siblings `sibs`,
+submitted length `k`, tree height `height`, index `j`, claimed leaf `x`. -/
+inductive HeightBreak (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256)
+    (k height j : ℕ) (x : UInt256) : Prop
+  /-- Too short, and the claimed leaf is the node hash of a specific tree pair. -/
+  | shortInteriorLeaf : k < height →
+      x = h (treePair h z0 L (height - k - 1) (2 * j)).1
+            (treePair h z0 L (height - k - 1) (2 * j)).2 →
+      HeightBreak h z0 L sibs k height j x
+  /-- Too short, and the re-anchored walk collides on the submitted path. -/
+  | shortCollision : k < height →
+      PathCollision h z0 L (fun l => sibs (l - (height - k))) (height - k) k j x →
+      HeightBreak h z0 L sibs k height j x
+  /-- Too long, and a level-0 entry is the node hash of the verifier's own pair. -/
+  | longEntryIsNode : height < k →
+      L.getD (j / 2 ^ (k - height)) z0
+        = h (walkPair h sibs 0 j x (k - height - 1)).1 (walkPair h sibs 0 j x (k - height - 1)).2 →
+      HeightBreak h z0 L sibs k height j x
+  /-- Too long, and the top `height` steps collide on the submitted path. -/
+  | longCollision : height < k →
+      PathCollision h z0 L (fun l => sibs (l + (k - height))) 0 height (j / 2 ^ (k - height))
+        (walkPure h sibs 0 (k - height) j x) →
+      HeightBreak h z0 L sibs k height j x
+
 end MerkleSpec.Verifier

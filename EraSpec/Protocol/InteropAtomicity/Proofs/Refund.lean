@@ -264,3 +264,124 @@ theorem CrossFlowIdClashIsPinnedCollision : Properties.CrossFlowIdClashIsPinnedC
   simp_all
 
 end Contracts.Refund
+
+/-! ## Repaired: pinned and bounded forms -/
+
+namespace Contracts.Refund
+
+open MerkleSpec Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.AtomicFlowManager
+
+/-- The flow-level pinned form: one use of `refund_needs_own_flow_timeout`, then a case
+split on whether the authorizing flow is `F`. -/
+theorem refund_of_flowId_implies_own_flow_timeout_or_collision {h : Hash} {z0 : UInt256}
+    {hl : LeafHash} {cv : CommitValue} {fh : FlowHash} {S : System} {F : Flow}
+    (hchk : FlowIdChecked fh F) {Ms : Managers} (hr : Reach h z0 hl cv fh S emptyManagers Ms)
+    (o : Obligation) (ho : o.flowId = F.flowId) (hrf : Refunded Ms o) :
+    RefundAuthorized h z0 hl cv S F
+      ∨ ∃ F', FlowIdChecked fh F' ∧ (∃ leg' ∈ F'.legs, obligationOf F' leg' = o)
+          ∧ RefundAuthorized h z0 hl cv S F' ∧ FlowIdClash fh F F' := by
+  obtain ⟨F', hchk', leg', hmem', hobl, hauth⟩ := refund_needs_own_flow_timeout hr o hrf
+  have hid : F.flowId = F'.flowId := by
+    rw [← ho]; exact (congrArg Obligation.flowId hobl).symm
+  rcases flowId_check_pins_legList_or_collision hchk hchk' hid with rfl | hcl
+  · exact Or.inl hauth
+  · exact Or.inr ⟨F', hchk', ⟨leg', hmem', hobl⟩, hauth, hcl⟩
+
+/-- A system whose every batch settles at time `0`: no deadline is ever missed, so no
+timeout proof can verify on either branch, whatever the hashes. -/
+def frozenSystem : System := ⟨fun _ _ => setup, fun _ _ => 0, fun _ _ => 0⟩
+
+lemma frozenSystem_no_refund {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    (F : Flow) : ¬ RefundAuthorized h z0 hl cv frozenSystem F := by
+  rintro ⟨leg, _, N, p, hbr⟩
+  rcases hbr with ⟨hlate, _⟩ | ⟨⟨_, hlast⟩, _⟩
+  · exact absurd hlate (Nat.not_lt_zero _)
+  · exact absurd (hlast (N + 1) (Nat.lt_succ_self N)) (Nat.not_lt_zero _)
+
+end Contracts.Refund
+
+namespace Contracts.Refund
+
+open MerkleSpec Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.AtomicFlowManager
+
+theorem RefundOfFlowIdImpliesOwnFlowTimeoutOrCollision :
+    Properties.RefundOfFlowIdImpliesOwnFlowTimeoutOrCollision :=
+  fun _ _ _ _ _ _ _ hchk _ hr o ho hrf =>
+    refund_of_flowId_implies_own_flow_timeout_or_collision hchk hr o ho hrf
+
+theorem RefundImpliesOwnFlowTimeoutOrCollision :
+    Properties.RefundImpliesOwnFlowTimeoutOrCollision :=
+  fun _ _ _ _ _ _ _ _ hchk _ _ hr hrf =>
+    refund_of_flowId_implies_own_flow_timeout_or_collision hchk hr _ rfl hrf
+
+theorem RefundOrCollisionNeedsReach : Properties.RefundOrCollisionNeedsReach := by
+  let F : Flow := ⟨0, [⟨0, 0⟩], 0⟩
+  refine ⟨fun _ _ => 0, 0, fun _ => 0, fun _ _ => 1, honestFlowHash F, frozenSystem, F, ⟨0, 0⟩,
+    setAt emptyManagers 0 ((emptyManagers 0).set 0 0 .Revertable),
+    (honest_flowHash_no_clash F).1, List.mem_singleton_self _, ?_, ?_⟩
+  · show 2 ≤ rank (stateOf (setAt emptyManagers 0 ((emptyManagers 0).set 0 0 .Revertable))
+      ⟨0, 0, 0⟩)
+    rw [stateOf_setAt_self]; simp [rank]
+  · rintro (hauth | ⟨F', _, _, hauth, _⟩)
+    · exact frozenSystem_no_refund F hauth
+    · exact frozenSystem_no_refund F' hauth
+
+theorem RefundImpliesOwnFlowTimeoutOrCollisionWitness :
+    Properties.RefundImpliesOwnFlowTimeoutOrCollisionWitness := by
+  let h : Hash := fun _ _ => 0
+  let hl : LeafHash := fun _ => 0
+  let cv : CommitValue := fun _ _ => 1
+  let F : Flow := mixedFlow 0 1 2
+  let fh : FlowHash := honestFlowHash F
+  let S : System := mixedSystem (cv 0 1)
+  have hpos : (0 : UInt256) < 1 := by decide
+  have hchk : FlowIdChecked fh F := (honest_flowHash_no_clash F).1
+  have hmem : (⟨1, 2⟩ : FlowLeg) ∈ F.legs := by simp [F, mixedFlow]
+  have hauth : RefundAuthorized h 0 hl cv S F :=
+    ⟨⟨1, 2⟩, hmem,
+      (subset_flow_passes_unchecked_gate (h := h) (z0 := 0) (hl := hl) (cv := cv)
+        (id := 0) (hA := 1) (hB := 2) hpos hpos).2.2⟩
+  let M1 : Managers := setAt emptyManagers 1 ((emptyManagers 1).set 0 2 .Committed)
+  have happ : Step h 0 hl cv fh S emptyManagers M1 := Step.append (c := 1) (f := 0) (b := 2) rfl
+  have hguard : AuthorizeGuard (M1 1) F.flowId (⟨1, 2⟩ : FlowLeg).bundleHash := by
+    show (M1 1).legState 0 2 = .Committed
+    simp [M1, setAt, Manager.set]
+  have hstep := Step.authorize (h := h) (z0 := 0) (hl := hl) (cv := cv) (fh := fh) (S := S)
+    (Ms := M1) hchk hmem hauth hguard
+  refine ⟨h, 0, hl, cv, fh, S, F, ⟨1, 2⟩, _, hchk, hmem,
+    Reach.tail (Reach.tail Reach.refl happ) hstep, ?_, ?_⟩
+  · show 2 ≤ rank (stateOf (setAt M1 1 ((M1 1).set 0 2 .Revertable)) ⟨0, 2, 1⟩)
+    rw [stateOf_setAt_self]; simp [rank]
+  · rintro ⟨F', _, _, _, hcl⟩
+    exact (honest_flowHash_no_clash F).2 F' hcl
+
+theorem CommitmentPinsLegOrCollision : Properties.CommitmentPinsLegOrCollision := by
+  intro cv o o' heq
+  by_cases hp : (o.flowId, o.bundleHash) = (o'.flowId, o'.bundleHash)
+  · exact Or.inl (Prod.mk.inj hp)
+  · exact Or.inr ⟨hp, heq⟩
+
+theorem CommitmentPinsLegOn : Properties.CommitmentPinsLegOn := by
+  intro cv os hinj o ho o' ho' heq
+  rcases CommitmentPinsLegOrCollision cv o o' heq with h | h
+  · exact h
+  · exact absurd h (hinj o ho o' ho')
+
+theorem CommitValueInjOnSatisfiable : Properties.CommitValueInjOnSatisfiable := by
+  intro os hlen
+  let P : List (UInt256 × UInt256) := os.map (fun o => (o.flowId, o.bundleHash))
+  have hPlen : P.length < UInt256.size := by
+    show (os.map _).length < _
+    rw [List.length_map]; exact hlen
+  refine ⟨fun f b => indexHash P (f, b), ?_⟩
+  rintro o ho o' ho' ⟨hne, heq⟩
+  exact hne (indexHash_inj_on hPlen (List.mem_map_of_mem (fun o => (o.flowId, o.bundleHash)) ho)
+    (List.mem_map_of_mem (fun o => (o.flowId, o.bundleHash)) ho') heq)
+
+theorem HonestCommitValueNoClash : Properties.HonestCommitValueNoClash := by
+  rintro o o' ⟨hne, heq⟩
+  have hne' : ¬ (o'.flowId, o'.bundleHash) = (o.flowId, o.bundleHash) := fun h => hne h.symm
+  simp only [honestCommitValue, if_pos rfl, if_neg hne'] at heq
+  exact absurd heq (by decide)
+
+end Contracts.Refund

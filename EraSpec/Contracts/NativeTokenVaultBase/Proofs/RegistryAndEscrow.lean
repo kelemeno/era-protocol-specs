@@ -483,6 +483,170 @@ theorem surplus_monotone {e : NtvAssetId} {thisChain : Chain} {W X : World}
     · subst h; rw [upd_same]; omega
     · rw [upd_ne _ _ h]
 
+/-! ## Bounded runs: the hash assumption on the run's own pairs
+
+The registry argument uses the id hash at exactly two kinds of input: the pair a
+registration hashes, and the recorded pair of an asset already registered.
+`PairsIn S` carries the second along the run, so `IdAssumptionsOn e S` is all that
+is needed. -/
+
+theorem idAssumptionsOn_of_global {e : NtvAssetId} (he : IdAssumptions e)
+    (S : Set (Chain × Address)) : IdAssumptionsOn e S :=
+  ⟨fun p _ q _ h => by
+    obtain ⟨h1, h2⟩ := he.inj _ _ _ _ h
+    exact Prod.ext h1 h2,
+   fun p _ => he.nonzero p.1 p.2⟩
+
+theorem pairsIn_univ (V : Vault) : PairsIn Set.univ V := fun _ _ => Set.mem_univ _
+
+theorem pairsIn_empty (S : Set (Chain × Address)) : PairsIn S empty.vault :=
+  fun _ hreg => absurd rfl hreg
+
+theorem stepIn_step {e : NtvAssetId} {thisChain : Chain} {S : Set (Chain × Address)}
+    {W X : World} (hs : StepIn e thisChain S W X) : Step e thisChain W X := by
+  cases hs with
+  | registerNative _ hg => exact Step.registerNative hg
+  | registerBridged _ hg => exact Step.registerBridged hg
+  | bridgeOut hg => exact Step.bridgeOut hg
+  | bridgeIn hg => exact Step.bridgeIn hg
+  | donate => exact Step.donate
+
+theorem reachIn_reach {e : NtvAssetId} {thisChain : Chain} {S : Set (Chain × Address)}
+    {W X : World} (hr : ReachIn e thisChain S W X) : Reach e thisChain W X := by
+  induction hr with
+  | refl => exact Reach.refl
+  | tail _ hs ih => exact Reach.tail ih (stepIn_step hs)
+
+theorem stepIn_mono {e : NtvAssetId} {thisChain : Chain} {S S' : Set (Chain × Address)}
+    (hSS : S ⊆ S') {W X : World} (hs : StepIn e thisChain S W X) : StepIn e thisChain S' W X := by
+  cases hs with
+  | registerNative hm hg => exact StepIn.registerNative (hSS hm) hg
+  | registerBridged hm hg => exact StepIn.registerBridged (hSS hm) hg
+  | bridgeOut hg => exact StepIn.bridgeOut hg
+  | bridgeIn hg => exact StepIn.bridgeIn hg
+  | donate => exact StepIn.donate
+
+theorem reachIn_mono {e : NtvAssetId} {thisChain : Chain} {S S' : Set (Chain × Address)}
+    (hSS : S ⊆ S') {W X : World} (hr : ReachIn e thisChain S W X) :
+    ReachIn e thisChain S' W X := by
+  induction hr with
+  | refl => exact ReachIn.refl
+  | tail _ hs ih => exact ReachIn.tail ih (stepIn_mono hSS hs)
+
+theorem step_stepIn_univ {e : NtvAssetId} {thisChain : Chain} {W X : World}
+    (hs : Step e thisChain W X) : StepIn e thisChain Set.univ W X := by
+  cases hs with
+  | registerNative hg => exact StepIn.registerNative (Set.mem_univ _) hg
+  | registerBridged hg => exact StepIn.registerBridged (Set.mem_univ _) hg
+  | bridgeOut hg => exact StepIn.bridgeOut hg
+  | bridgeIn hg => exact StepIn.bridgeIn hg
+  | donate => exact StepIn.donate
+
+/-- Each step hashes at most one pair, so it is a `StepIn` for a finite set. -/
+theorem step_stepIn_finset {e : NtvAssetId} {thisChain : Chain} {W X : World}
+    (hs : Step e thisChain W X) :
+    ∃ S : Finset (Chain × Address), StepIn e thisChain ↑S W X := by
+  cases hs with
+  | @registerNative t hg =>
+    exact ⟨{(thisChain, t)}, StepIn.registerNative (by simp) hg⟩
+  | @registerBridged a t ot origin hg =>
+    exact ⟨{(origin, ot)}, StepIn.registerBridged (by simp) hg⟩
+  | bridgeOut hg => exact ⟨∅, StepIn.bridgeOut hg⟩
+  | bridgeIn hg => exact ⟨∅, StepIn.bridgeIn hg⟩
+  | donate => exact ⟨∅, StepIn.donate⟩
+
+theorem reach_reachIn_finset {e : NtvAssetId} {thisChain : Chain} {W X : World}
+    (hr : Reach e thisChain W X) :
+    ∃ S : Finset (Chain × Address), ReachIn e thisChain ↑S W X := by
+  classical
+  induction hr with
+  | refl => exact ⟨∅, ReachIn.refl⟩
+  | tail _ hs ih =>
+    obtain ⟨S₁, h₁⟩ := ih
+    obtain ⟨S₂, h₂⟩ := step_stepIn_finset hs
+    refine ⟨S₁ ∪ S₂, ReachIn.tail (reachIn_mono ?_ h₁) (stepIn_mono ?_ h₂)⟩
+    · intro x hx
+      exact Finset.mem_coe.mpr (Finset.mem_union_left _ (Finset.mem_coe.mp hx))
+    · intro x hx
+      exact Finset.mem_coe.mpr (Finset.mem_union_right _ (Finset.mem_coe.mp hx))
+
+/-- **THE DERIVED ID IS FREE, under injectivity on `S`.**  As
+`registerNative_id_fresh`: the taker's recorded pair is in `S` by `PairsIn`, the new
+pair is in `S` by hypothesis, and injectivity on `S` identifies them. -/
+theorem registerNative_id_fresh_on {e : NtvAssetId} {S : Set (Chain × Address)}
+    (he : IdAssumptionsOn e S) {thisChain : Chain} {V : Vault} (hV : Valid e thisChain V)
+    (hP : PairsIn S V) {t : Address} (hmem : (thisChain, t) ∈ S)
+    (hg : RegisterNativeGuard V t) : ¬ Registered V (e thisChain t) := by
+  intro hreg
+  have hpair := he.inj _ (hP _ hreg) _ hmem (hV.idShape _ hreg).symm
+  obtain ⟨hc, hot⟩ := Prod.mk.inj_iff.mp hpair
+  have hnative : Native thisChain V (e thisChain t) := hc
+  have htok : V.token (e thisChain t) = t := by
+    rw [← hV.nativeToken _ hreg hnative, hot]
+  have hinv := hV.inverse _ hreg
+  rw [htok, hg.fresh] at hinv
+  exact he.nonzero _ hmem hinv.symm
+
+/-- The registry write records a pair of `S` when its pair is in `S`. -/
+theorem setNewTokenStorage_pairsIn {S : Set (Chain × Address)} {V : Vault} (hP : PairsIn S V)
+    {a : AssetId} {t ot : Address} {origin : Chain} (hmem : (origin, ot) ∈ S) :
+    PairsIn S (setNewTokenStorage V a t ot origin) := by
+  intro a' hreg
+  by_cases h : a' = a
+  · subst h
+    rw [sn_originChain_self, sn_originToken_self]
+    exact hmem
+  · rw [sn_originChain_of_ne V a t ot origin h, sn_originToken_of_ne V a t ot origin h]
+    exact hP a' ((sn_registered_of_ne V a t ot origin h).mp hreg)
+
+theorem registerNative_preserves_valid_on {e : NtvAssetId} {S : Set (Chain × Address)}
+    (he : IdAssumptionsOn e S) {thisChain : Chain} (hc0 : thisChain ≠ 0) {V : Vault}
+    (hV : Valid e thisChain V) (hP : PairsIn S V) {t : Address} (hmem : (thisChain, t) ∈ S)
+    (hg : RegisterNativeGuard V t) :
+    Valid e thisChain (registerNative e thisChain V t)
+      ∧ PairsIn S (registerNative e thisChain V t) :=
+  ⟨setNewTokenStorage_preserves_valid hc0 hV (he.nonzero _ hmem) hg.nonzero hc0
+    (registerNative_id_fresh_on he hV hP hmem hg) hg.fresh rfl (fun _ => rfl),
+   setNewTokenStorage_pairsIn hP hmem⟩
+
+theorem registerBridged_preserves_valid_on {e : NtvAssetId} {S : Set (Chain × Address)}
+    (he : IdAssumptionsOn e S) {thisChain : Chain} (hc0 : thisChain ≠ 0) {V : Vault}
+    (hV : Valid e thisChain V) (hP : PairsIn S V)
+    {a : AssetId} {t ot : Address} {origin : Chain} (hmem : (origin, ot) ∈ S)
+    (hg : RegisterBridgedGuard e thisChain V a t ot origin) :
+    Valid e thisChain (registerBridged V a t ot origin)
+      ∧ PairsIn S (registerBridged V a t ot origin) :=
+  ⟨setNewTokenStorage_preserves_valid hc0 hV
+    (by rw [hg.idChecked]; exact he.nonzero _ hmem) hg.tokenNonzero hg.originNonzero
+    hg.freshId hg.freshToken hg.idChecked (fun h => absurd h hg.notNative),
+   setNewTokenStorage_pairsIn hP hmem⟩
+
+theorem stepIn_preserves_valid_on {e : NtvAssetId} {S : Set (Chain × Address)}
+    (he : IdAssumptionsOn e S) {thisChain : Chain} (hc0 : thisChain ≠ 0) {W X : World}
+    (hs : StepIn e thisChain S W X) (hV : Valid e thisChain W.vault) (hP : PairsIn S W.vault) :
+    Valid e thisChain X.vault ∧ PairsIn S X.vault := by
+  cases hs with
+  | registerNative hm hg => exact registerNative_preserves_valid_on he hc0 hV hP hm hg
+  | registerBridged hm hg => exact registerBridged_preserves_valid_on he hc0 hV hP hm hg
+  | bridgeOut _ =>
+    exact ⟨bridgeOut_preserves_valid hV, fun a h => by simpa using hP a (by simpa using h)⟩
+  | bridgeIn hg =>
+    exact ⟨bridgeIn_preserves_valid hV hg, fun a h => by simpa using hP a (by simpa using h)⟩
+  | donate =>
+    exact ⟨donate_preserves_valid hV, fun a h => by simpa using hP a (by simpa using h)⟩
+
+theorem run_inv_on {e : NtvAssetId} {S : Set (Chain × Address)} (he : IdAssumptionsOn e S)
+    {thisChain : Chain} (hc0 : thisChain ≠ 0) {W : World} (hr : ReachIn e thisChain S empty W) :
+    Valid e thisChain W.vault ∧ PairsIn S W.vault := by
+  induction hr with
+  | refl => exact ⟨empty_valid, pairsIn_empty S⟩
+  | tail _ hs ih => exact stepIn_preserves_valid_on he hc0 hs ih.1 ih.2
+
+theorem run_valid_on {e : NtvAssetId} {S : Set (Chain × Address)} (he : IdAssumptionsOn e S)
+    {thisChain : Chain} (hc0 : thisChain ≠ 0) {W : World} (hr : ReachIn e thisChain S empty W) :
+    Valid e thisChain W.vault :=
+  (run_inv_on he hc0 hr).1
+
 /-! ## The flow audit -/
 
 theorem empty_audited {thisChain : Chain} : Audited thisChain empty :=
@@ -494,12 +658,17 @@ private lemma ne_of_unreg {V : Vault} {a a' : AssetId} (hreg : Registered V a)
     (hnn : ¬ Registered V a') : a' ≠ a := by
   intro h; rw [h] at hnn; exact hnn hreg
 
-theorem step_preserves_audited {e : NtvAssetId} (he : IdAssumptions e) {thisChain : Chain}
-    (hc0 : thisChain ≠ 0) {W X : World} (hs : Step e thisChain W X)
-    (hV : Valid e thisChain W.vault) (hA : Audited thisChain W) : Audited thisChain X := by
+/-- The audit step, for a bounded step.  The unbounded `step_preserves_audited` is
+its `S := univ` instance. -/
+theorem stepIn_preserves_audited {e : NtvAssetId} {S : Set (Chain × Address)}
+    (he : IdAssumptionsOn e S) {thisChain : Chain}
+    (hc0 : thisChain ≠ 0) {W X : World} (hs : StepIn e thisChain S W X)
+    (hV : Valid e thisChain W.vault) (hP : PairsIn S W.vault)
+    (hA : Audited thisChain W) : Audited thisChain X := by
   cases hs with
-  | @registerNative t hg =>
-    have hfresh : ¬ Registered W.vault (e thisChain t) := registerNative_id_fresh he hV hg
+  | @registerNative t hmem hg =>
+    have hfresh : ¬ Registered W.vault (e thisChain t) :=
+      registerNative_id_fresh_on he hV hP hmem hg
     refine ⟨?_, ?_⟩
     · intro a' hnat
       by_cases h : a' = e thisChain t
@@ -525,7 +694,7 @@ theorem step_preserves_audited {e : NtvAssetId} (he : IdAssumptions e) {thisChai
       · subst h
         exact (sn_registered_self W.vault (e thisChain t) t t thisChain).mpr hg.nonzero
       · exact (sn_registered_of_ne W.vault _ t t thisChain h).mpr hreg
-  | @registerBridged a t ot origin hg =>
+  | @registerBridged a t ot origin _ hg =>
     refine ⟨?_, ?_⟩
     · intro a' hnat
       by_cases h : a' = a
@@ -599,6 +768,28 @@ theorem step_preserves_audited {e : NtvAssetId} (he : IdAssumptions e) {thisChai
     · intro a' hnn
       rw [donate_audit]
       exact hA.unregisteredQuiet a' (by simpa using hnn)
+
+theorem step_preserves_audited {e : NtvAssetId} (he : IdAssumptions e) {thisChain : Chain}
+    (hc0 : thisChain ≠ 0) {W X : World} (hs : Step e thisChain W X)
+    (hV : Valid e thisChain W.vault) (hA : Audited thisChain W) : Audited thisChain X :=
+  stepIn_preserves_audited (idAssumptionsOn_of_global he Set.univ) hc0 (step_stepIn_univ hs)
+    hV (pairsIn_univ _) hA
+
+theorem run_audited_on {e : NtvAssetId} {S : Set (Chain × Address)} (he : IdAssumptionsOn e S)
+    {thisChain : Chain} (hc0 : thisChain ≠ 0) {W : World} (hr : ReachIn e thisChain S empty W) :
+    Audited thisChain W := by
+  induction hr with
+  | refl => exact empty_audited
+  | @tail X Y hrx hs ih =>
+    have hinv := run_inv_on he hc0 hrx
+    exact stepIn_preserves_audited he hc0 hs hinv.1 hinv.2 ih
+
+theorem no_inflation_on {e : NtvAssetId} {S : Set (Chain × Address)} (he : IdAssumptionsOn e S)
+    {thisChain : Chain} (hc0 : thisChain ≠ 0) {W : World} (hr : ReachIn e thisChain S empty W)
+    (a : AssetId) (hnat : Native thisChain W.vault a) :
+    W.audit.totalIn a ≤ W.audit.totalOut a := by
+  have := (run_audited_on he hc0 hr).netFlow a hnat
+  omega
 
 theorem run_audited {e : NtvAssetId} (he : IdAssumptions e) {thisChain : Chain}
     (hc0 : thisChain ≠ 0) {W : World} (hr : Reach e thisChain empty W) :
@@ -692,6 +883,199 @@ theorem per_chain_isolation_fails {e : NtvAssetId} {thisChain : Chain}
     rw [updCA_same]
     rfl
 
+/-! ## Bounded runs: the boundaries, the pinned collision, and anti-vacuity -/
+
+theorem idAssumptionsOn_singleton {e : NtvAssetId} {c : Chain} {t : Address} (h0 : e c t ≠ 0) :
+    IdAssumptionsOn e {(c, t)} :=
+  ⟨fun p hp q hq _ => by rw [Set.mem_singleton_iff.mp hp, Set.mem_singleton_iff.mp hq],
+   fun p hp => by rw [Set.mem_singleton_iff.mp hp]; exact h0⟩
+
+lemma afterRegister_reachIn {e : NtvAssetId} {thisChain : Chain} {S : Set (Chain × Address)}
+    {t : Address} (hm : (thisChain, t) ∈ S) (ht0 : t ≠ 0) :
+    ReachIn e thisChain S empty (afterRegister e thisChain t) :=
+  ReachIn.tail ReachIn.refl (StepIn.registerNative hm ⟨ht0, rfl⟩)
+
+/-- **THE `InsufficientChainBalance` CHECK IS LOAD-BEARING**, bounded. -/
+theorem unguarded_inflow_unbacked_on {e : NtvAssetId} {thisChain : Chain}
+    (hc0 : thisChain ≠ 0) {t : Address} (ht0 : t ≠ 0) (he0 : e thisChain t ≠ 0) :
+    ∃ W : World, ReachIn e thisChain {(thisChain, t)} empty W ∧ Valid e thisChain W.vault
+      ∧ Registered W.vault (e thisChain t)
+      ∧ Native thisChain W.vault (e thisChain t)
+      ∧ W.vault.escrowed (e thisChain t) = 0
+      ∧ FlowInGuardUnchecked W.vault (e thisChain t) 1
+      ∧ ¬ FlowInGuard thisChain W.vault (e thisChain t) 1 :=
+  ⟨afterRegister e thisChain t, afterRegister_reachIn (Set.mem_singleton _) ht0,
+    run_valid_on (idAssumptionsOn_singleton he0) hc0
+      (afterRegister_reachIn (Set.mem_singleton _) ht0),
+    afterRegister_registered ht0, afterRegister_native, afterRegister_escrowed _,
+    ⟨afterRegister_registered ht0⟩, by
+      intro hg
+      have := hg.sufficient afterRegister_native
+      rw [afterRegister_bridgedOut] at this
+      omega⟩
+
+/-- `isolationRun` is a bounded run: it registers one pair. -/
+lemma isolationRun_reachIn {e : NtvAssetId} {thisChain : Chain} {t : Address} (ht0 : t ≠ 0)
+    (cA cB : Chain) :
+    ReachIn e thisChain {(thisChain, t)} empty (isolationRun e thisChain t cA cB) := by
+  have hreg := afterRegister_registered (e := e) (thisChain := thisChain) ht0
+  have hnat := afterRegister_native (e := e) (thisChain := thisChain) (t := t)
+  refine ReachIn.tail (ReachIn.tail (afterRegister_reachIn (Set.mem_singleton _) ht0)
+    (StepIn.bridgeOut ⟨hreg, one_ne_zero⟩)) (StepIn.bridgeIn ⟨by simpa using hreg, ?_⟩)
+  intro _
+  rw [bridgeOut_bridgedOut_native _ _ _ _ _ hnat, upd_same, afterRegister_bridgedOut]
+  omega
+
+/-- **THE DERIVED ID IS FREE, OR A PINNED COLLISION** — no hash assumption. -/
+theorem registerNative_id_fresh_or_collision {e : NtvAssetId} {thisChain : Chain} {V : Vault}
+    (hV : Valid e thisChain V) {t : Address} (hg : RegisterNativeGuard V t) :
+    ¬ Registered V (e thisChain t)
+    ∨ e thisChain t = 0
+    ∨ (Registered V (e thisChain t)
+        ∧ (V.originChain (e thisChain t), V.originToken (e thisChain t)) ≠ (thisChain, t)
+        ∧ e (V.originChain (e thisChain t)) (V.originToken (e thisChain t)) = e thisChain t) := by
+  by_cases hreg : Registered V (e thisChain t)
+  · by_cases h0 : e thisChain t = 0
+    · exact Or.inr (Or.inl h0)
+    · refine Or.inr (Or.inr ⟨hreg, ?_, (hV.idShape _ hreg).symm⟩)
+      intro hpair
+      obtain ⟨hc, hot⟩ := Prod.mk.inj_iff.mp hpair
+      have hnative : Native thisChain V (e thisChain t) := hc
+      have htok : V.token (e thisChain t) = t := by
+        rw [← hV.nativeToken _ hreg hnative, hot]
+      have hinv := hV.inverse _ hreg
+      rw [htok, hg.fresh] at hinv
+      exact h0 hinv.symm
+  · exact Or.inl hreg
+
+/-- **A FINITE SET ADMITS AN INJECTIVE, NONZERO ENCODING.**  Number its elements
+`1, 2, …, |S|`. -/
+theorem idAssumptionsOn_of_card (S : Finset (Chain × Address)) (hS : S.card < UInt256.size) :
+    ∃ e : NtvAssetId, IdAssumptionsOn e ↑S := by
+  classical
+  let f := S.equivFin
+  refine ⟨fun c t => if h : (c, t) ∈ S then
+      ⟨(f ⟨(c, t), h⟩).val + 1, by have := (f ⟨(c, t), h⟩).isLt; omega⟩ else 0, ?_, ?_⟩
+  · rintro ⟨c₁, t₁⟩ h₁ ⟨c₂, t₂⟩ h₂ heq
+    rw [Finset.mem_coe] at h₁ h₂
+    simp only [dif_pos h₁, dif_pos h₂, Fin.mk.injEq, add_left_inj] at heq
+    have hf : f ⟨(c₁, t₁), h₁⟩ = f ⟨(c₂, t₂), h₂⟩ := Fin.ext heq
+    exact congrArg Subtype.val (f.injective hf)
+  · rintro ⟨c, t⟩ h
+    rw [Finset.mem_coe] at h
+    simp only [dif_pos h]
+    intro h0
+    have := congrArg Fin.val h0
+    simp at this
+
+/-- The honest instance: the id is the token itself.  Not injective globally, but
+injective (and nonzero) on any set of nonzero tokens over one chain. -/
+def honestId : NtvAssetId := fun _ t => t
+
+/-- A colliding instance: every pair gets id `1`. -/
+def constId : NtvAssetId := fun _ _ => 1
+
+/-- The two-pair set of the honest instance. -/
+def honestPairs : Set (Chain × Address) := {((1 : Chain), (1 : Address)), (1, 2)}
+
+lemma honestId_on : IdAssumptionsOn honestId honestPairs := by
+  refine ⟨?_, ?_⟩
+  · intro p hp q hq h
+    simp only [honestPairs, Set.mem_insert_iff, Set.mem_singleton_iff] at hp hq
+    rcases hp with rfl | rfl <;> rcases hq with rfl | rfl
+    · rfl
+    · exact absurd h (by decide)
+    · exact absurd h (by decide)
+    · rfl
+  · intro p hp
+    simp only [honestPairs, Set.mem_insert_iff, Set.mem_singleton_iff] at hp
+    rcases hp with rfl | rfl <;> decide
+
+/-- One honest native registration of token `1` on chain `1`. -/
+lemma honest_inv :
+    Valid honestId 1 (afterRegister honestId 1 1).vault
+      ∧ PairsIn honestPairs (afterRegister honestId 1 1).vault :=
+  run_inv_on honestId_on (by decide)
+    (afterRegister_reachIn (by simp [honestPairs]) (by decide))
+
+lemma honest_guard2 : RegisterNativeGuard (afterRegister honestId 1 1).vault 2 := by
+  refine ⟨by decide, ?_⟩
+  show (setNewTokenStorage empty.vault (honestId 1 1) 1 1 1).assetOf 2 = 0
+  rw [sn_assetOf_of_ne _ _ _ _ _ (by decide)]
+  rfl
+
+theorem register_native_on_satisfiable :
+    ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (V : Vault)
+      (t : Address),
+      IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
+      ∧ (∃ a, Registered V a) ∧ (thisChain, t) ∈ S ∧ RegisterNativeGuard V t :=
+  ⟨honestId, honestPairs, 1, (afterRegister honestId 1 1).vault, 2, honestId_on, by decide,
+    honest_inv.1, honest_inv.2, ⟨_, afterRegister_registered (by decide)⟩,
+    by simp [honestPairs], honest_guard2⟩
+
+theorem register_native_collision_not_tautology :
+    ∃ (e : NtvAssetId) (thisChain : Chain) (V : Vault) (t : Address),
+      Valid e thisChain V ∧ (∃ a, Registered V a) ∧ RegisterNativeGuard V t
+      ∧ ¬ (e thisChain t = 0)
+      ∧ ¬ (Registered V (e thisChain t)
+            ∧ (V.originChain (e thisChain t), V.originToken (e thisChain t)) ≠ (thisChain, t)
+            ∧ e (V.originChain (e thisChain t)) (V.originToken (e thisChain t))
+                = e thisChain t) := by
+  refine ⟨honestId, 1, (afterRegister honestId 1 1).vault, 2, honest_inv.1,
+    ⟨_, afterRegister_registered (by decide)⟩, honest_guard2, by decide, ?_⟩
+  rintro ⟨hreg, _⟩
+  apply hreg
+  show (setNewTokenStorage empty.vault (honestId 1 1) 1 1 1).token (honestId 1 2) = 0
+  rw [sn_token_of_ne _ _ _ _ _ (by decide)]
+  rfl
+
+theorem register_native_collision_reachable :
+    ∃ (e : NtvAssetId) (thisChain : Chain) (V : Vault) (t : Address),
+      Valid e thisChain V ∧ RegisterNativeGuard V t ∧ Registered V (e thisChain t)
+      ∧ (V.originChain (e thisChain t), V.originToken (e thisChain t)) ≠ (thisChain, t)
+      ∧ e (V.originChain (e thisChain t)) (V.originToken (e thisChain t))
+          = e thisChain t := by
+  have hon : IdAssumptionsOn constId {((1 : Chain), (1 : Address))} :=
+    idAssumptionsOn_singleton (by decide)
+  have hreach := afterRegister_reachIn (e := constId) (Set.mem_singleton ((1 : Chain), (1 : Address)))
+    (by decide)
+  refine ⟨constId, 1, (afterRegister constId 1 1).vault, 2,
+    run_valid_on hon (by decide) hreach, ?_, afterRegister_registered (by decide), ?_, rfl⟩
+  · refine ⟨by decide, ?_⟩
+    show (setNewTokenStorage empty.vault (constId 1 1) 1 1 1).assetOf 2 = 0
+    rw [sn_assetOf_of_ne _ _ _ _ _ (by decide)]
+    rfl
+  · show ((setNewTokenStorage empty.vault (constId 1 1) 1 1 1).originChain (constId 1 1),
+        (setNewTokenStorage empty.vault (constId 1 1) 1 1 1).originToken (constId 1 1))
+        ≠ ((1 : Chain), (2 : Address))
+    rw [sn_originChain_self, sn_originToken_self]
+    decide
+
+theorem run_on_satisfiable :
+    ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (W : World),
+      IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ ReachIn e thisChain S empty W
+      ∧ ∃ a, Registered W.vault a ∧ Native thisChain W.vault a
+        ∧ W.audit.totalOut a ≠ 0 ∧ W.audit.totalIn a ≠ 0 := by
+  have hreg := afterRegister_registered (e := honestId) (thisChain := 1) (t := 1) (by decide)
+  have hnat := afterRegister_native (e := honestId) (thisChain := 1) (t := 1)
+  refine ⟨honestId, {(1, 1)}, 1, isolationRun honestId 1 1 1 2,
+    idAssumptionsOn_singleton (by decide), by decide, isolationRun_reachIn (by decide) 1 2,
+    honestId 1 1, ?_, ?_, ?_, ?_⟩
+  · exact (bridgeIn_registered _ _ _ _ _).mpr ((bridgeOut_registered _ _ _ _ _).mpr hreg)
+  · exact (bridgeIn_native _ _ _ _ _).mpr ((bridgeOut_native _ _ _ _ _).mpr hnat)
+  · rw [isolationRun, bridgeIn_totalOut, bridgeOut_totalOut, upd_same]; omega
+  · rw [isolationRun, bridgeIn_totalIn, upd_same]; omega
+
+theorem register_bridged_on_satisfiable :
+    ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (V : Vault)
+      (a : AssetId) (t ot : Address) (origin : Chain),
+      IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
+      ∧ (origin, ot) ∈ S ∧ RegisterBridgedGuard e thisChain V a t ot origin :=
+  ⟨honestId, {(2, 5)}, 1, empty.vault, honestId 2 5, 7, 5, 2,
+    idAssumptionsOn_singleton (by decide), by decide, empty_valid, pairsIn_empty _,
+    Set.mem_singleton _,
+    ⟨by decide, by decide, rfl, by decide, rfl, fun h => h rfl⟩⟩
+
 end Contracts.NativeTokenVault
 
 /-! ## Certificates -/
@@ -745,5 +1129,50 @@ theorem not_pair_inj (f : UInt256 → UInt256 → UInt256)
 
 theorem IdAssumptionsUnsatisfiable : Properties.IdAssumptionsUnsatisfiable :=
   fun e hA => not_pair_inj e hA.inj
+
+/-! ### Repaired forms -/
+
+theorem IdAssumptionsOnSatisfiable : Properties.IdAssumptionsOnSatisfiable :=
+  idAssumptionsOn_of_card
+theorem IdAssumptionsOnOfGlobal : Properties.IdAssumptionsOnOfGlobal :=
+  fun _ he S => idAssumptionsOn_of_global he S
+theorem ReachInIsReach : Properties.ReachInIsReach :=
+  fun _ _ _ _ _ hr => reachIn_reach hr
+theorem ReachCoveredByFinitePairs : Properties.ReachCoveredByFinitePairs :=
+  fun _ _ _ _ hr => reach_reachIn_finset hr
+theorem RegisterNativeIdFreshOn : Properties.RegisterNativeIdFreshOn :=
+  fun _ _ he _ _ hV hP _ hm hg => registerNative_id_fresh_on he hV hP hm hg
+theorem RegisterNativeIdFreshOrCollision : Properties.RegisterNativeIdFreshOrCollision :=
+  fun _ _ _ hV _ hg => registerNative_id_fresh_or_collision hV hg
+theorem RegisterNativeCollisionNotTautology : Properties.RegisterNativeCollisionNotTautology :=
+  register_native_collision_not_tautology
+theorem RegisterNativeCollisionReachable : Properties.RegisterNativeCollisionReachable :=
+  register_native_collision_reachable
+theorem RegisterNativePreservesValidOn : Properties.RegisterNativePreservesValidOn :=
+  fun _ _ he _ hc0 _ hV hP _ hm hg => registerNative_preserves_valid_on he hc0 hV hP hm hg
+theorem RegisterBridgedPreservesValidOn : Properties.RegisterBridgedPreservesValidOn :=
+  fun _ _ he _ hc0 _ hV hP _ _ _ _ hm hg =>
+    registerBridged_preserves_valid_on he hc0 hV hP hm hg
+theorem StepInPreservesValidOn : Properties.StepInPreservesValidOn :=
+  fun _ _ he _ hc0 _ _ hs hV hP => stepIn_preserves_valid_on he hc0 hs hV hP
+theorem RunValidOn : Properties.RunValidOn :=
+  fun _ _ he _ hc0 _ hr => run_valid_on he hc0 hr
+theorem SolvencyOn : Properties.SolvencyOn :=
+  fun _ _ he _ hc0 _ hr a => (run_valid_on he hc0 hr).solvent a
+theorem SurplusMonotoneNoHash : Properties.SurplusMonotoneNoHash :=
+  fun _ _ _ _ hs hV a => surplus_monotone hs hV a
+theorem RunAuditedOn : Properties.RunAuditedOn :=
+  fun _ _ he _ hc0 _ hr => run_audited_on he hc0 hr
+theorem LedgerIsNetFlowOn : Properties.LedgerIsNetFlowOn :=
+  fun _ _ he _ hc0 _ hr a hnat => (run_audited_on he hc0 hr).netFlow a hnat
+theorem NoInflationOn : Properties.NoInflationOn :=
+  fun _ _ he _ hc0 _ hr a hnat => no_inflation_on he hc0 hr a hnat
+theorem UnguardedInflowUnbackedOn : Properties.UnguardedInflowUnbackedOn :=
+  fun _ _ hc0 _ ht0 he0 => unguarded_inflow_unbacked_on hc0 ht0 he0
+theorem RunOnSatisfiable : Properties.RunOnSatisfiable := run_on_satisfiable
+theorem RegisterNativeOnSatisfiable : Properties.RegisterNativeOnSatisfiable :=
+  register_native_on_satisfiable
+theorem RegisterBridgedOnSatisfiable : Properties.RegisterBridgedOnSatisfiable :=
+  register_bridged_on_satisfiable
 
 end Contracts.NativeTokenVault
