@@ -149,6 +149,17 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
 
+-- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
+import EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery
+import EraSpec.Contracts.L2InteropHandler.Proofs.SourceBindingReduced
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Pause
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.FullRecovery
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.Resolution
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.ResolutionEvidence
+import EraSpec.Protocol.InteropAtomicity.Proofs.Operational
+import EraSpec.Protocol.InteropAtomicity.Proofs.Pause
+import EraSpec.Protocol.InteropAtomicity.Proofs.SharedCommitment
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
