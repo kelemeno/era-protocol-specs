@@ -10,6 +10,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | Atomicity | [Specs/Atomicity.lean](Specs/Atomicity.lean) | [Properties/Atomicity.lean](Properties/Atomicity.lean) | [Proofs/Atomicity.lean](Proofs/Atomicity.lean) |
 | Timeout | [Specs/Timeout.lean](Specs/Timeout.lean) | [Properties/Timeout.lean](Properties/Timeout.lean) | [Proofs/Timeout.lean](Proofs/Timeout.lean) |
 | Refund | [Specs/Refund.lean](Specs/Refund.lean) | [Properties/Refund.lean](Properties/Refund.lean) | [Proofs/Refund.lean](Proofs/Refund.lean) |
+| RefundStrong | [Specs/RefundStrong.lean](Specs/RefundStrong.lean) | [Properties/RefundStrong.lean](Properties/RefundStrong.lean) | [Proofs/RefundStrong.lean](Proofs/RefundStrong.lean) |
 | SourceHeight | [Specs/SourceHeight.lean](Specs/SourceHeight.lean) | [Properties/SourceHeight.lean](Properties/SourceHeight.lean) | [Proofs/SourceHeight.lean](Proofs/SourceHeight.lean) |
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
@@ -71,6 +72,24 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   manager calls (`ExecutedObligationNeverRefunded`). A cross-flow refund yields a
   collision of the flow-id hash on the two flows' own preimages
   (`CrossFlowIdClashIsPinnedCollision`).
+- **RefundStrong** (namespace `Contracts.Refund`). Completeness of the refund side, with
+  no hash premise. On a well-formed history the timeout gate accepts a break-free proof
+  for a leg with nonzero commit value exactly when the leg missed its deadline and its
+  chain has a batch after it (`RefundableIffMissedDeadline`); the honest low-leaf proof
+  at the first late batch does it and is presentable under data availability
+  (`MissedDeadlineRefundableByHonestProof`). The same holds for the gate as the contract
+  runs it, given an imported post-deadline root and `Aggregates`
+  (`AcceptedGateIffMissedDeadline`), and the END branch accepts the honest proofs
+  (`EndBranchAcceptsHonestProofs`). From every reachable logged state, each still
+  `Committed` leg of a stranded checked flow can be authorized and claimed
+  (`StrandedFlowCommittedLegRefundable`). At run level: an obligation is past `Committed`
+  exactly when a logged call marked it (`RefundedIffLoggedMark`), a cross-flow refund is
+  a `FlowIdClash` between two flows of the run (`CrossFlowRefundYieldsLoggedPinnedClash`),
+  and a `RefundBreak` implies a refund (`RefundBreakImpliesRefunded`).
+  `ExecutedObligationRefundBlockedOnlyByTimeoutGate` exhibits, under a toy hash pair
+  (`sealedNodeHash`, `sealedLeafHash`, not a model of keccak), an executed obligation
+  that is appended and `Committed`, with a logged flow-id clash in the run, that no
+  verified `authorizeRefund` call can mark.
 - **FlowBinding** (namespace `Contracts.FlowBinding`). `RunLog` is `ReachLog` plus a
   logged `requireFlowFinalized` step, so the log holds every call that runs
   `_checkFlowId`. With no hash premise, every logged flow claiming an executed flow's id

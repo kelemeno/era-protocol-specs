@@ -172,6 +172,7 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.ResolutionEvidence
 import EraSpec.Protocol.InteropAtomicity.Proofs.Operational
 import EraSpec.Protocol.InteropAtomicity.Proofs.Pause
 import EraSpec.Protocol.InteropAtomicity.Proofs.SharedCommitment
+import EraSpec.Protocol.InteropAtomicity.Proofs.RefundStrong
 
 -- Strengthened padding-ambiguity and zero-sentinel statements (FullMerkle, Merkle, IndexedMerkleTree)
 import EraSpec.Contracts.FullMerkle.Proofs.TreeShapeStrong

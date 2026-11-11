@@ -97,9 +97,9 @@ def Properties.RefundableIffMissedDeadline : Prop :=
 /-- **ITS PREMISES ARE SATISFIABLE, AND BOTH SIDES TAKE BOTH VALUES.**  In the well-formed
 `mixedSystem 1` with commit value `fun _ b => b`, the leg `⟨1, 2⟩` of `mixedFlow 0 1 2`
 (never committed) missed its deadline on a chain that moved past it, and the leg
-`⟨0, 1⟩` (committed at batch 0) did not.  Both commit values are nonzero.  Neither side
-of the equivalence mentions a hash on the left, so by the theorem the right side holds
-for `⟨1, 2⟩` and fails for `⟨0, 1⟩` under every hash. -/
+`⟨0, 1⟩` (committed at batch 0) did not.  Both commit values are nonzero.  The left side
+of the equivalence mentions no hash, so by the theorem the right side holds for `⟨1, 2⟩`
+and fails for `⟨0, 1⟩` under every hash. -/
 def Properties.RefundableIffMissedDeadlineWitness : Prop :=
   Wf (mixedSystem 1)
     ∧ legValue (fun _ b => b) (mixedFlow 0 1 2) ⟨1, 2⟩ ≠ 0
@@ -280,9 +280,10 @@ def Properties.RefundedIffLoggedMark : Prop :=
     ∀ (o : Obligation), Refunded Ms o ↔ ∃ a ∈ log, obligationOf a.flow a.leg = o
 
 /-- **ITS PREMISES ARE SATISFIABLE, AND BOTH SIDES TAKE BOTH VALUES.**  For every hash: a
-three-step run in `mixedSystem 1` (append `(0, 1)` on chain `0`, append `(0, 2)` on chain
-`1`, authorize the second) under the constant commit value `1` and `lengthFlowHash`.  The
-authorized obligation is refunded; the other appended one is `Committed`. -/
+three-step run in `mixedSystem 1` under the constant commit value `1` and `lengthFlowHash`
+(append `(1, 2)` on chain `1`, authorize it through `mixedFlow 1 1 2` on a verified
+timeout, append `(0, 1)` on chain `0`).  The authorized obligation is refunded; the other
+appended one is `Committed`. -/
 def Properties.RefundedIffLoggedMarkWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∃ (Ms : Managers) (log : List AuthCall) (o o' : Obligation),
@@ -297,7 +298,10 @@ it, that call passed every check of `authorizeRefund`, and its flow and `F` coll
 
 The run-level form of the README's "a cross-flow refund yields a collision of the
 flow-id hash on the two flows' own preimages", which
-`Properties.CrossFlowIdClashIsPinnedCollision` only restates as a definition. -/
+`Properties.CrossFlowIdClashIsPinnedCollision` only restates as a definition.  Given that
+both flows pass `_checkFlowId` with one id, the clash is equivalent to the marking call's
+flow differing from `F` (as for `FlowBinding`'s logged clash): what this adds is that the
+colliding flow is the one a logged, verified call presented, not a free variable. -/
 def Properties.CrossFlowRefundYieldsLoggedPinnedClash : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System)
     (F : Flow) (leg : FlowLeg), FlowIdChecked fh F →
