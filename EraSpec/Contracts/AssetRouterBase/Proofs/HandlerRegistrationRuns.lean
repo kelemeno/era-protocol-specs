@@ -33,19 +33,11 @@ lemma loggedTriples_snoc (log : List Call) (c : Call) :
     loggedTriples thisChain ntv ntvAddr (log ++ [c])
       = insert (c.triple thisChain ntv ntvAddr) (loggedTriples thisChain ntv ntvAddr log) := by
   ext p
-  simp only [Finset.mem_insert, mem_loggedTriples, List.mem_append, List.mem_singleton]
-  constructor
-  · rintro ⟨c', hc' | rfl, rfl⟩
-    · exact Or.inr ⟨c', hc', rfl⟩
-    · exact Or.inl rfl
-  · rintro (rfl | ⟨c', hc', rfl⟩)
-    · exact ⟨c, Or.inr rfl, rfl⟩
-    · exact ⟨c', Or.inl hc', rfl⟩
+  simp [mem_loggedTriples, or_comm, eq_comm]
 
 theorem loggedTriples_card_le (log : List Call) :
-    (loggedTriples thisChain ntv ntvAddr log).card ≤ log.length := by
-  unfold loggedTriples
-  exact le_trans (List.toFinset_card_le _) (le_of_eq (List.length_map _))
+    (loggedTriples thisChain ntv ntvAddr log).card ≤ log.length :=
+  (List.toFinset_card_le _).trans (List.length_map _).le
 
 lemma mem_loggedTriples_of_mem {log : List Call} {c : Call} (hc : c ∈ log) :
     c.triple thisChain ntv ntvAddr ∈ loggedTriples thisChain ntv ntvAddr log :=
@@ -60,12 +52,8 @@ lemma idInjOn_insert_snoc {q : Chain × Address × AssetData} {log : List Call} 
     (h : IdInjOn enc ↑(insert q (loggedTriples thisChain ntv ntvAddr (log ++ [c])))) :
     IdInjOn enc ↑(insert q (loggedTriples thisChain ntv ntvAddr log)) := by
   refine idInjOn_mono h ?_
-  intro x hx
-  simp only [Finset.coe_insert, Set.mem_insert_iff, Finset.mem_coe] at hx ⊢
-  rcases hx with rfl | hx
-  · exact Or.inl rfl
-  · rw [loggedTriples_snoc]
-    exact Or.inr (Finset.mem_insert_of_mem hx)
+  rw [loggedTriples_snoc, Finset.insert_comm]
+  exact Finset.coe_subset.2 (Finset.subset_insert _ _)
 
 lemma mem_insert_self_coe (q : Chain × Address × AssetData) (L : Finset (Chain × Address × AssetData)) :
     q ∈ (↑(insert q L) : Set (Chain × Address × AssetData)) := by
@@ -89,9 +77,7 @@ lemma lastCallOn_snoc (log : List Call) (c : Call) (q : Chain × Address × Asse
         else lastCallOn thisChain ntv ntvAddr log q := by
   unfold lastCallOn
   rw [List.filter_append, List.getLast?_append]
-  by_cases h : c.triple thisChain ntv ntvAddr = q
-  · simp [h]
-  · simp [h]
+  by_cases h : c.triple thisChain ntv ntvAddr = q <;> simp [h]
 
 lemma lastCallOn_nil (q : Chain × Address × AssetData) :
     lastCallOn thisChain ntv ntvAddr [] q = none := rfl
@@ -353,8 +339,7 @@ theorem vault_tracker_is_permanent {S T : Router} {log : List Call}
     T.tracker a = ntv := by
   induction h with
   | refl => exact ha
-  | @tail X Y log c _ hs ih =>
-    have hX := ih
+  | @tail X Y log c _ hs hX =>
     rw [stepCall_eq hs]
     simp only [setHandler]
     by_cases hw : a = writtenId enc thisChain ntv ntvAddr c.caller c.data
@@ -481,12 +466,9 @@ theorem empty_vaultOnly (ntv : Address) : VaultOnlyTrackers ntv empty := fun _ =
 
 theorem vaultOnly_admits_only_the_vault {R : Router} {caller : Address} {d : AssetData}
     (hV : VaultOnlyTrackers ntv R) (hg : SetGuard enc thisChain ntv ntvAddr R caller d) :
-    caller = ntv := by
-  rcases hg.authorized with h | h
-  · exact h
-  · rcases hV (writtenId enc thisChain ntv ntvAddr caller d) with h0 | h0
-    · exact absurd (h.trans h0) hg.callerNonzero
-    · exact h.trans h0
+    caller = ntv :=
+  hg.authorized.elim id fun h =>
+    (hV _).elim (fun h0 => absurd (h.trans h0) hg.callerNonzero) h.trans
 
 theorem setHandler_keeps_vaultOnly {R : Router} {caller : Address} {d : AssetData} {h : Address}
     (hV : VaultOnlyTrackers ntv R) (hc : caller = ntv) :

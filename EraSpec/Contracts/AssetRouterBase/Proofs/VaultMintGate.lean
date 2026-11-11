@@ -48,16 +48,7 @@ lemma vaultIdShape_step {e : Contracts.NativeTokenVault.NtvAssetId} {thisChain :
   cases hs with
   | registerNative _ => exact vaultIdShape_setNewTokenStorage hW rfl
   | registerBridged hg => exact vaultIdShape_setNewTokenStorage hW hg.idChecked
-  | bridgeOut _ =>
-    exact vaultIdShape_of_fields
-      (by unfold Contracts.NativeTokenVault.bridgeOut; split_ifs <;> rfl)
-      (by unfold Contracts.NativeTokenVault.bridgeOut; split_ifs <;> rfl)
-      (by unfold Contracts.NativeTokenVault.bridgeOut; split_ifs <;> rfl) hW
-  | bridgeIn _ =>
-    exact vaultIdShape_of_fields
-      (by unfold Contracts.NativeTokenVault.bridgeIn; split_ifs <;> rfl)
-      (by unfold Contracts.NativeTokenVault.bridgeIn; split_ifs <;> rfl)
-      (by unfold Contracts.NativeTokenVault.bridgeIn; split_ifs <;> rfl) hW
+  | bridgeOut _ | bridgeIn _ => refine vaultIdShape_of_fields ?_ ?_ ?_ hW <;> simp
   | donate => exact hW
 
 theorem vault_run_idShape {e : Contracts.NativeTokenVault.NtvAssetId} {thisChain : Chain}

@@ -25,9 +25,8 @@ lemma upd_ne (f : AssetId → Address) {x a : AssetId} (v : Address) (h : x ≠ 
 theorem handler_frame (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R : Router)
     (caller : Address) (d : AssetData) (h : Address) (a : AssetId)
     (hne : a ≠ writtenId enc thisChain ntv ntvAddr caller d) :
-    (setHandler enc thisChain ntv ntvAddr R caller d h).handler a = R.handler a := by
-  simp only [setHandler]
-  exact upd_ne _ _ hne
+    (setHandler enc thisChain ntv ntvAddr R caller d h).handler a = R.handler a :=
+  upd_ne _ _ hne
 
 theorem no_hijack {enc : AssetIdOf} (he : IdAssumptions enc) {thisChain : Chain}
     {ntv ntvAddr : Address} (R : Router) {caller : Address} (d : AssetData) (h : Address)
@@ -61,9 +60,8 @@ theorem only_tracker_or_ntv_writes {enc : AssetIdOf} {thisChain : Chain}
 theorem tracker_records_caller (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address)
     (R : Router) (caller : Address) (d : AssetData) (h : Address) :
     (setHandler enc thisChain ntv ntvAddr R caller d h).tracker
-      (writtenId enc thisChain ntv ntvAddr caller d) = caller := by
-  simp only [setHandler]
-  exact upd_same _ _ _
+      (writtenId enc thisChain ntv ntvAddr caller d) = caller :=
+  upd_same _ _ _
 
 theorem fresh_id_needs_ntv {enc : AssetIdOf} {thisChain : Chain} {ntv ntvAddr : Address}
     {R : Router} {caller : Address} {d : AssetData} (hcaller : caller ≠ ntv)
@@ -86,7 +84,7 @@ theorem step_preserves_valid {enc : AssetIdOf} {thisChain : Chain} {ntv ntvAddr 
       rw [tracker_records_caller]
       exact hg.callerNonzero
     · rw [show (setHandler enc thisChain ntv ntvAddr R caller d h).tracker a = R.tracker a from
-        by simp only [setHandler]; exact upd_ne _ _ heq]
+        upd_ne _ _ heq]
       refine hV a ?_
       rwa [handler_frame enc thisChain ntv ntvAddr R caller d h a heq] at hnz
 
@@ -103,17 +101,14 @@ theorem idInjOn_pair {enc : AssetIdOf} {p q : Chain × Address × AssetData}
     (hne : enc p.1 p.2.1 p.2.2 ≠ enc q.1 q.2.1 q.2.2) : IdInjOn enc {p, q} := by
   intro x hx y hy hxy
   simp only [Set.mem_insert_iff, Set.mem_singleton_iff] at hx hy
-  rcases hx with rfl | rfl <;> rcases hy with rfl | rfl
-  · rfl
-  · exact absurd hxy hne
-  · exact absurd hxy.symm hne
-  · rfl
+  rcases hx with rfl | rfl <;> rcases hy with rfl | rfl <;>
+    first | rfl | exact absurd hxy hne | exact absurd hxy.symm hne
 
 theorem idInjOn_of_global {enc : AssetIdOf} (he : IdAssumptions enc)
     (S : Set (Chain × Address × AssetData)) : IdInjOn enc S := by
   rintro ⟨c₁, s₁, d₁⟩ _ ⟨c₂, s₂, d₂⟩ _ h
-  obtain ⟨h1, h2, h3⟩ := he.inj _ _ _ _ _ _ h
-  subst h1; subst h2; subst h3; rfl
+  obtain ⟨rfl, rfl, rfl⟩ := he.inj _ _ _ _ _ _ h
+  rfl
 
 /-- **A FINITE SET ADMITS AN INJECTIVE ENCODING.**  Number its elements. -/
 theorem idInjOn_of_card (S : Finset (Chain × Address × AssetData))
@@ -124,7 +119,7 @@ theorem idInjOn_of_card (S : Finset (Chain × Address × AssetData))
       ⟨(f ⟨(c, s, d), h⟩).val, by have := (f ⟨(c, s, d), h⟩).isLt; omega⟩ else 0, ?_⟩
   rintro ⟨c₁, s₁, d₁⟩ h₁ ⟨c₂, s₂, d₂⟩ h₂ heq
   rw [Finset.mem_coe] at h₁ h₂
-  simp only [dif_pos h₁, dif_pos h₂, Fin.mk.injEq] at heq
+  simp only [h₁, h₂, ↓reduceDIte, Fin.mk.injEq] at heq
   have hf : f ⟨(c₁, s₁, d₁), h₁⟩ = f ⟨(c₂, s₂, d₂), h₂⟩ := Fin.ext heq
   exact congrArg Subtype.val (f.injective hf)
 
@@ -134,11 +129,8 @@ theorem no_hijack_or_collision (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAdd
     (setHandler enc thisChain ntv ntvAddr R caller d h).handler (enc thisChain s d')
       = R.handler (enc thisChain s d')
     ∨ enc thisChain s d' = enc thisChain caller d := by
-  by_cases heq : enc thisChain s d' = enc thisChain caller d
-  · exact Or.inr heq
-  · refine Or.inl (handler_frame enc thisChain ntv ntvAddr R caller d h _ ?_)
-    simp only [writtenId, senderOf_ne hcaller]
-    exact heq
+  refine or_iff_not_imp_right.2 fun heq => handler_frame enc thisChain ntv ntvAddr R caller d h _ ?_
+  rwa [writtenId, senderOf_ne hcaller]
 
 theorem no_hijack_on {enc : AssetIdOf} {thisChain : Chain} {ntv ntvAddr : Address}
     (R : Router) {caller : Address} (d : AssetData) (h : Address) (hcaller : caller ≠ ntv)
@@ -157,11 +149,8 @@ theorem ntv_touches_only_its_own_ids_or_collision (enc : AssetIdOf) (thisChain :
     (setHandler enc thisChain ntv ntvAddr R ntv d h).handler (enc thisChain s d')
       = R.handler (enc thisChain s d')
     ∨ enc thisChain s d' = enc thisChain ntvAddr d := by
-  by_cases heq : enc thisChain s d' = enc thisChain ntvAddr d
-  · exact Or.inr heq
-  · refine Or.inl (handler_frame enc thisChain ntv ntvAddr R ntv d h _ ?_)
-    simp only [writtenId, senderOf_self]
-    exact heq
+  refine or_iff_not_imp_right.2 fun heq => handler_frame enc thisChain ntv ntvAddr R ntv d h _ ?_
+  rwa [writtenId, senderOf_self]
 
 theorem ntv_touches_only_its_own_ids_on {enc : AssetIdOf} {thisChain : Chain}
     {ntv ntvAddr : Address} (R : Router) (d : AssetData) (h : Address)
@@ -231,8 +220,6 @@ theorem hijack_under_collision :
           ≠ R.handler (enc thisChain s d') := by
   refine ⟨constEnc, 1, 9, 8, trackerOne, 1, 0, 5, 2, 0, trackerOne_guard _, by decide,
     by decide, ?_⟩
-  show (if (1 : AssetId) = 1 then (5 : Address) else 0) ≠ (0 : Address)
-  rw [if_pos rfl]
   decide
 
 end Contracts.AssetRouter

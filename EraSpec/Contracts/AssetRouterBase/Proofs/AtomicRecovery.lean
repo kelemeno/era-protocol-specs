@@ -200,16 +200,12 @@ theorem recoverAtomicCall_frame {enc : AssetIdOf} {cfg : Config} {hk : Hooks X} 
     (h : recoverAtomicCall enc cfg hk w caller dest d = some (w', b)) :
     LeavesAlone a w.vault w'.vault := by
   unfold recoverAtomicCall at h
-  by_cases hc : caller ≠ cfg.manager
-  · rw [ite_eq_left hc] at h; cases h
-  rw [ite_eq_right hc] at h
-  rcases d with ⟨src, a', m⟩ | _ | _
-  · have hne : a' ≠ a := fun he => hd src m (by rw [he])
-    obtain ⟨w'', hn, hp⟩ := Option.map_eq_some_iff.mp h
-    cases hp
-    exact ntvRecover_frame hne hn
-  · cases h
-  · cases h; exact ⟨rfl, rfl⟩
+  repeat' split at h
+  all_goals simp only [reduceCtorEq, Option.some.injEq, Option.map_eq_some_iff, Prod.mk.injEq] at h
+  · obtain ⟨rfl, -⟩ := h
+    exact ⟨rfl, rfl⟩
+  · obtain ⟨_, hn, rfl, -⟩ := h
+    exact ntvRecover_frame (fun he => hd _ _ (by rw [he])) hn
 
 /-- The branch for a bridged asset the vault knows. -/
 theorem recoverAtomicCall_known {enc : AssetIdOf} {cfg : Config} {hk : Hooks X} {w : World X}
@@ -345,7 +341,6 @@ theorem recoverBundle_leavesAlone {step : World X → Call → Option (World X �
       (∀ c ∈ calls, ∀ u u' b, step u c = some (u', b) → LeavesAlone a u.vault u'.vault) →
       recoverBundle step w calls = some (w', n) → LeavesAlone a w.vault w'.vault
   | [], w, w', n, _, h => by
-    unfold recoverBundle at h
     cases h
     exact leavesAlone_refl _ _
   | c :: cs, w, w', n, hstep, h => by
@@ -353,13 +348,11 @@ theorem recoverBundle_leavesAlone {step : World X → Call → Option (World X �
     rcases hs : step w c with _ | ⟨w₁, b⟩ <;> rw [hs] at h
     · cases h
     dsimp only at h
-    rcases hr : recoverBundle step w₁ cs with _ | ⟨w₂, k⟩ <;> rw [hr] at h
+    rcases hr : recoverBundle step w₁ cs with _ | ⟨_, k⟩ <;> rw [hr] at h
     · cases h
-    dsimp only at h
-    have hw : w₂ = w' := (Prod.mk.inj (Option.some.inj h)).1
-    rw [← hw]
+    cases h
     exact leavesAlone_trans (hstep c List.mem_cons_self w w₁ b hs)
-      (recoverBundle_leavesAlone cs w₁ w₂ k (fun c hc => hstep c (List.mem_cons_of_mem _ hc)) hr)
+      (recoverBundle_leavesAlone cs w₁ _ k (fun c hc => hstep c (List.mem_cons_of_mem _ hc)) hr)
 
 /-- One router call: a call on `a` reverts, any other successful call leaves `a` alone. -/
 theorem recoverCall_frame {enc : AssetIdOf} {cfg : Config} {hk : Hooks X}
@@ -389,28 +382,23 @@ theorem claimRevertsWithUnknownAssetCall {enc : AssetIdOf} {cfg : Config} {hk : 
     (hU : VaultUnaware cfg w.vault a) (ho : OthersLeaveAlone a other)
     (hhas : HasRouterCallOn cfg a calls) (hfail : RouterCallsOnFail enc cfg a calls) :
     claimRefund (recoverCall enc cfg hk other dest) st w calls = none := by
-  apply claimRefund_eq_none
-  refine recoverBundle_eq_none_of_blocking (fun u => VaultUnaware cfg u.vault a)
-    (fun c => c.target = cfg.router ∧ ∃ src m, c.data = .finalizeDeposit src a m)
-    calls w ?_ ?_ ?_ hU
-  · intro c hc u u' b hu hs
-    by_cases hon : c.target = cfg.router ∧ ∃ src m, c.data = .finalizeDeposit src a m
-    · obtain ⟨ht, src, m, hd⟩ := hon
-      have hnone : recoverCall enc cfg hk other dest u c = none := by
-        unfold recoverCall
-        rw [ite_eq_left ht, hd]
-        exact recoverAtomicCall_unaware hu (hfail c hc ht src m hd)
-      rw [hnone] at hs
-      cases hs
-    · refine leavesAlone_unaware hu (recoverCall_frame ho ?_ hs)
-      intro ht src m hd
-      exact hon ⟨ht, src, m, hd⟩
-  · rintro c hc ⟨ht, src, m, hd⟩ u hu
+  have hblock : ∀ c ∈ calls,
+      (c.target = cfg.router ∧ ∃ src m, c.data = .finalizeDeposit src a m) →
+      ∀ u : World X, VaultUnaware cfg u.vault a → recoverCall enc cfg hk other dest u c = none := by
+    rintro c hc ⟨ht, src, m, hd⟩ u hu
     unfold recoverCall
     rw [ite_eq_left ht, hd]
     exact recoverAtomicCall_unaware hu (hfail c hc ht src m hd)
-  · obtain ⟨c, hc, ht, src, m, hd⟩ := hhas
-    exact ⟨c, hc, ht, src, m, hd⟩
+  apply claimRefund_eq_none
+  refine recoverBundle_eq_none_of_blocking (fun u => VaultUnaware cfg u.vault a)
+    (fun c => c.target = cfg.router ∧ ∃ src m, c.data = .finalizeDeposit src a m)
+    calls w ?_ hblock hhas hU
+  intro c hc u u' b hu hs
+  by_cases hon : c.target = cfg.router ∧ ∃ src m, c.data = .finalizeDeposit src a m
+  · rw [hblock c hc hon u hu] at hs
+    cases hs
+  · exact leavesAlone_unaware hu
+      (recoverCall_frame ho (fun ht src m hd => hon ⟨ht, src, m, hd⟩) hs)
 
 /-! ## The loop is `RecoveryLimits`' acceptance rule -/
 
@@ -418,7 +406,6 @@ theorem recoverBundle_some_outcomes {step : World X → Call → Option (World X
     ∀ (calls : List Call) (w w' : World X) (n : ℕ), recoverBundle step w calls = some (w', n) →
       LoopCompletes (outcomes step w calls) ∧ recoveredCount (outcomes step w calls) = n
   | [], w, w', n, h => by
-    unfold recoverBundle at h
     cases h
     exact ⟨List.not_mem_nil, rfl⟩
   | c :: cs, w, w', n, h => by
@@ -426,21 +413,14 @@ theorem recoverBundle_some_outcomes {step : World X → Call → Option (World X
     rcases hs : step w c with _ | ⟨w₁, b⟩ <;> rw [hs] at h
     · cases h
     dsimp only at h
-    rcases hr : recoverBundle step w₁ cs with _ | ⟨w₂, k⟩ <;> rw [hr] at h
+    rcases hr : recoverBundle step w₁ cs with _ | ⟨_, k⟩ <;> rw [hr] at h
     · cases h
-    dsimp only at h
-    have hn : (if b then 1 else 0) + k = n := (Prod.mk.inj (Option.some.inj h)).2
-    subst hn
-    obtain ⟨hl, hk⟩ := recoverBundle_some_outcomes cs w₁ w₂ k hr
-    unfold outcomes
-    rw [hs]
-    dsimp only
+    cases h
+    obtain ⟨hl, rfl⟩ := recoverBundle_some_outcomes cs w₁ _ k hr
+    rw [outcomes, hs]
     refine ⟨?_, ?_⟩
-    · intro hm
-      rcases List.mem_cons.mp hm with he | hm
-      · cases b <;> simp at he
-      · exact hl hm
-    · cases b <;> simp [recoveredCount] at hk ⊢ <;> omega
+    · cases b <;> simpa [LoopCompletes] using hl
+    · cases b <;> simp [recoveredCount, Nat.add_comm]
 
 theorem recoverBundle_none_outcomes {step : World X → Call → Option (World X × Bool)} :
     ∀ (calls : List Call) (w : World X), recoverBundle step w calls = none →
@@ -467,19 +447,10 @@ theorem claimSucceedsIffAccepted (step : World X → Call → Option (World X ×
   rcases hr : recoverBundle step w calls with _ | ⟨w', n⟩
   · simp only [Option.isSome_none, Bool.false_eq_true, false_iff]
     exact fun hacc => recoverBundle_none_outcomes calls w hr hacc.1
-  · obtain ⟨hl, hc⟩ := recoverBundle_some_outcomes calls w w' n hr
-    dsimp only
-    constructor
-    · intro hs
-      refine ⟨hl, ?_⟩
-      rw [hc]
-      intro h0
-      rw [ite_eq_left h0] at hs
-      cases hs
-    · rintro ⟨-, hn⟩
-      rw [hc] at hn
-      rw [ite_eq_right hn]
-      rfl
+  · obtain ⟨hl, rfl⟩ := recoverBundle_some_outcomes calls w w' n hr
+    by_cases h0 : recoveredCount (outcomes step w calls) = 0
+    · simp [h0]
+    · exact iff_of_true (by simp [h0]) ⟨hl, h0⟩
 
 /-! ## Certificates -/
 
@@ -546,19 +517,10 @@ theorem RefundOfOtherAssetLeavesAlone : Properties.RefundOfOtherAssetLeavesAlone
 theorem OtherClaimLeavesAlone : Properties.OtherClaimLeavesAlone := by
   intro X enc cfg hk other dest w w' st st' calls a ho hnot h
   unfold claimRefund at h
-  by_cases hst : st ≠ LegState.Revertable
-  · rw [ite_eq_left hst] at h; cases h
-  rw [ite_eq_right hst] at h
-  rcases hr : recoverBundle (recoverCall enc cfg hk other dest) w calls with _ | ⟨w₁, n⟩ <;>
-    rw [hr] at h
-  · cases h
-  dsimp only at h
-  by_cases hn : n = 0
-  · rw [ite_eq_left hn] at h; cases h
-  rw [ite_eq_right hn] at h
-  have hw : w₁ = w' := (Prod.mk.inj (Option.some.inj h)).2
-  rw [← hw]
-  refine recoverBundle_leavesAlone calls w w₁ n ?_ hr
+  repeat' split at h
+  all_goals simp only [reduceCtorEq, Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨-, rfl⟩ := h
+  refine recoverBundle_leavesAlone calls w _ _ ?_ ‹_›
   intro c hc u u' b hs
   refine recoverCall_frame ho ?_ hs
   intro ht src m hd
@@ -618,8 +580,7 @@ theorem DirectCallIsRefunded : Properties.DirectCallIsRefunded := by
   intro X enc cfg hk other dest src w sender a md x₁ x₂ hp hn ht hf hm
   refine ⟨?_, ?_⟩
   · intro c hc
-    rw [List.mem_singleton] at hc
-    subst hc
+    obtain rfl := List.mem_singleton.1 hc
     rfl
   · have hcall : recoverCall enc cfg hk other dest w
         (directCall cfg.router sender (.finalizeDeposit src a (some md)))
@@ -836,7 +797,7 @@ theorem CustomHandlerBundleIsStranded : Properties.CustomHandlerBundleIsStranded
   · intro c hc
     rcases List.mem_cons.mp hc with rfl | hc
     · rfl
-    · rw [List.mem_singleton] at hc; subst hc; rfl
+    · obtain rfl := List.mem_singleton.1 hc; rfl
   · show (if wRouter.handler 2 = 0 then (4 : Address) else wRouter.handler 2) ≠ 4
     unfold wRouter; decide
   · show (if wRouter.handler 1 = 0 then (4 : Address) else wRouter.handler 1) = 4

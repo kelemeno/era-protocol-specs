@@ -45,9 +45,7 @@ theorem run_trackerSource {K : Cfg} {ops : List Op} {R : Router} (hr : ARun K em
       · rw [setHandler_tracker_ne _ _ _ _ _ _ _ _ hxw] at hx ⊢
         obtain ⟨p, hp, h1, h2⟩ := ih x hx
         exact ⟨p, loggedTriples_mono hp, h1, h2⟩
-    | finalize _ _ _ => exact trackerSource_frame ih rfl
-    | seed => exact trackerSource_frame ih rfl
-    | counterpartSet _ => exact trackerSource_frame ih rfl
+    | finalize | seed | counterpartSet => exact trackerSource_frame ih rfl
     | @setTracker _ d t _ =>
       intro x hx
       by_cases hxt : x = K.enc K.thisChain t d
@@ -76,10 +74,7 @@ theorem l1_counterpart_at_vault_id_or_logged_clash {K1 : Cfg} {approves : Approv
         R1.tracker (K1.enc q.1 q.2.1 q.2.2) = K1.ntvAddr := by
       rcases hps with h1 | h1
       · exact Or.inr (h1.symm.trans hp1)
-      · by_cases htn : R1.tracker (K1.enc q.1 q.2.1 q.2.2) = K1.ntv
-        · exact Or.inl htn
-        · rw [senderOf_ne htn] at h1
-          exact Or.inr (h1.symm.trans hp1)
+      · exact or_iff_not_imp_left.2 fun htn => (h1.trans (senderOf_ne htn)).symm.trans hp1
     rcases key with h2 | h2
     · exact hA.vault _ h (h2 ▸ he)
     · exact hA.vaultAddr _ h (h2 ▸ he)
@@ -123,16 +118,11 @@ theorem l2_route_accountable {K : Cfg} (hK : K.side = .l2) (x : AssetId) {ops : 
         exact hg.callerNonzero
       · exact acct_congr ih' (handler_frame _ _ _ _ _ _ _ _ _ hxw)
           (setHandler_tracker_ne _ _ _ _ _ _ _ _ hxw)
-    | @finalize _ a _ _ _ =>
-      by_cases hxa : x = a
-      · subst hxa
-        exact fun _ => Or.inr (pointAt_handler_self _ _ _)
-      · exact acct_congr ih' (pointAt_handler_ne _ _ hxa) rfl
-    | seed =>
-      by_cases hxa : x = K.seedId
-      · subst hxa
-        exact fun _ => Or.inr (pointAt_handler_self _ _ _)
-      · exact acct_congr ih' (pointAt_handler_ne _ _ hxa) rfl
+    | finalize | seed =>
+      intro hx
+      simp only [pointAt, upd] at hx ⊢
+      split_ifs at hx ⊢
+      exacts [Or.inr rfl, ih' hx]
     | @counterpartSet _ a h _ =>
       by_cases hxa : x = a
       · subst hxa
@@ -193,12 +183,9 @@ lemma g1_inj :
     IdInjOn wEnc (↑(loggedTriples wK1 [.register 9 0 9]) ∪ {((1 : Chain), (8 : Address),
       (0 : AssetData))}) := by
   refine idInjOn_singleton (x := ((1 : Chain), (8 : Address), (0 : AssetData))) ?_
-  intro p hp
-  rcases hp with hp | hp
-  · rw [Finset.mem_coe, mem_loggedTriples] at hp
-    obtain ⟨op, hop, hpop⟩ := hp
-    rw [List.mem_singleton] at hop
-    subst hop
+  rintro p (hp | hp)
+  · obtain ⟨op, hop, hpop⟩ := mem_loggedTriples.1 hp
+    obtain rfl := List.mem_singleton.1 hop
     simp only [Op.triple, Option.some.injEq] at hpop
     rw [← hpop]
     show ((1 : Chain), senderOf 9 8 9, (0 : AssetData)) = (1, 8, 0)
@@ -255,8 +242,7 @@ theorem counterpart_cannot_misroute_vault_triple_witness :
     pointAt empty (wEnc 1 8 0) 8, rfl, rfl, rfl, rfl, rfl, wApp_ok, rfl,
     (ARun.nil).snoc (AStep.counterpartSet rfl), ?_, ⟨8, List.mem_singleton_self _⟩, ?_⟩
   · intro h hm
-    rw [List.mem_singleton] at hm
-    cases hm
+    cases List.mem_singleton.1 hm
     exact ⟨[.register 9 0 9], g1, runG1, g1_emits, g1_inj⟩
   · rw [show wK2.enc 1 8 0 = wEnc 1 8 0 from rfl, pointAt_handler_self]
     decide

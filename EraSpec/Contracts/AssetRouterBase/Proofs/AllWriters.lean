@@ -40,9 +40,8 @@ lemma recordTracker_tracker_ne (K : Cfg) (R : Router) {d : AssetData} {t : Addre
 lemma setHandler_tracker_ne (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address)
     (R : Router) (caller : Address) (d : AssetData) (h : Address) {x : AssetId}
     (hx : x ≠ writtenId enc thisChain ntv ntvAddr caller d) :
-    (setHandler enc thisChain ntv ntvAddr R caller d h).tracker x = R.tracker x := by
-  simp only [setHandler]
-  exact upd_ne _ _ hx
+    (setHandler enc thisChain ntv ntvAddr R caller d h).tracker x = R.tracker x :=
+  upd_ne _ _ hx
 
 /-- `WeakValid` at one id reads only that id's handler and tracker. -/
 lemma weakAt_congr {K : Cfg} {R R' : Router} {a : AssetId}
@@ -78,9 +77,7 @@ lemma ARun.mem_enabled {K : Cfg} {R0 R : Router} {ops : List Op} (hr : ARun K R0
     intro op hop
     rcases List.mem_append.1 hop with h | h
     · exact ih op h
-    · rw [List.mem_singleton] at h
-      subst h
-      exact ⟨_, _, hs⟩
+    · exact List.mem_singleton.1 h ▸ ⟨_, _, hs⟩
 
 /-- L2 has no tracker writer besides registration. -/
 lemma not_zeroTracker_of_l2 {K : Cfg} (hK : K.side = .l2) {op : Op} {S T : Router}
@@ -119,8 +116,7 @@ theorem single_writer_run_embeds (K : Cfg) {R S : Router}
       intro op hop
       rcases List.mem_append.1 hop with h1 | h1
       · exact hops op h1
-      · rw [List.mem_singleton] at h1
-        exact ⟨caller, d, h, h1⟩
+      · exact ⟨caller, d, h, List.mem_singleton.1 h1⟩
 
 theorem register_only_run_reach (K : Cfg) {R S : Router} {ops : List Op}
     (hr : ARun K R ops S) (hops : ∀ op ∈ ops, ∃ caller d h, op = .register caller d h) :
@@ -134,11 +130,8 @@ theorem register_only_run_reach (K : Cfg) {R S : Router} {ops : List Op}
     | register hg => exact .tail hR (.setHandler hg)
 
 theorem weakValid_at_zero_vault {K K' : Cfg} {R : Router} (hK : K.ntv = 0)
-    (hW : WeakValid K R) : WeakValid K' R := by
-  intro a ha
-  rcases hW a ha with h | ⟨h1, _⟩
-  · exact Or.inl h
-  · exact absurd (h1.trans hK) ha
+    (hW : WeakValid K R) : WeakValid K' R :=
+  fun a ha => (hW a ha).imp_right fun ⟨h1, _⟩ => absurd (h1.trans hK) ha
 
 /-! ## (b) The weakened invariant -/
 
@@ -206,17 +199,14 @@ lemma mem_loggedTriples {K : Cfg} {ops : List Op} {p : Chain × Address × Asset
   simp [loggedTriples, List.mem_filterMap]
 
 lemma loggedTriples_mono {K : Cfg} {ops : List Op} {op : Op} :
-    loggedTriples K ops ⊆ loggedTriples K (ops ++ [op]) := by
-  intro p hp
-  rw [mem_loggedTriples] at hp ⊢
-  obtain ⟨o, ho, h⟩ := hp
-  exact ⟨o, List.mem_append_left _ ho, h⟩
+    loggedTriples K ops ⊆ loggedTriples K (ops ++ [op]) := fun _ hp =>
+  mem_loggedTriples.2 <| (mem_loggedTriples.1 hp).imp fun _ ⟨ho, h⟩ =>
+    ⟨List.mem_append_left _ ho, h⟩
 
 lemma mem_loggedTriples_snoc {K : Cfg} {ops : List Op} {op : Op}
     {p : Chain × Address × AssetData} (h : op.triple K = some p) :
-    p ∈ loggedTriples K (ops ++ [op]) := by
-  rw [mem_loggedTriples]
-  exact ⟨op, List.mem_append_right _ (List.mem_singleton_self _), h⟩
+    p ∈ loggedTriples K (ops ++ [op]) :=
+  mem_loggedTriples.2 ⟨op, List.mem_append_right _ (List.mem_singleton_self _), h⟩
 
 lemma idInjOn_mono {enc : AssetIdOf} {S T : Set (Chain × Address × AssetData)} (hST : S ⊆ T)
     (h : IdInjOn enc T) : IdInjOn enc S :=
@@ -255,12 +245,9 @@ theorem run_weakValid_on {K : Cfg} (hN : K.ntvAddr ≠ 0) (hmint : MintsOnlyNtvI
       · subst hxw
         refine ⟨(K.thisChain, senderOf K.ntv K.ntvAddr caller, d),
           mem_loggedTriples_snoc rfl, ?_, rfl⟩
-        by_cases hcn : caller = K.ntv
-        · subst hcn
-          rw [senderOf_self]
-          exact hN
-        · rw [senderOf_ne hcn]
-          exact hg.callerNonzero
+        dsimp only [senderOf]
+        split_ifs
+        exacts [hN, hg.callerNonzero]
       · rw [setHandler_tracker_ne _ _ _ _ _ _ _ _ hxw] at hx
         obtain ⟨p, hp, h1, h2⟩ := hP x hx
         exact ⟨p, loggedTriples_mono hp, h1, h2⟩
@@ -319,22 +306,10 @@ theorem logged_premise_satisfiable (K : Cfg) (ops : List Op) (h : ops.length ≤
 theorem all_writers_frame {K : Cfg} {op : Op} {R R' : Router} (hs : AStep K op R R')
     (x : AssetId) (hx : R'.handler x ≠ R.handler x) : op.target K = some x := by
   cases hs with
-  | @register _ caller d h _ =>
-    by_cases hxw : x = writtenId K.enc K.thisChain K.ntv K.ntvAddr caller d
-    · subst hxw; rfl
-    · exact absurd (handler_frame _ _ _ _ _ _ _ _ _ hxw) hx
-  | @finalize _ a _ _ _ =>
-    by_cases hxa : x = a
-    · subst hxa; rfl
-    · exact absurd (pointAt_handler_ne _ _ hxa) hx
-  | seed =>
-    by_cases hxa : x = K.seedId
-    · subst hxa; rfl
-    · exact absurd (pointAt_handler_ne _ _ hxa) hx
-  | @counterpartSet _ a _ _ =>
-    by_cases hxa : x = a
-    · subst hxa; rfl
-    · exact absurd (pointAt_handler_ne _ _ hxa) hx
+  | register =>
+    exact congrArg some (of_not_not fun hxw => hx (handler_frame _ _ _ _ _ _ _ _ _ (Ne.symm hxw)))
+  | finalize | seed | counterpartSet =>
+    exact congrArg some (of_not_not fun hxa => hx (pointAt_handler_ne _ _ (Ne.symm hxa)))
   | setTracker _ => exact absurd rfl hx
 
 theorem finalize_leaves_live_routes {K : Cfg} {a : AssetId} {R R' : Router}
@@ -349,23 +324,11 @@ theorem finalize_leaves_live_routes {K : Cfg} {a : AssetId} {R R' : Router}
 lemma target_eq_of_hashedFrom {K : Cfg} {op : Op} {p : Chain × Address × AssetData}
     {x : AssetId} (hp : op.HashedFrom K p) (ht : op.target K = some x) :
     x = K.enc p.1 p.2.1 p.2.2 := by
-  cases op with
-  | register caller d h =>
-    simp only [Op.HashedFrom] at hp
-    subst hp
-    simp only [Op.target, Option.some.injEq] at ht
-    rw [← ht]
-    rfl
-  | finalize a =>
-    simp only [Op.target, Option.some.injEq] at ht
-    rw [← ht]
-    exact hp.2
-  | seed =>
-    simp only [Op.target, Option.some.injEq] at ht
-    rw [← ht]
-    exact hp.2
-  | counterpartSet a h => exact hp.elim
-  | setTracker d t => simp [Op.target] at ht
+  cases op <;> simp only [Op.target, Option.some.injEq, reduceCtorEq] at ht <;> subst ht
+  · subst hp; rfl
+  · exact hp.2
+  · exact hp.2
+  · exact hp.elim
 
 theorem no_hijack_on_except_counterpart {K : Cfg} (hmint : MintsOnlyNtvIds K)
     (hseed : IsNtvId K.enc K.ntvAddr K.seedId) {op : Op} {R R' : Router}
@@ -405,16 +368,11 @@ theorem l2_only_vault_registers {K : Cfg} (hK : K.side = .l2) {ops : List Op} {R
       intro caller d h hm hne
       rcases List.mem_append.1 hm with hm | hm
       · exact hreg caller d h hm
-      · rw [List.mem_singleton] at hm
-        exact absurd hm.symm hne
+      · exact absurd (List.mem_singleton.1 hm).symm hne
     cases hs with
     | @register _ caller d h hg =>
-      have hcn : caller = K.ntv := by
-        rcases hg.authorized with h1 | h1
-        · exact h1
-        · rcases hT (writtenId K.enc K.thisChain K.ntv K.ntvAddr caller d) with h2 | h2
-          · exact absurd (h1.trans h2) hg.callerNonzero
-          · exact h1.trans h2
+      have hcn : caller = K.ntv := hg.authorized.elim id fun h1 =>
+        (hT _).elim (fun h2 => absurd (h1.trans h2) hg.callerNonzero) h1.trans
       refine ⟨fun a => ?_, fun c' d' h' hm => ?_⟩
       · by_cases ha : a = writtenId K.enc K.thisChain K.ntv K.ntvAddr caller d
         · subst ha
@@ -426,20 +384,14 @@ theorem l2_only_vault_registers {K : Cfg} (hK : K.side = .l2) {ops : List Op} {R
         · cases he
           exact hcn
         · exact old c' d' h' hm he
-    | finalize _ _ _ =>
-      exact ⟨hT, fun c' d' h' hm => old c' d' h' hm (by intro h; cases h)⟩
-    | seed =>
-      exact ⟨hT, fun c' d' h' hm => old c' d' h' hm (by intro h; cases h)⟩
-    | counterpartSet _ =>
-      exact ⟨hT, fun c' d' h' hm => old c' d' h' hm (by intro h; cases h)⟩
+    | finalize | seed | counterpartSet => exact ⟨hT, fun c' d' h' hm => old c' d' h' hm nofun⟩
     | setTracker hside => rw [hK] at hside; cases hside
 
 theorem run_trackerHashed {K : Cfg} {ops : List Op} {R0 R : Router} (hr : ARun K R0 ops R)
     (h0 : TrackerHashed K R0) : TrackerHashed K R := by
   induction hr with
   | nil => exact h0
-  | @snoc S T ops op _ hs ih =>
-    have hS := ih
+  | @snoc S T ops op _ hs hS =>
     cases hs with
     | @register _ caller d h _ =>
       intro x hx
@@ -452,9 +404,7 @@ theorem run_trackerHashed {K : Cfg} {ops : List Op} {R0 R : Router} (hr : ARun K
         · exact ⟨d, Or.inl (by simp [writtenId, senderOf_ne hcn])⟩
       · rw [setHandler_tracker_ne _ _ _ _ _ _ _ _ hxw] at hx ⊢
         exact hS x hx
-    | finalize _ _ _ => exact hS
-    | seed => exact hS
-    | counterpartSet _ => exact hS
+    | finalize | seed | counterpartSet => exact hS
     | @setTracker _ d t _ =>
       intro x hx
       by_cases hxt : x = K.enc K.thisChain t d
@@ -475,12 +425,8 @@ theorem l2_only_counterpart_touches_non_vault_ids {K : Cfg} (hK : K.side = .l2)
   have hT := (l2_only_vault_registers hK hr (fun _ => Or.inl rfl)).1
   cases hs with
   | @register _ caller d h hg =>
-    have hcn : caller = K.ntv := by
-      rcases hg.authorized with h1 | h1
-      · exact h1
-      · rcases hT (writtenId K.enc K.thisChain K.ntv K.ntvAddr caller d) with h2 | h2
-        · exact absurd (h1.trans h2) hg.callerNonzero
-        · exact h1.trans h2
+    have hcn : caller = K.ntv := hg.authorized.elim id fun h1 =>
+      (hT _).elim (fun h2 => absurd (h1.trans h2) hg.callerNonzero) h1.trans
     subst hcn
     simp only [Op.target, Option.some.injEq] at ht
     exact ⟨K.thisChain, d, by rw [← ht]; simp [writtenId]⟩
@@ -616,16 +562,13 @@ theorem seed_and_counterpart_break_valid :
 lemma ops1_clean : ∀ op ∈ ops1, ¬ op.IsCounterpart ∧ ¬ op.ZeroTracker := by
   intro op hop
   simp only [ops1, List.mem_cons, List.not_mem_nil, or_false] at hop
-  rcases hop with rfl | rfl | rfl | rfl
-  · exact ⟨fun h => h, fun h => h⟩
-  · exact ⟨fun h => h, fun h => absurd (show (5 : Address) = 0 from h) (by decide)⟩
-  · exact ⟨fun h => h, fun h => h⟩
-  · exact ⟨fun h => h, fun h => h⟩
+  rcases hop with rfl | rfl | rfl | rfl <;> refine ⟨id, ?_⟩
+  exacts [id, (by decide : (5 : Address) ≠ 0), id, id]
 
 lemma ops2_clean : ∀ op ∈ ops2, ¬ op.IsCounterpart ∧ ¬ op.ZeroTracker := by
   intro op hop
   simp only [ops2, List.mem_cons, List.not_mem_nil, or_false] at hop
-  rcases hop with rfl | rfl | rfl <;> exact ⟨fun h => h, fun h => h⟩
+  rcases hop with rfl | rfl | rfl <;> exact ⟨id, id⟩
 
 theorem run_weakValid_witness (side : Side) :
     ∃ (K : Cfg) (ops : List Op) (R : Router),
@@ -655,19 +598,12 @@ lemma loggedTriples_run1'_sub :
   obtain ⟨op, hop, hpop⟩ := hp
   simp only [ops1, List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil,
     or_false] at hop
-  rcases hop with rfl | rfl | rfl | rfl | rfl
-  · simp [Op.triple] at hpop
-  · simp only [Op.triple, Option.some.injEq] at hpop
-    subst hpop
+  rcases hop with rfl | rfl | rfl | rfl | rfl <;>
+    simp only [Op.triple, Option.some.injEq, reduceCtorEq] at hpop <;> subst hpop
+  · exact Set.mem_insert _ _
+  · rw [show senderOf wK1.ntv wK1.ntvAddr 5 = 5 from senderOf_ne (by decide)]
     exact Set.mem_insert _ _
-  · simp only [Op.triple, Option.some.injEq] at hpop
-    subst hpop
-    rw [show senderOf wK1.ntv wK1.ntvAddr 5 = 5 from senderOf_ne (by decide)]
-    exact Set.mem_insert _ _
-  · simp [Op.triple] at hpop
-  · simp only [Op.triple, Option.some.injEq] at hpop
-    subst hpop
-    exact Set.mem_insert_of_mem _ rfl
+  · exact Set.mem_insert_of_mem _ rfl
 
 theorem run_weakValid_on_witness :
     ∃ (K : Cfg) (ops : List Op) (R : Router),
@@ -677,10 +613,10 @@ theorem run_weakValid_on_witness :
       (∃ p ∈ loggedTriples K ops, ∃ q, q ∉ loggedTriples K ops ∧
           K.enc p.1 p.2.1 p.2.2 = K.enc q.1 q.2.1 q.2.2) ∧
       ¬ Valid R := by
-  refine ⟨wK1, ops1 ++ [.setTracker 4 0], s5, rfl, by decide, wK1_mints, isNtv_101, run1',
+  refine ⟨wK1, ops1 ++ [Op.setTracker 4 0], s5, rfl, by decide, wK1_mints, isNtv_101, run1',
     idInjOn_mono loggedTriples_run1'_sub (idInjOn_pair (by decide)),
-    ⟨.setTracker 4 0, by simp, rfl⟩,
-    ⟨(1, 5, 3), mem_loggedTriples.2 ⟨.setTracker 3 5, by simp [ops1], rfl⟩, (1, 5, 99), ?_,
+    ⟨Op.setTracker 4 0, by simp, rfl⟩,
+    ⟨(1, 5, 3), mem_loggedTriples.2 ⟨Op.setTracker 3 5, by simp [ops1], rfl⟩, (1, 5, 99), ?_,
       by decide⟩, ?_⟩
   · intro hq
     have := loggedTriples_run1'_sub (Finset.mem_coe.2 hq)
@@ -706,7 +642,7 @@ theorem zero_tracker_breaks_weakValid_under_collision :
     ⟨.setTracker 4 0, by simp [opsC], rfl⟩, ?_, ?_⟩
   · intro op hop
     simp only [opsC, List.mem_cons, List.not_mem_nil, or_false] at hop
-    rcases hop with rfl | rfl | rfl <;> exact fun h => h
+    rcases hop with rfl | rfl | rfl <;> exact id
   · intro hinj
     have h1 : ((1 : Chain), (5 : Address), (3 : AssetData)) ∈ loggedTriples cK opsC :=
       mem_loggedTriples.2 ⟨.setTracker 3 5, by simp [opsC], rfl⟩
@@ -777,9 +713,8 @@ theorem counterpart_repoints_vault_route :
     (ARun.nil).snoc (AStep.register g), ?_, ⟨by decide, isNtv_100⟩, by decide,
     AStep.counterpartSet rfl, pointAt_handler_self _ _ _, by decide, by decide⟩
   intro op hop
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hop
-  subst hop
-  exact fun h => h
+  obtain rfl := List.mem_singleton.1 hop
+  exact id
 
 end Contracts.AssetRouter.AllWriters
 
