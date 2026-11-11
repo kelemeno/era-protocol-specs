@@ -25,35 +25,12 @@ private theorem prepare_other_metadata {hooks : MetaHooks Accounting} {s : State
       (hooks.metadata m' out.state.token s.config.originChainId).map
         fun bytes => ⟨out.state, { out.data with metadata := bytes }⟩ := by
   unfold prepare at h ⊢
-  split at h
-  · rename_i hg
-    rw [ite_eq_left hg]
-    simp only [MetaHooks.toHooks] at h ⊢
-    cases ha : hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha, reduceCtorEq] at h
-    | some accounted =>
-      simp only [ha] at h ⊢
-      split at h
-      · rename_i hv
-        rw [ite_eq_left hv]
-        cases hb : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount with
-        | none => simp only [hb, reduceCtorEq] at h
-        | some burned =>
-          simp only [hb] at h ⊢
-          split at h
-          · rename_i ho
-            rw [ite_eq_left ho]
-            cases hm : hooks.metadata m burned s.config.originChainId with
-            | none => simp only [hm, reduceCtorEq] at h
-            | some md =>
-              simp only [hm] at h
-              obtain rfl := (Option.some.inj h).symm
-              cases hm' : hooks.metadata m' burned s.config.originChainId with
-              | none => rfl
-              | some bytes => rfl
-          · cases h
-      · cases h
-  · cases h
+  simp only [MetaHooks.toHooks] at h ⊢
+  repeat (split at h <;> try contradiction)
+  rename_i hg _ _ _ hv _ burned _ ho _ _ _
+  cases h
+  simp only [ite_eq_left hg, ite_eq_left hv, ite_eq_left ho]
+  cases hooks.metadata m' burned s.config.originChainId <;> rfl
 
 theorem ReinitLeavesVaultStateUnchanged : Properties.ReinitLeavesVaultStateUnchanged := by
   intro Accounting s version metadata beaconOwner caller getters name symbol version' t h
@@ -75,23 +52,16 @@ theorem ReinitChangesOnlyPreparedMetadata : Properties.ReinitChangesOnlyPrepared
   intro Accounting hooks s version metadata beaconOwner caller getters name symbol version' t r
     out out' h hp hp'
   rw [reinit_token h, prepare_other_metadata hp] at hp'
-  cases hm : hooks.metadata t.metadata out.state.token s.config.originChainId with
-  | none => simp only [hm, Option.map_none, reduceCtorEq] at hp'
-  | some bytes =>
-    simp only [hm, Option.map_some, Option.some.injEq] at hp'
-    subst hp'
-    exact ⟨rfl, rfl, rfl, rfl, rfl⟩
+  obtain ⟨_, -, rfl⟩ := Option.map_eq_some_iff.mp hp'
+  exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-! ## Witness -/
 
 private theorem wToken_mint :
     BridgedStandardERC20.mint (BridgedStandardERC20.empty ⟨1, 9, 5⟩) 1 4 10 = some wToken := by
   unfold BridgedStandardERC20.mint
-  rw [ite_eq_left]
-  · rfl
-  · refine ⟨by decide, rfl, by decide, ?_⟩
-    simp only [BridgedStandardERC20.empty]
-    decide
+  rw [ite_eq_left ⟨by decide, rfl, by decide, by simp only [BridgedStandardERC20.empty]; decide⟩]
+  rfl
 
 private theorem wVault_wellFormed : WellFormed wVault := by
   have hw0 : BridgedStandardERC20.WellFormed (BridgedStandardERC20.empty ⟨1, 9, 5⟩) :=

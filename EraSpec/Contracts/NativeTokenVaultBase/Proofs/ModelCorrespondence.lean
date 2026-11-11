@@ -25,16 +25,11 @@ open NativeTokenVault (Chain Vault World NtvAssetId Valid IdAssumptionsOn PairsI
 
 theorem widen_val (t : Address) : (widen t).val = t.val := rfl
 
-theorem widen_inj {t t' : Address} : widen t = widen t' ↔ t = t' := by
-  constructor
-  · intro h
-    exact Fin.ext (by simpa [widen_val] using congrArg Fin.val h)
-  · rintro rfl; rfl
+theorem widen_inj {t t' : Address} : widen t = widen t' ↔ t = t' :=
+  ⟨fun h => Fin.ext (by simpa [widen_val] using congrArg Fin.val h), fun h => h ▸ rfl⟩
 
-theorem widen_zero : widen 0 = 0 := by
-  apply Fin.ext
-  rw [widen_val]
-  rfl
+theorem widen_zero : widen 0 = 0 :=
+  Fin.ext (widen_val 0)
 
 theorem widen_eq_zero {t : Address} : widen t = 0 ↔ t = 0 := by
   rw [← widen_zero, widen_inj]
@@ -178,35 +173,18 @@ private theorem prepare_view' {hooks : Hooks Accounting} {s : State Accounting}
       BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount = some burned ∧
       out = ⟨{ s with token := burned, accounting := accounted }, mintData r burned metadata⟩ := by
   unfold prepare at h
-  split at h
-  · rename_i hg
-    cases ha : hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha, reduceCtorEq] at h
-    | some accounted =>
-      simp only [ha] at h
-      split at h
-      · cases hb : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount with
-        | none => simp only [hb, reduceCtorEq] at h
-        | some burned =>
-          simp only [hb] at h
-          split at h
-          · cases hm : hooks.metadata burned s.config.originChainId with
-            | none => simp only [hm, reduceCtorEq] at h
-            | some metadata =>
-              simp only [hm] at h
-              exact ⟨hg.1, hg.2, accounted, burned, metadata, rfl, (Option.some.inj h).symm⟩
-          · cases h
-      · cases h
-  · cases h
+  repeat (split at h <;> try contradiction)
+  rename_i hg _ accounted _ _ _ burned hb _ _ metadata _
+  cases h
+  exact ⟨hg.1, hg.2, accounted, burned, metadata, hb, rfl⟩
 
 private theorem burn_config {t burned : BridgedStandardERC20.State}
     {caller owner : Address} {amount : UInt256}
     (h : BridgedStandardERC20.burn t caller owner amount = some burned) :
     burned.config = t.config := by
   unfold BridgedStandardERC20.burn at h
-  split at h
-  · cases h; rfl
-  · cases h
+  split at h <;> cases h
+  rfl
 
 theorem preparationIsForeignBridgeOut {hooks : Hooks Accounting} {s : State Accounting}
     {r : Request} {out : Result Accounting} (e : NtvAssetId) {thisChain : Chain} {W : World}
@@ -234,15 +212,10 @@ theorem preparationIsForeignBridgeOut {hooks : Hooks Accounting} {s : State Acco
     rw [hasset, ho, hc.chain]
     exact hs.2.2.2.1
   have hamt : r.data.amount.val ≠ 0 := fun h0 => he.2.2.2.2.2 (Fin.ext h0)
-  have hvault : (NativeTokenVault.bridgeOut thisChain W r.destinationChain r.assetId
-      r.data.amount.val).vault = W.vault := by
-    simp [NativeTokenVault.bridgeOut, ite_eq_right hforeign]
+  have hvault := NativeTokenVault.bridgeOut_vault_foreign thisChain W r.destinationChain r.assetId
+    r.data.amount.val hforeign
   refine ⟨NativeTokenVault.Step.bridgeOut ⟨hreg, hamt⟩, hforeign, hvault, ?_⟩
-  refine ⟨hc.chain, hc.registry, ?_⟩
-  intro hreg'
-  have := hc.tracked hreg'
-  simp only [burn_config hb]
-  exact this
+  exact ⟨hc.chain, hc.registry, fun hreg' => by simpa only [burn_config hb] using hc.tracked hreg'⟩
 
 /-! ## The invariants -/
 
@@ -340,14 +313,9 @@ theorem toyId_on_pair {c₁ c₂ : Chain} {t₁ t₂ : NativeTokenVault.Address}
     (h₁ : c₁ + 1 ≠ 0) (h₂ : c₂ + 1 ≠ 0) :
     IdAssumptionsOn toyId {(c₁, t₁), (c₂, t₂)} := by
   apply toyId_on
-  · rintro p (rfl | rfl) q (rfl | rfl) h
-    · rfl
-    · exact absurd h hc
-    · exact absurd h.symm hc
-    · rfl
-  · rintro p (rfl | rfl)
-    · exact h₁
-    · exact h₂
+  · rintro p (rfl | rfl) q (rfl | rfl) h <;>
+      first | rfl | exact absurd h hc | exact absurd h.symm hc
+  · rintro p (rfl | rfl) <;> assumption
 
 theorem toyId_on_single {c : Chain} {t : NativeTokenVault.Address} (h : c + 1 ≠ 0) :
     IdAssumptionsOn toyId {(c, t)} := by
@@ -525,10 +493,9 @@ theorem witnessToken_ledger : BridgedStandardERC20.WellFormed witnessToken := by
   have hmint : BridgedStandardERC20.mint (BridgedStandardERC20.empty ⟨1, 7, 2 + 1⟩) 1 11 1
       = some witnessToken := by
     unfold BridgedStandardERC20.mint
-    rw [ite_eq_left]
-    · rfl
-    · refine ⟨by decide, rfl, by decide, ?_⟩
-      norm_num [BridgedStandardERC20.empty, UInt256.size]
+    rw [ite_eq_left ⟨by decide, rfl, by decide,
+      by norm_num [BridgedStandardERC20.empty, UInt256.size]⟩]
+    rfl
   exact BridgedStandardERC20.mint_preserves_ledger hempty hmint
 
 /-- The representation state with that ledger, on the witness registry. -/

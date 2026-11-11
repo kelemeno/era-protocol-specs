@@ -51,13 +51,7 @@ theorem registered_of_vaultId_ne {e : NtvAssetId} {thisChain : Chain} {V : Vault
   refine ⟨?_, htok⟩
   show V.token (V.assetOf (widen T)) ≠ 0
   rw [htok]
-  intro h0
-  apply h
-  have hT : T = 0 := widen_eq_zero.mp h0
-  subst hT
-  show V.assetOf (widen 0) = 0
-  rw [widen_zero]
-  exact hV.zeroTokenFree
+  exact fun h0 => h (by show V.assetOf (widen T) = 0; rw [h0]; exact hV.zeroTokenFree)
 
 /-- On a valid vault, a nonzero id for `T` is the encoding of the pair it records. -/
 theorem vaultId_shape {e : NtvAssetId} {thisChain : Chain} {V : Vault}
@@ -223,11 +217,8 @@ theorem LegacyFallbackRepresentationIff : Properties.LegacyFallbackRepresentatio
         σ.registry.tokenForAsset σ.config.assetId = σ.config.tokenAddress ∧
         σ.registry.assetForToken σ.config.tokenAddress = σ.config.assetId) ↔ _
     rw [hcfg]
-    constructor
-    · rintro ⟨_, ha, hfa, hft⟩
-      exact ⟨ha.symm, hfa, hft⟩
-    · rintro ⟨ha, hfa, hft⟩
-      exact ⟨hvault.symm, ha.symm, hfa, hft⟩
+    exact ⟨fun ⟨_, ha, hfa, hft⟩ => ⟨ha.symm, hfa, hft⟩,
+      fun ⟨ha, hfa, hft⟩ => ⟨hvault.symm, ha.symm, hfa, hft⟩⟩
 
 /-! ## Preparation of a legacy token -/
 
@@ -251,30 +242,10 @@ theorem prepareLegacy_view {env : BridgedStandardERC20.LegacyEnv} {hooks : Hooks
       out = ⟨{ s with token := burned, accounting := accounted },
         mintData r burned metadata⟩ := by
   unfold prepareLegacy at h
-  split at h
-  · rename_i hg
-    cases ha : hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha, reduceCtorEq] at h
-    | some accounted =>
-      simp only [ha] at h
-      split at h
-      · rename_i hv
-        cases hb : BridgedStandardERC20.bridgeBurn env s.token s.config.vault r.depositor
-            r.data.amount with
-        | none => simp only [hb, reduceCtorEq] at h
-        | some burned =>
-          simp only [hb] at h
-          split at h
-          · rename_i ho
-            cases hm : hooks.metadata burned s.config.originChainId with
-            | none => simp only [hm, reduceCtorEq] at h
-            | some metadata =>
-              simp only [hm] at h
-              exact ⟨hg.1, hg.2, hv, accounted, burned, metadata, rfl, rfl,
-                ho.1, ho.2, hm, (Option.some.inj h).symm⟩
-          · cases h
-      · cases h
-  · cases h
+  repeat (split at h <;> try contradiction)
+  rename_i hg _ accounted ha hv _ burned hb ho _ metadata hm
+  cases h
+  exact ⟨hg.1, hg.2, hv, accounted, burned, metadata, ha, hb, ho.1, ho.2, hm, rfl⟩
 
 /-- The deployed preparation succeeds when each of its steps does. -/
 theorem prepareLegacy_eq_some {env : BridgedStandardERC20.LegacyEnv} {hooks : Hooks Accounting}
@@ -299,15 +270,8 @@ theorem prepare_none_of_burn_none {hooks : Hooks Accounting} {s : State Accounti
     (hb : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount = none) :
     prepare hooks s r = none := by
   unfold prepare
-  split
-  · cases hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => rfl
-    | some accounted =>
-      dsimp only
-      split
-      · rw [hb]
-      · rfl
-  · rfl
+  repeat' split
+  all_goals simp_all
 
 end Preparation
 
@@ -345,11 +309,8 @@ theorem LegacyFirstPreparation : Properties.LegacyFirstPreparation := by
       s.registry.tokenForAsset s.config.assetId = s.config.tokenAddress ∧
       s.registry.assetForToken s.config.tokenAddress = s.config.assetId) ↔ _
   rw [hcfg]
-  constructor
-  · rintro ⟨_, ha, hfa, hft⟩
-    exact ⟨ha.symm, hfa, hft⟩
-  · rintro ⟨ha, hfa, hft⟩
-    exact ⟨hvault.symm, ha.symm, hfa, hft⟩
+  exact ⟨fun ⟨_, ha, hfa, hft⟩ => ⟨ha.symm, hfa, hft⟩,
+    fun ⟨ha, hfa, hft⟩ => ⟨hvault.symm, ha.symm, hfa, hft⟩⟩
 
 /-! ### A legacy preparation instance -/
 
@@ -358,11 +319,10 @@ def fundedLegacy : BridgedStandardERC20.State :=
   ⟨⟨0, 5, 0⟩, Function.update (fun _ => 0) 3 1, 1⟩
 
 theorem fundedLegacy_wellFormed : BridgedStandardERC20.WellFormed fundedLegacy := by
-  refine ⟨?_, ?_, ?_⟩
-  · simp [fundedLegacy, Function.update_apply]
-  · norm_num [fundedLegacy, UInt256.size]
-  · show Function.update (fun _ => 0) (3 : Address) 1 0 = 0
-    rw [Function.update_of_ne (by decide)]
+  refine ⟨by simp [fundedLegacy, Function.update_apply],
+    by norm_num [fundedLegacy, UInt256.size], ?_⟩
+  show Function.update (fun _ => 0) (3 : Address) 1 0 = 0
+  rw [Function.update_of_ne (by decide)]
 
 /-- The L2 vault tracking the token at `7` under id `asset` (base asset `asset + 1`, this chain
 `2`, origin chain `1`), with both registry maps installed. -/

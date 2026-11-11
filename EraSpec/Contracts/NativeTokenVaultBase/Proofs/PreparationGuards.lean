@@ -22,20 +22,9 @@ theorem zero_amount_rejected {hooks : Hooks Accounting} {s : State Accounting}
 theorem wrong_asset_rejected {hooks : Hooks Accounting} {s : State Accounting}
     {r : Request} (hw : WellFormed s) (h : r.assetId ≠ s.config.assetId) :
     Properties.wrong_asset_rejected (hooks := hooks) (s := s) (r := r) hw h := by
-  simp only [Properties.wrong_asset_rejected, prepare]
-  have hnot : ¬ (InScope s r ∧ EntryAllowed s r) := by
-    rintro ⟨hs, he⟩
-    have hselected : selectedToken s r = s.config.tokenAddress := hs.2.2.2.2
-    have hreverse : s.registry.assetForToken (selectedToken s r) = r.assetId :=
-      he.2.2.2.2.1
-    have hasset : s.config.assetId = r.assetId := by
-      calc
-        s.config.assetId = s.registry.assetForToken s.config.tokenAddress :=
-          hw.2.2.2.2.symm
-        _ = s.registry.assetForToken (selectedToken s r) :=
-          congrArg s.registry.assetForToken hselected.symm
-        _ = r.assetId := hreverse
-    exact h hasset.symm
-  simp [hnot]
+  -- the reverse-map check reads `r.assetId` off the tracked token, whose id is the configured one
+  have hnot : ¬ (InScope s r ∧ EntryAllowed s r) := fun ⟨hs, he⟩ =>
+    h (he.2.2.2.2.1.symm.trans (by rw [hs.2.2.2.2]; exact hw.2.2.2.2))
+  simp [Properties.wrong_asset_rejected, prepare, hnot]
 
 end Contracts.NativeTokenVaultBase

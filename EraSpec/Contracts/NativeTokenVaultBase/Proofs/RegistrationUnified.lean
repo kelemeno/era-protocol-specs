@@ -42,39 +42,19 @@ theorem TightStepIsStep : Properties.TightStepIsStep :=
 theorem step'_originTokens {e : NtvAssetId} {thisChain : Chain} {W X : World}
     (h : Step' e thisChain W X) (hW : ∀ a, Registered W.vault a → W.vault.originToken a ≠ 0) :
     ∀ a, Registered X.vault a → X.vault.originToken a ≠ 0 := by
+  intro a ha
   cases h with
   | @registerNative t hg =>
-    intro a ha
-    change Registered (setNewTokenStorage W.vault (e thisChain t) t t thisChain) a at ha
-    change (setNewTokenStorage W.vault (e thisChain t) t t thisChain).originToken a ≠ 0
     by_cases hx : a = e thisChain t
-    · subst hx
-      rw [sn_originToken_self]
-      exact hg.nonzero
-    · rw [sn_originToken_of_ne _ _ _ _ _ hx]
+    · subst hx; simpa using hg.nonzero
+    · simp only [rn_as_sn, sn_originToken_of_ne _ _ _ _ _ hx]
       exact hW a ((sn_registered_of_ne _ _ _ _ _ hx).mp ha)
   | @registerBridged a' t ot origin hg =>
-    intro a ha
-    change Registered (setNewTokenStorage W.vault a' t ot origin) a at ha
-    change (setNewTokenStorage W.vault a' t ot origin).originToken a ≠ 0
     by_cases hx : a = a'
-    · subst hx
-      rw [sn_originToken_self]
-      exact hg.originTokenNonzero
-    · rw [sn_originToken_of_ne _ _ _ _ _ hx]
+    · subst hx; simpa using hg.originTokenNonzero
+    · simp only [rb_as_sn, sn_originToken_of_ne _ _ _ _ _ hx]
       exact hW a ((sn_registered_of_ne _ _ _ _ _ hx).mp ha)
-  | bridgeOut _ =>
-    intro a ha
-    rw [bridgeOut_originToken]
-    exact hW a ((bridgeOut_registered _ _ _ _ _).mp ha)
-  | bridgeIn _ =>
-    intro a ha
-    rw [bridgeIn_originToken]
-    exact hW a ((bridgeIn_registered _ _ _ _ _).mp ha)
-  | donate =>
-    intro a ha
-    rw [donate_originToken]
-    exact hW a ((donate_registered _ _ _).mp ha)
+  | bridgeOut _ | bridgeIn _ | donate => simpa using hW a (by simpa using ha)
 
 theorem tightRunOriginTokensNonzero {e : NtvAssetId} {thisChain : Chain} {W : World}
     (h : Reach' e thisChain empty W) : ∀ a, Registered W.vault a → W.vault.originToken a ≠ 0 := by
@@ -99,9 +79,7 @@ variable {Accounting : Type}
 theorem tokenDataOriginChainId_eq_zero_iff (decoded l1ChainId : UInt256) :
     tokenDataOriginChainId decoded l1ChainId = 0 ↔ decoded = 0 ∧ l1ChainId = 0 := by
   unfold tokenDataOriginChainId
-  by_cases h : decoded = 0
-  · simp [h]
-  · simp [h]
+  by_cases h : decoded = 0 <;> simp [h]
 
 theorem TokenDataOriginChainIdZeroIff : Properties.TokenDataOriginChainIdZeroIff :=
   tokenDataOriginChainId_eq_zero_iff
@@ -113,22 +91,14 @@ theorem registerRepresentation'_eq_some {hooks : RegistrationHooks Accounting}
     registerRepresentation' hooks s origin = some out ↔
       registerRepresentation hooks s origin = some out ∧ RegistryOnlyGuards s := by
   unfold registerRepresentation'
-  by_cases hg : RegistryOnlyGuards s
-  · rw [ite_eq_left hg]
-    exact ⟨fun h => ⟨h, hg⟩, fun h => h.1⟩
-  · rw [ite_eq_right hg]
-    exact ⟨fun h => absurd h (by simp), fun h => absurd h.2 hg⟩
+  exact Option.ite_none_right_eq_some.trans and_comm
 
 theorem registerFreshBranch'_eq_some {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting} :
     registerFreshBranch' hooks s origin = some out ↔
       registerFreshBranch hooks s origin = some out ∧ RegistryOnlyGuards s := by
-  unfold registerFreshBranch' registerFreshBranch
-  by_cases hf : s.registry.tokenForAsset s.config.assetId = 0
-  · rw [ite_eq_left hf, ite_eq_left hf]
-    exact registerRepresentation'_eq_some
-  · rw [ite_eq_right hf, ite_eq_right hf]
-    exact ⟨fun h => absurd h (by simp), fun h => absurd h.1 (by simp)⟩
+  simp only [registerFreshBranch', registerFreshBranch, Option.ite_none_right_eq_some,
+    registerRepresentation'_eq_some, and_assoc]
 
 theorem UnifiedIsGuardedRestriction : Properties.UnifiedIsGuardedRestriction :=
   fun _ _ _ _ _ => ⟨registerRepresentation'_eq_some, registerFreshBranch'_eq_some⟩
@@ -141,22 +111,10 @@ private theorem registration_deployed {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
     (h : registerRepresentation hooks s origin = some out) :
     hooks.deploy s.config.originChainId origin = some s.config.tokenAddress := by
-  unfold registerRepresentation at h
-  split at h
-  · cases hd : hooks.deploy s.config.originChainId origin with
-    | none => simp only [hd, reduceCtorEq] at h
-    | some deployed =>
-      simp only [hd] at h
-      cases hi : BridgedStandardERC20.initializeToken BridgedStandardERC20.freshProxy
-          s.config.vault s.config.assetId origin hooks.metadataDecoded with
-      | none => simp only [hi, reduceCtorEq] at h
-      | some initialized =>
-        simp only [hi] at h
-        split at h
-        · rename_i he
-          rw [he]
-        · cases h
-  · cases h
+  simp only [registerRepresentation] at h
+  repeat (split at h <;> try contradiction)
+  subst_vars
+  assumption
 
 theorem sourceInputGivesRegistryOnlyGuards {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
@@ -335,13 +293,8 @@ theorem corr_with_token {s : State Accounting} {thisChain : Chain} {V : Vault}
 theorem wellFormed_with_token {s : State Accounting} {token : BridgedStandardERC20.State}
     (h : WellFormed s) (hl : BridgedStandardERC20.WellFormed token)
     (hcfg : token.config = s.token.config) : WellFormed { s with token := token } := by
-  refine ⟨hl, ?_, ?_, h.2.2.2⟩
-  · change token.config.vault = s.config.vault
-    rw [hcfg]
-    exact h.2.1
-  · change token.config.assetId = s.config.assetId
-    rw [hcfg]
-    exact h.2.2.1
+  exact ⟨hl, (congrArg BridgedStandardERC20.Config.vault hcfg).trans h.2.1,
+    (congrArg BridgedStandardERC20.Config.assetId hcfg).trans h.2.2.1, h.2.2.2⟩
 
 /-- **One step of the lifecycle simulation.**  A preparation is the `bridgeOut` of its
 own destination chain, asset and amount; a nonzero token burn a `bridgeOut` and a mint

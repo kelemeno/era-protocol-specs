@@ -102,44 +102,28 @@ variable (thisChain : Chain) (W : World) (c : Chain) (a : AssetId) (amt : ℕ)
 
 @[simp] lemma bridgeOut_originChain :
     (bridgeOut thisChain W c a amt).vault.originChain = W.vault.originChain := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, ite_eq_left hnat]
-  · simp [bridgeOut, ite_eq_right hnat]
+  unfold bridgeOut; split <;> rfl
 @[simp] lemma bridgeOut_token :
     (bridgeOut thisChain W c a amt).vault.token = W.vault.token := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, ite_eq_left hnat]
-  · simp [bridgeOut, ite_eq_right hnat]
+  unfold bridgeOut; split <;> rfl
 @[simp] lemma bridgeOut_assetOf :
     (bridgeOut thisChain W c a amt).vault.assetOf = W.vault.assetOf := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, ite_eq_left hnat]
-  · simp [bridgeOut, ite_eq_right hnat]
+  unfold bridgeOut; split <;> rfl
 @[simp] lemma bridgeOut_originToken :
     (bridgeOut thisChain W c a amt).vault.originToken = W.vault.originToken := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeOut, ite_eq_left hnat]
-  · simp [bridgeOut, ite_eq_right hnat]
+  unfold bridgeOut; split <;> rfl
 @[simp] lemma bridgeIn_originChain :
     (bridgeIn thisChain W c a amt).vault.originChain = W.vault.originChain := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, ite_eq_left hnat]
-  · simp [bridgeIn, ite_eq_right hnat]
+  unfold bridgeIn; split <;> rfl
 @[simp] lemma bridgeIn_token :
     (bridgeIn thisChain W c a amt).vault.token = W.vault.token := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, ite_eq_left hnat]
-  · simp [bridgeIn, ite_eq_right hnat]
+  unfold bridgeIn; split <;> rfl
 @[simp] lemma bridgeIn_assetOf :
     (bridgeIn thisChain W c a amt).vault.assetOf = W.vault.assetOf := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, ite_eq_left hnat]
-  · simp [bridgeIn, ite_eq_right hnat]
+  unfold bridgeIn; split <;> rfl
 @[simp] lemma bridgeIn_originToken :
     (bridgeIn thisChain W c a amt).vault.originToken = W.vault.originToken := by
-  by_cases hnat : Native thisChain W.vault a
-  · simp [bridgeIn, ite_eq_left hnat]
-  · simp [bridgeIn, ite_eq_right hnat]
+  unfold bridgeIn; split <;> rfl
 @[simp] lemma donate_originChain :
     (donate W a amt).vault.originChain = W.vault.originChain := rfl
 @[simp] lemma donate_token : (donate W a amt).vault.token = W.vault.token := rfl
@@ -430,14 +414,10 @@ theorem step_preserves_valid {e : NtvAssetId} (he : IdAssumptions e) {thisChain 
   | bridgeIn hg => exact bridgeIn_preserves_valid hV hg
   | donate => exact donate_preserves_valid hV
 
-theorem empty_valid {e : NtvAssetId} {thisChain : Chain} : Valid e thisChain empty.vault := by
-  refine ⟨?_, ?_, ?_, ?_, rfl, ?_, ?_, fun _ _ => rfl, fun _ => le_refl _⟩
-  · intro a hreg; exact absurd rfl hreg
-  · intro t hreg; exact absurd rfl hreg
-  · intro a; exact ⟨fun h => absurd rfl h, fun h => absurd rfl h⟩
-  · intro h; exact absurd rfl h
-  · intro a hreg; exact absurd rfl hreg
-  · intro a hreg; exact absurd rfl hreg
+theorem empty_valid {e : NtvAssetId} {thisChain : Chain} : Valid e thisChain empty.vault :=
+  ⟨fun _ h => absurd rfl h, fun _ h => absurd rfl h, fun _ => ⟨fun h => absurd rfl h,
+    fun h => absurd rfl h⟩, fun h => absurd rfl h, rfl, fun _ h => absurd rfl h,
+    fun _ h => absurd rfl h, fun _ _ => rfl, fun _ => le_refl _⟩
 
 theorem run_valid {e : NtvAssetId} (he : IdAssumptions e) {thisChain : Chain}
     (hc0 : thisChain ≠ 0) {W : World} (hr : Reach e thisChain empty W) :
@@ -564,11 +544,7 @@ theorem reach_reachIn_finset {e : NtvAssetId} {thisChain : Chain} {W X : World}
   | tail _ hs ih =>
     obtain ⟨S₁, h₁⟩ := ih
     obtain ⟨S₂, h₂⟩ := step_stepIn_finset hs
-    refine ⟨S₁ ∪ S₂, ReachIn.tail (reachIn_mono ?_ h₁) (stepIn_mono ?_ h₂)⟩
-    · intro x hx
-      exact Finset.mem_coe.mpr (Finset.mem_union_left _ (Finset.mem_coe.mp hx))
-    · intro x hx
-      exact Finset.mem_coe.mpr (Finset.mem_union_right _ (Finset.mem_coe.mp hx))
+    exact ⟨S₁ ∪ S₂, ReachIn.tail (reachIn_mono (by simp) h₁) (stepIn_mono (by simp) h₂)⟩
 
 /-- **THE DERIVED ID IS FREE, under injectivity on `S`.**  As
 `registerNative_id_fresh`: the taker's recorded pair is in `S` by `PairsIn`, the new
@@ -710,56 +686,40 @@ theorem stepIn_preserves_audited {e : NtvAssetId} {S : Set (Chain × Address)}
         exact (sn_registered_self W.vault a' t ot origin).mpr hg.tokenNonzero
       · exact (sn_registered_of_ne W.vault a t ot origin h).mpr hreg
   | @bridgeOut c a amt hg =>
-    refine ⟨?_, ?_⟩
-    · intro a' hnat
-      have hnatW : Native thisChain W.vault a' := by simpa using hnat
+    refine ⟨fun a' hnat => ?_, fun a' hnn => ?_⟩
+    · have hnatW : Native thisChain W.vault a' := by simpa using hnat
+      have hnet := hA.netFlow a' hnatW
       by_cases hnata : Native thisChain W.vault a
-      · by_cases h : a' = a
-        · subst h
-          have hnet := hA.netFlow a' hnatW
-          rw [bridgeOut_bridgedOut_native _ _ _ _ _ hnata, bridgeOut_totalIn,
-            bridgeOut_totalOut, upd_same, upd_same]
-          omega
-        · rw [bridgeOut_bridgedOut_native _ _ _ _ _ hnata, bridgeOut_totalIn,
-            bridgeOut_totalOut, upd_ne _ _ h, upd_ne _ _ h]
-          exact hA.netFlow a' hnatW
-      · have h : a' ≠ a := by
-          intro h; subst h; exact hnata hnatW
-        rw [bridgeOut_vault_foreign _ _ _ _ _ hnata, bridgeOut_totalIn, bridgeOut_totalOut,
-          upd_ne _ _ h]
-        exact hA.netFlow a' hnatW
-    · intro a' hnn
-      have hnnW : ¬ Registered W.vault a' := by simpa using hnn
-      have h : a' ≠ a := ne_of_unreg hg.registered hnnW
+      · rw [bridgeOut_bridgedOut_native _ _ _ _ _ hnata, bridgeOut_totalIn, bridgeOut_totalOut]
+        simp only [upd]
+        split_ifs with h
+        · subst h; omega
+        · exact hnet
+      · rw [bridgeOut_vault_foreign _ _ _ _ _ hnata, bridgeOut_totalIn, bridgeOut_totalOut,
+          upd_ne _ _ fun (h : a' = a) => hnata (h ▸ hnatW)]
+        exact hnet
+    · have hnnW : ¬ Registered W.vault a' := by simpa using hnn
       obtain ⟨hin, hout⟩ := hA.unregisteredQuiet a' hnnW
-      exact ⟨by rw [bridgeOut_totalIn]; exact hin,
-        by rw [bridgeOut_totalOut, upd_ne _ _ h]; exact hout⟩
+      rw [bridgeOut_totalIn, bridgeOut_totalOut, upd_ne _ _ (ne_of_unreg hg.registered hnnW)]
+      exact ⟨hin, hout⟩
   | @bridgeIn c a amt hg =>
-    refine ⟨?_, ?_⟩
-    · intro a' hnat
-      have hnatW : Native thisChain W.vault a' := by simpa using hnat
+    refine ⟨fun a' hnat => ?_, fun a' hnn => ?_⟩
+    · have hnatW : Native thisChain W.vault a' := by simpa using hnat
+      have hnet := hA.netFlow a' hnatW
       by_cases hnata : Native thisChain W.vault a
-      · by_cases h : a' = a
-        · subst h
-          have hnet := hA.netFlow a' hnatW
-          have hsuf := hg.sufficient hnata
-          rw [bridgeIn_bridgedOut_native _ _ _ _ _ hnata, bridgeIn_totalIn,
-            bridgeIn_totalOut, upd_same, upd_same]
-          omega
-        · rw [bridgeIn_bridgedOut_native _ _ _ _ _ hnata, bridgeIn_totalIn,
-            bridgeIn_totalOut, upd_ne _ _ h, upd_ne _ _ h]
-          exact hA.netFlow a' hnatW
-      · have h : a' ≠ a := by
-          intro h; subst h; exact hnata hnatW
-        rw [bridgeIn_vault_foreign _ _ _ _ _ hnata, bridgeIn_totalOut, bridgeIn_totalIn]
-        rw [upd_ne _ _ h]
-        exact hA.netFlow a' hnatW
-    · intro a' hnn
-      have hnnW : ¬ Registered W.vault a' := by simpa using hnn
-      have h : a' ≠ a := ne_of_unreg hg.registered hnnW
+      · have hsuf := hg.sufficient hnata
+        rw [bridgeIn_bridgedOut_native _ _ _ _ _ hnata, bridgeIn_totalIn, bridgeIn_totalOut]
+        simp only [upd]
+        split_ifs with h
+        · subst h; omega
+        · exact hnet
+      · rw [bridgeIn_vault_foreign _ _ _ _ _ hnata, bridgeIn_totalIn, bridgeIn_totalOut,
+          upd_ne _ _ fun (h : a' = a) => hnata (h ▸ hnatW)]
+        exact hnet
+    · have hnnW : ¬ Registered W.vault a' := by simpa using hnn
       obtain ⟨hin, hout⟩ := hA.unregisteredQuiet a' hnnW
-      exact ⟨by rw [bridgeIn_totalIn, upd_ne _ _ h]; exact hin,
-        by rw [bridgeIn_totalOut]; exact hout⟩
+      rw [bridgeIn_totalIn, bridgeIn_totalOut, upd_ne _ _ (ne_of_unreg hg.registered hnnW)]
+      exact ⟨hin, hout⟩
   | @donate a amt =>
     refine ⟨?_, ?_⟩
     · intro a' hnat
@@ -962,11 +922,8 @@ theorem idAssumptionsOn_of_card (S : Finset (Chain × Address)) (hS : S.card < U
     have hf : f ⟨(c₁, t₁), h₁⟩ = f ⟨(c₂, t₂), h₂⟩ := Fin.ext heq
     exact congrArg Subtype.val (f.injective hf)
   · rintro ⟨c, t⟩ h
-    rw [Finset.mem_coe] at h
-    simp only [dite_eq_left h]
-    intro h0
-    have := congrArg Fin.val h0
-    simp at this
+    simp only [dite_eq_left (Finset.mem_coe.mp h)]
+    exact fun h0 => by simpa using congrArg Fin.val h0
 
 /-- The honest instance: the id is the token itself.  Not injective globally, but
 injective (and nonzero) on any set of nonzero tokens over one chain. -/
@@ -980,16 +937,8 @@ def honestPairs : Set (Chain × Address) := {((1 : Chain), (1 : Address)), (1, 2
 
 lemma honestId_on : IdAssumptionsOn honestId honestPairs := by
   refine ⟨?_, ?_⟩
-  · intro p hp q hq h
-    simp only [honestPairs, Set.mem_insert_iff, Set.mem_singleton_iff] at hp hq
-    rcases hp with rfl | rfl <;> rcases hq with rfl | rfl
-    · rfl
-    · exact absurd h (by decide)
-    · exact absurd h (by decide)
-    · rfl
-  · intro p hp
-    simp only [honestPairs, Set.mem_insert_iff, Set.mem_singleton_iff] at hp
-    rcases hp with rfl | rfl <;> decide
+  · rintro p (rfl | rfl) q (rfl | rfl) h <;> first | rfl | exact absurd h (by decide)
+  · rintro p (rfl | rfl) <;> decide
 
 /-- One honest native registration of token `1` on chain `1`. -/
 lemma honest_inv :
@@ -1350,8 +1299,7 @@ theorem log_assumption_weaker_than_global :
   · refine ⟨((1 : Chain), (1 : Address)), by rw [hpairs]; simp, ((2 : Chain), (1 : Address)),
       ?_, rfl⟩
     rw [hpairs]
-    simp only [Finset.mem_insert, Finset.mem_singleton, not_or]
-    exact ⟨by decide, by decide⟩
+    decide
 
 /-- **WHY THE LOG, NOT THE END STATE**: with `constId`, registering `2` after `1`
 overwrites asset `1`'s recorded pair. -/

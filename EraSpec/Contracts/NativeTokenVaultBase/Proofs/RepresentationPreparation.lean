@@ -16,29 +16,10 @@ private theorem prepare_view {hooks : Hooks Accounting} {s : State Accounting}
       hooks.metadata burned s.config.originChainId = some metadata ∧
       out = ⟨{ s with token := burned, accounting := accounted }, mintData r burned metadata⟩ := by
   unfold prepare at h
-  split at h
-  · rename_i hg
-    cases ha : hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha, reduceCtorEq] at h
-    | some accounted =>
-      simp only [ha] at h
-      split at h
-      · rename_i hv
-        cases hb : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount with
-        | none => simp only [hb, reduceCtorEq] at h
-        | some burned =>
-          simp only [hb] at h
-          split at h
-          · rename_i ho
-            cases hm : hooks.metadata burned s.config.originChainId with
-            | none => simp only [hm, reduceCtorEq] at h
-            | some metadata =>
-              simp only [hm] at h
-              exact ⟨hg.1, hg.2, hv, accounted, burned, metadata, rfl, rfl,
-                ho.1, ho.2, hm, (Option.some.inj h).symm⟩
-          · cases h
-      · cases h
-  · cases h
+  repeat (split at h <;> try contradiction)
+  rename_i hg _ accounted ha hv _ burned hb ho _ metadata hm
+  cases h
+  exact ⟨hg.1, hg.2, hv, accounted, burned, metadata, ha, hb, ho.1, ho.2, hm, rfl⟩
 
 theorem preparation_backed {hooks : Hooks Accounting} {s : State Accounting}
     {r : Request} {out : Result Accounting} (hw : WellFormed s)
@@ -105,10 +86,8 @@ theorem preparation_preserves_representation {hooks : Hooks Accounting}
     prepare_view h
   have hconfig : burned.config = s.token.config := by
     unfold BridgedStandardERC20.burn at hb
-    split at hb
-    · rw [← Option.some.inj hb]
-      rfl
-    · cases hb
+    split at hb <;> cases hb
+    rfl
   refine ⟨?_, ?_, hr.2.2⟩
   · exact (congrArg BridgedStandardERC20.Config.vault hconfig).trans hr.1
   · exact (congrArg BridgedStandardERC20.Config.assetId hconfig).trans hr.2.1
@@ -121,15 +100,9 @@ theorem failed_preparation_atomic {hooks : Hooks Accounting} {s : State Accounti
 theorem metadata_failure_atomic {hooks : Hooks Accounting} {s : State Accounting}
     {r : Request} (h : ∀ token, hooks.metadata token s.config.originChainId = none) :
     Properties.metadata_failure_atomic (r := r) h := by
-  have hf : prepare hooks s r = none := by
-    cases hp : prepare hooks s r with
-    | none => rfl
-    | some out =>
-      obtain ⟨_hs, _he, _hv, accounted, burned, metadata, _ha, _hb, _ho, _hc, hm, _hout⟩ :=
-        prepare_view hp
-      rw [h burned] at hm
-      cases hm
-  exact failed_preparation_atomic hf
+  refine failed_preparation_atomic (Option.eq_none_iff_forall_ne_some.mpr fun out hp => ?_)
+  obtain ⟨-, -, -, -, burned, _, -, -, -, -, hm, -⟩ := prepare_view hp
+  nomatch (h burned).symm.trans hm
 
 theorem accounting_failure_atomic {hooks : Hooks Accounting} {s : State Accounting}
     {r : Request}

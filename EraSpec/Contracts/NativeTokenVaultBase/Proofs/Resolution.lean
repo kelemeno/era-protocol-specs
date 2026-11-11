@@ -14,9 +14,8 @@ private theorem token_ext {x y : BridgedStandardERC20.State} (hc : x.config = y.
   cases y
   simp only at hc hs
   subst hc hs
-  congr
-  funext a
-  exact hb a
+  congr 1
+  exact funext hb
 
 private theorem state_ext {x y : State Accounting} (h1 : x.config = y.config)
     (h2 : x.registry = y.registry) (h3 : x.paused = y.paused) (h4 : x.token = y.token)
@@ -32,10 +31,8 @@ private theorem burn_view_res {tok burned : BridgedStandardERC20.State} {caller 
     BridgedStandardERC20.BurnAllowed tok caller owner amount ∧
       burned = BridgedStandardERC20.burnEffect tok owner amount := by
   unfold BridgedStandardERC20.burn at h
-  split at h
-  · rename_i hg
-    exact ⟨hg, (Option.some.inj h).symm⟩
-  · cases h
+  split at h <;> cases h
+  exact ⟨‹_›, rfl⟩
 
 private theorem mint_view_res {tok minted : BridgedStandardERC20.State}
     {caller recipient : Address} {amount : UInt256}
@@ -43,10 +40,8 @@ private theorem mint_view_res {tok minted : BridgedStandardERC20.State}
     BridgedStandardERC20.MintAllowed tok caller recipient amount ∧
       minted = BridgedStandardERC20.mintEffect tok recipient amount := by
   unfold BridgedStandardERC20.mint at h
-  split at h
-  · rename_i hg
-    exact ⟨hg, (Option.some.inj h).symm⟩
-  · cases h
+  split at h <;> cases h
+  exact ⟨‹_›, rfl⟩
 
 /-- Re-minting what a burn removed, to the same account, restores the token exactly. -/
 private theorem mint_after_burn {tok burned minted : BridgedStandardERC20.State}
@@ -57,11 +52,9 @@ private theorem mint_after_burn {tok burned minted : BridgedStandardERC20.State}
     minted = tok := by
   rcases BridgedStandardERC20.burn_exact hl hb with ⟨_, _, hbal, hsup, hframe, hcfg⟩
   rcases BridgedStandardERC20.mint_exact hm with ⟨_, _, hbal', hsup', hframe', hcfg'⟩
-  refine token_ext (hcfg'.trans hcfg) ?_ (hsup'.trans hsup)
-  intro a
+  refine token_ext (hcfg'.trans hcfg) (fun a => ?_) (hsup'.trans hsup)
   by_cases ha : a = owner
-  · subst ha
-    exact hbal'.trans hbal
+  · exact ha ▸ hbal'.trans hbal
   · exact (hframe' a ha).trans (hframe a ha)
 
 /-! ## Views of the resolution operations -/
@@ -74,15 +67,9 @@ private theorem hookThenMint_view {rh : ResolutionHooks Accounting} {s t : State
       BridgedStandardERC20.mint s.token s.config.vault recipient amount = some minted ∧
       t = { s with token := minted, accounting := accounted } := by
   unfold hookThenMint at h
-  cases ha : rh.fromChain s.accounting s.token chain asset amount with
-  | none => simp only [ha, reduceCtorEq] at h
-  | some accounted =>
-    simp only [ha] at h
-    cases hm : BridgedStandardERC20.mint s.token s.config.vault recipient amount with
-    | none => simp only [hm, reduceCtorEq] at h
-    | some minted =>
-      simp only [hm, Option.some.injEq] at h
-      exact ⟨accounted, minted, rfl, rfl, h.symm⟩
+  repeat (split at h <;> try contradiction)
+  cases h
+  exact ⟨_, _, ‹_›, ‹_›, rfl⟩
 
 private theorem hookThenMint_some {rh : ResolutionHooks Accounting} {s : State Accounting}
     {chain asset : UInt256} {recipient : Address} {amount : UInt256}
@@ -104,47 +91,33 @@ private theorem hookThenMint_of_mint_none {rh : ResolutionHooks Accounting}
     (h : BridgedStandardERC20.mint s.token s.config.vault recipient amount = none) :
     hookThenMint rh s chain asset recipient amount = none := by
   unfold hookThenMint
-  split
-  · rfl
-  · simp only [h]
+  split <;> simp only [h]
 
 private theorem bridgeMint_view {rh : ResolutionHooks Accounting} {s t : State Accounting}
     {c : ResolutionCall} (h : bridgeMint rh s c = some t) :
     (ResolveEntryAllowed s c ∧ RegisteredBridged s c) ∧
-      hookThenMint rh s c.chain c.assetId c.data.remoteReceiver c.data.amount = some t := by
-  unfold bridgeMint at h
-  split at h
-  · rename_i hg
-    exact ⟨hg, h⟩
-  · cases h
+      hookThenMint rh s c.chain c.assetId c.data.remoteReceiver c.data.amount = some t :=
+  Option.ite_none_right_eq_some.mp h
 
 private theorem recover_view {rh : ResolutionHooks Accounting} {s t : State Accounting}
     {c : ResolutionCall} (h : bridgeRecoverFailedTransfer rh s c = some t) :
     (ResolveEntryAllowed s c ∧ RegisteredBridged s c) ∧
-      hookThenMint rh s c.chain c.assetId c.data.originalCaller c.data.amount = some t := by
-  unfold bridgeRecoverFailedTransfer at h
-  split at h
-  · rename_i hg
-    exact ⟨hg, h⟩
-  · cases h
+      hookThenMint rh s c.chain c.assetId c.data.originalCaller c.data.amount = some t :=
+  Option.ite_none_right_eq_some.mp h
 
 private theorem bridgeMint_of_tail_none {rh : ResolutionHooks Accounting} {s : State Accounting}
     {c : ResolutionCall}
     (h : hookThenMint rh s c.chain c.assetId c.data.remoteReceiver c.data.amount = none) :
     bridgeMint rh s c = none := by
   unfold bridgeMint
-  split
-  · exact h
-  · rfl
+  split <;> [exact h; rfl]
 
 private theorem recover_of_tail_none {rh : ResolutionHooks Accounting} {s : State Accounting}
     {c : ResolutionCall}
     (h : hookThenMint rh s c.chain c.assetId c.data.originalCaller c.data.amount = none) :
     bridgeRecoverFailedTransfer rh s c = none := by
   unfold bridgeRecoverFailedTransfer
-  split
-  · exact h
-  · rfl
+  split <;> [exact h; rfl]
 
 private theorem not_entry_rejects {rh : ResolutionHooks Accounting} {s : State Accounting}
     {c : ResolutionCall} (h : ¬ ResolveEntryAllowed s c) :
@@ -206,13 +179,7 @@ theorem BridgeMintEnabled : Properties.BridgeMintEnabled := by
   have hallowed : BridgedStandardERC20.MintAllowed s.token s.config.vault c.data.remoteReceiver
       c.data.amount :=
     ⟨by rw [hr.1]; exact hs.1, hr.1.symm, hrec, hsup⟩
-  have h : bridgeMint rh s c = some { s with
-      token := BridgedStandardERC20.mintEffect s.token c.data.remoteReceiver c.data.amount,
-      accounting := accounted } := by
-    unfold bridgeMint
-    rw [ite_eq_left ⟨he, hs⟩]
-    exact hookThenMint_some ha (ite_eq_left hallowed)
-  exact ⟨_, h⟩
+  exact ⟨_, (ite_eq_left ⟨he, hs⟩).trans (hookThenMint_some ha (ite_eq_left hallowed))⟩
 
 /-! ## Source `bridgeRecoverFailedTransfer` -/
 
@@ -234,13 +201,7 @@ theorem RecoverEnabled : Properties.RecoverEnabled := by
   have hallowed : BridgedStandardERC20.MintAllowed s.token s.config.vault c.data.originalCaller
       c.data.amount :=
     ⟨by rw [hr.1]; exact hs.1, hr.1.symm, hrec, hsup⟩
-  have h : bridgeRecoverFailedTransfer rh s c = some { s with
-      token := BridgedStandardERC20.mintEffect s.token c.data.originalCaller c.data.amount,
-      accounting := accounted } := by
-    unfold bridgeRecoverFailedTransfer
-    rw [ite_eq_left ⟨he, hs⟩]
-    exact hookThenMint_some ha (ite_eq_left hallowed)
-  exact ⟨_, h⟩
+  exact ⟨_, (ite_eq_left ⟨he, hs⟩).trans (hookThenMint_some ha (ite_eq_left hallowed))⟩
 
 /-! ## Round trip -/
 
@@ -255,29 +216,10 @@ private theorem prepare_view_res {hooks : Hooks Accounting} {s : State Accountin
       hooks.metadata burned s.config.originChainId = some metadata ∧
       out = ⟨{ s with token := burned, accounting := accounted }, mintData r burned metadata⟩ := by
   unfold prepare at h
-  split at h
-  · rename_i hg
-    cases ha : hooks.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha, reduceCtorEq] at h
-    | some accounted =>
-      simp only [ha] at h
-      split at h
-      · rename_i hv
-        cases hb : BridgedStandardERC20.burn s.token s.config.vault r.depositor r.data.amount with
-        | none => simp only [hb, reduceCtorEq] at h
-        | some burned =>
-          simp only [hb] at h
-          split at h
-          · rename_i ho
-            cases hm : hooks.metadata burned s.config.originChainId with
-            | none => simp only [hm, reduceCtorEq] at h
-            | some metadata =>
-              simp only [hm] at h
-              exact ⟨hg.1, hg.2, hv, accounted, burned, metadata, rfl, rfl,
-                ho.1, ho.2, hm, (Option.some.inj h).symm⟩
-          · cases h
-      · cases h
-  · cases h
+  repeat (split at h <;> try contradiction)
+  rename_i hg _ accounted ha hv _ burned hb ho _ metadata hm
+  cases h
+  exact ⟨hg.1, hg.2, hv, accounted, burned, metadata, ha, hb, ho.1, ho.2, hm, rfl⟩
 
 theorem PrepareThenRecoverRestoresToken : Properties.PrepareThenRecoverRestoresToken := by
   intro Accounting hooks rh s r out router t hl hp hrec
@@ -317,20 +259,8 @@ theorem PrepareThenRecoverEnabled : Properties.PrepareThenRecoverEnabled := by
     refine ⟨hvault, hcaller, hdep, ?_⟩
     show s.token.totalSupply - r.data.amount.val + r.data.amount.val < UInt256.size
     omega
-  have h : bridgeRecoverFailedTransfer rh
-      { s with token := BridgedStandardERC20.burnEffect s.token r.depositor r.data.amount,
-               accounting := accounted }
-      (recoveryCall s.config.router r (mintData r (BridgedStandardERC20.burnEffect s.token
-        r.depositor r.data.amount) metadata)) =
-      some { s with
-        token := BridgedStandardERC20.mintEffect
-          (BridgedStandardERC20.burnEffect s.token r.depositor r.data.amount) r.depositor
-          r.data.amount,
-        accounting := accounted' } := by
-    unfold bridgeRecoverFailedTransfer
-    rw [ite_eq_left ⟨hentry, hreg⟩]
-    exact hookThenMint_some ha' (ite_eq_left hallowed)
-  exact ⟨hentry, hreg, _, h⟩
+  exact ⟨hentry, hreg, _,
+    (ite_eq_left ⟨hentry, hreg⟩).trans (hookThenMint_some ha' (ite_eq_left hallowed))⟩
 
 theorem PrepareThenRecoverRoundTrip : Properties.PrepareThenRecoverRoundTrip := by
   intro Accounting hooks rh s r out hcancel hw hp
@@ -484,14 +414,8 @@ private theorem bridgeMintFirst_view {reg : RegistrationHooks Accounting}
       hookThenMint rh registered.state c.chain c.assetId c.data.remoteReceiver c.data.amount =
         some t := by
   unfold bridgeMintFirst at h
-  split at h
-  · rename_i hg
-    cases hr : registerFreshBranch reg s c.data.originToken with
-    | none => simp only [hr, reduceCtorEq] at h
-    | some registered =>
-      simp only [hr] at h
-      exact ⟨hg, registered, rfl, h⟩
-  · cases h
+  repeat (split at h <;> try contradiction)
+  exact ⟨‹_›, _, ‹_›, h⟩
 
 /-- What a successful registration wrote, in one equation. -/
 private theorem registration_view_res {hooks : RegistrationHooks Accounting}
@@ -506,37 +430,15 @@ private theorem registration_view_res {hooks : RegistrationHooks Accounting}
         some accounting ∧
       out.state = ⟨s.config, installRegistry s.registry s.config.assetId s.config.tokenAddress,
         s.paused, registeredToken s.config origin, accounting⟩ := by
-  unfold registerRepresentation at h
-  split at h
-  · rename_i hg
-    cases hd : hooks.deploy s.config.originChainId origin with
-    | none => simp only [hd, reduceCtorEq] at h
-    | some deployed =>
-      simp only [hd] at h
-      cases hi : BridgedStandardERC20.initializeToken BridgedStandardERC20.freshProxy
-          s.config.vault s.config.assetId origin hooks.metadataDecoded with
-      | none => simp only [hi, reduceCtorEq] at h
-      | some initialized =>
-        simp only [hi] at h
-        have hinit : initialized = ⟨registeredToken s.config origin, 1⟩ ∧ origin ≠ 0 := by
-          unfold BridgedStandardERC20.initializeToken at hi
-          split at hi
-          · rename_i hallowed
-            exact ⟨(Option.some.inj hi).symm, hallowed.1.2⟩
-          · cases hi
-        obtain ⟨rfl, ho⟩ := hinit
-        split at h
-        · rename_i he
-          subst he
-          cases ht : hooks.registerTracker s.accounting
-              (installRegistry s.registry s.config.assetId s.config.tokenAddress)
-              (registeredToken s.config origin) s.config.assetId s.config.originChainId with
-          | none => simp only [ht, reduceCtorEq] at h
-          | some accounting =>
-            simp only [ht, Option.some.injEq] at h
-            exact ⟨hg, ho, accounting, rfl, by rw [← h]⟩
-        · cases h
-  · cases h
+  simp only [registerRepresentation] at h
+  repeat (split at h <;> try contradiction)
+  rename_i hg _ _ _ _ _ hi he _ accounting ht
+  unfold BridgedStandardERC20.initializeToken at hi
+  split at hi <;> cases hi
+  rename_i hallowed
+  subst he
+  cases h
+  exact ⟨hg, hallowed.1.2, accounting, ht, rfl⟩
 
 theorem FirstBridgeMintExact : Properties.FirstBridgeMintExact := by
   intro Accounting reg rh s c t h
@@ -663,12 +565,10 @@ theorem tokenWith_ledger {holder : Address} (hh : holder ≠ 0) (amount : UInt25
   have hmint : BridgedStandardERC20.mint (BridgedStandardERC20.empty ⟨1, 7, 3⟩) 1 holder amount
       = some (tokenWith holder amount) := by
     unfold BridgedStandardERC20.mint
-    rw [ite_eq_left]
-    · rfl
-    · refine ⟨by decide, rfl, hh, ?_⟩
+    rw [ite_eq_left ⟨by decide, rfl, hh, by
       show 0 + amount.val < UInt256.size
-      have := amount.isLt
-      omega
+      exact (Nat.zero_add _).symm ▸ amount.isLt⟩]
+    rfl
   exact BridgedStandardERC20.mint_preserves_ledger hempty hmint
 
 theorem stateWith_wf {A : Type} {holder : Address} (hh : holder ≠ 0) (amount : UInt256)

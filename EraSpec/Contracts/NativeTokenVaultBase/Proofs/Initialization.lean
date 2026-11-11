@@ -19,35 +19,14 @@ private theorem registration_view {hooks : RegistrationHooks Accounting}
         initialized.token s.config.assetId s.config.originChainId = some accounting ∧
       out = ⟨⟨s.config, installRegistry s.registry s.config.assetId deployed, s.paused,
         initialized.token, accounting⟩, initialized.version⟩ := by
-  unfold registerRepresentation at h
-  split at h
-  · rename_i hg
-    cases hd : hooks.deploy s.config.originChainId origin with
-    | none => simp only [hd, reduceCtorEq] at h
-    | some deployed =>
-      simp only [hd] at h
-      cases hi : BridgedStandardERC20.initializeToken BridgedStandardERC20.freshProxy
-          s.config.vault s.config.assetId origin hooks.metadataDecoded with
-      | none => simp only [hi, reduceCtorEq] at h
-      | some initialized =>
-        simp only [hi] at h
-        split at h
-        · rename_i he
-          cases ht : hooks.registerTracker s.accounting
-              (installRegistry s.registry s.config.assetId deployed) initialized.token
-              s.config.assetId s.config.originChainId with
-          | none => simp only [ht, reduceCtorEq] at h
-          | some accounting =>
-            simp only [ht] at h
-            exact ⟨hg, deployed, initialized, accounting, rfl, rfl, he,
-              ht, (Option.some.inj h).symm⟩
-        · cases h
-  · cases h
+  simp only [registerRepresentation] at h
+  repeat (split at h <;> try contradiction)
+  cases h
+  exact ⟨‹_›, _, _, _, ‹_›, ‹_›, ‹_›, ‹_›, rfl⟩
 
-private theorem fresh_ledger : BridgedStandardERC20.WellFormed BridgedStandardERC20.freshProxy.token := by
-  refine ⟨?_, ?_, rfl⟩
-  · exact Finset.sum_const_zero
-  · norm_num [BridgedStandardERC20.freshProxy, BridgedStandardERC20.empty, UInt256.size]
+private theorem fresh_ledger : BridgedStandardERC20.WellFormed BridgedStandardERC20.freshProxy.token :=
+  ⟨Finset.sum_const_zero,
+    by norm_num [BridgedStandardERC20.freshProxy, BridgedStandardERC20.empty, UInt256.size], rfl⟩
 
 theorem registration_establishes_representation {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
@@ -80,20 +59,14 @@ theorem registration_initial_fields {hooks : RegistrationHooks Accounting}
   obtain ⟨_hc, deployed, initialized, accounting, _hd, hi, _he, _ht, rfl⟩ := registration_view h
   rcases BridgedStandardERC20.initialization_binds_inputs hi with ⟨_, _, ho, hn, hv⟩
   rcases BridgedStandardERC20.initialization_preserves_balances hi with ⟨hb, hs⟩
-  refine ⟨ho, hn, hv, hs, ?_⟩
-  intro a
-  exact congrFun hb a
+  exact ⟨ho, hn, hv, hs, congrFun hb⟩
 
 theorem registration_registry_frame {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
     (h : registerRepresentation hooks s origin = some out) : Properties.registration_registry_frame h := by
   obtain ⟨_hc, deployed, initialized, accounting, _hd, _hi, he, _ht, rfl⟩ := registration_view h
-  refine ⟨rfl, rfl, ?_, ?_⟩
-  · intro asset ha
-    exact Function.update_of_ne ha _ _
-  · intro token ht
-    have hn : token ≠ deployed := by simpa only [he] using ht
-    exact Function.update_of_ne hn _ _
+  exact ⟨rfl, rfl, fun _ ha => Function.update_of_ne ha _ _,
+    fun _ ht => Function.update_of_ne (he ▸ ht) _ _⟩
 
 theorem registration_hook_snapshot {hooks : RegistrationHooks Accounting}
     {s : RegistrationState Accounting} {origin : Address} {out : Registered Accounting}
@@ -159,9 +132,7 @@ theorem wrong_initializer_caller_breaks_consistency (s : RegistrationState Accou
     Properties.wrong_initializer_caller_breaks_consistency s actualCaller origin hc ho := by
   obtain ⟨token, hi, _hw, _hs, _hb⟩ :=
     BridgedStandardERC20.fresh_initialization_enabled actualCaller origin s.config.assetId ho
-  refine ⟨token, hi, ?_⟩
-  intro hr
-  have hv := (BridgedStandardERC20.initialization_binds_inputs hi).1
-  exact hc (hv.symm.trans hr.1)
+  exact ⟨token, hi, fun hr =>
+    hc ((BridgedStandardERC20.initialization_binds_inputs hi).1.symm.trans hr.1)⟩
 
 end Contracts.NativeTokenVaultBase

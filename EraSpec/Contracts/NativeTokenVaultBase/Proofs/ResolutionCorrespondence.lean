@@ -28,17 +28,9 @@ theorem ResolutionIsForeignBridgeIn : Properties.ResolutionIsForeignBridgeIn := 
     have ho := (hc.tracked (hasset ▸ hregistered)).1
     rw [hasset, ho, hc.chain]
     exact hs.2.2.1
-  have hvault : (NativeTokenVault.bridgeIn thisChain W c.chain c.assetId
-      c.data.amount.val).vault = W.vault := by
-    simp [NativeTokenVault.bridgeIn, ite_eq_right hforeign]
-  refine ⟨NativeTokenVault.Step.bridgeIn ⟨hregistered, fun hn => absurd hn hforeign⟩, hforeign,
-    hvault, ?_, ?_, ?_⟩
-  · rw [hcfg]
-    exact hc.chain
-  · rw [hreg]
-    exact hc.registry
-  · rw [hcfg, htc]
-    exact hc.tracked
+  exact ⟨NativeTokenVault.Step.bridgeIn ⟨hregistered, fun hn => absurd hn hforeign⟩, hforeign,
+    NativeTokenVault.bridgeIn_vault_foreign _ _ _ _ _ hforeign, by rw [hcfg]; exact hc.chain,
+    by rw [hreg]; exact hc.registry, by rw [hcfg, htc]; exact hc.tracked⟩
 
 namespace ResolutionCorrespondenceExample
 
