@@ -28,12 +28,19 @@ import Mathlib.Tactic
 
     1. The acceptance threshold is `recovered >= 1`, NOT `recovered == callsLen`.  A claim in which one
        call recovers and the rest decline SUCCEEDS, and `claimRefund` marks the leg `Reverted` first
-       (`AtomicFlowManager.sol:172`), which `refunded_leg_cannot_refund_again` shows is terminal.  So
-       the declining calls' funds are stranded PERMANENTLY, by a transaction that reported success.
+       (`AtomicFlowManager.sol:172`), which is terminal.  On the manager's runs that is
+       `Contracts.AtomicFlowManager.no_double_claim`; `refunded_leg_cannot_refund_again` is the
+       sibling repository's name, not a theorem here.  So the declining calls' funds are stranded
+       PERMANENTLY, by a transaction that reported success.  Tied together on the real loop and the
+       manager's runs, the two halves are
+       `Contracts.AtomicFlowManager.RecoveryLimitsStrong.partial_stranding_is_terminal`.
 
     2. The call is raw — no `try/catch`.  A target that REVERTS rather than returning `false` aborts
        the whole claim, including the calls that would have recovered.  Retrying re-enters the same
-       loop and hits the same target, so recovery stays unavailable while any target reverts.
+       loop and hits the same target, so recovery stays unavailable while any target reverts.  The
+       outcome lists here are fixed, so that retry argument is not proved in this file.  Over a world
+       that changes between attempts it is
+       `Contracts.AtomicFlowManager.RecoveryLimitsStrong.blocked_retry_reverts`.
 
   Fact 2 is the one that does not fit the docstring's framing.  "The flow author's responsibility" is a
   per-call statement, but a reverting target denies recovery to the OTHER calls too — the failure
@@ -71,8 +78,9 @@ theorem accepted_below_full_recovery :
       refine ⟨[Outcome.recovered, Outcome.declined, Outcome.declined], ⟨by decide, by decide⟩, by decide⟩
 
 
-/-- **AND IT IS TERMINAL.**  A `Reverted` leg does not enable another claim — the concrete counterpart
-is `AtomicFlowManager.Layout.refunded_leg_cannot_refund_again`. -/
+/-- **A `Reverted` LEG IS NOT CLAIM-ENABLED.**  A constructor fact on this file's copy of `LegState`.
+Terminality on the manager's runs is `Contracts.AtomicFlowManager.no_double_claim`; tied to an accepted
+claim it is `Contracts.AtomicFlowManager.RecoveryLimitsStrong.legClaim_success_closes_leg`. -/
 theorem no_second_claim :
     Properties.no_second_claim := by
   unfold Properties.no_second_claim
@@ -80,9 +88,10 @@ theorem no_second_claim :
     by decide
 
 
-/-- **SO PARTIAL STRANDING IS PERMANENT.**  A claim can be accepted while strictly fewer calls recover
-than the bundle contains, and that acceptance closes the only door: the unrecovered calls get no second
-attempt.  Limit 1 is not a retry away from being fixed. -/
+/-- **PARTIAL ACCEPTANCE, AND A CLOSED GATE.**  `accepted_below_full_recovery` together with
+`no_second_claim`; the closed gate is a constant fact, not tied to the accepted claim.  The tied statement,
+on the real loop and the manager's runs, is
+`Contracts.AtomicFlowManager.RecoveryLimitsStrong.partial_stranding_is_terminal`. -/
 theorem stranding_is_terminal :
     Properties.stranding_is_terminal := by
   unfold Properties.stranding_is_terminal
@@ -118,8 +127,10 @@ theorem revert_anywhere_blocks (pre post : List Outcome) :
       exact hloop (List.mem_append.mpr (Or.inr List.mem_cons_self))
 
 
-/-- And retrying does not help: the condition depends only on the outcomes, so a second attempt against
-the same targets fails identically.  Recovery is unavailable for as long as any target reverts. -/
+/-- **A LOOP THAT HITS A REVERT IS NOT ACCEPTED.**  This restates the premise; no retry is modelled.
+The retry statement over a changing world is
+`Contracts.AtomicFlowManager.RecoveryLimitsStrong.blocked_retry_reverts`, and
+`retry_succeeds_once_blocker_clears` there shows it needs its invariant premises. -/
 theorem retry_does_not_help (os : List Outcome) (h : ¬ LoopCompletes os) :
     Properties.retry_does_not_help (os := os) (h := h) := by
   unfold Properties.retry_does_not_help
