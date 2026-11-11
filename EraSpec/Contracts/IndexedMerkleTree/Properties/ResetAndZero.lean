@@ -61,9 +61,12 @@ set_option linter.unusedVariables false
     `evolution_keys_mono`).
 
   * `zero_not_reclaimable_along_evolution` — hence `0` is NEVER
-    reclaimable: no leaf of any snapshot carries a window straddling `0`
-    (via `present_not_reclaimable`).  No refund can ever be extracted for
-    the sentinel value.
+    reclaimable: no leaf of any snapshot carries a window straddling `0`.
+    Its proof goes via `present_not_reclaimable`, but its STATEMENT holds
+    for every history with no premise used: a window straddling `0` needs
+    `W.key < 0`, so it is `zero_never_reclaimable` at `S n`.  The invariant
+    route as a statement whose premises are all needed is
+    `ResetAndZeroStrong.zero_not_reclaimable_invariant_route`.
 
   * `zero_never_reclaimable` — independent confirmation, with NO
     hypotheses at all: in ANY leaf set whatsoever (sound or not, evolved or
@@ -71,11 +74,15 @@ set_option linter.unusedVariables false
     `Fin (2^256)`.  The reclaim gate's witness precondition is
     unsatisfiable for `v = 0` on order grounds alone.
 
-  * `guarded_never_inserts_zero` — `0` can never be FRESHLY inserted along
-    a `GuardedEvolution` from genesis: the dedup gate `v ∉ keys s` is
-    unsatisfiable for `v = 0` (and, independently, so is the low-leaf guard
-    `W.key < 0`).  No step of a real contract history ever performs the
-    insert operation with value `0`.
+  * `guarded_never_inserts_zero` — no step of a guarded history performs
+    the guarded insert with value `0`.  Its conclusion contains the
+    low-leaf guard `W.key < 0`, which nothing satisfies, so it holds for
+    every history with no premise used; it does not check the dedup-gate
+    claim.  That claim (the abstract gate `v ∉ keys (S n)` fails for
+    `v = 0` at every snapshot of a guarded history from genesis) is
+    `ResetAndZeroStrong.guarded_dedup_gate_rejects_zero`.  The contract's
+    own gate `valueToIndex[_value] != 0` does not reject `0` (the sentinel
+    is never registered); the contract rejects `0` by `IMTValueZero`.
 
   Together: `v = 0` can be neither delivered (B3) nor reclaimed (B2) — the
   sentinel is dead weight to an attacker, which is why
@@ -135,12 +142,16 @@ abbrev Properties.zero_always_present {S : ℕ → Finset AbsLeaf} (hevo : Evolu
   (0 : UInt256) ∈ keys (S n)
 
 
-/-- **THE SENTINEL IS NEVER RECLAIMABLE (invariant route).**  Along any
+/-- **THE SENTINEL IS NEVER RECLAIMABLE ("invariant route").**  Along any
 evolution from a sound base containing the zero key, NO snapshot carries a
-leaf whose window straddles `0`: the sentinel is permanently present
-(`zero_always_present`), and presence kills every straddling window
-(`present_not_reclaimable`).  An attacker can never extract a refund for
-the zero commit value. -/
+leaf whose window straddles `0`.  The proof takes the invariant route (the
+sentinel is permanently present, `zero_always_present`, and presence kills
+every straddling window, `present_not_reclaimable`), but the statement does
+not depend on it: the conclusion is `zero_never_reclaimable` at `S n` and
+holds for every `S` with `hevo`, `h0` and `hzero` unused, because a window
+straddling `0` needs `W.key < 0`.  The route itself, with each premise
+needed, is
+`AttackVectors.ResetAndZeroStrong.Properties.zero_not_reclaimable_invariant_route`. -/
 abbrev Properties.zero_not_reclaimable_along_evolution {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) (h0 : SoundState (S 0))
     (hzero : (0 : UInt256) ∈ keys (S 0)) (n : ℕ) :=
   ¬ ∃ W ∈ S n, W.key < (0 : UInt256)
@@ -158,13 +169,16 @@ abbrev Properties.zero_never_reclaimable (s : Finset AbsLeaf) :=
 
 
 /-- **ZERO IS NEVER FRESHLY INSERTED.**  Along any `GuardedEvolution` from
-the genesis singleton, no step performs the guarded insert with value `0`:
-the dedup gate `v ∉ keys (S n)` is unsatisfiable for `v = 0`, since the
-sentinel key is present at every snapshot (`zero_always_present` through
-`guardedEvolution_isEvolution`).  (Independently, the low-leaf guard
-`W.key < 0` is already unsatisfiable — `zero_never_reclaimable`'s order
-argument — so the guard fails twice over.)  The zero value can be neither
-delivered nor reclaimed: structurally inert. -/
+the genesis singleton, no step performs the guarded insert with value `0`.
+The conclusion includes the low-leaf guard `W.key < 0`, which nothing in
+`Fin (2^256)` satisfies, so it holds for every `S` with `hge` and `hgen`
+unused; it does not check that the dedup gate `v ∉ keys (S n)` fails for
+`v = 0`.  That claim (the sentinel key is present at every snapshot) is
+`AttackVectors.ResetAndZeroStrong.Properties.guarded_dedup_gate_rejects_zero`,
+whose premises are both needed.  It concerns the ABSTRACT gate: the
+contract's own gate `valueToIndex[_value] != 0` (`IndexedMerkleTree.sol:72-74`)
+passes for `0`, since the sentinel is never registered, and the contract
+rejects `0` with `IMTValueZero` (:69-71) and the low-leaf check (:81-83). -/
 abbrev Properties.guarded_never_inserts_zero {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S)
     (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf)) (n : ℕ) :=
   ¬ ∃ W : AbsLeaf, W ∈ S n ∧ W.key < (0 : UInt256)

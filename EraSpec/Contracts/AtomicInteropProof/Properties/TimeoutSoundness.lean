@@ -132,7 +132,9 @@ The branch is a prover input (`_absence.provesAgainstBeginRoot`), but it selects
 root's ROLE is authenticated by its Merkle position, not merely its value, and a begin root cannot be
 presented where an end root is required.
 
-That guard is worth more in one direction than the other, which the constants alone do not show. -/
+That guard is worth more in one direction than the other, which the constants alone do not show.  The
+exact form, over all four pairings of branch flag and leaf, is
+`timeoutGate_sound_iff_not_end_flag_begin_leaf` in `Properties/TimeoutSoundnessStrong.lean`. -/
 
 /-- `begin(n) ⊆ end(n)`: the batch's own insertions are what separate them. -/
 abbrev Properties.beginSet_subset_endSet {H : BatchHistory} (hao : AppendOnly H) (n : ℕ) :=
@@ -148,14 +150,26 @@ abbrev Properties.begin_branch_with_end_root_sound {H : BatchHistory}
   ∀ B : ℕ, H.time B ≤ D → v ∉ H.endSet B
 
 
-/-- **THE DANGEROUS SWAP.**  Offering a BEGIN root on the END branch is UNSOUND: a value inserted
-DURING an in-time batch is absent from that batch's begin root while being finalized on time.  Accepting
-it would let `authorizeRefund` mark a live leg `Revertable` — a refund of a leg that did commit before
-the deadline.
+/-- **THE DANGEROUS SWAP (end-branch premises incomplete).**  A value inserted DURING an in-time batch
+is absent from that batch's begin root, yet it finalized on time.  This is what the swap would exploit:
+offering a BEGIN root on the END branch would let `authorizeRefund` mark a live leg `Revertable`, a
+refund of a leg that did commit before the deadline.
 
-This is what the `_leafProofMask` binding actually buys: without it the end branch would admit exactly
-this witness.  The end branch's own `l1BatchTimestamp <= _deadline` check does NOT catch it — the batch
-here IS in time; it is the ROOT that is wrong. -/
+As stated, the existential says only that: an append-only history with an in-time batch that inserted
+`v`.  It omits the end branch's own premises: a root time `T` with `D < T`, and `hlast` (every later
+batch settles no earlier than `T`).  Its witness settles every batch at time `0`, so `hlast` holds for no
+`T > D`.  On that history, dropping `hlast` makes the end branch unsound even with the correct END root
+(batch `0`'s end set lacks the value, and the in-time batch `1` contains it).  So this statement does not
+show that the `_leafProofMask` binding is what the end branch depends on.
+
+`Properties/TimeoutSoundnessStrong.lean` has the stronger forms:
+* `end_branch_needs_hlast` and `allInTimeHistory_no_hlast` prove the two claims just made about
+  that witness.
+* `end_branch_begin_root_admits_finalized` keeps every end-branch premise, plus `TimeOrdered`.
+* `end_branch_begin_root_passes_onchain_checks` is the on-chain form.  The in-time check, the
+  zero-cascade check and the aggregation ordering all pass, so it is the ROOT that is wrong.
+* `timeoutGate_sound_iff_not_end_flag_begin_leaf` shows that this is the only unsound pairing of
+  branch and leaf. -/
 abbrev Properties.end_branch_with_begin_root_unsound :=
   ∃ (H : BatchHistory) (D : ℕ) (v : UInt256) (B : ℕ),
         AppendOnly H ∧ H.time B ≤ D ∧ v ∉ beginSet H B ∧ v ∈ H.endSet B
