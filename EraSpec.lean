@@ -99,6 +99,7 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
 import EraSpec.Codegen.Lang
 import EraSpec.Codegen.Emit
 import EraSpec.Codegen.BridgedTokenSlice.Proofs.Refinement
+import EraSpec.Codegen.BridgedTokenSlice.Proofs.AtMostOneStep
 
 -- Reference application, distinct from the deployed router/vault implementation
 import EraSpec.Examples.BurnMintBridge.Model
@@ -113,6 +114,7 @@ import EraSpec.Codegen.VaultPreparationSlice.Proofs.MintDataBytes
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.Refinement
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.RevertOrder
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.Witnesses
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.AtMostOneStep
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWritersStrong
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
@@ -151,6 +153,7 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Reinitialization
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Resolution
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ResolutionCorrespondence
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsOrder
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Forward
 import EraSpec.Examples.BurnMintBridge.Proofs.EndBranch
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
