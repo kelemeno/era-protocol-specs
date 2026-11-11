@@ -1,55 +1,82 @@
-import EraSpec.Word
-
--- Core mathematics
+-- Foundations with no corresponding Solidity contract or library
+import EraSpec.Core.Word
 import EraSpec.Core.FinBits
-import EraSpec.Core.Merkle
-import EraSpec.Core.MerkleProofSound
-import EraSpec.Core.MerkleCachedInj
-import EraSpec.Core.IMT
+import EraSpec.Core.PreparedApplication
+import EraSpec.Core.Simulation
 
--- Contract state machines (one per deployed contract) and their composition
-import EraSpec.Contracts.InteropCommitmentTree
-import EraSpec.Contracts.AtomicFlowManager
-import EraSpec.Contracts.Protocol
+-- Asset bridge: locally specified initialized representation-token ledger
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.Model
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.Initialization
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Initialization
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RepresentationPreparation
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.PreparationGuards
 
--- The obligations that connect this package to the compiled-code proofs
+-- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
+import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
+import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonical
+import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
+
+-- AtomicInteropProof: finalization, timeout, source binding, and proof snapshots
+import EraSpec.Contracts.AtomicInteropProof.Proofs.TimeoutSoundness
+import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarity
+import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRoot
+import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshot
+import EraSpec.Contracts.AtomicInteropProof.Proofs.Timestamps
+
+-- IndexedMerkleTree: abstract list model and insertion requirements
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.InsertGuard
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZero
+
+-- L2InteropCommitmentTree: the wrapper's indexed state machine
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
+
+-- Interop handlers and the bundle encoding library
+import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
+import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthority
+import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
+import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
+
+-- Solidity Merkle libraries: capacity, padding, and root authentication
+import EraSpec.Contracts.FullMerkle.Proofs.Model
+import EraSpec.Contracts.FullMerkle.Proofs.CachedHashInjectivity
+import EraSpec.Contracts.FullMerkle.Proofs.CapacityInvariant
+import EraSpec.Contracts.FullMerkle.Proofs.TreeShape
+import EraSpec.Contracts.Merkle.Proofs.ProofSound
+import EraSpec.Contracts.Merkle.Proofs.RootBinding
+import EraSpec.Contracts.Merkle.Proofs.RootForgery
+
+-- Guarantees that compose several contracts or source chains
+import EraSpec.Protocol.Spec
+import EraSpec.Protocol.LocalHonesty
+import EraSpec.Protocol.NoTheft
+import EraSpec.Protocol.FlowAtomicity
+import EraSpec.Protocol.DestinationCapstone
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.Model
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
+
+-- Reference application, distinct from the deployed router/vault implementation
+import EraSpec.Examples.BurnMintBridge.Model
+import EraSpec.Examples.BurnMintBridge.ProtocolComposition
+
+-- Obligations connecting the abstract models to compiled-code proofs
 import EraSpec.Refinement
-
--- Security properties and attack countermodels
-import EraSpec.Properties.AtomicSourceBinding
-import EraSpec.Properties.BundleHashEncoding
-import EraSpec.Properties.BundleStatusMachine
-import EraSpec.Properties.CapacityInvariant
-import EraSpec.Properties.DestinationCapstone
-import EraSpec.Properties.FlowAtomicity
-import EraSpec.Properties.FlowCanonical
-import EraSpec.Properties.InsertGuard
-import EraSpec.Properties.LastBatchInRoot
-import EraSpec.Properties.LocalHonesty
-import EraSpec.Properties.NoTheft
-import EraSpec.Properties.ProofPolarity
-import EraSpec.Properties.RecoveryLimits
-import EraSpec.Properties.ResetAndZero
-import EraSpec.Properties.RootBinding
-import EraSpec.Properties.RootForgery
-import EraSpec.Properties.SelfCallAuthority
-import EraSpec.Properties.StaleSnapshot
-import EraSpec.Properties.TimeoutSoundness
-import EraSpec.Properties.Timestamps
-import EraSpec.Properties.TreeShape
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
-Importing this module brings in everything.  The layers, bottom-up:
+Importing this module brings in everything, organized for contract-by-contract review:
 
-* `EraSpec.Word` — the 256-bit machine word (vendored; see its header).
-* `EraSpec.Core.*` — the mathematical objects the protocol is built from: the
-  Merkle fold, the indexed Merkle tree and its order invariant, bit arithmetic.
-* `EraSpec.Contracts.*` — one abstract state machine per deployed contract, plus
-  the multi-chain composition.  These are the specifications that
-  `contracts-formal-verification` refines its compiled-code proofs against.
-* `EraSpec.Properties.*` — the security theorems and the attack countermodels.
+* `EraSpec.Core.*` — words, arithmetic, preparation, and safety-refinement composition;
+  foundations without a corresponding Solidity contract or library.
+* `EraSpec.Contracts.<SolidityName>.*` — each contract/library's abstract models,
+  property statements, proofs, and attack countermodels together.
+* `EraSpec.Protocol.*` — guarantees that compose contracts and source chains.
+* `EraSpec.Examples.*` — illustrative models, not verified deployed applications.
+* `EraSpec.Refinement` — what compiled-code verification still must supply.
 
-Nothing here depends on Clear, on solc output, or on any model of the EVM.
+Each contract separates Specs (definitions), Properties (named propositions), and
+Proofs (theorems referencing those propositions). Public theorem names are preserved.
+The environment audit checks that each property has its complete named proof.
+Nothing here depends on Clear, solc output, or EVM semantics.
 -/

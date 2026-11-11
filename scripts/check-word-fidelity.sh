@@ -1,32 +1,17 @@
 #!/usr/bin/env bash
-# Verify that EraSpec/Word.lean's vendored declarations still match Clear's.
-#
-# Word.lean is a deliberate COPY of Clear/UInt256.lean, trimmed to the word type
-# and its arithmetic (see that file's header for why).  A copy is only worth
-# having while it is actually a copy: if Clear's definitions drift, a theorem
-# proved here and a theorem proved in contracts-formal-verification stop being
-# about the same type, and nothing else in either repo would notice.
-#
-# So: for every declaration Word.lean keeps, find the same declaration in Clear
-# and compare the text. Report anything that differs or has disappeared.
-#
-# Extra declarations in Clear are EXPECTED (we trimmed the EVM opcodes on
-# purpose) and are not reported. Extra declarations HERE are a finding — this
-# file should never grow definitions of its own.
+# Check the local word declarations against their checked-in review baseline.
+# No older repository or Clear checkout is required. This detects unreviewed
+# definition changes; mathematical claims are checked by Lean, not by hashes.
+# For an optional provenance comparison, pass an explicit source file as $1.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-CLEAR="${CLEAR_UINT256:-../contracts-formal-verification/Clear/Clear/UInt256.lean}"
-MINE="EraSpec/Word.lean"
+REFERENCE="${1:-}"
+MINE="EraSpec/Core/Word.lean"
+BASELINE="scripts/word-baseline.json"
 
-if [ ! -f "$CLEAR" ]; then
-  echo "SKIP: Clear source not found at $CLEAR"
-  echo "      set CLEAR_UINT256=<path> to check fidelity"
-  exit 0
-fi
-
-python3 - "$CLEAR" "$MINE" <<'PY'
-import re, sys
+python3 - "$REFERENCE" "$MINE" "$BASELINE" <<'PY'
+import hashlib, json, re, sys
 
 def decls(path):
     """Map declaration name -> normalized body text."""
@@ -50,20 +35,26 @@ def decls(path):
     if name: out[name] = ' '.join(' '.join(cur).split())
     return out
 
-clear, mine = decls(sys.argv[1]), decls(sys.argv[2])
-missing  = [n for n in mine if n not in clear]
-differing = [n for n in mine if n in clear and mine[n] != clear[n]]
+mine = decls(sys.argv[2])
+if sys.argv[1]:
+    reference = decls(sys.argv[1])
+    missing = sorted(set(mine) - set(reference))
+    added = []  # A broader reference may contain intentionally omitted definitions.
+    differing = [n for n in mine if n in reference and mine[n] != reference[n]]
+    label = 'explicit reference'
+else:
+    with open(sys.argv[3]) as f:
+        reference = json.load(f)['declarations_sha256']
+    hashes = {n: hashlib.sha256(body.encode()).hexdigest() for n, body in mine.items()}
+    missing = sorted(set(reference) - set(hashes))
+    added = sorted(set(hashes) - set(reference))
+    differing = [n for n in hashes if n in reference and hashes[n] != reference[n]]
+    label = 'local review baseline'
 
-print(f"vendored declarations : {len(mine)}")
-print(f"present in Clear      : {len(mine) - len(missing)}")
-print(f"missing from Clear    : {len(missing)}")
-for n in missing:  print(f"  MISSING  {n}")
-print(f"text differs          : {len(differing)}")
-for n in differing:
-    print(f"  DIFFERS  {n}")
-    print(f"    clear: {clear[n][:160]}")
-    print(f"    mine : {mine[n][:160]}")
-
-sys.exit(1 if (missing or differing) else 0)
+print(f'word declarations checked against {label}: {len(mine)}')
+for category, names in [('MISSING', missing), ('ADDED', added), ('CHANGED', differing)]:
+    for name in names:
+        print(f'  {category} {name}')
+sys.exit(1 if missing or added or differing else 0)
 PY
-echo "==> OK: every vendored declaration matches Clear"
+echo "==> OK: local word definitions match the selected baseline"

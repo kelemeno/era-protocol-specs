@@ -1,149 +1,113 @@
-import EraSpec.Contracts.InteropCommitmentTree
-import EraSpec.Contracts.AtomicFlowManager
-import EraSpec.Contracts.Protocol
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
+import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
+import EraSpec.Protocol.Spec
 
 /-!
 # Refinement obligations
 
-What `contracts-formal-verification` must prove about the compiled code for the
-theorems in this package to say anything about the deployed system.
+The theorems in this package describe local abstract models. They do not establish
+that Solidity source or deployed bytecode implements those models. The following
+seven source-correspondence obligations are open work for this repository. They
+are recorded as prose rather than Lean theorems because this package has no EVM or
+Solidity semantics; placeholder theorem bodies would not discharge them. The older
+`contracts-formal-verification` repository is not a dependency, and its proofs are
+not evidence for these obligations.
 
-## Why this file is prose and not Lean
+`ASSUMPTIONS.md` is the layer register: VM execution, Solidity constructs,
+compiler/artifact identity, contract representation, dependency behavior,
+cryptographic/protocol evidence, and operational conditions are distinct.
+O1–O7 below are contract correspondence obligations, not VM or Solidity axioms.
+`Core/Simulation.lean` proves generic safety-refinement composition; no concrete
+VM/Solidity/compiler instance has been supplied. `CODE_GENERATION.md` records the
+proposed restricted Lean-to-Solidity route and shared/differential tests, with a
+separate translation-preservation obligation.
 
-Every obligation below is a statement about SOLC OUTPUT — a Yul function, a
-keccak-derived storage slot, a compiled guard.  None of it is expressible here:
-this package has no EVM semantics, by design.  So the obligations are recorded as
-named, checkable claims rather than as `theorem` statements with `sorry` bodies,
-which would put `sorryAx` into this package's axiom profile and destroy the one
-property that makes it useful — that every result in it is fully proved.
+## O1 — commitment-tree state and updates
 
-The division of labour is therefore:
+Relate `Contracts.InteropCommitmentTree.Tree` to the selected source's stored
+`leafCount`, indexed leaves, and `valueToIndex` map. Establish the effect of every
+tree write and connect the full source-level call path, including dispatcher and
+insert glue, to `Tree.insert`.
 
-| layer | repo | trusts |
-|---|---|---|
-| protocol operations are correct | **this package** | Mathlib, Lean kernel |
-| compiled code implements those operations | `contracts-formal-verification` | + solc's Yul→EVM backend, Clear's EVM model, keccak idealization |
+## O2 — insertion guards
 
-A reader who accepts both halves gets an end-to-end result.  A reader who accepts
-only this half gets a verified *design*, which is worth stating plainly rather
-than blurring.
+Show that a successful source `insert` call implies every condition in
+`Contracts.InteropCommitmentTree.InsertGuard`, with the right inputs and ordering
+before writes. Also rule out model conditions that source does not enforce; an
+always-reverting implementation must not satisfy the intended behavior vacuously.
 
-## The obligations
+## O3 — bounded search
 
-### O1 — `Tree` is the compiled tree
+Relate `lowSearch` to the source search loop, including its fuel bound,
+termination/revert behavior, and the `none` case corresponding to
+`IMTLowLeafNextTooSmall`.
 
-`Contracts.InteropCommitmentTree.Tree` must correspond to `IMT`'s storage:
-`leafCount` to `_imt.tree._leafNumber`, `leaf i` to the struct at
-`keccak(i‖4)`-derived slots, `valueToIndex v` to the slot for `_imt.valueToIndex[v]`.
+## O4 — flow-manager state transitions
 
-*Discharged by:* results `#39` (slot accessor closed form: `keccak(i‖4)`, struct
-read/write) and `#41` (pointwise write effect against the real storage model,
-`[propext, Quot.sound]` only) in `SECURITY_VERIFICATION.md`.
+Show that the modeled `Contracts.AtomicFlowManager.Step` transitions correspond to
+the source updates of `_state[flowId][bundleHash]`: all relevant transitions are
+represented, guards precede writes, and success and failure effects match.
 
-*Open sub-part:* the dispatcher-inlined insert glue → `Tree.insert`
-correspondence is source-level inspection, not mechanized — the VC generator does
-not extract dispatcher bodies. This is the one seam in the chain and is named as
-such there too.
+## O5 — caller authority
 
-### O2 — `InsertGuard` is the compiled guard
+Establish the caller restrictions for append, finalized-flow checks, insert, and
+initialization, along with the authority used by each modeled transition. Caller
+identity is not currently part of every abstract transition, so this remains an
+explicit source-correspondence obligation.
 
-Each field of `Contracts.InteropCommitmentTree.InsertGuard` must be exactly what
-the compiled `insert` enforces before its first write, with no additional
-condition and none missing.
+## O6 — cross-chain source binding
 
-*Note the direction that matters.* An obligation stated only as "the guard
-implies the fields" would be satisfiable by a compiled guard that reverts always.
-What is needed is the *success* direction: a successful call implies the fields
-held. That is the shape the sibling repo's guard theorems already take (`#4`/`#19`
-for chain registration, `#17`/`#18` for the modifiers): *a successful guard ⇒ the
-precondition genuinely held.*
+Relate `Contracts.Protocol.BoundGate` to the selected source's refund path. In
+particular, establish that the absence proof's `sourceChainId` is checked against
+the missing leg's declared source chain before it can authorize a refund. The local
+countermodel `unbound_gate_refunds_delivered_leg` records why this condition
+matters; it does not establish that source code enforces it.
 
-### O3 — `lowSearch` is the compiled loop
+## O7 — Merkle root correspondence
 
-`lowSearch`'s fuel must be `MAX_LOW_INDEX_SEARCH_ATTEMPTS` and its `none` case
-must be the `IMTLowLeafNextTooSmall` revert.
+Relate the abstract Merkle fold and proof checks to the source's leaf hashing,
+stored-root updates, and inclusion/non-inclusion verification. Establish that the
+root used by the source authenticates exactly the leaves represented by the local
+tree model, under explicit hash and encoding assumptions.
 
-*Status:* the loop specs in `L2InteropCommitmentTree/Common` are the relevant
-concrete artifacts. Per that repo's `loop-content-audit.sh`, most loop specs there
-are still `AFor := True` — so this obligation is largely OPEN, and the honest
-reading is that the compiled search loop is not yet tied to this model.
+## Additional bridge correspondence
 
-### O4 — `LegState` is the compiled state machine
+The first `BridgedStandardERC20` slice models the nonlegacy token branch.
+Its source correspondence remains open: connect the actual token balance/supply
+effects to the abstract transition, and establish uint256 arithmetic, caller
+authority, external-call results, and revert/rollback behavior. Legacy fallback,
+configuration changes, and other asset branches need separate coverage.
 
-`Contracts.AtomicFlowManager.Step`'s three constructors must be the only
-transitions the compiled contract performs on `_state[flowId][bundleHash]`, and
-each guard must be checked before its write.
+The registered representation branch of `NativeTokenVaultBase` now composes that
+token operation with local registry checks, pre-burn accounting, and post-burn
+origin/metadata validation. Its typed returned data is not an ABI proof. Relating
+the parametric hooks, token getter, selected-token assumptions, and atomic commit
+interface to real calls and rollback remains open. The preparation trace's
+pending list is ghost accounting, not vault storage or proof of publication.
 
-*Partly blocked upstream:* the concrete counterparts (`fun_authorizeRefund`,
-`fun_verifyTimeoutAbsence`, `fun_verifyInclusion`) cannot currently be built —
-eight generated `AtomicFlowManager/Common` files emit `EVMCleanup_bool'`, a lemma
-the pinned Clear never defined. Until that is fixed upstream, the CONCRETE side of
-the timeout/refund protocol is unreachable and O4 rests on source inspection.
+Initialization now establishes the local ledger and representation invariants
+from a fresh-proxy allocation model and the projected deployment/registry-install
+sequence. The separate representation proof retains independent stored fields;
+it does not identify them by construction. Source correspondence must still
+justify fresh proxy storage, the actual vault caller, outer metadata decoding,
+resolved origin-chain inputs, CREATE2/asset-ID behavior, hook frames, and the
+omitted registry origin/index/count writes. The modeled initializer is public
+until initialized; the intended atomic deployment call order is essential.
 
-### O5 — access control
-
-`append` is reachable only from `InteropCenter`, `requireFlowFinalized` only from
-`InteropHandler`, `insert` only from the `AtomicFlowManager` address, `initL2`
-only from the complex upgrader. Not modeled here (see the note in
-`Contracts.AtomicFlowManager`): caller identity constrains *who* may step, not
-what a step does.
-
-*Discharged by:* `check-source-invariants.sh`'s call-site enumeration, plus
-`#37`-style guard theorems. This is an enumeration, so it is the fragile kind —
-an edit can break it while every proof stays green.
-
-### O6 — the multi-chain binding is present in the code
-
-`Contracts.Protocol.BoundGate` assumes `authorizeRefund` compares
-`_absence.sourceChainId` against `_flow.legSourceChainIds[_missingLegIndex]`.
-`unbound_gate_refunds_delivered_leg` shows what is lost if that comparison is
-absent or reordered after the absence check.
-
-*Discharged by:* source inspection only, today. **This is the obligation most
-worth mechanizing next**, because it is the one whose failure mode is a live
-double-spend rather than a weakened statement, and because
-`check-source-invariants.sh` is the natural place for it: the check is a single
-comparison whose presence a script can assert.
-
-### O7 — the hash side
-
-`Tree` carries list state only. Membership and non-inclusion proofs are checked
-against a Merkle root, so `EraSpec.Core.Merkle` plus the concrete `updateWalk`
-correspondence (`#31`, `#32`) must certify that the root authenticates exactly
-the leaves this model talks about.
-
-*Discharged by:* `#31` (`fun_updateLeaf` ≡ `updateWalk`), `#32` (the verifier's
-fold replays that walk), and `root_pins_written_leaf`. These rest on the keccak
-idealization axioms, or on the weaker `_of_config` pool-consistency assumptions —
-a change of trusted base, not its elimination.
-
-## Known model boundaries inherited from the concrete side
-
-Recorded here so a reader of this package alone is not misled about what the
-combined result covers:
-
-* **`mcopy` is unmodelled** in Clear (empty stub, `A_mcopy := True`), so memory
-  copies are invisible there. Nothing about copied *bytes* is proved — including
-  `_verifyBundle`'s `_proof.message.data = bytes.concat(BUNDLE_IDENTIFIER, _bundle)`
-  substitution.
-* **`LOG` is a no-op**, so no property about emitted events is provable there.
-  This is faithful for state reasoning (LOG cannot change state) but means
-  "the contract announces X when it does Y" is out of scope, not merely unproven.
-* **External calls are opaque** (`staticcall` returns no values in Clear), so the
-  message-verification RESULT is inherently a hypothesis on that side.
-
-None of these affect this package's theorems, which are about protocol
-operations. They bound what the *combined* claim can be.
+More broadly, source correspondence must state its treatment of storage layout,
+ABI and memory bytes, events, arithmetic, external calls, and transaction rollback.
+Any semantics or environmental behavior omitted from the concrete model must
+remain an explicit assumption or excluded claim.
 -/
 
 namespace EraSpec.Refinement
 
-/-! ## Machine-checkable summary of what IS proved here
+/-! ## Machine-checkable summary of local abstract results
 
-The three statements below are the top of this package's dependency graph — the
-protocol-level guarantees the obligations above are meant to transfer to the
-compiled code. They are `abbrev`s rather than restatements so there is exactly
-one proof of each, and `#print axioms` on them reports the real profile. -/
+The statements below summarize results proved about the local models. They do not
+discharge the source-correspondence obligations above. They are `abbrev`s rather
+than restatements so there is exactly one proof of each, and `#print axioms` on
+them reports the real profile. -/
 
 /-- The commitment tree: every run from `setup` keeps the reclaim gate firing on
 exactly the never-delivered legs. -/

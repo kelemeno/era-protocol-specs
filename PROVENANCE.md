@@ -1,103 +1,88 @@
-# Provenance, and the migration that is not done yet
+# Provenance and local ownership
 
-## What was extracted
+## Origin of copied material
 
-26 modules came out of `contracts-formal-verification` unchanged except for their
-`import` lines. They were selected mechanically, not by taste: a transitive
-classification of that repo's `specs/` tree found exactly these to be reachable
-without importing `generated.*` (solc output) or any `Clear.*` module other than
-`Clear.UInt256`. Of ~2,700 spec modules, these 26 are the Clear-free subset.
+Twenty-six modules were selectively copied from the `contracts-formal-verification`
+repository at the time of extraction. The original selection was mechanical: a
+transitive classification of its `specs/` tree found modules reachable without
+`generated.*` (solc output) or any `Clear.*` module other than `Clear.UInt256`.
+The source tree then contained roughly 2,700 spec modules. The table records the
+origin of each copied proof entry point; it is historical provenance, not a live
+link or dependency.
 
-| new module | came from |
+| current proof entry point (imports its spec and properties) | came from |
 |---|---|
 | `EraSpec/Core/FinBits.lean` | `specs/FinBits.lean` |
-| `EraSpec/Core/Merkle.lean` | `specs/MerkleSpec.lean` |
-| `EraSpec/Core/MerkleProofSound.lean` | `specs/MerkleProofSound.lean` |
-| `EraSpec/Core/MerkleCachedInj.lean` | `specs/MerkleCachedInj.lean` |
-| `EraSpec/Core/IMT.lean` | `specs/IMTAbstract.lean` |
-| `EraSpec/Properties/*.lean` (21) | `specs/AttackVectors/*.lean` |
+| `EraSpec/Contracts/FullMerkle/Proofs/Model.lean` | `specs/MerkleSpec.lean` |
+| `EraSpec/Contracts/Merkle/Proofs/ProofSound.lean` | `specs/MerkleProofSound.lean` |
+| `EraSpec/Contracts/FullMerkle/Proofs/CachedHashInjectivity.lean` | `specs/MerkleCachedInj.lean` |
+| `EraSpec/Contracts/IndexedMerkleTree/Proofs/Model.lean` | `specs/IMTAbstract.lean` |
+| `EraSpec/Contracts/AtomicFlowManager/Proofs/FlowCanonical.lean` | `specs/AttackVectors/FlowCanonical.lean` |
+| `EraSpec/Contracts/AtomicFlowManager/Proofs/RecoveryLimits.lean` | `specs/AttackVectors/RecoveryLimits.lean` |
+| `EraSpec/Contracts/IndexedMerkleTree/Proofs/InsertGuard.lean` | `specs/AttackVectors/InsertGuard.lean` |
+| `EraSpec/Contracts/IndexedMerkleTree/Proofs/ResetAndZero.lean` | `specs/AttackVectors/ResetAndZero.lean` |
+| `EraSpec/Contracts/InteropHandlerBase/Proofs/BundleStatusMachine.lean` | `specs/AttackVectors/BundleStatusMachine.lean` |
+| `EraSpec/Contracts/InteropHandlerBase/Proofs/SelfCallAuthority.lean` | `specs/AttackVectors/SelfCallAuthority.lean` |
+| `EraSpec/Contracts/L2InteropHandler/Proofs/AtomicSourceBinding.lean` | `specs/AttackVectors/AtomicSourceBinding.lean` |
+| `EraSpec/Contracts/InteropDataEncoding/Proofs/BundleHashEncoding.lean` | `specs/AttackVectors/BundleHashEncoding.lean` |
+| `EraSpec/Contracts/FullMerkle/Proofs/CapacityInvariant.lean` | `specs/AttackVectors/CapacityInvariant.lean` |
+| `EraSpec/Contracts/FullMerkle/Proofs/TreeShape.lean` | `specs/AttackVectors/TreeShape.lean` |
+| `EraSpec/Contracts/Merkle/Proofs/RootBinding.lean` | `specs/AttackVectors/RootBinding.lean` |
+| `EraSpec/Contracts/Merkle/Proofs/RootForgery.lean` | `specs/AttackVectors/RootForgery.lean` |
+| `EraSpec/Contracts/AtomicInteropProof/Proofs/TimeoutSoundness.lean` | `specs/AttackVectors/TimeoutSoundness.lean` |
+| `EraSpec/Contracts/AtomicInteropProof/Proofs/ProofPolarity.lean` | `specs/AttackVectors/ProofPolarity.lean` |
+| `EraSpec/Contracts/AtomicInteropProof/Proofs/LastBatchInRoot.lean` | `specs/AttackVectors/LastBatchInRoot.lean` |
+| `EraSpec/Contracts/AtomicInteropProof/Proofs/StaleSnapshot.lean` | `specs/AttackVectors/StaleSnapshot.lean` |
+| `EraSpec/Contracts/AtomicInteropProof/Proofs/Timestamps.lean` | `specs/AttackVectors/Timestamps.lean` |
+| `EraSpec/Protocol/DestinationCapstone.lean` | `specs/AttackVectors/DestinationCapstone.lean` |
+| `EraSpec/Protocol/FlowAtomicity.lean` | `specs/AttackVectors/FlowAtomicity.lean` |
+| `EraSpec/Protocol/LocalHonesty.lean` | `specs/AttackVectors/LocalHonesty.lean` |
+| `EraSpec/Protocol/NoTheft.lean` | `specs/AttackVectors/NoTheft.lean` |
 
-Namespaces were left alone (`IMTAbstract`, `AttackVectors.*`), so only module paths
-changed. That keeps the eventual migration a one-line-per-file edit.
 
-`EraSpec/Word.lean` is a separate case: a **trimmed copy** of
-`Clear/Clear/UInt256.lean`, keeping the word type and its arithmetic and dropping
-the EVM opcodes and byte serialization. It is vendored rather than imported so this
-package stays Clear-free. `scripts/check-word-fidelity.sh` diffs the 23 kept
-declarations against the Clear submodule and fails on any divergence.
+The copied material is maintained as local code in this repository. Contract
+modules have since been split into specifications, named property statements, and
+proofs. Public theorem names and namespaces were retained where applicable, and
+proof bodies were adjusted locally to reference the named propositions. Lean builds
+and checks these local modules against this repository's Mathlib dependency.
 
-Newly written here, not extracted: `EraSpec/Contracts/*` and
-`EraSpec/Refinement.lean`.
+`EraSpec/Core/Word.lean` is a separate historical case: it originated as a trimmed
+copy of Clear's `UInt256.lean`, with the word type and arithmetic retained and EVM
+opcodes and byte serialization omitted. It is now a local definition. It is not a
+shared module with Clear, and identical origins do not establish a connection
+between theorem statements in the two repositories.
 
-## The drift hazard — read this before relying on either repo
+Material authored for this repository includes the AtomicFlowManager and
+L2InteropCommitmentTree state-machine models, `Protocol/Spec.lean`,
+`Core/PreparedApplication.lean`, `Examples/BurnMintBridge/*`, and `Refinement.lean`.
+The `BridgedStandardERC20`, `NativeTokenVaultBase`, and protocol
+`AssetBridgePreparation` developments were also authored locally; they do not
+import the historical compiled contracts or their proof files.
+Their initializer, registration, and invariant-composition extensions were also
+authored here against the same source pin; historical compiled proofs supply
+none of their assumptions or implementation correspondence.
+The reference bridge is illustrative, not a transcription or verification of the
+deployed asset router or token vault.
 
-**Right now the 26 modules exist twice.** `contracts-formal-verification` still
-builds against its own `specs/` copies; nothing connects them to these.
+## Implementation correspondence remains open
 
-That is the dangerous state, and it is worth being precise about why. The value of
-that repo over a pencil-and-paper spec is the *mechanized seam* between the abstract
-operations and the compiled code — results `#40`–`#42`, which carry the
-`GapSound`/`KeyInj`/`RepKeyInj` invariants through the real storage writes. Those
-theorems are stated in terms of `IMTAbstract`. If this copy of `IMTAbstract` and
-that one drift, the bridge keeps building and keeps being a theorem — but about a
-*different* specification than the one anyone is reading here. Nothing in either
-repo's checkers would notice: both builds stay green, both audits stay clean.
+The abstract proofs establish properties of the definitions and assumptions in
+this repository. They do not establish that Solidity source or deployed bytecode
+implements those definitions. Connecting each relevant source path, including
+success and failure behavior, to these models is a separate open work item. The
+older repository's compiled proofs are not imported, depended upon, or claimed as
+supplying that correspondence.
 
-So the copies are a temporary state, not a design.
+## Pinned source context
 
-## The migration
-
-1. Add to `contracts-formal-verification/lakefile.lean`:
-
-   ```lean
-   require «era-protocol-specs» from git
-     "<url>" @ "<rev>"
-   ```
-
-2. Rewrite the imports in that repo (26 modules plus their dependents):
-   `specs.IMTAbstract` → `EraSpec.Core.IMT`, `specs.MerkleSpec` →
-   `EraSpec.Core.Merkle`, `specs.AttackVectors.X` → `EraSpec.Properties.X`.
-   Namespaces are unchanged, so `open IMTAbstract` and every use site still
-   resolve.
-
-3. Delete the 26 files from `specs/`.
-
-4. Rebuild and re-run that repo's checkers — `audit-count.sh` above all. The axiom
-   profiles must be identical before and after; a change means an import rewrite
-   picked up something different.
-
-5. Update `Specs.lean` and `AttackVectors/Audit.lean` so nothing becomes an orphan
-   (`orphan-specs.sh` catches files nothing imports, which are outside the reach of
-   every other check).
-
-After that, "contracts-formal-verification builds against era-protocol-specs @ rev
-X" becomes the machine-checked fidelity statement, and drift becomes a build
-failure instead of a silent divergence.
-
-### Why it was not done in the same pass
-
-It touches a 2,700-module corpus that takes a long cold build, and step 4 is the
-part that matters: the migration is only correct if the axiom profiles come out
-unchanged, and that has to be *measured*, not assumed. Doing it as a separate,
-verifiable change keeps this extraction reviewable on its own.
-
-Until it is done, treat `contracts-formal-verification/specs/IMTAbstract.lean` and
-`EraSpec/Core/IMT.lean` as one file that happens to be stored twice, and edit only
-the copy here.
-
-## Pinned versions
-
-* Lean `v4.9.1`, Mathlib `09d33efc68d3ad52db77b731d7253675395a14aa` — the same
-  revisions `contracts-formal-verification` pins, so it can take this as a
-  dependency without a toolchain conflict.
-* The extraction was taken from era-contracts at
-  `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (that repo's submodule pin at the
-  time), and the contract specs in `EraSpec/Contracts/` were written against the
-  Solidity at that commit: `contracts/common/libraries/IndexedMerkleTree.sol`,
-  `contracts/atomic-interop/{L2InteropCommitmentTree,AtomicFlowManager}.sol`, and
+* Lean `v4.9.1`; Mathlib `09d33efc68d3ad52db77b731d7253675395a14aa`.
+* Source context for the original extraction: era-contracts commit
+  `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`. Contract-specific models were
+  reviewed against the Solidity files at that source pin, including
+  `contracts/common/libraries/IndexedMerkleTree.sol`,
+  `contracts/atomic-interop/L2InteropCommitmentTree.sol`,
+  `contracts/atomic-interop/AtomicFlowManager.sol`, and
   `contracts/atomic-interop/libraries/AtomicInteropProof.sol`.
 
-  Unlike the compiled-code proofs, nothing here breaks when that pin moves — but
-  the contract specs can become *stale* rather than wrong, which is harder to
-  notice. When the pin moves, re-read those five files against
-  `EraSpec/Contracts/` and check that the guards still transcribe.
+These pins describe reproducibility and historical source context. They do not
+imply current Solidity correspondence; that must be established independently.
