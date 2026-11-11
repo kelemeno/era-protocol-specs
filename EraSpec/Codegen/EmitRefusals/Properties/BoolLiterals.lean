@@ -70,8 +70,8 @@ def Properties.NoncanonicalBoolLiteralRefused : Prop :=
 /-- **REGRESSION: THE REVIEW'S COUNTEREXAMPLE.** The interpreter reverts on
 `boolTwoEqOne` with `"different"`, in every frame.  The statement printer spells it
 `require(true == true, "different");`, which passes in Solidity.  The emitter refuses the
-statement at every indentation, and refuses every contract it appears in, here
-`boolProbe boolTwoEqOne`. -/
+statement at every indentation, and refuses the contract `boolProbe boolTwoEqOne` that
+contains it (every other such contract is covered by `NoncanonicalBoolLiteralRefused`). -/
 def Properties.BoolTwoEqOneRefused : Prop :=
   (∀ f : Frame, execStmt f boolTwoEqOne = .error (.message "different")) ∧
   stmtCore boolTwoEqOne = "require(true == true, \"different\");" ∧
@@ -80,7 +80,8 @@ def Properties.BoolTwoEqOneRefused : Prop :=
 
 /-- **REGRESSION: A BOOL LITERAL THAT WRAPS.** The interpreter returns the word 0 for
 `return lit .bool (2^256)`, in every frame.  The statement printer spells it
-`return true;`.  The emitter refuses the statement and every contract it appears in. -/
+`return true;`.  The emitter refuses the statement at every indentation, and refuses the
+contract `boolProbe boolWrapsToZero` that contains it. -/
 def Properties.BoolWrapsToZeroRefused : Prop :=
   (∀ f : Frame, execStmt f boolWrapsToZero = .ok (f, some 0)) ∧
   stmtCore boolWrapsToZero = "return true;" ∧
