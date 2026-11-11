@@ -125,7 +125,11 @@ only because of one of:
   padding constant.  At the extraction pin `z0 = hl ⟨0,0,0⟩`, so this disjunct holds
   for `ℓ = ⟨0,0,0⟩` with no cryptographic work: it is the forged-absence bug
   (`PaddingCollisionRefundsDeliveredLeg`), which `IMT_EMPTY_LEAF_HASH` turns into a
-  preimage problem. -/
+  preimage problem.
+
+Every case is reachable and attributed alone: `Properties.TreeRootBreakEveryCaseFires`
+exhibits, for each case, a forged inclusion proof whose located break is exactly that
+case (`TreeRootBreakExactly` below). -/
 inductive TreeRootBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ)
     (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) : Prop
   | wrongLength :
@@ -138,6 +142,53 @@ inductive TreeRootBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (he
       TreeRootBreak h z0 hl T height sibs k idx ℓ
   | paddingHit : T.leafCount ≤ idx → hl ℓ = z0 →
       TreeRootBreak h z0 hl T height sibs k idx ℓ
+
+/-! ## Which case of the break fires
+
+`TreeRootBreak` is an inductive with four constructors, and a proof term of it names
+one; but the statement `TreeRootBreak …` does not say WHICH case holds on an
+instance, nor that only one does.  `TreeRootBreakAt c` is the premise of
+constructor `c` as a proposition, and `TreeRootBreakExactly … c` says that case
+`c`, and no other, holds.  `Contracts.InteropCommitmentTree.Properties.TreeRootBreakIffSomeCase`
+checks the two views agree. -/
+
+/-- The four cases of `TreeRootBreak`. -/
+inductive TreeRootBreakCase
+  | wrongLength
+  | pathCollision
+  | leafCollision
+  | paddingHit
+deriving DecidableEq
+
+/-- The premise of the `TreeRootBreak` constructor named by the case. -/
+def TreeRootBreakAt (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ)
+    (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) : TreeRootBreakCase → Prop
+  | .wrongLength => HeightBreak h z0 (leafHashes hl T) sibs k height idx (hl ℓ)
+  | .pathCollision => k = height ∧ PathCollision h z0 (leafHashes hl T) sibs 0 k idx (hl ℓ)
+  | .leafCollision => idx < T.leafCount ∧ T.leaf idx ≠ ℓ ∧ hl (T.leaf idx) = hl ℓ
+  | .paddingHit => T.leafCount ≤ idx ∧ hl ℓ = z0
+
+/-- **Exactly case `c` fires**: the break of case `c` holds on this instance, and
+the break of every other case does not.  So the located break is unambiguous. -/
+def TreeRootBreakExactly (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ)
+    (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) (c : TreeRootBreakCase) : Prop :=
+  ∀ c' : TreeRootBreakCase, TreeRootBreakAt h z0 hl T height sibs k idx ℓ c' ↔ c' = c
+
+/-! ## A toy hash pair, for the firing witnesses
+
+Not a model of `keccak`: a deliberately weak node hash and leaf hash whose
+collisions can be written down, so that each case of `TreeRootBreak` can be shown
+to fire on a concrete forged proof.  With these and padding constant `1`, each of
+the four cases is the unique located break of some accepted inclusion proof, on the
+`setup` tree at height 1, for a value that tree does not hold
+(`Contracts.InteropCommitmentTree.Properties.TreeRootBreakEveryCaseFires`). -/
+
+/-- Toy node hash: addition modulo `2^256`.  `toyNodeHash 1 0 = toyNodeHash 0 1`. -/
+def toyNodeHash : Hash := fun a b => a + b
+
+/-- Toy leaf hash: `value - nextValue` modulo `2^256`.  Collides on any two leaves
+with the same difference, e.g. `⟨1, 0, 1⟩` and the sentinel `⟨0, 0, 0⟩`. -/
+def toyLeafHash : LeafHash := fun ℓ => ℓ.value - ℓ.nextValue
 
 /-! ## A concrete run, for the countermodel -/
 

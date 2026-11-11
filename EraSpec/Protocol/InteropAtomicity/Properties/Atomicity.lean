@@ -370,7 +370,8 @@ def Properties.ExecutedImpliesAllFinalizableOrBreak : Prop :=
 
 /-- **NONE OR ALL, OR A LOCATED BREAK.**  For every flow and every evidence `ev`
 presented to the gate: every leg is finalizable, or `ev` executes no leg, or the
-inclusion proof `ev` submits for one of the flow's own legs carries a break. -/
+inclusion proof `ev` submits for one of the flow's own legs carries a break.
+`Properties.NoneOrAllOrBreakPinned` names that leg: the first stranded one. -/
 def Properties.NoneOrAllOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A → ∀ (F : Flow) (ev : GateEvidence),
@@ -482,5 +483,80 @@ def Properties.WithoutDaOrBreakNotTautology : Prop :=
       ¬ AbsenceBreak h z0 hl (mixedSystem (cv id hA)) (mixedFlow id hA hB).deadline 0 N q
         ∧ ¬ LegRefundableBy h z0 hl cv (mixedSystem (cv id hA)) (mixedFlow id hA hB) ⟨0, hA⟩ N q
 
+/-! ## None or all, with the break pinned to a leg
+
+`Properties.NoneOrAllOrBreak` concludes `GateBreak`: SOME leg of the flow carries a
+break on its submitted proof.  The proof of that result already knows more — for
+every leg, finalizable or a break on that leg's own proof
+(`Properties.ExecutedImpliesAllFinalizableOrBreak`) — so when the flow is not all
+finalizable, the break sits on EVERY stranded leg, in particular on the first one.
+`Properties.NoneOrAllOrBreakPinned` states that, naming the first stranded leg in list
+order, which is unique and determined by the instance, not by the evidence. -/
+
+/-- **THE FIRST STRANDED LEG IS UNIQUE.** -/
+def Properties.FirstStrandedLegUnique : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (A : Access)
+    (F : Flow) (l₁ l₂ : FlowLeg),
+    FirstStrandedLeg h z0 hl cv S A F l₁ → FirstStrandedLeg h z0 hl cv S A F l₂ → l₁ = l₂
+
+/-- **A FIRST STRANDED LEG EXISTS EXACTLY WHEN THE FLOW IS NOT ALL FINALIZABLE.** -/
+def Properties.FirstStrandedLegIffNotFinalizable : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (A : Access)
+    (F : Flow),
+    (∃ leg, FirstStrandedLeg h z0 hl cv S A F leg) ↔ ¬ FlowFinalizableBy h z0 hl cv S A F
+
+/-- **THE PINNED BREAK IS A GATE BREAK.**  So `NoneOrAllOrBreakPinned` implies
+`NoneOrAllOrBreak`. -/
+def Properties.PinnedGateBreakImpliesGateBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (A : Access)
+    (F : Flow) (ev : GateEvidence),
+    PinnedGateBreak h z0 hl cv S A F ev → GateBreak h z0 hl S F ev
+
+/-- **NONE OR ALL, OR A BREAK ON THE FIRST STRANDED LEG.**  For every flow and every
+evidence `ev` presented to the gate: every leg is finalizable, or `ev` executes no leg,
+or the inclusion proof `ev` submits for the first leg of the flow (in list order) that
+is not finalizable carries a located `TreeRootBreak`.  Strengthens
+`Properties.NoneOrAllOrBreak`, whose break may sit on any leg. -/
+def Properties.NoneOrAllOrBreakPinned : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (A : Access), DataAvailable h z0 hl S A → ∀ (F : Flow) (ev : GateEvidence),
+      FlowFinalizableBy h z0 hl cv S A F
+        ∨ (∀ leg, ¬ ExecutedViaBy h z0 hl cv fh S F ev leg)
+        ∨ PinnedGateBreak h z0 hl cv S A F ev
+
+/-- **ITS PREMISES ARE SATISFIABLE AND ITS BREAK IS NOT A TAUTOLOGY.**  For every node
+hash, leaf hash and padding constant there is a well-formed system with data
+availability and a flow executed on evidence `ev` for which `PinnedGateBreak` is
+false. -/
+def Properties.NoneOrAllOrBreakPinnedNotTautology : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)
+      (ev : GateEvidence) (leg : FlowLeg),
+      Wf S ∧ DataAvailable h z0 hl S A ∧ ExecutedViaBy h z0 hl cv fh S F ev leg
+        ∧ ¬ PinnedGateBreak h z0 hl cv S A F ev
+
+/-- **THE PINNED BREAK FIRES, AND THE UNPINNED ONE CAN POINT ELSEWHERE.**  For every
+node hash and padding constant, with the toy leaf hash (`value - nextValue`): in the
+well-formed mixed system `mixedSystem 1`, where prover access is exactly the honest
+proofs (so data availability holds), the two-leg flow `mixedFlow 0 1 2` executes leg
+`legA = ⟨0, 1⟩` on evidence `ev` that includes a forged inclusion proof for the
+never-committed leg `legB = ⟨1, 2⟩` (a leaf-hash collision with chain `1`'s
+sentinel).  So the flow is NOT all finalizable and leg `legA` executed: the third
+disjunct is the only one that holds.  The first stranded leg is `legB`, and its
+submitted proof carries the break.  But `legA` — finalizable — ALSO carries a break
+on its submitted proof (a second leaf-hash collision), so `GateBreak`'s existential
+is met by a leg that is not the stranded one; `PinnedGateBreak` names `legB`. -/
+def Properties.PinnedGateBreakFires : Prop :=
+  ∀ (h : Hash) (z0 : UInt256),
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)
+      (ev : GateEvidence) (legA legB : FlowLeg),
+      Wf S ∧ DataAvailable h z0 toyLeafHash S A
+        ∧ ExecutedViaBy h z0 toyLeafHash cv fh S F ev legA
+        ∧ ¬ FlowFinalizableBy h z0 toyLeafHash cv S A F
+        ∧ FirstStrandedLeg h z0 toyLeafHash cv S A F legB
+        ∧ InclusionBreak h z0 toyLeafHash S legB.chain (ev legB).1 (ev legB).2
+        ∧ legA ∈ F.legs ∧ legA ≠ legB
+        ∧ LegFinalizableBy h z0 toyLeafHash cv S A F legA
+        ∧ InclusionBreak h z0 toyLeafHash S legA.chain (ev legA).1 (ev legA).2
 
 end Contracts.Atomicity
