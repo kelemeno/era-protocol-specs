@@ -148,6 +148,7 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
+import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop

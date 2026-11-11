@@ -8,10 +8,18 @@ Statements about `EraSpec.Protocol.InteropAtomicity.Specs.Atomicity`.  Proofs ar
 
 ## The property, in one line
 
-**If any leg of a flow is executed, then every leg of that flow can be finalized —
-provided the source chains' data is available.**  Equivalently: either all legs
-are finalizable, or no leg executes.  Never one leg executed and a sibling
-stranded.
+**If any leg of a flow is executed, then every leg of that flow has an IMT proof a
+prover can present and the verifier accepts against the true root — provided the
+source chains' data is available.**  Equivalently: either all legs are finalizable in
+that sense (`FlowFinalizableBy`), or no leg executes.
+
+That is the source-side half of finalizability.  A destination must also hold an
+imported settlement-layer root covering the batch, and nothing here assumes that it
+does.  Without that premise, one leg can execute on its destination while a sibling's
+destination cannot pass its gate and no leg can be refunded
+(`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted`).  The destination
+form, with import availability as a named premise, is `Contracts.RootImport`
+(`NoneOrAllAtOrBreak`, `NoneOrAllAtOrBreakPinned`).
 
 ## Why it holds, and what each ingredient does
 
@@ -27,10 +35,11 @@ The argument is four steps, and each is a property below:
    the IMT content, and it needs the hash assumptions.
 3. **Membership is permanent** (`Properties.FinalitySignalPersists`).  The tree is
    append-only across batches, so the signal cannot be revoked.
-4. **Membership plus DA yields a presentable proof** (`Properties.MemberIsFinalizable`).
+4. **Membership plus DA yields a presentable IMT proof** (`Properties.MemberIsFinalizable`).
    `FullMerkle.merklePath` exists for every occupied leaf and the verifier accepts
    it — but only a prover with the chain's data can produce it, which is exactly
-   the DA hypothesis.
+   the DA hypothesis.  The destination's settlement proof and imported root are
+   `Contracts.RootImport.Properties.MemberIsFinalizableAt`.
 
 Then `Properties.ExecutedImpliesAllFinalizable` is 1 → 2 → 3 → 4, and `Properties.NoneOrAll` is its
 dichotomy form.  `Properties.ExecutedExcludesAnyRefund` is the other half of atomicity: not
@@ -56,6 +65,11 @@ only can every leg finalize, no leg can be refunded once any leg has executed.
   refunded (it *is* in the tree, so no absence proof can exist).  Funds stranded.
   Note this is not a contract defect — no contract can conjure unavailable data —
   which is why DA appears as a named assumption rather than a proof obligation.
+
+A fourth premise lives in `Contracts.RootImport`: the destination's import of a
+settlement-layer root covering the batch.  Without it the flow can sit half-executed
+(`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted`).  Like DA, it is
+an assumption about the world, not a contract defect.
 -/
 
 namespace Contracts.Atomicity
@@ -87,10 +101,16 @@ def Properties.FinalitySignalPersists : Prop :=
   ∀ (S : System), Wf S → ∀ (c : Chain) (n m : ℕ), n ≤ m →
     keys (toAbs (S.tree c n)) ⊆ keys (toAbs (S.tree c m))
 
-/-- **MEMBERSHIP PLUS DA GIVES A PRESENTABLE, ACCEPTED PROOF.**  For a committed
+/-- **MEMBERSHIP PLUS DA GIVES A PRESENTABLE, ACCEPTED IMT PROOF.**  For a committed
 value at an on-time batch, the honest `merklePath` proof is presentable (DA) and
-the verifier accepts it (completeness).  This is the step DA is needed for, and
-the only one. -/
+the verifier accepts it against the batch's true END root (completeness).  This is
+the step source DA is needed for, and the only one.
+
+The conclusion `LegFinalizableBy` is the IMT half only.  A destination also needs an
+imported settlement-layer root that covers the batch, and a presentable multi-hop
+settlement proof to it, and source DA supplies neither.  With those two premises the
+conclusion becomes finalizability on that destination:
+`Contracts.RootImport.Properties.MemberIsFinalizableAt`. -/
 def Properties.MemberIsFinalizable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
     ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -100,13 +120,15 @@ def Properties.MemberIsFinalizable : Prop :=
 
 /-! ## Partial atomicity -/
 
-/-- **PARTIAL ATOMICITY.**  If any leg of the flow is executed, then every leg of
-the flow can be finalized: for each one there is an on-time batch and a proof its
-prover can both build and get accepted.
+/-- **PARTIAL ATOMICITY, IMT HALF.**  If any leg of the flow is executed, then every
+leg of the flow has a presentable IMT proof: for each one there is an on-time batch
+and an IMT proof its prover can both build and get accepted against the true root.
 
-This is the none-or-all property.  The hypotheses are the hash idealizations, a
-well-formed system, and data availability — nothing about honest chains or honest
-provers. -/
+This is the none-or-all property for the IMT half.  The hypotheses are the hash
+idealizations, a well-formed system, and data availability — nothing about honest
+chains or honest provers.  It does not say that every leg's destination can pass its
+gate.  That also needs the destination's imported settlement-layer root
+(`Contracts.RootImport.Properties.ExecutedAtImpliesAllFinalizableAtOrBreak`). -/
 def Properties.ExecutedImpliesAllFinalizable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (fh : FlowHash) (S : System), Wf S →
@@ -114,9 +136,12 @@ def Properties.ExecutedImpliesAllFinalizable : Prop :=
     ∀ (F : Flow) (leg : FlowLeg), ExecutedVia h z0 hl cv fh S F leg →
       FlowFinalizableBy h z0 hl cv S A F
 
-/-- **NONE OR ALL.**  For every flow: either every leg is finalizable, or no leg is
-executed.  The dichotomy form of partial atomicity — a flow never gets stuck
-half-executed. -/
+/-- **NONE OR ALL.**  For every flow: either every leg is finalizable in the IMT sense
+(`FlowFinalizableBy`), or no leg is executed.  The dichotomy form of partial atomicity.
+It does not exclude a flow stuck half-executed on a destination that has not imported a
+covering settlement-layer root
+(`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted`).  The destination
+form is `Contracts.RootImport.Properties.NoneOrAllAtOrBreak`. -/
 def Properties.NoneOrAll : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (fh : FlowHash) (S : System), Wf S →
@@ -124,8 +149,12 @@ def Properties.NoneOrAll : Prop :=
       FlowFinalizableBy h z0 hl cv S A F ∨ ∀ leg, ¬ ExecutedVia h z0 hl cv fh S F leg
 
 /-- **FINALIZABILITY DOES NOT DECAY.**  Once a leg of an executed flow is
-finalizable, it stays finalizable at every later on-time batch: a destination that
-imports a later settlement-layer root can still verify.
+finalizable, it stays finalizable at every later on-time batch: an IMT proof against
+that batch's END root is presentable and accepted.  Whether a destination can use it
+depends on the destination having imported a settlement-layer root covering that
+batch, which is not modelled here.  The destination form, for a destination that
+imports a later root, is
+`Contracts.RootImport.Properties.ExecutedImpliesFinalityPersistsAtOrBreak`.
 
 The `S.time other.chain m ≤ F.deadline` hypothesis is not decoration — the gate
 compares the *batch's* timestamp to the deadline, so past the deadline a prover
@@ -359,7 +388,9 @@ def Properties.FinalitySignalMeansMembershipOrBreak : Prop :=
 /-- **PARTIAL ATOMICITY, OR A LOCATED BREAK, PER LEG.**  If a leg executed on the
 evidence `ev`, then every leg `other` of the flow is finalizable by a presentable
 proof, or the inclusion proof `ev other` submitted for that very leg carries a
-`TreeRootBreak` against `other`'s chain at the submitted batch. -/
+`TreeRootBreak` against `other`'s chain at the submitted batch.  Finalizable here is
+`LegFinalizableBy`, the IMT half.  On a destination with import availability, see
+`Contracts.RootImport.Properties.ExecutedImpliesAllFinalizableAtOrBreak`. -/
 def Properties.ExecutedImpliesAllFinalizableOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -371,7 +402,9 @@ def Properties.ExecutedImpliesAllFinalizableOrBreak : Prop :=
 /-- **NONE OR ALL, OR A LOCATED BREAK.**  For every flow and every evidence `ev`
 presented to the gate: every leg is finalizable, or `ev` executes no leg, or the
 inclusion proof `ev` submits for one of the flow's own legs carries a break.
-`Properties.NoneOrAllOrBreakPinned` names that leg: the first stranded one. -/
+`Properties.NoneOrAllOrBreakPinned` names that leg: the first stranded one.
+Finalizable here is `FlowFinalizableBy`, the IMT half.  The destination form is
+`Contracts.RootImport.Properties.NoneOrAllAtOrBreak`. -/
 def Properties.NoneOrAllOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A → ∀ (F : Flow) (ev : GateEvidence),
@@ -516,7 +549,9 @@ def Properties.PinnedGateBreakImpliesGateBreak : Prop :=
 evidence `ev` presented to the gate: every leg is finalizable, or `ev` executes no leg,
 or the inclusion proof `ev` submits for the first leg of the flow (in list order) that
 is not finalizable carries a located `TreeRootBreak`.  Strengthens
-`Properties.NoneOrAllOrBreak`, whose break may sit on any leg. -/
+`Properties.NoneOrAllOrBreak`, whose break may sit on any leg.  Finalizable here is the
+IMT half.  The destination form is
+`Contracts.RootImport.Properties.NoneOrAllAtOrBreakPinned`. -/
 def Properties.NoneOrAllOrBreakPinned : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A → ∀ (F : Flow) (ev : GateEvidence),

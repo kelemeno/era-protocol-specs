@@ -114,7 +114,9 @@ id.  One of three things holds:
   two flows the run itself presented (`FlowIdClash`).
 
 There is no hash premise.  Unlike `FlowIdCheckPinsLegListOrCollision`, the other flow
-comes from the run's log, not from outside it (see the module header). -/
+comes from the run's log, not from outside it (see the module header).  Finalizable
+here is `FlowFinalizableBy`, the IMT half.  On a destination ready for `c.flow`, see
+`Contracts.RootImport.Properties.ExecutedImpliesRealFlowFinalizableAtOrLoggedClash`. -/
 def Properties.ExecutedImpliesRealFlowFinalizableOrLoggedClash : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →

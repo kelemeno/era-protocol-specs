@@ -71,7 +71,7 @@ as a free-standing per-leg number would hide this entirely.
    present and `DataAvailable` is the DA assumption about it.  Keeping them
    separate is the point: DA is an assumption about the world, not a theorem, and
    `Contracts.Atomicity.Properties.WithoutDaCommittedLegIsStuck` shows the main result is
-   false without it.
+   false without it.  This is source-chain DA only; see the last paragraph below.
 
 ## Out of scope
 
@@ -82,6 +82,18 @@ about the end-root timeout branch; the path argument itself is
 here.  Also out of scope: the destination's own replay guard
 (`bundleStatus[bundleHash] = FullyExecuted`), which is
 `AttackVectors.BundleStatusMachine`.
+
+Also out of scope: **destination root import and settlement-proof availability.**
+`Accepts` checks the IMT path directly against the batch's true END root.  The
+destination first authenticates that root (`_authenticateRoot`,
+`AtomicInteropProof.sol:256-290`).  It needs a multi-hop settlement proof that ends at
+a settlement-layer root it has itself imported, and it rejects final-node proofs.
+Imports are bootloader-only transitions of the destination
+(`L2InteropRootStorage.sol:58-76`), and source DA does not supply them.  The safety
+results are unaffected, since authentication only removes accepted proofs.  But
+`LegFinalizableBy` and `FlowFinalizableBy` below assume nothing about any destination,
+so they are the IMT half of finalizability, not "the destination can pass".  The
+destination-indexed model is `Contracts.RootImport` (`Specs/RootImport.lean`).
 -/
 
 namespace Contracts.Atomicity
@@ -305,20 +317,30 @@ def SelfOnlyGate (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
   leg ∈ F.legs ∧ LegFinalized h z0 hl cv S F leg
 
-/-! ## Finalizability — what a prover can actually do -/
+/-! ## Finalizability — what a prover can present, against the true root -/
 
-/-- The leg **can** be finalized: there is an on-time batch, a proof a prover can
-present for it, and the verifier accepts that proof.  This is `LegFinalized`
-strengthened by presentability, which is what makes it an operational claim rather
-than an existence claim. -/
+/-- The leg's IMT proof **can** be presented: there is an on-time batch, an IMT proof a
+prover can present for it, and the verifier accepts that proof against the batch's true
+END root.  This is `LegFinalized` strengthened by presentability, which makes it an
+operational claim rather than an existence claim.  But it is only the source-side half.
+A destination must also authenticate the root against a settlement-layer root it has
+imported, and nothing here models that.  Finalizability on a destination is
+`Contracts.RootImport.LegFinalizableAt`.  It implies this predicate, and on a ready
+destination the two coincide. -/
 def LegFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (A : Access) (F : Flow) (leg : FlowLeg) : Prop :=
   ∃ (n : ℕ) (p : ImtProof),
     S.time leg.chain n ≤ F.deadline ∧ A leg.chain n p ∧
       Accepts h z0 hl S leg.chain n (legValue cv F leg) p
 
-/-- The whole flow's gate can be satisfied with presentable proofs: every leg's
-destination can run `requireFlowFinalized` and pass. -/
+/-- Every leg's IMT proof can be presented and is accepted against the true END root
+(`LegFinalizableBy`).  This depends on no destination.  So it does not say that a leg's
+destination can run `requireFlowFinalized` and pass: that also needs the destination's
+imported settlement-layer root and a presentable settlement proof
+(`Contracts.RootImport.FlowFinalizableAt`).  The two coincide on a ready destination
+(`Contracts.RootImport.Properties.ReadyFinalizableAtIffBy`), and
+`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted` shows they differ
+otherwise. -/
 def FlowFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (A : Access) (F : Flow) : Prop :=
   ∀ leg ∈ F.legs, LegFinalizableBy h z0 hl cv S A F leg

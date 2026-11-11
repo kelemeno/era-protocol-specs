@@ -153,6 +153,14 @@ correspondence can discharge it. Likewise the timeout results carry the settleme
 layer's `Aggregates` invariant, and `StaleRootRefundsDeliveredLeg` (no hash premise)
 shows that one is load-bearing too.
 
+`DataAvailable` is source-chain data only, and the none-or-all results conclude
+finalizability against the true root. The destination's own gate needs two more world
+assumptions, stated in `Contracts.RootImport`: `ImportAvailable` (the destination has
+imported a settlement-layer root covering the batch) and `SettlementDataAvailable` (the
+multi-hop settlement proof is presentable). `WithoutImportFlowSitsHalfExecuted` (no
+hash premise) shows the first is load-bearing. Without it, one leg executes on its
+destination while a sibling's destination cannot pass, and no leg is refundable.
+
 ## Additional bridge correspondence
 
 The first `BridgedStandardERC20` slice models the nonlegacy token branch.
@@ -241,8 +249,11 @@ abbrev all_or_nothing_or_break := @Contracts.Refund.ExecutedObligationNeverRefun
 /-- The timeout decision, with no hash premise. -/
 abbrev timeout_justified_or_break := @Contracts.Timeout.TimeoutMeansMissedDeadlineOrBreak
 
-/-- Partial atomicity: if any leg of a flow is executed, every leg can be
-finalized, given data availability. -/
+/-- Partial atomicity, IMT half: if any leg of a flow is executed, every leg has a
+presentable IMT proof accepted against the true root, given source data availability.
+That every leg's destination can pass its gate also needs the destination's imported
+settlement-layer root and a settlement proof:
+`Contracts.RootImport.ExecutedAtImpliesAllFinalizableAtOrBreak`. -/
 abbrev atomicity_guarantee := @Contracts.Atomicity.ExecutedImpliesAllFinalizable
 
 /-- …and no leg of that flow can be refunded, on either timeout branch. -/
