@@ -11,21 +11,28 @@ table below next to `Lang.lean`:
 
 | Construct | Printed as |
 |---|---|
-| `lit .address n` / `lit .uint256 n` / `lit .bool n` | `address(n)` / `n` / `true`·`false` |
+| `lit .address n` / `lit .uint256 n` / `lit .bool 1`·`lit .bool 0` | `address(n)` / `n` / `true`·`false` |
 | `var x`, `sender`, `sload s`, `mload m k` | `x`, `msg.sender`, `s`, `m[k]` |
 | `add c a b`, `sub c a b` | `(a + b)`, `(a - b)`; a statement containing an unchecked one is wrapped in `unchecked { }` |
 | `require c (message m)` / `(custom E args)` | `require(c, "m");` / `require(c, E(args));` |
 | `local_ ty x e`, `sstore s e`, `mstore m k e` | `ty x = e;`, `s = e;`, `m[k] = e;` |
 | `emit E args`, `ret e` | `emit E(args);`, `return e;` |
 
-Two shapes are refused rather than printed, because Solidity's meaning would
+Three shapes are refused rather than printed, because Solidity's meaning would
 differ from the interpreter's:
 
 * a statement mixing checked and unchecked arithmetic — `unchecked` is a block,
   not an operator, so one of the two would be printed with the wrong flavour;
 * a custom-error argument containing checked arithmetic — Solidity evaluates
   `require`'s error arguments even when the condition holds, so such an argument
-  could panic where the interpreter succeeds.
+  could panic where the interpreter succeeds;
+* a Bool literal other than `0` or `1`, at any depth — the interpreter gives
+  `lit .bool n` the word `n` modulo `2^256` (so `lit .bool 2 == lit .bool 1` is
+  false, and `lit .bool (2^256)` is the word 0), but Solidity's only Bool values
+  are `false` and `true`, the words 0 and 1.  `solc` cannot catch this one:
+  `true == true` type-checks.  That every Bool literal of an accepted contract is
+  0 or 1, and is printed as its own word, is stated in
+  `EmitRefusals/Properties/BoolLiterals.lean` and proved next to it.
 
 Undeclared names and type errors are not checked here: `solc` rejects them, and
 the build in `solidity/` compiles every emitted file.
@@ -51,6 +58,13 @@ def flavours : Expr → Bool × Bool
 
 def flavoursList (es : List Expr) : Bool × Bool :=
   es.foldr (fun e acc => let (c, u) := flavours e; (c || acc.1, u || acc.2)) (false, false)
+
+/-- The Bool literals an expression contains, at any depth. -/
+def boolLits : Expr → List ℕ
+  | .lit .bool n => [n]
+  | .lit _ _ | .var _ | .sender | .sload _ => []
+  | .mload _ k => boolLits k
+  | .add _ a b | .sub _ a b => boolLits a ++ boolLits b
 
 def expr : Expr → String
   | .lit .address n => s!"address({n})"
@@ -80,6 +94,12 @@ def stmtExprs : Stmt → List Expr
   | .mstore _ k e => [k, e]
   | .emit _ es => es
 
+/-- The first Bool literal in `s` that is neither `0` nor `1`, if there is one.  The
+interpreter gives `lit .bool n` the word `n`, but Solidity's only Bool values are `false`
+and `true`, the words `0` and `1`, so `stmt` refuses the statement. -/
+def noncanonicalBool (s : Stmt) : Option ℕ :=
+  ((stmtExprs s).flatMap boolLits).find? (1 < ·)
+
 def stmtCore : Stmt → String
   | .require c (.message m) => s!"require({cond c}, \"{m}\");"
   | .require c (.custom n es) => s!"require({cond c}, {n}({args es}));"
@@ -90,6 +110,8 @@ def stmtCore : Stmt → String
   | .ret e => s!"return {expr e};"
 
 def stmt (indent : String) (s : Stmt) : Except String String := do
+  if let some b := noncanonicalBool s then
+    throw s!"Bool literal {b} is neither 0 (false) nor 1 (true)"
   if let .require _ (.custom n es) := s then
     if (flavoursList es).1 then
       throw s!"custom error {n}: checked arithmetic in an error argument"
