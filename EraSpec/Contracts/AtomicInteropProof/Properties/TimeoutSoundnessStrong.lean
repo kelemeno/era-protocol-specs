@@ -99,7 +99,7 @@ with the CORRECT end root, on the very history `end_branch_with_begin_root_unsou
 `B` has an END set that lacks the value, yet the value finalized by the deadline in another batch.
 
 This is the abstract counterpart of
-`Applications.BurnMintBridge.EndBranch.UncheckedEndDoublePays`. -/
+`Applications.BurnMintBridge.EndBranch.Properties.UncheckedEndDoublePays`. -/
 abbrev Properties.end_branch_needs_hlast :=
   AppendOnly allInTimeHistory ∧ TimeOrdered allInTimeHistory ∧
     ∃ (D T : ℕ) (v : UInt256) (B : ℕ),

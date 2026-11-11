@@ -90,14 +90,17 @@ theorem end_branch_begin_root_admits_finalized :
 theorem end_branch_begin_root_passes_onchain_checks :
     Properties.end_branch_begin_root_passes_onchain_checks := by
   unfold Properties.end_branch_begin_root_passes_onchain_checks
-  refine ⟨rootSwapHistory, 1, 2, 1, 0, 5, 0, rootSwapHistory_appendOnly,
+  refine ⟨rootSwapHistory, 1, 2, 2, 0, 5, 0, rootSwapHistory_appendOnly,
     rootSwapHistory_timeOrdered, by norm_num, ?_, by norm_num, by norm_num, ?_, ?_, ?_, ?_⟩
   · rw [rootSwapHistory_time_one]
-  · -- `RightEmpty 1 2 1`: at the only level, leaf `1` is a RIGHT child, so nothing is checked
-    intro k hk hleft
-    have hk0 : k = 0 := by omega
-    subst hk0
-    norm_num at hleft
+  · -- `RightEmpty 1 2 2`: at level `0` leaf `1` is a RIGHT child, so nothing is checked there.
+    -- At level `1` its parent (node `0`) is a LEFT child, and the right sibling subtree, leaves
+    -- `[2, 4)`, is checked and found unfilled.  So the zero-cascade check does real work here.
+    intro k hk hleft j hj1 hj2
+    rcases (show k = 0 ∨ k = 1 by omega) with rfl | rfl
+    · norm_num at hleft
+    · norm_num at hj1
+      exact hj1
   · -- every batch outside the root (index `≥ 2`) settles at the root time `5`
     intro m hm
     exact rootSwapHistory_hlast m (by simp only [not_lt] at hm; omega)

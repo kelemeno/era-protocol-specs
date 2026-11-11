@@ -163,7 +163,10 @@ abbrev Properties.finalized_leg_passes_unchecked_absence_gate :=
 `checked_absence_gate_rejects_live_leg`, `unchecked_inclusion_gate_iff_checked`,
 `unchecked_absence_gate_iff`, `unchecked_absence_gate_accepts_every_leg` and
 `polarity_asymmetry` hold together.  The model has honest insertion, two distinct chains, a live
-leg `v` and a missing leg `w`, so each iff is exercised on both sides. -/
+leg `v` and a missing leg `w`.  So `unchecked_inclusion_gate_iff_checked` and
+`checked_absence_gate_iff_absent` are exercised on both sides (true at `v` and false at `w`, or the
+reverse).  `unchecked_absence_gate_iff` is not: once two chains exist both of its sides hold for
+every value, which is the point of `unchecked_absence_gate_accepts_every_leg`. -/
 abbrev Properties.honest_polarity_model_exists :=
   ∃ (Chain Value : Type) (srcOf : Value → Chain) (tree : Chain → Set Value) (c₀ c₁ : Chain)
       (v w : Value),
@@ -173,8 +176,10 @@ abbrev Properties.honest_polarity_model_exists :=
 /-- **WITHOUT HONEST INSERTION, THE TWO FINALITY GATES DIFFER.**  A chain that holds a foreign
 leg's value lets the finality gate with the comparison deleted accept a leg that the deployed
 gate rejects, because the leg never committed on its own chain.  So the redundancy in
-`unchecked_inclusion_gate_iff_checked` rests on honest insertion at EVERY chain.  This is the
-gate-level form of `inclusion_binding_requires_honesty`. -/
+`unchecked_inclusion_gate_iff_checked` rests on honest insertion: a single foreign value in a single
+chain's tree is enough to break it.  The witness places no constraint on `tree` beyond that, so it
+does not say which chains must be honest.  This is the gate-level form of
+`inclusion_binding_requires_honesty`. -/
 abbrev Properties.unchecked_inclusion_gate_differs_without_honesty :=
   ∃ (Chain Value : Type) (srcOf : Value → Chain) (tree : Chain → Set Value) (v : Value),
     (∃ c, UncheckedInclusionGate tree c v) ∧ ¬ ∃ c, CheckedInclusionGate tree (srcOf v) c v
