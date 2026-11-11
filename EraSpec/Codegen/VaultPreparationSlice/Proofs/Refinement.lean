@@ -44,30 +44,15 @@ theorem prepare_view {h : Hooks Acct} {s : State Acct} {r : Request} {out : Resu
       h.metadata burned s.config.originChainId = some md ∧
       out = ⟨{ s with token := burned, accounting := acc }, mintData r burned md⟩ := by
   unfold prepare at hp
-  split at hp
-  · rename_i hg
-    cases ha : h.account s.accounting s.token r.destinationChain r.assetId r.data.amount with
-    | none => simp only [ha, reduceCtorEq] at hp
-    | some acc =>
-      simp only [ha] at hp
-      split at hp
-      · rename_i hv
-        cases hb : Contracts.BridgedStandardERC20.burn s.token s.config.vault r.depositor
-            r.data.amount with
-        | none => simp only [hb, reduceCtorEq] at hp
-        | some burned =>
-          simp only [hb] at hp
-          split at hp
-          · rename_i ho
-            cases hm : h.metadata burned s.config.originChainId with
-            | none => simp only [hm, reduceCtorEq] at hp
-            | some md =>
-              simp only [hm] at hp
-              exact ⟨hg.1, hg.2, hv, acc, burned, md, rfl, rfl, ho.1, ho.2, hm,
-                (Option.some.inj hp).symm⟩
-          · cases hp
-      · cases hp
-  · cases hp
+  split_ifs at hp with hg hv <;>
+    rcases ha : h.account s.accounting s.token r.destinationChain r.assetId r.data.amount
+      with _ | acc <;> simp only [ha, reduceCtorEq] at hp
+  rcases hb : Contracts.BridgedStandardERC20.burn s.token s.config.vault r.depositor
+    r.data.amount with _ | burned <;> simp only [hb, reduceCtorEq] at hp
+  split_ifs at hp with ho
+  rcases hm : h.metadata burned s.config.originChainId with _ | md <;>
+    simp only [hm, reduceCtorEq] at hp
+  exact ⟨hg.1, hg.2, hv, acc, burned, md, rfl, rfl, ho.1, ho.2, hm, (Option.some.inj hp).symm⟩
 
 /-! ## Facts the representation gives -/
 
@@ -75,20 +60,15 @@ theorem resolve_eq {d : Deployment} {st : Storage} {w : World Acct} {s : State A
     (hrel : Rel d st w s) (r : Request) :
     resolve st r.assetId (addrWord r.data.tokenHint) = addrWord (selectedToken s r) := by
   unfold resolve selectedToken
-  by_cases h : r.data.tokenHint = 0
-  · simp [h, addrWord_zero, hrel.tokenFor]
-  · have : addrWord r.data.tokenHint ≠ 0 := fun h' => h (addrWord_eq_zero.mp h')
-    simp [h, this]
+  by_cases h : r.data.tokenHint = 0 <;> simp [h, addrWord_zero, addrWord_eq_zero, hrel.tokenFor]
 
 theorem toOption_eq_some {ε α : Type} {x : Except ε α} {a : α} (h : x.toOption = some a) :
     x = .ok a := by
-  cases x with
-  | error e => simp [Except.toOption] at h
-  | ok b => simp only [Except.toOption, Option.some.injEq] at h; rw [h]
+  cases x <;> simp_all [Except.toOption]
 
 theorem toOption_ok {ε α : Type} {x : Except ε α} {a : α} (h : x = .ok a) :
-    x.toOption = some a := by
-  rw [h]; rfl
+    x.toOption = some a :=
+  h ▸ rfl
 
 /-- The token's burn writes only the balances and the supply. -/
 theorem tokenBurn_frame {st : Storage} {snd acct amt : Word} {r : Success}
@@ -214,22 +194,8 @@ theorem bridgeBurn_ok_prepares {d : Deployment} {ch : CHooks Acct} {h : Hooks Ac
       ∃ out, prepare h s (callRequest caller value c l2v a oc hoc data hr hh) = some out := by
   rw [xcall_bridgeBurn, Option.some.injEq] at hx
   unfold burnDenote at hx
-  by_cases h1 : l2v ≠ 0
-  · rw [ite_eq_left h1] at hx; cases hx
-  rw [ite_eq_right h1] at hx
-  by_cases h2 : (d.env caller value).sender ≠ st.scalars "_assetRouter"
-  · rw [ite_eq_left h2] at hx; cases hx
-  rw [ite_eq_right h2] at hx
-  by_cases h3 : st.scalars "_paused" ≠ 0
-  · rw [ite_eq_left h3] at hx; cases hx
-  rw [ite_eq_right h3] at hx
-  by_cases h4 : data.length ≠ 96
-  · rw [ite_eq_left h4] at hx; cases hx
-  rw [ite_eq_right h4] at hx
-  by_cases h5 : ¬ (bReceiver data < 2 ^ 160 ∧ bHint data < 2 ^ 160)
-  · rw [ite_eq_left h5] at hx; cases hx
-  rw [ite_eq_right h5] at hx
-  obtain ⟨hr, hh⟩ := not_not.mp h5
+  split_ifs at hx with h1 h2 h3 h4 h5
+  obtain ⟨hr, hh⟩ := h5
   refine ⟨hr, hh, not_not.mp h4, ?_⟩
   set r := callRequest caller value c l2v a oc hoc data hr hh with hrdef
   have hres : resolve st a ↑(bHint data) = addrWord (selectedToken s r) := by
@@ -307,8 +273,7 @@ theorem bridgeBurn_ok_prepares {d : Deployment} {ch : CHooks Acct} {h : Hooks Ac
         r.data.amount with _ | burned
     · obtain ⟨e, he⟩ := (BridgedTokenSlice.burn_refines hw.1 hrel.tokenState.base
         s.config.vault r.depositor r.data.amount).1 hb0
-      rw [tokenCall_bridgeBurn] at hrb'
-      rw [hrb'] at he
+      rw [← tokenCall_bridgeBurn, hrb'] at he
       cases he
     · exact ⟨burned, rfl⟩
   have hBA : Contracts.BridgedStandardERC20.BurnAllowed s.token s.config.vault r.depositor

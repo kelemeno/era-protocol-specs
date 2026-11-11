@@ -53,8 +53,7 @@ theorem Simulation.lift_run {concrete : A → A → Prop} {abstract : B → B �
 def Simulation.refl (step : A → A → Prop) : Simulation step step where
   Rel := Eq
   match_step := by
-    intro a a' b h hstep
-    subst b
+    rintro a a' b rfl hstep
     exact ⟨a', Run.tail (Run.refl a) hstep, rfl⟩
 
 /-- Forward simulations compose, including their zero-or-more matching paths. -/

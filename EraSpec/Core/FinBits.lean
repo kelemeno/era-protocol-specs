@@ -38,10 +38,8 @@ the contract's `idx >>> 1` has value `MerkleSpec`'s `idx / 2`.
 No wraparound is possible, since `idx.val / 2 ≤ idx.val < UInt256.size`. -/
 theorem shiftRight_one_val (idx : UInt256) :
     (Fin.shiftRight idx 1).val = idx.val / 2 := by
-  have h := idx.isLt
-  have hd : idx.val / 2 ≤ idx.val := Nat.div_le_self _ _
   simp only [Fin.shiftRight, Nat.shiftRight_eq_div_pow]
-  exact Nat.mod_eq_of_lt (lt_of_le_of_lt hd h)
+  exact Nat.mod_eq_of_lt ((Nat.div_le_self _ _).trans_lt idx.isLt)
 
 /-- Masking with `1` extracts the low bit: the value of `idx &&& 1` is
 `idx.val % 2`.
@@ -51,14 +49,8 @@ The proof's only difficulty is the `Fin` numeral: `(1 : UInt256).val` is
 `Nat.and_one_is_mod` can fire. -/
 theorem land_one_val (idx : UInt256) :
     (Fin.land idx 1).val = idx.val % 2 := by
-  have h2 : idx.val % 2 < 2 := Nat.mod_lt _ (by norm_num)
-  have hs : (2 : ℕ) < UInt256.size := by norm_num [UInt256.size]
-  simp only [Fin.land]
-  have hone : (1 : ℕ) % UInt256.size = 1 :=
-    Nat.mod_eq_of_lt (by norm_num [UInt256.size])
-  rw [hone]
-  rw [show Nat.land idx.val 1 = idx.val % 2 from Nat.and_one_is_mod idx.val]
-  exact Nat.mod_eq_of_lt (lt_trans h2 hs)
+  simp [Fin.land, Nat.and_one_is_mod]
+  omega
 
 /-- **THE PARITY BRIDGE.**  The contract's even-index test `idx &&& 1 = 0` is
 exactly `MerkleSpec`'s `idx % 2 = 0`. -/
@@ -96,10 +88,7 @@ relation the entry guard establishes survives to the next level -- and with it t
 accessor's bounds hypothesis. -/
 theorem shiftRight_one_le {x y : UInt256} (h : x ≤ y) :
     Fin.shiftRight x 1 ≤ Fin.shiftRight y 1 := by
-  have hx := shiftRight_one_val x
-  have hy := shiftRight_one_val y
-  simp only [Fin.le_def] at h ⊢
-  rw [hx, hy]
+  rw [Fin.le_def, shiftRight_one_val, shiftRight_one_val]
   exact Nat.div_le_div_right h
 
 /-- **DESCENDING KEEPS AN INDEX SMALL.**  Halving cannot raise the value, so a bound that
@@ -123,10 +112,8 @@ mask machinery collapses to "store `value`".  These four are what collapses it.
 `UInt256.lnot` is ARITHMETIC in Clear (`size - 1 - a`), not a bitwise primitive, which is
 why the mask lemma is a subtraction argument rather than a bit-by-bit one. -/
 
-@[simp] theorem shiftLeft_zero (x : UInt256) : Fin.shiftLeft x 0 = x := by
-  simp only [Fin.shiftLeft]
-  apply Fin.ext
-  exact Nat.mod_eq_of_lt x.isLt
+@[simp] theorem shiftLeft_zero (x : UInt256) : Fin.shiftLeft x 0 = x :=
+  Fin.ext (Nat.mod_eq_of_lt x.isLt)
 
 /-- Shifting ZERO, as opposed to shifting BY zero: `shl(k, 0) = 0`.  Both directions come
 up in the mask -- `shiftBits := shl(3, offset)` needs this one, the mask itself needs
@@ -139,10 +126,8 @@ up in the mask -- `shiftBits := shl(3, offset)` needs this one, the mask itself 
   apply Fin.ext
   simp [Fin.land]
 
-@[simp] theorem zero_lor (x : UInt256) : Fin.lor 0 x = x := by
-  apply Fin.ext
-  simp [Fin.lor]
-  exact x.isLt
+@[simp] theorem zero_lor (x : UInt256) : Fin.lor 0 x = x :=
+  Fin.ext (by simpa [Fin.lor] using x.isLt)
 
 /-- The full-word mask is zero: `not (not 0) = 0`, so the old word is cleared outright. -/
 theorem lnot_lnot_zero : UInt256.lnot (UInt256.lnot 0) = 0 := by

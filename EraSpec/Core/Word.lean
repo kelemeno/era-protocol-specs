@@ -85,10 +85,8 @@ lemma UInt256_pow_def {a b : UInt256} : a ^ b = a ^ b.val := by
   rfl
 
 lemma UInt256_pow_succ {a b : UInt256} (h : b.val + 1 < UInt256.size) : a * a ^ b = a ^ (b + 1) := by
-  rw [UInt256_pow_def, UInt256_pow_def]
-  have h1 : ((1 : UInt256) : ℕ) = 1 := rfl
-  have : (↑(b + 1) : ℕ) = (b + 1 : ℕ) := by rw [Fin.val_add, h1, Nat.mod_eq_of_lt h]
-  rw [this, pow_succ, mul_comm]
+  have : (b + 1).val = b.val + 1 := by rw [Fin.val_add]; exact Nat.mod_eq_of_lt h
+  rw [UInt256_pow_def, UInt256_pow_def, this, pow_succ, mul_comm]
 
 lemma UInt256_zero_pow {a : UInt256} (h : a.val ≠ 0) : (0 : UInt256) ^ a = 0 := by
   rw [UInt256_pow_def]; exact zero_pow h

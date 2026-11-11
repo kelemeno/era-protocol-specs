@@ -101,11 +101,8 @@ theorem deploy_eq (snd v : Word) :
 
 /-! ## Words and addresses -/
 
-theorem addrWord_inj {a b : Address} : addrWord a = addrWord b ↔ a = b := by
-  constructor
-  · intro h
-    exact Fin.ext (by simpa [addrWord] using congrArg Fin.val h)
-  · rintro rfl; rfl
+theorem addrWord_inj {a b : Address} : addrWord a = addrWord b ↔ a = b :=
+  ⟨fun h => Fin.ext (by simpa [addrWord] using congrArg Fin.val h), congrArg addrWord⟩
 
 theorem addrWord_zero : addrWord 0 = 0 := Fin.ext (by simp [addrWord])
 
@@ -157,17 +154,8 @@ theorem mint_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Rel st
         exact hr.balances a
   · rw [ite_eq_right hg]
     refine ⟨fun _ => ?_, fun t h => (nomatch h)⟩
-    by_cases h1 : addrWord caller ≠ st.scalars "_nativeTokenVault"
-    · rw [ite_eq_left h1]; exact ⟨_, rfl⟩
-    rw [ite_eq_right h1]
-    by_cases h2 : addrWord recipient = 0
-    · rw [ite_eq_left h2]; exact ⟨_, rfl⟩
-    rw [ite_eq_right h2]
-    by_cases h3 : UInt256.size ≤ (st.scalars "_totalSupply").val + amount.val
-    · rw [ite_eq_left h3]; exact ⟨_, rfl⟩
-    exfalso
-    apply hg
-    refine ⟨hr.vault_ne, ?_, fun h => h2 (by rw [h, addrWord_zero]), ?_⟩
+    split_ifs with h1 h2 h3 <;> try exact ⟨_, rfl⟩
+    refine (hg ⟨hr.vault_ne, ?_, fun h => h2 (by rw [h, addrWord_zero]), ?_⟩).elim
     · rw [hr.vault] at h1; exact addrWord_inj.mp (not_not.mp h1)
     · rw [hr.supply] at h3; omega
 
@@ -203,19 +191,10 @@ theorem burn_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Rel st
         exact hr.balances a
   · rw [ite_eq_right hg]
     refine ⟨fun _ => ?_, fun t h => (nomatch h)⟩
-    by_cases h1 : addrWord caller ≠ st.scalars "_nativeTokenVault"
-    · rw [ite_eq_left h1]; exact ⟨_, rfl⟩
-    rw [ite_eq_right h1]
-    by_cases h2 : addrWord account = 0
-    · rw [ite_eq_left h2]; exact ⟨_, rfl⟩
-    rw [ite_eq_right h2]
-    by_cases h3 : ¬ amount.val ≤ (st.maps "_balances" (addrWord account)).val
-    · rw [ite_eq_left h3]; exact ⟨_, rfl⟩
-    exfalso
-    apply hg
-    refine ⟨hr.vault_ne, ?_, fun h => h2 (by rw [h, addrWord_zero]), ?_⟩
+    split_ifs with h1 h2 h3 <;> try exact ⟨_, rfl⟩
+    refine (hg ⟨hr.vault_ne, ?_, fun h => h2 (by rw [h, addrWord_zero]), ?_⟩).elim
     · rw [hr.vault] at h1; exact addrWord_inj.mp (not_not.mp h1)
-    · rw [hr.balances] at h3; exact not_not.mp h3
+    · rwa [hr.balances] at h3
 
 theorem transfer_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Rel st s)
     (owner recipient : Address) (amount : Word) :
@@ -266,18 +245,10 @@ theorem transfer_refines {st : Storage} {s : State} (hw : WellFormed s) (hr : Re
           exact hr.balances a
   · rw [ite_eq_right hg]
     refine ⟨fun _ => ?_, fun t h => (nomatch h)⟩
-    by_cases h1 : addrWord owner = 0
-    · rw [ite_eq_left h1]; exact ⟨_, rfl⟩
-    rw [ite_eq_right h1]
-    by_cases h2 : addrWord recipient = 0
-    · rw [ite_eq_left h2]; exact ⟨_, rfl⟩
-    rw [ite_eq_right h2]
-    by_cases h3 : ¬ amount.val ≤ (st.maps "_balances" (addrWord owner)).val
-    · rw [ite_eq_left h3]; exact ⟨_, rfl⟩
-    exfalso
-    apply hg
-    refine ⟨fun h => h1 (by rw [h, addrWord_zero]), fun h => h2 (by rw [h, addrWord_zero]), ?_⟩
-    rw [hr.balances] at h3; exact not_not.mp h3
+    split_ifs with h1 h2 h3 <;> try exact ⟨_, rfl⟩
+    refine (hg ⟨fun h => h1 (by rw [h, addrWord_zero]), fun h => h2 (by rw [h, addrWord_zero]),
+      ?_⟩).elim
+    rwa [hr.balances] at h3
 
 theorem views_exact {st : Storage} {s : State} (hr : Rel st s) (caller a : Address) :
     Properties.views_exact hr caller a := by
@@ -389,10 +360,7 @@ theorem match_step {st st' : Storage} {s : State} (hr : Rel st s) (hw : WellForm
 def simulationWitness :
     LayeredVerification.Simulation Step Contracts.BridgedStandardERC20.Step where
   Rel st s := Rel st s ∧ WellFormed s
-  match_step := by
-    rintro st st' s ⟨hr, hw⟩ hstep
-    obtain ⟨t, hrun, hrel, hwt⟩ := match_step hr hw hstep
-    exact ⟨t, hrun, hrel, hwt⟩
+  match_step := fun ⟨hr, hw⟩ hstep => match_step hr hw hstep
 
 theorem simulation : Properties.simulation := ⟨simulationWitness, fun _ _ => Iff.rfl⟩
 
@@ -418,7 +386,6 @@ theorem reachable_ledger (deployer vault : Address) (hv : vault ≠ 0) :
     exact Contracts.BridgedStandardERC20.reachable_ledger (empty_wellFormed config) (run_reach hb)
   · rintro st b ⟨hr, -⟩ ⟨hwb, hcfg⟩
     refine ⟨?_, by rw [hr.vault, hcfg]⟩
-    simp only [hr.balances, hr.supply]
-    exact hwb.1
+    simpa only [hr.balances, hr.supply] using hwb.1
 
 end Codegen.BridgedTokenSlice

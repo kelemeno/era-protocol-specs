@@ -49,13 +49,8 @@ def liftHooks (h : Hooks Acct) : CHooks Acct where
     | none => .error .empty
 
 theorem liftHooks_agree (h : Hooks Acct) : HooksAgree (liftHooks h) h := by
-  constructor
-  · intro acc st t c a m ht
-    simp only [liftHooks, ← absToken_eq ht]
-    split <;> simp_all [Except.toOption]
-  · intro st t o ht
-    simp only [liftHooks, ← absToken_eq ht]
-    split <;> simp_all [Except.toOption]
+  refine ⟨fun acc st t c a m ht => ?_, fun st t o ht => ?_⟩ <;>
+    simp only [liftHooks, ← absToken_eq ht] <;> split <;> simp_all [Except.toOption]
 
 theorem HooksAgreeSatisfiable : Properties.HooksAgreeSatisfiable :=
   fun h => ⟨liftHooks h, liftHooks_agree h⟩
@@ -88,17 +83,14 @@ def deploymentOf (s : State Acct) : Deployment :=
   ⟨s.config.vault, s.config.tokenAddress, s.config.chainId⟩
 
 theorem natCast_val_of_lt {n : ℕ} (h : n < UInt256.size) : ((n : Word)).val = n := by
-  simp only [Fin.val_natCast]
-  exact Nat.mod_eq_of_lt h
+  rw [Fin.val_natCast, Nat.mod_eq_of_lt h]
 
 theorem tokenRel_of (t : Contracts.BridgedStandardERC20.State)
     (hw : Contracts.BridgedStandardERC20.WellFormed t) (hv : t.config.vault ≠ 0) :
     TokenRel (tokenStorageOf t) t := by
   refine ⟨⟨?_, hv, ?_, ?_⟩, ?_, ?_⟩
   · simp [tokenStorageOf]
-  · simp only [tokenStorageOf]
-    simp only [show ("_totalSupply" = "_nativeTokenVault") = False by decide, ite_false, ite_true]
-    exact natCast_val_of_lt hw.2.1
+  · simpa only [tokenStorageOf, String.reduceEq, ↓reduceIte] using natCast_val_of_lt hw.2.1
   · intro a
     have hb := (Contracts.BridgedStandardERC20.balance_bounded hw a).2
     simp only [tokenStorageOf, ite_true, addrWord]
@@ -115,8 +107,7 @@ theorem rel_of (s : State Acct) (hw : WellFormed s) (hv : s.token.config.vault �
   · simp [vaultStorageOf]
   · intro id; simp [vaultStorageOf]
   · intro a
-    simp only [vaultStorageOf, addrWord]
-    simp only [show ("_assetIdOf" = "_tokenAddress") = False by decide, ite_false, ite_true]
+    simp only [vaultStorageOf, addrWord, String.reduceEq, ↓reduceIte]
     rw [dite_eq_left a.isLt]
   · simp [vaultStorageOf]
 
@@ -147,11 +138,8 @@ theorem s0_wellFormed : WellFormed s0 := by
 theorem s0_vault : s0.token.config.vault ≠ 0 := by decide
 
 theorem r0_accepted : ∃ out, prepare h0 s0 r0 = some out := by
-  have hs : InScope s0 r0 := by
-    refine ⟨by decide, by decide, by decide, by decide, ?_⟩
-    decide
-  have he : EntryAllowed s0 r0 := by
-    refine ⟨rfl, rfl, rfl, by decide, by decide, by decide⟩
+  have hs : InScope s0 r0 := ⟨by decide, by decide, by decide, by decide, by decide⟩
+  have he : EntryAllowed s0 r0 := ⟨rfl, rfl, rfl, by decide, by decide, by decide⟩
   exact Contracts.NativeTokenVaultBase.preparation_enabled s0_wellFormed hs he rfl (by decide)
     (by decide) (by decide) (by decide) rfl rfl
 

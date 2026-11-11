@@ -70,8 +70,7 @@ def evidence (H : History) (flow : BurnMintBridge.Transfer → List Leg) : BurnM
 decision across every source chain and every pair of proof snapshots. -/
 theorem evidence_sound {H : History} (hH : H.Valid)
     (flow : BurnMintBridge.Transfer → List Leg) : (evidence H flow).Sound := by
-  intro i
-  rintro ⟨hall, l, hl, hmissing⟩
+  rintro i ⟨hall, l, hl, hmissing⟩
   exact onTime_excludes_missing hH (hall l hl) hmissing
 
 /-- A prepared reference bridge cannot both mint and recover when driven by
@@ -100,10 +99,9 @@ theorem accepted_flow_evidence_persists {H : History} (hH : H.Valid)
       ∀ m, n ≤ m → l.commitValue ∈ keys (H.tree l.sourceChain m) := by
   intro l hl
   obtain ⟨n, ht, hk⟩ := haccepted l hl
-  refine ⟨n, ht, ?_⟩
-  exact (guardedEvolution_delivered_available_forever
+  exact ⟨n, ht, (guardedEvolution_delivered_available_forever
     (hH.guarded l.sourceChain) (hH.genesis l.sourceChain)
-    (hH.monotone_time l.sourceChain) ht hk).1
+    (hH.monotone_time l.sourceChain) ht hk).1⟩
 
 /-- Application execution on one destination carries complete flow evidence.
 For every other prepared, still-pending application, that same evidence and its

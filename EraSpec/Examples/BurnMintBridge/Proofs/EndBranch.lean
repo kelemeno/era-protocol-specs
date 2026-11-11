@@ -21,9 +21,8 @@ open IMTAbstract Properties.PreparedBridge
 
 /-! ## Valid histories -/
 
-theorem valid_sound0 {H : History} (hH : H.Valid) (c : UInt256) : SoundState (H.tree c 0) := by
-  rw [hH.genesis c]
-  exact genesis_soundState
+theorem valid_sound0 {H : History} (hH : H.Valid) (c : UInt256) : SoundState (H.tree c 0) :=
+  hH.genesis c ▸ genesis_soundState
 
 theorem valid_evolution {H : History} (hH : H.Valid) (c : UInt256) : Evolution (H.tree c) :=
   guardedEvolution_isEvolution (hH.guarded c) (valid_sound0 hH c)
@@ -47,11 +46,7 @@ theorem gap_of_absent {H : History} (hH : H.Valid) {c : UInt256} {n : ℕ} {v : 
     (habs : v ∉ keys (H.tree c n)) : GapWitness (H.tree c n) v := by
   by_cases hv : v = 0
   · subst hv
-    exfalso
-    apply habs
-    apply valid_keys_mono hH c (Nat.zero_le n)
-    rw [hH.genesis c]
-    exact genesis_zero_mem
+    exact absurd (valid_keys_mono hH c (Nat.zero_le n) (hH.genesis c ▸ genesis_zero_mem)) habs
   · exact (guardedEvolution_reclaimable_iff_absent (hH.guarded c) (hH.genesis c) hv).mpr habs
 
 theorem batchHistory_appendOnly {H : History} (hH : H.Valid) (c : UInt256) :
@@ -83,19 +78,9 @@ theorem step_conserves_unless_double {E : Evidence} {s t : State} (hstep : Step 
   cases hstep with
   | prepare hp =>
     rcases hp with ⟨hrecord, hd, hr, _, hbalance, rfl⟩
-    simp only [accounted, limbo, burn, hd, hr, hrecord]
-    simp
+    simp [accounted, limbo, burn, hd, hr, hrecord]
     omega
-  | interfere hi =>
-    cases hi with
-    | source hb =>
-      change (s.sourceBalance - _ + s.destinationBalance + (s.spent + _) + limbo s) = _
-      unfold accounted
-      omega
-    | destination hb =>
-      change (s.sourceBalance + (s.destinationBalance - _) + (s.spent + _) + limbo s) = _
-      unfold accounted
-      omega
+  | interfere hi => cases hi <;> simp only [accounted, limbo] <;> omega
   | execute _ he =>
     rcases he with ⟨⟨hrecord, hd⟩, _, rfl⟩
     cases hr : s.refunded with
@@ -124,11 +109,9 @@ theorem run_conserves_unless_double {E : Evidence} {s t : State} (h : Run E s t)
 theorem value_conserved_unless_double_paid {E : Evidence} {source destination : ℕ} {s : State}
     (h : Run E (initial source destination) s) :
     (s.delivered = true ∧ s.refunded = true) ∨ accounted s = source + destination := by
-  by_cases hboth : s.delivered = true ∧ s.refunded = true
-  · exact Or.inl hboth
-  · refine Or.inr ?_
-    rw [run_conserves_unless_double h hboth]
-    simp [accounted, limbo, initial]
+  refine or_iff_not_imp_left.mpr fun hboth => ?_
+  rw [run_conserves_unless_double h hboth]
+  simp [accounted, limbo, initial]
 
 /-! ## 1. The END branch over the adapter's history -/
 
@@ -146,11 +129,9 @@ theorem missingEnd_iff_absence {H : History} (hH : H.Valid) {l : Leg} :
       H.settledAt l.sourceChain B ≤ l.deadline ∧ l.deadline < T ∧
         (∀ n, B < n → T ≤ H.settledAt l.sourceChain n) ∧
         l.commitValue ∉ keys (H.tree l.sourceChain B) := by
-  constructor
-  · rintro ⟨B, T, hon, hDT, hlast, hgap⟩
-    exact ⟨B, T, hon, hDT, hlast, absent_of_gap hH hgap⟩
-  · rintro ⟨B, T, hon, hDT, hlast, habs⟩
-    exact ⟨B, T, hon, hDT, hlast, gap_of_absent hH habs⟩
+  constructor <;> rintro ⟨B, T, hon, hDT, hlast, h⟩
+  · exact ⟨B, T, hon, hDT, hlast, absent_of_gap hH h⟩
+  · exact ⟨B, T, hon, hDT, hlast, gap_of_absent hH h⟩
 
 /-- **EITHER BRANCH MEANS NEVER FINALIZED**, through
 `TimeoutSoundness.timeout_implies_never_finalized` on the leg's chain. -/
@@ -176,8 +157,7 @@ theorem onTime_excludes_missingEither {H : History} (hH : H.Valid) {l : Leg}
 
 theorem evidenceEither_sound {H : History} (hH : H.Valid) (flow : Transfer → List Leg) :
     (evidenceEither H flow).Sound := by
-  intro i
-  rintro ⟨hall, l, hl, hm⟩
+  rintro i ⟨hall, l, hl, hm⟩
   exact onTime_excludes_missingEither hH (hall l hl) hm
 
 theorem evidenceEither_runs_iff {H : History} {flow : Transfer → List Leg} {s t : State} :
@@ -283,8 +263,7 @@ theorem timeoutVia_implies_missing {H : History} {R : Contracts.Timeout.SlRoot} 
 theorem checkedEvidence_sound {H : History} {roots : Roots} (hH : H.Valid)
     (hagg : ∀ k, RootAggregates H (roots k)) (flow : Transfer → List Leg) :
     (checkedEvidence H roots flow).Sound := by
-  intro i
-  rintro ⟨hall, l, hl, k, ht⟩
+  rintro i ⟨hall, l, hl, k, ht⟩
   obtain ⟨n, hn, hmem⟩ := hall l hl
   exact timeoutVia_never_finalized hH (hagg k) ht n hn hmem
 
@@ -363,12 +342,7 @@ theorem acceptedEnd_onTime_locates_break {h : MerkleSpec.Hash} {ze : UInt256} {H
   rcases Contracts.Timeout.LastBatchProofIdentifiesLastBatchPinned h ze (roots e.root)
       (bk e.root) e.leg.sourceChain e.batch e.sibs e.leaf hlb with hlast | hbreak
   · exfalso
-    have hend : EndLastVia H (roots e.root) e.leg := by
-      refine ⟨hroot, ?_, ?_⟩
-      · rw [← hlast]
-        exact hintime
-      · rw [← hlast]
-        exact hgap
+    have hend : EndLastVia H (roots e.root) e.leg := ⟨hroot, hlast ▸ hintime, hlast ▸ hgap⟩
     obtain ⟨n, hn, hmem⟩ := hon
     exact endVia_never_finalized hH (hagg e.root) (endVia_iff_endLastVia.mpr hend) n hn hmem
   · exact hbreak
@@ -385,8 +359,7 @@ theorem pinned_double_payment_locates_break {h : MerkleSpec.Hash} {ze : UInt256}
   have hauth := run_authorized (initial_authorized _ source destination) hrun
   obtain ⟨i, hi, hfin⟩ := hauth.1 hboth.1
   obtain ⟨j, hj, hrec⟩ := hauth.2 hboth.2
-  have hij : i = j := Option.some.inj (hi.symm.trans hj)
-  subst hij
+  cases hi.symm.trans hj
   rcases hrec with ⟨l, hl, k, hb⟩ | ⟨hl, ha⟩
   · obtain ⟨n, hn, hmem⟩ := hfin l hl
     exact absurd hmem (beginVia_never_finalized hH hb n hn)
@@ -399,10 +372,8 @@ theorem pinned_bridge_no_double_payment_or_break {h : MerkleSpec.Hash} {ze : UIn
     (hrun : Run (pinnedEvidence H roots bk flow sub) (initial source destination) s) :
     ¬ (s.delivered = true ∧ s.refunded = true)
       ∨ ∃ i, s.record = some i ∧ EndAcceptedBy H roots bk (sub i)
-          ∧ EndBreak bk (sub i) := by
-  by_cases hboth : s.delivered = true ∧ s.refunded = true
-  · exact Or.inr (pinned_double_payment_locates_break hH hagg hrun hboth)
-  · exact Or.inl hboth
+          ∧ EndBreak bk (sub i) :=
+  (em _).symm.imp_right (pinned_double_payment_locates_break hH hagg hrun)
 
 theorem pinned_bridge_value_conserved_or_break {h : MerkleSpec.Hash} {ze : UInt256}
     {H : History} {roots : Roots} {bk : Backing h ze roots} (hH : H.Valid)
@@ -411,10 +382,9 @@ theorem pinned_bridge_value_conserved_or_break {h : MerkleSpec.Hash} {ze : UInt2
     (hrun : Run (pinnedEvidence H roots bk flow sub) (initial source destination) s) :
     accounted s = source + destination
       ∨ ∃ i, s.record = some i ∧ EndAcceptedBy H roots bk (sub i)
-          ∧ EndBreak bk (sub i) := by
-  rcases value_conserved_unless_double_paid hrun with hboth | hacc
-  · exact Or.inr (pinned_double_payment_locates_break hH hagg hrun hboth)
-  · exact Or.inl hacc
+          ∧ EndBreak bk (sub i) :=
+  (value_conserved_unless_double_paid hrun).symm.imp_right
+    (pinned_double_payment_locates_break hH hagg hrun)
 
 /-! ## The concrete instances -/
 
@@ -427,13 +397,8 @@ theorem demoTime_gt {n : ℕ} (hn : 1 < n) : demoTime n = 2 := by
 
 theorem demoTime_monotone : Monotone demoTime := by
   intro a b hab
-  by_cases ha : a ≤ 1
-  · rw [demoTime_le ha]
-    by_cases hb : b ≤ 1
-    · rw [demoTime_le hb]
-    · rw [demoTime_gt (by omega)]
-      decide
-  · rw [demoTime_gt (by omega), demoTime_gt (by omega)]
+  unfold demoTime
+  split_ifs <;> first | decide | omega
 
 theorem haltedHistory_valid : haltedHistory.Valid where
   guarded := fun _ _ => Or.inl rfl
@@ -459,10 +424,9 @@ theorem committedHistory_valid : committedHistory.Valid where
 theorem demoTime_aggregates {H : History} (ht : ∀ c n, H.settledAt c n = demoTime n) :
     RootAggregates H Contracts.Timeout.demoRoot := by
   intro c n hn
-  rw [ht] at hn
   show n ≤ 1
   by_contra hc
-  rw [demoTime_gt (by omega)] at hn
+  rw [ht, demoTime_gt (by omega)] at hn
   exact absurd hn (by decide)
 
 theorem halted_aggregates : RootAggregates haltedHistory Contracts.Timeout.demoRoot :=
@@ -557,9 +521,7 @@ theorem end_branch_refund_witness : Properties.EndBranchRefundWitness := by
 
 theorem onTime_leg_executes_witness : Properties.OnTimeLegExecutesWitness := by
   have hall : ∀ l ∈ demoFlow sampleTransfer, OnTime committedHistory l := by
-    intro l hl
-    rw [mem_demoFlow hl]
-    exact committed_onTime
+    simpa using committed_onTime
   exact ⟨committedHistory, demoFlow, sampleTransfer, _, committedHistory_valid, hall,
     .tail (.tail .refl (.prepare demo_prepare)) (.execute hall demo_execute), rfl, rfl⟩
 
@@ -568,22 +530,7 @@ theorem onTime_leg_executes_witness : Properties.OnTimeLegExecutesWitness := by
 theorem lateTime_monotone : Monotone lateTime := by
   intro a b hab
   unfold lateTime
-  by_cases ha0 : a = 0
-  · subst ha0
-    by_cases hb0 : b = 0
-    · simp [hb0]
-    · by_cases hb1 : b = 1
-      · simp [hb1]
-      · simp [hb0, hb1]
-  · by_cases ha1 : a = 1
-    · subst ha1
-      by_cases hb1 : b = 1
-      · simp [hb1]
-      · have hb0 : b ≠ 0 := by omega
-        simp [hb0, hb1]
-    · have hb0 : b ≠ 0 := by omega
-      have hb1 : b ≠ 1 := by omega
-      simp [ha0, ha1, hb0, hb1]
+  split_ifs <;> first | decide | omega
 
 theorem lateHistory_valid : lateHistory.Valid where
   guarded := fun _ _ => Or.inl rfl
@@ -595,10 +542,8 @@ theorem late_aggregates : RootAggregates lateHistory Contracts.Timeout.demoRoot 
   show n ≤ 1
   by_contra hc
   have h2 : lateHistory.settledAt c n = 2 := by
-    have hn0 : n ≠ 0 := by omega
-    have hn1 : n ≠ 1 := by omega
     show lateTime n = 2
-    simp [lateTime, hn0, hn1]
+    rw [lateTime, ite_eq_right (by omega), ite_eq_right (by omega)]
   rw [h2] at hn
   exact absurd hn (by decide)
 
@@ -634,17 +579,11 @@ theorem halted_chain_needs_end_branch : Properties.HaltedChainNeedsEndBranch := 
           t.delivered = false ∧ t.refunded = false := by
     intro s t hs hrun
     have ht := run_authorized hs hrun
-    constructor
-    · cases hd : t.delivered with
-      | false => rfl
-      | true =>
-        obtain ⟨j, _, hfin⟩ := ht.1 hd
-        exact absurd hfin (halted_not_finalized j)
-    · cases hr : t.refunded with
-      | false => rfl
-      | true =>
-        obtain ⟨j, _, hrec⟩ := ht.2 hr
-        exact absurd hrec (hnorecover j)
+    refine ⟨Bool.eq_false_iff.mpr fun hd => ?_, Bool.eq_false_iff.mpr fun hr => ?_⟩
+    · obtain ⟨j, _, hfin⟩ := ht.1 hd
+      exact halted_not_finalized j hfin
+    · obtain ⟨j, _, hrec⟩ := ht.2 hr
+      exact hnorecover j hrec
   refine ⟨haltedHistory, demoRoots, demoFlow, sampleTransfer, haltedHistory_valid, hagg, ?_,
     hnobegin, ?_, ?_, ⟨demoLeg, List.mem_singleton_self _, 0, halted_endVia⟩, ?_⟩
   · intro j l hl
@@ -697,9 +636,7 @@ theorem checked_execution_witness : Properties.CheckedExecutionWitness := by
 
 theorem stale_root_double_pays : Properties.StaleRootDoublePays := by
   have hfin : ∀ l ∈ demoFlow sampleTransfer, OnTime committedHistory l := by
-    intro l hl
-    rw [mem_demoFlow hl]
-    exact committed_onTime
+    simpa using committed_onTime
   have hend : EndVia committedHistory (staleRoots 0) demoLeg :=
     endVia_iff_endLastVia.mpr ⟨by decide, by decide, genesis_gap_one⟩
   refine ⟨committedHistory, staleRoots, demoFlow, _, committedHistory_valid, ?_, ?_,
@@ -714,9 +651,7 @@ theorem stale_root_double_pays : Properties.StaleRootDoublePays := by
 
 theorem unchecked_end_double_pays : Properties.UncheckedEndDoublePays := by
   have hfin : ∀ l ∈ demoFlow sampleTransfer, OnTime committedHistory l := by
-    intro l hl
-    rw [mem_demoFlow hl]
-    exact committed_onTime
+    simpa using committed_onTime
   -- batch 0 is in time, inside the root, and lacks the leg, but it is not the root's last batch
   have hend : EndUncheckedVia committedHistory Contracts.Timeout.demoRoot demoLeg :=
     ⟨by decide, 0, by decide, by decide, genesis_gap_one⟩
@@ -767,9 +702,7 @@ theorem forged_lastBatch_accepted :
 
 theorem forged_lastBatch_locates_break : Properties.ForgedLastBatchLocatesBreak := by
   have hfin : ∀ l ∈ demoFlow sampleTransfer, OnTime committedHistory l := by
-    intro l hl
-    rw [mem_demoFlow hl]
-    exact committed_onTime
+    simpa using committed_onTime
   have ha : EndAcceptedBy committedHistory demoRoots (fun _ => forgedBacking) forgedSubmission :=
     ⟨by decide, by decide, forged_lastBatch_accepted, genesis_gap_one⟩
   exact ⟨MerkleSpec.LastLeaf.demoHash, 0, committedHistory, demoRoots, fun _ => forgedBacking,

@@ -17,8 +17,7 @@ theorem EncodeBurnDataLayout : Properties.EncodeBurnDataLayout := encodeBurnData
 theorem word32_append_inj {x x' : ℕ} {l l' : Bytes} (hx : x < 2 ^ 256) (hx' : x' < 2 ^ 256)
     (h : word32 x ++ l = word32 x' ++ l') : x = x' ∧ l = l' := by
   obtain ⟨hw, hl⟩ := List.append_inj h (by rw [length_word32, length_word32])
-  refine ⟨?_, hl⟩
-  rw [← fromBytes_word32 hx, ← fromBytes_word32 hx', hw]
+  exact ⟨by rw [← fromBytes_word32 hx, ← fromBytes_word32 hx', hw], hl⟩
 
 theorem addr_lt (a : Address) : a.val < 2 ^ 256 := lt_trans a.isLt (by decide)
 
@@ -41,7 +40,6 @@ theorem EncodeMintDataInjective : Properties.EncodeMintDataInjective := by
       List.take_left' rfl] at this
   obtain ⟨oc, rr, ot, amt, md⟩ := m
   obtain ⟨oc', rr', ot', amt', md'⟩ := m'
-  simp only at h1 h2 h3 h4 hmd
   simp only [MintData.mk.injEq]
   exact ⟨Fin.ext h1, Fin.ext h2, Fin.ext h3, Fin.ext h4, hmd⟩
 

@@ -78,25 +78,18 @@ def application : Prepared.Application State Transfer Transfer where
 assuming global successful execution. Ordinary spending cannot break readiness. -/
 theorem application_laws : Prepared.Laws application where
   preparation_establishes_ready := by
-    intro s i p hp
-    rcases hp with ⟨_, hd, _, _, _, rfl⟩
+    rintro s i p ⟨_, hd, _, _, _, rfl⟩
     exact ⟨rfl, hd⟩
   interference_preserves_ready := by
-    intro s t i hstep hready
-    cases hstep <;> exact hready
-  ready_permits_execution := by
-    intro s i hr
-    exact ⟨mint s i, hr, rfl, rfl⟩
-  execution_has_intended_effect := by
-    intro s i e t he
-    exact he.2.1
+    rintro s t i (_ | _) hready <;> exact hready
+  ready_permits_execution := fun hr => ⟨_, hr, rfl, rfl⟩
+  execution_has_intended_effect := fun he => he.2.1
 
 /-- Preparation removes the full committed amount from spendable source funds. -/
 theorem preparation_burns {s t : State} {i : Transfer} (hp : Prepare s i t) :
     t.sourceBalance + i.amount = s.sourceBalance := by
-  rcases hp with ⟨_, _, _, _, hbalance, rfl⟩
-  simp only [burn]
-  omega
+  obtain ⟨-, -, -, -, hbalance, rfl⟩ := hp
+  exact Nat.sub_add_cancel hbalance
 
 /-- The committed input cannot change during any finite unrelated history. -/
 theorem waiting_preserves_record {s t : State}
@@ -168,10 +161,7 @@ theorem run_authorized {E : Evidence} {s t : State}
 theorem step_preserves_committed_input {E : Evidence} {s t : State} {i : Transfer}
     (hi : s.record = some i) (hstep : Step E s t) : t.record = some i := by
   cases hstep with
-  | prepare hp =>
-    have hnone := hp.1
-    rw [hi] at hnone
-    contradiction
+  | prepare hp => simp [hp.1] at hi
   | interfere hs => cases hs <;> exact hi
   | execute _ he => rcases he with ⟨_, _, rfl⟩; exact hi
   | recover _ hr => rcases hr with ⟨_, _, rfl⟩; exact hi
@@ -189,8 +179,7 @@ theorem resolution_exclusive {E : Evidence} (hE : E.Sound) {s : State}
   rintro ⟨hd, hr⟩
   obtain ⟨i, hi, hfi⟩ := hs.1 hd
   obtain ⟨j, hj, hrj⟩ := hs.2 hr
-  have hij : i = j := Option.some.inj (hi.symm.trans hj)
-  subst j
+  cases hi.symm.trans hj
   exact hE i ⟨hfi, hrj⟩
 
 theorem reachable_resolution_exclusive {E : Evidence} (hE : E.Sound)
@@ -222,18 +211,12 @@ theorem run_flags_persist {E : Evidence} {s t : State} (h : Run E s t) :
 theorem no_second_execution {E : Evidence} {s t u : State} {i e : Transfer}
     (hd : s.delivered = true) (h : Run E s t) : ¬ Execute t i e u := by
   intro he
-  have ht := (run_flags_persist h).1 hd
-  have hf := he.1.2
-  rw [ht] at hf
-  contradiction
+  simpa [(run_flags_persist h).1 hd] using he.1.2
 
 theorem no_second_recovery {E : Evidence} {s t u : State} {i : Transfer}
     (hr : s.refunded = true) (h : Run E s t) : ¬ Recover t i u := by
   intro he
-  have ht := (run_flags_persist h).2 hr
-  have hf := he.2.1
-  rw [ht] at hf
-  contradiction
+  simpa [(run_flags_persist h).2 hr] using he.2.1
 
 /-- The amount still owed, rather than tokens held in an escrow balance. -/
 def limbo (s : State) : ℕ :=
@@ -253,9 +236,8 @@ theorem finalize_excludes_refunded {E : Evidence} (hE : E.Sound) {s : State}
   | false => rfl
   | true =>
     obtain ⟨j, hj, hcj⟩ := hs.2 hf
-    have hij : i = j := Option.some.inj (hi.symm.trans hj)
-    subst j
-    exact False.elim (hE i ⟨hc, hcj⟩)
+    cases hi.symm.trans hj
+    exact (hE i ⟨hc, hcj⟩).elim
 
 theorem recovery_excludes_delivered {E : Evidence} (hE : E.Sound) {s : State}
     (hs : Authorized E s) {i : Transfer} (hi : s.record = some i) (hc : E.recover i) :
@@ -264,9 +246,8 @@ theorem recovery_excludes_delivered {E : Evidence} (hE : E.Sound) {s : State}
   | false => rfl
   | true =>
     obtain ⟨j, hj, hcj⟩ := hs.1 hd
-    have hij : i = j := Option.some.inj (hi.symm.trans hj)
-    subst j
-    exact False.elim (hE i ⟨hcj, hc⟩)
+    cases hi.symm.trans hj
+    exact (hE i ⟨hcj, hc⟩).elim
 
 /-- Under a finalization certificate, every permitted full run preserves the
 obligation until execution: it is either already executed or remains executable,
@@ -277,13 +258,9 @@ theorem prepared_execution_remains_possible {E : Evidence} (hE : E.Sound)
     (hrun : Run E p t) :
     t.refunded = false ∧
       (t.delivered = true ∨ ∃ u, AuthorizedExecution E t i i u) := by
-  have hrecord : p.record = some i := by
-    rcases hp with ⟨_, _, _, _, _, rfl⟩
-    rfl
-  have hauth : Authorized E p := by
-    rcases hp with ⟨_, hd, hr, _, _, rfl⟩
-    simp [Authorized, burn, hd, hr]
-  have ht := run_preserves_committed_input hrecord hrun
+  obtain ⟨-, hd, hr, -, -, rfl⟩ := hp
+  have hauth : Authorized E (burn s i) := by simp [Authorized, burn, hd, hr]
+  have ht := run_preserves_committed_input (i := i) rfl hrun
   refine ⟨finalize_excludes_refunded hE (run_authorized hauth hrun) ht hc, ?_⟩
   cases hd : t.delivered with
   | false => exact Or.inr ⟨mint t i, hc, ⟨ht, hd⟩, rfl, rfl⟩
@@ -296,19 +273,9 @@ theorem step_conserves_value {E : Evidence} (hE : E.Sound) {s t : State}
   cases hstep with
   | prepare hp =>
     rcases hp with ⟨hrecord, hd, hr, _, hbalance, rfl⟩
-    simp only [accounted, limbo, burn, hd, hr, hrecord]
-    simp
+    simp [accounted, limbo, burn, hd, hr, hrecord]
     omega
-  | interfere hi =>
-    cases hi with
-    | source hb =>
-      change (s.sourceBalance - _ + s.destinationBalance + (s.spent + _) + limbo s) = _
-      unfold accounted
-      omega
-    | destination hb =>
-      change (s.sourceBalance + (s.destinationBalance - _) + (s.spent + _) + limbo s) = _
-      unfold accounted
-      omega
+  | interfere hi => cases hi <;> simp only [accounted, limbo] <;> omega
   | execute hc he =>
     rcases he with ⟨⟨hrecord, hd⟩, _, rfl⟩
     have hr := finalize_excludes_refunded hE hs hrecord hc
@@ -375,9 +342,7 @@ theorem both_sound_outcomes_reachable :
   have hr : Recover (burn (initial 1 0) sampleTransfer) sampleTransfer
       (restore (burn (initial 1 0) sampleTransfer) sampleTransfer) := by
     simp [Recover, burn, initial]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro _i; simp [Evidence.Sound, finalizeOnly]
-  · intro _i; simp [Evidence.Sound, recoverOnly]
+  refine ⟨fun _ h => h.2, fun _ h => h.1, ?_, ?_⟩
   · exact ⟨_, .tail (.tail .refl (.prepare hp)) (.execute trivial he), rfl, by decide⟩
   · exact ⟨_, .tail (.tail .refl (.prepare hp)) (.recover trivial hr), rfl, by decide⟩
 

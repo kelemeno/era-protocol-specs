@@ -75,8 +75,7 @@ theorem all_prepared_legs_executable
     (hprepare : ∀ l, A.prepare (before l) (inputs l) (prepared l))
     (hwait : ∀ l, InterferenceRun A (prepared l) (current l))
     (hallEvidence : ∀ l, Evidence l) :
-    ∀ l, Evidence l ∧ ∃ u, A.execute (current l) (inputs l) (A.intendedEffect (inputs l)) u := by
-  intro l
-  exact ⟨hallEvidence l, prepared_execution_survives hA (hprepare l) (hwait l)⟩
+    ∀ l, Evidence l ∧ ∃ u, A.execute (current l) (inputs l) (A.intendedEffect (inputs l)) u :=
+  fun l => ⟨hallEvidence l, prepared_execution_survives hA (hprepare l) (hwait l)⟩
 
 end Applications.Prepared

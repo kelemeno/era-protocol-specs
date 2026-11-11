@@ -91,19 +91,14 @@ theorem decode_three (data : Bytes) (env : String → Word) (hl : data.length = 
 
 theorem upd_self {α : Type} (f : String → α) (k : String) : upd f k (f k) = f := by
   funext x
-  by_cases h : x = k
-  · subst h; simp [upd]
-  · simp [upd, h]
+  by_cases h : x = k <;> simp [upd, h]
 
 theorem execX_resolveToken (M : Machine W) (self : Word) (f : XFrame W) :
     execX M self f resolveToken =
       .ok ({ f with cx := { f.cx with env := (upd f.cx.env "parsedTokenAddress"
         (resolve f.st (f.cx.env "_assetId") (f.cx.env "parsedTokenAddress"))) } }, none) := by
-  by_cases h : f.cx.env "parsedTokenAddress" = 0
-  · simp [execX, resolveToken, evalCond, evalExpr, resolve, h, zeroAddr]
-  · simp only [execX, resolveToken, evalCond, evalExpr, resolve, h, zeroAddr, ↓reduceIte,
-      upd_self]
-    simp [h]
+  by_cases h : f.cx.env "parsedTokenAddress" = 0 <;>
+    simp [execX, resolveToken, evalCond, evalExpr, resolve, h, zeroAddr, upd_self]
 
 /-- Evaluate the vault program as far as the case hypotheses in context decide it. -/
 local macro "burn_simp" : tactic =>
@@ -118,29 +113,23 @@ theorem xcall_bridgeBurn (M : Machine W) (e : Env) (c l2v a oc : Word) (data : B
     xcall M vaultProgram "bridgeBurn" e [.word c, .word l2v, .word a, .word oc, .bytes data] st w =
       some (burnDenote M e c l2v a oc data st w) := by
   unfold burnDenote
-  by_cases h1 : l2v = 0
-  swap
+  obtain h1 | h1 := ne_or_eq l2v 0
   · burn_simp
-  by_cases h2 : e.sender = st.scalars "_assetRouter"
-  swap
+  obtain h2 | h2 := ne_or_eq e.sender (st.scalars "_assetRouter")
   · burn_simp
-  by_cases h3 : st.scalars "_paused" = 0
-  swap
+  obtain h3 | h3 := ne_or_eq (st.scalars "_paused") 0
   · burn_simp
-  by_cases h4 : data.length = 96
-  swap
+  obtain h4 | h4 := ne_or_eq data.length 96
   · burn_simp
-  by_cases h5 : bReceiver data < 2 ^ 160 ∧ bHint data < 2 ^ 160
-  swap
+  obtain h5 | h5 := em' (bReceiver data < 2 ^ 160 ∧ bHint data < 2 ^ 160)
   · burn_simp
   simp only [h1, h2, h3, h4, h5, ne_eq, not_true_eq_false, ite_false, not_false_eq_true,
     and_self]
   unfold burnTail
   by_cases h7 : resolve st a ↑(bHint data) = 0
   · burn_simp
-  by_cases h8 : st.maps "_assetIdOf" (resolve st a ↑(bHint data)) = a
-  swap
-  · have h8' : ¬ a = st.maps "_assetIdOf" (resolve st a ↑(bHint data)) := fun h => h8 h.symm
+  obtain h8 | h8 := ne_or_eq (st.maps "_assetIdOf" (resolve st a ↑(bHint data))) a
+  · have h8' := Ne.symm h8
     burn_simp
   by_cases h9 : bAmount data = 0
   · burn_simp
@@ -151,8 +140,7 @@ theorem xcall_bridgeBurn (M : Machine W) (e : Env) (c l2v a oc : Word) (data : B
   have h11' : ¬ a = st.scalars "_baseTokenAssetId" := fun h => h11 h.symm
   rcases hk : M.hook w "_handleBridgeToChain" [c, a, bAmount data] with err | ⟨w1, r1⟩
   · burn_simp
-  by_cases h12 : e.value = 0
-  swap
+  obtain h12 | h12 := ne_or_eq e.value 0
   · burn_simp
   rcases hc1 : M.call w1 e.self (resolve st a ↑(bHint data)) "bridgeBurn" [oc, bAmount data]
     with err | ⟨w2, r2, logs1⟩
@@ -325,8 +313,7 @@ theorem machine_hook_metadata_ok {T t : Word} {ch : CHooks Acct} {w w' : World A
   · subst ht
     rcases hb : ch.metadata w.token o with e | b
     · simp [machine, hb] at h
-    · simp only [machine, hb] at h
-      simp at h
+    · simp [machine, hb] at h
       obtain ⟨rfl, rfl⟩ := h
       exact ⟨rfl, b, rfl, rfl, rfl⟩
   · simp [machine, ht] at h
@@ -377,9 +364,7 @@ theorem fromBytes_lt_pow (l : Bytes) : fromBytes l < 256 ^ l.length := by
     nlinarith
 
 theorem fromBytes_lt {l : Bytes} (h : l.length = 32) : fromBytes l < 2 ^ 256 := by
-  have := fromBytes_lt_pow l
-  rw [h] at this
-  simpa using this
+  simpa [h] using fromBytes_lt_pow l
 
 theorem encodeBurnData_eq (b : BurnData) :
     encodeBurnData b = word32 b.amount.val ++ word32 b.receiver.val ++ word32 b.tokenHint.val := by

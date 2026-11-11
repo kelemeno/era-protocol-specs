@@ -32,10 +32,7 @@ theorem BurnDataLengthCheckedFourth : Properties.BurnDataLengthCheckedFourth := 
 theorem resolve_hint (st : Storage) (a : Word) (b : BurnData) :
     resolve st a (addrWord b.tokenHint) = hintedToken st a b := by
   unfold resolve hintedToken
-  by_cases h : b.tokenHint = 0
-  · simp [h, addrWord_zero]
-  · have : addrWord b.tokenHint ≠ 0 := fun h' => h (addrWord_eq_zero.mp h')
-    simp [h, this]
+  by_cases h : b.tokenHint = 0 <;> simp [h, addrWord_zero, addrWord_eq_zero]
 
 /-- `bridgeBurn` with well-formed burn data, past the modifiers: its tail. -/
 theorem xcall_bridgeBurn_decoded {W : Type} (M : Machine W) (e : Env) (c a oc : Word)
