@@ -83,6 +83,20 @@ supplying that correspondence.
   `contracts/atomic-interop/L2InteropCommitmentTree.sol`,
   `contracts/atomic-interop/AtomicFlowManager.sol`, and
   `contracts/atomic-interop/libraries/AtomicInteropProof.sol`.
+* `EraSpec/Contracts/NativeTokenVaultBase/*/RegistryAndEscrow.lean` and
+  `EraSpec/Contracts/AssetRouterBase/*/HandlerRegistration.lean` were authored in
+  this repository's earlier flat layout and ported to the per-contract layout
+  unchanged. Their quotations match `contracts/bridge/ntv/NativeTokenVaultBase.sol`,
+  `contracts/bridge/ntv/L1NativeTokenVault.sol`, and
+  `contracts/bridge/asset-router/AssetRouterBase.sol` at the pin above.
+* `EraSpec/Contracts/ProxyUpgradeRowLib/` is **outside** that pin. It models
+  `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on
+  branch `feat/upgrade-simplification` of the zksync-era `contracts` repository
+  (formerly `claude/musing-clarke-8b5f2c`). The branch moves. The model's header and
+  commit cite no source commit. The library was found unchanged at
+  `612a71cccb65d6db97674997b21427a50bec6206` (last library change `ae0698588`), so
+  treat the model as a snapshot at that commit. The library has changed since; see
+  that contract's README.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.

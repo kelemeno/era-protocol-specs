@@ -89,6 +89,8 @@ interpreter is another execution profile. See
 | `REP-INIT` | Vault registration allocates, initializes with the vault caller, checks the address, installs both registry maps, then calls the tracker. | Match the actual allocation/caller/control flow, resolved origin, independently stored fields, and omitted origin/index/count writes. |
 | `REP-VAULT` | Preparation selects the tracked token, checks the reverse map, accounts before burn, and reads origin/metadata after burn. | Match the real branch, exact calls and ordering, concrete payload bytes, state frame, and propagated failures. |
 | `REP-PUBLISH` | Pending entries pair the returned mint tuple with outer destination/asset context. | Match router/center publication, authentication, and replay identity; these are not fields of the returned tuple. |
+| `MODEL-ESCROW` | `Contracts.NativeTokenVault` treats `escrowed` (the token's balance of the vault) as an exact counter. A fee-on-transfer or rebasing token is outside the model. The aggregate `bridgedOut` ledger has no chain index. | Relate `escrowed` to the token's actual balance; `_depositFunds` rejecting fee tokens is part of that. `PerChainIsolationFails` states the aggregate-only boundary. |
+| `MODEL-ROWS` | `Contracts.ProxyUpgrade` models a revert as the absence of a step. Admin ownership is fixed configuration. The live implementation is one mapping, read as if each row names the admin that actually administers its proxy. `callInitializeUpgrade` and events have no effect. The source is a snapshot of a moving branch outside the source pin (PROVENANCE.md). | Re-check the snapshot against the current library before use. Connect the mapping to `getProxyImplementation` reads and the revert to the actual call frames. |
 
 `EraSpec/Refinement.lean` retains the existing O1–O7 obligation names. Their
 primary representation owners are: O1 tree storage/updates, O2 insertion guards,
@@ -104,6 +106,7 @@ discharge it.
 | `DEP-FRAME` | A dependency's calls/callbacks can change only the modeled state, or all further effects are represented and preserved. | Hook types restrict writes to `Accounting`; that restriction is not a proof about real callbacks or reentrancy. The token getter is a local field read. |
 | `DEP-RESULTS` | The particular dependency results required for enabledness are available. Concrete tokens, deployers, metadata, encoders, and trackers meet their declared interfaces. | Success equations are explicit premises of enabledness results. Safety conditional on successful preparation does not assume every hook succeeds or has correct economic accounting. |
 | `CRYPTO-BINDING` | Encodings are unambiguous and the hashes used by the claim bind the relevant inputs/domains. | Conditional mathematical results exist. Concrete cryptographic interpretation remains separate. |
+| `CRYPTO-ID` | `IdAssumptions` in `Contracts.NativeTokenVault` and `Contracts.AssetRouter` is a theorem premise. It asserts that the asset-id encoding is injective on all 256-bit (chain, token) pairs or (chain, sender, data) triples, and never zero. | **Unsatisfiable as stated.** No function from pairs of 256-bit words to 256-bit words is injective, so every property taking this premise holds vacuously. That is twelve vault properties, including both countermodels, and the router's `NoHijack` and `NtvTouchesOnlyItsOwnIds`. Restating them with a bounded or reduction-style premise is open. |
 | `PROTO-EVIDENCE` | Evidence authenticates the correct source/destination, commitment, settlement layer, history, deadline, and finality. A source chain supplies the funded preparation being authenticated. | Abstract interop results are conditional. An authenticated commitment alone does not establish honest execution on an arbitrary admitted chain. |
 | `OPS-CONFIG` | Actual initialization, upgrades, registry changes, pause/admin actions, and dependency selection stay within the verified transition system or preserve its invariants. | Most such transitions are outside the current trace. Fixed config is a model boundary, not a theorem about arbitrary upgrades. |
 | `OPS-PROGRESS` | Required gas/resources, usable dependencies, submissions, inclusion, and chain progress are available. | Needed for deliverability/eventual completion, not silently assumed by a safety proof conditional on success. |
@@ -114,7 +117,8 @@ Some historical Merkle results assume *global* pair-injectivity of a
 by itself a concrete security guarantee. Prefer the existing restricted-pair
 results where applicable, and ultimately state a collision-finding reduction or
 an explicitly bounded no-collision premise for the values the proof compares.
-Do not relabel global injectivity as a proved property of Keccak.
+Do not relabel global injectivity as a proved property of Keccak. The ported
+vault and router models carry the same kind of premise: see `CRYPTO-ID`.
 
 ## Current bridge claims and their dependencies
 
@@ -132,6 +136,9 @@ the axiom checker does not infer or validate this mapping.
 | `Codegen.BridgedTokenSlice.mint_refines` / `burn_refines` / `transfer_refines` | `WellFormed` model state, `Rel` between interpreter storage and it, ABI-valid arguments. Both directions: model rejection iff revert; acceptance gives a related state, exact logs and return value. | `GEN-EMIT` for the generated contract; then `BUILD-*`, `VM-*`. Says nothing about the original contract (`REP-TOKEN` stays open; see `solidity/README.md` for test evidence). |
 | `Codegen.BridgedTokenSlice.reachable_ledger` | A nonzero-vault deployment; any sequence of successful ABI-valid calls. Transferred from the model by `safety_transfer`. | As above. |
 | `initialized_preparation_trace` | Successful registration, a local token-operation funding phase, and the closed preparation/spending trace. Derives both invariants and supply-plus-pending conservation. | All participating representation obligations, `MODEL-TRACE`, `REP-PUBLISH`, and `OPS-CONFIG`. Funding authorization/backing for the initial mint phase remains separate. |
+| `Contracts.NativeTokenVault.Solvency` / `RunValid` / `NoInflation` | Any run of the registry-and-escrow model from fresh storage, with `IdAssumptions` and a nonzero chain id. | Vacuous as stated (`CRYPTO-ID`). Otherwise `MODEL-ESCROW`, registry and ledger representation, and `OPS-CONFIG`. Separate from the `NativeTokenVaultBase` preparation model. |
+| `Contracts.AssetRouter.NoHijack` | One modelled `_setAssetHandlerAddressThisChain` call by a non-vault caller, with `IdAssumptions`. | Vacuous as stated (`CRYPTO-ID`). `OnlyTrackerOrNtvWrites`, `FreshIdNeedsNtv`, and `RunValid` do not use the premise. Router storage and call correspondence are open. |
+| `Contracts.ProxyUpgrade.AppliedGatePasses` | `validateRows` holds, no row is left to a foreign admin, and there is an explicit frame premise that nothing moved the rows' proxies between apply and check. | `MODEL-ROWS`. The frame premise is `OPS-CONFIG`: any `ProxyAdmin` owner can break it. The model describes a snapshot of a moving branch. |
 
 Read the authoritative statements in
 [token properties](EraSpec/Contracts/BridgedStandardERC20/Properties/Model.lean),
