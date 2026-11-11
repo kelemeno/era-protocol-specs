@@ -120,6 +120,8 @@ import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistrationRuns
 import EraSpec.Contracts.AssetRouterBase.Proofs.VaultMintGate
 import EraSpec.Contracts.BridgedStandardERC20.Proofs.LegacyFallback
 import EraSpec.Contracts.BridgedStandardERC20.Proofs.Reinitialization
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.ModelStrong
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.ReinitializationStrong
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocal
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocalExecutor
 import EraSpec.Contracts.ChainTypeManager.Proofs.DiamondStorage
