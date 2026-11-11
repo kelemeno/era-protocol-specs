@@ -310,4 +310,119 @@ def Properties.RunRootsExclusiveOrBreakSatisfiable : Prop :=
       ∧ NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (R 2) 2) a ⟨0, 0, 0⟩ 3
           (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (R 2)) 3) 2
 
+
+/-! ## Every case of the break fires, and is attributed alone
+
+Before this section only `paddingHit` had an instance on which it fires
+(`Properties.PaddingCountermodelLocatesPaddingHit`).  The properties below show each
+of the other three cases is reachable — not dead code — and is the ONLY case the
+located break can be: on the single-leaf `setup` tree at height 1 (valid, within
+capacity), an inclusion proof for a value the tree does not hold is accepted, and
+`TreeRootBreakExactly` names its case.  Each is stated for every node hash, leaf
+hash and padding constant meeting a hypothesis that pins the collision to the
+instance (the sentinel leaf `⟨0,0,0⟩`, the tree's top pair, or the root), and
+`Properties.ForgedInclusionPremisesSatisfiable` exhibits all of those hypotheses on
+the toy hash pair. -/
+
+/-- **THE TWO VIEWS OF THE BREAK AGREE.**  `TreeRootBreak` holds iff the premise of
+one of its four constructors does. -/
+def Properties.TreeRootBreakIffSomeCase : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (height : ℕ) (sibs : ℕ → UInt256)
+    (k idx : ℕ) (ℓ : Leaf),
+    TreeRootBreak h z0 hl T height sibs k idx ℓ
+      ↔ ∃ c, TreeRootBreakAt h z0 hl T height sibs k idx ℓ c
+
+/-- **`pathCollision` FIRES, ALONE.**  If the node hash collides between the forged
+pair `(hl ℓ, s)` and the `setup` tree's top pair `(hl ⟨0,0,0⟩, z0)` — a genuine
+collision, since the leaf hashes differ — then the length-1 path with sibling `s`,
+presenting `ℓ` at index 0, is accepted against `setup`'s root at height 1 as an
+inclusion proof for `ℓ.value`, which the tree does not hold; and the located break
+is exactly `pathCollision`. -/
+def Properties.PathCollisionForgesInclusion : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf) (s : UInt256),
+    ℓ.value ≠ 0 → hl ℓ ≠ hl ⟨0, 0, 0⟩ → h (hl ℓ) s = h (hl ⟨0, 0, 0⟩) z0 →
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+        ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0 (fun _ => s) 1
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ TreeRootBreakExactly h z0 hl setup 1 (fun _ => s) 1 0 ℓ .pathCollision
+
+/-- **`leafCollision` FIRES, ALONE.**  If the leaf hash collides between a leaf `ℓ`
+carrying a nonzero value and the sentinel `⟨0,0,0⟩` stored at index 0, then the
+HONEST path for index 0 at the right height, presenting `ℓ`, is accepted as an
+inclusion proof for `ℓ.value`, which the tree does not hold; and the located break is
+exactly `leafCollision`. -/
+def Properties.LeafCollisionForgesInclusion : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf),
+    ℓ.value ≠ 0 → hl ℓ = hl ⟨0, 0, 0⟩ →
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+        ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0
+            (honestSibs h z0 (leafHashes hl setup) 0) 1
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ TreeRootBreakExactly h z0 hl setup 1 (honestSibs h z0 (leafHashes hl setup) 0) 1 0 ℓ
+            .leafCollision
+
+/-- **`wrongLength` FIRES, ALONE.**  If a leaf `ℓ` carrying a nonzero value hashes to
+`setup`'s root at height 1 (and not to the sentinel's leaf hash), then the EMPTY path
+at index 0, presenting `ℓ`, is accepted as an inclusion proof for `ℓ.value` — the
+`ZeroLengthPathAcceptsRoot` shape — which the tree does not hold; and the located
+break is exactly `wrongLength`. -/
+def Properties.WrongLengthForgesInclusion : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf) (sibs : ℕ → UInt256),
+    ℓ.value ≠ 0 → hl ℓ ≠ hl ⟨0, 0, 0⟩ → hl ℓ = root h z0 hl setup 1 →
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+        ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0 sibs 0
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ TreeRootBreakExactly h z0 hl setup 1 sibs 0 0 ℓ .wrongLength
+
+/-- **`paddingHit` FIRES, ALONE, ON AN INCLUSION PROOF.**  If a leaf `ℓ` carrying a
+nonzero value hashes to the padding constant, the honest path for the EMPTY slot 1
+of `setup` at height 1, presenting `ℓ`, is accepted as an inclusion proof for
+`ℓ.value`, which the tree does not hold; and the located break is exactly
+`paddingHit`.  (The padding bug forges inclusion as well as absence.) -/
+def Properties.PaddingHitForgesInclusion : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf),
+    ℓ.value ≠ 0 → hl ℓ = z0 →
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+        ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 1
+            (honestSibs h z0 (leafHashes hl setup) 1) 1
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ TreeRootBreakExactly h z0 hl setup 1 (honestSibs h z0 (leafHashes hl setup) 1) 1 1 ℓ
+            .paddingHit
+
+/-- **THE PADDING COUNTERMODEL'S BREAK IS EXACTLY `paddingHit`.**  Sharpens
+`Properties.PaddingCountermodelLocatesPaddingHit`: on the forged absence proof at slot 3
+of `threeLeafTree a b`, no case other than `paddingHit` holds. -/
+def Properties.PaddingCountermodelExactlyPaddingHit : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256),
+    TreeRootBreakExactly h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
+      (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .paddingHit
+
+/-- **THE COLLISION HYPOTHESES ABOVE ARE SATISFIABLE.**  With the toy node hash
+(addition), the toy leaf hash (`value - nextValue`) and padding constant `1`:
+`(hl ⟨1,0,0⟩, 0)` collides with the top pair `(hl ⟨0,0,0⟩, 1)` (`pathCollision`);
+`⟨1,0,1⟩` collides with the sentinel (`leafCollision`); `⟨1,0,0⟩` hashes to `setup`'s
+root at height 1 (`wrongLength`) and to the padding constant (`paddingHit`). -/
+def Properties.ForgedInclusionPremisesSatisfiable : Prop :=
+  ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+      ∧ toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) 0 = toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1)
+    ∧ ((⟨1, 0, 1⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 1⟩ = toyLeafHash ⟨0, 0, 0⟩)
+    ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+      ∧ toyLeafHash ⟨1, 0, 0⟩ = root toyNodeHash 1 toyLeafHash setup 1)
+    ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ = 1)
+
+/-- **EVERY CASE OF THE BREAK FIRES, IN ONE HASH CONFIGURATION.**  With the toy hash
+pair and padding constant `1`, for each of the four cases `c` there is a proof
+(siblings, length, index, presented leaf) that `verifyInclusion` accepts against the
+valid `setup` tree's root at height 1 for a value that tree does not hold, and whose
+located break is exactly `c`.  So no case of `TreeRootBreak` is dead code, and the
+case analysis attributes each forgery to the right one. -/
+def Properties.TreeRootBreakEveryCaseFires : Prop :=
+  ∀ c : TreeRootBreakCase, ∃ (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf),
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+      ∧ InclusionAccepted toyNodeHash toyLeafHash (root toyNodeHash 1 toyLeafHash setup 1)
+          ℓ.value ℓ idx sibs k
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ ¬ (k = 1 ∧ idx < setup.leafCount ∧ setup.leaf idx = ℓ)
+      ∧ TreeRootBreakExactly toyNodeHash 1 toyLeafHash setup 1 sibs k idx ℓ c
+
 end Contracts.InteropCommitmentTree

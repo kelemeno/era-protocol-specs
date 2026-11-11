@@ -445,6 +445,32 @@ def GateBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (F : Flow)
     (ev : GateEvidence) : Prop :=
   ∃ leg ∈ F.legs, InclusionBreak h z0 hl S leg.chain (ev leg).1 (ev leg).2
 
+/-! ## Pinning the gate break to a leg
+
+`GateBreak` says SOME leg of the flow carries a break on its submitted proof.  That
+existential can be met by a leg that is perfectly finalizable and whose break has
+nothing to do with the stranded leg the dichotomy is about
+(`Contracts.Atomicity.Properties.PinnedGateBreakFires` exhibits this).  The pinned
+form names the leg: the FIRST leg of the flow, in list order, that is not
+finalizable.  That leg is determined by the world and the flow (the system, the
+access, the hashes, the leg list) — not by the evidence and not by any choice — and
+`Contracts.Atomicity.Properties.FirstStrandedLegUnique` shows there is at most one. -/
+
+/-- **THE FIRST STRANDED LEG.**  `leg` is the first leg of `F`, in list order, that is
+not finalizable by presentable proofs: every leg before it is, and it is not. -/
+def FirstStrandedLeg (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (A : Access) (F : Flow) (leg : FlowLeg) : Prop :=
+  ∃ pre post : List FlowLeg, F.legs = pre ++ leg :: post
+    ∧ (∀ l ∈ pre, LegFinalizableBy h z0 hl cv S A F l)
+    ∧ ¬ LegFinalizableBy h z0 hl cv S A F leg
+
+/-- **A GATE BREAK PINNED TO A LEG.**  The inclusion proof `ev` submitted for the
+first stranded leg of `F`, at the batch submitted for it, carries a located break. -/
+def PinnedGateBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (A : Access) (F : Flow) (ev : GateEvidence) : Prop :=
+  ∃ leg, FirstStrandedLeg h z0 hl cv S A F leg
+    ∧ InclusionBreak h z0 hl S leg.chain (ev leg).1 (ev leg).2
+
 /-- The padding countermodel lifted to the multi-chain system: chain `0` holds the
 contract run `setup; insert a; insert b` (`threeLeafTree a b`, height 2, slot 3
 empty) from batch 0 on; every other chain stays at `setup`.  Batch numbers are

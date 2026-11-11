@@ -472,3 +472,251 @@ theorem RunRootsExclusiveOrBreakSatisfiable : Properties.RunRootsExclusiveOrBrea
   run_roots_exclusive_or_break_satisfiable
 
 end Contracts.InteropCommitmentTree
+
+/-! ## Every case of the break fires, and is attributed alone -/
+
+namespace Contracts.InteropCommitmentTree
+
+open IMTAbstract MerkleSpec MerkleSpec.Verifier
+
+theorem treeRootBreak_iff_some_case {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
+    {height : ℕ} {sibs : ℕ → UInt256} {k idx : ℕ} {ℓ : Leaf} :
+    TreeRootBreak h z0 hl T height sibs k idx ℓ
+      ↔ ∃ c, TreeRootBreakAt h z0 hl T height sibs k idx ℓ c := by
+  constructor
+  · intro hb
+    cases hb with
+    | wrongLength hh => exact ⟨.wrongLength, hh⟩
+    | pathCollision hk hc => exact ⟨.pathCollision, hk, hc⟩
+    | leafCollision hi hne he => exact ⟨.leafCollision, hi, hne, he⟩
+    | paddingHit hle he => exact ⟨.paddingHit, hle, he⟩
+  · rintro ⟨c, hc⟩
+    cases c with
+    | wrongLength => exact TreeRootBreak.wrongLength hc
+    | pathCollision => exact TreeRootBreak.pathCollision hc.1 hc.2
+    | leafCollision => exact TreeRootBreak.leafCollision hc.1 hc.2.1 hc.2.2
+    | paddingHit => exact TreeRootBreak.paddingHit hc.1 hc.2
+
+/-- To show case `c` fires alone: it fires, and every other case does not. -/
+theorem treeRootBreakExactly_of {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
+    {height : ℕ} {sibs : ℕ → UInt256} {k idx : ℕ} {ℓ : Leaf} {c : TreeRootBreakCase}
+    (hc : TreeRootBreakAt h z0 hl T height sibs k idx ℓ c)
+    (hno : ∀ c', c' ≠ c → ¬ TreeRootBreakAt h z0 hl T height sibs k idx ℓ c') :
+    TreeRootBreakExactly h z0 hl T height sibs k idx ℓ c := by
+  intro c'
+  constructor
+  · intro hc'
+    by_contra hne
+    exact hno c' hne hc'
+  · rintro rfl
+    exact hc
+
+/-- At the right length no `wrongLength` break holds. -/
+theorem not_wrongLength_at_height {h : Hash} {z0 : UInt256} {hl : LeafHash} {T : Tree}
+    {height : ℕ} {sibs : ℕ → UInt256} {idx : ℕ} {ℓ : Leaf} :
+    ¬ TreeRootBreakAt h z0 hl T height sibs height idx ℓ .wrongLength :=
+  heightBreak_not_tautology.1 _ _ _ _ _ _ _
+
+lemma setup_leafHashes (hl : LeafHash) : leafHashes hl setup = [hl ⟨0, 0, 0⟩] := rfl
+
+lemma setup_root (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    root h z0 hl setup 1 = h (hl ⟨0, 0, 0⟩) z0 := rfl
+
+lemma setup_leaf_eq_value {i : ℕ} {ℓ : Leaf} (he : setup.leaf i = ℓ) : ℓ.value = 0 := by
+  rw [← he]; rfl
+
+lemma not_mem_keys_setup {v : UInt256} (hv : v ≠ 0) : v ∉ keys (toAbs setup) := by
+  rw [toAbs_setup]
+  intro hmem
+  obtain ⟨X, hX, hXv⟩ := Finset.mem_image.mp hmem
+  rw [Finset.mem_singleton] at hX
+  subst hX
+  exact hv (hXv : (0 : UInt256) = v).symm
+
+lemma setup_capacity : setup.leafCount ≤ 2 ^ 1 := by norm_num [setup]
+
+theorem path_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (s : UInt256) (hv : ℓ.value ≠ 0) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩)
+    (hc : h (hl ℓ) s = h (hl ⟨0, 0, 0⟩) z0) :
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+      ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0 (fun _ => s) 1
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ TreeRootBreakExactly h z0 hl setup 1 (fun _ => s) 1 0 ℓ .pathCollision := by
+  refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv, ?_⟩
+  · show h (hl ℓ) s = root h z0 hl setup 1
+    rw [setup_root]; exact hc
+  · refine treeRootBreakExactly_of ⟨rfl, 0, by norm_num, ?_, ?_⟩ ?_
+    · show (hl ℓ, s) ≠ (hl ⟨0, 0, 0⟩, z0)
+      intro hp; exact hne (congrArg Prod.fst hp)
+    · exact hc
+    · intro c' hc'
+      cases c' with
+      | wrongLength => exact not_wrongLength_at_height
+      | pathCollision => exact absurd rfl hc'
+      | leafCollision =>
+          rintro ⟨_, _, he⟩
+          exact hne he.symm
+      | paddingHit =>
+          rintro ⟨hle, _⟩
+          exact absurd hle (by norm_num [setup])
+
+theorem leaf_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (hv : ℓ.value ≠ 0) (he : hl ℓ = hl ⟨0, 0, 0⟩) :
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+      ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0
+          (honestSibs h z0 (leafHashes hl setup) 0) 1
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ TreeRootBreakExactly h z0 hl setup 1 (honestSibs h z0 (leafHashes hl setup) 0) 1 0 ℓ
+          .leafCollision := by
+  have hget : (leafHashes hl setup).getD 0 z0 = hl ℓ := by rw [setup_leafHashes, he]; rfl
+  refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv, ?_⟩
+  · have := honest_walk_root h z0 (leafHashes hl setup) 1 0 (by norm_num)
+    rw [hget] at this
+    exact this
+  · refine treeRootBreakExactly_of ⟨by norm_num [setup], fun hl0 => hv (setup_leaf_eq_value hl0),
+      he.symm⟩ ?_
+    intro c' hc'
+    cases c' with
+    | wrongLength => exact not_wrongLength_at_height
+    | pathCollision =>
+        rintro ⟨_, hpc⟩
+        apply honest_walk_no_collision h z0 (leafHashes hl setup) 1 0
+        rw [hget]; exact hpc
+    | leafCollision => exact absurd rfl hc'
+    | paddingHit =>
+        rintro ⟨hle, _⟩
+        exact absurd hle (by norm_num [setup])
+
+theorem wrong_length_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (sibs : ℕ → UInt256) (hv : ℓ.value ≠ 0) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩)
+    (hr : hl ℓ = root h z0 hl setup 1) :
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+      ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0 sibs 0
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ TreeRootBreakExactly h z0 hl setup 1 sibs 0 0 ℓ .wrongLength := by
+  refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, hr⟩, not_mem_keys_setup hv, ?_⟩
+  refine treeRootBreakExactly_of ?_ ?_
+  · show HeightBreak h z0 (leafHashes hl setup) sibs 0 1 0 (hl ℓ)
+    have := (zero_length_path_accepts_root h z0 (leafHashes hl setup) sibs 1 (by norm_num)).2
+    rw [hr]; exact this
+  · intro c' hc'
+    cases c' with
+    | wrongLength => exact absurd rfl hc'
+    | pathCollision =>
+        rintro ⟨hk, _⟩
+        exact absurd hk (by norm_num)
+    | leafCollision =>
+        rintro ⟨_, _, he⟩
+        exact hne he.symm
+    | paddingHit =>
+        rintro ⟨hle, _⟩
+        exact absurd hle (by norm_num [setup])
+
+theorem padding_hit_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (hv : ℓ.value ≠ 0) (hz : hl ℓ = z0) :
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+      ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 1
+          (honestSibs h z0 (leafHashes hl setup) 1) 1
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ TreeRootBreakExactly h z0 hl setup 1 (honestSibs h z0 (leafHashes hl setup) 1) 1 1 ℓ
+          .paddingHit := by
+  have hget : (leafHashes hl setup).getD 1 z0 = hl ℓ := by
+    rw [getD_default _ _ _ (by rw [leafHashes_length]; rfl), hz]
+  refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv, ?_⟩
+  · have := honest_walk_root h z0 (leafHashes hl setup) 1 1 (by norm_num)
+    rw [hget] at this
+    exact this
+  · refine treeRootBreakExactly_of ⟨le_refl _, hz⟩ ?_
+    intro c' hc'
+    cases c' with
+    | wrongLength => exact not_wrongLength_at_height
+    | pathCollision =>
+        rintro ⟨_, hpc⟩
+        apply honest_walk_no_collision h z0 (leafHashes hl setup) 1 1
+        rw [hget]; exact hpc
+    | leafCollision =>
+        rintro ⟨hlt, _⟩
+        exact absurd hlt (by norm_num [setup])
+    | paddingHit => exact absurd rfl hc'
+
+theorem padding_countermodel_exactly_padding_hit (h : Hash) (hl : LeafHash) (a b : UInt256) :
+    TreeRootBreakExactly h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
+      (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
+      .paddingHit := by
+  have hcount : (threeLeafTree a b).leafCount = 3 := rfl
+  have hget : (leafHashes hl (threeLeafTree a b)).getD 3 (hl ⟨0, 0, 0⟩) = hl ⟨0, 0, 0⟩ :=
+    getD_default _ _ _ (by rw [leafHashes_length, hcount])
+  refine treeRootBreakExactly_of ⟨by rw [hcount], rfl⟩ ?_
+  intro c' hc'
+  cases c' with
+  | wrongLength => exact not_wrongLength_at_height
+  | pathCollision =>
+      rintro ⟨_, hpc⟩
+      apply honest_walk_no_collision h _ (leafHashes hl (threeLeafTree a b)) 2 3
+      rw [hget]; exact hpc
+  | leafCollision =>
+      rintro ⟨hlt, _⟩
+      rw [hcount] at hlt
+      exact absurd hlt (lt_irrefl 3)
+  | paddingHit => exact absurd rfl hc'
+
+theorem forged_inclusion_premises_satisfiable :
+    ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+        ∧ toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) 0 = toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1)
+      ∧ ((⟨1, 0, 1⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 1⟩ = toyLeafHash ⟨0, 0, 0⟩)
+      ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+        ∧ toyLeafHash ⟨1, 0, 0⟩ = root toyNodeHash 1 toyLeafHash setup 1)
+      ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ = 1) := by
+  rw [setup_root]
+  simp only [toyLeafHash, toyNodeHash]
+  decide
+
+theorem tree_root_break_every_case_fires (c : TreeRootBreakCase) :
+    ∃ (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf),
+      Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+        ∧ InclusionAccepted toyNodeHash toyLeafHash (root toyNodeHash 1 toyLeafHash setup 1)
+            ℓ.value ℓ idx sibs k
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ ¬ (k = 1 ∧ idx < setup.leafCount ∧ setup.leaf idx = ℓ)
+        ∧ TreeRootBreakExactly toyNodeHash 1 toyLeafHash setup 1 sibs k idx ℓ c := by
+  obtain ⟨⟨hv1, hne1, hc1⟩, ⟨hv2, he2⟩, ⟨hv3, hne3, hr3⟩, ⟨hv4, hz4⟩⟩ :=
+    forged_inclusion_premises_satisfiable
+  have wrong : ∀ {i : ℕ} {ℓ : Leaf} {k : ℕ}, ℓ.value ≠ 0 →
+      ¬ (k = 1 ∧ i < setup.leafCount ∧ setup.leaf i = ℓ) :=
+    fun hv ⟨_, _, he⟩ => hv (setup_leaf_eq_value he)
+  cases c with
+  | wrongLength =>
+      obtain ⟨hV, hcap, hI, hk, hx⟩ :=
+        wrong_length_forges_inclusion toyNodeHash 1 toyLeafHash ⟨1, 0, 0⟩ (fun _ => 0) hv3 hne3 hr3
+      exact ⟨_, _, _, _, hV, hcap, hI, hk, wrong hv3, hx⟩
+  | pathCollision =>
+      obtain ⟨hV, hcap, hI, hk, hx⟩ :=
+        path_collision_forges_inclusion toyNodeHash 1 toyLeafHash ⟨1, 0, 0⟩ 0 hv1 hne1 hc1
+      exact ⟨_, _, _, _, hV, hcap, hI, hk, wrong hv1, hx⟩
+  | leafCollision =>
+      obtain ⟨hV, hcap, hI, hk, hx⟩ :=
+        leaf_collision_forges_inclusion toyNodeHash 1 toyLeafHash ⟨1, 0, 1⟩ hv2 he2
+      exact ⟨_, _, _, _, hV, hcap, hI, hk, wrong hv2, hx⟩
+  | paddingHit =>
+      obtain ⟨hV, hcap, hI, hk, hx⟩ :=
+        padding_hit_forges_inclusion toyNodeHash 1 toyLeafHash ⟨1, 0, 0⟩ hv4 hz4
+      exact ⟨_, _, _, _, hV, hcap, hI, hk, wrong hv4, hx⟩
+
+theorem TreeRootBreakIffSomeCase : Properties.TreeRootBreakIffSomeCase :=
+  @treeRootBreak_iff_some_case
+theorem PathCollisionForgesInclusion : Properties.PathCollisionForgesInclusion :=
+  path_collision_forges_inclusion
+theorem LeafCollisionForgesInclusion : Properties.LeafCollisionForgesInclusion :=
+  leaf_collision_forges_inclusion
+theorem WrongLengthForgesInclusion : Properties.WrongLengthForgesInclusion :=
+  wrong_length_forges_inclusion
+theorem PaddingHitForgesInclusion : Properties.PaddingHitForgesInclusion :=
+  padding_hit_forges_inclusion
+theorem PaddingCountermodelExactlyPaddingHit : Properties.PaddingCountermodelExactlyPaddingHit :=
+  padding_countermodel_exactly_padding_hit
+theorem ForgedInclusionPremisesSatisfiable : Properties.ForgedInclusionPremisesSatisfiable :=
+  forged_inclusion_premises_satisfiable
+theorem TreeRootBreakEveryCaseFires : Properties.TreeRootBreakEveryCaseFires :=
+  tree_root_break_every_case_fires
+
+end Contracts.InteropCommitmentTree

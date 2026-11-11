@@ -45,6 +45,15 @@ hold vacuously, including the two countermodels. Only `EmptyValid` and
 [assumption register](../../../ASSUMPTIONS.md). The model also treats the vault's
 token balance as an exact counter (`MODEL-ESCROW`).
 
+The non-vacuous replacements are the `…On` forms, which assume injectivity and
+non-zeroness only on an explicit pair set `S`. `LoggedRunSound` supplies `S` for an
+arbitrary run. It logs the run (`ReachLog`, with the same reachable states as
+`Reach`), takes `S := registeredPairs thisChain log` (the pairs the log's
+registrations hash, at most one per step), and concludes `Valid`, `Audited`,
+solvency and no-inflation at the end. `LoggedRunSoundSatisfiable` and
+`LogAssumptionWeakerThanGlobal` show that the premise holds on a nontrivial run,
+including for an encoding that collides off the log.
+
 ## Invariants and initialization
 
 The vault state separates `LedgerInvariant` from `RepresentationConsistent`.

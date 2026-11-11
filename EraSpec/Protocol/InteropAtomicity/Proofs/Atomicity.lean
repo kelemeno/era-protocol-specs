@@ -896,3 +896,237 @@ theorem WithoutDaOrBreakNotTautology : Properties.WithoutDaOrBreakNotTautology :
   without_da_or_break_not_tautology
 
 end Contracts.Atomicity
+
+/-! ## None or all, with the break pinned to a leg -/
+
+namespace Contracts.Atomicity
+
+open IMTAbstract MerkleSpec MerkleSpec.Verifier Contracts.InteropCommitmentTree
+
+/-- The list core of uniqueness: two "first failures" of the same predicate in the same
+list are the same element. -/
+theorem first_failure_unique {P : FlowLeg → Prop} :
+    ∀ (pre₁ pre₂ post₁ post₂ : List FlowLeg) (l₁ l₂ : FlowLeg),
+      pre₁ ++ l₁ :: post₁ = pre₂ ++ l₂ :: post₂ →
+      (∀ x ∈ pre₁, P x) → ¬ P l₁ → (∀ x ∈ pre₂, P x) → ¬ P l₂ → l₁ = l₂
+  | [], [], _, _, _, _, he, _, _, _, _ => by
+      simp only [List.nil_append, List.cons.injEq] at he
+      exact he.1
+  | [], y :: ys, _, _, l₁, _, he, _, n₁, h₂, _ => by
+      simp only [List.nil_append, List.cons_append, List.cons.injEq] at he
+      rw [he.1] at n₁
+      exact absurd (h₂ y (List.mem_cons_self _ _)) n₁
+  | x :: xs, [], _, _, _, l₂, he, h₁, _, _, n₂ => by
+      simp only [List.nil_append, List.cons_append, List.cons.injEq] at he
+      rw [← he.1] at n₂
+      exact absurd (h₁ x (List.mem_cons_self _ _)) n₂
+  | x :: xs, y :: ys, post₁, post₂, l₁, l₂, he, h₁, n₁, h₂, n₂ => by
+      simp only [List.cons_append, List.cons.injEq] at he
+      exact first_failure_unique xs ys post₁ post₂ l₁ l₂ he.2
+        (fun z hz => h₁ z (List.mem_cons_of_mem _ hz)) n₁
+        (fun z hz => h₂ z (List.mem_cons_of_mem _ hz)) n₂
+
+/-- The list core of existence: a list with a failure has a first one. -/
+theorem first_failure_exists {P : FlowLeg → Prop} :
+    ∀ L : List FlowLeg, (∃ l ∈ L, ¬ P l) →
+      ∃ (pre : List FlowLeg) (l : FlowLeg) (post : List FlowLeg),
+        L = pre ++ l :: post ∧ (∀ x ∈ pre, P x) ∧ ¬ P l
+  | [], ⟨_, hl, _⟩ => absurd hl (List.not_mem_nil _)
+  | a :: t, hex => by
+      by_cases ha : P a
+      · obtain ⟨l, hl, hnl⟩ := hex
+        have hlt : ∃ l ∈ t, ¬ P l := by
+          rcases List.mem_cons.mp hl with rfl | hlt
+          · exact absurd ha hnl
+          · exact ⟨l, hlt, hnl⟩
+        obtain ⟨pre, l', post, he, hpre, hn⟩ := first_failure_exists t hlt
+        refine ⟨a :: pre, l', post, by rw [he]; rfl, ?_, hn⟩
+        intro x hx
+        rcases List.mem_cons.mp hx with rfl | hx
+        · exact ha
+        · exact hpre x hx
+      · exact ⟨[], a, t, rfl, fun x hx => absurd hx (List.not_mem_nil _), ha⟩
+
+theorem first_stranded_leg_unique {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {S : System} {A : Access} {F : Flow} {l₁ l₂ : FlowLeg}
+    (h₁ : FirstStrandedLeg h z0 hl cv S A F l₁) (h₂ : FirstStrandedLeg h z0 hl cv S A F l₂) :
+    l₁ = l₂ := by
+  obtain ⟨pre₁, post₁, he₁, hp₁, hn₁⟩ := h₁
+  obtain ⟨pre₂, post₂, he₂, hp₂, hn₂⟩ := h₂
+  exact first_failure_unique pre₁ pre₂ post₁ post₂ l₁ l₂ (he₁.symm.trans he₂) hp₁ hn₁ hp₂ hn₂
+
+theorem firstStrandedLeg_mem {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {S : System} {A : Access} {F : Flow} {leg : FlowLeg}
+    (hf : FirstStrandedLeg h z0 hl cv S A F leg) : leg ∈ F.legs := by
+  obtain ⟨pre, post, he, _, _⟩ := hf
+  rw [he]
+  exact List.mem_append_right _ (List.mem_cons_self _ _)
+
+theorem first_stranded_leg_iff_not_finalizable {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {A : Access} {F : Flow} :
+    (∃ leg, FirstStrandedLeg h z0 hl cv S A F leg) ↔ ¬ FlowFinalizableBy h z0 hl cv S A F := by
+  constructor
+  · rintro ⟨leg, hf⟩ hall
+    have hm := firstStrandedLeg_mem hf
+    obtain ⟨_, _, _, _, hn⟩ := hf
+    exact hn (hall leg hm)
+  · intro hnot
+    have hex : ∃ l ∈ F.legs, ¬ LegFinalizableBy h z0 hl cv S A F l := by
+      by_contra hno
+      push_neg at hno
+      exact hnot hno
+    obtain ⟨pre, l, post, he, hpre, hn⟩ := first_failure_exists F.legs hex
+    exact ⟨l, pre, post, he, hpre, hn⟩
+
+theorem pinned_gate_break_implies_gate_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {A : Access} {F : Flow} {ev : GateEvidence}
+    (hp : PinnedGateBreak h z0 hl cv S A F ev) : GateBreak h z0 hl S F ev := by
+  obtain ⟨leg, hf, hb⟩ := hp
+  exact ⟨leg, firstStrandedLeg_mem hf, hb⟩
+
+theorem none_or_all_or_break_pinned {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} (hS : Wf S) {A : Access} (hDA : DataAvailable h z0 hl S A)
+    (F : Flow) (ev : GateEvidence) :
+    FlowFinalizableBy h z0 hl cv S A F
+      ∨ (∀ leg, ¬ ExecutedViaBy h z0 hl cv fh S F ev leg)
+      ∨ PinnedGateBreak h z0 hl cv S A F ev := by
+  by_cases hfin : FlowFinalizableBy h z0 hl cv S A F
+  · exact Or.inl hfin
+  by_cases hex : ∃ leg, ExecutedViaBy h z0 hl cv fh S F ev leg
+  · obtain ⟨leg, hleg⟩ := hex
+    obtain ⟨l, hfirst⟩ := first_stranded_leg_iff_not_finalizable.2 hfin
+    have hn : ¬ LegFinalizableBy h z0 hl cv S A F l := by
+      obtain ⟨_, _, _, _, hn⟩ := hfirst
+      exact hn
+    rcases executed_implies_all_finalizable_or_break hS hDA hleg l (firstStrandedLeg_mem hfirst)
+      with hf | hb
+    · exact absurd hf hn
+    · exact Or.inr (Or.inr ⟨l, hfirst, hb⟩)
+  · push_neg at hex
+    exact Or.inr (Or.inl hex)
+
+theorem none_or_all_or_break_pinned_not_tautology (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)
+      (ev : GateEvidence) (leg : FlowLeg),
+      Wf S ∧ DataAvailable h z0 hl S A ∧ ExecutedViaBy h z0 hl cv fh S F ev leg
+        ∧ ¬ PinnedGateBreak h z0 hl cv S A F ev := by
+  obtain ⟨cv, fh, S, A, F, ev, leg, _, _, hS, hDA, hex, hng, _⟩ :=
+    executed_or_break_satisfiable h z0 hl
+  exact ⟨cv, fh, S, A, F, ev, leg, hS, hDA, hex,
+    fun hp => hng (pinned_gate_break_implies_gate_break hp)⟩
+
+/-- Chain `1`'s tree in `mixedSystem 1` is `setup` at height 0, whose root is the
+sentinel's leaf hash. -/
+lemma setup_root_zero (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    root h z0 hl setup 0 = hl ⟨0, 0, 0⟩ := rfl
+
+theorem pinned_gate_break_fires (h : Hash) (z0 : UInt256) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)
+      (ev : GateEvidence) (legA legB : FlowLeg),
+      Wf S ∧ DataAvailable h z0 toyLeafHash S A
+        ∧ ExecutedViaBy h z0 toyLeafHash cv fh S F ev legA
+        ∧ ¬ FlowFinalizableBy h z0 toyLeafHash cv S A F
+        ∧ FirstStrandedLeg h z0 toyLeafHash cv S A F legB
+        ∧ InclusionBreak h z0 toyLeafHash S legB.chain (ev legB).1 (ev legB).2
+        ∧ legA ∈ F.legs ∧ legA ≠ legB
+        ∧ LegFinalizableBy h z0 toyLeafHash cv S A F legA
+        ∧ InclusionBreak h z0 toyLeafHash S legA.chain (ev legA).1 (ev legA).2 := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have h10 : (1 : Chain) ≠ 0 := by decide
+  -- The instance.
+  let hl : LeafHash := toyLeafHash
+  let cv : CommitValue := fun _ b => b
+  let S : System := mixedSystem 1
+  let F : Flow := mixedFlow 0 1 2
+  let A : Access := fun c n p => ∃ i, i < (S.tree c n).leafCount ∧ p = honestProof h z0 hl S c n i
+  let legA : FlowLeg := ⟨0, 1⟩
+  let legB : FlowLeg := ⟨1, 2⟩
+  let TA : Tree := insert setup 1 0
+  let pA : ImtProof := ⟨⟨1, 5, 0⟩, 1, honestSibs h z0 (leafHashes hl TA) 1, 1⟩
+  let pB : ImtProof := ⟨⟨2, 0, 2⟩, 0, fun _ => 0, 0⟩
+  let ev : GateEvidence := fun l => if l = legA then (0, pA) else (0, pB)
+  have hAB : legA ≠ legB := by
+    show (⟨0, 1⟩ : FlowLeg) ≠ ⟨1, 2⟩
+    decide
+  have evA : ev legA = (0, pA) := if_pos rfl
+  have evB : ev legB = (0, pB) := if_neg (fun he => hAB he.symm)
+  have hS : Wf S := mixedSystem_wf h1
+  have hDA : DataAvailable h z0 hl S A := fun c n i hi => ⟨i, hi, rfl⟩
+  have hmemA : legA ∈ F.legs := List.mem_cons_self _ _
+  have hmemB : legB ∈ F.legs := List.mem_cons_of_mem _ (List.mem_singleton_self _)
+  -- Leg A: the forged proof is accepted (a leaf-hash collision with the stored leaf 1).
+  have hcountA : TA.leafCount = 2 := rfl
+  have hleafA : TA.leaf 1 = ⟨1, 0, 0⟩ := rfl
+  have accA : Accepts h z0 hl S 0 0 1 pA := by
+    have hI := inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := TA) (height := 1)
+      (by rw [hcountA]; norm_num) (i := 1) (by rw [hcountA]; norm_num)
+    show InclusionAccepted h hl (root h z0 hl ((mixedSystem 1).tree 0 0)
+      ((mixedSystem 1).height 0 0)) 1 ⟨1, 5, 0⟩ 1 (honestSibs h z0 (leafHashes hl TA) 1) 1
+    rw [mixedSystem_tree_zero, mixedSystem_height_zero]
+    refine ⟨rfl, hI.path.inBounds, ?_⟩
+    have hrec := hI.path.recompute
+    rw [hleafA] at hrec
+    exact hrec
+  have brkA : InclusionBreak h z0 hl S legA.chain (ev legA).1 (ev legA).2 := by
+    rw [evA]
+    show TreeRootBreak h z0 hl ((mixedSystem 1).tree 0 0) ((mixedSystem 1).height 0 0)
+      (honestSibs h z0 (leafHashes hl TA) 1) 1 1 ⟨1, 5, 0⟩
+    rw [mixedSystem_tree_zero, mixedSystem_height_zero]
+    exact TreeRootBreak.leafCollision (by rw [hcountA]; norm_num) (by rw [hleafA]; decide)
+      (by rw [hleafA]; rfl)
+  -- Leg B: never committed; the forged empty-path proof is accepted (a leaf-hash
+  -- collision with chain 1's sentinel).
+  have accB : Accepts h z0 hl S 1 0 2 pB := by
+    show InclusionAccepted h hl (root h z0 hl ((mixedSystem 1).tree 1 0)
+      ((mixedSystem 1).height 1 0)) 2 ⟨2, 0, 2⟩ 0 (fun _ => 0) 0
+    rw [mixedSystem_tree_other h10, mixedSystem_height_other h10, setup_root_zero]
+    refine ⟨rfl, by norm_num, ?_⟩
+    show toyLeafHash ⟨2, 0, 2⟩ = toyLeafHash ⟨0, 0, 0⟩
+    decide
+  have brkB : InclusionBreak h z0 hl S legB.chain (ev legB).1 (ev legB).2 := by
+    rw [evB]
+    show TreeRootBreak h z0 hl ((mixedSystem 1).tree 1 0) ((mixedSystem 1).height 1 0)
+      (fun _ => 0) 0 0 ⟨2, 0, 2⟩
+    rw [mixedSystem_tree_other h10, mixedSystem_height_other h10]
+    exact TreeRootBreak.leafCollision (by norm_num [setup]) (by decide) (by decide)
+  -- The gate passes on `ev`.
+  have hex : ExecutedViaBy h z0 hl cv (honestFlowHash F) S F ev legA := by
+    refine ⟨hmemA, (honest_flowHash_no_clash F).1, ?_⟩
+    intro l hl'
+    rcases List.mem_cons.mp hl' with rfl | hl'
+    · rw [evA]; exact ⟨le_refl _, accA⟩
+    · obtain rfl := List.mem_singleton.mp hl'
+      rw [evB]; exact ⟨le_refl _, accB⟩
+  -- Finalizability: A is, B is not.
+  have finA : LegFinalizableBy h z0 hl cv S A F legA := by
+    refine member_is_finalizable hS hDA (n := 0) (le_refl _) ?_
+    show (1 : UInt256) ∈ keys (toAbs ((mixedSystem 1).tree 0 0))
+    rw [mixedSystem_tree_zero]
+    exact mem_insertSetup h1
+  have nfinB : ¬ LegFinalizableBy h z0 hl cv S A F legB := by
+    rintro ⟨n, p, _, ⟨i, _, rfl⟩, hacc⟩
+    have hv := hacc.valueMatch
+    change (((mixedSystem 1).tree 1 n).leaf i).value = 2 at hv
+    rw [mixedSystem_tree_other h10] at hv
+    change (0 : UInt256) = 2 at hv
+    exact absurd hv (by decide)
+  refine ⟨cv, honestFlowHash F, S, A, F, ev, legA, legB, hS, hDA, hex,
+    fun hall => nfinB (hall legB hmemB), ⟨[legA], [], rfl, ?_, nfinB⟩, brkB, hmemA, hAB, finA,
+    brkA⟩
+  intro l hl'
+  obtain rfl := List.mem_singleton.mp hl'
+  exact finA
+
+theorem FirstStrandedLegUnique : Properties.FirstStrandedLegUnique :=
+  fun _ _ _ _ _ _ _ _ _ h₁ h₂ => first_stranded_leg_unique h₁ h₂
+theorem FirstStrandedLegIffNotFinalizable : Properties.FirstStrandedLegIffNotFinalizable :=
+  fun _ _ _ _ _ _ _ => first_stranded_leg_iff_not_finalizable
+theorem PinnedGateBreakImpliesGateBreak : Properties.PinnedGateBreakImpliesGateBreak :=
+  fun _ _ _ _ _ _ _ _ hp => pinned_gate_break_implies_gate_break hp
+theorem NoneOrAllOrBreakPinned : Properties.NoneOrAllOrBreakPinned :=
+  fun _ _ _ _ _ _ hS _ hDA F ev => none_or_all_or_break_pinned hS hDA F ev
+theorem NoneOrAllOrBreakPinnedNotTautology : Properties.NoneOrAllOrBreakPinnedNotTautology :=
+  none_or_all_or_break_pinned_not_tautology
+theorem PinnedGateBreakFires : Properties.PinnedGateBreakFires := pinned_gate_break_fires
+
+end Contracts.Atomicity
