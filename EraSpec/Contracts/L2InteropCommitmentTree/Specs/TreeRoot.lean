@@ -37,6 +37,14 @@ but does not state as code:
   later era-contracts revisions pad with a dedicated `IMT_EMPTY_LEAF_HASH`.
   `threeLeafTree` below is the concrete run on which the properties file exhibits
   the resulting forged absence proof.
+
+**No hash meets the bundle.**  `nodeInj` asks a map `UInt256 → UInt256 → UInt256` to be
+injective on all pairs, and `leafInj` asks a map from `Leaf` (infinite: `nextIndex : ℕ`)
+into `UInt256` to be injective; counting rules out both
+(`Properties.HashAssumptionsUnsatisfiable`).  So every result stated under
+`HashAssumptions` is vacuous.  `TreeRootBreak` below (the located break, no hash premise)
+and `TreeRootStrongLogSafe` (`Specs/TreeRootStrong.lean`: each field restricted to the
+values one verification touches, a premise a hash can meet) replace it.
 -/
 
 namespace Contracts.InteropCommitmentTree
@@ -89,11 +97,16 @@ structure NonInclusionAccepted (h : Hash) (hl : LeafHash) (R v : UInt256) (ℓ :
 /-! ## The cryptographic idealizations -/
 
 /-- Every hash assumption the soundness argument needs, as one bundle.  Each is a
-statement about `keccak256`; none is proved anywhere in this package. -/
+statement about `keccak256`; none is proved anywhere in this package.  **Unsatisfiable**:
+no `h`, `z0`, `hl` meets it (`Properties.HashAssumptionsUnsatisfiable`), so a result
+premised on it is vacuous.  `TreeRootStrongLogSafe` keeps each field on the values one
+verification touches. -/
 structure HashAssumptions (h : Hash) (z0 : UInt256) (hl : LeafHash) : Prop where
-  /-- Node-hash pair-injectivity (collision resistance on 64-byte inputs). -/
+  /-- Node-hash pair-injectivity on ALL pairs.  Not collision resistance: it is false for
+  every `h` by counting (`not_nodeInj`). -/
   nodeInj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d
-  /-- Leaf-hash injectivity (collision resistance on the 96-byte encoding). -/
+  /-- Leaf-hash injectivity on ALL leaves.  Not collision resistance: `Leaf` is infinite
+  and `UInt256` is not, so it is false for every `hl`. -/
   leafInj : Function.Injective hl
   /-- A leaf hash is never a node hash — the `hashLeaf` 64-byte-preimage comment. -/
   leafNotNode : ∀ (ℓ : Leaf) (a b : UInt256), hl ℓ ≠ h a b
