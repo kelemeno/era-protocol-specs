@@ -14,6 +14,7 @@ only import a shared specification when the topic needs no additional definition
 | Reaches | [Specs/Reaches.lean](Specs/Reaches.lean) | [Properties/Reaches.lean](Properties/Reaches.lean) | [Proofs/Reaches.lean](Proofs/Reaches.lean) |
 | HintSearch | [Specs/HintSearch.lean](Specs/HintSearch.lean) | [Properties/HintSearch.lean](Properties/HintSearch.lean) | [Proofs/HintSearch.lean](Proofs/HintSearch.lean) |
 | TreeRoot | [Specs/TreeRoot.lean](Specs/TreeRoot.lean) | [Properties/TreeRoot.lean](Properties/TreeRoot.lean) | [Proofs/TreeRoot.lean](Proofs/TreeRoot.lean) |
+| RunHeight | [Specs/RunHeight.lean](Specs/RunHeight.lean) | [Properties/RunHeight.lean](Properties/RunHeight.lean) | [Proofs/RunHeight.lean](Proofs/RunHeight.lean) |
 
 The library's abstract list/order theory, insertion-guard countermodels, and
 reset/sentinel properties live under `../IndexedMerkleTree/`. The wrapper model
@@ -41,9 +42,19 @@ padding/domain hit). `HonestProofNoBreak` shows the break is not a tautology.
 `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5`: on an honest seven-leaf run, an insert from a valid
 but distant hint reverts although a correct low leaf exists.
 
-Open: the `T.leafCount ≤ 2 ^ height`
-premises of `TreeRoot` (and `Wf.capacity` in `Protocol/InteropAtomicity`) could be
-discharged from `../FullMerkle/` capacity results by modelling `_height` along runs.
+`RunHeight` carries `FullMerkle`'s `(_leafNumber, _height)` next to the list state, moved
+by `../FullMerkle/Specs/CapacityInvariant.lean`'s `push` once in `setup` and once per
+`insert`, as the source does. Along every run from `setup`, `_height` is
+`fmHeight leafCount` and `leafCount ≤ 2 ^ _height` (`HReachesCapacity`, `HRunCapacity`),
+so the capacity premises of `TreeRoot` are discharged at the run's own height:
+`RootAfterUpdateLeafOwnHeight`, `RootAfterInsertOwnHeight`, and the headlines
+`ProofsExclusiveOrBreakAtOwnHeight` / `RunRootsExclusiveOrBreakAtOwnHeight` (exclusivity
+or a located break, plus break-free honest inclusion and non-inclusion proofs). The
+model adds no constraint on the list run (`HRunProjects`, `RunLiftsToHRun`).
+`PaddingForgeryAtOwnHeight` shows the padding forgery is live at the height the source
+itself computes for `threeLeafTree`. `Wf.capacity` in `Protocol/InteropAtomicity` is
+derived in that folder's `SourceHeight`. Still assumed: that the compiled `pushNewLeaf`
+implements `push`, and that the stored root is the fold at `_height` (O7).
 
 Root authentication and hash assumptions have separate proofs under `../Merkle/`
 and `../FullMerkle/`. Caller authorization, compiled search, and dispatcher-to-model
