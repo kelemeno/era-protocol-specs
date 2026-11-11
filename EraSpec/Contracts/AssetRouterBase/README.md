@@ -28,12 +28,14 @@ for those exact named propositions, plus auxiliary lemmas.
 | HandlerRegistration | [Specs/HandlerRegistration.lean](Specs/HandlerRegistration.lean) | [Properties/HandlerRegistration.lean](Properties/HandlerRegistration.lean) | [Proofs/HandlerRegistration.lean](Proofs/HandlerRegistration.lean) |
 | HandlerRegistrationRuns | [Specs/HandlerRegistrationRuns.lean](Specs/HandlerRegistrationRuns.lean) | [Properties/HandlerRegistrationRuns.lean](Properties/HandlerRegistrationRuns.lean) | [Proofs/HandlerRegistrationRuns.lean](Proofs/HandlerRegistrationRuns.lean) |
 | AllWriters | [Specs/AllWriters.lean](Specs/AllWriters.lean) | [Properties/AllWriters.lean](Properties/AllWriters.lean) | [Proofs/AllWriters.lean](Proofs/AllWriters.lean) |
+| AllWritersStrong | [Specs/AllWritersStrong.lean](Specs/AllWritersStrong.lean) | [Properties/AllWritersStrong.lean](Properties/AllWritersStrong.lean) | [Proofs/AllWritersStrong.lean](Proofs/AllWritersStrong.lean) |
 | VaultMintGate | [Specs/VaultMintGate.lean](Specs/VaultMintGate.lean) | [Properties/VaultMintGate.lean](Properties/VaultMintGate.lean) | [Proofs/VaultMintGate.lean](Proofs/VaultMintGate.lean) |
 | CounterpartGate | [Specs/CounterpartGate.lean](Specs/CounterpartGate.lean) | [Properties/CounterpartGate.lean](Properties/CounterpartGate.lean) | [Proofs/CounterpartGate.lean](Proofs/CounterpartGate.lean) |
 | AtomicRecovery | [Specs/AtomicRecovery.lean](Specs/AtomicRecovery.lean) | [Properties/AtomicRecovery.lean](Properties/AtomicRecovery.lean) | [Proofs/AtomicRecovery.lean](Proofs/AtomicRecovery.lean) |
 
 Namespaces: `Contracts.AssetRouter` (HandlerRegistration, HandlerRegistrationRuns),
-`Contracts.AssetRouter.AllWriters` (AllWriters, VaultMintGate, CounterpartGate) and
+`Contracts.AssetRouter.AllWriters` (AllWriters, AllWritersStrong, VaultMintGate,
+CounterpartGate) and
 `Contracts.AssetRouter.AtomicRecovery`. Statements are `<namespace>.Properties.*`;
 each certificate has the same name without the `Properties` segment.
 
@@ -89,6 +91,13 @@ protect vault routes (`HashAloneDoesNotProtectVaultRoutes`).
   pointed at the L2 vault (`CounterpartCannotMisrouteVaultTriple`,
   `L1CounterpartAtVaultIdOn`, `L1CounterpartAtVaultIdOrLoggedClash`). The exception
   remains for custom assets (`CustomTrackerNamesAnyHandler`).
+- **Each tracker was recorded by a logged call, at that call's own id**
+  (`AllWritersStrong`: `RunTrackerRecorded`, no hash premise). `RunTrackerHashed` alone
+  is weak: its data word is existential, so an encoding that reaches every id satisfies
+  it in every state (`TrackerHashedAdmitsUnreachableRouter`). The owner cannot hand a
+  tracker an id hashed from someone else when no logged triple clashes with that id
+  (`RunTrackerNotHandedToOtherSenderOn`); with a clash it can
+  (`TrackerHandedToOtherSenderUnderCollision`).
 - `VaultMintGate` proves the fallback's vault premise `MintsOnlyNtvIds` from the
   vault's own registry model, with no hash premise (`VaultRunIdShape`,
   `VaultModelDischargesMintPremise`, `RunWeakValidWithVaultModel`).

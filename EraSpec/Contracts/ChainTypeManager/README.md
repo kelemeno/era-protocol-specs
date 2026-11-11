@@ -30,6 +30,7 @@ exact named propositions, plus auxiliary lemmas.
 | ExecutorUpgradeChain | [Specs/ExecutorUpgradeChain.lean](Specs/ExecutorUpgradeChain.lean) | [Properties/ExecutorUpgradeChain.lean](Properties/ExecutorUpgradeChain.lean) | [Proofs/ExecutorUpgradeChain.lean](Proofs/ExecutorUpgradeChain.lean) |
 | ChainLocalExecutor | [Specs/ChainLocalExecutor.lean](Specs/ChainLocalExecutor.lean) | [Properties/ChainLocalExecutor.lean](Properties/ChainLocalExecutor.lean) | [Proofs/ChainLocalExecutor.lean](Proofs/ChainLocalExecutor.lean) |
 | UpgradeTiming | [Specs/UpgradeTiming.lean](Specs/UpgradeTiming.lean) | [Properties/UpgradeTiming.lean](Properties/UpgradeTiming.lean) | [Proofs/UpgradeTiming.lean](Proofs/UpgradeTiming.lean) |
+| UpgradeTimingStrong | [Specs/UpgradeTimingStrong.lean](Specs/UpgradeTimingStrong.lean) | [Properties/UpgradeTimingStrong.lean](Properties/UpgradeTimingStrong.lean) | [Proofs/UpgradeTimingStrong.lean](Proofs/UpgradeTimingStrong.lean) |
 | Enabledness | [Specs/Enabledness.lean](Specs/Enabledness.lean) | [Properties/Enabledness.lean](Properties/Enabledness.lean) | [Proofs/Enabledness.lean](Proofs/Enabledness.lean) |
 | DuplicateSelectorCheck | [Specs/DuplicateSelectorCheck.lean](Specs/DuplicateSelectorCheck.lean) | [Properties/DuplicateSelectorCheck.lean](Properties/DuplicateSelectorCheck.lean) | [Proofs/DuplicateSelectorCheck.lean](Proofs/DuplicateSelectorCheck.lean) |
 | DiamondStorage | [Specs/DiamondStorage.lean](Specs/DiamondStorage.lean) | [Properties/DiamondStorage.lean](Properties/DiamondStorage.lean) | [Proofs/DiamondStorage.lean](Proofs/DiamondStorage.lean) |
@@ -249,9 +250,23 @@ time, the `ServerNotifier` schedule, all-batches-executed and the settlement-lay
   upgrade is `ExecutorForward`'s `upgradeChain` step (`TimedUpgradeChainIsAnXStep`).
   `UpgradeTiming` and `ExecutorUpgradeChain` refine that step separately and are not composed;
   `UpgradeChainEnabledIffTimed` and `UpgradeChainEnabledIff` are different statements.
-- Deadline. A schedule that passed `requireValidEdge` leaves no instant at which chains at the
-  departing version can neither commit batches nor cross the edge (`ValidEdgeHasNoDeadTime`).
-  An owner override of the deadline can open such an instant (`DeadlineOverrideOpensDeadTime`).
+- Deadline. On the deadline getter, for any CTM state: if the slot's schedule passed
+  `requireValidEdge` and there is no override, at every instant the departing version is active
+  or the manifest's time gate is open (`ValidEdgeHasNoDeadTime`). The time gate is only one gate
+  of an upgrade. An owner override can close both (`DeadlineOverrideOpensDeadTime`).
+- Deadline along runs (`UpgradeTimingStrong`). Every reachable slot has a valid schedule when
+  every committed and replacement transition passed `requireValidEdge`
+  (`ReachableSlotsHaveValidSchedules`). Along a timed run from `SysInv` with no break-glass cut,
+  validated installs and valid schedules, a chain at a version with a committed edge, no
+  override, every batch executed and its settlement layer at the target is never in dead time:
+  at every instant its version is active, or its admin and the CTM's owner can both upgrade it
+  (`ValidatedTimedRunsHaveNoDeadTime`). A valid schedule alone does not suffice: with the
+  settlement layer behind or a batch unexecuted, a reachable chain is in dead time
+  (`ValidScheduleAloneLeavesDeadTime`); an override, an invalid schedule and a break-glass cut
+  each open dead time too (`NoDeadTimeNeedsItsOtherPremises`). If replacements keep the
+  deadline (`_requireSameDeadline`, which the model's replacement step omits), a committed
+  version's deadline never moves (`SameDeadlineReplacementsFixTheDeadline`); without it, it can
+  (`ReplacementDeadlineWitness`). `NoDeadTimeWitness` meets every premise of the headline.
 - Witnesses: `EachGateIsLoadBearing` shows each gate deciding a concrete step both ways.
   `UpgradeTimingWitness` is a run from a fresh CTM that upgrades three chains, one per entry
   point.
