@@ -179,6 +179,11 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
+-- Strengthened row-application liveness and parked-CTM exits (ProxyUpgradeRowLib, RegistryBootstrapMigration)
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
+import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

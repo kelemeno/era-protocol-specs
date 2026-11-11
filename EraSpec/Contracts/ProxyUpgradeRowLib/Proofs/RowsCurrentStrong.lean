@@ -1,5 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Properties.RowsCurrentStrong
-import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrent
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsOrder
 
 /-!
 # Proofs: when the `e561b9cc2` rows apply, and in which orders
@@ -156,6 +156,9 @@ theorem LocalSwapOfOwnProxyReinit : Properties.LocalSwapOfOwnProxyReinit := by
       exact hreads _ _ (by rw [upd_same, upd_same])
     · rw [hframe _ q hq, upd_ne _ _ hq, upd_ne _ _ hq]
 
+theorem LocalSwapOfFramesAndReadsOwn : Properties.LocalSwapOfFramesAndReadsOwn :=
+  fun C r hf hl => LocalSwapOfOwnProxyReinit C r (hf r) (hl r)
+
 theorem ApplyRowsEnabledIff : Properties.ApplyRowsEnabledIff := by
   intro C I rows hd hl
   constructor
@@ -195,30 +198,21 @@ end Contracts.ProxyUpgradeCurrent
 
 namespace Contracts.ProxyUpgradeCurrent
 
-lemma rowsCurrentStrong_readsOther_frames : ReinitFrames wReadsOther := by
-  intro r I q hq
-  show (if r = rowB then upd I 6 (if I 5 = 11 then 12 else 10) else I) q = I q
-  by_cases h : r = rowB
-  · rw [ite_eq_left h]
-    subst h
-    exact upd_ne _ _ hq
-  · rw [ite_eq_right h]
-
-theorem ValidRowsOrderDecidesExecutability : Properties.ValidRowsOrderDecidesExecutability := by
-  have hloop : ApplyLoop wReadsOther wImpl [rowB, rowA]
-      (swap wReadsOther rowA (swap wReadsOther rowB wImpl)) :=
+theorem ReinitReadIsNotLocalSwap : Properties.ReinitReadIsNotLocalSwap := by
+  have hloop : ApplyLoop wReadsOtherProxy wImpl [rowB, rowA]
+      (swap wReadsOtherProxy rowA (swap wReadsOtherProxy rowB wImpl)) :=
     ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide))
       (ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide)) ApplyLoop.nil)
-  refine ⟨rowsCurrentStrong_readsOther_frames, valid_AB, ?_, ⟨_, code_all wReadsOther
+  refine ⟨readsOther_frames, valid_AB, ?_, ⟨_, code_all wReadsOtherProxy
     (fun _ => trivial) _, ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide))
       (ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide)) ApplyLoop.nil), ?_⟩,
     ⟨_, hloop⟩, ?_⟩
   · rintro ⟨c, hc⟩
-    have h₁ : swap wReadsOther rowB wImpl rowB.proxy = c := by rw [hc wImpl, upd_same]
-    have h₂ : swap wReadsOther rowB (upd wImpl 5 11) rowB.proxy = c := by
+    have h₁ : swap wReadsOtherProxy rowB wImpl rowB.proxy = c := by rw [hc wImpl, upd_same]
+    have h₂ : swap wReadsOtherProxy rowB (upd wImpl 5 11) rowB.proxy = c := by
       rw [hc (upd wImpl 5 11), upd_same]
-    have e₁ : swap wReadsOther rowB wImpl rowB.proxy = 10 := by decide
-    have e₂ : swap wReadsOther rowB (upd wImpl 5 11) rowB.proxy = 12 := by decide
+    have e₁ : swap wReadsOtherProxy rowB wImpl rowB.proxy = 10 := by decide
+    have e₂ : swap wReadsOtherProxy rowB (upd wImpl 5 11) rowB.proxy = 12 := by decide
     rw [e₁] at h₁
     rw [e₂] at h₂
     exact absurd (h₁.trans h₂.symm) (by decide)

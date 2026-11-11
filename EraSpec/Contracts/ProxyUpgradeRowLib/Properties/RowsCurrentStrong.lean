@@ -4,27 +4,30 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrentStrong
 # Properties: when the `e561b9cc2` rows apply, and in which orders
 
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrentStrong`, which is the
-`RowsCurrent` model plus `LocalSwap`, `RowApplies` and witness data. Proofs are in
+`RowsCurrent` model plus `LocalSwap`, `RowApplies` and witness data, and reuses the
+countermodel of `Specs/RowsOrder.lean`. Proofs are in
 `EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong`.
 
-## What validation buys for executability
+## When a call succeeds, and in which orders
 
-`OrderIndependent` (`Properties/RowsCurrent.lean`) compares two successful calls. Whether a
-permutation of a successful call succeeds is a separate question.
+`OrderIndependent` (`Properties/RowsCurrent.lean`) compares two successful calls.
+`Properties/RowsOrder.lean` shows that a permutation of a successful call succeeds under
+configuration-wide `ReinitFrames` and `ReinitReadsOwnProxy` (`DistinctRowsApplyInAnyOrder`),
+and not under validation and `ReinitFrames` alone (`ReinitReadBreaksOrder`). This file adds:
 
-* **Validation is not sufficient under `ReinitFrames`.** `ValidRowsOrderDecidesExecutability`
-  gives valid rows and a reinitializer that writes only its own proxy (so `ReinitFrames`
-  holds). The reinitializer reads another proxy, so one order applies and the other reverts
-  at the verification pass. Its swap is not local.
-* **It is sufficient for local swaps.** `ApplyRowsEnabledIff`: for rows naming distinct
-  proxies whose swaps are local (`LocalSwap`), `applyRows` succeeds iff `requireRowCode`
-  passes and every row applies on its own from the state the call starts from (`RowApplies`).
-  The right-hand side does not mention the order, so a permutation of a successful call
-  succeeds, and reaches the same state (`OrderIndependentExecutability`). The confirmed
-  special case is rows without an effective reinitializer
-  (`OrderIndependentExecutabilityInert`).
-* **Distinct proxies are still needed.** `DuplicateRowsBreakOrder` (`Properties/RowsCurrent.lean`)
-  has rows without reinitializers on one proxy, where one order applies and the other reverts.
+* **Liveness.** `ApplyRowsEnabledIff`: for rows naming distinct proxies whose swaps are local
+  (`LocalSwap`), `applyRows` succeeds iff `requireRowCode` passes and every row applies on its
+  own from the state the call starts from (`RowApplies`).
+* **Order independence with a per-row premise.** The right-hand side of `ApplyRowsEnabledIff`
+  does not mention the order, so a permutation of a successful call succeeds and reaches the
+  same state (`OrderIndependentExecutability`). Its premise is about the call's rows only. The
+  premises of `DistinctRowsApplyInAnyOrder` give it for every row
+  (`LocalSwapOfFramesAndReadsOwn`). The special case of rows without an effective
+  reinitializer is `OrderIndependentExecutabilityInert`.
+* **Where it fails.** The countermodel of `ReinitReadBreaksOrder` is exactly a swap that is
+  not local, and its revert comes from the verification pass, after the first loop succeeded
+  (`ReinitReadIsNotLocalSwap`). Distinct proxies are needed too: `DuplicateRowsBreakOrder`
+  (`Properties/RowsCurrent.lean`).
 
 `LocalSwap` is implied by `RowInert` (`LocalSwapOfInert`), and by a reinitializer that moves at
 most its own proxy and whose result there does not depend on the other proxies
@@ -50,6 +53,13 @@ def Properties.LocalSwapOfOwnProxyReinit : Prop :=
     (∀ I I' : Impl, I r.proxy = I' r.proxy → C.reinit r I r.proxy = C.reinit r I' r.proxy) →
     LocalSwap C r
 
+/-- **THE PREMISES OF `DistinctRowsApplyInAnyOrder` GIVE A LOCAL SWAP FOR EVERY ROW.** If every
+reinitializer of the configuration moves at most its own proxy and reads only its own proxy,
+every row's swap is local. So `OrderIndependentExecutability` implies
+`DistinctRowsApplyInAnyOrder` (`Properties/RowsOrder.lean`). -/
+def Properties.LocalSwapOfFramesAndReadsOwn : Prop :=
+  ∀ (C : Config) (r : Row), ReinitFrames C → ReinitReadsOwnProxy C → LocalSwap C r
+
 /-! ## When a call succeeds -/
 
 /-- **ON DISTINCT PROXIES WITH LOCAL SWAPS, `applyRows` SUCCEEDS EXACTLY WHEN EACH ROW WOULD ON
@@ -66,8 +76,8 @@ def Properties.ApplyRowsEnabledIff : Prop :=
 
 /-- **A PERMUTATION OF A SUCCESSFUL CALL IS A SUCCESSFUL CALL TO THE SAME STATE**, for rows
 naming distinct proxies whose swaps are local. If `applyRows` succeeds in one order, it
-succeeds in every order and reaches the same state. `ValidRowsOrderDecidesExecutability`
-shows that `ReinitFrames` cannot replace `LocalSwap`. `DuplicateRowsBreakOrder` shows that the
+succeeds in every order and reaches the same state. `ReinitReadBreaksOrder` and
+`ReinitReadIsNotLocalSwap` show that `ReinitFrames` cannot replace `LocalSwap`. `DuplicateRowsBreakOrder` shows that the
 distinct-proxies premise is needed. -/
 def Properties.OrderIndependentExecutability : Prop :=
   ∀ (C : Config) (I J : Impl) (rows rows' : List Row), rows.Perm rows' →
@@ -84,19 +94,19 @@ def Properties.OrderIndependentExecutabilityInert : Prop :=
 
 /-! ## Countermodel -/
 
-/-- **UNDER `ReinitFrames`, THE ORDER OF VALID ROWS CAN DECIDE WHETHER THE CALL REVERTS.**
-`rowB`'s reinitializer writes only its own proxy `6`, so `ReinitFrames` holds. It writes `12`
-if proxy `5` is at `11` and `10` otherwise, so its swap is not local. The rows `5: 10 → 11`
-and `6: 10 → 12` are valid. In the order `[rowA, rowB]` the call succeeds. In the order
-`[rowB, rowA]` the first loop succeeds, but proxy `6` ends at `10` and the verification pass
-reverts. So the premises of `OrderIndependent` hold, one order succeeds, and its permutation
-does not: validation and `ReinitFrames` together do not make executability
-order-independent. -/
-def Properties.ValidRowsOrderDecidesExecutability : Prop :=
-  ReinitFrames wReadsOther ∧ ValidRows [rowA, rowB] ∧ ¬ LocalSwap wReadsOther rowB ∧
-    (∃ J, ApplyRows wReadsOther wImpl [rowA, rowB] J) ∧
-    (∃ J, ApplyLoop wReadsOther wImpl [rowB, rowA] J) ∧
-    ¬ ∃ J, ApplyRows wReadsOther wImpl [rowB, rowA] J
+/-- **THE COUNTERMODEL OF `ReinitReadBreaksOrder` IS A SWAP THAT IS NOT LOCAL, AND IT REVERTS
+AT THE VERIFICATION PASS.** Under `wReadsOtherProxy` (`Specs/RowsOrder.lean`), `rowB`'s
+reinitializer writes only its own proxy `6` (so `ReinitFrames` holds) but leaves `6` at `12`
+only if proxy `5` is at `11`, and moves it back to `10` otherwise. Its swap is not local. The
+rows `5: 10 → 11` and `6: 10 → 12` are valid. Over `[rowB, rowA]` the first loop succeeds
+(both rows find their proxy at its source), but the call reverts: proxy `6` ends at `10`, and
+the verification pass fails. So `LocalSwap` fails exactly where `OrderIndependentExecutability`
+would have to, and the order decides the revert at the verification pass, not in the loop. -/
+def Properties.ReinitReadIsNotLocalSwap : Prop :=
+  ReinitFrames wReadsOtherProxy ∧ ValidRows [rowA, rowB] ∧ ¬ LocalSwap wReadsOtherProxy rowB ∧
+    (∃ J, ApplyRows wReadsOtherProxy wImpl [rowA, rowB] J) ∧
+    (∃ J, ApplyLoop wReadsOtherProxy wImpl [rowB, rowA] J) ∧
+    ¬ ∃ J, ApplyRows wReadsOtherProxy wImpl [rowB, rowA] J
 
 /-! ## Witness -/
 

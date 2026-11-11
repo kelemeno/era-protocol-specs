@@ -16,6 +16,7 @@ named propositions.
 |---|---|---|---|
 | Authority | [Specs/Authority.lean](Specs/Authority.lean) | [Properties/Authority.lean](Properties/Authority.lean) | [Proofs/Authority.lean](Proofs/Authority.lean) |
 | Forward | [Specs/Forward.lean](Specs/Forward.lean) | [Properties/Forward.lean](Properties/Forward.lean) | [Proofs/Forward.lean](Proofs/Forward.lean) |
+| AuthorityStrong | [Specs/AuthorityStrong.lean](Specs/AuthorityStrong.lean) | [Properties/AuthorityStrong.lean](Properties/AuthorityStrong.lean) | [Proofs/AuthorityStrong.lean](Proofs/AuthorityStrong.lean) |
 
 Namespace: `Contracts.RegistryBootstrapMigration`. Statements are
 `Contracts.RegistryBootstrapMigration.Properties.*`; each certificate has the same name
@@ -45,7 +46,9 @@ outstanding, so the model tracks `ctmPending` separately.
   not its code. Take an executor that answers the getters correctly but whose
   `acceptCTMOwnership()` does nothing. Then `migrate()` succeeds and leaves the CTM owned by the
   spent migration, with the executor nominated. The bundle reverts at `validateApplied()`.
-  `ParkedCTMLeavesOnlyByNomineeAccept`: after that, only the nominee's own accept moves the CTM.
+  `ParkedCTMLeavesOnlyByNomineeAccept`: after that, within the label model (no CTM code
+  swaps), only the nominee's own accept moves the CTM. With code swaps there is a second exit,
+  and the `ProxyAdmin`'s owner who can take it need not be the nominee (AuthorityStrong below).
 - **Countermodel** `SplitBundleParksProxyAdmin`: here the bundle's calls are sent as separate
   transactions, and the CTM's version has drifted. The `ProxyAdmin` (plain `Ownable`) then
   belongs to the migration and `migrate()` reverts. `ProxyAdminLeavesMigrationOnlyByMigrate`:
@@ -111,6 +114,26 @@ that writes nothing tracked. No premise is made on the executor's code.
   is configuration), ETH, events. The mapping from a real forward, nested calls included, to
   the list of calls is a model boundary. This authority model and `../ChainTypeManager/`'s
   version model are separate; they are linked only by documentation.
+
+## Who can move a parked CTM (topic AuthorityStrong)
+
+AuthorityStrong uses the Authority and Forward models unchanged and adds witness data.
+
+- **Countermodel** `ParkedPAOwnerNeedNotBeNominee`: from the state the non-genuine executor's
+  `migrate()` leaves, one ordinary `transferPA 7` by the `ProxyAdmin`'s owner `3` reaches a
+  parked state where the `ProxyAdmin`'s owner is `7`, not the nominee `3`. A code swap by `7`
+  then moves the CTM off the migration with no accept. This refutes the earlier docstring of
+  `ParkedCTMLeavesOnlyByNomineeAccept` ("that owner is the nominee too"), now corrected.
+- `ParkedCTMLeavesByAcceptOrCodeSwap`: with every call included and none sent by the migration,
+  one call from a parked state keeps the owner and the nominee, or is the nominee's
+  `acceptOwnership()`, or is a CTM code swap sent by the `ProxyAdmin`'s owner of that state.
+- `ParkedCTMFirstExit`: along any sequence of such calls, the CTM stays parked with its nominee,
+  or the first call that moves it is the start nominee's accept or a code swap by the
+  `ProxyAdmin`'s owner of that moment. `SpentProxyAdminCustody`: once the edge is spent, that
+  owner is the start's, zero, or named by a `ProxyAdmin` transfer in the sequence.
+- `SpentLabelRunsAreCalls`: from a spent edge, every label run is a run of calls none sent by
+  the migration, so the results above cover the label model.
+- `AuthorityStrongWitness` fires both exits from `wParked`.
 
 ## Source findings
 

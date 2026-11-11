@@ -6,21 +6,26 @@ era-contracts tree. It lives on branch `feat/upgrade-simplification` of the zksy
 `contracts` repository. The branch was called `claude/musing-clarke-8b5f2c`
 when the first model was written, and that model's original commit cites that name.
 
-The branch moves, so each model here is a snapshot. This folder has two, plus a topic over
-the second:
+The branch moves, so each model here is a snapshot. This folder has two, plus topics over
+them that add no operation:
 
 | Topic | Source commit | Namespace | Specification | Property statements | Checked proofs |
 |---|---|---|---|---|---|
 | Rows | `612a71ccc` (2026-09-22) | `Contracts.ProxyUpgrade` | [Specs/Rows.lean](Specs/Rows.lean) | [Properties/Rows.lean](Properties/Rows.lean) | [Proofs/Rows.lean](Proofs/Rows.lean) |
 | RowsCurrent | `e561b9cc2` (2026-10-19) | `Contracts.ProxyUpgradeCurrent` | [Specs/RowsCurrent.lean](Specs/RowsCurrent.lean) | [Properties/RowsCurrent.lean](Properties/RowsCurrent.lean) | [Proofs/RowsCurrent.lean](Proofs/RowsCurrent.lean) |
 | RowsUnvalidated | `e561b9cc2` (2026-10-19) | `Contracts.ProxyUpgradeCurrent` | [Specs/RowsUnvalidated.lean](Specs/RowsUnvalidated.lean) | [Properties/RowsUnvalidated.lean](Properties/RowsUnvalidated.lean) | [Proofs/RowsUnvalidated.lean](Proofs/RowsUnvalidated.lean) |
+| RowsOrder | `e561b9cc2` (2026-10-19) | `Contracts.ProxyUpgradeCurrent` | [Specs/RowsOrder.lean](Specs/RowsOrder.lean) | [Properties/RowsOrder.lean](Properties/RowsOrder.lean) | [Proofs/RowsOrder.lean](Proofs/RowsOrder.lean) |
+| RowsStrong | `612a71ccc` (2026-09-22) | `Contracts.ProxyUpgrade` | [Specs/RowsStrong.lean](Specs/RowsStrong.lean) | [Properties/RowsStrong.lean](Properties/RowsStrong.lean) | [Proofs/RowsStrong.lean](Proofs/RowsStrong.lean) |
+| RowsCurrentStrong | `e561b9cc2` (2026-10-19) | `Contracts.ProxyUpgradeCurrent` | [Specs/RowsCurrentStrong.lean](Specs/RowsCurrentStrong.lean) | [Properties/RowsCurrentStrong.lean](Properties/RowsCurrentStrong.lean) | [Proofs/RowsCurrentStrong.lean](Proofs/RowsCurrentStrong.lean) |
 
 `Rows` is kept unchanged. Its header and commit cite no source commit; the library it
 describes was last changed at `ae0698588` (2026-09-16), and a later check found it
 unchanged at `612a71cccb65d6db97674997b21427a50bec6206`. `RowsCurrent` is pinned to
 `e561b9cc2`, the commit `../ChainTypeManager/` and `../RegistryBootstrapMigration/` use.
 `RowsUnvalidated` uses the `RowsCurrent` model unchanged and adds only `Transition.Genuine`
-and witness data. It states what holds for rows no `validateRows` has checked.
+and witness data. It states what holds for rows no `validateRows` has checked. `RowsOrder` and
+`RowsCurrentStrong` use the `RowsCurrent` model unchanged, and `RowsStrong` the `Rows` model;
+they add predicates and witness data only.
 Re-check the source before relying on any of them.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
@@ -92,6 +97,38 @@ New at `e561b9cc2`:
     (`ReinitLeakMovesNamedProxyOffEdge`).
   - Witnesses: `AnyRowsWitness`, `ReinitMovesCaughtWitness`.
 
+## When a call succeeds, and in which orders
+
+The base files say what a *successful* `applyRows` establishes, and `OrderIndependent`
+compares two successful calls. These topics say when a call succeeds at all, and whether a
+permutation of a successful call succeeds.
+
+- `RowsStrong` (`612a71ccc`): `RowStepIffEnabled`: one loop iteration succeeds exactly when
+  the row is `RowEnabled` (left to a foreign administrator, already at its target, or owned
+  and at its source). `ApplyRowsEnabledIff`: on rows naming distinct proxies, `applyRows`
+  succeeds iff every row is enabled in the starting state. `ApplyRowsPassesGateWhenEnabled`
+  is the liveness companion of `ApplyRowsPostcondition` and `AppliedGatePasses`.
+  `OrderIndependentExecutability`: on distinct proxies a permutation of a successful run is a
+  successful run to the same state. `RowsStrongWitness`: two owned rows on distinct proxies
+  apply in both orders; a stale row makes the call revert.
+- `RowsOrder` (`e561b9cc2`): validation and `ReinitFrames` do not make executability
+  order-independent (`ReinitReadBreaksOrder`, a reinitializer that reads another proxy);
+  `ReinitFrames` with `ReinitReadsOwnProxy` does (`DistinctRowsApplyInAnyOrder`), and each
+  premise is needed (`ReinitLeakBreaksOrder`, `DuplicateRowsBreakOrder`).
+- `RowsCurrentStrong` (`e561b9cc2`): `ApplyRowsEnabledIff`: for rows on distinct proxies whose
+  swaps are local (`LocalSwap`: the swap, reinitializer included, sets the row's proxy to one
+  fixed implementation and nothing else), `applyRows` succeeds iff `requireRowCode` passes and
+  every row applies on its own from the starting state (`RowApplies`).
+  `OrderIndependentExecutability` follows, with a premise on the call's rows only; the
+  configuration-wide premises of `DistinctRowsApplyInAnyOrder` give it
+  (`LocalSwapOfFramesAndReadsOwn`), and so do inert rows (`LocalSwapOfInert`,
+  `OrderIndependentExecutabilityInert`) and own-proxy reinitializers
+  (`LocalSwapOfOwnProxyReinit`). `ReinitReadIsNotLocalSwap`: the countermodel of
+  `ReinitReadBreaksOrder` is a swap that is not local, and it reverts at the verification
+  pass after the first loop succeeded. `RowsCurrentStrongWitness`: a local reinitializer that
+  is not inert, valid rows applying in both orders under it, and a local swap that does not
+  apply (`wSelfMoving`).
+
 ## What to check
 
 - `ApplyRowsPostcondition` is now a field of the model (`ApplyRows.verified`), because
@@ -113,8 +150,9 @@ New at `e561b9cc2`:
   A different contract answering `domain()` and `rows()` gets its rows applied
   unvalidated. Replay safety does not depend on validation: `OnlyNamedEdgesAcrossCallAnyRows`
   and `SourceIsNotAppliedAnyRows` (`RowsUnvalidated`) restate `OnlyNamedEdgesAcrossCall` and
-  `ValidSourceIsNotApplied` for any rows. Validation still buys order-independent
-  executability (`DuplicateRowsBreakOrder`) and the `@dev` claim that the verification catches
+  `ValidSourceIsNotApplied` for any rows. Validation is still needed for order-independent
+  executability (`DuplicateRowsBreakOrder`), though not sufficient for it under `ReinitFrames`
+  alone (`ReinitReadBreaksOrder`), and the `@dev` claim that the verification catches
   every reinitializer move of a row's proxy (`ReinitMovesAreCaughtOnDistinctRows`; refuted for
   a duplicate row by `DuplicateRowHidesReinitMove`).
 
