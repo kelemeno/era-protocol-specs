@@ -225,7 +225,7 @@ theorem UpgradeStaysEnabledLater : Properties.UpgradeStaysEnabledLater := by
 
 /-! ## The repaired NatSpec -/
 
-theorem UpgradeChainEnabledIff : Properties.UpgradeChainEnabledIff := by
+theorem UpgradeChainEnabledIffTimed : Properties.UpgradeChainEnabledIffTimed := by
   intro T s id t caller τ
   constructor
   · rintro ⟨s', h⟩
@@ -326,7 +326,7 @@ private lemma tSetup_exec (aux : ChainId → DiamondAux) (n : ChainId → ℕ �
     {τ : ℕ} (hc : caller = 2 ∨ caller = (aux 0).admin) (hτ : 10 ≤ τ)
     (hb : (aux 0).committed = (aux 0).executed) (hsl : ∀ w, (aux 0).slVersion = some w → 2 ≤ w) :
     ∃ s', TimedStep wTiming ⟨tSetupSys, aux, n⟩ (.upgrade 0 (.executor 300) caller τ) s' :=
-  (UpgradeChainEnabledIff wTiming ⟨tSetupSys, aux, n⟩ 0 300 caller τ).mpr
+  (UpgradeChainEnabledIffTimed wTiming ⟨tSetupSys, aux, n⟩ 0 300 caller τ).mpr
     ⟨hc, rfl, rfl, ⟨_, rfl, rfl⟩, hτ, hb, hsl, ⟨_, tSetup_transition⟩⟩
 
 theorem NotAtAnyTime : Properties.NotAtAnyTime := by
@@ -372,7 +372,7 @@ theorem ReplacementMovesTheTimeGate : Properties.ReplacementMovesTheTimeGate := 
       rfl
     change (wTiming.sched (tReplSys.ctm.ut c.pv)).upgradeTimestamp ≤ 12 at hle
     omega
-  · exact (UpgradeChainEnabledIff wTiming tRepl 0 400 2 15).mpr
+  · exact (UpgradeChainEnabledIffTimed wTiming tRepl 0 400 2 15).mpr
       ⟨Or.inl rfl, rfl, rfl, ⟨_, rfl, rfl⟩, by decide, rfl, (fun w hw => by cases hw),
         ⟨_, tRepl_transition⟩⟩
 

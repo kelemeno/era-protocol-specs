@@ -104,6 +104,51 @@ import EraSpec.Examples.BurnMintBridge.ProtocolComposition
 -- Obligations connecting the abstract models to compiled-code proofs
 import EraSpec.Refinement
 
+-- Proof round 5 (Lean 4.35): backlog items B1–B7, A1–A4, U1–U8, R1–R3, S1, S3, O1–O4
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.Denotation
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.MintDataBytes
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.Refinement
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.RevertOrder
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.Witnesses
+import EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters
+import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.Proofs.CounterpartGate
+import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistrationRuns
+import EraSpec.Contracts.AssetRouterBase.Proofs.VaultMintGate
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.LegacyFallback
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.Reinitialization
+import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocal
+import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocalExecutor
+import EraSpec.Contracts.ChainTypeManager.Proofs.DiamondStorage
+import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorCheck
+import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorScan
+import EraSpec.Contracts.ChainTypeManager.Proofs.Enabledness
+import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorRowsUnvalidated
+import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorUpgradeChain
+import EraSpec.Contracts.ChainTypeManager.Proofs.GenesisWriters
+import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
+import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
+import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
+import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
+import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.InitOnce
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.PublishedRootCommits
+import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinned
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.LegacyFallback
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistrationUnified
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Reinitialization
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Resolution
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ResolutionCorrespondence
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
+import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Forward
+import EraSpec.Examples.BurnMintBridge.Proofs.EndBranch
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
+import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
+import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

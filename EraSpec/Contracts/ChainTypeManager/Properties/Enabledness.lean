@@ -121,7 +121,7 @@ def Properties.BootstrapResetEnabledIff : Prop :=
 /-! ## What `validate()`'s duplicate check buys -/
 
 /-- **A DUPLICATE SELECTOR IN THE ARRIVING RELEASE BRICKS THE EDGE AND THE CTM'S NEW CHAINS.**
-On `wDupWorld`, from the fresh system on the well-formed release `100`, a run with no break-glass
+On `wEnDupWorld`, from the fresh system on the well-formed release `100`, a run with no break-glass
 cut creates chain `0` and commits `700` (1→2). Release `260`, where `700` arrives, lists selector
 `1` twice. `700` is a genuine transition.
 
@@ -143,17 +143,17 @@ Yet:
 At the source, `_setCurrentRelease` refuses `260` (`ChainTypeManager.sol:310`), and so does the
 constructor of any `CTMTransition` arriving there (`CTMTransition.sol:74`). -/
 def Properties.DuplicateSelectorBricksEdge : Prop :=
-  wDupWorld.Genuine 700 ∧ SysInv wDupWorld wDupSys0 ∧ RecordedReleasesWf wDupWorld wDupSys0.ctm ∧
-    ChainsOnWfReleases wDupWorld wDupSys0 ∧
-    ∃ s, Run wDupWorld wDupSys0 [.genesis 0, .ctm (.commit 700)] s ∧
-      (∀ l ∈ [Label.genesis 0, .ctm (.commit 700)], ¬ l.isArbitrary) ∧ SysInv wDupWorld s ∧
-      ¬ (Label.ctm (.commit 700)).InstallsWf wDupWorld ∧
-      (∃ c, s.chains 0 = some c ∧ c.pv = 1 ∧ s.ctm.ut 1 = 700 ∧ ChainOk wDupWorld s c ∧
-        ReleaseWf wDupWorld (s.edge wDupWorld 1).fromRel ∧
-        ¬ ReleaseWf wDupWorld (s.edge wDupWorld 1).newRel) ∧
-      (¬ ∃ s', Step wDupWorld s (.transition 0) s') ∧
-      s.chains 1 = none ∧ (¬ ∃ s', Step wDupWorld s (.genesis 1) s') ∧
-      ¬ ∃ s', Step wDupWorld s (.migrateIn 1) s'
+  wEnDupWorld.Genuine 700 ∧ SysInv wEnDupWorld wEnDupSys0 ∧ RecordedReleasesWf wEnDupWorld wEnDupSys0.ctm ∧
+    ChainsOnWfReleases wEnDupWorld wEnDupSys0 ∧
+    ∃ s, Run wEnDupWorld wEnDupSys0 [.genesis 0, .ctm (.commit 700)] s ∧
+      (∀ l ∈ [Label.genesis 0, .ctm (.commit 700)], ¬ l.isArbitrary) ∧ SysInv wEnDupWorld s ∧
+      ¬ (Label.ctm (.commit 700)).InstallsWf wEnDupWorld ∧
+      (∃ c, s.chains 0 = some c ∧ c.pv = 1 ∧ s.ctm.ut 1 = 700 ∧ ChainOk wEnDupWorld s c ∧
+        ReleaseWf wEnDupWorld (s.edge wEnDupWorld 1).fromRel ∧
+        ¬ ReleaseWf wEnDupWorld (s.edge wEnDupWorld 1).newRel) ∧
+      (¬ ∃ s', Step wEnDupWorld s (.transition 0) s') ∧
+      s.chains 1 = none ∧ (¬ ∃ s', Step wEnDupWorld s (.genesis 1) s') ∧
+      ¬ ∃ s', Step wEnDupWorld s (.migrateIn 1) s'
 
 /-- **`SysInv` ALONE DOES NOT MAKE THE DEPARTING RELEASE WELL-FORMED.** Take `wDupDepSys`: a CTM
 on release `150`, which lists selector `1` twice, with chain `0` routing exactly `150`. It
@@ -166,13 +166,13 @@ So `TransitionEnabled` needs its departing-release premise. `UpgradesStayEnabled
 `ChainsOnWfReleases` at its start, and `wDupDepSys` fails it. No run from a starting state gets
 here: not even the first chain can be deployed on `150`. -/
 def Properties.DepartingDuplicateBlocksTransition : Prop :=
-  wDupWorld.Genuine 800 ∧ SysInv wDupWorld wDupDepSys ∧ ¬ ChainsOnWfReleases wDupWorld wDupDepSys ∧
-    (∃ s, Run wDupWorld wDupDepSys [.ctm (.commit 800)] s ∧ SysInv wDupWorld s ∧
-      (∃ c, s.chains 0 = some c ∧ c.pv = 1 ∧ s.ctm.ut 1 = 800 ∧ ChainOk wDupWorld s c ∧
-        ¬ ReleaseWf wDupWorld (s.edge wDupWorld 1).fromRel ∧
-        ReleaseWf wDupWorld (s.edge wDupWorld 1).newRel) ∧
-      ¬ ∃ s', Step wDupWorld s (.transition 0) s') ∧
-    ¬ ∃ s', Step wDupWorld ⟨initState wDupWorld 150, fun _ => none⟩ (.genesis 0) s'
+  wEnDupWorld.Genuine 800 ∧ SysInv wEnDupWorld wDupDepSys ∧ ¬ ChainsOnWfReleases wEnDupWorld wDupDepSys ∧
+    (∃ s, Run wEnDupWorld wDupDepSys [.ctm (.commit 800)] s ∧ SysInv wEnDupWorld s ∧
+      (∃ c, s.chains 0 = some c ∧ c.pv = 1 ∧ s.ctm.ut 1 = 800 ∧ ChainOk wEnDupWorld s c ∧
+        ¬ ReleaseWf wEnDupWorld (s.edge wEnDupWorld 1).fromRel ∧
+        ReleaseWf wEnDupWorld (s.edge wEnDupWorld 1).newRel) ∧
+      ¬ ∃ s', Step wEnDupWorld s (.transition 0) s') ∧
+    ¬ ∃ s', Step wEnDupWorld ⟨initState wEnDupWorld 150, fun _ => none⟩ (.genesis 0) s'
 
 /-! ## Along runs -/
 

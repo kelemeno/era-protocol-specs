@@ -35,7 +35,7 @@ Statements about `EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTiming`. Proof
   time is a break-glass cut (`executeUpgrade`, through `forward`). That is not
   `upgradeChain`; here it is the untimed `arbitraryCut`.
 
-**The repaired statement** is `UpgradeChainEnabledIff`. `upgradeChain(t, id)` succeeds
+**The repaired statement** is `UpgradeChainEnabledIffTimed`. `upgradeChain(t, id)` succeeds
 exactly when all of these hold, whatever the notifier says:
 * the caller is the executor's owner or the chain's admin;
 * `t` is committed at its own `oldProtocolVersion()`, and the executor owns the CTM;
@@ -217,7 +217,7 @@ succeeds if and only if:
 * `ChainRouting`'s transition step for the chain is enabled.
 
 The notifier does not appear. -/
-def Properties.UpgradeChainEnabledIff : Prop :=
+def Properties.UpgradeChainEnabledIffTimed : Prop :=
   ∀ (T : TimedConfig) (s : TimedSys) (id : ChainId) (t caller : Address) (τ : ℕ),
     (∃ s', TimedStep T s (.upgrade id (.executor t) caller τ) s') ↔
       ((caller = T.execOwner ∨ caller = (s.aux id).admin) ∧

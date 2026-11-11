@@ -12,7 +12,7 @@ selector's entry sits on its probe path with every slot before it on that path o
   entry, and reverts there at the latest (`probe_dup`).
 * A new selector's probe meets no equal entry, so it stops at the first empty slot on its path
   (`probe_ins`); one exists because the table has `2·n + 1` slots and fewer than `n + 1`
-  entries (`exists_empty`, by pigeonhole), and every slot is on every path (`onPath_of_lt`).
+  entries (`exists_empty_DuplicateSelectorScan`, by pigeonhole), and every slot is on every path (`onPath_of_lt`).
   Writing it there keeps `ScanInv` (`scanInv_insert`).
 -/
 
@@ -111,7 +111,7 @@ lemma scanInv_not_held {N : ℕ} {T : ℕ → ℕ} {P : List Selector} {x : Sele
   exact hxP (hxy ▸ hy)
 
 /-- A table holding fewer entries than it has slots has an empty slot. -/
-lemma exists_empty {N : ℕ} {T : ℕ → ℕ} {P : List Selector} (hI : ScanInv N T P)
+lemma exists_empty_DuplicateSelectorScan {N : ℕ} {T : ℕ → ℕ} {P : List Selector} (hI : ScanInv N T P)
     (hb : ∀ x ∈ P, x < 2 ^ 32) (hlen : P.length < N) : ∃ k < N, T k = 0 := by
   by_contra hall
   simp only [not_exists, not_and] at hall
@@ -207,7 +207,7 @@ lemma scanLoop_iff {N : ℕ} (hN : 0 < N) :
       rw [List.nodup_append] at hnd'
       exact hnd'.2.2 x hxP x List.mem_cons_self rfl
     · -- a new selector: its probe ends at an empty slot, which exists
-      obtain ⟨k, hk, hTk⟩ := exists_empty hI hbP (by simp at hlen; omega)
+      obtain ⟨k, hk, hTk⟩ := exists_empty_DuplicateSelectorScan hI hbP (by simp at hlen; omega)
       obtain ⟨i0, hi0, hik⟩ := onPath_of_lt (e := scanEntry x) hk
       obtain ⟨i, hi, hT0, hpre, hres⟩ := probe_ins (N := N) (T := T) (e := scanEntry x)
         (scanInv_not_held hI hbP hx hxP) N 0 ⟨i0, hi0, by simpa [hik] using hTk⟩

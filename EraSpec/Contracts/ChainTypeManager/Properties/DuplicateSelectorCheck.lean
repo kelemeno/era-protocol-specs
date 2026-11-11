@@ -50,9 +50,9 @@ def Properties.ReleaseWfIsTheDuplicateCheck : Prop :=
   hash to slot 1. The check stores all three by probing past occupied slots. The check reverts
   when `7` comes back, which it finds only after probing past `0`'s slot. -/
 def Properties.DuplicateCheckWitness : Prop :=
-  (wDupWorld.relRows 100).map Prod.fst = [[1, 2]].flatten ∧
+  (wEnDupWorld.relRows 100).map Prod.fst = [[1, 2]].flatten ∧
     noDuplicateSelectors [[1, 2]] = true ∧
-    (wDupWorld.relRows 260).map Prod.fst = [[1, 2], [1]].flatten ∧
+    (wEnDupWorld.relRows 260).map Prod.fst = [[1, 2], [1]].flatten ∧
     noDuplicateSelectors [[1, 2], [1]] = false ∧
     noDuplicateSelectors [[0, 7], [14]] = true ∧ noDuplicateSelectors [[0, 7], [7]] = false
 

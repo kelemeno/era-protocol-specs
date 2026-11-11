@@ -174,7 +174,7 @@ def Sys.deployNew (W : World) (s : Sys) (id : ChainId) : Sys :=
 
 /-! ## Witness data: releases that list a selector twice
 
-`wDupWorld` is the witness world `wWorld` (releases `100`, `200`, `250`; transitions `300`,
+`wEnDupWorld` is the witness world `wWorld` (releases `100`, `200`, `250`; transitions `300`,
 `400`, `500`, `600`) with two ill-formed releases and one transition for each:
 
 * release `260` at version 2. Facet `26` routes selectors `1` and `2`, and facet `27` also
@@ -202,16 +202,16 @@ def wDupTr : Address → TransitionView := fun a =>
   if a = 700 then ⟨1, 2, 100, 260⟩ else if a = 800 then ⟨1, 2, 150, 200⟩ else wTr a
 
 /-- The witness world with the two ill-formed releases. -/
-def wDupWorld : World := ⟨wDupRelVersion, wDupRows, wDupTr⟩
+def wEnDupWorld : World := ⟨wDupRelVersion, wDupRows, wDupTr⟩
 
-/-- A freshly initialized CTM on release `100` in `wDupWorld`, with no chains. -/
-def wDupSys0 : Sys := ⟨initState wDupWorld 100, fun _ => none⟩
+/-- A freshly initialized CTM on release `100` in `wEnDupWorld`, with no chains. -/
+def wEnDupSys0 : Sys := ⟨initState wEnDupWorld 100, fun _ => none⟩
 
 /-- A CTM initialized on the ill-formed release `150`, with chain `0` at version 1 routing
 exactly that release. It satisfies `SysInv`, but no run from a starting state reaches it
 without a break-glass cut: no chain can be deployed on `150`. -/
 def wDupDepSys : Sys :=
-  ⟨initState wDupWorld 150, upd (fun _ => none) 0 (some ⟨1, rowsRouting (wDupRows 150)⟩)⟩
+  ⟨initState wEnDupWorld 150, upd (fun _ => none) 0 (some ⟨1, rowsRouting (wDupRows 150)⟩)⟩
 
 /-! ## Witness data: chains left behind at three kinds of version
 

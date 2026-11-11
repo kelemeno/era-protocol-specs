@@ -452,16 +452,16 @@ theorem StartingStatesMeetLivenessPremises : Properties.StartingStatesMeetLivene
 
 /-! ## Countermodels -/
 
-private lemma dNodup100 : ((wDupWorld.relRows 100).map Prod.fst).Nodup := by decide
-private lemma dNodup200 : ((wDupWorld.relRows 200).map Prod.fst).Nodup := by decide
-private lemma dDup260 : ¬ ((wDupWorld.relRows 260).map Prod.fst).Nodup := by decide
-private lemma dDup150 : ¬ ((wDupWorld.relRows 150).map Prod.fst).Nodup := by decide
+private lemma dNodup100 : ((wEnDupWorld.relRows 100).map Prod.fst).Nodup := by decide
+private lemma dNodup200 : ((wEnDupWorld.relRows 200).map Prod.fst).Nodup := by decide
+private lemma dDup260 : ¬ ((wEnDupWorld.relRows 260).map Prod.fst).Nodup := by decide
+private lemma dDup150 : ¬ ((wEnDupWorld.relRows 150).map Prod.fst).Nodup := by decide
 
 theorem DuplicateSelectorBricksEdge : Properties.DuplicateSelectorBricksEdge := by
-  have hI0 : SysInv wDupWorld wDupSys0 := FreshSystemSatisfiesInvariant wDupWorld 100 (by decide)
-  have hL := StartingStatesMeetLivenessPremises wDupWorld 100
-  have hrun := Run.cons (W := wDupWorld)
-    (Step.genesis (s := wDupSys0) (id := 0) rfl (addAll_empty_eq dNodup100))
+  have hI0 : SysInv wEnDupWorld wEnDupSys0 := FreshSystemSatisfiesInvariant wEnDupWorld 100 (by decide)
+  have hL := StartingStatesMeetLivenessPremises wEnDupWorld 100
+  have hrun := Run.cons (W := wEnDupWorld)
+    (Step.genesis (s := wEnDupSys0) (id := 0) rfl (addAll_empty_eq dNodup100))
     (Run.cons (Step.ctm (CStep.commit (t := 700) (by decide) (by decide) (by decide) (by decide)
         (by decide) (by decide))) Run.nil)
   have hl : ∀ l ∈ [Label.genesis 0, .ctm (.commit 700)], ¬ l.isArbitrary := by
@@ -480,14 +480,14 @@ theorem DuplicateSelectorBricksEdge : Properties.DuplicateSelectorBricksEdge := 
 
 theorem DepartingDuplicateBlocksTransition :
     Properties.DepartingDuplicateBlocksTransition := by
-  have hI0 : SysInv wDupWorld wDupDepSys := by
-    refine ⟨InitSatisfiesInvariant wDupWorld 150 (by decide), ?_⟩
+  have hI0 : SysInv wEnDupWorld wDupDepSys := by
+    refine ⟨InitSatisfiesInvariant wEnDupWorld 150 (by decide), ?_⟩
     intro id c hc
     simp only [wDupDepSys] at hc
     rcases upd_chain hc with ⟨_, rfl⟩ | ⟨_, h'⟩
     · exact ⟨by decide, fun _ => rfl⟩
     · simp at h'
-  have hrun := Run.cons (W := wDupWorld)
+  have hrun := Run.cons (W := wEnDupWorld)
     (Step.ctm (s := wDupDepSys) (CStep.commit (t := 800) (by decide) (by decide) (by decide)
       (by decide) (by decide) (by decide))) Run.nil
   have hI := run_sysInv hI0 hrun (by simp [Label.isArbitrary])
