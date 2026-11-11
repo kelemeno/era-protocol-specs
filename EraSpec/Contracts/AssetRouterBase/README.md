@@ -17,7 +17,8 @@ statement about the registration-only fragment of `AllWriters`
 the initializers (`setNativeTokenVault`, `initL2`), the L2 counterpart's
 `setAssetHandlerAddress`, and the L1 owner's `setAssetDeploymentTracker`.
 `AtomicRecovery` models `L2AssetRouter.recoverAtomicCall` and the refund loop that
-calls it.
+calls it. `AtomicRecoveryFaithful` repairs one place where that model differs from
+the source: the target of a router-produced call to L1.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -32,11 +33,13 @@ for those exact named propositions, plus auxiliary lemmas.
 | VaultMintGate | [Specs/VaultMintGate.lean](Specs/VaultMintGate.lean) | [Properties/VaultMintGate.lean](Properties/VaultMintGate.lean) | [Proofs/VaultMintGate.lean](Proofs/VaultMintGate.lean) |
 | CounterpartGate | [Specs/CounterpartGate.lean](Specs/CounterpartGate.lean) | [Properties/CounterpartGate.lean](Properties/CounterpartGate.lean) | [Proofs/CounterpartGate.lean](Proofs/CounterpartGate.lean) |
 | AtomicRecovery | [Specs/AtomicRecovery.lean](Specs/AtomicRecovery.lean) | [Properties/AtomicRecovery.lean](Properties/AtomicRecovery.lean) | [Proofs/AtomicRecovery.lean](Proofs/AtomicRecovery.lean) |
+| AtomicRecoveryFaithful | [Specs/AtomicRecoveryFaithful.lean](Specs/AtomicRecoveryFaithful.lean) | [Properties/AtomicRecoveryFaithful.lean](Properties/AtomicRecoveryFaithful.lean) | [Proofs/AtomicRecoveryFaithful.lean](Proofs/AtomicRecoveryFaithful.lean) |
 
 Namespaces: `Contracts.AssetRouter` (HandlerRegistration, HandlerRegistrationRuns),
 `Contracts.AssetRouter.AllWriters` (AllWriters, AllWritersStrong, VaultMintGate,
-CounterpartGate) and
-`Contracts.AssetRouter.AtomicRecovery`. Statements are `<namespace>.Properties.*`;
+CounterpartGate),
+`Contracts.AssetRouter.AtomicRecovery` and
+`Contracts.AssetRouter.AtomicRecoveryFaithful`. Statements are `<namespace>.Properties.*`;
 each certificate has the same name without the `Properties` segment.
 
 ## Run-level registration (`HandlerRegistrationRuns`)
@@ -151,6 +154,39 @@ maintainer of this repo, not yet confirmed upstream):
   source, not modelled.
 - A `finalizeDeposit`-selector call whose outer arguments fail to decode also reverts
   (`CallData.malformedFinalizeDeposit`); it blocks only the sender's own bundle.
+
+## Atomic recovery by destination (`AtomicRecoveryFaithful`)
+
+`AtomicRecovery.routerCall` always targets `L2_ASSET_ROUTER_ADDR`. The router chooses
+the target by destination: `_chainId == L1_CHAIN_ID ? address(L1_ASSET_ROUTER) :
+request.l2Contract` (`L2AssetRouter.sol:336`). `routerCallTo` models that choice, and
+`CenterEnv`/`PinSendChecks`/`pinSend` model the checks of `InteropCenter.sendBundle`
+that restrict an L1 destination, plus `_validateAtomicBundle` and `_dispatchBundle`'s
+branch. The other send checks read no atomic flag and are omitted (listed in the
+Specs header); the admission results do not say every send succeeds.
+
+| Result | Statement |
+|---|---|
+| `RouterCallToL2IsModelled`, `RouterCallToL1RetargetsModelled` | Off L1 the real call is `routerCall`, so every `AtomicRecovery` result on `routerCall` holds for it; to L1 only the target differs. No premises. |
+| `L1LegRefundBypassesRouter`, `L1LegClaimOnlyByForeignCode` | With `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR`, the refund of an L2→L1 call is whatever the code at the L1 router's address on L2 does, and a one-call claim succeeds exactly when that code returns `true`. Concrete: `L1LegForeignTrueClosesWithoutRefund` (a foreign `true` closes the leg, nothing refunded). |
+| `L1LegRefundReverts`, `L1LegNeverRefunded` | Adding `CodelessAt` (no code at that address, `VM-CALL`), the refund reverts and every claim of every bundle containing the call reverts, in every leg state and world. |
+| `PreparedBurnRefundsDepositorToL2`, `PreparedBurnRefundByDestination` | Headline (c) on the real call: holds off L1 (witness `PreparedBurnRefundToL2Satisfiable`); for every destination, an exact case split. |
+| `PreparedBurnRefundFailsToL1` | Countermodel: one burn to L1 meets every premise of `AtomicRecovery.PreparedBurnRefundsDepositor`; the modelled call is refunded, the real one reverts. |
+| `PinAdmitsAtomicL1Leg`, `PinAtomicityIrrelevantToL1`, `UpgradeGuardRejectsAtomicL1` | At the pin, atomicity never changes whether an L1 send passes the modelled checks; it only turns publication into `append`. The upgrade's guard (`e561b9cc2`, `InteropCenter.sol:550-554`) rejects the atomic L1 send. |
+| `AtomicL1LegIsStranded` | Headline (d), concrete: a prepared burn to L1 debits the depositor, the pin appends its atomic bundle instead of publishing it, and no claim of that bundle ever succeeds. |
+| `CustomHandlerBundleIsStrandedToL2` | `AtomicRecovery.CustomHandlerBundleIsStranded` on the real calls of a two-call bundle to another L2 that passes `PinSendChecks`. |
+
+Environment premises: `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`) and
+`CodelessAt other L1_ASSET_ROUTER` (`VM-CALL`, one address). No hash premise. That L1
+never executes an unpublished atomic bundle rests on message-inclusion soundness
+(`PROTO-EVIDENCE`) and is argued from source, not modelled; so are `append`'s own
+checks and the step that moves such a leg to `Revertable`.
+
+Possible finding (one agent's analysis, not independently verified; not reported
+upstream): at the pin an atomic bundle to L1 is admitted and appended, never
+published, and its refund cannot reach the router, so the burned amount is neither
+minted on L1 nor refunded (`AtomicL1LegIsStranded`). The upgrade tree `e561b9cc2`
+rejects it at send time and in `_recoverBundle`.
 
 ## Assumptions to review
 

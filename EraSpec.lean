@@ -119,6 +119,7 @@ import EraSpec.Codegen.VaultPreparationSlice.Proofs.AtMostOneStep
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWritersStrong
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryFaithful
 import EraSpec.Contracts.AssetRouterBase.Proofs.CounterpartGate
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistrationRuns
 import EraSpec.Contracts.AssetRouterBase.Proofs.VaultMintGate
