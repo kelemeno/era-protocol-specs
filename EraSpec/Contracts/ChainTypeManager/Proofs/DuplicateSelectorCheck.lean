@@ -174,7 +174,7 @@ lemma insertSelector_spec {n : ℕ} {T : ProbeTable} {S : List Selector} {x : Se
       have := probe_empty (T := T) (n := n) (e := x + 1) (h := (x + 1) % n) d 0 n hd
         (fun d' hd' => ⟨by rw [Nat.zero_add]; exact hpre d' hd', fun hT' => ?_⟩)
         (by rw [Nat.zero_add]; exact hT0)
-      · rw [Nat.zero_add] at this; exact this
+      · rwa [Nat.zero_add] at this
       · rw [Nat.zero_add] at hT'
         obtain ⟨y, hy, hTy⟩ := hI.mem _ (by rw [hT']; exact Nat.add_one_ne_zero x)
         rw [hT'] at hTy
@@ -188,9 +188,7 @@ lemma insertSelector_spec {n : ℕ} {T : ProbeTable} {S : List Selector} {x : Se
       have hj'n : j' < n := Nat.mod_lt _ hn
       have hgrow : ∀ k, T k ≠ 0 → upd T j' (x + 1) k ≠ 0 := by
         intro k hk
-        by_cases hkj : k = j'
-        · subst hkj; simp
-        · rw [upd_ne _ _ hkj]; exact hk
+        by_cases hkj : k = j' <;> simp [upd, hkj, hk]
       refine ⟨fun k hk => ?_, fun k hk => ?_, fun y hy => ?_, fun k l hk hkl => ?_, fun k hk => ?_,
         ?_⟩
       · -- support
@@ -241,8 +239,7 @@ lemma insertSelector_spec {n : ℕ} {T : ProbeTable} {S : List Selector} {x : Se
           obtain ⟨d0, hd0, hk0, hpre0⟩ := hI.cluster k hk'
           exact ⟨d0, hd0, hk0, fun d' hd' => hgrow _ (hpre0 d' hd')⟩
       · -- nodup
-        exact List.nodup_append.mpr ⟨hI.nodup, List.nodup_singleton x,
-          fun a ha b hb hab => hx (by rw [List.mem_singleton] at hb; rw [← hb, ← hab]; exact ha)⟩
+        simpa using hI.nodup.concat hx
 
 /-! ## The loops -/
 
@@ -255,10 +252,7 @@ lemma insertSelectors_ok {n : ℕ} (hn : 0 < n) :
   | nil => intro T S hI _ _; exact ⟨T, rfl, by simpa using hI⟩
   | cons x xs ih =>
     intro T S hI hlen hnd
-    have hx : x ∉ S := by
-      intro hm
-      have := (List.nodup_append.mp hnd).2.2 x hm x List.mem_cons_self
-      exact this rfl
+    have hx : x ∉ S := fun hm => (List.nodup_append.mp hnd).2.2 x hm x List.mem_cons_self rfl
     obtain ⟨T', hT', hI'⟩ := (insertSelector_spec (x := x) hI hn (by simp at hlen; omega)).2 hx
     obtain ⟨T'', hT'', hI''⟩ := ih T' (S ++ [x]) hI' (by simp at hlen ⊢; omega)
       (by simpa using hnd)
@@ -289,10 +283,7 @@ lemma insertSelectors_append (n : ℕ) :
   | nil => intro ys T; rfl
   | cons x xs ih =>
     intro ys T
-    simp only [List.cons_append, insertSelectors, Option.bind_assoc]
-    congr 1
-    funext T'
-    exact ih ys T'
+    simp only [List.cons_append, insertSelectors, Option.bind_assoc, ih]
 
 /-- The two nested loops are one loop over the flattened lists. -/
 lemma insertRouting_eq (n : ℕ) :
@@ -303,10 +294,7 @@ lemma insertRouting_eq (n : ℕ) :
   | nil => intro T; rfl
   | cons sels rest ih =>
     intro T
-    simp only [insertRouting, List.flatten_cons, insertSelectors_append]
-    congr 1
-    funext T'
-    exact ih T'
+    simp only [insertRouting, List.flatten_cons, insertSelectors_append, ih]
 
 /-! ## The results -/
 
@@ -322,8 +310,7 @@ theorem DuplicateCheckExactForAnyLargerTable :
     by_contra hnd
     have := insertSelectors_none hn0 routing.flatten _ [] (probeInv_empty n) (by simpa using hlen)
       (by simpa using hnd)
-    rw [this] at hs
-    exact absurd hs (by simp)
+    simp [this] at hs
   · intro hnd
     obtain ⟨T', hT', -⟩ := insertSelectors_ok hn0 routing.flatten _ [] (probeInv_empty n)
       (by simpa using hlen) (by simpa using hnd)

@@ -23,10 +23,8 @@ theorem FixedEntrypointsMoveProxiesOnlyAlongRowsAnyRows :
           happ p with h1 | ⟨r, hr, hp, h2, h3⟩
       · exact Or.inl h1
       · exact Or.inr ⟨T, r, rfl, hr, hp, h2, h3⟩
-  | commit _ _ _ => exact Or.inl rfl
-  | upgradeChain _ => exact Or.inl rfl
   | forward _ => exact absurd rfl (hnf _)
-  | env _ _ => exact Or.inl rfl
+  | _ => exact Or.inl rfl
 
 theorem ExecutorAnyRowsWitness : Properties.ExecutorAnyRowsWitness := by
   have happ : ProxyUpgradeCurrent.ApplyTransition wX.rc .ctm ProxyUpgradeCurrent.wDupTransition

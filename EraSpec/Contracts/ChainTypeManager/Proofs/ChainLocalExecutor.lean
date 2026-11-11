@@ -56,27 +56,18 @@ private lemma tame_keeps {X : XConfig} {x : XLabel} (ht : x.Tame X) : x.KeepsCtm
   cases x with
   | infra T => exact ht
   | forward calls =>
-    have ht' : ∀ c ∈ calls, c.Tame := ht
     intro c hc
-    have htc := ht' c hc
+    have htc : c.Tame := ht c hc
     cases c with
-    | sys _ => trivial
-    | upgradeProxy _ _ => trivial
     | swapCtm _ _ => exact htc.elim
-  | commit _ => trivial
-  | upgradeChain _ => trivial
-  | env _ => trivial
+    | _ => trivial
+  | _ => trivial
 
 private lemma xstep_sysLabels_tame {X : XConfig} {s s' : XState} {x : XLabel}
     (h : XStep X s x s') (ht : x.Tame X) : ∀ l ∈ x.sysLabels, ¬ l.isArbitrary := by
   cases h with
   | infra _ _ => intro l hl; simp [XLabel.sysLabels] at hl
-  | commit _ _ _ =>
-    intro l hl
-    simp only [XLabel.sysLabels, List.mem_singleton] at hl
-    subst hl
-    simp [Label.isArbitrary]
-  | upgradeChain _ =>
+  | commit _ _ _ | upgradeChain _ =>
     intro l hl
     simp only [XLabel.sysLabels, List.mem_singleton] at hl
     subst hl
@@ -88,12 +79,8 @@ private lemma xstep_sysLabels_tame {X : XConfig} {s s' : XState} {x : XLabel}
     obtain ⟨c, hc, hcl⟩ := hl
     have htc := ht' c hc
     cases c with
-    | sys l' =>
-      simp only [FCall.sys?, Option.some.injEq] at hcl
-      subst hcl
-      exact htc
-    | upgradeProxy _ _ => simp [FCall.sys?] at hcl
-    | swapCtm _ _ => simp [FCall.sys?] at hcl
+    | sys l' => cases hcl; exact htc
+    | _ => simp [FCall.sys?] at hcl
   | env he _ =>
     intro l hl
     simp only [XLabel.sysLabels, List.mem_singleton] at hl

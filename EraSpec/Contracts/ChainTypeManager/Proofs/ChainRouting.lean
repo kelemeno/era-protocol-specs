@@ -31,7 +31,7 @@ lemma rowsRouting_eq_none {A : ReleaseRows} {y : Selector} :
 lemma removeAll_spec {ρ σ : Routing} {ks : List Selector} (h : removeAll ρ ks = some σ) :
     ∀ y, σ y = if y ∈ ks then none else ρ y := by
   induction ks generalizing ρ with
-  | nil => simp [removeAll] at h; subst h; intro y; simp
+  | nil => cases h; intro y; simp
   | cons x xs ih =>
     intro y
     simp only [removeAll, removeSel] at h
@@ -39,9 +39,7 @@ lemma removeAll_spec {ρ σ : Routing} {ks : List Selector} (h : removeAll ρ ks
     · simp at h
     · simp only [Option.bind_some] at h
       rw [ih h y]
-      by_cases hyx : y = x
-      · subst hyx; simp
-      · simp [hyx, upd_ne _ _ hyx]
+      by_cases hyx : y = x <;> simp [upd, hyx]
 
 lemma addAll_fresh {ρ σ : Routing} {B : ReleaseRows} (h : addAll ρ B = some σ) :
     ∀ y ∈ B.map Prod.fst, ρ y = none := by
@@ -53,19 +51,16 @@ lemma addAll_fresh {ρ σ : Routing} {B : ReleaseRows} (h : addAll ρ B = some �
     split_ifs at h with hx
     · simp only [Option.bind_some] at h
       intro y hy
-      simp only [List.map_cons, List.mem_cons] at hy
-      rcases hy with rfl | hy
-      · exact hx
-      · have := ih h y hy
-        by_cases hyx : y = x
-        · subst hyx; exact hx
-        · rwa [upd_ne _ _ hyx] at this
+      by_cases hyx : y = x
+      · subst hyx; exact hx
+      · have := ih h y ((List.mem_cons.mp hy).resolve_left hyx)
+        rwa [upd_ne _ _ hyx] at this
     · simp at h
 
 lemma addAll_spec {ρ σ : Routing} {B : ReleaseRows} (h : addAll ρ B = some σ) :
     ∀ y, σ y = if y ∈ B.map Prod.fst then rowsRouting B y else ρ y := by
   induction B generalizing ρ with
-  | nil => simp [addAll] at h; subst h; intro y; simp
+  | nil => cases h; intro y; simp
   | cons hd rs ih =>
     obtain ⟨x, r⟩ := hd
     have hfr := addAll_fresh h
@@ -79,10 +74,7 @@ lemma addAll_spec {ρ σ : Routing} {B : ReleaseRows} (h : addAll ρ B = some σ
         simp at this
       intro y
       rw [ih h y]
-      by_cases hyx : y = x
-      · subst hyx
-        simp [hxrs, rowsRouting]
-      · simp [hyx, upd_ne _ _ hyx, rowsRouting]
+      by_cases hyx : y = x <;> simp [upd, hyx, hxrs, rowsRouting]
     · simp at h
 
 lemma addAll_empty {σ : Routing} {B : ReleaseRows} (h : addAll emptyRouting B = some σ) :
@@ -97,12 +89,9 @@ lemma applyDerived_spec {ρ σ : Routing} {A B : ReleaseRows} (h : applyDerived 
     (hne : A ≠ B) : ∀ y, σ y =
       if y ∈ B.map Prod.fst then rowsRouting B y else if y ∈ A.map Prod.fst then none else ρ y := by
   simp only [applyDerived, hne, ite_false] at h
-  cases hr : removeAll ρ (A.map Prod.fst) with
-  | none => rw [hr] at h; simp at h
-  | some τ =>
-    rw [hr, Option.bind_some] at h
-    intro y
-    rw [addAll_spec h y, removeAll_spec hr y]
+  obtain ⟨τ, hr, h⟩ := Option.bind_eq_some_iff.mp h
+  intro y
+  rw [addAll_spec h y, removeAll_spec hr y]
 
 /-- **A guarded transition lands on the target release.** -/
 lemma applyDerived_rows {σ : Routing} {A B : ReleaseRows}
@@ -176,11 +165,7 @@ lemma step_ctmInv {W : World} {s s' : Sys} {l : Label} (hI : CtmInv W s.ctm)
     (h : Step W s l s') : CtmInv W s'.ctm := by
   cases h with
   | ctm hc => exact step_inv hI hc
-  | genesis _ _ => exact hI
-  | migrateIn _ _ _ _ => exact hI
-  | transition _ _ _ _ _ => exact hI
-  | bootstrapReset _ _ _ _ => exact hI
-  | arbitraryCut _ _ _ => exact hI
+  | _ => exact hI
 
 lemma run_ctmInv {W : World} {s s' : Sys} {ls : List Label} (hI : CtmInv W s.ctm)
     (h : Run W s ls s') : CtmInv W s'.ctm := by
@@ -211,14 +196,11 @@ theorem step_sysInv {W : World} {s s' : Sys} {l : Label} (hI : SysInv W s)
   obtain ⟨hC, hch⟩ := hI
   cases h with
   | @ctm op c' hc =>
-    refine ⟨step_inv hC hc, ?_⟩
-    intro id c hcid
+    refine ⟨step_inv hC hc, fun id c hcid => ?_⟩
     obtain ⟨hle, hrel⟩ := hch id c hcid
-    have hpv := (cstep_pv hc).1
-    have hlow := cstep_relAt_low hc c.pv hle
-    refine ⟨le_trans hle hpv, ?_⟩
-    dsimp only at hlow ⊢
-    rw [hlow]; exact hrel
+    refine ⟨le_trans hle (cstep_pv hc).1, ?_⟩
+    dsimp only
+    rw [cstep_relAt_low hc c.pv hle]; exact hrel
   | @genesis id ρ hnone hadd =>
     refine ⟨hC, ?_⟩
     intro id' c hc
@@ -275,9 +257,8 @@ lemma step_allRegistry {W : World} {s s' : Sys} {l : Label} (hI : SysInv W s)
   cases h with
   | @ctm op c' hc =>
     intro id c hcid
-    have hlow := cstep_relAt_low hc c.pv (hch id c hcid).1
-    dsimp only at hlow ⊢
-    rw [hlow]; exact hA id c hcid
+    dsimp only
+    rw [cstep_relAt_low hc c.pv (hch id c hcid).1]; exact hA id c hcid
   | @genesis id ρ hnone hadd =>
     intro id' c hc
     rcases upd_chain hc with ⟨_, rfl⟩ | ⟨_, hold⟩
@@ -312,11 +293,8 @@ theorem BootstrapSystemSatisfiesInvariant : Properties.BootstrapSystemSatisfiesI
   refine ⟨BootstrapSatisfiesInvariant W old R hR hlt, ?_⟩
   intro id c hc
   have hle := hchains id c hc
-  refine ⟨by simp only [bootstrapState]; omega, fun hrel => ?_⟩
-  exfalso
-  apply hrel
-  simp only [bootstrapState]
-  rw [upd_ne _ _ (by omega)]
+  exact ⟨by simp only [bootstrapState]; omega,
+    fun hrel => absurd (by simp only [bootstrapState]; rw [upd_ne _ _ (by omega)]) hrel⟩
 
 theorem StepPreservesSysInvariant : Properties.StepPreservesSysInvariant :=
   fun _ _ _ _ hI h hl => step_sysInv hI h hl
@@ -349,8 +327,7 @@ theorem TransitionStartsAndLandsOnRelease : Properties.TransitionStartsAndLandsO
   intro W s s' id c hC hc h
   cases h with
   | @transition _ c0 ρ hc0 hut hguard happ hlt =>
-    have hcc : c0 = c := Option.some.inj (hc0.symm.trans hc)
-    subst hcc
+    obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
     obtain ⟨hfrom, hrz, _, hle, hnr, hnz, hver⟩ := edge_facts hC hut
     refine ⟨hrz, by rw [hguard, hfrom], ⟨(s.edge W c0.pv).new, ρ⟩, by simp, hlt, hle, hnz, hver, ?_⟩
     rw [hguard] at happ
@@ -361,8 +338,7 @@ theorem DriftBlocksTransition : Properties.DriftBlocksTransition := by
   rintro W s id c hC hc hdrift ⟨s', h⟩
   cases h with
   | @transition _ c0 ρ hc0 hut hguard happ hlt =>
-    have hcc : c0 = c := Option.some.inj (hc0.symm.trans hc)
-    subst hcc
+    obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
     apply hdrift
     rw [hguard, (edge_facts hC hut).1]
 
@@ -451,11 +427,10 @@ theorem MissingSelectorBricksTransition : Properties.MissingSelectorBricksTransi
   refine ⟨_, hrun, ⟨_, rfl, rfl, by decide, by decide⟩, ?_,
     DriftBlocksTransition _ _ _ _ hC rfl (fun h => absurd (congrFun h 2) (by decide))⟩
   rintro ⟨ρ, c, hc, _, happ, _⟩
-  have hcc : c = ⟨1, bgMissing⟩ := (Option.some.inj (hc.symm.trans rfl) :)
-  subst hcc
+  obtain rfl : c = ⟨1, bgMissing⟩ := (Option.some.inj (hc.symm.trans rfl) :)
   have h2 : applyDerived bgMissing (wWorld.relRows 100) (wWorld.relRows 200) = some ρ := happ
   rw [hnone] at h2
-  exact absurd h2 (by simp)
+  cases h2
 
 theorem ChainRoutingWitness : Properties.ChainRoutingWitness := by
   have hrun := Run.cons (W := wWorld)

@@ -68,8 +68,7 @@ lemma transition_facts {W : World} {s sys' : Sys} {id : ChainId} {c : Chain}
       ∃ ρ, sys'.chains id = some ⟨(W.tr (s.ctm.ut c.pv)).new, ρ⟩ := by
   cases h with
   | @transition _ c0 ρ hc0 hut _ _ _ =>
-    have hcc : c0 = c := Option.some.inj (hc0.symm.trans hc)
-    subst hcc
+    obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
     exact ⟨hut, rfl, ρ, by simp⟩
 
 lemma transition_chain {W : World} {s sys' : Sys} {id : ChainId}
@@ -91,11 +90,7 @@ lemma step_ctm_cases {W : World} {s s' : Sys} {l : Label} (h : Step W s l s') :
     s'.ctm = s.ctm ∨ ∃ op, l = .ctm op ∧ CStep W s.ctm op s'.ctm := by
   cases h with
   | ctm hc => exact Or.inr ⟨_, rfl, hc⟩
-  | genesis _ _ => exact Or.inl rfl
-  | migrateIn _ _ _ _ => exact Or.inl rfl
-  | transition _ _ _ _ _ => exact Or.inl rfl
-  | bootstrapReset _ _ _ _ => exact Or.inl rfl
-  | arbitraryCut _ _ _ => exact Or.inl rfl
+  | _ => exact Or.inl rfl
 
 section Preservation
 
@@ -205,8 +200,7 @@ lemma cstep_frozen {W : World} {s s' : CTM} {op : Op} {v : ℕ} (hI : CtmInv W s
     refine upd_ne _ _ (fun hve => hmis ?_)
     subst hve
     rw [hslot]
-  | legacyCommit _ _ => rfl
-  | legacyRecut _ _ => rfl
+  | _ => rfl
 
 /-- One writer keeps every slot reporting its version, if a replacement reports its departing
 release's version. -/
@@ -244,10 +238,7 @@ theorem ExecutorRunsNeedNoUpgradeChain : Properties.ExecutorRunsNeedNoUpgradeCha
     | upgradeChain id =>
       show (∀ f ∈ [FCall.sys (.transition id)], f.Tame) ↔ True
       simp [FCall.Tame, Label.isArbitrary]
-    | infra _ => exact Iff.rfl
-    | commit _ => exact Iff.rfl
-    | forward _ => exact Iff.rfl
-    | env _ => exact Iff.rfl
+    | _ => exact Iff.rfl
   · intro u hu t id hue
     obtain ⟨x, _, rfl⟩ := List.mem_map.mp hu
     cases x <;> cases hue
@@ -318,8 +309,7 @@ theorem MisreportingSlotStaysFrozen : Properties.MisreportingSlotStaysFrozen := 
   refine ⟨hfrozen, ?_⟩
   rintro id c hc hpv ⟨t, s'', h'⟩
   obtain ⟨c0, hc0, hrep, _⟩ := (UpgradeChainEnabledIff X s' id).mp ⟨t, s'', h'⟩
-  have hcc : c0 = c := Option.some.inj (hc0.symm.trans hc)
-  subst hcc
+  obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
   rw [hpv, hfrozen] at hrep
   exact hmis hrep
 
@@ -427,7 +417,6 @@ theorem NonGenuineReplacementBricksUpgradeChain :
     obtain ⟨c, hc, hrep', _⟩ := (UpgradeChainEnabledIff wX s 0).mp ⟨t, s', h⟩
     rw [hch] at hc
     cases hc
-    dsimp only at hrep'
     rw [huts] at hrep'
     exact absurd hrep' (by decide)
   · intro us s'' hr ht
@@ -458,9 +447,7 @@ theorem ExecutorUpgradeChainWitness : Properties.ExecutorUpgradeChainWitness := 
       (wWorld.tr r).old = wWorld.relVersion (wWorld.tr r).fromRel := by
     rintro e r ⟨u, hu, hfr⟩
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hu
-    rcases hu with rfl | rfl | rfl
-    · exact hfr.elim
-    · exact hfr.elim
+    rcases hu with rfl | rfl | rfl <;> try exact hfr.elim
     · have hm : FCall.sys (.ctm (.replace e r)) = FCall.sys (.ctm (.replace 300 400)) :=
         List.mem_singleton.mp hfr
       cases hm

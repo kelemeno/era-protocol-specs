@@ -25,11 +25,9 @@ lemma DiamondOk.mem_sels {ds : DiamondStorage} (hI : DiamondOk ds) {f : Address}
   constructor
   · intro hx
     obtain ⟨i, hi⟩ := List.mem_iff_getElem?.mp hx
-    have hb := (hI.selsBack f i x hi).1
-    refine ⟨hb, fun h0 => ?_⟩
-    subst h0
-    rw [hI.zeroNoSels] at hx
-    simp at hx
+    refine ⟨(hI.selsBack f i x hi).1, ?_⟩
+    rintro rfl
+    simp [hI.zeroNoSels] at hx
   · rintro ⟨hb, hf⟩
     have := hI.selsThere x (by rw [hb]; exact hf)
     rw [hb] at this
@@ -37,12 +35,9 @@ lemma DiamondOk.mem_sels {ds : DiamondStorage} (hI : DiamondOk ds) {f : Address}
 
 lemma DiamondOk.mem_facets {ds : DiamondStorage} (hI : DiamondOk ds) {f : Address} :
     f ∈ ds.facets ↔ (ds.facetToSelectors f).selectors ≠ [] := by
-  constructor
-  · intro hf
-    obtain ⟨i, hi⟩ := List.mem_iff_getElem?.mp hf
-    exact (hI.facetsBack i f hi).2
-  · intro h
-    exact List.mem_iff_getElem?.mpr ⟨_, hI.facetsThere f h⟩
+  refine ⟨fun hf => ?_, fun h => List.mem_iff_getElem?.mpr ⟨_, hI.facetsThere f h⟩⟩
+  obtain ⟨i, hi⟩ := List.mem_iff_getElem?.mp hf
+  exact (hI.facetsBack i f hi).2
 
 /-- A list whose entries determine their own index has no duplicates. -/
 lemma nodup_of_index {α : Type} {l : List α} (pos : α → ℕ)
@@ -81,8 +76,7 @@ lemma ok_addNew {ds : DiamondStorage} {f : Address} {x : Selector} (b : Bool)
       cases hy; subst hi; simp
     · simp only [upd_ne _ _ hg] at hy
       obtain ⟨h1, h2⟩ := hI.selsBack g i y hy
-      have hg0 : g ≠ 0 := by
-        rintro rfl; rw [hI.zeroNoSels] at hy; simp at hy
+      have hg0 : g ≠ 0 := by rintro rfl; simp [hI.zeroNoSels] at hy
       have hyx : y ≠ x := by rintro rfl; exact hg0 (h1.symm.trans hx)
       simp only [upd_ne _ _ hyx]
       exact ⟨h1, h2⟩
@@ -112,8 +106,7 @@ lemma ok_addNew {ds : DiamondStorage} {f : Address} {x : Selector} (b : Bool)
       have := hI.facetsThere g hg
       rw [List.getElem?_append_left (List.getElem?_eq_some_iff.mp this).1]
       exact this
-  · simp only [upd_ne _ _ (Ne.symm hf)]
-    exact hI.zeroNoSels
+  · simpa only [upd_ne _ _ (Ne.symm hf)] using hI.zeroNoSels
 
 lemma ok_addOld {ds : DiamondStorage} {f : Address} {x : Selector} (b : Bool)
     (hI : DiamondOk ds) (hf : f ≠ 0) (hx : (ds.selectorToFacet x).facetAddress = 0)
@@ -138,8 +131,7 @@ lemma ok_addOld {ds : DiamondStorage} {f : Address} {x : Selector} (b : Bool)
         cases hy; simp; omega
     · simp only [upd_ne _ _ hg] at hy
       obtain ⟨h1, h2⟩ := hI.selsBack g i y hy
-      have hg0 : g ≠ 0 := by
-        rintro rfl; rw [hI.zeroNoSels] at hy; simp at hy
+      have hg0 : g ≠ 0 := by rintro rfl; simp [hI.zeroNoSels] at hy
       have hyx : y ≠ x := by rintro rfl; exact hg0 (h1.symm.trans hx)
       simp only [upd_ne _ _ hyx]
       exact ⟨h1, h2⟩
@@ -166,8 +158,7 @@ lemma ok_addOld {ds : DiamondStorage} {f : Address} {x : Selector} (b : Bool)
     · subst hgf; simpa using hI.facetsThere g hS
     · simp only [upd_ne _ _ hgf] at *
       exact hI.facetsThere g (by assumption)
-  · simp only [upd_ne _ _ (Ne.symm hf)]
-    exact hI.zeroNoSels
+  · simpa only [upd_ne _ _ (Ne.symm hf)] using hI.zeroNoSels
 
 /-- Saving the facet and adding one free selector keeps the invariant, and leaves the facet
 with a selector. -/
@@ -189,9 +180,7 @@ lemma addOne_save_ok {ds d : DiamondStorage} {f : Address} {x : Selector} {b : B
     refine ⟨?_, by simp⟩
     convert this using 2
     funext g
-    by_cases hg : g = f
-    · subst hg; simp
-    · simp [upd_ne _ _ hg]
+    by_cases hg : g = f <;> simp [upd, hg]
   · have hsave : saveFacetIfNew ds f = ds := by
       simp [saveFacetIfNew, hS]
     rw [hsave] at h
@@ -224,7 +213,7 @@ lemma ok_removeKeep {ds : DiamondStorage} {f : Address} {x y : Selector} (S' : L
   set p := (ds.selectorToFacet x).selectorPosition with hpdef
   have hSp : S[p]? = some x := by
     have := hI.selsThere x (by rw [hxf]; exact hf)
-    rw [hxf] at this; exact this
+    rwa [hxf] at this
   have hpn : p < n := (List.getElem?_eq_some_iff.mp hSp).1
   obtain ⟨hyf, hyp⟩ := hI.selsBack f (n - 1) y hSy
   have hS'ne : S' ≠ [] := by
@@ -240,8 +229,7 @@ lemma ok_removeKeep {ds : DiamondStorage} {f : Address} {x y : Selector} (S' : L
       simp only [upd_same, hS'] at hz
       split_ifs at hz with hi hip
       · -- the moved selector
-        have hyz : y = z := Option.some.inj hz
-        subst hyz
+        obtain rfl : y = z := Option.some.inj hz
         have hyx : y ≠ x := by
           intro he; rw [he] at hyp; omega
         simp only [upd_ne _ _ hyx, upd_same]
@@ -297,8 +285,7 @@ lemma ok_removeKeep {ds : DiamondStorage} {f : Address} {x y : Selector} (S' : L
         intro h; rw [hSdef, h] at hndef; simp at hndef; omega)
     · simp only [upd_ne _ _ hgf] at hg ⊢
       exact hI.facetsThere g hg
-  · simp only [upd_ne _ _ (Ne.symm hf)]
-    exact hI.zeroNoSels
+  · simpa only [upd_ne _ _ (Ne.symm hf)] using hI.zeroNoSels
 
 /-- Removing a facet's only selector and then the facet itself (swap-and-pop on `facets`),
 stated through what the result reads: the facet's list is empty, the moved facet `g` records
@@ -346,8 +333,7 @@ lemma ok_removeDrop {ds : DiamondStorage} {f g : Address} {x : Selector}
     rw [hF'] at hh
     split_ifs at hh with him hiP
     · -- the moved facet, now at `P`
-      have hgh : g = h := Option.some.inj hh
-      subst hgh
+      obtain rfl : g = h := Option.some.inj hh
       have hgf : g ≠ f := by
         intro he; rw [he] at hgp; omega
       rw [hTp, hTs, ite_eq_left rfl, ite_eq_right hgf]
@@ -391,7 +377,7 @@ lemma removeOne_ok {ds d : DiamondStorage} {f : Address} {x : Selector}
   have hSp : (ds.facetToSelectors f).selectors[(ds.selectorToFacet x).selectorPosition]? =
       some x := by
     have := hI.selsThere x (by rw [hxf]; exact hf)
-    rw [hxf] at this; exact this
+    rwa [hxf] at this
   have hpn := (List.getElem?_eq_some_iff.mp hSp).1
   unfold removeOneFunction at h
   simp only [show (ds.facetToSelectors f).selectors.length ≠ 0 by omega, ite_false] at h
@@ -451,8 +437,7 @@ lemma removeOne_ok {ds d : DiamondStorage} {f : Address} {x : Selector}
         ((ds.facetToSelectors f).selectors.dropLast) hI hf hxf (by omega) hSy (by
           intro i; rw [List.getElem?_dropLast]
           split_ifs with h1 h2 <;> first | rfl | omega)
-      rw [hyx, upd_upd_same] at this
-      exact this
+      rwa [hyx, upd_upd_same] at this
   · -- move the last selector into `x`'s slot
     simp only [hpl, ite_false, hpn, ite_true, Option.bind_some, upd_same] at h
     have hn1 : (ds.facetToSelectors f).selectors.length - 1 ≠ 0 := by omega
@@ -483,18 +468,15 @@ lemma addLoop_ok {f : Address} {b : Bool} (hf : f ≠ 0) :
       DiamondOk d' ∧ (d'.facetToSelectors f).selectors ≠ [] := by
   intro xs
   induction xs with
-  | nil => intro d d' hI hne h; simp [addLoop] at h; subst h; exact ⟨hI, hne⟩
+  | nil => intro d d' hI hne h; cases h; exact ⟨hI, hne⟩
   | cons x xs ih =>
     intro d d' hI hne h
     simp only [addLoop] at h
     split_ifs at h with hx
-    cases h1 : addOneFunction d f x b with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      rw [← saveFacetIfNew_of_ne hne] at h1
-      obtain ⟨hI1, hne1⟩ := addOne_save_ok hI hf (not_not.mp hx) h1
-      exact ih d1 d' hI1 hne1 h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    rw [← saveFacetIfNew_of_ne hne] at h1
+    obtain ⟨hI1, hne1⟩ := addOne_save_ok hI hf (not_not.mp hx) h1
+    exact ih d1 d' hI1 hne1 h
 
 lemma addFunctions_ok {ds d : DiamondStorage} {f : Address} {xs : List Selector} {b : Bool}
     (hI : DiamondOk ds) (hxs : xs ≠ []) (h : addFunctions ds f xs b = some d) : DiamondOk d := by
@@ -503,27 +485,21 @@ lemma addFunctions_ok {ds d : DiamondStorage} {f : Address} {xs : List Selector}
   obtain ⟨x, xs, rfl⟩ := List.exists_cons_of_ne_nil hxs
   simp only [addLoop, saveFacetIfNew_s2f] at h
   split_ifs at h with hx
-  cases h1 : addOneFunction (saveFacetIfNew ds f) f x b with
-  | none => rw [h1] at h; simp at h
-  | some d1 =>
-    rw [h1, Option.bind_some] at h
-    obtain ⟨hI1, hne1⟩ := addOne_save_ok hI hf (not_not.mp hx) h1
-    exact (addLoop_ok hf xs d1 d hI1 hne1 h).1
+  obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨hI1, hne1⟩ := addOne_save_ok hI hf (not_not.mp hx) h1
+  exact (addLoop_ok hf xs d1 d hI1 hne1 h).1
 
 lemma removeLoop_ok : ∀ (xs : List Selector) (d d' : DiamondStorage), DiamondOk d →
     removeLoop d xs = some d' → DiamondOk d' := by
   intro xs
   induction xs with
-  | nil => intro d d' hI h; simp [removeLoop] at h; subst h; exact hI
+  | nil => intro d d' hI h; cases h; exact hI
   | cons x xs ih =>
     intro d d' hI h
     simp only [removeLoop] at h
     split_ifs at h with hx
-    cases h1 : removeOneFunction d (d.selectorToFacet x).facetAddress x with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      exact ih d1 d' (removeOne_ok hI hx rfl h1) h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    exact ih d1 d' (removeOne_ok hI hx rfl h1) h
 
 lemma removeFunctions_ok {ds d : DiamondStorage} {f : Address} {xs : List Selector}
     (hI : DiamondOk ds) (h : removeFunctions ds f xs = some d) : DiamondOk d := by
@@ -540,9 +516,7 @@ lemma removeFacet_s2f {ds d : DiamondStorage} {f : Address} (h : removeFacet ds 
 lemma upd_pos_facet (s : Selector → SelectorToFacet) (y z : Selector) (p : ℕ) :
     (upd s y { s y with selectorPosition := p } z).facetAddress = (s z).facetAddress ∧
     (upd s y { s y with selectorPosition := p } z).isFreezable = (s z).isFreezable := by
-  by_cases h : z = y
-  · subst h; simp
-  · simp [upd_ne _ _ h]
+  by_cases h : z = y <;> simp [upd, h]
 
 /-- What `_removeOneFunction` does to routing: it clears the removed selector's slot and
 moves at most one other selector's position. -/
@@ -572,22 +546,14 @@ lemma replaceLoop_ok {f : Address} {b : Bool} (hf : f ≠ 0) :
       replaceLoop d f xs b = some d' → DiamondOk d' := by
   intro xs
   induction xs with
-  | nil => intro d d' hI h; simp [replaceLoop] at h; subst h; exact hI
+  | nil => intro d d' hI h; cases h; exact hI
   | cons x xs ih =>
     intro d d' hI h
     simp only [replaceLoop] at h
     split_ifs at h with hx
-    cases h1 : removeOneFunction d (d.selectorToFacet x).facetAddress x with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      have hI1 := removeOne_ok hI hx rfl h1
-      have hx1 : (d1.selectorToFacet x).facetAddress = 0 := removeOne_s2f_self h1
-      cases h2 : addOneFunction (saveFacetIfNew d1 f) f x b with
-      | none => rw [h2] at h; simp at h
-      | some d2 =>
-        rw [h2, Option.bind_some] at h
-        exact ih d2 d' (addOne_save_ok hI1 hf hx1 h2).1 h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨d2, h2, h⟩ := Option.bind_eq_some_iff.mp h
+    exact ih d2 d' (addOne_save_ok (removeOne_ok hI hx rfl h1) hf (removeOne_s2f_self h1) h2).1 h
 
 lemma replaceFunctions_ok {ds d : DiamondStorage} {f : Address} {xs : List Selector} {b : Bool}
     (hI : DiamondOk ds) (h : replaceFunctions ds f xs b = some d) : DiamondOk d := by
@@ -608,15 +574,11 @@ lemma diamondCut_ok : ∀ (cs : List FacetCut) (ds d : DiamondStorage), DiamondO
     diamondCut ds cs = some d → DiamondOk d := by
   intro cs
   induction cs with
-  | nil => intro ds d hI h; simp [diamondCut] at h; subst h; exact hI
+  | nil => intro ds d hI h; cases h; exact hI
   | cons c cs ih =>
     intro ds d hI h
-    simp only [diamondCut] at h
-    cases h1 : facetCut ds c with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      exact ih d1 d (facetCut_ok hI h1) h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    exact ih d1 d (facetCut_ok hI h1) h
 
 lemma fresh_ok : DiamondOk DiamondStorage.fresh := by
   constructor
@@ -636,9 +598,7 @@ lemma addOne_routing {ds d : DiamondStorage} {f : Address} {x : Selector} {b : B
   split_ifs at h with hfrz
   cases h
   funext z
-  by_cases hz : z = x
-  · subst hz; simp [DiamondStorage.routing, hf]
-  · simp [DiamondStorage.routing, upd_ne _ _ hz]
+  by_cases hz : z = x <;> simp [DiamondStorage.routing, upd, hz, hf]
 
 lemma saveFacetIfNew_routing (ds : DiamondStorage) (f : Address) :
     (saveFacetIfNew ds f).routing = ds.routing := by
@@ -650,8 +610,7 @@ lemma removeOne_routing {ds d : DiamondStorage} {f : Address} {x : Selector}
   obtain ⟨h1, h2⟩ := removeOne_s2f h z
   by_cases hz : z = x
   · subst hz; simp [DiamondStorage.routing, h1]
-  · simp only [hz, ite_false] at h1 h2
-    simp [DiamondStorage.routing, upd_ne _ _ hz, h1, h2]
+  · simp [DiamondStorage.routing, upd, hz, h1, h2]
 
 lemma routing_eq_none {ds : DiamondStorage} {x : Selector} :
     ds.routing x = none ↔ (ds.selectorToFacet x).facetAddress = 0 := by
@@ -662,19 +621,16 @@ lemma addLoop_routing {f : Address} {b : Bool} (hf : f ≠ 0) :
       addAll d.routing (xs.map fun x => (x, (f, b))) = some d'.routing := by
   intro xs
   induction xs with
-  | nil => intro d d' h; simp [addLoop] at h; subst h; rfl
+  | nil => intro d d' h; cases h; rfl
   | cons x xs ih =>
     intro d d' h
     simp only [addLoop] at h
     split_ifs at h with hx
-    cases h1 : addOneFunction d f x b with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      have hfree : d.routing x = none := routing_eq_none.mpr (not_not.mp hx)
-      simp only [List.map_cons, addAll, addSel, hfree, ite_true, Option.bind_some]
-      rw [← addOne_routing hf h1]
-      exact ih d1 d' h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    have hfree : d.routing x = none := routing_eq_none.mpr (not_not.mp hx)
+    simp only [List.map_cons, addAll, addSel, hfree, ite_true, Option.bind_some]
+    rw [← addOne_routing hf h1]
+    exact ih d1 d' h
 
 lemma addFunctions_routing {ds d : DiamondStorage} {f : Address} {xs : List Selector} {b : Bool}
     (h : addFunctions ds f xs b = some d) :
@@ -688,19 +644,16 @@ lemma removeLoop_routing : ∀ (xs : List Selector) (d d' : DiamondStorage),
     removeLoop d xs = some d' → removeAll d.routing xs = some d'.routing := by
   intro xs
   induction xs with
-  | nil => intro d d' h; simp [removeLoop] at h; subst h; rfl
+  | nil => intro d d' h; cases h; rfl
   | cons x xs ih =>
     intro d d' h
     simp only [removeLoop] at h
     split_ifs at h with hx
-    cases h1 : removeOneFunction d (d.selectorToFacet x).facetAddress x with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      have hrouted : d.routing x ≠ none := fun h0 => hx (routing_eq_none.mp h0)
-      simp only [removeAll, removeSel, hrouted, ite_false, Option.bind_some]
-      rw [← removeOne_routing h1]
-      exact ih d1 d' h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    have hrouted : d.routing x ≠ none := fun h0 => hx (routing_eq_none.mp h0)
+    simp only [removeAll, removeSel, hrouted, ite_false, Option.bind_some]
+    rw [← removeOne_routing h1]
+    exact ih d1 d' h
 
 lemma removeFunctions_routing {ds d : DiamondStorage} {f : Address} {xs : List Selector}
     (h : removeFunctions ds f xs = some d) : removeAll ds.routing xs = some d.routing := by
@@ -714,37 +667,24 @@ lemma replaceLoop_routing {f : Address} {b : Bool} (hf : f ≠ 0) :
         ∀ y, d'.routing y = if y ∈ xs then some (f, b) else d.routing y := by
   intro xs
   induction xs with
-  | nil => intro d d' h; simp [replaceLoop] at h; subst h; simp
+  | nil => intro d d' h; cases h; simp
   | cons x xs ih =>
     intro d d' h
     simp only [replaceLoop] at h
     split_ifs at h with hx
-    cases h1 : removeOneFunction d (d.selectorToFacet x).facetAddress x with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      cases h2 : addOneFunction (saveFacetIfNew d1 f) f x b with
-      | none => rw [h2] at h; simp at h
-      | some d2 =>
-        rw [h2, Option.bind_some] at h
-        have hd2 : d2.routing = upd d.routing x (some (f, b)) := by
-          rw [addOne_routing hf h2, saveFacetIfNew_routing, removeOne_routing h1, upd_upd_same]
-        obtain ⟨ih1, ih2⟩ := ih d2 d' h
-        have hrouted : d.routing x ≠ none := fun h0 => hx (routing_eq_none.mp h0)
-        refine ⟨?_, ?_⟩
-        · intro y hy
-          rcases List.mem_cons.mp hy with rfl | hy
-          · exact hrouted
-          · have := ih1 y hy
-            rw [hd2] at this
-            by_cases hyx : y = x
-            · subst hyx; exact hrouted
-            · rwa [upd_ne _ _ hyx] at this
-        · intro y
-          rw [ih2 y, hd2]
-          by_cases hyx : y = x
-          · subst hyx; simp
-          · by_cases hy : y ∈ xs <;> simp [hy, hyx, upd_ne _ _ hyx]
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨d2, h2, h⟩ := Option.bind_eq_some_iff.mp h
+    have hd2 : d2.routing = upd d.routing x (some (f, b)) := by
+      rw [addOne_routing hf h2, saveFacetIfNew_routing, removeOne_routing h1, upd_upd_same]
+    obtain ⟨ih1, ih2⟩ := ih d2 d' h
+    have hrouted : d.routing x ≠ none := fun h0 => hx (routing_eq_none.mp h0)
+    refine ⟨fun y hy => ?_, fun y => ?_⟩
+    · by_cases hyx : y = x
+      · subst hyx; exact hrouted
+      · have := ih1 y ((List.mem_cons.mp hy).resolve_left hyx)
+        rwa [hd2, upd_ne _ _ hyx] at this
+    · rw [ih2 y, hd2]
+      by_cases hyx : y = x <;> by_cases hy : y ∈ xs <;> simp [upd, hy, hyx]
 
 lemma replaceFunctions_routing {ds d : DiamondStorage} {f : Address} {xs : List Selector}
     {b : Bool} (h : replaceFunctions ds f xs b = some d) :

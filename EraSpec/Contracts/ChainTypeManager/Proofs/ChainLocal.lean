@@ -100,8 +100,7 @@ private lemma okAt_of_onRel {W : World} {s : Sys} {id : ChainId} (h : OnRel W s 
     OkAt W s id := by
   obtain ⟨c, hc, hle, _, hrt⟩ := h
   intro c' hc'
-  have hcc : c' = c := Option.some.inj (hc'.symm.trans hc)
-  subst hcc
+  obtain rfl : c' = c := Option.some.inj (hc'.symm.trans hc)
   exact ⟨hle, fun _ => hrt⟩
 
 /-! ## Steps that do not write the chain -/
@@ -113,21 +112,9 @@ private lemma step_frame {W : World} {s s' : Sys} {l : Label} {id : ChainId}
     s'.chains id = s.chains id ∧ (s'.ctm = s.ctm ∨ ∃ op, CStep W s.ctm op s'.ctm) := by
   cases h with
   | ctm hc => exact ⟨rfl, Or.inr ⟨_, hc⟩⟩
-  | @genesis id' ρ _ _ =>
+  | _ =>
     simp only [Label.writesChain] at hw
-    exact ⟨upd_ne _ _ (fun h => hw h.symm), Or.inl rfl⟩
-  | @migrateIn id' ρ v _ _ _ =>
-    simp only [Label.writesChain] at hw
-    exact ⟨upd_ne _ _ (fun h => hw h.symm), Or.inl rfl⟩
-  | @transition id' _ _ _ _ _ _ _ =>
-    simp only [Label.writesChain] at hw
-    exact ⟨upd_ne _ _ (fun h => hw h.symm), Or.inl rfl⟩
-  | @bootstrapReset id' _ _ _ _ _ _ _ =>
-    simp only [Label.writesChain] at hw
-    exact ⟨upd_ne _ _ (fun h => hw h.symm), Or.inl rfl⟩
-  | @arbitraryCut id' _ v ρ _ =>
-    simp only [Label.writesChain] at hw
-    exact ⟨upd_ne _ _ (fun h => hw h.symm), Or.inl rfl⟩
+    exact ⟨upd_ne _ _ (Ne.symm hw), Or.inl rfl⟩
 
 private lemma okAt_step {W : World} {s s' : Sys} {l : Label} {id : ChainId}
     (h : Step W s l s') (hw : ¬ l.writesChain id) (hok : OkAt W s id) : OkAt W s' id := by
@@ -137,9 +124,8 @@ private lemma okAt_step {W : World} {s s' : Sys} {l : Label} {id : ChainId}
   obtain ⟨hle, hrel⟩ := hok c hc
   rcases hctm with hctm | ⟨op, hcs⟩
   · unfold ChainOk; rw [hctm]; exact ⟨hle, hrel⟩
-  · have hlow := cstep_relAt_low hcs c.pv hle
-    refine ⟨le_trans hle (cstep_pv hcs).1, ?_⟩
-    rw [hlow]; exact hrel
+  · refine ⟨le_trans hle (cstep_pv hcs).1, ?_⟩
+    rw [cstep_relAt_low hcs c.pv hle]; exact hrel
 
 private lemma onRel_step {W : World} {s s' : Sys} {l : Label} {id : ChainId}
     (h : Step W s l s') (hw : ¬ l.writesChain id) (hon : OnRel W s id) : OnRel W s' id := by
@@ -148,8 +134,7 @@ private lemma onRel_step {W : World} {s s' : Sys} {l : Label} {id : ChainId}
   refine ⟨c, by rw [hch]; exact hc, ?_⟩
   rcases hctm with hctm | ⟨op, hcs⟩
   · rw [hctm]; exact ⟨hle, hnz, hrt⟩
-  · have hlow := cstep_relAt_low hcs c.pv hle
-    rw [hlow]; exact ⟨le_trans hle (cstep_pv hcs).1, hnz, hrt⟩
+  · rw [cstep_relAt_low hcs c.pv hle]; exact ⟨le_trans hle (cstep_pv hcs).1, hnz, hrt⟩
 
 /-- A run that does not write chain `id` leaves its entry alone. -/
 private lemma run_frame_chain {W : World} {s s' : Sys} {ls : List Label} {id : ChainId}
@@ -237,11 +222,9 @@ private lemma transition_of_onRelease {W : World} {s : Sys} {id : ChainId} {c : 
   have hfrom' : (s.edge W c.pv).fromRel = s.ctm.relAt c.pv := hfrom
   have hguard : c.routing = rowsRouting (W.relRows (s.edge W c.pv).fromRel) := by
     rw [hrt, hfrom']
-  have hA' : ((W.relRows (s.edge W c.pv).fromRel).map Prod.fst).Nodup := by
-    rw [hfrom']; exact hA
   refine Step.transition hc hut hguard ?_ hlt
   rw [hguard]
-  exact applyDerived_rows_eq hA' hB
+  exact applyDerived_rows_eq (by rw [hfrom']; exact hA) hB
 
 /-! ## A cut that succeeds names each selector once -/
 
@@ -314,9 +297,7 @@ theorem MigrationRunIsARoutingRun : Properties.MigrationRunIsARoutingRun := by
   | cons hs _ ih =>
     cases hs with
     | base hstep => exact Run.cons hstep ih
-    | migrateOut _ _ _ => exact ih
-    | migrateReturn _ _ _ => exact ih
-    | migrateRecover _ _ => exact ih
+    | _ => exact ih
 
 theorem ChainRunsItsVersionsReleaseAcrossMigration :
     Properties.ChainRunsItsVersionsReleaseAcrossMigration := by
@@ -344,8 +325,7 @@ theorem OnlyRepairCutsLandOnARelease : Properties.OnlyRepairCutsLandOnARelease :
     simp only [upd_same, Option.some.injEq] at hc'
     subst hc'
     refine ⟨hnz, ?_⟩
-    have hρ : ρ = rowsRouting (W.relRows (s.ctm.relAt v)) := hrt
-    rw [hρ]
+    rw [show ρ = rowsRouting (W.relRows (s.ctm.relAt v)) from hrt]
     rfl
 
 theorem LastWriteDecidesTheRouting : Properties.LastWriteDecidesTheRouting := by
@@ -366,11 +346,10 @@ theorem NewChainRunsItsVersionsRelease : Properties.NewChainRunsItsVersionsRelea
     obtain ⟨s₁, s₂, h1, h2, h3⟩ := run_split h
     obtain ⟨c', hc', hle, hnz, hver, hrt⟩ := LastWriteDecidesTheRouting W s s₁ s₂ s' pre post l id
       hC h1 h2 h3 hw hpost (Or.inl (hlast pre l post rfl hw hpost))
-    have hcc : c = c' := Option.some.inj (hc.symm.trans hc')
-    subst hcc
+    obtain rfl : c = c' := Option.some.inj (hc.symm.trans hc')
     exact ⟨hle, hnz, hver, hrt⟩
   · rw [run_frame_chain h (fun l hl hw => hex ⟨l, hl, hw⟩), hnone] at hc
-    exact absurd hc (by simp)
+    cases hc
 
 theorem RepairEnablesTransition : Properties.RepairEnablesTransition := by
   intro W s s' id v hC hv h hut hA hB
@@ -388,16 +367,11 @@ theorem RepeatedSelectorBlocksTheEdge : Properties.RepeatedSelectorBlocksTheEdge
   rintro W s id c hc hne hdup ⟨s', h⟩
   cases h with
   | @transition _ c0 ρ hc0 _ _ happ _ =>
-    have hcc : c0 = c := Option.some.inj (hc0.symm.trans hc)
-    subst hcc
+    obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
     simp only [applyDerived, hne, ite_false] at happ
-    cases hr : removeAll c0.routing ((W.relRows (s.edge W c0.pv).fromRel).map Prod.fst) with
-    | none => rw [hr] at happ; simp at happ
-    | some τ =>
-      rw [hr, Option.bind_some] at happ
-      rcases hdup with hd | hd
-      · exact hd (removeAll_nodup hr)
-      · exact hd (addAll_nodup happ)
+    obtain ⟨τ, hr, happ⟩ := Option.bind_eq_some_iff.mp happ
+    rcases hdup with hd | hd
+    exacts [hd (removeAll_nodup hr), hd (addAll_nodup happ)]
 
 /-! ## Witnesses -/
 

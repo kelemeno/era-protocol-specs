@@ -37,8 +37,7 @@ lemma routing_some {ds : DiamondStorage} {x : Selector} {f : Address} {b : Bool}
     (ds.selectorToFacet x).facetAddress = f ∧ (ds.selectorToFacet x).isFreezable = b ∧ f ≠ 0 := by
   unfold DiamondStorage.routing at h
   split_ifs at h with h0
-  simp only [Option.some.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
+  cases h
   exact ⟨rfl, rfl, h0⟩
 
 lemma empty_routing : DiamondStorage.empty.routing = emptyRouting := by
@@ -59,16 +58,12 @@ lemma empty_routing : DiamondStorage.empty.routing = emptyRouting := by
     ((saveFacetIfNew ds f).facetToSelectors g).selectors = (ds.facetToSelectors g).selectors := by
   unfold saveFacetIfNew
   split_ifs
-  · by_cases hg : g = f
-    · subst hg; simp
-    · simp [upd_ne _ _ hg]
+  · by_cases hg : g = f <;> simp [upd, hg]
   · rfl
 
 lemma saveFacetIfNew_facetToSelectors_ne (ds : DiamondStorage) {f g : Address} (hg : g ≠ f) :
     (saveFacetIfNew ds f).facetToSelectors g = ds.facetToSelectors g := by
-  unfold saveFacetIfNew; split_ifs
-  · simp [upd_ne _ _ hg]
-  · rfl
+  unfold saveFacetIfNew; split_ifs <;> simp [upd_ne _ _ hg]
 
 lemma saveFacetIfNew_routing (ds : DiamondStorage) (f : Address) :
     (saveFacetIfNew ds f).routing = ds.routing := by
@@ -77,17 +72,12 @@ lemma saveFacetIfNew_routing (ds : DiamondStorage) (f : Address) :
 lemma pushSelector_routing (ds : DiamondStorage) {f : Address} (x : Selector) (frz : Bool)
     (hf : f ≠ 0) : (pushSelector ds f x frz).routing = upd ds.routing x (some (f, frz)) := by
   funext y
-  by_cases hy : y = x
-  · subst hy; simp [DiamondStorage.routing, pushSelector, hf]
-  · simp [DiamondStorage.routing, pushSelector, upd_ne _ _ hy]
+  by_cases hy : y = x <;> simp [DiamondStorage.routing, pushSelector, upd, hy, hf]
 
 lemma addOneFunction_eq {ds ds' : DiamondStorage} {f : Address} {x : Selector} {frz : Bool}
     (h : addOneFunction ds f x frz = some ds') : ds' = pushSelector ds f x frz := by
   unfold addOneFunction at h
-  split at h
-  · exact (Option.some.inj h).symm
-  · split_ifs at h
-    exact (Option.some.inj h).symm
+  split at h <;> (try split_ifs at h) <;> exact (Option.some.inj h).symm
 
 /-! ## `Add` cuts refine `addAll` -/
 
@@ -109,54 +99,40 @@ lemma addSelectors_routing {f : Address} {frz : Bool} (hf : f ≠ 0) :
       addAll ds.routing (xs.map (fun x => (x, (f, frz)))) = some ds'.routing ∧
         ds'.isFrozen = ds.isFrozen
   | [], ds, ds', h => by
-    simp only [addSelectors, Option.some.injEq] at h
-    subst h
+    cases h
     exact ⟨rfl, rfl⟩
   | x :: xs, ds, ds', h => by
     simp only [addSelectors] at h
     split_ifs at h with hx
-    cases h1 : addOneFunction ds f x frz with
-    | none => rw [h1] at h; exact absurd h (by simp)
-    | some ds1 =>
-      rw [h1, Option.bind_some] at h
-      have hds1 := addOneFunction_eq h1
-      subst hds1
-      obtain ⟨ih1, ih2⟩ := addSelectors_routing hf h
-      refine ⟨?_, ?_⟩
-      · have hn : ds.routing x = none := routing_eq_none.mpr hx
-        simp only [List.map_cons, addAll, addSel, hn, ↓reduceIte, Option.bind_some,
-          ← pushSelector_routing ds x frz hf]
-        exact ih1
-      · rw [ih2]; rfl
+    obtain ⟨ds1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain rfl := addOneFunction_eq h1
+    obtain ⟨ih1, ih2⟩ := addSelectors_routing hf h
+    refine ⟨?_, by rw [ih2]; rfl⟩
+    have hn : ds.routing x = none := routing_eq_none.mpr hx
+    simpa only [List.map_cons, addAll, addSel, hn, ↓reduceIte, Option.bind_some,
+      ← pushSelector_routing ds x frz hf] using ih1
 
 theorem AddCutsRefineAddAll : Properties.AddCutsRefineAddAll := by
   intro hasCode ds ds' cs h0 hadd h
   induction cs generalizing ds with
   | nil =>
-    simp only [applyFacetCuts, Option.some.injEq] at h
-    subst h
+    cases h
     exact ⟨by simp [flattenCuts, addAll], rfl⟩
   | cons c cs ih =>
     simp only [applyFacetCuts] at h
     split_ifs at h with hsel
-    cases h1 : applyFacetCut hasCode ds c with
-    | none => rw [h1] at h; exact absurd h (by simp)
-    | some ds1 =>
-      rw [h1, Option.bind_some] at h
-      have hca : c.action = .add := hadd c (by simp)
-      simp only [applyFacetCut, hca, addFunctions] at h1
-      split_ifs at h1 with hcode
-      have hf : c.facet ≠ 0 := by
-        intro hc0
-        rw [hc0, h0] at hcode
-        exact absurd hcode (by decide)
-      obtain ⟨a1, a2⟩ := addSelectors_routing hf h1
-      obtain ⟨b1, b2⟩ := ih ds1 (fun c' hc' => hadd c' (List.mem_cons_of_mem _ hc')) h
-      rw [saveFacetIfNew_routing] at a1
-      refine ⟨?_, ?_⟩
-      · rw [flattenCuts_cons, addAll_append, a1, Option.bind_some]
-        exact b1
-      · rw [b2, a2, saveFacetIfNew_isFrozen]
+    obtain ⟨ds1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    simp only [applyFacetCut, hadd c List.mem_cons_self, addFunctions] at h1
+    split_ifs at h1 with hcode
+    have hf : c.facet ≠ 0 := by
+      intro hc0
+      rw [hc0, h0] at hcode
+      exact absurd hcode (by decide)
+    obtain ⟨a1, a2⟩ := addSelectors_routing hf h1
+    obtain ⟨b1, b2⟩ := ih ds1 (fun c' hc' => hadd c' (List.mem_cons_of_mem _ hc')) h
+    rw [saveFacetIfNew_routing] at a1
+    exact ⟨by rw [flattenCuts_cons, addAll_append, a1, Option.bind_some]; exact b1,
+      by rw [b2, a2, saveFacetIfNew_isFrozen]⟩
 
 /-! ## `DiamondInit` -/
 
@@ -178,13 +154,8 @@ theorem DiamondInitWrites : Properties.DiamondInitWrites := by
   intro E c id admin st st' h
   unfold diamondInitialize at h
   split_ifs at h with hl hc
-  cases h1 : applyFacetCuts E.hasCode st.diamond (newChainInstallations E c.cur) with
-  | none => rw [h1] at h; exact absurd h (by simp)
-  | some ds =>
-    rw [h1] at h
-    simp only [Option.map_some, Option.some.injEq] at h
-    subst h
-    exact ⟨not_not.mp hl, hc, rfl, rfl, rfl⟩
+  obtain ⟨ds, h1, rfl⟩ := Option.map_eq_some_iff.mp h
+  exact ⟨not_not.mp hl, hc, h1, rfl, rfl⟩
 
 theorem DiamondInitInstallsTheRelease : Properties.DiamondInitInstallsTheRelease := by
   intro E c id admin st h0 h
@@ -268,31 +239,19 @@ lemma createNewChain_spec {W : World} {E : Env} {c : CTM} {id : ChainId} {admin 
     (h : createNewChain E c id admin ts = some st) :
     st.app.protocolVersion = c.pv ∧ addAll emptyRouting (W.relRows c.cur) = some st.diamond.routing := by
   unfold createNewChain at h
-  cases h1 : deployNewChain E c id admin with
-  | none => rw [h1] at h; exact absurd h (by simp)
-  | some st1 =>
-    rw [h1, Option.bind_some] at h
-    cases h2 : proxyCall E c st1 .genesisUpgrade with
-    | none => rw [h2] at h; exact absurd h (by simp)
-    | some st2 =>
-      rw [h2, Option.bind_some] at h
-      obtain ⟨hadd, hrt, -, hpv, -⟩ :=
-        DiamondInitInstallsTheRelease E c id admin st1 h0 (deployNewChain_spec hG.diamondInit h1)
-      -- `genesisUpgrade()` reaches the Admin facet
-      obtain ⟨f, b, hfb, hrun⟩ := proxyCall_spec h2
-      have hfa : E.code f = .adminFacet := hG.adminFacet f b (by rw [← hrt]; exact hfb)
-      rw [hfa] at hrun
-      obtain ⟨hd2, -, ha2⟩ :=
-        GenesisUpgradeWritesNoDiamondStorage E c st1 st2 hG.genesisUpgrade hrun
-      -- `pauseDepositsBeforeInitiatingMigration()` reaches the Migrator facet
-      obtain ⟨f', b', hfb', hrun'⟩ := proxyCall_spec h
-      have hfm : E.code f' = .migratorFacet :=
-        hG.migratorFacet _ (Or.inl rfl) f' b' (by rw [← hrt, ← hd2]; exact hfb')
-      rw [hfm] at hrun'
-      obtain ⟨hd3, hpv3⟩ := pauseDeposits_spec hrun'
-      refine ⟨?_, ?_⟩
-      · rw [hpv3, ha2]; exact hpv
-      · rw [hd3, hd2, hG.rows]; exact hadd
+  obtain ⟨st1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨st2, h2, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨hadd, hrt, -, hpv, -⟩ :=
+    DiamondInitInstallsTheRelease E c id admin st1 h0 (deployNewChain_spec hG.diamondInit h1)
+  -- `genesisUpgrade()` reaches the Admin facet
+  obtain ⟨f, b, hfb, hrun⟩ := proxyCall_spec h2
+  rw [hG.adminFacet f b (by rw [← hrt]; exact hfb)] at hrun
+  obtain ⟨hd2, -, ha2⟩ := GenesisUpgradeWritesNoDiamondStorage E c st1 st2 hG.genesisUpgrade hrun
+  -- `pauseDepositsBeforeInitiatingMigration()` reaches the Migrator facet
+  obtain ⟨f', b', hfb', hrun'⟩ := proxyCall_spec h
+  rw [hG.migratorFacet _ (Or.inl rfl) f' b' (by rw [← hrt, ← hd2]; exact hfb')] at hrun'
+  obtain ⟨hd3, hpv3⟩ := pauseDeposits_spec hrun'
+  exact ⟨by rw [hpv3, ha2]; exact hpv, by rw [hd3, hd2, hG.rows]; exact hadd⟩
 
 /-- What a successful migration-in deployment leaves. -/
 lemma migrateInNewChain_spec {W : World} {E : Env} {c : CTM} {v : ℕ} {id : ChainId}
@@ -302,20 +261,13 @@ lemma migrateInNewChain_spec {W : World} {E : Env} {c : CTM} {v : ℕ} {id : Cha
       addAll emptyRouting (W.relRows c.cur) = some st.diamond.routing := by
   unfold migrateInNewChain at h
   split_ifs at h with hv
-  cases h1 : deployNewChain E c id admin with
-  | none => rw [h1] at h; exact absurd h (by simp)
-  | some st1 =>
-    rw [h1, Option.bind_some] at h
-    obtain ⟨hadd, hrt, -, hpv, -⟩ :=
-      DiamondInitInstallsTheRelease E c id admin st1 h0 (deployNewChain_spec hG.diamondInit h1)
-    obtain ⟨f, b, hfb, hrun⟩ := proxyCall_spec h
-    have hfm : E.code f = .migratorFacet :=
-      hG.migratorFacet _ (Or.inr rfl) f b (by rw [← hrt]; exact hfb)
-    rw [hfm] at hrun
-    obtain ⟨-, hd, hpv'⟩ := migratorForwardedBridgeMint_spec hrun
-    refine ⟨not_not.mp hv, ?_, ?_⟩
-    · rw [hpv', hpv]
-    · rw [hd, hG.rows]; exact hadd
+  obtain ⟨st1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨hadd, hrt, -, hpv, -⟩ :=
+    DiamondInitInstallsTheRelease E c id admin st1 h0 (deployNewChain_spec hG.diamondInit h1)
+  obtain ⟨f, b, hfb, hrun⟩ := proxyCall_spec h
+  rw [hG.migratorFacet _ (Or.inr rfl) f b (by rw [← hrt]; exact hfb)] at hrun
+  obtain ⟨-, hd, hpv'⟩ := migratorForwardedBridgeMint_spec hrun
+  exact ⟨not_not.mp hv, by rw [hpv', hpv], by rw [hd, hG.rows]; exact hadd⟩
 
 theorem CodeCreationIsAStep : Properties.CodeCreationIsAStep := by
   intro W E s s' l h0 hG h
@@ -370,13 +322,11 @@ lemma addSelectors_ok {f : Address} {frz : Bool} :
         rw [pushSelector_selectorToFacet_ne _ _ _ hne]
         exact hfree x' (by simp [hx']))
       (fun y hy => by
-        simp only [pushSelector, upd_same] at hy
+        simp only [pushSelector, upd_same, List.mem_append, List.mem_singleton] at hy
         by_cases hyx : y = x
         · subst hyx; simp [pushSelector]
         · rw [pushSelector_selectorToFacet_ne _ _ _ hyx]
-          rcases List.mem_append.mp hy with hy | hy
-          · exact hfrz y hy
-          · simp only [List.mem_singleton] at hy; exact absurd hy hyx)
+          exact hfrz y (hy.resolve_right hyx))
     refine ⟨ds', ?_, ?_, ?_⟩
     · simp only [addSelectors, hx, ↓reduceIte, hadd, Option.bind_some]; exact h1
     · intro g hg; rw [h2 g hg, pushSelector_facetToSelectors_ne _ _ _ hg]
@@ -538,9 +488,7 @@ theorem GenesisStepIsExact : Properties.GenesisStepIsExact := by
   obtain ⟨hpv, hadd'⟩ := createNewChain_spec h0 hG hst
   have hρ : st.diamond.routing = ρ := Option.some.inj (hadd'.symm.trans hadd)
   have hch : st.chain = ⟨s.ctm.pv, ρ⟩ := by simp only [ChainState.chain, hpv, hρ]
-  have := CodeCreation.createNewChain (E := E) (s := s) hnone hst
-  rw [hch] at this
-  exact this
+  simpa only [hch] using CodeCreation.createNewChain (E := E) (s := s) hnone hst
 
 theorem MigrateInStepIsExact : Properties.MigrateInStepIsExact := by
   intro W E s s' id h0 hc hG hwf hM
@@ -550,9 +498,7 @@ theorem MigrateInStepIsExact : Properties.MigrateInStepIsExact := by
   obtain ⟨-, hpv, hadd'⟩ := migrateInNewChain_spec h0 hG hst
   have hρ : st.diamond.routing = ρ := Option.some.inj (hadd'.symm.trans hadd)
   have hch : st.chain = ⟨s.ctm.pv, ρ⟩ := by simp only [ChainState.chain, hpv, hρ]
-  have := CodeCreation.forwardedBridgeMint (E := E) (s := s) hnone hst
-  rw [hch] at this
-  exact this
+  simpa only [hch] using CodeCreation.forwardedBridgeMint (E := E) (s := s) hnone hst
 
 theorem CodeStepIsExact : Properties.CodeStepIsExact := by
   intro W E s s' l h0 hc hG hwf hA hM hF
@@ -567,22 +513,7 @@ theorem CodeStepIsExact : Properties.CodeStepIsExact := by
     cases h with
     | create hcc => exact (MigrateInStepIsExact W E s s' id h0 hc hG hwf hF).mp hcc
     | other hl _ => exact absurd trivial hl
-  | ctm op =>
-    refine ⟨fun h => ?_, fun h => CodeStep.other (fun h => h) h⟩
-    cases h with
-    | create hcc => cases hcc
-    | other _ hs => exact hs
-  | transition id =>
-    refine ⟨fun h => ?_, fun h => CodeStep.other (fun h => h) h⟩
-    cases h with
-    | create hcc => cases hcc
-    | other _ hs => exact hs
-  | bootstrapReset id =>
-    refine ⟨fun h => ?_, fun h => CodeStep.other (fun h => h) h⟩
-    cases h with
-    | create hcc => cases hcc
-    | other _ hs => exact hs
-  | arbitraryCut id v ρ =>
+  | _ =>
     refine ⟨fun h => ?_, fun h => CodeStep.other (fun h => h) h⟩
     cases h with
     | create hcc => cases hcc
@@ -597,22 +528,14 @@ lemma codeCreation_ctm {E : Env} {s s' : Sys} {l : Label} (h : CodeCreation E s 
 lemma step_pv_le {W : World} {s s' : Sys} {l : Label} (h : Step W s l s') : s.ctm.pv ≤ s'.ctm.pv := by
   cases h with
   | ctm hc => exact (cstep_pv hc).1
-  | genesis _ _ => exact le_rfl
-  | migrateIn _ _ _ _ => exact le_rfl
-  | transition _ _ _ _ _ => exact le_rfl
-  | bootstrapReset _ _ _ _ => exact le_rfl
-  | arbitraryCut _ _ _ => exact le_rfl
+  | _ => exact le_rfl
 
 lemma step_relAt_low {W : World} {s s' : Sys} {l : Label} (h : Step W s l s') :
     ∀ w, w ≤ s.ctm.pv → s'.ctm.relAt w = s.ctm.relAt w := by
   intro w hw
   cases h with
   | ctm hc => exact cstep_relAt_low hc w hw
-  | genesis _ _ => rfl
-  | migrateIn _ _ _ _ => rfl
-  | transition _ _ _ _ _ => rfl
-  | bootstrapReset _ _ _ _ => rfl
-  | arbitraryCut _ _ _ => rfl
+  | _ => rfl
 
 /-- Releases recorded at or below the current version survive any run. -/
 lemma run_relAt_low {W : World} {s s' : Sys} {ls : List Label} (h : Run W s ls s') :
@@ -654,10 +577,7 @@ lemma rowsRouting_mem : ∀ {A : ReleaseRows} {x : Selector} {r : Route},
   | (y, r') :: A, x, r, h => by
     simp only [rowsRouting] at h
     split_ifs at h with hxy
-    · subst hxy
-      simp only [Option.some.injEq] at h
-      subst h
-      exact List.mem_cons_self
+    · cases h; subst hxy; exact List.mem_cons_self
     · exact List.mem_cons_of_mem _ (rowsRouting_mem h)
 
 lemma releaseRows_mem {E : Env} {R : Address} {x : Selector} {f : Address} {b : Bool}
@@ -763,9 +683,7 @@ lemma create_step {W : World} {E : Env} {s : Sys} {id : ChainId} (h0 : E.code 0 
   obtain ⟨hpv, hadd⟩ := createNewChain_spec h0 hG hst
   have hch : st.chain = ⟨s.ctm.pv, rowsRouting (W.relRows s.ctm.cur)⟩ := by
     simp only [ChainState.chain, hpv, addAll_empty hadd]
-  have hcc := CodeCreation.createNewChain (E := E) (s := s) hnone hst
-  rw [hch] at hcc
-  exact CodeStep.create hcc
+  exact CodeStep.create (hch ▸ CodeCreation.createNewChain (E := E) (s := s) hnone hst)
 
 theorem CodeRunWitness : Properties.CodeRunWitness := by
   have h0 : gEnv.code 0 = .none := rfl
@@ -805,8 +723,7 @@ theorem ForeignDiamondInitBreaksGenesis : Properties.ForeignDiamondInitBreaksGen
   have hfacts : (createNewChain fInitEnv gSys0.ctm 0 1 0).map
       (fun st => (st.app.protocolVersion, st.diamond.routing 1)) = some (1, none) := by decide
   rw [hst] at hfacts
-  simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hfacts
-  obtain ⟨hpv, hr1⟩ := hfacts
+  obtain ⟨hpv, hr1⟩ := Prod.mk.inj (Option.some.inj hfacts)
   have hrow1 : rowsRouting (gWorld.relRows 100) 1 = some (11, false) := by decide
   have hrel : gSys0.ctm.relAt 1 = 100 := by decide
   have hne : st.chain.routing ≠ rowsRouting (gWorld.relRows 100) := fun h => by
@@ -840,8 +757,7 @@ theorem ForeignGenesisUpgradeBreaksGenesis : Properties.ForeignGenesisUpgradeBre
       (fun st => (st.app.protocolVersion, st.diamond.routing 9)) = some (1, some (99, false)) := by
     decide
   rw [hst] at hfacts
-  simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at hfacts
-  obtain ⟨hpv, hr9⟩ := hfacts
+  obtain ⟨hpv, hr9⟩ := Prod.mk.inj (Option.some.inj hfacts)
   have hrow9 : rowsRouting (gWorld.relRows 100) 9 = none := by decide
   have hrel : gSys0.ctm.relAt 1 = 100 := by decide
   have hcc : CodeCreation fUpgradeEnv gSys0 (.genesis 0)
@@ -884,8 +800,7 @@ theorem SelectorlessRowRevertsCreation : Properties.SelectorlessRowRevertsCreati
     Option.isNone_iff_eq_none.mp (by decide)
   have hdi : diamondInitialize eEnv (initState eWorld 100) id admin ChainState.fresh = none := by
     unfold diamondInitialize
-    rw [hcut]
-    simp
+    simp [hcut]
   simp only [createNewChain, deployNewChain_eq rfl hG.diamondInit, hdi, Option.bind_none]
 
 end Contracts.ChainTypeManager.GenesisWriters

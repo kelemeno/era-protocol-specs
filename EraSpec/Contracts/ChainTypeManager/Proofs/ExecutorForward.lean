@@ -20,11 +20,7 @@ lemma step_pv_le {W : World} {s s' : Sys} {l : Label} (h : Step W s l s') :
     s.ctm.pv ≤ s'.ctm.pv := by
   cases h with
   | ctm hc => exact (cstep_pv hc).1
-  | genesis _ _ => exact le_rfl
-  | migrateIn _ _ _ _ => exact le_rfl
-  | transition _ _ _ _ _ => exact le_rfl
-  | bootstrapReset _ _ _ _ => exact le_rfl
-  | arbitraryCut _ _ _ => exact le_rfl
+  | _ => exact le_rfl
 
 lemma env_not_arbitrary {l : Label} (h : l.isEnv) : ¬ l.isArbitrary := by
   cases l <;> simp_all [Label.isEnv, Label.isArbitrary]
@@ -69,8 +65,7 @@ lemma xstep_keeps {X : XConfig} {s s' : XState} {x : XLabel}
       have hc' := hc hJ
       subst hc'
       exact ⟨hI, le_rfl, hJ⟩
-  | commit hs _ _ => exact sys_step_keeps hI hs (by simp [Label.isArbitrary])
-  | upgradeChain hs => exact sys_step_keeps hI hs (by simp [Label.isArbitrary])
+  | commit hs _ _ | upgradeChain hs => exact sys_step_keeps hI hs (by simp [Label.isArbitrary])
   | forward hr => exact frun_keeps hr hI ht
   | env he hs => exact sys_step_keeps hI hs (env_not_arbitrary he)
 
@@ -140,10 +135,8 @@ theorem FixedEntrypointsMoveProxiesOnlyAlongRows :
           happ.2.2 p with h1 | ⟨r, hr, hp, h2, h3⟩
       · exact Or.inl h1
       · exact Or.inr ⟨T, r, rfl, hr, hp, h2, h3⟩
-  | commit _ _ _ => exact Or.inl rfl
-  | upgradeChain _ => exact Or.inl rfl
   | forward _ => exact absurd rfl (hnf _)
-  | env _ _ => exact Or.inl rfl
+  | _ => exact Or.inl rfl
 
 end Contracts.ChainTypeManager
 

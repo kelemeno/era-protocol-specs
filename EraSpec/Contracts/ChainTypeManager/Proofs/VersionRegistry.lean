@@ -28,27 +28,20 @@ lemma cstep_pv {W : World} {s s' : CTM} {op : Op} (h : CStep W s op s') :
   | commit _ _ hpv hlt _ _ =>
       dsimp only
       refine ⟨by omega, fun _ => by omega, fun h => by simp [Op.isEdge] at h⟩
-  | replace _ _ _ _ _ _ _ _ =>
-      exact ⟨le_rfl, fun h => by simp [Op.isEdge] at h, fun _ => rfl⟩
   | legacyCommit _ hlt =>
       dsimp only
       refine ⟨by omega, fun _ => hlt, fun h => by simp [Op.isEdge] at h⟩
-  | legacyRecut _ _ =>
-      exact ⟨le_rfl, fun h => by simp [Op.isEdge] at h, fun _ => rfl⟩
+  | _ => exact ⟨le_rfl, fun h => by simp [Op.isEdge] at h, fun _ => rfl⟩
 
 /-- Releases already recorded at or below the current version never change. -/
 lemma cstep_relAt_low {W : World} {s s' : CTM} {op : Op} (h : CStep W s op s') :
     ∀ w, w ≤ s.pv → s'.relAt w = s.relAt w := by
   intro w hw
   cases h with
-  | commit _ _ hpv hlt _ _ =>
+  | commit _ _ _ _ _ _ | legacyCommit _ _ =>
       dsimp only
       exact upd_ne _ _ (by omega)
-  | replace _ _ _ _ _ _ _ _ => rfl
-  | legacyCommit _ hlt =>
-      dsimp only
-      exact upd_ne _ _ (by omega)
-  | legacyRecut _ _ => rfl
+  | _ => rfl
 
 /-- **The invariant is preserved by every writer.** -/
 theorem step_inv {W : World} {s s' : CTM} {op : Op} (hI : CtmInv W s)
@@ -83,13 +76,7 @@ theorem step_inv {W : World} {s s' : CTM} {op : Op} (hI : CtmInv W s)
       · rw [upd_ne _ _ hvo] at hv ⊢
         obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hI.slots v hv
         have hnew_le : (W.tr (s.ut v)).new ≤ s.pv := (hI.relAtSound _ h6).1
-        have hv_ne : v ≠ (W.tr t).new := by omega
-        have hw_ne : (W.tr (s.ut v)).new ≠ (W.tr t).new := by omega
-        refine ⟨by omega, ?_, ?_, h4, ?_, ?_⟩
-        · rw [relAt'_eq _ hv_ne]; exact h2
-        · rw [relAt'_eq _ hv_ne]; exact h3
-        · rw [relAt'_eq _ hw_ne]; exact h5
-        · rw [relAt'_eq _ hw_ne]; exact h6
+        refine ⟨by omega, ?_, ?_, h4, ?_, ?_⟩ <;> rw [relAt'_eq _ (by omega)] <;> assumption
     · intro v R hb
       obtain ⟨h1, h2, h3⟩ := hI.bootstraps v R hb
       have : W.relVersion R ≤ s.pv := by
@@ -133,11 +120,7 @@ theorem step_inv {W : World} {s s' : CTM} {op : Op} (hI : CtmInv W s)
       dsimp only at hv ⊢
       obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hI.slots v hv
       have hnew_le : (W.tr (s.ut v)).new ≤ s.pv := (hI.relAtSound _ h6).1
-      refine ⟨by omega, ?_, ?_, h4, ?_, ?_⟩
-      · rw [relAt'_eq _ (by omega)]; exact h2
-      · rw [relAt'_eq _ (by omega)]; exact h3
-      · rw [relAt'_eq _ (by omega)]; exact h5
-      · rw [relAt'_eq _ (by omega)]; exact h6
+      refine ⟨by omega, ?_, ?_, h4, ?_, ?_⟩ <;> rw [relAt'_eq _ (by omega)] <;> assumption
     · intro v R' hb
       dsimp only at hb ⊢
       by_cases hvp : v = s.pv
@@ -246,9 +229,7 @@ lemma commit_departure {W : World} {s s' : CTM} {op : Op} {v : ℕ}
     simp only [Op.commitDeparture, Option.some.injEq] at hd
     dsimp only
     omega
-  | replace _ _ _ _ _ _ _ _ => simp [Op.commitDeparture] at hd
-  | legacyCommit _ _ => simp [Op.commitDeparture] at hd
-  | legacyRecut _ _ => simp [Op.commitDeparture] at hd
+  | _ => simp [Op.commitDeparture] at hd
 
 /-- Every commit in a run departs at or above the run's starting version. -/
 lemma run_departure_ge {W : World} {s s' : CTM} {ops : List Op} (h : CRun W s ops s') :
@@ -300,8 +281,7 @@ theorem OnlyCommitOrReplaceWritesSlots : Properties.OnlyCommitOrReplaceWritesSlo
       right
       exact ⟨e, r, rfl, rfl, hslot, by simp, hr0⟩
     · rw [upd_ne _ _ hvo] at hne; exact absurd rfl hne
-  | legacyCommit _ _ => exact absurd rfl hne
-  | legacyRecut _ _ => exact absurd rfl hne
+  | _ => exact absurd rfl hne
 
 /-! ## Transitions chain -/
 
@@ -344,8 +324,7 @@ theorem SlotsDepartFromTheirVersion : Properties.SlotsDepartFromTheirVersion := 
         rw [hgen e r (List.mem_cons_self), hfrom, k2]
         exact (hI.relAtSound _ k3).2
       · rw [upd_ne _ _ hvo] at hv ⊢; exact hold v hv
-    | legacyCommit _ _ => exact hold v hv
-    | legacyRecut _ _ => exact hold v hv
+    | _ => exact hold v hv
 
 /-! ## Witnesses -/
 

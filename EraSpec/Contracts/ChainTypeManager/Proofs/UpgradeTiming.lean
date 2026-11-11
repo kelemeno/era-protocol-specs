@@ -61,13 +61,9 @@ private lemma run_append_routing {W : World} {s s' s'' : Sys} {l1 l2 : List Labe
 private lemma timedStep_untimed {T : TimedConfig} {s s' : TimedSys} {l : TimedLabel}
     (h : TimedStep T s l s') : Run T.X.W s.sys l.untimed s'.sys := by
   cases h with
-  | direct d => exact Run.cons d.routing Run.nil
-  | ctm _ d => exact Run.cons d.routing Run.nil
-  | executor _ _ _ d => exact Run.cons d.routing Run.nil
+  | direct d | ctm _ d | executor _ _ _ d => exact Run.cons d.routing Run.nil
   | base _ hs => exact Run.cons hs Run.nil
-  | setUpgradeTimestamp _ _ _ _ => exact Run.nil
-  | swapNotifier => exact Run.nil
-  | setAux => exact Run.nil
+  | _ => exact Run.nil
 
 theorem TimedRunIsARun : Properties.TimedRunIsARun := by
   intro T s s' ls h
@@ -91,9 +87,7 @@ theorem TimedRunKeepsChainsOnTheirRelease : Properties.TimedRunKeepsChainsOnThei
       simp only [TimedLabel.untimed, List.mem_singleton] at hlx
       subst hlx
       exact hl _ hx
-  | setUpgradeTimestamp _ _ _ => simp [TimedLabel.untimed] at hlx
-  | swapNotifier _ => simp [TimedLabel.untimed] at hlx
-  | setAux _ _ => simp [TimedLabel.untimed] at hlx
+  | _ => simp [TimedLabel.untimed] at hlx
 
 theorem TimedUpgradeChainIsAnXStep : Properties.TimedUpgradeChainIsAnXStep := by
   intro T s s' id t caller τ impl h
@@ -172,10 +166,6 @@ theorem OtherCallersNeedTheNotifier : Properties.OtherCallersNeedTheNotifier := 
 theorem NotifierWrittenOnlyByItsChainAdmin : Properties.NotifierWrittenOnlyByItsChainAdmin := by
   intro T s s' l id v h hne
   cases h with
-  | direct _ => exact absurd rfl hne
-  | ctm _ _ => exact absurd rfl hne
-  | executor _ _ _ _ => exact absurd rfl hne
-  | base _ _ => exact absurd rfl hne
   | @setUpgradeTimestamp id' caller ts c hc hcaller hts _ =>
       by_cases hid : id = id'
       · subst hid
@@ -183,14 +173,10 @@ theorem NotifierWrittenOnlyByItsChainAdmin : Properties.NotifierWrittenOnlyByIts
         · subst hv
           left
           exact ⟨caller, ts, c, rfl, hcaller, hc, rfl, hts, by simp [setNotifierEntry]⟩
-        · exfalso
-          apply hne
-          simp [setNotifierEntry, upd_ne _ _ hv]
-      · exfalso
-        apply hne
-        simp [setNotifierEntry, upd_ne _ _ hid]
+        · exact absurd (by simp [setNotifierEntry, upd_ne _ _ hv]) hne
+      · exact absurd (by simp [setNotifierEntry, upd_ne _ _ hid]) hne
   | swapNotifier => exact Or.inr ⟨_, rfl⟩
-  | setAux => exact absurd rfl hne
+  | _ => exact absurd rfl hne
 
 /-! ## The engine's gates bind every path -/
 

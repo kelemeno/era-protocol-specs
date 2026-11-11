@@ -33,20 +33,16 @@ lemma probe_dup {N : ℕ} {T : ℕ → ℕ} {e : ℕ} (he : e ≠ 0) :
   | succ n ih =>
     rintro j ⟨i, hi, hTi, hpre⟩
     simp only [scanProbe]
-    have hslot : T ((e + j) % N) ≠ 0 := by
-      rcases Nat.eq_zero_or_pos i with rfl | hpos
-      · rw [add_zero] at hTi; rw [hTi]; exact he
-      · simpa using hpre 0 hpos
-    rw [ite_eq_right hslot]
+    obtain _ | i'' := i
+    · simp only [add_zero] at hTi
+      simp [hTi, he]
+    rw [ite_eq_right (by simpa using hpre 0 (by omega))]
     split_ifs with heq
     · rfl
-    · rcases Nat.eq_zero_or_pos i with rfl | hpos
-      · exact absurd (by simpa using hTi) heq
-      · obtain ⟨i'', rfl⟩ : ∃ i'', i = i'' + 1 := ⟨i - 1, by omega⟩
-        rw [mod_succ_mod, show e + j + 1 = e + (j + 1) by omega]
-        refine ih (j + 1) ⟨i'', by omega, ?_, fun i' hi' => ?_⟩
-        · rw [show e + (j + 1) + i'' = e + j + (i'' + 1) by omega]; exact hTi
-        · rw [show e + (j + 1) + i' = e + j + (i' + 1) by omega]; exact hpre _ (by omega)
+    · rw [mod_succ_mod, show e + j + 1 = e + (j + 1) by omega]
+      refine ih (j + 1) ⟨i'', by omega, ?_, fun i' hi' => ?_⟩
+      · rw [show e + (j + 1) + i'' = e + j + (i'' + 1) by omega]; exact hTi
+      · rw [show e + (j + 1) + i' = e + j + (i' + 1) by omega]; exact hpre _ (by omega)
 
 /-- A probe for an entry the table does not hold ends at the first empty slot on its path,
 and writes the entry there. -/
@@ -63,20 +59,16 @@ lemma probe_ins {N : ℕ} {T : ℕ → ℕ} {e : ℕ} (hnot : ∀ k, T k ≠ e) 
     by_cases h0 : T ((e + j) % N) = 0
     · exact ⟨0, by omega, by simpa using h0, fun i' hi' => by omega, by simp [h0]⟩
     · rw [ite_eq_right h0, ite_eq_right (hnot _)]
-      have hpos : 0 < i := by
-        rcases Nat.eq_zero_or_pos i with rfl | hpos
-        · exact absurd (by simpa using hTi) h0
-        · exact hpos
-      obtain ⟨i'', rfl⟩ : ∃ i'', i = i'' + 1 := ⟨i - 1, by omega⟩
+      obtain _ | i'' := i
+      · exact absurd (by simpa using hTi) h0
       rw [mod_succ_mod, show e + j + 1 = e + (j + 1) by omega]
       obtain ⟨i₁, hi₁, hT₁, hpre₁, hres⟩ := ih (j + 1) ⟨i'', by omega, by
         rw [show e + (j + 1) + i'' = e + j + (i'' + 1) by omega]; exact hTi⟩
       refine ⟨i₁ + 1, by omega, ?_, fun i' hi' => ?_, ?_⟩
       · rw [show e + j + (i₁ + 1) = e + (j + 1) + i₁ by omega]; exact hT₁
-      · rcases Nat.eq_zero_or_pos i' with rfl | hpos'
+      · obtain _ | i''' := i'
         · simpa using h0
-        · obtain ⟨i''', rfl⟩ : ∃ i''', i' = i''' + 1 := ⟨i' - 1, by omega⟩
-          rw [show e + j + (i''' + 1) = e + (j + 1) + i''' by omega]
+        · rw [show e + j + (i''' + 1) = e + (j + 1) + i''' by omega]
           exact hpre₁ _ (by omega)
       · rw [hres, show e + (j + 1) + i₁ = e + j + (i₁ + 1) by omega]
 
@@ -214,10 +206,7 @@ lemma scanLoop_iff {N : ℕ} (hN : 0 < N) :
       simp only [add_zero] at hT0 hpre hres
       rw [hres, Option.bind_some]
       have hI' := scanInv_insert hI hbP hx hxP hN hi hT0 hpre
-      have hnd' : (P ++ [x]).Nodup := by
-        rw [List.nodup_append]
-        exact ⟨hnd, List.nodup_singleton x, fun a ha b hb' hab => by
-          simp only [List.mem_singleton] at hb'; subst hb'; subst hab; exact hxP ha⟩
+      have hnd' : (P ++ [x]).Nodup := by simpa using hnd.concat hxP
       have := ih (P ++ [x]) _ hI' hnd' (by simpa using hlen) (by simpa using hb)
       rw [this, List.append_assoc, List.singleton_append]
 

@@ -57,11 +57,8 @@ lemma applyDerived_rows_iff {A B : ReleaseRows} (hAB : A ≠ B) :
   constructor
   · rintro ⟨σ, h⟩
     simp only [applyDerived, hAB, ite_false] at h
-    cases hr : removeAll (rowsRouting A) (A.map Prod.fst) with
-    | none => rw [hr] at h; simp at h
-    | some τ =>
-      rw [hr, Option.bind_some] at h
-      exact ⟨removeAll_nodup hr, addAll_nodup h⟩
+    obtain ⟨τ, hr, h⟩ := Option.bind_eq_some_iff.mp h
+    exact ⟨removeAll_nodup hr, addAll_nodup h⟩
   · rintro ⟨hA, hB⟩
     exact ⟨_, applyDerived_rows_eq hA hB⟩
 
@@ -87,8 +84,7 @@ theorem TransitionEnabledIff : Properties.TransitionEnabledIff := by
   · rintro ⟨s', h⟩
     cases h with
     | @transition _ c0 ρ hc0 hut hguard happ hlt =>
-      have hcc : c0 = c := Option.some.inj (hc0.symm.trans hc)
-      subst hcc
+      obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
       have hfrom := (edge_facts hC hut).1
       refine ⟨hut, by rw [hguard, hfrom], ?_⟩
       by_cases hAB : W.relRows (s.edge W c0.pv).fromRel = W.relRows (s.edge W c0.pv).newRel
@@ -129,8 +125,7 @@ theorem BootstrapResetEnabledIff : Properties.BootstrapResetEnabledIff := by
   · rintro ⟨s', h⟩
     cases h with
     | @bootstrapReset _ c0 R ρ hc0 hleg hadd hlt =>
-      have hcc : c0 = c := Option.some.inj (hc0.symm.trans hc)
-      subst hcc
+      obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
       exact ⟨R, hleg, addAll_nodup hadd⟩
   · rintro ⟨R, hleg, hwf⟩
     exact ⟨_, Step.bootstrapReset hc hleg (addAll_empty_eq hwf) (hC.bootstraps _ R hleg).1⟩
@@ -144,9 +139,8 @@ lemma step_chainsOnWf {W : World} {s s' : Sys} {l : Label} (hI : SysInv W s)
   cases h with
   | @ctm op c' hc =>
     intro id c hcid hrel
-    have hlow := cstep_relAt_low hc c.pv (hch id c hcid).1
-    dsimp only at hlow hrel ⊢
-    rw [hlow] at hrel ⊢
+    dsimp only at hrel ⊢
+    rw [cstep_relAt_low hc c.pv (hch id c hcid).1] at hrel ⊢
     exact hW id c hcid hrel
   | @genesis id ρ hnone hadd =>
     intro id' c hc hrel
@@ -219,23 +213,18 @@ lemma cstep_recordedWf {W : World} {s s' : CTM} {op : Op} (hR : RecordedReleases
     by_cases hvn : v = (W.tr t).new
     · subst hvn; simp only [upd_same]; exact hop
     · rw [upd_ne _ _ hvn] at hv ⊢; exact hR v hv
-  | replace _ _ _ _ _ _ _ _ => exact hR v hv
   | @legacyCommit R b _ _ =>
     dsimp only at hv ⊢
     by_cases hvn : v = W.relVersion R
     · subst hvn; simp only [upd_same]; exact hop
     · rw [upd_ne _ _ hvn] at hv ⊢; exact hR v hv
-  | legacyRecut _ _ => exact hR v hv
+  | _ => exact hR v hv
 
 lemma step_recordedWf {W : World} {s s' : Sys} {l : Label} (hR : RecordedReleasesWf W s.ctm)
     (h : Step W s l s') (hl : l.InstallsWf W) : RecordedReleasesWf W s'.ctm := by
   cases h with
   | ctm hc => exact cstep_recordedWf hR hc hl
-  | genesis _ _ => exact hR
-  | migrateIn _ _ _ _ => exact hR
-  | transition _ _ _ _ _ => exact hR
-  | bootstrapReset _ _ _ _ => exact hR
-  | arbitraryCut _ _ _ => exact hR
+  | _ => exact hR
 
 lemma run_recordedWf {W : World} {s s' : Sys} {ls : List Label} (hR : RecordedReleasesWf W s.ctm)
     (h : Run W s ls s') (hl : ∀ l ∈ ls, l.InstallsWf W) : RecordedReleasesWf W s'.ctm := by
@@ -303,45 +292,38 @@ lemma cstep_departs {W : World} {s s' : CTM} {op : Op} (h : CStep W s op s') (hl
   cases h with
   | @commit t ht0 _ hpv _ _ _ =>
     left; dsimp only; rw [hpv]; simpa using ht0
-  | replace _ _ _ _ _ _ _ _ => exact absurd hlt (lt_irrefl _)
   | @legacyCommit R b _ _ =>
     right; dsimp only; cases b <;> simp
-  | legacyRecut _ _ => exact absurd hlt (lt_irrefl _)
+  | _ => exact absurd hlt (lt_irrefl _)
 
 lemma cstep_departedBelow {W : World} {s s' : CTM} {op : Op} (hC : CtmInv W s)
     (hD : DepartedBelow s) (h : CStep W s op s') : DepartedBelow s' := by
   intro v hv hlt
-  have hlow := cstep_relAt_low h
   have hmono := cstep_departed_mono h v
   cases h with
   | @commit t ht0 _ hpv hnew _ _ =>
-    dsimp only at hv hlt hlow hmono ⊢
+    dsimp only at hv hlt hmono ⊢
     have hvn : v ≠ (W.tr t).new := by omega
     rw [upd_ne _ _ hvn] at hv
     have hle := (hC.relAtSound v hv).1
     by_cases hvp : v = s.pv
     · subst hvp; left; rw [hpv]; simpa using ht0
     · exact hmono (hD v hv (by omega))
-  | replace _ _ _ _ _ _ _ _ => exact hmono (hD v hv hlt)
   | @legacyCommit R b _ hnew =>
-    dsimp only at hv hlt hlow hmono ⊢
+    dsimp only at hv hlt hmono ⊢
     have hvn : v ≠ W.relVersion R := by omega
     rw [upd_ne _ _ hvn] at hv
     have hle := (hC.relAtSound v hv).1
     by_cases hvp : v = s.pv
     · subst hvp; right; cases b <;> simp
     · exact hmono (hD v hv (by omega))
-  | legacyRecut _ _ => exact hmono (hD v hv hlt)
+  | _ => exact hmono (hD v hv hlt)
 
 lemma step_departedBelow {W : World} {s s' : Sys} {l : Label} (hC : CtmInv W s.ctm)
     (hD : DepartedBelow s.ctm) (h : Step W s l s') : DepartedBelow s'.ctm := by
   cases h with
   | ctm hc => exact cstep_departedBelow hC hD hc
-  | genesis _ _ => exact hD
-  | migrateIn _ _ _ _ => exact hD
-  | transition _ _ _ _ _ => exact hD
-  | bootstrapReset _ _ _ _ => exact hD
-  | arbitraryCut _ _ _ => exact hD
+  | _ => exact hD
 
 lemma step_chainsAtDeparted {W : World} {s s' : Sys} {l : Label} (hI : SysInv W s)
     (hD : DepartedBelow s.ctm) (hA : ChainsAtDepartedVersions s) (h : Step W s l s')

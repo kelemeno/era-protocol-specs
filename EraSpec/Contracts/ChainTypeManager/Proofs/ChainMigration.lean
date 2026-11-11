@@ -35,37 +35,22 @@ theorem OnlyUpgradesAndCutsWriteADiamond : Properties.OnlyUpgradesAndCutsWriteAD
   | @base _ s1 hs =>
     cases hs with
     | ctm _ => exact absurd (Option.some.inj (hc.symm.trans hc')).symm hcc
-    | @genesis id' ρ hnone _ =>
+    | @genesis id' _ hnone _ | @migrateIn id' _ _ _ hnone _ =>
       by_cases hid : id' = id
-      · subst hid; rw [hc] at hnone; exact absurd hnone (by simp)
+      · subst hid; simp [hc] at hnone
       · exact (keep hid hc hc' hcc).elim
-    | @migrateIn id' ρ v _ hnone _ =>
-      by_cases hid : id' = id
-      · subst hid; rw [hc] at hnone; exact absurd hnone (by simp)
-      · exact (keep hid hc hc' hcc).elim
-    | @transition id' _ _ _ _ _ _ _ =>
-      by_cases hid : id' = id
-      · exact hid
-      · exact (keep hid hc hc' hcc).elim
-    | @bootstrapReset id' _ _ _ _ _ _ _ =>
-      by_cases hid : id' = id
-      · exact hid
-      · exact (keep hid hc hc' hcc).elim
+    | @transition id' _ _ _ _ _ _ _ | @bootstrapReset id' _ _ _ _ _ _ _
     | @arbitraryCut id' _ _ _ _ =>
       by_cases hid : id' = id
       · exact hid
       · exact (keep hid hc hc' hcc).elim
-  | migrateOut _ _ _ => exact absurd (Option.some.inj (hc.symm.trans hc')).symm hcc
-  | migrateReturn _ _ _ => exact absurd (Option.some.inj (hc.symm.trans hc')).symm hcc
-  | migrateRecover _ _ => exact absurd (Option.some.inj (hc.symm.trans hc')).symm hcc
+  | _ => exact absurd (Option.some.inj (hc.symm.trans hc')).symm hcc
 
 lemma mstep_sysInv {W : World} {s s' : MSys} {l : MLabel} (hI : SysInv W s.sys)
     (h : MStep W s l s') (hl : ¬ l.isArbitrary) : SysInv W s'.sys := by
   cases h with
   | base hs => exact step_sysInv hI hs hl
-  | migrateOut _ _ _ => exact hI
-  | migrateReturn _ _ _ => exact hI
-  | migrateRecover _ _ => exact hI
+  | _ => exact hI
 
 lemma mrun_sysInv {W : World} {s s' : MSys} {ls : List MLabel} (hI : SysInv W s.sys)
     (h : MRun W s ls s') (hl : ∀ l ∈ ls, ¬ l.isArbitrary) : SysInv W s'.sys := by
@@ -132,8 +117,7 @@ theorem DriftedReturnerIsStuck : Properties.DriftedReturnerIsStuck := by
   · rintro ⟨s', h⟩
     cases h with
     | @migrateOut _ c hc _ hv =>
-      have hcc : c = ⟨1, bgExtra⟩ := Option.some.inj (hc.symm.trans sTrip_chain)
-      subst hcc
+      obtain rfl : c = ⟨1, bgExtra⟩ := Option.some.inj (hc.symm.trans sTrip_chain)
       exact absurd hv (by decide)
 
 theorem MigrationRoundTripWitness : Properties.MigrationRoundTripWitness := by

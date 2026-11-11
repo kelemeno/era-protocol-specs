@@ -219,21 +219,17 @@ lemma installCuts_routing (sel : Address → List Selector) :
       addAll ds.routing (flattenRows sel rows) = some d.routing := by
   intro rows
   induction rows with
-  | nil => intro ds d h; simp [diamondCut] at h; subst h; rfl
+  | nil => intro ds d h; cases h; rfl
   | cons fb rs ih =>
     intro ds d h
-    simp only [List.map_cons, diamondCut] at h
-    cases h1 : facetCut ds ⟨fb.1, .add, fb.2, sel fb.1⟩ with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      unfold facetCut at h1
-      split_ifs at h1 with hne
-      have hadd := addFunctions_routing h1
-      simp only [Prod.mk.eta] at hadd
-      simp only [flattenRows, List.flatMap_cons] at ih ⊢
-      rw [addAll_append, hadd, Option.bind_some]
-      exact ih d1 d h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    unfold facetCut at h1
+    split_ifs at h1 with hne
+    have hadd := addFunctions_routing h1
+    simp only [Prod.mk.eta] at hadd
+    simp only [flattenRows, List.flatMap_cons] at ih ⊢
+    rw [addAll_append, hadd, Option.bind_some]
+    exact ih d1 d h
 
 /-- One `Remove` cut per item removes the concatenated selector lists. -/
 lemma removeCuts_routing {α : Type} (g : α → List Selector) :
@@ -242,18 +238,14 @@ lemma removeCuts_routing {α : Type} (g : α → List Selector) :
       removeAll ds.routing (l.flatMap g) = some d.routing := by
   intro l
   induction l with
-  | nil => intro ds d h; simp [diamondCut] at h; subst h; rfl
+  | nil => intro ds d h; cases h; rfl
   | cons a tl ih =>
     intro ds d h
-    simp only [List.map_cons, diamondCut] at h
-    cases h1 : facetCut ds ⟨0, .remove, false, g a⟩ with
-    | none => rw [h1] at h; simp at h
-    | some d1 =>
-      rw [h1, Option.bind_some] at h
-      unfold facetCut at h1
-      split_ifs at h1 with hne
-      rw [List.flatMap_cons, removeAll_append, removeFunctions_routing h1, Option.bind_some]
-      exact ih d1 d h
+    obtain ⟨d1, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    unfold facetCut at h1
+    split_ifs at h1 with hne
+    rw [List.flatMap_cons, removeAll_append, removeFunctions_routing h1, Option.bind_some]
+    exact ih d1 d h
 
 /-- **The derived cuts, behind the guard, do what `applyDerived` does.** -/
 lemma transitionCuts_routing {D : DWorld} {A B : Address} {ds d : DiamondStorage}
@@ -269,30 +261,25 @@ lemma transitionCuts_routing {D : DWorld} {A B : Address} {ds d : DiamondStorage
       simpa [List.map_map, Function.comp_def] using this
     simp [applyDerived, hgf]
   · rw [diamondCut_append] at h
-    cases h1 : diamondCut ds ((D.genesisFacets A).map
-        fun fb => (⟨0, .remove, false, D.selectors fb.1⟩ : FacetCut)) with
-    | none => rw [h1] at h; simp at h
-    | some dm =>
-      rw [h1, Option.bind_some] at h
-      have hrm := removeCuts_routing (fun fb : FacetRow => D.selectors fb.1) _ ds dm h1
-      rw [← flattenRows_keys] at hrm
-      have hadd := installCuts_routing D.selectors _ dm d h
-      by_cases hAB : D.rows A = D.rows B
-      · -- byte-different rows with the same routing: the reinstall changes nothing
-        have hdm : dm.routing = emptyRouting := by
-          funext y
-          rw [removeAll_spec hrm y, hguard]
-          split_ifs with hy
-          · rfl
-          · exact rowsRouting_eq_none.mpr hy
-        rw [hdm] at hadd
-        have hd := addAll_empty hadd
-        simp only [applyDerived, hAB, ite_true, Option.some.injEq]
-        rw [hguard, hd, hAB]; rfl
-      · simp only [applyDerived, hAB, ite_false]
-        rw [show (D.rows A).map Prod.fst = (flattenRows D.selectors (D.genesisFacets A)).map
-          Prod.fst from rfl, hrm, Option.bind_some]
-        exact hadd
+    obtain ⟨dm, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    have hrm := removeCuts_routing (fun fb : FacetRow => D.selectors fb.1) _ ds dm h1
+    rw [← flattenRows_keys] at hrm
+    have hadd := installCuts_routing D.selectors _ dm d h
+    by_cases hAB : D.rows A = D.rows B
+    · -- byte-different rows with the same routing: the reinstall changes nothing
+      have hdm : dm.routing = emptyRouting := by
+        funext y
+        rw [removeAll_spec hrm y, hguard]
+        split_ifs with hy
+        · rfl
+        · exact rowsRouting_eq_none.mpr hy
+      rw [hdm] at hadd
+      simp only [applyDerived, hAB, ite_true, Option.some.injEq]
+      rw [hguard, addAll_empty hadd, hAB]; rfl
+    · simp only [applyDerived, hAB, ite_false]
+      rw [show (D.rows A).map Prod.fst = (flattenRows D.selectors (D.genesisFacets A)).map
+        Prod.fst from rfl, hrm, Option.bind_some]
+      exact hadd
 
 /-- **The bootstrap reinstall, from consistent storage, installs the release.** -/
 lemma bootstrapCuts_routing {D : DWorld} {R : Address} {ds ds₁ ds₂ : DiamondStorage}
@@ -312,9 +299,8 @@ lemma bootstrapCuts_routing {D : DWorld} {R : Address} {ds ds₁ ds₂ : Diamond
         obtain ⟨f, b⟩ := fb
         have hyf : y ∈ (ds.facetToSelectors f).selectors := hI.mem_routing.mpr ⟨b, hr⟩
         exact List.mem_flatMap.mpr ⟨f, hI.mem_facets.mpr (List.ne_nil_of_mem hyf), hyf⟩
-  have := installCuts_routing D.selectors (D.genesisFacets R) ds₁ ds₂ h2
-  rw [hemp] at this
-  exact this
+  rw [← hemp]
+  exact installCuts_routing D.selectors (D.genesisFacets R) ds₁ ds₂ h2
 
 /-! ## The system -/
 
@@ -331,9 +317,7 @@ lemma view_set (s : DSys) (id : ChainId) (c : DChain) :
   simp only [DSys.view]
   congr 1
   funext i
-  by_cases h : i = id
-  · subst h; simp
-  · simp [upd_ne _ _ h]
+  by_cases h : i = id <;> simp [upd, h]
 
 lemma DLabel.view_isArbitrary (l : DLabel) : l.view.isArbitrary ↔ l.isArbitrary := by
   cases l <;> simp [DLabel.view, DLabel.isArbitrary, Label.isArbitrary]
@@ -378,12 +362,11 @@ lemma cstep_relAt_new {W : World} {s s' : CTM} {op : Op} (h : CStep W s op s') (
     by_cases hv : v = (W.tr t).new
     · right; subst hv; simp [Op.installs]
     · left; exact upd_ne _ _ hv
-  | replace _ _ _ _ _ _ _ _ => left; rfl
   | @legacyCommit R b _ _ =>
     by_cases hv : v = W.relVersion R
     · right; subst hv; simp [Op.installs]
     · left; exact upd_ne _ _ hv
-  | legacyRecut _ _ => left; rfl
+  | _ => left; rfl
 
 theorem countedStep_storeInv {D : DWorld} {s s' : DSys} {l : DLabel} (hS : StoreInv D s)
     (h : DStep D s l s') (hl : ¬ l.isArbitrary) : StoreInv D s' := by
@@ -393,12 +376,7 @@ theorem countedStep_storeInv {D : DWorld} {s s' : DSys} {l : DLabel} (hS : Store
     rcases cstep_relAt_new hc v with h | h
     · dsimp only at hv ⊢; rw [h] at hv ⊢; exact hS.releases v hv
     · exact hval _ h
-  | @genesis id ds hnone hcut =>
-    refine ⟨hS.releases, fun id' c hc => ?_⟩
-    rcases upd_some hc with ⟨_, rfl⟩ | ⟨_, hold⟩
-    · exact diamondCut_ok _ _ _ fresh_ok hcut
-    · exact hS.storage id' c hold
-  | @migrateIn id ds v _ hnone hcut =>
+  | @genesis id ds hnone hcut | @migrateIn id ds _ _ hnone hcut =>
     refine ⟨hS.releases, fun id' c hc => ?_⟩
     rcases upd_some hc with ⟨_, rfl⟩ | ⟨_, hold⟩
     · exact diamondCut_ok _ _ _ fresh_ok hcut
@@ -477,8 +455,7 @@ theorem countedDrift_blocks {D : DWorld} {s : DSys} {id : ChainId} {c : DChain}
   rintro ⟨s', h⟩
   cases h with
   | @transition _ c0 ds hc0 hut hcc hcut hlt =>
-    have hcc' : c0 = c := Option.some.inj (hc0.symm.trans hc)
-    subst hcc'
+    obtain rfl : c0 = c := Option.some.inj (hc0.symm.trans hc)
     obtain ⟨_, hfrom, hrz, _⟩ := hC.slots _ hut
     have hvalid := hrel _ hrz
     rw [← hfrom] at hvalid
@@ -604,8 +581,8 @@ theorem FreshChainsRunTheirVersionsReleaseCounted :
     exact hl l0 hl0
   have hrel := (FreshChainsRunTheirVersionsRelease D.toWorld R s'.view _ hR hrun hl' id c.view
     (by simp [DSys.view, hc])).1
-  exact ⟨hrel, chainsRun_counted hI h hl id c hc hrel |>.1,
-    chainsRun_counted hI h hl id c hc hrel |>.2.1, chainsRun_counted hI h hl id c hc hrel |>.2.2.1⟩
+  obtain ⟨h1, h2, h3, -⟩ := chainsRun_counted hI h hl id c hc hrel
+  exact ⟨hrel, h1, h2, h3⟩
 
 theorem BootstrapCountedSystemSatisfiesInvariant :
     Properties.BootstrapCountedSystemSatisfiesInvariant :=
