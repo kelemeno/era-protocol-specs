@@ -1,0 +1,72 @@
+wip/wave3a/1 WIP, unreviewed: wave3a agent 1 stopped mid-task (budget); committed as-is for handoff
+wip/wave3a/10 W-X-7: a claimed bundle is a dispatched bundle (ClaimBinding)
+wip/wave3a/2 W-UP-1: PermanentRestriction's migration check is off under the deployed CTM handler, and 
+wip/wave3a/3 WIP, unreviewed: wave3a agent 3 stopped mid-task (budget); committed as-is for handoff
+wip/wave3a/4 WIP, unreviewed: wave3a agent 4 stopped mid-task (budget); committed as-is for handoff
+wip/wave3a/5 WIP, unreviewed: wave3a agent 5 stopped mid-task (budget); committed as-is for handoff
+wip/wave3a/6 WIP, unreviewed: wave3a agent 6 stopped mid-task (budget); committed as-is for handoff
+wip/wave3a/7 WIP, unreviewed: wave3a agent 7 stopped mid-task (budget); committed as-is for handoff
+wip/wave3a/8 WIP, unreviewed: wave3a agent 8 stopped mid-task (budget); committed as-is for handoff
+wip/wave3a/9 WIP, unreviewed: wave3a agent 9 stopped mid-task (budget); committed as-is for handoff
+wip/faithfulness-repair/1 WIP, unreviewed: faithfulness-repair agent 1 stopped mid-task (budget); committed as-is fo
+wip/faithfulness-repair/10 WIP, unreviewed: faithfulness-repair agent 10 stopped mid-task (budget); committed as-is f
+wip/faithfulness-repair/2 WIP, unreviewed: faithfulness-repair agent 2 stopped mid-task (budget); committed as-is fo
+wip/faithfulness-repair/3 WIP, unreviewed: faithfulness-repair agent 3 stopped mid-task (budget); committed as-is fo
+wip/faithfulness-repair/4 WIP, unreviewed: faithfulness-repair agent 4 stopped mid-task (budget); committed as-is fo
+wip/faithfulness-repair/5 Faithfulness repair ProxyUpgradeRowLib: model the ERC-1967 admin slot and the transparent 
+wip/faithfulness-repair/6 WIP, unreviewed: faithfulness-repair agent 6 stopped mid-task (budget); committed as-is fo
+wip/faithfulness-repair/7 WIP, unreviewed: faithfulness-repair agent 7 stopped mid-task (budget); committed as-is fo
+wip/faithfulness-repair/8 Faithfulness repair BridgedStandardERC20: identity on runs with both onlyNTV branches
+wip/faithfulness-repair/9 WIP, unreviewed: faithfulness-repair agent 9 stopped mid-task (budget); committed as-is fo
+wip/strengthen/1 Strengthen EraSpec/Contracts/AssetRouterBase: pin RunTrackerHashed to the run's log
+wip/strengthen/10 Strengthen EraSpec/Contracts/NativeTokenVaultBase: tie the lifecycle correspondence to the
+wip/strengthen/11 WIP, unreviewed: strengthen agent 11 stopped mid-task (budget); committed as-is for handof
+wip/strengthen/12 WIP, unreviewed: strengthen agent 12 stopped mid-task (budget); committed as-is for handof
+wip/strengthen/13 WIP, unreviewed: strengthen agent 13 stopped mid-task (budget); committed as-is for handof
+wip/strengthen/2 WIP, unreviewed: strengthen agent 2 stopped mid-task (budget); committed as-is for handoff
+wip/strengthen/3 Strengthen EraSpec/Contracts/AtomicInteropProof: root swap with every end-branch premise; 
+wip/strengthen/4 Strengthen EraSpec/Contracts/BridgedStandardERC20: exact transfer effect; identity over th
+wip/strengthen/5 Strengthen EraSpec/Contracts/ChainTypeManager: no dead time along timed runs
+wip/strengthen/6 Strengthen EraSpec/Contracts/EcosystemUpgradeExecutor: exact stage guards and abandonment 
+wip/strengthen/7 Strengthen FullMerkle, Merkle, IndexedMerkleTree: pin the padding ambiguity and the zero s
+wip/strengthen/8 WIP, unreviewed: strengthen agent 8 stopped mid-task (budget); committed as-is for handoff
+wip/strengthen/9 Strengthen EraSpec/Contracts/L2InteropCommitmentTree: TreeRoot soundness under a logged ha
+wip/codex-findings/10 WIP, unreviewed: codex-findings agent 10 stopped mid-task (budget); committed as-is for ha
+wip/codex-findings/11 WIP, unreviewed: codex-findings agent 11 stopped mid-task (budget); committed as-is for ha
+wip/codex-findings/12 WIP, unreviewed: codex-findings agent 12 stopped mid-task (budget); committed as-is for ha
+wip/codex-findings/13 CF-9: state the codegen one-step bound and row-order executability
+wip/codex-findings/14 WIP, unreviewed: codex-findings agent 14 stopped mid-task (budget); committed as-is for ha
+wip/codex-findings/8 CF-8: emitter refuses Bool literals other than 0 and 1
+wip/codex-findings/9 WIP, unreviewed: codex-findings agent 9 stopped mid-task (budget); committed as-is for han
+wip/repin-v35/13 WIP, unreviewed: repin-v35 agent 13 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/14 WIP, unreviewed: repin-v35 agent 14 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/15 WIP, unreviewed: repin-v35 agent 15 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/16 WIP, unreviewed: repin-v35 agent 16 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/17 WIP, unreviewed: repin-v35 agent 17 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/18 WIP, unreviewed: repin-v35 agent 18 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/19 WIP, unreviewed: repin-v35 agent 19 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/20 WIP, unreviewed: repin-v35 agent 20 stopped mid-task (budget); committed as-is for handoff
+wip/repin-v35/21 WIP, unreviewed: repin-v35 agent 21 stopped mid-task (budget); committed as-is for handoff
+wip/modernize/1 Modernize proofs: AssetRouterBase/Proofs
+wip/modernize/10 Modernize proofs: EraSpec/Contracts/L2InteropCommitmentTree/Proofs
+wip/modernize/11 Modernize proofs: EraSpec/Contracts/Merkle/Proofs
+wip/modernize/12 Modernize proofs: NativeTokenVaultBase/Proofs
+wip/modernize/13 Modernize proofs: ProxyUpgradeRowLib/Proofs, RegistryBootstrapMigration/Proofs
+wip/modernize/14 WIP, unreviewed: modernize agent 14 stopped mid-task (budget); committed as-is for handoff
+wip/modernize/15 WIP, unreviewed: modernize agent 15 stopped mid-task (budget); committed as-is for handoff
+wip/modernize/2 Modernize proofs: AtomicFlowManager/Proofs
+wip/modernize/3 Modernize proofs: EraSpec/Contracts/AtomicInteropProof/Proofs
+wip/modernize/4 Modernize proofs: EraSpec/Contracts/BridgedStandardERC20/Proofs
+wip/modernize/5 Modernize proofs: EraSpec/Contracts/ChainTypeManager/Proofs
+wip/modernize/6 Modernize proofs: EcosystemUpgradeExecutor/Proofs
+wip/modernize/7 Modernize proofs: EraSpec/Contracts/FullMerkle/Proofs
+wip/modernize/8 Modernize proofs: IndexedMerkleTree/Proofs
+wip/modernize/9 Modernize proofs: InteropCenter, InteropDataEncoding, InteropHandlerBase, L2InteropHandler
+wip/head-fixes/1 WIP, unreviewed: head-fixes agent 1 stopped mid-task (budget); committed as-is for handoff
+wip/head-fixes/2 WIP, unreviewed: head-fixes agent 2 stopped mid-task (budget); committed as-is for handoff
+wip/head-fixes/3 WIP, unreviewed: head-fixes agent 3 stopped mid-task (budget); committed as-is for handoff
+wip/head-fixes/4 WIP, unreviewed: head-fixes agent 4 stopped mid-task (budget); committed as-is for handoff
+wip/head-fixes/5 WIP, unreviewed: head-fixes agent 5 stopped mid-task (budget); committed as-is for handoff
+wip/head-fixes/6 WIP, unreviewed: head-fixes agent 6 stopped mid-task (budget); committed as-is for handoff
+wip/head-fixes/7 WIP, unreviewed: head-fixes agent 7 stopped mid-task (budget); committed as-is for handoff
+wip/head-fixes/8 WIP, unreviewed: head-fixes agent 8 stopped mid-task (budget); committed as-is for handoff
