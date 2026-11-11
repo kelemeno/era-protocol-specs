@@ -121,6 +121,25 @@ def LegRefundableVerified (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : Commit
           AbsenceAccepted h z0 hl (S.tree leg.chain N) (S.height leg.chain N)
             (legValue cv F leg) p)
 
+/-- **`LegRefundableVerified` WITH ITS WITNESSES NAMED**: batch `N` and the IMT
+absence proof `p`.  Naming `p` is what lets a `TreeRootBreak` be located on it
+(`Contracts.Atomicity.AbsenceBreak`). -/
+def LegRefundableVerifiedBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (S : System) (R : SlRoot) (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) : Prop :=
+  (BeginBranchVerified S R leg.chain F.deadline N ∧
+      AbsenceAccepted h z0 hl (beginTree S leg.chain N) (beginHeight S leg.chain N)
+        (legValue cv F leg) p)
+    ∨ (EndBranchVerified S R leg.chain F.deadline N ∧
+        AbsenceAccepted h z0 hl (S.tree leg.chain N) (S.height leg.chain N)
+          (legValue cv F leg) p)
+
+/-- A root created at time 1 holding every chain's batches `0, 1`: with batch numbers
+as timestamps (`mixedSystem`, `paddedSystem`) it satisfies `Aggregates`. -/
+def timeOneRoot : SlRoot where
+  created := 1
+  upTo := fun _ => 1
+
+
 /-! ## Where `lastInRoot` comes from
 
 `EndBranchVerified.lastInRoot` above is a conclusion, not a check.  The check is

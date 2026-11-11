@@ -158,4 +158,75 @@ inductive Reach (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
 is `Contracts.AtomicFlowManager.rank`, so this is "past `Committed`". -/
 def Refunded (Ms : Managers) (o : Obligation) : Prop := 2 ≤ rank (stateOf Ms o)
 
+/-! ## The run, logged: naming each `authorizeRefund` call
+
+`Reach` records the managers' states, not the calls that produced them, so the flow
+whose timeout authorized a refund is only known to exist.  `ReachLog` is `Reach` with
+every `authorize` step's evidence written to a log: the flow it checked, the leg it
+marked, and the timeout evidence (missing leg, batch, absence proof) it verified.
+`Contracts.Refund.Properties.ReachIffReachLog` shows the two have the same reachable
+states.  A collision or break can then be pinned to a call that is in the run. -/
+
+/-- One `authorizeRefund(_flow, _missingLegIndex, _absence)` call as it happened. -/
+structure AuthCall where
+  /-- The flow `_checkFlowId` accepted. -/
+  flow : Flow
+  /-- The leg of `flow` this call marks `Revertable` (on its own chain). -/
+  leg : FlowLeg
+  /-- The leg whose absence the timeout proof shows (`_missingLegIndex`). -/
+  missing : FlowLeg
+  /-- The batch the absence proof is against. -/
+  batch : ℕ
+  /-- The IMT absence proof. -/
+  proof : ImtProof
+
+/-- The checks `authorizeRefund` runs, on the call's own evidence. -/
+def AuthCall.Verified (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (fh : FlowHash) (S : System) (a : AuthCall) : Prop :=
+  FlowIdChecked fh a.flow ∧ a.leg ∈ a.flow.legs ∧ a.missing ∈ a.flow.legs
+    ∧ LegRefundableBy h z0 hl cv S a.flow a.missing a.batch a.proof
+
+/-- `Reach`, with the `authorize` calls logged, most recent first. -/
+inductive ReachLog (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (fh : FlowHash) (S : System) : Managers → Managers → List AuthCall → Prop
+  | refl {Ms} : ReachLog h z0 hl cv fh S Ms Ms []
+  | append {Ms Ns log c f b} : ReachLog h z0 hl cv fh S Ms Ns log → AppendGuard (Ns c) f b →
+      ReachLog h z0 hl cv fh S Ms (setAt Ns c ((Ns c).set f b .Committed)) log
+  | authorize {Ms Ns log} (a : AuthCall) : ReachLog h z0 hl cv fh S Ms Ns log →
+      a.Verified h z0 hl cv fh S →
+      AuthorizeGuard (Ns a.leg.chain) a.flow.flowId a.leg.bundleHash →
+      ReachLog h z0 hl cv fh S Ms
+        (setAt Ns a.leg.chain ((Ns a.leg.chain).set a.flow.flowId a.leg.bundleHash .Revertable))
+        (a :: log)
+  | claim {Ms Ns log c f b} : ReachLog h z0 hl cv fh S Ms Ns log → ClaimGuard (Ns c) f b →
+      ReachLog h z0 hl cv fh S Ms (setAt Ns c ((Ns c).set f b .Reverted)) log
+
+/-- **A LOCATED BREAK BEHIND A REFUND OF OBLIGATION `o`.**  Relative to a flow `F`
+executed on gate evidence `ev`, and a logged run: some `authorize` call `a` IN THE LOG
+that marked exactly `o` is explained by one of
+
+* `flowIdClash` — `a`'s flow is not `F`'s preimage, and `fh` collides on the two
+  flows' own `(legs, deadline)` preimages (`FlowIdClash fh F a.flow`);
+* `inclusion` — `a`'s flow is `F`, and the inclusion proof `ev a.missing` that `F`'s
+  gate evidence submitted for `a`'s missing leg carries a `TreeRootBreak`;
+* `absence` — `a`'s flow is `F`, and `a`'s own absence proof carries a `TreeRootBreak`
+  on the root its branch selects.
+
+Every witness is named by the run (`a ∈ log`) or by the premises (`F`, `ev`). -/
+inductive RefundBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) (fh : FlowHash) (S : System)
+    (F : Flow) (ev : GateEvidence) (o : Obligation) (log : List AuthCall) : Prop
+  | flowIdClash (a : AuthCall) : a ∈ log → obligationOf a.flow a.leg = o →
+      FlowIdClash fh F a.flow → RefundBreak h z0 hl fh S F ev o log
+  | inclusion (a : AuthCall) : a ∈ log → obligationOf a.flow a.leg = o → a.flow = F →
+      InclusionBreak h z0 hl S a.missing.chain (ev a.missing).1 (ev a.missing).2 →
+      RefundBreak h z0 hl fh S F ev o log
+  | absence (a : AuthCall) : a ∈ log → obligationOf a.flow a.leg = o → a.flow = F →
+      AbsenceBreak h z0 hl S F.deadline a.missing.chain a.batch a.proof →
+      RefundBreak h z0 hl fh S F ev o log
+
+/-- A flow hash that checks every one-leg flow with id `0` and every other flow with id
+`1`: two checked flows with different ids, for the logged-run witnesses. -/
+def lengthFlowHash : FlowHash := fun l _ => if l.length = 1 then 0 else 1
+
+
 end Contracts.Refund

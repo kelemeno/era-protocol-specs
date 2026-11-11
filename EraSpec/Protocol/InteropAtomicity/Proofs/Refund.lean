@@ -385,3 +385,473 @@ theorem HonestCommitValueNoClash : Properties.HonestCommitValueNoClash := by
   exact absurd heq (by decide)
 
 end Contracts.Refund
+
+/-! ## The milestone without hash premises
+
+`executed_freezes_flow` with `flowId_check_pins_legList hinj` replaced by
+`flowId_check_pins_legList_or_collision` and `executed_excludes_any_refund hA` replaced
+by `executed_excludes_any_refund_or_break`, over the logged run. -/
+
+namespace Contracts.Refund
+
+open MerkleSpec MerkleSpec.Verifier IMTAbstract Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
+open Contracts.AtomicFlowManager
+
+theorem reachLog_of_reach {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {Ms Ns : Managers} (hr : Reach h z0 hl cv fh S Ms Ns) :
+    ∃ log, ReachLog h z0 hl cv fh S Ms Ns log := by
+  induction hr with
+  | refl => exact ⟨[], ReachLog.refl⟩
+  | tail _ hs ih =>
+    obtain ⟨log, hlog⟩ := ih
+    cases hs with
+    | append hg => exact ⟨log, ReachLog.append hlog hg⟩
+    | @authorize F leg hchk hmem hauth hg =>
+      obtain ⟨m, hm, N, p, hr⟩ := hauth
+      exact ⟨⟨F, leg, m, N, p⟩ :: log,
+        ReachLog.authorize ⟨F, leg, m, N, p⟩ hlog ⟨hchk, hmem, hm, hr⟩ hg⟩
+    | claim hg => exact ⟨log, ReachLog.claim hlog hg⟩
+
+theorem reach_of_reachLog {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {Ms Ns : Managers} {log : List AuthCall}
+    (hr : ReachLog h z0 hl cv fh S Ms Ns log) : Reach h z0 hl cv fh S Ms Ns := by
+  induction hr with
+  | refl => exact Reach.refl
+  | append _ hg ih => exact Reach.tail ih (Step.append hg)
+  | authorize a _ hv hg ih =>
+    exact Reach.tail ih
+      (Step.authorize hv.1 hv.2.1 ⟨a.missing, hv.2.2.1, a.batch, a.proof, hv.2.2.2⟩ hg)
+  | claim _ hg ih => exact Reach.tail ih (Step.claim hg)
+
+theorem reach_iff_reachLog {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {Ms Ns : Managers} :
+    Reach h z0 hl cv fh S Ms Ns ↔ ∃ log, ReachLog h z0 hl cv fh S Ms Ns log :=
+  ⟨reachLog_of_reach, fun ⟨_, hr⟩ => reach_of_reachLog hr⟩
+
+/-- **A REFUNDED OBLIGATION WAS MARKED BY A LOGGED, VERIFIED CALL.** -/
+theorem refund_logged {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {Ms : Managers} {log : List AuthCall}
+    (hr : ReachLog h z0 hl cv fh S emptyManagers Ms log) :
+    ∀ (o : Obligation), Refunded Ms o →
+      ∃ a ∈ log, a.Verified h z0 hl cv fh S ∧ obligationOf a.flow a.leg = o := by
+  induction hr with
+  | refl =>
+    intro o hrf
+    exfalso
+    simp only [Refunded, stateOf_emptyManagers] at hrf
+    simp [rank] at hrf
+  | @append Ns log c f b _ _ ih =>
+    intro o hrf
+    by_cases heq : o = ⟨f, b, c⟩
+    · exfalso
+      subst heq
+      simp only [Refunded, stateOf_setAt_self] at hrf
+      simp [rank] at hrf
+    · exact ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
+  | @authorize Ns log a _ hv _ ih =>
+    intro o hrf
+    by_cases heq : o = obligationOf a.flow a.leg
+    · exact ⟨a, List.mem_cons_self _ _, hv, heq.symm⟩
+    · rw [obligationOf_eq] at heq
+      obtain ⟨a', ha', hv', hobl⟩ :=
+        ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
+      exact ⟨a', List.mem_cons_of_mem _ ha', hv', hobl⟩
+  | @claim Ns log c f b _ hg ih =>
+    intro o hrf
+    by_cases heq : o = ⟨f, b, c⟩
+    · subst heq
+      refine ih _ ?_
+      simp only [Refunded, stateOf]
+      rw [show (Ns c).legState f b = LegState.Revertable from hg]
+      simp [rank]
+    · exact ih o (by simpa only [Refunded, stateOf_setAt_other heq] using hrf)
+
+theorem refund_implies_own_flow_timeout_or_logged_clash {h : Hash} {z0 : UInt256}
+    {hl : LeafHash} {cv : CommitValue} {fh : FlowHash} {S : System} {F : Flow} {leg : FlowLeg}
+    (hchk : FlowIdChecked fh F) {Ms : Managers} {log : List AuthCall}
+    (hr : ReachLog h z0 hl cv fh S emptyManagers Ms log) (hrf : Refunded Ms (obligationOf F leg)) :
+    RefundAuthorized h z0 hl cv S F
+      ∨ ∃ a ∈ log, obligationOf a.flow a.leg = obligationOf F leg ∧ FlowIdClash fh F a.flow := by
+  obtain ⟨a, ha, ⟨hchk', _, hmiss, href⟩, hobl⟩ := refund_logged hr _ hrf
+  have hid : F.flowId = a.flow.flowId := (congrArg Obligation.flowId hobl).symm
+  rcases flowId_check_pins_legList_or_collision hchk hchk' hid with heq | hcl
+  · subst heq
+    exact Or.inl ⟨a.missing, hmiss, a.batch, a.proof, href⟩
+  · exact Or.inr ⟨a, ha, hobl, hcl⟩
+
+/-- **AN EXECUTED FLOW'S OBLIGATIONS ARE FROZEN, OR A LOCATED BREAK.** -/
+theorem executed_freezes_flow_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {fh : FlowHash} {S : System} (hS : Wf S) {F : Flow} {ev : GateEvidence}
+    {leg : FlowLeg} (hex : ExecutedViaBy h z0 hl cv fh S F ev leg) {Ms : Managers}
+    {log : List AuthCall} (hr : ReachLog h z0 hl cv fh S emptyManagers Ms log)
+    (o : Obligation) (ho : o.flowId = F.flowId) :
+    ¬ Refunded Ms o ∨ RefundBreak h z0 hl fh S F ev o log := by
+  by_cases hrf : Refunded Ms o
+  · refine Or.inr ?_
+    obtain ⟨a, ha, ⟨hchk', _, hmiss, href⟩, hobl⟩ := refund_logged hr o hrf
+    have hid : F.flowId = a.flow.flowId := by
+      rw [← ho, ← hobl]; rfl
+    rcases flowId_check_pins_legList_or_collision hex.2.1 hchk' hid with heq | hcl
+    · have hmiss' : a.missing ∈ F.legs := by rw [heq]; exact hmiss
+      have href' : LegRefundableBy h z0 hl cv S F a.missing a.batch a.proof := by
+        rw [heq]; exact href
+      rcases executed_excludes_any_refund_or_break hS hex a.missing hmiss' a.batch a.proof
+        with hn | hb | hb
+      · exact absurd href' hn
+      · exact RefundBreak.inclusion a ha hobl heq.symm hb
+      · exact RefundBreak.absence a ha hobl heq.symm hb
+    · exact RefundBreak.flowIdClash a ha hobl hcl
+  · exact Or.inl hrf
+
+/-! ### Anti-vacuity witnesses -/
+
+/-- `subsetFlow 0 1` executes in `mixedSystem 1` on the honest proof of leaf 1, whatever
+flow hash checks it, and that proof carries no break. -/
+theorem subsetFlow_executes (h : Hash) (z0 : UInt256) (hl : LeafHash) (fh : FlowHash)
+    (hchk : FlowIdChecked fh (subsetFlow 0 1)) :
+    ExecutedViaBy h z0 hl (fun _ _ => 1) fh (mixedSystem 1) (subsetFlow 0 1)
+        (fun _ => (0, honestProof h z0 hl (mixedSystem 1) 0 0 1)) ⟨0, 1⟩
+      ∧ ¬ InclusionBreak h z0 hl (mixedSystem 1) 0 0 (honestProof h z0 hl (mixedSystem 1) 0 0 1) := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have hS := mixedSystem_wf h1
+  have hcount : ((mixedSystem 1).tree 0 0).leafCount = 2 := by
+    rw [mixedSystem_tree_zero]; rfl
+  have hacc : Accepts h z0 hl (mixedSystem 1) 0 0 1 (honestProof h z0 hl (mixedSystem 1) 0 0 1) := by
+    have := inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := (mixedSystem 1).tree 0 0)
+      (height := (mixedSystem 1).height 0 0) (hS.capacity 0 0) (i := 1) (by rw [hcount]; norm_num)
+    have hv : (((mixedSystem 1).tree 0 0).leaf 1).value = 1 := by
+      rw [mixedSystem_tree_zero, insertSetup_leaf_one_value]
+    rw [hv] at this
+    exact this
+  refine ⟨⟨List.mem_singleton_self _, hchk, ?_⟩,
+    honestProof_no_break h z0 hl _ 0 0 1 (by rw [hcount]; norm_num)⟩
+  intro l hl'
+  obtain rfl : l = ⟨0, 1⟩ := List.mem_singleton.mp hl'
+  exact ⟨by simp [subsetFlow], hacc⟩
+
+/-- The two-flow run in `mixedSystem 1`: the obligation of leg `⟨1, 2⟩` of
+`mixedFlow 1 1 2` is appended, then authorized for refund on the honest absence proof of
+`setup` at batch 1 (its chain never commits). -/
+def twoFlowCall (h : Hash) (z0 : UInt256) (hl : LeafHash) : AuthCall :=
+  ⟨mixedFlow 1 1 2, ⟨1, 2⟩, ⟨1, 2⟩, 1, ⟨⟨0, 0, 0⟩, 0, honestSibs h z0 (leafHashes hl setup) 0, 0⟩⟩
+
+def twoFlowM1 : Managers := setAt emptyManagers 1 ((emptyManagers 1).set 1 2 .Committed)
+
+def twoFlowMs : Managers := setAt twoFlowM1 1 ((twoFlowM1 1).set 1 2 .Revertable)
+
+theorem lengthFlowHash_checks_subset : FlowIdChecked lengthFlowHash (subsetFlow 0 1) := by
+  simp [FlowIdChecked, lengthFlowHash, subsetFlow]
+
+theorem lengthFlowHash_checks_mixed : FlowIdChecked lengthFlowHash (mixedFlow 1 1 2) := by
+  simp [FlowIdChecked, lengthFlowHash, mixedFlow]
+
+theorem twoFlow_run (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ReachLog h z0 hl (fun _ _ => 1) lengthFlowHash (mixedSystem 1) emptyManagers twoFlowMs
+      [twoFlowCall h z0 hl] := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have hne : (1 : Chain) ≠ 0 := by decide
+  have hbegin : beginTree (mixedSystem 1) 1 1 = setup := mixedSystem_tree_other hne 0
+  have hbeginH : beginHeight (mixedSystem 1) 1 1 = 0 := mixedSystem_height_other hne 0
+  have hmem : (⟨1, 2⟩ : FlowLeg) ∈ (mixedFlow 1 1 2).legs := by simp [mixedFlow]
+  have href : LegRefundableBy h z0 hl (fun _ _ => 1) (mixedSystem 1) (mixedFlow 1 1 2) ⟨1, 2⟩ 1
+      ⟨⟨0, 0, 0⟩, 0, honestSibs h z0 (leafHashes hl setup) 0, 0⟩ := by
+    refine Or.inl ⟨by norm_num [mixedFlow], ?_⟩
+    show AbsenceAccepted h z0 hl (beginTree (mixedSystem 1) 1 1)
+      (beginHeight (mixedSystem 1) 1 1) 1 _
+    rw [hbegin, hbeginH]
+    exact setup_absence_accepted h z0 hl h1
+  have happ : ReachLog h z0 hl (fun _ _ => 1) lengthFlowHash (mixedSystem 1) emptyManagers
+      twoFlowM1 [] := ReachLog.append (c := 1) (f := 1) (b := 2) ReachLog.refl rfl
+  have hguard : AuthorizeGuard (twoFlowM1 1) 1 2 := by
+    show (twoFlowM1 1).legState 1 2 = .Committed
+    simp [twoFlowM1, setAt, Manager.set]
+  exact ReachLog.authorize (twoFlowCall h z0 hl) happ
+    ⟨lengthFlowHash_checks_mixed, hmem, hmem, href⟩ hguard
+
+theorem executed_obligation_never_refunded_or_break_witness (h : Hash) (z0 : UInt256)
+    (hl : LeafHash) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (F : Flow) (ev : GateEvidence)
+      (leg : FlowLeg) (Ms : Managers) (log : List AuthCall),
+      Wf S ∧ ExecutedViaBy h z0 hl cv fh S F ev leg
+        ∧ ReachLog h z0 hl cv fh S emptyManagers Ms log ∧ log ≠ []
+        ∧ ¬ RefundBreak h z0 hl fh S F ev (obligationOf F leg) log
+        ∧ ¬ Refunded Ms (obligationOf F leg) := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  refine ⟨fun _ _ => 1, lengthFlowHash, mixedSystem 1, subsetFlow 0 1,
+    fun _ => (0, honestProof h z0 hl (mixedSystem 1) 0 0 1), ⟨0, 1⟩, twoFlowMs,
+    [twoFlowCall h z0 hl], mixedSystem_wf h1,
+    (subsetFlow_executes h z0 hl lengthFlowHash lengthFlowHash_checks_subset).1,
+    twoFlow_run h z0 hl, List.cons_ne_nil _ _, ?_, ?_⟩
+  · have hneq : obligationOf (twoFlowCall h z0 hl).flow (twoFlowCall h z0 hl).leg
+        ≠ obligationOf (subsetFlow 0 1) ⟨0, 1⟩ := by
+      intro he
+      have hid : (1 : UInt256) = 0 := congrArg Obligation.flowId he
+      exact absurd hid (by decide)
+    intro hb
+    cases hb with
+    | flowIdClash a ha hobl _ =>
+      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
+    | inclusion a ha hobl _ _ =>
+      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
+    | absence a ha hobl _ _ =>
+      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
+  · show ¬ 2 ≤ rank (stateOf (setAt twoFlowM1 1 ((twoFlowM1 1).set 1 2 .Revertable)) ⟨0, 1, 0⟩)
+    have hne : (⟨0, 1, 0⟩ : Obligation) ≠ ⟨1, 2, 1⟩ := by decide
+    rw [stateOf_setAt_other hne]
+    show ¬ 2 ≤ rank (stateOf (setAt emptyManagers 1 ((emptyManagers 1).set 1 2 .Committed))
+      ⟨0, 1, 0⟩)
+    rw [stateOf_setAt_other hne, stateOf_emptyManagers]
+    simp [rank]
+
+theorem refund_implies_own_flow_timeout_or_logged_clash_witness (h : Hash) (z0 : UInt256)
+    (hl : LeafHash) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (F : Flow) (leg : FlowLeg)
+      (Ms : Managers) (log : List AuthCall),
+      FlowIdChecked fh F ∧ leg ∈ F.legs ∧ ReachLog h z0 hl cv fh S emptyManagers Ms log
+        ∧ Refunded Ms (obligationOf F leg)
+        ∧ ¬ ∃ a ∈ log, obligationOf a.flow a.leg = obligationOf F leg ∧ FlowIdClash fh F a.flow := by
+  refine ⟨fun _ _ => 1, lengthFlowHash, mixedSystem 1, mixedFlow 1 1 2, ⟨1, 2⟩, twoFlowMs,
+    [twoFlowCall h z0 hl], lengthFlowHash_checks_mixed, by simp [mixedFlow],
+    twoFlow_run h z0 hl, ?_, ?_⟩
+  · show 2 ≤ rank (stateOf (setAt twoFlowM1 1 ((twoFlowM1 1).set 1 2 .Revertable)) ⟨1, 2, 1⟩)
+    rw [stateOf_setAt_self]; simp [rank]
+  · rintro ⟨a, ha, _, hcl⟩
+    rw [List.mem_singleton] at ha
+    subst ha
+    exact hcl.1 rfl
+
+theorem padding_refund_of_executed_obligation_locates_absence_break (h : Hash) (hl : LeafHash)
+    (a b : UInt256) (ha : 0 < a) (hab : a < b) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (F : Flow) (ev : GateEvidence) (leg : FlowLeg)
+      (Ms : Managers) (log : List AuthCall),
+      Wf (paddedSystem a b) ∧ ExecutedViaBy h (hl ⟨0, 0, 0⟩) hl cv fh (paddedSystem a b) F ev leg
+        ∧ ReachLog h (hl ⟨0, 0, 0⟩) hl cv fh (paddedSystem a b) emptyManagers Ms log
+        ∧ Refunded Ms (obligationOf F leg)
+        ∧ RefundBreak h (hl ⟨0, 0, 0⟩) hl fh (paddedSystem a b) F ev (obligationOf F leg) log
+        ∧ ∀ c ∈ log, c.flow = F ∧ ¬ FlowIdClash fh F c.flow
+            ∧ ¬ InclusionBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) c.missing.chain
+                (ev c.missing).1 (ev c.missing).2
+            ∧ AbsenceBreak h (hl ⟨0, 0, 0⟩) hl (paddedSystem a b) F.deadline c.missing.chain
+                c.batch c.proof := by
+  let z0 := hl ⟨0, 0, 0⟩
+  let T := threeLeafTree a b
+  let F : Flow := subsetFlow 0 0
+  let p : ImtProof := ⟨T.leaf 1, 1, honestSibs h z0 (leafHashes hl T) 1, 2⟩
+  let q : ImtProof := ⟨⟨0, 0, 0⟩, 3, honestSibs h z0 (leafHashes hl T) 3, 2⟩
+  let call : AuthCall := ⟨F, ⟨0, 0⟩, ⟨0, 0⟩, 0, q⟩
+  let M1 : Managers := setAt emptyManagers 0 ((emptyManagers 0).set 0 0 .Committed)
+  obtain ⟨_, hI, hN⟩ := proofs_exclusive_or_break_satisfiable h hl a b ha hab
+  obtain ⟨hnb, hpad⟩ := padding_countermodel_locates_padding_hit h hl a b
+  have hchk : FlowIdChecked (honestFlowHash F) F := (honest_flowHash_no_clash F).1
+  have hmem : (⟨0, 0⟩ : FlowLeg) ∈ F.legs := List.mem_singleton_self _
+  have href : LegRefundableBy h z0 hl (fun _ _ => a) (paddedSystem a b) F ⟨0, 0⟩ 0 q :=
+    Or.inr ⟨⟨le_refl 0, fun m hm => hm⟩, hN⟩
+  have hab' : AbsenceBreak h z0 hl (paddedSystem a b) F.deadline (0 : Chain) 0 q :=
+    Or.inr ⟨le_refl 0, hpad⟩
+  have happ : ReachLog h z0 hl (fun _ _ => a) (honestFlowHash F) (paddedSystem a b)
+      emptyManagers M1 [] := ReachLog.append (c := 0) (f := 0) (b := 0) ReachLog.refl rfl
+  have hguard : AuthorizeGuard (M1 0) 0 0 := by
+    show (M1 0).legState 0 0 = .Committed
+    simp [M1, setAt, Manager.set]
+  have hrun := ReachLog.authorize call happ ⟨hchk, hmem, hmem, href⟩ hguard
+  refine ⟨fun _ _ => a, honestFlowHash F, F, fun _ => (0, p), ⟨0, 0⟩, _, [call],
+    paddedSystem_wf ha hab, ⟨hmem, hchk, ?_⟩, hrun, ?_,
+    RefundBreak.absence call (List.mem_singleton_self _) rfl rfl hab', ?_⟩
+  · intro l hl'
+    obtain rfl : l = ⟨0, 0⟩ := List.mem_singleton.mp hl'
+    exact ⟨le_refl 0, hI⟩
+  · show 2 ≤ rank (stateOf (setAt M1 0 ((M1 0).set 0 0 .Revertable)) ⟨0, 0, 0⟩)
+    rw [stateOf_setAt_self]; simp [rank]
+  · intro c hc
+    rw [List.mem_singleton] at hc
+    subst hc
+    exact ⟨rfl, fun hcl => hcl.1 rfl, hnb, hab'⟩
+
+end Contracts.Refund
+
+namespace Contracts.Refund
+
+theorem ReachIffReachLog : Properties.ReachIffReachLog :=
+  fun _ _ _ _ _ _ _ _ => reach_iff_reachLog
+theorem RefundNeedsLoggedAuthorize : Properties.RefundNeedsLoggedAuthorize :=
+  fun _ _ _ _ _ _ _ _ hr o hrf => refund_logged hr o hrf
+theorem RefundImpliesOwnFlowTimeoutOrLoggedClash :
+    Properties.RefundImpliesOwnFlowTimeoutOrLoggedClash :=
+  fun _ _ _ _ _ _ _ _ hchk _ _ _ hr hrf =>
+    refund_implies_own_flow_timeout_or_logged_clash hchk hr hrf
+theorem ExecutedObligationNeverRefundedOrBreak :
+    Properties.ExecutedObligationNeverRefundedOrBreak :=
+  fun _ _ _ _ _ _ hS _ _ _ hex _ _ hr => executed_freezes_flow_or_break hS hex hr _ rfl
+theorem OneExecutionFreezesTheFlowOrBreak : Properties.OneExecutionFreezesTheFlowOrBreak :=
+  fun _ _ _ _ _ _ hS _ _ _ hex _ _ hr _ _ => executed_freezes_flow_or_break hS hex hr _ rfl
+theorem RefundedFlowMissedDeadlineOrBreak : Properties.RefundedFlowMissedDeadlineOrBreak :=
+  fun _ _ _ _ _ hS _ hagg _ _ _ _ hv => Contracts.Timeout.timeout_means_missed_deadline_or_break hS hagg hv
+theorem ExecutedObligationNeverRefundedOrBreakWitness :
+    Properties.ExecutedObligationNeverRefundedOrBreakWitness :=
+  executed_obligation_never_refunded_or_break_witness
+theorem RefundImpliesOwnFlowTimeoutOrLoggedClashWitness :
+    Properties.RefundImpliesOwnFlowTimeoutOrLoggedClashWitness :=
+  refund_implies_own_flow_timeout_or_logged_clash_witness
+theorem PaddingRefundOfExecutedObligationLocatesAbsenceBreak :
+    Properties.PaddingRefundOfExecutedObligationLocatesAbsenceBreak :=
+  padding_refund_of_executed_obligation_locates_absence_break
+
+end Contracts.Refund
+
+/-! ## The accepted-timeout chain without hash premises -/
+
+namespace Contracts.Refund
+
+open MerkleSpec MerkleSpec.Verifier MerkleSpec.LastLeaf IMTAbstract
+open Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
+open Contracts.AtomicFlowManager
+
+theorem accepted_timeout_authorizes_pinned {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
+    (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
+    {sibs : ℕ → UInt256} {x : UInt256} (hmem : leg ∈ F.legs)
+    (ha : LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x) :
+    RefundAuthorized h z0 hl cv S F ∨ PinnedBreak h ze (B.leaves leg.chain) N
+      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+  rcases accepted_implies_refundable_pinned hagg ha with hr | hrest
+  · exact Or.inl ⟨leg, hmem, hr⟩
+  · exact Or.inr hrest
+
+theorem executed_excludes_accepted_refund_or_break {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {fh : FlowHash} {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot}
+    {B : RootBacking h ze R} (hagg : Aggregates S R) {F : Flow} {ev : GateEvidence}
+    {leg : FlowLeg} (hex : ExecutedViaBy h z0 hl cv fh S F ev leg) (other : FlowLeg)
+    (hother : other ∈ F.legs) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256) :
+    ¬ LegRefundableAcceptedBy h z0 hl cv S B F other N p sibs x
+      ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
+      ∨ AbsenceBreak h z0 hl S F.deadline other.chain N p
+      ∨ PinnedBreak h ze (B.leaves other.chain) N
+      ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x := by
+  by_cases ha : LegRefundableAcceptedBy h z0 hl cv S B F other N p sibs x
+  · refine Or.inr ?_
+    have hv : LegRefundableBy h z0 hl cv S F other N p
+        ∨ PinnedBreak h ze (B.leaves other.chain) N
+        ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x := by
+      rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
+      · exact Or.inl (refundableBy_of_verifiedBy hagg (Or.inl ⟨hb, habs⟩))
+      · rcases endBranch_of_accepted_pinned he with hver | hrest
+        · exact Or.inl (refundableBy_of_verifiedBy hagg (Or.inr ⟨hver, habs⟩))
+        · exact Or.inr hrest
+    rcases hv with hr | hrest
+    · rcases executed_excludes_any_refund_or_break hS hex other hother N p with hn | hb | hb
+      · exact absurd hr hn
+      · exact Or.inl hb
+      · exact Or.inr (Or.inl hb)
+    · exact Or.inr (Or.inr hrest)
+  · exact Or.inl ha
+
+/-! ### Anti-vacuity witnesses -/
+
+theorem demo_no_pinned_break_any (N : ℕ) :
+    ¬ PinnedBreak demoHash 0 (demoBacking.leaves 0) N :=
+  no_pinned_break_bounded demoBacking 0 N demo_entriesNotEmpty
+    (fun p q hp hq => demo_pairInjOn p q (Or.inl hp) (Or.inl hq))
+
+theorem accepted_timeout_authorizes_pinned_witness :
+    Properties.AcceptedTimeoutAuthorizesPinnedWitness := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have hmem : (⟨0, 0⟩ : FlowLeg) ∈ (⟨0, [⟨0, 0⟩], 0⟩ : Flow).legs := List.mem_singleton_self _
+  have habs : AbsenceAccepted demoHash 0 (fun _ => 0) (demoSystem.tree 0 1) (demoSystem.height 0 1)
+      1 ⟨⟨0, 0, 0⟩, 0, honestSibs demoHash 0 (leafHashes (fun _ => 0) setup) 0, 0⟩ :=
+    setup_absence_accepted demoHash 0 (fun _ => 0) h1
+  have hacc : LegRefundableAcceptedBy demoHash 0 (fun _ => 0) (fun _ _ => 1) demoSystem demoBacking
+      ⟨0, [⟨0, 0⟩], 0⟩ ⟨0, 0⟩ 1 ⟨⟨0, 0, 0⟩, 0, honestSibs demoHash 0 (leafHashes (fun _ => 0) setup) 0, 0⟩
+      (honestSibs demoHash 0 [5, 7] 1) 7 :=
+    Or.inr ⟨demo_endBranchAccepted, habs⟩
+  refine ⟨demoHash, 0, fun _ => 0, fun _ _ => 1, demoSystem, 0, demoRoot, demoBacking,
+    ⟨0, [⟨0, 0⟩], 0⟩, ⟨0, 0⟩, 1, _, honestSibs demoHash 0 [5, 7] 1, 7, demoSystem_aggregates,
+    hmem, hacc, demo_endBranchAccepted, demo_no_pinned_break_any 1,
+    honest_walk_no_collision demoHash 0 [5, 7] 2 1, ?_⟩
+  rcases accepted_timeout_authorizes_pinned demoSystem_aggregates hmem hacc with hr | hb | hc
+  · exact hr
+  · exact absurd hb (demo_no_pinned_break_any 1)
+  · exact absurd hc (honest_walk_no_collision demoHash 0 [5, 7] 2 1)
+
+theorem executed_excludes_accepted_refund_or_break_witness :
+    Properties.ExecutedExcludesAcceptedRefundOrBreakWitness := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have hS := mixedSystem_wf h1
+  have hagg : Aggregates (mixedSystem 1) demoRoot := fun _ _ hn => hn
+  obtain ⟨hex, hnb⟩ := subsetFlow_executes demoHash 0 (fun _ => 0) lengthFlowHash
+    lengthFlowHash_checks_subset
+  have hnab : ¬ AbsenceBreak demoHash 0 (fun _ => 0) (mixedSystem 1) (subsetFlow 0 1).deadline 0 0
+      (honestProof demoHash 0 (fun _ => 0) (mixedSystem 1) 0 0 1) := by
+    rintro (⟨hlate, _⟩ | ⟨_, hb⟩)
+    · exact absurd hlate (by simp [subsetFlow])
+    · exact hnb hb
+  have hnp := demo_no_pinned_break_any 0
+  have hnc := honest_walk_no_collision demoHash 0 [5, 7] 2 0
+  refine ⟨demoHash, 0, fun _ => 0, fun _ _ => 1, lengthFlowHash, mixedSystem 1, 0, demoRoot,
+    demoBacking, subsetFlow 0 1, fun _ => (0, honestProof demoHash 0 (fun _ => 0) (mixedSystem 1) 0 0 1),
+    ⟨0, 1⟩, 0, honestProof demoHash 0 (fun _ => 0) (mixedSystem 1) 0 0 1,
+    honestSibs demoHash 0 [5, 7] 0, ([5, 7] : List UInt256).getD 0 0, hS, hagg, hex, hnb, hnab,
+    hnp, hnc, ?_⟩
+  rcases executed_excludes_accepted_refund_or_break hS hagg hex ⟨0, 1⟩ (List.mem_singleton_self _)
+      0 (honestProof demoHash 0 (fun _ => 0) (mixedSystem 1) 0 0 1)
+      (honestSibs demoHash 0 [5, 7] 0) (([5, 7] : List UInt256).getD 0 0) with hn | hb | hb | hb | hb
+  · exact hn
+  · exact absurd hb hnb
+  · exact absurd hb hnab
+  · exact absurd hb hnp
+  · exact absurd hb hnc
+
+/-- A backing for `timeOneRoot` under any node hash: two batch leaves, height 1. -/
+def trivialBacking (h : Hash) (ze : UInt256) : RootBacking h ze timeOneRoot where
+  leaves := fun _ => [0, 0]
+  height := fun _ => 1
+  upToLast := fun _ => rfl
+  capacity := fun _ => by norm_num
+
+theorem padding_accepted_refund_locates_absence_break :
+    Properties.PaddingAcceptedRefundLocatesAbsenceBreak := by
+  intro h hl a b ha hab
+  let z0 := hl ⟨0, 0, 0⟩
+  let T := threeLeafTree a b
+  let F : Flow := subsetFlow 0 0
+  let p : ImtProof := ⟨T.leaf 1, 1, honestSibs h z0 (leafHashes hl T) 1, 2⟩
+  have hbegin : beginTree (paddedSystem a b) 0 1 = T := paddedSystem_tree_zero a b 0
+  have hbeginH : beginHeight (paddedSystem a b) 0 1 = 2 := paddedSystem_height_zero a b 0
+  obtain ⟨_, hI, hN⟩ := proofs_exclusive_or_break_satisfiable h hl a b ha hab
+  obtain ⟨hnb, hpad⟩ := padding_countermodel_locates_padding_hit h hl a b
+  refine ⟨0, trivialBacking h 0, fun _ _ => a, honestFlowHash F, F, fun _ => (0, p), ⟨0, 0⟩, 1,
+    ⟨⟨0, 0, 0⟩, 3, honestSibs h z0 (leafHashes hl T) 3, 2⟩,
+    paddedSystem_wf ha hab, timeOneRoot_aggregates_padded a b,
+    ⟨List.mem_singleton_self _, (honest_flowHash_no_clash F).1, ?_⟩, ?_, hnb, ?_⟩
+  · intro l hl'
+    obtain rfl : l = ⟨0, 0⟩ := List.mem_singleton.mp hl'
+    exact ⟨le_refl 0, hI⟩
+  · intro sibs x
+    refine Or.inl ⟨⟨by norm_num [F, timeOneRoot, subsetFlow], by norm_num [F, subsetFlow]⟩, ?_⟩
+    show AbsenceAccepted h z0 hl (beginTree (paddedSystem a b) 0 1)
+      (beginHeight (paddedSystem a b) 0 1) a _
+    rw [hbegin, hbeginH]
+    exact hN
+  · refine Or.inl ⟨by norm_num [F, subsetFlow], ?_⟩
+    unfold ImtProofBreak
+    rw [hbegin, hbeginH]
+    exact hpad
+
+end Contracts.Refund
+
+namespace Contracts.Refund
+
+theorem AcceptedTimeoutAuthorizesPinned : Properties.AcceptedTimeoutAuthorizesPinned :=
+  fun _ _ _ _ _ _ _ _ hagg _ _ _ _ _ _ hmem ha => accepted_timeout_authorizes_pinned hagg hmem ha
+theorem AcceptedTimeoutAuthorizesPinnedWitness : Properties.AcceptedTimeoutAuthorizesPinnedWitness :=
+  accepted_timeout_authorizes_pinned_witness
+theorem ExecutedExcludesAcceptedRefundOrBreak : Properties.ExecutedExcludesAcceptedRefundOrBreak :=
+  fun _ _ _ _ _ _ hS _ _ _ hagg _ _ _ hex other hother N p sibs x =>
+    executed_excludes_accepted_refund_or_break hS hagg hex other hother N p sibs x
+theorem ExecutedExcludesAcceptedRefundOrBreakWitness :
+    Properties.ExecutedExcludesAcceptedRefundOrBreakWitness :=
+  executed_excludes_accepted_refund_or_break_witness
+theorem PaddingAcceptedRefundLocatesAbsenceBreak :
+    Properties.PaddingAcceptedRefundLocatesAbsenceBreak :=
+  padding_accepted_refund_locates_absence_break
+
+end Contracts.Refund
