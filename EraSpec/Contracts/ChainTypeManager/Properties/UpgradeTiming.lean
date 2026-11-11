@@ -66,7 +66,8 @@ manifest's time gate of the edge is open. That gate is one of the conditions of 
 edge. An override can close both at once (`DeadlineOverrideOpensDeadTime`).
 
 The statement about the system is in `UpgradeTimingStrong`. Every reachable slot has a valid
-schedule (`ReachableSlotsHaveValidSchedules`). Along validated timed runs, take a chain at a
+schedule, given that every committed and replacement transition passed `requireValidEdge`, as
+every `CTMTransition` does (`ReachableSlotsHaveValidSchedules`). Along validated timed runs, take a chain at a
 version with a committed edge, with every batch executed and its settlement layer at the
 target version. It is never in dead time: at every instant its version is active, or its admin
 and the CTM's owner can upgrade it (`ValidatedTimedRunsHaveNoDeadTime`). Without those two

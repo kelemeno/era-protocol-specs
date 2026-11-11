@@ -128,6 +128,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorUpgradeChain
 import EraSpec.Contracts.ChainTypeManager.Proofs.GenesisWriters
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
+import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned

@@ -14,9 +14,10 @@ is valid. Its right disjunct is the manifest's time gate, which is one gate of a
 (`UpgradeChainEnabledIffTimed`). This file states the claim about the system.
 
 * **Every reachable slot has a valid schedule** (`ReachableSlotsHaveValidSchedules`). Along any
-  timed run, break-glass cuts included, every committed slot holds a transition with a valid
-  schedule, provided every transition the run commits or installs as a replacement has one. At
-  the source, every `CTMTransition` has one by construction.
+  timed run, break-glass cuts included, from a state whose committed slots have valid schedules
+  (a starting state has no committed slot), every committed slot holds a transition with a
+  valid schedule, provided every transition the run commits or installs as a replacement has
+  one. At the source, every `CTMTransition` has one by construction.
 * **Headline: no dead time, with real upgrade steps** (`ValidatedTimedRunsHaveNoDeadTime`).
   Take a timed run from an invariant state, with no break-glass cut, in which every installed
   release passes `validate()` and every committed or replacement transition has a valid
@@ -151,6 +152,8 @@ L1:
   upgrade. -/
 def Properties.NoDeadTimeNeedsItsOtherPremises : Prop :=
   ∃ s, TimedRun wTiming wTimingSys0 wTimingSetup s ∧
+    (∃ c, s.sys.chains 0 = some c ∧ c.pv = 1) ∧ s.sys.ctm.ut 1 = 300 ∧
+    (s.aux 0).committed = (s.aux 0).executed ∧ (s.aux 0).slVersion = none ∧
     ChainDeadTime wTiming (upd (fun _ => 0) 1 1) s 0 5 ∧
     (¬ ValidSchedule wBadSchedTiming 300 ∧ TimedRun wBadSchedTiming wTimingSys0 wTimingSetup s ∧
       ChainDeadTime wBadSchedTiming (fun _ => 0) s 0 7) ∧

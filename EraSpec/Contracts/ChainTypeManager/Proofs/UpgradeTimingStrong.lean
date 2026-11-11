@@ -411,7 +411,7 @@ theorem ValidScheduleAloneLeavesDeadTime : Properties.ValidScheduleAloneLeavesDe
 theorem NoDeadTimeNeedsItsOtherPremises : Properties.NoDeadTimeNeedsItsOtherPremises := by
   have hov : versionDeadline wTiming (upd (fun _ => 0) 1 1) dSetupSys.ctm 1 = some 1 := by
     simp [versionDeadline, upd]
-  refine ⟨dSetup, dSetup_run,
+  refine ⟨dSetup, dSetup_run, ⟨_, rfl, rfl⟩, rfl, rfl, rfl,
     ⟨_, rfl, not_active_of hov (by decide),
       fun path caller => dSetup_none_before _ _ (by decide) path caller⟩,
     ⟨fun h => absurd h.2 (by decide), dSetup_run_bad,
