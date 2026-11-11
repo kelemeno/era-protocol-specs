@@ -43,6 +43,8 @@ import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 -- AtomicInteropProof: finalization, timeout, source binding, and proof snapshots
 import EraSpec.Contracts.AtomicInteropProof.Proofs.TimeoutSoundness
 import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarity
+import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarityStrong
+import EraSpec.Contracts.AtomicInteropProof.Proofs.TimeoutSoundnessStrong
 import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRoot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.Timestamps
