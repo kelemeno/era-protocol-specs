@@ -337,9 +337,13 @@ def Properties.TreeRootStrongWithoutPremiseFails : Prop :=
 
 * the forged walk hashes only pairs of the tree's own log: it is the honest sibling
   stream of the empty slot 3, whose level-0 entry is the padding constant `hl {0,0,0}`;
-* when the tree's log has no node-hash collision, the premise holds iff its padding
-  clause does, and that clause is false here (slot 3 is empty, and the presented sentinel
-  hashes to the padding constant).
+* when the tree's log has no node-hash collision, the forged proof meets each of the
+  other four clauses of `TreeRootStrongLogSafe`, stated field by field: `nodeInjOn`
+  (the union of the two logs is the tree's log), and `shortSeparated`, `longSeparated`
+  and `openedLeafInj`, which hold because the path length is the height and slot 3 is
+  empty;
+* the padding clause `padNotPresented` is false here, for every hash (slot 3 is empty,
+  and the presented sentinel hashes to the padding constant).
 
 So the forgery involves no collision. It is exactly the domain hit that a dedicated
 `IMT_EMPTY_LEAF_HASH` turns into a preimage problem. The collision-freeness premise holds
@@ -351,8 +355,20 @@ def Properties.TreeRootStrongPinForgeryFailsOnlyPadding : Prop :=
       ⊆ treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 2
     ∧ (TreeRootStrongPairInjOn h
           (treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 2) →
-        (TreeRootStrongLogSafe h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
-            (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
-          ↔ ((threeLeafTree a b).leafCount ≤ 3 → hl ⟨0, 0, 0⟩ ≠ hl ⟨0, 0, 0⟩)))
+        TreeRootStrongPairInjOn h
+            (treeRootStrongWalkLog h
+                (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3
+                (hl ⟨0, 0, 0⟩)
+              ∪ treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 2)
+          ∧ (2 < 2 → ∀ p ∈ treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩)
+                (leafHashes hl (threeLeafTree a b)) 2, hl ⟨0, 0, 0⟩ ≠ h p.1 p.2)
+          ∧ (2 < 2 → ∀ p ∈ treeRootStrongWalkLog h
+                (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3
+                (hl ⟨0, 0, 0⟩),
+              ∀ y ∈ hl ⟨0, 0, 0⟩ :: leafHashes hl (threeLeafTree a b), y ≠ h p.1 p.2)
+          ∧ (3 < (threeLeafTree a b).leafCount →
+              hl ((threeLeafTree a b).leaf 3) = hl ⟨0, 0, 0⟩ →
+                (threeLeafTree a b).leaf 3 = ⟨0, 0, 0⟩))
+    ∧ ¬ ((threeLeafTree a b).leafCount ≤ 3 → hl ⟨0, 0, 0⟩ ≠ hl ⟨0, 0, 0⟩)
 
 end Contracts.InteropCommitmentTree

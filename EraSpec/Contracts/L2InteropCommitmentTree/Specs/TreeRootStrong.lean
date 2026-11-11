@@ -43,11 +43,13 @@ submitted siblings, length, index and leaf), so the premise can hold. It holds o
 honest proof as soon as the tree's own log has no node-hash collision
 (`Properties.TreeRootStrongHonestLogSafeIff`), whatever the padding constant, and the
 concrete instance `Properties.TreeRootStrongWitness` meets it at the extraction pin's
-padding. It fails on the pin's forged absence proof, at exactly the clause the
-`IMT_EMPTY_LEAF_HASH` fix is about (`Properties.TreeRootStrongPinForgeryFailsLogSafe`,
-`Properties.TreeRootStrongPinForgeryFailsOnlyPadding`). With a dedicated padding
-constant the same forgery meets it, and is rejected
-(`Properties.TreeRootStrongDedicatedPaddingWitness`).
+padding. It fails on the pin's forged absence proof, for every hash
+(`Properties.TreeRootStrongPinForgeryFailsLogSafe`); when the tree's own log has no
+node-hash collision, the padding clause `padNotPresented` (the clause the
+`IMT_EMPTY_LEAF_HASH` fix is about) is the only one it fails
+(`Properties.TreeRootStrongPinForgeryFailsOnlyPadding`). With a dedicated padding
+constant 7 and the witness hash pair, the same forgery on `threeLeafTree 1 2` meets it,
+and is rejected (`Properties.TreeRootStrongDedicatedPaddingWitness`).
 
 ## What this does not assume or prove
 

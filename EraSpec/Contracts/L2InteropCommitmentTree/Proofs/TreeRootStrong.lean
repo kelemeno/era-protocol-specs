@@ -572,18 +572,30 @@ theorem treeRootStrong_pin_forgery_fails_only_padding (h : Hash) (hl : LeafHash)
       ⊆ treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 2
     ∧ (TreeRootStrongPairInjOn h
           (treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 2) →
-        (TreeRootStrongLogSafe h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
-            (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
-          ↔ ((threeLeafTree a b).leafCount ≤ 3 → hl ⟨0, 0, 0⟩ ≠ hl ⟨0, 0, 0⟩))) := by
+        TreeRootStrongPairInjOn h
+            (treeRootStrongWalkLog h
+                (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3
+                (hl ⟨0, 0, 0⟩)
+              ∪ treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 2)
+          ∧ (2 < 2 → ∀ p ∈ treeRootStrongTreeLog h (hl ⟨0, 0, 0⟩)
+                (leafHashes hl (threeLeafTree a b)) 2, hl ⟨0, 0, 0⟩ ≠ h p.1 p.2)
+          ∧ (2 < 2 → ∀ p ∈ treeRootStrongWalkLog h
+                (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3
+                (hl ⟨0, 0, 0⟩),
+              ∀ y ∈ hl ⟨0, 0, 0⟩ :: leafHashes hl (threeLeafTree a b), y ≠ h p.1 p.2)
+          ∧ (3 < (threeLeafTree a b).leafCount →
+              hl ((threeLeafTree a b).leaf 3) = hl ⟨0, 0, 0⟩ →
+                (threeLeafTree a b).leaf 3 = ⟨0, 0, 0⟩))
+    ∧ ¬ ((threeLeafTree a b).leafCount ≤ 3 → hl ⟨0, 0, 0⟩ ≠ hl ⟨0, 0, 0⟩) := by
   have hcount : (threeLeafTree a b).leafCount = 3 := rfl
   have hget : (leafHashes hl (threeLeafTree a b)).getD 3 (hl ⟨0, 0, 0⟩) = hl ⟨0, 0, 0⟩ :=
     getD_default _ _ _ (by rw [leafHashes_length, hcount])
   have hsub := treeRootStrong_honest_walkLog_subset h (hl ⟨0, 0, 0⟩)
     (leafHashes hl (threeLeafTree a b)) 2 3 (by norm_num)
   rw [hget] at hsub
-  refine ⟨hsub, fun hinj => ⟨fun hs => hs.padNotPresented, fun hpad => ?_⟩⟩
-  refine ⟨?_, fun hlt => absurd hlt (lt_irrefl _), fun hlt => absurd hlt (lt_irrefl _),
-    fun hlt => absurd hlt (by rw [hcount]; exact lt_irrefl _), hpad⟩
+  refine ⟨hsub, fun hinj => ⟨?_, fun hlt => absurd hlt (lt_irrefl _),
+    fun hlt => absurd hlt (lt_irrefl _), fun hlt => absurd hlt (by rw [hcount]; exact lt_irrefl _)⟩,
+    fun hpad => hpad (le_of_eq hcount) rfl⟩
   rw [Finset.union_eq_right.mpr hsub]
   exact hinj
 
