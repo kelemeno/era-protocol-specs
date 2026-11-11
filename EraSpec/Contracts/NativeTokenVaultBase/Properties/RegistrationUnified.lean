@@ -62,6 +62,14 @@ on a tightened registry run has origin token `0`;
 
 ## (c) The correspondence along the representation model's life
 
+`LifecycleRelIsSimulation`: the relation `LifecycleRel` (correspondence, the
+representation invariant, the tracked asset registered and not native, and the
+supply/flow identity below) is a one-step forward simulation of the representation
+model's `RepStep` by the registry model's flows, with no hash premise;
+`RegistrationEstablishesLifecycleRel`: a tightened registration establishes it.  The
+proof module packages the pair as a `LayeredVerification.Simulation`
+(`Core/Simulation.lean`), `lifecycleSimulation`.
+
 `UnifiedLifecycleCorresponds`: start from any bounded registry run from fresh storage
 and a corresponding registration state.  A tightened registration, followed by ANY
 run of preparations and token operations on the tracked token, is simulated by an
@@ -86,8 +94,9 @@ normalisation branch is taken), `UnifiedRegistrationSatisfiable` (every premise 
 (a), on a vault that already holds another asset; both sides of the guard iff true),
 `UnifiedGuardsAgreeBothFalse` (the iff's premises with both sides false, on a state
 the ORIGINAL registration accepts), `TightRegistrySatisfiable` (a tightened run with
-a native and a bridged registration) and `UnifiedLifecycleSatisfiable` (every premise
-of (c), with a run that funds the token and then prepares a transfer).  The (b)
+a native and a bridged registration), `LifecycleRelSatisfiable` (related states with a
+supply-changing step) and `UnifiedLifecycleSatisfiable` (every premise of (c), with a
+run that funds the token and then prepares a transfer).  The (b)
 statements and `SourceInputPremisesLoadBearing`, `InnerRegistrationNeedsFreshSlot`,
 `RunCanRecordZeroOriginToken` are negative results.
 -/
@@ -353,6 +362,40 @@ def Properties.TightRegistryRejectsZeroOriginToken : Prop :=
 
 /-! ## (c) The correspondence along the representation model's life -/
 
+/-- **ONE STEP OF THE SIMULATION.**  From states related by `LifecycleRel`, each
+representation-model step is matched either by no registry step or by one step that
+is both a bounded step (`StepIn`, for any pair set: the matched steps are flows,
+which hash nothing) and a tightened step (`Step'`).  The registry vault is unchanged,
+the representation model's configuration is kept, and the relation persists.  No
+hash premise. -/
+def Properties.LifecycleRelIsSimulation : Prop :=
+  ∀ (Accounting : Type) (hooks : Hooks Accounting) (e : NtvAssetId)
+    (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
+    (u u' : State Accounting) (W : World),
+    LifecycleRel thisChain u W → RepStep hooks u u' →
+      ∃ W' : World,
+        (W' = W ∨ (NativeTokenVault.StepIn e thisChain S W W'
+          ∧ NativeTokenVault.Step' e thisChain W W'))
+        ∧ W'.vault = W.vault ∧ u'.config = u.config ∧ LifecycleRel thisChain u' W'
+
+/-- **A TIGHTENED REGISTRATION ESTABLISHES THE RELATION.**  After a bounded registry run
+from fresh storage (under the bounded hash premise on its pair set, with a nonzero
+chain id), a successful tightened registration on a corresponding state, with the
+asset encoders agreeing at the registered pair, relates the registered state to the
+world carrying the corresponding registry write.  (The recorded flows of the new asset
+are zero because the registry audit records none for an unregistered asset.) -/
+def Properties.RegistrationEstablishesLifecycleRel : Prop :=
+  ∀ (Accounting : Type) (rhooks : RegistrationHooks Accounting)
+    (s : RegistrationState Accounting) (origin : Address) (reg : Registered Accounting)
+    (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
+    (W : World),
+    IdAssumptionsOn e S → thisChain ≠ 0 →
+    NativeTokenVault.ReachIn e thisChain S NativeTokenVault.empty W →
+    CorrPre s thisChain W.vault → registerFreshBranch' rhooks s origin = some reg →
+    rhooks.assetIdFor s.config.originChainId origin = e s.config.originChainId (widen origin) →
+      LifecycleRel thisChain reg.state
+        { W with vault := correspondingRegistration s origin W.vault }
+
 /-- **THE REPRESENTATION MODEL'S LIFE IS A REGISTRY RUN.**  Premises: a bounded registry
 run from fresh storage to `W`, under the bounded hash premise on its pair set `S`,
 with a nonzero chain id; a registration state corresponding to `W.vault` whose
@@ -438,10 +481,19 @@ def Properties.UnifiedGuardsAgreeBothFalse : Prop :=
         (widen origin) s.config.originChainId
     ∧ ∃ out, registerFreshBranch hooks s origin = some out
 
+/-- **THE STEP-SIMULATION PREMISES ARE SATISFIABLE, NONTRIVIALLY.**  Related states and
+a representation-model step from them that changes the token's supply.  Covers the
+premises of `LifecycleRelIsSimulation`; those of `RegistrationEstablishesLifecycleRel`
+are covered by `UnifiedLifecycleSatisfiable`. -/
+def Properties.LifecycleRelSatisfiable : Prop :=
+  ∃ (hooks : Hooks Unit) (thisChain : Chain) (u u' : State Unit) (W : World),
+    LifecycleRel thisChain u W ∧ RepStep hooks u u'
+    ∧ u'.token.totalSupply ≠ u.token.totalSupply
+
 /-- **THE (c) PREMISES ARE SATISFIABLE, NONTRIVIALLY.**  Every premise of
-`UnifiedLifecycleCorresponds`, with a registry prefix that registers an asset, and a
-run that first gives the token a nonzero supply and then performs a successful
-preparation, ending in `t`. -/
+`UnifiedLifecycleCorresponds` (hence of `RegistrationEstablishesLifecycleRel`), with a
+registry prefix that registers an asset, and a run that first gives the token a
+nonzero supply and then performs a successful preparation, ending in `t`. -/
 def Properties.UnifiedLifecycleSatisfiable : Prop :=
   ∃ (rhooks : RegistrationHooks Unit) (hooks : Hooks Unit) (s : RegistrationState Unit)
     (origin : Address) (reg : Registered Unit) (t : State Unit) (e : NtvAssetId)

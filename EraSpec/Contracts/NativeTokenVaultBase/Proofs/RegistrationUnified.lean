@@ -1,5 +1,6 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Properties.RegistrationUnified
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ModelCorrespondence
+import EraSpec.Core.Simulation
 
 /-!
 # Proofs: the two vault models with the registration guard gap closed
@@ -342,6 +343,157 @@ theorem wellFormed_with_token {s : State Accounting} {token : BridgedStandardERC
     rw [hcfg]
     exact h.2.2.1
 
+/-- **One step of the lifecycle simulation.**  A preparation is the `bridgeOut` of its
+own destination chain, asset and amount; a nonzero token burn a `bridgeOut` and a mint
+a `bridgeIn` of the tracked asset (towards / from its origin chain, a choice the token
+model does not record); a transfer or a zero burn no step. -/
+theorem lifecycleRel_step {hooks : Hooks Accounting} {e : NtvAssetId}
+    {S : Set (Chain × NativeTokenVault.Address)} {thisChain : Chain}
+    {u u' : State Accounting} {W : World}
+    (hrel : LifecycleRel thisChain u W) (hstep : RepStep hooks u u') :
+    ∃ W' : World,
+      (W' = W ∨ (NativeTokenVault.StepIn e thisChain S W W'
+        ∧ NativeTokenVault.Step' e thisChain W W'))
+      ∧ W'.vault = W.vault ∧ u'.config = u.config ∧ LifecycleRel thisChain u' W' := by
+  obtain ⟨hcorr, hwf, hreg, hfor, hsum⟩ := hrel
+  cases hstep with
+  | @prepared r out hp =>
+    obtain ⟨hwf', hcfg', _, _, _⟩ := preparation_preserves_ledger hwf hp
+    have hra : r.assetId = u.config.assetId := (preparation_asset_binding hwf hp).1
+    obtain ⟨_, _, hsupply, hamt0⟩ := preparation_backed hwf hp
+    have hamt_eq : out.data.amount = r.data.amount := (preparation_payload hwf hp).2.2.2.1
+    have hamt : r.data.amount.val ≠ 0 := by
+      intro h0
+      apply hamt0
+      rw [hamt_eq]
+      exact Fin.ext h0
+    obtain ⟨_, _, hvault, hcorr'⟩ := preparationIsForeignBridgeOut e hcorr hwf.2 hp
+    have hguard : NativeTokenVault.FlowOutGuard W.vault r.assetId r.data.amount.val :=
+      ⟨by rw [hra]; exact hreg, hamt⟩
+    refine ⟨NativeTokenVault.bridgeOut thisChain W r.destinationChain r.assetId
+        r.data.amount.val,
+      Or.inr ⟨NativeTokenVault.StepIn.bridgeOut hguard, NativeTokenVault.Step'.bridgeOut hguard⟩,
+      hvault, hcfg', ⟨by rw [hvault]; exact hcorr', hwf', ?_, ?_, ?_⟩⟩
+    · rw [hvault, hcfg']
+      exact hreg
+    · rw [hvault, hcfg']
+      exact hfor
+    · rw [hcfg', NativeTokenVault.bridgeOut_totalOut, NativeTokenVault.bridgeOut_totalIn, hra,
+        NativeTokenVault.upd_same]
+      rw [hamt_eq] at hsupply
+      omega
+  | @tokenOp token hs =>
+    cases hs with
+    | @burn caller owner amount hb =>
+      obtain ⟨_, _, _, hsupply, _, htcfg⟩ := BridgedStandardERC20.burn_exact hwf.1 hb
+      have hwf' := wellFormed_with_token hwf
+        (BridgedStandardERC20.burn_preserves_ledger hwf.1 hb) htcfg
+      have hcorr' := corr_with_token hcorr htcfg
+      by_cases hamt : amount.val = 0
+      · refine ⟨W, Or.inl rfl, rfl, rfl, hcorr', hwf', hreg, hfor, ?_⟩
+        change token.totalSupply + W.audit.totalOut u.config.assetId =
+          W.audit.totalIn u.config.assetId
+        omega
+      · have hguard : NativeTokenVault.FlowOutGuard W.vault u.config.assetId amount.val :=
+          ⟨hreg, hamt⟩
+        have hvault := NativeTokenVault.bridgeOut_vault_foreign thisChain W u.config.originChainId
+          u.config.assetId amount.val hfor
+        refine ⟨NativeTokenVault.bridgeOut thisChain W u.config.originChainId u.config.assetId
+            amount.val,
+          Or.inr ⟨NativeTokenVault.StepIn.bridgeOut hguard,
+            NativeTokenVault.Step'.bridgeOut hguard⟩,
+          hvault, rfl, ⟨by rw [hvault]; exact hcorr', hwf', by rw [hvault]; exact hreg,
+            by rw [hvault]; exact hfor, ?_⟩⟩
+        change token.totalSupply + (NativeTokenVault.bridgeOut thisChain W u.config.originChainId
+            u.config.assetId amount.val).audit.totalOut u.config.assetId =
+          (NativeTokenVault.bridgeOut thisChain W u.config.originChainId u.config.assetId
+            amount.val).audit.totalIn u.config.assetId
+        rw [NativeTokenVault.bridgeOut_totalOut, NativeTokenVault.bridgeOut_totalIn,
+          NativeTokenVault.upd_same]
+        omega
+    | @mint caller recipient amount hm =>
+      obtain ⟨_, _, _, hsupply, _, htcfg⟩ := BridgedStandardERC20.mint_exact hm
+      have hwf' := wellFormed_with_token hwf
+        (BridgedStandardERC20.mint_preserves_ledger hwf.1 hm) htcfg
+      have hcorr' := corr_with_token hcorr htcfg
+      have hguard : NativeTokenVault.FlowInGuard thisChain W.vault u.config.assetId amount.val :=
+        ⟨hreg, fun hn => absurd hn hfor⟩
+      have hvault := NativeTokenVault.bridgeIn_vault_foreign thisChain W u.config.originChainId
+        u.config.assetId amount.val hfor
+      refine ⟨NativeTokenVault.bridgeIn thisChain W u.config.originChainId u.config.assetId
+          amount.val,
+        Or.inr ⟨NativeTokenVault.StepIn.bridgeIn hguard, NativeTokenVault.Step'.bridgeIn hguard⟩,
+        hvault, rfl, ⟨by rw [hvault]; exact hcorr', hwf', by rw [hvault]; exact hreg,
+          by rw [hvault]; exact hfor, ?_⟩⟩
+      change token.totalSupply + (NativeTokenVault.bridgeIn thisChain W u.config.originChainId
+          u.config.assetId amount.val).audit.totalOut u.config.assetId =
+        (NativeTokenVault.bridgeIn thisChain W u.config.originChainId u.config.assetId
+          amount.val).audit.totalIn u.config.assetId
+      rw [NativeTokenVault.bridgeIn_totalOut, NativeTokenVault.bridgeIn_totalIn,
+        NativeTokenVault.upd_same]
+      omega
+    | @transfer owner recipient amount htr =>
+      obtain ⟨hl, hsupply, htcfg⟩ := BridgedStandardERC20.transfer_preserves_ledger hwf.1 htr
+      refine ⟨W, Or.inl rfl, rfl, rfl, corr_with_token hcorr htcfg,
+        wellFormed_with_token hwf hl htcfg, hreg, hfor, ?_⟩
+      change token.totalSupply + W.audit.totalOut u.config.assetId =
+        W.audit.totalIn u.config.assetId
+      omega
+
+theorem LifecycleRelIsSimulation : Properties.LifecycleRelIsSimulation :=
+  fun _ _ e S _ _ _ _ hrel hstep => lifecycleRel_step (e := e) (S := S) hrel hstep
+
+/-- A tightened registration establishes the lifecycle relation. -/
+theorem registration_lifecycleRel {rhooks : RegistrationHooks Accounting}
+    {s : RegistrationState Accounting} {origin : Address} {reg : Registered Accounting}
+    {e : NtvAssetId} {S : Set (Chain × NativeTokenVault.Address)} {thisChain : Chain}
+    {W : World} (he : IdAssumptionsOn e S) (hc0 : thisChain ≠ 0)
+    (hW : NativeTokenVault.ReachIn e thisChain S NativeTokenVault.empty W)
+    (hc : CorrPre s thisChain W.vault) (h : registerFreshBranch' rhooks s origin = some reg)
+    (henc : rhooks.assetIdFor s.config.originChainId origin =
+      e s.config.originChainId (widen origin)) :
+    LifecycleRel thisChain reg.state
+      { W with vault := correspondingRegistration s origin W.vault } := by
+  obtain ⟨hg', _, hcorr₁⟩ := unifiedRegistrationIsRegistryStep (W := W) hc h henc
+  have hinner := (fresh_registration_preconditions (registerFreshBranch'_eq_some.mp h).1).2
+  -- the asset was unregistered before, so the audit has recorded no flow of it
+  have hquiet := (NativeTokenVault.run_audited_on he hc0 hW).unregisteredQuiet
+    s.config.assetId hg'.freshId
+  have hcfg₁ : reg.state.config = s.config := (registration_registry_frame hinner).1
+  refine ⟨hcorr₁, registration_establishes_wellformed hinner, ?_, ?_, ?_⟩
+  · rw [hcfg₁]
+    exact (NativeTokenVault.sn_registered_self _ _ _ _ _).mpr hg'.tokenNonzero
+  · rw [hcfg₁]
+    exact fun hn => hg'.notNative ((NativeTokenVault.sn_native_self _ _ _ _ _ thisChain).mp hn)
+  · rw [hcfg₁]
+    change reg.state.token.totalSupply + W.audit.totalOut s.config.assetId =
+      W.audit.totalIn s.config.assetId
+    rw [(registration_initial_fields hinner).2.2.2.1, hquiet.1, hquiet.2]
+
+theorem RegistrationEstablishesLifecycleRel : Properties.RegistrationEstablishesLifecycleRel :=
+  fun _ _ _ _ _ _ _ _ _ he hc0 hW hc h henc => registration_lifecycleRel he hc0 hW hc h henc
+
+/-- **The lifecycle simulation, in the generic framework** (`Core/Simulation.lean`): the
+representation model's `RepStep`, simulated under `LifecycleRel` by registry steps that
+are both bounded (for any pair set) and tightened. -/
+def lifecycleSimulation (hooks : Hooks Accounting) (e : NtvAssetId)
+    (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain) :
+    LayeredVerification.Simulation (RepStep hooks)
+      (fun W W' => NativeTokenVault.StepIn e thisChain S W W' ∧
+        NativeTokenVault.Step' e thisChain W W') where
+  Rel := LifecycleRel thisChain
+  match_step := by
+    intro u u' W hrel hstep
+    obtain ⟨W', hor, _, _, hrel'⟩ := lifecycleRel_step (e := e) (S := S) hrel hstep
+    rcases hor with hW' | hst
+    · subst hW'
+      exact ⟨_, LayeredVerification.Run.refl _, hrel'⟩
+    · exact ⟨W', LayeredVerification.Run.tail (LayeredVerification.Run.refl W) hst, hrel'⟩
+
+theorem lifecycleSimulation_rel (hooks : Hooks Accounting) (e : NtvAssetId)
+    (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain) :
+    (lifecycleSimulation hooks e S thisChain).Rel = LifecycleRel thisChain := rfl
+
 theorem unifiedLifecycleCorresponds {rhooks : RegistrationHooks Accounting}
     {hooks : Hooks Accounting} {s : RegistrationState Accounting} {origin : Address}
     {reg : Registered Accounting} {t : State Accounting} {e : NtvAssetId}
@@ -361,141 +513,39 @@ theorem unifiedLifecycleCorresponds {rhooks : RegistrationHooks Accounting}
       ∧ Corr t thisChain W'.vault ∧ Valid e thisChain W'.vault ∧ WellFormed t
       ∧ t.token.totalSupply + W'.audit.totalOut s.config.assetId
           = W'.audit.totalIn s.config.assetId := by
-  -- the registration, as a tightened registry step
-  obtain ⟨hg', hstep', hcorr₁⟩ := unifiedRegistrationIsRegistryStep (W := W) hc h henc
-  obtain ⟨hfresh, _⟩ := registerFreshBranch'_eq_some.mp h
-  have hinner := (fresh_registration_preconditions hfresh).2
-  -- the asset was unregistered before, so the audit has recorded no flow of it
-  have hquiet := (NativeTokenVault.run_audited_on he hc0 hW).unregisteredQuiet
-    s.config.assetId hg'.freshId
-  -- the registry write: the asset is registered and not native
-  have hregV₁ : NativeTokenVault.Registered (correspondingRegistration s origin W.vault)
-      s.config.assetId :=
-    (NativeTokenVault.sn_registered_self _ _ _ _ _).mpr hg'.tokenNonzero
-  have hforeign : ¬ NativeTokenVault.Native thisChain
-      (correspondingRegistration s origin W.vault) s.config.assetId :=
-    fun hn => hg'.notNative ((NativeTokenVault.sn_native_self _ _ _ _ _ thisChain).mp hn)
-  -- the registered state
+  -- the registration, as a bounded and tightened registry step
+  obtain ⟨hg', hstep', _⟩ := unifiedRegistrationIsRegistryStep (W := W) hc h henc
+  have hinner := (fresh_registration_preconditions (registerFreshBranch'_eq_some.mp h).1).2
   have hcfg₁ : reg.state.config = s.config := (registration_registry_frame hinner).1
-  have hwf₁ : WellFormed reg.state := registration_establishes_wellformed hinner
-  have hsupply₁ : reg.state.token.totalSupply = 0 := (registration_initial_fields hinner).2.2.2.1
-  -- the invariant carried along the representation model's run
+  -- the relation, carried along the representation model's run
   suffices key : ∀ u, RepReach hooks reg.state u →
       ∃ W' : World, NativeTokenVault.ReachIn e thisChain S NativeTokenVault.empty W'
         ∧ (NativeTokenVault.Reach' e thisChain NativeTokenVault.empty W →
             NativeTokenVault.Reach' e thisChain NativeTokenVault.empty W')
         ∧ W'.vault = correspondingRegistration s origin W.vault
-        ∧ Corr u thisChain (correspondingRegistration s origin W.vault) ∧ WellFormed u
-        ∧ u.config = s.config
-        ∧ u.token.totalSupply + W'.audit.totalOut s.config.assetId
-            = W'.audit.totalIn s.config.assetId by
-    obtain ⟨W', hin, hti, hv, hcorr, hwf, _, hsum⟩ := key t hrun
-    refine ⟨W', hin, hti, hv, ?_, (NativeTokenVault.run_inv_on he hc0 hin).1, hwf, hsum⟩
-    rw [hv]
-    exact hcorr
+        ∧ u.config = s.config ∧ LifecycleRel thisChain u W' by
+    obtain ⟨W', hin, hti, hv, hcfg, hrel⟩ := key t hrun
+    have hsum := hrel.supply
+    rw [hcfg] at hsum
+    exact ⟨W', hin, hti, hv, hrel.corr, (NativeTokenVault.run_inv_on he hc0 hin).1,
+      hrel.wellFormed, hsum⟩
   intro u hu
   induction hu with
   | refl =>
-    refine ⟨{ W with vault := correspondingRegistration s origin W.vault },
+    exact ⟨{ W with vault := correspondingRegistration s origin W.vault },
       NativeTokenVault.ReachIn.tail hW
         (NativeTokenVault.StepIn.registerBridged hmem hg'.toRegisterBridgedGuard),
-      fun h' => NativeTokenVault.Reach'.tail h' hstep', rfl, hcorr₁, hwf₁, hcfg₁, ?_⟩
-    change reg.state.token.totalSupply + W.audit.totalOut s.config.assetId =
-      W.audit.totalIn s.config.assetId
-    rw [hsupply₁, hquiet.1, hquiet.2]
-  | @tail u₀ u₁ _ hstep ih =>
-    obtain ⟨W', hin, hti, hv, hcorr, hwf, hcfg, hsum⟩ := ih
-    have hreg : NativeTokenVault.Registered W'.vault s.config.assetId := by
-      rw [hv]
-      exact hregV₁
-    have hfor : ¬ NativeTokenVault.Native thisChain W'.vault s.config.assetId := by
-      rw [hv]
-      exact hforeign
-    cases hstep with
-    | @prepared r out hp =>
-      obtain ⟨hwf', hcfg', _, _, _⟩ := preparation_preserves_ledger hwf hp
-      have hra : r.assetId = s.config.assetId :=
-        (preparation_asset_binding hwf hp).1.trans (by rw [hcfg])
-      obtain ⟨_, _, hsupply, hamt0⟩ := preparation_backed hwf hp
-      have hamt_eq : out.data.amount = r.data.amount := (preparation_payload hwf hp).2.2.2.1
-      have hamt : r.data.amount.val ≠ 0 := by
-        intro h0
-        apply hamt0
-        rw [hamt_eq]
-        exact Fin.ext h0
-      have hcorrW : Corr u₀ thisChain W'.vault := by
-        rw [hv]
-        exact hcorr
-      obtain ⟨_, _, hvault, hcorr'⟩ := preparationIsForeignBridgeOut e hcorrW hwf.2 hp
-      have hguard : NativeTokenVault.FlowOutGuard W'.vault r.assetId r.data.amount.val :=
-        ⟨by rw [hra]; exact hreg, hamt⟩
-      refine ⟨NativeTokenVault.bridgeOut thisChain W' r.destinationChain r.assetId
-          r.data.amount.val,
-        NativeTokenVault.ReachIn.tail hin (NativeTokenVault.StepIn.bridgeOut hguard),
-        fun h' => NativeTokenVault.Reach'.tail (hti h') (NativeTokenVault.Step'.bridgeOut hguard),
-        hvault.trans hv, ?_, hwf', hcfg'.trans hcfg, ?_⟩
-      · rw [hv] at hcorr'
-        exact hcorr'
-      · rw [NativeTokenVault.bridgeOut_totalOut, NativeTokenVault.bridgeOut_totalIn, hra,
-          NativeTokenVault.upd_same]
-        rw [hamt_eq] at hsupply
-        omega
-    | @tokenOp token hs =>
-      cases hs with
-      | @burn caller owner amount hb =>
-        obtain ⟨_, _, _, hsupply, _, htcfg⟩ := BridgedStandardERC20.burn_exact hwf.1 hb
-        have hwf' := wellFormed_with_token hwf
-          (BridgedStandardERC20.burn_preserves_ledger hwf.1 hb) htcfg
-        have hcorr' := corr_with_token hcorr htcfg
-        by_cases hamt : amount.val = 0
-        · refine ⟨W', hin, hti, hv, hcorr', hwf', hcfg, ?_⟩
-          change token.totalSupply + W'.audit.totalOut s.config.assetId =
-            W'.audit.totalIn s.config.assetId
-          omega
-        · have hguard : NativeTokenVault.FlowOutGuard W'.vault s.config.assetId amount.val :=
-            ⟨hreg, hamt⟩
-          refine ⟨NativeTokenVault.bridgeOut thisChain W' s.config.originChainId
-              s.config.assetId amount.val,
-            NativeTokenVault.ReachIn.tail hin (NativeTokenVault.StepIn.bridgeOut hguard),
-            fun h' => NativeTokenVault.Reach'.tail (hti h')
-              (NativeTokenVault.Step'.bridgeOut hguard),
-            (NativeTokenVault.bridgeOut_vault_foreign _ _ _ _ _ hfor).trans hv, hcorr', hwf', hcfg,
-            ?_⟩
-          change token.totalSupply + (NativeTokenVault.bridgeOut thisChain W'
-              s.config.originChainId s.config.assetId amount.val).audit.totalOut
-                s.config.assetId =
-            (NativeTokenVault.bridgeOut thisChain W' s.config.originChainId s.config.assetId
-              amount.val).audit.totalIn s.config.assetId
-          rw [NativeTokenVault.bridgeOut_totalOut, NativeTokenVault.bridgeOut_totalIn,
-            NativeTokenVault.upd_same]
-          omega
-      | @mint caller recipient amount hm =>
-        obtain ⟨_, _, _, hsupply, _, htcfg⟩ := BridgedStandardERC20.mint_exact hm
-        have hwf' := wellFormed_with_token hwf
-          (BridgedStandardERC20.mint_preserves_ledger hwf.1 hm) htcfg
-        have hcorr' := corr_with_token hcorr htcfg
-        have hguard : NativeTokenVault.FlowInGuard thisChain W'.vault s.config.assetId
-            amount.val := ⟨hreg, fun hn => absurd hn hfor⟩
-        refine ⟨NativeTokenVault.bridgeIn thisChain W' s.config.originChainId s.config.assetId
-            amount.val,
-          NativeTokenVault.ReachIn.tail hin (NativeTokenVault.StepIn.bridgeIn hguard),
-          fun h' => NativeTokenVault.Reach'.tail (hti h') (NativeTokenVault.Step'.bridgeIn hguard),
-          (NativeTokenVault.bridgeIn_vault_foreign _ _ _ _ _ hfor).trans hv, hcorr', hwf', hcfg,
-          ?_⟩
-        change token.totalSupply + (NativeTokenVault.bridgeIn thisChain W' s.config.originChainId
-            s.config.assetId amount.val).audit.totalOut s.config.assetId =
-          (NativeTokenVault.bridgeIn thisChain W' s.config.originChainId s.config.assetId
-            amount.val).audit.totalIn s.config.assetId
-        rw [NativeTokenVault.bridgeIn_totalOut, NativeTokenVault.bridgeIn_totalIn,
-          NativeTokenVault.upd_same]
-        omega
-      | @transfer owner recipient amount htr =>
-        obtain ⟨hl, hsupply, htcfg⟩ := BridgedStandardERC20.transfer_preserves_ledger hwf.1 htr
-        refine ⟨W', hin, hti, hv, corr_with_token hcorr htcfg,
-          wellFormed_with_token hwf hl htcfg, hcfg, ?_⟩
-        change token.totalSupply + W'.audit.totalOut s.config.assetId =
-          W'.audit.totalIn s.config.assetId
-        omega
+      fun h' => NativeTokenVault.Reach'.tail h' hstep', rfl, hcfg₁,
+      registration_lifecycleRel he hc0 hW hc h henc⟩
+  | tail _ hstep ih =>
+    obtain ⟨W', hin, hti, hv, hcfg, hrel⟩ := ih
+    obtain ⟨W'', hor, hv', hcfg', hrel'⟩ := lifecycleRel_step (e := e) (S := S) hrel hstep
+    rcases hor with hW'' | ⟨hstIn, hst'⟩
+    · subst hW''
+      exact ⟨_, hin, hti, hv, hcfg'.trans hcfg, hrel'⟩
+    · exact ⟨W'', NativeTokenVault.ReachIn.tail hin hstIn,
+        fun h' => NativeTokenVault.Reach'.tail (hti h') hst', hv'.trans hv, hcfg'.trans hcfg,
+        hrel'⟩
 
 theorem UnifiedLifecycleCorresponds : Properties.UnifiedLifecycleCorresponds :=
   fun _ _ _ _ _ _ _ _ _ _ _ he hc0 hW hmem hc h henc hrun =>
@@ -715,6 +765,20 @@ theorem UnifiedLifecycleSatisfiable : Properties.UnifiedLifecycleSatisfiable := 
     hW₀, Or.inr rfl, ⟨rfl, nativeRegistry_corr 9⟩, witness_freshBranch', rfl,
     RepReach.tail hmid (RepStep.prepared hout), ⟨1 + 1, nativeVault_registered 9 (by decide)⟩,
     witnessPrepState, witnessRequest, out, hmid, by decide, hout, rfl⟩
+
+theorem LifecycleRelSatisfiable : Properties.LifecycleRelSatisfiable := by
+  have hg0 : NativeTokenVault.RegisterNativeGuard NativeTokenVault.empty.vault (widen 9) :=
+    ⟨fun h0 => absurd (widen_eq_zero.mp h0) (by decide), rfl⟩
+  have hW₀ : NativeTokenVault.ReachIn toyId 1 witnessPairs NativeTokenVault.empty
+      ⟨nativeVault 9, NativeTokenVault.empty.audit⟩ :=
+    NativeTokenVault.ReachIn.tail NativeTokenVault.ReachIn.refl
+      (NativeTokenVault.StepIn.registerNative (Or.inl rfl) hg0)
+  exact ⟨witnessPrepHooks, 1, witnessRegistered.state, witnessPrepState,
+    { (⟨nativeVault 9, NativeTokenVault.empty.audit⟩ : World) with
+      vault := correspondingRegistration witnessState 7 (nativeVault 9) },
+    registration_lifecycleRel witnessPairs_on (by decide) hW₀ ⟨rfl, nativeRegistry_corr 9⟩
+      witness_freshBranch' rfl,
+    RepStep.tokenOp (BridgedStandardERC20.Step.mint witness_mint), by decide⟩
 
 end Contracts.NativeTokenVaultBase
 

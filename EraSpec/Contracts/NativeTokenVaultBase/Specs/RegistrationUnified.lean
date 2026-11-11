@@ -19,8 +19,8 @@ to `l1-contracts/contracts/` unless they start with `system-contracts/`):
 | Added to | Condition | Where the source gets it |
 |---|---|---|
 | `registerRepresentation'` | origin chain `≠ 0` | `tokenDataOriginChainId` replaces a decoded `0` by `_l1ChainId()` (`bridge/ntv/NativeTokenVaultBase.sol:565-571`) and the result is the inner helper's `_tokenOriginChainId` (`:544-551`); it is nonzero when `_l1ChainId() ≠ 0` |
-| `registerRepresentation'` | token address `≠ 0` | the token address is checked against the address the CREATE2 deployment returned (`:582-583`), which is never `0`: L1 `Create2.deploy` (`bridge/ntv/L1NativeTokenVault.sol:249-257`), L2 `ContractDeployer` refuses kernel-space addresses (`system-contracts/contracts/ContractDeployer.sol:434-436`) |
-| `registerRepresentation'` | token address unmapped | the same deployment reverts at an occupied address (`ContractDeployer.sol:438-446`; a CREATE2 collision on L1), and a mapped token address is occupied |
+| `registerRepresentation'` | token address `≠ 0` | the token address is checked against the address the CREATE2 deployment returned (`:582-583`), which is never `0`: L1 and ZKsync OS deploy with `Create2.deploy` (`bridge/ntv/L1NativeTokenVault.sol:249-257`, `bridge/ntv/L2NativeTokenVaultZKOS.sol:21-35`), and EraVM's `ContractDeployer` refuses kernel-space addresses (`system-contracts/contracts/ContractDeployer.sol:434-436`) |
+| `registerRepresentation'` | token address unmapped | the same deployment reverts at an occupied address (`ContractDeployer.sol:438-446`; a CREATE2 collision under `Create2.deploy`), and a mapped token address is occupied |
 | `RegisterBridgedGuard'` | origin token `≠ 0` | `bridgeInitialize` requires `_originToken != address(0)` (`bridge/BridgedStandardERC20.sol:86`); `_deployBridgedToken` calls it (`NativeTokenVaultBase.sol:630`) before the registry write (`:585`) |
 
 The source has no `require` for the first three.  They follow from mechanisms the
@@ -43,8 +43,9 @@ before.
 
 `RepStep` / `RepReach` is the life of the tracked token after its registration: a
 `prepare` (the `bridgeBurn` branch), or one operation of the token model on it (the
-vault's `bridgeMint` / `bridgeBurn`, or an ordinary transfer).
-`Properties.UnifiedLifecycleCorresponds` simulates it by registry-model runs.
+vault's `bridgeMint` / `bridgeBurn`, or an ordinary transfer).  `LifecycleRel` is the
+relation under which registry-model runs simulate it
+(`Properties.LifecycleRelIsSimulation`, `Properties.UnifiedLifecycleCorresponds`).
 
 ## Model boundaries
 
@@ -116,17 +117,23 @@ asset id in the registry about to be written.
 The source discharges this from the deployment mechanism, not from a check of its
 own:
 
-* nonzero: L1 deploys with OpenZeppelin `Create2.deploy`
-  (`L1NativeTokenVault.sol:249-257`), which reverts when CREATE2 returns `0`; L2
-  deploys through the `ContractDeployer` system contract
-  (`L2NativeTokenVault.sol:217-236`), which reverts for any address up to
-  `MAX_SYSTEM_CONTRACT_ADDRESS` (`system-contracts/contracts/ContractDeployer.sol:434-436`);
+* nonzero: L1 and ZKsync OS deploy with OpenZeppelin `Create2.deploy`
+  (`L1NativeTokenVault.sol:249-257`, `L2NativeTokenVaultZKOS.sol:21-35`), which
+  reverts when CREATE2 returns `0` (the library is not in the pinned tree; this is its
+  v4 behaviour); EraVM chains deploy through the `ContractDeployer` system contract
+  (`L2NativeTokenVault.sol:217-236`), whose `create2` → `create2Account` →
+  `_nonSystemDeployOnAddress` path (`system-contracts/contracts/ContractDeployer.sol:167-173,
+  287-299, 422-450`) reverts for any address up to `MAX_SYSTEM_CONTRACT_ADDRESS`
+  (`:434-436`);
 * unmapped: both revert at an occupied address (`ContractDeployer.sol:438-446`;
-  CREATE2 fails on a collision on L1), and every address with `assetId[t] ≠ 0` is
-  occupied: a native token had code when registered (`NativeTokenVaultBase.sol:139`),
-  a bridged one was deployed here, and the L2 base token is a system contract.  The
-  last step is a fact about code storage, which no model here has, so it is part of
-  this premise. -/
+  CREATE2 fails on a collision on the EVM), and every address with `assetId[t] ≠ 0` is
+  occupied.  At the pin the map is written only by `_setNewTokenStorage`
+  (`NativeTokenVaultBase.sol:588-598`) and by `updateL2` for the base token
+  (`L2NativeTokenVault.sol:170-172`): a native token had code when registered
+  (`NativeTokenVaultBase.sol:139`, called before `:517`), a bridged one was deployed
+  here (`:582-585`), and the L2 base token is a system contract.  That every such
+  address keeps its code is a fact about code storage, which no model here has, so it
+  is part of this premise. -/
 structure DeployFresh (hooks : RegistrationHooks Accounting) (s : RegistrationState Accounting)
     (origin : Address) : Prop where
   nonzero : ∀ d, hooks.deploy s.config.originChainId origin = some d → d ≠ 0
@@ -194,5 +201,20 @@ inductive RepStep (hooks : Hooks Accounting) : State Accounting → State Accoun
 inductive RepReach (hooks : Hooks Accounting) : State Accounting → State Accounting → Prop
   | refl {s} : RepReach hooks s s
   | tail {s t u} : RepReach hooks s t → RepStep hooks t u → RepReach hooks s u
+
+/-- **The lifecycle simulation relation** between a representation-model state `u` and
+a registry-model world `W`: they correspond; the representation invariant holds; the
+tracked asset is registered and not native in `W`'s vault; and the tracked token's
+total supply plus the asset's recorded outflow equals its recorded inflow.  It holds
+right after a tightened registration (`Properties.RegistrationEstablishesLifecycleRel`)
+and every `RepStep` preserves it (`Properties.LifecycleRelIsSimulation`). -/
+structure LifecycleRel (thisChain : NativeTokenVault.Chain) (u : State Accounting)
+    (W : NativeTokenVault.World) : Prop where
+  corr : Corr u thisChain W.vault
+  wellFormed : WellFormed u
+  registered : NativeTokenVault.Registered W.vault u.config.assetId
+  foreign : ¬ NativeTokenVault.Native thisChain W.vault u.config.assetId
+  supply : u.token.totalSupply + W.audit.totalOut u.config.assetId
+    = W.audit.totalIn u.config.assetId
 
 end Contracts.NativeTokenVaultBase
