@@ -17,7 +17,7 @@ hold") now has a pinned replacement.  Originals with the same statement share on
 |---|---|
 | `levelUp_inj` (FullMerkle `Model`) | `LevelUpInjOrCollision` |
 | `levels_inj` (FullMerkle `Model`) | `LevelsInjOrCollision` |
-| `rootOf_inj_of_h_inj`, `rootOf_inj_of_h_inj'` (FullMerkle `Model`), `rootOf_inj_of_h_inj_of_on` (FullMerkle `CachedHashInjectivity`) | `RootOfInjOrCollision`; without the equal-length premise `RootCommitsListOrBreak` |
+| `rootOf_inj_of_h_inj`, `rootOf_inj_of_h_inj'` (FullMerkle `Model`), `rootOf_inj_of_h_inj_of_on` (FullMerkle `CachedHashInjectivity`) | `RootOfInjOrCollision`; without the equal-length premise `RootCommitsListOrBreak` (padding case pinned: `MerkleSpec.PinnedStrong.RootCommitsListOrBreakStrong`) |
 | `capacity_ok_root_commits` (FullMerkle `TreeShape`) | `RootOfInjOrCollision` (same statement); with the capacity premise discharged by the run, `Contracts.InteropCommitmentTree.PublishedRootCommitsOrCollision`, and without the equal-length premise `…PublishedRootCommitsAnyLengthOrBreak` |
 | `rootOf_append_inj` (FullMerkle `Model`), `no_append_forgery` (Merkle `RootForgery`) | `RootOfAppendInjOrCollision` |
 | `rootOf_set_inj` (FullMerkle `Model`) | `RootOfSetInjOrCollision` |
@@ -59,10 +59,14 @@ stronger).
   its conclusion (for a replacement, the vacuous original's conclusion) is false, and the
   located collision (in `PaddingHitFires`, the padding hit) is what holds there.  The
   docstring of `PinnedFormsFire` names the case and the instance for each.
-* `PaddingHitFires`: for every hash, the padding-ambiguity attack of
-  `TreeShape.padding_ambiguity_forges_root` is located as exactly a `PaddingHit`, with no
-  collision; `RootCommitsListCollisionFires` reaches the collision case alone, at different
-  lengths and with the padding constant in neither list.
+* `PaddingHitFires`: for every hash, the padding-ambiguity attack (`[a]` vs `[a, z0]`, the
+  instance `TreeShape.padding_ambiguity_forges_root` is proved with) is located as exactly a
+  `PaddingHit`, with no collision; `RootCommitsListCollisionFires` reaches the collision case
+  alone, at different lengths and with the padding constant in neither list.  A `PaddingHit` can
+  also hold ALONGSIDE a collision at an occupied index (`[1]` vs `[2, 0]` under `constHash`), so
+  `RootCommitsListOrBreak`'s padding disjunct does not exclude one;
+  `MerkleSpec.PinnedStrong.Properties.RootCommitsListOrBreakStrong`
+  (`./RootForgeryPinnedStrong.lean`) restricts that case to lists agreeing at every padded entry.
 * `WalkVsWalkNeedsSameIndex`: the same-index premise of `WalkVsWalkOrCollision` cannot be
   dropped.
 
@@ -172,9 +176,16 @@ def Properties.WalkPureInjOrCollision : Prop :=
 same root are equal, or one holds the padding constant as a real leaf at the other's frontier
 (`PaddingHit`), or at an index where they differ the trees collide on its path.
 
-The equal-length premise of `rootOf_inj_of_h_inj` is load-bearing
-(`TreeShape.padding_ambiguity_forges_root`); this says exactly what replaces it.  It is a
-domain case, not a cryptographic one: `PaddingHitFires` shows it for every hash. -/
+The equal-length premise of `rootOf_inj_of_h_inj` is load-bearing (`PaddingHitFires`, and
+`TreeShapeStrong.padding_ambiguity_forges_root_pinned`); the padding ambiguity it excluded is a
+domain case, not a cryptographic one, reached for every hash.  But `PaddingHit` reads only the
+two lengths and the longer list's entry at the shorter one's length, so the second disjunct does
+not say the lists agree anywhere else.  It also holds for pairs that differ at an index both
+lists occupy, with a real collision there that this statement does not name (`[1]` and `[2, 0]`
+under `constHash`: `MerkleSpec.PinnedStrong.Properties.RootCommitsListOrBreakStrongUnmasksCollision`).
+The statement whose padding case is exactly the domain case (the lists agree at every padded
+entry, one being the other followed by padding leaves) is
+`MerkleSpec.PinnedStrong.Properties.RootCommitsListOrBreakStrong`. -/
 def Properties.RootCommitsListOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256) (height : ℕ),
     L₁.length ≤ 2 ^ height → L₂.length ≤ 2 ^ height →
@@ -441,10 +452,11 @@ def Properties.PinnedFormsFire : Prop :=
     ∧ WalkCollision constHash (fun _ => 5) (fun _ => 5) 0 1 ([5] : List UInt256).length 0 1)
 
 /-- **THE PADDING AMBIGUITY IS LOCATED AS A PADDING HIT, FOR EVERY HASH.**  `[a]` and
-`[a, z0]` are within capacity at height 1, have the same root and differ
-(`TreeShape.padding_ambiguity_forges_root`).  `RootCommitsListOrBreak` locates this as a
-`PaddingHit` (the second list holds `z0` as a real leaf at index 1), and no collision is
-located on any path: no strength of hash prevents it. -/
+`[a, z0]` are within capacity at height 1, have the same root and differ (the instance
+`TreeShape.padding_ambiguity_forges_root` is proved with; that statement does not pin it, its
+pinned form is `TreeShapeStrong.padding_ambiguity_forges_root_pinned`).
+`RootCommitsListOrBreak` locates this as a `PaddingHit` (the second list holds `z0` as a real
+leaf at index 1), and no collision is located on any path: no strength of hash prevents it. -/
 def Properties.PaddingHitFires : Prop :=
   ∀ (h : Hash) (z0 a : UInt256),
     ([a] : List UInt256).length ≤ 2 ^ 1 ∧ ([a, z0] : List UInt256).length ≤ 2 ^ 1

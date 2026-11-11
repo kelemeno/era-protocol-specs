@@ -1,23 +1,16 @@
-import EraSpec.Codegen.VaultPreparationSlice.Properties.RefinementStrong
-import EraSpec.Codegen.VaultPreparationSlice.Proofs.Refinement
+import EraSpec.Codegen.VaultPreparationSlice.Properties.AtMostOneStep
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.Witnesses
 
 /-!
-# Proofs: every successful call is matched by at most one trace step
+# Proofs: every call is at most one step of the preparation trace
 
-The case analysis of `Proofs/Refinement.lean`'s `simulationWitness` and `token_step`, with the
-matching run kept to a stutter or one step:
-
-* a `bridgeBurn` is matched by the trace's `prepare` of the request it decodes to
-  (`BridgeBurnSuccessIsPreparation`);
-* any other vault call by the stutter (`xcall_view`);
-* a token `transfer` by the trace's `spend` (`BridgedTokenSlice.transfer_refines`);
-* a token getter by the stutter;
-* a token `bridgeMint` or `bridgeBurn` from anyone but the vault reverts.
-
-`SimulationAtMostOneTraceStep` is witnessed by the existing `simulationWitness`, whose
-relation is already `SysRel`.  The witness is the successful call of `Witnesses.lean`'s
-request `r0` from the represented state `s0`.
+The case split of `simulationWitness` (`Proofs/Refinement.lean`), kept with its bound.  A
+`bridgeBurn` is one `prepare` (`BridgeBurnSuccessIsPreparation`); a vault view changes nothing
+(`xcall_view`); a token call by anyone but the vault is one `spend` for a `transfer`, nothing
+for a getter, and impossible for `bridgeMint` and `bridgeBurn` (`token_step_at_most_one`, the
+case split of `token_step` with the same bound).  The simulation turns `L' = L` into the
+empty run and a step into a run of one.  The witness is the accepted request of
+`Proofs/Witnesses.lean`.
 -/
 
 namespace Codegen.VaultPreparationSlice
@@ -25,14 +18,23 @@ namespace Codegen.VaultPreparationSlice
 open Codegen Codegen.Calls
 open Contracts.BridgedStandardERC20 (Address)
 open Codegen.BridgedTokenSlice (addrWord addrWord_inj)
-open Contracts.NativeTokenVaultBase (State Hooks Request Result prepare WellFormed)
+open Contracts.NativeTokenVaultBase (Hooks)
+open LayeredVerification (Run)
 
 variable {Acct : Type}
 
-/-- `token_step` with the matching run kept to a stutter or one trace step.  A successful call
-to the token by anyone but the vault is a trace `spend` (a `transfer`) or changes nothing (a
-getter).  `bridgeMint` and `bridgeBurn` revert. -/
-theorem token_step_at_most_one_trace {d : Deployment} {h : Hooks Acct} {sys : Sys Acct}
+/-- A token getter: no trace step. -/
+theorem stutter_at_most_one {d : Deployment} {h : Hooks Acct} {sys : Sys Acct}
+    {L : AssetBridgePreparation.Ledger Acct} {st : Storage} (hsr : SysRel d sys L)
+    (hst : st = sys.world.token) :
+    ∃ L', (L' = L ∨ AssetBridgePreparation.Step h L L') ∧
+      SysRel d ⟨sys.vault, { sys.world with token := st }, sys.journal⟩ L' := by
+  subst hst
+  exact ⟨L, Or.inl rfl, hsr⟩
+
+/-- A successful call to the token by anyone but the vault is one trace `spend` (a
+`transfer`) or no trace step (a getter); `bridgeMint` and `bridgeBurn` revert. -/
+theorem token_step_at_most_one {d : Deployment} {h : Hooks Acct} {sys : Sys Acct}
     {L : AssetBridgePreparation.Ledger Acct} {fname : String} {caller : Address}
     {args : List Word} {r : Success}
     (hsr : SysRel d sys L) (hc : caller ≠ d.vault) (hv : TokenAbiValid fname args)
@@ -40,12 +42,6 @@ theorem token_step_at_most_one_trace {d : Deployment} {h : Hooks Acct} {sys : Sy
       some (.ok r)) :
     ∃ L', (L' = L ∨ AssetBridgePreparation.Step h L L') ∧
       SysRel d ⟨sys.vault, { sys.world with token := r.st }, sys.journal⟩ L' := by
-  -- a getter: the token's storage is unchanged, so the trace stutters
-  have stutter : r.st = sys.world.token → ∃ L', (L' = L ∨ AssetBridgePreparation.Step h L L') ∧
-      SysRel d ⟨sys.vault, { sys.world with token := r.st }, sys.journal⟩ L' := by
-    intro hst
-    rw [hst]
-    exact ⟨L, Or.inl rfl, hsr⟩
   obtain ⟨fn, hfind, hargs⟩ := hv
   have hmem := List.mem_of_find?_eq_some hfind
   have hname : fn.name = fname := by simpa using List.find?_some hfind
@@ -66,7 +62,7 @@ theorem token_step_at_most_one_trace {d : Deployment} {h : Hooks Acct} {sys : Sy
     obtain ⟨x, y, rfl, -⟩ := BridgedTokenSlice.forall₂_two hargs
     rw [tokenCall_bridgeBurn, BridgedTokenSlice.call_burn, ite_eq_left hne] at hcall
     cases hcall
-  · -- transfer: exactly the trace's `spend`
+  · -- transfer: one trace `spend`
     obtain rfl : fname = "transfer" := by rw [← hname]; rfl
     obtain ⟨x, y, rfl, hx⟩ := BridgedTokenSlice.forall₂_two hargs
     have hx' := hx rfl
@@ -96,38 +92,34 @@ theorem token_step_at_most_one_trace {d : Deployment} {h : Hooks Acct} {sys : Sy
     obtain ⟨x, rfl⟩ := BridgedTokenSlice.forall₂_one hargs
     rw [tokenCall_balanceOf, BridgedTokenSlice.call_balanceOf] at hcall
     cases hcall
-    exact stutter rfl
+    exact stutter_at_most_one hsr rfl
   · -- totalSupply
     obtain rfl : fname = "totalSupply" := by rw [← hname]; rfl
     rw [BridgedTokenSlice.forall₂_nil hargs, tokenCall_totalSupply,
       BridgedTokenSlice.call_totalSupply] at hcall
     cases hcall
-    exact stutter rfl
+    exact stutter_at_most_one hsr rfl
   · -- nativeTokenVault
     obtain rfl : fname = "nativeTokenVault" := by rw [← hname]; rfl
     rw [BridgedTokenSlice.forall₂_nil hargs, tokenCall_nativeTokenVault,
       BridgedTokenSlice.call_nativeTokenVault] at hcall
     cases hcall
-    exact stutter rfl
+    exact stutter_at_most_one hsr rfl
   · -- originToken
     obtain rfl : fname = "originToken" := by rw [← hname]; rfl
     rw [BridgedTokenSlice.forall₂_nil hargs, tokenCall_originToken] at hcall
     cases hcall
-    exact stutter rfl
+    exact stutter_at_most_one hsr rfl
   · -- assetId
     obtain rfl : fname = "assetId" := by rw [← hname]; rfl
     rw [BridgedTokenSlice.forall₂_nil hargs, tokenCall_assetId] at hcall
     cases hcall
-    exact stutter rfl
+    exact stutter_at_most_one hsr rfl
 
-/-- `simulationWitness`'s matching, kept to a stutter or one trace step. -/
-theorem match_step_at_most_one_trace {d : Deployment} {ch : CHooks Acct} {h : Hooks Acct}
-    (hag : HooksAgree ch h) {sys sys' : Sys Acct} {L : AssetBridgePreparation.Ledger Acct}
-    (hsr : SysRel d sys L) (hstep : Step d ch sys sys') :
-    ∃ L', (L' = L ∨ AssetBridgePreparation.Step h L L') ∧ SysRel d sys' L' := by
+theorem CallMatchesAtMostOneTraceStep : Properties.CallMatchesAtMostOneTraceStep := by
+  intro Acct d ch h hag sys sys' L hsr hstep
   cases hstep with
   | bridgeBurn hoc hx =>
-    -- exactly the trace's `prepare` of the request the call decodes to
     rename_i caller value c l2v a oc data res
     obtain ⟨r, out, -, -, hdc, -, ha, -, -, hp, -, hrel', hret, -⟩ :=
       BridgeBurnSuccessIsPreparation d ch h sys.vault sys.world L.vault caller value c l2v a oc
@@ -138,50 +130,40 @@ theorem match_step_at_most_one_trace {d : Deployment} {ch : CHooks Acct} {h : Ho
     rw [hsr.journal, hret, List.map_append]
     simp only [List.map_cons, List.map_nil, entryOf, AssetBridgePreparation.obligation, hdc, ha]
   | vaultCall hname _ hx =>
-    -- a view: nothing changes, so the trace stutters
     obtain ⟨hst, hw', -⟩ := xcall_view hname hx
     exact ⟨L, Or.inl rfl, by rw [hst, hw']; exact hsr⟩
   | tokenCall hc hv hcall =>
-    exact token_step_at_most_one_trace hsr hc hv hcall
+    exact token_step_at_most_one hsr hc hv hcall
 
-/-! ## The witness: `r0`'s successful call from `s0` -/
-
-theorem step_matched_by_at_most_one_trace_step_witness :
-    Properties.StepMatchedByAtMostOneTraceStepWitness := by
-  obtain ⟨out, res, hp, hx, hret⟩ := r0_call
-  have hag := liftHooks_agree h0
-  have hsr : SysRel (deploymentOf s0)
-      ⟨vaultStorageOf s0, ⟨tokenStorageOf s0.token, s0.accounting⟩, []⟩ ⟨s0, []⟩ :=
-    ⟨rel_of s0 s0_wellFormed s0_vault, s0_wellFormed, rfl⟩
-  have hstep := Step.bridgeBurn (d := deploymentOf s0) (ch := liftHooks h0)
-    (sys := ⟨vaultStorageOf s0, ⟨tokenStorageOf s0.token, s0.accounting⟩, []⟩)
-    r0.depositor.isLt hx
-  obtain ⟨L', hL', hsr'⟩ := match_step_at_most_one_trace hag hsr hstep
-  have hj : ([] : List Entry) ++ [⟨r0.destinationChain, r0.assetId, res.ret⟩] ≠ [] := by simp
-  refine ⟨deploymentOf s0, liftHooks h0, h0, _, _, ⟨s0, []⟩, L', hag, hsr, hstep, ?_, hsr', hj⟩
-  rcases hL' with rfl | hL'
-  · -- a stutter would leave the journal empty
-    exfalso
-    exact hj hsr'.journal
-  · exact hL'
-
-end Codegen.VaultPreparationSlice
-
-/-! ## Certificates -/
-
-namespace Codegen.VaultPreparationSlice
-
-theorem StepMatchedByAtMostOneTraceStep : Properties.StepMatchedByAtMostOneTraceStep := by
-  intro Acct d ch h hag sys sys' L hsr hstep
-  exact match_step_at_most_one_trace hag hsr hstep
+/-- The simulation built from `CallMatchesAtMostOneTraceStep`: no step is the empty run, one
+step a run of one. -/
+def atMostOneTraceStepSim (d : Deployment) (ch : CHooks Acct) (h : Hooks Acct)
+    (hag : HooksAgree ch h) :
+    LayeredVerification.Simulation (Step d ch) (AssetBridgePreparation.Step h) where
+  Rel sys L := SysRel d sys L
+  match_step := by
+    intro sys sys' L hsr hstep
+    obtain ⟨L', hL', hrel⟩ := CallMatchesAtMostOneTraceStep d ch h hag sys sys' L hsr hstep
+    refine ⟨L', ?_, hrel⟩
+    rcases hL' with rfl | hL'
+    · exact Run.refl L'
+    · exact Run.tail (Run.refl L) hL'
 
 theorem SimulationAtMostOneTraceStep : Properties.SimulationAtMostOneTraceStep := by
   intro Acct d ch h hag
-  exact ⟨simulationWitness d ch h hag, fun _ _ => Iff.rfl,
-    fun _ _ _ hsr hstep => match_step_at_most_one_trace hag hsr hstep⟩
+  exact ⟨atMostOneTraceStepSim d ch h hag, fun _ _ => Iff.rfl,
+    fun sys sys' L hsr hstep => CallMatchesAtMostOneTraceStep d ch h hag sys sys' L hsr hstep⟩
 
-theorem StepMatchedByAtMostOneTraceStepWitness :
-    Properties.StepMatchedByAtMostOneTraceStepWitness :=
-  step_matched_by_at_most_one_trace_step_witness
+/-! ## The witness -/
+
+theorem AtMostOneTraceStepWitness : Properties.AtMostOneTraceStepWitness := by
+  obtain ⟨out, res, hp, hx, hret⟩ := r0_call
+  refine ⟨deploymentOf s0, liftHooks h0, h0,
+    ⟨vaultStorageOf s0, ⟨tokenStorageOf s0.token, s0.accounting⟩, []⟩, _, ⟨s0, []⟩,
+    liftHooks_agree h0, ⟨rel_of s0 s0_wellFormed s0_vault, s0_wellFormed, rfl⟩,
+    Step.bridgeBurn r0.depositor.isLt hx, ?_⟩
+  rintro L' hL' rfl
+  have hj := hL'.journal
+  simp at hj
 
 end Codegen.VaultPreparationSlice

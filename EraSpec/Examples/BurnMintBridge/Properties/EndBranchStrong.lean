@@ -45,7 +45,10 @@ Three satisfiability witnesses of `Properties/EndBranch.lean` say less than thei
   `BeginBranchRefundWitnessGap`).  Each one's first conjunct is the unpinned statement's body,
   verbatim, and its remaining conjuncts show what that body allows.
 
-No property here has a premise.  None uses a hash.
+The pinned witnesses and the gaps are existential statements with no premise.  The one
+universal statement, `ReachableResolutionAuthorizedByRecord`, has only the `Run` premise, which
+the empty run meets, and the pinned refund witnesses reach states where its refund clause is
+not idle.  None uses a hash.
 -/
 
 namespace Applications.BurnMintBridge.EndBranch

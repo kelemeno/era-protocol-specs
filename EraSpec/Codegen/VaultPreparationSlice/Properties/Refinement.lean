@@ -29,11 +29,10 @@ accepts, with the same outcome.
 * `BridgeBurnBacked`: the model's `preparation_backed` at the level of storage words and
   returned bytes.  The amount word of the returned bytes is nonzero and is exactly what
   left the original caller's balance slot and the supply slot; no other balance moved.
-* `Simulation`: a forward simulation of the protocol preparation trace
-  `AssetBridgePreparation.Step` with the relation `SysRel`, the journal tracking the trace's
-  pending obligations.  As a `Simulation`, it matches each successful call to either contract
-  by a run of zero or more trace steps.  That every match is at most one trace step is
-  `StepMatchedByAtMostOneTraceStep` (`Properties/RefinementStrong.lean`).
+* `Simulation`: every successful call to either contract is matched by finitely many
+  (zero or more) steps of the protocol preparation trace `AssetBridgePreparation.Step`,
+  the journal tracking the trace's pending obligations.  That each call is matched by at
+  most one is `CallMatchesAtMostOneTraceStep` (`Properties/AtMostOneStep.lean`).
 * `ReachableJournalBacked`: in every state reachable from a related one with an empty
   journal, the supply slot plus the amounts of all journaled mint data equals the
   initial supply; balances sum to supply; the identity slots stay consistent.  Obtained
@@ -136,12 +135,11 @@ def Properties.VaultViewsChangeNothing : Prop :=
 
 /-! ## Every call, and what follows -/
 
-/-- **A FORWARD SIMULATION** of the protocol preparation trace, with the relation `SysRel`.
-`LayeredVerification.Simulation` matches every successful call, to either contract, by a run of
-zero or more trace steps, so this statement does not bound the length of a match.  That every
-match is a stutter or a single trace step is `Properties.StepMatchedByAtMostOneTraceStep`.  The
-same bundled with this simulation is `Properties.SimulationAtMostOneTraceStep`
-(`Properties/RefinementStrong.lean`). -/
+/-- **A FORWARD SIMULATION** of the protocol preparation trace.  Every successful call,
+to either contract, is matched by finitely many (zero or more) trace steps; the relation
+is `SysRel`.  A `LayeredVerification.Simulation` fixes no bound.  That each call is
+matched by at most one is `CallMatchesAtMostOneTraceStep`, and the simulation with that
+bound is `SimulationAtMostOneTraceStep` (`Properties/AtMostOneStep.lean`). -/
 def Properties.Simulation : Prop :=
   ∀ {Acct : Type} (d : Deployment) (ch : CHooks Acct) (h : Hooks Acct), HooksAgree ch h →
     ∃ sim : LayeredVerification.Simulation (Step d ch) (AssetBridgePreparation.Step h),

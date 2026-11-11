@@ -20,7 +20,9 @@ last pass of `applyRows` itself, so a successful `applyRows` establishes it with
   succeeding with the check failing (`DuplicateRowsNowRevert`, and in general
   `TwoTargetsForOneProxyRevert`);
 * duplicate rows can still make the order decide whether the call reverts
-  (`DuplicateRowsBreakOrder`), so `validateRows`' duplicate check is still load-bearing.
+  (`DuplicateRowsBreakOrder`), so `validateRows`' duplicate check is still load-bearing. It
+  is not enough on its own: on valid rows, a reinitializer that reads another row's proxy
+  can do the same (`ReinitReadBreaksOrder`, `Properties/RowsOrder.lean`).
 
 ## What the reinitializer can do
 
@@ -120,9 +122,12 @@ def Properties.OnlyNamedEdgesAcrossCall : Prop :=
     ReinitFrames C → ApplyRows C I rows J →
     ∀ p, J p = I p ∨ ∃ r ∈ rows, r.proxy = p ∧ I p = r.expectedOldImpl ∧ J p = r.implNew
 
-/-- **THE ORDER OF ROWS DOES NOT MATTER**, when reinitializers move at most their own
-proxy: two successful calls over permutations of the same rows reach the same state. No
-distinct-proxies premise. -/
+/-- **IF TWO ORDERS OF THE ROWS BOTH SUCCEED, THEY END IN THE SAME STATE**, when
+reinitializers move at most their own proxy. No distinct-proxies premise. Both successful
+calls are premises: this does not say that one order succeeds when the other does, and on
+valid rows it need not (`ReinitReadBreaksOrder`, `Properties/RowsOrder.lean`).
+`DistinctRowsApplyInAnyOrder` there gives that under a stronger premise on the
+reinitializers. -/
 def Properties.OrderIndependent : Prop :=
   ∀ (C : Config) (I J K : Impl) (rows rows' : List Row), rows.Perm rows' → ReinitFrames C →
     ApplyRows C I rows J → ApplyRows C I rows' K → J = K
