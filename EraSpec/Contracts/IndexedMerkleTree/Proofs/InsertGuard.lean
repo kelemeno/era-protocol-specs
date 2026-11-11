@@ -62,32 +62,9 @@ counterexamples below. -/
 theorem two_leaf_soundState {a : UInt256} (ha : a ≠ 0) :
     Properties.two_leaf_soundState (a := a) (ha := ha) := by
   unfold Properties.two_leaf_soundState
-  exact
-    by
-      have hapos : (0 : UInt256) < a := Fin.pos_of_ne_zero ha
-      have hnlt : ¬ (a < (0 : UInt256)) := by
-        intro h; exact absurd (lt_trans hapos h) (lt_irrefl _)
-      refine ⟨?_, ?_, ?_, ?_⟩
-      · -- GapSound
-        intro W hW L hL hlt
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hW hL
-        rcases hW with rfl | rfl <;> rcases hL with rfl | rfl <;> simp_all
-      · -- KeyInj
-        intro A hA B hB hkey
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hA hB
-        rcases hA with rfl | rfl <;> rcases hB with rfl | rfl <;> simp_all
-      · -- NextClosed
-        intro W hW hnz
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hW
-        rcases hW with rfl | rfl
-        · exact ⟨⟨a, 0⟩, by simp, rfl⟩
-        · exact absurd rfl hnz
-      · -- WindowPos
-        intro W hW
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hW
-        rcases hW with rfl | rfl
-        · exact Or.inr hapos
-        · exact Or.inl rfl
+  have hapos : (0 : UInt256) < a := Fin.pos_of_ne_zero ha
+  simp [SoundState, GapSound, KeyInj, NextClosed, WindowPos, ha, hapos]
+  exact ha.symm
 
 
 /-- **ATTACK (a): BELOW-WINDOW INSERT IS UNSOUND — guard (ii) is
@@ -100,21 +77,11 @@ Choosing `v ≠ 0` closes the `nextKey = 0` escape hatch. -/
 theorem below_window_insert_breaks_windowPos {a v : UInt256} (ha : a ≠ 0) (hv : v ≠ 0) (hle : v ≤ a) :
     Properties.below_window_insert_breaks_windowPos (a := a) (v := v) (ha := ha) (hv := hv) (hle := hle) := by
   unfold Properties.below_window_insert_breaks_windowPos
-  exact
-    by
-      refine ⟨{⟨0, a⟩, ⟨a, 0⟩}, ⟨a, 0⟩, two_leaf_soundState ha, by simp,
-        not_lt.mpr hle, ?_⟩
-      have hnwp : ¬ WindowPos (imtInsert ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf) ⟨a, 0⟩ v) := by
-        intro hwp
-        -- the retargeted low leaf ⟨a, v⟩ heads the inserted set
-        have hmem : (⟨a, v⟩ : AbsLeaf)
-            ∈ imtInsert ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf) ⟨a, 0⟩ v := by
-          unfold imtInsert
-          exact Finset.mem_insert_self _ _
-        rcases hwp ⟨a, v⟩ hmem with h0 | hlt
-        · exact hv h0
-        · exact absurd hlt (not_lt.mpr hle)
-      exact ⟨hnwp, fun hss => hnwp hss.2.2.2⟩
+  refine ⟨{⟨0, a⟩, ⟨a, 0⟩}, ⟨a, 0⟩, two_leaf_soundState ha, by simp, not_lt.mpr hle, ?_⟩
+  -- the retargeted low leaf ⟨a, v⟩ heads the inserted set, with `0 ≠ v ≤ a`
+  have hnwp : ¬ WindowPos (imtInsert ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf) ⟨a, 0⟩ v) :=
+    fun hwp => (hwp ⟨a, v⟩ (by simp [imtInsert])).elim hv (not_lt.mpr hle)
+  exact ⟨hnwp, fun hss => hnwp hss.2.2.2⟩
 
 
 /-- **ATTACK (b): DUPLICATE DELIVERY IS BLOCKED — the strict window alone
@@ -129,10 +96,8 @@ theorem duplicate_delivery_blocked {s : Finset AbsLeaf} {v : UInt256}
     (hgs : GapSound s) (hdup : v ∈ keys s) :
     Properties.duplicate_delivery_blocked (s := s) (v := v) (hgs := hgs) (hdup := hdup) := by
   unfold Properties.duplicate_delivery_blocked
-  exact
-    by
-      rintro W hW ⟨hlow, hwin⟩
-      exact present_not_reclaimable hgs hdup ⟨W, hW, hlow, hwin⟩
+  rintro W hW ⟨hlow, hwin⟩
+  exact present_not_reclaimable hgs hdup ⟨W, hW, hlow, hwin⟩
 
 
 /-- **THE WEAK WINDOW'S ONLY LEAK IS THE BOUNDARY.**  For a delivered value
@@ -146,13 +111,8 @@ theorem weak_window_member_forces_boundary {s : Finset AbsLeaf} {W : AbsLeaf} {v
     (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v ≤ W.nextKey) :
     Properties.weak_window_member_forces_boundary (s := s) (W := W) (v := v) (hgs := hgs) (hW := hW) (hdup := hdup) (hlow := hlow) (hwin := hwin) := by
   unfold Properties.weak_window_member_forces_boundary
-  exact
-    by
-      rcases hwin with h0 | hle
-      · exact absurd ⟨W, hW, hlow, Or.inl h0⟩ (present_not_reclaimable hgs hdup)
-      · rcases lt_or_eq_of_le hle with hlt | heq
-        · exact absurd ⟨W, hW, hlow, Or.inr hlt⟩ (present_not_reclaimable hgs hdup)
-        · exact heq
+  have := present_not_reclaimable hgs hdup
+  grind
 
 
 /-- **ATTACK (c): WEAK WINDOW WITHOUT DEDUP IS UNSOUND — guard (iv) is
@@ -167,31 +127,15 @@ dedup gate the weak window admits the key-duplicating boundary insert. -/
 theorem weak_window_without_dedup_breaks_keyInj {a : UInt256} (ha : a ≠ 0) :
     Properties.weak_window_without_dedup_breaks_keyInj (a := a) (ha := ha) := by
   unfold Properties.weak_window_without_dedup_breaks_keyInj
-  exact
-    by
-      have hapos : (0 : UInt256) < a := Fin.pos_of_ne_zero ha
-      refine ⟨{⟨0, a⟩, ⟨a, 0⟩}, ⟨0, a⟩, a, two_leaf_soundState ha, by simp,
-        hapos, Or.inr (le_refl a),
-        Finset.mem_image.mpr ⟨⟨a, 0⟩, by simp, rfl⟩, ?_⟩
-      have hninj : ¬ KeyInj (imtInsert ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf) ⟨0, a⟩ a) := by
-        intro hinj
-        -- the freshly appended leaf ⟨v, W.nextKey⟩ = ⟨a, a⟩
-        have h1 : (⟨a, a⟩ : AbsLeaf)
-            ∈ imtInsert ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf) ⟨0, a⟩ a := by
-          unfold imtInsert
-          exact Finset.mem_insert_of_mem (Finset.mem_insert_self _ _)
-        -- the untouched old leaf ⟨a, 0⟩ survives the erase of ⟨0, a⟩
-        have h2 : (⟨a, 0⟩ : AbsLeaf)
-            ∈ imtInsert ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf) ⟨0, a⟩ a := by
-          unfold imtInsert
-          refine Finset.mem_insert_of_mem (Finset.mem_insert_of_mem ?_)
-          refine Finset.mem_erase.mpr ⟨?_, by simp⟩
-          intro h
-          exact ha (congrArg AbsLeaf.key h)
-        -- two distinct leaves share key a
-        have heq := hinj ⟨a, a⟩ h1 ⟨a, 0⟩ h2 rfl
-        exact ha (congrArg AbsLeaf.nextKey heq)
-      exact ⟨hninj, fun hss => hninj hss.2.1⟩
+  have hapos : (0 : UInt256) < a := Fin.pos_of_ne_zero ha
+  refine ⟨{⟨0, a⟩, ⟨a, 0⟩}, ⟨0, a⟩, a, two_leaf_soundState ha, by simp,
+    hapos, Or.inr (le_refl a), by simp [keys], ?_⟩
+  -- the new leaf ⟨a, a⟩ and the surviving old leaf ⟨a, 0⟩ share key a
+  have hninj : ¬ KeyInj (imtInsert ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf) ⟨0, a⟩ a) := by
+    intro hinj
+    have heq := hinj ⟨a, a⟩ (by simp [imtInsert]) ⟨a, 0⟩ (by simp [imtInsert, ha]) rfl
+    exact ha (congrArg AbsLeaf.nextKey heq)
+  exact ⟨hninj, fun hss => hninj hss.2.1⟩
 
 
 end AttackVectors.InsertGuard

@@ -48,13 +48,9 @@ theorem gap_excludes_member {s : Finset AbsLeaf} {W L : AbsLeaf} {v : UInt256}
     (hmem : L.key = v) :
     Properties.gap_excludes_member (s := s) (W := W) (L := L) (v := v) (hs := hs) (hW := hW) (hL := hL) (hlow := hlow) (hwin := hwin) (hmem := hmem) := by
   unfold Properties.gap_excludes_member
-  exact
-    by
-      obtain ⟨hnz, hle⟩ := hs W hW L hL (by rw [hmem]; exact hlow)
-      rcases hwin with h0 | hgt
-      · exact hnz h0
-      · rw [hmem] at hle
-        exact absurd hle (not_le.mpr hgt)
+  subst hmem
+  obtain ⟨hnz, hle⟩ := hs W hW L hL hlow
+  exact hwin.elim hnz (not_le.mpr · hle)
 
 
 /-- Membership shape of the inserted set. -/
@@ -62,9 +58,7 @@ private lemma mem_imtInsert
     {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256} {X : AbsLeaf} :
     X ∈ imtInsert s W₀ v
       ↔ X = ⟨W₀.key, v⟩ ∨ X = ⟨v, W₀.nextKey⟩ ∨ (X ∈ s ∧ X ≠ W₀) := by
-  unfold imtInsert
-  simp only [Finset.mem_insert, Finset.mem_erase]
-  tauto
+  simp only [imtInsert, Finset.mem_insert, Finset.mem_erase, and_comm]
 
 
 /-- A fresh key: `v` inside `W₀`'s window is no existing key. -/
@@ -73,15 +67,12 @@ private lemma window_key_fresh
     (hs : GapSound s) (hW₀ : W₀ ∈ s)
     (hlow : W₀.key < v) (hwin : W₀.nextKey = 0 ∨ v < W₀.nextKey) :
     ∀ X ∈ s, X.key ≠ v := by
-  intro X hX hXv
-  exact gap_excludes_member hs hW₀ hX hlow hwin hXv
+  exact fun X hX => gap_excludes_member hs hW₀ hX hlow hwin
 
 
 /-- `v` is nonzero (it is strictly above a key, and keys are ≥ 0). -/
 private lemma window_v_ne_zero {k v : UInt256} (hlow : k < v) : v ≠ 0 := by
-  intro h
-  rw [h] at hlow
-  exact absurd hlow (by simp)
+  grind
 
 
 /-- **INSERT PRESERVES `GapSound`.**  Inserting a fresh key `v` through a
@@ -91,44 +82,7 @@ theorem imtInsert_gapSound {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256}
     (hlow : W₀.key < v) (hwin : W₀.nextKey = 0 ∨ v < W₀.nextKey) :
     Properties.imtInsert_gapSound (s := s) (W₀ := W₀) (v := v) (hs := hs) (hinj := hinj) (hW₀ := hW₀) (hlow := hlow) (hwin := hwin) := by
   unfold Properties.imtInsert_gapSound
-  exact
-    by
-      have hv0 : v ≠ 0 := window_v_ne_zero hlow
-      intro W hW L hL hkey
-      rw [mem_imtInsert] at hW hL
-      rcases hW with rfl | rfl | ⟨hWs, hWne⟩
-      · -- W = the retargeted low leaf ⟨W₀.key, v⟩ : need v ≠ 0 ∧ v ≤ L.key
-        refine ⟨hv0, ?_⟩
-        rcases hL with rfl | rfl | ⟨hLs, _⟩
-        · exact absurd hkey (lt_irrefl _)
-        · exact le_refl v
-        · -- L is an untouched old leaf with W₀.key < L.key
-          obtain ⟨hnz, hle⟩ := hs W₀ hW₀ L hLs hkey
-          rcases hwin with h0 | hgt
-          · exact absurd h0 hnz
-          · exact le_of_lt (lt_of_lt_of_le hgt hle)
-      · -- W = the new leaf ⟨v, W₀.nextKey⟩ : need W₀.nextKey ≠ 0 ∧ ≤ L.key
-        rcases hL with rfl | rfl | ⟨hLs, _⟩
-        · -- L = retargeted low leaf: v < W₀.key contradicts the window
-          exact absurd (lt_trans hlow hkey) (lt_irrefl _)
-        · exact absurd hkey (lt_irrefl _)
-        · -- L untouched old leaf with v < L.key; then W₀.key < L.key
-          exact hs W₀ hW₀ L hLs (lt_trans hlow hkey)
-      · -- W untouched old leaf
-        rcases hL with rfl | rfl | ⟨hLs, _⟩
-        · -- L = retargeted low leaf (key W₀.key): the old pair (W, W₀) answers
-          exact hs W hWs W₀ hW₀ hkey
-        · -- L = new leaf (key v): W.key < v
-          rcases lt_trichotomy W.key W₀.key with hlt | heq | hgt
-          · obtain ⟨hnz, hle⟩ := hs W hWs W₀ hW₀ hlt
-            exact ⟨hnz, le_of_lt (lt_of_le_of_lt hle hlow)⟩
-          · exact absurd (hinj W hWs W₀ hW₀ heq) hWne
-          · -- W₀.key < W.key: the old gap forces W.key ≥ W₀.nextKey > v — contra
-            obtain ⟨hnz, hle⟩ := hs W₀ hW₀ W hWs hgt
-            rcases hwin with h0 | hgt'
-            · exact absurd h0 hnz
-            · exact absurd hkey (not_lt.mpr (le_of_lt (lt_of_lt_of_le hgt' hle)))
-        · exact hs W hWs L hLs hkey
+  grind [GapSound, KeyInj, mem_imtInsert]
 
 
 /-- **INSERT PRESERVES `KeyInj`.** -/
@@ -137,23 +91,7 @@ theorem imtInsert_keyInj {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256}
     (hlow : W₀.key < v) (hwin : W₀.nextKey = 0 ∨ v < W₀.nextKey) :
     Properties.imtInsert_keyInj (s := s) (W₀ := W₀) (v := v) (hs := hs) (hinj := hinj) (hW₀ := hW₀) (hlow := hlow) (hwin := hwin) := by
   unfold Properties.imtInsert_keyInj
-  exact
-    by
-      have hfresh := window_key_fresh hs hW₀ hlow hwin
-      intro A hA B hB hkey
-      rw [mem_imtInsert] at hA hB
-      rcases hA with rfl | rfl | ⟨hAs, hAne⟩ <;> rcases hB with rfl | rfl | ⟨hBs, hBne⟩
-      · rfl
-      · -- W₀.key = v contradicts the strict window edge
-        exact absurd hkey (ne_of_lt hlow)
-      · -- an old leaf shares W₀'s key ⇒ it IS W₀ ⇒ erased
-        exact absurd (hinj W₀ hW₀ B hBs hkey).symm hBne
-      · exact absurd hkey.symm (ne_of_lt hlow)
-      · rfl
-      · exact absurd hkey.symm (hfresh B hBs)
-      · exact absurd (hinj A hAs W₀ hW₀ hkey) hAne
-      · exact absurd hkey (hfresh A hAs)
-      · exact hinj A hAs B hBs hkey
+  grind [GapSound, KeyInj, mem_imtInsert]
 
 
 /-- The IMT insert never removes a key: the erased low leaf is re-added with
@@ -161,17 +99,9 @@ the same key (retargeted `nextKey`), and the new leaf only adds `v`. -/
 theorem imtInsert_keys_grow {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256} :
     Properties.imtInsert_keys_grow (s := s) (W₀ := W₀) (v := v) := by
   unfold Properties.imtInsert_keys_grow
-  exact
-    by
-      intro k hk
-      obtain ⟨X, hX, rfl⟩ := Finset.mem_image.mp hk
-      by_cases hXW : X = W₀
-      · exact Finset.mem_image.mpr ⟨⟨W₀.key, v⟩,
-          by rw [mem_imtInsert]; left; rfl,
-          by rw [hXW]⟩
-      · exact Finset.mem_image.mpr ⟨X,
-          by rw [mem_imtInsert]; right; right; exact ⟨hX, hXW⟩,
-          rfl⟩
+  intro k
+  simp only [keys, Finset.mem_image, mem_imtInsert]
+  grind
 
 
 /-- **THE INVARIANT IS INDUCTIVE.**  Along any evolution from a `GapSound`,
@@ -180,39 +110,27 @@ theorem evolution_invariant {S : ℕ → Finset AbsLeaf}
     (hevo : Evolution S) (h0 : GapSound (S 0)) (hinj0 : KeyInj (S 0)) :
     Properties.evolution_invariant (S := S) (hevo := hevo) (h0 := h0) (hinj0 := hinj0) := by
   unfold Properties.evolution_invariant
-  exact
-    by
-      intro n
-      induction n with
-      | zero => exact ⟨h0, hinj0⟩
-      | succ n ih =>
-        rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩
-        · rw [heq]; exact ih
-        · rw [heq]
-          exact ⟨imtInsert_gapSound ih.1 ih.2 hW₀ hlow hwin,
-                 imtInsert_keyInj ih.1 ih.2 hW₀ hlow hwin⟩
+  intro n
+  induction n with
+  | zero => exact ⟨h0, hinj0⟩
+  | succ n ih =>
+    rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩ <;> rw [heq]
+    · exact ih
+    · exact ⟨imtInsert_gapSound ih.1 ih.2 hW₀ hlow hwin,
+        imtInsert_keyInj ih.1 ih.2 hW₀ hlow hwin⟩
 
 
 /-- Along any evolution, the key set only grows. -/
 theorem evolution_keys_mono {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) :
     Properties.evolution_keys_mono (S := S) (hevo := hevo) := by
   unfold Properties.evolution_keys_mono
-  exact
-    by
-      intro m n hmn
-      induction n with
-      | zero =>
-        rcases Nat.le_zero.mp hmn with rfl
-        exact Finset.Subset.refl _
-      | succ n ih =>
-        rcases Nat.eq_or_lt_of_le hmn with rfl | hlt
-        · exact Finset.Subset.refl _
-        · have hstep : keys (S n) ⊆ keys (S (n+1)) := by
-            rcases hevo n with heq | ⟨W₀, v, _, _, _, heq⟩
-            · rw [heq]
-            · rw [heq]
-              exact imtInsert_keys_grow
-          exact Finset.Subset.trans (ih (Nat.lt_succ_iff.mp hlt)) hstep
+  intro m n hmn
+  induction n, hmn using Nat.le_induction with
+  | base => exact Finset.Subset.refl _
+  | succ n _ ih =>
+    refine ih.trans ?_
+    rcases hevo n with heq | ⟨W₀, v, _, _, _, heq⟩ <;> rw [heq]
+    exact imtInsert_keys_grow
 
 
 /-- **DELIVERED XOR RECLAIMED — the temporal core.**  Fix an IMT history `S`
@@ -237,59 +155,37 @@ theorem delivered_and_reclaimed_impossible {S : ℕ → Finset AbsLeaf} {t : ℕ
     (hlow : W.key < v) (hwin : W.nextKey = 0 ∨ v < W.nextKey) :
     Properties.delivered_and_reclaimed_impossible (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (hinj0 := hinj0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) (j := j) (W := W) (htj1 := htj1) (hW := hW) (hlow := hlow) (hwin := hwin) := by
   unfold Properties.delivered_and_reclaimed_impossible
-  exact
-    by
-      have hij : i ≤ j := by
-        by_contra hgt
-        push Not at hgt
-        exact absurd hti (not_le.mpr (lt_of_lt_of_le htj1 (htmono hgt)))
-      have hkeys : v ∈ keys (S j) := evolution_keys_mono hevo hij hdel
-      obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hkeys
-      exact gap_excludes_member (evolution_invariant hevo h0 hinj0 j).1
-        hW hL hlow hwin hLkey
+  have hij : i ≤ j := Nat.lt_succ_iff.mp (htmono.reflect_lt (hti.trans_lt htj1))
+  obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp (evolution_keys_mono hevo hij hdel)
+  exact gap_excludes_member (evolution_invariant hevo h0 hinj0 j).1 hW hL hlow hwin hLkey
 
 
 /-- The genesis singleton `{⟨0, 0⟩}` (the zero leaf) is a sound base. -/
 theorem genesis_gapSound :
     Properties.genesis_gapSound := by
   unfold Properties.genesis_gapSound
-  exact
-    by
-      intro W hW L hL hlt
-      rw [Finset.mem_singleton] at hW hL
-      subst hW; subst hL
-      exact absurd hlt (lt_irrefl _)
+  simp [GapSound]
 
 
 /-- The genesis singleton has unique keys. -/
 theorem genesis_keyInj :
     Properties.genesis_keyInj := by
   unfold Properties.genesis_keyInj
-  exact
-    by
-      intro A hA B hB _
-      rw [Finset.mem_singleton] at hA hB
-      rw [hA, hB]
+  simp [KeyInj]
 
 
 /-- The empty base is also sound (for trees initialized empty). -/
 theorem empty_gapSound :
     Properties.empty_gapSound := by
   unfold Properties.empty_gapSound
-  exact
-    by
-      intro W hW
-      exact absurd hW (Finset.notMem_empty W)
+  simp [GapSound]
 
 
 /-- The empty base has unique keys. -/
 theorem empty_keyInj :
     Properties.empty_keyInj := by
   unfold Properties.empty_keyInj
-  exact
-    by
-      intro A hA
-      exact absurd hA (Finset.notMem_empty A)
+  simp [KeyInj]
 
 
 /-- **INSERT PRESERVES `NextClosed`.** -/
@@ -298,29 +194,9 @@ theorem imtInsert_nextClosed {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256}
     (hlow : W₀.key < v) (hwin : W₀.nextKey = 0 ∨ v < W₀.nextKey) :
     Properties.imtInsert_nextClosed (s := s) (W₀ := W₀) (v := v) (hnc := hnc) (hW₀ := hW₀) (hlow := hlow) (hwin := hwin) := by
   unfold Properties.imtInsert_nextClosed
-  exact
-    by
-      intro W hW hnz
-      rw [mem_imtInsert] at hW
-      rcases hW with rfl | rfl | ⟨hWs, _⟩
-      · -- retargeted low leaf ⟨W₀.key, v⟩: its nextKey v is the new leaf's key
-        exact ⟨⟨v, W₀.nextKey⟩, by rw [mem_imtInsert]; right; left; rfl, rfl⟩
-      · -- new leaf ⟨v, W₀.nextKey⟩: the old target of W₀ survives the erase
-        obtain ⟨L, hLs, hLkey⟩ := hnc W₀ hW₀ hnz
-        have hLne : L ≠ W₀ := by
-          intro h
-          rw [h] at hLkey
-          rcases hwin with h0 | hgt
-          · exact hnz h0
-          · exact absurd hLkey (ne_of_lt (lt_trans hlow hgt))
-        exact ⟨L, by rw [mem_imtInsert]; right; right; exact ⟨hLs, hLne⟩, hLkey⟩
-      · -- untouched old leaf: its old target either survives, or was W₀ — whose
-        -- key is re-added by the retargeted leaf
-        obtain ⟨L, hLs, hLkey⟩ := hnc W hWs hnz
-        by_cases hLW : L = W₀
-        · refine ⟨⟨W₀.key, v⟩, by rw [mem_imtInsert]; left; rfl, ?_⟩
-          rw [← hLkey, hLW]
-        · exact ⟨L, by rw [mem_imtInsert]; right; right; exact ⟨hLs, hLW⟩, hLkey⟩
+  have h1 : (⟨W₀.key, v⟩ : AbsLeaf) ∈ imtInsert s W₀ v := mem_imtInsert.2 (.inl rfl)
+  have h2 : (⟨v, W₀.nextKey⟩ : AbsLeaf) ∈ imtInsert s W₀ v := mem_imtInsert.2 (.inr (.inl rfl))
+  grind [NextClosed, mem_imtInsert]
 
 
 /-- **INSERT PRESERVES `WindowPos`.** -/
@@ -329,16 +205,7 @@ theorem imtInsert_windowPos {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256}
     (hlow : W₀.key < v) (hwin : W₀.nextKey = 0 ∨ v < W₀.nextKey) :
     Properties.imtInsert_windowPos (s := s) (W₀ := W₀) (v := v) (hwp := hwp) (hlow := hlow) (hwin := hwin) := by
   unfold Properties.imtInsert_windowPos
-  exact
-    by
-      intro W hW
-      rw [mem_imtInsert] at hW
-      rcases hW with rfl | rfl | ⟨hWs, _⟩
-      · exact Or.inr hlow
-      · rcases hwin with h0 | hgt
-        · exact Or.inl h0
-        · exact Or.inr hgt
-      · exact hwp W hWs
+  grind [WindowPos, mem_imtInsert]
 
 
 /-- **A GAP WITNESS EXISTS.**  In a well-formed list containing some key
@@ -350,39 +217,18 @@ theorem gap_witness_exists {s : Finset AbsLeaf} {v : UInt256}
     (habs : v ∉ keys s) :
     Properties.gap_witness_exists (s := s) (v := v) (hnc := hnc) (hwp := hwp) (hbelow := hbelow) (habs := habs) := by
   unfold Properties.gap_witness_exists
-  exact
-    by
-      classical
-      set B := s.filter (fun X => X.key < v) with hB
-      have hBne : B.Nonempty := by
-        obtain ⟨X, hXs, hXv⟩ := hbelow
-        exact ⟨X, by rw [hB, Finset.mem_filter]; exact ⟨hXs, hXv⟩⟩
-      obtain ⟨W, hWB, hWmax⟩ := B.exists_max_image AbsLeaf.key hBne
-      have hWB' := hWB
-      rw [hB, Finset.mem_filter] at hWB'
-      have hWs : W ∈ s := hWB'.1
-      have hWv : W.key < v := hWB'.2
-      refine ⟨W, hWs, hWv, ?_⟩
-      by_cases h0 : W.nextKey = 0
-      · exact Or.inl h0
-      · right
-        -- the link target is a real leaf strictly above W.key
-        obtain ⟨L, hLs, hLkey⟩ := hnc W hWs h0
-        have hgt : W.key < W.nextKey := by
-          rcases hwp W hWs with h | h
-          · exact absurd h h0
-          · exact h
-        rcases lt_trichotomy W.nextKey v with hlt | heq | hgt'
-        · -- target below v: it beats W's maximality
-          have hLB : L ∈ B := by
-            rw [hB, Finset.mem_filter]
-            exact ⟨hLs, by rw [hLkey]; exact hlt⟩
-          have := hWmax L hLB
-          rw [hLkey] at this
-          exact absurd this (not_le.mpr hgt)
-        · -- target IS v: contradicts absence
-          exact absurd (Finset.mem_image.mpr ⟨L, hLs, by rw [hLkey, heq]⟩) habs
-        · exact hgt'
+  classical
+  obtain ⟨X, hXs, hXv⟩ := hbelow
+  obtain ⟨W, hWB, hWmax⟩ := (s.filter (·.key < v)).exists_max_image AbsLeaf.key
+    ⟨X, Finset.mem_filter.2 ⟨hXs, hXv⟩⟩
+  obtain ⟨hWs, hWv⟩ := Finset.mem_filter.1 hWB
+  refine ⟨W, hWs, hWv, or_iff_not_imp_left.2 fun h0 => ?_⟩
+  -- the link target is a real leaf strictly above W.key, and not below v (maximality)
+  obtain ⟨L, hLs, hLkey⟩ := hnc W hWs h0
+  have hmax := hWmax L
+  have hwp := hwp W hWs
+  have hLk : L.key ∈ keys s := Finset.mem_image_of_mem _ hLs
+  grind
 
 
 /-- **THE FULL INVARIANT IS INDUCTIVE** along any evolution. -/
@@ -390,20 +236,17 @@ theorem evolution_sound {S : ℕ → Finset AbsLeaf}
     (hevo : Evolution S) (h0 : SoundState (S 0)) :
     Properties.evolution_sound (S := S) (hevo := hevo) (h0 := h0) := by
   unfold Properties.evolution_sound
-  exact
-    by
-      intro n
-      induction n with
-      | zero => exact h0
-      | succ n ih =>
-        obtain ⟨hgs, hinj, hnc, hwp⟩ := ih
-        rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩
-        · rw [heq]; exact ⟨hgs, hinj, hnc, hwp⟩
-        · rw [heq]
-          exact ⟨imtInsert_gapSound hgs hinj hW₀ hlow hwin,
-                 imtInsert_keyInj hgs hinj hW₀ hlow hwin,
-                 imtInsert_nextClosed hnc hW₀ hlow hwin,
-                 imtInsert_windowPos hwp hlow hwin⟩
+  intro n
+  induction n with
+  | zero => exact h0
+  | succ n ih =>
+    obtain ⟨hgs, hinj, hnc, hwp⟩ := ih
+    rcases hevo n with heq | ⟨W₀, v, hW₀, hlow, hwin, heq⟩ <;> rw [heq]
+    · exact ⟨hgs, hinj, hnc, hwp⟩
+    · exact ⟨imtInsert_gapSound hgs hinj hW₀ hlow hwin,
+        imtInsert_keyInj hgs hinj hW₀ hlow hwin,
+        imtInsert_nextClosed hnc hW₀ hlow hwin,
+        imtInsert_windowPos hwp hlow hwin⟩
 
 
 /-- **RECLAIM LIVENESS (abstract).**  Along any evolution from a sound base
@@ -416,15 +259,10 @@ theorem reclaim_witness_available {S : ℕ → Finset AbsLeaf}
     {j : ℕ} {v : UInt256} (hv0 : v ≠ 0) (habs : v ∉ keys (S j)) :
     Properties.reclaim_witness_available (S := S) (hevo := hevo) (h0 := h0) (hzero := hzero) (j := j) (v := v) (hv0 := hv0) (habs := habs) := by
   unfold Properties.reclaim_witness_available
-  exact
-    by
-      obtain ⟨_, _, hnc, hwp⟩ := evolution_sound hevo h0 j
-      have hzeroj : (0 : UInt256) ∈ keys (S j) :=
-        evolution_keys_mono hevo (Nat.zero_le j) hzero
-      obtain ⟨Z, hZs, hZkey⟩ := Finset.mem_image.mp hzeroj
-      refine gap_witness_exists hnc hwp ⟨Z, hZs, ?_⟩ habs
-      rw [hZkey]
-      exact Fin.pos_of_ne_zero hv0
+  obtain ⟨_, _, hnc, hwp⟩ := evolution_sound hevo h0 j
+  obtain ⟨Z, hZs, hZkey⟩ :=
+    Finset.mem_image.mp (evolution_keys_mono hevo (Nat.zero_le j) hzero)
+  exact gap_witness_exists hnc hwp ⟨Z, hZs, hZkey ▸ Fin.pos_of_ne_zero hv0⟩ habs
 
 
 /-- **EXACTLY-ONE-OUTCOME CAPSTONE (abstract).**  For a nonzero commit value
@@ -440,15 +278,10 @@ theorem timed_out_leg_reclaimable_not_deliverable {S : ℕ → Finset AbsLeaf} {
     {j : ℕ} (habs : v ∉ keys (S j)) (htj1 : D < t (j+1)) :
     Properties.timed_out_leg_reclaimable_not_deliverable (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (htmono := htmono) (hzero := hzero) (hv0 := hv0) (j := j) (habs := habs) (htj1 := htj1) := by
   unfold Properties.timed_out_leg_reclaimable_not_deliverable
-  exact
-    by
-      have hgs0 : GapSound (S 0) := h0.1
-      have hinj0 : KeyInj (S 0) := h0.2.1
-      have hwit := reclaim_witness_available hevo h0 hzero hv0 habs
-      refine ⟨hwit, ?_⟩
-      intro i hti hmem
-      obtain ⟨W, hWj, hlow, hwin⟩ := hwit
-      exact delivered_and_reclaimed_impossible hevo hgs0 hinj0 htmono hti hmem htj1 hWj hlow hwin
+  have hwit := reclaim_witness_available hevo h0 hzero hv0 habs
+  refine ⟨hwit, fun i hti hmem => ?_⟩
+  obtain ⟨W, hWj, hlow, hwin⟩ := hwit
+  exact delivered_and_reclaimed_impossible hevo h0.1 h0.2.1 htmono hti hmem htj1 hWj hlow hwin
 
 
 /-- **DELIVERED ⇒ NOT RECLAIMABLE (abstract).**  The sharp converse of reclaim
@@ -461,11 +294,9 @@ theorem present_not_reclaimable {s : Finset AbsLeaf} {v : UInt256}
     (hgs : GapSound s) (hpres : v ∈ keys s) :
     Properties.present_not_reclaimable (s := s) (v := v) (hgs := hgs) (hpres := hpres) := by
   unfold Properties.present_not_reclaimable
-  exact
-    by
-      rintro ⟨W, hW, hlow, hwin⟩
-      obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hpres
-      exact gap_excludes_member hgs hW hL hlow hwin hLkey
+  rintro ⟨W, hW, hlow, hwin⟩
+  obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hpres
+  exact gap_excludes_member hgs hW hL hlow hwin hLkey
 
 
 /-- **RECLAIMABILITY PINS ABSENCE (abstract).**  Combining liveness
@@ -480,53 +311,36 @@ theorem reclaimable_iff_absent {S : ℕ → Finset AbsLeaf}
     {j : ℕ} {v : UInt256} (hv0 : v ≠ 0) :
     Properties.reclaimable_iff_absent (S := S) (hevo := hevo) (h0 := h0) (hzero := hzero) (j := j) (v := v) (hv0 := hv0) := by
   unfold Properties.reclaimable_iff_absent
-  exact
-    by
-      constructor
-      · intro hwit hpres
-        exact present_not_reclaimable (evolution_sound hevo h0 j).1 hpres hwit
-      · intro habs
-        exact reclaim_witness_available hevo h0 hzero hv0 habs
+  exact ⟨fun hwit hpres => present_not_reclaimable (evolution_sound hevo h0 j).1 hpres hwit,
+    reclaim_witness_available hevo h0 hzero hv0⟩
 
 
 /-- The genesis singleton has no dangling links. -/
 theorem genesis_nextClosed :
     Properties.genesis_nextClosed := by
   unfold Properties.genesis_nextClosed
-  exact
-    by
-      intro W hW hnz
-      rw [Finset.mem_singleton] at hW
-      rw [hW] at hnz
-      exact absurd rfl hnz
+  simp [NextClosed]
 
 
 /-- The genesis singleton's window opens upward (it is the list end). -/
 theorem genesis_windowPos :
     Properties.genesis_windowPos := by
   unfold Properties.genesis_windowPos
-  exact
-    by
-      intro W hW
-      rw [Finset.mem_singleton] at hW
-      rw [hW]
-      exact Or.inl rfl
+  simp [WindowPos]
 
 
 /-- The genesis singleton is a fully sound base. -/
 theorem genesis_soundState :
     Properties.genesis_soundState := by
   unfold Properties.genesis_soundState
-  exact
-    ⟨genesis_gapSound, genesis_keyInj, genesis_nextClosed, genesis_windowPos⟩
+  exact ⟨genesis_gapSound, genesis_keyInj, genesis_nextClosed, genesis_windowPos⟩
 
 
 /-- The genesis singleton contains the zero key. -/
 theorem genesis_zero_mem :
     Properties.genesis_zero_mem := by
   unfold Properties.genesis_zero_mem
-  exact
-    Finset.mem_image.mpr ⟨⟨0, 0⟩, Finset.mem_singleton_self _, rfl⟩
+  simp [keys]
 
 
 /-! ## The insert-effect bridge — pointwise writes make `imtInsert`
@@ -554,29 +368,13 @@ theorem image_insert_effect {α : Type} [DecidableEq α]
     (huniq : ∀ b ∈ bases, b ≠ lowb → f b ≠ f lowb) :
     Properties.image_insert_effect (α := α) (f := f) (f' := f') (bases := bases) (lowb := lowb) (newb := newb) (v := v) (hnew := hnew) (hlow := hlow) (hf'low := hf'low) (hf'new := hf'new) (hframe := hframe) (huniq := huniq) := by
   unfold Properties.image_insert_effect
-  exact
-    by
-      ext x
-      rw [mem_imtInsert, Finset.mem_image]
-      constructor
-      · rintro ⟨b, hb, rfl⟩
-        rw [Finset.mem_insert] at hb
-        rcases hb with rfl | hb
-        · right; left
-          exact hf'new
-        · by_cases hbl : b = lowb
-          · subst hbl
-            left
-            exact hf'low
-          · rw [hframe b hb hbl]
-            right; right
-            exact ⟨Finset.mem_image.mpr ⟨b, hb, rfl⟩, huniq b hb hbl⟩
-      · rintro (rfl | rfl | ⟨hx, hne⟩)
-        · exact ⟨lowb, Finset.mem_insert.mpr (Or.inr hlow), hf'low⟩
-        · exact ⟨newb, Finset.mem_insert_self _ _, hf'new⟩
-        · obtain ⟨b, hb, rfl⟩ := Finset.mem_image.mp hx
-          have hbl : b ≠ lowb := fun h => hne (by rw [h])
-          exact ⟨b, Finset.mem_insert.mpr (Or.inr hb), hframe b hb hbl⟩
+  ext x
+  simp only [mem_imtInsert, Finset.mem_image, Finset.mem_insert]
+  constructor
+  · rintro ⟨b, rfl | hb, rfl⟩
+    · grind
+    · by_cases hbl : b = lowb <;> grind
+  · grind
 
 
 /-- **INSERT EFFECT + INVARIANT, in one step.**  The pointwise write facts,
@@ -596,16 +394,11 @@ theorem image_insert_step {α : Type} [DecidableEq α]
     (hwin : (f lowb).nextKey = 0 ∨ v < (f lowb).nextKey) :
     Properties.image_insert_step (α := α) (f := f) (f' := f') (bases := bases) (lowb := lowb) (newb := newb) (v := v) (hnew := hnew) (hlow := hlow) (hf'low := hf'low) (hf'new := hf'new) (hframe := hframe) (huniq := huniq) (hgs := hgs) (hinj := hinj) (hwlow := hwlow) (hwin := hwin) := by
   unfold Properties.image_insert_step
-  exact
-    by
-      have heff := image_insert_effect hnew hlow hf'low hf'new hframe huniq
-      have hmem : f lowb ∈ Finset.image f bases :=
-        Finset.mem_image.mpr ⟨lowb, hlow, rfl⟩
-      refine ⟨heff, ?_, ?_⟩
-      · rw [heff]
-        exact imtInsert_gapSound hgs hinj hmem hwlow hwin
-      · rw [heff]
-        exact imtInsert_keyInj hgs hinj hmem hwlow hwin
+  have heff := image_insert_effect hnew hlow hf'low hf'new hframe huniq
+  have hmem : f lowb ∈ Finset.image f bases := Finset.mem_image_of_mem f hlow
+  rw [heff]
+  exact ⟨rfl, imtInsert_gapSound hgs hinj hmem hwlow hwin,
+    imtInsert_keyInj hgs hinj hmem hwlow hwin⟩
 
 
 /-- Uniqueness (iv) from representation key-injectivity. -/
@@ -613,8 +406,7 @@ theorem huniq_of_repKeyInj {α : Type} {f : α → AbsLeaf} {bases : Finset α}
     {lowb : α} (hrki : RepKeyInj f bases) (hlow : lowb ∈ bases) :
     Properties.huniq_of_repKeyInj (α := α) (f := f) (bases := bases) (lowb := lowb) (hrki := hrki) (hlow := hlow) := by
   unfold Properties.huniq_of_repKeyInj
-  exact
-    fun b hb hne hfe => hne (hrki b hb lowb hlow (congrArg AbsLeaf.key hfe))
+  exact fun b hb hne hfe => hne (hrki b hb lowb hlow (congrArg AbsLeaf.key hfe))
 
 
 /-- **Freshness is free**: the low leaf's window straddling `v` already
@@ -626,11 +418,8 @@ theorem fresh_of_window {α : Type} {f : α → AbsLeaf} {bases : Finset α}
     (hwin : (f lowb).nextKey = 0 ∨ v < (f lowb).nextKey) :
     Properties.fresh_of_window (α := α) (f := f) (bases := bases) (lowb := lowb) (v := v) (hgs := hgs) (hlow := hlow) (hwlow := hwlow) (hwin := hwin) := by
   unfold Properties.fresh_of_window
-  exact
-    fun b hb hkey => gap_excludes_member hgs
-        (Finset.mem_image.mpr ⟨lowb, hlow, rfl⟩)
-        (Finset.mem_image.mpr ⟨b, hb, rfl⟩)
-        hwlow hwin hkey
+  exact fun b hb => gap_excludes_member hgs (Finset.mem_image_of_mem f hlow)
+    (Finset.mem_image_of_mem f hb) hwlow hwin
 
 
 /-- **THE INSERT STEP PRESERVES `RepKeyInj`**: the retarget keeps its key and
@@ -645,25 +434,15 @@ theorem repKeyInj_insert_step {α : Type} [DecidableEq α]
     (hfresh : ∀ b ∈ bases, (f b).key ≠ v) :
     Properties.repKeyInj_insert_step (α := α) (f := f) (f' := f') (bases := bases) (lowb := lowb) (newb := newb) (v := v) (hnew := hnew) (hlow := hlow) (hf'low := hf'low) (hf'new := hf'new) (hframe := hframe) (hrki := hrki) (hfresh := hfresh) := by
   unfold Properties.repKeyInj_insert_step
-  exact
-    by
-      -- every old index keeps its key
-      have hkey_eq : ∀ b ∈ bases, (f' b).key = (f b).key := by
-        intro b hb
-        by_cases hbl : b = lowb
-        · subst hbl
-          rw [hf'low]
-        · rw [hframe b hb hbl]
-      intro b hb c hc hkey
-      rw [Finset.mem_insert] at hb hc
-      rcases hb with rfl | hb <;> rcases hc with rfl | hc
-      · rfl
-      · -- b = newb, c old: key v = old key — contradicts freshness
-        rw [hf'new, hkey_eq c hc] at hkey
-        exact absurd hkey.symm (hfresh c hc)
-      · rw [hf'new, hkey_eq b hb] at hkey
-        exact absurd hkey (hfresh b hb)
-      · exact hrki b hb c hc (by rw [← hkey_eq b hb, ← hkey_eq c hc]; exact hkey)
+  -- every old index keeps its key
+  have hkey_eq : ∀ b ∈ bases, (f' b).key = (f b).key := by
+    intro b hb
+    by_cases hbl : b = lowb
+    · subst hbl; rw [hf'low]
+    · rw [hframe b hb hbl]
+  intro b hb c hc hkey
+  rw [Finset.mem_insert] at hb hc
+  grind [RepKeyInj]
 
 
 /-- **THE SELF-CONTAINED INDUCTIVE STEP.**  Pointwise write facts + window +
@@ -683,14 +462,10 @@ theorem image_insert_step' {α : Type} [DecidableEq α]
     (hwin : (f lowb).nextKey = 0 ∨ v < (f lowb).nextKey) :
     Properties.image_insert_step' (α := α) (f := f) (f' := f') (bases := bases) (lowb := lowb) (newb := newb) (v := v) (hnew := hnew) (hlow := hlow) (hf'low := hf'low) (hf'new := hf'new) (hframe := hframe) (hrki := hrki) (hgs := hgs) (hinj := hinj) (hwlow := hwlow) (hwin := hwin) := by
   unfold Properties.image_insert_step'
-  exact
-    by
-      have huniq := huniq_of_repKeyInj hrki hlow
-      have hfresh := fresh_of_window hgs hlow hwlow hwin
-      obtain ⟨heff, hgs', hinj'⟩ :=
-        image_insert_step hnew hlow hf'low hf'new hframe huniq hgs hinj hwlow hwin
-      exact ⟨heff, hgs', hinj',
-        repKeyInj_insert_step hnew hlow hf'low hf'new hframe hrki hfresh⟩
+  obtain ⟨heff, hgs', hinj'⟩ := image_insert_step hnew hlow hf'low hf'new hframe
+    (huniq_of_repKeyInj hrki hlow) hgs hinj hwlow hwin
+  exact ⟨heff, hgs', hinj', repKeyInj_insert_step hnew hlow hf'low hf'new hframe hrki
+    (fresh_of_window hgs hlow hwlow hwin)⟩
 
 
 /-! ## Exact key-set effect of an insert
@@ -706,32 +481,16 @@ with `v` adjoined.  Sharpens `imtInsert_keys_grow` from `⊆` to `=`. -/
 theorem imtInsert_keys_eq {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256} (hW₀ : W₀ ∈ s) :
     Properties.imtInsert_keys_eq (s := s) (W₀ := W₀) (v := v) (hW₀ := hW₀) := by
   unfold Properties.imtInsert_keys_eq
-  exact
-    by
-      ext k
-      unfold keys
-      simp only [Finset.mem_image, Finset.mem_insert]
-      constructor
-      · rintro ⟨X, hX, rfl⟩
-        rw [mem_imtInsert] at hX
-        rcases hX with rfl | rfl | ⟨hXs, _⟩
-        · exact Or.inr ⟨W₀, hW₀, rfl⟩
-        · exact Or.inl rfl
-        · exact Or.inr ⟨X, hXs, rfl⟩
-      · rintro (rfl | ⟨X, hXs, rfl⟩)
-        · exact ⟨⟨_, W₀.nextKey⟩, by rw [mem_imtInsert]; exact Or.inr (Or.inl rfl), rfl⟩
-        · by_cases hXW : X = W₀
-          · exact ⟨⟨W₀.key, v⟩, by rw [mem_imtInsert]; exact Or.inl rfl, by rw [hXW]⟩
-          · exact ⟨X, by rw [mem_imtInsert]; exact Or.inr (Or.inr ⟨hXs, hXW⟩), rfl⟩
+  ext k
+  simp only [keys, Finset.mem_image, Finset.mem_insert, mem_imtInsert]
+  grind
 
 
 /-- Membership form of `imtInsert_keys_eq`. -/
 theorem mem_keys_imtInsert {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v k : UInt256} (hW₀ : W₀ ∈ s) :
     Properties.mem_keys_imtInsert (s := s) (W₀ := W₀) (v := v) (k := k) (hW₀ := hW₀) := by
   unfold Properties.mem_keys_imtInsert
-  exact
-    by
-      rw [imtInsert_keys_eq hW₀, Finset.mem_insert]
+  rw [imtInsert_keys_eq hW₀, Finset.mem_insert]
 
 
 /-- The inserted commit value is present afterwards — the delivery-side
@@ -740,9 +499,8 @@ excludable). -/
 theorem imtInsert_key_mem {s : Finset AbsLeaf} {W₀ : AbsLeaf} {v : UInt256} (hW₀ : W₀ ∈ s) :
     Properties.imtInsert_key_mem (s := s) (W₀ := W₀) (v := v) (hW₀ := hW₀) := by
   unfold Properties.imtInsert_key_mem
-  exact
-    by
-      rw [imtInsert_keys_eq hW₀]; exact Finset.mem_insert_self _ _
+  rw [imtInsert_keys_eq hW₀]
+  exact Finset.mem_insert_self _ _
 
 
 /-- **Per-step key-set evolution (exact).**  Every evolution step either leaves
@@ -751,11 +509,9 @@ monotone `evolution_keys_mono` to a precise per-step account. -/
 theorem evolution_step_keys {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) (n : ℕ) :
     Properties.evolution_step_keys (S := S) (hevo := hevo) (n := n) := by
   unfold Properties.evolution_step_keys
-  exact
-    by
-      rcases hevo n with heq | ⟨W₀, v, hW₀, _, _, heq⟩
-      · exact Or.inl (by rw [heq])
-      · exact Or.inr ⟨v, by rw [heq, imtInsert_keys_eq hW₀]⟩
+  rcases hevo n with heq | ⟨W₀, v, hW₀, _, _, heq⟩
+  · exact Or.inl (by rw [heq])
+  · exact Or.inr ⟨v, by rw [heq, imtInsert_keys_eq hW₀]⟩
 
 
 /-- **KEY PROVENANCE.**  Along any evolution, every key present at step `n` that
@@ -766,24 +522,18 @@ well-defined point of entry into the tree. -/
 theorem evolution_key_origin {S : ℕ → Finset AbsLeaf} {v : UInt256} (hevo : Evolution S) :
     Properties.evolution_key_origin (S := S) (v := v) (hevo := hevo) := by
   unfold Properties.evolution_key_origin
-  exact
-    by
-      intro n
-      induction n with
-      | zero => intro hmem h0; exact absurd hmem h0
-      | succ n ih =>
-        intro hmem h0
-        rcases evolution_step_keys hevo n with heq | ⟨w, hw⟩
-        · have hvn : v ∈ keys (S n) := by rw [← heq]; exact hmem
-          obtain ⟨m, hmn, hnm, hstep⟩ := ih hvn h0
-          exact ⟨m, Nat.lt_succ_of_lt hmn, hnm, hstep⟩
-        · by_cases hvn : v ∈ keys (S n)
-          · obtain ⟨m, hmn, hnm, hstep⟩ := ih hvn h0
-            exact ⟨m, Nat.lt_succ_of_lt hmn, hnm, hstep⟩
-          · rw [hw] at hmem
-            rcases Finset.mem_insert.mp hmem with rfl | hcontra
-            · exact ⟨n, Nat.lt_succ_self n, hvn, hw⟩
-            · exact absurd hcontra hvn
+  intro n hmem h0
+  induction n with
+  | zero => exact absurd hmem h0
+  | succ n ih =>
+    by_cases hvn : v ∈ keys (S n)
+    · obtain ⟨m, hmn, hnm, hstep⟩ := ih hvn
+      exact ⟨m, Nat.lt_succ_of_lt hmn, hnm, hstep⟩
+    · rcases evolution_step_keys hevo n with heq | ⟨w, hw⟩
+      · exact absurd (heq ▸ hmem) hvn
+      · rw [hw, Finset.mem_insert] at hmem
+        obtain rfl := hmem.resolve_right hvn
+        exact ⟨n, Nat.lt_succ_self n, hvn, hw⟩
 
 
 /-- **DELIVERY ⟺ INSERTION (abstract).**  A non-genesis commit value is a key of
@@ -795,13 +545,9 @@ theorem evolution_key_present_iff {S : ℕ → Finset AbsLeaf} {v : UInt256} (he
     (h0 : v ∉ keys (S 0)) (n : ℕ) :
     Properties.evolution_key_present_iff (S := S) (v := v) (hevo := hevo) (h0 := h0) (n := n) := by
   unfold Properties.evolution_key_present_iff
-  exact
-    by
-      constructor
-      · intro hmem; exact evolution_key_origin hevo n hmem h0
-      · rintro ⟨m, hmn, _, hstep⟩
-        have hvm1 : v ∈ keys (S (m+1)) := by rw [hstep]; exact Finset.mem_insert_self _ _
-        exact evolution_keys_mono hevo (Nat.succ_le_of_lt hmn) hvm1
+  refine ⟨fun hmem => evolution_key_origin hevo n hmem h0, ?_⟩
+  rintro ⟨m, hmn, _, hstep⟩
+  exact evolution_keys_mono hevo (Nat.succ_le_of_lt hmn) (hstep ▸ Finset.mem_insert_self _ _)
 
 
 /-- **THE ENTRY STEP IS UNIQUE.**  A commit value is absent then present across
@@ -814,12 +560,10 @@ theorem evolution_key_origin_unique {S : ℕ → Finset AbsLeaf} {v : UInt256} (
     (h2 : v ∉ keys (S m₂) ∧ v ∈ keys (S (m₂+1))) :
     Properties.evolution_key_origin_unique (S := S) (v := v) (hevo := hevo) (m₁ := m₁) (m₂ := m₂) (h1 := h1) (h2 := h2) := by
   unfold Properties.evolution_key_origin_unique
-  exact
-    by
-      rcases lt_trichotomy m₁ m₂ with hlt | heq | hgt
-      · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hlt) h1.2) h2.1
-      · exact heq
-      · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hgt) h2.2) h1.1
+  rcases lt_trichotomy m₁ m₂ with hlt | heq | hgt
+  · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hlt) h1.2) h2.1
+  · exact heq
+  · exact absurd (evolution_keys_mono hevo (Nat.succ_le_of_lt hgt) h2.2) h1.1
 
 
 /-! ## The delivered-value ledger — who is in the tree, and when they entered
@@ -839,38 +583,11 @@ nothing is in the tree without having entered it. -/
 theorem evolution_keys_ledger {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) (n : ℕ) :
     Properties.evolution_keys_ledger (S := S) (hevo := hevo) (n := n) := by
   unfold Properties.evolution_keys_ledger
-  exact
-    by
-      induction n with
-      | zero => simp
-      | succ n ih =>
-        have hsub : keys (S n) ⊆ keys (S (n+1)) :=
-          evolution_keys_mono hevo (Nat.le_succ n)
-        have hdecomp : keys (S n) ∪ (keys (S (n+1)) \ keys (S n)) = keys (S (n+1)) := by
-          ext k
-          simp only [Finset.mem_union, Finset.mem_sdiff]
-          constructor
-          · rintro (hk | ⟨hk, _⟩)
-            · exact hsub hk
-            · exact hk
-          · intro hk
-            by_cases h : k ∈ keys (S n)
-            · exact Or.inl h
-            · exact Or.inr ⟨hk, h⟩
-        calc keys (S (n+1))
-            = keys (S n) ∪ (keys (S (n+1)) \ keys (S n)) := hdecomp.symm
-          _ = (keys (S 0) ∪ (Finset.range n).biUnion (fun m => keys (S (m+1)) \ keys (S m)))
-                ∪ (keys (S (n+1)) \ keys (S n)) := by rw [ih]
-          _ = keys (S 0)
-                ∪ ((keys (S (n+1)) \ keys (S n))
-                    ∪ (Finset.range n).biUnion (fun m => keys (S (m+1)) \ keys (S m))) := by
-              rw [Finset.union_assoc,
-                Finset.union_comm
-                  ((Finset.range n).biUnion fun m => keys (S (m+1)) \ keys (S m))
-                  (keys (S (n+1)) \ keys (S n))]
-          _ = keys (S 0)
-                ∪ (Finset.range (n+1)).biUnion (fun m => keys (S (m+1)) \ keys (S m)) := by
-              rw [Finset.range_add_one, Finset.biUnion_insert]
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [Finset.range_add_one, Finset.biUnion_insert, Finset.union_left_comm, ← ih,
+      Finset.sdiff_union_of_subset (evolution_keys_mono hevo (Nat.le_succ n))]
 
 
 /-- **THE SIZE LEDGER.**  The number of keys at step `n` is the genesis count
@@ -880,28 +597,18 @@ counts deliveries. -/
 theorem evolution_card_ledger {S : ℕ → Finset AbsLeaf} (hevo : Evolution S) (n : ℕ) :
     Properties.evolution_card_ledger (S := S) (hevo := hevo) (n := n) := by
   unfold Properties.evolution_card_ledger
-  exact
-    by
-      induction n with
-      | zero => simp
-      | succ n ih =>
-        rw [Finset.range_add_one, Finset.filter_insert]
-        by_cases hch : keys (S (n+1)) ≠ keys (S n)
-        · rw [ite_eq_left hch,
-            Finset.card_insert_of_notMem
-              (fun h => absurd (Finset.mem_filter.mp h).1 Finset.notMem_range_self)]
-          have hcard : (keys (S (n+1))).card = (keys (S n)).card + 1 := by
-            rcases evolution_step_keys hevo n with heq | ⟨v, hv⟩
-            · exact absurd heq hch
-            · have hvnot : v ∉ keys (S n) := fun hmem =>
-                hch (by rw [hv]; exact Finset.insert_eq_self.mpr hmem)
-              rw [hv, Finset.card_insert_of_notMem hvnot]
-          rw [hcard, ih]
-          omega
-        · rw [ite_eq_right hch]
-          push Not at hch
-          rw [hch]
-          exact ih
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [Finset.range_add_one, Finset.filter_insert]
+    by_cases hch : keys (S (n+1)) = keys (S n)
+    · simp [hch, ih]
+    · obtain ⟨v, hv⟩ := (evolution_step_keys hevo n).resolve_left hch
+      have hvnot : v ∉ keys (S n) := fun hmem =>
+        hch (hv.trans (Finset.insert_eq_self.mpr hmem))
+      rw [ite_eq_left hch, Finset.card_insert_of_notMem (by simp), hv,
+        Finset.card_insert_of_notMem hvnot, ih]
+      omega
 
 
 /-- **EXACTLY-ONCE DELIVERY (set level).**  A commit value absent at genesis and
@@ -912,14 +619,11 @@ theorem evolution_key_origin_exists_unique {S : ℕ → Finset AbsLeaf} {v : UIn
     (h0 : v ∉ keys (S 0)) {n : ℕ} (hmem : v ∈ keys (S n)) :
     Properties.evolution_key_origin_exists_unique (S := S) (v := v) (hevo := hevo) (h0 := h0) (n := n) (hmem := hmem) := by
   unfold Properties.evolution_key_origin_exists_unique
-  exact
-    by
-      obtain ⟨m, hmn, habs, hstep⟩ := evolution_key_origin hevo n hmem h0
-      refine ⟨m, ⟨hmn, habs, hstep⟩, ?_⟩
-      rintro m' ⟨_, habs', hstep'⟩
-      exact evolution_key_origin_unique hevo
-        ⟨habs', by rw [hstep']; exact Finset.mem_insert_self _ _⟩
-        ⟨habs, by rw [hstep]; exact Finset.mem_insert_self _ _⟩
+  obtain ⟨m, hmn, habs, hstep⟩ := evolution_key_origin hevo n hmem h0
+  refine ⟨m, ⟨hmn, habs, hstep⟩, ?_⟩
+  rintro m' ⟨_, habs', hstep'⟩
+  exact evolution_key_origin_unique hevo
+    ⟨habs', hstep' ▸ Finset.mem_insert_self _ _⟩ ⟨habs, hstep ▸ Finset.mem_insert_self _ _⟩
 
 
 /-- **THE GUARDED INSERT RUNS AT MOST ONCE PER VALUE.**  Along any evolution from
@@ -940,16 +644,13 @@ theorem evolution_insert_unique {S : ℕ → Finset AbsLeaf} {v : UInt256}
     (hstep₂ : S (m₂+1) = imtInsert (S m₂) W₂ v) :
     Properties.evolution_insert_unique (S := S) (v := v) (hevo := hevo) (h0 := h0) (hinj0 := hinj0) (m₁ := m₁) (m₂ := m₂) (W₁ := W₁) (W₂ := W₂) (hW₁ := hW₁) (hlow₁ := hlow₁) (hwin₁ := hwin₁) (hstep₁ := hstep₁) (hW₂ := hW₂) (hlow₂ := hlow₂) (hwin₂ := hwin₂) (hstep₂ := hstep₂) := by
   unfold Properties.evolution_insert_unique
-  exact
-    by
-      have habs : ∀ m (W : AbsLeaf), W ∈ S m → W.key < v →
-          (W.nextKey = 0 ∨ v < W.nextKey) → v ∉ keys (S m) := by
-        intro m W hW hlow hwin hmem
-        exact present_not_reclaimable (evolution_invariant hevo h0 hinj0 m).1 hmem
-          ⟨W, hW, hlow, hwin⟩
-      exact evolution_key_origin_unique hevo
-        ⟨habs m₁ W₁ hW₁ hlow₁ hwin₁, by rw [hstep₁]; exact imtInsert_key_mem hW₁⟩
-        ⟨habs m₂ W₂ hW₂ hlow₂ hwin₂, by rw [hstep₂]; exact imtInsert_key_mem hW₂⟩
+  have habs : ∀ m (W : AbsLeaf), W ∈ S m → W.key < v →
+      (W.nextKey = 0 ∨ v < W.nextKey) → v ∉ keys (S m) :=
+    fun m W hW hlow hwin hmem => present_not_reclaimable
+      (evolution_invariant hevo h0 hinj0 m).1 hmem ⟨W, hW, hlow, hwin⟩
+  exact evolution_key_origin_unique hevo
+    ⟨habs m₁ W₁ hW₁ hlow₁ hwin₁, hstep₁ ▸ imtInsert_key_mem hW₁⟩
+    ⟨habs m₂ W₂ hW₂ hlow₂ hwin₂, hstep₂ ▸ imtInsert_key_mem hW₂⟩
 
 
 /-! ## Cross-chain atomicity, abstract core
@@ -976,12 +677,9 @@ theorem delivered_leg_available_forever {S : ℕ → Finset AbsLeaf} {t : ℕ �
     {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i)) :
     Properties.delivered_leg_available_forever (S := S) (t := t) (D := D) (v := v) (hevo := hevo) (h0 := h0) (hinj0 := hinj0) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) := by
   unfold Properties.delivered_leg_available_forever
-  exact
-    by
-      refine ⟨fun j hij => evolution_keys_mono hevo hij hdel, ?_⟩
-      intro j W htj1 hW hlow hwin
-      exact delivered_and_reclaimed_impossible hevo h0 hinj0 htmono hti hdel
-        htj1 hW hlow hwin
+  refine ⟨fun j hij => evolution_keys_mono hevo hij hdel, ?_⟩
+  intro j W htj1 hW hlow hwin
+  exact delivered_and_reclaimed_impossible hevo h0 hinj0 htmono hti hdel htj1 hW hlow hwin
 
 
 /-- **THE LOOP-EXIT GUARD IS STRICT.**  The concrete insert's search loop
@@ -995,20 +693,12 @@ theorem window_strict_of_not_mem {s : Finset AbsLeaf} {W : AbsLeaf} {v : UInt256
     (hwin : W.nextKey = 0 ∨ v ≤ W.nextKey) :
     Properties.window_strict_of_not_mem (s := s) (W := W) (v := v) (hclosed := hclosed) (hW := hW) (hnot := hnot) (hwin := hwin) := by
   unfold Properties.window_strict_of_not_mem
-  exact
-    by
-      rcases hwin with h0 | hle
-      · exact Or.inl h0
-      · by_cases h0 : W.nextKey = 0
-        · exact Or.inl h0
-        · refine Or.inr ?_
-          rcases lt_or_eq_of_le hle with hlt | heq
-          · exact hlt
-          · exfalso
-            apply hnot
-            obtain ⟨L, hL, hLkey⟩ := hclosed W hW h0
-            rw [heq]
-            exact Finset.mem_image.mpr ⟨L, hL, hLkey⟩
+  by_cases h0 : W.nextKey = 0
+  · exact Or.inl h0
+  · -- a nonzero `nextKey` is a key, so the absent `v` cannot equal it
+    obtain ⟨L, hL, hLkey⟩ := hclosed W hW h0
+    have hLk : L.key ∈ keys s := Finset.mem_image_of_mem _ hL
+    grind
 
 
 /-- **THE CONCRETE GUARD IMPLEMENTS ONE SOUND INSERT STEP.**  From a sound
@@ -1026,16 +716,13 @@ theorem guarded_insert_sound_step {s : Finset AbsLeaf} {W : AbsLeaf} {v : UInt25
     (hnot : v ∉ keys s) :
     Properties.guarded_insert_sound_step (s := s) (W := W) (v := v) (hs := hs) (hW := hW) (hlow := hlow) (hwin := hwin) (hnot := hnot) := by
   unfold Properties.guarded_insert_sound_step
-  exact
-    by
-      obtain ⟨hgs, hinj, hnc, hwp⟩ := hs
-      have hstrict : W.nextKey = 0 ∨ v < W.nextKey :=
-        window_strict_of_not_mem hnc hW hnot hwin
-      exact ⟨⟨imtInsert_gapSound hgs hinj hW hlow hstrict,
-              imtInsert_keyInj hgs hinj hW hlow hstrict,
-              imtInsert_nextClosed hnc hW hlow hstrict,
-              imtInsert_windowPos hwp hlow hstrict⟩,
-            imtInsert_keys_eq hW⟩
+  obtain ⟨hgs, hinj, hnc, hwp⟩ := hs
+  have hstrict := window_strict_of_not_mem hnc hW hnot hwin
+  exact ⟨⟨imtInsert_gapSound hgs hinj hW hlow hstrict,
+      imtInsert_keyInj hgs hinj hW hlow hstrict,
+      imtInsert_nextClosed hnc hW hlow hstrict,
+      imtInsert_windowPos hwp hlow hstrict⟩,
+    imtInsert_keys_eq hW⟩
 
 
 /-- **THE GUARDED INSERT TOGGLES RECLAIMABILITY ATOMICALLY.**  At the exact
@@ -1052,27 +739,22 @@ theorem guarded_insert_toggles_reclaimable {s : Finset AbsLeaf} {W : AbsLeaf} {v
     (hnot : v ∉ keys s) :
     Properties.guarded_insert_toggles_reclaimable (s := s) (W := W) (v := v) (hs := hs) (hW := hW) (hlow := hlow) (hwin := hwin) (hnot := hnot) := by
   unfold Properties.guarded_insert_toggles_reclaimable
-  exact
-    by
-      have hstrict := window_strict_of_not_mem hs.2.2.1 hW hnot hwin
-      refine ⟨⟨W, hW, hlow, hstrict⟩, ?_⟩
-      have hstep := guarded_insert_sound_step hs hW hlow hwin hnot
-      exact present_not_reclaimable hstep.1.1 (imtInsert_key_mem hW)
+  refine ⟨⟨W, hW, hlow, window_strict_of_not_mem hs.2.2.1 hW hnot hwin⟩, ?_⟩
+  exact present_not_reclaimable (guarded_insert_sound_step hs hW hlow hwin hnot).1.1
+    (imtInsert_key_mem hW)
 
 
 /-- A guarded history from a sound genesis stays sound at every step. -/
 theorem guardedEvolution_sound {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S) (h0 : SoundState (S 0)) :
     Properties.guardedEvolution_sound (S := S) (hge := hge) (h0 := h0) := by
   unfold Properties.guardedEvolution_sound
-  exact
-    by
-      intro n
-      induction n with
-      | zero => exact h0
-      | succ n ih =>
-        rcases hge n with heq | ⟨W, v, hW, hlow, hwin, hnot, heq⟩
-        · rw [heq]; exact ih
-        · rw [heq]; exact (guarded_insert_sound_step ih hW hlow hwin hnot).1
+  intro n
+  induction n with
+  | zero => exact h0
+  | succ n ih =>
+    rcases hge n with heq | ⟨W, v, hW, hlow, hwin, hnot, heq⟩ <;> rw [heq]
+    · exact ih
+    · exact (guarded_insert_sound_step ih hW hlow hwin hnot).1
 
 
 /-- **THE CONCRETE GUARD REFINES TO `Evolution`.**  A `GuardedEvolution` from
@@ -1083,13 +765,11 @@ to real contract histories. -/
 theorem guardedEvolution_isEvolution {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S) (h0 : SoundState (S 0)) :
     Properties.guardedEvolution_isEvolution (S := S) (hge := hge) (h0 := h0) := by
   unfold Properties.guardedEvolution_isEvolution
-  exact
-    by
-      intro n
-      rcases hge n with heq | ⟨W, v, hW, hlow, hwin, hnot, heq⟩
-      · exact Or.inl heq
-      · exact Or.inr ⟨W, v, hW, hlow,
-          window_strict_of_not_mem (guardedEvolution_sound hge h0 n).2.2.1 hW hnot hwin, heq⟩
+  intro n
+  rcases hge n with heq | ⟨W, v, hW, hlow, hwin, hnot, heq⟩
+  · exact Or.inl heq
+  · exact Or.inr ⟨W, v, hW, hlow,
+      window_strict_of_not_mem (guardedEvolution_sound hge h0 n).2.2.1 hW hnot hwin, heq⟩
 
 
 /-! ## Genesis-rooted capstones — the headline guarantees for real histories
@@ -1109,11 +789,9 @@ theorem guardedEvolution_reclaimable_iff_absent {S : ℕ → Finset AbsLeaf} (hg
     {j : ℕ} {v : UInt256} (hv0 : v ≠ 0) :
     Properties.guardedEvolution_reclaimable_iff_absent (S := S) (hge := hge) (hgen := hgen) (j := j) (v := v) (hv0 := hv0) := by
   unfold Properties.guardedEvolution_reclaimable_iff_absent
-  exact
-    by
-      have h0 : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
-      have hzero : (0 : UInt256) ∈ keys (S 0) := by rw [hgen]; exact genesis_zero_mem
-      exact reclaimable_iff_absent (guardedEvolution_isEvolution hge h0) h0 hzero hv0
+  have h0 : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
+  have hzero : (0 : UInt256) ∈ keys (S 0) := by rw [hgen]; exact genesis_zero_mem
+  exact reclaimable_iff_absent (guardedEvolution_isEvolution hge h0) h0 hzero hv0
 
 
 /-- **DELIVERY IS FINAL FOR REAL HISTORIES.**  On-time delivery evidence for
@@ -1126,11 +804,9 @@ theorem guardedEvolution_delivered_available_forever {S : ℕ → Finset AbsLeaf
     {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i)) :
     Properties.guardedEvolution_delivered_available_forever (S := S) (t := t) (D := D) (v := v) (hge := hge) (hgen := hgen) (htmono := htmono) (i := i) (hti := hti) (hdel := hdel) := by
   unfold Properties.guardedEvolution_delivered_available_forever
-  exact
-    by
-      have h0 : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
-      exact delivered_leg_available_forever (guardedEvolution_isEvolution hge h0)
-        h0.1 h0.2.1 htmono hti hdel
+  have h0 : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
+  exact delivered_leg_available_forever (guardedEvolution_isEvolution hge h0)
+    h0.1 h0.2.1 htmono hti hdel
 
 
 /-- **DELIVERY IS EXACTLY-ONCE FOR REAL HISTORIES.**  Along any guarded history
@@ -1143,18 +819,9 @@ theorem guardedEvolution_delivery_exactly_once {S : ℕ → Finset AbsLeaf} (hge
     {v : UInt256} (hv0 : v ≠ 0) {n : ℕ} (hmem : v ∈ keys (S n)) :
     Properties.guardedEvolution_delivery_exactly_once (S := S) (hge := hge) (hgen := hgen) (v := v) (hv0 := hv0) (n := n) (hmem := hmem) := by
   unfold Properties.guardedEvolution_delivery_exactly_once
-  exact
-    by
-      have h0s : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
-      have hv0' : v ∉ keys (S 0) := by
-        rw [hgen]
-        intro hmem0
-        obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hmem0
-        rw [Finset.mem_singleton] at hL
-        rw [hL] at hLkey
-        exact hv0 hLkey.symm
-      exact evolution_key_origin_exists_unique
-        (guardedEvolution_isEvolution hge h0s) hv0' hmem
+  have h0s : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
+  have hv0' : v ∉ keys (S 0) := by simp [hgen, keys, hv0]
+  exact evolution_key_origin_exists_unique (guardedEvolution_isEvolution hge h0s) hv0' hmem
 
 
 /-! ## Sharpness — witness MEMBERSHIP is indispensable
@@ -1183,41 +850,12 @@ and empty-slot padding must be distinguishable from the real zero leaf. -/
 theorem forged_padding_witness_breaks_exclusivity {a : UInt256} (ha : a ≠ 0) :
     Properties.forged_padding_witness_breaks_exclusivity (a := a) (ha := ha) := by
   unfold Properties.forged_padding_witness_breaks_exclusivity
-  exact
-    by
-      have hapos : (0 : UInt256) < a := Fin.pos_of_ne_zero ha
-      have hnlt : ¬ (a < (0 : UInt256)) := by
-        intro h; exact absurd (lt_trans hapos h) (lt_irrefl _)
-      refine ⟨{⟨0, a⟩, ⟨a, 0⟩}, a, ⟨0, 0⟩, ⟨?_, ?_, ?_, ?_⟩, ?_, ?_, hapos, Or.inl rfl⟩
-      · -- GapSound
-        intro W hW L hL hlt
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hW hL
-        rcases hW with rfl | rfl <;> rcases hL with rfl | rfl <;>
-          simp_all
-      · -- KeyInj
-        intro A hA B hB hkey
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hA hB
-        rcases hA with rfl | rfl <;> rcases hB with rfl | rfl <;> simp_all
-      · -- NextClosed
-        intro W hW hnz
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hW
-        rcases hW with rfl | rfl
-        · exact ⟨⟨a, 0⟩, by simp, rfl⟩
-        · exact absurd rfl hnz
-      · -- WindowPos
-        intro W hW
-        simp only [Finset.mem_insert, Finset.mem_singleton] at hW
-        rcases hW with rfl | rfl
-        · exact Or.inr hapos
-        · exact Or.inl rfl
-      · -- a is delivered
-        exact Finset.mem_image.mpr ⟨⟨a, 0⟩, by simp, rfl⟩
-      · -- the forged witness is NOT a leaf
-        simp only [Finset.mem_insert, Finset.mem_singleton]
-        push Not
-        constructor
-        · intro h; exact ha (congrArg AbsLeaf.nextKey h).symm
-        · intro h; exact ha (congrArg AbsLeaf.key h).symm
+  have hapos : (0 : UInt256) < a := Fin.pos_of_ne_zero ha
+  refine ⟨{⟨0, a⟩, ⟨a, 0⟩}, a, ⟨0, 0⟩, ?_, ?_, ?_, hapos, Or.inl rfl⟩
+  · simp [SoundState, GapSound, KeyInj, NextClosed, WindowPos, ha, hapos]
+    exact ha.symm
+  · simp [keys]
+  · simpa using ha.symm
 
 
 end IMTAbstract

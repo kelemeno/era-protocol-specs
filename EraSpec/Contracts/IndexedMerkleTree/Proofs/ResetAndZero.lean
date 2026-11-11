@@ -98,19 +98,14 @@ theorem evolution_forbids_forgetting {S : ℕ → Finset AbsLeaf} (hevo : Evolut
     (hmem : v ∈ keys (S m)) (habs : v ∉ keys (S n)) :
     Properties.evolution_forbids_forgetting (S := S) (hevo := hevo) (v := v) (m := m) (n := n) (hmn := hmn) (hmem := hmem) (habs := habs) := by
   unfold Properties.evolution_forbids_forgetting
-  exact
-    habs (evolution_keys_mono hevo hmn hmem)
+  exact habs (evolution_keys_mono hevo hmn hmem)
 
 
 /-- Step 1 of the reset history HAS delivered `a`. -/
 theorem resetHistory_delivers (a : UInt256) :
     Properties.resetHistory_delivers (a := a) := by
   unfold Properties.resetHistory_delivers
-  exact
-    by
-      have h1 : resetHistory a 1 = imtInsert ({⟨0, 0⟩} : Finset AbsLeaf) ⟨0, 0⟩ a := rfl
-      rw [h1]
-      exact imtInsert_key_mem (Finset.mem_singleton_self _)
+  exact imtInsert_key_mem (Finset.mem_singleton_self _)
 
 
 /-- Step 2 of the reset history has FORGOTTEN `a`: after the reset the key
@@ -118,15 +113,8 @@ set is back to `{0}`. -/
 theorem resetHistory_forgets {a : UInt256} (ha : a ≠ 0) :
     Properties.resetHistory_forgets (a := a) (ha := ha) := by
   unfold Properties.resetHistory_forgets
-  exact
-    by
-      have h2 : resetHistory a 2 = ({⟨0, 0⟩} : Finset AbsLeaf) := rfl
-      rw [h2]
-      intro hmem
-      obtain ⟨L, hL, hLkey⟩ := Finset.mem_image.mp hmem
-      rw [Finset.mem_singleton] at hL
-      rw [hL] at hLkey
-      exact ha hLkey.symm
+  have h2 : resetHistory a 2 = ({⟨0, 0⟩} : Finset AbsLeaf) := rfl
+  simpa [h2, keys] using ha
 
 
 /-- **A RESET HISTORY IS NOT AN `Evolution`.**  The history that delivers a
@@ -140,11 +128,8 @@ interface — see the header.) -/
 theorem resetHistory_not_evolution {a : UInt256} (ha : a ≠ 0) :
     Properties.resetHistory_not_evolution (a := a) (ha := ha) := by
   unfold Properties.resetHistory_not_evolution
-  exact
-    by
-      intro hevo
-      exact evolution_forbids_forgetting hevo (Nat.le_succ 1)
-        (resetHistory_delivers a) (resetHistory_forgets ha)
+  exact fun hevo => evolution_forbids_forgetting hevo (Nat.le_succ 1)
+    (resetHistory_delivers a) (resetHistory_forgets ha)
 
 
 /-! ## (B) Zero-value sentinel -/
@@ -156,8 +141,7 @@ theorem zero_always_present {S : ℕ → Finset AbsLeaf} (hevo : Evolution S)
     (hzero : (0 : UInt256) ∈ keys (S 0)) (n : ℕ) :
     Properties.zero_always_present (S := S) (hevo := hevo) (hzero := hzero) (n := n) := by
   unfold Properties.zero_always_present
-  exact
-    evolution_keys_mono hevo (Nat.zero_le n) hzero
+  exact evolution_keys_mono hevo (Nat.zero_le n) hzero
 
 
 /-- **THE SENTINEL IS NEVER RECLAIMABLE (invariant route).**  Along any
@@ -170,9 +154,7 @@ theorem zero_not_reclaimable_along_evolution {S : ℕ → Finset AbsLeaf} (hevo 
     (hzero : (0 : UInt256) ∈ keys (S 0)) (n : ℕ) :
     Properties.zero_not_reclaimable_along_evolution (S := S) (hevo := hevo) (h0 := h0) (hzero := hzero) (n := n) := by
   unfold Properties.zero_not_reclaimable_along_evolution
-  exact
-    present_not_reclaimable (evolution_sound hevo h0 n).1
-        (zero_always_present hevo hzero n)
+  exact present_not_reclaimable (evolution_sound hevo h0 n).1 (zero_always_present hevo hzero n)
 
 
 /-- **THE SENTINEL IS NEVER RECLAIMABLE (order route).**  Independent
@@ -183,10 +165,7 @@ zero value is un-reclaimable on order grounds alone. -/
 theorem zero_never_reclaimable (s : Finset AbsLeaf) :
     Properties.zero_never_reclaimable (s := s) := by
   unfold Properties.zero_never_reclaimable
-  exact
-    by
-      rintro ⟨W, _, hlt, _⟩
-      exact absurd hlt (by simp)
+  simp
 
 
 /-- **ZERO IS NEVER FRESHLY INSERTED.**  Along any `GuardedEvolution` from
@@ -201,13 +180,10 @@ theorem guarded_never_inserts_zero {S : ℕ → Finset AbsLeaf} (hge : GuardedEv
     (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf)) (n : ℕ) :
     Properties.guarded_never_inserts_zero (S := S) (hge := hge) (hgen := hgen) (n := n) := by
   unfold Properties.guarded_never_inserts_zero
-  exact
-    by
-      rintro ⟨W, _, _, _, hnot, _⟩
-      have h0s : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
-      have hzero : (0 : UInt256) ∈ keys (S 0) := by
-        rw [hgen]; exact genesis_zero_mem
-      exact hnot (zero_always_present (guardedEvolution_isEvolution hge h0s) hzero n)
+  rintro ⟨W, _, _, _, hnot, _⟩
+  have h0s : SoundState (S 0) := by rw [hgen]; exact genesis_soundState
+  have hzero : (0 : UInt256) ∈ keys (S 0) := by rw [hgen]; exact genesis_zero_mem
+  exact hnot (zero_always_present (guardedEvolution_isEvolution hge h0s) hzero n)
 
 
 end AttackVectors.ResetAndZero
