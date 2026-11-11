@@ -238,8 +238,9 @@ def Properties.AcceptedImpliesRefundablePinned : Prop :=
     (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →
     ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
       LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x →
-        LegRefundable h z0 hl cv S F leg ∨ PinnedBreak h ze (B.leaves leg.chain) N
-          ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+        LegRefundable h z0 hl cv S F leg ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x))
 
 /-- The same, collapsed under the bounded premise on the submitted proof.  The `Refund`
 exclusivity results this feeds still take `HashAssumptions`, so they do not yet inherit
@@ -334,8 +335,9 @@ def Properties.AcceptedTimeoutMeansMissedDeadlineOrBreak : Prop :=
       (∀ n, S.time leg.chain n ≤ F.deadline →
           legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
         ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
-        ∨ PinnedBreak h ze (B.leaves leg.chain) N
-        ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+        ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x))
 
 /-- **THE PREMISES ARE SATISFIABLE, THE BREAK IS NOT A TAUTOLOGY.**  For every node
 hash, leaf hash and padding constant: in `mixedSystem 1` with `timeOneRoot`

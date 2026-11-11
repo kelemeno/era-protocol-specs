@@ -179,17 +179,21 @@ are unchanged, for comparison.
 | `InteropAtomicity` `Timeout` | `LastBatchProofIdentifiesLastBatchPinned`, `EndBranchAcceptedImpliesVerifiedPinned`, `AcceptedImpliesRefundablePinned`, and `…On` forms | as LastLeaf, per submitted proof | `LastBatchPinnedConclusionNotAlways`, `EndBranchAcceptedOnSatisfiable` |
 | `NativeTokenVaultBase` `RegistryAndEscrow` | `RunValidOn`, `SolvencyOn`, `NoInflationOn`, `LedgerIsNetFlowOn`, `RegisterNativeIdFreshOrCollision` | `IdAssumptionsOn e S` on an explicit set `S`, or a collision between the two named pairs | `IdAssumptionsOnSatisfiable`, `RunOnSatisfiable`, `RegisterNativeCollisionNotTautology`, `RegisterNativeCollisionReachable` |
 | `AssetRouterBase` `HandlerRegistration` | `NoHijackOrCollision`, `NoHijackOn`, `NtvTouchesOnlyItsOwnIdsOrCollision` | the two compared triples only | `IdInjOnSatisfiable`, `HijackUnderCollision` |
-| `InteropAtomicity` `Refund` | `RefundImpliesOwnFlowTimeoutOrCollision` (half-pinned: `F'` existential) | own timeout, or `fh` collides on `F` and a named `F'` | `RefundImpliesOwnFlowTimeoutOrCollisionWitness`, `RefundOrCollisionNeedsReach` |
+| `InteropAtomicity` `Atomicity` (headlines) | `ExecutedExcludesAnyRefundOrBreak`, `NoneOrAllOrBreak`, `ExecutedImpliesAllFinalizableOrBreak`, `FullGateBlocksMixedOutcomeOrBreak`, `WithoutDaCommittedLegIsStuckOrBreak` | property, or an `InclusionBreak` on a named leg's gate proof, or an `AbsenceBreak` on the named refund proof (on the BEGIN or END tree the branch selects) | `ExecutedOrBreakSatisfiable` (all breaks false, conclusions hold), `PaddingRefundOfExecutedLegLocatesAbsenceBreak` (the forged refund is located) |
+| `InteropAtomicity` `Timeout` (headlines) | `TimeoutMeansMissedDeadlineOrBreak`, `TimeoutExcludesFinalityOrBreak`, `AcceptedTimeoutMeansMissedDeadlineOrBreak` | missed deadline, or an `AbsenceBreak` on the submitted proof, or (END branch only) a `PinnedBreak`/`PathCollision` on the last-batch path | `TimeoutOrBreakSatisfiable`, `PaddingTimeoutLocatesAbsenceBreak`, `AcceptedTimeoutOrBreakWitness` |
+| `InteropAtomicity` `Refund` (headlines) | `ExecutedObligationNeverRefundedOrBreak`, `OneExecutionFreezesTheFlowOrBreak`, `RefundImpliesOwnFlowTimeoutOrLoggedClash`, `ExecutedExcludesAcceptedRefundOrBreak` | never refunded, or a `RefundBreak`: a call in the run's own log that marked this obligation, with a `FlowIdClash` against the executed flow or a located tree break | `ExecutedObligationNeverRefundedOrBreakWitness` (non-empty log, no break, not refunded), `PaddingRefundOfExecutedObligationLocatesAbsenceBreak` |
+| `InteropAtomicity` `Refund` | `RefundImpliesOwnFlowTimeoutOrCollision` (half-pinned: `F'` existential; superseded by `RefundImpliesOwnFlowTimeoutOrLoggedClash`) | own timeout, or `fh` collides on `F` and some `F'` | `RefundImpliesOwnFlowTimeoutOrCollisionWitness`, `RefundOrCollisionNeedsReach` |
 
 Recorded but without protocol content: `FlowIdCheckPinsLegListOrCollision`,
 `SubsetFlowCheckedOnlyByCollision`, `CommitmentPinsLegOrCollision` (excluded middle)
 and the bounded `FlowIdCheckPinsLegListOn`, `SubsetFlowRejectedByCheckOn`,
 `CommitmentPinsLegOn` (premise is the conclusion contraposed).
 
-Still open: the interop headlines (`NoneOrAll`, `ExecutedExcludesAnyRefund`,
-`ExecutedObligationNeverRefunded`, `TimeoutMeansMissedDeadline`) restated over
-`TreeRootBreak`; a run-level pinning of the refund's `F'`; and relating a vault run to
-the small set of pairs it registers.
+Residual weak points, reviewed: `NoneOrAllOrBreak`'s `GateBreak` does not say which
+leg (the per-leg results do); `RefundBreak` does not say which logged call when several
+marked the obligation; only the `paddingHit` case of `TreeRootBreak` is exercised by a
+firing witness. Still open: relating a vault run to the small set of pairs it
+registers.
 
 ## Current bridge claims and their dependencies
 

@@ -498,8 +498,9 @@ def Properties.AcceptedTimeoutAuthorizesPinned : Prop :=
     (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →
     ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
       leg ∈ F.legs → LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x →
-        RefundAuthorized h z0 hl cv S F ∨ PinnedBreak h ze (B.leaves leg.chain) N
-          ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x
+        RefundAuthorized h z0 hl cv S F ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x))
 
 /-- **ITS PREMISES HOLD AND ITS BREAKS ARE FALSE ON THE DEMO INSTANCE.**  `demoSystem`
 with `demoRoot`/`demoBacking` under the colliding `demoHash`, an END-branch accepted
@@ -528,8 +529,9 @@ def Properties.ExecutedExcludesAcceptedRefundOrBreak : Prop :=
       ¬ LegRefundableAcceptedBy h z0 hl cv S B F other N p sibs x
         ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
         ∨ AbsenceBreak h z0 hl S F.deadline other.chain N p
-        ∨ PinnedBreak h ze (B.leaves other.chain) N
-        ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x
+        ∨ (EndBranchAccepted B S other.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves other.chain) N
+            ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x))
 
 /-- **ITS PREMISES HOLD AND ALL FOUR BREAKS ARE FALSE.**  `subsetFlow 0 1` executes in
 `mixedSystem 1` under `demoHash`, with `demoRoot`/`demoBacking` (`Aggregates` holds);

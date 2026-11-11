@@ -711,8 +711,9 @@ theorem accepted_timeout_authorizes_pinned {h : Hash} {z0 : UInt256} {hl : LeafH
     (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
     {sibs : ℕ → UInt256} {x : UInt256} (hmem : leg ∈ F.legs)
     (ha : LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x) :
-    RefundAuthorized h z0 hl cv S F ∨ PinnedBreak h ze (B.leaves leg.chain) N
-      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+    RefundAuthorized h z0 hl cv S F ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
   rcases accepted_implies_refundable_pinned hagg ha with hr | hrest
   · exact Or.inl ⟨leg, hmem, hr⟩
   · exact Or.inr hrest
@@ -725,18 +726,20 @@ theorem executed_excludes_accepted_refund_or_break {h : Hash} {z0 : UInt256} {hl
     ¬ LegRefundableAcceptedBy h z0 hl cv S B F other N p sibs x
       ∨ InclusionBreak h z0 hl S other.chain (ev other).1 (ev other).2
       ∨ AbsenceBreak h z0 hl S F.deadline other.chain N p
-      ∨ PinnedBreak h ze (B.leaves other.chain) N
-      ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x := by
+      ∨ (EndBranchAccepted B S other.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves other.chain) N
+            ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x)) := by
   by_cases ha : LegRefundableAcceptedBy h z0 hl cv S B F other N p sibs x
   · refine Or.inr ?_
     have hv : LegRefundableBy h z0 hl cv S F other N p
-        ∨ PinnedBreak h ze (B.leaves other.chain) N
-        ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x := by
+        ∨ (EndBranchAccepted B S other.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves other.chain) N
+            ∨ PathCollision h ze (B.leaves other.chain) sibs 0 (B.height other.chain) N x)) := by
       rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
       · exact Or.inl (refundableBy_of_verifiedBy hagg (Or.inl ⟨hb, habs⟩))
       · rcases endBranch_of_accepted_pinned he with hver | hrest
         · exact Or.inl (refundableBy_of_verifiedBy hagg (Or.inr ⟨hver, habs⟩))
-        · exact Or.inr hrest
+        · exact Or.inr ⟨he, hrest⟩
     rcases hv with hr | hrest
     · rcases executed_excludes_any_refund_or_break hS hex other hother N p with hn | hb | hb
       · exact absurd hr hn
@@ -767,7 +770,7 @@ theorem accepted_timeout_authorizes_pinned_witness :
     ⟨0, [⟨0, 0⟩], 0⟩, ⟨0, 0⟩, 1, _, honestSibs demoHash 0 [5, 7] 1, 7, demoSystem_aggregates,
     hmem, hacc, demo_endBranchAccepted, demo_no_pinned_break_any 1,
     honest_walk_no_collision demoHash 0 [5, 7] 2 1, ?_⟩
-  rcases accepted_timeout_authorizes_pinned demoSystem_aggregates hmem hacc with hr | hb | hc
+  rcases accepted_timeout_authorizes_pinned demoSystem_aggregates hmem hacc with hr | ⟨_, hb | hc⟩
   · exact hr
   · exact absurd hb (demo_no_pinned_break_any 1)
   · exact absurd hc (honest_walk_no_collision demoHash 0 [5, 7] 2 1)
@@ -793,7 +796,7 @@ theorem executed_excludes_accepted_refund_or_break_witness :
     hnp, hnc, ?_⟩
   rcases executed_excludes_accepted_refund_or_break hS hagg hex ⟨0, 1⟩ (List.mem_singleton_self _)
       0 (honestProof demoHash 0 (fun _ => 0) (mixedSystem 1) 0 0 1)
-      (honestSibs demoHash 0 [5, 7] 0) (([5, 7] : List UInt256).getD 0 0) with hn | hb | hb | hb | hb
+      (honestSibs demoHash 0 [5, 7] 0) (([5, 7] : List UInt256).getD 0 0) with hn | hb | hb | ⟨_, hb | hb⟩
   · exact hn
   · exact absurd hb hnb
   · exact absurd hb hnab

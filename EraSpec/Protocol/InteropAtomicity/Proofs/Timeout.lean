@@ -198,13 +198,14 @@ theorem accepted_implies_refundable_pinned {h : Hash} {z0 : UInt256} {hl : LeafH
     (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
     {sibs : ℕ → UInt256} {x : UInt256}
     (ha : LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x) :
-    LegRefundable h z0 hl cv S F leg ∨ PinnedBreak h ze (B.leaves leg.chain) N
-      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+    LegRefundable h z0 hl cv S F leg ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
   rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
   · exact Or.inl (verified_implies_refundable hagg ⟨N, p, Or.inl ⟨hb, habs⟩⟩)
   · rcases endBranch_of_accepted_pinned he with hv | hrest
     · exact Or.inl (verified_implies_refundable hagg ⟨N, p, Or.inr ⟨hv, habs⟩⟩)
-    · exact Or.inr hrest
+    · exact Or.inr ⟨he, hrest⟩
 
 theorem accepted_implies_refundable_on {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {cv : CommitValue} {S : System} {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}
@@ -468,16 +469,18 @@ theorem accepted_timeout_means_missed_deadline_or_break {h : Hash} {z0 : UInt256
     (∀ n, S.time leg.chain n ≤ F.deadline →
         legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
       ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
-      ∨ PinnedBreak h ze (B.leaves leg.chain) N
-      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+      ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
   have hv : LegRefundableVerifiedBy h z0 hl cv S R F leg N p
-      ∨ PinnedBreak h ze (B.leaves leg.chain) N
-      ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x := by
+      ∨ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+          ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+            ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
     rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
     · exact Or.inl (Or.inl ⟨hb, habs⟩)
     · rcases endBranch_of_accepted_pinned he with hver | hrest
       · exact Or.inl (Or.inr ⟨hver, habs⟩)
-      · exact Or.inr hrest
+      · exact Or.inr ⟨he, hrest⟩
   rcases hv with hv | hrest
   · rcases timeout_means_missed_deadline_or_break hS hagg hv with hm | hb
     · exact Or.inl hm

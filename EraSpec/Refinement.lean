@@ -230,6 +230,17 @@ proof and an accepted non-inclusion proof against a valid tree's root, a located
 `TreeRootBreak` exists on one of the two paths. -/
 abbrev root_guarantee_or_break := @Contracts.InteropCommitmentTree.ProofsExclusiveOrBreak
 
+/-- The interop headlines, with no hash premise: an executed flow's legs are never
+refunded, unless a break is located on a named submitted proof. -/
+abbrev atomicity_no_refund_or_break := @Contracts.Atomicity.ExecutedExcludesAnyRefundOrBreak
+
+/-- One outcome per obligation over every interleaving, unless a logged call that
+marked it carries a located break. -/
+abbrev all_or_nothing_or_break := @Contracts.Refund.ExecutedObligationNeverRefundedOrBreak
+
+/-- The timeout decision, with no hash premise. -/
+abbrev timeout_justified_or_break := @Contracts.Timeout.TimeoutMeansMissedDeadlineOrBreak
+
 /-- Partial atomicity: if any leg of a flow is executed, every leg can be
 finalized, given data availability. -/
 abbrev atomicity_guarantee := @Contracts.Atomicity.ExecutedImpliesAllFinalizable
