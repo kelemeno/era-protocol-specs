@@ -38,8 +38,8 @@ This reuses the *same* traversal `#print axioms` uses
 (`Lean.Elab.Command.CollectAxioms`), so the audit and the command a reviewer would
 type by hand cannot disagree — but it returns the set as data instead of as
 formatted text, which is what removes the print-order and line-wrapping hazards. -/
-private def axiomsOf (env : Environment) (n : Name) : Array Name :=
-  (((CollectAxioms.collect n).run env).run {}).2.axioms
+private def axiomsOf (n : Name) : CommandElabM (Array Name) :=
+  Lean.collectAxioms n
 
 private def hasPart (part : String) : Name → Bool
   | .anonymous => false
@@ -61,12 +61,12 @@ private def returnsProp : Expr → Bool
 
 run_cmd do
   let env ← getEnv
-  let mut thms := 0
-  let mut axFree := 0
+  let mut thms : Nat := 0
+  let mut axFree : Nat := 0
   let mut unclean : Array (Name × Array Name) := #[]
   let mut declaredAxioms : Array Name := #[]
-  let mut internalStubs := 0
-  let mut properties := 0
+  let mut internalStubs : Nat := 0
+  let mut properties : Nat := 0
   for (n, ci) in env.constants.toList do
     -- Restrict to constants that came from this package's modules.
     let some modIdx := env.getModuleIdxFor? n | continue
@@ -107,7 +107,7 @@ run_cmd do
         declaredAxioms := declaredAxioms.push n
     | .thmInfo _ =>
       thms := thms + 1
-      let axs := axiomsOf env n
+      let axs ← axiomsOf n
       if axs.isEmpty then axFree := axFree + 1
       unless axs.all isStandard do
         unclean := unclean.push (n, axs)
