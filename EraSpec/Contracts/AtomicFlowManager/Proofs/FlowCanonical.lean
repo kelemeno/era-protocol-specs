@@ -41,38 +41,27 @@ variable {α : Type*} [LinearOrder α]
 /-- **NEIGHBOURS GIVE ALL PAIRS.**  The bridge from the loop to the global claims: because `<` is
 transitive, scanning adjacent pairs pins every pair of positions. -/
 theorem ascending_iff_pairwise {l : List α} :
-    Properties.ascending_iff_pairwise (l := l) := by
-  unfold Properties.ascending_iff_pairwise
-  exact
-    List.isChain_iff_pairwise
+    Properties.ascending_iff_pairwise (l := l) :=
+  List.isChain_iff_pairwise
 
 
 /-- Strictly ascending at every earlier/later position pair. -/
 theorem ascending_lt_of_lt {l : List α} (h : Ascending l) {i j : Fin l.length} (hij : i < j) :
-    Properties.ascending_lt_of_lt (l := l) (h := h) (i := i) (j := j) (hij := hij) := by
-  unfold Properties.ascending_lt_of_lt
-  exact
-    (List.pairwise_iff_get.mp (ascending_iff_pairwise.mp h)) i j hij
+    Properties.ascending_lt_of_lt (l := l) (h := h) (i := i) (j := j) (hij := hij) :=
+  List.pairwise_iff_get.mp (ascending_iff_pairwise.mp h) i j hij
 
 
 /-- **NO DUPLICATED LEG.**  Distinct positions carry distinct bundle hashes -- so a flow cannot list
 the same leg twice, at any distance.  The loop never compares position 0 with position 5; this is why
 it does not have to. -/
 theorem no_duplicate_leg {l : List α} (h : Ascending l) {i j : Fin l.length} (hne : i ≠ j) :
-    Properties.no_duplicate_leg (l := l) (h := h) (i := i) (j := j) (hne := hne) := by
-  unfold Properties.no_duplicate_leg
-  exact
-    by
-      rcases lt_or_gt_of_ne hne with hlt | hgt
-      · exact ne_of_lt (ascending_lt_of_lt h hlt)
-      · exact (ne_of_lt (ascending_lt_of_lt h hgt)).symm
+    Properties.no_duplicate_leg (l := l) (h := h) (i := i) (j := j) (hne := hne) :=
+  (lt_or_gt_of_ne hne).elim (ascending_lt_of_lt h · |>.ne) (ascending_lt_of_lt h · |>.ne')
 
 
 theorem ascending_nodup {l : List α} (h : Ascending l) :
-    Properties.ascending_nodup (l := l) (h := h) := by
-  unfold Properties.ascending_nodup
-  exact
-    (ascending_iff_pairwise.mp h).imp ne_of_lt
+    Properties.ascending_nodup (l := l) (h := h) :=
+  (ascending_iff_pairwise.mp h).imp ne_of_lt
 
 
 /-- **THE PRESENTATION IS UNIQUE PER LEG SET.**  Two accepted flows built from the same legs in any
@@ -80,12 +69,9 @@ order are the SAME list -- so there is no permuted re-presentation to find.  An 
 legs to obtain a second `flowId` for one economic flow. -/
 theorem ascending_unique {l₁ l₂ : List α}
     (hp : l₁.Perm l₂) (h₁ : Ascending l₁) (h₂ : Ascending l₂) :
-    Properties.ascending_unique (l₁ := l₁) (l₂ := l₂) (hp := hp) (h₁ := h₁) (h₂ := h₂) := by
-  unfold Properties.ascending_unique
-  exact
-    by
-      exact hp.eq_of_pairwise (fun _ _ _ _ hab hba => absurd hab (asymm hba))
-        (ascending_iff_pairwise.mp h₁) (ascending_iff_pairwise.mp h₂)
+    Properties.ascending_unique (l₁ := l₁) (l₂ := l₂) (hp := hp) (h₁ := h₁) (h₂ := h₂) :=
+  hp.eq_of_pairwise (fun _ _ _ _ hab hba => (lt_asymm hab hba).elim)
+    (ascending_iff_pairwise.mp h₁) (ascending_iff_pairwise.mp h₂)
 
 
 /-! ## Why the check is an ORDERING and not merely distinctness
@@ -98,48 +84,29 @@ cost the same gas.  It is also unsound, and this is the reason the deployed chec
 would put the same bundle hash in one flow twice -- the case `no_duplicate_leg` rules out only because
 the deployed relation is transitive. -/
 theorem neighbour_distinct_insufficient :
-    Properties.neighbour_distinct_insufficient := by
-  unfold Properties.neighbour_distinct_insufficient
-  exact
-    by
-      refine ⟨[1, 2, 1], by simp [List.isChain_cons], by decide⟩
+    Properties.neighbour_distinct_insufficient :=
+  ⟨[1, 2, 1], by decide, by decide⟩
 
 
 /-- And it admits a permuted re-presentation too: same legs, different list, both passing. -/
 theorem neighbour_distinct_admits_permutation :
-    Properties.neighbour_distinct_admits_permutation := by
-  unfold Properties.neighbour_distinct_admits_permutation
-  exact
-    by
-      refine ⟨[1, 2], [2, 1], by simp [List.isChain_cons], by simp [List.isChain_cons], ?_, by decide⟩
-      exact List.Perm.swap _ _ _
+    Properties.neighbour_distinct_admits_permutation :=
+  ⟨[1, 2], [2, 1], by decide, by decide, .swap _ _ _, by decide⟩
 
 
 /-- **EVERY LEG HAS EXACTLY ONE SOURCE CHAIN.**  The zipped pairing has distinct keys and loses no
 leg, so an accepted flow really is a function from bundle hash to source chain: the same leg cannot be
 presented as originating on two different chains within one flow. -/
 theorem valid_pairing_functional {β : Type*} {f : Flow α β} (h : Valid f) :
-    Properties.valid_pairing_functional (β := β) (f := f) (h := h) := by
-  unfold Properties.valid_pairing_functional
-  exact
-    by
-      have hlen : min f.legs.length f.chains.length = f.legs.length := by
-        rw [h.2]; exact min_self _
-      constructor
-      · have : (f.legs.zip f.chains).map Prod.fst = f.legs := by
-          rw [List.map_fst_zip]
-          exact le_of_eq h.2.symm
-        rw [this]; exact ascending_nodup h.1
-      · rw [List.length_zip]; exact hlen
+    Properties.valid_pairing_functional (β := β) (f := f) (h := h) :=
+  ⟨by rw [List.map_fst_zip h.2.ge]; exact ascending_nodup h.1, by simp [h.2]⟩
 
 
 /-- **NO INJECTED DUPLICATE.**  Restated on the flow: distinct leg positions are distinct legs. -/
 theorem valid_no_duplicate_leg {β : Type*} {f : Flow α β} (h : Valid f)
     {i j : Fin f.legs.length} (hne : i ≠ j) :
-    Properties.valid_no_duplicate_leg (β := β) (f := f) (h := h) (i := i) (j := j) (hne := hne) := by
-  unfold Properties.valid_no_duplicate_leg
-  exact
-    no_duplicate_leg h.1 hne
+    Properties.valid_no_duplicate_leg (β := β) (f := f) (h := h) (i := i) (j := j) (hne := hne) :=
+  no_duplicate_leg h.1 hne
 
 
 /-- **NO PERMUTED RE-PRESENTATION.**  Two accepted flows over the same legs have identical leg lists,
@@ -148,10 +115,8 @@ keccak collision, not a reordering.  Pairs with `BundleHashEncoding.abiEncode_in
 encoding-level route for the other field. -/
 theorem valid_unique_per_leg_set {β : Type*} {f g : Flow α β}
     (hf : Valid f) (hg : Valid g) (hp : f.legs.Perm g.legs) :
-    Properties.valid_unique_per_leg_set (β := β) (f := f) (g := g) (hf := hf) (hg := hg) (hp := hp) := by
-  unfold Properties.valid_unique_per_leg_set
-  exact
-    ascending_unique hp hf.1 hg.1
+    Properties.valid_unique_per_leg_set (β := β) (f := f) (g := g) (hf := hf) (hg := hg) (hp := hp) :=
+  ascending_unique hp hf.1 hg.1
 
 
 end AttackVectors.FlowCanonical

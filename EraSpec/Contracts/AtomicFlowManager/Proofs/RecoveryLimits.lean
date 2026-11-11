@@ -54,42 +54,28 @@ namespace AttackVectors.RecoveryLimits
 succeeds with every other call left unrecovered. -/
 theorem partial_recovery_accepted :
     Properties.partial_recovery_accepted := by
-  unfold Properties.partial_recovery_accepted
-  exact
-    by
-      constructor
-      · decide
-      · decide
+  decide
 
 
 /-- The threshold is not "all": a bundle can be accepted with strictly fewer recoveries than calls. -/
 theorem accepted_below_full_recovery :
-    Properties.accepted_below_full_recovery := by
-  unfold Properties.accepted_below_full_recovery
-  exact
-    by
-      refine ⟨[Outcome.recovered, Outcome.declined, Outcome.declined], ⟨by decide, by decide⟩, by decide⟩
+    Properties.accepted_below_full_recovery :=
+  ⟨[.recovered, .declined, .declined], partial_recovery_accepted, by decide⟩
 
 
 /-- **AND IT IS TERMINAL.**  A `Reverted` leg does not enable another claim — the concrete counterpart
 is `AtomicFlowManager.Layout.refunded_leg_cannot_refund_again`. -/
 theorem no_second_claim :
     Properties.no_second_claim := by
-  unfold Properties.no_second_claim
-  exact
-    by decide
+  decide
 
 
 /-- **SO PARTIAL STRANDING IS PERMANENT.**  A claim can be accepted while strictly fewer calls recover
 than the bundle contains, and that acceptance closes the only door: the unrecovered calls get no second
 attempt.  Limit 1 is not a retry away from being fixed. -/
 theorem stranding_is_terminal :
-    Properties.stranding_is_terminal := by
-  unfold Properties.stranding_is_terminal
-  exact
-    by
-      refine ⟨[Outcome.recovered, Outcome.declined, Outcome.declined],
-        ⟨by decide, by decide⟩, by decide, no_second_claim⟩
+    Properties.stranding_is_terminal :=
+  ⟨[.recovered, .declined, .declined], partial_recovery_accepted, by decide, no_second_claim⟩
 
 
 /-! ## Limit 2 — one reverting target denies recovery to every other call
@@ -100,31 +86,21 @@ offending call. -/
 /-- **A SINGLE REVERTING TARGET BLOCKS THE WHOLE CLAIM**, including calls that would have recovered. -/
 theorem one_revert_blocks_all :
     Properties.one_revert_blocks_all := by
-  unfold Properties.one_revert_blocks_all
-  exact
-    by
-      rintro ⟨hloop, -⟩
-      exact hloop (by decide)
+  decide
 
 
 /-- Sharper: for ANY list of otherwise-recovering calls, inserting one reverting target denies the
 claim.  So the coupling is not an artefact of the example above. -/
 theorem revert_anywhere_blocks (pre post : List Outcome) :
-    Properties.revert_anywhere_blocks (pre := pre) (post := post) := by
-  unfold Properties.revert_anywhere_blocks
-  exact
-    by
-      rintro ⟨hloop, -⟩
-      exact hloop (List.mem_append.mpr (Or.inr List.mem_cons_self))
+    Properties.revert_anywhere_blocks (pre := pre) (post := post) :=
+  fun hacc => hacc.1 (by simp)
 
 
 /-- And retrying does not help: the condition depends only on the outcomes, so a second attempt against
 the same targets fails identically.  Recovery is unavailable for as long as any target reverts. -/
 theorem retry_does_not_help (os : List Outcome) (h : ¬ LoopCompletes os) :
-    Properties.retry_does_not_help (os := os) (h := h) := by
-  unfold Properties.retry_does_not_help
-  exact
-    fun hacc => h hacc.1
+    Properties.retry_does_not_help (os := os) (h := h) :=
+  fun hacc => h hacc.1
 
 
 /-! ## What IS unconditional: the native-`value` rejection
@@ -147,10 +123,8 @@ does. -/
 /-- The funnel, abstracted: validation that precedes the only commit path covers every commit. -/
 theorem validation_unbypassable {Bundle : Type*} (Validated Committed : Bundle → Prop)
     (sole_path : ∀ b, Committed b → Validated b) {b : Bundle} (h : Committed b) :
-    Properties.validation_unbypassable (Bundle := Bundle) (Validated := Validated) (Committed := Committed) (sole_path := sole_path) (b := b) (h := h) := by
-  unfold Properties.validation_unbypassable
-  exact
-    sole_path b h
+    Properties.validation_unbypassable (Bundle := Bundle) (Validated := Validated) (Committed := Committed) (sole_path := sole_path) (b := b) (h := h) :=
+  sole_path b h
 
 
 end AttackVectors.RecoveryLimits

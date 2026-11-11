@@ -44,52 +44,37 @@ namespace Contracts.AtomicFlowManager
 
 
 @[simp] lemma rank_unset :
-    Properties.rank_unset := by
-  unfold Properties.rank_unset
-  exact
-    rfl
+    Properties.rank_unset :=
+  rfl
 
 @[simp] lemma rank_committed :
-    Properties.rank_committed := by
-  unfold Properties.rank_committed
-  exact
-    rfl
+    Properties.rank_committed :=
+  rfl
 
 @[simp] lemma rank_revertable :
-    Properties.rank_revertable := by
-  unfold Properties.rank_revertable
-  exact
-    rfl
+    Properties.rank_revertable :=
+  rfl
 
 @[simp] lemma rank_reverted :
-    Properties.rank_reverted := by
-  unfold Properties.rank_reverted
-  exact
-    rfl
+    Properties.rank_reverted :=
+  rfl
 
 
 lemma rank_inj :
     Properties.rank_inj := by
-  unfold Properties.rank_inj
-  exact
-    by
-      intro s t h; cases s <;> cases t <;> simp_all [rank]
+  intro s t h; cases s <;> cases t <;> simp_all [rank]
 
 
 @[simp] lemma set_same {M : Manager} {f b s} :
     Properties.set_same (M := M) (f := f) (b := b) (s := s) := by
   unfold Properties.set_same
-  exact
-    by
-      simp [Manager.set]
+  simp [Manager.set]
 
 
 lemma set_other {M : Manager} {f b f' b' s} (h : ¬(f' = f ∧ b' = b)) :
     Properties.set_other (M := M) (f := f) (b := b) (f' := f') (b' := b') (s := s) (h := h) := by
   unfold Properties.set_other
-  exact
-    by
-      simp [Manager.set, h]
+  simp [Manager.set, h]
 
 
 /-! ## The rank is monotone -/
@@ -102,32 +87,16 @@ the result compose over runs without tracking which leg each step hit. -/
 theorem step_rank_mono {M N : Manager} (h : Step M N) (f b : UInt256) :
     Properties.step_rank_mono (M := M) (N := N) (h := h) (f := f) (b := b) := by
   unfold Properties.step_rank_mono
-  exact
-    by
-      cases h with
-      | @append f' b' hg =>
-        by_cases he : f = f' ∧ b = b'
-        · obtain ⟨rfl, rfl⟩ := he; rw [hg, set_same]; simp
-        · rw [set_other he]
-      | @authorize f' b' hg =>
-        by_cases he : f = f' ∧ b = b'
-        · obtain ⟨rfl, rfl⟩ := he; rw [hg, set_same]; simp
-        · rw [set_other he]
-      | @claim f' b' hg =>
-        by_cases he : f = f' ∧ b = b'
-        · obtain ⟨rfl, rfl⟩ := he; rw [hg, set_same]; simp
-        · rw [set_other he]
+  cases h <;> rename_i hg <;> simp only [Manager.set] <;> split_ifs with he
+  all_goals first | exact le_rfl | (obtain ⟨rfl, rfl⟩ := he; rw [hg]; decide)
 
 
 /-- Monotonicity along whole runs. -/
 theorem reach_rank_mono {M N : Manager} (h : Reach M N) (f b : UInt256) :
     Properties.reach_rank_mono (M := M) (N := N) (h := h) (f := f) (b := b) := by
-  unfold Properties.reach_rank_mono
-  exact
-    by
-      induction h with
-      | refl => exact le_refl _
-      | tail hr hs ih => exact le_trans ih (step_rank_mono hs _ _)
+  induction h with
+  | refl => exact le_rfl
+  | tail _ hs ih => exact ih.trans (step_rank_mono hs _ _)
 
 
 /-! ## Consequences -/
@@ -140,17 +109,10 @@ reachable state, not merely for two consecutive claims. -/
 theorem reverted_absorbing {M N : Manager} (h : Reach M N) {f b : UInt256}
     (hrev : M.legState f b = .Reverted) :
     Properties.reverted_absorbing (M := M) (N := N) (h := h) (f := f) (b := b) (hrev := hrev) := by
+  have hmono : rank .Reverted ≤ rank (N.legState f b) := hrev ▸ reach_rank_mono h f b
   unfold Properties.reverted_absorbing
-  exact
-    by
-      have hmono := reach_rank_mono h f b
-      unfold Properties.reach_rank_mono at hmono
-      rw [hrev] at hmono
-      cases hN : N.legState f b with
-      | Unset => rw [hN] at hmono; simp [rank] at hmono
-      | Committed => rw [hN] at hmono; simp [rank] at hmono
-      | Revertable => rw [hN] at hmono; simp [rank] at hmono
-      | Reverted => rfl
+  revert hmono
+  cases N.legState f b <;> decide
 
 
 /-- **A LEG CANNOT BE CLAIMED TWICE.**  After a claim, no reachable state admits
@@ -158,14 +120,8 @@ theorem reverted_absorbing {M N : Manager} (h : Reach M N) {f b : UInt256}
 theorem no_double_claim {M N : Manager} {f b : UInt256}
     (_hclaim : ClaimGuard M f b) (h : Reach (M.set f b .Reverted) N) :
     Properties.no_double_claim (M := M) (N := N) (f := f) (b := b) (_hclaim := _hclaim) (h := h) := by
-  unfold Properties.no_double_claim
-  exact
-    by
-      intro hg
-      have hg' : N.legState f b = .Revertable := hg
-      have hrev := reverted_absorbing h (show (M.set f b .Reverted).legState f b = .Reverted by simp)
-      rw [hrev] at hg'
-      exact absurd hg' (by decide)
+  intro hg
+  simp [ClaimGuard, reverted_absorbing h set_same] at hg
 
 
 /-- **A REFUND REQUIRES A PRIOR AUTHORIZATION.**  A leg that was never advanced
@@ -174,13 +130,8 @@ rank 0 requires the intermediate `authorize` step.  Stated contrapositively — 
 the gate is open, the leg's rank is already 2, which only `authorize` produces. -/
 theorem claim_requires_authorization {M : Manager} {f b : UInt256}
     (hg : ClaimGuard M f b) :
-    Properties.claim_requires_authorization (M := M) (f := f) (b := b) (hg := hg) := by
-  unfold Properties.claim_requires_authorization
-  exact
-    by
-      have hg' : M.legState f b = .Revertable := hg
-      rw [hg']
-      rfl
+    Properties.claim_requires_authorization (M := M) (f := f) (b := b) (hg := hg) :=
+  congrArg rank hg
 
 
 /-- **AN UNSET LEG IS NOT CLAIMABLE.**  The direct statement: a leg with no
@@ -188,13 +139,8 @@ commitment on this chain cannot be refunded here. -/
 theorem unset_not_claimable {M : Manager} {f b : UInt256}
     (h : M.legState f b = .Unset) :
     Properties.unset_not_claimable (M := M) (f := f) (b := b) (h := h) := by
-  unfold Properties.unset_not_claimable
-  exact
-    by
-      intro hg
-      have hg' : M.legState f b = .Revertable := hg
-      rw [h] at hg'
-      exact absurd hg' (by decide)
+  intro hg
+  simp [ClaimGuard, h] at hg
 
 
 /-- **A COMMITTED LEG IS NOT DIRECTLY CLAIMABLE.**  `claimRefund` cannot be
@@ -205,13 +151,8 @@ the other half (that the proof implies the flow can never finalize) is
 theorem committed_not_claimable {M : Manager} {f b : UInt256}
     (h : M.legState f b = .Committed) :
     Properties.committed_not_claimable (M := M) (f := f) (b := b) (h := h) := by
-  unfold Properties.committed_not_claimable
-  exact
-    by
-      intro hg
-      have hg' : M.legState f b = .Revertable := hg
-      rw [h] at hg'
-      exact absurd hg' (by decide)
+  intro hg
+  simp [ClaimGuard, h] at hg
 
 
 /-- **APPEND IS ONCE-PER-LEG.**  After a leg is committed, no reachable state
@@ -220,15 +161,10 @@ once, which is what makes the tree's dedup gate and this machine agree. -/
 theorem no_double_append {M N : Manager} {f b : UInt256}
     (_happ : AppendGuard M f b) (h : Reach (M.set f b .Committed) N) :
     Properties.no_double_append (M := M) (N := N) (f := f) (b := b) (_happ := _happ) (h := h) := by
-  unfold Properties.no_double_append
-  exact
-    by
-      intro hg
-      have hg' : N.legState f b = .Unset := hg
-      have hmono := reach_rank_mono h f b
-      unfold Properties.reach_rank_mono at hmono
-      rw [set_same, hg'] at hmono
-      simp [rank] at hmono
+  intro hg
+  have hset : (M.set f b .Committed).legState f b = .Committed := set_same
+  have hmono : rank .Committed ≤ rank (N.legState f b) := hset ▸ reach_rank_mono h f b
+  simp [show N.legState f b = .Unset from hg, rank] at hmono
 
 
 /-- **THE CEI ORDER IS WHAT REMOVES THE NEED FOR A REENTRANCY GUARD.**  In the
@@ -241,13 +177,8 @@ been reversed, the state during the external calls would still be `Revertable`
 and a reentrant claim would pass its guard. -/
 theorem claim_closes_gate_before_interaction {M : Manager} {f b : UInt256} :
     Properties.claim_closes_gate_before_interaction (M := M) (f := f) (b := b) := by
-  unfold Properties.claim_closes_gate_before_interaction
-  exact
-    by
-      intro hg
-      have hg' : (M.set f b .Reverted).legState f b = .Revertable := hg
-      rw [set_same] at hg'
-      exact absurd hg' (by decide)
+  intro hg
+  simp [ClaimGuard] at hg
 
 
 /-- The lifecycle is exactly four states deep: no run can move a leg more than
@@ -255,9 +186,7 @@ three times.  A convenient bound when reasoning about whole histories. -/
 theorem rank_le_three (M : Manager) (f b : UInt256) :
     Properties.rank_le_three (M := M) (f := f) (b := b) := by
   unfold Properties.rank_le_three
-  exact
-    by
-      cases M.legState f b <;> simp [rank]
+  cases M.legState f b <;> decide
 
 
 end Contracts.AtomicFlowManager
