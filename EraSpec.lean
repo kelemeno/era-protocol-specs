@@ -20,6 +20,11 @@ import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 -- branch outside the pinned era-contracts tree; see PROVENANCE.md)
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows
 
+-- Registry-driven upgrades: the CTM's version state, its transition registry, and the facet
+-- routing of its chains (a snapshot of a moving branch at e561b9cc2; see the folder README)
+import EraSpec.Contracts.ChainTypeManager.Proofs.VersionRegistry
+import EraSpec.Contracts.ChainTypeManager.Proofs.ChainRouting
+
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonical
