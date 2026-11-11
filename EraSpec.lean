@@ -142,6 +142,7 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.InitOnce
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.PublishedRootCommits
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRootStrong
 import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinned
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.LegacyFallback
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistrationUnified
