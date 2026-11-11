@@ -10,8 +10,18 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | Atomicity | [Specs/Atomicity.lean](Specs/Atomicity.lean) | [Properties/Atomicity.lean](Properties/Atomicity.lean) | [Proofs/Atomicity.lean](Proofs/Atomicity.lean) |
 | Timeout | [Specs/Timeout.lean](Specs/Timeout.lean) | [Properties/Timeout.lean](Properties/Timeout.lean) | [Proofs/Timeout.lean](Proofs/Timeout.lean) |
 | Refund | [Specs/Refund.lean](Specs/Refund.lean) | [Properties/Refund.lean](Properties/Refund.lean) | [Proofs/Refund.lean](Proofs/Refund.lean) |
+| SourceHeight | [Specs/SourceHeight.lean](Specs/SourceHeight.lean) | [Properties/SourceHeight.lean](Properties/SourceHeight.lean) | [Proofs/SourceHeight.lean](Proofs/SourceHeight.lean) |
 
 Read them in that order; each builds on the one before.
+
+`SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
+per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
+(`WfOfRuns`), its heights are the source's (`RunsHeightsFromSource`), and every `Wf`
+system with source heights is so built (`WfSourceHeightsFromRuns`).
+`NoneOrAllOrBreakPinnedFromRuns` is the pinned partial-atomicity result over such
+systems. `PaddedSystemFromRuns` / `MixedSystemFromRuns` show the countermodel systems'
+heights are the ones the source computes. The batch-root tree's `capacity` field in
+`Specs/Timeout.lean` is a different tree and is not covered.
 
 > **Caveat.** Most results here take a premise proved unsatisfiable:
 > `HashAssumptions` (`HashAssumptionsUnsatisfiable`), `FlowHashInj`

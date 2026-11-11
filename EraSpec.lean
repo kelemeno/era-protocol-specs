@@ -54,6 +54,7 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Reaches
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearch
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRoot
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.RunHeight
 
 -- Interop handlers and the bundle encoding library
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
@@ -82,6 +83,7 @@ import EraSpec.Protocol.DestinationCapstone
 import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
 import EraSpec.Protocol.InteropAtomicity.Proofs.Timeout
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
+import EraSpec.Protocol.InteropAtomicity.Proofs.SourceHeight
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Model
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
 
