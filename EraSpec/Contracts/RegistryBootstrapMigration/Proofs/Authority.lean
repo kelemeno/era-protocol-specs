@@ -60,26 +60,14 @@ theorem MigrateIsOneShot : Properties.MigrateIsOneShot := by
   have hx : s'.executed = true := by
     rw [migrate_eq h]
     unfold executorAccept
-    split
-    · split <;> rfl
-    · rfl
-  refine ⟨hx, ?_⟩
-  rintro ⟨s'', h'⟩
-  have := (migrate_guards h').1
-  rw [hx] at this
-  exact Bool.noConfusion this
+    split <;> (try split) <;> rfl
+  exact ⟨hx, fun ⟨_, h'⟩ => Bool.noConfusion ((migrate_guards h').1.symm.trans hx)⟩
 
 lemma step_spent {K : Config} {s s' : AState} {l : Label} (hx : s.executed = true)
     (h : AStep K s l s') : s'.executed = true ∧ l ≠ .migrate ∧ l ≠ .bundle := by
   cases h with
-  | nominate _ => exact ⟨hx, by simp, by simp⟩
-  | accept _ _ => exact ⟨hx, by simp, by simp⟩
-  | transferPA _ _ => exact ⟨hx, by simp, by simp⟩
-  | legacyMove _ => exact ⟨hx, by simp, by simp⟩
-  | migrate hm =>
-    have := (migrate_guards hm).1; rw [hx] at this; exact Bool.noConfusion this
-  | bundle _ _ hm _ =>
-    have := (migrate_guards hm).1; simp only at this; rw [hx] at this; exact Bool.noConfusion this
+  | migrate hm | bundle _ _ hm _ => exact Bool.noConfusion ((migrate_guards hm).1.symm.trans hx)
+  | _ => exact ⟨hx, nofun, nofun⟩
 
 theorem NoReparkingAfterMigrate : Properties.NoReparkingAfterMigrate := by
   intro K s s' ls hx hp h hl
@@ -93,10 +81,10 @@ theorem NoReparkingAfterMigrate : Properties.NoReparkingAfterMigrate := by
     obtain ⟨ho, hpe, hpa⟩ := hp
     cases hs with
     | @nominate x _ =>
-      exact ⟨ho, fun h => hl0 (by simp [Label.handsToMigration]; exact h), hpa⟩
+      exact ⟨ho, hl0, hpa⟩
     | accept _ _ => exact ⟨hpe, fun h => K.migNonzero h.symm, hpa⟩
     | @transferPA x _ _ =>
-      exact ⟨ho, hpe, fun h => hl0 (by simp [Label.handsToMigration]; exact h)⟩
+      exact ⟨ho, hpe, hl0⟩
     | legacyMove _ => exact ⟨ho, hpe, hpa⟩
     | migrate hm => exact absurd rfl (step_spent hx (AStep.migrate hm)).2.1
     | bundle a b hm c => exact absurd rfl (step_spent hx (AStep.bundle a b hm c)).2.2
@@ -130,20 +118,16 @@ theorem ParkedCTMLeavesOnlyByNomineeAccept : Properties.ParkedCTMLeavesOnlyByNom
   | accept _ hpM => exact Or.inr ⟨rfl, rfl, hpM⟩
   | transferPA _ _ => exact Or.inl ⟨ho, rfl⟩
   | legacyMove hne => exact absurd ho hne
-  | migrate hm =>
-    have := (migrate_guards hm).1; rw [hx] at this; exact Bool.noConfusion this
+  | migrate hm => exact Bool.noConfusion ((migrate_guards hm).1.symm.trans hx)
   | bundle hne _ _ _ => exact absurd ho hne
 
 theorem ProxyAdminLeavesMigrationOnlyByMigrate :
     Properties.ProxyAdminLeavesMigrationOnlyByMigrate := by
   intro K s s' l hpa h
   cases h with
-  | nominate _ => exact Or.inl hpa
-  | accept _ _ => exact Or.inl hpa
-  | transferPA hne _ => exact absurd hpa hne
-  | legacyMove _ => exact Or.inl hpa
+  | transferPA hne _ | bundle _ hne _ _ => exact absurd hpa hne
   | migrate _ => exact Or.inr rfl
-  | bundle _ hne _ _ => exact absurd hpa hne
+  | _ => exact Or.inl hpa
 
 private lemma wAuth (g : Bool) : ExecutorAuthorities (wConfig g) :=
   ⟨⟨9, 0, 1, 2, g⟩, ⟨9, 0, 0, 0, true⟩, by simp [wConfig, wExec, wManifest],
@@ -202,10 +186,8 @@ theorem BundleWitness : Properties.BundleWitness := by
   have hcomp : executorAccept (wConfig true) (handOn (wConfig true)
       (claim (wConfig true) { wPre with ctmPending := 50, paOwner := 50 })) =
       ⟨3, 0, 3, 35, 60, true⟩ := by decide
-  refine ⟨_, AStep.bundle (by decide) (by decide) (wMigrate true) ?_, ?_, ?_⟩
-  · rw [hcomp]; exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, wAuth true, rfl⟩
-  · rw [hcomp]
-  · rw [hcomp]
+  refine ⟨_, AStep.bundle (by decide) (by decide) (wMigrate true) ?_, ?_, ?_⟩ <;> rw [hcomp]
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, wAuth true, rfl⟩
 
 theorem ParkedFramesFire : Properties.ParkedFramesFire := by
   have hcomp : executorAccept (wConfig false) (handOn (wConfig false)

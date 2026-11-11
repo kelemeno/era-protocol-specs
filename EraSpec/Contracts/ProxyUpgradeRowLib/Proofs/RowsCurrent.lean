@@ -48,21 +48,11 @@ lemma applyRow_stale {C : Config} {I : Impl} {r : Row}
     (hsrc : I r.proxy ≠ r.expectedOldImpl) (htgt : I r.proxy ≠ r.implNew) :
     ¬ ∃ J, ApplyRow C I r J := by
   rintro ⟨J, h⟩
-  cases h with
-  | alreadyAtTarget he => exact htgt he
-  | upgrade _ _ he => exact hsrc he
+  cases h <;> contradiction
 
 lemma applyRow_det {C : Config} {I J K : Impl} {r : Row}
     (h₁ : ApplyRow C I r J) (h₂ : ApplyRow C I r K) : J = K := by
-  cases h₁ with
-  | alreadyAtTarget he =>
-      cases h₂ with
-      | alreadyAtTarget _ => rfl
-      | upgrade _ hne _ => exact absurd he hne
-  | upgrade _ hne _ =>
-      cases h₂ with
-      | alreadyAtTarget he => exact absurd he hne
-      | upgrade _ _ _ => rfl
+  cases h₁ <;> cases h₂ <;> first | rfl | contradiction
 
 /-! ## The loop -/
 
@@ -309,9 +299,7 @@ theorem ReinitMakesOrderMatter : Properties.ReinitMakesOrderMatter := by
         (ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide)) ApplyLoop.nil), ?_⟩,
     fun h => absurd (congrFun h 7) (by decide)⟩
   · intro r hr; rcases mem_AB hr with rfl | rfl <;> decide
-  · intro r hr
-    have : r = rowB ∨ r = rowA := by simpa using hr
-    rcases this with rfl | rfl <;> decide
+  · intro r hr; rcases (by simpa using hr : r = rowB ∨ r = rowA) with rfl | rfl <;> decide
 
 /-- The witness call, with its final state as a term. -/
 lemma applyRows_AB : ApplyRows wConfig wImpl [rowA, rowB] (swap wConfig rowB (swap wConfig rowA wImpl)) := by
@@ -326,9 +314,7 @@ theorem CurrentRowsWitness : Properties.CurrentRowsWitness := by
     refine ⟨code_all wConfig (fun _ => trivial) _,
       ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide))
         (ApplyLoop.cons (ApplyRow.upgrade rfl (by decide) (by decide)) ApplyLoop.nil), ?_⟩
-    intro r hr
-    have : r = rowB ∨ r = rowA := by simpa using hr
-    rcases this with rfl | rfl <;> decide
+    intro r hr; rcases (by simpa using hr : r = rowB ∨ r = rowA) with rfl | rfl <;> decide
   have heq := OrderIndependent wConfig wImpl _ _ [rowA, rowB] [rowB, rowA] (List.Perm.swap _ _ _)
     wConfig_frames hJ hK
   have htoRows : toRows [rowA, slotInert] = [rowA] := by decide

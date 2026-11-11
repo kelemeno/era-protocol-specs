@@ -24,57 +24,33 @@ lemma upd_ne (f : Impl) {q p : Address} (v : Address) (h : q ≠ p) : upd f p v 
 /-- A row leaves every other proxy alone. -/
 lemma applyRow_frame {C : Config} {I J : Impl} {r : Row} (h : ApplyRow C I r J) :
     ∀ q, q ≠ r.proxy → J q = I q := by
-  cases h with
-  | leftToAdmin _ => intro _ _; rfl
-  | alreadyAtTarget _ _ => intro _ _; rfl
-  | upgrade _ _ _ _ => intro q hq; exact upd_ne _ _ hq
+  intro q hq
+  cases h
+  case upgrade => exact upd_ne _ _ hq
+  all_goals rfl
 
 /-- A row the applier owns ends with its proxy at `implNew`, whichever of the two
 skips or the upgrade it took. -/
 lemma applyRow_target {C : Config} {I J : Impl} {r : Row} (h : ApplyRow C I r J)
     (hf : ¬ LeftToAdministrator C r) : J r.proxy = r.implNew := by
-  cases h with
-  | leftToAdmin hl => exact absurd hl hf
-  | alreadyAtTarget _ he => exact he
-  | upgrade _ _ _ _ => exact upd_same _ _ _
+  cases h <;> first | contradiction | assumption | exact upd_same _ _ _
 
 /-- A row left to a foreign administrator changes nothing. -/
 lemma applyRow_fixed {C : Config} {I J : Impl} {r : Row} (h : ApplyRow C I r J)
     (hl : LeftToAdministrator C r) : J = I := by
-  cases h with
-  | leftToAdmin _ => rfl
-  | alreadyAtTarget hn _ => exact absurd hl hn
-  | upgrade hn _ _ _ => exact absurd hl hn
+  cases h <;> first | rfl | contradiction
 
 /-- The three loop outcomes are mutually exclusive. -/
 lemma applyRow_det {C : Config} {I J K : Impl} {r : Row}
     (h₁ : ApplyRow C I r J) (h₂ : ApplyRow C I r K) : J = K := by
-  cases h₁ with
-  | leftToAdmin hl =>
-      cases h₂ with
-      | leftToAdmin _ => rfl
-      | alreadyAtTarget hn _ => exact absurd hl hn
-      | upgrade hn _ _ _ => exact absurd hl hn
-  | alreadyAtTarget hn he =>
-      cases h₂ with
-      | leftToAdmin hl => exact absurd hl hn
-      | alreadyAtTarget _ _ => rfl
-      | upgrade _ _ hne _ => exact absurd he hne
-  | upgrade hn _ hne _ =>
-      cases h₂ with
-      | leftToAdmin hl => exact absurd hl hn
-      | alreadyAtTarget _ he => exact absurd he hne
-      | upgrade _ _ _ _ => rfl
+  cases h₁ <;> cases h₂ <;> first | rfl | contradiction
 
 /-- A stale row does not apply at all: no state relates to any other. -/
 lemma applyRow_stale {C : Config} {I : Impl} {r : Row} (hf : ¬ LeftToAdministrator C r)
     (hsrc : I r.proxy ≠ r.expectedOldImpl) (htgt : I r.proxy ≠ r.implNew) :
     ¬ ∃ J, ApplyRow C I r J := by
   rintro ⟨J, h⟩
-  cases h with
-  | leftToAdmin hl => exact hf hl
-  | alreadyAtTarget _ he => exact htgt he
-  | upgrade _ _ _ he => exact hsrc he
+  cases h <;> contradiction
 
 /-! ## A run -/
 
@@ -238,20 +214,12 @@ theorem OrderIndependent : Properties.OrderIndependent := by
     rw [applyRows_target h hd r hr hf,
         applyRows_target h' hd' r (hperm.mem_iff.mp hr) hf]
   · push Not at hex
-    have hall : ∀ r ∈ rows, r.proxy = p → LeftToAdministrator C r := by
-      intro r hr hq
-      by_contra hc
-      exact hc (hex r hr hq)
-    rw [applyRows_frame h p hall,
-        applyRows_frame h' p (fun r hr => hall r (hperm.mem_iff.mpr hr))]
+    rw [applyRows_frame h p hex,
+        applyRows_frame h' p (fun r hr => hex r (hperm.mem_iff.mpr hr))]
 
 theorem DuplicateRowsBreakPostcondition :
     Properties.DuplicateRowsBreakPostcondition :=
-  ⟨by intro r hr; rcases List.mem_cons.mp hr with rfl | hr'
-      · exact cm_owned _ rfl
-      · rcases List.mem_cons.mp hr' with rfl | hr''
-        · exact cm_owned _ rfl
-        · exact absurd hr'' List.not_mem_nil,
+  ⟨fun r hr => cm_owned r (by simp at hr; rcases hr with rfl | rfl <;> rfl),
    cm_run, cm_gate_fails⟩
 
 theorem DuplicateRowsBreakOrder : Properties.DuplicateRowsBreakOrder :=
@@ -261,11 +229,7 @@ theorem DuplicateRowsBreakIdempotence : Properties.DuplicateRowsBreakIdempotence
   ⟨cm_run, cm_replay_reverts⟩
 
 theorem ForeignRowLeavesGateOpen : Properties.ForeignRowLeavesGateOpen :=
-  ⟨⟨by intro r hr
-       rcases List.mem_cons.mp hr with rfl | hr'
-       · exact ⟨by decide, by decide, by decide⟩
-       · exact absurd hr' List.not_mem_nil,
-     by simp⟩,
+  ⟨⟨fun r hr => by rw [List.mem_singleton.mp hr]; decide, by simp⟩,
    fgn_left, fgn_run, fgn_gate_fails⟩
 
 theorem ToRowsKeepsActiveSlots : Properties.ToRowsKeepsActiveSlots :=

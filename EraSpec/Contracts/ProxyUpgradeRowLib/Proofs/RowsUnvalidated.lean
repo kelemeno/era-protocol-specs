@@ -25,15 +25,9 @@ lemma exists_first_split {P : Row → Prop} :
   | y :: ys, ⟨r, hr, hp⟩ => by
       by_cases hy : P y
       · exact ⟨[], y, ys, rfl, hy, fun _ hx => absurd hx List.not_mem_nil⟩
-      · have hr' : r ∈ ys := by
-          rcases List.mem_cons.mp hr with rfl | h
-          · exact absurd hp hy
-          · exact h
+      · have hr' : r ∈ ys := (List.mem_cons.mp hr).resolve_left fun h => hy (h ▸ hp)
         obtain ⟨pre, r', post, hsplit, hp', hpre⟩ := exists_first_split ⟨r, hr', hp⟩
-        refine ⟨y :: pre, r', post, by rw [hsplit]; rfl, hp', fun x hx => ?_⟩
-        rcases List.mem_cons.mp hx with rfl | hx'
-        · exact hy
-        · exact hpre x hx'
+        exact ⟨y :: pre, r', post, by rw [hsplit]; rfl, hp', List.forall_mem_cons.mpr ⟨hy, hpre⟩⟩
 
 /-! ## The loop -/
 
