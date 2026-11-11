@@ -34,6 +34,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
 -- (e561b9cc2), and the staged coordinator with its timer (afa407085; deleted by e561b9cc2)
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Authority
 import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong
 
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
