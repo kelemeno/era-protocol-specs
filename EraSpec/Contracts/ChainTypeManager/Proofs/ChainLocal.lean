@@ -485,4 +485,14 @@ theorem RepairNeedsUniqueSelectors : Properties.RepairNeedsUniqueSelectors := by
     hC, by decide, by decide, Step.arbitraryCut (id := 0) 2 _ rfl, by decide, by decide,
     RepeatedSelectorBlocksTheEdge wDupWorld _ 0 _ rfl (by decide) (Or.inl (by decide))⟩
 
+/-! ## A model boundary -/
+
+theorem RepairStepIgnoresLiveRouting : Properties.RepairStepIgnoresLiveRouting :=
+  ⟨_, _,
+    Run.cons (Step.genesis (s := wSys0) (id := 0) rfl (addAll_empty_eq lNodup100))
+      (Run.cons (Step.arbitraryCut (id := 0) 1 emptyRouting rfl) Run.nil),
+    ⟨_, rfl, fun _ => rfl⟩,
+    Step.arbitraryCut (id := 0) 1 _ rfl,
+    ⟨_, rfl, rfl, ⟨by decide, fun _ => rfl⟩, rfl⟩⟩
+
 end Contracts.ChainTypeManager

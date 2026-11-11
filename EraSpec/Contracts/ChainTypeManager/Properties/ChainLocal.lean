@@ -35,18 +35,26 @@ calls (`ChainLocalExecutor`).
 
 ## The repair
 
-* The repair cut (break-glass to version `v` with exactly `R_v`'s routing, `repairCut`) exists
-  for every registered chain and every version with a release, and leaves the chain consistent
-  at `v` on `R_v`, whatever it routed before (`RepairCutRestoresChainOk`). It is the only
-  break-glass cut right after which a chain is on its version's release
-  (`OnlyRepairCutsLandOnARelease`).
+* The repair cut (break-glass to version `v` with exactly `R_v`'s routing, `repairCut`) has a
+  step **in the model** for every registered chain and every version with a release. Every
+  such step leaves the chain consistent at `v` on `R_v`, whatever it routed before
+  (`RepairCutRestoresChainOk`).
+  - The existence half is enabledness in the model only. The model's break-glass step has no
+    precondition on the live routing. In the source, the CTM's `executeUpgrade` enters the
+    drifted diamond through the diamond's own dispatch (`DiamondProxy.sol:32-36`). So the
+    repair needs the drifted routing still to send `executeUpgrade`'s selector to code that
+    performs the cut, with a route not marked freezable while the diamond is frozen. A drift
+    that unrouted that selector cannot be repaired that way. `RepairStepIgnoresLiveRouting`
+    exhibits the gap.
+  - It is the only break-glass cut right after which a chain is on its version's release
+    (`OnlyRepairCutsLandOnARelease`).
 * Along a run, if the last write of chain `id` is not a break-glass cut, or is a repair cut,
   chain `id` ends on its version's release (`LastWriteDecidesTheRouting`).
 * After a repair at a version with a committed transition, the chain can cross it, provided
   the edge's two releases each list every selector once (`RepairEnablesTransition`). This is
-  enabledness in the model: timestamps, executed batches, the settlement-layer order and the
-  other reject-only checks are not modelled, so only a revert caused by the routing is ruled
-  out.
+  enabledness in the model. Timestamps, executed batches, the settlement-layer order, the
+  diamond's dispatch of `upgradeChainFromVersion` and the other reject-only checks are not
+  modelled, so only a revert of the guard or of the derived cuts is ruled out.
   `CTMRelease.validate()` checks that (`upgrades/registry/objects/CTMRelease.sol:128`,
   `:190-213`) when a release is installed (`state-transition/ChainTypeManager.sol:310`); the
   model omits `validate()`, so it is a stated premise. It cannot be dropped: a release that
@@ -61,6 +69,11 @@ The per-chain premise is sufficient, not necessary. A break-glass cut may put a 
 its CTM (it can set any version). Once the CTM reaches that version, the chain is consistent
 if its routing is the release installed there, although its last write was a cut
 (`ChainLocalPremiseNotNecessary`). The results above are about the two last-write forms only.
+
+Nor do the results say that the CTM owner can always repair a chain. The model's break-glass
+step has no precondition on the live routing. In the source, a drift that unrouted
+`executeUpgrade`'s selector cannot be repaired by `executeUpgrade`, and a drift that unrouted
+every selector cannot be written by any call (`RepairStepIgnoresLiveRouting`).
 -/
 
 namespace Contracts.ChainTypeManager
@@ -150,9 +163,21 @@ def Properties.ChainRunsItsVersionsReleaseAcrossMigration : Prop :=
 
 /-- **THE REPAIR CUT RESTORES A CHAIN.** Take a CTM satisfying its invariant, a registered chain
 `id` (whatever it routes, at whatever version), and a version `v` at which the CTM installed a
-release `R_v`. The repair cut of `id` to `v` has a step. Every such step leaves the CTM and all
-other chains as they were, and leaves chain `id` at version `v`, consistent with its CTM
-(`v ≤ pv` follows from the invariant), routing exactly `R_v`. -/
+release `R_v`. The repair cut of `id` to `v` has a step **in the model**. Every such step leaves
+the CTM and all other chains as they were, and leaves chain `id` at version `v`, consistent with
+its CTM (`v ≤ pv` follows from the invariant), routing exactly `R_v`.
+
+**Model boundary: the existence of the step is enabledness in the model only.**
+`Step.arbitraryCut` has no precondition on the live routing. In the source the repair is the
+CTM's `executeUpgrade` (`state-transition/ChainTypeManager.sol:631-633`). Its call enters the
+drifted diamond through the diamond's own dispatch
+(`state-transition/chain-deps/DiamondProxy.sol:32-36`), which reverts with `"F"` if
+`executeUpgrade`'s selector is unrouted, and with `"q1"` if the diamond is frozen and the
+selector is marked freezable. So the repair needs the drifted diamond still to route
+`executeUpgrade`, non-freezable or on an unfrozen diamond, to code that performs the cut for the
+CTM as `Admin.executeUpgrade` does (`chain-deps/facets/Admin.sol:562-564`). A drift that
+unrouted it cannot be repaired by `executeUpgrade`. `RepairStepIgnoresLiveRouting` exhibits the
+gap. The second half, what every repair step does, does not depend on this. -/
 def Properties.RepairCutRestoresChainOk : Prop :=
   ∀ (W : World) (s : Sys) (id : ChainId) (v : ℕ), CtmInv W s.ctm → (∃ c, s.chains id = some c) →
     s.ctm.relAt v ≠ 0 →
@@ -196,12 +221,23 @@ is what `CTMRelease.validate()` checks and the model omits. The transition takes
 the edge's target version `w > v`, routing exactly `R_w`.
 
 This is enabledness **in the model**, which omits the checks that only reject. In the source
-the crossing also needs, among others, the manifest's `upgradeTimestamp` to have passed
-(`upgrades/BaseZkSyncUpgrade.sol:76-78`), every committed batch executed
-(`upgrades/DefaultUpgrade.sol:31`, `BaseZkSyncUpgrade.sol:109-113`), the settlement layer to be
-at the new version already (`BaseZkSyncUpgrade.sol:83-88`), and, on a minor bump, the previous
-L2 upgrade transaction finalized (`BaseZkSyncUpgrade.sol:245-254`). What the result rules out
-is a revert caused by the routing. -/
+the crossing also needs, among others:
+* the manifest's `upgradeTimestamp` to have passed (`upgrades/BaseZkSyncUpgrade.sol:76-78`);
+* every committed batch executed (`upgrades/DefaultUpgrade.sol:31`,
+  `BaseZkSyncUpgrade.sol:109-113`);
+* the settlement layer to be at the new version already (`BaseZkSyncUpgrade.sol:83-88`);
+* on a minor bump, the previous L2 upgrade transaction finalized
+  (`BaseZkSyncUpgrade.sol:245-254`);
+* the diamond's dispatch of `upgradeChainFromVersion` (`ChainTypeManager.sol:625`,
+  `state-transition/chain-deps/DiamondProxy.sol:32-36`). After the repair the chain routes
+  exactly `R_v`, so this is a condition on `R_v`: it must route that selector to code that runs
+  it, non-freezable or on an unfrozen diamond. The Admin facet of a release built by the CTM
+  deployment script does: it is non-freezable
+  (`l1-contracts/deploy-scripts/ctm/DeployCTMUtils.s.sol:103`).
+
+What the result rules out is a revert of the guard or of the derived cuts. The repair step is a
+premise here, not derived; whether it exists in the source is the boundary of
+`RepairCutRestoresChainOk`. -/
 def Properties.RepairEnablesTransition : Prop :=
   ∀ (W : World) (s s' : Sys) (id : ChainId) (v : ℕ), CtmInv W s.ctm → s.ctm.relAt v ≠ 0 →
     Step W s (repairCut W s id v) s' → s.ctm.ut v ≠ 0 →
@@ -236,7 +272,12 @@ break-glass cuts, chain `0` is repaired, the CTM commits `300` (1→2), and chai
 * The last write of chain `0` is its transition, so the per-chain premise holds for `0`. Chain
   `0` ends at version 2, whose release is `200`, routing release `200`.
 * The last write of chain `1` is a break-glass cut, so the premise fails for `1`, and so does
-  the conclusion: chain `1` is at version 1, whose release is `100`, and does not route it. -/
+  the conclusion: chain `1` is at version 1, whose release is `100`, and does not route it.
+
+The run's break-glass steps, the repair included, exist because the model's break-glass step
+has no precondition on the live routing (`RepairStepIgnoresLiveRouting`). The drift `bgExtra`
+keeps every selector of release `100` with its facet and freezability and only adds
+selector `9`. -/
 def Properties.ChainLocalWitness : Prop :=
   ∃ s, Run wWorld wSys0 wLocalRun s ∧ SysInv wWorld wSys0 ∧ wSys0.chains 0 = none ∧
     (∃ l ∈ wLocalRun, l.isArbitrary) ∧
@@ -267,11 +308,16 @@ satisfies `SysInv`. After the run of `DriftedReturnerIsStuck`, chain `0` is at v
 drifted routing and has no transition. In that state the CTM invariant holds, version 1 has
 release `100`, slot 1 holds a committed transition, and both of its releases list each selector
 once. The repair cut there is the break-glass cut to version 1 with release `100`'s routing.
-The repair, the transition and leaving again then all succeed in the model (which omits
-timestamps and the other reject-only checks): chain `0` ends at version 2 routing release
-`200`, away on another settlement layer. The last routing step that writes chain `0` in the
-whole run is its transition, so the per-chain premise holds for chain `0` although its routing
-was cut twice. -/
+The repair, the transition and leaving again then all succeed in the model: chain `0` ends at
+version 2 routing release `200`, away on another settlement layer. The last routing step that
+writes chain `0` in the whole run is its transition, so the per-chain premise holds for chain
+`0` although its routing was cut twice.
+
+The model omits timestamps and the other reject-only checks, and the diamond's dispatch of each
+call. In particular, the repair step exists because the model's break-glass step has no
+precondition on the live routing (`RepairStepIgnoresLiveRouting`). Here the drift `bgExtra`
+keeps every selector of release `100` with its facet and freezability and only adds
+selector `9`. -/
 def Properties.RepairUnsticksDriftedReturner : Prop :=
   ∃ s s', MRun wWorld wMSys0 wStuckRun s ∧ SysInv wWorld wMSys0.sys ∧
     (¬ ∃ s'', MStep wWorld s (.base (.transition 0)) s'') ∧
@@ -300,5 +346,27 @@ def Properties.RepairNeedsUniqueSelectors : Prop :=
     ¬ ((wDupWorld.relRows (s.ctm.relAt 2)).map Prod.fst).Nodup ∧
     ((wDupWorld.relRows (s.edge wDupWorld 2).newRel).map Prod.fst).Nodup ∧
     ¬ ∃ s'', Step wDupWorld s' (.transition 0) s''
+
+/-! ## A model boundary -/
+
+/-- **MODEL BOUNDARY: THE MODEL'S REPAIR STEP IGNORES THE LIVE ROUTING.** From the fresh witness
+system, create chain `0` at version 1. Then cut it by break-glass to version 1 with a routing
+that routes no selector at all, a cut whose facet cuts remove every selector.
+
+* **In the source**, no call reaches that diamond's code any more. Its dispatch reverts with
+  `"F"` on every selector (`state-transition/chain-deps/DiamondProxy.sol:35`), `executeUpgrade`
+  included, so the CTM can no longer cut it.
+* **In the model**, the repair cut to version 1 still has a step, and it leaves chain `0`
+  consistent on release `100`.
+
+So the existence half of `RepairCutRestoresChainOk` is enabledness in the model only, and the
+repair steps of the witnesses exist without the model checking the dispatch. This is a
+statement about the model, not about the source. -/
+def Properties.RepairStepIgnoresLiveRouting : Prop :=
+  ∃ s s', Run wWorld wSys0 [.genesis 0, .arbitraryCut 0 1 emptyRouting] s ∧
+    (∃ c, s.chains 0 = some c ∧ ∀ x, c.routing x = none) ∧
+    Step wWorld s (repairCut wWorld s 0 1) s' ∧
+    ∃ c, s'.chains 0 = some c ∧ c.pv = 1 ∧ ChainOk wWorld s' c ∧
+      c.routing = rowsRouting (wRows 100)
 
 end Contracts.ChainTypeManager

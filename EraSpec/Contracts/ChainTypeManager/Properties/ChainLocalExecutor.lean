@@ -19,9 +19,11 @@ executor model of `ExecutorForward`. Proofs are in
   new premises for every chain (`TamePremiseImpliesChainLocal`).
 * **The executor's own repair path** (`ExecutorChainLocalWitness`): the owner drifts two chains
   by one forward, and chain `0` then has no `upgradeChain`. After a forwarded repair cut of
-  chain `0`, the fixed entry point `upgradeChain` succeeds for it in the model (which omits
-  timestamps and the other reject-only checks). Chain `0` ends on release `200`, and chain
-  `1`, whose last write is a cut, is still drifted.
+  chain `0`, the fixed entry point `upgradeChain` succeeds for it in the model. Chain `0` ends
+  on release `200`, and chain `1`, whose last write is a cut, is still drifted. The model omits
+  timestamps and the other reject-only checks, and the diamond's dispatch of each call. The
+  forwarded repair exists because the model's break-glass step has no precondition on the live
+  routing (`RepairStepIgnoresLiveRouting`).
 * **The CTM's code must stay in place** (`CtmSwapBreaksChainLocal`): a forwarded CTM code swap
   is no routing step, so it leaves the last-write premise intact, yet it can leave a chain
   ahead of its CTM. The reinitializer premise is load-bearing for the same reason in the row
@@ -75,7 +77,14 @@ then has no `upgradeChain`. Then run `wExecRepairRun`: a `forward` of the repair
 * The last routing step writing chain `0` is its transition: chain `0` ends at version 2
   routing release `200`.
 * The last routing step writing chain `1` is a break-glass cut: the premise fails for `1`, and
-  chain `1` is still at version 1, whose release is `100`, without routing it. -/
+  chain `1` is still at version 1, whose release is `100`, without routing it.
+
+These steps exist in the model, which omits timestamps and the other reject-only checks, and
+the diamond's dispatch of each call (`state-transition/chain-deps/DiamondProxy.sol:32-36`). In
+particular, the forwarded repair cut exists because the model's break-glass step has no
+precondition on the live routing (`RepairStepIgnoresLiveRouting`). Here the drift `bgExtra`
+keeps every selector of release `100` with its facet and freezability and only adds
+selector `9`. -/
 def Properties.ExecutorChainLocalWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     (∀ x ∈ wExecStuckRun ++ wExecRepairRun, x.KeepsCtmCode wX) ∧

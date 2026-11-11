@@ -32,11 +32,13 @@ The diamond runs it on its own storage (`state-transition/chain-deps/facets/Admi
 `Diamond.diamondCut` (`state-transition/libraries/Diamond.sol:109-133`) edits that diamond's
 routing and then delegatecalls the cut's init in that diamond's context (:310-318).
 `Step.arbitraryCut` already models exactly this: it writes chain `id`'s version and routing,
-and leaves the CTM and every other chain alone. Code the init calls acts as that diamond,
-which is neither another diamond's `chainTypeManager` nor the CTM's owner, so it cannot issue
-another chain's break-glass cut (`onlyChainTypeManager`) or a CTM writer (`onlyOwner`).
-Anything else such code might do is the existing engine boundary of `ChainRouting`, unchanged
-here.
+and leaves the CTM and every other chain alone. (The call reaches `Admin.executeUpgrade` only
+through the diamond's own dispatch, which the model does not check. That bears on whether a
+cut can be made, not on what it writes; see the model boundary under *The repair*.) Code the
+init calls acts as that diamond, which is neither another diamond's `chainTypeManager` nor the
+CTM's owner, so it cannot issue another chain's break-glass cut (`onlyChainTypeManager`) or a
+CTM writer (`onlyOwner`). Anything else such code might do is the existing engine boundary of
+`ChainRouting`, unchanged here.
 
 So a break-glass cut of one chain says nothing about another, and the routing headline can
 be stated chain by chain, with a premise about that chain's own history only:
@@ -60,8 +62,33 @@ routing", `docs/registry-driven-upgrades.md:680-682` at the repository root).
 version `v` routing exactly `R_v = relAt v`, the release the CTM installed when it reached
 `v`. In the source it is one `executeUpgrade` whose facet cuts remove every live selector
 and add `R_v`'s rows, with an init that writes `s.protocolVersion = v` if the drift moved the
-version. The model gives it as one `Label.arbitraryCut`, which exists for every registered
-chain.
+version. The model gives it as one `Label.arbitraryCut`, which exists **in the model** for
+every registered chain.
+
+**Model boundary: the repair step exists in the model only.** `Step.arbitraryCut` has no
+precondition on the live routing. In the source the CTM's call
+`IZKChain(getZKChain(_chainId)).executeUpgrade(_diamondCut)` (`ChainTypeManager.sol:632`)
+enters the drifted diamond through the diamond's own dispatch
+(`state-transition/chain-deps/DiamondProxy.sol:32-36`):
+
+    Diamond.SelectorToFacet memory facet = diamondStorage.selectorToFacet[msg.sig];
+    address facetAddress = facet.facetAddress;
+    require(facetAddress != address(0), "F"); // Proxy has no facet for this selector
+    require(!diamondStorage.isFrozen || !facet.isFreezable, "q1"); // Facet is frozen
+
+So the repair needs the drifted routing still to send `executeUpgrade`'s selector to code that
+performs the cut for the CTM, as `Admin.executeUpgrade` does (`Admin.sol:562-564`), and the
+selector not to be marked freezable while the diamond is frozen. Unfreezing
+(`ChainTypeManager.unfreezeChain`, `ChainTypeManager.sol:589-591`, calling
+`Admin.unfreezeDiamond`, `Admin.sol:598-608`) goes through the same dispatch. A drift that
+unrouted that selector, or routed it to code that does not perform the cut, cannot be repaired
+by `executeUpgrade`. A chain on a release meets the condition when that release routes its
+Admin facet non-freezable, as the releases built by the CTM deployment script do
+(`l1-contracts/deploy-scripts/ctm/DeployCTMUtils.s.sol:103`).
+`Properties.RepairStepIgnoresLiveRouting` exhibits the gap: in the model, a chain whose drift
+removed every selector still has the repair step. The witnesses below drift only by `bgExtra`,
+which keeps every selector of release `100` with its facet and freezability and adds
+selector `9`.
 
 ## Modelling choices
 
@@ -76,9 +103,22 @@ chain.
 * **Inherited boundaries.** Every result here inherits the boundaries of `ChainRouting`: the
   guard `requireReleaseRouting` is modelled by its documented meaning (its counting
   implementation is not re-proved), every engine runs `DefaultUpgrade`'s logic, and checks
-  that only reject are omitted. Omitting those checks is sound for the safety results; for the
-  enabledness results (`Properties.RepairEnablesTransition` and the witnesses that cross an
-  edge after a repair) it means only a revert caused by the routing is ruled out.
+  that only reject are omitted. Omitting those checks is sound for the safety results. For the
+  enabledness results (the existence half of `Properties.RepairCutRestoresChainOk`,
+  `Properties.RepairEnablesTransition`, and the witnesses that repair a chain or cross an edge
+  after a repair) it means that only a revert of the checks the model has, the guard and the
+  derived cuts, is ruled out.
+* **The diamond's dispatch is not modelled.** Every call the CTM makes into a chain enters
+  through `DiamondProxy`'s fallback (`DiamondProxy.sol:32-36`). It reverts unless the live
+  routing sends the called selector to a facet, with a route not marked freezable while the
+  diamond is frozen. This check reads the routing the model tracks, but no step checks it.
+  Omitting it only adds runs, so the safety results stand. For enabledness:
+  - For the repair it is the boundary under *The repair*.
+  - For a transition, the CTM calls `Admin.upgradeChainFromVersion`
+    (`ChainTypeManager.sol:623-626`). The guard already requires the routing to be exactly the
+    departing release, so there the dispatch is a condition on that release: it must route
+    `upgradeChainFromVersion` to code that runs it, non-freezable or on an unfrozen diamond.
+    The Admin facet of a release built by the CTM deployment script does.
 -/
 
 namespace Contracts.ChainTypeManager
@@ -109,7 +149,9 @@ def LastWriteNotBreakGlass (id : ChainId) (ls : List Label) : Prop :=
 /-- **The repair cut** of chain `id` to version `v`, as the CTM owner would issue it in state
 `s`: a break-glass cut that leaves the chain at version `v` routing exactly `R_v`, the release
 `s.ctm.relAt v` the CTM installed when it reached `v` (the "last step of such a recovery" of
-`DefaultUpgrade.sol:33-36`). -/
+`DefaultUpgrade.sol:33-36`). Its step exists in the model for every registered chain, whatever
+the chain routes; in the source it needs the drifted diamond still to dispatch
+`executeUpgrade` (the model boundary under *The repair*). -/
 def repairCut (W : World) (s : Sys) (id : ChainId) (v : ℕ) : Label :=
   .arbitraryCut id v (rowsRouting (W.relRows (s.ctm.relAt v)))
 
@@ -122,7 +164,13 @@ def MLabel.base? : MLabel → Option Label
 /-! ## Witness data
 
 On the witness world of `VersionRegistry`/`ChainRouting`: releases `100` and `200` at versions
-`1` and `2`, transition `300` (1→2); `bgExtra` is release `100`'s routing plus selector `9`. -/
+`1` and `2`, transition `300` (1→2); `bgExtra` is release `100`'s routing plus selector `9`.
+
+Every break-glass step of these runs exists because the model's break-glass step has no
+precondition on the live routing (the model boundary under *The repair*). Each is applied to a
+chain that routes release `100`, or `bgExtra`, which keeps every selector of release `100` with
+its facet and freezability. So no drift here has removed a selector that release `100`
+routes. -/
 
 /-- The run of `Properties.ChainLocalWitness`, from the fresh witness system `wSys0`: chains
 `0` and `1` are created at version 1 on release `100`; a break-glass cut drifts each to

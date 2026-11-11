@@ -24,7 +24,11 @@ is reachable only through the owner-gated `forward` (`governance/UpgradeExecutor
 "Every other owner operation of the CTM ... goes through the owner-gated, event-logged
 `forward`", `CTMUpgradeExecutor.sol:25-29`; the authority matrix lists `executeUpgrade` as
 "`forward` only", `docs/registry-driven-upgrades.md:412` at the repository root). So every
-break-glass cut, and every repair, is a forwarded call.
+break-glass cut, and every repair, is a forwarded call. As in `ChainLocal`, the CTM's call then
+enters the chain's diamond through the diamond's own dispatch
+(`state-transition/chain-deps/DiamondProxy.sol:32-36`), which the model does not check. So a
+forwarded cut, a repair included, exists in the model whatever the chain routes (the model
+boundary under *The repair* in `EraSpec.Contracts.ChainTypeManager.Specs.ChainLocal`).
 
 `XLabel.Tame` excludes every forwarded break-glass cut, so
 `Properties.TameRunKeepsChainsOnTheirRelease` says nothing about a run in which the owner
