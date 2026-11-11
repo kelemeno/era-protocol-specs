@@ -1130,3 +1130,204 @@ theorem NoneOrAllOrBreakPinnedNotTautology : Properties.NoneOrAllOrBreakPinnedNo
 theorem PinnedGateBreakFires : Properties.PinnedGateBreakFires := pinned_gate_break_fires
 
 end Contracts.Atomicity
+
+/-! ## The pinned break, evaluated on a stranded leg -/
+
+namespace Contracts.Atomicity
+
+open IMTAbstract MerkleSpec MerkleSpec.Verifier Contracts.InteropCommitmentTree
+
+theorem honestAccess_dataAvailable (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) :
+    DataAvailable h z0 hl S (honestAccess h z0 hl S) :=
+  fun _ _ i hi => ⟨i, hi, rfl⟩
+
+/-- The world shared by the two witnesses: leg `⟨0, 1⟩` is finalizable, leg `⟨1, 2⟩` is
+not, so `⟨1, 2⟩` is the first stranded leg. -/
+theorem mixed_stranded_world (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    LegFinalizableBy h z0 hl (fun _ b => b) (mixedSystem 1) (honestAccess h z0 hl (mixedSystem 1))
+        (mixedFlow 0 1 2) ⟨0, 1⟩
+      ∧ ¬ LegFinalizableBy h z0 hl (fun _ b => b) (mixedSystem 1)
+          (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ⟨1, 2⟩
+      ∧ FirstStrandedLeg h z0 hl (fun _ b => b) (mixedSystem 1)
+          (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ⟨1, 2⟩ := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have h10 : (1 : Chain) ≠ 0 := by decide
+  have hS : Wf (mixedSystem 1) := mixedSystem_wf h1
+  have finA : LegFinalizableBy h z0 hl (fun _ b => b) (mixedSystem 1)
+      (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ⟨0, 1⟩ := by
+    refine member_is_finalizable hS (honestAccess_dataAvailable h z0 hl _) (n := 0) (le_refl _) ?_
+    show (1 : UInt256) ∈ keys (toAbs ((mixedSystem 1).tree 0 0))
+    rw [mixedSystem_tree_zero]
+    exact mem_insertSetup h1
+  have nfinB : ¬ LegFinalizableBy h z0 hl (fun _ b => b) (mixedSystem 1)
+      (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ⟨1, 2⟩ := by
+    rintro ⟨n, p, _, ⟨i, _, rfl⟩, hacc⟩
+    have hv := hacc.valueMatch
+    change (((mixedSystem 1).tree 1 n).leaf i).value = 2 at hv
+    rw [mixedSystem_tree_other h10] at hv
+    change (0 : UInt256) = 2 at hv
+    exact absurd hv (by decide)
+  refine ⟨finA, nfinB, [⟨0, 1⟩], [], rfl, ?_, nfinB⟩
+  intro l hl'
+  obtain rfl := List.mem_singleton.mp hl'
+  exact finA
+
+/-- The honest proof of chain `1`'s only leaf (the sentinel) is not accepted for the
+commit value `2`. -/
+theorem honest_legB_rejected (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ¬ Accepts h z0 hl (mixedSystem 1) 1 0 2 (honestProof h z0 hl (mixedSystem 1) 1 0 0) := by
+  intro hacc
+  have hv := hacc.valueMatch
+  change (((mixedSystem 1).tree 1 0).leaf 0).value = 2 at hv
+  rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0)] at hv
+  change (0 : UInt256) = 2 at hv
+  exact absurd hv (by decide)
+
+/-- On any evidence that submits the honest sentinel proof for `⟨1, 2⟩`: no leg executes,
+and the pinned break is false. -/
+theorem honest_legB_evidence (h : Hash) (z0 : UInt256) (hl : LeafHash) (fh : FlowHash)
+    (ev : GateEvidence) (hev : ev ⟨1, 2⟩ = (0, honestProof h z0 hl (mixedSystem 1) 1 0 0)) :
+    (∀ leg, ¬ ExecutedViaBy h z0 hl (fun _ b => b) fh (mixedSystem 1) (mixedFlow 0 1 2) ev leg)
+      ∧ ¬ InclusionBreak h z0 hl (mixedSystem 1) 1 (ev ⟨1, 2⟩).1 (ev ⟨1, 2⟩).2
+      ∧ ¬ PinnedGateBreak h z0 hl (fun _ b => b) (mixedSystem 1)
+          (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ev := by
+  have hmemB : (⟨1, 2⟩ : FlowLeg) ∈ (mixedFlow 0 1 2).legs :=
+    List.mem_cons_of_mem _ (List.mem_singleton_self _)
+  have hcount : ((mixedSystem 1).tree 1 0).leafCount = 1 := by
+    rw [mixedSystem_tree_other (by decide : (1 : Chain) ≠ 0)]; rfl
+  have hnb : ¬ InclusionBreak h z0 hl (mixedSystem 1) 1 (ev ⟨1, 2⟩).1 (ev ⟨1, 2⟩).2 := by
+    rw [hev]
+    exact honestProof_no_break h z0 hl (mixedSystem 1) 1 0 0 (by rw [hcount]; norm_num)
+  refine ⟨?_, hnb, ?_⟩
+  · rintro leg ⟨_, _, hfin⟩
+    obtain ⟨_, hacc⟩ := hfin ⟨1, 2⟩ hmemB
+    rw [hev] at hacc
+    exact honest_legB_rejected h z0 hl hacc
+  · rintro ⟨l, hf, hb⟩
+    obtain rfl := first_stranded_leg_unique hf (mixed_stranded_world h z0 hl).2.2
+    exact hnb hb
+
+theorem none_or_all_or_break_pinned_stranded_not_tautology (h : Hash) (z0 : UInt256)
+    (hl : LeafHash) :
+    Wf (mixedSystem 1)
+      ∧ DataAvailable h z0 hl (mixedSystem 1) (honestAccess h z0 hl (mixedSystem 1))
+      ∧ FlowIdChecked (honestFlowHash (mixedFlow 0 1 2)) (mixedFlow 0 1 2)
+      ∧ ¬ FlowFinalizableBy h z0 hl (fun _ b => b) (mixedSystem 1)
+            (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2)
+      ∧ FirstStrandedLeg h z0 hl (fun _ b => b) (mixedSystem 1)
+            (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ⟨1, 2⟩
+      ∧ ∃ ev : GateEvidence,
+          ev ⟨1, 2⟩ = (0, honestProof h z0 hl (mixedSystem 1) 1 0 0)
+          ∧ LegFinalizedBy h z0 hl (fun _ b => b) (mixedSystem 1) (mixedFlow 0 1 2) ⟨0, 1⟩
+              (ev ⟨0, 1⟩).1 (ev ⟨0, 1⟩).2
+          ∧ (∀ leg, ¬ ExecutedViaBy h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+              (mixedSystem 1) (mixedFlow 0 1 2) ev leg)
+          ∧ ¬ PinnedGateBreak h z0 hl (fun _ b => b) (mixedSystem 1)
+              (honestAccess h z0 hl (mixedSystem 1)) (mixedFlow 0 1 2) ev := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  obtain ⟨_, nfinB, hfirst⟩ := mixed_stranded_world h z0 hl
+  have hmemB : (⟨1, 2⟩ : FlowLeg) ∈ (mixedFlow 0 1 2).legs :=
+    List.mem_cons_of_mem _ (List.mem_singleton_self _)
+  -- Leg `⟨0, 1⟩`: the honest proof of chain `0`'s leaf 1, which holds the value `1`.
+  have hcountA : ((mixedSystem 1).tree 0 0).leafCount = 2 := by
+    rw [mixedSystem_tree_zero]; rfl
+  have accA : Accepts h z0 hl (mixedSystem 1) 0 0 1 (honestProof h z0 hl (mixedSystem 1) 0 0 1) := by
+    have := inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := (mixedSystem 1).tree 0 0)
+      (height := (mixedSystem 1).height 0 0) ((mixedSystem_wf h1).capacity 0 0) (i := 1)
+      (by rw [hcountA]; norm_num)
+    have hv : (((mixedSystem 1).tree 0 0).leaf 1).value = 1 := by
+      rw [mixedSystem_tree_zero, insertSetup_leaf_one_value]
+    rw [hv] at this
+    exact this
+  let ev : GateEvidence := fun l =>
+    if l = ⟨0, 1⟩ then (0, honestProof h z0 hl (mixedSystem 1) 0 0 1)
+    else (0, honestProof h z0 hl (mixedSystem 1) 1 0 0)
+  have evB : ev ⟨1, 2⟩ = (0, honestProof h z0 hl (mixedSystem 1) 1 0 0) := if_neg (by decide)
+  obtain ⟨hnex, _, hnp⟩ := honest_legB_evidence h z0 hl (honestFlowHash (mixedFlow 0 1 2)) ev evB
+  refine ⟨mixedSystem_wf h1, honestAccess_dataAvailable h z0 hl _,
+    (honest_flowHash_no_clash _).1, fun hall => nfinB (hall _ hmemB), hfirst, ev, evB, ?_,
+    hnex, hnp⟩
+  show (mixedSystem 1).time 0 0 ≤ 0
+      ∧ Accepts h z0 hl (mixedSystem 1) 0 0 1 (honestProof h z0 hl (mixedSystem 1) 0 0 1)
+  exact ⟨le_refl _, accA⟩
+
+theorem pinned_gate_break_fires_only_on_stranded_leg (h : Hash) (z0 : UInt256) :
+    Wf (mixedSystem 1)
+      ∧ DataAvailable h z0 toyLeafHash (mixedSystem 1) (honestAccess h z0 toyLeafHash (mixedSystem 1))
+      ∧ FirstStrandedLeg h z0 toyLeafHash (fun _ b => b) (mixedSystem 1)
+          (honestAccess h z0 toyLeafHash (mixedSystem 1)) (mixedFlow 0 1 2) ⟨1, 2⟩
+      ∧ ∃ evH evF : GateEvidence,
+          evH ⟨0, 1⟩ = evF ⟨0, 1⟩
+          ∧ ¬ InclusionBreak h z0 toyLeafHash (mixedSystem 1) 0 (evF ⟨0, 1⟩).1 (evF ⟨0, 1⟩).2
+          ∧ ExecutedViaBy h z0 toyLeafHash (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+              (mixedSystem 1) (mixedFlow 0 1 2) evF ⟨0, 1⟩
+          ∧ InclusionBreak h z0 toyLeafHash (mixedSystem 1) 1 (evF ⟨1, 2⟩).1 (evF ⟨1, 2⟩).2
+          ∧ PinnedGateBreak h z0 toyLeafHash (fun _ b => b) (mixedSystem 1)
+              (honestAccess h z0 toyLeafHash (mixedSystem 1)) (mixedFlow 0 1 2) evF
+          ∧ (∀ leg, ¬ ExecutedViaBy h z0 toyLeafHash (fun _ b => b)
+              (honestFlowHash (mixedFlow 0 1 2)) (mixedSystem 1) (mixedFlow 0 1 2) evH leg)
+          ∧ ¬ PinnedGateBreak h z0 toyLeafHash (fun _ b => b) (mixedSystem 1)
+              (honestAccess h z0 toyLeafHash (mixedSystem 1)) (mixedFlow 0 1 2) evH := by
+  have h1 : (0 : UInt256) < 1 := by decide
+  have h10 : (1 : Chain) ≠ 0 := by decide
+  let hl : LeafHash := toyLeafHash
+  let S : System := mixedSystem 1
+  obtain ⟨_, _, hfirst⟩ := mixed_stranded_world h z0 hl
+  -- Leg `⟨0, 1⟩`: the honest proof of chain `0`'s leaf 1, in both evidences.
+  let pA : ImtProof := honestProof h z0 hl S 0 0 1
+  have hcountA : (S.tree 0 0).leafCount = 2 := by
+    show ((mixedSystem 1).tree 0 0).leafCount = 2
+    rw [mixedSystem_tree_zero]; rfl
+  have accA : Accepts h z0 hl S 0 0 1 pA := by
+    have := inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := S.tree 0 0)
+      (height := S.height 0 0) ((mixedSystem_wf h1).capacity 0 0) (i := 1)
+      (by rw [hcountA]; norm_num)
+    have hv : ((S.tree 0 0).leaf 1).value = 1 := by
+      show (((mixedSystem 1).tree 0 0).leaf 1).value = 1
+      rw [mixedSystem_tree_zero, insertSetup_leaf_one_value]
+    rw [hv] at this
+    exact this
+  have nbA : ¬ InclusionBreak h z0 hl S 0 0 pA :=
+    honestProof_no_break h z0 hl S 0 0 1 (by rw [hcountA]; norm_num)
+  -- Leg `⟨1, 2⟩`: honest sentinel proof in `evH`, forged empty-path proof in `evF`.
+  let pB : ImtProof := ⟨⟨2, 0, 2⟩, 0, fun _ => 0, 0⟩
+  let evH : GateEvidence := fun l => if l = ⟨0, 1⟩ then (0, pA) else (0, honestProof h z0 hl S 1 0 0)
+  let evF : GateEvidence := fun l => if l = ⟨0, 1⟩ then (0, pA) else (0, pB)
+  have evFA : evF ⟨0, 1⟩ = (0, pA) := if_pos rfl
+  have evFB : evF ⟨1, 2⟩ = (0, pB) := if_neg (by decide)
+  have evHB : evH ⟨1, 2⟩ = (0, honestProof h z0 hl S 1 0 0) := if_neg (by decide)
+  have accB : Accepts h z0 hl S 1 0 2 pB := by
+    show InclusionAccepted h hl (root h z0 hl ((mixedSystem 1).tree 1 0)
+      ((mixedSystem 1).height 1 0)) 2 ⟨2, 0, 2⟩ 0 (fun _ => 0) 0
+    rw [mixedSystem_tree_other h10, mixedSystem_height_other h10, setup_root_zero]
+    refine ⟨rfl, by norm_num, ?_⟩
+    show toyLeafHash ⟨2, 0, 2⟩ = toyLeafHash ⟨0, 0, 0⟩
+    decide
+  have brkB : InclusionBreak h z0 hl S 1 (evF ⟨1, 2⟩).1 (evF ⟨1, 2⟩).2 := by
+    rw [evFB]
+    show TreeRootBreak h z0 hl ((mixedSystem 1).tree 1 0) ((mixedSystem 1).height 1 0)
+      (fun _ => 0) 0 0 ⟨2, 0, 2⟩
+    rw [mixedSystem_tree_other h10, mixedSystem_height_other h10]
+    exact TreeRootBreak.leafCollision (by norm_num [setup]) (by decide) (by decide)
+  have hex : ExecutedViaBy h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2)) S
+      (mixedFlow 0 1 2) evF ⟨0, 1⟩ := by
+    refine ⟨List.mem_cons_self _ _, (honest_flowHash_no_clash _).1, ?_⟩
+    intro l hl'
+    rcases List.mem_cons.mp hl' with rfl | hl'
+    · rw [evFA]; exact ⟨le_refl _, accA⟩
+    · obtain rfl := List.mem_singleton.mp hl'
+      rw [evFB]; exact ⟨le_refl _, accB⟩
+  obtain ⟨hnexH, _, hnpH⟩ :=
+    honest_legB_evidence h z0 hl (honestFlowHash (mixedFlow 0 1 2)) evH evHB
+  refine ⟨mixedSystem_wf h1, honestAccess_dataAvailable h z0 hl _, hfirst, evH, evF, rfl,
+    by rw [evFA]; exact nbA, hex, brkB, ⟨⟨1, 2⟩, hfirst, brkB⟩, hnexH, hnpH⟩
+
+theorem HonestAccessDataAvailable : Properties.HonestAccessDataAvailable :=
+  honestAccess_dataAvailable
+theorem NoneOrAllOrBreakPinnedStrandedNotTautology :
+    Properties.NoneOrAllOrBreakPinnedStrandedNotTautology :=
+  none_or_all_or_break_pinned_stranded_not_tautology
+theorem PinnedGateBreakFiresOnlyOnStrandedLeg : Properties.PinnedGateBreakFiresOnlyOnStrandedLeg :=
+  pinned_gate_break_fires_only_on_stranded_leg
+
+end Contracts.Atomicity

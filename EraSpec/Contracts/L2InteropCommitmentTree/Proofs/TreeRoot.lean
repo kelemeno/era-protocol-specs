@@ -720,3 +720,240 @@ theorem TreeRootBreakEveryCaseFires : Properties.TreeRootBreakEveryCaseFires :=
   tree_root_break_every_case_fires
 
 end Contracts.InteropCommitmentTree
+
+/-! ## Every sub-case of `wrongLength` fires, and is attributed alone -/
+
+namespace Contracts.InteropCommitmentTree
+
+open IMTAbstract MerkleSpec MerkleSpec.Verifier
+
+theorem heightBreak_iff_some_case {h : Hash} {z0 : UInt256} {L : List UInt256}
+    {sibs : ℕ → UInt256} {k height j : ℕ} {x : UInt256} :
+    HeightBreak h z0 L sibs k height j x ↔ ∃ c, HeightBreakAt h z0 L sibs k height j x c := by
+  constructor
+  · intro hb
+    cases hb with
+    | shortInteriorLeaf hlt he => exact ⟨.shortInteriorLeaf, hlt, he⟩
+    | shortCollision hlt hc => exact ⟨.shortCollision, hlt, hc⟩
+    | longEntryIsNode hlt he => exact ⟨.longEntryIsNode, hlt, he⟩
+    | longCollision hlt hc => exact ⟨.longCollision, hlt, hc⟩
+  · rintro ⟨c, hc⟩
+    cases c with
+    | shortInteriorLeaf => exact HeightBreak.shortInteriorLeaf hc.1 hc.2
+    | shortCollision => exact HeightBreak.shortCollision hc.1 hc.2
+    | longEntryIsNode => exact HeightBreak.longEntryIsNode hc.1 hc.2
+    | longCollision => exact HeightBreak.longCollision hc.1 hc.2
+
+/-- To show sub-case `c` fires alone: it fires, and every other sub-case does not. -/
+theorem heightBreakExactly_of {h : Hash} {z0 : UInt256} {L : List UInt256}
+    {sibs : ℕ → UInt256} {k height j : ℕ} {x : UInt256} {c : HeightBreakCase}
+    (hc : HeightBreakAt h z0 L sibs k height j x c)
+    (hno : ∀ c', c' ≠ c → ¬ HeightBreakAt h z0 L sibs k height j x c') :
+    HeightBreakExactly h z0 L sibs k height j x c := by
+  intro c'
+  constructor
+  · intro hc'
+    by_contra hne
+    exact hno c' hne hc'
+  · rintro rfl
+    exact hc
+
+/-- A located collision over zero steps is impossible. -/
+theorem not_pathCollision_zero {h : Hash} {z0 : UInt256} {L : List UInt256}
+    {sibs : ℕ → UInt256} {lvl j : ℕ} {x : UInt256} :
+    ¬ PathCollision h z0 L sibs lvl 0 j x := by
+  rintro ⟨i, hi, _⟩
+  exact absurd hi (Nat.not_lt_zero _)
+
+/-- On `setup`, a wrong-length proof at index 0 whose leaf hash is not the sentinel's,
+and whose `HeightBreak` holds, is exactly `wrongLength`. -/
+theorem setup_exactly_wrongLength {h : Hash} {z0 : UInt256} {hl : LeafHash} {height k : ℕ}
+    {sibs : ℕ → UInt256} {ℓ : Leaf} (hk : k ≠ height) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩)
+    (hb : HeightBreak h z0 (leafHashes hl setup) sibs k height 0 (hl ℓ)) :
+    TreeRootBreakExactly h z0 hl setup height sibs k 0 ℓ .wrongLength := by
+  refine treeRootBreakExactly_of hb ?_
+  intro c' hc'
+  cases c' with
+  | wrongLength => exact absurd rfl hc'
+  | pathCollision =>
+      rintro ⟨hk', _⟩
+      exact hk hk'
+  | leafCollision =>
+      rintro ⟨_, _, he⟩
+      exact hne he.symm
+  | paddingHit =>
+      rintro ⟨hle, _⟩
+      exact absurd hle (by norm_num [setup])
+
+theorem wrong_length_short_is_interior_leaf (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (sibs : ℕ → UInt256) (hr : hl ℓ = root h z0 hl setup 1) :
+    HeightBreakExactly h z0 (leafHashes hl setup) sibs 0 1 0 (hl ℓ) .shortInteriorLeaf := by
+  refine heightBreakExactly_of ⟨by norm_num, ?_⟩ ?_
+  · rw [hr]; rfl
+  · intro c' hc'
+    cases c' with
+    | shortInteriorLeaf => exact absurd rfl hc'
+    | shortCollision => exact fun ⟨_, hpc⟩ => not_pathCollision_zero hpc
+    | longEntryIsNode => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+    | longCollision => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+
+lemma setup_root_two (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    root h z0 hl setup 2 = h (h (hl ⟨0, 0, 0⟩) z0) (h z0 z0) := rfl
+
+lemma setup_root_at_zero (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    root h z0 hl setup 0 = hl ⟨0, 0, 0⟩ := rfl
+
+theorem short_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (s : UInt256) (hv : ℓ.value ≠ 0) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩)
+    (hnode : hl ℓ ≠ h (hl ⟨0, 0, 0⟩) z0)
+    (hc : h (hl ℓ) s = h (h (hl ⟨0, 0, 0⟩) z0) (h z0 z0)) :
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 2
+      ∧ InclusionAccepted h hl (root h z0 hl setup 2) ℓ.value ℓ 0 (fun _ => s) 1
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ TreeRootBreakExactly h z0 hl setup 2 (fun _ => s) 1 0 ℓ .wrongLength
+      ∧ HeightBreakExactly h z0 (leafHashes hl setup) (fun _ => s) 1 2 0 (hl ℓ) .shortCollision := by
+  have hpc : PathCollision h z0 (leafHashes hl setup) (fun l => (fun _ => s) (l - (2 - 1)))
+      (2 - 1) 1 0 (hl ℓ) := by
+    refine ⟨0, by norm_num, ?_, ?_⟩
+    · show (hl ℓ, s) ≠ (h (hl ⟨0, 0, 0⟩) z0, h z0 z0)
+      intro hp; exact hnode (congrArg Prod.fst hp)
+    · exact hc
+  have hx : HeightBreakExactly h z0 (leafHashes hl setup) (fun _ => s) 1 2 0 (hl ℓ)
+      .shortCollision := by
+    refine heightBreakExactly_of ⟨by norm_num, hpc⟩ ?_
+    intro c' hc'
+    cases c' with
+    | shortInteriorLeaf =>
+        rintro ⟨_, he⟩
+        exact hnode he
+    | shortCollision => exact absurd rfl hc'
+    | longEntryIsNode => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+    | longCollision => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+  refine ⟨setup_valid, by norm_num [setup], ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv,
+    setup_exactly_wrongLength (by norm_num) hne (HeightBreak.shortCollision (by norm_num) hpc), hx⟩
+  show h (hl ℓ) s = root h z0 hl setup 2
+  rw [setup_root_two]; exact hc
+
+theorem long_entry_is_node_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (s : UInt256) (hv : ℓ.value ≠ 0) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩) (hc : h (hl ℓ) s = hl ⟨0, 0, 0⟩) :
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 0
+      ∧ InclusionAccepted h hl (root h z0 hl setup 0) ℓ.value ℓ 0 (fun _ => s) 1
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ TreeRootBreakExactly h z0 hl setup 0 (fun _ => s) 1 0 ℓ .wrongLength
+      ∧ HeightBreakExactly h z0 (leafHashes hl setup) (fun _ => s) 1 0 0 (hl ℓ)
+          .longEntryIsNode := by
+  have hent : (leafHashes hl setup).getD (0 / 2 ^ (1 - 0)) z0
+      = h (walkPair h (fun _ => s) 0 0 (hl ℓ) (1 - 0 - 1)).1
+          (walkPair h (fun _ => s) 0 0 (hl ℓ) (1 - 0 - 1)).2 := by
+    show hl ⟨0, 0, 0⟩ = h (hl ℓ) s
+    exact hc.symm
+  have hx : HeightBreakExactly h z0 (leafHashes hl setup) (fun _ => s) 1 0 0 (hl ℓ)
+      .longEntryIsNode := by
+    refine heightBreakExactly_of ⟨by norm_num, hent⟩ ?_
+    intro c' hc'
+    cases c' with
+    | shortInteriorLeaf => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+    | shortCollision => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+    | longEntryIsNode => exact absurd rfl hc'
+    | longCollision => exact fun ⟨_, hpc⟩ => not_pathCollision_zero hpc
+  refine ⟨setup_valid, by norm_num [setup], ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv,
+    setup_exactly_wrongLength (by norm_num) hne (HeightBreak.longEntryIsNode (by norm_num) hent), hx⟩
+  show h (hl ℓ) s = root h z0 hl setup 0
+  rw [setup_root_at_zero]; exact hc
+
+theorem long_collision_forges_inclusion (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf)
+    (s₀ s₁ : UInt256) (hv : ℓ.value ≠ 0) (hne : hl ℓ ≠ hl ⟨0, 0, 0⟩)
+    (hnode : h (hl ℓ) s₀ ≠ hl ⟨0, 0, 0⟩) (hc : h (h (hl ℓ) s₀) s₁ = h (hl ⟨0, 0, 0⟩) z0) :
+    Valid setup ∧ setup.leafCount ≤ 2 ^ 1
+      ∧ InclusionAccepted h hl (root h z0 hl setup 1) ℓ.value ℓ 0
+          (fun l => if l = 0 then s₀ else s₁) 2
+      ∧ ℓ.value ∉ keys (toAbs setup)
+      ∧ TreeRootBreakExactly h z0 hl setup 1 (fun l => if l = 0 then s₀ else s₁) 2 0 ℓ
+          .wrongLength
+      ∧ HeightBreakExactly h z0 (leafHashes hl setup) (fun l => if l = 0 then s₀ else s₁) 2 1 0
+          (hl ℓ) .longCollision := by
+  have hpc : PathCollision h z0 (leafHashes hl setup)
+      (fun l => (fun l => if l = 0 then s₀ else s₁) (l + (2 - 1))) 0 1
+      (0 / 2 ^ (2 - 1)) (walkPure h (fun l => if l = 0 then s₀ else s₁) 0 (2 - 1) 0 (hl ℓ)) := by
+    refine ⟨0, by norm_num, ?_, ?_⟩
+    · show (h (hl ℓ) s₀, s₁) ≠ (hl ⟨0, 0, 0⟩, z0)
+      intro hp; exact hnode (congrArg Prod.fst hp)
+    · exact hc
+  have hx : HeightBreakExactly h z0 (leafHashes hl setup) (fun l => if l = 0 then s₀ else s₁)
+      2 1 0 (hl ℓ) .longCollision := by
+    refine heightBreakExactly_of ⟨by norm_num, hpc⟩ ?_
+    intro c' hc'
+    cases c' with
+    | shortInteriorLeaf => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+    | shortCollision => exact fun ⟨hlt, _⟩ => absurd hlt (by norm_num)
+    | longEntryIsNode =>
+        rintro ⟨_, he⟩
+        exact hnode he.symm
+    | longCollision => exact absurd rfl hc'
+  refine ⟨setup_valid, setup_capacity, ⟨rfl, by norm_num, ?_⟩, not_mem_keys_setup hv,
+    setup_exactly_wrongLength (by norm_num) hne (HeightBreak.longCollision (by norm_num) hpc), hx⟩
+  show h (h (hl ℓ) s₀) s₁ = root h z0 hl setup 1
+  rw [setup_root]; exact hc
+
+theorem wrong_length_subcase_premises_satisfiable :
+    ((⟨2, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨2, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+        ∧ toyLeafHash ⟨2, 0, 0⟩ ≠ toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1
+        ∧ toyNodeHash (toyLeafHash ⟨2, 0, 0⟩) 1
+            = toyNodeHash (toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1) (toyNodeHash 1 1))
+      ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+        ∧ toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) (-1) = toyLeafHash ⟨0, 0, 0⟩)
+      ∧ ((⟨1, 0, 0⟩ : Leaf).value ≠ 0 ∧ toyLeafHash ⟨1, 0, 0⟩ ≠ toyLeafHash ⟨0, 0, 0⟩
+        ∧ toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) 0 ≠ toyLeafHash ⟨0, 0, 0⟩
+        ∧ toyNodeHash (toyNodeHash (toyLeafHash ⟨1, 0, 0⟩) 0) 0
+            = toyNodeHash (toyLeafHash ⟨0, 0, 0⟩) 1) := by
+  simp only [toyLeafHash, toyNodeHash]
+  decide
+
+theorem wrong_length_every_subcase_fires (c : HeightBreakCase) :
+    ∃ (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf),
+      Valid setup ∧ setup.leafCount ≤ 2 ^ height
+        ∧ InclusionAccepted toyNodeHash toyLeafHash (root toyNodeHash 1 toyLeafHash setup height)
+            ℓ.value ℓ idx sibs k
+        ∧ ℓ.value ∉ keys (toAbs setup)
+        ∧ k ≠ height
+        ∧ TreeRootBreakExactly toyNodeHash 1 toyLeafHash setup height sibs k idx ℓ .wrongLength
+        ∧ HeightBreakExactly toyNodeHash 1 (leafHashes toyLeafHash setup) sibs k height idx
+            (toyLeafHash ℓ) c := by
+  obtain ⟨⟨hv1, hne1, hn1, hc1⟩, ⟨hv2, hne2, hc2⟩, ⟨hv3, hne3, hn3, hc3⟩⟩ :=
+    wrong_length_subcase_premises_satisfiable
+  cases c with
+  | shortInteriorLeaf =>
+      obtain ⟨_, _, ⟨hv, hne, hr⟩, _⟩ := forged_inclusion_premises_satisfiable
+      obtain ⟨hV, hcap, hI, hk, hx⟩ :=
+        wrong_length_forges_inclusion toyNodeHash 1 toyLeafHash ⟨1, 0, 0⟩ (fun _ => 0) hv hne hr
+      exact ⟨1, _, 0, 0, _, hV, hcap, hI, hk, by norm_num, hx,
+        wrong_length_short_is_interior_leaf toyNodeHash 1 toyLeafHash ⟨1, 0, 0⟩ (fun _ => 0) hr⟩
+  | shortCollision =>
+      obtain ⟨hV, hcap, hI, hk, hx, hy⟩ :=
+        short_collision_forges_inclusion toyNodeHash 1 toyLeafHash ⟨2, 0, 0⟩ 1 hv1 hne1 hn1 hc1
+      exact ⟨2, _, 1, 0, _, hV, hcap, hI, hk, by norm_num, hx, hy⟩
+  | longEntryIsNode =>
+      obtain ⟨hV, hcap, hI, hk, hx, hy⟩ :=
+        long_entry_is_node_forges_inclusion toyNodeHash 1 toyLeafHash ⟨1, 0, 0⟩ (-1) hv2 hne2 hc2
+      exact ⟨0, _, 1, 0, _, hV, hcap, hI, hk, by norm_num, hx, hy⟩
+  | longCollision =>
+      obtain ⟨hV, hcap, hI, hk, hx, hy⟩ :=
+        long_collision_forges_inclusion toyNodeHash 1 toyLeafHash ⟨1, 0, 0⟩ 0 0 hv3 hne3 hn3 hc3
+      exact ⟨1, _, 2, 0, _, hV, hcap, hI, hk, by norm_num, hx, hy⟩
+
+theorem HeightBreakIffSomeCase : Properties.HeightBreakIffSomeCase :=
+  @heightBreak_iff_some_case
+theorem WrongLengthShortIsInteriorLeaf : Properties.WrongLengthShortIsInteriorLeaf :=
+  wrong_length_short_is_interior_leaf
+theorem ShortCollisionForgesInclusion : Properties.ShortCollisionForgesInclusion :=
+  short_collision_forges_inclusion
+theorem LongEntryIsNodeForgesInclusion : Properties.LongEntryIsNodeForgesInclusion :=
+  long_entry_is_node_forges_inclusion
+theorem LongCollisionForgesInclusion : Properties.LongCollisionForgesInclusion :=
+  long_collision_forges_inclusion
+theorem WrongLengthSubcasePremisesSatisfiable : Properties.WrongLengthSubcasePremisesSatisfiable :=
+  wrong_length_subcase_premises_satisfiable
+theorem WrongLengthEverySubcaseFires : Properties.WrongLengthEverySubcaseFires :=
+  wrong_length_every_subcase_fires
+
+end Contracts.InteropCommitmentTree

@@ -243,6 +243,13 @@ partial atomicity fails without it. -/
 def DataAvailable (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) (A : Access) : Prop :=
   ∀ (c : Chain) (n i : ℕ), i < (S.tree c n).leafCount → A c n (honestProof h z0 hl S c n i)
 
+/-- Prover access that is exactly the honest proofs: for chain `c`'s batch `n`, the
+honest proof of an occupied leaf of that batch's tree, and nothing else.  It meets
+`DataAvailable` by construction; used by the witnesses that need a stranded leg to stay
+stranded for every hash. -/
+def honestAccess (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : System) : Access :=
+  fun c n p => ∃ i, i < (S.tree c n).leafCount ∧ p = honestProof h z0 hl S c n i
+
 /-- No prover can present anything — total DA failure, for the countermodel. -/
 def noAccess : Access := fun _ _ _ => False
 
@@ -340,7 +347,7 @@ settled after the deadline, or absence from the END root of the chain's last
 in-time batch.
 
 Both are against the leg's declared source chain — the `ProofSourceChainMismatch`
-check in `authorizeRefund`, whose necessity is `Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/Spec.lean`). -/
+check in `authorizeRefund`, whose necessity is `Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/MultichainGate/Properties/Model.lean`). -/
 def LegRefundable (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
   ∃ (N : ℕ) (p : ImtProof),

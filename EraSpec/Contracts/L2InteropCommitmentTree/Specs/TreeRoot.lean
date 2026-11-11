@@ -174,6 +174,47 @@ def TreeRootBreakExactly (h : Hash) (z0 : UInt256) (hl : LeafHash) (T : Tree) (h
     (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) (c : TreeRootBreakCase) : Prop :=
   ∀ c' : TreeRootBreakCase, TreeRootBreakAt h z0 hl T height sibs k idx ℓ c' ↔ c' = c
 
+/-! ## Which sub-case of `wrongLength` fires
+
+The `wrongLength` case carries a `HeightBreak`, itself an inductive with four
+constructors (two for a path that is too short, two for one that is too long).  As
+for `TreeRootBreak`, the statement `HeightBreak …` does not say which of them holds.
+`HeightBreakAt c` is the premise of constructor `c` as a proposition, and
+`HeightBreakExactly … c` says that sub-case `c`, and no other, holds.
+`Contracts.InteropCommitmentTree.Properties.HeightBreakIffSomeCase` checks the two views
+agree. -/
+
+/-- The four cases of `HeightBreak`. -/
+inductive HeightBreakCase
+  | shortInteriorLeaf
+  | shortCollision
+  | longEntryIsNode
+  | longCollision
+deriving DecidableEq
+
+/-- The premise of the `HeightBreak` constructor named by the case.  Arguments as for
+`HeightBreak`: node hash `h`, padding `z0`, level-0 list `L`, submitted siblings
+`sibs`, submitted length `k`, tree height `height`, index `j`, claimed leaf hash `x`. -/
+def HeightBreakAt (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256)
+    (k height j : ℕ) (x : UInt256) : HeightBreakCase → Prop
+  | .shortInteriorLeaf => k < height ∧
+      x = h (treePair h z0 L (height - k - 1) (2 * j)).1
+            (treePair h z0 L (height - k - 1) (2 * j)).2
+  | .shortCollision => k < height ∧
+      PathCollision h z0 L (fun l => sibs (l - (height - k))) (height - k) k j x
+  | .longEntryIsNode => height < k ∧
+      L.getD (j / 2 ^ (k - height)) z0
+        = h (walkPair h sibs 0 j x (k - height - 1)).1 (walkPair h sibs 0 j x (k - height - 1)).2
+  | .longCollision => height < k ∧
+      PathCollision h z0 L (fun l => sibs (l + (k - height))) 0 height (j / 2 ^ (k - height))
+        (walkPure h sibs 0 (k - height) j x)
+
+/-- **Exactly sub-case `c` fires**: the `HeightBreak` premise of case `c` holds on this
+instance, and that of every other case does not. -/
+def HeightBreakExactly (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256)
+    (k height j : ℕ) (x : UInt256) (c : HeightBreakCase) : Prop :=
+  ∀ c' : HeightBreakCase, HeightBreakAt h z0 L sibs k height j x c' ↔ c' = c
+
 /-! ## A toy hash pair, for the firing witnesses
 
 Not a model of `keccak`: a deliberately weak node hash and leaf hash whose

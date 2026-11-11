@@ -21,6 +21,7 @@ exact named propositions, plus auxiliary lemmas.
 |---|---|---|---|
 | VersionRegistry | [Specs/VersionRegistry.lean](Specs/VersionRegistry.lean) | [Properties/VersionRegistry.lean](Properties/VersionRegistry.lean) | [Proofs/VersionRegistry.lean](Proofs/VersionRegistry.lean) |
 | ChainRouting | [Specs/ChainRouting.lean](Specs/ChainRouting.lean) | [Properties/ChainRouting.lean](Properties/ChainRouting.lean) | [Proofs/ChainRouting.lean](Proofs/ChainRouting.lean) |
+| ChainMigration | [Specs/ChainMigration.lean](Specs/ChainMigration.lean) | [Properties/ChainMigration.lean](Properties/ChainMigration.lean) | [Proofs/ChainMigration.lean](Proofs/ChainMigration.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
@@ -61,8 +62,28 @@ the `Properties` segment.
   selector differently (`MissingSelectorBricksTransition`); for an edge whose releases
   route identically it does not.
 
-Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness`
-are concrete runs meeting the premises.
+**ChainMigration** (chains leaving and coming back; extends ChainRouting):
+
+- A chain that comes back to a settlement layer where its diamond is still registered reuses
+  that diamond. `ChainAssetHandlerBase.bridgeMint` skips `ChainTypeManager.forwardedBridgeMint`
+  when `contractAlreadyDeployed` (`ChainAssetHandlerBase.sol:397-417`). The return requires
+  only that the diamond's version equals the CTM's (`Migrator.sol:225-229`).
+- No migration step writes a diamond (`MigrationLeavesRoutingAlone`). Only a transition, the
+  bootstrap reset or a break-glass cut of that chain changes a registered chain's version or
+  routing (`OnlyUpgradesAndCutsWriteADiamond`).
+- The headline survives migration (`ChainsRunTheirVersionsReleaseAcrossMigration`;
+  `MigrationRoundTripWitness`).
+- Drift is kept: a break-glass routing leaves and comes back unchanged, while a fresh arrival
+  of the same chain would get the release (`DriftSurvivesMigrationRoundTrip`). Once the CTM
+  commits the next edge, the returned chain can neither upgrade nor leave
+  (`DriftedReturnerIsStuck`).
+
+Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
+`MigrationRoundTripWitness` are concrete runs that meet the premises.
+
+Related folders: `../RegistryBootstrapMigration/` (who holds the CTM's authority across the
+bootstrap, same commit) and `../EcosystemUpgradeExecutor/` (the staged coordinator and its
+timer, at the earlier commit `afa407085`; deleted by `e561b9cc2`).
 
 ## Model boundaries
 
