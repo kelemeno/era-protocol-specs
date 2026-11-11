@@ -67,4 +67,9 @@ the timer's code.
 - Timer code is one of three kinds: a `GovernanceUpgradeTimer`, permissive code, or code on
   which every call reverts. Other stateful timer code is not modelled.
 - The CTM executor's own owner can commit transitions through its own `forward`, with no
-  coordinator involved. That path is not modelled.
+  coordinator involved. That path is not modelled here, at `afa407085`. At `e561b9cc2`, where
+  the coordinator is gone, it is: `../ChainTypeManager/` (`ExecutorForward`,
+  `ForwardOfCtmCallsIsARun`) for the version state, and `../RegistryBootstrapMigration/`
+  (topic Forward, `ForwardIsARun`) for the authority state. Upgrade timing at `e561b9cc2`
+  (the manifest's `upgradeTimestamp`, the `ServerNotifier` gate) is in `../ChainTypeManager/`
+  (`UpgradeTiming`), a different mechanism from the deleted timer modelled here.

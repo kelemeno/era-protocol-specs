@@ -16,12 +16,16 @@ can compose without claiming a concrete VM/compiler proof.
 
 Start with the [asset bridging verification plan](ASSET_BRIDGING_VERIFICATION_PLAN.md)
 for scope, main guarantees, contract responsibilities, proof order, and completion
-criteria. [REVIEW.md](REVIEW.md) records the earlier atomicity/preparation review
-and first application proofs. The reference bridge is not a verified transcription
+criteria. [REVIEW.md](REVIEW.md) records the earlier atomicity/preparation review,
+first application proofs, what round 5 closed or advanced, and the round-5 source
+findings. The reference bridge is not a verified transcription
 of the deployed asset router or token vault.
 See [PROVENANCE.md](PROVENANCE.md) for the origin of copied material and
 [REUSE.md](REUSE.md) for historical reference material and open implementation
 correspondence work.
+
+Toolchain: Lean `v4.35.0` (`lean-toolchain`) and Mathlib `v4.35.0` (`lakefile.lean`,
+locked in `lake-manifest.json`).
 
 ```bash
 lake build                      # ~2 min with a warm Mathlib
@@ -53,20 +57,27 @@ EraSpec/
       Properties/     Model.lean, FlowCanonical.lean, RecoveryLimits.lean
       Proofs/         Model.lean, FlowCanonical.lean, RecoveryLimits.lean
       README.md
+    AssetRouterBase/          Specs/, Properties/, Proofs/
     AtomicInteropProof/       Specs/, Properties/, Proofs/
     BridgedStandardERC20/      Specs/, Properties/, Proofs/
+    ChainTypeManager/         Specs/, Properties/, Proofs/
+    EcosystemUpgradeExecutor/ Specs/, Properties/, Proofs/
     FullMerkle/               Specs/, Properties/, Proofs/
     IndexedMerkleTree/        Specs/, Properties/, Proofs/
+    InteropCenter/            Specs/, Properties/, Proofs/
     InteropDataEncoding/      Specs/, Properties/, Proofs/
     InteropHandlerBase/       Specs/, Properties/, Proofs/
     L2InteropCommitmentTree/   Specs/, Properties/, Proofs/
     L2InteropHandler/         Specs/, Properties/, Proofs/
     Merkle/                  Specs/, Properties/, Proofs/
     NativeTokenVaultBase/     Specs/, Properties/, Proofs/
+    ProxyUpgradeRowLib/       Specs/, Properties/, Proofs/
+    RegistryBootstrapMigration/ Specs/, Properties/, Proofs/
   Core/                      words, arithmetic, preparation, safety simulation
   Protocol/                  cross-contract and multi-chain composition
   Examples/BurnMintBridge/   illustrative model and conditional composition
-  Codegen/                   contract language, Solidity emitter, generated token slice
+  Codegen/                   contract language and calls, Solidity emitter,
+                             token slice, vault preparation slice
   Refinement.lean            compiled-code implementation obligations
 solidity/                    one Foundry suite run against original and generated Solidity
 ```
@@ -113,7 +124,12 @@ test suite plus differential sequences for existing/generated Solidity. Its
 first experiment — the bridged-token slice — is built: see
 [EraSpec/Codegen/README.md](EraSpec/Codegen/README.md) for what is proved and
 [solidity/README.md](solidity/README.md) for the comparison against the original.
-The emitter itself is trusted (`GEN-EMIT`), not proved.
+The emitter itself is trusted (`GEN-EMIT`), not proved. A second slice,
+`Codegen/VaultPreparationSlice/`, transcribes the vault's registered bridged-token
+`bridgeBurn` branch with external calls (`Codegen/Calls.lean`) and proves it refines
+the model preparation, returned bytes included (`BridgeBurnRefines`,
+`BridgeBurnSuccessIsPreparation`, `ReachableJournalBacked`). That slice has no
+Solidity emitter yet and no comparison against the original vault.
 
 ### What belongs in Core
 
@@ -139,16 +155,52 @@ manager's best-effort recovery. Intended real-contract properties and open gaps
 are tracked in [REVIEW.md](REVIEW.md); no placeholder proofs are created for
 contracts that have not been modeled.
 
+## Round 5
+
+Round 5 added 25 locally authored work items as new topics in the `Specs/`,
+`Properties/`, `Proofs/` layout (plus `Codegen/Calls.lean`), all imported by the
+package entry point:
+
+- **Asset bridging.** Vault resolution (`NativeTokenVaultBase` `Resolution`:
+  `BridgeMintExact`, `RecoverExact`, `PrepareThenDeliverConserves`), unified
+  registration and its registry correspondence, token reinitialization
+  (`PendingObligationsKeepTheirAsset`) and the legacy zero-vault fallback. Router
+  writer coverage, mint and counterpart gates, run-level `LoggedRunNoHijack`, and
+  atomic recovery (`AssetRouterBase` `AtomicRecovery`).
+- **Atomic interop.** `InteropCenter` dispatch (new contract folder), flow binding
+  without `FlowHashInj` (`ExecutedImpliesRealFlowFinalizableOrLoggedClash`), once-per-leg
+  append (`SystemOncePerLeg`), handler reentrancy (`NoEffectCommittedTwice`),
+  commitment-tree init-once (`InitL2AtMostOnce`), and the halted-chain END branch in
+  the reference bridge (`EndBranch`).
+- **Hash premises.** The remaining global-injectivity bundle-hash and Merkle results
+  are restated in pinned form (`SendsDistinctBundleHashesOrKeccakCollision`,
+  `Merkle` `RootForgeryPinned`, `PublishedRootCommitsOrCollision`).
+- **Stored roots.** FullMerkle's cached `_nodes` storage computes the abstract fold
+  (`FullMerkle` `CachedNodes`; `L2InteropCommitmentTree` `CachedRoot`).
+- **Upgrades** (pin `e561b9cc2`). The counting routing check equals exact routing
+  on well-formed diamond storage and rows (`CountCheckIffExactRouting`), chain-local
+  release routing, transition enabledness (`TransitionEnabledIff`), timestamp gates (`NotAtAnyTime`), rows that `validateRows`
+  never checked, `upgradeChain` after replacement, genesis writers, and forwarded calls
+  in the bootstrap migration (`LabelsAreCoveredCalls`).
+- **Code generation.** The vault preparation slice above.
+
+[REVIEW.md](REVIEW.md) maps these to P1–P8 and the contract table, and lists the
+source findings both verifiers agreed on. Those findings have been reported to the
+maintainer of this repo and are not yet confirmed upstream.
+
 ## What is NOT here
 
 Deliberately, so the boundary stays legible:
 
 - **Implementation correspondence.** Storage layout, ABI and memory bytes, revert
-  paths, and external-call behavior remain open obligations.
+  paths, and external-call behavior remain open obligations. The two codegen slices
+  relate model operations to interpreter-level transcriptions, not to deployed bytecode.
 - **Stored-root correspondence.** The commitment-tree model carries list state;
-  `Contracts/FullMerkle/Specs/Model.lean` supplies the abstract hash-tree fold. Tying
-  actual stored roots to those leaves remains an implementation correspondence
-  obligation.
+  `Contracts/FullMerkle/Specs/Model.lean` supplies the abstract hash-tree fold.
+  `Contracts/FullMerkle/Specs/CachedNodes.lean` transcribes the library's cached
+  storage and proves its stored root is that fold (`CachedNodes`,
+  `L2InteropCommitmentTree` `CachedRoot`). That the compiled library executes the
+  transcription remains an implementation correspondence obligation.
 - **Full source access-control correspondence.** The token model includes explicit
   caller/vault guards; several earlier interop models omit callers. Relating all
   these paths to actual source callers remains obligation O5.

@@ -77,3 +77,12 @@ Ported (9): `test_bridgeMint_mintsTokens`, `test_bridgeMint_increasesTotalSupply
 
 Also outside scope, and therefore not claimed equal: storage layout and proxy
 compatibility, `ERC1967Upgrade` surface, deployment addresses, gas.
+
+## Not covered here: the vault's preparation path
+
+The second slice of [CODE_GENERATION.md](../CODE_GENERATION.md),
+`Codegen.VaultPreparationSlice` (the bridged-token branch of
+`NativeTokenVaultBase.bridgeBurn`), has proofs at interpreter level only.
+`Codegen.Emit` has no rules for the `Codegen.Calls` constructs it uses, so
+there is no generated vault in `src/generated/`, and no suite here runs against
+the original vault. There is no test evidence for `REP-VAULT`.

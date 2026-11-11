@@ -15,6 +15,7 @@ named propositions.
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
 | Authority | [Specs/Authority.lean](Specs/Authority.lean) | [Properties/Authority.lean](Properties/Authority.lean) | [Proofs/Authority.lean](Proofs/Authority.lean) |
+| Forward | [Specs/Forward.lean](Specs/Forward.lean) | [Properties/Forward.lean](Properties/Forward.lean) | [Proofs/Forward.lean](Proofs/Forward.lean) |
 
 Namespace: `Contracts.RegistryBootstrapMigration`. Statements are
 `Contracts.RegistryBootstrapMigration.Properties.*`; each certificate has the same name
@@ -63,18 +64,68 @@ outstanding, so the model tracks `ctmPending` separately.
   configuration (`coreHeld`, `notifierOk`, `ExecView`). They are not state.
 - Other actors are over-approximated. Any owner other than the migration may nominate, transfer
   the `ProxyAdmin`, or move the CTM's version, and any nominee other than the migration may
-  accept.
+  accept. The list omits `renounceOwnership` on the CTM and the `ProxyAdmin` (see Forward:
+  outside the label set, parks nothing, strands authority).
 - The CTM implementation swap applied by the bootstrap rows is assumed to keep the
   `Ownable2Step` storage.
 
-## The CTM executor's `forward`
+## The CTM executor's `forward` (topic Forward)
 
-Not modelled as its own step here. What a genuine executor's `forward` can do to the
-authorities this model tracks is a sequence of steps the model already admits for any owner
-other than the migration: nominate on the CTM, transfer the `ProxyAdmin`, accept a
-nomination, move the CTM's version. The results that hold "along any run" therefore cover
-those forwarded calls (this is an argument about the label set, not a separate theorem).
-One forwarded call is outside the label set: `CTM_PROXY_ADMIN.upgradeAndCall` on the CTM
-proxy, which can rewrite the CTM's owner slot directly; `ParkedCTMLeavesOnlyByNomineeAccept`
-states that omission. Its effect on the CTM's version state is in
-`../ChainTypeManager/` (`ExecutorForward`, `ForwardCtmSwapBreaksInvariants`).
+`UpgradeExecutorBase.forward` (`governance/UpgradeExecutorBase.sol:32-46`) is modelled as a
+list of calls, each with its own `msg.sender`: the calls `forward` makes, sent by the
+executor, and the calls their targets make in turn, sent by those targets. The entry points
+are the writers of the tracked slots: the CTM's `transferOwnership`, `acceptOwnership`,
+`renounceOwnership` and owner-only version writers; the `ProxyAdmin`'s `transferOwnership` and
+`renounceOwnership`, and `upgrade`/`upgradeAndCall` on the CTM proxy; `migrate()`; plus a call
+that writes nothing tracked. No premise is made on the executor's code.
+
+- `ForwardIsARun`: a successful forward is a run of this model's labels if none of its calls
+  is sent by the migration or the zero address, renounces an ownership, or replaces the CTM's
+  code. Each call becomes its other-actor label, or `migrate`. The labels hand authority to
+  the migration only where the calls do.
+- `RunsWithForwardsAreRuns` lifts this to runs mixing forwards with the model's transactions,
+  so the "along any run" results (`NoReparkingAfterMigrate`, ...) apply to them. Conversely,
+  from nonzero owners, each label other than the bundle is one covered call
+  (`LabelsAreCoveredCalls`).
+- Stronger direct forms: `NoReparkingAcrossForwards` (no premise on senders, and renounces
+  allowed); `ForwardMovesParkedCTMOnlyByNomineeAccept` (the accept must be the start state's
+  nominee's); `ForwardMovesParkedProxyAdminOnlyByMigrate` (holds even with code swaps).
+- **The label set misses `renounceOwnership`.** The CTM (`Ownable2StepUpgradeable`) and the
+  CTM-domain `ProxyAdmin` (OpenZeppelin `Ownable`) both keep it, and a forward can call it.
+  - No run of the labels reaches the state it leaves, because those runs keep both owners
+    nonzero (`LabelRunsKeepOwnersNonzero`, `ForwardedRenounceLeavesTheLabelSet`).
+  - It parks nothing, but it strands authority (`RenouncedAuthorityIsStranded`,
+    `RenounceStrandsWitness`): an ownerless `ProxyAdmin` never gets an owner again; an
+    ownerless CTM with no nominee gets an owner back only through a code swap by the
+    `ProxyAdmin`'s owner.
+- **Excluded: replacing the CTM's code** (`upgrade`/`upgradeAndCall` on the CTM proxy). It can
+  re-park the CTM on the spent migration with no ownership call naming it
+  (`ForwardCtmSwapReparks`), and move a parked CTM without the nominee's accept
+  (`ForwardCtmSwapMovesParkedCTM`). On the version state it voids the CTM's invariants
+  (`../ChainTypeManager/`, `ForwardCtmSwapBreaksInvariants`).
+- Witnesses: `ForwardWitness` (the bundle, then executor succession through `forward`, with
+  the successor's accept as a nested call); `ParkedForwardFramesFire` (a forwarded
+  `acceptOwnership()` recovers the CTM that the non-genuine executor left parked, and a
+  forwarded `migrate()` moves the `ProxyAdmin`).
+- Not modelled: `ProxyAdmin.changeProxyAdmin` on the CTM proxy (who administers the CTM proxy
+  is configuration), ETH, events. The mapping from a real forward, nested calls included, to
+  the list of calls is a model boundary. This authority model and `../ChainTypeManager/`'s
+  version model are separate; they are linked only by documentation.
+
+## Source findings
+
+Reported to the maintainer of this repo, not yet confirmed upstream. Each was checked by two
+independent verifiers; only findings both upheld are listed, with the classification both
+gave. Paths are under `l1-contracts/contracts/` at `e561b9cc2`.
+
+- *real-bug.* `ChainTypeManager` (`state-transition/ChainTypeManager.sol:58`,
+  `Ownable2StepUpgradeable`) does not disable `renounceOwnership`, so one forwarded call
+  leaves the CTM with neither owner nor nominee (`RenouncedAuthorityIsStranded`). This
+  conflicts with `governance/UpgradeExecutorBase.sol:14-17` and :48-53, which disable it on
+  the executor so that its authority is never stranded. Only the executor's owner (governance)
+  can send the call; recovery is a CTM code swap by the `ProxyAdmin`'s owner. The same call on
+  the CTM-domain `ProxyAdmin` was classified not-an-issue by both: governance can strand it
+  through `forward` in other ways a renounce guard would not stop.
+- *repo-doc-stale, low.* This README's earlier argument that forwarded calls are covered by
+  the label set omitted `renounceOwnership` (`ForwardedRenounceLeavesTheLabelSet`). Corrected
+  above.

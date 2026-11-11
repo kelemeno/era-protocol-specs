@@ -89,6 +89,42 @@ out here and were dropped. Its nine `Properties.Protocol` statements (bound gate
 counterparts are the split `Protocol/MultichainGate/` properties (the old
 `Protocol/Spec.lean` is now a compatibility import of it).
 
+### Authored in round 5
+
+All of the following were written in this repository against the pins below; none
+is copied, and none imports the historical compiled contracts or their proofs. Each
+is a new `Specs/`, `Properties/`, `Proofs/` topic, except that `ResolutionCorrespondence`
+and `ExecutorRowsUnvalidated` have properties and proofs only.
+
+* At era-contracts `c67894b9`:
+  - `AssetRouterBase`: `AtomicRecovery`, `AllWriters`, `VaultMintGate`,
+    `CounterpartGate`, `HandlerRegistrationRuns`.
+  - `NativeTokenVaultBase`: `Resolution` (with `ResolutionCorrespondence`),
+    `RegistrationUnified`, `Reinitialization`, `LegacyFallback`.
+  - `BridgedStandardERC20`: `Reinitialization`, `LegacyFallback`. The OpenZeppelin
+    v4.9 lines `Reinitialization` cites were read from a v4.9.6 copy, because the
+    pinned tree's submodules are not checked out (see that spec's header).
+  - `InteropCenter` (new contract folder): `Dispatch`.
+  - `InteropDataEncoding` `BundleHashPinned`; `InteropHandlerBase` `Reentrancy`;
+    `L2InteropCommitmentTree` `CachedRoot`, `InitOnce`, `PublishedRootCommits`;
+    `FullMerkle` `CachedNodes`; `Merkle` `RootForgeryPinned`.
+  - `Protocol/InteropAtomicity` `FlowBinding`, `OncePerLeg`;
+    `Protocol/AssetBridgePreparation` `RegistryCorrespondence`, `Reinitialization`;
+    `Examples/BurnMintBridge` `EndBranch`.
+  - `Codegen/Calls.lean` (single module) and `Codegen/VaultPreparationSlice/`, which
+    transcribes the vault's registered bridged-token `bridgeBurn` branch.
+* At `feat/upgrade-simplification` commit `e561b9cc2`:
+  - `ChainTypeManager`: `DiamondStorage`, `LiveRouting`, `DuplicateSelectorScan`,
+    `DuplicateSelectorCheck`, `Enabledness`, `ChainLocal`, `ChainLocalExecutor`,
+    `UpgradeTiming`, `ExecutorRowsUnvalidated`, `ExecutorUpgradeChain`, `GenesisWriters`.
+  - `ProxyUpgradeRowLib` `RowsUnvalidated`, which reuses the `RowsCurrent` model at
+    that commit unchanged.
+  - `RegistryBootstrapMigration` `Forward`, citing the OpenZeppelin v4.9 submodules
+    that commit pins (`2d081f2`, `dc44c9f`).
+
+Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
+to the maintainer of this repo, not yet confirmed upstream.
+
 ## Implementation correspondence remains open
 
 The abstract proofs establish properties of the definitions and assumptions in
@@ -100,7 +136,12 @@ supplying that correspondence.
 
 ## Pinned source context
 
-* Lean `v4.9.1`; Mathlib `09d33efc68d3ad52db77b731d7253675395a14aa`.
+* Lean `v4.35.0` (`lean-toolchain`); Mathlib `v4.35.0`, locked at
+  `56a005855ea17e0b0958f73ec801ae140b0a1679` in `lake-manifest.json`. Commit `9f9ab8f`
+  ported the package from Lean `v4.9.1` / Mathlib
+  `09d33efc68d3ad52db77b731d7253675395a14aa`; only `EraSpec/Core/Word.lean` changed
+  (`Fin.ofNat` takes the modulus explicitly, and the `Fin` ring instance is registered
+  globally as the older build had it).
 * Source context for the original extraction: era-contracts commit
   `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`. Contract-specific models were
   reviewed against the Solidity files at that source pin, including
@@ -126,7 +167,8 @@ supplying that correspondence.
   commit cite no source commit. The library was found unchanged at
   `612a71cccb65d6db97674997b21427a50bec6206` (last library change `ae0698588`), so
   treat the model as a snapshot at that commit. The library has changed since; see
-  that contract's README.
+  that contract's README. `Specs/RowsCurrent.lean` and `Specs/RowsUnvalidated.lean` model the
+  library at `e561b9cc2` instead.
 * `EraSpec/Contracts/ChainTypeManager/` models the CTM's version/transition registry and
   chain facet routing on the same branch, pinned at commit `e561b9cc2` (read-only);
   sources are under `l1-contracts/contracts/upgrades/registry/` and the

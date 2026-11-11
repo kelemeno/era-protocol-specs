@@ -148,6 +148,57 @@ What this does and does not establish:
   mentions the original; its correspondence (`REP-TOKEN`) remains open as a
   proof obligation, now with substantial test evidence.
 
-Natural next steps: extend the slice to the vault's preparation path
-(`REP-VAULT`), and replace `GEN-EMIT` with translation validation once a
-Solidity or Yul semantics is chosen.
+## Status of the second slice: the vault's preparation path
+
+Step 1 has been run for the registered bridged-token branch of
+`NativeTokenVaultBase.bridgeBurn` (`REP-VAULT`). Steps 2–4 have not.
+Files: [`Codegen/Calls.lean`](EraSpec/Codegen/Calls.lean) and
+[`Codegen/VaultPreparationSlice/`](EraSpec/Codegen/VaultPreparationSlice/).
+
+| Step | Status |
+|---|---|
+| 1. Language; vault slice in it; connection to the vault model | Done, at interpreter level. [`Calls.lean`](EraSpec/Codegen/Calls.lean) extends the language without changing `Lang.lean`: high-level external calls and bodiless `internal virtual` hooks, both given meaning by a `Machine`; `bytes`, the length check, `abi.decode` of static types, `abi.encode` of words and `bytes`; `msg.value`, `block.chainid`; logs tagged with their emitter. [`Specs/Program.lean`](EraSpec/Codegen/VaultPreparationSlice/Specs/Program.lean) transcribes `bridgeBurn` and its callees (`NativeTokenVaultBase.sol:315-479`) in source order with source revert data; the native and base-token branches revert with `OutsideSlice()`. The token it calls is the bridged-token slice plus `originToken()` and `assetId()`. Proved: `BridgeBurnRefines`, both directions against `Contracts.NativeTokenVaultBase.prepare` (the model rejects iff the call reverts; on acceptance vault storage is unchanged, the state is related, the returned bytes are exactly `encodeMintData out.data`, the logs are exactly `prepareLogs`); `BridgeBurnSuccessIsPreparation` (every successful call is a model request); `BridgeBurnBacked` (`preparation_backed` on storage words); `Simulation` of `AssetBridgePreparation.Step`; `ReachableJournalBacked` from `AssetBridgePreparation.reachable_conservation` by `safety_transfer`; `EncodeMintDataLayout` and `EncodeMintDataInjective`; the first four checks and both slice edges with exact revert data (`L2ValueCheckedFirst`, `RouterCheckedSecond`, `PauseCheckedThird`, `BurnDataLengthCheckedFourth`, `NativeAssetLeavesTheSlice`, `BaseAssetLeavesTheSlice`). Each premise has a witness ([`Properties/Witnesses.lean`](EraSpec/Codegen/VaultPreparationSlice/Properties/Witnesses.lean), `RevertOrderPremisesSatisfiable`). |
+| 2. Emit reviewable Solidity | Not started. `Codegen.Emit` has no rules for the `Codegen.Calls` constructs, so there is no generated vault. |
+| 3. Shared assertions and differential sequences | Not started. No shared suite, differential run or Lean-generated vectors against the original vault. |
+| 4. Prove the translation rules or validate each output | Open, as for the first slice. |
+
+What this does and does not establish:
+
+* **Trusted: `MODEL-CALLS`, not `GEN-EMIT`.** Nothing is emitted, so `GEN-EMIT`
+  does not apply. The meaning of the `Codegen.Calls` constructs is a definition
+  reviewed against Solidity's documentation, not a proof (`MODEL-CALLS` in
+  ASSUMPTIONS.md). It has no reentrancy: the only callee is a `Codegen.Lang`
+  program, which makes no calls. Hooks cannot write the caller's storage.
+  Address parameters and returned static words are not range-checked. The
+  refinement and `Step` statements assume `oc.val < 2 ^ 160`; the six
+  revert-order statements do not, so for an out-of-range `oc` they describe the
+  interpreter, whereas solc's decoder reverts first. The returned
+  `originToken()` word is an address because `Rel` makes it one.
+* **Boundaries of the slice.** One token in the world. The accounting tracker
+  and metadata getters are hooks under `HooksAgree` (`DEP-FRAME`/`DEP-RESULTS`).
+  The vault has no constructor: theorems start from any storage related by
+  `Rel` to a model state, and `EveryWellFormedStateIsRepresented` shows one
+  exists. `bytes32` is carried as `uint256`, so selectors differ from the
+  source. Registration, `bridgeMint`, recovery, pausing and ownership are not
+  transcribed.
+* **The original vault.** No theorem mentions its bytecode, and there is no test
+  evidence for it yet. `REP-VAULT` remains open for it.
+
+Transcribing the branch surfaced three NatSpec mismatches at the pin. They
+are comment-only, and no behavioural difference was found in the transcribed
+branch. They have been reported to the maintainer of this repo and are not yet
+confirmed upstream:
+
+* `NativeTokenVaultBase.sol:106`: `onlyAssetRouter` is documented as checking
+  for the bridgehub; `:108` checks the asset router.
+* `NativeTokenVaultBase.sol:313`: `bridgeBurn` is documented as letting the
+  bridgehub acquire `mintValue`; the caller must be the asset router (`:326`).
+* `NativeTokenVaultBase.sol:314` and `IAssetHandler.sol:33` describe `_data` as a
+  two-field tuple. `DataEncoding.sol:54-59` requires exactly 96 bytes,
+  `(amount, receiver, maybeTokenAddress)`. For the transcription,
+  `BurnDataLengthCheckedFourth` proves that every other length reverts with
+  `InvalidNTVBurnData()`.
+
+Natural next steps: emitter rules for the `Codegen.Calls` constructs, then
+steps 2–3 for the vault against the pin's vault tests; and replace `GEN-EMIT`
+with translation validation once a Solidity or Yul semantics is chosen.

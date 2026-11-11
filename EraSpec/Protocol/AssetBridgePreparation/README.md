@@ -18,6 +18,12 @@ separate `OPS-PROGRESS` boundary.
 | Checked trace-property derivations | [Proofs/Model.lean](Proofs/Model.lean) |
 | Initialization-to-preparation composition statement | [Properties/Initialization.lean](Properties/Initialization.lean) |
 | Checked initialization composition | [Proofs/Initialization.lean](Proofs/Initialization.lean) |
+| Trace with token version and metadata, reinitialization steps, `PendingNamesToken` | [Specs/Reinitialization.lean](Specs/Reinitialization.lean) |
+| Conservation, persistence, pending-asset binding, registration-to-trace composition | [Properties/Reinitialization.lean](Properties/Reinitialization.lean) |
+| Checked reinitialization derivations and concrete witness | [Proofs/Reinitialization.lean](Proofs/Reinitialization.lean) |
+| Per-destination pending total | [Specs/RegistryCorrespondence.lean](Specs/RegistryCorrespondence.lean) |
+| The trace against the registry model's flow audit | [Properties/RegistryCorrespondence.lean](Properties/RegistryCorrespondence.lean) |
+| Checked registry-correspondence derivation and witness | [Proofs/RegistryCorrespondence.lean](Proofs/RegistryCorrespondence.lean) |
 
 ## Allowed trace and context
 
@@ -44,6 +50,13 @@ published by production code.
   records, total pending value never exceeds the initial source-token supply.
 - **Prefix persistence:** later preparations and ordinary transfers only append to
   the pending list; previously prepared data is retained unchanged.
+- **Reinitialization:** the trace extended with `reinitializeToken` steps by any
+  caller (`ReinitReach`) keeps `WellFormed`, circulating supply plus pending value,
+  the vault configuration, the token identity, and all previously prepared data
+  (`ReinitTraceConservation`, `ReinitTracePreparedDataPersists`; step cases
+  `ReinitStepCases`). Every pending obligation keeps naming the token's original asset
+  id and origin token (`PendingObligationsKeepTheirAsset`). The existing trace embeds
+  unchanged (`TraceRunsEmbed`). Witness: `ReinitTraceWitness`.
 
 These conclusions rely on the vault's `WellFormed` registry and token-ledger
 assumptions, and on its modeled accounting hook and `Option` commit behavior. The
@@ -57,6 +70,29 @@ otherwise a freshly created zero-supply token could only yield an empty trace.
 This theorem has no input `WellFormed` or `RepresentationConsistent` hypothesis.
 The token phase permits mint/burn/transfer under the existing token guards; it
 does not prove the cross-chain authorization or economic backing of those mints.
+`InitializedTraceWithReinitialization` composes the same registration with a funding
+phase and a trace that both include reinitializations, again with no input invariant.
+
+## Against the registry model
+
+`TightTraceIsRegistryOutflow` runs the initialization composition starting from the
+tightened registration (`registerFreshBranch'`, see the
+[NativeTokenVaultBase README](../../Contracts/NativeTokenVaultBase/README.md)). A
+bounded registry-model run simulates it:
+
+- the registry vault is the registration's write throughout, and it corresponds to
+  the final ledger;
+- `Valid` and `WellFormed` hold;
+- during the trace the registry records no inflow of the asset, and records exactly
+  the pending total as outflow, per destination chain (`pendingAmountTo`).
+
+The registry run is the matching run the simulation builds, so the pending list and
+that run's flow audit agree. Other registry runs are not constrained: the registry
+model does not bound a bridged asset's flows
+(`Contracts.NativeTokenVaultBase.Properties.LifecycleIdentityNotRegistryInvariant`). Token-model
+mints and burns carry no chain id, so per-destination outflow is claimed only for
+preparations. Neither ghost record is evidence of publication. Witness:
+`TightTraceIsRegistryOutflowSatisfiable`.
 
 This model does not prove router correspondence, unique resolution, replay
 protection, delivery/refund exclusion, or completion of M1. It must not be read as
