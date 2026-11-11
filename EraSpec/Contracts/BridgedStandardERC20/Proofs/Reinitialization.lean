@@ -12,19 +12,15 @@ private theorem reinit_allowed {beaconOwner : Option Address} {s : TokenStorage}
     (h : reinitializeToken beaconOwner s caller getters name symbol version = some t) :
     ReinitAllowed beaconOwner s caller version ∧
       t = ⟨s.token, version, reinitMetadata s.metadata getters name symbol⟩ := by
-  unfold reinitializeToken at h
-  split at h
-  · rename_i hg
-    exact ⟨hg, (Option.some.inj h).symm⟩
-  · cases h
+  simp only [reinitializeToken, Option.ite_none_right_eq_some, Option.some.injEq] at h
+  exact ⟨h.1, h.2.symm⟩
 
 private theorem reinit_of_allowed {beaconOwner : Option Address} {s : TokenStorage}
     {caller : Address} {getters : Getters} {name symbol : Text} {version : UInt8}
     (h : ReinitAllowed beaconOwner s caller version) :
     reinitializeToken beaconOwner s caller getters name symbol version =
-      some ⟨s.token, version, reinitMetadata s.metadata getters name symbol⟩ := by
-  unfold reinitializeToken
-  rw [ite_eq_left h]
+      some ⟨s.token, version, reinitMetadata s.metadata getters name symbol⟩ :=
+  ite_eq_left h
 
 private theorem allowed_iff {beaconOwner : Option Address} {s : TokenStorage} {caller : Address}
     {version : UInt8} :
@@ -32,11 +28,7 @@ private theorem allowed_iff {beaconOwner : Option Address} {s : TokenStorage} {c
       version.toNat = s.version.toNat + 1 ∧ beaconOwner = some caller := by
   unfold ReinitAllowed NextVersion ReinitializerAllowed
   rw [UInt8.lt_iff_toNat_lt]
-  constructor
-  · rintro ⟨h1, _, h3⟩
-    exact ⟨h1, h3⟩
-  · rintro ⟨h1, h3⟩
-    exact ⟨h1, by omega, h3⟩
+  exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h3⟩ => ⟨h1, by omega, h3⟩⟩
 
 /-- A successful call, unfolded to its version and owner guards and its effect. -/
 private theorem reinit_view {beaconOwner : Option Address} {s : TokenStorage} {caller : Address}
@@ -45,22 +37,18 @@ private theorem reinit_view {beaconOwner : Option Address} {s : TokenStorage} {c
     version.toNat = s.version.toNat + 1 ∧ beaconOwner = some caller ∧
       t = ⟨s.token, version, reinitMetadata s.metadata getters name symbol⟩ := by
   obtain ⟨hg, ht⟩ := reinit_allowed h
-  obtain ⟨hn, ho⟩ := allowed_iff.mp hg
-  exact ⟨hn, ho, ht⟩
+  exact ⟨(allowed_iff.mp hg).1, (allowed_iff.mp hg).2, ht⟩
 
 private theorem reinit_none_of_not_allowed {beaconOwner : Option Address} {s : TokenStorage}
     {caller : Address} {getters : Getters} {name symbol : Text} {version : UInt8}
     (h : ¬ ReinitAllowed beaconOwner s caller version) :
-    reinitializeToken beaconOwner s caller getters name symbol version = none := by
-  unfold reinitializeToken
-  rw [ite_eq_right h]
+    reinitializeToken beaconOwner s caller getters name symbol version = none :=
+  ite_eq_right h
 
 private theorem version_ne_zero_of_next {s : TokenStorage} {version : UInt8}
     (hn : version.toNat = s.version.toNat + 1) : version ≠ 0 := by
-  intro h0
-  rw [h0] at hn
-  have : (0 : UInt8).toNat = 0 := rfl
-  omega
+  rintro rfl
+  simp at hn
 
 /-! ## `bridgeInitialize` on the full storage, unfolded -/
 
@@ -72,20 +60,16 @@ private theorem initializeStorage_view {s t : TokenStorage} {caller : Address}
   unfold initializeStorage at h
   split at h
   · cases h
-  · rename_i m
-    split at h
+  · split at h
     · cases h
-    · rename_i i hi
-      exact ⟨m, i, rfl, hi, (Option.some.inj h).symm⟩
+    · exact ⟨_, _, rfl, ‹_›, (Option.some.inj h).symm⟩
 
 private theorem initializeToken_version {s t : InitState} {caller : Address} {assetId : UInt256}
     {originToken : Address} {decoded : Bool}
     (h : initializeToken s caller assetId originToken decoded = some t) : s.version = 0 := by
   unfold initializeToken at h
-  split at h
-  · rename_i hg
-    exact hg.1.1
-  · cases h
+  split_ifs at h with hg
+  exact hg.1.1
 
 private theorem initializeStorage_closed {s : TokenStorage} (hv : s.version ≠ 0)
     (caller : Address) (assetId : UInt256) (originToken : Address) (decoded : Option Metadata) :
@@ -112,35 +96,17 @@ private theorem fresh_init_witness :
 
 /-- Every ledger step keeps the identity, with no ledger premise. -/
 private theorem step_config {a b : State} (h : Step a b) : b.config = a.config := by
-  cases h with
-  | burn h =>
-    unfold burn at h
-    split at h
-    · cases h
-      rfl
-    · cases h
-  | mint h =>
-    unfold mint at h
-    split at h
-    · cases h
-      rfl
-    · cases h
-  | transfer h =>
-    unfold transfer at h
-    split at h
-    · cases h
-      rfl
-    · cases h
+  rcases h with ⟨h⟩ | ⟨h⟩ | ⟨h⟩ <;>
+  · simp only [burn, mint, transfer, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    obtain ⟨-, rfl⟩ := h
+    rfl
 
 /-! ## One call -/
 
 theorem ReinitSucceedsIff : Properties.ReinitSucceedsIff := by
   intro beaconOwner s caller getters name symbol version
-  constructor
-  · rintro ⟨t, h⟩
-    exact allowed_iff.mp (reinit_allowed h).1
-  · intro h
-    exact ⟨_, reinit_of_allowed (allowed_iff.mpr h)⟩
+  exact ⟨fun ⟨_, h⟩ => allowed_iff.mp (reinit_allowed h).1,
+    fun h => ⟨_, reinit_of_allowed (allowed_iff.mpr h)⟩⟩
 
 theorem ReinitExactEffect : Properties.ReinitExactEffect := by
   intro beaconOwner s caller getters name symbol version t h
@@ -164,11 +130,10 @@ theorem ReinitLeavesLedgerCallsUnchanged : Properties.ReinitLeavesLedgerCallsUnc
 theorem ReinitIndependentOfLedger : Properties.ReinitIndependentOfLedger := by
   intro beaconOwner s caller getters name symbol version token
   by_cases h : ReinitAllowed beaconOwner s caller version
-  · have h' : ReinitAllowed beaconOwner { s with token := token } caller version := h
-    rw [reinit_of_allowed h', reinit_of_allowed h]
+  · rw [reinit_of_allowed (s := { s with token := token }) h, reinit_of_allowed h]
     rfl
-  · have h' : ¬ ReinitAllowed beaconOwner { s with token := token } caller version := h
-    rw [reinit_none_of_not_allowed h', reinit_none_of_not_allowed h]
+  · rw [reinit_none_of_not_allowed (s := { s with token := token }) h,
+      reinit_none_of_not_allowed h]
     rfl
 
 theorem ReinitVersionIncreasesByOne : Properties.ReinitVersionIncreasesByOne := by
@@ -178,15 +143,11 @@ theorem ReinitVersionIncreasesByOne : Properties.ReinitVersionIncreasesByOne := 
 
 theorem VersionJumpHasNoStep : Properties.VersionJumpHasNoStep := by
   intro beaconOwner s caller getters name symbol version hv
-  apply reinit_none_of_not_allowed
-  intro h
-  exact hv (allowed_iff.mp h).1
+  exact reinit_none_of_not_allowed fun h => hv (allowed_iff.mp h).1
 
 theorem OnlyTheBeaconOwnerReinitializes : Properties.OnlyTheBeaconOwnerReinitializes := by
   intro beaconOwner s caller getters name symbol version ho
-  apply reinit_none_of_not_allowed
-  intro h
-  exact ho (allowed_iff.mp h).2
+  exact reinit_none_of_not_allowed fun h => ho (allowed_iff.mp h).2
 
 theorem ReinitVersionIsSpent : Properties.ReinitVersionIsSpent := by
   intro beaconOwner s caller getters name symbol version t h beaconOwner' caller' getters'
@@ -216,26 +177,17 @@ theorem OnlyTheStepFrom254DisablesReinitialization :
   constructor
   · intro hnone
     by_contra h254
-    have hs : s.version.toNat ≠ 254 := by
-      intro h'
-      apply h254
-      apply UInt8.toNat_inj.mp
-      rw [h']
-      rfl
+    have hs : s.version.toNat ≠ 254 := fun h' => h254 (UInt8.toNat_inj.mp h')
     have hnext : (version + 1).toNat = version.toNat + 1 := by
-      rw [UInt8.toNat_add]
-      have h1 : (1 : UInt8).toNat = 1 := rfl
-      rw [h1]
-      exact Nat.mod_eq_of_lt (by omega)
+      rw [UInt8.toNat_add, UInt8.toNat_one]
+      omega
     have hstep := hnone (some 0) 0 getters name symbol (version + 1)
     rw [reinit_of_allowed (allowed_iff.mpr ⟨hnext, rfl⟩)] at hstep
     cases hstep
   · intro h254 beaconOwner' caller' getters' name' symbol' version'
     apply VersionJumpHasNoStep
     have hlt' : version'.toNat < 256 := version'.toNat_lt_size
-    have hs : s.version.toNat = 254 := by
-      rw [h254]
-      rfl
+    have hs : s.version.toNat = 254 := by rw [h254]; rfl
     dsimp only
     omega
 
@@ -243,22 +195,17 @@ theorem WithoutNextVersionAJumpDisablesReinitialization :
     Properties.WithoutNextVersionAJumpDisablesReinitialization := by
   let s : TokenStorage := { freshStorage with version := 1 }
   have hj : reinitializeWithoutNextVersion (some 7) s 7 ⟨false, false, false⟩ [] [] 255 =
-      some ⟨s.token, 255, reinitMetadata s.metadata ⟨false, false, false⟩ [] []⟩ := by
-    unfold reinitializeWithoutNextVersion
-    rw [ite_eq_left ⟨show (1 : UInt8) < 255 by decide, rfl⟩]
+      some ⟨s.token, 255, reinitMetadata s.metadata ⟨false, false, false⟩ [] []⟩ :=
+    ite_eq_left ⟨show (1 : UInt8) < 255 by decide, rfl⟩
   refine ⟨s, _, rfl, hj, ?_, ?_⟩
   · intro beaconOwner caller getters name symbol version
     have hlt : version.toNat < 256 := version.toNat_lt_size
     have h255 : (255 : UInt8).toNat = 255 := rfl
-    constructor
-    · unfold reinitializeWithoutNextVersion
-      rw [ite_eq_right]
-      rintro ⟨h, _⟩
-      have h' : (255 : UInt8).toNat < version.toNat := UInt8.lt_iff_toNat_lt.mp h
-      omega
-    · apply VersionJumpHasNoStep
-      dsimp only
-      omega
+    refine ⟨ite_eq_right fun ⟨h, _⟩ =>
+      absurd (UInt8.lt_iff_toNat_lt.mp h) (Nat.not_lt.mpr (Nat.le_of_lt_succ hlt)), ?_⟩
+    apply VersionJumpHasNoStep
+    dsimp only
+    omega
   · apply VersionJumpHasNoStep
     show (255 : UInt8).toNat ≠ (1 : UInt8).toNat + 1
     decide
@@ -271,9 +218,7 @@ private theorem step_ledger {s t : TokenStorage} (hw : WellFormed s.token)
   | bridgeInitialize h =>
     obtain ⟨m, i, _, hi, rfl⟩ := initializeStorage_view h
     have h0 : s.version = 0 := initializeToken_version hi
-    have hw' : WellFormed s.init.token := hw
-    refine ⟨initialization_preserves_ledger (s := s.init) hw' hi, ?_⟩
-    dsimp only
+    refine ⟨initialization_preserves_ledger (s := s.init) hw hi, ?_⟩
     rw [h0]
     exact Nat.zero_le _
   | reinitialize h =>
@@ -287,9 +232,8 @@ theorem RunsPreserveLedger : Properties.RunsPreserveLedger := by
   induction h with
   | refl => exact ⟨hw, le_rfl⟩
   | tail _ hstep ih =>
-    obtain ⟨hwt, hle⟩ := ih
-    obtain ⟨hwu, hle'⟩ := step_ledger hwt hstep
-    exact ⟨hwu, hle.trans hle'⟩
+    obtain ⟨hwu, hle⟩ := step_ledger ih.1 hstep
+    exact ⟨hwu, ih.2.trans hle⟩
 
 theorem InitializedIdentityIsFixed : Properties.InitializedIdentityIsFixed := by
   intro s t hv h
@@ -311,17 +255,15 @@ theorem FreshProxyLifecycle : Properties.FreshProxyLifecycle := by
   intro caller assetId originToken metadata s t hi hr
   obtain ⟨m, i, _, hinit, rfl⟩ := initializeStorage_view hi
   obtain ⟨hvault, hasset, horigin, _, hversion⟩ := initialization_binds_inputs hinit
-  have hw0 : WellFormed freshStorage.init.token := empty_wellFormed ⟨0, 0, 0⟩
-  have hw1 : WellFormed i.token := initialization_preserves_ledger (s := freshStorage.init) hw0 hinit
+  have hw1 : WellFormed i.token :=
+    initialization_preserves_ledger (s := freshStorage.init) (empty_wellFormed _) hinit
   have hv1 : (⟨i.token, i.version, m⟩ : TokenStorage).version ≠ 0 := by
     dsimp only
     rw [hversion]
     decide
   obtain ⟨hc, hv⟩ := InitializedIdentityIsFixed ⟨i.token, i.version, m⟩ t hv1 hr
   refine ⟨?_, (RunsPreserveLedger ⟨i.token, i.version, m⟩ t hw1 hr).1, initializeStorage_closed hv⟩
-  rw [hc]
-  dsimp only
-  rw [← hvault, ← hasset, ← horigin]
+  rw [hc, ← hvault, ← hasset, ← horigin]
 
 /-! ## Counting calls -/
 
@@ -376,9 +318,8 @@ private theorem callStep_version {s t : TokenStorage} {c : StorageCall}
   | bridgeInitialize h =>
     obtain ⟨m, i, _, hi, rfl⟩ := initializeStorage_view h
     have h0 : s.version = 0 := initializeToken_version hi
-    have h1 : i.version = 1 := (initialization_binds_inputs hi).2.2.2.2
     show i.version.toNat = s.version.toNat + 1
-    rw [h0, h1]
+    rw [h0, (initialization_binds_inputs hi).2.2.2.2]
     rfl
   | reinitialize h =>
     obtain ⟨hn, _, rfl⟩ := reinit_view h
@@ -405,17 +346,13 @@ private theorem versionCalls_replicate (k : ℕ) :
     versionCalls (List.replicate k .reinitializeToken) = k := by
   induction k with
   | zero => rfl
-  | succ k ih =>
-    rw [List.replicate_succ]
-    simp only [versionCalls, ih]
+  | succ k ih => simp only [List.replicate_succ, versionCalls, ih]
 
 private theorem initializeCalls_replicate (k : ℕ) :
     initializeCalls (List.replicate k .reinitializeToken) = 0 := by
   induction k with
   | zero => rfl
-  | succ k ih =>
-    rw [List.replicate_succ]
-    simp only [initializeCalls, ih]
+  | succ k ih => simp only [List.replicate_succ, initializeCalls, ih]
 
 /-- From any state, the next `k` versions can be reinitialized one after another, as long as they
 stay within 255. -/
@@ -426,10 +363,8 @@ private theorem reinit_chain :
   | 0, s, _ => ⟨s, StorageRun.nil, rfl⟩
   | k + 1, s, hk => by
     have hnext : (s.version + 1).toNat = s.version.toNat + 1 := by
-      rw [UInt8.toNat_add]
-      have h1 : (1 : UInt8).toNat = 1 := rfl
-      rw [h1]
-      exact Nat.mod_eq_of_lt (by omega)
+      rw [UInt8.toNat_add, UInt8.toNat_one]
+      omega
     have hstep := reinit_of_allowed (getters := ⟨false, false, false⟩) (name := [])
       (symbol := []) ((allowed_iff (s := s) (beaconOwner := some 0) (caller := 0)).mpr
         ⟨hnext, rfl⟩)
@@ -447,25 +382,21 @@ theorem LifetimeBoundIsTight : Properties.LifetimeBoundIsTight := by
     StorageRun.cons (StorageCallStep.bridgeInitialize fresh_init_witness) hrun, ?_, ?_, ?_⟩
   · simp only [initializeCalls, initializeCalls_replicate]
   · simp only [versionCalls, versionCalls_replicate]
-  · apply UInt8.toNat_inj.mp
-    rw [ht]
-    rfl
+  · exact UInt8.toNat_inj.mp ht
 
 theorem BridgeInitializeAtMostOnce : Properties.BridgeInitializeAtMostOnce := by
   intro s calls t h
   induction h with
   | nil => exact ⟨Nat.zero_le _, fun _ => rfl⟩
   | cons hstep _ ih =>
-    obtain ⟨_, ih2⟩ := ih
+    obtain ⟨ih1, ih2⟩ := ih
     cases hstep with
     | bridgeInitialize h' =>
       obtain ⟨m, i, _, hi, rfl⟩ := initializeStorage_view h'
-      have h0 := initializeToken_version hi
       have h1 : i.version = 1 := (initialization_binds_inputs hi).2.2.2.2
       have hz := ih2 (by dsimp only; rw [h1]; decide)
-      refine ⟨?_, fun hne => absurd h0 hne⟩
       simp only [initializeCalls]
-      omega
+      exact ⟨by omega, fun hne => absurd (initializeToken_version hi) hne⟩
     | reinitialize h' =>
       obtain ⟨hn, _, rfl⟩ := reinit_view h'
       have hz := ih2 (version_ne_zero_of_next hn)
@@ -473,7 +404,7 @@ theorem BridgeInitializeAtMostOnce : Properties.BridgeInitializeAtMostOnce := by
       exact ⟨by omega, fun _ => hz⟩
     | ledger h' =>
       simp only [initializeCalls]
-      exact ⟨by have := ih2; omega, ih2⟩
+      exact ⟨ih1, ih2⟩
 
 /-! ## Countermodel -/
 
@@ -486,18 +417,8 @@ theorem ReinitializeOnFreshProxyBlocksBridgeInitialize :
   obtain ⟨hc, hv⟩ := InitializedIdentityIsFixed _ _ (show (1 : UInt8) ≠ 0 by decide) hu
   refine ⟨hc, initializeStorage_closed hv, ?_⟩
   intro who account amount
-  have hvault : u.token.config.vault = 0 := by
-    rw [hc]
-    rfl
-  constructor
-  · unfold burn
-    rw [ite_eq_right]
-    rintro ⟨h, _⟩
-    exact h hvault
-  · unfold mint
-    rw [ite_eq_right]
-    rintro ⟨h, _⟩
-    exact h hvault
+  have hvault : u.token.config.vault = 0 := by rw [hc]; rfl
+  exact ⟨ite_eq_right fun h => h.1 hvault, ite_eq_right fun h => h.1 hvault⟩
 
 /-! ## Witnesses -/
 
@@ -505,10 +426,7 @@ theorem ReinitWitness : Properties.ReinitWitness := by
   let c : Config := ⟨1, 9, 5⟩
   have hinit := fresh_init_witness
   obtain ⟨_, funded, hmint, hwf, hburn⟩ := one_unit_roundtrip c 4 (by decide) (by decide)
-  have hsupply : funded.totalSupply = 1 := by
-    obtain ⟨_, _, _, hs, _, _⟩ := mint_exact hmint
-    rw [hs]
-    rfl
+  have hsupply : funded.totalSupply = 1 := (mint_exact hmint).2.2.2.1
   have hreach : StorageReach ⟨empty c, 1, emptyMetadata⟩ ⟨funded, 1, emptyMetadata⟩ :=
     StorageReach.tail StorageReach.refl (StorageStep.ledger (Step.mint hmint))
   have hre : ReinitAllowed (some 7) ⟨funded, 1, emptyMetadata⟩ 7 2 := allowed_iff.mpr ⟨rfl, rfl⟩

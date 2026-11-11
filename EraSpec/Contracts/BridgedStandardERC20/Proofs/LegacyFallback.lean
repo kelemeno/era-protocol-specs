@@ -78,26 +78,20 @@ theorem fallbackConfig_vault_ne (env : LegacyEnv) (c : Config) :
 
 theorem legacyFallback_vault_ne (env : LegacyEnv) (s : State) :
     (legacyFallback env s).config.vault ≠ 0 := by
-  by_cases h : s.config.vault = 0
-  · rw [legacyFallback_of_vault_eq h]
-    exact l2_vault_nonzero
-  · rw [legacyFallback_of_vault_ne h]
-    exact h
+  unfold legacyFallback
+  split_ifs with h
+  exacts [l2_vault_nonzero, h]
 
 theorem legacyFallback_originToken (env : LegacyEnv) (s : State) :
     (legacyFallback env s).config.originToken = s.config.originToken := by
-  by_cases h : s.config.vault = 0
-  · rw [legacyFallback_of_vault_eq h]
-    rfl
-  · rw [legacyFallback_of_vault_ne h]
+  unfold legacyFallback
+  split_ifs <;> rfl
 
 /-- The prologue does not touch the ledger, so it preserves `WellFormed` both ways. -/
 theorem wellFormed_legacyFallback (env : LegacyEnv) (s : State) :
     WellFormed (legacyFallback env s) ↔ WellFormed s := by
-  by_cases h : s.config.vault = 0
-  · rw [legacyFallback_of_vault_eq h]
-    exact Iff.rfl
-  · rw [legacyFallback_of_vault_ne h]
+  unfold legacyFallback
+  split_ifs <;> exact Iff.rfl
 
 theorem bridgeMint_config {env : LegacyEnv} {s t : State} {caller recipient : Address}
     {amount : UInt256} (h : bridgeMint env s caller recipient amount = some t) :
@@ -122,13 +116,7 @@ theorem original_model_rejects_legacy {s : State} (h : s.config.vault = 0)
     (caller account : Address) (amount : UInt256) :
     Properties.original_model_rejects_legacy h caller account amount := by
   unfold Properties.original_model_rejects_legacy
-  constructor
-  · cases hm : mint s caller account amount with
-    | none => rfl
-    | some t => exact absurd h (mint_some_iff.mp hm).1.1
-  · cases hb : burn s caller account amount with
-    | none => rfl
-    | some t => exact absurd h (burn_some_iff.mp hb).1.1
+  simp [mint, burn, MintAllowed, BurnAllowed, h]
 
 theorem legacy_original_steps_are_transfers {s t : State} (hl : s.config.vault = 0)
     (h : Step s t) : Properties.legacy_original_steps_are_transfers hl h := by
@@ -183,15 +171,12 @@ theorem nonlegacy_runs_agree (env : LegacyEnv) {s : State} (h : s.config.vault �
     (t : State) : Properties.nonlegacy_runs_agree env h t := by
   unfold Properties.nonlegacy_runs_agree
   refine ⟨fun hr => ?_, reach_legacyReach env⟩
-  have key : Reach s t ∧ t.config = s.config := by
-    induction hr with
-    | refl => exact ⟨Reach.refl, rfl⟩
-    | @tail w x _ hs ih =>
-      obtain ⟨hr', hc⟩ := ih
-      have hv : w.config.vault ≠ 0 := by rw [hc]; exact h
-      have hstep := legacyStep_step_of_vault_ne hv hs
-      exact ⟨Reach.tail hr' hstep, (step_config hstep).trans hc⟩
-  exact key.1
+  suffices Reach s t ∧ t.config = s.config from this.1
+  induction hr with
+  | refl => exact ⟨Reach.refl, rfl⟩
+  | tail _ hs ih =>
+    have hstep := legacyStep_step_of_vault_ne (ih.2 ▸ h) hs
+    exact ⟨ih.1.tail hstep, (step_config hstep).trans ih.2⟩
 
 /-! ## The legacy branch, call by call -/
 
@@ -212,8 +197,7 @@ theorem legacy_bridge_burn_exact (env : LegacyEnv) {s t : State}
   unfold Properties.legacy_bridge_burn_exact
   have hb : burn (legacyFallback env s) caller owner amount = some t := h
   rw [legacyFallback_of_vault_eq hl] at hb
-  have hw' : WellFormed { s with config := fallbackConfig env s.config } := hw
-  obtain ⟨hc, _, hbal, hsup, hother, hcfg⟩ := burn_exact hw' hb
+  obtain ⟨hc, _, hbal, hsup, hother, hcfg⟩ := burn_exact (s := { s with config := fallbackConfig env s.config }) hw hb
   exact ⟨hc, hcfg, hbal, hsup, hother⟩
 
 theorem legacy_unauthorized_bridge_calls (env : LegacyEnv) {s : State}
@@ -222,10 +206,8 @@ theorem legacy_unauthorized_bridge_calls (env : LegacyEnv) {s : State}
     Properties.legacy_unauthorized_bridge_calls env hl hc account amount := by
   unfold Properties.legacy_unauthorized_bridge_calls bridgeMint bridgeBurn
   rw [legacyFallback_of_vault_eq hl]
-  have hc' : caller ≠ ({ s with config := fallbackConfig env s.config } : State).config.vault :=
-    hc
-  have h := unauthorized_bridge_calls (account := account) (amount := amount) hc'
-  exact ⟨h.2, h.1⟩
+  exact (unauthorized_bridge_calls (s := { s with config := fallbackConfig env s.config })
+    (account := account) (amount := amount) hc).symm
 
 theorem legacy_bridge_mint_enabled (env : LegacyEnv) {s : State}
     {recipient : Address} {amount : UInt256} (hl : s.config.vault = 0) (hr : recipient ≠ 0)
@@ -233,12 +215,7 @@ theorem legacy_bridge_mint_enabled (env : LegacyEnv) {s : State}
     Properties.legacy_bridge_mint_enabled env hl hr hs := by
   unfold Properties.legacy_bridge_mint_enabled bridgeMint
   rw [legacyFallback_of_vault_eq hl]
-  have ha : MintAllowed { s with config := fallbackConfig env s.config } l2NativeTokenVaultAddr
-      recipient amount := by
-    unfold MintAllowed
-    exact ⟨l2_vault_nonzero, rfl, hr, hs⟩
-  unfold mint
-  exact ite_eq_left ha
+  exact ite_eq_left ⟨l2_vault_nonzero, rfl, hr, hs⟩
 
 theorem legacy_bridge_burn_enabled (env : LegacyEnv) {s : State}
     {owner : Address} {amount : UInt256} (hl : s.config.vault = 0) (ho : owner ≠ 0)
@@ -246,12 +223,7 @@ theorem legacy_bridge_burn_enabled (env : LegacyEnv) {s : State}
     Properties.legacy_bridge_burn_enabled env hl ho hb := by
   unfold Properties.legacy_bridge_burn_enabled bridgeBurn
   rw [legacyFallback_of_vault_eq hl]
-  have ha : BurnAllowed { s with config := fallbackConfig env s.config } l2NativeTokenVaultAddr
-      owner amount := by
-    unfold BurnAllowed
-    exact ⟨l2_vault_nonzero, rfl, ho, hb⟩
-  unfold burn
-  exact ite_eq_left ha
+  exact ite_eq_left ⟨l2_vault_nonzero, rfl, ho, hb⟩
 
 theorem bridge_call_ends_nonlegacy (env : LegacyEnv) {s t : State}
     {caller account : Address} {amount : UInt256}
@@ -259,19 +231,11 @@ theorem bridge_call_ends_nonlegacy (env : LegacyEnv) {s t : State}
       bridgeBurn env s caller account amount = some t) :
     Properties.bridge_call_ends_nonlegacy env h := by
   unfold Properties.bridge_call_ends_nonlegacy
-  have hcfg : t.config = (legacyFallback env s).config := by
-    rcases h with hm | hb
-    · exact bridgeMint_config hm
-    · exact bridgeBurn_config hb
-  have hcaller : caller = (legacyFallback env s).config.vault := by
-    rcases h with hm | hb
-    · exact (mint_some_iff.mp hm).1.2.1
-    · exact (burn_some_iff.mp hb).1.2.1
-  refine ⟨?_, hcfg, ?_⟩
-  · rw [hcfg]
-    exact hcaller
-  · rw [hcfg]
-    exact legacyFallback_vault_ne env s
+  have hcfg : t.config = (legacyFallback env s).config := h.elim bridgeMint_config bridgeBurn_config
+  have hcaller : caller = (legacyFallback env s).config.vault :=
+    h.elim (fun hm => (mint_some_iff.mp hm).1.2.1) (fun hb => (burn_some_iff.mp hb).1.2.1)
+  rw [hcfg]
+  exact ⟨hcaller, rfl, legacyFallback_vault_ne env s⟩
 
 /-! ## Runs -/
 
@@ -281,11 +245,9 @@ theorem legacy_step_config (env : LegacyEnv) {s t : State} (h : LegacyStep env s
   have key : ∀ {u : State}, u.config = (legacyFallback env s).config →
       u.config = s.config ∨ (s.config.vault = 0 ∧ u.config = fallbackConfig env s.config) := by
     intro u hu
-    by_cases hv : s.config.vault = 0
-    · rw [legacyFallback_of_vault_eq hv] at hu
-      exact Or.inr ⟨hv, hu⟩
-    · rw [legacyFallback_of_vault_ne hv] at hu
-      exact Or.inl hu
+    unfold legacyFallback at hu
+    split_ifs at hu with hv
+    exacts [Or.inr ⟨hv, hu⟩, Or.inl hu]
   cases h with
   | bridgeMint hm => exact key (bridgeMint_config hm)
   | bridgeBurn hb => exact key (bridgeBurn_config hb)
@@ -298,23 +260,16 @@ theorem legacy_run_config (env : LegacyEnv) {s t : State} (h : LegacyReach env s
   | refl => exact Or.inl rfl
   | tail _ hs ih =>
     rcases legacy_step_config env hs with hc | ⟨hv, hc⟩
-    · rw [hc]
-      exact ih
+    · exact hc ▸ ih
     · rcases ih with ih | ⟨_, ih⟩
-      · rw [ih] at hv
-        refine Or.inr ⟨hv, ?_⟩
-        rw [hc, ih]
-      · rw [ih] at hv
-        exact absurd hv (fallbackConfig_vault_ne env _)
+      · exact Or.inr ⟨ih ▸ hv, ih ▸ hc⟩
+      · exact absurd (ih ▸ hv) (fallbackConfig_vault_ne env _)
 
 theorem legacy_run_fallback_fired (env : LegacyEnv) {s t : State}
     (hl : s.config.vault = 0) (h : LegacyReach env s t) (hv : t.config.vault ≠ 0) :
     Properties.legacy_run_fallback_fired env hl h hv := by
   unfold Properties.legacy_run_fallback_fired
-  rcases legacy_run_config env h with hc | ⟨_, hc⟩
-  · rw [hc] at hv
-    exact absurd hl hv
-  · exact hc
+  exact ((legacy_run_config env h).resolve_left fun hc => hv (hc ▸ hl)).2
 
 theorem legacyReach_trans {env : LegacyEnv} {s t u : State} (h₂ : LegacyReach env t u) :
     LegacyReach env s t → LegacyReach env s u := by
@@ -338,24 +293,17 @@ theorem legacy_runs_forward (env : LegacyEnv) {s t : State} (hl : s.config.vault
   | refl => exact Or.inl ⟨Reach.refl, rfl⟩
   | @tail w x _ hs ih =>
     rcases ih with ⟨hr, hc⟩ | ⟨u, u', hr, hc, hcall, hr'⟩
-    · have hwl : w.config.vault = 0 := by rw [hc]; exact hl
-      have hfb : legacyFallback env w = { w with config := fallbackConfig env s.config } := by
-        rw [legacyFallback_of_vault_eq hwl, hc]
+    · have hfb : legacyFallback env w = { w with config := fallbackConfig env s.config } := by
+        rw [legacyFallback_of_vault_eq (hc ▸ hl), hc]
       cases hs with
       | @bridgeMint caller recipient amount hm =>
-        have hm' : mint (legacyFallback env w) caller recipient amount = some x := hm
-        rw [hfb] at hm'
-        exact Or.inr ⟨w, x, hr, hc, Or.inl ⟨caller, recipient, amount, hm'⟩, Reach.refl⟩
+        exact Or.inr ⟨w, x, hr, hc, Or.inl ⟨caller, recipient, amount, hfb ▸ hm⟩, Reach.refl⟩
       | @bridgeBurn caller owner amount hb =>
-        have hb' : burn (legacyFallback env w) caller owner amount = some x := hb
-        rw [hfb] at hb'
-        exact Or.inr ⟨w, x, hr, hc, Or.inr ⟨caller, owner, amount, hb'⟩, Reach.refl⟩
+        exact Or.inr ⟨w, x, hr, hc, Or.inr ⟨caller, owner, amount, hfb ▸ hb⟩, Reach.refl⟩
       | transfer ht =>
         exact Or.inl ⟨Reach.tail hr (Step.transfer ht), (transfer_config ht).trans hc⟩
-    · have hu' : u'.config = fallbackConfig env s.config := by
-        rcases hcall with ⟨_, _, _, hm⟩ | ⟨_, _, _, hb⟩
-        · exact mint_config hm
-        · exact burn_config hb
+    · have hu' : u'.config = fallbackConfig env s.config :=
+        hcall.elim (fun ⟨_, _, _, hm⟩ => mint_config hm) (fun ⟨_, _, _, hb⟩ => burn_config hb)
       have hwv : w.config.vault ≠ 0 := by
         rw [reach_config hr', hu']
         exact fallbackConfig_vault_ne env _
@@ -368,20 +316,14 @@ theorem legacy_runs_characterized (env : LegacyEnv) {s : State}
   refine ⟨legacy_runs_forward env hl, ?_⟩
   rintro (⟨hr, _⟩ | ⟨u, u', hr, hc, hcall, hr'⟩)
   · exact reach_legacyReach env hr
-  · have hul : u.config.vault = 0 := by rw [hc]; exact hl
-    have hfb : legacyFallback env u = { u with config := fallbackConfig env s.config } := by
-      rw [legacyFallback_of_vault_eq hul, hc]
+  · have hfb : legacyFallback env u = { u with config := fallbackConfig env s.config } := by
+      rw [legacyFallback_of_vault_eq (hc ▸ hl), hc]
     have hstep : LegacyStep env u u' := by
       rcases hcall with ⟨caller, recipient, amount, hm⟩ | ⟨caller, owner, amount, hb⟩
-      · refine LegacyStep.bridgeMint (caller := caller) (recipient := recipient)
-          (amount := amount) ?_
-        show mint (legacyFallback env u) caller recipient amount = some u'
-        rw [hfb]
-        exact hm
-      · refine LegacyStep.bridgeBurn (caller := caller) (owner := owner) (amount := amount) ?_
-        show burn (legacyFallback env u) caller owner amount = some u'
-        rw [hfb]
-        exact hb
+      · exact .bridgeMint (show mint (legacyFallback env u) caller recipient amount = some u' from
+          hfb ▸ hm)
+      · exact .bridgeBurn (show burn (legacyFallback env u) caller owner amount = some u' from
+          hfb ▸ hb)
     exact legacyReach_trans (reach_legacyReach env hr')
       (LegacyReach.tail (reach_legacyReach env hr) hstep)
 
@@ -394,16 +336,13 @@ theorem legacy_reachable_ledger (env : LegacyEnv) {s t : State} (hw : WellFormed
     obtain ⟨hwf, ho⟩ := ih
     cases hs with
     | bridgeMint hm =>
-      have hwf' := (wellFormed_legacyFallback env w).mpr hwf
-      refine ⟨mint_preserves_ledger hwf' hm, ?_⟩
-      rw [bridgeMint_config hm, legacyFallback_originToken, ho]
+      exact ⟨mint_preserves_ledger ((wellFormed_legacyFallback env w).mpr hwf) hm,
+        by rw [bridgeMint_config hm, legacyFallback_originToken, ho]⟩
     | bridgeBurn hb =>
-      have hwf' := (wellFormed_legacyFallback env w).mpr hwf
-      refine ⟨burn_preserves_ledger hwf' hb, ?_⟩
-      rw [bridgeBurn_config hb, legacyFallback_originToken, ho]
+      exact ⟨burn_preserves_ledger ((wellFormed_legacyFallback env w).mpr hwf) hb,
+        by rw [bridgeBurn_config hb, legacyFallback_originToken, ho]⟩
     | transfer ht =>
-      refine ⟨(transfer_preserves_ledger hwf ht).1, ?_⟩
-      rw [transfer_config ht, ho]
+      exact ⟨(transfer_preserves_ledger hwf ht).1, by rw [transfer_config ht, ho]⟩
 
 /-! ## Non-vacuity -/
 
@@ -413,39 +352,27 @@ theorem legacy_branch_witness (env : LegacyEnv) (origin account : Address)
   have h1 : (1 : UInt256).val = 1 := rfl
   -- the empty legacy token
   let s₀ : State := empty ⟨0, origin, 0⟩
-  have hw₀ : WellFormed s₀ := by
-    refine ⟨?_, ?_, rfl⟩
-    · exact Finset.sum_const_zero
-    · norm_num [s₀, empty, UInt256.size]
+  have hw₀ : WellFormed s₀ :=
+    ⟨Finset.sum_const_zero, by norm_num [s₀, empty, UInt256.size], rfl⟩
   have hl₀ : s₀.config.vault = 0 := rfl
   have hmint := legacy_bridge_mint_enabled env (amount := 1) hl₀ ha
     (by norm_num [s₀, empty, h1, UInt256.size])
   -- the funded legacy token
   let s₁ : State := ⟨⟨0, origin, 0⟩, Function.update (fun _ => 0) account 1, 1⟩
-  have hw₁ : WellFormed s₁ := by
-    refine ⟨?_, ?_, ?_⟩
-    · simp [s₁, Function.update_apply]
-    · norm_num [s₁, UInt256.size]
-    · show Function.update (fun _ => 0) account 1 0 = 0
-      rw [Function.update_of_ne (Ne.symm ha)]
+  have hw₁ : WellFormed s₁ :=
+    ⟨by simp [s₁, Function.update_apply], by norm_num [s₁, UInt256.size],
+      Function.update_of_ne (Ne.symm ha) 1 fun _ => 0⟩
   have hl₁ : s₁.config.vault = 0 := rfl
-  have hbal₁ : s₁.balances account = 1 := by
-    show Function.update (fun _ => 0) account 1 account = 1
-    exact Function.update_self _ _ _
+  have hbal₁ : s₁.balances account = 1 := Function.update_self account 1 fun _ => 0
   have hburn := legacy_bridge_burn_enabled env (amount := 1) hl₁ ha (by rw [hbal₁, h1])
   -- a self-transfer of the unit is a nonlegacy-model step of the funded legacy token
-  have hself : transfer s₁ account account 1 = some (transferEffect s₁ account account 1) := by
-    have hta : TransferAllowed s₁ account account 1 := by
-      unfold TransferAllowed
-      exact ⟨ha, ha, by rw [hbal₁, h1]⟩
-    unfold transfer
-    exact ite_eq_left hta
+  have hself : transfer s₁ account account 1 = some (transferEffect s₁ account account 1) :=
+    ite_eq_left ⟨ha, ha, by rw [hbal₁, h1]⟩
   refine ⟨s₀, _, s₁, _, hw₀, hl₀, rfl, (original_model_rejects_legacy hl₀ _ _ _).1,
     hmint, LegacyReach.tail LegacyReach.refl (LegacyStep.bridgeMint hmint), rfl,
     fallbackConfig_vault_ne env _, ?_, hw₁, hl₁, rfl, hbal₁, ⟨_, Step.transfer hself⟩,
     (original_model_rejects_legacy hl₁ _ _ _).2, hburn, rfl, ?_⟩
   · simp [mintEffect, s₀, empty]
-  · show (1 : ℕ) - (1 : UInt256).val = 0
-    rw [h1]
+  · rfl
 
 end Contracts.BridgedStandardERC20
