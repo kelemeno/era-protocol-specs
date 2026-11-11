@@ -387,8 +387,8 @@ def Properties.ReachIffReachLog : Prop :=
     Reach e thisChain W X ↔ ∃ log, ReachLog e thisChain W X log
 
 /-- **THE LOG DETERMINES THE RUN.**  Two logged runs from the same state with the same
-log end in the same state, so `registeredPairs thisChain log` is a property of the
-run, not of a choice of log. -/
+log end in the same state.  (The converse does not hold: two different logs can reach
+the same end state, so `registeredPairs` depends on the trace, not on the endpoints.) -/
 def Properties.ReachLogDeterministic : Prop :=
   ∀ (e : NtvAssetId) (thisChain : Chain) (W X Y : World) (log : List Op),
     ReachLog e thisChain W X log → ReachLog e thisChain W Y log → X = Y
@@ -431,10 +431,11 @@ def Properties.LoggedRunSoundSatisfiable : Prop :=
     ∧ ∃ a, Registered W.vault a ∧ Native thisChain W.vault a
       ∧ W.audit.totalOut a ≠ 0 ∧ W.audit.totalIn a ≠ 0
 
-/-- **THE RUN-LOCAL ASSUMPTION IS STRICTLY WEAKER THAN THE GLOBAL ONE.**  A nontrivial
-logged run whose encoding meets `LoggedRunSound`'s premise, yet fails `IdAssumptions`
-— explicitly: it maps a pair the run hashes and a pair the run never hashes to the
-same id, and maps some pair to zero. -/
+/-- **A COLLIDING ENCODING CAN MEET THE RUN-LOCAL PREMISE.**  A nontrivial logged run
+whose encoding meets `LoggedRunSound`'s premise although it maps a pair the run hashes
+and a pair the run never hashes to the same id, and maps some pair to zero.  (The
+`¬ IdAssumptions e` conjunct holds for every `e`, by `IdAssumptionsUnsatisfiable`; the
+content is the explicit collision outside the run's pairs.) -/
 def Properties.LogAssumptionWeakerThanGlobal : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
     thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
@@ -447,8 +448,9 @@ def Properties.LogAssumptionWeakerThanGlobal : Prop :=
 
 /-- **WHY THE LOG, NOT THE END STATE.**  With a colliding encoding, a logged run whose
 second registration overwrites the first: a pair the run hashed is recorded by no
-registered asset at the end.  So "the pairs registered at the end" is not a sound
-choice of `S` without injectivity; `registeredPairs` of the log is. -/
+registered asset at the end.  So the end state's recorded pairs can be a strict subset
+of the pairs the run hashed; the log's `registeredPairs` is the set `LoggedRunSound`
+uses. -/
 def Properties.LogPairsCanOutliveEndState : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
     thisChain ≠ 0 ∧ ReachLog e thisChain empty W log

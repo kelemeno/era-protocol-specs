@@ -20,7 +20,8 @@ transition (`StepPreservesSysInvariant`).
 A break-glass cut can leave a chain at `v` routing something other than `R_v`; the
 headline does not survive it, so it carries the premise. What the system then does:
 
-* **The drift never crosses a version edge.** A transition requires the live routing to
+* **The drift never crosses a registry transition edge** (arbitrary and bootstrap
+  crossings remain). A transition requires the live routing to
   be exactly `R_v`'s (`DriftBlocksTransition`), so a drifted chain cannot upgrade until
   its routing is restored. Every transition that does run starts from `R_v` and lands
   on `R_w` (`TransitionStartsAndLandsOnRelease`), whatever happened before.

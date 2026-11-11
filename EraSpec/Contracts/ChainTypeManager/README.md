@@ -57,8 +57,9 @@ the `Properties` segment.
   (`TransitionStartsAndLandsOnRelease`).
 - The guard is load-bearing. Without it, a break-glass selector survives the transition
   (`UnguardedCutKeepsForeignSelectors`, `BreakGlassSelectorSurvivesWithoutGuard`).
-  A missing selector bricks the next transition with or without the guard
-  (`MissingSelectorBricksTransition`).
+  A missing selector bricks the next transition when the two releases route that
+  selector differently (`MissingSelectorBricksTransition`); for an edge whose releases
+  route identically it does not.
 
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness`
 are concrete runs meeting the premises.

@@ -527,7 +527,9 @@ def Properties.NoneOrAllOrBreakPinned : Prop :=
 /-- **ITS PREMISES ARE SATISFIABLE AND ITS BREAK IS NOT A TAUTOLOGY.**  For every node
 hash, leaf hash and padding constant there is a well-formed system with data
 availability and a flow executed on evidence `ev` for which `PinnedGateBreak` is
-false. -/
+false.  Weak as non-triviality evidence: in this witness the flow is finalizable, and
+`PinnedGateBreak` implies it is not, so no break is ever evaluated.  A witness with a
+stranded leg and no break is open. -/
 def Properties.NoneOrAllOrBreakPinnedNotTautology : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access) (F : Flow)

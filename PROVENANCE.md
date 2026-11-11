@@ -128,6 +128,11 @@ supplying that correspondence.
   `612a71cccb65d6db97674997b21427a50bec6206` (last library change `ae0698588`), so
   treat the model as a snapshot at that commit. The library has changed since; see
   that contract's README.
+* `EraSpec/Contracts/ChainTypeManager/` models the CTM's version/transition registry and
+  chain facet routing on the same branch, pinned at commit `e561b9cc2` (read-only);
+  sources are under `l1-contracts/contracts/upgrades/registry/` and the
+  `ChainTypeManager`, `Admin`, `DefaultUpgrade`, `BootstrapUpgrade` and `DiamondInit`
+  contracts. Specs docstrings quote the transcribed guards with file:line at that commit.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.

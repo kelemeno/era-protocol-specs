@@ -378,7 +378,9 @@ def Properties.WrongLengthForgesInclusion : Prop :=
 nonzero value hashes to the padding constant, the honest path for the EMPTY slot 1
 of `setup` at height 1, presenting `ℓ`, is accepted as an inclusion proof for
 `ℓ.value`, which the tree does not hold; and the located break is exactly
-`paddingHit`.  (The padding bug forges inclusion as well as absence.) -/
+`paddingHit`.  (For an arbitrary padding constant; at the extraction pin, where
+`z0 = hl ⟨0,0,0⟩`, its premise is a leaf-hash collision with the sentinel, so the
+padding bug itself adds no inclusion-forging power.) -/
 def Properties.PaddingHitForgesInclusion : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ℓ : Leaf),
     ℓ.value ≠ 0 → hl ℓ = z0 →
