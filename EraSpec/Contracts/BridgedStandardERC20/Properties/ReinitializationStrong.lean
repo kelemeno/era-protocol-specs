@@ -212,9 +212,10 @@ def Properties.DeployedFreshProxyLifecycleNeedsNonzeroCaller : Prop :=
 
 /-- **THE PREMISES ARE SATISFIABLE.** For every environment: `bridgeInitialize` on a fresh proxy by
 the nonzero caller `1`, for asset `5` and origin token `9`, gives a storage with a nonzero version,
-a nonzero vault and a `WellFormed` ledger; from it a deployed run (the vault's one-unit
-`bridgeMint` to account `4`, then the beacon owner `7`'s reinitialization to version 2) reaches a
-storage at version 2 with one unit in circulation and the identity it started with. And
+a nonzero vault and a `WellFormed` ledger; from it some deployed run reaches a storage at version
+2 with one unit in circulation and the identity it started with (the proof uses the vault's
+one-unit `bridgeMint` to account `4`, then the beacon owner `7`'s reinitialization to version 2;
+the statement names only the run's endpoints). And
 `bridgeInitialize` by caller `0` with the same arguments succeeds, at a nonzero version with a
 zero vault (the premise of `DeployedZeroVaultIdentityRewritten`). -/
 def Properties.DeployedLifecycleWitness : Prop :=
