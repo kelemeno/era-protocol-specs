@@ -111,6 +111,7 @@ import EraSpec.Codegen.VaultPreparationSlice.Proofs.Refinement
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.RevertOrder
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.Witnesses
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters
+import EraSpec.Contracts.AssetRouterBase.Proofs.AllWritersStrong
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
 import EraSpec.Contracts.AssetRouterBase.Proofs.CounterpartGate
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistrationRuns

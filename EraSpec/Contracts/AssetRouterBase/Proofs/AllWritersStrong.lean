@@ -404,9 +404,11 @@ lemma awsRunC : ARun awsClashK empty awsOpsC awsC3 :=
 theorem aws_last_own_write_holds_despite_clash_elsewhere :
     ∃ (K : Cfg) (ops : List Op) (R : Router) (q : Chain × Address × AssetData),
       K.side = .l1 ∧ ARun K empty ops R ∧ ¬ IdInjOn K.enc ↑(loggedTriples K ops) ∧
+      q.2.1 = K.ntvAddr ∧ (∃ h, Op.register K.ntv q.2.2 h ∈ ops) ∧
       ¬ LoggedClash K ops q ∧ lastTrackerWriteOn K ops q = some K.ntv ∧
       R.tracker (K.enc q.1 q.2.1 q.2.2) = K.ntv := by
-  refine ⟨awsClashK, awsOpsC, awsC3, (1, 8, 0), rfl, awsRunC, ?_, ?_, by decide, by decide⟩
+  refine ⟨awsClashK, awsOpsC, awsC3, (1, 8, 0), rfl, awsRunC, ?_, rfl,
+    ⟨9, by simp [awsOpsC, awsClashK, wK1]⟩, ?_, by decide, by decide⟩
   · intro hinj
     have h1 : ((1 : Chain), (5 : Address), (3 : AssetData)) ∈ loggedTriples awsClashK awsOpsC :=
       mem_loggedTriples.2 ⟨.setTracker 3 5, by simp [awsOpsC], rfl⟩

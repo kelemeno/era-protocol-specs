@@ -49,8 +49,8 @@ implies it (`IdInjOnExcludesLoggedClash`), and it can hold when the log itself c
   encoding is injective on the log, and the bound of `RunTrackedIdsCardLe` is attained.
 * `RunTrackerNotHandedToOtherSenderOnWitness`: the premises hold.  A custom tracker is live,
   and the victim is a vault asset whose route is live and tracked.
-* `TrackerHandedToOtherSenderUnderCollision`: with a logged clash, the reading fails.  One
-  owner write hands a custom tracker a vault triple's id.  The encoding is injective on the
+* `TrackerHandedToOtherSenderUnderCollision`: with a logged clash, the reading fails.  A custom
+  tracker (in the proof, recorded by one owner write) ends at a vault triple's id.  The encoding is injective on the
   run's log; it is the victim's triple that collides.
 * `RunTrackerIsLastOwnWriteOnWitness`: the last write wins.  On L1 the vault registers a
   token.  Then the owner's `setAssetDeploymentTracker(d, L2_NATIVE_TOKEN_VAULT_ADDR)`, whose
@@ -204,11 +204,11 @@ def Properties.RunTrackerNotHandedToOtherSenderOnWitness : Prop :=
     R.handler (K.enc q.1 q.2.1 q.2.2) ≠ 0
 
 /-- **WITH A LOGGED CLASH, THE OWNER CAN HAND A TRACKER AN ID HASHED FROM SOMEONE ELSE.**  An
-L1 run from fresh storage: one owner write records a custom tracker `t`.  The encoding is
-injective on the run's logged triples.  Yet `t` ends as the tracker of the id of a vault
-triple `q`.  `q`'s sender `L2_NATIVE_TOKEN_VAULT_ADDR` is neither `t` nor, as `t` is not the
-vault, its normalised form.  The cause is a logged clash: `q`'s id equals the id of the
-owner's triple.
+L1 run from fresh storage in which a custom tracker `t` is recorded (in the proof, by a
+single owner write).  The encoding is injective on the run's logged triples.  Yet `t` ends
+as the tracker of the id of a vault triple `q`.  `q`'s sender `L2_NATIVE_TOKEN_VAULT_ADDR`
+is neither `t` nor, as `t` is not the vault, its normalised form.  The cause is a logged
+clash: a logged triple other than `q` (in the proof, the owner's) has `q`'s id.
 
 So the premise of `RunTrackerNotHandedToOtherSenderOn` is load-bearing, and injectivity on
 the log alone does not give it.  Without a hash premise, the reading of
@@ -222,10 +222,11 @@ def Properties.TrackerHandedToOtherSenderUnderCollision : Prop :=
 /-- **THE LAST WRITE WINS, AND A VAULT ID'S TRACKER NEED NOT BE THE VAULT.**  An L1 run from
 fresh storage, with the encoding injective on its logged triples plus a vault triple `q`,
 so there is no logged clash at `q`.  The vault registers `q`'s token, recording itself as
-tracker at `enc q`.  Then the owner's `setAssetDeploymentTracker(d,
-L2_NATIVE_TOKEN_VAULT_ADDR)` hashes the same triple and records a different value there.
-The state holds the later value.  So `RunTrackerIsLastOwnWriteOn` cannot read "some write"
-or "the first write" in place of "the last write".  No collision is involved. -/
+tracker at `enc q`.  A later logged call hashes the same triple and records a different
+value there; the statement does not name it, and in the proof it is the owner's
+`setAssetDeploymentTracker(d, L2_NATIVE_TOKEN_VAULT_ADDR)`.  The state holds the last
+value, not the vault's.  So `RunTrackerIsLastOwnWriteOn` cannot read "some write" in place
+of "the last write".  No collision is involved. -/
 def Properties.RunTrackerIsLastOwnWriteOnWitness : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router) (q : Chain × Address × AssetData)
     (v₁ v₂ : Address),
@@ -236,20 +237,22 @@ def Properties.RunTrackerIsLastOwnWriteOnWitness : Prop :=
     R.tracker (K.enc q.1 q.2.1 q.2.2) = v₂
 
 /-- **A CLASH ELSEWHERE IN THE LOG DOES NOT MATTER.**  An L1 run from fresh storage whose
-encoding is not injective on its own logged triples: two owner writes for different custom
-trackers hash to the same id.  There is still no logged clash at the vault triple `q` the
-vault registered.  So `RunTrackerIsLastOwnWriteOn` applies where injectivity on the log plus
-`q` fails, and the tracker at `enc q` is the vault, the value of the last write to `q`. -/
+encoding is not injective on its own logged triples (in the proof, two owner writes for
+different custom trackers hash to the same id).  There is still no logged clash at the
+vault triple `q` the vault registered.  So `RunTrackerIsLastOwnWriteOn` applies where
+injectivity on the log plus `q` fails, and the tracker at `enc q` is the vault, the value of
+the last write to `q`. -/
 def Properties.LastOwnWriteHoldsDespiteClashElsewhere : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router) (q : Chain × Address × AssetData),
     K.side = .l1 ∧ ARun K empty ops R ∧ ¬ IdInjOn K.enc ↑(loggedTriples K ops) ∧
+    q.2.1 = K.ntvAddr ∧ (∃ h, Op.register K.ntv q.2.2 h ∈ ops) ∧
     ¬ LoggedClash K ops q ∧ lastTrackerWriteOn K ops q = some K.ntv ∧
     R.tracker (K.enc q.1 q.2.1 q.2.2) = K.ntv
 
-/-- **THE ORIGINAL'S CONCLUSION HOLDS EVEN WHERE NO RUN CAN REACH.**  Take a configuration
-whose encoding returns its data word.  Every router state satisfies `TrackerHashed`.  So does
-the state in which every id carries a nonzero tracker, and no run with fewer calls than
-there are ids reaches that state.  So, for such an encoding,
+/-- **THE ORIGINAL'S CONCLUSION HOLDS EVEN WHERE NO RUN CAN REACH.**  There is a
+configuration (in the proof, one whose encoding returns its data word) for which every
+router state satisfies `TrackerHashed`.  That includes a state in which every id carries a
+nonzero tracker, and no run with fewer calls than there are ids reaches that state.  So, for such an encoding,
 `AllWriters.Properties.RunTrackerHashed` cannot tell reachable states from unreachable
 ones.  `RunTrackedIdsCardLe`, which follows from `RunTrackerRecorded`, can. -/
 def Properties.TrackerHashedAdmitsUnreachableRouter : Prop :=
