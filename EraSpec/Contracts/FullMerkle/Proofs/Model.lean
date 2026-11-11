@@ -125,102 +125,87 @@ private theorem getD_zero_headD : ∀ (L : List UInt256) (d : UInt256), L.getD 0
 @[simp] theorem zeros_zero (h : Hash) (z0 : UInt256) :
     Properties.zeros_zero (h := h) (z0 := z0) := by
   unfold Properties.zeros_zero
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem zeros_succ (h : Hash) (z0 : UInt256) (l : ℕ) :
     Properties.zeros_succ (h := h) (z0 := z0) (l := l) := by
   unfold Properties.zeros_succ
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levelUp_nil (h : Hash) (z : UInt256) :
     Properties.levelUp_nil (h := h) (z := z) := by
   unfold Properties.levelUp_nil
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levelUp_single (h : Hash) (z a : UInt256) :
     Properties.levelUp_single (h := h) (z := z) (a := a) := by
   unfold Properties.levelUp_single
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levelUp_cons₂ (h : Hash) (z a b : UInt256) (rest : List UInt256) :
     Properties.levelUp_cons₂ (h := h) (z := z) (a := a) (b := b) (rest := rest) := by
   unfold Properties.levelUp_cons₂
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levelUp_pair (h : Hash) (z a b : UInt256) :
     Properties.levelUp_pair (h := h) (z := z) (a := a) (b := b) := by
   unfold Properties.levelUp_pair
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levels_zero (h : Hash) (z0 : UInt256) (leaves : List UInt256) :
     Properties.levels_zero (h := h) (z0 := z0) (leaves := leaves) := by
   unfold Properties.levels_zero
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levels_succ (h : Hash) (z0 : UInt256) (leaves : List UInt256) (l : ℕ) :
     Properties.levels_succ (h := h) (z0 := z0) (leaves := leaves) (l := l) := by
   unfold Properties.levels_succ
-  exact
-    rfl
+  rfl
 
 
 theorem rootOf_def (h : Hash) (z0 : UInt256) (leaves : List UInt256) (height : ℕ) :
     Properties.rootOf_def (h := h) (z0 := z0) (leaves := leaves) (height := height) := by
   unfold Properties.rootOf_def
-  exact
-    rfl
+  rfl
 
 
 theorem sibIdx_ne (j : ℕ) :
     Properties.sibIdx_ne (j := j) := by
-  unfold Properties.sibIdx_ne
-  exact
-    by
-      unfold sibIdx; split <;> omega
+  unfold Properties.sibIdx_ne sibIdx
+  split <;> omega
 
 
 @[simp] theorem walkPure_zero (h : Hash) (sibs : ℕ → UInt256) (lvl idx : ℕ) (x : UInt256) :
     Properties.walkPure_zero (h := h) (sibs := sibs) (lvl := lvl) (idx := idx) (x := x) := by
   unfold Properties.walkPure_zero
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem walkPure_succ (h : Hash) (sibs : ℕ → UInt256) (lvl k idx : ℕ) (x : UInt256) :
     Properties.walkPure_succ (h := h) (sibs := sibs) (lvl := lvl) (k := k) (idx := idx) (x := x) := by
   unfold Properties.walkPure_succ
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem appendPath_zero (h : Hash) (z0 : UInt256) (leaves : List UInt256)
     (x : UInt256) :
     Properties.appendPath_zero (h := h) (z0 := z0) (leaves := leaves) (x := x) := by
   unfold Properties.appendPath_zero
-  exact
-    rfl
+  rfl
 
 
 theorem appendPath_succ (h : Hash) (z0 : UInt256) (leaves : List UInt256)
     (x : UInt256) (l : ℕ) :
     Properties.appendPath_succ (h := h) (z0 := z0) (leaves := leaves) (x := x) (l := l) := by
   unfold Properties.appendPath_succ
-  exact
-    rfl
+  rfl
 
 
 /-! ## `levelUp` structure -/
@@ -228,14 +213,10 @@ theorem appendPath_succ (h : Hash) (z0 : UInt256) (leaves : List UInt256)
 /-- One level halves the width, rounding up. -/
 theorem levelUp_length (h : Hash) (z : UInt256) :
     Properties.levelUp_length (h := h) (z := z)
-  | [] => by
-    simp only [levelUp_nil, List.length_nil]
-  | [_] => by
-    simp only [levelUp_single, List.length_cons, List.length_nil]
+  | [] => by simp only [levelUp_nil, List.length_nil]
+  | [_] => by simp only [levelUp_single, List.length_cons, List.length_nil]
   | a :: b :: rest => by
-    rw [levelUp_cons₂]
-    simp only [List.length_cons]
-    rw [levelUp_length h z rest]
+    simp only [levelUp_cons₂, List.length_cons, levelUp_length h z rest]
     omega
 
 
@@ -244,19 +225,12 @@ theorem levelUp_length (h : Hash) (z : UInt256) :
 theorem levelUp_getD (h : Hash) (z d : UInt256) :
     Properties.levelUp_getD (h := h) (z := z) (d := d)
   | [], _, hj => absurd hj (by simp)
-  | [a], j, hj => by
-    have hj0 : j = 0 := by
-      simp only [List.length_cons, List.length_nil] at hj; omega
-    subst hj0
-    rfl
+  | [_], 0, _ => rfl
+  | [_], _ + 1, hj => by simp at hj
   | a :: b :: rest, 0, _ => rfl
   | a :: b :: rest, j + 1, hj => by
-    have hrest : 2 * j < rest.length := by
-      simp only [List.length_cons] at hj; omega
-    rw [levelUp_cons₂, show 2 * (j + 1) = 2 * j + 1 + 1 from by ring]
-    rw [getD_cons_succ', getD_cons_succ', getD_cons_succ',
-        getD_cons_succ', getD_cons_succ']
-    exact levelUp_getD h z d rest j hrest
+    rw [levelUp_cons₂, show 2 * (j + 1) = 2 * j + 1 + 1 by omega]
+    exact levelUp_getD h z d rest j (by simp only [List.length_cons] at hj; omega)
 
 
 /-- `levelUp` distributes over an append at an even cut. -/
@@ -276,16 +250,12 @@ theorem levelUp_take_even (h : Hash) (z : UInt256) :
     Properties.levelUp_take_even (h := h) (z := z)
   | 0, L, _ => by simp
   | q + 1, [], hq => by simp at hq
-  | q + 1, [_], hq => by
-    simp only [List.length_cons, List.length_nil] at hq; omega
+  | q + 1, [_], hq => by simp at hq; omega
   | q + 1, a :: b :: rest, hq => by
-    have hrest : 2 * q ≤ rest.length := by
-      simp only [List.length_cons] at hq; omega
-    rw [show 2 * (q + 1) = 2 * q + 1 + 1 from by ring]
-    show levelUp h z (a :: b :: rest.take (2 * q))
-        = (levelUp h z (a :: b :: rest)).take (q + 1)
-    rw [levelUp_cons₂, levelUp_cons₂, levelUp_take_even h z q rest hrest]
-    rfl
+    rw [show 2 * (q + 1) = 2 * q + 1 + 1 by omega, List.take_succ_cons, List.take_succ_cons,
+      levelUp_cons₂, levelUp_cons₂,
+      levelUp_take_even h z q rest (by simp only [List.length_cons] at hq; omega),
+      List.take_succ_cons]
 
 
 /-! ## M-C — frontier arithmetic -/
@@ -302,12 +272,9 @@ theorem levels_nil (h : Hash) (z0 : UInt256) :
 theorem levels_length (h : Hash) (z0 : UInt256) (leaves : List UInt256)
     (hne : leaves.length ≠ 0) :
     Properties.levels_length (h := h) (z0 := z0) (leaves := leaves) (hne := hne)
-  | 0 => by
-    rw [levels_zero, pow_zero, Nat.div_one]
-    omega
+  | 0 => by rw [levels_zero, pow_zero, Nat.div_one]; omega
   | l + 1 => by
-    rw [levels_succ, levelUp_length, levels_length h z0 leaves hne l,
-        show (2 : ℕ) ^ (l + 1) = 2 ^ l * 2 from by ring,
+    rw [levels_succ, levelUp_length, levels_length h z0 leaves hne l, pow_succ,
         ← Nat.div_div_eq_div_mul]
     omega
 
@@ -317,12 +284,10 @@ theorem levels_length_ceil (h : Hash) (z0 : UInt256) (leaves : List UInt256)
     (hne : leaves.length ≠ 0) (l : ℕ) :
     Properties.levels_length_ceil (h := h) (z0 := z0) (leaves := leaves) (hne := hne) (l := l) := by
   unfold Properties.levels_length_ceil
-  exact
-    by
-      have h2 : 0 < (2 : ℕ) ^ l := pow_pos (by norm_num) l
-      rw [levels_length h z0 leaves hne l,
-          show leaves.length + 2 ^ l - 1 = (leaves.length - 1) + 2 ^ l from by omega,
-          Nat.add_div_right _ h2]
+  have h2 := Nat.two_pow_pos l
+  rw [levels_length h z0 leaves hne l,
+      show leaves.length + 2 ^ l - 1 = (leaves.length - 1) + 2 ^ l by omega,
+      Nat.add_div_right _ h2]
 
 
 /-- M-C: every level of a nonempty tree is nonempty. -/
@@ -330,10 +295,8 @@ theorem levels_length_pos (h : Hash) (z0 : UInt256) (leaves : List UInt256)
     (hne : leaves.length ≠ 0) (l : ℕ) :
     Properties.levels_length_pos (h := h) (z0 := z0) (leaves := leaves) (hne := hne) (l := l) := by
   unfold Properties.levels_length_pos
-  exact
-    by
-      rw [levels_length h z0 leaves hne l]
-      exact Nat.succ_pos _
+  rw [levels_length h z0 leaves hne l]
+  exact Nat.succ_pos _
 
 
 /-- M-C, upper bound: the level width never exceeds the floor path index
@@ -342,31 +305,22 @@ even frontier path always reads the `zeros` default. -/
 theorem levels_length_le (h : Hash) (z0 : UInt256) (leaves : List UInt256) (l : ℕ) :
     Properties.levels_length_le (h := h) (z0 := z0) (leaves := leaves) (l := l) := by
   unfold Properties.levels_length_le
-  exact
-    by
-      by_cases hne : leaves.length = 0
-      · rw [List.length_eq_zero_iff.mp hne, levels_nil]
-        simp
-      · rw [levels_length h z0 leaves hne l]
-        exact Nat.add_le_add_right
-          (Nat.div_le_div_right (c := 2 ^ l) (Nat.sub_le leaves.length 1)) 1
+  by_cases hne : leaves.length = 0
+  · rw [List.length_eq_zero_iff.mp hne, levels_nil]; simp
+  · rw [levels_length h z0 leaves hne l]
+    have := Nat.div_le_div_right (c := 2 ^ l) (Nat.sub_le leaves.length 1)
+    omega
 
 
 /-- M-C, lower bound: the floor path index is inside (or at) the level. -/
 theorem div_le_levels_length (h : Hash) (z0 : UInt256) (leaves : List UInt256) (l : ℕ) :
     Properties.div_le_levels_length (h := h) (z0 := z0) (leaves := leaves) (l := l) := by
   unfold Properties.div_le_levels_length
-  exact
-    by
-      by_cases hne : leaves.length = 0
-      · rw [hne, List.length_eq_zero_iff.mp hne, levels_nil]
-        simp
-      · have h2 : 0 < (2 : ℕ) ^ l := pow_pos (by norm_num) l
-        rw [levels_length h z0 leaves hne l]
-        calc leaves.length / 2 ^ l
-            ≤ ((leaves.length - 1) + 2 ^ l) / 2 ^ l :=
-              Nat.div_le_div_right (by omega)
-          _ = (leaves.length - 1) / 2 ^ l + 1 := Nat.add_div_right _ h2
+  by_cases hne : leaves.length = 0
+  · rw [hne, List.length_eq_zero_iff.mp hne, levels_nil]; simp
+  · have h2 := Nat.two_pow_pos l
+    rw [levels_length h z0 leaves hne l, ← Nat.add_div_right _ h2]
+    exact Nat.div_le_div_right (by omega)
 
 
 /-- `set` preserves every level width. -/
@@ -384,8 +338,7 @@ re-exported for downstream convenience). -/
 theorem div_pow_eq_zero {idx k : ℕ} (hidx : idx < 2 ^ k) :
     Properties.div_pow_eq_zero (idx := idx) (k := k) (hidx := hidx) := by
   unfold Properties.div_pow_eq_zero
-  exact
-    Nat.div_eq_of_lt hidx
+  exact Nat.div_eq_of_lt hidx
 
 
 /-! ## M-A — the update walk recomputes the whole tree -/
@@ -432,56 +385,37 @@ theorem walkPure_levels (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
     (L : List UInt256) :
     Properties.walkPure_levels (h := h) (z0 := z0) (sibs := sibs) (L := L) := by
   unfold Properties.walkPure_levels
-  exact
-    by
-      intro k
-      induction k with
-      | zero =>
-        intro lvl j _ _
-        simp
-      | succ k ih =>
-        intro lvl j hj hsibs
-        have hs : sibs lvl = (levels h z0 L lvl).getD (sibIdx j) (zeros h z0 lvl) := by
-          have := hsibs lvl (le_refl _) (by omega)
-          simpa using this
-        rw [walkPure_succ]
-        have hup : (levels h z0 L (lvl + 1)).getD (j / 2) (zeros h z0 (lvl + 1))
-            = h ((levels h z0 L lvl).getD (2 * (j / 2)) (zeros h z0 (lvl + 1)))
-                ((levels h z0 L lvl).getD (2 * (j / 2) + 1) (zeros h z0 lvl)) := by
-          rw [levels_succ]
-          exact levelUp_getD h (zeros h z0 lvl) (zeros h z0 (lvl + 1)) _ (j / 2) (by omega)
-        have hacc : (if j % 2 = 1
-              then h (sibs lvl) ((levels h z0 L lvl).getD j (zeros h z0 lvl))
-              else h ((levels h z0 L lvl).getD j (zeros h z0 lvl)) (sibs lvl))
-            = (levels h z0 L (lvl + 1)).getD (j / 2) (zeros h z0 (lvl + 1)) := by
-          by_cases hpar : j % 2 = 1
-          · rw [show 2 * (j / 2) = j - 1 from by omega] at hup
-            rw [show j - 1 + 1 = j from by omega] at hup
-            rw [ite_eq_left hpar, hs, hup,
-                show sibIdx j = j - 1 from by simp [sibIdx, hpar]]
-            exact congrArg (fun w => h w _) (getD_congr _ _ _ _ (by omega))
-          · rw [show 2 * (j / 2) = j from by omega] at hup
-            rw [ite_eq_right hpar, hs, hup,
-                show sibIdx j = j + 1 from by simp [sibIdx, hpar]]
-            exact congrArg (fun w => h w _) (getD_congr _ _ _ _ hj)
-        rw [hacc]
-        have hj' : j / 2 < (levels h z0 L (lvl + 1)).length := by
-          rw [levels_succ, levelUp_length]
-          omega
-        have hsibs' : ∀ l, lvl + 1 ≤ l → l < (lvl + 1) + k →
-            sibs l = (levels h z0 L l).getD (sibIdx (j / 2 / 2 ^ (l - (lvl + 1))))
-              (zeros h z0 l) := by
-          intro l hl1 hl2
-          have hidx : j / 2 / 2 ^ (l - (lvl + 1)) = j / 2 ^ (l - lvl) := by
-            rw [Nat.div_div_eq_div_mul,
-                show 2 * 2 ^ (l - (lvl + 1)) = 2 ^ (l - lvl) from by
-                  rw [show l - lvl = (l - (lvl + 1)) + 1 from by omega]; ring]
-          rw [hidx]
-          exact hsibs l (by omega) (by omega)
-        rw [ih (lvl + 1) (j / 2) hj' hsibs',
-            show lvl + 1 + k = lvl + (k + 1) from by omega,
-            show j / 2 / 2 ^ k = j / 2 ^ (k + 1) from by
-              rw [Nat.div_div_eq_div_mul, show 2 * 2 ^ k = (2 : ℕ) ^ (k + 1) from by ring]]
+  intro k
+  induction k with
+  | zero => intro lvl j _ _; simp
+  | succ k ih =>
+    intro lvl j hj hsibs
+    have hs : sibs lvl = (levels h z0 L lvl).getD (sibIdx j) (zeros h z0 lvl) := by
+      simpa using hsibs lvl le_rfl (by omega)
+    have hup := levelUp_getD h (zeros h z0 lvl) (zeros h z0 (lvl + 1)) (levels h z0 L lvl)
+      (j / 2) (by omega)
+    rw [← levels_succ] at hup
+    have hacc : (if j % 2 = 1
+          then h (sibs lvl) ((levels h z0 L lvl).getD j (zeros h z0 lvl))
+          else h ((levels h z0 L lvl).getD j (zeros h z0 lvl)) (sibs lvl))
+        = (levels h z0 L (lvl + 1)).getD (j / 2) (zeros h z0 (lvl + 1)) := by
+      by_cases hpar : j % 2 = 1
+      · rw [show 2 * (j / 2) = j - 1 by omega, show j - 1 + 1 = j by omega] at hup
+        rw [ite_eq_left hpar, hs, hup, show sibIdx j = j - 1 by simp [sibIdx, hpar]]
+        exact congrArg (fun w => h w _) (getD_congr _ _ _ _ (by omega))
+      · rw [show 2 * (j / 2) = j by omega] at hup
+        rw [ite_eq_right hpar, hs, hup, show sibIdx j = j + 1 by simp [sibIdx, hpar]]
+        exact congrArg (fun w => h w _) (getD_congr _ _ _ _ hj)
+    have hj' : j / 2 < (levels h z0 L (lvl + 1)).length := by
+      rw [levels_succ, levelUp_length]; omega
+    have hsibs' : ∀ l, lvl + 1 ≤ l → l < (lvl + 1) + k →
+        sibs l = (levels h z0 L l).getD (sibIdx (j / 2 / 2 ^ (l - (lvl + 1))))
+          (zeros h z0 l) := by
+      intro l hl1 hl2
+      rw [Nat.div_div_eq_div_mul, ← pow_succ', show l - (lvl + 1) + 1 = l - lvl by omega]
+      exact hsibs l (by omega) (by omega)
+    rw [walkPure_succ, hacc, ih (lvl + 1) (j / 2) hj' hsibs',
+      show lvl + 1 + k = lvl + (k + 1) by omega, Nat.div_div_eq_div_mul, ← pow_succ']
 
 
 /-- **M-A `walkPure_update`.**  Under the in-tree bounds, if the sibling
@@ -496,21 +430,12 @@ theorem walkPure_update (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
         (zeros h z0 l)) :
     Properties.walkPure_update (h := h) (z0 := z0) (sibs := sibs) (leaves := leaves) (idx := idx) (x := x) (height := height) (hidx := hidx) (hcap := hcap) (hsibs := hsibs) := by
   unfold Properties.walkPure_update
-  exact
-    by
-      have hlen : idx < (levels h z0 (leaves.set idx x) 0).length := by
-        rw [levels_zero, List.length_set]; exact hidx
-      have hside : ∀ l, 0 ≤ l → l < 0 + height →
-          sibs l = (levels h z0 (leaves.set idx x) l).getD (sibIdx (idx / 2 ^ (l - 0)))
-            (zeros h z0 l) := by
-        intro l _ hl
-        rw [Nat.sub_zero]
-        exact hsibs l (by omega)
-      have hmain := walkPure_levels h z0 sibs (leaves.set idx x) height 0 idx hlen hside
-      rw [levels_zero, getD_set_self x leaves idx (zeros h z0 0) hidx, zero_add,
-          Nat.div_eq_of_lt (lt_of_lt_of_le hidx hcap), getD_zero_headD] at hmain
-      rw [rootOf_def]
-      exact hmain
+  have hmain := walkPure_levels h z0 sibs (leaves.set idx x) height 0 idx
+    (by rw [levels_zero, List.length_set]; exact hidx)
+    (fun l _ hl => by rw [Nat.sub_zero]; exact hsibs l (by omega))
+  rw [levels_zero, getD_set_self x leaves idx (zeros h z0 0) hidx, zero_add,
+      Nat.div_eq_of_lt (lt_of_lt_of_le hidx hcap), getD_zero_headD] at hmain
+  rwa [rootOf_def]
 
 
 /-- **M-A, old-tree sibling form** (what the contract walk actually reads:
@@ -523,12 +448,8 @@ theorem walkPure_update_orig (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
       sibs l = (levels h z0 leaves l).getD (sibIdx (idx / 2 ^ l)) (zeros h z0 l)) :
     Properties.walkPure_update_orig (h := h) (z0 := z0) (sibs := sibs) (leaves := leaves) (idx := idx) (x := x) (height := height) (hidx := hidx) (hcap := hcap) (hsibs := hsibs) := by
   unfold Properties.walkPure_update_orig
-  exact
-    by
-      refine walkPure_update h z0 sibs leaves idx x height hidx hcap ?_
-      intro l hl
-      rw [hsibs l hl,
-          levels_set_off_path h z0 leaves idx x l _ _ (sibIdx_ne _)]
+  refine walkPure_update h z0 sibs leaves idx x height hidx hcap fun l hl => ?_
+  rw [hsibs l hl, levels_set_off_path h z0 leaves idx x l _ _ (sibIdx_ne _)]
 
 
 /-! ## M-B — appending at the frontier is a walk from `leaves.length` -/
@@ -551,8 +472,7 @@ theorem levels_append (h : Hash) (z0 : UInt256) (leaves : List UInt256) (x : UIn
     · -- odd path index: the lone old tail entry pairs with the new path node
       rw [ite_eq_left hpar]
       have hp2 : 2 * (leaves.length / 2 ^ (l + 1)) + 1 = leaves.length / 2 ^ l := by
-        rw [show (2 : ℕ) ^ (l + 1) = 2 ^ l * 2 from by ring, ← Nat.div_div_eq_div_mul]
-        omega
+        rw [pow_succ, ← Nat.div_div_eq_div_mul]; omega
       have h2Q : 2 * (leaves.length / 2 ^ (l + 1)) < (levels h z0 leaves l).length := by
         omega
       rw [← hp2, Nat.add_sub_cancel, List.take_add_one, List.getElem?_eq_getElem h2Q]
@@ -569,8 +489,7 @@ theorem levels_append (h : Hash) (z0 : UInt256) (leaves : List UInt256) (x : UIn
     · -- even path index: the new path node is a lone tail, paired with zeros l
       rw [ite_eq_right hpar]
       have hp2 : 2 * (leaves.length / 2 ^ (l + 1)) = leaves.length / 2 ^ l := by
-        rw [show (2 : ℕ) ^ (l + 1) = 2 ^ l * 2 from by ring, ← Nat.div_div_eq_div_mul]
-        omega
+        rw [pow_succ, ← Nat.div_div_eq_div_mul]; omega
       have hAeven :
           ((levels h z0 leaves l).take (leaves.length / 2 ^ l)).length % 2 = 0 := by
         rw [List.length_take, min_eq_left hple]
@@ -587,35 +506,22 @@ theorem walkPure_appendPath (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
     (leaves : List UInt256) (x : UInt256) :
     Properties.walkPure_appendPath (h := h) (z0 := z0) (sibs := sibs) (leaves := leaves) (x := x) := by
   unfold Properties.walkPure_appendPath
-  exact
-    by
-      intro k
-      induction k with
-      | zero =>
-        intro lvl _
-        rw [walkPure_zero, add_zero]
-      | succ k ih =>
-        intro lvl hsibs
-        have hs := hsibs lvl (le_refl _) (by omega)
-        rw [walkPure_succ]
-        have hacc : (if leaves.length / 2 ^ lvl % 2 = 1
-              then h (sibs lvl) (appendPath h z0 leaves x lvl)
-              else h (appendPath h z0 leaves x lvl) (sibs lvl))
-            = appendPath h z0 leaves x (lvl + 1) := by
-          rw [appendPath_succ, hs]
-          by_cases hpar : leaves.length / 2 ^ lvl % 2 = 1
-          · rw [ite_eq_left hpar, ite_eq_left hpar,
-                show sibIdx (leaves.length / 2 ^ lvl) = leaves.length / 2 ^ lvl - 1 from by
-                  simp [sibIdx, hpar]]
-          · rw [ite_eq_right hpar, ite_eq_right hpar,
-                show sibIdx (leaves.length / 2 ^ lvl) = leaves.length / 2 ^ lvl + 1 from by
-                  simp [sibIdx, hpar],
-                getD_default _ _ _ (levels_length_le h z0 leaves lvl)]
-        rw [hacc,
-            show leaves.length / 2 ^ lvl / 2 = leaves.length / 2 ^ (lvl + 1) from by
-              rw [Nat.div_div_eq_div_mul, show (2 : ℕ) ^ lvl * 2 = 2 ^ (lvl + 1) from by ring],
-            ih (lvl + 1) (fun l h1 h2 => hsibs l (by omega) (by omega)),
-            show lvl + 1 + k = lvl + (k + 1) from by omega]
+  intro k
+  induction k with
+  | zero => intro lvl _; rw [walkPure_zero, add_zero]
+  | succ k ih =>
+    intro lvl hsibs
+    have hacc : (if leaves.length / 2 ^ lvl % 2 = 1
+          then h (sibs lvl) (appendPath h z0 leaves x lvl)
+          else h (appendPath h z0 leaves x lvl) (sibs lvl))
+        = appendPath h z0 leaves x (lvl + 1) := by
+      rw [appendPath_succ, hsibs lvl le_rfl (by omega), sibIdx]
+      split_ifs
+      · rfl
+      · rw [getD_default _ _ _ (levels_length_le h z0 leaves lvl)]
+    rw [walkPure_succ, hacc, Nat.div_div_eq_div_mul, ← pow_succ,
+        ih (lvl + 1) (fun l h1 h2 => hsibs l (by omega) (by omega)),
+        show lvl + 1 + k = lvl + (k + 1) by omega]
 
 
 /-- **M-B `rootOf_append`.**  For a non-full tree, the root after appending
@@ -632,14 +538,12 @@ theorem rootOf_append (h : Hash) (z0 : UInt256) (sibs : ℕ → UInt256)
         (zeros h z0 l)) :
     Properties.rootOf_append (h := h) (z0 := z0) (sibs := sibs) (leaves := leaves) (x := x) (height := height) (hcap := hcap) (hsibs := hsibs) := by
   unfold Properties.rootOf_append
-  exact
-    by
-      have hwalk := walkPure_appendPath h z0 sibs leaves x height 0
-        (fun l _ hl => hsibs l (by omega))
-      rw [pow_zero, Nat.div_one, appendPath_zero, zero_add] at hwalk
-      rw [hwalk, rootOf_def, levels_append h z0 leaves x height,
-          Nat.div_eq_of_lt hcap, List.take_zero, List.nil_append]
-      rfl
+  have hwalk := walkPure_appendPath h z0 sibs leaves x height 0
+    (fun l _ hl => hsibs l (by omega))
+  rw [pow_zero, Nat.div_one, appendPath_zero, zero_add] at hwalk
+  rw [hwalk, rootOf_def, levels_append h z0 leaves x height,
+      Nat.div_eq_of_lt hcap, List.take_zero, List.nil_append]
+  rfl
 
 
 /-! ## M-D — root injectivity from node-hash injectivity
@@ -657,28 +561,15 @@ theorem levelUp_inj (h : Hash) (z : UInt256)
     (hinj : ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d) :
     Properties.levelUp_inj (h := h) (z := z) (hinj := hinj)
   | [], [], _, _ => rfl
-  | [], _ :: _ :: _, hlen, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
-  | [], [_], hlen, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
-  | [_], [], hlen, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
-  | _ :: _ :: _, [], hlen, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
+  | [], _ :: _, hlen, _ | _ :: _, [], hlen, _
+  | [_], _ :: _ :: _, hlen, _ | _ :: _ :: _, [_], hlen, _ => by simp at hlen
   | [a], [c], _, he => by
       rw [levelUp_single, levelUp_single, List.cons.injEq] at he
       rw [(hinj a z c z he.1).1]
-  | [_], _ :: _ :: _, hlen, _ => by
-      simp only [List.length_cons, List.length_nil] at hlen; try omega
-  | _ :: _ :: _, [_], hlen, _ => by
-      simp only [List.length_cons, List.length_nil] at hlen; try omega
   | a :: b :: rest, c :: d :: rest', hlen, he => by
       rw [levelUp_cons₂, levelUp_cons₂, List.cons.injEq] at he
-      obtain ⟨hh, ht⟩ := he
-      obtain ⟨rfl, rfl⟩ := hinj a b c d hh
-      have hrl : rest.length = rest'.length := by
-        simp only [List.length_cons] at hlen; omega
-      rw [levelUp_inj h z hinj rest rest' hrl ht]
+      obtain ⟨rfl, rfl⟩ := hinj a b c d he.1
+      rw [levelUp_inj h z hinj rest rest' (by simpa using hlen) he.2]
 
 
 /-- Level width depends only on the leaf-list width. -/
@@ -710,13 +601,11 @@ theorem levels_height_singleton (h : Hash) (z0 : UInt256) (L : List UInt256)
     (height : ℕ) (hne : L.length ≠ 0) (hcap : L.length ≤ 2 ^ height) :
     Properties.levels_height_singleton (h := h) (z0 := z0) (L := L) (height := height) (hne := hne) (hcap := hcap) := by
   unfold Properties.levels_height_singleton
-  exact
-    by
-      have hlen1 : (levels h z0 L height).length = 1 := by
-        rw [levels_length h z0 L hne height, Nat.div_eq_of_lt (by omega)]
-      obtain ⟨a, ha⟩ := List.length_eq_one_iff.mp hlen1
-      rw [rootOf_def, ha]
-      rfl
+  have hlen1 : (levels h z0 L height).length = 1 := by
+    rw [levels_length h z0 L hne height, Nat.div_eq_of_lt (by omega)]
+  obtain ⟨a, ha⟩ := List.length_eq_one_iff.mp hlen1
+  rw [rootOf_def, ha]
+  rfl
 
 
 /-- **M-D — `rootOf_inj_of_h_inj`.**  When the node hash is pair-injective,
@@ -730,12 +619,10 @@ theorem rootOf_inj_of_h_inj (h : Hash) (z0 : UInt256)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
     Properties.rootOf_inj_of_h_inj (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hne := hne) (hcap := hcap) (hroot := hroot) := by
   unfold Properties.rootOf_inj_of_h_inj
-  exact
-    by
-      apply levels_inj h z0 hinj L₁ L₂ hlen height
-      rw [levels_height_singleton h z0 L₁ height hne hcap,
-          levels_height_singleton h z0 L₂ height (hlen ▸ hne) (hlen ▸ hcap),
-          hroot]
+  apply levels_inj h z0 hinj L₁ L₂ hlen height
+  rw [levels_height_singleton h z0 L₁ height hne hcap,
+      levels_height_singleton h z0 L₂ height (hlen ▸ hne) (hlen ▸ hcap),
+      hroot]
 
 
 /-- **M-D binding corollary.**  Appending different leaves to the *same*
@@ -750,11 +637,8 @@ theorem rootOf_append_inj (h : Hash) (z0 : UInt256)
       = rootOf h z0 (leaves ++ [y]) height) :
     Properties.rootOf_append_inj (h := h) (z0 := z0) (hinj := hinj) (leaves := leaves) (x := x) (y := y) (height := height) (hcap := hcap) (hroot := hroot) := by
   unfold Properties.rootOf_append_inj
-  exact
-    by
-      have heq := rootOf_inj_of_h_inj h z0 hinj (leaves ++ [x]) (leaves ++ [y])
-        height (by simp) (by simp) hcap hroot
-      simpa using heq
+  simpa using rootOf_inj_of_h_inj h z0 hinj (leaves ++ [x]) (leaves ++ [y])
+    height (by simp) (by simp) hcap hroot
 
 
 /-- **M-D binding corollary (interior leaves).**  Overwriting one leaf with
@@ -769,14 +653,12 @@ theorem rootOf_set_inj (h : Hash) (z0 : UInt256)
       = rootOf h z0 (leaves.set idx y) height) :
     Properties.rootOf_set_inj (h := h) (z0 := z0) (hinj := hinj) (leaves := leaves) (idx := idx) (x := x) (y := y) (height := height) (hidx := hidx) (hcap := hcap) (hroot := hroot) := by
   unfold Properties.rootOf_set_inj
-  exact
-    by
-      have heq := rootOf_inj_of_h_inj h z0 hinj (leaves.set idx x) (leaves.set idx y)
-        height (by rw [List.length_set, List.length_set])
-        (by rw [List.length_set]; omega) (by rw [List.length_set]; exact hcap) hroot
-      have hx : (leaves.set idx x).getD idx x = (leaves.set idx y).getD idx x := by
-        rw [heq]
-      rwa [getD_set_self x leaves idx x hidx, getD_set_self y leaves idx x hidx] at hx
+  have heq := rootOf_inj_of_h_inj h z0 hinj (leaves.set idx x) (leaves.set idx y)
+    height (by rw [List.length_set, List.length_set])
+    (by rw [List.length_set]; omega) (by rw [List.length_set]; exact hcap) hroot
+  have hx : (leaves.set idx x).getD idx x = (leaves.set idx y).getD idx x := by
+    rw [heq]
+  rwa [getD_set_self x leaves idx x hidx, getD_set_self y leaves idx x hidx] at hx
 
 
 /-- **M-D walk-level binding.**  The update walk is injective in its leaf
@@ -793,11 +675,8 @@ theorem walkPure_inj (h : Hash) (sibs : ℕ → UInt256)
       simp only [walkPure_succ]
       intro hh
       have hcomb := walkPure_inj h sibs hinj k (lvl + 1) (idx / 2) _ _ hh
-      by_cases hpar : idx % 2 = 1
-      · rw [ite_eq_left hpar, ite_eq_left hpar] at hcomb
-        exact (hinj _ _ _ _ hcomb).2
-      · rw [ite_eq_right hpar, ite_eq_right hpar] at hcomb
-        exact (hinj _ _ _ _ hcomb).1
+      split_ifs at hcomb
+      exacts [(hinj _ _ _ _ hcomb).2, (hinj _ _ _ _ hcomb).1]
 
 
 /-- **WALK SIBLING FRAME.**  `walkPure` reads the sibling stream only at the
@@ -829,13 +708,9 @@ theorem rootOf_inj_of_h_inj' (h : Hash) (z0 : UInt256)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
     Properties.rootOf_inj_of_h_inj' (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hcap := hcap) (hroot := hroot) := by
   unfold Properties.rootOf_inj_of_h_inj'
-  exact
-    by
-      by_cases hne : L₁.length = 0
-      · have h1 : L₁ = [] := List.length_eq_zero_iff.mp hne
-        have h2 : L₂ = [] := List.length_eq_zero_iff.mp (by rw [← hlen]; exact hne)
-        rw [h1, h2]
-      · exact rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot
+  by_cases hne : L₁.length = 0
+  · rw [List.length_eq_zero_iff.mp hne, List.length_eq_zero_iff.mp (show L₂.length = 0 by omega)]
+  · exact rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot
 
 
 end MerkleSpec

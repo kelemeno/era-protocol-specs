@@ -71,10 +71,8 @@ private lemma getD_of_getElem? {L : List UInt256} {j : ℕ} {a : UInt256} (h : L
   rw [List.getD_eq_getElem?_getD, h, Option.getD_some]
 
 private lemma lt_length_of_getElem? {L : List UInt256} {j : ℕ} {a : UInt256}
-    (h : L[j]? = some a) : j < L.length := by
-  rcases Nat.lt_or_ge j L.length with hj | hj
-  · exact hj
-  · rw [List.getElem?_eq_none hj] at h; cases h
+    (h : L[j]? = some a) : j < L.length :=
+  (List.getElem?_eq_some_iff.mp h).1
 
 /-- A row with the right length that agrees with `T` off position `p`, once `p` is
 written with `T`'s entry, is `T`. -/
@@ -197,8 +195,7 @@ private theorem updateLoop_spec (h : Hash) (z0 : UInt256) (L : List UInt256) (H 
         then h cur ((levels h z0 L i).getD (sibIdx (idx / 2 ^ i)) (zeros h z0 i))
         else h ((levels h z0 L i).getD (sibIdx (idx / 2 ^ i)) (zeros h z0 i)) cur)
     rw [div_two_pow_succ] at hset
-    have hrow_eq := set_eq_of_agree hrowlen' (hrowoff) hpar
-    rw [hrow_eq] at hset
+    rw [set_eq_of_agree hrowlen' hrowoff hpar] at hset
     have hNi1 : i + 1 < N.length := by omega
     simp only [updateLoop, hsib, Option.bind_eq_bind, Option.bind_some]
     rw [div_two_pow_succ, div_two_pow_succ, hset, Option.bind_some]
@@ -592,10 +589,7 @@ theorem pushNewLeaf_computes_root (h : Hash) (z0 : UInt256) (leaves : List UInt2
 theorem setup_represents_empty (h : Hash) (z0 : UInt256) :
     Represents h z0 [] (setup FullTree.empty z0).1
       ∧ (setup FullTree.empty z0).2 = rootOf h z0 [] 0 := by
-  refine ⟨⟨rfl, by simp [setup, FullTree.empty], ?_, ?_⟩, ?_⟩
-  · simp [setup, FullTree.empty]
-  · simp [setup, FullTree.empty, cachedLevel_nil]
-  · simp [setup, rootOf]
+  refine ⟨⟨rfl, ?_, ?_, ?_⟩, ?_⟩ <;> simp [setup, FullTree.empty, cachedLevel_nil, rootOf]
 
 /-! ## `root` -/
 

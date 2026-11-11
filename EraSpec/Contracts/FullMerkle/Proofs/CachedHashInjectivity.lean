@@ -38,22 +38,19 @@ open Clear MerkleSpec
 @[simp] theorem levelPairs_nil (z : UInt256) :
     Properties.levelPairs_nil (z := z) := by
   unfold Properties.levelPairs_nil
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levelPairs_single (z a : UInt256) :
     Properties.levelPairs_single (z := z) (a := a) := by
   unfold Properties.levelPairs_single
-  exact
-    rfl
+  rfl
 
 
 @[simp] theorem levelPairs_cons₂ (z a b : UInt256) (rest : List UInt256) :
     Properties.levelPairs_cons₂ (z := z) (a := a) (b := b) (rest := rest) := by
   unfold Properties.levelPairs_cons₂
-  exact
-    rfl
+  rfl
 
 
 /-- **`levelUp` IS INJECTIVE ON `P`-PAIRS.**  As `MerkleSpec.levelUp_inj`, but the node hash need
@@ -63,34 +60,16 @@ theorem levelUp_inj_on (h : Hash) (z : UInt256) {P : UInt256 → UInt256 → Pro
     (hinj : ∀ a b c d : UInt256, P a b → P c d → h a b = h c d → a = c ∧ b = d) :
     Properties.levelUp_inj_on (h := h) (z := z) (P := P) (hinj := hinj)
   | [], [], _, _, _, _ => rfl
-  | [], _ :: _ :: _, hlen, _, _, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
-  | [], [_], hlen, _, _, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
-  | [_], [], hlen, _, _, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
-  | _ :: _ :: _, [], hlen, _, _, _ => by
-      simp only [List.length_nil, List.length_cons] at hlen; try omega
+  | [], _ :: _, hlen, _, _, _ | _ :: _, [], hlen, _, _, _
+  | [_], _ :: _ :: _, hlen, _, _, _ | _ :: _ :: _, [_], hlen, _, _, _ => by simp at hlen
   | [a], [c], _, hp₁, hp₂, he => by
       rw [levelUp_single, levelUp_single, List.cons.injEq] at he
-      have ha : P a z := hp₁ (a, z) (by simp)
-      have hc : P c z := hp₂ (c, z) (by simp)
-      rw [(hinj a z c z ha hc he.1).1]
-  | [_], _ :: _ :: _, hlen, _, _, _ => by
-      simp only [List.length_cons, List.length_nil] at hlen; try omega
-  | _ :: _ :: _, [_], hlen, _, _, _ => by
-      simp only [List.length_cons, List.length_nil] at hlen; try omega
+      rw [(hinj a z c z (hp₁ (a, z) (by simp)) (hp₂ (c, z) (by simp)) he.1).1]
   | a :: b :: rest, c :: d :: rest', hlen, hp₁, hp₂, he => by
       rw [levelUp_cons₂, levelUp_cons₂, List.cons.injEq] at he
-      obtain ⟨hh, ht⟩ := he
-      have hab : P a b := hp₁ (a, b) (by simp)
-      have hcd : P c d := hp₂ (c, d) (by simp)
-      obtain ⟨rfl, rfl⟩ := hinj a b c d hab hcd hh
-      have hrl : rest.length = rest'.length := by
-        simp only [List.length_cons] at hlen; omega
-      have hr₁ : PairsOK P z rest := fun p hp => hp₁ p (by simp [hp])
-      have hr₂ : PairsOK P z rest' := fun p hp => hp₂ p (by simp [hp])
-      rw [levelUp_inj_on h z hinj rest rest' hrl hr₁ hr₂ ht]
+      obtain ⟨rfl, rfl⟩ := hinj a b c d (hp₁ (a, b) (by simp)) (hp₂ (c, d) (by simp)) he.1
+      rw [levelUp_inj_on h z hinj rest rest' (by simpa using hlen)
+        (fun p hp => hp₁ p (by simp [hp])) (fun p hp => hp₂ p (by simp [hp])) he.2]
 
 
 /-- **Equal level-`l` lists force equal leaves, on `P`-pairs.**  The restriction is needed at
@@ -99,7 +78,7 @@ theorem levels_inj_on (h : Hash) (z0 : UInt256) {P : UInt256 → UInt256 → Pro
     (hinj : ∀ a b c d : UInt256, P a b → P c d → h a b = h c d → a = c ∧ b = d)
     (L₁ L₂ : List UInt256) (hlen : L₁.length = L₂.length) :
     Properties.levels_inj_on (h := h) (z0 := z0) (P := P) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (hlen := hlen)
-  | 0 => by intro _ _ he; rw [levels_zero, levels_zero] at he; exact he
+  | 0 => fun _ _ he => by rwa [levels_zero, levels_zero] at he
   | l + 1 => fun hp₁ hp₂ he => by
       rw [levels_succ, levels_succ] at he
       refine levels_inj_on h z0 hinj L₁ L₂ hlen l
@@ -124,12 +103,10 @@ theorem rootOf_inj_on (h : Hash) (z0 : UInt256) {P : UInt256 → UInt256 → Pro
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
     Properties.rootOf_inj_on (h := h) (z0 := z0) (P := P) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hne := hne) (hcap := hcap) (hp₁ := hp₁) (hp₂ := hp₂) (hroot := hroot) := by
   unfold Properties.rootOf_inj_on
-  exact
-    by
-      refine levels_inj_on h z0 hinj L₁ L₂ hlen height hp₁ hp₂ ?_
-      rw [levels_height_singleton h z0 L₁ height hne hcap,
-          levels_height_singleton h z0 L₂ height (hlen ▸ hne) (hlen ▸ hcap),
-          hroot]
+  refine levels_inj_on h z0 hinj L₁ L₂ hlen height hp₁ hp₂ ?_
+  rw [levels_height_singleton h z0 L₁ height hne hcap,
+      levels_height_singleton h z0 L₂ height (hlen ▸ hne) (hlen ▸ hcap),
+      hroot]
 
 
 /-- The unrestricted M-D is the `P := True` instance — recorded so the restriction is visibly a
@@ -142,9 +119,8 @@ theorem rootOf_inj_of_h_inj_of_on (h : Hash) (z0 : UInt256)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
     Properties.rootOf_inj_of_h_inj_of_on (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hne := hne) (hcap := hcap) (hroot := hroot) := by
   unfold Properties.rootOf_inj_of_h_inj_of_on
-  exact
-    rootOf_inj_on h z0 (P := fun _ _ => True) (fun a b c d _ _ he => hinj a b c d he)
-        L₁ L₂ height hlen hne hcap (fun _ _ _ _ => trivial) (fun _ _ _ _ => trivial) hroot
+  exact rootOf_inj_on h z0 (P := fun _ _ => True) (fun a b c d _ _ he => hinj a b c d he)
+      L₁ L₂ height hlen hne hcap (fun _ _ _ _ => trivial) (fun _ _ _ _ => trivial) hroot
 
 
 /-- **Entry-level corollary, restricted.**  Equal roots force equal entries at every index —
@@ -161,9 +137,7 @@ theorem getD_of_rootOf_eq_on (h : Hash) (z0 : UInt256) {P : UInt256 → UInt256 
     (i : ℕ) (dflt : UInt256) :
     Properties.getD_of_rootOf_eq_on (h := h) (z0 := z0) (P := P) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hne := hne) (hcap := hcap) (hp₁ := hp₁) (hp₂ := hp₂) (hroot := hroot) (i := i) (dflt := dflt) := by
   unfold Properties.getD_of_rootOf_eq_on
-  exact
-    by
-      rw [rootOf_inj_on h z0 hinj L₁ L₂ height hlen hne hcap hp₁ hp₂ hroot]
+  rw [rootOf_inj_on h z0 hinj L₁ L₂ height hlen hne hcap hp₁ hp₂ hroot]
 
 
 end Clear.MerkleCachedInj

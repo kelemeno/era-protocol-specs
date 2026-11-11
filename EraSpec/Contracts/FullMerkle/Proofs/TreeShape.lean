@@ -103,13 +103,7 @@ theorem capacity_overflow_forges_root (h : Hash) (z0 : UInt256)
     (a b : UInt256) (hab : a ≠ b) :
     Properties.capacity_overflow_forges_root (h := h) (z0 := z0) (a := a) (b := b) (hab := hab) := by
   unfold Properties.capacity_overflow_forges_root
-  exact
-    by
-      refine ⟨[a, a], [a, b], 0, rfl, by simp, by simp, ?_, rfl⟩
-      intro he
-      injection he with _ h2
-      injection h2 with h3 _
-      exact hab h3
+  exact ⟨[a, a], [a, b], 0, rfl, by simp, by simp, by simp [hab], rfl⟩
 
 
 /-- **(A) Positive companion (dividing line, part 1).**  UNDER the capacity
@@ -120,8 +114,7 @@ theorem capacity_top_is_singleton (h : Hash) (z0 : UInt256) (L : List UInt256)
     (height : ℕ) (hne : L.length ≠ 0) (hcap : L.length ≤ 2 ^ height) :
     Properties.capacity_top_is_singleton (h := h) (z0 := z0) (L := L) (height := height) (hne := hne) (hcap := hcap) := by
   unfold Properties.capacity_top_is_singleton
-  exact
-    levels_height_singleton h z0 L height hne hcap
+  exact levels_height_singleton h z0 L height hne hcap
 
 
 /-- **(A) Positive companion (dividing line, part 2).**  UNDER the capacity
@@ -138,8 +131,7 @@ theorem capacity_ok_root_commits (h : Hash) (z0 : UInt256)
     (hroot : rootOf h z0 L₁ height = rootOf h z0 L₂ height) :
     Properties.capacity_ok_root_commits (h := h) (z0 := z0) (hinj := hinj) (L₁ := L₁) (L₂ := L₂) (height := height) (hlen := hlen) (hne := hne) (hcap := hcap) (hroot := hroot) := by
   unfold Properties.capacity_ok_root_commits
-  exact
-    rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot
+  exact rootOf_inj_of_h_inj h z0 hinj L₁ L₂ height hlen hne hcap hroot
 
 
 /-! ## (B) Zeros-collision / padding ambiguity -/
@@ -152,8 +144,7 @@ from "position present, containing the padding value". -/
 theorem levelUp_pad_eq_real (h : Hash) (z a : UInt256) :
     Properties.levelUp_pad_eq_real (h := h) (z := z) (a := a) := by
   unfold Properties.levelUp_pad_eq_real
-  exact
-    rfl
+  rfl
 
 
 /-- **(B.1), general form.**  Appending the padding value `z` to any
@@ -197,16 +188,14 @@ theorem rootOf_trailing_padding (h : Hash) (z0 : UInt256) (L : List UInt256)
     (hodd : L.length % 2 = 1) (height : ℕ) :
     Properties.rootOf_trailing_padding (h := h) (z0 := z0) (L := L) (hodd := hodd) (height := height) := by
   unfold Properties.rootOf_trailing_padding
-  exact
-    by
-      cases height with
-      | zero =>
-          cases L with
-          | nil => simp at hodd
-          | cons a t => rfl
-      | succ n =>
-          rw [rootOf_def, rootOf_def,
-              levels_trailing_padding h z0 L hodd (n + 1) (by omega)]
+  cases height with
+  | zero =>
+      cases L with
+      | nil => simp at hodd
+      | cons a t => rfl
+  | succ n =>
+      rw [rootOf_def, rootOf_def,
+          levels_trailing_padding h z0 L hodd (n + 1) (by omega)]
 
 
 /-- **(B.2) packaged.**  For ANY `h`, `z0`, `a` — including a perfectly
@@ -222,12 +211,7 @@ at this pure layer. -/
 theorem padding_ambiguity_forges_root (h : Hash) (z0 a : UInt256) :
     Properties.padding_ambiguity_forges_root (h := h) (z0 := z0) (a := a) := by
   unfold Properties.padding_ambiguity_forges_root
-  exact
-    by
-      refine ⟨[a], [a, z0], 1, by simp, ?_, rfl⟩
-      intro he
-      have hlen := congrArg List.length he
-      simp at hlen
+  exact ⟨[a], [a, z0], 1, by simp, fun he => by simpa using congrArg List.length he, rfl⟩
 
 
 end AttackVectors.TreeShape

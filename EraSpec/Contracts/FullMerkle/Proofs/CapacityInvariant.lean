@@ -35,10 +35,8 @@ namespace AttackVectors.CapacityInvariant
 /-- The genesis tree satisfies the invariant. -/
 theorem cap_genesis :
     Properties.cap_genesis := by
-  unfold Properties.cap_genesis
-  exact
-    by
-      unfold Cap; norm_num
+  unfold Properties.cap_genesis Cap
+  norm_num
 
 
 /-- **THE GROWTH RULE PRESERVES CAPACITY.**  The two branches are tight in different ways: when the
@@ -49,39 +47,23 @@ The `if` is therefore doing real work — replacing its condition with anything 
 break the second branch. -/
 theorem cap_push {d : TreeDims} (h : Cap d) :
     Properties.cap_push (d := d) (h := h) := by
-  unfold Properties.cap_push
-  exact
-    by
-      unfold Cap push at *
-      by_cases hfull : d.count = 2 ^ d.height
-      · rw [if_pos hfull]
-        show d.count + 1 ≤ 2 ^ (d.height + 1)
-        rw [hfull, pow_succ]
-        have : 1 ≤ 2 ^ d.height := Nat.one_le_two_pow
-        omega
-      · rw [if_neg hfull]
-        show d.count + 1 ≤ 2 ^ d.height
-        omega
+  unfold Properties.cap_push Cap push at *
+  have : 1 ≤ 2 ^ d.height := Nat.one_le_two_pow
+  split_ifs <;> dsimp only <;> grind [pow_succ]
 
 
 /-- The height never shrinks. -/
 theorem height_mono (d : TreeDims) :
     Properties.height_mono (d := d) := by
-  unfold Properties.height_mono
-  exact
-    by
-      unfold push
-      by_cases hfull : d.count = 2 ^ d.height <;> simp [hfull]
+  unfold Properties.height_mono push
+  split <;> simp
 
 
 /-- Each push adds exactly one leaf. -/
 theorem count_succ (d : TreeDims) :
     Properties.count_succ (d := d) := by
-  unfold Properties.count_succ
-  exact
-    by
-      unfold push
-      by_cases hfull : d.count = 2 ^ d.height <;> simp [hfull]
+  unfold Properties.count_succ push
+  split <;> rfl
 
 
 /-- **CAPACITY IS NEVER EXCEEDED.**  From the genesis tree, after any number of pushes, the leaf count
@@ -90,13 +72,9 @@ rule above. -/
 theorem capacity_never_exceeded (n : ℕ) :
     Properties.capacity_never_exceeded (n := n) := by
   unfold Properties.capacity_never_exceeded
-  exact
-    by
-      induction n with
-      | zero => exact cap_genesis
-      | succ n ih =>
-        rw [Function.iterate_succ_apply']
-        exact cap_push ih
+  induction n with
+  | zero => exact cap_genesis
+  | succ n ih => rw [Function.iterate_succ_apply']; exact cap_push ih
 
 
 /-- The count after `n` pushes is exactly `n` — so "capacity is never exceeded" is a statement about
@@ -104,12 +82,9 @@ every tree size, not only reachable ones. -/
 theorem count_after (n : ℕ) :
     Properties.count_after (n := n) := by
   unfold Properties.count_after
-  exact
-    by
-      induction n with
-      | zero => rfl
-      | succ n ih =>
-        rw [Function.iterate_succ_apply', count_succ, ih]
+  induction n with
+  | zero => rfl
+  | succ n ih => rw [Function.iterate_succ_apply', count_succ, ih]
 
 
 /-- **THE INVARIANT AT EVERY SIZE.**  Combining the two: a tree grown to `n` leaves by this rule has
@@ -117,11 +92,7 @@ height at least `log₂ n`, i.e. `n ≤ 2 ^ height`.  This is the exact form `hc
 theorem cap_at_size (n : ℕ) :
     Properties.cap_at_size (n := n) := by
   unfold Properties.cap_at_size
-  exact
-    by
-      have h := capacity_never_exceeded n
-      unfold Properties.capacity_never_exceeded Cap at h
-      rwa [count_after] at h
+  simpa only [Cap, count_after] using capacity_never_exceeded n
 
 
 end AttackVectors.CapacityInvariant
