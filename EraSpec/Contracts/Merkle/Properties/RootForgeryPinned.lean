@@ -18,7 +18,7 @@ hold") now has a pinned replacement.  Originals with the same statement share on
 | `levelUp_inj` (FullMerkle `Model`) | `LevelUpInjOrCollision` |
 | `levels_inj` (FullMerkle `Model`) | `LevelsInjOrCollision` |
 | `rootOf_inj_of_h_inj`, `rootOf_inj_of_h_inj'` (FullMerkle `Model`), `rootOf_inj_of_h_inj_of_on` (FullMerkle `CachedHashInjectivity`) | `RootOfInjOrCollision`; without the equal-length premise `RootCommitsListOrBreak` |
-| `capacity_ok_root_commits` (FullMerkle `TreeShape`) | `RootOfInjOrCollision` (same statement); with the capacity premise discharged by the run, `Contracts.InteropCommitmentTree.PublishedRootCommitsOrCollision` |
+| `capacity_ok_root_commits` (FullMerkle `TreeShape`) | `RootOfInjOrCollision` (same statement); with the capacity premise discharged by the run, `Contracts.InteropCommitmentTree.PublishedRootCommitsOrCollision`, and without the equal-length premise `…PublishedRootCommitsAnyLengthOrBreak` |
 | `rootOf_append_inj` (FullMerkle `Model`), `no_append_forgery` (Merkle `RootForgery`) | `RootOfAppendInjOrCollision` |
 | `rootOf_set_inj` (FullMerkle `Model`) | `RootOfSetInjOrCollision` |
 | `walkPure_inj` (FullMerkle `Model`), `no_path_forgery` (Merkle `RootForgery`) | `WalkPureInjOrCollision` |
@@ -53,17 +53,23 @@ stronger).
   equal, for every hash.
 * `RootPinsEntryPinnedToPath`: under `constHash` (every pair collides), on the same two trees,
   the collision is located on one index's path and is absent from another's.
-* `PinnedFormsFire`: without `hinj` each original's conclusion is false on an instance
-  meeting its premises, and the located collision is what holds there.
+* `PinnedFormsFire`, with `RootCommitsListCollisionFires` and `PaddingHitFires` for lists of
+  different lengths: for every property in this file that has a collision disjunct (the 20
+  replacements and the two engines), an instance meeting its premises on which the rest of
+  its conclusion (for a replacement, the vacuous original's conclusion) is false, and the
+  located collision (in `PaddingHitFires`, the padding hit) is what holds there.  The
+  docstring of `PinnedFormsFire` names the case and the instance for each.
 * `PaddingHitFires`: for every hash, the padding-ambiguity attack of
   `TreeShape.padding_ambiguity_forges_root` is located as exactly a `PaddingHit`, with no
   collision; `RootCommitsListCollisionFires` reaches the collision case alone, at different
-  lengths.
+  lengths and with the padding constant in neither list.
 * `WalkVsWalkNeedsSameIndex`: the same-index premise of `WalkVsWalkOrCollision` cannot be
   dropped.
 
 At the commitment tree's own `_height`, where the run discharges the capacity premise, the
-root-commitment form is `Contracts.InteropCommitmentTree.Properties.PublishedRootCommitsOrCollision`
+root-commitment form is `Contracts.InteropCommitmentTree.Properties.PublishedRootCommitsOrCollision`,
+and for an attacker list of any length within capacity
+`Contracts.InteropCommitmentTree.Properties.PublishedRootCommitsAnyLengthOrBreak`
 (`../../L2InteropCommitmentTree/Properties/PublishedRootCommits.lean`).
 -/
 
@@ -104,7 +110,8 @@ def Properties.WalkVsWalkOrCollision : Prop :=
 from the same index.  From index 0 with leaf `x` and sibling `y`, and from index 1 with leaf `y`
 and sibling `x`, two one-step walks hash the same pair `(x, y)`: they reach the same value under
 EVERY hash, with different leaves and different siblings, and no collision is involved.  (A
-prover chooses `_index` in `calculateRootMemory`, `Merkle.sol:55`; against a tree root,
+prover chooses `calculateRootMemory`'s `_index` argument,
+`l1-contracts/contracts/common/libraries/Merkle.sol:55`; against a tree root,
 `AcceptPinsEntryOrCollision` pins the entry at whichever index is claimed.) -/
 def Properties.WalkVsWalkNeedsSameIndex : Prop :=
   ∀ (h : Hash) (x y : UInt256),
@@ -355,34 +362,83 @@ def Properties.RootPinsEntryPinnedToPath : Prop :=
     ∧ ¬ TreeCollision constHash 0 [1, 0, 5, 5] [0, 1, 5, 5] 2 2
 
 /-- **WITHOUT `hinj` EACH ORIGINAL CONCLUSION FAILS, AND THE LOCATED COLLISION IS WHAT HOLDS.**
-Under `constHash` with padding `0`:
+Each case is an instance meeting the premises of the properties it names, on which the rest of
+the property's conclusion (for a replacement, the vacuous original's conclusion; for the
+engines `RootPinsEntryOrCollision` and `WalkVsWalkOrCollision`, their first disjunct) is
+false.  The conjuncts state the premises that are not evident from the literals (lengths and
+index bounds are), the failure, and the located collision.  Under `constHash` with
+padding `0`:
 
 1. tree versus tree: `[1]` and `[0]` (equal length, within capacity at height 1) have the same
-   root, yet differ; the collision is on index 0's path (`RootOfInjOrCollision`,
-   `RootPinsEntryOrCollision`, `RootOfAppendInjOrCollision` with `leaves = []`,
-   `RootOfSetInjOrCollision`, `MemOfRootOfEqOrCollision`, `GetDOfRootOfEqOrCollision`,
-   `RootOfNeOfNotMemOrCollision`, `RootNeOfLeafNeOrCollision`);
+   root, yet differ; the collision is on index 0's path.  Properties: `RootPinsEntryOrCollision`
+   (`i = 0`), `RootOfInjOrCollision`, `RootCommitsListOrBreak` (no padding hit at equal
+   lengths), `RootOfAppendInjOrCollision` (`leaves = []`, `x = 1`, `y = 0`),
+   `RootOfSetInjOrCollision` and the root half of `LeafOnlySubstitutionChangesRootOrCollision`
+   (`leaves = [7]`, `idx = 0`, `x = 1`, `y = 0`: `[7].set 0 1 = [1]`),
+   `MemOfRootOfEqOrCollision` and `RootOfNeOfNotMemOrCollision` (`x = 1`, so `L₁.idxOf x = 0`),
+   `GetDOfRootOfEqOrCollision` and `RootNeOfLeafNeOrCollision` (`i = 0`, any default);
 2. walk versus walk, same siblings: leaves `1` and `0` walked one step from index 0 over
-   siblings `0` reach the same value (`WalkPureInjOrCollision`,
-   `PathForgeryChangesWalkOrCollision`);
-3. walk versus walk, different siblings: leaf `0` over siblings `1` and over siblings `0`
-   (`WalkVsWalkOrCollision`, `SingleSiblingSubstitutionOrCollision` with `m = 0`);
-4. level versus level: `[1]` and `[0]` have the same parent level (`LevelUpInjOrCollision`,
-   `LevelsInjOrCollision` at `l = 1`);
-5. walk versus tree: on the tree `[0]`, the claimed leaf `1` over siblings `0` reaches the root
-   (`NoForgedWalkOrCollision`). -/
+   siblings `0` reach the same value.  Properties: `WalkPureInjOrCollision`,
+   `PathForgeryChangesWalkOrCollision`, and the walk half of
+   `LeafOnlySubstitutionChangesRootOrCollision` (`leaves = [7]`, `idx = 0`, height 1);
+3. walk versus walk, siblings changed at one level: leaf `0` walked one step from index 0 over
+   `oneAtZero` and over `fun _ => 0`, which agree off level 0 and differ at it.  Properties:
+   `WalkVsWalkOrCollision`, `SingleSiblingSubstitutionOrCollision` (`m = 0`);
+4. level versus level: `[1]` and `[0]` have the same parent level.  Properties:
+   `LevelUpInjOrCollision`, `LevelsInjOrCollision` (`l = 1`, where `levels … 1` is `levelUp`);
+5. walk versus a tree node: on the tree `[0]`, the claimed leaf `1` over siblings `0` reaches
+   the level-1 node above index 0 (`NoForgedWalkOrCollision`; the original's range premise
+   `0 < [0].length` holds too);
+6. walk versus the tree root: the same walk is accepted against the root of `[0]` at height 1
+   from index `0 < 2^1`; index 0 is occupied by `0`, not by the claimed leaf `1`.
+   Properties: `WalkAcceptPinsLeafFreeSibsOrCollision`, `AcceptPinsEntryCasesOrCollision`;
+7. update walk with the honest siblings: on `[7]`, the tree's sibling of index 0 at level 0 is
+   the padding `0`; over it, leaf `1` (the accepted one) and leaf `0` reach the same root.
+   Property: `WalkAcceptPinsLeafOrCollision` (`x = 1`, `y = 0`, `root` the walk of `1`);
+8. append walk with the honest frontier siblings: on `[5]`, the tree's sibling of the frontier
+   index 1 at level 0 is `5`; over it, leaf `0` reaches the root of `[5] ++ [1]`.
+   Property: `NoAppendForgeryWalkOrCollision` (`x = 1`, `y = 0`).
+
+Lists of different lengths: `RootCommitsListCollisionFires` (the collision case of
+`RootCommitsListOrBreak`, and `RootCommitsListUnderPadSeparation`) and `PaddingHitFires` (the
+padding-hit case of `RootCommitsListOrBreak`). -/
 def Properties.PinnedFormsFire : Prop :=
+  -- 1. tree versus tree
   (rootOf constHash 0 [1] 1 = rootOf constHash 0 [0] 1
     ∧ ([1] : List UInt256) ≠ [0] ∧ TreeCollision constHash 0 [1] [0] 1 0)
+  -- 2. walk versus walk, same siblings
   ∧ (walkPure constHash (fun _ => 0) 0 1 0 1 = walkPure constHash (fun _ => 0) 0 1 0 0
     ∧ (1 : UInt256) ≠ 0 ∧ WalkCollision constHash (fun _ => 0) (fun _ => 0) 0 1 0 1 0)
-  ∧ (walkPure constHash (fun _ => 1) 0 1 0 0 = walkPure constHash (fun _ => 0) 0 1 0 0
-    ∧ (1 : UInt256) ≠ 0 ∧ WalkCollision constHash (fun _ => 1) (fun _ => 0) 0 1 0 0 0)
+  -- 3. walk versus walk, siblings changed at level 0 only
+  ∧ ((∀ l, l ≠ 0 → oneAtZero l = (fun _ => (0 : UInt256)) l)
+    ∧ walkPure constHash oneAtZero 0 1 0 0 = walkPure constHash (fun _ => 0) 0 1 0 0
+    ∧ oneAtZero 0 ≠ 0 ∧ WalkCollision constHash oneAtZero (fun _ => 0) 0 1 0 0 0)
+  -- 4. level versus level
   ∧ (levelUp constHash 0 [1] = levelUp constHash 0 [0] ∧ LevelCollision constHash 0 [1] [0])
+  -- 5. walk versus a tree node
   ∧ ((levels constHash 0 [0] 0).getD 0 (zeros constHash 0 0) ≠ 1
     ∧ walkPure constHash (fun _ => 0) 0 1 0 1
         = (levels constHash 0 [0] (0 + 1)).getD (0 / 2 ^ 1) (zeros constHash 0 (0 + 1))
     ∧ PathCollision constHash 0 [0] (fun _ => 0) 0 1 0 1)
+  -- 6. walk versus the tree root
+  ∧ (walkPure constHash (fun _ => 0) 0 1 0 1 = rootOf constHash 0 [0] 1
+    ∧ ([0] : List UInt256).getD 0 0 ≠ 1
+    ∧ ¬ ((0 < ([0] : List UInt256).length ∧ ([0] : List UInt256).getD 0 0 = 1)
+        ∨ (([0] : List UInt256).length ≤ 0 ∧ (1 : UInt256) = 0))
+    ∧ PathCollision constHash 0 [0] (fun _ => 0) 0 1 0 1)
+  -- 7. update walk with the honest siblings
+  ∧ ((∀ l, l < 1 → (fun _ => (0 : UInt256)) l
+        = (levels constHash 0 [7] l).getD (sibIdx (0 / 2 ^ l)) (zeros constHash 0 l))
+    ∧ walkPure constHash (fun _ => 0) 0 1 0 0 = walkPure constHash (fun _ => 0) 0 1 0 1
+    ∧ (0 : UInt256) ≠ 1 ∧ WalkCollision constHash (fun _ => 0) (fun _ => 0) 0 1 0 0 1)
+  -- 8. append walk with the honest frontier siblings
+  ∧ ((∀ l, l < 1 → (fun _ => (5 : UInt256)) l
+        = (levels constHash 0 [5] l).getD (sibIdx (([5] : List UInt256).length / 2 ^ l))
+            (zeros constHash 0 l))
+    ∧ walkPure constHash (fun _ => 5) 0 1 ([5] : List UInt256).length 0
+        = rootOf constHash 0 ([5] ++ [1]) 1
+    ∧ (0 : UInt256) ≠ 1
+    ∧ WalkCollision constHash (fun _ => 5) (fun _ => 5) 0 1 ([5] : List UInt256).length 0 1)
 
 /-- **THE PADDING AMBIGUITY IS LOCATED AS A PADDING HIT, FOR EVERY HASH.**  `[a]` and
 `[a, z0]` are within capacity at height 1, have the same root and differ
@@ -396,22 +452,44 @@ def Properties.PaddingHitFires : Prop :=
       ∧ PaddingHit z0 [a] [a, z0] ∧ ∀ i, ¬ TreeCollision h z0 [a] [a, z0] 1 i
 
 /-- **THE COLLISION CASE OF `RootCommitsListOrBreak`, ALONE, AT DIFFERENT LENGTHS.**  Under
-`constHash`, `[1]` and `[0, 5]` are within capacity at height 1 and have the same root; they
-differ, there is no padding hit (the second list's entry at index 1 is `5`, not the padding
-`0`), and the collision is located on index 0's path.  With `PaddingHitFires` (padding hit
-alone) and `RootCommitsListOrBreakSatisfiable` (equal lists, neither break), each disjunct of
+`constHash`, `[1]` and `[2, 5]` are within capacity at height 1, neither holds the padding `0`,
+and they have the same root.  They differ, there is no padding hit (the second list's entry at
+index 1 is `5`, not `0`), they differ at index 0, and the collision is located on index 0's
+path.  So this is an instance of the premises of `RootCommitsListOrBreak` and of
+`RootCommitsListUnderPadSeparation` on which the original conclusion `L₁ = L₂` fails and the
+collision is what holds.  With `PaddingHitFires` (padding hit alone) and
+`RootCommitsListOrBreakSatisfiable` (equal lists, neither break), each disjunct of
 `RootCommitsListOrBreak` is reached on its own. -/
 def Properties.RootCommitsListCollisionFires : Prop :=
-  ([1] : List UInt256).length ≤ 2 ^ 1 ∧ ([0, 5] : List UInt256).length ≤ 2 ^ 1
-    ∧ rootOf constHash 0 [1] 1 = rootOf constHash 0 [0, 5] 1
-    ∧ ([1] : List UInt256) ≠ [0, 5] ∧ ¬ PaddingHit 0 [1] [0, 5]
-    ∧ TreeCollision constHash 0 [1] [0, 5] 1 0
+  ([1] : List UInt256).length ≤ 2 ^ 1 ∧ ([2, 5] : List UInt256).length ≤ 2 ^ 1
+    ∧ (0 : UInt256) ∉ ([1] : List UInt256) ∧ (0 : UInt256) ∉ ([2, 5] : List UInt256)
+    ∧ rootOf constHash 0 [1] 1 = rootOf constHash 0 [2, 5] 1
+    ∧ ([1] : List UInt256) ≠ [2, 5] ∧ ¬ PaddingHit 0 [1] [2, 5]
+    ∧ ([1] : List UInt256).getD 0 0 ≠ ([2, 5] : List UInt256).getD 0 0
+    ∧ TreeCollision constHash 0 [1] [2, 5] 1 0
 
 /-! ## Non-vacuity: each property's premises, met with its collision false
 
 Each witness meets every premise of the property it names on an instance (chosen in the
-proof) and shows that property's located collision is false there.  Where the premises allow
-the two sides to differ, the instance has them differ. -/
+proof) and shows that property's located collision (and, for `RootCommitsListOrBreak`, the
+padding hit) is false there.  By the property, the rest of its conclusion then holds on that
+instance, which decides what the instance can look like:
+
+* Where the rest is equality of the two sides (`L₁ = L₂`, `x = y`, `s₁ m = s₂ m`), the
+  witness necessarily compares an instance with itself: `LevelUpInj`, `LevelsInj`,
+  `RootOfInj`, `RootOfAppendInj`, `RootOfSetInj`, `WalkPureInj`, `RootCommitsListOrBreak`,
+  `RootCommitsListUnderPadSeparation`, `WalkAcceptPinsLeaf` (`y = x`),
+  `SingleSiblingSubstitution`, `NoAppendForgeryWalk`.  Where the rest is "the accepted walk
+  opened the tree's own entry", the witness is necessarily an honest proof (an accepted walk
+  with no `PathCollision` used the tree's leaf and siblings, `WalkPinsOrCollision`):
+  `WalkAcceptPinsLeafFreeSibs`, and `AcceptPinsEntryCases` (at a padded index).  For each of
+  these, `PinnedFormsFire`, `RootCommitsListCollisionFires` or `PaddingHitFires` meets the
+  same premises with the two sides different, and there the collision (or padding hit) holds.
+* Where the rest is weaker than equality of the two sides, the witness has the two sides
+  differ and still no collision: `RootPinsEntry`, `WalkVsWalk`, `MemOfRootOfEq`,
+  `GetDOfRootOfEq`, `RootOfNeOfNotMem`, `RootNeOfLeafNe`, `PathForgery`, `LeafOnlySubstitution`.
+* `NoForgedWalk` has no rest: its premises force the collision, and its witness shows they can
+  be met. -/
 
 /-- `RootPinsEntryOrCollision`: met by two DIFFERENT trees with the same root, at an index where
 no collision is located (the instance of `RootPinsEntryPinnedToPath`). -/
@@ -501,11 +579,13 @@ def Properties.WalkAcceptPinsLeafFreeSibsOrCollisionSatisfiable : Prop :=
     0 < height ∧ j < L.length ∧ j < 2 ^ height ∧ walkPure h sibs 0 height j x = rootOf h z0 L height
       ∧ ¬ PathCollision h z0 L sibs 0 height j x
 
-/-- `MemOfRootOfEqOrCollision`: met by a tree compared with itself, for one of its leaves. -/
+/-- `MemOfRootOfEqOrCollision`: met by two DIFFERENT equal-length trees within capacity with
+the same root, for a leaf of the first whose first position carries no located collision (the
+instance of `RootPinsEntryPinnedToPath`, with `x = 5` at position 2). -/
 def Properties.MemOfRootOfEqOrCollisionSatisfiable : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256) (height : ℕ) (x : UInt256),
     L₁.length = L₂.length ∧ L₁.length ≤ 2 ^ height
-      ∧ rootOf h z0 L₁ height = rootOf h z0 L₂ height ∧ x ∈ L₁
+      ∧ rootOf h z0 L₁ height = rootOf h z0 L₂ height ∧ x ∈ L₁ ∧ L₁ ≠ L₂
       ∧ ¬ TreeCollision h z0 L₁ L₂ height (L₁.idxOf x)
 
 /-- `GetDOfRootOfEqOrCollision`: met by two DIFFERENT equal-length trees within capacity with

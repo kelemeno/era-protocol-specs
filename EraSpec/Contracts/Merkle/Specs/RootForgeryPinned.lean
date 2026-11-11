@@ -46,9 +46,14 @@ on a fixed instance even under a hash for which EVERY pair collides.
 
 ## What the source does (era-contracts `c67894b9`)
 
-`Merkle.sol`:
+`l1-contracts/contracts/common/libraries/Merkle.sol`, the copy that `FullMerkle.sol:6` and
+`IndexedMerkleTree.sol:17` import and whose `calculateRootMemory` `IndexedMerkleTree`'s
+`verifyInclusion` / `verifyNonInclusion` call (`IndexedMerkleTree.sol:144`, `:170`).  Line
+numbers below are that file's:
 
-    function calculateRootMemory(bytes32[] memory _path, uint256 _index, bytes32 _itemHash) … {
+    function calculateRootMemory(                                     // :53-70
+        bytes32[] memory _path, uint256 _index, bytes32 _itemHash     // :54-56
+    ) internal pure returns (bytes32) {
         uint256 pathLength = _path.length;
         _validatePathLengthForSingleProof(_index, pathLength);       // :59
         bytes32 currentHash = _itemHash;
@@ -56,16 +61,27 @@ on a fixed instance even under a hash for which EVERY pair collides.
             currentHash = (_index % 2 == 0)
                 ? efficientHash(currentHash, _path[i])                // :64
                 : efficientHash(_path[i], currentHash);               // :65
-            _index /= 2;
+            _index /= 2;                                              // :66
         }
         return currentHash;
     }
     function efficientHash(bytes32 _lhs, bytes32 _rhs) … { … keccak256(0x00, 0x40) }  // :125-131
+    function _validatePathLengthForSingleProof(uint256 _index, uint256 _pathLength) … {  // :133-140
+        if (_pathLength >= 256) revert MerklePathOutOfBounds();
+        if (_index >= (1 << _pathLength)) revert MerkleIndexOutOfBounds();
+    }
 
 The loop's iteration `i` hashes exactly `walkPair h sibs 0 j x i` (`walkPure` is the loop,
 `walkStep` one iteration), with `h = efficientHash`.
 
-`FullMerkle.sol`:
+The same pin also has `system-contracts/contracts/libraries/Merkle.sol`, used there only by a
+test contract.  Its loop is the same, at other lines (validate `:52`, loop `:55` written
+`i = i.uncheckedInc()`, branches `:57`/`:58`, `efficientHash` `:112-118`), and its
+`_validatePathLengthForSingleProof` (`:120-130`) also reverts `MerklePathEmpty` on an empty
+path (`:121-123`).  The l1-contracts copy accepts an empty path at index 0 and returns the
+leaf; `walkPure` with `k = 0` models that copy.
+
+`l1-contracts/contracts/common/libraries/FullMerkle.sol`:
 
     function setup(FullTree storage self, bytes32 zero) internal returns (bytes32) {   // :29
         self._zeros.push(zero);  self._nodes.push([zero]);  return zero;
@@ -123,9 +139,10 @@ def PaddingHit (z0 : UInt256) (L₁ L₂ : List UInt256) : Prop :=
 
 /-- **Two walks from the same index collide.**  At some step `i < k`, the pair the walk
 from `(lvl, j)` with leaf `x` and siblings `s₁` hashes (`walkPair`, one iteration of
-`calculateRootMemory`'s loop, `Merkle.sol:62-67`) differs from the pair the walk with leaf
-`y` and siblings `s₂` hashes at the same step, and the two hash to the same value.  Both
-pairs are determined by `(h, s₁, s₂, lvl, j, x, y)` and `i`. -/
+`calculateRootMemory`'s loop, `l1-contracts/contracts/common/libraries/Merkle.sol:62-67`)
+differs from the pair the walk with leaf `y` and siblings `s₂` hashes at the same step, and
+the two hash to the same value.  Both pairs are determined by `(h, s₁, s₂, lvl, j, x, y)`
+and `i`. -/
 def WalkCollision (h : Hash) (s₁ s₂ : ℕ → UInt256) (lvl k j : ℕ) (x y : UInt256) : Prop :=
   ∃ i < k, walkPair h s₁ lvl j x i ≠ walkPair h s₂ lvl j y i
     ∧ h (walkPair h s₁ lvl j x i).1 (walkPair h s₁ lvl j x i).2
@@ -144,12 +161,12 @@ def LevelCollision (h : Hash) (z : UInt256) (L₁ L₂ : List UInt256) : Prop :=
   ∃ m < (L₁.length + 1) / 2, parentPair z L₁ m ≠ parentPair z L₂ m
     ∧ h (parentPair z L₁ m).1 (parentPair z L₁ m).2 = h (parentPair z L₂ m).1 (parentPair z L₂ m).2
 
-/-! ## Toy hashes, for the witnesses only
+/-! ## Toy hashes and a toy sibling stream, for the witnesses only
 
-Neither is a model of `keccak`.  They are deliberately weak node hashes whose collisions
-can be written down, so that the witnesses can show (a) a located collision really fires
-when the vacuous original's conclusion fails, and (b) a located collision can be FALSE on
-an instance even under a hash that collides. -/
+Neither hash is a model of `keccak`.  They are deliberately weak node hashes whose
+collisions can be written down, so that the witnesses can show (a) a located collision
+really fires when the vacuous original's conclusion fails, and (b) a located collision can
+be FALSE on an instance even under a hash that collides. -/
 
 /-- Every pair collides: `constHash a b = 0`.  The worst case for an unpinned
 "some collision exists" conclusion, which is then trivially true. -/
@@ -157,5 +174,9 @@ def constHash : Hash := fun _ _ => 0
 
 /-- Addition modulo `2^256`.  Collides on swapped pairs (`sumHash 1 0 = sumHash 0 1`). -/
 def sumHash : Hash := fun a b => a + b
+
+/-- A sibling stream that differs from `fun _ => 0` at level 0 and agrees with it at every
+other level (a one-level sibling substitution). -/
+def oneAtZero : ℕ → UInt256 := fun l => if l = 0 then 1 else 0
 
 end MerkleSpec.Pinned

@@ -15,6 +15,10 @@ work, each the hash-premise-free form of an induction that used `hinj` once per 
   siblings here.
 * `levelUp_inj_or_collision` — two equal-width levels with the same parent level: a parent
   whose child pairs differ is a collision under that parent.
+
+For the padding-hit witnesses, `same_tree_of_getD_eq`: two lists that agree at every entry
+read with the padding default (a list and the same list with `z0` appended) have the same
+root at every height and no collision on any path, for every hash.
 -/
 
 namespace MerkleSpec.Pinned
@@ -485,25 +489,55 @@ theorem RootPinsEntryPinnedToPath : Properties.RootPinsEntryPinnedToPath := by
 
 theorem PinnedFormsFire : Properties.PinnedFormsFire := by
   unfold Properties.PinnedFormsFire TreeCollision WalkCollision LevelCollision PathCollision
-  decide
+  -- Every conjunct is a closed computation except case 3's "agree off level 0", which
+  -- quantifies over all levels.
+  refine ⟨by decide, by decide, ⟨fun l hl => ite_eq_right hl, by decide, by decide, by decide⟩,
+    by decide, by decide, by decide, by decide, by decide⟩
+
+/-! ## Lists that agree at every padded entry are the same tree -/
+
+/-- Appending the padding constant changes no `getD` with that default. -/
+theorem getD_append_pad (z0 : UInt256) : ∀ (L : List UInt256) (j : ℕ),
+    (L ++ [z0]).getD j z0 = L.getD j z0
+  | [], 0 => rfl
+  | [], _ + 1 => by simp
+  | _ :: _, 0 => rfl
+  | _ :: t, j + 1 => getD_append_pad z0 t j
+
+/-- Two lists that agree at every `getD` with default `z0` agree at every level, every entry
+read with the zero cascade as the default. -/
+theorem levels_getD_congr (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256)
+    (hL : ∀ j, L₁.getD j z0 = L₂.getD j z0) :
+    ∀ l j, (levels h z0 L₁ l).getD j (zeros h z0 l) = (levels h z0 L₂ l).getD j (zeros h z0 l)
+  | 0, j => by simpa using hL j
+  | l + 1, j => by
+    rw [levels_succ_getD, levels_succ_getD, levels_getD_congr h z0 L₁ L₂ hL l (2 * j),
+      levels_getD_congr h z0 L₁ L₂ hL l (2 * j + 1)]
+
+/-- **Lists agreeing at every padded entry are the same tree**, for every hash: the same root
+at every height, and no collision located on any index's path. -/
+theorem same_tree_of_getD_eq (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256)
+    (hL : ∀ j, L₁.getD j z0 = L₂.getD j z0) (height : ℕ) :
+    rootOf h z0 L₁ height = rootOf h z0 L₂ height ∧ ∀ i, ¬ TreeCollision h z0 L₁ L₂ height i := by
+  refine ⟨?_, ?_⟩
+  · rw [rootOf_def, rootOf_def, ← getD_zero_headD, ← getD_zero_headD]
+    exact levels_getD_congr h z0 L₁ L₂ hL height 0
+  · rintro i ⟨l, _, hne, _⟩
+    apply hne
+    simp only [treePair, levels_getD_congr h z0 L₁ L₂ hL l]
 
 /-- The one-leaf list and the same list padded with `z0` agree at every `getD` with default
 `z0`. -/
 theorem getD_singleton_padded (a z0 : UInt256) :
-    ∀ n, ([a] : List UInt256).getD n z0 = ([a, z0] : List UInt256).getD n z0
-  | 0 => rfl
-  | 1 => rfl
-  | n + 2 => by simp
+    ∀ n, ([a] : List UInt256).getD n z0 = ([a, z0] : List UInt256).getD n z0 :=
+  fun n => (getD_append_pad z0 [a] n).symm
 
 theorem padding_hit_fires (h : Hash) (z0 a : UInt256) :
     ([a] : List UInt256).length ≤ 2 ^ 1 ∧ ([a, z0] : List UInt256).length ≤ 2 ^ 1
       ∧ rootOf h z0 [a] 1 = rootOf h z0 [a, z0] 1 ∧ ([a] : List UInt256) ≠ [a, z0]
       ∧ PaddingHit z0 [a] [a, z0] ∧ ∀ i, ¬ TreeCollision h z0 [a] [a, z0] 1 i := by
-  refine ⟨by simp, by simp, rfl, by simp, Or.inl ⟨by simp, rfl⟩, ?_⟩
-  rintro i ⟨l, hl, hne, _⟩
-  obtain rfl : l = 0 := by omega
-  apply hne
-  simp only [treePair, levels_zero, zeros_zero, getD_singleton_padded a z0]
+  have hsame := same_tree_of_getD_eq h z0 [a] [a, z0] (getD_singleton_padded a z0) 1
+  exact ⟨by simp, by simp, hsame.1, by simp, Or.inl ⟨by simp, rfl⟩, hsame.2⟩
 
 theorem PaddingHitFires : Properties.PaddingHitFires := padding_hit_fires
 
@@ -562,8 +596,8 @@ theorem WalkAcceptPinsLeafFreeSibsOrCollisionSatisfiable :
     by unfold PathCollision; decide⟩
 
 theorem MemOfRootOfEqOrCollisionSatisfiable : Properties.MemOfRootOfEqOrCollisionSatisfiable :=
-  ⟨constHash, 0, [1], [1], 1, 1, rfl, by decide, rfl, by decide,
-    by unfold TreeCollision; decide⟩
+  ⟨constHash, 0, [1, 0, 5, 5], [0, 1, 5, 5], 2, 5, rfl, by decide, by decide, by decide,
+    by decide, by unfold TreeCollision; decide⟩
 
 theorem GetDOfRootOfEqOrCollisionSatisfiable :
     Properties.GetDOfRootOfEqOrCollisionSatisfiable :=
