@@ -1,5 +1,7 @@
 -- Foundations with no corresponding Solidity contract or library
 import EraSpec.Core.Word
+import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
+import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
 import EraSpec.Core.FinBits
 import EraSpec.Core.PreparedApplication
 import EraSpec.Core.Simulation
