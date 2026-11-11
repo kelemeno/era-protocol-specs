@@ -9,10 +9,17 @@ commit `afa407085`; the coordinator is deleted at `e561b9cc2`). Proofs are in
 
 ## The lifecycle
 
-* Each stage has exactly its transcribed guard (`StageGuards`), and the slot moves only
+* Each stage needs its transcribed guard (`StageGuards`: necessary conditions only, without
+  the `active ≠ 0` conjunct of `stage1`, `stage2` and abandonment), and the slot moves only
   forward: free → `Prepared` → `Executed` → free, or from occupied to free by abandonment;
   never back from `Executed` to `Prepared` (`StagesMoveForward`). From an idle start the
   operation slot is empty exactly when the stage is `None` (`SlotEmptyIffStageNone`).
+* `StageGuards` and `StagesMoveForward` are safety statements. Both would still hold if
+  abandonment always reverted, and no witness below takes an `abandon` step. That the guards,
+  with those `active` conjuncts, are also sufficient, and that abandonment succeeds whenever
+  an operation is pending, are separate results in
+  `EraSpec.Contracts.EcosystemUpgradeExecutor.Properties.LifecycleStrong`
+  (`LifecycleStageGuardsExact`, `LifecycleAbandonEnabledWhilePending`).
 * Without `forward`, the CTM domain's reservation is exactly the pending operation
   (`ReservationTracksSlot`).
 * A `GovernanceUpgradeTimer` starts once, so stage 0 refuses a timer bound to someone else
@@ -46,7 +53,9 @@ namespace Contracts.EcosystemUpgradeExecutor
 operation naming a timer, and that timer's `startTimer()` to succeed; `stage1` needs the
 operation pending at `Prepared` and its timer's deadline passed; `stage2` the same at
 `Executed`; abandonment needs something pending.  These are necessary conditions (one
-direction), and the `active ≠ 0` conjunct of `stage1`/`stage2`/`abandon` is not listed. -/
+direction), and the `active ≠ 0` conjunct of `stage1`/`stage2`/`abandon` is not listed. The
+abandon conjunct would hold even if abandonment always reverted. Sufficiency, with the
+`active` conjuncts, is `LifecycleStageGuardsExact` (`Properties.LifecycleStrong`). -/
 def Properties.StageGuards : Prop :=
   ∀ (K : Config) (s s' : Sys) (op : Address),
     (Step K s (.stage0 op) s' →
@@ -60,7 +69,10 @@ def Properties.StageGuards : Prop :=
 /-- **THE STAGES MOVE ONLY FORWARD.** From a state whose slot is empty exactly when its
 stage is `None`, every transaction either leaves the slot alone, fills an empty slot at
 `Prepared`, moves the pending operation from `Prepared` to `Executed`, or empties an
-occupied slot. -/
+occupied slot. This is a safety statement: it does not say that any of these moves can
+happen. That abandonment empties the slot whenever an operation is pending (on runs without
+`forward`) is `LifecycleAbandonEnabledWhilePending`, and that only abandonment or `stage2`
+empty it is `LifecycleFreeingIsStage2OrAbandon` (both in `Properties.LifecycleStrong`). -/
 def Properties.StagesMoveForward : Prop :=
   ∀ (K : Config) (s s' : Sys) (l : Label), (s.pending = 0 ↔ s.stage = .none) →
     Step K s l s' → Advances s s'

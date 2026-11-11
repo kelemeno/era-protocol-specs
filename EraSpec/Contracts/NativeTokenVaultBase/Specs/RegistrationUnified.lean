@@ -44,8 +44,12 @@ before.
 `RepStep` / `RepReach` is the life of the tracked token after its registration: a
 `prepare` (the `bridgeBurn` branch), or one operation of the token model on it (the
 vault's `bridgeMint` / `bridgeBurn`, or an ordinary transfer).  `LifecycleRel` is the
-relation under which registry-model runs simulate it
-(`Properties.LifecycleRelIsSimulation`, `Properties.UnifiedLifecycleCorresponds`).
+relation under which registry-model steps simulate it
+(`Properties.LifecycleRelIsSimulation`).  `Properties.UnifiedLifecycleCorresponds`
+states only that some registry world corresponds at the end of a run; the run-level
+simulation, with the registry run named by the logged trace, is
+`Properties.UnifiedLifecycleTraced` (`Specs/RegistrationUnifiedStrong.lean`,
+`Properties/RegistrationUnifiedStrong.lean`).
 
 ## Model boundaries
 
@@ -226,7 +230,9 @@ a registry-model world `W`: they correspond; the representation invariant holds;
 tracked asset is registered and not native in `W`'s vault; and the tracked token's
 total supply plus the asset's recorded outflow equals its recorded inflow.  It holds
 right after a tightened registration (`Properties.RegistrationEstablishesLifecycleRel`)
-and every `RepStep` preserves it (`Properties.LifecycleRelIsSimulation`). -/
+and every `RepStep` preserves it along a matching registry step, or none
+(`Properties.LifecycleRelIsSimulation`); other registry steps need not preserve it
+(`Properties.LifecycleIdentityNotRegistryInvariant`). -/
 structure LifecycleRel (thisChain : NativeTokenVault.Chain) (u : State Accounting)
     (W : NativeTokenVault.World) : Prop where
   corr : Corr u thisChain W.vault
