@@ -30,42 +30,42 @@ open MerkleSpec MerkleSpec.Verifier
 
 /-! ## List toolkit -/
 
-private lemma getD_append_left' {A B : List UInt256} {m : ℕ} (hm : m < A.length) (d : UInt256) :
+lemma getD_append_left' {A B : List UInt256} {m : ℕ} (hm : m < A.length) (d : UInt256) :
     (A ++ B).getD m d = A.getD m d := by
   rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_append_left hm]
 
-private lemma getD_append_right' {A B : List UInt256} {m : ℕ} (hm : A.length ≤ m)
+lemma getD_append_right' {A B : List UInt256} {m : ℕ} (hm : A.length ≤ m)
     (d : UInt256) : (A ++ B).getD m d = B.getD (m - A.length) d := by
   rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_append_right hm]
 
-private lemma getD_take' {A : List UInt256} {m q : ℕ} (hm : m < q) (d : UInt256) :
+lemma getD_take' {A : List UInt256} {m q : ℕ} (hm : m < q) (d : UInt256) :
     (A.take q).getD m d = A.getD m d := by
   rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_take, ite_eq_left hm]
 
-private lemma getD_set_ne' {A : List UInt256} {i j : ℕ} (hij : i ≠ j) (v d : UInt256) :
+lemma getD_set_ne' {A : List UInt256} {i j : ℕ} (hij : i ≠ j) (v d : UInt256) :
     (A.set i v).getD j d = A.getD j d := by
   rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_set, ite_eq_right hij]
 
-private lemma getD_set_self' {A : List UInt256} {i : ℕ} (hi : i < A.length) (v d : UInt256) :
+lemma getD_set_self' {A : List UInt256} {i : ℕ} (hi : i < A.length) (v d : UInt256) :
     (A.set i v).getD i d = v := by
   rw [List.getD_eq_getElem?_getD, List.getElem?_set, ite_eq_left rfl, ite_eq_left hi, Option.getD_some]
 
-private lemma getD_map_range {f : ℕ → UInt256} {n m : ℕ} (hm : m < n) (d : UInt256) :
+lemma getD_map_range {f : ℕ → UInt256} {n m : ℕ} (hm : m < n) (d : UInt256) :
     ((List.range n).map f).getD m d = f m := by
   rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hm]
   rfl
 
-private lemma range_succ_map (f : ℕ → UInt256) (n : ℕ) :
+lemma range_succ_map (f : ℕ → UInt256) (n : ℕ) :
     (List.range (n + 1)).map f = (List.range n).map f ++ [f n] := by
   rw [List.range_succ, List.map_append, List.map_cons, List.map_nil]
 
 /-! ## Arithmetic on the leaf index -/
 
-private lemma div_two_pow_succ' (a l : ℕ) : a / 2 ^ l / 2 = a / 2 ^ (l + 1) := by
+lemma div_two_pow_succ' (a l : ℕ) : a / 2 ^ l / 2 = a / 2 ^ (l + 1) := by
   rw [Nat.div_div_eq_div_mul, pow_succ]
 
 /-- The low `i + 1` bits of `n` are all set iff the low `i` are and bit `i` is. -/
-private lemma allOnes_succ (n i : ℕ) :
+lemma allOnes_succ (n i : ℕ) :
     n % 2 ^ (i + 1) = 2 ^ (i + 1) - 1 ↔ n % 2 ^ i = 2 ^ i - 1 ∧ n / 2 ^ i % 2 = 1 := by
   rw [Nat.mod_pow_succ, pow_succ]
   have hr : n % 2 ^ i < 2 ^ i := Nat.mod_lt _ (Nat.two_pow_pos i)
@@ -76,7 +76,7 @@ private lemma allOnes_succ (n i : ℕ) :
 
 /-- **Appending one leaf moves the level-`i` index by one exactly when the low `i` bits of the
 old count are all set.** -/
-private lemma succ_div_pow (n i : ℕ) :
+lemma succ_div_pow (n i : ℕ) :
     (n + 1) / 2 ^ i = n / 2 ^ i + if n % 2 ^ i = 2 ^ i - 1 then 1 else 0 := by
   have hp := Nat.two_pow_pos i
   have hr := Nat.mod_lt n hp
@@ -91,18 +91,18 @@ private lemma succ_div_pow (n i : ℕ) :
     have := Nat.mod_add_div n (2 ^ i)
     omega
 
-private lemma succ_div_pow_of_allOnes {n i : ℕ} (h : n % 2 ^ i = 2 ^ i - 1) :
+lemma succ_div_pow_of_allOnes {n i : ℕ} (h : n % 2 ^ i = 2 ^ i - 1) :
     (n + 1) / 2 ^ i = n / 2 ^ i + 1 := by
   rw [succ_div_pow, ite_eq_left h]
 
-private lemma succ_div_pow_of_not_allOnes {n i : ℕ} (h : ¬ n % 2 ^ i = 2 ^ i - 1) :
+lemma succ_div_pow_of_not_allOnes {n i : ℕ} (h : ¬ n % 2 ^ i = 2 ^ i - 1) :
     (n + 1) / 2 ^ i = n / 2 ^ i := by
   rw [succ_div_pow, ite_eq_right h, Nat.add_zero]
 
 /-! ## The tree over `L ++ [x]`, read through `levels_append` -/
 
 /-- The new leaf's level-`i` path node is entry `n / 2^i` of the new level. -/
-private lemma levels_append_at_path (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
+lemma levels_append_at_path (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
     (i : ℕ) :
     (levels h z (L ++ [x]) i).getD (L.length / 2 ^ i) (zeros h z i) = appendPath h z L x i := by
   rw [levels_append h z L x i]
@@ -113,7 +113,7 @@ private lemma levels_append_at_path (h : Hash) (z : UInt256) (L : List UInt256) 
   rfl
 
 /-- Entries left of the new leaf's path are unchanged. -/
-private lemma levels_append_left (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
+lemma levels_append_left (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
     (i m : ℕ) (hm : m < L.length / 2 ^ i) (d : UInt256) :
     (levels h z (L ++ [x]) i).getD m d = (levels h z L i).getD m d := by
   rw [levels_append h z L x i]
@@ -123,7 +123,7 @@ private lemma levels_append_left (h : Hash) (z : UInt256) (L : List UInt256) (x 
   rw [getD_append_left' (by omega), getD_take' hm]
 
 /-- When the new leaf still fits the height, its top path node is the new root. -/
-private lemma appendPath_top (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256) (H : ℕ)
+lemma appendPath_top (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256) (H : ℕ)
     (hcap : L.length + 1 ≤ 2 ^ H) :
     appendPath h z L x H = rootOf h z (L ++ [x]) H := by
   rw [rootOf, levels_append h z L x H, Nat.div_eq_of_lt (by omega), List.take_zero,
@@ -131,13 +131,13 @@ private lemma appendPath_top (h : Hash) (z : UInt256) (L : List UInt256) (x : UI
   rfl
 
 /-- The root at a height is the single top entry: the fold at `H` is entry 0 of level `H`. -/
-private lemma rootOf_eq_getD_zero (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ) :
+lemma rootOf_eq_getD_zero (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ) :
     rootOf h z L H = (levels h z L H).getD 0 (zeros h z H) := by
   rw [rootOf, getD_zero_headD]
 
 /-- One level above a tree that fits its height, the fold pairs the old root with the level
 zero. -/
-private lemma rootOf_succ (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ)
+lemma rootOf_succ (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ)
     (hcap : L.length ≤ 2 ^ H) :
     rootOf h z L (H + 1) = h (rootOf h z L H) (zeros h z H) := by
   by_cases hne : L = []
@@ -151,16 +151,16 @@ private lemma rootOf_succ (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ)
 
 /-- The invariant the new storage must meet at level `l`, for the tree over `L ++ [x]` (whose
 count is `n + 1`). -/
-private def NewF (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256) (sd : List UInt256)
+def NewF (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256) (sd : List UInt256)
     (l : ℕ) : Prop :=
   (L.length + 1) / 2 ^ l % 2 = 1 → sd.getD l 0 = frontierNode h z (L ++ [x]) l
 
 /-- The invariant the old storage meets at level `l`, for the tree over `L`. -/
-private def OldF (h : Hash) (z : UInt256) (L : List UInt256) (sd : List UInt256) (l : ℕ) :
+def OldF (h : Hash) (z : UInt256) (L : List UInt256) (sd : List UInt256) (l : ℕ) :
     Prop :=
   L.length / 2 ^ l % 2 = 1 → sd.getD l 0 = frontierNode h z L l
 
-private lemma frontierNode_append (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
+lemma frontierNode_append (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
     (l : ℕ) :
     frontierNode h z (L ++ [x]) l
       = (levels h z (L ++ [x]) l).getD ((L.length + 1) / 2 ^ l - 1) (zeros h z l) := by
@@ -171,7 +171,7 @@ private lemma frontierNode_append (h : Hash) (z : UInt256) (L : List UInt256) (x
 the flag false iff the low `i` bits of `n` are all set, the new invariant below `i` and the old one
 from `i` up, the loop ends with the top path node, `_sides` of the same length, and the new
 invariant at every level below `H'`.  For both write policies. -/
-private theorem pushLoop_spec (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
+theorem pushLoop_spec (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256)
     (H' : ℕ) (guarded : Bool) (zs : List UInt256) (hzs : ∀ l, l < H' → zs.getD l 0 = zeros h z l) :
     ∀ (k i : ℕ) (cur : UInt256) (upd : Bool) (sd : List UInt256),
       i + k = H' → H' ≤ sd.length → cur = appendPath h z L x i →
@@ -276,6 +276,57 @@ private theorem pushLoop_spec (h : Hash) (z : UInt256) (L : List UInt256) (x : U
         fun l hl1 hl2 => hold l (by omega) hl2
       exact ih (i + 1) _ upd sd (by omega) hsd hcur' hupd' hnew' hold'
 
+/-- **The loop writes only where the path turns left.**  At a level where the path index is odd
+(and at levels it does not visit) the loop leaves `_sides` as it was. -/
+theorem pushLoop_odd_unchanged (h : Hash) (guarded : Bool) (zs : List UInt256) (n : ℕ) :
+    ∀ (k i : ℕ) (cur : UInt256) (upd : Bool) (sd : List UInt256) (l : ℕ),
+      (l < i ∨ i + k ≤ l ∨ n / 2 ^ l % 2 = 1) →
+      (pushLoop h guarded zs k i (n / 2 ^ i) cur upd sd).2.getD l 0 = sd.getD l 0 := by
+  intro k
+  induction k with
+  | zero => intro i cur upd sd l _; rfl
+  | succ k ih =>
+    intro i cur upd sd l hl
+    by_cases hpar : n / 2 ^ i % 2 = 0
+    · have hstep : pushLoop h guarded zs (k + 1) i (n / 2 ^ i) cur upd sd
+          = pushLoop h guarded zs k (i + 1) (n / 2 ^ (i + 1)) (h cur (zs.getD i 0)) true
+              (if guarded && upd then sd else sd.set i cur) := by
+        rw [pushLoop, ite_eq_left hpar, div_two_pow_succ']
+      have hli : l ≠ i := by
+        rintro rfl; rcases hl with hl | hl | hl <;> omega
+      rw [hstep, ih (i + 1) _ true _ l (by omega)]
+      split_ifs
+      · rfl
+      · exact getD_set_ne' (Ne.symm hli) cur 0
+    · have hstep : pushLoop h guarded zs (k + 1) i (n / 2 ^ i) cur upd sd
+          = pushLoop h guarded zs k (i + 1) (n / 2 ^ (i + 1)) (h (sd.getD i 0) cur) upd sd := by
+        rw [pushLoop, ite_eq_right hpar, div_two_pow_succ']
+      rw [hstep, ih (i + 1) _ upd sd l (by omega)]
+
+/-- **After the first saved side, the fork's loop writes nothing.** -/
+theorem pushLoop_after_save (h : Hash) (zs : List UInt256) :
+    ∀ (k i ci : ℕ) (cur : UInt256) (sd : List UInt256),
+      (pushLoop h true zs k i ci cur true sd).2 = sd := by
+  intro k
+  induction k with
+  | zero => intro i ci cur sd; rfl
+  | succ k ih =>
+    intro i ci cur sd
+    by_cases hpar : ci % 2 = 0
+    · rw [pushLoop, ite_eq_left hpar]
+      exact ih _ _ _ _
+    · rw [pushLoop, ite_eq_right hpar]
+      exact ih _ _ _ _
+
+/-- Once some low bit is clear, it stays clear in every longer prefix. -/
+theorem not_allOnes_mono {n a b : ℕ} (hab : a ≤ b) (h : ¬ n % 2 ^ a = 2 ^ a - 1) :
+    ¬ n % 2 ^ b = 2 ^ b - 1 := by
+  induction b, hab using Nat.le_induction with
+  | base => exact h
+  | succ b _ ih =>
+    intro hb
+    exact ih ((allOnes_succ n b).mp hb).1
+
 /-! ## `push` -/
 
 /-- `pushWith` on storage with nonempty `_zeros`, with the `let`s spelled out. -/
@@ -339,7 +390,7 @@ private lemma finish (h : Hash) (z : UInt256) (L : List UInt256) (x : UInt256) (
   · rw [getD_set_self' (by rw [hlen, hs]; omega), hroot, dimRoot, ite_eq_right hne]
 
 /-- Bit `l < H` of `2^H` is clear. -/
-private lemma pow_div_pow_mod_two {H l : ℕ} (hl : l < H) : 2 ^ H / 2 ^ l % 2 = 0 := by
+lemma pow_div_pow_mod_two {H l : ℕ} (hl : l < H) : 2 ^ H / 2 ^ l % 2 = 0 := by
   rw [Nat.pow_div (by omega) (by norm_num)]
   obtain ⟨m, hm⟩ : ∃ m, H - l = m + 1 := ⟨H - l - 1, by omega⟩
   rw [hm, pow_succ, Nat.mul_mod_left]
@@ -430,7 +481,7 @@ theorem root_is_fold (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ) (S : 
   rw [ite_eq_right (by omega), ite_eq_right (by omega), hl, Nat.add_sub_cancel, hR.top_eq]
   exact ⟨rfl, rfl⟩
 
-private lemma extended_root (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ) (S : PushTree)
+lemma extended_root (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ) (S : PushTree)
     (hR : ExtendedRepresents h z L H S) : root S = some (rootOf h z L H) := by
   have hl := hR.sides_length
   unfold root
@@ -488,7 +539,7 @@ theorem dimHeight_minimal (n H : ℕ) (hn : n ≤ 2 ^ H) : dimHeight n ≤ H :=
 
 /-! ## Runs -/
 
-private lemma push_inj {h : Hash} {S S' S'' : PushTree} {x : UInt256} {i i' : ℕ}
+lemma push_inj {h : Hash} {S S' S'' : PushTree} {x : UInt256} {i i' : ℕ}
     {r r' : UInt256} (h₁ : push h S x = some (S', i, r)) (h₂ : push h S x = some (S'', i', r')) :
     S' = S'' ∧ i = i' ∧ r = r' := by
   rw [h₁] at h₂
@@ -558,7 +609,7 @@ theorem push_all_succeeds (h : Hash) (z : UInt256) (L : List UInt256) :
 /-! ## `extendUntilEnd` -/
 
 /-- At a level `H` the leaves fit, bit `H` of the count is set only when the tree is full. -/
-private lemma full_of_odd {n H : ℕ} (hcap : n ≤ 2 ^ H) (hb : n / 2 ^ H % 2 = 1) : n = 2 ^ H := by
+lemma full_of_odd {n H : ℕ} (hcap : n ≤ 2 ^ H) (hb : n / 2 ^ H % 2 = 1) : n = 2 ^ H := by
   have hp := Nat.two_pow_pos H
   have hle : n / 2 ^ H ≤ 1 := by
     rw [Nat.div_le_iff_le_mul_add_pred hp]; omega
