@@ -68,6 +68,7 @@ import EraSpec.Contracts.Merkle.Proofs.PathCollision
 
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec
+import EraSpec.Protocol.MultichainGate.Proofs.Model
 import EraSpec.Protocol.LocalHonesty
 import EraSpec.Protocol.NoTheft
 import EraSpec.Protocol.FlowAtomicity

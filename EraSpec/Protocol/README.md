@@ -3,8 +3,18 @@
 These results compose multiple contracts or source chains. Contract-local models
 and properties remain under `../Contracts/<SolidityName>/`.
 
-- `Spec.lean`: multi-chain source-bound refund gate, safety theorem, and an
-  explicit wrong-chain absence countermodel.
+- `MultichainGate/{Specs,Properties,Proofs}/Model.lean`: multi-chain
+  source-bound refund gate (namespace `Contracts.Protocol`). Safety:
+  `bound_gate_excludes_delivered`, `no_double_spend_multichain`, and
+  `chains_no_double_spend` over valid per-chain contract states. Necessity of the
+  source-chain check: `unbound_gate_refunds_delivered_leg` (abstract wrong-chain
+  absence countermodel) and `chains_unbound_gate_refunds_delivered_leg` (the same
+  attack realized by contract states: `setup` plus one guarded `insert`).
+  Anti-vacuity: `bound_gate_not_dead`, `chains_bound_gate_iff_undelivered` (on a
+  valid source-chain state and nonzero value the bound gate fires exactly on
+  undelivered legs). No statement takes a hash premise; every property is an
+  `abbrev Properties.x` with certificate `x`. `Spec.lean` is now a compatibility
+  module that only imports the proofs module.
 - `LocalHonesty.lean`: the center → manager → commitment-tree authorization chain
   supplying the honest-insertion assumption.
 - `NoTheft.lean`: abstract per-leg commitment/reclaim exclusivity and provenance,

@@ -340,7 +340,7 @@ settled after the deadline, or absence from the END root of the chain's last
 in-time batch.
 
 Both are against the leg's declared source chain — the `ProofSourceChainMismatch`
-check in `authorizeRefund`, whose necessity is `Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/Spec.lean`). -/
+check in `authorizeRefund`, whose necessity is `Contracts.Protocol.unbound_gate_refunds_delivered_leg` (`Protocol/MultichainGate/Properties/Model.lean`). -/
 def LegRefundable (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (F : Flow) (leg : FlowLeg) : Prop :=
   ∃ (N : ℕ) (p : ImtProof),
