@@ -148,6 +148,9 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearchAtHead
+import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLegAtHead
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
