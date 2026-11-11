@@ -101,6 +101,8 @@ id, `encodeNTVAssetId(c, t) = encodeAssetId(c, t, L2_NATIVE_TOKEN_VAULT_ADDR)`
   `L2NativeTokenVault.updateL2`'s base-token entry (`NTV/L2NativeTokenVault.sol:170-172`),
   is unchecked, but `L2AssetRouter.finalizeDeposit` rejects that id (:270).  This is the
   `idShape` field of `Contracts.NativeTokenVault.Valid` (`Specs/RegistryAndEscrow.lean`).
+  The `VaultMintGate` topic proves that field along every vault run with no hash premise,
+  and derives `MintsOnlyNtvIds` from it.
 
 It also relies on the vault's `bridgeMint` not writing router storage (`DEP-FRAME`): the
 vault calls the router only from registration, which is a separate `register` step.
