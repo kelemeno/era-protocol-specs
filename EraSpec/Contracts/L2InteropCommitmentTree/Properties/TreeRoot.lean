@@ -15,12 +15,17 @@ Three groups:
   append, and the resulting root is the `pushNewLeaf` walk.  This is the
   protocol half of root-binding piece (2) in `AttackVectors.RootBinding`; the
   compiled half stays in the sibling repo (obligation O7).
-* **Soundness and completeness** — an accepted proof, for ANY index and path
-  length the prover chose, names an occupied index holding the presented leaf;
-  and every honest proof is accepted.  This closes root-binding piece (3): the
-  leaves a verified proof talks about are the leaves `toAbs` talks about, so the
-  `W ∈ s` hypothesis that `IMTAbstract.forged_padding_witness_breaks_exclusivity`
-  proves indispensable is DISCHARGED from the Merkle check rather than assumed.
+* **Soundness and completeness** — every honest proof is accepted (no hash
+  premise).  The soundness statements of the `## Soundness` section take
+  `HashAssumptions`, which no hash meets (`Properties.HashAssumptionsUnsatisfiable`),
+  so they are vacuous and discharge nothing.  Root-binding piece (3) — the leaves a
+  verified proof talks about are the leaves `toAbs` talks about, so that the `W ∈ s`
+  hypothesis `IMTAbstract.forged_padding_witness_breaks_exclusivity` proves
+  indispensable comes from the Merkle check — holds in two non-vacuous forms: the
+  `…OrBreak` results below (the property, or a located `TreeRootBreak` on the
+  submitted path, with no hash premise), and the `TreeRootStrong…` results of
+  `Properties/TreeRootStrong.lean` (the property itself, under `TreeRootStrongLogSafe`,
+  a hash premise pinned to the values one verification touches).
 * **The padding countermodel** — `HashAssumptions.padNotLeaf` is false at the
   extraction pin (`setup` pads with `hashLeaf({0,0,0})`), and the consequence is
   a forged absence proof for a delivered leg, on a real contract run, with no
@@ -66,43 +71,74 @@ def Properties.RootAfterInsert : Prop :=
             T.leafCount)
           0 height T.leafCount (hl ⟨v, (T.leaf low).nextIndex, (T.leaf low).nextValue⟩)
 
-/-! ## Soundness -/
+/-! ## Soundness
 
-/-- An accepted path names an occupied index holding the presented leaf.
-Whatever index and path length the prover chose: the length is the tree's
-height, the index is below `leafCount`, and the leaf stored there IS the
-presented preimage. -/
+**Every statement in this section is vacuous.**  Each takes `HashAssumptions h z0 hl`,
+which no `h`, `z0`, `hl` satisfies (`Properties.HashAssumptionsUnsatisfiable`, below), so
+each follows from that alone and guarantees nothing.  With the premise deleted, each
+conclusion is false (`Properties.TreeRootStrongWithoutPremiseFails`).  Each docstring
+gives the intended reading and names the non-vacuous forms: the `…OrBreak` restatement
+further down (no hash premise), and the `TreeRootStrong…` restatement in
+`Properties/TreeRootStrong.lean` (the same conclusion under the pinned premise
+`TreeRootStrongLogSafe`). -/
+
+/-- **VACUOUS AS STATED** (`HashAssumptions` is unsatisfiable).  Intended reading: an
+accepted path names an occupied index holding the presented leaf, whatever index and path
+length the prover chose (the length is the tree's height, the index is below
+`leafCount`, and the leaf stored there IS the presented preimage).  Without the premise
+this is false at the extraction pin for every hash: the forged absence proof opens the
+empty slot 3 (`Properties.TreeRootStrongPinForgeryFailsLogSafe`).  Non-vacuous forms:
+`Properties.AcceptedPathPinsLeafOrBreak` and `Properties.TreeRootStrongAcceptedPathPinsLeaf`. -/
 def Properties.AcceptedPathPinsLeaf : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (T : Tree) (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf),
       PathAccepts h (root h z0 hl T height) sibs k idx (hl ℓ) →
       k = height ∧ idx < T.leafCount ∧ T.leaf idx = ℓ
 
-/-- A verified inclusion proof means delivered: the value is a key of the tree's
-projection. -/
+/-- **VACUOUS AS STATED** (`HashAssumptions` is unsatisfiable).  Intended reading: a
+verified inclusion proof means delivered (the value is a key of the tree's projection).
+Without the premise this is false: `Properties.TreeRootBreakEveryCaseFires` gives
+accepted inclusion proofs on `setup` for values it does not hold, under the toy hash
+pair.  Non-vacuous forms: `Properties.InclusionSoundOrBreak` and
+`Properties.TreeRootStrongInclusionSound`. -/
 def Properties.InclusionSound : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (T : Tree) (height : ℕ) (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
       InclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k → v ∈ keys (toAbs T)
 
-/-- A verified non-inclusion proof is a reclaim witness IN the tree: the low leaf
-is a member of `toAbs T` with a window straddling `v`. -/
+/-- **VACUOUS AS STATED** (`HashAssumptions` is unsatisfiable).  Intended reading: a
+verified non-inclusion proof is a reclaim witness IN the tree (the low leaf is a member of
+`toAbs T` with a window straddling `v`).  Without the premise this is false at the
+extraction pin for every hash: the forged absence proof for a delivered value is accepted,
+and no member of the tree straddles it (`Properties.TreeRootStrongPinForgeryFailsLogSafe`).
+Non-vacuous forms: `Properties.NonInclusionSoundOrBreak` and
+`Properties.TreeRootStrongNonInclusionSound`. -/
 def Properties.NonInclusionSound : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (T : Tree) (height : ℕ) (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
       NonInclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k →
       ∃ W ∈ toAbs T, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)
 
-/-- A delivered value has no verified absence proof against a valid tree's root. -/
+/-- **VACUOUS AS STATED** (`HashAssumptions` is unsatisfiable).  Intended reading: a
+delivered value has no verified absence proof against a valid tree's root.  Without the
+premise this is false at the extraction pin for every hash
+(`Properties.PaddingCollisionRefundsDeliveredLeg`).  Non-vacuous forms:
+`Properties.VerifiedAbsenceExcludesDeliveredOrBreak` and
+`Properties.TreeRootStrongVerifiedAbsenceExcludesDelivered`. -/
 def Properties.VerifiedAbsenceExcludesDelivered : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (T : Tree), Valid T →
     ∀ (height : ℕ) (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
       NonInclusionAccepted h hl (root h z0 hl T height) v ℓ idx sibs k → v ∉ keys (toAbs T)
 
-/-- **The headline for the hash side.**  No value has both an accepted inclusion
-proof and an accepted non-inclusion proof against a valid tree's root, whatever
-leaves, indices, paths and path lengths the two provers present. -/
+/-- **VACUOUS AS STATED, AND NOT THE HEADLINE** (`HashAssumptions` is unsatisfiable).
+Intended reading: no value has both an accepted inclusion proof and an accepted
+non-inclusion proof against a valid tree's root, whatever leaves, indices, paths and path
+lengths the two provers present.  Without the premise this is false at the extraction pin
+for every hash (`Properties.ProofsExclusiveOrBreakSatisfiable`).  The headline for the
+hash side is `Properties.ProofsExclusiveOrBreak` (no hash premise);
+`Properties.TreeRootStrongProofsExclusive` states this conclusion under the pinned premise
+`TreeRootStrongLogSafe` on both proofs. -/
 def Properties.ProofsExclusive : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (T : Tree), Valid T →
@@ -110,8 +146,13 @@ def Properties.ProofsExclusive : Prop :=
       ¬ (InclusionAccepted h hl (root h z0 hl T height) v ℓ₁ i₁ s₁ k₁
           ∧ NonInclusionAccepted h hl (root h z0 hl T height) v ℓ₂ i₂ s₂ k₂)
 
-/-- The same at every step of every run from `setup`: validity is not assumed,
-it is inherited from the run. -/
+/-- **VACUOUS AS STATED** (`HashAssumptions` is unsatisfiable).  Intended reading: the
+exclusivity of `ProofsExclusive` at every step of every run from `setup`, with validity
+inherited from the run.  Without the premise this is false at step 2 of a run from
+`setup` for every hash (`Properties.RunRootsExclusiveOrBreakSatisfiable`).  Non-vacuous
+forms: `Properties.RunRootsExclusiveOrBreak` and `Properties.TreeRootStrongRunRootsExclusive`;
+at the run's own published height, `Properties.RunRootsExclusiveOrBreakAtOwnHeight` and
+`Properties.TreeRootStrongRunRootsAtOwnHeight`. -/
 def Properties.RunRootsExclusive : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (R : ℕ → Tree), Run R → R 0 = setup →
@@ -119,9 +160,13 @@ def Properties.RunRootsExclusive : Prop :=
       ¬ (InclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₁ i₁ s₁ k₁
           ∧ NonInclusionAccepted h hl (root h z0 hl (R n) height) v ℓ₂ i₂ s₂ k₂)
 
-/-- The multi-chain hook: a non-inclusion proof verified against chain `c`'s root
-is an `AbsenceWitnessAt` for `c`, so the `Protocol` results apply to
-root-verified proofs verbatim. -/
+/-- **VACUOUS AS STATED; AS A MULTI-CHAIN HOOK IT CARRIES NOTHING** (`HashAssumptions` is
+unsatisfiable).  Intended reading: a non-inclusion proof verified against chain `c`'s root
+is an `AbsenceWitnessAt` for `c`, so that the `Protocol` results would apply to
+root-verified proofs.  Without the premise this is false at the extraction pin for every
+hash (`Properties.TreeRootStrongPinForgeryFailsLogSafe`).  Downstream users should consume
+`Properties.VerifiedAbsenceIsWitnessOrBreak` (no hash premise) or
+`Properties.TreeRootStrongVerifiedAbsenceIsWitness` (under `TreeRootStrongLogSafe`). -/
 def Properties.VerifiedAbsenceIsWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (T : Chain → Tree) (c : Chain) (height : ℕ) (v : UInt256) (ℓ : Leaf) (idx : ℕ)
@@ -185,9 +230,14 @@ asks a map from three-field leaves into `UInt256` to be injective; neither can
 hold by counting.  So every statement in this package of the form
 `HashAssumptions h z0 hl → …` is vacuously true and is NOT a security guarantee,
 and a countermodel stated under that premise exhibits nothing.  The padding
-countermodels above do not take the premise and are unaffected.  The repair is the
-collision form of `LastLeafOrBreak` (`AtomicInteropProof/Properties/LastLeaf.lean`; its
-accepted-path variant still needs the repair) and `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`: conclude
+countermodels above do not take the premise and are unaffected.  For this file's seven
+soundness statements the repair is in two forms: the `…OrBreak` section below ("the
+property holds, or a `TreeRootBreak` is located on the submitted path"), and
+`Properties/TreeRootStrong.lean` ("the property holds" under `TreeRootStrongLogSafe`, each
+field of the bundle restricted to the values one verification touches, a premise that a
+hash can meet).  Elsewhere the repair is the collision form of `LastLeafOrBreak`
+(`AtomicInteropProof/Properties/LastLeaf.lean`; its accepted-path variant still needs the
+repair) and `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`: conclude
 "the property holds, or a concrete collision among the compared values exists". -/
 def Properties.HashAssumptionsUnsatisfiable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), ¬ HashAssumptions h z0 hl
