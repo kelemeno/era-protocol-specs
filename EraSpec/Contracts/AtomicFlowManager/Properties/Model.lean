@@ -40,7 +40,11 @@ any run, `Reverted` is a fixed point, and no-double-refund is a corollary rather
 than a separate argument.  This is the state-machine analogue of the
 checked-then-set nullifier pattern, and it is why `claimRefund` needs no
 reentrancy guard: the flip to `Reverted` precedes the external calls, so a
-reentrant claim meets a leg that is no longer `Revertable`.
+reentrant claim meets a leg that is no longer `Revertable`.  That last argument
+is about the order of operations inside `claimRefund`, which `Step.claim` cannot
+express because it is a single atomic transition.  It is proved over a model with
+reentrant callbacks in `EraSpec.Contracts.AtomicFlowManager.Properties.ModelStrong`
+(`claim_order_decides_double_payout`).
 -/
 
 namespace Contracts.AtomicFlowManager
@@ -106,27 +110,38 @@ abbrev Properties.no_double_claim {M N : Manager} {f b : UInt256}
   ¬ ClaimGuard N f b
 
 
-/-- **A REFUND REQUIRES A PRIOR AUTHORIZATION.**  A leg that was never advanced
-past `Unset` cannot be claimed: `ClaimGuard` needs rank 2, and reaching it from
-rank 0 requires the intermediate `authorize` step.  Stated contrapositively — if
-the gate is open, the leg's rank is already 2, which only `authorize` produces. -/
+/-- **AN OPEN CLAIM GATE MEANS RANK 2.**  A fact about one state: if `ClaimGuard`
+holds, the leg is `Revertable`, whose rank is 2.  The statement mentions no run and
+no `authorize` step.  It holds just as well for a manager set to `Revertable`
+directly.  The history claims are proved in
+`EraSpec.Contracts.AtomicFlowManager.Properties.ModelStrong`.  Only `authorize`
+produces `Revertable` (`step_into_revertable_is_authorize`).  On every run, every
+claim of a leg that starts below `Revertable` comes after an `authorize` of that
+leg (`claim_event_preceded_by_authorize`; `Reach` form
+`claimable_reach_passed_authorize`). -/
 abbrev Properties.claim_requires_authorization {M : Manager} {f b : UInt256}
     (hg : ClaimGuard M f b) :=
   rank (M.legState f b) = 2
 
 
-/-- **AN UNSET LEG IS NOT CLAIMABLE.**  The direct statement: a leg with no
-commitment on this chain cannot be refunded here. -/
+/-- **AN UNSET LEG IS NOT CLAIMABLE IN THE SAME STATE.**  A fact about one state:
+`Unset ≠ Revertable`.  It does not say the leg can never be refunded here: a run
+makes an `Unset` leg claimable in two steps.  Every such run takes exactly those two
+steps on the leg, `append` and then `authorize`
+(`ModelStrong.Properties.unset_claimable_trace`). -/
 abbrev Properties.unset_not_claimable {M : Manager} {f b : UInt256}
     (h : M.legState f b = .Unset) :=
   ¬ ClaimGuard M f b
 
 
-/-- **A COMMITTED LEG IS NOT DIRECTLY CLAIMABLE.**  `claimRefund` cannot be
-reached from `Committed` without `authorizeRefund` — which is where the timeout
-proof is checked.  This is the state-machine half of "no refund without a proof";
-the other half (that the proof implies the flow can never finalize) is
-`EraSpec.Contracts.AtomicInteropProof.Properties.TimeoutSoundness`. -/
+/-- **A COMMITTED LEG IS NOT CLAIMABLE IN THE SAME STATE.**  A fact about one
+state: `Committed ≠ Revertable`.  The run-level reading is that `claimRefund` cannot
+be reached from `Committed` without `authorizeRefund`, which is where the timeout
+proof is checked.  That reading is `ModelStrong.Properties.committed_claimable_trace`:
+on every run from a `Committed` leg to a claimable one, exactly one step touches the
+leg, and that step is `authorize`.  This is the state-machine half of "no refund
+without a proof".  The other half, that the proof implies the flow can never
+finalize, is `EraSpec.Contracts.AtomicInteropProof.Properties.TimeoutSoundness`. -/
 abbrev Properties.committed_not_claimable {M : Manager} {f b : UInt256}
     (h : M.legState f b = .Committed) :=
   ¬ ClaimGuard M f b
@@ -140,20 +155,30 @@ abbrev Properties.no_double_append {M N : Manager} {f b : UInt256}
   ¬ AppendGuard N f b
 
 
-/-- **THE CEI ORDER IS WHAT REMOVES THE NEED FOR A REENTRANCY GUARD.**  In the
-state the external recovery calls run against, the leg is already `Reverted`, so
-`ClaimGuard` is closed for the whole duration of those calls.
+/-- **AFTER THE WRITE, THE CLAIM GATE IS CLOSED.**  A fact about one state: in
+`M.set f b .Reverted` the leg is not claimable (`set_same` and
+`Reverted ≠ Revertable`).
 
-`claimRefund` sets state *before* `_recoverBundle` (effects-before-interaction);
-this lemma is the formal content of that comment in the source.  Had the order
-been reversed, the state during the external calls would still be `Revertable`
-and a reentrant claim would pass its guard. -/
+This lemma is not the formal content of the effects-before-interaction comment in
+`claimRefund`.  `Step.claim` is one atomic transition with no external-call phase.
+So this model cannot say which state the recovery calls run against, and the lemma
+would hold whatever order the source used.  The ordering claim is proved in
+`EraSpec.Contracts.AtomicFlowManager.Properties.ModelStrong`, over a model whose
+claims make reentrant callbacks.  Under the deployed order a claim's callback cannot
+claim the same leg (`writeFirst_callback_never_reclaims`), and each leg pays out at
+most once (`writeFirst_payouts_exact`).  Had the order been reversed, a reentrant
+claim would pass its guard, and one leg could be paid out any number of times
+(`writeAfter_unbounded_payouts`, `claim_order_decides_double_payout`). -/
 abbrev Properties.claim_closes_gate_before_interaction {M : Manager} {f b : UInt256} :=
   ¬ ClaimGuard (M.set f b .Reverted) f b
 
 
-/-- The lifecycle is exactly four states deep: no run can move a leg more than
-three times.  A convenient bound when reasoning about whole histories. -/
+/-- **RANKS ARE AT MOST THREE.**  A fact about `rank`'s four values.  It holds for
+every state, reachable or not, and mentions no run.  On its own it does not bound
+how often a run moves a leg, because `step_rank_mono` is only `≤`.  The run-level
+bound is `ModelStrong.Properties.legRun_changes_le_three`: no run changes a leg's
+state more than `3 - rank` times, counting from the leg's starting state.  The count
+is exactly the rank gain (`legRun_changes_eq_rank_gain`). -/
 abbrev Properties.rank_le_three (M : Manager) (f b : UInt256) :=
   rank (M.legState f b) ≤ 3
 

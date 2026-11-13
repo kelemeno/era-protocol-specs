@@ -27,12 +27,20 @@ import Mathlib.Tactic
 
     1. The acceptance threshold is `recovered >= 1`, NOT `recovered == callsLen`.  A claim in which one
        call recovers and the rest decline SUCCEEDS, and `claimRefund` marks the leg `Reverted` first
-       (`AtomicFlowManager.sol:172`), which `refunded_leg_cannot_refund_again` shows is terminal.  So
-       the declining calls' funds are stranded PERMANENTLY, by a transaction that reported success.
+       (`AtomicFlowManager.sol:172`), which is terminal.  On the manager's runs that is
+       `Contracts.AtomicFlowManager.no_double_claim`; `refunded_leg_cannot_refund_again` is the
+       sibling repository's name, not a theorem here.  So the declining calls' funds are stranded
+       PERMANENTLY, by a transaction that reported success.  The properties file records the two
+       halves separately.  Tied together on the real loop and the manager's runs, they are
+       `Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.partial_stranding_is_terminal`
+       (`Properties/RecoveryLimitsStrong.lean`; `RecoveryLimitsStrong` below means that namespace).
 
     2. The call is raw — no `try/catch`.  A target that REVERTS rather than returning `false` aborts
        the whole claim, including the calls that would have recovered.  Retrying re-enters the same
-       loop and hits the same target, so recovery stays unavailable while any target reverts.
+       loop and hits the same target, so recovery stays unavailable while any target reverts.  The
+       outcome lists here are fixed, so that retry argument is not formalized in this file.  Over a
+       world that changes between attempts it is `RecoveryLimitsStrong.Properties.blocked_retry_reverts`
+       and `blocked_leg_stays_revertable`.
 
   Fact 2 is the one that does not fit the docstring's framing.  "The flow author's responsibility" is a
   per-call statement, but a reverting target denies recovery to the OTHER calls too — the failure
@@ -78,7 +86,11 @@ abbrev claimEnabled (s : LegState) : Prop := s = LegState.Revertable
 
 
 /-- It sets `Reverted` BEFORE the external calls (`AtomicFlowManager.sol:172`), so a reentrant or
-later claim sees the post-state. -/
+later claim sees the post-state.  This file only names that post-state.  The constant proves neither
+consequence.  The reentrant case is
+`Contracts.AtomicFlowManager.ModelStrong.Properties.writeFirst_callback_never_reclaims`.  The later-claim
+case on the manager's runs is
+`Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.legClaim_success_closes_leg`. -/
 abbrev afterClaim : LegState := LegState.Reverted
 
 
