@@ -94,7 +94,9 @@ execution is lost).
 
 **Correction** (`BundleStatusMachineFaithful`). The "brick" conclusion above is wrong about the
 source. A `Verified` bundle is not undeliverable: `executeBundle` takes it to `FullyExecuted`
-consulting nothing (`Verified` skips `_verifyBundle`), and `unbundleBundle` takes it to `Unbundled`.
+with no inclusion proof and no flow gate (`Verified` skips `_verifyBundle`; only the pause,
+destination-context and permission checks it shares with `executeAtomicBundle` run), and
+`unbundleBundle` takes it to `Unbundled`.
 Neither entry point consults `requireFlowFinalized`, and nothing marks a bundle as atomic. So if
 atomic bundles were published to L1, the consequence would be a bypass of the atomicity gate, not a
 loss of liveness (`Contracts.InteropHandler.Faithful.ProvableBytesBypassTheFlowGate`,

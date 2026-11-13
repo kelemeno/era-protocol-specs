@@ -12,7 +12,7 @@ are in `EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineFaithful`
 * `atomic_entry_needs_unreceived`: the atomic entry point's only edge leaves `Unreceived`. This is
   all `BundleStatusMachine.verified_blocks_atomic_execution` can mean.
 * `verified_runs_unchecked`: but `Verified` is no dead end. `executeBundle` takes it to
-  `FullyExecuted` and `unbundleBundle` to `Unbundled`, each consulting nothing.
+  `FullyExecuted` and `unbundleBundle` to `Unbundled`, each with no inclusion proof and no flow gate.
 * `route_consults_inclusion_or_flowGate` (the conditional, corrected): every path from `Unreceived`
   to `FullyExecuted` or `Unbundled` consults an inclusion proof or the flow gate; and
   `no_inclusion_paths_are_atomic`: one that consults no inclusion proof stays inside
@@ -127,7 +127,10 @@ def Properties.ProvableBytesBypassTheFlowGate : Prop :=
       (submit .deployed s (freshPublicRun b)).2 =
         (List.range b.calls).map (Effect.delivered b.hash) ++ [Effect.executed b.hash]
 
-/-- **A `Verified` BUNDLE IS NOT BRICKED: IT RUNS WITH NO GATE AT ALL.** For every bundle `b` and
+/-- **A `Verified` BUNDLE IS NOT BRICKED: IT RUNS WITH NO INCLUSION PROOF AND NO FLOW GATE.** ("No
+gate" in the name means neither of these two; the source still runs the pause, destination-context
+and execution-address checks on `executeBundle`, which `executeAtomicBundle` runs too and the model
+omits as reject-only.) For every bundle `b` and
 every state in which it is `Verified`: `executeAtomicBundle(b)` commits nothing, whatever its gate
 verdict, fuel and targets (`L2InteropHandler.sol:79`); but `executeBundle(b)` with no accepted proof,
 in a transaction none of whose entry-point calls presents an accepted proof or passes the flow gate
@@ -142,8 +145,9 @@ def Properties.VerifiedBundleRunsWithoutAnyGate : Prop :=
         (List.range b.calls).map (Effect.delivered b.hash) ++ [Effect.executed b.hash]
 
 /-- **ALL FOUR ROUTES, ON A WITNESS.** From fresh storage, for bundle `wC` (hash `3`, one call): the
-gated route (`executeAtomicBundle`, gate passing) delivers it, so the never-published headline's
-conclusion is reachable; and with no flow gate anywhere, `executeBundle` with a proof delivers it,
+gated route (`executeAtomicBundle`, gate passing) delivers it, in a run that satisfies the
+never-published headline's premise for hash `3` (no entry-point call presents an accepted inclusion
+proof), so that premise and the headline's antecedent hold together; and with no flow gate anywhere, `executeBundle` with a proof delivers it,
 `verifyBundle` then `executeBundle` without a proof delivers it, and `verifyBundle` then
 `unbundleBundle` delivers its call and leaves it `Unbundled`. -/
 def Properties.FlowGateRoutesWitness : Prop :=
@@ -152,6 +156,7 @@ def Properties.FlowGateRoutesWitness : Prop :=
     (submitAll .deployed init [wVerifyC, wProvelessC]).2 = [.delivered 3 0, .executed 3] ∧
     (submitAll .deployed init [wVerifyC, wUnbundleC]).2 = [.delivered 3 0] ∧
     (submitAll .deployed init [wVerifyC, wUnbundleC]).1.bundle 3 = .Unbundled ∧
-    (∀ t ∈ [wFreshC, wVerifyC, wProvelessC, wUnbundleC], TxAll (fun e => ¬ PassesFlowGate 3 e) t)
+    (∀ t ∈ [wFreshC, wVerifyC, wProvelessC, wUnbundleC], TxAll (fun e => ¬ PassesFlowGate 3 e) t) ∧
+    (∀ t ∈ [wAtomicC], TxAll (fun e => ¬ ProvesInclusion 3 e) t)
 
 end Contracts.InteropHandler.Faithful

@@ -504,10 +504,14 @@ theorem VerifiedBundleRunsWithoutAnyGate : Properties.VerifiedBundleRunsWithoutA
     rfl
 
 theorem FlowGateRoutesWitness : Properties.FlowGateRoutesWitness := by
-  refine ⟨by decide, by decide, by decide, by decide, by decide, ?_⟩
-  intro t ht
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
-  rcases ht with rfl | rfl | rfl | rfl <;>
+  refine ⟨by decide, by decide, by decide, by decide, by decide, ?_, ?_⟩
+  · intro t ht
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
+    rcases ht with rfl | rfl | rfl | rfl <;>
+      exact ⟨fun h => h, fun c hc => by cases hc⟩
+  · intro t ht
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
+    subst ht
     exact ⟨fun h => h, fun c hc => by cases hc⟩
 
 end Contracts.InteropHandler.Faithful

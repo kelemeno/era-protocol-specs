@@ -43,7 +43,14 @@ bypass of the atomicity gate, not a liveness loss.
 ## What is modelled
 
 * **The labelled machine** (`LStep`): `BundleStatusMachine.Step`'s six edges, each labelled with
-  its entry point and the check it consults: the inclusion proof, the flow gate, or nothing.
+  its entry point and the authentication it consults: the inclusion proof, the flow gate, or
+  neither (`noCheck`). The labels record only these two checks. The reject-only checks the source
+  also runs are left out, as in `MODEL-HANDLER-REENTRY`: `_ensureNotPaused`, the caller-permission
+  gate (`executeBundle`'s execution-address check :94-112, `unbundleBundle`'s unbundler check
+  :170-184) and `executeBundle`'s `_validateBundleDestinationContext` (:92). `executeAtomicBundle`
+  runs the same pause, destination-context and execution-address checks
+  (`L2InteropHandler.sol:50-75`), so they do not separate the atomic route from the others; only
+  the inclusion proof and the flow gate do.
 * **The operational premises**, over `Contracts.InteropHandler.exec` (re-entrant, every target
   behaviour, every depth): `ProvesInclusion h e` (an entry-point call presenting an inclusion proof
   `_proveInclusion` accepts for a bundle with hash `h`) and `PassesFlowGate h e` (an
@@ -76,7 +83,8 @@ inductive Check
   | inclusionProof
   /-- `requireFlowFinalized`, the atomicity gate (`L2InteropHandler.sol:83`). -/
   | flowGate
-  /-- Nothing: the edge is admitted on the bundle's status alone. -/
+  /-- Neither the inclusion proof nor the flow gate: the edge is admitted on the bundle's status and
+  the reject-only checks (pause, caller permission, destination context) that the model omits. -/
   | noCheck
   deriving DecidableEq, Repr
 
@@ -87,7 +95,9 @@ inductive LStep : Status → EntryPoint → Check → Status → Prop
   | verify : LStep .Unreceived .verifyBundle .inclusionProof .Verified
   /-- `executeBundle` of an `Unreceived` bundle: `_verifyBundle` first (:123). -/
   | executeFresh : LStep .Unreceived .executeBundle .inclusionProof .FullyExecuted
-  /-- `executeBundle` of a `Verified` bundle: `:123` is skipped, nothing is consulted. -/
+  /-- `executeBundle` of a `Verified` bundle: `:123` is skipped, so no inclusion proof and no flow
+  gate is consulted (only the pause, destination-context and execution-address checks of :87-112,
+  which `executeAtomicBundle` shares). -/
   | executeVerified : LStep .Verified .executeBundle .noCheck .FullyExecuted
   /-- `unbundleBundle` of a `Verified` bundle (:195-198). -/
   | unbundleFirst : LStep .Verified .unbundleBundle .noCheck .Unbundled
