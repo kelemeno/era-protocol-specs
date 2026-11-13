@@ -161,9 +161,10 @@ def Properties.ProofsExclusiveAtHeadOrKeccakCollision : Prop :=
 
 /-! ## Against `TreeRoot`'s located break -/
 
-/-- **EVERY KECCAK BREAK IS A `TreeRootBreak`.**  At `main`'s hashes, `KeccakBreakAtHead`
-implies `TreeRootBreak`, case for case, so it is a sharpening of the located break that every
-`…OrBreak` result of this package (and `InteropAtomicity`'s `ImtProofBreak`) concludes. -/
+/-- **EVERY KECCAK BREAK IS A `TreeRootBreak`.**  At `main`'s hashes and padding constant,
+`KeccakBreakAtHead` implies `TreeRootBreak` on the same proof.  So it is at least as strong as
+the located break that the `…OrBreak` results of this package (and `InteropAtomicity`'s
+`ImtProofBreak`) conclude when instantiated there. -/
 def Properties.KeccakBreakAtHeadIsTreeRootBreak : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ)
     (ℓ : Leaf),
@@ -215,8 +216,11 @@ def Properties.PaddingHitAtPinNeedsNoCollision : Prop :=
 fits a `uint256` (every ABI-decoded `IMTLeaf`), a `TreeRootBreak` at `main`'s hashes is one of:
 a keccak collision of the presented leaf's `abi.encode` with the tag at a padding slot; of the
 stored and the presented leaf's `abi.encode` at an occupied slot; a node collision on the path
-at the right length; or a `LengthKeccakBreak`.  This reads every `…OrBreak` result of this
-package and of `InteropAtomicity` (whose `ImtProofBreak` is `TreeRootBreak`) at `main`. -/
+at the right length; or a `LengthKeccakBreak`.  This translates the break disjunct of the
+`…OrBreak` results of this package and of `InteropAtomicity` (whose `ImtProofBreak` is
+`TreeRootBreak`) when they are instantiated at `main`'s hashes and padding constant.  It does
+not re-pin anything else those results depend on: `InteropAtomicity` models the manager at
+`c67894b9`. -/
 def Properties.TreeRootBreakAtHeadIsKeccakCollision : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ)
     (ℓ : Leaf),

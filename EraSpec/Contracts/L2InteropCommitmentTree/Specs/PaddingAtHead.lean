@@ -5,10 +5,15 @@ import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 # Model: the commitment tree at `main`, with a domain-separated padding constant
 
 Source: era-contracts `main` at `3605e82` (`MAIN/` below is `l1-contracts/contracts/` of that
-tree).  The change modelled is commit `78e14b3bc` ("F-04 domain-separate the IMT empty-leaf
-padding value"), merged through #2315.  `CachedRoot` models the pin `c67894b9`, where the
-padding constant was the hash of a valid leaf; its `CThreeLeafWitness` is the forged absence
-proof that this allowed against the stored root.
+tree).  The change modelled is item "F-04 domain-separate the IMT empty-leaf padding value" of
+commit `78e14b3bc` (PR #2285), which is on `main` through #2315 (`327072bd9`).  `CachedRoot`
+models the pin `c67894b9`, where the padding constant was the hash of a valid leaf; its
+`CThreeLeafWitness` is the forged absence proof that this allowed against the stored root.
+
+`IndexedMerkleTree.sol`, `Merkle.sol` and `FullMerkle.sol` are byte-identical to `main` at
+`draft/v0.35.0` (`d9f6789`) and at `e561b9cc2`, `L2InteropCommitmentTree.sol` differs there only
+in two import lines, and `IMT_EMPTY_LEAF_HASH` is the same expression (`Config.sol:141` and
+`:134`).  So the model describes those two heads as well; the line numbers below are `main`'s.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.PaddingAtHead`, proofs in
@@ -57,9 +62,14 @@ At the pin (`IndexedMerkleTree.sol:42-51` at `c67894b9`) the same function compu
   every fuel), and from the hint `low` itself the loop runs zero times.  So the bounded search of
   the pin and the unbounded one of `main` give the same reached states.
 * `L2InteropCommitmentTree.insert` (`MAIN/atomic-interop/L2InteropCommitmentTree.sol:50-63`) now
-  also calls `_reportLeaf` (`:70-75`).  That call writes no tree storage and can only revert, so
-  the reached states over-approximate the wrapper's, and statements over all of them cover it.
-  `root()` (`:93-95`) and `merklePath(i)` (`:108-110`) read the `IMT` as before.
+  also calls `_reportLeaf` (`:70-75`) after `_imt.insert`.  It makes two calls: a self-call into
+  the contract's `fallback` (`:120-125`), which always reverts, and a call to the ZKsync OS
+  system hook `INTEROP_COMMITMENT_LEAF_HOOK`, whose failure reverts the insert.  Neither is a
+  Solidity write to `_imt`.  The hook is not in this source tree; that it does not call back
+  into the tree is taken from its description, not proved (`insert` is `appender()`-only in any
+  case, `:51-53`).  Given that, the call can only revert the insert, so the reached states
+  over-approximate the wrapper's and statements over all of them cover it.  `root()` (`:93-95`)
+  and `merklePath(i)` (`:108-110`) read the `IMT` as before.
 
 ## Two layers
 
@@ -78,6 +88,14 @@ At the pin (`IndexedMerkleTree.sol:42-51` at `c67894b9`) the same function compu
   pinned: `HashCollision keccak x y` names `x` and `y`.
 * `word` is the 32-byte big-endian word of `InteropDataEncoding/Specs/BundleHashEncoding.lean`.
   `Leaf.nextIndex` is `ℕ`, and `word` reduces it modulo `2^256` as a `uint256` field would.
+* `PathAccepts` (from `TreeRoot`) keeps `MerkleIndexOutOfBounds` (`idx < 2 ^ k`) and drops
+  `MerklePathOutOfBounds` (`_pathLength >= 256`, `Merkle.sol:134-136`).  So the model accepts
+  every proof the source accepts and also paths of 256 or more siblings.  The results of the
+  form "accepted, so absent or a break" are stated over the larger set; the acceptance
+  witnesses use paths of length at most 3.
+* Only the tree is modelled here.  How `AtomicFlowManager` and `AtomicInteropProof` at `main`
+  obtain the root they pass to the two verifiers is not, and `Protocol/InteropAtomicity` still
+  models the manager at `c67894b9`.
 * As in `CachedRoot`: `IMTAlreadyInitialized` is replaced by starting from fresh storage, a
   revert inside `FullMerkle` is `none`, and compiled-code correspondence is obligation O7.
 -/
