@@ -34,6 +34,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
 -- (e561b9cc2), and the staged coordinator with its timer (afa407085; deleted by e561b9cc2)
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Authority
 import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong
 
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
@@ -43,6 +44,8 @@ import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 -- AtomicInteropProof: finalization, timeout, source binding, and proof snapshots
 import EraSpec.Contracts.AtomicInteropProof.Proofs.TimeoutSoundness
 import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarity
+import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarityStrong
+import EraSpec.Contracts.AtomicInteropProof.Proofs.TimeoutSoundnessStrong
 import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRoot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.Timestamps
@@ -96,6 +99,8 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
 import EraSpec.Codegen.Lang
 import EraSpec.Codegen.Emit
 import EraSpec.Codegen.BridgedTokenSlice.Proofs.Refinement
+import EraSpec.Codegen.BridgedTokenSlice.Proofs.AtMostOneStep
+import EraSpec.Codegen.EmitRefusals.Proofs.BoolLiterals
 
 -- Reference application, distinct from the deployed router/vault implementation
 import EraSpec.Examples.BurnMintBridge.Model
@@ -110,13 +115,17 @@ import EraSpec.Codegen.VaultPreparationSlice.Proofs.MintDataBytes
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.Refinement
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.RevertOrder
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.Witnesses
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.AtMostOneStep
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters
+import EraSpec.Contracts.AssetRouterBase.Proofs.AllWritersStrong
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
 import EraSpec.Contracts.AssetRouterBase.Proofs.CounterpartGate
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistrationRuns
 import EraSpec.Contracts.AssetRouterBase.Proofs.VaultMintGate
 import EraSpec.Contracts.BridgedStandardERC20.Proofs.LegacyFallback
 import EraSpec.Contracts.BridgedStandardERC20.Proofs.Reinitialization
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.ModelStrong
+import EraSpec.Contracts.BridgedStandardERC20.Proofs.ReinitializationStrong
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocal
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocalExecutor
 import EraSpec.Contracts.ChainTypeManager.Proofs.DiamondStorage
@@ -128,6 +137,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorUpgradeChain
 import EraSpec.Contracts.ChainTypeManager.Proofs.GenesisWriters
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
+import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
@@ -135,13 +145,16 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.InitOnce
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.PublishedRootCommits
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRootStrong
 import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinned
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.LegacyFallback
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistrationUnified
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistrationUnifiedStrong
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Reinitialization
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Resolution
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ResolutionCorrespondence
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsOrder
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Forward
 import EraSpec.Examples.BurnMintBridge.Proofs.EndBranch
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
@@ -149,6 +162,23 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
 import EraSpec.Contracts.ChainTypeManager.Proofs.MutableSelectors
+
+-- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
+import EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery
+import EraSpec.Contracts.L2InteropHandler.Proofs.SourceBindingReduced
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Pause
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.FullRecovery
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.Resolution
+import EraSpec.Protocol.AssetBridgePreparation.Proofs.ResolutionEvidence
+import EraSpec.Protocol.InteropAtomicity.Proofs.Operational
+import EraSpec.Protocol.InteropAtomicity.Proofs.Pause
+import EraSpec.Protocol.InteropAtomicity.Proofs.SharedCommitment
+
+-- Strengthened padding-ambiguity and zero-sentinel statements (FullMerkle, Merkle, IndexedMerkleTree)
+import EraSpec.Contracts.FullMerkle.Proofs.TreeShapeStrong
+import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop

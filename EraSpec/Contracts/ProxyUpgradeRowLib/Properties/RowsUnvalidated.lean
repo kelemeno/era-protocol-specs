@@ -50,7 +50,9 @@ list.
   so the first loop passes, and `applyRows` still reverts: the verification also checks the
   first row (`DetourThenSkipIsCaught`, an instance of `TwoTargetsForOneProxyRevert`).
 * Executability can depend on the row order (`DuplicateRowsBreakOrder` in
-  `Properties/RowsCurrent.lean`).
+  `Properties/RowsCurrent.lean`). The duplicate check does not remove that dependence on its
+  own: on valid rows, a reinitializer that reads another row's proxy can still make one order
+  revert (`ReinitReadBreaksOrder` in `Properties/RowsOrder.lean`).
 
 ## `ReinitFrames` stays
 

@@ -65,8 +65,14 @@ in the `VaultMintGate` topic (`VaultModelDischargesMintPremise`).
   `L2OnlyCounterpartTouchesNonVaultIdsWitness`).  On L2, the handler of an id that is not
   a vault id is written by the counterpart alone.  On L1 the owner's tracker writes let
   custom trackers register; `RunWeakValidWitness`'s L1 run does that.
-* Every recorded tracker is named in its own id (`RunTrackerHashed`), so the owner can
-  authorise a tracker only for ids hashed from that tracker.
+* Every recorded tracker sits at an id with some preimage whose sender is that tracker
+  (`RunTrackerHashed`).  The preimage is existential, so this alone is weak: for an
+  encoding that reaches every id as the data word varies it holds in every state.  The
+  `AllWritersStrong` topic pins it.  Each tracker was recorded by a logged call, at that
+  call's own id (`RunTrackerRecorded`).  The owner cannot hand a tracker an id hashed from
+  someone else, under injectivity on the run's logged triples plus that id's triple
+  (`RunTrackerNotHandedToOtherSenderOn`).  Without that premise it can
+  (`TrackerHandedToOtherSenderUnderCollision`).
 -/
 
 namespace Contracts.AssetRouter.AllWriters
@@ -347,11 +353,24 @@ def Properties.L2OnlyCounterpartTouchesNonVaultIdsWitness : Prop :=
     K.side = .l2 ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧
     ARun K empty ops R ∧ AStep K op R R' ∧ ¬ op.IsCounterpart ∧ R'.handler x ≠ R.handler x
 
-/-- **EVERY RECORDED TRACKER IS NAMED IN ITS OWN ID.**  Along every run from fresh storage,
-on either router, a nonzero tracker `t` sits only at an id hashed on this chain from `t`
-itself, or (for the vault) from `L2_NATIVE_TOKEN_VAULT_ADDR`.  No hash premise.  So the
-owner's `setAssetDeploymentTracker` can make `t` the tracker only of ids hashed from `t`;
-it cannot hand `t` an id hashed from someone else. -/
+/-- **EVERY RECORDED TRACKER SITS AT AN ID WITH A PREIMAGE FROM ITSELF.**  Along every run
+from fresh storage, on either router, a nonzero tracker `t` sits only at an id equal to
+`enc block.chainid t d`, or (for the vault) `enc block.chainid L2_NATIVE_TOKEN_VAULT_ADDR
+d`, for some data word `d`.  No hash premise.
+
+This is weak, because `d` is existential and not tied to the run.  An encoding that reaches
+every id as `d` varies satisfies the conclusion in every router state, reachable or not
+(`AllWritersStrong.TrackerHashedAdmitsUnreachableRouter`).  For a keccak-like encoding,
+heuristically about `1 - 1/e` of all ids have such a preimage for any fixed `t`.  It does not
+show that the owner cannot hand `t` an id hashed from someone else.  The `AllWritersStrong`
+topic has the pinned forms:
+
+* the call that recorded each tracker is in the run's log, at that call's own id
+  (`RunTrackerRecorded`, no hash premise);
+* `t` is never the tracker of an id hashed from another sender, when the encoding is
+  injective on the run's logged triples plus that sender's triple
+  (`RunTrackerNotHandedToOtherSenderOn`);
+* without that premise it can be (`TrackerHandedToOtherSenderUnderCollision`). -/
 def Properties.RunTrackerHashed : Prop :=
   ∀ (K : Cfg) (ops : List Op) (R : Router), ARun K empty ops R → TrackerHashed K R
 
