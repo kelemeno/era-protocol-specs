@@ -80,7 +80,11 @@ def Properties.WholeBundleWriteIgnoresCallStatus : Prop :=
 with at least one call is admitted by a whole-bundle route while its call 0 is already recorded
 `Executed`, the deployed handler delivers call 0 again — `executeBundle(b)` from `Verified`, with
 or without a valid proof, and `executeAtomicBundle(b)` from `Unreceived`, each with returning
-targets. Nothing at the call level stops it. -/
+targets. Nothing at the call level stops it. Availability caveat: the handler model omits reject-only checks (`Specs/Reentrancy.lean`, "Reject-only checks are
+omitted"), so in the Solidity this holds for a caller that passes the omitted permission check
+(`executionAddress`, `InteropHandlerBase.sol:95-112`) and destination-context check
+(`_validateBundleDestinationContext`, `:428-451`, e.g. a proof whose `chainId` is the bundle's
+`sourceChainId`). -/
 def Properties.CallStatusDoesNotStopWholeBundleRedelivery : Prop :=
   ∀ (s : State) (b : Bundle) (ok : Bool), 0 < b.calls → s.call b.hash 0 = .Executed →
     (s.bundle b.hash = .Verified →
@@ -114,7 +118,12 @@ def Properties.AdmittedBundleHasOnlyUnprocessedCalls : Prop :=
 * From such a state `executeBundle(b)` with returning targets delivers each of `b`'s calls and
   executes `b`, with or without a valid proof (none is consulted once `Verified`). So the block
   is specific to the atomic entry point; the abstract `Step` cannot say so, since its
-  `executeAtomic` and `executeFresh` edges are the same pair of states. -/
+  `executeAtomic` and `executeFresh` edges are the same pair of states. Availability caveat for
+  this third point: the handler model omits reject-only checks (`Specs/Reentrancy.lean`, "Reject-only checks are
+  omitted"), so in the Solidity this holds for a caller that passes the omitted permission check
+  (`executionAddress`, `InteropHandlerBase.sol:95-112`) and destination-context check
+  (`_validateBundleDestinationContext`, `:428-451`, e.g. a proof whose `chainId` is the bundle's
+  `sourceChainId`). -/
 def Properties.VerifiedBundleNeverExecutesAtomically : Prop :=
   ¬ Reach .Verified .Unreceived ∧
   (∀ (s : State) (txs : List Tx) (b : Bundle), s.bundle b.hash = .Verified →
@@ -226,7 +235,12 @@ call 0 already `Executed`) meets the premises of `CallStatusDoesNotStopWholeBund
 for `wC`, fails `CallsClosed`, and `executeBundle(wC)` re-delivers call 0 from it. After
 `verifyBundle(wC)` from fresh storage, hash `3` is `Verified` (the premise of
 `VerifiedBundleNeverExecutesAtomically`), and from there `executeBundle(wC)` with no valid
-proof executes `wC` while `executeAtomicBundle(wC)` commits nothing. -/
+proof executes `wC` while `executeAtomicBundle(wC)` commits nothing. The delivery and execution
+facts are about the handler model; the handler model omits reject-only checks (`Specs/Reentrancy.lean`, "Reject-only checks are
+omitted"), so in the Solidity this holds for a caller that passes the omitted permission check
+(`executionAddress`, `InteropHandlerBase.sol:95-112`) and destination-context check
+(`_validateBundleDestinationContext`, `:428-451`, e.g. a proof whose `chainId` is the bundle's
+`sourceChainId`). -/
 def Properties.StatusMachineStrongWitness : Prop :=
   wStaleCalls.bundle wC.hash = .Verified ∧ wStaleCalls.call wC.hash 0 = .Executed ∧
     ¬ CallsClosed wStaleCalls ∧

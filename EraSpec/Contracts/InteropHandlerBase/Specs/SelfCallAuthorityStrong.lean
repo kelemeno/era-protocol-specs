@@ -47,6 +47,10 @@ dispatches on the payload's selector (`:351-358`):
   it self-calls and whether its `_handle*` function checks that entry point's attribute against
   the parsed sender first. The results quantify over every table, so they say what an added
   branch — such as one for `executeAtomicBundle` — would do.
+  A checked branch is assumed to check its OWN target's attribute (`gateAttr br.target`), so
+  "every table" means every table of that shape: a branch that checks the wrong attribute (say
+  `unbundlerAddress` before `this.executeBundle`) is not expressible. The deployed table has
+  that shape (`:378-391`, `:413-425` each check their own target's attribute).
 * **A call reaching a gate is either direct or relayed** (`GateCall`). Direct: `msg.sender` is any
   account other than the handler, on this chain. Relayed: `receiveMessage`, on a delivered call
   of an outer bundle from chain `src` with `from = fromAddr`, took one branch of the table.
