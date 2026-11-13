@@ -45,7 +45,7 @@ namespace AttackVectors.AtomicSourceBinding
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision)
 open Contracts.InteropCenter (Params Dispatch Word bundleHash bundlePreimage KeccakInjOn)
 
-/-- **CHECK (1) BY CALL SITE.** On the atomic site (`L2InteropHandler.sol:58`) the validator is
+/-- **CHECK (1) BY CALL SITE.** On the atomic site (`L2InteropHandler.sol:57`) the validator is
 exactly its destination-chain and base-token checks: its first check compares the bundle's
 `sourceChainId` with itself. On a public site (`:92`, `:154`) it forces the bundle's
 `sourceChainId` to be the proof's chain. And one bundle passes the atomic site and fails a public

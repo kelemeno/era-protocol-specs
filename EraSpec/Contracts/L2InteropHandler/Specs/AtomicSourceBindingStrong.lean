@@ -37,7 +37,7 @@ the flow gate is modelled there. This file models them.
         require(b.destinationBaseTokenAssetId == _expectedDestinationBaseTokenAssetId());
 
     call sites    executeBundle :92, verifyBundle :154    proofChainId = _proof.chainId
-                  executeAtomicBundle L2InteropHandler.sol:58    proofChainId = interopBundle.sourceChainId
+                  executeAtomicBundle L2InteropHandler.sol:57    proofChainId = interopBundle.sourceChainId
 
     requireFlowFinalized(bundleHash, _finality)   (AtomicFlowManager.sol:105-132)
         for each leg i:  proofs[i].sourceChainId == legSourceChainIds[i]               // :124-126
@@ -97,7 +97,7 @@ def DestContextValid (blockChainId baseTokenAssetId : Word) (b : DestCtx) (proof
 inductive CtxSite
   /-- `executeBundle` (`:92`) and `verifyBundle` (`:154`): `proofChainId = _proof.chainId`. -/
   | publicSite (proofChainId : Word)
-  /-- `executeAtomicBundle` (`L2InteropHandler.sol:58`):
+  /-- `executeAtomicBundle` (`L2InteropHandler.sol:57`):
   `proofChainId = interopBundle.sourceChainId`. -/
   | atomicSite
 
