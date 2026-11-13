@@ -67,6 +67,13 @@ At head every one of the three entry points takes a preimage and runs
 `_validateAndComputeFlowId` (`Contracts.FlowCanonicalAtHead`), so the run below logs a
 preimage for every call, `append` included.
 
+## At `draft/v0.35.0` (`d9f6789`)
+
+`append` (`AtomicFlowManager.sol`), `_validateAndComputeFlowId` and
+`IndexedMerkleTree.insert` are the same text as at `3605e82` (`git diff 3605e82 d9f6789`
+has no hunk in them). `requireFlowFinalized` and `authorizeRefund` add one reject-only
+check, `_checkLegSourceAllowed`, which this file does not model.
+
 ## What is modelled
 
 `RunAtHead` interleaves, over every chain at once, the head `append` (manager and tree in one
@@ -99,6 +106,10 @@ beyond what `LegFinalizedBy`/`LegRefundableBy` keep, the imported-root timestamp
 report after insert (`atomic-interop/L2InteropCommitmentTree.sol:50-63`). Also not modelled:
 `claimRefund`'s recovery calls (`AtomicFlowManager.sol:289-322`, item H-2), events, and
 upgrades of either contract (`OPS-CONFIG`). Callers are fixed by the step set.
+
+Because checks are omitted, a result that says a call SUCCEEDS (the witness runs,
+`Properties.CommittedLegRefundableOnTimeout`) is about the modelled checks only; it is not a
+claim that the Solidity call does not revert.
 -/
 
 namespace Contracts.FlowBindingAtHead

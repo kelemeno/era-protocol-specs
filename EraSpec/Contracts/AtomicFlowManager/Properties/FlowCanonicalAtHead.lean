@@ -34,7 +34,8 @@ cap's "rejected identically on the append, finalize and refund paths"
 
 Two flows that pass `_checkFlowId` with one id are the same flow, or `enc` collides on
 their two preimages (`Properties.CheckedFlowsAgreeOrClash`). That is an unfolding, as for
-the pin (`ASSUMPTIONS.md`, "Recorded but without protocol content"). Its use is in the
+the pin (`ASSUMPTIONS.md`, "Recorded but without protocol content"), and so is
+`Properties.DifferentVersionsShareAnIdOnlyByClash`. Its use is in the
 protocol topic `FlowBindingAtHead`, where both preimages come from a run's own log.
 -/
 
@@ -89,7 +90,9 @@ def Properties.NewChecksRejectOnEveryPath : Prop :=
 
 /-- **ONE FUNCTION FOR ALL THREE PATHS.** `append` computes id `f` from preimage `P` iff the
 flow `⟨f, P⟩` passes `_checkFlowId`, which `requireFlowFinalized` and `authorizeRefund`
-run. -/
+run. This holds by unfolding `CheckFlowId`: the model has one validation function because the
+source has one (`AtomicFlowManager.sol:108, :335`). It records that fact; it is not evidence
+beyond the transcription. -/
 def Properties.SharedValidationNoDrift : Prop :=
   ∀ (enc : PreimageHash) (P : FlowPreimage) (f : UInt256),
     validateAndComputeFlowId enc P = some f ↔ CheckFlowId enc ⟨f, P⟩
@@ -138,7 +141,9 @@ def Properties.CheckedFlowsAgreeOrClash : Prop :=
 /-- **TWO VERSIONS SHARE AN ID ONLY BY A COLLISION ON THE TWO PREIMAGES.** The pinned form
 of the NatSpec claim that a preimage of one version can never "hash to the same `flowId`"
 under the rules of another (`IAtomicInterop.sol:86-88`): the version byte is part of the
-hashed preimage, so equal ids for different versions are a `PreimageClash`. -/
+hashed preimage, so equal ids for different versions are a `PreimageClash`. An unfolding:
+different version bytes make the two preimages different. It does not say the collision
+cannot happen. -/
 def Properties.DifferentVersionsShareAnIdOnlyByClash : Prop :=
   ∀ (enc : PreimageHash) (P P' : FlowPreimage), P.version ≠ P'.version →
     enc P = enc P' → PreimageClash enc P P'

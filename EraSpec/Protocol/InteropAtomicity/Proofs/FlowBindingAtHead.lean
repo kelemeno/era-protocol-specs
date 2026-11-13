@@ -866,6 +866,37 @@ theorem PinUnboundLegIsStranded : Properties.PinUnboundLegIsStranded := by
   · intro F ev leg hex hid hb
     exact hunbound F hex.2.1 hid leg hex.1 hb
 
+theorem PinUnboundLegIsStrandedLogged : Properties.PinUnboundLegIsStrandedLogged := by
+  intro h z0 hl cv fh S Ms Ns alog o hrun
+  induction hrun with
+  | refl => exact fun _ hcom => hcom
+  | @append Ns log c f b _ hg ih =>
+    intro hlog hcom
+    by_cases ho : o = ⟨f, b, c⟩
+    · subst ho
+      exact stateOf_setAt_self _ _ _ _ _
+    · rw [stateOf_setAt_other ho]
+      exact ih hlog hcom
+  | @authorize Ns log a _ hv _ ih =>
+    intro hlog hcom
+    have ho : o ≠ ⟨a.flow.flowId, a.leg.bundleHash, a.leg.chain⟩ := by
+      intro ho
+      exact hlog a List.mem_cons_self (by rw [ho]) a.leg hv.2.1 (by rw [ho])
+    rw [stateOf_setAt_other ho]
+    exact ih (fun a' ha' => hlog a' (List.mem_cons_of_mem _ ha')) hcom
+  | @claim Ns log c f b _ hg ih =>
+    intro hlog hcom
+    by_cases ho : o = ⟨f, b, c⟩
+    · subst ho
+      have hrev : stateOf Ns ⟨f, b, c⟩ = .Revertable := hg
+      rw [ih hlog hcom] at hrev
+      cases hrev
+    · rw [stateOf_setAt_other ho]
+      exact ih hlog hcom
+
+theorem AppendRejectsUndeclaredLeg : Properties.AppendRejectsUndeclaredLeg :=
+  fun _ _ _ _ _ _ _ _ _ _ hnd happ => hnd happ.declares
+
 theorem PinUnboundLegRejectedAtHead : Properties.PinUnboundLegRejectedAtHead := by
   intro enc cv l1 env c s b P hint low hunbound happ
   have hacc := happ.accepted
@@ -1210,6 +1241,39 @@ theorem SameKeyOnTwoChainsWitness : Properties.SameKeyOnTwoChainsWitness := by
     by decide, by decide, ⟨by decide, rfl⟩⟩
   · exact mem_appendCalls.mpr (List.mem_cons_of_mem _ List.mem_cons_self)
   · exact mem_appendCalls.mpr List.mem_cons_self
+
+theorem AppendRejectsUndeclaredLegWitness : Properties.AppendRejectsUndeclaredLegWitness := by
+  have hacc : PreimageAccepted (⟨0x01, 0, witnessL1, [1], [0]⟩ : FlowPreimage) :=
+    ⟨rfl, by decide, by decide, rfl⟩
+  have hacc1 : PreimageAccepted keyPreimage1 := ⟨rfl, by decide, by decide, rfl⟩
+  refine ⟨⟨0x01, 0, witnessL1, [1], [0]⟩, keyPreimage1, hacc, by decide, by decide, hacc1,
+    by decide, by decide, by decide, fun _ => 0, fun _ b => b, witnessL1, witnessEnv, genesis,
+    0, 0, ?_⟩
+  exact append_at_genesis hacc1 rfl ⟨0, by decide, rfl⟩ (by show (0 : UInt256) < 5; decide)
+
+/-! ### A committed leg next to a verified timeout of its own flow -/
+
+theorem CommittedLegRefundableOnTimeoutWitness :
+    Properties.CommittedLegRefundableOnTimeoutWitness := by
+  intro h z0 hl
+  have h20 : (2 : Chain) ≠ 0 := by decide
+  have h21 : (2 : Chain) ≠ 1 := by decide
+  have r1 : RunAtHead h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) genesisAll
+      (genesisAll.update 2 ((genesisAll 2).appended (fun _ b => b) (witnessEnc singlePreimage) 3 0))
+      [.append wa2] := by
+    refine RunAtHead.append (hint := 0) (low := 0) wa2 RunAtHead.refl ?_
+    exact append_at_genesis singlePreimage_accepted rfl ⟨0, by decide, rfl⟩
+      (by show (0 : UInt256) < 3; decide)
+  refine ⟨fun _ b => b, witnessEnc, witnessL1, pairSystem 1 2, _, _, wa2, ⟨2, 3⟩, 1,
+    setupAbsence h z0 hl, r1, mem_appendCalls.mpr List.mem_cons_self, ?_,
+    (by show (⟨2, 3⟩ : FlowLeg) ∈ pinLegs singlePreimage; decide), ?_⟩
+  · show ((genesisAll.update 2 ((genesisAll 2).appended (fun _ b => b)
+      (witnessEnc singlePreimage) 3 0)) 2).mgr.legState (witnessEnc singlePreimage) 3 = .Committed
+    rw [update_self, appended_mgr, set_same]
+  · exact setupAbsence_refundable (F := pinFlow (committedFlow witnessEnc wa2.preimage))
+      (leg := ⟨2, 3⟩) (N := 0) (by show (0 : ℕ) < 1; norm_num)
+      (pairSystem_tree_other h20 h21 0) (pairSystem_height_other h20 h21 0)
+      (by show (0 : UInt256) < 3; decide)
 
 /-! ### Once per leg on each chain -/
 

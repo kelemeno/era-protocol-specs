@@ -121,6 +121,12 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
     that commit unchanged.
   - `RegistryBootstrapMigration` `Forward`, citing the OpenZeppelin v4.9 submodules
     that commit pins (`2d081f2`, `dc44c9f`).
+* At era-contracts `main` commit `3605e82` (a moving branch, outside the source pin):
+  - `AtomicFlowManager` `FlowCanonicalAtHead`; `Protocol/InteropAtomicity`
+    `FlowBindingAtHead`. Both sit next to the pin models, which are unchanged, and cite
+    `atomic-interop/AtomicFlowManager.sol`, `atomic-interop/IAtomicInterop.sol`,
+    `common/libraries/IndexedMerkleTree.sol`, `interop/InteropCenter.sol` and
+    `interop/interop-handler/L2InteropHandler.sol` at that commit.
 
 Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
 to the maintainer of this repo, not yet confirmed upstream.

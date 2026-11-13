@@ -4,9 +4,14 @@ import EraSpec.Protocol.InteropAtomicity.Specs.FlowBindingAtHead
 # Properties: the committed leg is bound to a logged preimage, at head (`3605e82`)
 
 Statements about `EraSpec.Protocol.InteropAtomicity.Specs.FlowBindingAtHead`; proofs in
-`EraSpec.Protocol.InteropAtomicity.Proofs.FlowBindingAtHead`. No statement takes a hash
-premise. Every collision a conclusion mentions is a `PreimageClash` or `CommitClash` on two
-named items of the run's own log.
+`EraSpec.Protocol.InteropAtomicity.Proofs.FlowBindingAtHead`. No statement takes an
+injectivity premise. Every collision a conclusion mentions is pinned: a `PreimageClash`
+between two logged preimages, or a `CommitClash` between a logged obligation and a logged
+obligation or a key the statement names. Two statements about the pin
+countermodel (`Properties.PinUnboundLegIsStranded`, `Properties.PinUnboundLegRejectedAtHead`)
+take a premise that ranges over every checked flow with one id; each has a witness and a
+companion whose premise does not mention the hash (`Properties.PinUnboundLegIsStrandedLogged`,
+`Properties.AppendRejectsUndeclaredLeg`).
 
 ## What the pin needed, and what is gone
 
@@ -43,9 +48,12 @@ At the pin a sender could commit a leg under an id that no checked flow listing 
 hashes to (a wrong or stale `flowId`). `Properties.PinUnboundLegIsStranded` shows such a leg
 is stuck in the pin's own model: never refunded, never executed, while its burned funds stay
 burned. `Properties.PinUnboundLegWitness` builds one next to a refunded sibling of the same
-id. At head that instance has no `append` step (`Properties.PinUnboundLegRejectedAtHead`), and
-every committed leg can be marked `Revertable` once a timeout of its own flow is proved
-(`Properties.CommittedLegRefundableOnTimeout`).
+id. `Properties.PinUnboundLegIsStrandedLogged` is the refund half with its premise on the run's
+logged calls instead of on every flow. At head that instance has no `append` step
+(`Properties.PinUnboundLegRejectedAtHead`; stated on the preimage itself, with no hash-shaped
+premise, `Properties.AppendRejectsUndeclaredLeg`), and in the model every committed leg can be
+marked `Revertable` once a timeout of its own flow is verified
+(`Properties.CommittedLegRefundableOnTimeout`, with the caveat in its docstring).
 
 ## Reuse of the pin results
 
@@ -353,10 +361,16 @@ def Properties.RefundedLegWasAuthorizedOnItsChain : Prop :=
 STRANDED.** Over the pin's `Contracts.Refund.ReachLog` (unchanged): suppose obligation `o` is
 `Committed` at the start of a run, and every flow that passes `_checkFlowId` with `o`'s id
 lists no leg with `o`'s bundle hash. Then `o` is still `Committed` at the end of the run, and
-no execution through a checked flow with `o`'s id executes a leg with its bundle hash. So its
-funds, burned at send time, are never released by either path. The pin's `append`
+no execution through a checked flow with `o`'s id executes a leg with its bundle hash. So
+under its own id the leg is released by neither path; an execution of the same bundle hash
+through a flow with another id is not covered. The pin's `append`
 (`c67894b9` `AtomicFlowManager.sol:87-102`) takes any `flowId`, so such a leg is committable
-there (`Properties.PinUnboundLegWitness`). -/
+there (`Properties.PinUnboundLegWitness`).
+
+The premise ranges over every flow, so it is a statement about the flow hash `fh` at one id.
+It holds for the hash of `Properties.PinUnboundLegWitness`; nothing here says it holds for
+keccak. `Properties.PinUnboundLegIsStrandedLogged` proves the refund half from a premise on the
+run's own logged calls only. -/
 def Properties.PinUnboundLegIsStranded : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System)
     (Ms Ns : Managers) (alog : List AuthCall) (o : Obligation),
@@ -368,6 +382,21 @@ def Properties.PinUnboundLegIsStranded : Prop :=
         ∧ ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg),
             ExecutedViaBy h z0 hl cv fh S F ev leg → F.flowId = o.flowId →
               leg.bundleHash ≠ o.bundleHash
+
+/-- **THE REFUND HALF, WITH THE PREMISE ON THE RUN'S OWN LOG.** Over the pin's
+`Contracts.Refund.ReachLog`: suppose obligation `o` is `Committed` at the start of a run, and
+no logged `authorizeRefund` with `o`'s id presented a flow that lists `o`'s bundle hash. Then
+`o` is still `Committed` at the end. The premise is about the finitely many flows the run's
+own refund authorizations presented; it takes nothing about the flow hash.
+`Properties.PinUnboundLegIsStranded`'s first conjunct follows, since every logged flow passed
+`_checkFlowId`. -/
+def Properties.PinUnboundLegIsStrandedLogged : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System)
+    (Ms Ns : Managers) (alog : List AuthCall) (o : Obligation),
+    ReachLog h z0 hl cv fh S Ms Ns alog →
+    (∀ a ∈ alog, a.flow.flowId = o.flowId →
+      ∀ leg ∈ a.flow.legs, leg.bundleHash ≠ o.bundleHash) →
+    stateOf Ms o = .Committed → stateOf Ns o = .Committed
 
 /-- **THE PIN COUNTERMODEL'S PREMISES HOLD, NEXT TO A REFUNDED SIBLING.** For every node hash,
 padding constant and leaf hash: in the pin's `Contracts.Refund.ReachLog`, chain `1` appends
@@ -385,9 +414,34 @@ def Properties.PinUnboundLegWitness : Prop :=
         ∧ (∃ a ∈ alog, a.flow.flowId = o.flowId ∧ a.leg.chain = o.chain)
         ∧ Refunded Ms ⟨o.flowId, 1, o.chain⟩
 
+/-- **A HEAD `append` REJECTS A LEG ITS PREIMAGE DOES NOT DECLARE ON THE CALLING CHAIN.** If
+`P` does not list bundle `b` with source chain `c`, then no head `append` of `b` under `P`
+succeeds on chain `c`, in any state, with any environment, for any hash. This covers both
+reverts: `ManagerCommittedBundleNotInFlow` (`b` is not listed, `AtomicFlowManager.sol:137-139`)
+and `ManagerCommittedLegSourceChainMismatch` (`b` is listed with another chain, `:140-146`).
+No premise mentions a hash. -/
+def Properties.AppendRejectsUndeclaredLeg : Prop :=
+  ∀ (enc : PreimageHash) (cv : CommitValue) (l1 : UInt256) (env : AppendEnv) (c : Chain)
+    (s : ChainState) (b : UInt256) (P : FlowPreimage) (hint low : ℕ),
+    ¬ P.Declares b c → ¬ AppendSucceedsAtHead enc cv l1 env c s b P hint low
+
+/-- **BOTH REJECTIONS OF `AppendRejectsUndeclaredLeg` OCCUR, AND A DECLARED LEG IS ACCEPTED.**
+An accepted preimage that does not list bundle `2` (so it does not declare it on chain `0`);
+an accepted preimage that lists bundle `5` on chain `1`, so does not declare it on chain `0`;
+and under that second preimage a head `append` of `5` on chain `1` succeeds. -/
+def Properties.AppendRejectsUndeclaredLegWitness : Prop :=
+  ∃ (P P' : FlowPreimage),
+    PreimageAccepted P ∧ (2 : UInt256) ∉ P.legBundleHashes ∧ ¬ P.Declares 2 0
+      ∧ PreimageAccepted P' ∧ (5 : UInt256) ∈ P'.legBundleHashes ∧ ¬ P'.Declares 5 0
+      ∧ P'.Declares 5 1
+      ∧ ∃ (enc : PreimageHash) (cv : CommitValue) (l1 : UInt256) (env : AppendEnv)
+          (s : ChainState) (hint low : ℕ), AppendSucceedsAtHead enc cv l1 env 1 s 5 P' hint low
+
 /-- **THE PIN INSTANCE IS REJECTED AT HEAD.** If no flow that passes the pin's check under
 `pinFlowHash enc l1` with id `enc P` lists bundle `b`, then no head `append` of `b` under `P`
-succeeds, on any chain, in any state, with any environment. -/
+succeeds, on any chain, in any state, with any environment. The premise is used at one flow
+only, the pin view of `⟨enc P, P⟩` itself; `Properties.AppendRejectsUndeclaredLeg` is the same
+rejection stated on `P` directly, and implies this one. -/
 def Properties.PinUnboundLegRejectedAtHead : Prop :=
   ∀ (enc : PreimageHash) (cv : CommitValue) (l1 : UInt256) (env : AppendEnv) (c : Chain)
     (s : ChainState) (b : UInt256) (P : FlowPreimage) (hint low : ℕ),
@@ -409,7 +463,14 @@ def Properties.PinUnboundLegRejectedAtHeadWitness : Prop :=
 from genesis, a leg `(f, b)` `Committed` on chain `c` has a logged `append` that committed it.
 For every leg `m` of that flow and every verified timeout of `m`, the run extends by the
 `authorizeRefund` on `c` that presents the committed-under flow, and that step marks `(f, b)`
-`Revertable`. -/
+`Revertable`.
+
+This is enabledness in the model. "Verified timeout" is `LegRefundableBy` against the fixed
+history `S`; the checks of `verifyTimeoutAbsence` the model omits (root authentication, the
+imported-root timestamp, `AtomicInteropProof.sol:89-100`) can still revert the Solidity call.
+What is proved: the manager's own checks (`_checkFlowId`, the settlement layer, the leg
+lookup) never block the refund of a committed leg through the flow it was committed under,
+which is what failed for the pin's unbound leg. -/
 def Properties.CommittedLegRefundableOnTimeout : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtHead),
@@ -421,6 +482,19 @@ def Properties.CommittedLegRefundableOnTimeout : Prop :=
                 RunAtHead h z0 hl cv enc l1 S genesisAll
                   (Y.update c ⟨(Y c).mgr.set f b .Revertable, (Y c).tree⟩)
                   (.authorize ⟨c, committedFlow enc a.preimage, b, m, N, q⟩ :: log)
+
+/-- **`CommittedLegRefundableOnTimeout`'S PREMISES HOLD TOGETHER.** For every node hash,
+padding constant and leaf hash there is a head run from genesis with a logged `append` whose
+leg is still `Committed`, and a leg of its committed-under flow with a verified timeout. -/
+def Properties.CommittedLegRefundableOnTimeoutWitness : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (enc : PreimageHash) (l1 : UInt256) (S : System) (Y : Chains)
+      (log : List CallAtHead) (a : AppendCall) (m : FlowLeg) (N : ℕ) (q : ImtProof),
+      RunAtHead h z0 hl cv enc l1 S genesisAll Y log
+        ∧ a ∈ appendCalls log
+        ∧ (Y a.chain).mgr.legState (enc a.preimage) a.bundleHash = .Committed
+        ∧ m ∈ pinLegs a.preimage
+        ∧ LegRefundableBy h z0 hl cv S (pinFlow (committedFlow enc a.preimage)) m N q
 
 /-! ## Witnesses -/
 

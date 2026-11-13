@@ -13,9 +13,12 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | SourceHeight | [Specs/SourceHeight.lean](Specs/SourceHeight.lean) | [Properties/SourceHeight.lean](Properties/SourceHeight.lean) | [Proofs/SourceHeight.lean](Proofs/SourceHeight.lean) |
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
+| FlowBindingAtHead (`3605e82`) | [Specs/FlowBindingAtHead.lean](Specs/FlowBindingAtHead.lean) | [Properties/FlowBindingAtHead.lean](Properties/FlowBindingAtHead.lean) | [Proofs/FlowBindingAtHead.lean](Proofs/FlowBindingAtHead.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
-`Refund`).
+`Refund`; `FlowBindingAtHead` on both and on `AtomicFlowManager` `FlowCanonicalAtHead`).
+Every topic models the pinned tree except `FlowBindingAtHead`, which models era-contracts
+`main` at `3605e82`.
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -103,6 +106,57 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   Witnesses: `OncePerLegWitness`, `NoSecondAppendWitness`, `SystemWitness`. Obligations on
   different chains may clash harmlessly; that `bundleHash` embeds `block.chainid` is not
   modelled.
+- **FlowBindingAtHead** (namespace `Contracts.FlowBindingAtHead`, source `3605e82`). At
+  the pin `append` took an opaque `flowId`; at `3605e82` it takes the preimage, recomputes
+  the id, and requires the bundle to be a leg declared on `block.chainid`
+  (`AtomicFlowManager.sol:103-172`). `RunAtHead` interleaves every chain's head `append`
+  (manager and tree in one step, with every check in source order), `requireFlowFinalized`,
+  `authorizeRefund`, `claimRefund` and `initL2`, and logs every call that takes a preimage.
+  Unlike the pin's `ReachLog`, `authorizeRefund` marks the leg in the manager of the chain
+  that runs the call, as the code does. No result takes an injectivity premise.
+  - The flow a leg was committed under is now on the log: every leg that is not `Unset`
+    was committed by exactly one logged `append`, whose preimage hashes to its id, passes
+    `_checkFlowId`, and declares the leg on the committing chain
+    (`CommittedLegHasLoggedPreimage`, `UnsetIffNotAppended`, `LoggedCallsPassedTheirChecks`).
+  - The declared source chain is the committing chain, or two logged preimages clash
+    (`DeclaredSourceIsCommittingChainOrLoggedClash`,
+    `SameKeyAppendedOnTwoChainsIsLoggedClash`, `AuthorizeMarksDeclaredLegOrLoggedClash`,
+    `KeyIsDeclaredOnItsChainOrLoggedClash`). `SystemOncePerLegAtHead` is
+    `SystemOncePerLeg` without its "on one chain" premise.
+  - The `FlowBinding` headlines now range over the committed-under flow instead of a flow
+    some later call presented (`ExecutedImpliesCommittedFlowFinalizableOrLoggedClash`, per
+    leg `ExecutedImpliesCommittedLegFinalizableOrLoggedClash`,
+    `LoggedExecutionExcludesLoggedRefundOrBreakAtHead`,
+    `ExecutionFreezesItsFlowOrLoggedBreakAtHead`, `RefundedLegWasAuthorizedOnItsChain`).
+  - Each chain of a head run is a pin `Steps` run (`RunAtHeadProjectsToChainRuns`), so the
+    one-chain `OncePerLeg` results hold at head (`OncePerLegAtHead`). The unbounded low-leaf
+    walk lands where a pin insert lands (`HeadInsertLandsWherePinInsertLands`) but accepts
+    hints the five-hop walk rejects (`HeadWalkAcceptsHintPinRejects`). A checked head flow
+    is a checked pin flow for the induced hash (`HeadCheckIsPinCheck`,
+    `PinClashIsPreimageClash`, `PinLegIffDeclares`).
+  - What the pin allowed and head rejects. In the pin's own model, a leg committed under an
+    id that no refund authorization's flow lists it under stays `Committed`
+    (`PinUnboundLegIsStrandedLogged`; `PinUnboundLegIsStranded` is the form over every
+    checked flow, `PinUnboundLegWitness` builds one next to a refunded sibling). At head
+    `append` rejects a leg its preimage does not declare on the calling chain
+    (`AppendRejectsUndeclaredLeg`, `PinUnboundLegRejectedAtHead`), and in the model a
+    committed leg can always be marked `Revertable` through the flow it was committed
+    under, given a verified timeout of one of its legs (`CommittedLegRefundableOnTimeout`).
+    That last result is enabledness of the modelled checks only: the root-authentication
+    and imported-root checks of `verifyTimeoutAbsence` are omitted.
+  - Witnesses: `FlowBindingAtHeadWitness` (an honest run using every call, no clash, no
+    break, and the headline's same-id premise load-bearing),
+    `SubsetFlowAttackAtHeadLandsInLoggedClash` (only the clash disjunct holds),
+    `SameKeyOnTwoChainsWitness`, `PinUnboundLegRejectedAtHeadWitness`,
+    `AppendRejectsUndeclaredLegWitness`, `CommittedLegRefundableOnTimeoutWitness`.
+  - Not covered: `_recoverBundle`, callers, the proof count, upgrades, events. The gate and
+    timeout evidence is still checked against the fixed history `S`, through the pin's
+    `LegFinalizedBy`/`LegRefundableBy`, not against the live trees. At `draft/v0.35.0`
+    (`d9f6789`) `append`, `_validateAndComputeFlowId` and `IndexedMerkleTree.insert` are
+    the same text; `requireFlowFinalized` and `authorizeRefund` add a reject-only
+    `_checkLegSourceAllowed`, which is not modelled here. The safety results are unaffected
+    by a reject-only check; `CommittedLegRefundableOnTimeout` does not carry over without
+    it.
 
 The tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

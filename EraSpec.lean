@@ -39,6 +39,7 @@ import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonical
+import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonicalAtHead
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 
 -- AtomicInteropProof: finalization, timeout, source binding, and proof snapshots
@@ -160,6 +161,7 @@ import EraSpec.Examples.BurnMintBridge.Proofs.EndBranch
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
+import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBindingAtHead
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
 
 -- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
