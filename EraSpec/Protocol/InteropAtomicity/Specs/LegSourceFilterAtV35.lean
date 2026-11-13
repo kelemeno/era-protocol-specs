@@ -56,6 +56,11 @@ and marks the bundle `Verified` (`interop/interop-handler/L2InteropHandler.sol:8
 when the gate runs: not at send time, and not when a bundle verified earlier is executed
 (`protocol-docs/interop-gating.md:189-192`).
 
+Upstream documents the liveness cost as a known limitation, "K1: stuck flows"
+(`protocol-docs/interop-gating.md:250-260`, also `:155-158` and `:172-174`): a flow is stuck when
+a chain's filter refuses one of its legs' sources, and whoever removes a pair answers for the
+pair's unfinalized flows.  The stranding results here make K1 exact; they are not a new finding.
+
 ## What is modelled
 
 * `Peers`: every chain's `isPeerAllowed` mapping.  `SourceAllowed P c s` is the filter run on
@@ -73,6 +78,16 @@ when the gate runs: not at send time, and not when a bundle verified earlier is 
 
 ## What is not modelled
 
+* The rest of the v35 diff.  The tree, the inclusion and timeout checks and the manager's state
+  machine are the pin's models (`c67894b9`), with the filter added: this file isolates the
+  filter.  At v35 the tree pads with `IMT_EMPTY_LEAF_HASH` instead of `hashLeaf({0,0,0})`
+  (`common/libraries/IndexedMerkleTree.sol:44-52`, from `78e14b3bc`), the leg lists sit in
+  `flow.preimage`, `_missingLegIndex` is bounds-checked (`AtomicFlowManager.sol:224-226`), and
+  `AtomicInteropProof` reads the settlement-layer reference through a different helper.  The
+  results quantify over the node hash, the padding constant `z0` and the leaf hash, so they
+  cover v35's padding.  The two that fix a hash say so: the toy leaf hash in
+  `Properties.ForgedSiblingExecutionNeedsAllowedForgerAtV35`, and the PIN's padding constant in
+  `Properties.ForeignForgedRefundNeedsAllowedForgerAtV35`, whose forgery v35's padding removes.
 * Who may send the admin steps (L1's `ChainRegistrationSender` checks, `InteropNotEnabled`,
   `InvalidInteropPeer`, `InteropPeerAlreadyAllowed`), the L1 mapping `interopPeerAllowed`, the
   service-transaction delay, and service transactions that fail on L2.  `allowPeer` and
@@ -87,7 +102,11 @@ when the gate runs: not at send time, and not when a bundle verified earlier is 
   either handler entry point.  That a verified bundle later executes without a second gate is
   why a gate step stands for "this leg may execute from now on".
 * As in `Contracts.FlowBinding`: pause, the settlement-layer check, the replay guard, deadlines
-  of the handler, events.  The tree side is the fixed history `S`.
+  of the handler, events.  The tree side is the fixed history `S`, the same for every chain that
+  checks a proof: which settlement-layer roots a chain has imported is not modelled.  One
+  `authorizeRefund` call marks every leg of the flow that is `Committed` in the manager it runs
+  on (`AtomicFlowManager.sol:236-246`); a step here marks one, so a call is a sequence of steps
+  under one allow-list.
 -/
 
 namespace Contracts.LegSourceFilterAtV35

@@ -91,6 +91,9 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
 import EraSpec.Protocol.InteropAtomicity.Proofs.Timeout
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
 import EraSpec.Protocol.InteropAtomicity.Proofs.SourceHeight
+-- The receive filter `_checkLegSourceAllowed` of era-contracts draft/v0.35.0 (d9f678900), on
+-- the pin's interop model
+import EraSpec.Protocol.InteropAtomicity.Proofs.LegSourceFilterAtV35
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Model
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
 

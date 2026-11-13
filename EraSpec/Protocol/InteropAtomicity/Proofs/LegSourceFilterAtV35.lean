@@ -1171,6 +1171,10 @@ theorem system_witness (h : Hash) (z0 : UInt256) (hl : LeafHash) :
     SysStepsAtV35.deregisterPeer (Y := ⟨Y, allPeersAllowed⟩) 0 1 (sysSteps_sysStepsAtV35 hrun),
     rfl, hlog, halog, hnb, hnr⟩
 
+theorem safeM3_guard : AuthorizeGuard (safeM3 2) 0 3 := by
+  show stateOf safeM3 ⟨0, 3, 2⟩ = .Committed
+  rw [safeM3]; exact stateOf_setAt_self _ _ _ _ _
+
 theorem reallow_witness (h : Hash) (z0 : UInt256) (hl : LeafHash) :
     (∃ ev : GateEvidence,
       ExecutedViaByAtV35 h z0 hl (fun _ b => b) lengthFlowHash swapSystem
@@ -1178,15 +1182,34 @@ theorem reallow_witness (h : Hash) (z0 : UInt256) (hl : LeafHash) :
       ∧ (∀ s, (allPeersAllowed.deregister 0 1) (swapDest 1) s = true
           → allPeersAllowed (swapDest 1) s = true)
       ∧ allPeersAllowed 0 1 = true
-      ∧ ∃ (X Y : WorldAtV35) (log : List CallAtV35),
-          RunAtV35 h z0 hl (fun _ b => b) lengthFlowHash swapSystem swapDest X Y log
-            ∧ X.peers 0 1 = false ∧ log ≠ [] ∧ CallAtV35.allowPeer 0 1 ∉ log := by
+      ∧ ∃ (X Y : WorldAtV35) (log : List CallAtV35) (e : ExecCall) (a : AuthCall),
+          RunAtV35 h z0 hl (fun _ b => b) lengthFlowHash swapSystem (fun _ => 2) X Y log
+            ∧ X.peers 2 3 = false ∧ CallAtV35.allowPeer 2 3 ∉ log
+            ∧ log = [.deregisterPeer 0 1, .gate e X.peers, .authorize a X.peers]
+            ∧ e.flow = mixedFlow 1 1 2 ∧ e.leg = ⟨0, 1⟩
+            ∧ a.leg = ⟨2, 3⟩ ∧ a.missing = ⟨2, 3⟩ := by
+  -- the segment on chain `2`, which does not allow chain `3`
+  have r1 : RunAtV35 h z0 hl (fun _ b => b) lengthFlowHash swapSystem (fun _ => 2)
+      ⟨safeM3, allPeersAllowed.deregister 2 3⟩ ⟨safeM4, allPeersAllowed.deregister 2 3⟩
+      [.authorize (strandedAuth h z0 hl) (allPeersAllowed.deregister 2 3)] :=
+    RunAtV35.authorize (Y := ⟨safeM3, allPeersAllowed.deregister 2 3⟩) (strandedAuth h z0 hl)
+      RunAtV35.refl ⟨strandedAuth_verified h z0 hl, Or.inl rfl⟩ safeM3_guard
+  have hgate : GateCallPassesAtV35 h z0 hl (fun _ b => b) lengthFlowHash swapSystem (fun _ => 2)
+      (allPeersAllowed.deregister 2 3) (pairExec h z0 hl ⟨0, 1⟩) := by
+    refine executedViaByAtV35_iff.2 ⟨pairExec_verified h z0 hl swap_legA_mem, fun l hl' => ?_⟩
+    show SourceAllowed (allPeersAllowed.deregister 2 3) 2 l.chain
+    rcases List.mem_cons.mp hl' with rfl | hl'
+    · exact Or.inr (by rw [deregister_other _ (by decide)]; rfl)
+    · obtain rfl := List.mem_singleton.mp hl'
+      exact Or.inr (by rw [deregister_other _ (by decide)]; rfl)
+  have r2 := RunAtV35.gate (Y := ⟨safeM4, allPeersAllowed.deregister 2 3⟩)
+    (pairExec h z0 hl ⟨0, 1⟩) r1 hgate
+  have r3 := RunAtV35.deregisterPeer (Y := ⟨safeM4, allPeersAllowed.deregister 2 3⟩) 0 1 r2
   refine ⟨⟨pairEvidence h z0 hl, executedViaByAtV35_iff.2
       ⟨pairExec_verified h z0 hl swap_legA_mem, fun l hl' => ?_⟩⟩,
     fun _ _ => rfl, rfl,
-    ⟨swapM2, allPeersAllowed.deregister 0 1⟩, _, _,
-    RunAtV35.deregisterPeer (Y := ⟨swapM2, allPeersAllowed.deregister 0 1⟩) 0 2 RunAtV35.refl,
-    deregister_self allPeersAllowed 0 1, List.cons_ne_nil _ _, by simp⟩
+    ⟨safeM3, allPeersAllowed.deregister 2 3⟩, _, _, pairExec h z0 hl ⟨0, 1⟩, strandedAuth h z0 hl,
+    r3, deregister_self allPeersAllowed 2 3, by simp, rfl, rfl, rfl, rfl, rfl⟩
   rw [swapDest_one]
   rcases List.mem_cons.mp hl' with rfl | hl'
   · exact Or.inr (by rw [deregister_other _ (by decide)]; rfl)

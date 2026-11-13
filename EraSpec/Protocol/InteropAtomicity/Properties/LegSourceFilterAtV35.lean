@@ -31,7 +31,9 @@ allows the forging chain (`Properties.ForeignForgedRefundNeedsAllowedForgerAtV35
 
 `Properties.SwapStrandedByDeregistrationAtV35` and
 `Properties.IncompleteSwapRefundStrandedByDeregistrationAtV35` refute "a committed leg is always
-finalizable or refundable" with one deregistration after commit:
+finalizable or refundable" with one deregistration after commit.  Upstream does not claim it:
+this is its documented limitation "K1: stuck flows" (`protocol-docs/interop-gating.md:250-260`).
+The two cases are K1's two cases:
 
 * **complete flow** (both legs of a swap committed in time): the destination of one leg
   deregisters the other leg's source.  That leg can execute on no evidence, while its sibling has
@@ -57,6 +59,18 @@ Deregistering and re-allowing a peer restores the allow-lists exactly
 (`ReallowRestoresGateAtV35`, `ReallowRestoresRefundAtV35`).  Evidence is a fixed history, and a
 stranded leg's manager entry stays `Committed`.  Conversely, until the pair is re-allowed, no
 call on that chain accepts evidence from that source (`BlockedUntilReallowedAtV35`).
+
+Re-allowing is a step of the model, enabled at every moment.  On the contracts it is the chain
+admin's `ChainRegistrationSender.allowInteropPeer` and a service transaction, which the model
+does not check (`Specs`, "What is not modelled"); so "one step restores progress" is a statement
+about the allow-list, not about who can or will take the step.
+
+## Witnesses
+
+`SafetyAtV35Witness`, `SystemAtV35Witness`, `StrandedIffAtV35Witness` and `ReallowAtV35Witness`
+show the premises of the results above hold together on runs that contain a deregistration.
+No result here takes a hash premise; every break in a conclusion is located on a proof that a
+named call or a quantified piece of evidence submitted.
 -/
 
 namespace Contracts.LegSourceFilterAtV35
@@ -265,7 +279,9 @@ committed in batch 0, so the flow is complete), with full data availability:
 * at the end both legs are still `Committed`.  Leg `⟨1, 2⟩` passes the gate on its destination
   `swapDest 2` (chain `0`) on NO evidence, with no hash premise.  No leg of the flow passes the
   timeout check on any chain under any allow-lists, unless the absence proof carries a located
-  break.  Leg `⟨1, 2⟩`'s funds are burned on chain `1` and neither delivered nor refundable;
+  break.  So leg `⟨1, 2⟩` stays `Committed` on chain `1` with no way forward or back while
+  chain `0` keeps chain `1` out.  (Funds are not part of this model; with a burn-and-mint bridge
+  on top, its burn is neither delivered nor refundable.);
 * one `allowPeer 0 1` step lets leg `⟨1, 2⟩` through the gate on chain `0`. -/
 def Properties.SwapStrandedByDeregistrationAtV35 : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
@@ -458,7 +474,8 @@ For every node hash and padding constant, with the toy leaf hash: the evidence `
 `mixedFlow 0 1 2` through the pin's gate.  Its proof for leg `⟨0, 1⟩` is honest and its proof for
 the never-committed leg `⟨1, 2⟩` is forged.  At v35 it passes on chain `d` under allow-lists `P`
 iff `d` allows chains `0` and `1`, so a destination that does not allow chain `1`, the chain whose
-tree the forgery is about, rejects it. -/
+tree the forgery is about, rejects it.  The forgery exists because `toyLeafHash` collides; it
+stands in for a broken prover on chain `1`. -/
 def Properties.ForgedSiblingExecutionNeedsAllowedForgerAtV35 : Prop :=
   ∀ (h : Hash) (z0 : UInt256), ∃ ev : GateEvidence,
     ExecutedViaBy h z0 toyLeafHash (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
@@ -486,8 +503,13 @@ the flow `foreignFlow a y` (legs `⟨0, a⟩` and `⟨1, y⟩`):
   `0`.
 
 So the refund filter is what keeps chain `1` from paying on chain `0`'s word when it does not
-allow chain `0` (`protocol-docs/interop-gating.md:194-197`).  The padding forgery itself is
-removed at `main` by the domain-separated padding (`78e14b3bc`). -/
+allow chain `0` (`protocol-docs/interop-gating.md:194-197`).
+
+This is the PIN's tree under v35's filter, not a forgery that exists at v35: `78e14b3bc`, which
+`draft/v0.35.0` contains, pads with `IMT_EMPTY_LEAF_HASH`
+(`common/libraries/IndexedMerkleTree.sol:44-52`), so `z0 = hashLeaf({0,0,0})` is not v35's
+constant.  The padding proof stands in for any forged absence proof about chain `0`; for an
+arbitrary hash and padding the statement is `LoggedGateExcludesLoggedRefundOrAllowedBreakAtV35`. -/
 def Properties.ForeignForgedRefundNeedsAllowedForgerAtV35 : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (a b y : UInt256), 0 < a → a < b → 0 < y →
     Wf (foreignPaddedSystem a b y)
@@ -557,13 +579,22 @@ def Properties.SystemAtV35Witness : Prop :=
         ∧ ¬ RefundBreak h z0 hl fh S F ev (obligationOf F leg) alog
         ∧ ¬ Refunded Y.chains.mgrs (obligationOf F leg)
 
-/-- **THE RE-ALLOW AND MONOTONICITY RESULTS HAVE SATISFIABLE PREMISES.**  For every node hash,
-padding constant and leaf hash, on the complete swap: chain `1`'s gate call for leg `⟨0, 1⟩` passes
-under `allPeersAllowed.deregister 0 1`, whose entries are all also entries of `allPeersAllowed`;
-`allPeersAllowed` allows `1` on `0`; and from the state the deregistration leaves, the run that
-deregisters chain `2` on chain `0` is a segment of the kind `BlockedUntilReallowedAtV35` takes, its
-log nonempty and without `allowPeer 0 1`.  The premises of `ReallowRestoresGateAtV35` and
-`ReallowRestoresRefundAtV35` are met by the runs of the two countermodels. -/
+/-- **THE RE-ALLOW, MONOTONICITY AND BLOCKING RESULTS HAVE SATISFIABLE PREMISES.**  For every node
+hash, padding constant and leaf hash, on the complete swap:
+
+* chain `1`'s gate call for leg `⟨0, 1⟩` passes under `allPeersAllowed.deregister 0 1`, whose
+  entries are all also entries of `allPeersAllowed` (the premises of `GateMonotoneInPeersAtV35`);
+  and `allPeersAllowed` allows `1` on `0`, as `DeregisterThenAllowIsIdentity` asks;
+* there is a run segment of the kind `BlockedUntilReallowedAtV35` takes, for `c = 2` and
+  `s = 3`, on which its two call-level conclusions say something: every bundle's destination
+  is chain `2`, chain `2` does not allow chain `3` at the start, and the segment is an
+  `authorizeRefund` call on chain `2` (the one-leg flow `strandedFlow`, whose leg `⟨2, 3⟩` is
+  its own missing leg), then the gate call for swap leg `⟨0, 1⟩` on chain `2`, then an
+  unrelated deregistration.  Both calls are logged under the starting allow-lists, and no
+  `allowPeer 2 3` is in the log.
+
+The premises of `ReallowRestoresGateAtV35` and `ReallowRestoresRefundAtV35` are met by the runs
+of the two countermodels, which apply them. -/
 def Properties.ReallowAtV35Witness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     (∃ ev : GateEvidence,
@@ -572,8 +603,11 @@ def Properties.ReallowAtV35Witness : Prop :=
       ∧ (∀ s, (allPeersAllowed.deregister 0 1) (swapDest 1) s = true
           → allPeersAllowed (swapDest 1) s = true)
       ∧ allPeersAllowed 0 1 = true
-      ∧ ∃ (X Y : WorldAtV35) (log : List CallAtV35),
-          RunAtV35 h z0 hl (fun _ b => b) lengthFlowHash swapSystem swapDest X Y log
-            ∧ X.peers 0 1 = false ∧ log ≠ [] ∧ CallAtV35.allowPeer 0 1 ∉ log
+      ∧ ∃ (X Y : WorldAtV35) (log : List CallAtV35) (e : ExecCall) (a : AuthCall),
+          RunAtV35 h z0 hl (fun _ b => b) lengthFlowHash swapSystem (fun _ => 2) X Y log
+            ∧ X.peers 2 3 = false ∧ CallAtV35.allowPeer 2 3 ∉ log
+            ∧ log = [.deregisterPeer 0 1, .gate e X.peers, .authorize a X.peers]
+            ∧ e.flow = mixedFlow 1 1 2 ∧ e.leg = ⟨0, 1⟩
+            ∧ a.leg = ⟨2, 3⟩ ∧ a.missing = ⟨2, 3⟩
 
 end Contracts.LegSourceFilterAtV35
