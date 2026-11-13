@@ -105,11 +105,13 @@ permutation of a successful call succeeds.
 
 - `RowsStrong` (`612a71ccc`): `RowStepIffEnabled`: one loop iteration succeeds exactly when
   the row is `RowEnabled` (left to a foreign administrator, already at its target, or owned
-  and at its source). `ApplyRowsEnabledIff`: on rows naming distinct proxies, `applyRows`
+  and at its source). `ApplyRowsEnabledIff`: on rows naming distinct proxies, and with
+  reinitializers inert as the `612a71ccc` model assumes (the Solidity also calls
+  `upgradeAndCall(initializeUpgrade)`, `ProxyUpgradeRowLib.sol:137-139`), `applyRows`
   succeeds iff every row is enabled in the starting state. `ApplyRowsPassesGateWhenEnabled`
   is the liveness companion of `ApplyRowsPostcondition` and `AppliedGatePasses`.
-  `OrderIndependentExecutability`: on distinct proxies a permutation of a successful run is a
-  successful run to the same state. `RowsStrongWitness`: two owned rows on distinct proxies
+  `OrderIndependentExecutability`: on distinct proxies, with reinitializers inert as above, a
+  permutation of a successful run is a successful run to the same state. `RowsStrongWitness`: two owned rows on distinct proxies
   apply in both orders; a stale row makes the call revert.
 - `RowsOrder` (`e561b9cc2`): validation and `ReinitFrames` do not make executability
   order-independent (`ReinitReadBreaksOrder`, a reinitializer that reads another proxy);
