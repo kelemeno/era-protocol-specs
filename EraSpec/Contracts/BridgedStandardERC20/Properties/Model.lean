@@ -3,7 +3,8 @@ import EraSpec.Contracts.BridgedStandardERC20.Specs.Model
 -- Preconditions are retained as statement parameters for the full-proof audit.
 set_option linter.unusedVariables false
 
-/-! Reviewable ledger and authority statements for the initialized-vault slice. -/
+/-! Reviewable ledger and authority statements for the initialized-vault slice. The exact effect
+and success condition of `transfer` are in `Properties/ModelStrong.lean`. -/
 
 namespace Contracts.BridgedStandardERC20
 
@@ -42,7 +43,10 @@ abbrev Properties.mint_preserves_ledger {s t : State} {caller recipient : Addres
     {amount : UInt256} (hw : WellFormed s)
     (h : mint s caller recipient amount = some t) := WellFormed t
 
-/-- Ordinary spending preserves total supply and all ledger bounds. -/
+/-- Ordinary spending preserves total supply and all ledger bounds. This does not say which
+balances move: a transfer that moved nothing, or credited another account, would satisfy it too.
+The exact effect is `Properties.transfer_exact` and `Properties.transfer_balances_exact`, and when a
+transfer succeeds is `Properties.transfer_succeeds_iff` (`Properties/ModelStrong.lean`). -/
 abbrev Properties.transfer_preserves_ledger {s t : State} {owner recipient : Address}
     {amount : UInt256} (hw : WellFormed s)
     (h : transfer s owner recipient amount = some t) :=
