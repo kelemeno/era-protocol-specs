@@ -48,6 +48,29 @@ namespace Contracts.InteropHandlerAtHead
 open AttackVectors.BundleStatusMachine (Status CallStatus Reach CallReach)
 open Contracts.InteropHandler (BundleHash Bundle State Effect Spent CallsClosed init wA wB)
 
+/-! ## The head handler runs the pinned public route -/
+
+/-- **AT HEAD, THE L2 HANDLER RUNS THE PINNED PUBLIC ROUTE, WITH THE FLOW GATE AS ITS ORACLE.** For
+every frame, budget and state, the head model and the pinned model in its deployed order
+(`Contracts.InteropHandler.exec .deployed`) agree once the head frame is read through `toPinned`
+(`executeAtomicBundle` as the pinned `executeBundle`, `verifyAtomicBundle` as the pinned
+`verifyBundle`, the verdict bit unchanged): both revert, or both commit the same state and the same
+deliveries and `BundleExecuted` events. So do whole sequences of transactions. The head log's
+flow-gate events have no pinned counterpart and are dropped by `effects`.
+
+This is a statement about the two models, not about the two sources' proofs: at the pin the oracle of
+that route was an L1 inclusion proof, which an atomic bundle never has; at head it is
+`requireFlowFinalized`. -/
+def Properties.HeadHandlerRunsThePinnedPublicRoute : Prop :=
+  (∀ (n : ℕ) (f : Frame) (s : State),
+    (exec n f s).map (fun r => (r.1, effects r.2)) =
+      Contracts.InteropHandler.exec .deployed n f.toPinned s) ∧
+  ∀ (s : State) (txs : List Tx),
+    (submitAll s txs).1 =
+        (Contracts.InteropHandler.submitAll .deployed s (txs.map Tx.toPinned)).1 ∧
+      effects (submitAll s txs).2 =
+        (Contracts.InteropHandler.submitAll .deployed s (txs.map Tx.toPinned)).2
+
 /-! ## Nothing runs twice -/
 
 /-- **NO EFFECT IS COMMITTED TWICE, AT HEAD.** For every state and every sequence of transactions,

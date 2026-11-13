@@ -246,6 +246,47 @@ def submitAll : State → List Tx → State × List Event
   | s, t :: ts =>
       ((submitAll (submit s t).1 ts).1, (submit s t).2 ++ (submitAll (submit s t).1 ts).2)
 
+/-! ## The same run in the pinned model
+
+The pinned model (`Specs/Reentrancy.lean`, deployed order) already has an entry point that admits
+`Unreceived` and `Verified` and one that only verifies: its **public** route, `executeBundle` and
+`verifyBundle`, whose oracle is the L1 inclusion proof. The maps below read a head run as a pinned
+run: `executeAtomicBundle` as the pinned `executeBundle`, `verifyAtomicBundle` as the pinned
+`verifyBundle`, `unbundleBundle` as itself, each verdict bit unchanged. They do **not** use the
+pinned `executeAtomicBundle`, which refuses a `Verified` bundle. -/
+
+/-- The pinned entry point a head entry point behaves as. -/
+def Entry.toPinned : Entry → Contracts.InteropHandler.Entry
+  | .executeAtomicBundle b gateOk => .executeBundle b gateOk
+  | .verifyAtomicBundle b gateOk => .verifyBundle b gateOk
+  | .unbundleBundle b req => .unbundleBundle b req
+
+mutual
+
+/-- The same target behaviour in the pinned model. -/
+def Callee.toPinned : Callee → Contracts.InteropHandler.Callee
+  | .returns => .returns
+  | .reverts => .reverts
+  | .calls e inner caught next =>
+      .calls e.toPinned (Callee.listToPinned inner) caught next.toPinned
+
+/-- `Callee.toPinned` on each target of a list, in order. -/
+def Callee.listToPinned : List Callee → List Contracts.InteropHandler.Callee
+  | [] => []
+  | c :: cs => c.toPinned :: Callee.listToPinned cs
+
+end
+
+/-- The same frame in the pinned model. -/
+def Frame.toPinned : Frame → Contracts.InteropHandler.Frame
+  | .entry e cs => .entry e.toPinned (Callee.listToPinned cs)
+  | .calls h is cs => .calls h is (Callee.listToPinned cs)
+  | .target c => .target c.toPinned
+
+/-- The same transaction in the pinned model. -/
+def Tx.toPinned (t : Tx) : Contracts.InteropHandler.Tx :=
+  ⟨t.fuel, t.entry.toPinned, Callee.listToPinned t.callees⟩
+
 /-! ## Witness data
 
 The pinned witness bundles: `wA` (hash `1`, two calls) and `wB` (hash `2`, one call). -/
