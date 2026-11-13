@@ -97,7 +97,10 @@ code. A beacon `upgradeTo` replaces the code itself and is outside the model.
   `transferFrom`'s ledger effect).
 * **Outside the model:** the legacy `onlyNTV` fallback for a zero vault (:54-61, item B7),
   which writes `nativeTokenVault` and `assetId`; a beacon `upgradeTo`, which swaps the code of
-  every bridged token at once (`OPS-CONFIG`); permit signatures and allowances; events.
+  every bridged token at once (`OPS-CONFIG`); permit signatures and allowances; events. Because
+  of the first, `StorageStep` has no bridge call on a zero vault where the deployed token has one,
+  and results about `StorageReach` from such a state do not carry over to the deployed token.
+  `Specs/ReinitializationStrong.lean` adds the fallback (`DeployedStorageStep`).
 -/
 
 namespace Contracts.BridgedStandardERC20

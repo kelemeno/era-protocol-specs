@@ -31,12 +31,16 @@ and each extracts its own located collision:
   (`levelUp_inj`, `levels_inj`).  `LevelCollision h z L₁ L₂`: under some parent `m`, the
   two levels' child pairs differ and hash equal.
 
-and one domain case that is not a collision at all:
+and one domain case that needs no collision:
 
 * `PaddingHit z0 L₁ L₂` — two lists of DIFFERENT lengths, the longer holding the padding
-  constant as a real leaf at the shorter one's frontier.  This is what the equal-length
-  premise of `rootOf_inj_of_h_inj` was excluding (`TreeShape.padding_ambiguity_forges_root`)
-  and what `FullMerkle.setup`'s NatSpec warns about.
+  constant as a real leaf at the shorter one's frontier.  The padding ambiguity the
+  equal-length premise of `rootOf_inj_of_h_inj` was excluding is a padding hit with no
+  collision (`PaddingHitFires`), and it is what `FullMerkle.setup`'s NatSpec warns about.
+  The predicate reads only the two lengths and that one entry, so it can ALSO hold for two
+  lists that differ at an index both occupy, alongside a real collision there (`[1]` and
+  `[2, 0]` under `constHash`).  `RootForgeryPinnedStrong` (`MerkleSpec.PinnedStrong`) restricts
+  the padding case to lists that agree at every padded entry.
 
 Every colliding pair named here is read from the instance (the two leaf lists, or the two
 walks' leaves, siblings and index) at a level or step bounded by the height, so none of
@@ -130,7 +134,10 @@ def TreeCollision (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256) (height i
 
 /-- **The padding constant held as a real leaf, at the shorter list's frontier.**  One
 list is longer, and its entry at the other's length — a position the shorter tree pads
-with `z0` (`FullMerkle.sol:84`, `_zeros[0]`) — IS `z0`.  Determined by `(z0, L₁, L₂)`. -/
+with `z0` (`FullMerkle.sol:84`, `_zeros[0]`) — IS `z0`.  Determined by `(z0, L₁, L₂)`.
+It says nothing about the other entries: the two lists may differ below the shorter length.
+Agreement at every padded entry is equivalent to `MerkleSpec.PinnedStrong.PaddingExtension`
+(`RootForgeryPinnedStrong`, `PaddedAgreementIffExtension`). -/
 def PaddingHit (z0 : UInt256) (L₁ L₂ : List UInt256) : Prop :=
   (L₁.length < L₂.length ∧ L₂.getD L₁.length z0 = z0)
     ∨ (L₂.length < L₁.length ∧ L₁.getD L₂.length z0 = z0)

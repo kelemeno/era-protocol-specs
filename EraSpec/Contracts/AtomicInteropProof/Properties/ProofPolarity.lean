@@ -33,6 +33,12 @@ set_option linter.unusedVariables false
 
   The pleasing part, and the reason it is worth writing down: the SAME assumption that makes inclusion
   self-binding is exactly what makes absence chain-blind.  One hypothesis, opposite consequences.
+
+  Scope note.  The named statements below are the SET-LEVEL consequences of `HonestInsertion`
+  (`v ∈ tree c`, `v ∉ tree c`).  Each is a one-step use of a premise, and none mentions a gate.  The
+  asymmetry stated against the gates is in `ProofPolarityStrong`: the finality and refund gates with
+  and without the comparison.  That module adds non-vacuity witnesses and lifts the statements to
+  commitment-tree states (`liveKeys`, `Contracts.Protocol.BoundGate` / `UnboundGate`).
 -/
 
 namespace AttackVectors.ProofPolarity
@@ -75,25 +81,52 @@ The reversal is immediate, and it is the same hypothesis being used.  Under hone
 value is missing from every foreign tree — so an absence witness is available at every wrong chain, for
 free, no matter what the leg actually did. -/
 
-/-- **ABSENCE IS CHAIN-BLIND.**  The very assumption that made inclusion self-binding hands an absence
-witness to every wrong chain.  So on the refund path the explicit check is the ONLY thing tying the
-proof to the leg's chain. -/
+/-- **ABSENCE AT A WRONG CHAIN (set form).**  The assumption that makes inclusion self-binding also
+means that, under honest insertion, a leg's value is absent from every chain other than its own.  So an
+absence witness is available there.
+
+As a proposition this is IDENTICAL to `inclusion_wrong_chain_impossible`: both are the contrapositive of
+`HonestInsertion` at `(c, v)`.  On its own it therefore does not express the asymmetry between the two
+paths, and it says nothing about the refund gate.  The gate-level statements are in
+`Properties/ProofPolarityStrong.lean`:
+* `unchecked_absence_gate_accepts_every_leg`: once two chains exist, the refund gate without the
+  comparison accepts EVERY leg.
+* `unchecked_absence_gate_iff`: that gate's exact acceptance set.
+* `checked_absence_gate_iff_absent`: the deployed gate opens exactly on legs absent from their declared
+  chain. -/
 abbrev Properties.absence_at_every_wrong_chain (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hne : srcOf v ≠ c) :=
   v ∉ tree c
 
 
-/-- **THE ATTACK THE CHECK BLOCKS.**  A leg that is committed and finalized on its own chain — the
-strongest possible evidence that it must NOT be refunded — still admits an absence witness at every
-other chain.  Without the equality check, `authorizeRefund` would accept one, marking a live leg
-`Revertable`: the double-mint the source comment names. -/
+/-- **THE ATTACK THE CHECK BLOCKS (set form).**  A leg committed on its own chain still has its value
+absent from every other chain's tree.  That is the double-mint the source comment names: without the
+equality check, `authorizeRefund` would accept an absence proof from such a chain and mark a live leg
+`Revertable`.
+
+As stated, though, the first conjunct is the premise `hlive` returned unchanged.  The second is
+`absence_at_every_wrong_chain`, which does not use `hlive`.  No refund gate appears, and nothing here
+shows that the premises (honest insertion, a live leg, a second chain) can hold together.
+* Against a modelled gate, the attack is `finalized_leg_passes_unchecked_absence_gate` in
+  `Properties/ProofPolarityStrong.lean`.  It gives an honest model in which a finalized leg passes the
+  refund gate without the comparison and fails the deployed one.
+* On commitment-tree states, it is `chains_honest_double_mint_witness` there, and
+  `Contracts.Protocol.chains_unbound_gate_refunds_delivered_leg`. -/
 abbrev Properties.finalized_leg_still_absent_elsewhere (h : HonestInsertion srcOf tree)
     {v : Value} {c : Chain} (hlive : v ∈ tree (srcOf v)) (hne : srcOf v ≠ c) :=
   v ∈ tree (srcOf v) ∧ v ∉ tree c
 
 
-/-- **THE CHECK RESTORES SOUNDNESS.**  With the proof's chain pinned to the leg's declared chain, a
-committed leg leaves no absence witness — the refund gate cannot pass. -/
+/-- **PINNING THE CHAIN (set form).**  With the proof's chain pinned to the leg's own chain, a committed
+leg's value is in that chain's tree.
+
+As stated, this is `hlive` rewritten along `hpinned`.  It mentions no refund gate and no absence
+predicate, so it does not by itself say that the refund gate cannot pass.  That statement is elsewhere:
+* `checked_absence_gate_rejects_live_leg` in `Properties/ProofPolarityStrong.lean`: the deployed refund
+  gate rejects a live leg whatever chain the prover names.  `checked_absence_gate_iff_absent` there is
+  the exact form.
+* On commitment-tree states, `Contracts.Protocol.bound_gate_excludes_delivered`, with
+  `chains_bound_gate_iff_checked_absence_gate` identifying the two gates. -/
 abbrev Properties.refund_blocked_when_chain_pinned {v : Value} {c : Chain}
     (hpinned : c = srcOf v) (hlive : v ∈ tree (srcOf v)) :=
   v ∈ tree c
@@ -116,9 +149,17 @@ abbrev Properties.inclusion_binding_requires_honesty :=
         v ∈ tree c ∧ srcOf v ≠ c
 
 
-/-- The two paths, side by side: one hypothesis, opposite consequences.  This is the whole content of
-the asymmetry, and it is why no amount of care in `commitValue` could have removed the refund-path
-check — the binding is not missing there, it is unavailable in principle to a negative property. -/
+/-- The two paths, side by side, as set facts.
+
+As stated, both conjuncts are one fact about one chain: `HonestInsertion` at `(c, v)` and its
+contrapositive under `hne`.  Once `v ∉ tree c` holds, the first conjunct is vacuous at `c`, and there is
+no live-leg premise.  So this is not the whole content of the asymmetry.
+
+The asymmetry as a statement about the two gates is `polarity_asymmetry` in
+`Properties/ProofPolarityStrong.lean`.  Dropping the comparison changes nothing on the inclusion path,
+and on every live leg it flips the refund verdict.  `honest_polarity_model_exists` there shows the
+premises hold.  That asymmetry is why no amount of care in `commitValue` could have removed the
+refund-path check: once two chains exist, the refund gate without it accepts every leg. -/
 abbrev Properties.polarity_summary (h : HonestInsertion srcOf tree) {v : Value} {c : Chain} (hne : srcOf v ≠ c) :=
   (v ∈ tree c → srcOf v = c) ∧ v ∉ tree c
 
