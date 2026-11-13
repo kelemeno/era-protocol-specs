@@ -26,9 +26,10 @@ With every call included, and no call sent by the migration:
   nominee as they were, or is the nominee's `acceptOwnership()`, or is a CTM code swap sent by
   the `ProxyAdmin`'s owner of that state.
 * `ParkedCTMFirstExit`: along any sequence of calls (any number of transactions and forwards),
-  the CTM stays parked with its nominee, or the first call that moves it is the start state's
-  nominee's `acceptOwnership()` or a CTM code swap sent by whoever owns the `ProxyAdmin` at that
-  point.
+  the CTM stays parked with its nominee, or the run splits at a call `c` such that every state
+  before `c` is parked with the start's nominee (so `c` is the first call that moves it), and
+  `c` is the start state's nominee's `acceptOwnership()` or a CTM code swap sent by whoever owns
+  the `ProxyAdmin` at that point.
 * `SpentProxyAdminCustody`: once the edge is spent, that owner is the start's `ProxyAdmin`
   owner, zero, or an address some `ProxyAdmin` transfer in the run named.
 * `SpentLabelRunsAreCalls`: from a spent edge, every run of the label model is a run of calls
@@ -93,20 +94,26 @@ def Properties.ParkedCTMLeavesByAcceptOrCodeSwap : Prop :=
 THE `ProxyAdmin`'S OWNER OF THE MOMENT.** Start from a state where the spent migration owns the
 CTM. Take a successful sequence of calls, none sent by the migration (any number of
 transactions, forwards included: several transactions in a row are one `FRun`). Then either
-the owner and the nominee are as at the start, or the sequence splits at a first call `c` that
-changes them:
-* every call before `c` leaves the CTM parked with the start's nominee;
+the owner and the nominee are as at the start, or the sequence splits as `pre ++ c :: post` at
+a first call `c` that changes them:
+* every state the run passes through before `c` (the state after any prefix of `pre`, the start
+  and the state `t` just before `c` included) has the migration as the CTM's owner and the
+  start's nominee as its nominee, so no earlier call moved the CTM, even temporarily;
+* `c` leaves a state where that no longer holds;
 * `c` is the start nominee's `acceptOwnership()`, or a CTM code swap sent by the owner of the
   `ProxyAdmin` in the state just before `c`.
 
 That owner can differ from the start's `ProxyAdmin` owner and from the nominee. Who it can be
-is `SpentProxyAdminCustody`. -/
+is `SpentProxyAdminCustody`. The prefix clause matters because a code swap can write the
+migration and the old nominee back, so without it a later return-then-exit could be picked. -/
 def Properties.ParkedCTMFirstExit : Prop :=
   ∀ (K : Config) (s s' : AState) (cs : List Call), s.ctmOwner = K.M → s.executed = true →
     (∀ c ∈ cs, c.sender ≠ K.M) → FRun K s cs s' →
     (s'.ctmOwner = K.M ∧ s'.ctmPending = s.ctmPending) ∨
       ∃ (pre post : List Call) (c : Call) (t t' : AState), cs = pre ++ c :: post ∧
         FRun K s pre t ∧ OpStep K c.sender t c.op t' ∧ FRun K t' post s' ∧
+        (∀ (p₁ p₂ : List Call) (u : AState), pre = p₁ ++ p₂ → FRun K s p₁ u →
+          u.ctmOwner = K.M ∧ u.ctmPending = s.ctmPending) ∧
         t.ctmOwner = K.M ∧ t.ctmPending = s.ctmPending ∧
         ¬ (t'.ctmOwner = K.M ∧ t'.ctmPending = s.ctmPending) ∧
         (c = ⟨s.ctmPending, .ctmAcceptOwnership⟩ ∨ (c.op.swapsCtmCode ∧ c.sender = t.paOwner))

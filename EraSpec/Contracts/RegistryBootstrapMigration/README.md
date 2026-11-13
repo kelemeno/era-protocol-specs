@@ -128,8 +128,9 @@ AuthorityStrong uses the Authority and Forward models unchanged and adds witness
   one call from a parked state keeps the owner and the nominee, or is the nominee's
   `acceptOwnership()`, or is a CTM code swap sent by the `ProxyAdmin`'s owner of that state.
 - `ParkedCTMFirstExit`: along any sequence of such calls, the CTM stays parked with its nominee,
-  or the first call that moves it is the start nominee's accept or a code swap by the
-  `ProxyAdmin`'s owner of that moment. `SpentProxyAdminCustody`: once the edge is spent, that
+  or the run splits at a call before which every state is parked with the start's nominee (so
+  it is the first call that moves the CTM), and that call is the start nominee's accept or a
+  code swap by the `ProxyAdmin`'s owner of that moment. `SpentProxyAdminCustody`: once the edge is spent, that
   owner is the start's, zero, or named by a `ProxyAdmin` transfer in the sequence.
 - `SpentLabelRunsAreCalls`: from a spent edge, every label run is a run of calls none sent by
   the migration, so the results above cover the label model.

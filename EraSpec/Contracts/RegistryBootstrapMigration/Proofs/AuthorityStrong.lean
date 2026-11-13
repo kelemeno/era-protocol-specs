@@ -11,7 +11,9 @@ sender to own the `ProxyAdmin`.
 
 The first-exit result is an induction over the calls: while a call leaves the owner and the
 nominee alone the parked state persists, and the first call that changes them is classified by
-the one-call frame. Custody is the same induction for the `ProxyAdmin`'s owner. The label
+the one-call frame. That every state before the exit is parked uses that a call from a spent
+state has one outcome (`authorityStrong_opStep_det`), so a prefix of the calls reaches the
+state the run passed through. Custody is the same induction for the `ProxyAdmin`'s owner. The label
 runs become call runs label by label, as in `LabelsAreCoveredCalls`, using only that the edge
 is spent.
 
@@ -61,15 +63,36 @@ lemma authorityStrong_parked_call {K : Config} {a : Address} {s s' : AState} {op
       exact Bool.noConfusion this
   | untracked => exact Or.inl ⟨ho, rfl, hx⟩
 
+/-- From a spent state a call has at most one outcome: `migrate()` has no step there, and every
+other entry point writes a fixed state. -/
+lemma authorityStrong_opStep_det {K : Config} {a : Address} {s s₁ s₂ : AState} {op : Op}
+    (hx : s.executed = true) (h₁ : OpStep K a s op s₁) (h₂ : OpStep K a s op s₂) : s₁ = s₂ := by
+  cases h₁ with
+  | migrate hm =>
+      have := (migrate_guards hm).1
+      rw [hx] at this
+      exact Bool.noConfusion this
+  | ctmTransferOwnership _ => cases h₂; rfl
+  | ctmAcceptOwnership _ => cases h₂; rfl
+  | ctmRenounceOwnership _ => cases h₂; rfl
+  | ctmSetVersion _ => cases h₂; rfl
+  | paTransferOwnership _ _ => cases h₂; rfl
+  | paRenounceOwnership _ => cases h₂; rfl
+  | ctmCodeSwap _ => cases h₂; rfl
+  | untracked => cases h₂; rfl
+
 /-- Along calls none sent by the migration, from a state where the spent migration owns the
 CTM: the first call that changes the owner or the nominee is the start nominee's accept, or a
-code swap by the `ProxyAdmin`'s owner of that moment. -/
+code swap by the `ProxyAdmin`'s owner of that moment, and every state before it is parked with
+the start's nominee. -/
 lemma authorityStrong_first_exit {K : Config} {s s' : AState} {cs : List Call}
     (h : FRun K s cs s') : s.ctmOwner = K.M → s.executed = true →
     (∀ c ∈ cs, c.sender ≠ K.M) →
     (s'.ctmOwner = K.M ∧ s'.ctmPending = s.ctmPending) ∨
       ∃ (pre post : List Call) (c : Call) (t t' : AState), cs = pre ++ c :: post ∧
         FRun K s pre t ∧ OpStep K c.sender t c.op t' ∧ FRun K t' post s' ∧
+        (∀ (p₁ p₂ : List Call) (u : AState), pre = p₁ ++ p₂ → FRun K s p₁ u →
+          u.ctmOwner = K.M ∧ u.ctmPending = s.ctmPending) ∧
         t.ctmOwner = K.M ∧ t.ctmPending = s.ctmPending ∧
         ¬ (t'.ctmOwner = K.M ∧ t'.ctmPending = s.ctmPending) ∧
         (c = ⟨s.ctmPending, .ctmAcceptOwnership⟩ ∨ (c.op.swapsCtmCode ∧ c.sender = t.paOwner)) := by
@@ -81,16 +104,33 @@ lemma authorityStrong_first_exit {K : Config} {s s' : AState} {cs : List Call}
       · -- the head call left the CTM parked with the same nominee: look further
         rcases ih hu.1 (authorityStrong_opStep_spent hx hstep)
             (fun c' hc' => hs c' (List.mem_cons_of_mem _ hc')) with
-          ⟨h₁, h₂⟩ | ⟨pre, post, c', t, t', hcs, hpre, hc', hpost, ht₁, ht₂, hnt, hexit⟩
+          ⟨h₁, h₂⟩ | ⟨pre, post, c', t, t', hcs, hpre, hc', hpost, hpref, ht₁, ht₂, hnt, hexit⟩
         · exact Or.inl ⟨h₁, h₂.trans hu.2⟩
         · refine Or.inr ⟨c :: pre, post, c', t, t', by rw [hcs, List.cons_append],
-            FRun.cons hstep hpre, hc', hpost, ht₁, ht₂.trans hu.2, ?_, ?_⟩
+            FRun.cons hstep hpre, hc', hpost, ?_, ht₁, ht₂.trans hu.2, ?_, ?_⟩
+          · intro p₁ p₂ u hsplit hu'
+            cases p₁ with
+            | nil =>
+                cases hu'
+                exact ⟨ho, rfl⟩
+            | cons d p₁' =>
+                simp only [List.cons_append, List.cons.injEq] at hsplit
+                obtain ⟨rfl, hsplit⟩ := hsplit
+                cases hu' with
+                | cons hd hrest' =>
+                    rw [authorityStrong_opStep_det hx hd hstep] at hrest'
+                    obtain ⟨hu₁, hu₂⟩ := hpref p₁' p₂ u hsplit hrest'
+                    exact ⟨hu₁, hu₂.trans hu.2⟩
           · rw [← hu.2]
             exact hnt
           · rw [← hu.2]
             exact hexit
       · -- the head call is the first exit
-        refine Or.inr ⟨[], cs, c, s₁, s₂, rfl, FRun.nil, hstep, hrest, ho, rfl, hu, ?_⟩
+        refine Or.inr ⟨[], cs, c, s₁, s₂, rfl, FRun.nil, hstep, hrest, ?_, ho, rfl, hu, ?_⟩
+        · intro p₁ p₂ u hsplit hu'
+          obtain ⟨rfl, -⟩ := List.append_eq_nil_iff.mp hsplit.symm
+          cases hu'
+          exact ⟨ho, rfl⟩
         rcases authorityStrong_parked_call ho hx (hs c List.mem_cons_self) hstep with
           h₁ | ⟨hop, ha, _, _⟩ | ⟨hsw, ha⟩
         · exact absurd ⟨h₁.1, h₁.2.1⟩ hu

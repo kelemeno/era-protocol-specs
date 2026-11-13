@@ -25,8 +25,9 @@ not say that such a run exists. This file does.
 ## Order independence, executability included
 
 `OrderIndependent` (`Properties/Rows.lean`) assumes that both orders succeed. On distinct
-proxies the second order's success follows from the first's (`OrderIndependentExecutability`):
-a permutation of a successful run is a successful run to the same state. With a duplicate row
+proxies, with reinitializers inert as this model assumes, the second order's success follows
+from the first's (`OrderIndependentExecutability`): a permutation of a successful run is a
+successful run to the same state. With a duplicate row
 it fails (`DuplicateRowsBreakOrder`), which is outside the distinct-proxies premise.
 
 ## Witness
@@ -51,7 +52,10 @@ def Properties.RowStepIffEnabled : Prop :=
 /-- **ON DISTINCT PROXIES, `applyRows` SUCCEEDS EXACTLY WHEN EVERY ROW IS ENABLED WHERE THE CALL
 STARTS.** For rows naming distinct proxies (as `validateRows` ensures), the loop reverts iff
 some row is not `RowEnabled` in the starting state. No row can be enabled or disabled by an
-earlier one, because no earlier row touches its proxy. -/
+earlier one, because no earlier row touches its proxy. This holds with reinitializers inert, as
+the `612a71ccc` model assumes (`Specs/Rows.lean`): the Solidity does call `upgradeAndCall` with
+`initializeUpgrade` (`ProxyUpgradeRowLib.sol:137-139`), and a reinitializer that moved another
+row's proxy could enable or disable it. `RowsCurrentStrong` treats reinitializers. -/
 def Properties.ApplyRowsEnabledIff : Prop :=
   ∀ (C : Config) (I : Impl) (rows : List Row), rows.Pairwise (fun a b => a.proxy ≠ b.proxy) →
     ((∃ J, ApplyRows C I rows J) ↔ ∀ r ∈ rows, RowEnabled C I r)
@@ -72,9 +76,13 @@ def Properties.ApplyRowsPassesGateWhenEnabled : Prop :=
 
 /-- **A PERMUTATION OF A SUCCESSFUL RUN IS A SUCCESSFUL RUN TO THE SAME STATE.** For rows naming
 distinct proxies: if `applyRows` succeeds in one order, it succeeds in every order, and reaches
-the same state. So under `validateRows` neither the post-state nor whether the call reverts
-depends on the enum order the rows arrive in. This implies `OrderIndependent`, whose premise
-that both orders succeed it discharges. -/
+the same state. So under `validateRows`, with reinitializers inert, as the `612a71ccc` model
+assumes (`Specs/Rows.lean`), neither the post-state nor whether the call reverts depends on the
+enum order the rows arrive in. The Solidity does call `upgradeAndCall` with
+`initializeUpgrade` (`ProxyUpgradeRowLib.sol:137-139`); a reinitializer that moves another
+row's proxy can make the order decide a mismatch revert (`ReinitReadBreaksOrder` in
+`Properties/RowsOrder.lean`, at `e561b9cc2`). `RowsCurrentStrong` treats reinitializers. This
+implies `OrderIndependent`, whose premise that both orders succeed it discharges. -/
 def Properties.OrderIndependentExecutability : Prop :=
   ∀ (C : Config) (I J : Impl) (rows rows' : List Row), rows.Perm rows' →
     rows.Pairwise (fun a b => a.proxy ≠ b.proxy) →
