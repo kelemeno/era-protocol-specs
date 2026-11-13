@@ -179,6 +179,9 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
+-- Coverage round 6: L1Nullifier deposit ledger (draft/v0.35.0, d9f6789)
+import EraSpec.Contracts.L1Nullifier.Proofs.Model
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
