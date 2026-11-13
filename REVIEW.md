@@ -254,6 +254,14 @@ logged flows clash on the flow hash (`ExecutedImpliesRealFlowFinalizableOrLogged
 truncated-subset attack lands in the clash case (`SubsetFlowAttackLandsInLoggedClash`).
 Refinement to the reference `AuthorizedExecution` is still OPEN.
 
+"Finalizable" in these results is `FlowFinalizableBy`, the IMT half: an IMT proof accepted
+against the true END root. A destination must also authenticate that root against a
+settlement-layer root it has imported, which source DA does not supply. Without that import
+a flow can sit half-executed with no leg refundable (`WithoutImportFlowSitsHalfExecuted`).
+The destination forms, with `ImportAvailable` and `SettlementDataAvailable` as named
+premises and no hash premise, are in `Contracts.RootImport` (`NoneOrAllAtOrBreakPinned`,
+`ExecutedAtImpliesAllFinalizableAtOrBreak`, `ExecutedImpliesRealFlowFinalizableAtOrLoggedClash`).
+
 ### P8. Recovery completion and progress need their own promises
 
 Candidate target: every recoverable prepared obligation can eventually be fully

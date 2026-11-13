@@ -13,9 +13,10 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | SourceHeight | [Specs/SourceHeight.lean](Specs/SourceHeight.lean) | [Properties/SourceHeight.lean](Properties/SourceHeight.lean) | [Proofs/SourceHeight.lean](Proofs/SourceHeight.lean) |
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
+| RootImport | [Specs/RootImport.lean](Specs/RootImport.lean) | [Properties/RootImport.lean](Properties/RootImport.lean) | [Proofs/RootImport.lean](Proofs/RootImport.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
-`Refund`).
+`Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`).
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -56,7 +57,9 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
 
 - **Atomicity.** The gate requires an inclusion proof for every leg. If any leg of a
   flow executes, every leg is finalizable and no leg can be refunded on either
-  timeout branch (`NoneOrAll`, `ExecutedExcludesAnyRefund`). The flow-id
+  timeout branch (`NoneOrAll`, `ExecutedExcludesAnyRefund`). "Finalizable" here
+  (`FlowFinalizableBy`) is the IMT half only: a presentable IMT proof accepted against
+  the true END root. Whether a given destination can pass its gate is `RootImport`. The flow-id
   recomputation is meant to pin the leg list (`FlowIdCheckPinsLegList`, vacuous via
   `FlowHashInj`). Countermodels: a
   self-only gate admits a mixed outcome, a subset flow passes a gate without the
@@ -103,6 +106,26 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   Witnesses: `OncePerLegWitness`, `NoSecondAppendWitness`, `SystemWitness`. Obligations on
   different chains may clash harmlessly; that `bundleHash` embeds `block.chainid` is not
   modelled.
+
+- **RootImport** (namespace `Contracts.RootImport`). The gate as a destination runs it:
+  `_authenticateRoot` must authenticate the IMT root through a multi-hop settlement
+  proof ending at a settlement-layer root that destination has itself imported
+  (`interopRoots`, bootloader-only imports), and final-node proofs are rejected. Source
+  DA does not supply the import. `FlowFinalizableAt` is finalizability on a named
+  destination; `FlowFinalizableBy` is its IMT half (`FinalizableAtImpliesBy`) and the two
+  coincide on a ready destination (`ReadyFinalizableAtIffBy`). The none-or-all results are
+  restated per destination with two new world premises, `ImportAvailable` and
+  `SettlementDataAvailable`, and no hash premise (`NoneOrAllAtOrBreak`,
+  `NoneOrAllAtOrBreakPinned`, `ExecutedAtImpliesAllFinalizableAtOrBreak` for an execution
+  on one destination and finalizability on another, `…FromRuns`, the logged-clash form).
+  `ImportAvailableOfPostDeadlineImport` discharges import availability from one
+  post-deadline import plus `Aggregates`. Countermodel `WithoutImportFlowSitsHalfExecuted`:
+  every leg committed on time and all data available, `FlowFinalizableBy` holds, one
+  destination executes a leg, another can execute none, and no leg is refundable;
+  `ImportAloneRestoresFinalizability` shows the single import is all that is missing.
+  `WithoutSettlementDataLegIsStuck` shows the settlement-proof premise is needed too.
+  Aggregation paths inside a settlement proof are idealized as the honest ones; the import
+  transitions themselves are not modelled (a snapshot `World`, `ImportsGrow`).
 
 The tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an
