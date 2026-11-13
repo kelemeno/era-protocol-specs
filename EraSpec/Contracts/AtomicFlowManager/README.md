@@ -38,6 +38,10 @@ are stated in the two `…Strong` topics:
   `blocked_leg_stays_revertable`). Without that invariant the retry can succeed
   (`retry_succeeds_once_blocker_clears`).
 
+Model boundary for both topics: `MODEL-AFM-NESTED` in `../../../ASSUMPTIONS.md`
+(no reentrant writes from `append`/`authorizeRefund`; the at-least-one-recovery
+check is over-approximated; retry results need a caller-supplied invariant).
+
 The full flow gate spans `AtomicInteropProof`, the commitment tree, and the
 handler. Its multi-chain composition lives in `../../Protocol/`. Implementation
 refinement and the known generator mismatch are recorded in
