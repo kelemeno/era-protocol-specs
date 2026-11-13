@@ -137,9 +137,11 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.DiamondStorage
 import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorCheck
 import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorScan
 import EraSpec.Contracts.ChainTypeManager.Proofs.Enabledness
+import EraSpec.Contracts.ChainTypeManager.Proofs.EngineGettersFaithful
 import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorRowsUnvalidated
 import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorUpgradeChain
 import EraSpec.Contracts.ChainTypeManager.Proofs.GenesisWriters
+import EraSpec.Contracts.ChainTypeManager.Proofs.LegacyCrossingFaithful
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
