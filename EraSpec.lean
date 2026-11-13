@@ -179,6 +179,12 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
+-- Admin facet (d9f6789): access control, admin handover, freezing, priority mode, chain upgrades
+import EraSpec.Contracts.AdminFacet.Proofs.Access
+import EraSpec.Contracts.AdminFacet.Proofs.PriorityMode
+import EraSpec.Contracts.AdminFacet.Proofs.Upgrade
+import EraSpec.Contracts.AdminFacet.Proofs.NatSpec
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
