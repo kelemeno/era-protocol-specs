@@ -7,9 +7,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 
 A leg whose engine meets `EngineReviewed` is three `ExecutorForward` transactions: a `forward`
 of the `_beforeSwaps` calls, the `e561b9cc2` infrastructure step, and a `forward` of the
-`_afterSwaps` calls (`reviewed_leg`). The hook calls are tame CTM calls, so a `d9f6789` run of
-tame transactions with reviewed engines maps to a tame `ExecutorForward` run (`reviewed_run`),
-and `TameRunPreservesSysInv` and `TameRunKeepsChainsOnTheirRelease` transfer. Hook runs move no
+`_afterSwaps` calls (`reviewed_leg`). The hook calls are tame CTM calls, so for rows that do
+not name the CTM proxy a reviewed engine is tame (`reviewed_tame`). A `d9f6789` run of tame
+transactions with tame engines maps to a tame `ExecutorForward` run (`tame_run`), and
+`TameRunPreservesSysInv` and `TameRunKeepsChainsOnTheirRelease` transfer. Hook runs move no
 proxy (`hookRun_impl`), so the row library's `OnlyNamedEdgesAcrossCallAnyRows` and
 `applyLoop_source` give the proxy results. The countermodels are concrete legs; that their
 engines are not reviewed follows from the positive results.

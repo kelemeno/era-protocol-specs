@@ -29,6 +29,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.VersionRegistry
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainMigration
 import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
+-- applyInfrastructureUpgrade at draft/v0.35.0 (d9f6789): the engine the transition names
+import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorEngineAtV35
 
 -- Registry-driven upgrades: who holds the CTM domain's authority across the bootstrap edge
 -- (e561b9cc2), and the staged coordinator with its timer (afa407085; deleted by e561b9cc2)
