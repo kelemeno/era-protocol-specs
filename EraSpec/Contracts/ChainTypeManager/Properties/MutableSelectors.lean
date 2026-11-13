@@ -23,6 +23,13 @@ Statements about `EraSpec.Contracts.ChainTypeManager.Specs.MutableSelectors`. Pr
   `World.relRows` is fixed: the rows are write-once, and the answers are stable.
 * `StableSelectorsWitness`: the premise holds on `LiveRouting`'s witness run, which crosses an edge
   and creates chains.
+* **Only the transitions a run can cross matter** (`StableSelectorsOn`). `StableSelectors` asks
+  every address for cuts derived under `σ`. The refinement and the headline need that only of the
+  transitions in a slot at the start and of those the run commits or installs as a replacement
+  (`StableOnRunIsACountedRun`, `ChainsRunTheirVersionsReleaseStableOn`); the first premise implies
+  the second (`StableSelectorsIsStableOn`). `StableSelectorsOnWitness` is a run that meets the
+  weaker premise in a world where the stronger one fails for every `σ`: a transition built under
+  other answers exists and is never committed.
 
 ## Without them
 
@@ -112,6 +119,53 @@ def Properties.StableRunIsARoutingRun : Prop :=
       Run (M.at σ).toWorld s.sys.view ((MutLabel.toDLabels ls).map DLabel.view) s'.sys.view ∧
       (∀ l ∈ (MutLabel.toDLabels ls).map DLabel.view, ¬ l.isArbitrary) ∧
       ∀ R, (M.at σ).toWorld.relRows R = flattenRows σ (M.genesisFacets R)
+
+/-- **`StableSelectors` IS THE SPECIAL CASE OF `StableSelectorsOn` THAT CONSTRAINS EVERY ADDRESS.**
+-/
+def Properties.StableSelectorsIsStableOn : Prop :=
+  ∀ (M : MutWorld) (σ : Address → List Selector) (s : MutSys) (ls : List MutLabel),
+    StableSelectors M σ s ls → StableSelectorsOn M σ s ls
+
+/-- **THE REFINEMENT NEEDS STABLE CUTS ONLY FOR THE TRANSITIONS THE RUN CAN CROSS.**
+`StableRunIsACountedRun` under `StableSelectorsOn`: no step changes an answer, and the transitions
+in a slot at the start, committed by the run, or installed by it as a replacement stored the cuts
+derived under `σ`. Nothing is asked of any other transition object. -/
+def Properties.StableOnRunIsACountedRun : Prop :=
+  ∀ (M : MutWorld) (σ : Address → List Selector) (s s' : MutSys) (ls : List MutLabel),
+    StableSelectorsOn M σ s ls → MutRun M s ls s' →
+    DRun (M.at σ) s.sys (MutLabel.toDLabels ls) s'.sys ∧ s'.sel = σ
+
+/-- **HEADLINE, WITH THE PREMISE ONLY ON THE TRANSITIONS THE RUN CAN CROSS.**
+`ChainsRunTheirVersionsReleaseStable` with `StableSelectorsOn` in place of `StableSelectors`; the
+conclusion is the same. -/
+def Properties.ChainsRunTheirVersionsReleaseStableOn : Prop :=
+  ∀ (M : MutWorld) (σ : Address → List Selector) (s s' : MutSys) (ls : List MutLabel),
+    StableSelectorsOn M σ s ls → DSysInv (M.at σ) s.sys → MutRun M s ls s' →
+    (∀ l ∈ ls, ¬ l.isArbitrary) →
+    ∀ id c, s'.sys.chains id = some c → s'.sys.ctm.relAt c.pv ≠ 0 →
+      M.relVersion (s'.sys.ctm.relAt c.pv) = c.pv ∧
+      c.ds.routing = rowsRouting (flattenRows σ (M.genesisFacets (s'.sys.ctm.relAt c.pv))) ∧
+      CountCheck s'.sel c.ds (M.genesisFacets (s'.sys.ctm.relAt c.pv)) ∧ DiamondOk c.ds
+
+/-- **THE WEAKER PREMISE IS MET WHERE THE STRONGER ONE CANNOT BE.** In `mutLateWorld`, transition
+`300` stored the cuts derived while facet `21` answered `[1, 2]`, and `600` those derived while it
+answered `[1, 3]`. The run starts from an invariant state with the facets answering `mutSelA`:
+create chain `0`, commit `300` (1→2), upgrade chain `0`, create chain `1`. No answer changes and
+`600` is never committed. The run meets `StableSelectorsOn` with `mutSelA`; it meets
+`StableSelectors` with no `σ`, because `600` was not built under `mutSelA`. Both chains end at
+version 2 routing release `200`, which differs from release `100`. -/
+def Properties.StableSelectorsOnWitness : Prop :=
+  StableSelectorsOn mutLateWorld mutSelA mutSys0
+      [.sys (.genesis 0), .sys (.ctm (.commit 300)), .sys (.transition 0), .sys (.genesis 1)] ∧
+    ¬ mutLateWorld.FrozenUnder mutSelA 600 ∧
+    (∀ σ, ¬ StableSelectors mutLateWorld σ mutSys0
+      [.sys (.genesis 0), .sys (.ctm (.commit 300)), .sys (.transition 0), .sys (.genesis 1)]) ∧
+    DSysInv (mutLateWorld.at mutSelA) mutSys0.sys ∧
+    ∃ s, MutRun mutLateWorld mutSys0
+        [.sys (.genesis 0), .sys (.ctm (.commit 300)), .sys (.transition 0), .sys (.genesis 1)] s ∧
+      ∃ c₀ c₁, s.sys.chains 0 = some c₀ ∧ s.sys.chains 1 = some c₁ ∧ c₀.pv = 2 ∧ c₁.pv = 2 ∧
+        c₀.ds.routing = rowsRouting (wRows 200) ∧ c₁.ds.routing = rowsRouting (wRows 200) ∧
+        rowsRouting (wRows 200) ≠ rowsRouting (wRows 100)
 
 /-- **THE STABLE HEADLINE IS NOT VACUOUS.** `LiveRouting`'s witness run (`CountedRoutingWitness`) in
 this model: on `wDWorld` with every transition built under its answers, create chain `0` at version

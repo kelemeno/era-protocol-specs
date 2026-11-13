@@ -64,6 +64,77 @@ lemma stable_run {M : MutWorld} {σ : Address → List Selector} (hfz : ∀ t, M
       exact ⟨DRun.cons hd hr, hs₃⟩
     | setSelectors f xs => exact absurd trivial (hc _ List.mem_cons_self)
 
+/-! ## The same, asking only the transitions a run can cross -/
+
+/-- A CTM writer leaves each `upgradeTransition` slot as it was, or holding the transition the
+call records. -/
+lemma cstep_ut {W : World} {s s' : CTM} {op : Op} (h : CStep W s op s') (v : ℕ) :
+    s'.ut v = s.ut v ∨ (∃ t, op = .commit t ∧ s'.ut v = t) ∨
+      ∃ e r, op = .replace e r ∧ s'.ut v = r := by
+  cases h with
+  | @commit t _ _ _ _ _ _ =>
+    by_cases e : v = (W.tr t).old
+    · exact Or.inr (Or.inl ⟨t, rfl, by subst e; exact upd_same _ _ _⟩)
+    · exact Or.inl (upd_ne _ _ e)
+  | @replace e₀ r _ _ _ _ _ _ _ _ =>
+    by_cases e : v = (W.tr e₀).old
+    · exact Or.inr (Or.inr ⟨e₀, r, rfl, by subst e; exact upd_same _ _ _⟩)
+    · exact Or.inl (upd_ne _ _ e)
+  | legacyCommit _ _ => exact Or.inl rfl
+  | legacyRecut _ _ => exact Or.inl rfl
+
+/-- **One step, with stable cuts in the slots only.** The step is a `LiveRouting` step, and the
+slots afterwards hold transitions that were in a slot before or that the step records. -/
+lemma stableOn_step {M : MutWorld} {σ : Address → List Selector} {s s' : MutSys} {l : DLabel}
+    (hslots : ∀ v, s.sys.ctm.ut v ≠ 0 → M.FrozenUnder σ (s.sys.ctm.ut v))
+    (hrec : ∀ t, (MutLabel.sys l).records = some t → M.FrozenUnder σ t)
+    (hs : s.sel = σ) (h : MutStep M s (.sys l) s') :
+    DStep (M.at σ) s.sys l s'.sys ∧ s'.sel = σ ∧
+      ∀ v, s'.sys.ctm.ut v ≠ 0 → M.FrozenUnder σ (s'.sys.ctm.ut v) := by
+  obtain ⟨sys, sel⟩ := s
+  dsimp only at hs hslots
+  subst hs
+  cases h with
+  | live _ hd =>
+    refine ⟨hd, rfl, ?_⟩
+    cases hd with
+    | ctm hc _ =>
+      intro v hv
+      dsimp only at hv ⊢
+      rcases cstep_ut hc v with e | ⟨t, rfl, e⟩ | ⟨e₀, r, rfl, e⟩
+      · rw [e] at hv ⊢; exact hslots v hv
+      · rw [e]; exact hrec t rfl
+      · rw [e]; exact hrec r rfl
+    | genesis _ _ => exact hslots
+    | migrateIn _ _ _ _ => exact hslots
+    | transition _ _ _ _ _ => exact hslots
+    | bootstrapReset _ _ _ _ _ => exact hslots
+    | arbitraryCut _ _ _ => exact hslots
+  | @transition _ c _ hc hut hcc hcut hlt =>
+    have hfz : M.cuts (sys.ctm.ut c.pv) = deriveFacetCuts (M.at sel)
+        (M.tr (sys.ctm.ut c.pv)).fromRel (M.tr (sys.ctm.ut c.pv)).newRel := hslots _ hut
+    rw [hfz] at hcut
+    exact ⟨DStep.transition hc hut hcc hcut hlt, rfl, hslots⟩
+
+/-- **A run, with stable cuts only for the transitions it can cross, is a `LiveRouting` run.** -/
+lemma stableOn_run {M : MutWorld} {σ : Address → List Selector} :
+    ∀ {s s' : MutSys} {ls : List MutLabel}, s.sel = σ → (∀ l ∈ ls, ¬ l.isSelectorChange) →
+      (∀ v, s.sys.ctm.ut v ≠ 0 → M.FrozenUnder σ (s.sys.ctm.ut v)) →
+      (∀ l ∈ ls, ∀ t, l.records = some t → M.FrozenUnder σ t) →
+      MutRun M s ls s' → DRun (M.at σ) s.sys (MutLabel.toDLabels ls) s'.sys ∧ s'.sel = σ := by
+  intro s s' ls hs hc hslots hrec h
+  induction h with
+  | nil => exact ⟨DRun.nil, hs⟩
+  | @cons s₁ s₂ s₃ l ls hstep _ ih =>
+    cases l with
+    | sys l₀ =>
+      obtain ⟨hd, hs₂, hslots₂⟩ :=
+        stableOn_step hslots (fun t ht => hrec _ List.mem_cons_self t ht) hs hstep
+      obtain ⟨hr, hs₃⟩ := ih hs₂ (fun l hl => hc l (List.mem_cons_of_mem _ hl)) hslots₂
+        (fun l hl => hrec l (List.mem_cons_of_mem _ hl))
+      exact ⟨DRun.cons hd hr, hs₃⟩
+    | setSelectors f xs => exact absurd trivial (hc _ List.mem_cons_self)
+
 /-! ## The CTM part, along any run -/
 
 /-- A CTM writer's checks read versions and transition getters, not the facets' answers. -/
@@ -195,6 +266,21 @@ theorem FreshChainsRunTheirVersionsReleaseStable :
   rw [hsel]
   exact h4
 
+theorem StableSelectorsIsStableOn : Properties.StableSelectorsIsStableOn :=
+  fun _ _ _ _ hS => ⟨hS.start, hS.constant, fun _ _ => hS.frozen _, fun _ _ t _ => hS.frozen t⟩
+
+theorem StableOnRunIsACountedRun : Properties.StableOnRunIsACountedRun :=
+  fun _ _ _ _ _ hS h => stableOn_run hS.start hS.constant hS.slots hS.recorded h
+
+theorem ChainsRunTheirVersionsReleaseStableOn :
+    Properties.ChainsRunTheirVersionsReleaseStableOn := by
+  intro M σ s s' ls hS hI h hl id c hc hrel
+  obtain ⟨hd, hsel⟩ := stableOn_run hS.start hS.constant hS.slots hS.recorded h
+  obtain ⟨h1, h2, h3, h4⟩ := chainsRun_counted hI hd (toDLabels_not_arbitrary hl) id c hc hrel
+  refine ⟨h1, h2, ?_, h4⟩
+  rw [hsel]
+  exact h3
+
 theorem StableRunIsARoutingRun : Properties.StableRunIsARoutingRun := by
   intro M σ s s' ls hS hI h hl
   obtain ⟨hd, _⟩ := stable_run hS.frozen hS.start hS.constant h
@@ -297,6 +383,53 @@ theorem StableSelectorsWitness : Properties.StableSelectorsWitness := by
     CountedRoutingWitness
   obtain ⟨hmut, hstable, _⟩ := CountedRunIsAStableRun _ _ _ _ hrun
   exact ⟨hstable, hI0, ⟨s, wSelectors⟩, hmut, c₀, c₁, hc₀, hc₁, hpv₀, hpv₁, hr₀, hr₁, hne⟩
+
+lemma mut_stable_cut :
+    diamondCut DiamondStorage.fresh (newChainInstallations (mutWorld.at mutSelA) 200) =
+      some mutStableStore := rfl
+
+/-- `600` in `mutLateWorld` was not built under the starting answers: its stored `Remove` carries
+`[1, 3]`, the one derived under them carries `[1, 2]`. -/
+lemma mut_late_not_frozenA600 : ¬ mutLateWorld.FrozenUnder mutSelA 600 := by
+  unfold MutWorld.FrozenUnder; decide
+
+theorem StableSelectorsOnWitness : Properties.StableSelectorsOnWitness := by
+  have hrun := MutRun.cons (M := mutLateWorld)
+    (MutStep.live rfl (DStep.genesis (s := mutSys0.sys) (id := 0) rfl mut_store100))
+    (MutRun.cons (MutStep.live rfl (DStep.ctm (CStep.commit (t := 300) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide))
+        (by intro R hR; cases hR; exact (mut_valid _).1)))
+      (MutRun.cons (MutStep.transition (id := 0) rfl (by decide) (by decide) mut_crossed_cut
+          (by decide))
+        (MutRun.cons (MutStep.live rfl (DStep.genesis (id := 1) rfl mut_stable_cut)) MutRun.nil)))
+  have hOn : StableSelectorsOn mutLateWorld mutSelA mutSys0
+      [.sys (.genesis 0), .sys (.ctm (.commit 300)), .sys (.transition 0), .sys (.genesis 1)] := by
+    refine ⟨rfl, ?_, fun v hv => absurd rfl hv, ?_⟩
+    · intro l hl
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+      rcases hl with rfl | rfl | rfl | rfl <;> exact id
+    · intro l hl t ht
+      simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+      rcases hl with rfl | rfl | rfl | rfl <;> simp only [MutLabel.records, reduceCtorEq] at ht
+      cases ht
+      exact mut_late_genuine300.frozen
+  have hI : DSysInv (mutLateWorld.at mutSelA) mutSys0.sys :=
+    freshCounted_inv _ 100 (by decide) (mut_valid 100).1
+  have hrows : flattenRows mutSelA (mutLateWorld.genesisFacets 200) = wRows 200 := by decide
+  have hr₀ := (ChainsRunTheirVersionsReleaseStableOn _ _ _ _ _ hOn hI hrun
+    (by intro l hl
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+        rcases hl with rfl | rfl | rfl | rfl <;> exact id)
+    0 ⟨2, mutCrossedStore⟩ rfl (by decide)).2.1
+  have hr₁ := (ChainsRunTheirVersionsReleaseStableOn _ _ _ _ _ hOn hI hrun
+    (by intro l hl
+        simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+        rcases hl with rfl | rfl | rfl | rfl <;> exact id)
+    1 ⟨2, mutStableStore⟩ rfl (by decide)).2.1
+  rw [show (_ : DSys).ctm.relAt 2 = 200 from by decide, hrows] at hr₀ hr₁
+  exact ⟨hOn, mut_late_not_frozenA600,
+    fun σ hS => mut_late_not_frozenA600 (by have := hS.start; subst this; exact hS.frozen 600),
+    hI, _, hrun, _, _, rfl, rfl, rfl, rfl, hr₀, hr₁, CountedRoutingWitness.2.2.choose_spec.2.2.2⟩
 
 /-! ## The countermodels -/
 

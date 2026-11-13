@@ -71,7 +71,8 @@ own test facet answers from storage through the same ABI
   answers by caller is not modelled: the four reads run in different contracts (a release, a
   transition under construction, a diamond), so such a facet could also give different readers
   different lists. That half of the base model's premise (context-independence) stays a model
-  boundary here; this file makes the other half (constancy) explicit as `StableSelectors`.
+  boundary here; this file makes the other half (constancy) explicit as `StableSelectors`, and
+  as `StableSelectorsOn` when asked only of the transitions a run can cross.
 * **Everything else is as in `LiveRouting`.** Reject-only checks are omitted. A transition lands on
   `newProtocolVersion()`. Every engine runs `DefaultUpgrade` / `BootstrapUpgrade` logic. A
   break-glass cut leaves any storage.
@@ -221,8 +222,35 @@ structure StableSelectors (M : MutWorld) (σ : Address → List Selector) (s : M
   start : s.sel = σ
   /-- No step changes an answer. -/
   constant : ∀ l ∈ ls, ¬ l.isSelectorChange
-  /-- Every transition was built while the facets answered `σ`. -/
+  /-- Every transition was built while the facets answered `σ`. This is asked of every address
+  `t`, committed or not; `StableSelectorsOn` asks it only of the transitions a crossing of the run
+  can read. -/
   frozen : ∀ t, M.FrozenUnder σ t
+
+/-- The transition a CTM writer records in an `upgradeTransition` slot, if the step is such a
+writer: `setNewVersionUpgradeFromTransition(t)` records `t` and `replaceUpgradeTransition(e, r)`
+records `r` (`_recordTransition`, `state-transition/ChainTypeManager.sol:421`, :447, :469). No
+other step writes a slot. -/
+def MutLabel.records : MutLabel → Option Address
+  | .sys (.ctm (.commit t)) => some t
+  | .sys (.ctm (.replace _ r)) => some r
+  | _ => none
+
+/-- **Stable answers, for the transitions the run can cross.** As `StableSelectors`, except that
+the stored cuts are constrained only where a crossing of the run can read them: for the
+transitions in an `upgradeTransition` slot when the run starts, and for those a commit or a
+replacement of the run records. A transition object that is never in a slot may have been built
+under any answers. `StableSelectors` is the case where every address meets the constraint. -/
+structure StableSelectorsOn (M : MutWorld) (σ : Address → List Selector) (s : MutSys)
+    (ls : List MutLabel) : Prop where
+  /-- The answers when the run starts. -/
+  start : s.sel = σ
+  /-- No step changes an answer. -/
+  constant : ∀ l ∈ ls, ¬ l.isSelectorChange
+  /-- Every transition committed when the run starts was built while the facets answered `σ`. -/
+  slots : ∀ v, s.sys.ctm.ut v ≠ 0 → M.FrozenUnder σ (s.sys.ctm.ut v)
+  /-- So was every transition the run commits or installs as a replacement. -/
+  recorded : ∀ l ∈ ls, ∀ t, l.records = some t → M.FrozenUnder σ t
 
 /-! ## Witness data
 
@@ -261,6 +289,11 @@ def mutCrossedStore : DiamondStorage :=
 /-- The diamond a chain created on release `200` gets while facet `21` answers `[1, 3]`. -/
 def mutFreshStore : DiamondStorage :=
   (diamondCut DiamondStorage.fresh (newChainInstallations (mutWorld.at mutSelB) 200)).getD
+    DiamondStorage.fresh
+
+/-- The diamond a chain created on release `200` gets while facet `21` still answers `[1, 2]`. -/
+def mutStableStore : DiamondStorage :=
+  (diamondCut DiamondStorage.fresh (newChainInstallations (mutWorld.at mutSelA) 200)).getD
     DiamondStorage.fresh
 
 end Contracts.ChainTypeManager
