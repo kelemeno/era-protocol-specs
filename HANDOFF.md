@@ -1,4 +1,17 @@
-# Handoff — 2026-11-11 (end of the round-5 session)
+# Current handoff — 2026-11-13
+
+Continue from **`claude/proof-round-6`**. The current [continuation note](handoff/2026-11-13/README.md)
+records the saved work, review queue, validation limits, and next steps. Its
+[branch inventory](handoff/2026-11-13/branches.json) lists all 98 local branch heads
+preserved on `origin`, including three recovered detached worktrees.
+
+The November 11 note below is historical context. Use the current continuation
+note for branch locations and backup status; historical review and audit results
+are not validation of the newly saved WIP work.
+
+## Historical handoff — 2026-11-11
+
+### End of the round-5 session
 
 Branch **`claude/proof-round-5`** on GitHub (`kelemeno/era-protocol-specs`) is the single line of work.
 GitHub has: `master` (3a1c799, untouched), `claude/proof-round-5`, and 72 `wip/*` branches (below).
