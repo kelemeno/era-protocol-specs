@@ -212,4 +212,13 @@ theorem MiswiredCheckWidensAuthority : Properties.MiswiredCheckWidensAuthority :
   refine ⟨fun hs => ?_, Reaches.relayed 0 wExecMsg _ hd, Or.inl rfl, by decide⟩
   exact absurd ((DelegationSoundIffMatched miswiredTable).1 hs) (by decide)
 
+/-- **Why `SelfCallAuthority.selfCall_relays_authority` says nothing.** Its conclusion
+`∃ ch addr, attrAllows a ch ch addr` holds for every attribute, with no hypothesis: an empty
+attribute allows everyone, and `some (ch, addr)` allows `addr` on `ch`. -/
+theorem selfCall_relays_authority_conclusion_always_holds (a : Attr) :
+    ∃ ch addr, attrAllows a ch ch addr := by
+  rcases a with _ | ⟨ch, addr⟩
+  · exact ⟨0, 0, trivial⟩
+  · exact ⟨ch, addr, Or.inl rfl, rfl, rfl⟩
+
 end AttackVectors.SelfCallAuthority.Faithful

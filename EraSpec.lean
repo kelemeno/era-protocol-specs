@@ -66,6 +66,9 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.RunHeight
 -- Interop handlers and the bundle encoding library
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthority
+import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineFaithful
+import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
+import EraSpec.Contracts.InteropHandlerBase.Proofs.ValueLedgerFaithful
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
 

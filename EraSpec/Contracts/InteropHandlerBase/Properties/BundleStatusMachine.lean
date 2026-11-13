@@ -82,11 +82,27 @@ That is a liveness dependency spanning two contracts, and it is of the same frag
 `LocalHonesty.sole_call_site`: nothing in the type system enforces it, and a future change that
 published atomic bundles to L1 — for observability, say — would make `verifyBundle` succeed on them
 and permanently brick their execution.  Recorded, not reported as a defect: the current code is
-correct. -/
+correct.
+
+**Correction** (`BundleStatusMachineFaithful`). The "brick" conclusion above is wrong about the
+source. A `Verified` bundle is not undeliverable: `executeBundle` takes it to `FullyExecuted`
+consulting nothing (`Verified` skips `_verifyBundle`), and `unbundleBundle` takes it to `Unbundled`.
+Neither entry point consults `requireFlowFinalized`, and nothing marks a bundle as atomic. So if
+atomic bundles were published to L1, the consequence would be a bypass of the atomicity gate, not a
+loss of liveness (`Contracts.InteropHandler.Faithful.ProvableBytesBypassTheFlowGate`,
+`VerifiedBundleRunsWithoutAnyGate`). The never-published premise is a safety premise; under it the
+atomicity gate cannot be bypassed (`NeverPublishedBundleNeedsTheFlowGate`). The statement below is
+unchanged and still holds as stated. -/
 
 /-- **THE CONDITIONAL.**  If an atomic bundle ever reached `Verified`, atomic execution would be
 permanently unavailable — `Verified` has no edge to `FullyExecuted` via the atomic entry point, whose
-only enabling state is `Unreceived`, and no edge returns to `Unreceived`. -/
+only enabling state is `Unreceived`, and no edge returns to `Unreceived`.
+
+What is proved is only `¬ Step .Verified .Unreceived`; the unlabelled `Step` cannot say "via the
+atomic entry point". The labelled form is
+`AttackVectors.BundleStatusMachine.Faithful.Properties.atomic_entry_needs_unreceived`, and
+`Faithful.Properties.verified_runs_unchecked` shows that the bundle itself is still deliverable from
+`Verified` by the non-atomic entry points. -/
 abbrev Properties.verified_blocks_atomic_execution :=
   ¬ Step .Verified .Unreceived
 
@@ -213,7 +229,12 @@ abbrev Properties.wholeBundle_route_does_not_check_callStatus :=
 
 
 /-- **NO INFLATION.**  Whatever the per-call outcomes, the destination releases no more than the source
-collected for that bundle. -/
+collected for that bundle.
+
+What is proved here is about an arbitrary `Ledger`: nothing ties `l` to the handler's state, so on its
+own this is a list inequality. The link to the handler (one entry per call, its final `callStatus`,
+and the base token actually released) is `Contracts.InteropHandler.Faithful.ReleaseIsTheHandlerLedger`,
+and the handler-level statement is `HandlerReleasesAtMostCollected`, both in `ValueLedgerFaithful`. -/
 abbrev Properties.released_le_collected (l : Ledger) :=
   releasedSum l ≤ collectedSum l
 

@@ -45,7 +45,17 @@ namespace AttackVectors.SelfCallAuthority
 
 /-- **THE DELEGATION IS SOUND.**  If every self-call is preceded by the attribute check against the
 ORIGINAL sender, then a gate passing via its self-call disjunct still had the attribute satisfied — by
-the outer handler, one frame up.  Authority is relayed, not widened. -/
+the outer handler, one frame up.  Authority is relayed, not widened.
+
+**What is proved is weaker than this.** The conclusion `∃ ch addr, attrAllows a ch ch addr` holds
+for every attribute `a` (the hypothesis is not needed;
+`AttackVectors.SelfCallAuthority.Faithful.selfCall_relays_authority_conclusion_always_holds`), so
+this statement is a tautology and says nothing about the handler. The content intended here is
+`AttackVectors.SelfCallAuthority.Faithful.Properties.PinnedDelegationSound` (every call that passes
+a permission gate at the pin carries a principal the bundle's attribute admits),
+`DelegationSoundIffMatched` (soundness is exactly a property of the dispatch table) and
+`RelayEstablishesTheOriginalHypothesis` (the hypothesis `checked` is established by the outer
+handler at every self-call), in `SelfCallAuthorityFaithful`. -/
 abbrev Properties.selfCall_relays_authority {a : Attr} {thisChain senderChain senderAddr : ℕ}
     (checked : attrAllows a senderChain senderChain senderAddr) :=
   ∃ ch addr, attrAllows a ch ch addr
