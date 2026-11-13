@@ -166,4 +166,8 @@ theorem UpgradeExcludesMisdeclared : Properties.UpgradeExcludesMisdeclared :=
 theorem UpgradeFinalitySatisfiable : Properties.UpgradeFinalitySatisfiable :=
   upgrade_finality_satisfiable
 
+theorem UncheckedExclusiveUnderDeclaredSatisfiable :
+    Properties.UncheckedExclusiveUnderDeclaredSatisfiable :=
+  ⟨(upgradeReach_declared upgrade_finality_satisfiable.1).2, upgrade_finality_satisfiable.2.1⟩
+
 end AttackVectors.ProofPolarityFaithful

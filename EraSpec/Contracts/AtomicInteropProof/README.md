@@ -40,11 +40,15 @@ The original statements are unchanged; each repair names the old reading it repl
 
 * `LastBatchInRootOffset` — `LastBatchInRoot.end_branch_from_onchain_check` uses one
   `B` as the chain-tree leaf POSITION and as the BATCH NUMBER. In `MessageRootBase`
-  leaf `p` is batch `s + 1 + p` (`batchAt`). `EndBranchFromOnchainCheckOffset` keeps the
-  two apart and asks `OutsideRootLate` only for batches after the root's last one.
+  leaf `p` is batch `f + p` (`batchAt`), with `f` the first pushed batch (`f = 0` for a
+  genesis-seeded ZKsync OS chain, `f = 1` for a fresh EraVM chain), assuming every batch
+  after `f` is pushed (ASSUMPTIONS.md `PROTO-CONTIGUOUS-PUSH`, not enforced by the
+  contract). `EndBranchFromOnchainCheckOffset` keeps the two apart and asks
+  `OutsideRootLate` only for batches after the root's last one.
   `PositionAsBatchMisreads` shows that on a fresh EraVM chain the original `hout` and
-  conclusion are both false. `BatchNumberBoundOrCollision` says the leaf hash binds the
-  batch number, or the two named preimages collide.
+  conclusion are both false. `BatchNumberBoundOrCollision` is the pinned-collision
+  restatement (a case split, no further premise): the proof's batch number equals the
+  stored leaf's, or the two named preimages collide.
 * `LastLeafFaithful` — the batch-leaf path length (`proofMetadata[2]`) and the mask are
   the prover's, and `Merkle.sol` accepts a padded index. `AcceptedLastLeafAnyLengthOrBreak`
   (no hash premise) is the replacement for `AcceptedLastLeafOrPinnedBreak` over every
@@ -70,8 +74,13 @@ The original statements are unchanged; each repair names the old reading it repl
   what a distinct padding constant buys.
 * `StaleSnapshotBranches` — the abstract pin `D < t (j+1)` mapped onto the two deployed
   timeout branches. The begin branch reaches it only under `BeginIsPrevEnd`, and the end
-  branch only under `OutsideRootLate` (ASSUMPTIONS.md `PROTO-BATCH-SNAPSHOT`). Both are
-  load-bearing. The pin does not make `j` on time.
+  branch only under `LaterBatchesLate B` (every batch numbered after the proven batch `B`
+  settles no earlier than the root; ASSUMPTIONS.md `PROTO-BATCH-SNAPSHOT`). Both are
+  load-bearing. `LaterBatchesLate` is the restricted form, equal to
+  `LastBatchInRootOffset`'s re-indexed premise (`LaterBatchesLateOfOffset`); the
+  unrestricted "every batch not in the root is late" is false for EraVM chains and is
+  not used. The end-branch satisfiability witness is a fresh EraVM chain. The pin does
+  not make `j` on time.
 
 These modules expose the hypotheses used by the library's argument. They do not
 prove the compiled verifier, authenticate imported roots, or establish settlement

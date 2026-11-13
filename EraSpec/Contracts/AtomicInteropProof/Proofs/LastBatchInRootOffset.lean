@@ -8,10 +8,10 @@ namespace AttackVectors.LastBatchInRootOffset
 
 open AttackVectors.TimeoutSoundness AttackVectors.LastBatchInRoot
 
-theorem end_branch_from_onchain_check_offset {H : BatchHistory} {s n p hDepth B D T : ℕ}
-    {v : UInt256} (hao : AppendOnly H) (hroot : D < T) (hB : B = batchAt s p)
+theorem end_branch_from_onchain_check_offset {H : BatchHistory} {f n p hDepth B D T : ℕ}
+    {v : UInt256} (hao : AppendOnly H) (hroot : D < T) (hB : B = batchAt f p)
     (hin : p < n) (hcap : n ≤ 2 ^ hDepth) (hemp : RightEmpty p n hDepth)
-    (hout : ∀ m, s + n < m → T ≤ H.time m) (habsent : v ∉ H.endSet B) :
+    (hout : ∀ m, f + n ≤ m → T ≤ H.time m) (habsent : v ∉ H.endSet B) :
     ∀ B', H.time B' ≤ D → v ∉ H.endSet B' := by
   have hlast : n = p + 1 := last_of_rightEmpty hin hcap hemp
   have hlate : ∀ m, B < m → T ≤ H.time m := by
@@ -22,9 +22,9 @@ theorem end_branch_from_onchain_check_offset {H : BatchHistory} {s n p hDepth B 
   exact end_absence_implies_never_finalized' hao hroot hlate habsent
 
 theorem batch_number_bound_or_collision (bl : UInt256 → ℕ → ℕ → UInt256) (R Rp : UInt256)
-    (B tB s p tp : ℕ) (he : bl R B tB = bl Rp (batchAt s p) tp) :
-    B = batchAt s p ∨ ((R, B, tB) ≠ (Rp, batchAt s p, tp) ∧ bl R B tB = bl Rp (batchAt s p) tp) := by
-  by_cases hB : B = batchAt s p
+    (B tB f p tp : ℕ) (he : bl R B tB = bl Rp (batchAt f p) tp) :
+    B = batchAt f p ∨ ((R, B, tB) ≠ (Rp, batchAt f p, tp) ∧ bl R B tB = bl Rp (batchAt f p) tp) := by
+  by_cases hB : B = batchAt f p
   · exact Or.inl hB
   · refine Or.inr ⟨fun htrip => hB ?_, he⟩
     exact (Prod.mk.inj (Prod.mk.inj htrip).2).1

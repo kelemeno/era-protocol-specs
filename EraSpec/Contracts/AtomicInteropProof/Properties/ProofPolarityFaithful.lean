@@ -28,7 +28,8 @@ legSourceChainIds[i]`) "adds nothing" under honest insertion.  With the declared
   `ProofPolarity.refund_blocked_when_chain_pinned`, whose premise `c = srcOf v` is not
   the contract's pin.
 * **Check A is redundant exactly under `DeclaredInsertion`**
-  (`UncheckedExclusiveUnderDeclared`), which the upgrade's `append` establishes on every
+  (`UncheckedExclusiveUnderDeclared`; its premises hold together by
+  `UncheckedExclusiveUnderDeclaredSatisfiable`), which the upgrade's `append` establishes on every
   honest chain (`UpgradeReachDeclared`, `UpgradeCheckARedundant`).  At the upgrade
   `decl v = srcOf v` holds for every committed value (`UpgradeExcludesMisdeclared`),
   so the original model's identification becomes accurate there.
@@ -130,5 +131,11 @@ finalized with check A (so the premise of `UpgradeCheckARedundant` holds). -/
 def Properties.UpgradeFinalitySatisfiable : Prop :=
   UpgradeReach cmSrc cmSrc cmTree ∧ FlowFinalizedUnchecked cmTree [()] cmSrc
     ∧ FlowFinalizedChecked cmSrc cmTree [()] cmSrc
+
+/-- **THE PREMISES OF `UncheckedExclusiveUnderDeclared` ARE SATISFIABLE.**  With the leg
+declared on its real source chain (`decl = cmSrc`), the state `cmTree` satisfies
+`DeclaredInsertion` and the one-leg flow is finalized without check A. -/
+def Properties.UncheckedExclusiveUnderDeclaredSatisfiable : Prop :=
+  DeclaredInsertion cmSrc cmTree ∧ FlowFinalizedUnchecked cmTree [()] cmSrc
 
 end AttackVectors.ProofPolarityFaithful

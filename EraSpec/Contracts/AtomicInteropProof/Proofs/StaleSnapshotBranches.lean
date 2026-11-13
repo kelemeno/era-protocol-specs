@@ -24,12 +24,27 @@ theorem begin_branch_gives_pin {H : BatchSnapshots} {D T v : UInt256} {L : ℕ} 
     · rw [Nat.add_sub_cancel]
       exact hb.late
 
-theorem end_branch_gives_pin {H : BatchSnapshots} {inRoot : ℕ → Prop} {D T v : UInt256} {B : ℕ}
-    {W : AbsLeaf} (hout : OutsideRootLate inRoot H.t T) (he : EndBranch H inRoot D T v B W) :
-    W ∈ H.endS B ∧ D < H.t (B + 1) := by
-  refine ⟨he.mem, lt_of_lt_of_le he.rootLate (hout (B + 1) (fun hin => ?_))⟩
-  have := he.lastInRoot (B + 1) hin
-  omega
+theorem end_branch_gives_pin {H : BatchSnapshots} {D T v : UInt256} {B : ℕ}
+    {W : AbsLeaf} (hlate : LaterBatchesLate B H.t T) (he : EndBranch H D T v B W) :
+    W ∈ H.endS B ∧ D < H.t (B + 1) :=
+  ⟨he.mem, lt_of_lt_of_le he.rootLate (hlate (B + 1) (Nat.lt_succ_self B))⟩
+
+theorem laterBatchesLate_of_offset (H : AttackVectors.TimeoutSoundness.BatchHistory)
+    (f p T : ℕ) :
+    (∀ m, f + (p + 1) ≤ m → T ≤ H.time m) ↔
+      LaterBatchesLate (AttackVectors.LastBatchInRootOffset.batchAt f p) H.time T := by
+  unfold LaterBatchesLate AttackVectors.LastBatchInRootOffset.batchAt
+  constructor
+  · intro h m hm
+    exact h m (by omega)
+  · intro h m hm
+    exact h m (by omega)
+
+theorem outsideRootLate_gives_laterBatchesLate {inRoot : ℕ → Prop} {t : ℕ → UInt256}
+    {T : UInt256} {B : ℕ} (hout : OutsideRootLate inRoot t T) (hlast : ∀ m, inRoot m → m ≤ B) :
+    LaterBatchesLate B t T := by
+  intro m hm
+  exact hout m (fun hin => absurd (hlast m hin) (by omega))
 
 /-! ## The headline on each branch -/
 
@@ -47,14 +62,14 @@ theorem begin_branch_not_redeemable {H : BatchSnapshots} {D T v : UInt256} {L : 
     exact AttackVectors.StaleSnapshot.stale_witness_not_redeemable hevo h0 htmono hpin hW
       hb.window.1 hb.window.2
 
-theorem end_branch_not_redeemable {H : BatchSnapshots} {inRoot : ℕ → Prop} {D T v : UInt256}
+theorem end_branch_not_redeemable {H : BatchSnapshots} {D T v : UInt256}
     {B : ℕ} {W : AbsLeaf} (hevo : Evolution H.endS) (h0 : SoundState (H.endS 0))
-    (hout : OutsideRootLate inRoot H.t T) (he : EndBranch H inRoot D T v B W) :
+    (hlater : LaterBatchesLate B H.t T) (he : EndBranch H D T v B W) :
     ∀ i, H.t i ≤ D → v ∉ keys (H.endS i) := by
   intro i hti hmem
   have hiB : i ≤ B := by
     by_contra hgt
-    have hlate : T ≤ H.t i := hout i (fun hin => hgt (he.lastInRoot i hin))
+    have hlate : T ≤ H.t i := hlater i (by omega)
     exact absurd (lt_of_lt_of_le he.rootLate hlate) (not_lt.mpr hti)
   have hkeys : v ∈ keys (H.endS B) := evolution_keys_mono hevo hiB hmem
   exact present_not_reclaimable (evolution_sound hevo h0 B).1 hkeys
@@ -92,17 +107,17 @@ theorem begin_branch_needs_beginIsPrevEnd : Properties.BeginBranchNeedsBeginIsPr
     rw [← h1] at hmem
     exact one_not_mem_genesis_keys hmem
 
-theorem end_branch_needs_outsideRootLate : Properties.EndBranchNeedsOutsideRootLate := by
+theorem end_branch_needs_laterBatchesLate : Properties.EndBranchNeedsLaterBatchesLate := by
   refine ⟨AttackVectors.Timestamps.attackHistory_evolution one_ne_zero_word,
     genesis_soundState, monotone_const, ?_, ?_,
-    ⟨by decide, le_refl _, fun _ hm => hm, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩,
+    ⟨by decide, le_refl _, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩,
     le_refl _, one_mem_insert_keys⟩
   · intro n
     cases n with
     | zero => rfl
     | succ m => simp [staleRootHistory]
-  · intro hout
-    have h1 : (1 : UInt256) ≤ staleRootHistory.t 1 := hout 1 (by norm_num)
+  · intro hlate
+    have h1 : (1 : UInt256) ≤ staleRootHistory.t 1 := hlate 1 (by norm_num)
     exact absurd h1 (by decide)
 
 /-! ## What the pin means -/
@@ -141,11 +156,14 @@ theorem begin_branch_not_redeemable_satisfiable :
 theorem end_branch_not_redeemable_satisfiable :
     Properties.EndBranchNotRedeemableSatisfiable := by
   refine ⟨fun _ => Or.inl rfl, genesis_soundState, ?_,
-    ⟨by decide, by decide, fun _ hm => hm, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩⟩
-  intro n hn
-  have hn0 : n ≠ 0 := by omega
-  show (1 : UInt256) ≤ (if n = 0 then (0 : UInt256) else 1)
-  simp [hn0]
+    ⟨by decide, by decide, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩, ?_⟩
+  · intro m hm
+    have hm1 : ¬ m ≤ 1 := by omega
+    show (1 : UInt256) ≤ (if m ≤ 1 then (0 : UInt256) else 1)
+    simp [hm1]
+  · intro hout
+    have h0 : (1 : UInt256) ≤ eraVMHonestHistory.t 0 := hout 0 (by norm_num)
+    exact absurd h0 (by decide)
 
 /-! ## Certificates -/
 
@@ -153,19 +171,25 @@ theorem BeginBranchGivesPin : Properties.BeginBranchGivesPin :=
   fun _ _ _ _ _ _ hbp hL hb => begin_branch_gives_pin hbp hL hb
 
 theorem EndBranchGivesPin : Properties.EndBranchGivesPin :=
-  fun _ _ _ _ _ _ _ hout he => end_branch_gives_pin hout he
+  fun _ _ _ _ _ _ hlate he => end_branch_gives_pin hlate he
+
+theorem LaterBatchesLateOfOffset : Properties.LaterBatchesLateOfOffset :=
+  laterBatchesLate_of_offset
+
+theorem OutsideRootLateGivesLaterBatchesLate : Properties.OutsideRootLateGivesLaterBatchesLate :=
+  fun _ _ _ _ hout hlast => outsideRootLate_gives_laterBatchesLate hout hlast
 
 theorem BeginBranchNotRedeemable : Properties.BeginBranchNotRedeemable :=
   fun _ _ _ _ _ _ hevo h0 htmono hbp hb => begin_branch_not_redeemable hevo h0 htmono hbp hb
 
 theorem EndBranchNotRedeemable : Properties.EndBranchNotRedeemable :=
-  fun _ _ _ _ _ _ _ hevo h0 hout he => end_branch_not_redeemable hevo h0 hout he
+  fun _ _ _ _ _ _ hevo h0 hlate he => end_branch_not_redeemable hevo h0 hlate he
 
 theorem BeginBranchNeedsBeginIsPrevEnd : Properties.BeginBranchNeedsBeginIsPrevEnd :=
   begin_branch_needs_beginIsPrevEnd
 
-theorem EndBranchNeedsOutsideRootLate : Properties.EndBranchNeedsOutsideRootLate :=
-  end_branch_needs_outsideRootLate
+theorem EndBranchNeedsLaterBatchesLate : Properties.EndBranchNeedsLaterBatchesLate :=
+  end_branch_needs_laterBatchesLate
 
 theorem PinBoundsOnTime : Properties.PinBoundsOnTime :=
   fun _ _ _ htmono hpin => pin_bounds_on_time htmono hpin

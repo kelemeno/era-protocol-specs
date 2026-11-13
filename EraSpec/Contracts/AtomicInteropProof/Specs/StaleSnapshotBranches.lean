@@ -25,9 +25,17 @@ checks:
   `begin(L) = end(L-1)` (`BeginIsPrevEnd`, the bootloader's batch-boundary snapshot;
   `AttackVectors.TimeoutSoundness.BeginIsPrevEnd`).  Then `j = L - 1` and the late batch
   `L = j + 1` gives `D < t (j+1)`.
-* end: `j = B`, and `D < t (B+1)` holds only via "every batch after `B` settles no
-  earlier than `T`", which `_verifyLastBatchInRoot` gives as an INDEX fact and
-  `OutsideRootLate` turns into a TIME fact (`AttackVectors.LastBatchInRoot.hlast_of_last_in_root`).
+* end: `j = B`, and `D < t (B+1)` holds only via `LaterBatchesLate B t T`, "every batch
+  NUMBERED after `B` settles no earlier than `T`".  `_verifyLastBatchInRoot` gives only
+  an INDEX fact (the proven leaf is the last leaf of the chain's tree in the root);
+  `LaterBatchesLate` is the TIME fact the branch needs.  It is the restricted form
+  `LastBatchInRootOffset` derives (`LaterBatchesLateOfOffset`).  The unrestricted
+  `OutsideRootLate inRoot t T` ("every batch NOT in the root settles no earlier than
+  `T`", `AttackVectors.LastBatchInRoot.hlast_of_last_in_root`) is false at the pin for
+  every EraVM chain: `seedGenesisRoot` returns early for EraVM chains and
+  `_addNewChain` starts an empty tree at `_startingBatchNumber`, so batch 0 (and batches
+  `1 .. s` of a chain onboarded at `s > 0`) are in no root yet settle before `T`.  It is
+  kept below only to state that it implies the restricted form.
 
 And `D < t (j+1)` does not make `j` on time: in the begin branch `j = L - 1` may itself
 be late.  What the pin does give, under monotone `t`, is that every on-time snapshot is
@@ -58,10 +66,21 @@ IMT-root leaf (2 or 3) of ONE batch and never relates two batches. -/
 def BeginIsPrevEnd (H : BatchSnapshots) : Prop :=
   ∀ n, H.beginS (n + 1) = H.endS n
 
-/-- A batch outside the aggregated root settles no earlier than the root's creation time
-`T` (`LastBatchInRoot.OutsideRootLate`, on the `UInt256` clock `StaleSnapshot` uses). -/
+/-- **UNRESTRICTED, FALSE AT THE PIN FOR ERAVM CHAINS.**  A batch outside the aggregated
+root settles no earlier than the root's creation time `T` (`LastBatchInRoot.OutsideRootLate`,
+on the `UInt256` clock `StaleSnapshot` uses).  Batches below a chain's first pushed batch
+are never in any root but settle earlier, so this fails for every EraVM chain (batch 0)
+and every chain onboarded at a non-zero starting batch.  No headline here takes it; see
+`LaterBatchesLate`. -/
 def OutsideRootLate (inRoot : ℕ → Prop) (t : ℕ → UInt256) (T : UInt256) : Prop :=
   ∀ n, ¬ inRoot n → T ≤ t n
+
+/-- **THE END-BRANCH BRIDGE.**  Every batch numbered after `B` settles no earlier than the
+root's creation time `T`.  This is the restricted form: batches before `B` (including
+those never pushed) are unconstrained.  Generic in the clock type so that it also reads
+over `TimeoutSoundness.BatchHistory.time`. -/
+def LaterBatchesLate {α : Type} [LE α] (B : ℕ) (t : ℕ → α) (T : α) : Prop :=
+  ∀ m, B < m → T ≤ t m
 
 /-- `W`'s window straddles `v`: the shape `verifyNonInclusion` checks. -/
 abbrev Straddles (W : AbsLeaf) (v : UInt256) : Prop :=
@@ -79,17 +98,14 @@ structure BeginBranch (H : BatchSnapshots) (D T v : UInt256) (L : ℕ) (W : AbsL
   window : Straddles W v
 
 /-- **THE END BRANCH, AS DEPLOYED** (with a genuine witness): the root post-dates the
-deadline, batch `B` settled by it, `B` is the chain's last batch in the root (the index
-conclusion of `_verifyLastBatchInRoot`), and a leaf of batch `B`'s END snapshot straddles
-`v`. -/
-structure EndBranch (H : BatchSnapshots) (inRoot : ℕ → Prop) (D T v : UInt256) (B : ℕ)
-    (W : AbsLeaf) : Prop where
+deadline, batch `B` settled by it, and a leaf of batch `B`'s END snapshot straddles `v`.
+`_verifyLastBatchInRoot`'s index conclusion is not a field: what the branch uses from it
+is the time fact `LaterBatchesLate B H.t T`, taken as a separate premise. -/
+structure EndBranch (H : BatchSnapshots) (D T v : UInt256) (B : ℕ) (W : AbsLeaf) : Prop where
   /-- `ProofInteropRootNotAfterDeadline`. -/
   rootLate : D < T
   /-- `ProofTimeoutBranchMismatch(false, …)`. -/
   onTime : H.t B ≤ D
-  /-- `_verifyLastBatchInRoot`, as an index fact. -/
-  lastInRoot : ∀ m, inRoot m → m ≤ B
   mem : W ∈ H.endS B
   window : Straddles W v
 
@@ -109,6 +125,14 @@ def staleRootHistory : BatchSnapshots where
   endS := fun m => if m = 0 then {⟨0, 0⟩} else imtInsert {⟨0, 0⟩} ⟨0, 0⟩ 1
   beginS := fun m => if m ≤ 1 then {⟨0, 0⟩} else imtInsert {⟨0, 0⟩} ⟨0, 0⟩ 1
   t := fun _ => 0
+
+/-- An honest refund on a fresh EraVM chain: nothing is ever committed (every snapshot is
+the genesis singleton).  Batch 0 is never pushed (`seedGenesisRoot` returns early), batch
+1 is the first pushed batch; batches 0 and 1 settle at time 0, later ones at time 1. -/
+def eraVMHonestHistory : BatchSnapshots where
+  endS := fun _ => {⟨0, 0⟩}
+  beginS := fun _ => {⟨0, 0⟩}
+  t := fun n => if n ≤ 1 then 0 else 1
 
 /-- An honest refund history: nothing is ever committed (every snapshot is the genesis
 singleton, begin and end alike), batch 0 settles at time 0 and every later batch at time 1. -/

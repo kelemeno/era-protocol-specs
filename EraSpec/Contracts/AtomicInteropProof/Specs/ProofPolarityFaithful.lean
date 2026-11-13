@@ -45,9 +45,18 @@ The upgrade tree (era-contracts `e561b9cc2`) adds the missing binding:
 
 * `srcOf v` — the chain baked into commit value `v` (as in `ProofPolarity`).
 * `decl v` — the chain the flow's `legSourceChainIds` assigns to the leg whose commit
-  value is `v`.  It is a function of `v` modulo the same keccak idealization that
-  makes `srcOf` one (`v = keccak(TAG, flowId, bundleHash)`, and `flowId` hashes the
-  leg list); only its existence matters here.
+  value is `v`.  Modelling it as a function of `v` assumes that the leg's bundle hash
+  occurs at ONE position of the flow, so that the position and hence the declared chain
+  are determined.  At the pin this is enforced on the gates, not on the send path:
+  `_checkFlowId` (`AtomicFlowManager.sol:247-259`), called by `requireFlowFinalized` and
+  `authorizeRefund`, reverts with `ManagerBundleHashesNotSorted` unless
+  `legBundleHashes` is strictly ascending, so a flow preimage that passes a gate has no
+  repeated bundle hash; `append` (`:87-102`) reads no preimage at all.  Beyond that it
+  rests on the same keccak idealization that makes `srcOf` a function
+  (`v = keccak(TAG, flowId, bundleHash)`, and `flowId` hashes the leg list, so two
+  preimages with one `flowId` are a collision).  A model indexed by leg position would
+  not need either; the results here do not depend on which `decl` is chosen, only on
+  its value at the legs they mention.
 * `tree c` — the set of commit values in chain `c`'s IMT.
 * `appendAt`, `PinnedReach`, `UpgradeReach` — the commitment states honest chains
   reach under the pinned and the upgraded `append`.
