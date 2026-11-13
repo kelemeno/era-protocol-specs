@@ -179,6 +179,9 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
+-- Coverage round 6: Bridgehub (draft/v0.35.0 d9f6789)
+import EraSpec.Contracts.Bridgehub.Proofs.Registry
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
