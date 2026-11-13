@@ -90,7 +90,17 @@ the definition of `AtomicStep`.  Topic `BundleStatusMachineStrong` proves it:
 atomic sub-machine, at any depth of re-entry), `AtomicLegStaysAtomicAtDestinationOrClash` (that
 premise from the source chain's `InteropCenter`, up to named clashes), and
 `ProofForAtomicHashOpensUnbundledRoute` (with a valid proof, the unbundled route opens and atomic
-execution is lost). -/
+execution is lost).
+
+**Correction** (`BundleStatusMachineFaithful`). The "brick" conclusion above is wrong about the
+source. A `Verified` bundle is not undeliverable: `executeBundle` takes it to `FullyExecuted`
+consulting nothing (`Verified` skips `_verifyBundle`), and `unbundleBundle` takes it to `Unbundled`.
+Neither entry point consults `requireFlowFinalized`, and nothing marks a bundle as atomic. So if
+atomic bundles were published to L1, the consequence would be a bypass of the atomicity gate, not a
+loss of liveness (`Contracts.InteropHandler.Faithful.ProvableBytesBypassTheFlowGate`,
+`VerifiedBundleRunsWithoutAnyGate`). The never-published premise is a safety premise; under it the
+atomicity gate cannot be bypassed (`NeverPublishedBundleNeedsTheFlowGate`). The statement below is
+unchanged and still holds as stated. -/
 
 /-- **ONE EDGE OF THE CONDITIONAL.**  As stated this is only `¬ Step .Verified .Unreceived`, the
 `s := .Verified` case of `unreceived_unreachable`.  It mentions neither reachability nor the atomic
@@ -100,7 +110,10 @@ to support — if an atomic bundle ever reached `Verified`, atomic execution wou
 unavailable, since the atomic entry point's only enabling state is `Unreceived` and no path returns
 there — is `BundleStatusMachineStrong.VerifiedBundleNeverExecutesAtomically`, over the handler
 model: no path returns to `Unreceived`, every later `executeAtomicBundle` of that hash reverts, and
-`executeBundle` stays available. -/
+`executeBundle` stays available.  The labelled form of the edge is
+`AttackVectors.BundleStatusMachine.Faithful.Properties.atomic_entry_needs_unreceived`, and
+`Faithful.Properties.verified_runs_unchecked` shows that the bundle itself is still deliverable from
+`Verified` by the non-atomic entry points. -/
 abbrev Properties.verified_blocks_atomic_execution :=
   ¬ Step .Verified .Unreceived
 
@@ -236,7 +249,12 @@ abbrev Properties.wholeBundle_route_does_not_check_callStatus :=
 
 
 /-- **NO INFLATION.**  Whatever the per-call outcomes, the destination releases no more than the source
-collected for that bundle. -/
+collected for that bundle.
+
+What is proved here is about an arbitrary `Ledger`: nothing ties `l` to the handler's state, so on its
+own this is a list inequality. The link to the handler (one entry per call, its final `callStatus`,
+and the base token actually released) is `Contracts.InteropHandler.Faithful.ReleaseIsTheHandlerLedger`,
+and the handler-level statement is `HandlerReleasesAtMostCollected`, both in `ValueLedgerFaithful`. -/
 abbrev Properties.released_le_collected (l : Ledger) :=
   releasedSum l ≤ collectedSum l
 

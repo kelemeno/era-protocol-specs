@@ -49,11 +49,17 @@ namespace AttackVectors.SelfCallAuthority
 /-- **AS STATED, THIS ONLY REPACKAGES ITS PREMISE.**  The conclusion `∃ ch addr, attrAllows a ch ch
 addr` holds for every attribute — `none` allows everyone, and `some (ch, addr)` allows `(ch, addr)`
 itself — so `checked` is not used, and the statement mentions neither the inner gate, nor the
-self-call, nor the original sender.  It does not establish the delegation claim it is named after (a
-gate passing via its self-call disjunct had the attribute checked against the ORIGINAL sender, one
-frame up).  That claim is topic `SelfCallAuthorityStrong`:
-`DeployedSelfCallRelaysOriginalSenderAuthority` for the deployed dispatch, and
-`SelfCallRelaySoundIffEveryGatedBranchChecked` for every dispatch table. -/
+self-call, nor the original sender
+(`AttackVectors.SelfCallAuthority.Faithful.selfCall_relays_authority_conclusion_always_holds`).  It
+does not establish the delegation claim it is named after (a gate passing via its self-call
+disjunct had the attribute checked against the ORIGINAL sender, one frame up).  That claim is topic
+`SelfCallAuthorityStrong`: `DeployedSelfCallRelaysOriginalSenderAuthority` for the deployed
+dispatch, and `SelfCallRelaySoundIffEveryGatedBranchChecked` for every dispatch table; and topic
+`SelfCallAuthorityFaithful`: `AttackVectors.SelfCallAuthority.Faithful.Properties.PinnedDelegationSound`
+(every call that passes a permission gate at the pin carries a principal the bundle's attribute
+admits), `DelegationSoundIffMatched` (soundness is exactly a property of the dispatch table) and
+`RelayEstablishesTheOriginalHypothesis` (the hypothesis `checked` is established by the outer
+handler at every self-call). -/
 abbrev Properties.selfCall_relays_authority {a : Attr} {thisChain senderChain senderAddr : ℕ}
     (checked : attrAllows a senderChain senderChain senderAddr) :=
   ∃ ch addr, attrAllows a ch ch addr

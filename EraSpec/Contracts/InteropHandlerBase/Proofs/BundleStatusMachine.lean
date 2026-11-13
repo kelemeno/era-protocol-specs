@@ -107,7 +107,11 @@ That is a liveness dependency spanning two contracts, and it is of the same frag
 `LocalHonesty.sole_call_site`: nothing in the type system enforces it, and a future change that
 published atomic bundles to L1 — for observability, say — would make `verifyBundle` succeed on them
 and permanently brick their execution.  Recorded, not reported as a defect: the current code is
-correct. -/
+correct.
+
+**Correction:** the "brick" conclusion is wrong about the source; see the note in
+`Properties/BundleStatusMachine.lean` and `BundleStatusMachineFaithful` (a published atomic bundle
+would bypass the atomicity gate, not lose liveness). -/
 
 /-- **THE CONDITIONAL.**  If an atomic bundle ever reached `Verified`, atomic execution would be
 permanently unavailable — `Verified` has no edge to `FullyExecuted` via the atomic entry point, whose
