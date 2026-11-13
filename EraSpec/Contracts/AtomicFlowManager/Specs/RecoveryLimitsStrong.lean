@@ -71,7 +71,10 @@ def legClaimRefund (step : World X → Call → Option (World X × Bool)) (M : M
   in so far as they leave the manager alone.
 * `other`: a manager step that leaves leg `(f, b)` alone.
 * `claim`: a successful `claimRefund(f, b)` of the leg's own bundle, against the current world.  The bundle is
-  fixed because the leg's key is the bundle's hash (`:166-167`).
+  fixed because the leg's key is the bundle's hash (`:166-167`).  A claim of `(f, b)` with different bundle bytes
+  would need those bytes to hash to the same `b` under `encodeInteropBundleHash`, i.e. a keccak collision on the
+  leg's bundle-hash preimage (see `InteropDataEncoding.BundleHashPinned`).  The model leaves that case out: it is
+  built into this relation, not stated as a premise, and `blocked_leg_stays_revertable` relies on it.
 
 So the leg's state can change only through `claim`.  The abstract `Step.claim` of `Specs/Model.lean` stands for
 exactly this transaction with the recovery loop left out. -/

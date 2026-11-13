@@ -27,7 +27,7 @@ import Mathlib.Tactic
 
     1. The acceptance threshold is `recovered >= 1`, NOT `recovered == callsLen`.  A claim in which one
        call recovers and the rest decline SUCCEEDS, and `claimRefund` marks the leg `Reverted` first
-       (`AtomicFlowManager.sol:172`), which is terminal.  On the manager's runs that is
+       (`AtomicFlowManager.sol:175`), which is terminal.  On the manager's runs that is
        `Contracts.AtomicFlowManager.no_double_claim`; `refunded_leg_cannot_refund_again` is the
        sibling repository's name, not a theorem here.  So the declining calls' funds are stranded
        PERMANENTLY, by a transaction that reported success.  The properties file records the two
@@ -85,7 +85,7 @@ inductive LegState
 abbrev claimEnabled (s : LegState) : Prop := s = LegState.Revertable
 
 
-/-- It sets `Reverted` BEFORE the external calls (`AtomicFlowManager.sol:172`), so a reentrant or
+/-- It sets `Reverted` BEFORE the external calls (`AtomicFlowManager.sol:175`), so a reentrant or
 later claim sees the post-state.  This file only names that post-state.  The constant proves neither
 consequence.  The reentrant case is
 `Contracts.AtomicFlowManager.ModelStrong.Properties.writeFirst_callback_never_reclaims`.  The later-claim
