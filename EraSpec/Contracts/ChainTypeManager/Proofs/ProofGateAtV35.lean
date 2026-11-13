@@ -491,13 +491,12 @@ theorem BreakGlassClearsTheRequirement : Properties.BreakGlassClearsTheRequireme
     ⟨_, rfl, rfl, rfl⟩, rfl⟩
 
 theorem MaskPremiseNeeded : Properties.MaskPremiseNeeded := by
-  refine ⟨fun h => absurd (h 54 1 (by decide)) (by decide), fun id c hc => by
+  refine ⟨fun h => absurd (h 54 ziskBit (by decide)) (by decide), fun id c hc => by
     simp [wSys35, wSys0] at hc, ?_⟩
-  have hrun : Run35 wWorld wProofOdd wSys35
-      [.routing (.genesis 0), .setProofSystems 0 1, .requireSecondProofSystem 0]
+  have hrun : Run35 wWorld wProofOdd wSys35 wZiskOffFirstRun
       ⟨⟨wSys0.ctm, upd (fun _ => none) 0 (some ⟨1, rowsRouting (wRows 100)⟩)⟩,
-        upd (upd (upd (fun _ => ⟨false, 0, 0⟩) 0 ⟨false, 54, 0⟩) 0 ⟨false, 54, 1⟩) 0
-          ⟨true, 54, 1⟩⟩ :=
+        upd (upd (upd (fun _ => ⟨false, 0, 0⟩) 0 ⟨false, 54, 0⟩) 0 ⟨false, 54, ziskBit⟩) 0
+          ⟨true, 54, ziskBit⟩⟩ :=
     Run35.cons (Step35.routing (Step.genesis (s := wSys0) (id := 0) rfl
         (addAll_empty_eq xNodup100)) ProofEffect.genesis)
       (Run35.cons (Step35.setProofSystems (c := ⟨1, rowsRouting (wRows 100)⟩) rfl)
@@ -505,6 +504,24 @@ theorem MaskPremiseNeeded : Properties.MaskPremiseNeeded := by
           (by decide)) Run35.nil))
   refine ⟨_, hrun, rfl, fun h => ?_⟩
   exact absurd (h 0 ⟨1, rowsRouting (wRows 100)⟩ rfl rfl) (by decide)
+
+theorem RequirementDoesNotPinTheCurrentProofMode :
+    Properties.RequirementDoesNotPinTheCurrentProofMode := by
+  have hrun : Run35 wWorld wProofMulti wSys35 wZiskOffRun
+      ⟨⟨wSys0.ctm, upd (fun _ => none) 0 (some ⟨1, rowsRouting (wRows 100)⟩)⟩,
+        upd (upd (upd (fun _ => ⟨false, 0, 0⟩) 0 ⟨false, 51, 0⟩) 0 ⟨true, 51, 0⟩) 0
+          ⟨true, 51, ziskBit⟩⟩ :=
+    Run35.cons (Step35.routing (Step.genesis (s := wSys0) (id := 0) rfl
+        (addAll_empty_eq xNodup100)) ProofEffect.genesis)
+      (Run35.cons (Step35.requireSecondProofSystem (c := ⟨1, rowsRouting (wRows 100)⟩) rfl rfl
+          (by decide))
+        (Run35.cons (Step35.setProofSystems (c := ⟨1, rowsRouting (wRows 100)⟩) rfl) Run35.nil))
+  refine ⟨_, hrun, rfl, fun id c hc hr => ?_, by decide, by decide⟩
+  by_cases h0 : id = 0
+  · subst h0
+    decide
+  · exfalso
+    simp [upd, h0] at hc
 
 /-- The routing system after `wGateSetup` and chain `0`'s transition. -/
 private def gMidSys : Sys :=

@@ -130,6 +130,116 @@ theorem TimedRunKeepsChainsOnTheirRelease : Properties.TimedRunKeepsChainsOnThei
   | requireSecondProofSystem _ _ => simp [TimedLabel35.timedSteps] at hlx
   | setProofSystems _ _ => simp [TimedLabel35.timedSteps] at hlx
 
+/-! ## The proof-system guarantees along timed runs -/
+
+private lemma run35_append {W : World} {P : ProofWorld} {s s' s'' : Sys35} {l1 l2 : List Label35}
+    (h1 : Run35 W P s l1 s') (h2 : Run35 W P s' l2 s'') : Run35 W P s (l1 ++ l2) s'' := by
+  induction h1 with
+  | nil => exact h2
+  | cons hs _ ih => exact Run35.cons hs (ih h2)
+
+/-- One v35 timed step is its `ProofGateAtV35` steps. -/
+private lemma timedStep35_gate {T : TimedConfig} {P : ProofWorld} {s s' : TimedSys35}
+    {l : TimedLabel35} (h : TimedStep35 T P s l s') :
+    Run35 T.X.W P s.routing l.gateSteps s'.routing := by
+  cases h with
+  | @timed l t' pr' hs he =>
+      cases he with
+      | @upgrade id path caller τ pr' he' =>
+          obtain ⟨hr, _, _⟩ := Contracts.ChainTypeManager.UpgradeIsATransition T s.timed t' id
+            path caller τ hs
+          exact Run35.cons (Step35.routing (s := s.routing) hr he') Run35.nil
+      | @base l pr' he' =>
+          cases hs with
+          | base _ hr => exact Run35.cons (Step35.routing (s := s.routing) hr he') Run35.nil
+      | setUpgradeTimestamp =>
+          cases hs with
+          | setUpgradeTimestamp _ _ _ _ => exact Run35.nil
+      | swapNotifier =>
+          cases hs with
+          | swapNotifier => exact Run35.nil
+      | setAux =>
+          cases hs with
+          | setAux => exact Run35.nil
+  | requireSecondProofSystem hc _ _ hreq hm =>
+      exact Run35.cons (Step35.requireSecondProofSystem (s := s.routing) hc hreq hm) Run35.nil
+  | setProofSystems hc =>
+      exact Run35.cons (Step35.setProofSystems (s := s.routing) hc) Run35.nil
+
+theorem TimedRunIsAProofGateRun : Properties.TimedRunIsAProofGateRun := by
+  intro T P s s' ls h
+  induction h with
+  | nil => exact Run35.nil
+  | cons hs _ ih =>
+      rw [List.flatMap_cons]
+      exact run35_append (timedStep35_gate hs) ih
+
+theorem TimedRunsKeepAMultiProofVerifier : Properties.TimedRunsKeepAMultiProofVerifier := by
+  intro T P s s' ls hD hI h
+  exact RequiringChainsKeepAMultiProofVerifier T.X.W P s.routing s'.routing _ hD hI
+    (TimedRunIsAProofGateRun T P s s' ls h)
+
+theorem TimedRequirementWriters : Properties.TimedRequirementWriters := by
+  intro T P s s' l id c h hc hne
+  cases h with
+  | @timed l t' pr' hs he =>
+      dsimp only at hne
+      cases he with
+      | @upgrade id' path caller τ pr' he' =>
+          obtain ⟨hr, _, _⟩ := Contracts.ChainTypeManager.UpgradeIsATransition T s.timed t' id'
+            path caller τ hs
+          rcases RequirementWriters T.X.W P s.routing ⟨t'.sys, pr'⟩ _ id c
+            (Step35.routing (s := s.routing) hr he') hc hne with ⟨hl, _⟩ | ⟨v, ρ, hl⟩
+          · cases hl
+          · cases hl
+      | @base l pr' he' =>
+          cases hs with
+          | @base _ sys' _ hr =>
+              rcases RequirementWriters T.X.W P s.routing ⟨sys', pr'⟩ _ id c
+                (Step35.routing (s := s.routing) hr he') hc hne with ⟨hl, _⟩ | ⟨v, ρ, hl⟩
+              · cases hl
+              · cases hl
+                exact Or.inr ⟨v, ρ, rfl⟩
+      | setUpgradeTimestamp => exact absurd rfl hne
+      | swapNotifier => exact absurd rfl hne
+      | setAux => exact absurd rfl hne
+  | @requireSecondProofSystem id' caller c' _ hcaller hsl _ _ =>
+      dsimp only at hne ⊢
+      by_cases e : id = id'
+      · subst e
+        exact Or.inl ⟨caller, rfl, hcaller, hsl, by simp⟩
+      · exact absurd (by rw [upd_ne _ _ e]) hne
+  | @setProofSystems id' c' m _ =>
+      dsimp only at hne
+      by_cases e : id = id'
+      · subst e
+        exact absurd (by simp) hne
+      · exact absurd (by rw [upd_ne _ _ e]) hne
+
+theorem TimedRequirementIsPermanentWithoutBreakGlass :
+    Properties.TimedRequirementIsPermanentWithoutBreakGlass := by
+  intro T P s s' ls id c h hc hreq hno
+  refine RequirementIsPermanentWithoutBreakGlass T.X.W P s.routing s'.routing _ id c
+    (TimedRunIsAProofGateRun T P s s' ls h) hc hreq ?_
+  intro v ρ hm
+  obtain ⟨x, hx, hlx⟩ := List.mem_flatMap.mp hm
+  cases x with
+  | timed l =>
+      simp only [TimedLabel35.gateSteps, List.mem_map] at hlx
+      obtain ⟨l', hl', he⟩ := hlx
+      cases he
+      cases l with
+      | upgrade _ _ _ _ => simp [TimedLabel.untimed] at hl'
+      | base l'' =>
+          simp only [TimedLabel.untimed, List.mem_singleton] at hl'
+          subst hl'
+          exact hno v ρ hx
+      | setUpgradeTimestamp _ _ _ => simp [TimedLabel.untimed] at hl'
+      | swapNotifier _ => simp [TimedLabel.untimed] at hl'
+      | setAux _ _ => simp [TimedLabel.untimed] at hl'
+  | requireSecondProofSystem _ _ => simp [TimedLabel35.gateSteps] at hlx
+  | setProofSystems _ _ => simp [TimedLabel35.gateSteps] at hlx
+
 /-! ## The NatSpec of `upgradeChain`, at v35 -/
 
 /-- An upgrade writes neither `DiamondAux` nor the notifier. -/

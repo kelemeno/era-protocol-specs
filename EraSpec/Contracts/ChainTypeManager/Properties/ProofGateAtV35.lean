@@ -36,22 +36,36 @@ proof system. For those it asks the arriving release's verifier to report multi-
 ## The guarantee #2628 adds
 
 * Along every v35 run, break-glass cuts included, a chain that requires its second proof
-  system has a verifier in multi-proof mode with nothing disabled
+  system has a verifier that reports multi-proof mode for the empty mask
   (`RequiringChainsKeepAMultiProofVerifier`). This needs `DisablingNeverEnablesMultiProof`,
   which every in-tree verifier meets. `permanentlyRequireSecondProofSystem` checks the mode
   under the chain's current mask, while every cut checks it under mask `0`, and a verifier
   could treat the two differently (`MaskPremiseNeeded`).
-* "Once activated, there is no way back!" (`IAdmin.sol:137-140`) holds against everyone but
-  the CTM owner. Only `permanentlyRequireSecondProofSystem` sets the requirement, and only a
-  break-glass cut of the chain clears it (`RequirementWriters`,
-  `RequirementIsPermanentWithoutBreakGlass`). The CTM owner's cut can clear it, and that cut is
-  also the way out for a stranded chain (`BreakGlassClearsTheRequirement`).
+* That is a statement about the verifier, not about the mode the chain is in. The mode is
+  `getProofMode(s.disabledProofSystems)`, and with ZiSK switched off a chain that requires its
+  second proof system is not in multi-proof mode
+  (`RequirementDoesNotPinTheCurrentProofMode`). The source reserves that switch for the
+  Bridgehub owner (`Admin.sol:417-420`); this model lets anyone write the mask.
+* "Once activated, there is no way back!" (`IAdmin.sol:137-140`) holds of a diamond against
+  everyone but the CTM owner, with the in-tree engines. Only
+  `permanentlyRequireSecondProofSystem` sets the requirement, and only a break-glass cut of
+  the chain clears it (`RequirementWriters`, `RequirementIsPermanentWithoutBreakGlass`). The
+  CTM owner's cut can clear it, and that cut is also the way out for a stranded chain
+  (`BreakGlassClearsTheRequirement`). A transition whose manifest names another engine is
+  outside the model, as in `ChainRouting`.
+
+## Scope
+
+The proof-system fields are a diamond's, and the model has the diamonds of one CTM. A diamond
+that migration deploys starts with the requirement off (`ProofEffect.migrateIn`), so
+"permanent" is per diamond, not per chain across settlement layers. Callers are not modelled
+here; `UpgradeTimingAtV35` has them for `permanentlyRequireSecondProofSystem`.
 
 ## Witnesses
 
 `ProofGateWitness` meets every premise above in one run where a chain that requires its
-second proof system crosses an edge. `GateStrandsRequiringChain`, `BreakGlassClearsTheRequirement`
-and `MaskPremiseNeeded` are the countermodels.
+second proof system crosses an edge. `GateStrandsRequiringChain`, `BreakGlassClearsTheRequirement`,
+`MaskPremiseNeeded` and `RequirementDoesNotPinTheCurrentProofMode` are the countermodels.
 -/
 
 namespace Contracts.ChainTypeManager.ProofGateAtV35
@@ -172,8 +186,9 @@ def Properties.ValidatedRunsKeepEverythingEnabled : Prop :=
 /-- **A CHAIN THAT REQUIRES ITS SECOND PROOF SYSTEM KEEPS A MULTI-PROOF VERIFIER.** Along every
 v35 run, break-glass cuts included, from a state where `ProofInv` holds (every state where no
 chain requires the second proof system is one), every registered chain that requires it has a
-verifier in multi-proof mode with nothing disabled. The verifiers must satisfy
-`DisablingNeverEnablesMultiProof`. -/
+verifier that reports multi-proof mode for the empty mask, `getProofMode(0)`. The verifiers
+must satisfy `DisablingNeverEnablesMultiProof`. This says nothing about the chain's own mask;
+see `RequirementDoesNotPinTheCurrentProofMode`. -/
 def Properties.RequiringChainsKeepAMultiProofVerifier : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35),
     DisablingNeverEnablesMultiProof P → ProofInv P s → Run35 W P s ls s' → ProofInv P s'
@@ -192,7 +207,8 @@ def Properties.RequirementWriters : Prop :=
 
 /-- **"NO WAY BACK", EXCEPT BY BREAK-GLASS** (`IAdmin.sol:137-140`). Along any v35 run with no
 break-glass cut of chain `id`, a registered chain that requires its second proof system still
-requires it at the end. -/
+requires it at the end. This is about the chain's diamond on the modelled CTM, upgraded by the
+in-tree engines. -/
 def Properties.RequirementIsPermanentWithoutBreakGlass : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35) (id : ChainId) (c : Chain),
     Run35 W P s ls s' → s.sys.chains id = some c → (s.proof id).required = true →
@@ -234,13 +250,26 @@ def Properties.BreakGlassClearsTheRequirement : Prop :=
       (s''.proof 0).verifier = 52
 
 /-- **`DisablingNeverEnablesMultiProof` IS NEEDED.** With `wProofOdd`, whose verifier `54` is in
-multi-proof mode only with mask `1` disabled: chain `0` is created, its mask is set to `1`, and it
-requires its second proof system. `ProofInv` held at the start and fails at the end. -/
+multi-proof mode exactly with ZiSK disabled (mask `ziskBit`), run `wZiskOffFirstRun` from
+`wSys35`: chain `0` is created, ZiSK is switched off, and the chain requires its second proof
+system. `ProofInv` held at the start and fails at the end. The verifier is hypothetical; the
+masks are ones `setProofSystemStatus` can write. -/
 def Properties.MaskPremiseNeeded : Prop :=
   ¬ DisablingNeverEnablesMultiProof wProofOdd ∧ ProofInv wProofOdd wSys35 ∧
-    ∃ s, Run35 wWorld wProofOdd wSys35
-        [.routing (.genesis 0), .setProofSystems 0 1, .requireSecondProofSystem 0] s ∧
+    ∃ s, Run35 wWorld wProofOdd wSys35 wZiskOffFirstRun s ∧
       (s.proof 0).required = true ∧ ¬ ProofInv wProofOdd s
+
+/-- **THE REQUIREMENT DOES NOT PIN THE CHAIN'S CURRENT PROOF MODE.** On `wWorld` with
+`wProofMulti`, run `wZiskOffRun` from `wSys35`: chain `0` is created with verifier `51`, requires
+its second proof system, and ZiSK is switched off (mask `ziskBit`). At the end the chain still requires its
+second proof system and `ProofInv` holds: verifier `51` reports multi-proof mode for the empty
+mask. But for the chain's own mask it does not, so `getProofMode(s.disabledProofSystems)` is not
+multi-proof. -/
+def Properties.RequirementDoesNotPinTheCurrentProofMode : Prop :=
+  ∃ s, Run35 wWorld wProofMulti wSys35 wZiskOffRun s ∧
+    (s.proof 0).required = true ∧ ProofInv wProofMulti s ∧
+    wProofMulti.multi (s.proof 0).verifier 0 = true ∧
+    wProofMulti.multi (s.proof 0).verifier (s.proof 0).disabled = false
 
 /-- **THE v35 PREMISES ARE MET, AND A CHAIN THAT REQUIRES ITS SECOND PROOF SYSTEM UPGRADES.** On
 `wWorld` with `wProofMulti` (every release ships a multi-proof verifier), the start `wSys35`

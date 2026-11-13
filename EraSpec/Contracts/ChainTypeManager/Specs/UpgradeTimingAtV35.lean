@@ -70,6 +70,10 @@ own, and here they carry their callers.
   (`:141-146`), the diamond is on its settlement layer, `slVersion = none`.
 * **`setProofSystemStatus`** is an arbitrary write of the mask, as in `ProofGateAtV35`. Its
   caller rule (`Admin.sol:417-420`) is not modelled.
+* **`setAux` still rewrites a chain's admin and settlement layer arbitrarily**, as in
+  `UpgradeTiming`. So "the chain's admin, on its settlement layer" in the results below is
+  about the state at the call, whoever wrote it.
+* `ProofGateAtV35`'s scope applies: the diamonds of one CTM, upgraded by the in-tree engines.
 -/
 
 namespace Contracts.ChainTypeManager.UpgradeTimingAtV35
@@ -150,6 +154,13 @@ def TimedLabel35.timedSteps : TimedLabel35 → List TimedLabel
 def TimedLabel35.isArbitrary : TimedLabel35 → Prop
   | .timed l => l.isArbitrary
   | _ => False
+
+/-- The `ProofGateAtV35` steps a timed v35 label is: the routing steps of a timed label (an
+upgrade by any path is a transition), and the two proof-system writers without their callers. -/
+def TimedLabel35.gateSteps : TimedLabel35 → List Label35
+  | .timed l => l.untimed.map Label35.routing
+  | .requireSecondProofSystem id _ => [.requireSecondProofSystem id]
+  | .setProofSystems id m => [.setProofSystems id m]
 
 /-- The routing view of a timed v35 state. -/
 def TimedSys35.routing (s : TimedSys35) : Sys35 := ⟨s.timed.sys, s.proof⟩

@@ -34,8 +34,21 @@ does, an upgrade has one more condition.
   conditions plus "if the chain requires its second proof system, the verifier of the
   transition's new release reports multi-proof mode with nothing disabled".
 
+## The proof-system guarantees along timed runs
+
+A v35 timed run is a `ProofGateAtV35` run of its routing steps and its proof-system writes
+(`TimedRunIsAProofGateRun`), so that file's results hold along timed runs:
+
+* a chain that requires its second proof system keeps a verifier that reports multi-proof mode
+  for the empty mask (`TimedRunsKeepAMultiProofVerifier`);
+* the requirement is set only by `permanentlyRequireSecondProofSystem`, called by the chain's
+  admin while the diamond is on its settlement layer, and otherwise changed only by a
+  break-glass cut of the chain (`TimedRequirementWriters`);
+* without such a cut it stays set (`TimedRequirementIsPermanentWithoutBreakGlass`).
+
 `UpgradeTimingAtV35Witness` is a v35 run in which a chain that requires its second proof system
-is upgraded through `upgradeChain` by its admin.
+is upgraded through `upgradeChain` by its admin. Its setup contains a successful
+`permanentlyRequireSecondProofSystem` by the admin.
 -/
 
 namespace Contracts.ChainTypeManager.UpgradeTimingAtV35
@@ -85,6 +98,52 @@ def Properties.TimedRunKeepsChainsOnTheirRelease : Prop :=
     ∀ id c, s'.timed.sys.chains id = some c → s'.timed.sys.ctm.relAt c.pv ≠ 0 →
       T.X.W.relVersion (s'.timed.sys.ctm.relAt c.pv) = c.pv ∧
       c.routing = rowsRouting (T.X.W.relRows (s'.timed.sys.ctm.relAt c.pv))
+
+/-! ## The proof-system guarantees along timed runs -/
+
+/-- **A v35 TIMED RUN IS A `ProofGateAtV35` RUN.** Forgetting callers, block times, the notifier
+and each chain's `DiamondAux`, every v35 timed run is a `ProofGateAtV35` run of its
+`gateSteps`, in order: an upgrade by any path is a transition, a base step is itself, the two
+proof-system writers are themselves, and the notifier and `DiamondAux` writes are stutters. -/
+def Properties.TimedRunIsAProofGateRun : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (ls : List TimedLabel35),
+    TimedRun35 T P s ls s' →
+    Run35 T.X.W P s.routing (ls.flatMap TimedLabel35.gateSteps) s'.routing
+
+/-- **ALONG v35 TIMED RUNS, A CHAIN THAT REQUIRES ITS SECOND PROOF SYSTEM KEEPS A MULTI-PROOF
+VERIFIER.** As `ProofGateAtV35.Properties.RequiringChainsKeepAMultiProofVerifier`, over timed
+runs, break-glass cuts included: from a state where `ProofInv` holds, every registered chain
+that requires its second proof system has a verifier that reports multi-proof mode for the
+empty mask. The verifiers must satisfy `DisablingNeverEnablesMultiProof`. -/
+def Properties.TimedRunsKeepAMultiProofVerifier : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (ls : List TimedLabel35),
+    DisablingNeverEnablesMultiProof P → ProofInv P s.routing → TimedRun35 T P s ls s' →
+    ProofInv P s'.routing
+
+/-- **ONLY THE CHAIN'S ADMIN, ON ITS SETTLEMENT LAYER, SETS THE REQUIREMENT; ONLY A BREAK-GLASS
+CUT OF THE CHAIN CHANGES IT OTHERWISE.** If a v35 timed step changes a registered chain's
+`secondProofSystemRequired`, then either the step is that chain's
+`permanentlyRequireSecondProofSystem`, its caller is the chain's admin, the diamond is on its
+settlement layer and the step sets the requirement, or the step is a break-glass cut of that
+chain. An upgrade by any path, by any caller and at any time leaves it alone. -/
+def Properties.TimedRequirementWriters : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (l : TimedLabel35) (id : ChainId)
+    (c : Chain), TimedStep35 T P s l s' → s.timed.sys.chains id = some c →
+    (s'.proof id).required ≠ (s.proof id).required →
+    (∃ caller, l = .requireSecondProofSystem id caller ∧ caller = (s.timed.aux id).admin ∧
+        (s.timed.aux id).slVersion = none ∧ (s'.proof id).required = true) ∨
+      ∃ v ρ, l = .timed (.base (.arbitraryCut id v ρ))
+
+/-- **"NO WAY BACK", EXCEPT BY BREAK-GLASS, ALONG v35 TIMED RUNS** (`IAdmin.sol:137-140`). Along
+any v35 timed run with no break-glass cut of chain `id`, a registered chain that requires its
+second proof system still requires it at the end. As in `ProofGateAtV35`, this is about the
+chain's diamond on the modelled CTM, upgraded by the in-tree engines. -/
+def Properties.TimedRequirementIsPermanentWithoutBreakGlass : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (ls : List TimedLabel35)
+    (id : ChainId) (c : Chain), TimedRun35 T P s ls s' → s.timed.sys.chains id = some c →
+    (s.proof id).required = true →
+    (∀ v ρ, TimedLabel35.timed (.base (.arbitraryCut id v ρ)) ∉ ls) →
+    (s'.proof id).required = true
 
 /-! ## The NatSpec of `upgradeChain`, at v35 -/
 

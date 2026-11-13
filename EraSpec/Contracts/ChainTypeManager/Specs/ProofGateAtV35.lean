@@ -49,13 +49,22 @@ side. Both come from commit `2d08bdaba` (#2628, "interop gating").
    So on a transition and on the bootstrap crossing both checks read one address: the
    arriving release's verifier.
 
-Every other body these models cite is unchanged. That covers the routing guard, the derived
+No other body these models cite changed its logic. That covers the routing guard, the derived
 cuts, `Diamond.sol`, `DiamondInit`, `BootstrapUpgrade`, `Migrator` and every
-`ChainTypeManager` function the models use. Only line numbers moved: by `-5` in
-`ChainTypeManager.sol` after its constructor (#2626 removed `INTEROP_CENTER`), and by `+31`
-for the upgrade entry points of `Admin.sol`. So a `ChainRouting` step is still what the
-source does to the version and the routing. What is new is the state the two checks read,
-and its writers.
+`ChainTypeManager` function the models use. What else differs in the cited files:
+
+* a rename: the manifest field and getter `upgradeEngine` are `chainUpgradeEngine` at
+  `d9f6789` (`upgrades/registry/RegistryTypes.sol:144`, `:271`,
+  `upgrades/registry/objects/CTMTransition.sol:189-191`,
+  `upgrades/registry/libraries/CTMUpgradeComposer.sol:40`, `:52`). The cut still delegatecalls
+  the engine the manifest names;
+* line numbers: `-5` in `ChainTypeManager.sol` after its constructor (#2626 removed
+  `INTEROP_CENTER`), `+31` for the upgrade entry points of `Admin.sol`;
+* in `Admin.sol`, off the routing paths: `setProofSystemStatus` was `onlyAdmin` and now has
+  the caller rule of `:417-420`, and `permanentlyRequireSecondProofSystem` is new (both below).
+
+So a `ChainRouting` step is still what the source does to the version and the routing. What is
+new is the state the two checks read, and its writers.
 
 ## The new state
 
@@ -88,6 +97,14 @@ and its writers.
   (`ProofEffect`), or one of the two new writers (`Step35`). Nothing of `ChainRouting`'s
   boundaries changes. The routing guard keeps its documented meaning, the engine is
   `DefaultUpgrade`/`BootstrapUpgrade`, and other reject-only checks stay omitted.
+* **The engine boundary covers the proof-system fields too.** `ProofEffect.transition` and
+  `.bootstrapReset` are what `DefaultUpgrade` and `BootstrapUpgrade` do: install the arriving
+  release's verifier and leave the requirement and the mask alone. The manifest names the
+  engine (`chainUpgradeEngine`), and another engine runs in the diamond's storage like a
+  break-glass init. Of such a cut the source guarantees only the final check, which is what
+  `ProofEffect.arbitraryCut` records. So the results that separate transitions from
+  break-glass cuts (`RequirementWriters`, `RequirementIsPermanentWithoutBreakGlass`) are
+  about the two in-tree engines.
 * **Verifiers are their getters.** `getProofMode(m)` is a fixed function of the verifier and
   the mask (`ProofWorld.multi`): whether it returns `ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE`
   (`= 5`, `common/Config.sol:108`) without reverting. The in-tree implementations are `pure`
@@ -118,6 +135,11 @@ and its writers.
   `permanentlyRequireSecondProofSystem`.
 * **Migration out** is no step, as in `ChainRouting`. A returning chain keeps its diamond, and
   with it its proof-system fields.
+* **One CTM's diamonds.** The three fields belong to a diamond. The migration commitment does
+  not carry them (`Migrator.sol:221-241` reads the batch counters and `isPermanentRollup` from
+  it), so the diamond that migration deploys for a chain on another settlement layer starts
+  with its own fields, as `ProofEffect.migrateIn` says. Every result here is about the
+  diamonds registered on the one modelled CTM, not about a chain across settlement layers.
 -/
 
 namespace Contracts.ChainTypeManager.ProofGateAtV35
@@ -280,11 +302,17 @@ multi-proof only for mask `0`; `ZKsyncOSVerifier.sol:104-106`: never). -/
 def DisablingNeverEnablesMultiProof (P : ProofWorld) : Prop :=
   ∀ v m, P.multi v m = true → P.multi v 0 = true
 
+/-- **The ZiSK bit of `s.disabledProofSystems`**: `1 << uint8(ProofSystem.Zisk)` (`Admin.sol:425`),
+with `ProofSystem { Boojum, Airbender, Zisk }` (`common/Config.sol:126-130`), so `4`. It is the
+only bit `setProofSystemStatus` writes, so in the source a diamond's mask is `0` or `4`. -/
+def ziskBit : ℕ := 4
+
 /-! ## Witness data
 
 On the `ChainRouting` witness world (`wWorld`: releases `100`, `200`, `250` at versions 1, 2, 3;
 transition `300` from 1 to 2). Verifier `51` behaves like `MultiProofVerifier`: multi-proof mode
-exactly with nothing disabled. Verifier `52` behaves like `ZKsyncOSVerifier`: never. -/
+exactly with nothing disabled. Verifier `52` behaves like `ZKsyncOSVerifier`: never. The witness
+runs write only the masks the source can reach, `0` and `ziskBit`. -/
 
 /-- Release `200` ships the PLONK-only verifier `52`; the others ship `51`. -/
 def wProofPlonk : ProofWorld where
@@ -296,11 +324,11 @@ def wProofMulti : ProofWorld where
   relVerifier := fun a => if a = 200 then 53 else 51
   multi := fun v m => decide ((v = 51 ∨ v = 53) ∧ m = 0)
 
-/-- Verifier `54` reports multi-proof mode only when mask `1` is disabled, which no in-tree
-verifier does. Every release ships it. -/
+/-- Verifier `54` reports multi-proof mode exactly when the mask is `ziskBit` (ZiSK disabled),
+which no in-tree verifier does. Every release ships it. -/
 def wProofOdd : ProofWorld where
   relVerifier := fun _ => 54
-  multi := fun v m => decide (v = 54 ∧ m = 1)
+  multi := fun v m => decide (v = 54 ∧ m = ziskBit)
 
 /-- The fresh witness system at v35: `wSys0`, no chain, no requirement anywhere. -/
 def wSys35 : Sys35 := ⟨wSys0, fun _ => ⟨false, 0, 0⟩⟩
@@ -314,5 +342,14 @@ def wGateSetup : List Label35 :=
 /-- `wGateSetup`, then chains `0` and `1` cross `300`. -/
 def wGateRun : List Label35 :=
   wGateSetup ++ [.routing (.transition 0), .routing (.transition 1)]
+
+/-- Chain `0` is created, requires its second proof system, and then has ZiSK switched off: its
+mask becomes `ziskBit`. -/
+def wZiskOffRun : List Label35 :=
+  [.routing (.genesis 0), .requireSecondProofSystem 0, .setProofSystems 0 ziskBit]
+
+/-- Chain `0` is created, has ZiSK switched off, and then requires its second proof system. -/
+def wZiskOffFirstRun : List Label35 :=
+  [.routing (.genesis 0), .setProofSystems 0 ziskBit, .requireSecondProofSystem 0]
 
 end Contracts.ChainTypeManager.ProofGateAtV35
