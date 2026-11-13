@@ -16,15 +16,33 @@ Statements about `EraSpec.Contracts.Bridgehub.Specs.Registry`. Proofs are in
   and its CTM was added by `addChainTypeManager` earlier in the run
   (`ChainCtmWasApproved`). The CTM need not still be registered: `removeChainTypeManager`
   does not touch existing chains, by design.
+* A successful `createNewChain` / `registerAlreadyDeployedZKChain` had a registered CTM
+  and a registered base-token asset id at that moment, sets exactly that chain's CTM, base
+  token, settlement layer (this chain) and diamond, and leaves every other chain alone
+  (`CreateNewChainPostcondition`, `RegisterDeployedPostcondition`). No entry point
+  unregisters an asset id (`AssetIdNeverUnregistered`).
 * Outside `forwardedBridgeMint`, a registered chain's CTM and base token never change
   (`CtmAndBaseTokenFixedOutsideBridgeMint`). `forwardedBridgeMint`, callable only by the
   chain asset handler, rewrites both (`BridgeMintRewritesBaseToken`): the Bridgehub trusts
   the handler for that.
+* While a chain settles here, nothing changes its CTM or base token, `forwardedBridgeMint`
+  included: they can change only after a `forwardedBridgeBurnSetSettlementLayer` for that
+  chain (`CtmAndBaseTokenFixedWhileSettlingHere`). The `AlreadyCurrentSL` check in the mint
+  hook and the `BridgeHubAlreadyRegistered` check in `_validateChainParams` are
+  load-bearing (`WithoutCurrentSLCheckBaseTokenRewritten`,
+  `WithoutAlreadyRegisteredCheckChainReRegistered`).
 * Without the chain asset handler's two registry writers, `zkChainMap` and
   `chainTypeManager` describe the same chains, every key has a nonzero diamond, and the
   chain count stays within `MAX_NUMBER_OF_ZK_CHAINS` (`RegistryConsistentWithoutHandler`,
   `ChainCountBounded`). With them, `createNewChain` silently overwrites a map entry the
   handler wrote (`HandlerEntryOverwrittenByCreate`).
+* `zkChainMap` only grows, and `get` succeeds exactly for its keys, whatever is called
+  (`ChainMapOnlyGrows`). A chain's diamond changes only through the handler's
+  `registerNewZKChain` for that chain, or through its own registration while it has no CTM
+  (`DiamondChangesOnlyByRegistration`); so once a chain has a CTM its diamond is fixed in
+  any run without a `registerNewZKChain` for it (`DiamondFixedAfterRegistration`). That
+  handler call does replace it: the Bridgehub ignores `set`'s return value
+  (`HandlerRegisterReplacesDiamond`).
 * `ctmAssetIdFromAddress` then `ctmAssetIdToAddress` returns the CTM, unless the asset-id
   hash collides at two CTM addresses, provided every `setCTMAssetAddress` passes the CTM
   address as its data, as `CTMDeploymentTracker` does (`CtmAssetIdRoundTrip`). The
@@ -39,6 +57,13 @@ Statements about `EraSpec.Contracts.Bridgehub.Specs.Registry`. Proofs are in
 * A chain's settlement layer moves away from this chain only through the chain asset
   handler's `forwardedBridgeBurnSetSettlementLayer`, to a whitelisted layer, and only for
   a chain that settled here (`MigrationOutOnlyToWhitelisted`).
+* Run level: a settlement layer other than `0` and this chain was written by a burn for
+  that chain in the run, and is never the chain itself
+  (`RemoteSettlementLayerCameFromBurn`); the target of a burn settles here at that moment
+  (`MigrationTargetSettlesHere`).
+* Not guaranteed: that the layer a chain is recorded on still settles here later. Once the
+  owner removes a layer from the whitelist, the handler can migrate it away with chains
+  still recorded on it (`SettlementLayerOfAChainNeedNotSettleHere`).
 
 ## Requests
 
@@ -48,9 +73,11 @@ Statements about `EraSpec.Contracts.Bridgehub.Specs.Registry`. Proofs are in
   chain's base token (`DirectRequestAccounting`, `TwoBridgesRequestAccounting`).
 * In a run without the handler's registry writers, a request reaches the registered,
   nonzero diamond of a chain with a CTM and is charged in a registered asset
-  (`RequestsReachRegisteredChains`). After `createNewChain(c, _, a, _, d)` and no later
-  `forwardedBridgeMint` for `c`, a request for `c` is charged in `a`; with no later
-  handler registry write it goes to `d` (`RequestChargesCreationBaseToken`).
+  (`RequestsReachRegisteredChains`). With them allowed too, a request still needs a
+  `zkChainMap` key and goes to that key's diamond (`RequestNeedsMapEntry`). After
+  `createNewChain(c, _, a, _, d)` and no later `forwardedBridgeMint` for `c`, a request for
+  `c` is charged in `a`; with no later `registerNewZKChain` for `c` it goes to `d`
+  (`RequestChargesCreationBaseToken`).
 * The two-bridges L2 sender is the second bridge and lies above
   `BRIDGEHUB_MIN_SECOND_BRIDGE_ADDRESS`; without that check a reserved low address can be
   the L2 sender (`WithoutMinAddressCheckLowSender`).
@@ -186,6 +213,49 @@ def Properties.CtmAssetIdRoundTripNeedsDiscipline : Prop :=
     Reachable cfg s ∧ s.ctmAssetIdFromAddress m ≠ 0 ∧
     s.ctmAssetIdToAddress (s.ctmAssetIdFromAddress m) ≠ m
 
+/-! ## The chain map -/
+
+/-- **`zkChainMap` ONLY GROWS.** In any run from any state, a key of `zkChainMap` stays a
+key (no entry point removes one). In every reachable state a chain id with a nonzero
+stored diamond is a key, so `zkChainMap.get(c)` succeeds exactly for the keys. Every entry
+point is allowed, the chain asset handler's included. -/
+def Properties.ChainMapOnlyGrows : Prop :=
+  (∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t →
+    ∀ c, c ∈ s.zkKeys → c ∈ t.zkKeys) ∧
+  (∀ (cfg : Config) (s : State), Reachable cfg s → ∀ c, ZkGetOk s c ↔ c ∈ s.zkKeys)
+
+/-- **WHO CHANGES A CHAIN'S DIAMOND.** For every successful call of every entry point: if
+`getZKChain(c)` changes, the call is either the chain asset handler's
+`registerNewZKChain(c, …)`, or a `createNewChain` / `registerAlreadyDeployedZKChain` for
+`c`, by the owner or the admin, at a moment when `c` had no CTM. -/
+def Properties.DiamondChangesOnlyByRegistration : Prop :=
+  ∀ (cfg : Config) (caller : Address) (a : Action) (s s' : State) (c : ChainId),
+    exec cfg caller a s = some s' → getZKChain s' c ≠ getZKChain s c →
+    (∃ z chk, a = .registerNewZKChain c z chk ∧ caller = s.chainAssetHandler) ∨
+    (a.registers c = true ∧ s.chainTypeManager c = 0 ∧ (caller = s.owner ∨ caller = s.admin))
+
+/-- **A REGISTERED CHAIN'S DIAMOND IS FIXED, EXCEPT BY THE HANDLER'S `registerNewZKChain`.**
+In any run from any state that contains no `registerNewZKChain` for chain `c`: if `c` had a
+CTM at the start, `getZKChain(c)` is the same at the end. Every other entry point,
+including `forwardedBridgeMint` and `registerNewZKChain` for other chains, is allowed. -/
+def Properties.DiamondFixedAfterRegistration : Prop :=
+  ∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t → ∀ c,
+    (∀ k ∈ l, k.2.handlerRegistersFor c = false) → s.chainTypeManager c ≠ 0 →
+      getZKChain t c = getZKChain s c
+
+/-- **THE HANDLER'S `registerNewZKChain` REPLACES A REGISTERED CHAIN'S DIAMOND.** The
+boundary of `DiamondFixedAfterRegistration`: a reachable state where chain `c` has a CTM
+and a nonzero diamond, and the chain asset handler's `registerNewZKChain(c, z, _)`
+succeeds and makes `getZKChain(c) = z`, a different address. `_registerNewZKChain` ignores
+`EnumerableMap.set`'s return value (`BB:302-303`), so the Bridgehub does not notice that
+the key existed. The deployed handler calls it only when `forwardedBridgeMint` returned a
+zero diamond (`ChainAssetHandlerBase.sol:397-405`), which this model does not include. -/
+def Properties.HandlerRegisterReplacesDiamond : Prop :=
+  ∃ (cfg : Config) (s s' : State) (caller : Address) (c : ChainId) (z : Address) (chk : Bool),
+    Reachable cfg s ∧ s.chainTypeManager c ≠ 0 ∧ getZKChain s c ≠ 0 ∧
+    exec cfg caller (.registerNewZKChain c z chk) s = some s' ∧
+    getZKChain s' c = z ∧ z ≠ getZKChain s c
+
 /-! ## Settlement layers -/
 
 /-- **WHITELISTED SETTLEMENT LAYERS SETTLE HERE.** In every reachable state, a whitelisted
@@ -215,6 +285,135 @@ def Properties.MigrationOutOnlyToWhitelisted : Prop :=
     ∃ sl, a = .burnSetSettlementLayer c sl ∧ caller = s.chainAssetHandler ∧
       s.whitelistedSL sl = true ∧ s.settlementLayer c = cfg.thisChain ∧
       s'.settlementLayer c = sl
+
+/-! ## Registration effects, and what holds while a chain settles here -/
+
+/-- **WHAT A SUCCESSFUL `createNewChain` ESTABLISHES.** If `createNewChain(c, m, a, adm)`
+succeeds with the CTM returning diamond `d`: the caller was the owner or the admin and the
+Bridgehub was not paused; `c` is nonzero, fits in 48 bits, is not this chain and had no CTM;
+`m` was a nonzero registered CTM and `a` a nonzero registered asset id at that moment;
+afterwards `c` has
+CTM `m`, base token `a`, settles on this chain, and `getZKChain(c) = d ≠ 0`; the chain
+count is within `MAX_NUMBER_OF_ZK_CHAINS`; and no other chain's CTM, base token, settlement
+layer or diamond changed. -/
+def Properties.CreateNewChainPostcondition : Prop :=
+  ∀ (cfg : Config) (caller : Address) (s s' : State) (c : ChainId) (m : Address) (a : AssetId)
+    (adm d : Address),
+    exec cfg caller (.createNewChain c m a adm d) s = some s' →
+    (caller = s.owner ∨ caller = s.admin) ∧ s.paused = false ∧
+    c ≠ 0 ∧ c.val < 2 ^ 48 ∧ c ≠ cfg.thisChain ∧ s.chainTypeManager c = 0 ∧
+    m ≠ 0 ∧ s.ctmRegistered m = true ∧ a ≠ 0 ∧ s.assetIdRegistered a = true ∧
+    s'.chainTypeManager c = m ∧ s'.baseTokenAssetId c = a ∧
+    s'.settlementLayer c = cfg.thisChain ∧ getZKChain s' c = d ∧ d ≠ 0 ∧
+    s'.zkKeys.card ≤ cfg.maxChains ∧
+    ∀ c', c' ≠ c →
+      s'.chainTypeManager c' = s.chainTypeManager c' ∧
+      s'.baseTokenAssetId c' = s.baseTokenAssetId c' ∧
+      s'.settlementLayer c' = s.settlementLayer c' ∧ getZKChain s' c' = getZKChain s c'
+
+/-- **WHAT A SUCCESSFUL `registerAlreadyDeployedZKChain` ESTABLISHES.** If
+`registerAlreadyDeployedZKChain(c, z)` succeeds, with the diamond `z` reporting `info`: the
+caller was the owner; `z` reported chain id `c` and this Bridgehub; `c` was not a key of
+`zkChainMap`, had no CTM, is nonzero, fits in 48 bits and is not this chain; the reported
+CTM and base token were nonzero and registered at that moment; afterwards `c` has that CTM and base
+token, settles on this chain, and `getZKChain(c) = z ≠ 0`; the chain count is within the
+limit; and no other chain's CTM, base token, settlement layer or diamond changed. -/
+def Properties.RegisterDeployedPostcondition : Prop :=
+  ∀ (cfg : Config) (caller : Address) (s s' : State) (c : ChainId) (z : Address)
+    (info : DeployedChainInfo),
+    exec cfg caller (.registerAlreadyDeployed c z info) s = some s' →
+    caller = s.owner ∧ info.chainId = c ∧ info.bridgehub = cfg.self ∧
+    c ∉ s.zkKeys ∧ s.chainTypeManager c = 0 ∧
+    c ≠ 0 ∧ c.val < 2 ^ 48 ∧ c ≠ cfg.thisChain ∧
+    info.ctm ≠ 0 ∧ s.ctmRegistered info.ctm = true ∧
+    info.baseTokenAssetId ≠ 0 ∧ s.assetIdRegistered info.baseTokenAssetId = true ∧
+    s'.chainTypeManager c = info.ctm ∧ s'.baseTokenAssetId c = info.baseTokenAssetId ∧
+    s'.settlementLayer c = cfg.thisChain ∧ getZKChain s' c = z ∧ z ≠ 0 ∧
+    s'.zkKeys.card ≤ cfg.maxChains ∧
+    ∀ c', c' ≠ c →
+      s'.chainTypeManager c' = s.chainTypeManager c' ∧
+      s'.baseTokenAssetId c' = s.baseTokenAssetId c' ∧
+      s'.settlementLayer c' = s.settlementLayer c' ∧ getZKChain s' c' = getZKChain s c'
+
+/-- **NO ENTRY POINT UNREGISTERS AN ASSET ID.** In any run from any state a registered
+asset id stays registered; in every reachable state the ETH asset id is registered. -/
+def Properties.AssetIdNeverUnregistered : Prop :=
+  (∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t →
+    ∀ a, s.assetIdRegistered a = true → t.assetIdRegistered a = true) ∧
+  (∀ (cfg : Config) (s : State), Reachable cfg s → s.assetIdRegistered cfg.ethAssetId = true)
+
+/-- **CTM AND BASE TOKEN ARE FIXED WHILE THE CHAIN SETTLES HERE.** In any run from any
+state that contains no `forwardedBridgeBurnSetSettlementLayer` for chain `c` (by anyone,
+with any target): if `c` had a CTM and settled on this chain at the start, then at the end
+it has the same CTM, the same base-token asset id, and still settles on this chain. So the
+base token fixed at registration can only change after the chain asset handler has
+migrated the chain away. Every other entry point, including `forwardedBridgeMint`, is
+allowed in the run. -/
+def Properties.CtmAndBaseTokenFixedWhileSettlingHere : Prop :=
+  ∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t → ∀ c,
+    (∀ k ∈ l, k.2.burnFor c = false) →
+    s.chainTypeManager c ≠ 0 → s.settlementLayer c = cfg.thisChain →
+      t.chainTypeManager c = s.chainTypeManager c ∧
+      t.baseTokenAssetId c = s.baseTokenAssetId c ∧
+      t.settlementLayer c = cfg.thisChain
+
+/-- **THE `AlreadyCurrentSL` CHECK IS LOAD-BEARING.** Without it
+(`forwardedBridgeMintNoCurrentSLCheck`), in a reachable state where chain `c` has a CTM
+and settles on this chain, the mint hook rewrites `c`'s base token to a different asset
+id; with the check the same call reverts. -/
+def Properties.WithoutCurrentSLCheckBaseTokenRewritten : Prop :=
+  ∃ (cfg : Config) (s s' : State) (caller : Address) (aid : AssetId) (c : ChainId) (b : AssetId),
+    Reachable cfg s ∧ s.chainTypeManager c ≠ 0 ∧ s.settlementLayer c = cfg.thisChain ∧
+    b ≠ s.baseTokenAssetId c ∧
+    forwardedBridgeMintNoCurrentSLCheck cfg caller s aid c b = some s' ∧
+    s'.baseTokenAssetId c = b ∧
+    exec cfg caller (.forwardedBridgeMint aid c b) s = none
+
+/-- **THE `BridgeHubAlreadyRegistered` CHECK IS LOAD-BEARING.** Without it
+(`createNewChainNoDupCheck`), in a reachable state where chain `c` is registered,
+`createNewChain(c, …)` succeeds a second time and replaces `c`'s CTM, base token and
+diamond; with the check the same call reverts. -/
+def Properties.WithoutAlreadyRegisteredCheckChainReRegistered : Prop :=
+  ∃ (cfg : Config) (s s' : State) (caller : Address) (c : ChainId) (m : Address) (a : AssetId)
+    (adm d : Address),
+    Reachable cfg s ∧ s.chainTypeManager c ≠ 0 ∧
+    m ≠ s.chainTypeManager c ∧ a ≠ s.baseTokenAssetId c ∧ d ≠ s.zkAddr c ∧
+    createNewChainNoDupCheck cfg caller s c m a d = some s' ∧
+    s'.chainTypeManager c = m ∧ s'.baseTokenAssetId c = a ∧ s'.zkAddr c = d ∧
+    exec cfg caller (.createNewChain c m a adm d) s = none
+
+/-! ## Settlement layers, run level -/
+
+/-- **A REMOTE SETTLEMENT LAYER WAS SET BY A BURN.** In every run from an initialized
+Bridgehub, if `settlementLayer[c]` is neither `0` nor this chain, then it is not `c`
+itself, and the run contains a successful
+`forwardedBridgeBurnSetSettlementLayer(c, settlementLayer[c])`. -/
+def Properties.RemoteSettlementLayerCameFromBurn : Prop :=
+  ∀ (cfg : Config) (owner : Address) (l : List Call) (s : State), Run cfg (init cfg owner) l s →
+    ∀ c, s.settlementLayer c ≠ 0 → s.settlementLayer c ≠ cfg.thisChain →
+      s.settlementLayer c ≠ c ∧
+      ∃ caller, (caller, Action.burnSetSettlementLayer c (s.settlementLayer c)) ∈ l
+
+/-- **A MIGRATION TARGET SETTLES HERE WHEN THE CHAIN MOVES.** In a reachable state, a
+successful `forwardedBridgeBurnSetSettlementLayer(c, sl)` leaves `c` on `sl`, and `sl` is
+this chain or itself settles on this chain right after the call. -/
+def Properties.MigrationTargetSettlesHere : Prop :=
+  ∀ (cfg : Config) (s s' : State) (caller : Address) (c sl : ChainId), Reachable cfg s →
+    exec cfg caller (.burnSetSettlementLayer c sl) s = some s' →
+    s'.settlementLayer c = sl ∧ (sl = cfg.thisChain ∨ s'.settlementLayer sl = cfg.thisChain)
+
+/-- **A CHAIN'S RECORDED SETTLEMENT LAYER NEED NOT STILL SETTLE HERE.** The boundary of
+`WhitelistedSettlementLayersSettleHere` and `MigrationTargetSettlesHere`: they protect a
+layer only while it is whitelisted. A reachable state where `settlementLayer[c] = g`,
+`g` is not whitelisted, and `settlementLayer[g] = h`, with `g` and `h` distinct and both
+different from this chain. (The run: `c` migrates to the whitelisted `g`; the owner removes
+`g` from the whitelist; the handler migrates `g` to `h`. Neither
+`setSettlementLayerStatus(g, false)`, `L1:94-100`, nor the burn hook for `g`, `BB:403-421`,
+looks at the chains recorded on `g`.) -/
+def Properties.SettlementLayerOfAChainNeedNotSettleHere : Prop :=
+  ∃ (cfg : Config) (s : State) (c g h : ChainId),
+    Reachable cfg s ∧ g ≠ cfg.thisChain ∧ h ≠ cfg.thisChain ∧ h ≠ g ∧
+    s.settlementLayer c = g ∧ s.settlementLayer g = h ∧ s.whitelistedSL g = false
 
 /-! ## Requests -/
 
@@ -274,10 +473,23 @@ def Properties.RequestsReachRegisteredChains : Prop :=
       s.chainTypeManager c ≠ 0 ∧ o.target ≠ 0 ∧ o.target = getZKChain s c ∧
       s.assetIdRegistered o.depositAssetId = true
 
+/-- **A REQUEST NEEDS A `zkChainMap` ENTRY.** In every reachable state, with every entry
+point allowed in the run (the chain asset handler's included), a successful request of
+either kind for chain `c` has `c` as a key of `zkChainMap` and is sent to `getZKChain(c)`.
+Equivalently, a request for a chain id that is not a key reverts. -/
+def Properties.RequestNeedsMapEntry : Prop :=
+  ∀ (cfg : Config) (s : State), Reachable cfg s →
+    ∀ (caller : Address) (env : CallEnv) (o : Outcome) (c : ChainId),
+      ((∃ req : DirectRequest, req.chainId = c ∧ requestDirect cfg s caller env req = some o) ∨
+       (∃ (req : TwoBridgesRequest) (reply : SecondBridgeReply), req.chainId = c ∧
+          requestTwoBridges cfg s caller env req reply = some o)) →
+      c ∈ s.zkKeys ∧ o.target = getZKChain s c
+
 /-- **A REQUEST IS CHARGED IN THE BASE TOKEN FIXED AT CREATION.** In any run (from any
 state) of the form `l₁ ++ [createNewChain(c, m, a, adm, d)] ++ l₂` with no
 `forwardedBridgeMint` for `c` in `l₂`, a successful request of either kind for `c` at the
-end deposits asset `a`; if `l₂` also has no handler registry write, it goes to `d`. -/
+end deposits asset `a`; if `l₂` has no `registerNewZKChain` for `c`, it goes to `d`, the
+diamond the CTM returned at creation. -/
 def Properties.RequestChargesCreationBaseToken : Prop :=
   ∀ (cfg : Config) (s t : State) (l₁ l₂ : List Call) (caller₀ : Address) (c : ChainId)
     (m : Address) (a : AssetId) (adm d : Address),
@@ -287,7 +499,7 @@ def Properties.RequestChargesCreationBaseToken : Prop :=
       ((∃ req : DirectRequest, req.chainId = c ∧ requestDirect cfg t caller env req = some o) ∨
        (∃ (req : TwoBridgesRequest) (reply : SecondBridgeReply), req.chainId = c ∧
           requestTwoBridges cfg t caller env req reply = some o)) →
-      o.depositAssetId = a ∧ ((∀ k ∈ l₂, k.2.handlerRegistryWrite = false) → o.target = d)
+      o.depositAssetId = a ∧ ((∀ k ∈ l₂, k.2.handlerRegistersFor c = false) → o.target = d)
 
 /-- **THE MINIMUM SECOND-BRIDGE ADDRESS CHECK IS LOAD-BEARING.** Without it
 (`requestTwoBridgesNoMinAddress`), a request in a reachable state succeeds with a reserved

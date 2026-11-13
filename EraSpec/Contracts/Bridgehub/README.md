@@ -45,9 +45,21 @@ revert is the absence of a step. `Reachable` starts from the state after `initia
 - Every chain's base token is a registered asset (`ChainBaseTokenRegistered`); every
   chain's CTM was added by `addChainTypeManager` earlier in the run
   (`ChainCtmWasApproved`).
+- A successful `createNewChain` or `registerAlreadyDeployedZKChain` had a registered CTM
+  and a registered base token at that moment, writes that chain's CTM, base token,
+  settlement layer (this chain) and diamond, and leaves every other chain alone
+  (`CreateNewChainPostcondition`, `RegisterDeployedPostcondition`). No entry point
+  unregisters an asset id, and ETH's is always registered (`AssetIdNeverUnregistered`).
+- While a chain settles here its CTM and base token do not change, whatever is called:
+  they can change only after a `forwardedBridgeBurnSetSettlementLayer` for that chain
+  (`CtmAndBaseTokenFixedWhileSettlingHere`). The `AlreadyCurrentSL` check in
+  `forwardedBridgeMint` and the `BridgeHubAlreadyRegistered` check are load-bearing
+  (`WithoutCurrentSLCheckBaseTokenRewritten`,
+  `WithoutAlreadyRegisteredCheckChainReRegistered`).
 - Outside `forwardedBridgeMint`, a registered chain's CTM and base token never change
   (`CtmAndBaseTokenFixedOutsideBridgeMint`). `forwardedBridgeMint` (chain asset handler
-  only) rewrites them without comparing (`BridgeMintRewritesBaseToken`).
+  only), for a chain that has left, rewrites them without comparing
+  (`BridgeMintRewritesBaseToken`).
 - Without the handler's two registry writers, `zkChainMap` and `chainTypeManager` list
   the same chains with nonzero diamonds (`RegistryConsistentWithoutHandler`). Without
   `registerNewZKChain(_, _, false)` the chain count stays within `MAX_NUMBER_OF_ZK_CHAINS`
@@ -67,7 +79,15 @@ revert is the absence of a step. `Reachable` starts from the state after `initia
   (`WhitelistedSettlementLayersSettleHere`); the `SettlementLayersMustSettleOnL1` check in
   the burn hook is load-bearing (`WithoutCheckWhitelistedLayerLeaves`).
 - A chain's settlement layer leaves this chain only through the handler's burn hook, to a
-  whitelisted layer, from a chain settled here (`MigrationOutOnlyToWhitelisted`).
+  whitelisted layer, from a chain settled here (`MigrationOutOnlyToWhitelisted`). Over a
+  whole run: a recorded layer other than `0` and this chain was written by a burn for that
+  chain and is never the chain itself (`RemoteSettlementLayerCameFromBurn`); the target
+  settles here when the chain moves (`MigrationTargetSettlesHere`).
+- Not guaranteed: that the layer a chain is recorded on keeps settling here. After the
+  owner removes a layer from the whitelist, the handler can migrate that layer away with
+  chains still recorded on it (`SettlementLayerOfAChainNeedNotSettleHere`). The Bridgehub
+  has no check for this; whether the deployed handler, CTM or diamond stops it is outside
+  this model.
 
 **Requests**
 
@@ -109,7 +129,21 @@ matter. Low severity: the handler is trusted.
 
 A minor inaccuracy, not stated as a theorem: the comment at `L1:149-150` says a request
 for a chain that does not exist reverts "on `bridgehubRequestL2Transaction` as call to
-zero address"; it reverts earlier, in `zkChainMap.get` (`EnumerableMap: nonexistent key`).
+zero address"; it reverts no later than `zkChainMap.get` (`BB:378`,
+`EnumerableMap: nonexistent key`), before any call to the diamond.
+
+## A delisted settlement layer can migrate (internal; ask Kalman before reporting)
+
+`SettlementLayerOfAChainNeedNotSettleHere` is a Bridgehub-level fact: once the owner calls
+`setSettlementLayerStatus(g, false)`, the burn hook accepts a migration of `g` itself, and
+chains recorded on `g` stay recorded on it. The other checks on that path were read but
+not modelled: `ChainAssetHandlerBase.bridgeBurn` (`:188-250`) and
+`Migrator.forwardedBridgeBurn` (`Migrator.sol:154-207`) require the chain admin as
+initiator, paused deposits, an empty priority tree, all batches executed and a target with
+the same CTM; none of them asks whether other chains settle on the migrating chain. So
+this needs a governance action (delisting a layer that still hosts chains) followed by that
+layer's admin migrating it. Not a claim about the deployed system end to end; low severity
+if it holds there.
 
 ## What is not modelled
 

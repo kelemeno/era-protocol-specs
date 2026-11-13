@@ -499,11 +499,23 @@ def Action.bridgeMintFor (c : ChainId) : Action → Bool
   | .forwardedBridgeMint _ c' _ => decide (c' = c)
   | _ => false
 
+/-- The call is `forwardedBridgeBurnSetSettlementLayer` for chain `c` (the only entry point
+that moves a chain's settlement layer away from this chain). -/
+def Action.burnFor (c : ChainId) : Action → Bool
+  | .burnSetSettlementLayer c' _ => decide (c' = c)
+  | _ => false
+
 /-- The call is one of the chain asset handler's two writers of `zkChainMap` /
 `chainTypeManager` (`registerNewZKChain`, `forwardedBridgeMint`). -/
 def Action.handlerRegistryWrite : Action → Bool
   | .registerNewZKChain .. => true
   | .forwardedBridgeMint .. => true
+  | _ => false
+
+/-- The call is `registerNewZKChain` for chain `c` (the only entry point that can replace
+the stored diamond of a chain that already has a CTM). -/
+def Action.handlerRegistersFor (c : ChainId) : Action → Bool
+  | .registerNewZKChain c' _ _ => decide (c' = c)
   | _ => false
 
 /-- The call is `registerNewZKChain(_, _, false)`, which skips the chain-count limit. -/
@@ -545,6 +557,18 @@ def burnNoSettlementLayerCheck (cfg : Config) (caller : Address) (s : State)
   else if s.settlementLayer c ≠ cfg.thisChain then none
   else if ¬ ZkGetOk s c then none
   else some { s with settlementLayer := Function.update s.settlementLayer c sl }
+
+/-- `forwardedBridgeMint` without the `AlreadyCurrentSL` check (`BB:441-443`); otherwise
+identical to the `forwardedBridgeMint` case of `exec`. -/
+def forwardedBridgeMintNoCurrentSLCheck (cfg : Config) (caller : Address) (s : State)
+    (aid : AssetId) (c : ChainId) (base : AssetId) : Option State :=
+  if caller ≠ s.chainAssetHandler then none
+  else if s.ctmAssetIdToAddress aid = 0 then none
+  else some { s with
+    settlementLayer := Function.update s.settlementLayer c cfg.thisChain
+    chainTypeManager := Function.update s.chainTypeManager c (s.ctmAssetIdToAddress aid)
+    baseTokenAssetId := Function.update s.baseTokenAssetId c base
+    assetIdRegistered := Function.update s.assetIdRegistered base true }
 
 /-- `requestL2TransactionTwoBridges` without the `SecondBridgeAddressTooLow` check
 (`L1:203-205`); otherwise identical to `requestTwoBridges`. -/

@@ -305,6 +305,110 @@ theorem MigrationOutOnlyToWhitelisted : Properties.MigrationOutOnlyToWhitelisted
   intro cfg caller a s s' c h hne hthis
   cases a <;> exec_unfold h <;> upd_close
 
+/-! ## Registration effects, and what holds while a chain settles here -/
+
+/-- `Properties.CreateNewChainPostcondition`, proved. -/
+theorem CreateNewChainPostcondition : Properties.CreateNewChainPostcondition := by
+  intro cfg caller s s' c m a adm d h
+  exec_unfold h
+  rename_i hauth hpause hvalid hdep hlim
+  obtain ⟨h1, h2, h3, -, h5, h6, h7, h8, -, h10⟩ := hvalid
+  refine ⟨by tauto, by simpa using hpause, h1, h2, h3, h10, h5, h7, h6, h8, by simp, by simp,
+    by simp, by simp [getZKChain], hdep, by simpa using hlim, fun c' hc' => ?_⟩
+  simp [getZKChain, hc']
+
+/-- `Properties.RegisterDeployedPostcondition`, proved. -/
+theorem RegisterDeployedPostcondition : Properties.RegisterDeployedPostcondition := by
+  intro cfg caller s s' c z info h
+  exec_unfold h
+  rename_i hauth hz hkey hcid hbh hvalid hlim
+  obtain ⟨h1, h2, h3, -, h5, h6, h7, h8, -, h10⟩ := hvalid
+  refine ⟨by simpa using hauth, by simpa using hcid, by simpa using hbh, hkey, h10, h1, h2, h3,
+    h5, h7, h6, h8, by simp, by simp, by simp, by simp [getZKChain], hz, by simpa using hlim,
+    fun c' hc' => ?_⟩
+  simp [getZKChain, hc']
+
+lemma step_assetReg {cfg : Config} {caller : Address} {a : Action} {s s' : State} {x : AssetId}
+    (h : exec cfg caller a s = some s') (hx : s.assetIdRegistered x = true) :
+    s'.assetIdRegistered x = true := by
+  cases a <;> exec_unfold h <;> upd_close
+
+/-- `Properties.AssetIdNeverUnregistered`, proved. -/
+theorem AssetIdNeverUnregistered : Properties.AssetIdNeverUnregistered := by
+  have H : ∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t →
+      ∀ a, s.assetIdRegistered a = true → t.assetIdRegistered a = true :=
+    fun cfg s t l h a ha => Run.invariant (fun u => u.assetIdRegistered a = true)
+      (fun _ _ _ _ hp hx => step_assetReg hx hp) h ha
+  refine ⟨H, ?_⟩
+  rintro cfg s ⟨o, l, h⟩
+  exact H cfg _ s l h _ (by simp [init])
+
+lemma step_fixedHere {cfg : Config} {caller : Address} {a : Action} {s s' : State} {c : ChainId}
+    (h : exec cfg caller a s = some s') (hb : a.burnFor c = false)
+    (hc : s.chainTypeManager c ≠ 0) (hsl : s.settlementLayer c = cfg.thisChain) :
+    s'.chainTypeManager c = s.chainTypeManager c ∧ s'.baseTokenAssetId c = s.baseTokenAssetId c ∧
+      s'.settlementLayer c = cfg.thisChain := by
+  cases a <;> simp only [Action.burnFor, decide_eq_false_iff_not] at hb <;>
+    exec_unfold h <;> upd_close
+
+/-- `Properties.CtmAndBaseTokenFixedWhileSettlingHere`, proved. -/
+theorem CtmAndBaseTokenFixedWhileSettlingHere :
+    Properties.CtmAndBaseTokenFixedWhileSettlingHere := by
+  intro cfg s t l h c hl hc hsl
+  exact Run.invariantOn (fun k => k.2.burnFor c = false)
+    (fun u => u.chainTypeManager c = s.chainTypeManager c ∧
+      u.baseTokenAssetId c = s.baseTokenAssetId c ∧ u.settlementLayer c = cfg.thisChain)
+    (fun _ _ _ _ hq hp hx => by
+      obtain ⟨e1, e2, e3⟩ := step_fixedHere hx hq (hp.1 ▸ hc) hp.2.2
+      exact ⟨e1.trans hp.1, e2.trans hp.2.1, e3⟩) h hl ⟨rfl, rfl, hsl⟩
+
+/-! ## Settlement layers, run level -/
+
+lemma step_sl {cfg : Config} {caller : Address} {a : Action} {s s' : State}
+    (h : exec cfg caller a s = some s') (c : ChainId) :
+    s'.settlementLayer c = s.settlementLayer c ∨ s'.settlementLayer c = cfg.thisChain ∨
+      (a = .burnSetSettlementLayer c (s'.settlementLayer c) ∧ s'.settlementLayer c ≠ c) := by
+  cases a with
+  | burnSetSettlementLayer c₀ sl =>
+    exec_unfold h
+    rename_i hauth hwl hsl hwc hget
+    by_cases hc : c = c₀
+    · subst hc
+      refine Or.inr (Or.inr ⟨by simp, ?_⟩)
+      simp only [Function.update_self]
+      rintro rfl
+      exact hwc (by simpa using hwl)
+    · exact Or.inl (by simp [hc])
+  | _ => exec_unfold h <;> upd_close
+
+/-- `Properties.RemoteSettlementLayerCameFromBurn`, proved. -/
+theorem RemoteSettlementLayerCameFromBurn : Properties.RemoteSettlementLayerCameFromBurn := by
+  intro cfg o l s h
+  induction h with
+  | nil => intro c hc; exact absurd rfl hc
+  | @snoc t u l k _ hx ih =>
+    intro c h0 hthis
+    rcases step_sl hx c with he | he | ⟨he, hne⟩
+    · rw [he] at h0 hthis ⊢
+      obtain ⟨h1, caller, hmem⟩ := ih c h0 hthis
+      exact ⟨h1, caller, List.mem_append_left _ hmem⟩
+    · exact absurd he hthis
+    · exact ⟨hne, k.1, by simp [← he]⟩
+
+/-- `Properties.MigrationTargetSettlesHere`, proved. -/
+theorem MigrationTargetSettlesHere : Properties.MigrationTargetSettlesHere := by
+  intro cfg s s' caller c sl hreach h
+  have hw := WhitelistedSettlementLayersSettleHere cfg s hreach sl
+  exec_unfold h
+  rename_i hauth hwl hsl hwc hget
+  have hwl' : s.whitelistedSL sl = true := by simpa using hwl
+  refine ⟨by simp, ?_⟩
+  rcases hw hwl' with h1 | h1
+  · exact Or.inl h1
+  · right
+    have hne : sl ≠ c := by rintro rfl; exact hwc hwl'
+    simp [hne, h1]
+
 /-! ## Requests -/
 
 /-- `Properties.DirectRequestAccounting`, proved. -/
@@ -546,5 +650,54 @@ theorem RequestWitness : Properties.RequestWitness := by
   obtain ⟨o₂, hx₂, ho₂⟩ := any_some h2
   simp only [decide_eq_true_eq] at ho₁ ho₂
   exact ⟨wcfg, s, 1, ⟨3, 0⟩, ⟨5, 0⟩, r₁, r₂, ⟨5, 0⟩, o₁, o₂, hs, h0, hx₁, ho₁, hx₂, ho₂.1, ho₂.2⟩
+
+/-- `Properties.WithoutCurrentSLCheckBaseTokenRewritten`, proved. -/
+theorem WithoutCurrentSLCheckBaseTokenRewritten :
+    Properties.WithoutCurrentSLCheckBaseTokenRewritten := by
+  obtain ⟨s, hs, hP⟩ := witness_of (cfg := wcfg) (o := 1)
+    (l := wSetup ++ [(51, .setCTMAssetAddress 60 60)])
+    (P := fun s => decide (s.chainTypeManager 11 ≠ 0 ∧ s.settlementLayer 11 = 1 ∧
+        s.baseTokenAssetId 11 = 7) &&
+      (forwardedBridgeMintNoCurrentSLCheck wcfg 53 s 160 11 8).any
+        (fun (s' : State) => decide (s'.baseTokenAssetId 11 = 8)) &&
+      (exec wcfg 53 (.forwardedBridgeMint 160 11 8) s).isNone)
+    (by decide +kernel)
+  simp only [Bool.and_eq_true, decide_eq_true_eq, Option.isNone_iff_eq_none] at hP
+  obtain ⟨⟨⟨h1, h2, h3⟩, h4⟩, h5⟩ := hP
+  obtain ⟨s', hx, hb⟩ := any_some h4
+  exact ⟨wcfg, s, s', 53, 160, 11, 8, hs, h1, h2, by rw [h3]; decide, hx, by simpa using hb, h5⟩
+
+/-- `Properties.WithoutAlreadyRegisteredCheckChainReRegistered`, proved. -/
+theorem WithoutAlreadyRegisteredCheckChainReRegistered :
+    Properties.WithoutAlreadyRegisteredCheckChainReRegistered := by
+  obtain ⟨s, hs, hP⟩ := witness_of (cfg := wcfg) (o := 1)
+    (l := wSetup ++ [(1, .addChainTypeManager 61), (1, .addTokenAssetId 8)])
+    (P := fun s => decide (s.chainTypeManager 11 = 60 ∧ s.baseTokenAssetId 11 = 7 ∧
+        s.zkAddr 11 = 71) &&
+      (createNewChainNoDupCheck wcfg 1 s 11 61 8 72).any
+        (fun (s' : State) => decide (s'.chainTypeManager 11 = 61 ∧ s'.baseTokenAssetId 11 = 8 ∧
+          s'.zkAddr 11 = 72)) &&
+      (exec wcfg 1 (.createNewChain 11 61 8 0 72) s).isNone)
+    (by decide +kernel)
+  simp only [Bool.and_eq_true, decide_eq_true_eq, Option.isNone_iff_eq_none] at hP
+  obtain ⟨⟨⟨h1, h2, h3⟩, h4⟩, h5⟩ := hP
+  obtain ⟨s', hx, hb⟩ := any_some h4
+  simp only [decide_eq_true_eq] at hb
+  exact ⟨wcfg, s, s', 1, 11, 61, 8, 0, 72, hs, by rw [h1]; decide, by rw [h1]; decide,
+    by rw [h2]; decide, by rw [h3]; decide, hx, hb.1, hb.2.1, hb.2.2, h5⟩
+
+/-- `Properties.SettlementLayerOfAChainNeedNotSettleHere`, proved. Chain `11` is on `10`;
+then chain `12` is created and whitelisted, `10` is removed from the whitelist and migrated
+onto `12`. -/
+theorem SettlementLayerOfAChainNeedNotSettleHere :
+    Properties.SettlementLayerOfAChainNeedNotSettleHere := by
+  obtain ⟨s, hs, hP⟩ := witness_of (cfg := wcfg) (o := 1)
+    (l := wMigrated ++ [(1, .createNewChain 12 60 7 0 72), (1, .setSettlementLayerStatus 12 true),
+      (1, .setSettlementLayerStatus 10 false), (53, .burnSetSettlementLayer 10 12)])
+    (P := fun s => decide (s.settlementLayer 11 = 10 ∧ s.settlementLayer 10 = 12 ∧
+      s.whitelistedSL 10 = false))
+    (by decide +kernel)
+  simp only [decide_eq_true_eq] at hP
+  exact ⟨wcfg, s, 11, 10, 12, hs, by decide, by decide, by decide, hP.1, hP.2.1, hP.2.2⟩
 
 end Contracts.Bridgehub
