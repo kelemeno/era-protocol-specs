@@ -91,12 +91,30 @@ no contract under `bridge/` calls either at `3605e82`).  That proviso is the pre
 * Bundle call data is typed (`SOL-ABI`), as in the pin model, except that the `finalizeDeposit`
   payload is now raw bytes: the handler, not the router, decodes it ("the mint data is in its own
   format", `L2AssetRouter.sol:297-299`).  The vault decodes it with `HeadConfig.decodeMint`.
-* The vault's refund is the pin model's `AtomicRecovery.ntvRecover`.  `bridgeRecoverFailedTransfer`
-  (`bridge/ntv/NativeTokenVaultBase.sol:193-213`) is unchanged at head; the new L2 override of
-  `_disburseFailedTransfer` (`bridge/ntv/L2NativeTokenVault.sol:235-258`: the tracker's
-  `assertRecoveryIsAccountingNeutral`, `bridge/asset-tracker/L2AssetTracker.sol:176-185`, and the
-  base-token branch `L2_BASE_TOKEN_HOLDER.recoverBaseToken`) acts through the vault's external
-  effects, which the pin model leaves as universally quantified hooks (`DEP-FRAME`).
+* The vault's refund is `vaultRecoverAtHead`.  `bridgeRecoverFailedTransfer`
+  (`bridge/ntv/NativeTokenVaultBase.sol:193-213` [v35 `:195-214`]) is the pin's, but on L2 it now runs
+  the override of `_disburseFailedTransfer` (`bridge/ntv/L2NativeTokenVault.sol:235-258`
+  [v35 `:204-227`]), which the pin did not have:
+
+      L2_ASSET_TRACKER.assertRecoveryIsAccountingNeutral(_assetId, _chainId);            // :244
+      if (_assetId == BASE_TOKEN_ASSET_ID) {                                             // :245
+          L2_BASE_TOKEN_HOLDER.recoverBaseToken(_receiver, _amount, _chainId);           // :246
+          return;
+      }
+      super._disburseFailedTransfer(...);                                                // :249-257
+
+  `assertRecoveryIsAccountingNeutral` (`bridge/asset-tracker/L2AssetTracker.sol:176-185`) is a view:
+  it rejects an L1 destination, and for the chain's own base token it rejects an asset the vault
+  records as native to this chain.  So for every asset other than this chain's `BASE_TOKEN_ASSET_ID`
+  and every non-L1 destination the refund is the pin model's `AtomicRecovery.ntvRecover`
+  (`Properties.VaultRecoverAtHeadIsPinRefundOffBaseToken`); for the chain's own base token it is the
+  base-token holder's `recoverBaseToken(receiver, amount, chainId)`
+  (`l2-system/BaseTokenHolder.sol:82-90`), the new hook `HeadHooks.recoverBase`.  This is the
+  same-base-token value path: `InteropCenter._ensureCorrectTotalValue` (`:415-457`) escrows a bundle's
+  call value in the base-token holder when the destination's base token is this chain's, and burns
+  it through the router's `bridgehubDepositBaseToken` otherwise.
+* The vault's other external effects are the pin model's universally quantified hooks
+  (`AtomicRecovery.Hooks`, `DEP-FRAME`).
 * The code at every other address, as it answers `IL2AssetHandler.bridgeRecoverFailedTransfer`
   (`bridge/interfaces/IL2AssetHandler.sol:14-23`), is an arbitrary function `HandlerCode` of the
   world; it may write anything, router maps included.  Results that need it to leave something alone
@@ -104,8 +122,14 @@ no contract under `bridge/` calls either at `3605e82`).  That proviso is the pre
 * Router-map writes between the burn and the claim are the steps of `AllWriters` (`AStep`, `ARun`).
   That model is at the pin; the writers of `assetHandlerAddress` are the same at head
   (`AssetRouterBase.sol:65-77, 267-283, 289-292`; `L2AssetRouter.sol:155-166, 204-210, 215-220`).
-* One `L1_CHAIN_ID` serves the router (`L2AssetRouter.sol:51`) and the manager
-  (`AtomicFlowManager.sol:64`): both are set by the upgrader to the L1 chain id (`OPS-CONFIG`).
+* One `L1_CHAIN_ID` serves the router (`L2AssetRouter.sol:51`), the manager
+  (`AtomicFlowManager.sol:64`) and the asset tracker's `assertRecoveryIsAccountingNeutral`: all are
+  set by the upgrader to the L1 chain id (`OPS-CONFIG`).
+* A router-produced call's `to` is modelled as the router's own address.  That is the canonical
+  deployment's `_l2AssetRouterAddress` for a non-L1 destination (`AssetRouterBase.sol:351, 360-362`);
+  for an L1 destination `initiateIndirectCall` substitutes `L1_ASSET_ROUTER`
+  (`L2AssetRouter.sol:362`), and recovery rejects those.  Recovery never reads `to`
+  (`Properties.CallTargetIgnoredAtHead`).
 * `nonReentrant`, events and the bundle-hash check of `claimRefund` (`:248-249`) are not modelled:
   the claim takes the decoded bundle.
 -/
@@ -131,11 +155,23 @@ abbrev World (X : Type) := AtomicRecovery.World X
 
 /-- The pin model's fixed addresses and decoders, plus what the head code adds. -/
 structure HeadConfig extends AtomicRecovery.Config where
-  /-- `L1_CHAIN_ID` (`L2AssetRouter.sol:51`, `AtomicFlowManager.sol:64`). -/
+  /-- `L1_CHAIN_ID` (`L2AssetRouter.sol:51`, `AtomicFlowManager.sol:64`,
+  `L2AssetTracker.assertRecoveryIsAccountingNeutral`). -/
   l1Chain : Chain
+  /-- The L2 vault's `BASE_TOKEN_ASSET_ID` (`L2NativeTokenVault.sol:58`): this chain's base token. -/
+  baseAsset : AssetId
   /-- `DataEncoding.decodeBridgeMintData` on a `finalizeDeposit` call's inner bytes, as the vault
   runs it (`NativeTokenVaultBase.sol:199-200`); `none` when it reverts. -/
   decodeMint : Bytes → Option MintData
+
+/-- The vault's external effects at head: the pin model's hooks, plus the base-token holder. -/
+structure HeadHooks (X : Type) extends AtomicRecovery.Hooks X where
+  /-- `L2_BASE_TOKEN_HOLDER.recoverBaseToken(to, amount, toChainId)` called by the vault
+  (`l2-system/BaseTokenHolder.sol:82-90`): nothing for a zero amount, otherwise the tracker's
+  `assertBaseTokenRecoveryIsAccountingNeutral(toChainId)` and a native transfer of `amount` to `to`.
+  It may revert (`none`), for instance when `to` rejects the transfer.  Its type confines writes to
+  `X`. -/
+  recoverBase : X → Addr160 → UInt256 → Chain → Option X
 
 /-! ## Bundle calls -/
 
@@ -172,9 +208,9 @@ structure HeadBundle where
   /-- `calls`, in order. -/
   calls : List HeadCall
 
-/-- The bundle call an indirect starter produces (see the header): to and from the router, value
-zero, data `finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)` with `mintBytes` the bytes the
-burn handler's `bridgeBurn` returned. -/
+/-- The bundle call an indirect starter produces for a non-L1 destination (see the header): to and
+from the router, value zero, data `finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)` with
+`mintBytes` the bytes the burn handler's `bridgeBurn` returned. -/
 def routerCallAtHead (cfg : HeadConfig) (a : AssetId) (mintBytes : Bytes) : HeadCall :=
   ⟨cfg.router, cfg.router, 0, .finalizeDeposit cfg.thisChain a mintBytes⟩
 
@@ -220,19 +256,46 @@ variable {X : Type}
 abbrev HandlerCode (X : Type) :=
   Address → World X → Chain → AssetId → Bytes → Option (World X)
 
+/-- `L2NativeTokenVault.bridgeRecoverFailedTransfer(chainId, assetId, data)` at head, called by
+`caller` with `msgValue`, on already decoded mint data (`none`: `decodeBridgeMintData` reverts).  The
+base function's guards and decode (`NativeTokenVaultBase.sol:193-200`), then the L2 override of
+`_disburseFailedTransfer` (`L2NativeTokenVault.sol:235-258`): the tracker's
+`assertRecoveryIsAccountingNeutral`, the base-token branch, and otherwise the base function, which is
+the pin model's `AtomicRecovery.ntvRecover` (it re-runs the same guards and decode).  `none` is a
+revert.  It reads the vault's registry, the pause flag and the rest of the world; the router's maps
+are neither read nor written. -/
+def vaultRecoverAtHead (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X) (w : World X)
+    (caller : Address) (msgValue : UInt256) (chainId : Chain) (a : AssetId)
+    (m : Option MintData) : Option (World X) :=
+  -- requireZeroValue(msg.value) onlyAssetRouter whenNotPaused (`NativeTokenVaultBase.sol:197`)
+  if msgValue ≠ 0 ∨ caller ≠ cfg.router ∨ w.paused = true then none else
+  -- decodeBridgeMintData (`:199-200`)
+  match m with
+  | none => none
+  | some md =>
+    -- assertRecoveryIsAccountingNeutral: no L1 destination (`L2AssetTracker.sol:179`)
+    if chainId = cfg.l1Chain then none else
+    if a = cfg.baseAsset then
+      -- …and the base token must not be native to this chain (`L2AssetTracker.sol:182-184`)
+      if w.vault.originChain a = cfg.thisChain then none else
+      -- L2_BASE_TOKEN_HOLDER.recoverBaseToken(_receiver, _amount, _chainId); return
+      (hk.recoverBase w.rest md.originalCaller md.amount chainId).map fun x => { w with rest := x }
+    -- super._disburseFailedTransfer
+    else AtomicRecovery.ntvRecover enc cfg.toConfig hk.toHooks w caller msgValue chainId a (some md)
+
 /-- `IL2AssetHandler(h).bridgeRecoverFailedTransfer(chainId, assetId, data)` called by the router
-with no value (`L2AssetRouter.sol:307`).  The vault runs the pin model's refund on the decoded mint
-data; every other address runs `code`. -/
-def handlerRecover (enc : AssetIdOf) (cfg : HeadConfig) (hk : AtomicRecovery.Hooks X)
+with no value (`L2AssetRouter.sol:307`).  The vault runs its head refund on the decoded mint data;
+every other address runs `code`. -/
+def handlerRecover (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (h : Address) (w : World X) (chainId : Chain) (a : AssetId)
     (data : Bytes) : Option (World X) :=
   if h = cfg.ntv then
-    AtomicRecovery.ntvRecover enc cfg.toConfig hk w cfg.router 0 chainId a (cfg.decodeMint data)
+    vaultRecoverAtHead enc cfg hk w cfg.router 0 chainId a (cfg.decodeMint data)
   else code h w chainId a data
 
 /-- `L2AssetRouter.recoverAtomicCall(destChainId, callData)` at head, called by `caller`
 (`L2AssetRouter.sol:275-309`): `none` is a revert, `some (w', b)` returns `b`. -/
-def recoverAtomicCallAtHead (enc : AssetIdOf) (cfg : HeadConfig) (hk : AtomicRecovery.Hooks X)
+def recoverAtomicCallAtHead (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (w : World X) (caller : Address) (destChainId : Chain)
     (d : HeadCallData) : Option (World X × Bool) :=
   -- onlyAtomicFlowManager (`:278`, `:135-138`)
@@ -265,12 +328,11 @@ def baseRefundMint (receiver : Address) (amount : UInt256) : MintData :=
 `bridgeRecoverFailedTransfer` with the rebuilt mint data, called by the router with no value
 (`:332-333`). -/
 def bridgehubRecoverBaseTokenAtHead (enc : AssetIdOf) (cfg : HeadConfig)
-    (hk : AtomicRecovery.Hooks X) (w : World X) (caller : Address) (chainId : Chain)
+    (hk : HeadHooks X) (w : World X) (caller : Address) (chainId : Chain)
     (a : AssetId) (receiver : Address) (amount : UInt256) : Option (World X) :=
   if caller ≠ cfg.manager then none else
   if chainId = cfg.l1Chain then none else
-  AtomicRecovery.ntvRecover enc cfg.toConfig hk w cfg.router 0 chainId a
-    (some (baseRefundMint receiver amount))
+  vaultRecoverAtHead enc cfg hk w cfg.router 0 chainId a (some (baseRefundMint receiver amount))
 
 /-! ## The manager's refund loop -/
 
@@ -278,7 +340,7 @@ def bridgehubRecoverBaseTokenAtHead (enc : AssetIdOf) (cfg : HeadConfig)
 earlier iterations left.  The two `if`s of the source are exclusive, so they are an `if … else if`.
 The `Bool` says whether something was reversed; it is bookkeeping for the statements only, since the
 manager ignores `recoverAtomicCall`'s return value (`:310-311`). -/
-def recoverCallAtHead (enc : AssetIdOf) (cfg : HeadConfig) (hk : AtomicRecovery.Hooks X)
+def recoverCallAtHead (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (destChainId : Chain) (destBase : AssetId) (w : World X)
     (c : HeadCall) : Option (World X × Bool) :=
   if c.sender = cfg.router then
@@ -353,7 +415,7 @@ def CodeKeepsHandlerAt (a : AssetId) (code : HandlerCode X) : Prop :=
 /-- `h`'s refund of asset `a` reverts in every world whose routing table points `a` at `h`: for the
 vault, an asset it rejects; for any other address, code that does not implement
 `bridgeRecoverFailedTransfer` for `a` (`IL2AssetHandler.sol:11-13`). -/
-def RecoveryRevertsAt (enc : AssetIdOf) (cfg : HeadConfig) (hk : AtomicRecovery.Hooks X)
+def RecoveryRevertsAt (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (h : Address) (a : AssetId) : Prop :=
   ∀ w chainId data, w.router.handler a = h → handlerRecover enc cfg hk code h w chainId a data = none
 
