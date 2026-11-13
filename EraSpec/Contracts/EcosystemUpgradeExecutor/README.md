@@ -21,6 +21,7 @@ returns.
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
 | Lifecycle | [Specs/Lifecycle.lean](Specs/Lifecycle.lean) | [Properties/Lifecycle.lean](Properties/Lifecycle.lean) | [Proofs/Lifecycle.lean](Proofs/Lifecycle.lean) |
+| LifecycleStrong | [Specs/Lifecycle.lean](Specs/Lifecycle.lean) | [Properties/LifecycleStrong.lean](Properties/LifecycleStrong.lean) | [Proofs/LifecycleStrong.lean](Proofs/LifecycleStrong.lean) |
 
 Namespace: `Contracts.EcosystemUpgradeExecutor`. Statements are
 `Contracts.EcosystemUpgradeExecutor.Properties.*`; each certificate has the same name without
@@ -30,7 +31,8 @@ the `Properties` segment.
 
 **Lifecycle.**
 
-- `StageGuards`: each stage's transcribed guard.
+- `StageGuards`: each stage's transcribed guard, as necessary conditions only (the `active ≠ 0`
+  conjuncts of `stage1`, `stage2` and abandonment are left out).
 - `StagesMoveForward`: the slot moves only forward. The order is free → `Prepared` →
   `Executed` → free, or from occupied to free by abandonment.
 - `SlotEmptyIffStageNone`: the operation slot is empty exactly when the stage is `None`.
@@ -39,6 +41,24 @@ the `Properties` segment.
 - `Stage0RefusesForeignOrStartedTimer`, `GovernanceTimerPreparesOnce`: a
   `GovernanceUpgradeTimer` starts once. So stage 0 refuses a timer bound to someone else or
   already started, and an operation that names such a timer is prepared at most once.
+
+**LifecycleStrong (guards exactly, abandonment live).**
+
+- `LifecycleStageGuardsExact`, `LifecycleAbandonExact`: with the `active` conjuncts, each
+  stage's guard is necessary and sufficient; abandonment frees the slot and the reservation
+  and changes nothing else (no timer reset, applied CTM legs stay applied).
+- `LifecycleAbandonEnabledWhilePending` (headline): on `forward`-free runs from idle,
+  abandonment succeeds whenever an operation is pending, at either stage.
+  `LifecycleFreeingIsStage2OrAbandon`: only abandonment or `stage2` empties the slot.
+- `LifecyclePreparedGovernanceOpStaysRefused`: abandonment does not give the operation back;
+  its `GovernanceUpgradeTimer` stays started, so `stage0` refuses it forever (from a positive
+  timestamp; `LifecycleTimestampZeroReprepares` shows the premise is needed).
+- **Countermodel** `LifecycleForwardReleaseWedgesCoordinator`: a forwarded release blocks
+  abandonment and every stage. `LifecycleOwnerCanAlwaysReturnToIdle`: the owner can still
+  reach idle in at most two transactions in the model (the real `beginOperation`'s
+  `_reserveLeg` checks are omitted).
+- Liveness is about the model: the model's `abandon` omits the core domain's release and
+  `releaseMigrationPause`, either of which can add a revert.
 
 **The timer.** The coordinator checks only that the manifest's `timer` is nonzero and has
 code, and that `startTimer()` and `checkDeadline()` do not revert. It never reads the delay or

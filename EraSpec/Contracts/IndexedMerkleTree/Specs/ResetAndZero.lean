@@ -57,9 +57,12 @@ import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
     `evolution_keys_mono`).
 
   * `zero_not_reclaimable_along_evolution` — hence `0` is NEVER
-    reclaimable: no leaf of any snapshot carries a window straddling `0`
-    (via `present_not_reclaimable`).  No refund can ever be extracted for
-    the sentinel value.
+    reclaimable: no leaf of any snapshot carries a window straddling `0`.
+    Its proof goes via `present_not_reclaimable`, but its STATEMENT holds
+    for every history with no premise used: a window straddling `0` needs
+    `W.key < 0`, so it is `zero_never_reclaimable` at `S n`.  The invariant
+    route as a statement whose premises are all needed is
+    `ResetAndZeroStrong.zero_not_reclaimable_invariant_route`.
 
   * `zero_never_reclaimable` — independent confirmation, with NO
     hypotheses at all: in ANY leaf set whatsoever (sound or not, evolved or
@@ -67,11 +70,15 @@ import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
     `Fin (2^256)`.  The reclaim gate's witness precondition is
     unsatisfiable for `v = 0` on order grounds alone.
 
-  * `guarded_never_inserts_zero` — `0` can never be FRESHLY inserted along
-    a `GuardedEvolution` from genesis: the dedup gate `v ∉ keys s` is
-    unsatisfiable for `v = 0` (and, independently, so is the low-leaf guard
-    `W.key < 0`).  No step of a real contract history ever performs the
-    insert operation with value `0`.
+  * `guarded_never_inserts_zero` — no step of a guarded history performs
+    the guarded insert with value `0`.  Its conclusion contains the
+    low-leaf guard `W.key < 0`, which nothing satisfies, so it holds for
+    every history with no premise used; it does not check the dedup-gate
+    claim.  That claim (the abstract gate `v ∉ keys (S n)` fails for
+    `v = 0` at every snapshot of a guarded history from genesis) is
+    `ResetAndZeroStrong.guarded_dedup_gate_rejects_zero`.  The contract's
+    own gate `valueToIndex[_value] != 0` does not reject `0` (the sentinel
+    is never registered); the contract rejects `0` by `IMTValueZero`.
 
   Together: `v = 0` can be neither delivered (B3) nor reclaimed (B2) — the
   sentinel is dead weight to an attacker, which is why
