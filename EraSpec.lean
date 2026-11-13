@@ -179,6 +179,9 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
+-- Diamond proxy (d9f6789): dispatch, freezing, the init call, and runs over every entry point
+import EraSpec.Contracts.Diamond.Proofs.DiamondProxy
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
