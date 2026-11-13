@@ -122,7 +122,12 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   post-deadline import plus `Aggregates`. Countermodel `WithoutImportFlowSitsHalfExecuted`:
   every leg committed on time and all data available, `FlowFinalizableBy` holds, one
   destination executes a leg, another can execute none, and no leg is refundable;
-  `ImportAloneRestoresFinalizability` shows the single import is all that is missing.
+  `ImportAloneRestoresFinalizability` shows the single import is all that is missing, and
+  `WithoutImportCrossDestinationFails` is the negation of
+  `ExecutedAtImpliesAllFinalizableAtOrBreak` without the import premise.
+  Source chains are assumed to settle directly on the flow's settlement layer
+  (`L2MessageVerification` allows one recursion level); Gateway-settled sources are out
+  of scope.
   `WithoutSettlementDataLegIsStuck` shows the settlement-proof premise is needed too.
   Aggregation paths inside a settlement proof are idealized as the honest ones; the import
   transitions themselves are not modelled (a snapshot `World`, `ImportsGrow`).

@@ -84,6 +84,16 @@ countermodel's rejection uses only the import half: with
 `interopRoots[slChainId][slBlock]` zero, `proveL2LeafInclusionShared` returns false
 whatever the path.
 
+Source chains are assumed to settle directly on the flow's settlement layer `sl`, so the
+one-hop settlement proof (source batch root, then `sl`'s imported root) applies.
+`L2MessageVerification._proveL2LeafInclusionRecursive` allows a single recursion level and
+reverts with `DepthMoreThanOneForRecursiveMerkleProof` otherwise
+(`L2MessageVerification.sol:34-36`, `c67894b9`), so a source chain settling via Gateway, whose
+proof needs a further level, cannot be authenticated.  `SettlementAccepted` and
+`SettlementDataAvailable` do not check this: they accept the honest proof for any chain `c`
+with `n ≤ (slRoot sl k).upTo c`.  Gateway-settled sources are out of scope, and for them the
+liveness results here are optimistic.
+
 The world is a snapshot of which roots each destination holds when its gate runs.  Not
 modelled: the import transitions themselves (`ImportsGrow` records only that imports
 accumulate), the imported roots' timestamps (read only on the timeout side,

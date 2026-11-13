@@ -394,6 +394,17 @@ theorem twoChain_flow_finalizable_at (h : Hash) (z0 : UInt256) (hl : LeafHash) {
     (honest_settlement_access_available _) (n := 0) (le_refl _) ⟨0, ⟨hd, rfl, rfl⟩, Nat.zero_le _⟩
     (twoChain_leg_mem hl' 0)⟩
 
+/-- The honest evidence `twoChainEvidence` carries no `GateBreak` on `mixedFlow 0 1 2`.
+`GateBreak` reads only the IMT half of the evidence and the system, not the world. -/
+theorem twoChain_evidence_no_gate_break (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain) :
+    ¬ GateBreak h z0 hl (twoChainSystem 1 2) (mixedFlow 0 1 2)
+      (imtEvidence (twoChainEvidence h z0 hl sl)) := by
+  rintro ⟨l, hl', hb⟩
+  have hlt : 1 < ((twoChainSystem 1 2).tree l.chain 0).leafCount := by
+    rw [twoChain_leg_tree hl' 0, insertSetup_leafCount]
+    norm_num
+  exact honestProof_no_break h z0 hl (twoChainSystem 1 2) l.chain 0 1 hlt hb
+
 /-! ## Countermodels -/
 
 theorem without_import_flow_sits_half_executed (h : Hash) (z0 : UInt256) (hl : LeafHash)
@@ -407,8 +418,10 @@ theorem without_import_flow_sits_half_executed (h : Hash) (z0 : UInt256) (hl : L
           (mixedFlow 0 1 2).deadline
       ∧ ¬ ImportAvailable (importWorld sl (· = dA)) (twoChainSystem 1 2) dB sl
           (mixedFlow 0 1 2).deadline
-      ∧ ExecutedAt h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
-          (importWorld sl (· = dA)) (twoChainSystem 1 2) dA sl (mixedFlow 0 1 2) ⟨0, 1⟩
+      ∧ (∃ ev : GateEvidenceAt,
+          ExecutedAtBy h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+            (importWorld sl (· = dA)) (twoChainSystem 1 2) dA sl (mixedFlow 0 1 2) ev ⟨0, 1⟩
+          ∧ ¬ GateBreak h z0 hl (twoChainSystem 1 2) (mixedFlow 0 1 2) (imtEvidence ev))
       ∧ FlowFinalizableBy h z0 hl (fun _ b => b) (twoChainSystem 1 2)
           (honestAccess h z0 hl (twoChainSystem 1 2)) (mixedFlow 0 1 2)
       ∧ (∀ (fh : FlowHash) (leg : FlowLeg), ¬ ExecutedAt h z0 hl (fun _ b => b) fh
@@ -425,7 +438,8 @@ theorem without_import_flow_sits_half_executed (h : Hash) (z0 : UInt256) (hl : L
   refine ⟨twoChain_wf, honestAccess_dataAvailable h z0 hl _, honest_settlement_access_available _,
     rfl, rfl, importWorld_ready rfl _ (fun _ _ hn => hn) (Nat.zero_le _),
     importWorld_not_ready hnB (le_refl _),
-    ⟨twoChainEvidence h z0 hl sl, twoChain_executed_at h z0 hl rfl⟩,
+    ⟨twoChainEvidence h z0 hl sl, twoChain_executed_at h z0 hl rfl,
+      twoChain_evidence_no_gate_break h z0 hl sl⟩,
     flow_finalizable_at_imp_by (twoChain_flow_finalizable_at h z0 hl (sl := sl) (imp := (· = dA)) rfl),
     ?_, ?_, ?_⟩
   · rintro fh leg ⟨ev, _, _, _, hall⟩
@@ -435,6 +449,23 @@ theorem without_import_flow_sits_half_executed (h : Hash) (z0 : UInt256) (hl : L
   · intro other hother N q
     exact member_not_refundable_or_break twoChain_wf (n := 0) (le_refl _)
       (twoChain_leg_mem hother 0) N q
+
+/-- The negation of `executed_at_implies_all_finalizable_at_or_break` without the import
+premise on `dB`, refuted by `without_import_flow_sits_half_executed` at `dA = 0`, `dB = 1`. -/
+theorem without_import_cross_destination_fails :
+    ¬ ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (W : World)
+      (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+      ∀ (SA : SettlementAccess), SettlementDataAvailable W SA →
+      ∀ (dA dB : Dest) (sl : Chain) (F : Flow) (ev : GateEvidenceAt) (leg : FlowLeg),
+        ExecutedAtBy h z0 hl cv fh W S dA sl F ev leg → W.l1 dB = sl →
+          FlowFinalizableAt h z0 hl cv W S A SA dB sl F
+            ∨ GateBreak h z0 hl S F (imtEvidence ev) := by
+  intro hall
+  obtain ⟨hwf, hda, hsa, _, hl1B, _, _, ⟨ev, hex, hnb⟩, _, _, hnf, _⟩ :=
+    without_import_flow_sits_half_executed (fun _ _ => 0) 0 toyLeafHash 0 0 1 (by decide)
+  rcases hall _ _ _ _ _ _ _ hwf _ hda _ hsa _ _ _ _ ev _ hex hl1B with hF | hb
+  · exact hnf _ _ ⟨0, 1⟩ List.mem_cons_self (hF.2 ⟨0, 1⟩ List.mem_cons_self)
+  · exact hnb hb
 
 theorem import_alone_restores_finalizability (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain)
     (dA dB : Dest) :
@@ -494,13 +525,9 @@ theorem executed_at_or_break_satisfiable (h : Hash) (z0 : UInt256) (hl : LeafHas
               (mixedFlow 0 1 2) := by
   refine ⟨twoChain_wf, honestAccess_dataAvailable h z0 hl _, honest_settlement_access_available _,
     rfl, importWorld_ready (Or.inr rfl) _ (fun _ _ hn => hn) (Nat.zero_le _),
-    twoChainEvidence h z0 hl sl, twoChain_executed_at h z0 hl (Or.inl rfl), ?_,
+    twoChainEvidence h z0 hl sl, twoChain_executed_at h z0 hl (Or.inl rfl),
+    twoChain_evidence_no_gate_break h z0 hl sl,
     twoChain_flow_finalizable_at h z0 hl (Or.inr rfl)⟩
-  rintro ⟨l, hl', hb⟩
-  have hlt : 1 < ((twoChainSystem 1 2).tree l.chain 0).leafCount := by
-    rw [twoChain_leg_tree hl' 0, insertSetup_leafCount]
-    norm_num
-  exact honestProof_no_break h z0 hl (twoChainSystem 1 2) l.chain 0 1 hlt hb
 
 theorem none_or_all_at_or_break_pinned_stranded_not_tautology (h : Hash) (z0 : UInt256)
     (hl : LeafHash) (sl : Chain) (d : Dest) :
@@ -700,6 +727,9 @@ theorem ExecutedImpliesRealFlowFinalizableAtOrLoggedClash :
 
 theorem WithoutImportFlowSitsHalfExecuted : Properties.WithoutImportFlowSitsHalfExecuted :=
   without_import_flow_sits_half_executed
+
+theorem WithoutImportCrossDestinationFails : Properties.WithoutImportCrossDestinationFails :=
+  without_import_cross_destination_fails
 
 theorem ImportAloneRestoresFinalizability : Properties.ImportAloneRestoresFinalizability :=
   import_alone_restores_finalizability

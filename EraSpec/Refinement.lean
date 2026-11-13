@@ -157,9 +157,11 @@ shows that one is load-bearing too.
 finalizability against the true root. The destination's own gate needs two more world
 assumptions, stated in `Contracts.RootImport`: `ImportAvailable` (the destination has
 imported a settlement-layer root covering the batch) and `SettlementDataAvailable` (the
-multi-hop settlement proof is presentable). `WithoutImportFlowSitsHalfExecuted` (no
-hash premise) shows the first is load-bearing. Without it, one leg executes on its
-destination while a sibling's destination cannot pass, and no leg is refundable.
+multi-hop settlement proof is presentable). `WithoutImportCrossDestinationFails` (no
+hash premise) shows the first is load-bearing: it is the negation of
+`ExecutedAtImpliesAllFinalizableAtOrBreak` with the import premise dropped. Its instance,
+`WithoutImportFlowSitsHalfExecuted`, has one leg execute on its destination on break-free
+evidence while a sibling's destination cannot pass, and no leg is refundable.
 
 ## Additional bridge correspondence
 

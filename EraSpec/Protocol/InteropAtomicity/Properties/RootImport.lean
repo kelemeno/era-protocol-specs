@@ -60,7 +60,8 @@ Otherwise a break is located on a submitted proof, as in
 
 | Result | What it shows |
 |---|---|
-| `WithoutImportFlowSitsHalfExecuted` | import availability is necessary: `dA` executes a leg, `dB` can execute none, no leg is refundable, and `FlowFinalizableBy` holds |
+| `WithoutImportFlowSitsHalfExecuted` | import availability is necessary: `dA` executes a leg on break-free evidence, `dB` can execute none, no leg is refundable, and `FlowFinalizableBy` holds |
+| `WithoutImportCrossDestinationFails` | the negation of `ExecutedAtImpliesAllFinalizableAtOrBreak` with the import premise on `dB` dropped |
 | `ImportAloneRestoresFinalizability` | in that world, the one root import is all `dB` lacks |
 | `WithoutSettlementDataLegIsStuck` | settlement-proof availability is necessary |
 | `ExecutedAtOrBreakSatisfiable` | every premise of the cross-destination result at once, with no break and the conclusion true |
@@ -177,8 +178,10 @@ Suppose a leg executed on destination `dA`, through `dA`'s own gate, on the evid
 Let `dB` be any destination whose `L1_CHAIN_ID` is the flow's settlement layer and that has
 import availability for the deadline.  Then `dB` can run `requireFlowFinalized` on
 presentable proofs and pass, or the evidence `dA` accepted carries a located break on one of
-the flow's legs.  `Properties.WithoutImportFlowSitsHalfExecuted` shows the import premise on
-`dB` cannot be dropped. -/
+the flow's legs.  The import premise on `dB` cannot be dropped:
+`Properties.WithoutImportCrossDestinationFails` is the negation of this statement with that
+premise removed (instance: `Properties.WithoutImportFlowSitsHalfExecuted`, where `dA` executes
+on break-free evidence and no leg is finalizable on `dB`). -/
 def Properties.ExecutedAtImpliesAllFinalizableAtOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (W : World)
     (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -241,7 +244,12 @@ BREAK.**  This is the precise form of what
 Suppose a leg executed on the evidence `ev`.  Then every leg `other` of the flow has an
 on-time batch `n` with the following property, or `ev other` carries a break.  At every later
 on-time batch `m` for which destination `d` holds an imported root covering `m`, a prover can
-present an IMT proof and a settlement proof that `d` accepts. -/
+present an IMT proof and a settlement proof that `d` accepts.
+
+The inner clause is conditional on `RootImported W d sl other.chain m`, so on a destination
+that holds no imported root covering a batch `m ≥ n` the first disjunct holds vacuously (any
+on-time `n` works).  This result says nothing about whether `d` imports; for that, see
+`Properties.ExecutedImpliesAllFinalizableAtOrBreak` under `ImportAvailable`. -/
 def Properties.ExecutedImpliesFinalityPersistsAtOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (W : World)
     (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -301,7 +309,9 @@ destinations `dA ≠ dB`.  The system is `twoChainSystem 1 2`, and the flow is
 access).  The world is `importWorld sl (· = dA)`: only `dA` has imported the one
 settlement-layer root, and both destinations are configured for `sl`.  Then:
 
-* `dA` is ready, and leg `⟨0, 1⟩` executes on `dA` through `dA`'s own gate;
+* `dA` is ready, and leg `⟨0, 1⟩` executes on `dA` through `dA`'s own gate, on evidence
+  that carries no `GateBreak` (the second disjunct of
+  `Properties.ExecutedAtImpliesAllFinalizableAtOrBreak` is false for it);
 * `FlowFinalizableBy` holds, so `Contracts.Atomicity`'s none-or-all says the flow is fine;
 * `dB` is not ready.  No leg can execute on `dB`, under any flow hash, and no leg is
   finalizable on `dB`, whatever the prover can present;
@@ -323,8 +333,10 @@ def Properties.WithoutImportFlowSitsHalfExecuted : Prop :=
           (mixedFlow 0 1 2).deadline
       ∧ ¬ ImportAvailable (importWorld sl (· = dA)) (twoChainSystem 1 2) dB sl
           (mixedFlow 0 1 2).deadline
-      ∧ ExecutedAt h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
-          (importWorld sl (· = dA)) (twoChainSystem 1 2) dA sl (mixedFlow 0 1 2) ⟨0, 1⟩
+      ∧ (∃ ev : GateEvidenceAt,
+          ExecutedAtBy h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+            (importWorld sl (· = dA)) (twoChainSystem 1 2) dA sl (mixedFlow 0 1 2) ev ⟨0, 1⟩
+          ∧ ¬ GateBreak h z0 hl (twoChainSystem 1 2) (mixedFlow 0 1 2) (imtEvidence ev))
       ∧ FlowFinalizableBy h z0 hl (fun _ b => b) (twoChainSystem 1 2)
           (honestAccess h z0 hl (twoChainSystem 1 2)) (mixedFlow 0 1 2)
       ∧ (∀ (fh : FlowHash) (leg : FlowLeg), ¬ ExecutedAt h z0 hl (fun _ b => b) fh
@@ -337,6 +349,20 @@ def Properties.WithoutImportFlowSitsHalfExecuted : Prop :=
               other N q
             ∨ AbsenceBreak h z0 hl (twoChainSystem 1 2) (mixedFlow 0 1 2).deadline other.chain
                 N q)
+
+/-- **THE CROSS-DESTINATION RESULT IS FALSE WITHOUT THE IMPORT PREMISE.**  This is exactly
+the negation of `Properties.ExecutedAtImpliesAllFinalizableAtOrBreak` with its premise
+`ImportAvailable W S dB sl F.deadline` removed (every other premise kept).  The refuting
+instance is the world of `Properties.WithoutImportFlowSitsHalfExecuted`, with `dA = 0` and
+`dB = 1`: all premises hold, `dB` is not finalizable, and the executing evidence carries no
+`GateBreak`. -/
+def Properties.WithoutImportCrossDestinationFails : Prop :=
+  ¬ ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (W : World)
+    (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+    ∀ (SA : SettlementAccess), SettlementDataAvailable W SA →
+    ∀ (dA dB : Dest) (sl : Chain) (F : Flow) (ev : GateEvidenceAt) (leg : FlowLeg),
+      ExecutedAtBy h z0 hl cv fh W S dA sl F ev leg → W.l1 dB = sl →
+        FlowFinalizableAt h z0 hl cv W S A SA dB sl F ∨ GateBreak h z0 hl S F (imtEvidence ev)
 
 /-- **THE IMPORT IS ALL THAT IS MISSING.**  In the world of
 `Properties.WithoutImportFlowSitsHalfExecuted`, add `dB`'s import of the same root, and change
