@@ -50,6 +50,11 @@ import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRoot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.Timestamps
 import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeaf
+import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRootOffset
+import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeafFaithful
+import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarityFaithful
+import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshotBranches
+import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshotFaithful
 
 -- IndexedMerkleTree: abstract list model and insertion requirements
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model

@@ -122,6 +122,31 @@ theorem begin_branch_pin_may_be_late : Properties.BeginBranchPinMayBeLate :=
     ⟨by decide, by decide, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩,
     by decide, by decide⟩
 
+/-! ## Satisfiability of the headline premises -/
+
+theorem honestHistory_monotone : Monotone honestHistory.t := by
+  intro m n hmn
+  show (if m = 0 then (0 : UInt256) else 1) ≤ (if n = 0 then (0 : UInt256) else 1)
+  split_ifs with h1 h2 h2
+  · exact le_refl _
+  · decide
+  · exact absurd (by omega : m = 0) h1
+  · exact le_refl _
+
+theorem begin_branch_not_redeemable_satisfiable :
+    Properties.BeginBranchNotRedeemableSatisfiable :=
+  ⟨fun _ => Or.inl rfl, genesis_soundState, honestHistory_monotone, fun _ => rfl,
+    ⟨by decide, by decide, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩, by decide⟩
+
+theorem end_branch_not_redeemable_satisfiable :
+    Properties.EndBranchNotRedeemableSatisfiable := by
+  refine ⟨fun _ => Or.inl rfl, genesis_soundState, ?_,
+    ⟨by decide, by decide, fun _ hm => hm, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩⟩
+  intro n hn
+  have hn0 : n ≠ 0 := by omega
+  show (1 : UInt256) ≤ (if n = 0 then (0 : UInt256) else 1)
+  simp [hn0]
+
 /-! ## Certificates -/
 
 theorem BeginBranchGivesPin : Properties.BeginBranchGivesPin :=
@@ -150,5 +175,11 @@ theorem PinDoesNotMakeSnapshotOnTime : Properties.PinDoesNotMakeSnapshotOnTime :
 
 theorem BeginBranchPinMayBeLate : Properties.BeginBranchPinMayBeLate :=
   begin_branch_pin_may_be_late
+
+theorem BeginBranchNotRedeemableSatisfiable : Properties.BeginBranchNotRedeemableSatisfiable :=
+  begin_branch_not_redeemable_satisfiable
+
+theorem EndBranchNotRedeemableSatisfiable : Properties.EndBranchNotRedeemableSatisfiable :=
+  end_branch_not_redeemable_satisfiable
 
 end AttackVectors.StaleSnapshotBranches

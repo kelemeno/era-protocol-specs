@@ -19,6 +19,9 @@ Statements over `../Specs/StaleSnapshotBranches.lean`.  Proofs:
   what `D < t (j+1)` means: every on-time snapshot is at or before `j`; `j` itself need
   not be on time (so "j is the LAST on-time snapshot" is wrong without `t j ≤ D`), and
   on the begin branch it can be late.
+* `BeginBranchNotRedeemableSatisfiable` / `EndBranchNotRedeemableSatisfiable` — every
+  premise of each headline holds together, on an honest refund (`honestHistory`) with
+  an on-time batch, so neither headline is vacuous.
 -/
 
 namespace AttackVectors.StaleSnapshotBranches
@@ -95,5 +98,23 @@ def Properties.PinDoesNotMakeSnapshotOnTime : Prop :=
 def Properties.BeginBranchPinMayBeLate : Prop :=
   ∃ (H : BatchSnapshots) (D T v : UInt256) (L : ℕ) (W : AbsLeaf),
     BeginIsPrevEnd H ∧ BeginBranch H D T v L W ∧ 0 < L ∧ D < H.t (L - 1)
+
+/-- **THE BEGIN-BRANCH PREMISES ARE SATISFIABLE.**  On `honestHistory` (nothing committed,
+batch 0 on time for deadline `0`), the begin branch passes at batch `L = 1` with the
+genesis leaf as witness for `v = 1`: every premise of `BeginBranchNotRedeemable` holds,
+and batch 0 is on time, so its conclusion is not vacuous. -/
+def Properties.BeginBranchNotRedeemableSatisfiable : Prop :=
+  Evolution honestHistory.endS ∧ SoundState (honestHistory.endS 0) ∧ Monotone honestHistory.t
+    ∧ BeginIsPrevEnd honestHistory ∧ BeginBranch honestHistory 0 1 1 1 ⟨0, 0⟩
+    ∧ honestHistory.t 0 ≤ 0
+
+/-- **THE END-BRANCH PREMISES ARE SATISFIABLE.**  On `honestHistory`, a root created at
+time 1 holding only batch 0 satisfies `OutsideRootLate`, and the end branch passes at
+batch `B = 0` (on time for deadline `0`) with the genesis leaf as witness for `v = 1`:
+every premise of `EndBranchNotRedeemable` holds. -/
+def Properties.EndBranchNotRedeemableSatisfiable : Prop :=
+  Evolution honestHistory.endS ∧ SoundState (honestHistory.endS 0)
+    ∧ OutsideRootLate (· ≤ 0) honestHistory.t 1
+    ∧ EndBranch honestHistory (· ≤ 0) 0 1 1 0 ⟨0, 0⟩
 
 end AttackVectors.StaleSnapshotBranches

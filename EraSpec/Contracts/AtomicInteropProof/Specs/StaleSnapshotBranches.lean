@@ -53,8 +53,8 @@ structure BatchSnapshots where
   t : ℕ → UInt256
 
 /-- `begin(n+1) = end(n)`: a property of how the source chain snapshots its tree at batch
-boundaries.  No proof establishes it: `_authenticateRoot` authenticates leaves 2 and 3
-of ONE batch. -/
+boundaries.  No on-chain check establishes it: `_authenticateRoot` authenticates one
+IMT-root leaf (2 or 3) of ONE batch and never relates two batches. -/
 def BeginIsPrevEnd (H : BatchSnapshots) : Prop :=
   ∀ n, H.beginS (n + 1) = H.endS n
 
@@ -109,5 +109,12 @@ def staleRootHistory : BatchSnapshots where
   endS := fun m => if m = 0 then {⟨0, 0⟩} else imtInsert {⟨0, 0⟩} ⟨0, 0⟩ 1
   beginS := fun m => if m ≤ 1 then {⟨0, 0⟩} else imtInsert {⟨0, 0⟩} ⟨0, 0⟩ 1
   t := fun _ => 0
+
+/-- An honest refund history: nothing is ever committed (every snapshot is the genesis
+singleton, begin and end alike), batch 0 settles at time 0 and every later batch at time 1. -/
+def honestHistory : BatchSnapshots where
+  endS := fun _ => {⟨0, 0⟩}
+  beginS := fun _ => {⟨0, 0⟩}
+  t := fun n => if n = 0 then 0 else 1
 
 end AttackVectors.StaleSnapshotBranches
