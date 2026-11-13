@@ -48,13 +48,23 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
         leaves every level `l ≥ 1` literally unchanged.
       * `rootOf_trailing_padding`: lifted to roots at EVERY height (height 0
         included, since an odd-length list is nonempty and keeps its head).
-      * `padding_ambiguity_forges_root`: the packaged attack — for ANY `h`,
-        `z0`, `a` (no injectivity assumption needed, so this holds even for a
-        perfectly collision-resistant hash): `[a]` and `[a, z0]` are distinct
-        leaf lists of DIFFERENT lengths with the SAME root at height 1.
-        This shows the equal-length hypothesis `hlen` of
-        `MerkleSpec.rootOf_inj_of_h_inj` is also indispensable: the root
+      * `padding_ambiguity_forges_root`: the packaged attack, proved with the
+        witness `[a]` vs `[a, z0]` at height 1.  AS STATED it is only an
+        existential with no capacity bound and no link between the two
+        lists, so it is also met by capacity overflow with no padding leaf
+        (`[a]` vs `[a, a]` at height 0, attack (A)).  The within-capacity,
+        located form is `TreeShapeStrong.padding_ambiguity_forges_root_pinned`
+        (for every hash: `[a]` and `[a, z0]` within capacity at height 1, the
+        same root, no collision on any path), generalized by
+        `TreeShapeStrong.padding_ambiguity_within_capacity` to every list
+        followed by any number of padding leaves.  As no collision is
+        involved, the pinned root-binding conclusion (`RootOfInjOrCollision`:
+        equal lists, or a located collision) fails on that pair for every
+        hash, and only its equal-length premise excludes it: the root
         commits the leaf CONTENT only relative to a known leaf COUNT.
+        (`MerkleSpec.rootOf_inj_of_h_inj` itself takes global
+        pair-injectivity, which no `UInt256` hash has, so no instance can
+        refute it with `hlen` dropped.)
 
       This is the FullMerkle-level analogue of the known IMT vulnerability:
       empty slots MUST be padded with a dedicated constant that is provably
@@ -71,12 +81,16 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
     closing the existential with concrete numerals — evaluating `Fin (2^256)`
     numeral disequalities is avoided deliberately.  Since `UInt256` has more
     than one element, this loses nothing.
-  * (B)'s trailing-padding equations are proved for an odd-length list (the
-    only case where level 0 has a padded frontier slot); the packaged
-    `padding_ambiguity_forges_root` uses the minimal instance `[a]` vs
-    `[a, z0]` at height 1.  We do NOT claim any ambiguity for even-length
-    lists (there the appended `z0` occupies a genuine pair slot and DOES
-    change level 1 in general).
+  * (B)'s LEVEL-LIST equations are proved for an odd-length list (the only
+    case where level 0 has a padded frontier slot): for an even-length list
+    the appended `z0` occupies a genuine pair slot and DOES change the
+    level-1 list (it gains the entry `h z0 z0`).  The ROOT is unchanged for
+    every length all the same, since that entry is the level-1 zero the
+    frontier reads anyway: `TreeShapeStrong.rootOf_append_padding` (any
+    length, any number of padding leaves, every height).  The packaged
+    `padding_ambiguity_forges_root` is proved with the minimal instance
+    `[a]` vs `[a, z0]` at height 1, but its statement does not pin it (see
+    (B) above).
 
   No new axioms, no `sorry`.  Pure list reasoning on top of `MerkleSpec`.
 -/
