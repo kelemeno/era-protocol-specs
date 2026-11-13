@@ -35,8 +35,11 @@ import Mathlib.Tactic
   stops it.
 
   The answer: the atomic path's source binding is EXACTLY the inclusion-self-binding argument of
-  `ProofPolarity`, and therefore rests entirely on `HonestInsertion`.  Nothing else on that path
-  constrains the field.
+  `ProofPolarity`, and therefore rests entirely on `HonestInsertion` (up to keccak collisions on
+  named preimages).  Nothing else on that path constrains the field.  This file and its properties
+  only state that answer; topic `AtomicSourceBindingStrong` derives it from the validator, the hash
+  computation, the flow gate and the honest insertion of the one tree that vouched, and topic
+  `SourceBindingReduced` from the vouching chain's whole source run.
 
   THREAT MODEL.  `_verifyBundle`'s comment states the premise plainly — "Asset correctness across
   chains is guaranteed by ZK proofs (assuming proofs are correct and CHAINS ARE NOT MALICIOUS)".  Under
@@ -54,9 +57,12 @@ variable {Chain Value Hash : Type*}
 
 /-! The pieces, named after the deployed quantities:
 
-* `declared h` — the `sourceChainId` field baked into bundle hash `h`.  A function because
-  `bundleHash = keccak(abi.encode(sourceChainId, bundleBytes))` determines it: the encoding half is
-  `BundleHashEncoding.abiEncode_inj`, the hash half is keccak injectivity.
+* `declared h` — the `sourceChainId` field baked into bundle hash `h`.  Taking it as a function of
+  `h` presupposes that `bundleHash = keccak(abi.encode(sourceChainId, bundleBytes))` determines the
+  field: the encoding half is `BundleHashEncoding.abiEncode_inj`, but the hash half would be global
+  keccak injectivity, which no map into `bytes32` has (topic `BundleHashPinned`).  Topic
+  `AtomicSourceBindingStrong` uses the decoded field of the presented bytes instead, with keccak
+  collisions on named preimages.
 * `commit h` — `commitValue(flowId, h)`, the value the IMT proof is checked against.
 * `tree c` — chain `c`'s authenticated IMT leaf set. -/
 
@@ -64,8 +70,12 @@ variable (declared : Hash → Chain) (commit : Hash → Value) (tree : Chain →
 
 
 /-- `HonestInsertion` transported to commit values: a chain's tree holds only commit values whose
-bundle hash declares that chain.  This is `ProofPolarity.HonestInsertion` composed with
-`declared ∘ (commit⁻¹)`, and `LocalHonesty` is what reduces it to "every chain runs this code". -/
+bundle hash declares that chain.  It is meant as `ProofPolarity.HonestInsertion` composed with
+`declared ∘ (commit⁻¹)`, and `LocalHonesty` as what reduces it to "every chain runs this code";
+neither composition is proved here.  Quantified over every chain and hash, it is the conclusion of
+`atomic_source_bound` itself.  The per-tree premise the code needs is
+`AtomicSourceBindingStrong.TreeHoldsOwnLegs`, which a deployed center discharges
+(`CenterRunTreeHoldsOwnLegs`). -/
 def HonestCommits : Prop := ∀ (c : Chain) (h : Hash), commit h ∈ tree c → declared h = c
 
 

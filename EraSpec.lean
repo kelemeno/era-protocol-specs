@@ -181,6 +181,12 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
+-- Strengthened handler statements (InteropHandlerBase, L2InteropHandler)
+import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
+import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

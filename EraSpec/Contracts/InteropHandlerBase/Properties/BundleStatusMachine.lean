@@ -82,11 +82,25 @@ That is a liveness dependency spanning two contracts, and it is of the same frag
 `LocalHonesty.sole_call_site`: nothing in the type system enforces it, and a future change that
 published atomic bundles to L1 — for observability, say — would make `verifyBundle` succeed on them
 and permanently brick their execution.  Recorded, not reported as a defect: the current code is
-correct. -/
+correct.
 
-/-- **THE CONDITIONAL.**  If an atomic bundle ever reached `Verified`, atomic execution would be
-permanently unavailable — `Verified` has no edge to `FullyExecuted` via the atomic entry point, whose
-only enabling state is `Unreceived`, and no edge returns to `Unreceived`. -/
+The statements of this file do not prove the dependency; the atomic sub-machine below assumes it in
+the definition of `AtomicStep`.  Topic `BundleStatusMachineStrong` proves it:
+`NoProofKeepsBundleInAtomicMachine` (the handler's guards keep a hash with no valid proof in the
+atomic sub-machine, at any depth of re-entry), `AtomicLegStaysAtomicAtDestinationOrClash` (that
+premise from the source chain's `InteropCenter`, up to named clashes), and
+`ProofForAtomicHashOpensUnbundledRoute` (with a valid proof, the unbundled route opens and atomic
+execution is lost). -/
+
+/-- **ONE EDGE OF THE CONDITIONAL.**  As stated this is only `¬ Step .Verified .Unreceived`, the
+`s := .Verified` case of `unreceived_unreachable`.  It mentions neither reachability nor the atomic
+entry point, which `Step` cannot tell apart from `executeBundle` (`executeAtomic` and `executeFresh`
+are the same pair of states, and `executeVerified` still leaves `Verified`).  The claim it is meant
+to support — if an atomic bundle ever reached `Verified`, atomic execution would be permanently
+unavailable, since the atomic entry point's only enabling state is `Unreceived` and no path returns
+there — is `BundleStatusMachineStrong.VerifiedBundleNeverExecutesAtomically`, over the handler
+model: no path returns to `Unreceived`, every later `executeAtomicBundle` of that hash reverts, and
+`executeBundle` stays available. -/
 abbrev Properties.verified_blocks_atomic_execution :=
   ¬ Step .Verified .Unreceived
 
@@ -185,7 +199,16 @@ abbrev Properties.value_released_at_most_once :=
         (¬ Reach .FullyExecuted .Unbundled ∧ ¬ Reach .Unbundled .FullyExecuted)
 
 
-/-- The gap the whole-bundle route leaves at the call level, stated so the reliance on bundle status is
+/-- **AS STATED, A FACT ABOUT THE PER-CALL GRAPH ONLY.**  The proposition is one `execute` edge and
+the absence of an `Executed → Executed` edge.  It never mentions the whole-bundle write, and its
+second conjunct is a property of the abstract machine, whereas the code's write maps `Executed` to
+`Executed` without a check.  What the text below describes is topic `BundleStatusMachineStrong`:
+`WholeBundleWriteIgnoresCallStatus` (the write, as the handler model's `State.executeAll`),
+`CallStatusDoesNotStopWholeBundleRedelivery` (only the bundle status stops a second payment) and
+`AdmittedBundleHasOnlyUnprocessedCalls` (the deployed guards never reach a state where it would
+have to).
+
+The gap the whole-bundle route leaves at the call level, stated so the reliance on bundle status is
 explicit: `Unprocessed → Executed` and a re-entry attempt are not distinguished by anything in the
 per-call machine when `_executeAllCalls` is true, since that path writes the status without reading it.
 `routes_exclusive` is what closes it.
@@ -205,9 +228,9 @@ then `or`-ed to `1`, which is `CallStatus.Executed`.  There is no comparison and
 happens whatever the previous status was.  So the claim above is not a reading of intent, it is what
 the code does, and `routes_exclusive` is genuinely the only thing preventing a second payment.
 
-All three blocks of that loop body now have proven specs
-(`block_2862394693737849679`, `block_5612315614323394231`, `block_8179420195348823280`); the loop's own
-closed form is the remaining piece. -/
+The specs of that loop body's three blocks (`block_2862394693737849679`, `block_5612315614323394231`,
+`block_8179420195348823280`) belong to the sibling contracts-formal-verification development; this
+package has no Yul.  Here the loop's closed form is the model's `State.executeAll`. -/
 abbrev Properties.wholeBundle_route_does_not_check_callStatus :=
   CallReach .Unprocessed .Executed ∧ ¬ CallStep .Executed .Executed
 
@@ -255,19 +278,24 @@ abbrev Properties.atomic_ledger_trivial (l : Ledger) (h : ∀ p ∈ l, p.1 = 0) 
 
 
 /-- **AN ATOMIC BUNDLE HAS ONE ROUTE.**  From fresh, the only reachable states are fresh and
-delivered. -/
+delivered.  This holds by the definition of `AtomicStep`, whose one edge is `Unreceived →
+FullyExecuted`: that `verify` cannot fire for an atomic bundle is assumed there, not proved here.
+It is derived from the deployed guards in `BundleStatusMachineStrong.NoProofKeepsBundleInAtomicMachine`
+under a named no-proof premise, and that premise from the source chain in
+`AtomicLegStaysAtomicAtDestinationOrClash`. -/
 abbrev Properties.atomic_reach_two_states {t : Status} (h : AtomicReach .Unreceived t) :=
   t = .Unreceived ∨ t = .FullyExecuted
 
 
 /-- **SO IT IS NEVER UNBUNDLED**, and `routes_exclusive` holds vacuously for it — the per-call route
-does not exist on this path. -/
+does not exist on this path.  By the definition of `AtomicStep`, as for `atomic_reach_two_states`;
+the derived form is `BundleStatusMachineStrong.NoProofKeepsBundleInAtomicMachine`. -/
 abbrev Properties.atomic_never_unbundled :=
   ¬ AtomicReach .Unreceived .Unbundled
 
 
 /-- And delivery-once for an atomic bundle needs only the BUNDLE machine: `FullyExecuted` is terminal
-here too, since `AtomicStep` has no edge out of it. -/
+here too, since `AtomicStep` has no edge out of it (by definition: `AtomicStep` has one edge). -/
 abbrev Properties.atomic_delivery_terminal {t : Status} :=
   ¬ AtomicStep .FullyExecuted t
 

@@ -39,8 +39,10 @@ set_option linter.unusedVariables false
   stops it.
 
   The answer: the atomic path's source binding is EXACTLY the inclusion-self-binding argument of
-  `ProofPolarity`, and therefore rests entirely on `HonestInsertion`.  Nothing else on that path
-  constrains the field.
+  `ProofPolarity`, and therefore rests entirely on `HonestInsertion` (up to keccak collisions on
+  named preimages).  Nothing else on that path constrains the field.  The statements below only
+  record that answer (see `atomic_source_bound`); topics `AtomicSourceBindingStrong` (from one
+  honest tree) and `SourceBindingReduced` (from the vouching chain's source run) derive it.
 
   THREAT MODEL.  `_verifyBundle`'s comment states the premise plainly — "Asset correctness across
   chains is guaranteed by ZK proofs (assuming proofs are correct and CHAINS ARE NOT MALICIOUS)".  Under
@@ -58,18 +60,27 @@ variable {Chain Value Hash : Type*}
 
 /-! The pieces, named after the deployed quantities:
 
-* `declared h` — the `sourceChainId` field baked into bundle hash `h`.  A function because
-  `bundleHash = keccak(abi.encode(sourceChainId, bundleBytes))` determines it: the encoding half is
-  `BundleHashEncoding.abiEncode_inj`, the hash half is keccak injectivity.
+* `declared h` — the `sourceChainId` field baked into bundle hash `h`.  Taking it as a function of
+  `h` presupposes that `bundleHash = keccak(abi.encode(sourceChainId, bundleBytes))` determines the
+  field: the encoding half is `BundleHashEncoding.abiEncode_inj`, but the hash half would be global
+  keccak injectivity, which no map into `bytes32` has (topic `BundleHashPinned`).
 * `commit h` — `commitValue(flowId, h)`, the value the IMT proof is checked against.
 * `tree c` — chain `c`'s authenticated IMT leaf set. -/
 
 variable (declared : Hash → Chain) (commit : Hash → Value) (tree : Chain → Set Value)
 
 
-/-- **THE ATOMIC PATH'S SOURCE BINDING.**  The vouching chain — the one whose authenticated tree
-contains the leg's commit value — IS the chain the bundle declares.  So the identity handed to the
-recipient is the identity some chain's tree actually vouched for. -/
+/-- **AS STATED, THIS IS ITS PREMISE INSTANTIATED.**  `HonestCommits declared commit tree` is
+`∀ c h, commit h ∈ tree c → declared h = c`; applied to `c`, `h` and `hproof` it is the conclusion,
+so nothing about the code is derived here, and `declared : Hash → Chain` presupposes that a bundle
+hash determines its source chain.  The binding it is named after — the vouching chain, whose tree
+holds the leg's commit value, is the chain the presented bytes declare, so the identity handed to the
+recipient is one that chain's tree vouched for — is derived in
+`AtomicSourceBindingStrong.AtomicSourceBoundToVouchingTreeOrLoggedClash`, from the decoded
+`sourceChainId`, the destination's own hash computation and the honest insertion of the one tree,
+up to the tree's sentinel and keccak collisions on named preimages.  Topic `SourceBindingReduced`
+derives it from the vouching chain's whole source run instead, with no premise on its tree
+(`Contracts.SourceBinding.Properties.AtomicSourceBoundOrBreak`). -/
 abbrev Properties.atomic_source_bound (hhc : HonestCommits declared commit tree)
     {c : Chain} {h : Hash} (hproof : commit h ∈ tree c) :=
   declared h = c
@@ -80,7 +91,9 @@ a chain holding a foreign leg's commit value makes the vouching chain differ fro
 and on the atomic path nothing else looks at the field — check (1) compares it to itself.
 
 Under the stated threat model ("chains are not malicious") this configuration does not arise.  The
-point is that it is the ONLY thing ruling it out here. -/
+point is that it is the ONLY thing ruling it out here.  The witness is a two-point toy (`Bool`,
+`Unit`) unrelated to the code: it shows only that `HonestCommits` is not trivially true.  The
+configuration in the code model is `AtomicSourceBindingStrong.ForeignCommitInTreeUnbindsSource`. -/
 abbrev Properties.atomic_source_unbound_without_honest :=
   ∃ (Chain Value Hash : Type) (declared : Hash → Chain) (commit : Hash → Value)
         (tree : Chain → Set Value) (c : Chain) (h : Hash),
@@ -88,7 +101,9 @@ abbrev Properties.atomic_source_unbound_without_honest :=
 
 
 /-- The vacuous check, stated so the asymmetry between the two paths is on the record: passing a
-value to be compared against itself constrains nothing, whatever the value is. -/
+value to be compared against itself constrains nothing, whatever the value is.  (This is `x = x` for
+any type; it does not model the validator or its call sites, which
+`AtomicSourceBindingStrong.DestContextCheckBySite` does.) -/
 abbrev Properties.self_comparison_vacuous {α : Type*} (x : α) :=
   x = x
 

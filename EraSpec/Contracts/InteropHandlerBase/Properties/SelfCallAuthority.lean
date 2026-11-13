@@ -30,8 +30,11 @@ set_option linter.unusedVariables false
   then makes the self-call.
 
   The pattern is sound exactly when every self-call site is preceded by the matching check.  That is an
-  ENUMERATION, not a guard, so this file states what the enumeration buys and
-  `scripts/check-source-invariants.sh` tests that it still holds.  Verified at the time of writing:
+  ENUMERATION, not a guard.  The statements of THIS file do not capture what the enumeration buys (see
+  `selfCall_relays_authority`); topic `SelfCallAuthorityStrong` does, as a theorem over every
+  dispatch table.  `scripts/check-source-invariants.sh`, a script of the sibling
+  contracts-formal-verification repository (not of this package), tests that the enumeration still
+  holds.  Verified at the time of writing:
 
       InteropHandlerBase.sol:391   this.executeBundle     preceded by the executionAddress check
       InteropHandlerBase.sol:401   this.verifyBundle      permissionless by design, no check needed
@@ -43,9 +46,14 @@ set_option linter.unusedVariables false
 namespace AttackVectors.SelfCallAuthority
 
 
-/-- **THE DELEGATION IS SOUND.**  If every self-call is preceded by the attribute check against the
-ORIGINAL sender, then a gate passing via its self-call disjunct still had the attribute satisfied — by
-the outer handler, one frame up.  Authority is relayed, not widened. -/
+/-- **AS STATED, THIS ONLY REPACKAGES ITS PREMISE.**  The conclusion `∃ ch addr, attrAllows a ch ch
+addr` holds for every attribute — `none` allows everyone, and `some (ch, addr)` allows `(ch, addr)`
+itself — so `checked` is not used, and the statement mentions neither the inner gate, nor the
+self-call, nor the original sender.  It does not establish the delegation claim it is named after (a
+gate passing via its self-call disjunct had the attribute checked against the ORIGINAL sender, one
+frame up).  That claim is topic `SelfCallAuthorityStrong`:
+`DeployedSelfCallRelaysOriginalSenderAuthority` for the deployed dispatch, and
+`SelfCallRelaySoundIffEveryGatedBranchChecked` for every dispatch table. -/
 abbrev Properties.selfCall_relays_authority {a : Attr} {thisChain senderChain senderAddr : ℕ}
     (checked : attrAllows a senderChain senderChain senderAddr) :=
   ∃ ch addr, attrAllows a ch ch addr
@@ -54,7 +62,8 @@ abbrev Properties.selfCall_relays_authority {a : Attr} {thisChain senderChain se
 /-- **AND AN UNCHECKED SELF-CALL SITE WOULD WIDEN IT.**  The disjunct passes on `isSelf` alone,
 whatever the attribute says — so a self-call added without the preceding check hands the gated action
 to anyone who can get a bundle executed.  This is why the enumeration, not the gate, is what makes the
-pattern safe. -/
+pattern safe.  (A fact about `innerGate` alone; with the dispatch table modelled, the same widening
+is `SelfCallAuthorityStrong.UncheckedAtomicBranchWidensAuthority`.) -/
 abbrev Properties.unchecked_selfCall_widens_authority :=
   ∃ (a : Attr) (thisChain callerChain callerAddr : ℕ),
         innerGate a thisChain callerChain callerAddr True ∧
