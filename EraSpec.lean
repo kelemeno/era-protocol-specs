@@ -179,6 +179,9 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
+-- Governance: the owner/security-council timelock (draft/v0.35.0, d9f67890)
+import EraSpec.Contracts.Governance.Proofs.Timelock
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
