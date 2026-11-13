@@ -21,6 +21,11 @@ models establishes Solidity correspondence.
 | `reinitializeToken` on the full proxy storage, every modelled entry point, labelled runs | [Specs/Reinitialization.lean](Specs/Reinitialization.lean) |
 | Reinitialization guards and effect, version counter, identity for life, countermodels | [Properties/Reinitialization.lean](Properties/Reinitialization.lean) |
 | Checked reinitialization derivations | [Proofs/Reinitialization.lean](Proofs/Reinitialization.lean) |
+| Exact effect and success condition of `transfer`, with a value-moving witness | [Properties/ModelStrong.lean](Properties/ModelStrong.lean) |
+| Checked transfer derivations | [Proofs/ModelStrong.lean](Proofs/ModelStrong.lean) |
+| The deployed token's runs: every modelled entry point with both `onlyNTV` branches | [Specs/ReinitializationStrong.lean](Specs/ReinitializationStrong.lean) |
+| Identity along deployed runs: repaired forms (nonzero vault or caller), conservativity, countermodels | [Properties/ReinitializationStrong.lean](Properties/ReinitializationStrong.lean) |
+| Checked deployed-run derivations and witness | [Proofs/ReinitializationStrong.lean](Proofs/ReinitializationStrong.lean) |
 
 ## Source and scope
 
