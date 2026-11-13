@@ -13,9 +13,10 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | SourceHeight | [Specs/SourceHeight.lean](Specs/SourceHeight.lean) | [Properties/SourceHeight.lean](Properties/SourceHeight.lean) | [Proofs/SourceHeight.lean](Proofs/SourceHeight.lean) |
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
+| BatchPosition | [Specs/BatchPosition.lean](Specs/BatchPosition.lean) | [Properties/BatchPosition.lean](Properties/BatchPosition.lean) | [Proofs/BatchPosition.lean](Proofs/BatchPosition.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
-`Refund`).
+`Refund`, `BatchPosition` on `Timeout`).
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -67,6 +68,51 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   invariant. `StaleRootRefundsDeliveredLeg` shows that invariant is load-bearing,
   so real-path claims inherit it. The halted-chain END branch is composed into the
   reference bridge in `../../Examples/BurnMintBridge/` (topic `EndBranch`).
+  `Timeout`'s `RootBacking` reads "leaf `i` of the chain tree is batch `i`" and uses one
+  `N` as Merkle position and batch number. That holds only on the identity numbering;
+  `BatchPosition` is the END branch without it.
+- **BatchPosition** (namespace `Contracts.BatchPosition`). The settlement layer's chain
+  tree starts empty at whatever batch the chain is registered at and appends at the next
+  position (`MessageRootBase._addNewChain`, `_pushChainBatchRoot`), so position and batch
+  number differ for an EraVM chain, a chain onboarded at a nonzero batch, a chain that
+  recorded batches through the v31 entry point, and a chain that migrated. `ChainTreeStep`
+  models the four writers; on every reachable tree batch numbers strictly increase
+  (`ReachableSlotNumbersIncrease`) and, without a genesis leaf, position `i` holds a batch
+  above `s + i` (`TreePositionBelowBatchNumber`). The old backing cannot represent a chain
+  onboarded at batch 100 (`CurrentCompositionCannotRepresentOnboardingAt100`); it is the
+  new one exactly on the identity numbering, which only a seeded ZKsync OS chain registered
+  at 0 reaches (`IdentityNumberedBackingIsOldBacking`, `IdentityNumberingNeedsGenesis`).
+  The END branch takes the mask `pos` and the leaf preimage `(batchRoot, N, timestamp)`
+  separately. With no hash premise, an accepted last-batch proof makes the submitted
+  preimage the tree's last entry, so `N = R.upTo c` and the compared timestamp is the
+  leaf's, or a `PositionedEndBreak` is located on the submission: a `PinnedBreak`, a
+  `PathCollision`, or a `LeafPreimageClash` between the stored entry and the submitted
+  preimage (`PositionedLastBatchIdentifiesLastEntryPinned`,
+  `PositionedEndBranchImpliesVerifiedPinned`). Headlines:
+  `PositionedTimeoutMeansMissedDeadlineOrBreak`,
+  `PositionedTimeoutExcludesFinalityOrBreak`, and
+  `PushLogTimeoutMeansMissedDeadlineOrBreak`, whose premises are about the batches
+  actually pushed. The `…On` forms collapse the break under injectivity restricted to
+  this tree's pairs, the submitted path and the entries plus the submitted preimage
+  (`NoPositionedEndBreakOn`). `PositionedAcceptedImpliesRefundablePinned` lands in
+  `Contracts.Atomicity.LegRefundableBy`, so results stated over that predicate apply.
+  The settlement-layer premise is the strict `AggregatesBefore`
+  (`AggregatesImpliesBefore`, `AggregatesBeforeIsWeaker`), derived from the push log
+  (`AggregatesBeforeFromPushLog`) under the explicit `GapsAfterRootLate` for batches never
+  pushed to this layer. Witnesses: `OnboardedTimeoutWitness` (every starting batch, all
+  breaks false), `OnboardedAt100Composes`, `EraVmNoGenesisComposes`,
+  `MigrationGapInsideTreeWitness`, `PositionedConclusionNotAlways`. Countermodels:
+  `BatchNumberForgeryLocatesLeafClash` (a leaf hash that does not bind the batch number
+  refunds a delivered leg, and the located break is the `LeafPreimageClash`),
+  `MigrationGapIsLoadBearing`.
+  Not modelled: the link from the submitted batch root to the IMT the absence check
+  runs against, the prover-chosen path length, the shared tree and the import of the
+  root. The gate takes the occupied-range form of the mask check;
+  `MaskBoundGivesOccupiedRange` relates it to the bound the contract checks.
+  Open: `Refund`'s accepted-gate results (`AcceptedTimeoutAuthorizesOrBreak` and the
+  others over `LegRefundableAcceptedBy`), `Operational`, and the `BurnMintBridge`
+  `EndBranch` topic still take `RootBacking`, so they cover the identity numbering only.
+  Their positioned restatements are not written.
 - **Refund.** One outcome per obligation over every interleaving of every chain's
   manager calls (`ExecutedObligationNeverRefunded`). A cross-flow refund yields a
   collision of the flow-id hash on the two flows' own preimages

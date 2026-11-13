@@ -26,6 +26,9 @@ fields bound together only by `batchLeafHash`.
 * `:199-205`, `addChainBatchRoot` (the v31 entry point) records and does NOT push;
   `:217-224`, `addChainBatchRootV32` records and pushes.
 * `:178-183`, `setMigratingChainBatchNumber`: the number moves forward with no push.
+* `core/message-root/L1MessageRoot.sol:99-117`, `saveV31UpgradeChainBatchNumber` (L1 only):
+  from `currentChainBatchNumber == 0` the number is set to the chain's
+  `getTotalBatchesExecuted()`, with no push.  Also a forward move.
 * `:364-387`, `seedGenesisRoot`: returns at once for an EraVM chain (`!getZKsyncOS()`);
   for a ZKsync OS chain with `currentChainBatchNumber == 0` it pushes batch `0`.
 * `common/libraries/MessageHashing.sol:195-207`: the verifier rebuilds the leaf as
@@ -36,7 +39,10 @@ fields bound together only by `batchLeafHash`.
   `_proof.batchNumber` into that leaf.
 
 Main `3605e82` keeps the same structure (`MessageRootBase.sol:154-166`, `:192-206`,
-`:210-218`, `:284-294`, `:305-326`; `AtomicInteropProof.sol:113`, `:130-143`).
+`:210-218`, `:284-294`, `:305-326`; `L1MessageRoot.sol:89-107`; `AtomicInteropProof.sol:113`,
+`:130-143`), and so does `draft/v0.35.0` `d9f6789` (`MessageRootBase.sol:145-157`, `:183-197`,
+`:201-209`, `:275-285`, `:296-313`; `AtomicInteropProof.sol:113`, `:130-143`), where
+`saveV31UpgradeChainBatchNumber` no longer exists.
 
 So a chain onboarded at batch `100` that settles batch `101` holds batch `101` at position
 `0`; an EraVM chain registered at `0` holds batch `1` at position `0`; and the v31
@@ -58,12 +64,17 @@ composition cannot represent any of these: `Properties.CurrentCompositionCannotR
 * `PositionedEndBreak` — the located failures: a `PinnedBreak` after `pos`, a
   `PathCollision` on the submitted path, or a `LeafPreimageClash`, a `batchLeafHash`
   collision between the entry stored at `pos` and the submitted preimage.
+* `AggregatesBefore` — `Contracts.Timeout.Aggregates` with a strict comparison, which is
+  all the timeout path uses (the root is created strictly after the deadline).
 * `PushLog`, `AggregatesPushed`, `ClockFromPushes`, `GapsAfterRootLate` — the
   settlement layer's side restated over the batches actually pushed, with the batches never
   pushed to this layer (migration gaps, a halted chain) covered by an explicit hypothesis.
 * `ChainTreeSlot` / `ChainTreeStep` — the numbering and push discipline of
   `MessageRootBase` for one chain, from which `PositionedBacking.numbersIncrease` is derived
   rather than assumed.
+* `IdentityNumbered` — "position `i` holds batch `i`", the one numbering on which the old
+  model is right (`Properties.IdentityNumberedBackingIsOldBacking`,
+  `Properties.IdentityNumberingNeedsGenesis`).
 
 The BEGIN branch is kept as `Contracts.Timeout.BeginBranchVerified`, as in
 `Contracts.Timeout.LegRefundableAccepted`: it has no last-batch check, so the conflation
@@ -74,6 +85,24 @@ The contract checks the mask only against the path length (`Merkle.sol:133-140`,
 `PositionedLastBatchAccepted.inRange` keeps the occupied-range form of the old model;
 `Properties.MaskBoundGivesOccupiedRange` derives it from the mask bound, or the submitted
 leaf equals the empty-entry constant, or a `PathCollision`.
+
+## What this file does not model
+
+Inherited from `Contracts.Timeout`, unchanged here:
+
+* **The batch root is not tied to the IMT.**  The contract authenticates `chainImtRoot` as a
+  leaf of the submitted batch root `r` (`_authenticateRoot`, the fixed-depth
+  `ChainBatchRootTree` path) and runs the absence check against that.  The gate below takes
+  the absence check against `System.tree c N` directly, `N` being the submitted batch
+  number.  So `r` only enters through the leaf hash, and "the batch root stored for batch
+  `N` commits to `System.tree c N`" is not stated anywhere.
+* **The path length is the tree's height.**  The prover chooses `batchLeafProofLen`; the
+  model walks exactly `B.height c` levels.  The wrong-length question is the Merkle
+  `Verifier` topic's (`AcceptForcesHeightOrBreak`).
+* **The shared tree.**  `R` is abstract: the chain-id leaf, the shared-tree path and the
+  import of the root on the destination are not modelled.
+* **Which layer a batch settled on.**  `System.time` is one total clock per chain; see
+  `GapsAfterRootLate`.
 -/
 
 namespace Contracts.BatchPosition
@@ -245,8 +274,17 @@ entry (before onboarding, recorded through the v31 path) never matter to it.  Wh
 break it is a batch after the last entry that never reaches this layer's tree: a chain that
 migrated away, or one that halted.  The predicates below separate the two kinds of batch
 after the last entry.  Pushed batches are covered by how roots are built.  Batches never
-pushed are covered by the explicit `GapsAfterRootLate`.  `Properties.AggregatesFromPushLog`
-derives `Aggregates` from them. -/
+pushed are covered by the explicit `GapsAfterRootLate`.
+`Properties.AggregatesBeforeFromPushLog` derives the strict `AggregatesBefore` from them,
+which is what the gate results take. -/
+
+/-- **`Contracts.Timeout.Aggregates`, STRICT.**  A batch that settled strictly before a root
+was created is inside that root.  `Aggregates` asks the same of a batch that settled in the
+root's own block-timestamp; the timeout path never needs that, because it only uses roots
+created strictly after the deadline and only asks about batches that settled by the deadline.
+`Properties.AggregatesImpliesBefore`; `Properties.AggregatesBeforeIsWeaker`. -/
+def AggregatesBefore (S : System) (R : SlRoot) : Prop :=
+  ∀ c n, S.time c n < R.created → n ≤ R.upTo c
 
 /-- The settlement layer's push history: `P c e` — entry `e` was pushed to chain `c`'s tree
 on this layer (`AppendedChainBatchRoot`), at any time in the history the system covers. -/
@@ -261,20 +299,27 @@ def RootEntriesPushed {h : Hash} {ze : UInt256} {bl : BatchLeafHash} {R : SlRoot
 def ClockFromPushes (S : System) (P : PushLog) : Prop :=
   ∀ c e, P c e → S.time c e.batchNumber = e.l1Timestamp
 
-/-- **AGGREGATION, OVER THE TREE.**  A batch pushed by the time `R` was created is inside
-`R`.  Roots are cumulative (`_recordHistoricalRoot` stores the block's last shared-tree
-root), and a push in a later block carries a later `block.timestamp`.  This is a property
-of the settlement layer, not of the interop contracts, and is not derived here. -/
+/-- **AGGREGATION, OVER THE TREE.**  A batch pushed strictly before `R` was created is
+inside `R`.  The intended justification: chain trees are append-only, a root is computed
+from the trees as they stand, and `block.timestamp` does not decrease from block to block,
+so a push with a strictly smaller timestamp happened in an earlier block.  The comparison is
+strict so that nothing is claimed about a push in the root's own block, after the root was
+computed.  This is a property of the settlement layer, not of the interop contracts, and is
+not derived here. -/
 def AggregatesPushed {h : Hash} {ze : UInt256} {bl : BatchLeafHash} {R : SlRoot}
     (P : PushLog) (B : PositionedBacking h ze bl R) : Prop :=
-  ∀ c e, P c e → e.l1Timestamp ≤ R.created → e ∈ B.entries c
+  ∀ c e, P c e → e.l1Timestamp < R.created → e ∈ B.entries c
 
 /-- **THE MIGRATION-GAP HYPOTHESIS.**  A batch after `R`'s last one that was never pushed to
-this layer's tree (settled on another layer, or never settled) is not on time against `R`.
-The model's finality gate does not record which layer a batch settled on, so this cannot
-be derived; `Properties.MigrationGapIsLoadBearing` shows the composition needs it. -/
+this layer's tree (settled on another layer, or never settled) is not given a time strictly
+before `R` was created.  `System.time` is one total clock per chain and does not record which
+layer a batch settled on, so this cannot be derived.  Both timeout branches and the finality
+gate resolve against the flow's own settlement layer
+(`ProofSettlementLayerMismatch`, `AtomicInteropProof.sol:123`, `:167`), so the reading under
+which the hypothesis is natural is "`System.time c m` is when batch `m` entered this layer's
+tree".  `Properties.MigrationGapIsLoadBearing` shows the composition needs the hypothesis. -/
 def GapsAfterRootLate (S : System) (P : PushLog) (R : SlRoot) : Prop :=
-  ∀ c m, R.upTo c < m → (∀ e, P c e → e.batchNumber ≠ m) → R.created < S.time c m
+  ∀ c m, R.upTo c < m → (∀ e, P c e → e.batchNumber ≠ m) → R.created ≤ S.time c m
 
 /-! ## The numbering discipline of `MessageRootBase`, for one chain -/
 
@@ -291,9 +336,12 @@ numbering continuing from `s`. -/
 def registeredSlot (s : ℕ) : ChainTreeSlot := ⟨s, fun _ => false, []⟩
 
 /-- The storage writes that move a chain's numbering or its tree.  `zksyncOS` is the chain's
-`getZKsyncOS()`: only a ZKsync OS chain can take the `seedGenesis` step.  The access
-modifiers, `ChainBatchRootZero` and `MessageRootNotRegistered` do not affect the numbering or
-the tree and are not modelled. -/
+`getZKsyncOS()`, read by `seedGenesisRoot` at the call and taken here as fixed for the chain:
+only a ZKsync OS chain can take the `seedGenesis` step.  The access modifiers,
+`ChainBatchRootZero` and `MessageRootNotRegistered` do not affect the numbering or the tree
+and are not modelled.  Every writer of `currentChainBatchNumber` and every `chainTree` push
+at the pin is one of these four steps (`saveV31UpgradeChainBatchNumber` is an instance of
+`migrate`). -/
 inductive ChainTreeStep (zksyncOS : Bool) : ChainTreeSlot → ChainTreeSlot → Prop
   /-- `addChainBatchRoot` (v31): `_recordChainBatchRoot` only. -/
   | recordOnly (σ : ChainTreeSlot) (n : ℕ) :
@@ -305,7 +353,9 @@ inductive ChainTreeStep (zksyncOS : Bool) : ChainTreeSlot → ChainTreeSlot → 
       σ.recorded n = false → n = σ.current + 1 →
       ChainTreeStep zksyncOS σ
         ⟨n, Function.update σ.recorded n true, σ.pushed ++ [⟨root, n, ts⟩]⟩
-  /-- `setMigratingChainBatchNumber`: the number moves forward, nothing is pushed. -/
+  /-- `setMigratingChainBatchNumber`: the number moves forward, nothing is pushed.  Also
+  covers `L1MessageRoot.saveV31UpgradeChainBatchNumber`, which moves the number from `0` to
+  `getTotalBatchesExecuted()` with no push; its extra guards only restrict when it runs. -/
   | migrate (σ : ChainTreeSlot) (n : ℕ) :
       σ.current ≤ n → ChainTreeStep zksyncOS σ ⟨n, σ.recorded, σ.pushed⟩
   /-- `seedGenesisRoot` on a ZKsync OS chain: batch `0` is recorded and pushed, and
@@ -324,6 +374,18 @@ def SlotReachable (zksyncOS : Bool) (s : ℕ) (σ : ChainTreeSlot) : Prop :=
 `block.timestamp = ts`: batch `s + 1` at position `0`. -/
 def onboardedSlot (s : ℕ) (root : UInt256) (ts : ℕ) : ChainTreeSlot :=
   ⟨s + 1, Function.update (fun _ => false) (s + 1) true, [⟨root, s + 1, ts⟩]⟩
+
+/-- **POSITION `i` HOLDS BATCH `i`.**  The numbering `Contracts.Timeout.RootBacking`
+assumes of every chain tree. -/
+def IdentityNumbered (l : List BatchEntry) : Prop :=
+  ∀ (i : ℕ) (hi : i < l.length), (l[i]'hi).batchNumber = i
+
+/-- The slot of a ZKsync OS chain registered at batch `0`, after `seedGenesisRoot` (batch `0`,
+root `root0`, at time `ts0`) and one `addChainBatchRootV32(c, 1, root1)` at time `ts1`:
+batch `0` at position `0` and batch `1` at position `1`. -/
+def seededSlot (root0 root1 : UInt256) (ts0 ts1 : ℕ) : ChainTreeSlot :=
+  ⟨1, Function.update (Function.update (fun _ => false) 0 true) 1 true,
+    [⟨root0, 0, ts0⟩, ⟨root1, 1, ts1⟩]⟩
 
 /-- The root a settlement layer publishes over the slots `σ` at time `created`: each chain's
 `upTo` is its tree's last batch number (`0` for an empty tree, which no END branch names). -/

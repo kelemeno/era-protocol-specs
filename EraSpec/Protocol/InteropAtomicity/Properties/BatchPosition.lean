@@ -37,19 +37,33 @@ was delivered on time.  The located break that carries it is the `LeafPreimageCl
 
 ## The settlement layer's side
 
-`Contracts.Timeout.Aggregates` is still the interface, and with `R.upTo c` the last entry's
-batch number it no longer conflicts with onboarding.  `Properties.AggregatesFromPushLog`
-derives it from statements about the batches actually pushed.  Those are: a batch pushed
-by the time `R` was created is in `R` (`AggregatesPushed`), and a pushed batch's
-`System.time` is its leaf's timestamp (`ClockFromPushes`).  The batches never pushed to
-this layer are covered by the explicit `GapsAfterRootLate`.
-`Properties.MigrationGapIsLoadBearing` shows the composition needs that hypothesis.
+The gate results take `AggregatesBefore`, the strict form of `Contracts.Timeout.Aggregates`
+(`Properties.AggregatesImpliesBefore`, `Properties.AggregatesBeforeIsWeaker`,
+`Properties.IsLastOnTimeFromAggregatesBefore`).  With `R.upTo c` the last entry's batch
+number, neither form conflicts with onboarding: the witnesses below satisfy `Aggregates`
+itself.  `Properties.AggregatesBeforeFromPushLog` derives `AggregatesBefore` from statements
+about the batches actually pushed.  Those are: a batch pushed strictly before `R` was
+created is in `R` (`AggregatesPushed`), and a pushed batch's `System.time` is its leaf's
+timestamp (`ClockFromPushes`).  The batches never pushed to this layer are covered by the
+explicit `GapsAfterRootLate`.  `Properties.MigrationGapIsLoadBearing` shows the composition
+needs that hypothesis.
+
+## The old model inside the new one
+
+`Properties.IdentityNumberedBackingIsOldBacking`: when every chain's tree is non-empty and
+position `i` holds batch `i`, the positioned backing is a `Contracts.Timeout.RootBacking`
+with the same leaves, and the old END branch and gate at batch `N` are the positioned ones at
+position `N`.  `Properties.IdentityNumberingNeedsGenesis`: that numbering is reachable, and
+only for a ZKsync OS chain registered at batch `0` (the genesis leaf).  The old END-branch
+results (`Contracts.Timeout`, `Contracts.Refund`, `Contracts.Operational`, the
+`BurnMintBridge` `EndBranch` topic) are about that case.
 
 ## Witnesses
 
 `Properties.OnboardedTimeoutWitness` satisfies every premise of the headline
 `Properties.PushLogTimeoutMeansMissedDeadlineOrBreak` and of the bounded forms, for EVERY
-starting batch `s`, with the zero check exercised.  Its `s = 100` instance holds batch
+starting batch `s`, with the zero check exercised (a one-level path whose only step goes
+left).  Its `s = 100` instance holds batch
 `101` at position `0` (`Properties.OnboardedAt100Composes`).  Its `s = 0` instance is an
 EraVM chain with no genesis leaf, holding batch `1` at position `0`
 (`Properties.EraVmNoGenesisComposes`).  `Properties.MigrationGapInsideTreeWitness` has a
@@ -71,11 +85,12 @@ whose chain-`c` tree has that one leaf:
 * forces `R.upTo c = 0` (`upToLast`);
 * accepts an END branch only for batch `0`, and so none for batch `101` (`inRange` would
   need `101 < 1`);
-* makes `Aggregates` false whenever batch `101` settled by the time the root was created,
-  which it did, being inside the root.
+* makes `Aggregates` false whenever batch `101` settled by the time the root was created
+  (the statement takes that as a hypothesis; in the situation described it holds, the
+  batch's leaf being inside the root).
 
-So the old END-branch results either name batch `0`, which the leaf does not hold, or rest
-on a false premise. -/
+So on this tree the old END-branch results either name batch `0`, which the leaf does not
+hold, or take an `Aggregates` premise that is false. -/
 def Properties.CurrentCompositionCannotRepresentOnboardingAt100 : Prop :=
   (∀ (zksyncOS : Bool) (root : UInt256) (ts : ℕ),
       SlotReachable zksyncOS 100 (onboardedSlot 100 root ts)
@@ -125,6 +140,45 @@ def Properties.ReachableSlotsBackARoot : Prop :=
       ∃ B : PositionedBacking h ze bl (slotRoot σ created),
         ∀ c, B.entries c = (σ c).pushed ∧ B.height c = height c
 
+/-! ## The old model inside the new one -/
+
+/-- **ON THE IDENTITY NUMBERING, THE OLD MODEL IS THE NEW ONE.**  If every chain's tree is
+non-empty and position `i` holds batch `i`, there is a `Contracts.Timeout.RootBacking` with
+the same leaves and heights (its `upToLast`, "`R.upTo c` is the last index", is then true).
+For a submitted preimage `(r, N, t)` whose timestamp is `System.time` of batch `N`, the old
+END branch at batch `N` on the leaf `batchLeafHash(r, N, t)` is the positioned END branch at
+position `N`, and the old gate is the positioned gate.
+
+The timestamp hypothesis is where the two models read the deadline comparison from: the old
+one from `System.time c N`, the new one from the `t` bound into the leaf. -/
+def Properties.IdentityNumberedBackingIsOldBacking : Prop :=
+  ∀ (h : Hash) (ze : UInt256) (bl : BatchLeafHash) (R : SlRoot)
+    (B : PositionedBacking h ze bl R),
+    (∀ c, B.entries c ≠ []) → (∀ c, IdentityNumbered (B.entries c)) →
+      ∃ B' : RootBacking h ze R,
+        (∀ c, B'.leaves c = B.leaves c ∧ B'.height c = B.height c)
+        ∧ (∀ (S : System) (c : Chain) (D N : ℕ) (sibs : ℕ → UInt256) (r : UInt256) (t : ℕ),
+            S.time c N = t →
+              (EndBranchAccepted B' S c D N sibs (bl r N t)
+                ↔ PositionedEndBranchAccepted B c D N sibs r N t))
+        ∧ (∀ (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (F : Flow)
+            (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (r : UInt256) (t : ℕ),
+            S.time leg.chain N = t →
+              (LegRefundableAcceptedBy h z0 hl cv S B' F leg N p sibs (bl r N t)
+                ↔ PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p N sibs r t))
+
+/-- **THE IDENTITY NUMBERING IS REACHABLE, AND ONLY THROUGH THE GENESIS LEAF.**  A ZKsync OS
+chain registered at batch `0`, seeded, with one push since, holds batch `0` at position `0`
+and batch `1` at position `1`.  Conversely a reachable non-empty tree numbered by position
+belongs to a ZKsync OS chain registered at batch `0`: for an EraVM chain, or any chain
+registered at a nonzero batch, the old model's numbering never occurs. -/
+def Properties.IdentityNumberingNeedsGenesis : Prop :=
+  (∀ (root0 root1 : UInt256) (ts0 ts1 : ℕ),
+      SlotReachable true 0 (seededSlot root0 root1 ts0 ts1)
+        ∧ IdentityNumbered (seededSlot root0 root1 ts0 ts1).pushed)
+    ∧ ∀ (zksyncOS : Bool) (s : ℕ) (σ : ChainTreeSlot), SlotReachable zksyncOS s σ →
+        σ.pushed ≠ [] → IdentityNumbered σ.pushed → zksyncOS = true ∧ s = 0
+
 /-! ## The last-batch proof, position and number apart -/
 
 /-- Every entry's batch number is at most `R.upTo c`: with numbers increasing, the last
@@ -160,7 +214,9 @@ def Properties.SubmittedLastEntryTimed : Prop :=
 `Merkle.calculateRootMemory` only requires the mask below `2 ^ pathLength`.  An accepted
 walk at a mask past the occupied range authenticates the padding constant, so the submitted
 leaf hash IS `CHAIN_TREE_EMPTY_ENTRY_HASH`, or the walk carries a `PathCollision`.
-`PositionedLastBatchAccepted.inRange` is therefore implied by what the contract runs. -/
+So `PositionedLastBatchAccepted.inRange` follows from what the contract runs, up to those two
+located escapes.  The gate results below take `inRange` as part of the accepted proof and do
+not carry the two escapes themselves. -/
 def Properties.MaskBoundGivesOccupiedRange : Prop :=
   ∀ (h : Hash) (ze : UInt256) (bl : BatchLeafHash) (R : SlRoot)
     (B : PositionedBacking h ze bl R) (c : Chain) (pos : ℕ) (sibs : ℕ → UInt256)
@@ -233,6 +289,25 @@ def Properties.PositionedEndBranchImpliesVerifiedOn : Prop :=
     BatchLeafInjOn bl (LeafPreimage B c r N t) →
     PositionedEndBranchAccepted B c D pos sibs r N t → EndBranchVerified S R c D N
 
+/-! ## The strict aggregation premise -/
+
+/-- `Contracts.Timeout.Aggregates` implies its strict form. -/
+def Properties.AggregatesImpliesBefore : Prop :=
+  ∀ (S : System) (R : SlRoot), Aggregates S R → AggregatesBefore S R
+
+/-- **THE STRICT FORM ASKS LESS.**  A root that omits a batch settled in the root's own
+timestamp satisfies `AggregatesBefore` and not `Aggregates`: in `onboardedSystem 0` batch `1`
+settles at time `0`, and the root created at time `0` stops at batch `0`. -/
+def Properties.AggregatesBeforeIsWeaker : Prop :=
+  ∃ (S : System) (R : SlRoot), Wf S ∧ AggregatesBefore S R ∧ ¬ Aggregates S R
+
+/-- **`IsLastOnTime` FROM THE STRICT FORM.**  `Contracts.Timeout.Properties.IsLastOnTimeDerived`
+with `Aggregates` weakened to `AggregatesBefore`: a batch after `R.upTo c` that settled by
+the deadline settled strictly before `R` was created, so would be inside `R`. -/
+def Properties.IsLastOnTimeFromAggregatesBefore : Prop :=
+  ∀ (S : System) (R : SlRoot), AggregatesBefore S R →
+    ∀ (c : Chain) (D N : ℕ), EndBranchVerified S R c D N → IsLastOnTime S c D N
+
 /-! ## The gate -/
 
 /-- **THE GATE AS RUN IMPLIES THE LOOSER PREDICATE, OR PINS A BREAK ON THE SUBMISSION.**
@@ -242,7 +317,7 @@ on `(N, p)`, the predicate the refund results are stated over, or its END branch
 def Properties.PositionedAcceptedImpliesRefundablePinned : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
     (bl : BatchLeafHash) (R : SlRoot) (B : PositionedBacking h ze bl R),
-    Aggregates S R → EntriesTimed S B →
+    AggregatesBefore S R → EntriesTimed S B →
     ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (pos : ℕ) (sibs : ℕ → UInt256)
       (r : UInt256) (t : ℕ),
       PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p pos sibs r t →
@@ -254,7 +329,7 @@ def Properties.PositionedAcceptedImpliesRefundablePinned : Prop :=
 def Properties.PositionedAcceptedImpliesRefundableOn : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (ze : UInt256)
     (bl : BatchLeafHash) (R : SlRoot) (B : PositionedBacking h ze bl R),
-    Aggregates S R → EntriesTimed S B →
+    AggregatesBefore S R → EntriesTimed S B →
     ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (pos : ℕ) (sibs : ℕ → UInt256)
       (r : UInt256) (t : ℕ),
       EntriesNotEmpty ze (B.leaves leg.chain) →
@@ -270,7 +345,7 @@ absence proof `p` carries an `AbsenceBreak`, or the END branch a `PositionedEndB
 def Properties.PositionedTimeoutMeansMissedDeadlineOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
     ∀ (ze : UInt256) (bl : BatchLeafHash) (R : SlRoot) (B : PositionedBacking h ze bl R),
-    Aggregates S R → EntriesTimed S B →
+    AggregatesBefore S R → EntriesTimed S B →
     ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (pos : ℕ) (sibs : ℕ → UInt256)
       (r : UInt256) (t : ℕ),
       PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p pos sibs r t →
@@ -280,16 +355,36 @@ def Properties.PositionedTimeoutMeansMissedDeadlineOrBreak : Prop :=
           ∨ (PositionedEndBranchAccepted B leg.chain F.deadline pos sibs r N t
               ∧ PositionedEndBreak B leg.chain pos sibs r N t)
 
+/-- **A POSITIONED TIMEOUT EXCLUDES FINALITY, OR A LOCATED BREAK.**  No inclusion proof `p'`
+at an on-time batch `n` passes for a leg whose positioned timeout gate passed on
+`(N, p, pos, sibs, r, t)`, unless `p'` or `p` carries a break, or the END branch a
+`PositionedEndBreak`.  The counterpart of
+`Contracts.Timeout.Properties.TimeoutExcludesFinalityOrBreak`. -/
+def Properties.PositionedTimeoutExcludesFinalityOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
+    ∀ (ze : UInt256) (bl : BatchLeafHash) (R : SlRoot) (B : PositionedBacking h ze bl R),
+    AggregatesBefore S R → EntriesTimed S B →
+    ∀ (F : Flow) (leg : FlowLeg) (N : ℕ) (p : ImtProof) (pos : ℕ) (sibs : ℕ → UInt256)
+      (r : UInt256) (t : ℕ),
+      PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p pos sibs r t →
+      ∀ (n : ℕ) (p' : ImtProof),
+        ¬ LegFinalizedBy h z0 hl cv S F leg n p'
+          ∨ InclusionBreak h z0 hl S leg.chain n p'
+          ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+          ∨ (PositionedEndBranchAccepted B leg.chain F.deadline pos sibs r N t
+              ∧ PositionedEndBreak B leg.chain pos sibs r N t)
+
 /-! ## The settlement layer's side, over the batches pushed -/
 
-/-- **`Aggregates` FROM THE PUSH LOG.**  A batch after `R.upTo c` was either pushed
-(after `R` was created, by `AggregatesPushed`, since it is not among `R`'s entries) or
-never pushed (after `R.created` by `GapsAfterRootLate`); either way it settled after `R`
-was created. -/
-def Properties.AggregatesFromPushLog : Prop :=
+/-- **`AggregatesBefore` FROM THE PUSH LOG.**  A batch after `R.upTo c` was either pushed
+(not strictly before `R` was created, by `AggregatesPushed`, since it is not among `R`'s
+entries) or never pushed (not strictly before `R.created`, by `GapsAfterRootLate`); either
+way it did not settle strictly before `R` was created. -/
+def Properties.AggregatesBeforeFromPushLog : Prop :=
   ∀ (h : Hash) (ze : UInt256) (bl : BatchLeafHash) (R : SlRoot)
     (B : PositionedBacking h ze bl R) (S : System) (P : PushLog),
-    AggregatesPushed P B → ClockFromPushes S P → GapsAfterRootLate S P R → Aggregates S R
+    AggregatesPushed P B → ClockFromPushes S P → GapsAfterRootLate S P R →
+      AggregatesBefore S R
 
 /-- The tree's clock is the system's, when `R`'s entries were pushed. -/
 def Properties.EntriesTimedFromPushLog : Prop :=
@@ -298,8 +393,8 @@ def Properties.EntriesTimedFromPushLog : Prop :=
     RootEntriesPushed P B → ClockFromPushes S P → EntriesTimed S B
 
 /-- **THE COMPLETE CHAIN, OVER THE BATCHES ACTUALLY PUSHED.**  No hash premise and no
-`Aggregates`.  The premises are the settlement layer's push history and the explicit
-migration-gap hypothesis.  Conclusion: the leg missed its deadline, or a located break on
+`Aggregates`.  The premises are the settlement layer's push history (strict comparison) and
+the explicit migration-gap hypothesis.  Conclusion: the leg missed its deadline, or a located break on
 the absence proof or on the END-branch submission. -/
 def Properties.PushLogTimeoutMeansMissedDeadlineOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
@@ -324,7 +419,7 @@ genesis leaf), batch `s + 1` at position `0`.  The push-log premises of
 `PushLogTimeoutMeansMissedDeadlineOrBreak` hold, and so do the bounded premises of the
 `On` forms under the colliding `demoHash`.  The zero check fires at level `0`.  The
 honest END branch for batch `s + 1` passes the gate, its absence proof carries no break,
-and the leg really missed its deadline.  The witness's leaf hash `rootLeaf` reads only the
+the END branch carries no `PositionedEndBreak`, and the leg really missed its deadline.  The witness's leaf hash `rootLeaf` reads only the
 batch root, so the bounded leaf premise is about this instance's one preimage, not about
 `batchLeafHash` at large. -/
 def Properties.OnboardedTimeoutWitness : Prop :=
@@ -344,6 +439,7 @@ def Properties.OnboardedTimeoutWitness : Prop :=
       ∧ PositionedEndBranchAccepted B leg.chain F.deadline 0 sibs r (s + 1) t
       ∧ PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg (s + 1) p 0 sibs r t
       ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain (s + 1) p
+      ∧ ¬ PositionedEndBreak B leg.chain 0 sibs r (s + 1) t
       ∧ (∀ n, S.time leg.chain n ≤ F.deadline →
           legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
 
@@ -449,8 +545,8 @@ def Properties.BatchNumberForgeryLocatesLeafClash : Prop :=
 /-- **THE MIGRATION-GAP HYPOTHESIS IS LOAD-BEARING.**  For every node hash and IMT hash, in
 `Contracts.Timeout.staleSystem a`: batch `0` is pushed at time `0`, and batch `1` settles
 at time `0` with the leg's value but is never pushed to this layer.  `R` is
-`Contracts.Timeout.staleRoot`.  `RootEntriesPushed`, `ClockFromPushes` and
-`AggregatesPushed` hold, `GapsAfterRootLate` fails.  The honest END branch at position `0`
+`Contracts.Timeout.staleRoot`, created at time `1`.  `RootEntriesPushed`, `ClockFromPushes`
+and `AggregatesPushed` hold, `GapsAfterRootLate` fails.  The honest END branch at position `0`
 for batch `0` passes the positioned gate with no located break of any kind, while the leg
 was committed on time. -/
 def Properties.MigrationGapIsLoadBearing : Prop :=

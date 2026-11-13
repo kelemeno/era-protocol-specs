@@ -11,8 +11,8 @@ entry stored at the position (`MerkleSpec.Verifier.accept_pins_entry_or_collisio
 is new is one step, `last_position_fixes_batch_number`: an entry's leaf is
 `batchLeafHash` of its preimage, so equal leaves at the last position mean the submitted
 preimage is the last entry, unless the two preimages collide.  From there the old chain
-runs as before (`Contracts.Timeout.refundableBy_of_verifiedBy`,
-`timeout_means_missed_deadline_or_break`).
+runs as before, with `Aggregates` weakened to the strict `AggregatesBefore`
+(`isLastOnTime_of_verified_before`, then `Contracts.Atomicity.member_not_refundable_or_break`).
 -/
 
 namespace Contracts.BatchPosition
@@ -64,7 +64,7 @@ lemma slotInv_step {zksyncOS : Bool} {s : ℕ} {σ τ : ChainTreeSlot} (hσ : Sl
       omega
   | recordAndPush n root ts _ hn =>
     refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · show (σ.pushed ++ [⟨root, n, ts⟩]).Pairwise _
+    · show (σ.pushed ++ [(⟨root, n, ts⟩ : BatchEntry)]).Pairwise _
       rw [List.pairwise_append]
       refine ⟨hσ.increasing, List.pairwise_singleton _ _, ?_⟩
       intro a ha b hb
@@ -116,13 +116,14 @@ lemma slotInv_step {zksyncOS : Bool} {s : ℕ} {σ τ : ChainTreeSlot} (hσ : Sl
         exact Bool.false_ne_true h1
     have hs0 : s = 0 := by have := hσ.startBelow; omega
     refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · show (σ.pushed ++ [⟨root, 0, ts⟩]).Pairwise _
+    · show (σ.pushed ++ [(⟨root, 0, ts⟩ : BatchEntry)]).Pairwise _
       rw [hempty]
       exact List.pairwise_singleton _ _
     · intro e he
       have he' : e ∈ σ.pushed ++ [⟨root, 0, ts⟩] := he
       rw [hempty, List.nil_append, List.mem_singleton] at he'
       subst he'
+      show Function.update σ.recorded 0 true 0 = true
       exact Function.update_self _ _ _
     · intro m hm
       dsimp only at hm ⊢
@@ -199,6 +200,38 @@ theorem reachable_slots_back_a_root (h : Hash) (ze : UInt256) (bl : BatchLeafHas
      upToLast := fun c e he => by simp [slotRoot, he]
      capacity := hcap }, fun _ => ⟨rfl, rfl⟩⟩
 
+/-! ## The identity numbering -/
+
+theorem seededSlot_reachable (root0 root1 : UInt256) (ts0 ts1 : ℕ) :
+    SlotReachable true 0 (seededSlot root0 root1 ts0 ts1) := by
+  have s1 : ChainTreeStep true (registeredSlot 0)
+      ⟨0, Function.update (fun _ => false) 0 true, [⟨root0, 0, ts0⟩]⟩ :=
+    ChainTreeStep.seedGenesis (registeredSlot 0) root0 ts0 rfl rfl rfl
+  have s2 : ChainTreeStep true ⟨0, Function.update (fun _ => false) 0 true, [⟨root0, 0, ts0⟩]⟩
+      (seededSlot root0 root1 ts0 ts1) :=
+    ChainTreeStep.recordAndPush _ 1 root1 ts1
+      (Function.update_of_ne (by decide : (1 : ℕ) ≠ 0) true (fun _ => false)) rfl
+  exact Relation.ReflTransGen.tail (Relation.ReflTransGen.single s1) s2
+
+theorem seededSlot_identityNumbered (root0 root1 : UInt256) (ts0 ts1 : ℕ) :
+    IdentityNumbered (seededSlot root0 root1 ts0 ts1).pushed := by
+  intro i hi
+  have hi2 : i < 2 := hi
+  interval_cases i <;> rfl
+
+theorem identity_numbering_needs_genesis {zksyncOS : Bool} {s : ℕ} {σ : ChainTreeSlot}
+    (hr : SlotReachable zksyncOS s σ) (hne : σ.pushed ≠ []) (hid : IdentityNumbered σ.pushed) :
+    zksyncOS = true ∧ s = 0 := by
+  have hpos : 0 < σ.pushed.length := List.length_pos_of_ne_nil hne
+  have h0 := hid 0 hpos
+  by_contra hcon
+  have hng : zksyncOS = false ∨ 0 < s := by
+    cases zksyncOS
+    · exact Or.inl rfl
+    · refine Or.inr (Nat.pos_of_ne_zero fun hs => hcon ⟨rfl, hs⟩)
+  have := tree_position_below_batch_number hr hng 0 hpos
+  omega
+
 /-! ## The old composition at a one-leaf tree -/
 
 theorem current_composition_cannot_represent_onboarding_at_100 :
@@ -266,6 +299,64 @@ theorem entry_le_upTo (B : PositionedBacking h ze bl R) (c : Chain) :
   · rw [List.mem_singleton] at hin
     rw [hin]
     exact le_of_eq hlast
+
+/-- On the identity numbering, the tree's length is `R.upTo c + 1`: the old model's
+`upToLast`. -/
+lemma identity_length (B : PositionedBacking h ze bl R) (c : Chain) (hne : B.entries c ≠ [])
+    (hid : IdentityNumbered (B.entries c)) : (B.entries c).length = R.upTo c + 1 := by
+  have hpos : 0 < (B.entries c).length := List.length_pos_of_ne_nil hne
+  have hlast : (B.entries c).length - 1 + 1 = (B.entries c).length := by omega
+  have hlt : (B.entries c).length - 1 < (B.entries c).length := by omega
+  have h1 := B.upToLast c _ (entryAt_last B c hlast)
+  have h2 : B.entryAt c ((B.entries c).length - 1)
+      = (B.entries c)[(B.entries c).length - 1]'hlt := by
+    simp [PositionedBacking.entryAt, List.getD_eq_getElem?_getD, hlt]
+  rw [h2, hid _ hlt] at h1
+  omega
+
+/-- The old backing with the same leaves, on the identity numbering. -/
+def identityBacking (B : PositionedBacking h ze bl R) (hne : ∀ c, B.entries c ≠ [])
+    (hid : ∀ c, IdentityNumbered (B.entries c)) : RootBacking h ze R where
+  leaves := B.leaves
+  height := B.height
+  upToLast := fun c => by rw [leaves_length]; exact identity_length B c (hne c) (hid c)
+  capacity := fun c => by rw [leaves_length]; exact B.capacity c
+
+theorem identity_endBranch_iff (B : PositionedBacking h ze bl R) (hne : ∀ c, B.entries c ≠ [])
+    (hid : ∀ c, IdentityNumbered (B.entries c)) {S : System} {c : Chain} {D N : ℕ}
+    {sibs : ℕ → UInt256} {r : UInt256} {t : ℕ} (ht : S.time c N = t) :
+    EndBranchAccepted (identityBacking B hne hid) S c D N sibs (bl r N t)
+      ↔ PositionedEndBranchAccepted B c D N sibs r N t := by
+  constructor
+  · rintro ⟨hroot, hon, hin, hauth, hzero⟩
+    refine ⟨hroot, by rw [← ht]; exact hon, ?_, hauth, hzero⟩
+    have hin' : N < (B.leaves c).length := hin
+    rw [leaves_length] at hin'
+    exact hin'
+  · rintro ⟨hroot, hon, hin, hauth, hzero⟩
+    refine ⟨hroot, by rw [ht]; exact hon, ?_, hauth, hzero⟩
+    show N < (B.leaves c).length
+    rw [leaves_length]
+    exact hin
+
+theorem identity_numbered_backing_is_old_backing (B : PositionedBacking h ze bl R)
+    (hne : ∀ c, B.entries c ≠ []) (hid : ∀ c, IdentityNumbered (B.entries c)) :
+    ∃ B' : RootBacking h ze R,
+      (∀ c, B'.leaves c = B.leaves c ∧ B'.height c = B.height c)
+      ∧ (∀ (S : System) (c : Chain) (D N : ℕ) (sibs : ℕ → UInt256) (r : UInt256) (t : ℕ),
+          S.time c N = t →
+            (EndBranchAccepted B' S c D N sibs (bl r N t)
+              ↔ PositionedEndBranchAccepted B c D N sibs r N t))
+      ∧ (∀ (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (F : Flow)
+          (leg : FlowLeg) (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (r : UInt256) (t : ℕ),
+          S.time leg.chain N = t →
+            (LegRefundableAcceptedBy h z0 hl cv S B' F leg N p sibs (bl r N t)
+              ↔ PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p N sibs r t)) := by
+  refine ⟨identityBacking B hne hid, fun _ => ⟨rfl, rfl⟩,
+    fun S c D N sibs r t ht => identity_endBranch_iff B hne hid ht, ?_⟩
+  intro z0 hl cv S F leg N p sibs r t ht
+  unfold LegRefundableAcceptedBy PositionedLegRefundableAcceptedBy
+  rw [identity_endBranch_iff B hne hid ht]
 
 end Backing
 
@@ -389,6 +480,33 @@ theorem positioned_endBranch_verified_on {B : PositionedBacking h ze bl R} {S : 
 
 end LastBatch
 
+/-! ## The strict aggregation premise -/
+
+theorem aggregates_implies_before {S : System} {R : SlRoot} (hagg : Aggregates S R) :
+    AggregatesBefore S R :=
+  fun c n hn => hagg c n (le_of_lt hn)
+
+/-- `Contracts.Timeout.isLastOnTime_of_verified` under the strict premise. -/
+theorem isLastOnTime_of_verified_before {S : System} {R : SlRoot} (hagg : AggregatesBefore S R)
+    {c : Chain} {D N : ℕ} (he : EndBranchVerified S R c D N) : IsLastOnTime S c D N := by
+  refine ⟨he.onTime, ?_⟩
+  intro m hm
+  by_contra hcon
+  have hin : m ≤ R.upTo c :=
+    hagg c m (lt_of_le_of_lt (Nat.le_of_not_lt hcon) he.rootAfterDeadline)
+  rw [← he.lastInRoot] at hin
+  omega
+
+/-- `Contracts.Timeout.refundableBy_of_verifiedBy` under the strict premise. -/
+theorem refundableBy_of_verifiedBy_before {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} {R : SlRoot} (hagg : AggregatesBefore S R)
+    {F : Flow} {leg : FlowLeg} {N : ℕ} {p : ImtProof}
+    (hv : LegRefundableVerifiedBy h z0 hl cv S R F leg N p) :
+    LegRefundableBy h z0 hl cv S F leg N p := by
+  rcases hv with ⟨hb, habs⟩ | ⟨he, habs⟩
+  · exact Or.inl ⟨hb.late, habs⟩
+  · exact Or.inr ⟨isLastOnTime_of_verified_before hagg he, habs⟩
+
 /-! ## The gate -/
 
 section Gate
@@ -410,17 +528,17 @@ theorem verifiedBy_of_positioned (hT : EntriesTimed S B)
     · exact Or.inl (Or.inr ⟨hv, habs⟩)
     · exact Or.inr ⟨he, hbr⟩
 
-theorem positioned_accepted_implies_refundable_pinned (hagg : Aggregates S R)
+theorem positioned_accepted_implies_refundable_pinned (hagg : AggregatesBefore S R)
     (hT : EntriesTimed S B)
     (ha : PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p pos sibs r t) :
     LegRefundableBy h z0 hl cv S F leg N p
       ∨ (PositionedEndBranchAccepted B leg.chain F.deadline pos sibs r N t
           ∧ PositionedEndBreak B leg.chain pos sibs r N t) := by
   rcases verifiedBy_of_positioned hT ha with hv | hrest
-  · exact Or.inl (refundableBy_of_verifiedBy hagg hv)
+  · exact Or.inl (refundableBy_of_verifiedBy_before hagg hv)
   · exact Or.inr hrest
 
-theorem positioned_accepted_implies_refundable_on (hagg : Aggregates S R)
+theorem positioned_accepted_implies_refundable_on (hagg : AggregatesBefore S R)
     (hT : EntriesTimed S B) (hsep : EntriesNotEmpty ze (B.leaves leg.chain))
     (hinj : PairInjOn h (fun q => TreePair h ze (B.leaves leg.chain) (B.height leg.chain) q
       ∨ VerifiedPair h sibs (B.height leg.chain) pos (bl r N t) q))
@@ -431,19 +549,42 @@ theorem positioned_accepted_implies_refundable_on (hagg : Aggregates S R)
   · exact hr
   · exact absurd hb (no_positioned_end_break_on he.lastBatch.inRange hsep hinj hleaf)
 
-theorem positioned_timeout_means_missed_deadline_or_break (hS : Wf S) (hagg : Aggregates S R)
-    (hT : EntriesTimed S B)
+theorem positioned_timeout_means_missed_deadline_or_break (hS : Wf S)
+    (hagg : AggregatesBefore S R) (hT : EntriesTimed S B)
     (ha : PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p pos sibs r t) :
     (∀ n, S.time leg.chain n ≤ F.deadline →
         legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n)))
       ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
       ∨ (PositionedEndBranchAccepted B leg.chain F.deadline pos sibs r N t
           ∧ PositionedEndBreak B leg.chain pos sibs r N t) := by
-  rcases verifiedBy_of_positioned hT ha with hv | hrest
-  · rcases timeout_means_missed_deadline_or_break hS hagg hv with hm | hb
-    · exact Or.inl hm
+  rcases positioned_accepted_implies_refundable_pinned hagg hT ha with hr | hrest
+  · by_cases hb : AbsenceBreak h z0 hl S F.deadline leg.chain N p
     · exact Or.inr (Or.inl hb)
+    · refine Or.inl fun n hon hmem => ?_
+      rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
+      · exact hn hr
+      · exact hb hb'
   · exact Or.inr (Or.inr hrest)
+
+theorem positioned_timeout_excludes_finality_or_break (hS : Wf S) (hagg : AggregatesBefore S R)
+    (hT : EntriesTimed S B)
+    (ha : PositionedLegRefundableAcceptedBy h z0 hl cv S B F leg N p pos sibs r t) (n : ℕ)
+    (p' : ImtProof) :
+    ¬ LegFinalizedBy h z0 hl cv S F leg n p'
+      ∨ InclusionBreak h z0 hl S leg.chain n p'
+      ∨ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+      ∨ (PositionedEndBranchAccepted B leg.chain F.deadline pos sibs r N t
+          ∧ PositionedEndBreak B leg.chain pos sibs r N t) := by
+  rcases positioned_accepted_implies_refundable_pinned hagg hT ha with hr | hrest
+  · by_cases hfin : LegFinalizedBy h z0 hl cv S F leg n p'
+    · obtain ⟨hon, hacc⟩ := hfin
+      rcases finality_means_membership_or_break hacc with hmem | hb
+      · rcases member_not_refundable_or_break hS hon hmem N p with hn | hb'
+        · exact absurd hr hn
+        · exact Or.inr (Or.inr (Or.inl hb'))
+      · exact Or.inr (Or.inl hb)
+    · exact Or.inl hfin
+  · exact Or.inr (Or.inr (Or.inr hrest))
 
 end Gate
 
@@ -453,9 +594,9 @@ section PushLog
 
 variable {h : Hash} {ze : UInt256} {bl : BatchLeafHash} {R : SlRoot}
 
-theorem aggregates_from_pushLog {B : PositionedBacking h ze bl R} {S : System} {P : PushLog}
-    (hpush : AggregatesPushed P B) (hclk : ClockFromPushes S P)
-    (hgap : GapsAfterRootLate S P R) : Aggregates S R := by
+theorem aggregatesBefore_from_pushLog {B : PositionedBacking h ze bl R} {S : System}
+    {P : PushLog} (hpush : AggregatesPushed P B) (hclk : ClockFromPushes S P)
+    (hgap : GapsAfterRootLate S P R) : AggregatesBefore S R := by
   intro c m hm
   by_contra hcon
   have hafter : R.upTo c < m := Nat.lt_of_not_le hcon
@@ -563,15 +704,30 @@ theorem onboarded_gaps (s : ℕ) :
     GapsAfterRootLate (onboardedSystem s) (onboardedPushes s) (onboardedRoot s) := by
   intro c m hm _
   have hm' : s + 1 < m := hm
-  show 1 < (if m ≤ s + 1 then 0 else 2)
+  show 1 ≤ (if m ≤ s + 1 then 0 else 2)
   rw [ite_eq_right (by omega)]
   norm_num
 
 theorem onboarded_entriesTimed (s : ℕ) : EntriesTimed (onboardedSystem s) (onboardedBacking s) :=
   entriesTimed_from_pushLog (onboarded_rootEntriesPushed s) (onboarded_clock s)
 
-theorem onboarded_aggregates (s : ℕ) : Aggregates (onboardedSystem s) (onboardedRoot s) :=
-  aggregates_from_pushLog (onboarded_aggregatesPushed s) (onboarded_clock s) (onboarded_gaps s)
+theorem onboarded_aggregates (s : ℕ) : Aggregates (onboardedSystem s) (onboardedRoot s) := by
+  intro c m hm
+  show m ≤ s + 1
+  by_contra hcon
+  have h2 : (onboardedSystem s).time c m = 2 := by
+    show (if m ≤ s + 1 then 0 else 2) = 2
+    rw [ite_eq_right hcon]
+  have h1 : (onboardedSystem s).time c m ≤ 1 := hm
+  omega
+
+theorem aggregates_before_is_weaker : Properties.AggregatesBeforeIsWeaker := by
+  refine ⟨onboardedSystem 0, ⟨0, fun _ => 0⟩, onboardedSystem_wf 0,
+    fun c n hn => absurd hn (Nat.not_lt_zero _), ?_⟩
+  intro hagg
+  have h1 : (onboardedSystem 0).time 0 1 ≤ 0 := by simp [onboardedSystem]
+  have := hagg 0 1 h1
+  exact absurd this (by show ¬ 1 ≤ 0; norm_num)
 
 theorem onboarded_timeout_witness : Properties.OnboardedTimeoutWitness := by
   intro s
@@ -595,7 +751,9 @@ theorem onboarded_timeout_witness : Properties.OnboardedTimeoutWitness := by
     onboarded_rootEntriesPushed s, onboarded_clock s, onboarded_aggregatesPushed s,
     onboarded_gaps s, onboarded_entriesNotEmpty, onboarded_pairInjOn, onboarded_leafInj s 0,
     ⟨0, by show 0 < 1; norm_num, by norm_num⟩, onboarded_endBranch s 0,
-    Or.inr ⟨onboarded_endBranch s 0, habs⟩, hnab, ?_⟩
+    Or.inr ⟨onboarded_endBranch s 0, habs⟩, hnab,
+    no_positioned_end_break_on (B := onboardedBacking s) (c := 0) (by show 0 < 1; norm_num)
+      onboarded_entriesNotEmpty onboarded_pairInjOn (onboarded_leafInj s 0), ?_⟩
   intro n _ hmem
   exact not_mem_setup h1 hmem
 
@@ -817,7 +975,7 @@ theorem migration_gap_is_load_bearing : Properties.MigrationGapIsLoadBearing := 
         have he' : e = ⟨5, 0, 0⟩ := he
         subst he'
         decide)
-    exact absurd this (by simp [staleRoot])
+    exact absurd this (by simp [staleRoot, staleSystem])
   · rintro (hpb | ⟨i, hi, _⟩ | ⟨hne, _⟩)
     · exact no_pinned_break_at_end h 0 _ 0 (by show 1 ≤ 0 + 1; norm_num) hpb
     · exact absurd hi (Nat.not_lt_zero i)
@@ -873,6 +1031,18 @@ theorem PositionedEndBranchImpliesVerifiedPinned :
 theorem PositionedEndBranchImpliesVerifiedOn : Properties.PositionedEndBranchImpliesVerifiedOn :=
   fun _ _ _ _ _ _ _ _ _ _ _ _ _ hT hsep hinj hleaf ha =>
     positioned_endBranch_verified_on hT hsep hinj hleaf ha
+theorem IdentityNumberedBackingIsOldBacking : Properties.IdentityNumberedBackingIsOldBacking :=
+  fun _ _ _ _ B hne hid => identity_numbered_backing_is_old_backing B hne hid
+theorem IdentityNumberingNeedsGenesis : Properties.IdentityNumberingNeedsGenesis :=
+  ⟨fun root0 root1 ts0 ts1 => ⟨seededSlot_reachable root0 root1 ts0 ts1,
+      seededSlot_identityNumbered root0 root1 ts0 ts1⟩,
+    fun _ _ _ hr hne hid => identity_numbering_needs_genesis hr hne hid⟩
+theorem AggregatesImpliesBefore : Properties.AggregatesImpliesBefore :=
+  fun _ _ hagg => aggregates_implies_before hagg
+theorem AggregatesBeforeIsWeaker : Properties.AggregatesBeforeIsWeaker :=
+  aggregates_before_is_weaker
+theorem IsLastOnTimeFromAggregatesBefore : Properties.IsLastOnTimeFromAggregatesBefore :=
+  fun _ _ hagg _ _ _ he => isLastOnTime_of_verified_before hagg he
 theorem PositionedAcceptedImpliesRefundablePinned :
     Properties.PositionedAcceptedImpliesRefundablePinned :=
   fun _ _ _ _ _ _ _ _ _ hagg hT _ _ _ _ _ _ _ _ ha =>
@@ -884,15 +1054,19 @@ theorem PositionedTimeoutMeansMissedDeadlineOrBreak :
     Properties.PositionedTimeoutMeansMissedDeadlineOrBreak :=
   fun _ _ _ _ _ hS _ _ _ _ hagg hT _ _ _ _ _ _ _ _ ha =>
     positioned_timeout_means_missed_deadline_or_break hS hagg hT ha
-theorem AggregatesFromPushLog : Properties.AggregatesFromPushLog :=
-  fun _ _ _ _ _ _ _ hpush hclk hgap => aggregates_from_pushLog hpush hclk hgap
+theorem PositionedTimeoutExcludesFinalityOrBreak :
+    Properties.PositionedTimeoutExcludesFinalityOrBreak :=
+  fun _ _ _ _ _ hS _ _ _ _ hagg hT _ _ _ _ _ _ _ _ ha n p' =>
+    positioned_timeout_excludes_finality_or_break hS hagg hT ha n p'
+theorem AggregatesBeforeFromPushLog : Properties.AggregatesBeforeFromPushLog :=
+  fun _ _ _ _ _ _ _ hpush hclk hgap => aggregatesBefore_from_pushLog hpush hclk hgap
 theorem EntriesTimedFromPushLog : Properties.EntriesTimedFromPushLog :=
   fun _ _ _ _ _ _ _ hroot hclk => entriesTimed_from_pushLog hroot hclk
 theorem PushLogTimeoutMeansMissedDeadlineOrBreak :
     Properties.PushLogTimeoutMeansMissedDeadlineOrBreak :=
   fun _ _ _ _ _ hS _ _ _ _ _ hroot hclk hpush hgap _ _ _ _ _ _ _ _ ha =>
-    positioned_timeout_means_missed_deadline_or_break hS (aggregates_from_pushLog hpush hclk hgap)
-      (entriesTimed_from_pushLog hroot hclk) ha
+    positioned_timeout_means_missed_deadline_or_break hS
+      (aggregatesBefore_from_pushLog hpush hclk hgap) (entriesTimed_from_pushLog hroot hclk) ha
 theorem OnboardedTimeoutWitness : Properties.OnboardedTimeoutWitness := onboarded_timeout_witness
 theorem OnboardedAt100Composes : Properties.OnboardedAt100Composes := onboarded_at_100_composes
 theorem EraVmNoGenesisComposes : Properties.EraVmNoGenesisComposes := eraVm_no_genesis_composes

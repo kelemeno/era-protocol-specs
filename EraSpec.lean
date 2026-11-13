@@ -91,6 +91,7 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
 import EraSpec.Protocol.InteropAtomicity.Proofs.Timeout
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
 import EraSpec.Protocol.InteropAtomicity.Proofs.SourceHeight
+import EraSpec.Protocol.InteropAtomicity.Proofs.BatchPosition
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Model
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Initialization
 
