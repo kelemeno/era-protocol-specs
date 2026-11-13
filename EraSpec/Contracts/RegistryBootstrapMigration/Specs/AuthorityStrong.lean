@@ -19,9 +19,8 @@ model, which leaves out one writer of the CTM's owner slot: a code swap on the C
 CTM-domain `ProxyAdmin`'s owner (`upgrade`/`upgradeAndCall`, `Op.ctmCodeSwap` in
 `Specs/Forward.lean`; the `ProxyAdmin` administers the CTM proxy,
 `executors/CTMUpgradeExecutor.sol:38-39`). Its docstring used to excuse the omission by
-saying that in the parked states the model reaches, that owner is the nominee too. In the state
-the
-non-genuine executor's `migrate()` leaves (`wParked`), the `ProxyAdmin`'s owner and the nominee
+saying that in the parked states the model reaches, that owner is the nominee too. In the
+state the non-genuine executor's `migrate()` leaves (`wParked`), the `ProxyAdmin`'s owner and the nominee
 are both executor `3`. But the `ProxyAdmin` is plain `Ownable`, so its owner can hand it on
 with one `transferPA` while the CTM stays parked. The data below is that run.
 -/
