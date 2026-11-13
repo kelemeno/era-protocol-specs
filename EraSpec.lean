@@ -192,6 +192,11 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
 
+-- Strengthened row-application liveness and parked-CTM exits (ProxyUpgradeRowLib, RegistryBootstrapMigration)
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
+import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
