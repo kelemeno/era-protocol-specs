@@ -46,7 +46,8 @@ def Properties.BeginHeightFromSource : Prop :=
 
 /-- **`NoneOrAllOrBreakPinned` FOR SYSTEMS BUILT FROM RUNS.**  The pinned partial
 atomicity result with its `Wf` premise replaced by `RunsWf`, which has no capacity
-field. -/
+field.  Finalizable here is `FlowFinalizableBy`, the IMT half.  The destination form is
+`Contracts.RootImport.Properties.NoneOrAllAtOrBreakPinnedFromRuns`. -/
 def Properties.NoneOrAllOrBreakPinnedFromRuns : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
     (St : Chain → ℕ → HState) (time : Chain → ℕ → ℕ), RunsWf St time →

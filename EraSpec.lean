@@ -168,6 +168,7 @@ import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
+import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
 -- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
 import EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery
