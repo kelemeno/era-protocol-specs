@@ -29,10 +29,12 @@ or BridgedStandardERC20. Their intended properties are tracked in `../../../REVI
   `OnTimeLegExecutesWitness` and `BeginBranchRefundWitness` do not tie the run's record
   to their transfer `i`; the `…Gap` statements show runs that meet their bodies by
   resolving another transfer (for the BEGIN witness, a refund authorized by the END
-  branch alone; for the on-time witness, a transfer with no prerequisite on a history
-  where nothing is ever on time). The `…Pinned` forms record `s.record = some i` and
-  run on single-branch evidence (`endFormEvidence`, `beginOnlyEvidence`), with no
-  END-branch timeout on any leg of the BEGIN-pinned transfer.
+  branch alone; for the on-time witness, `i` has no prerequisite and no nonzero commit
+  value is ever on time). The `…Pinned` forms record `s.record = some i`. The two refund
+  forms run on single-form evidence (`endFormEvidence`, `beginOnlyEvidence`); in §1 the
+  END form does not exclude the BEGIN form, and what pins the BEGIN branch is that no leg
+  of its transfer has an END-branch timeout. The on-time form runs on `evidenceEither`
+  and asks for at least one prerequisite, each with a nonzero commit value.
   `ReachableResolutionAuthorizedByRecord` says every reachable delivery or refund is
   backed by evidence for the recorded transfer.
 

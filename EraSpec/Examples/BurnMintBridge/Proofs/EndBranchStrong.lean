@@ -46,13 +46,16 @@ theorem end_branch_refund_witness_pinned : Properties.EndBranchRefundWitnessPinn
     endFormEvidence_run_either hrun, rfl, rfl, rfl⟩
 
 theorem onTime_leg_executes_witness_pinned : Properties.OnTimeLegExecutesWitnessPinned := by
-  have hall : ∀ l ∈ demoFlow sampleTransfer, OnTime committedHistory l := by
+  have hall : ∀ l ∈ demoFlow sampleTransfer,
+      l.commitValue ≠ 0 ∧ OnTime committedHistory l := by
     intro l hl
     rw [mem_demoFlow hl]
-    exact committed_onTime
+    exact ⟨by decide, committed_onTime⟩
   exact ⟨committedHistory, demoFlow, sampleTransfer, _, committedHistory_valid,
     List.cons_ne_nil _ _, hall,
-    .tail (.tail .refl (.prepare demo_prepare)) (.execute hall demo_execute), rfl, rfl, rfl, rfl⟩
+    .tail (.tail .refl (.prepare demo_prepare))
+      (.execute (fun l hl => (hall l hl).2) demo_execute),
+    rfl, rfl, rfl, rfl⟩
 
 /-- The late history's root has no END-branch timeout for the demo leg: the root's last batch,
 `1`, settled at time `1`, after the deadline `0`. -/
