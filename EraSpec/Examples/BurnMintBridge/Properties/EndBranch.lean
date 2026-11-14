@@ -39,7 +39,9 @@ Statements about `../Specs/EndBranch.lean`; proofs in `../Proofs/EndBranch.lean`
   `EndBranchRefundWitness`, `OnTimeLegExecutesWitness`, `HaltedChainNeedsEndBranch`.
 * `RootAggregates` for every imported root: `HaltedChainNeedsEndBranch`,
   `CheckedExecutionWitness`, `PinnedBridgeRefundWitness`, `ForgedLastBatchLocatesBreak`.
-* An accepted timeout on the BEGIN branch as run: `BeginBranchRefundWitness`.
+* An accepted timeout on the BEGIN branch as run: `BeginBranchRefundWitness`.  That such a
+  timeout drives a refund of the transfer it belongs to, with no END-branch timeout available
+  for that transfer: `BeginBranchRefundWitnessPinned` (`Properties/EndBranchStrong.lean`).
 * An accepted timeout on the END branch: `HaltedChainNeedsEndBranch` (index level),
   `PinnedBridgeRefundWitness` (hash level); on the forged path with the leg on time:
   `ForgedLastBatchLocatesBreak`.
@@ -48,6 +50,10 @@ Statements about `../Specs/EndBranch.lean`; proofs in `../Proofs/EndBranch.lean`
 * A never-committed leg, a root after the deadline and a recorded unrefunded transfer
   (`TimeoutComplete`, `TimedOutTransferRefundEnabled`): `HaltedChainNeedsEndBranch` (its END
   timeout carries the root's post-deadline creation; its burned state records the transfer).
+
+`EndBranchRefundWitness`, `OnTimeLegExecutesWitness` and `BeginBranchRefundWitness` do not
+say that the run resolves their own transfer `i`.  The forms that pin the resolved record to
+`i`, and the branch that authorized it, are in `Properties/EndBranchStrong.lean`.
 
 No hash-injectivity premise appears anywhere.  `PinnedBridgeRefundWitness` and
 `ForgedLastBatchLocatesBreak` use the colliding toy hash `demoHash`.
@@ -115,16 +121,27 @@ def Properties.EvidenceEitherRunsAreAdapterRuns : Prop :=
   ∀ (H : History) (flow : Transfer → List Leg) (s t : State),
     Run (evidenceEither H flow) s t ↔ Run (evidence H flow) s t
 
-/-- **§1 PREMISES SATISFIABLE, REFUND ON THE END FORM.**  A valid history, a leg with an
-END-form timeout, and a run of the bridge that refunds the prepared transfer. -/
+/-- **§1 PREMISES SATISFIABLE, REFUND ON THE END FORM.**  A valid history, a transfer `i` with a
+leg that has an END-form timeout, and a run of the bridge from `initial i.amount 0` that ends
+refunded with source balance `i.amount`.  The statement does not say that the refunded record
+is `i`.  A run that prepares and refunds another transfer of the same amount satisfies it
+(`Properties.EndBranchRefundWitnessGap`).  The form pinned to `i`, with the refund driven by
+the END form alone, is `Properties.EndBranchRefundWitnessPinned`
+(`Properties/EndBranchStrong.lean`). -/
 def Properties.EndBranchRefundWitness : Prop :=
   ∃ (H : History) (flow : Transfer → List Leg) (i : Transfer) (s : State),
     H.Valid ∧ (∃ l ∈ flow i, MissingEnd H l) ∧
       Run (evidenceEither H flow) (initial i.amount 0) s ∧ s.refunded = true ∧
       s.sourceBalance = i.amount
 
-/-- **§1 PREMISES SATISFIABLE, EXECUTION ON TIME.**  A valid history in which every
-prerequisite of a transfer is on time, and a run that executes it. -/
+/-- **§1 PREMISES SATISFIABLE, EXECUTION ON TIME.**  A valid history, a transfer `i` all of whose
+prerequisites are on time, and a run of the bridge from `initial i.amount 0` that ends delivered
+with destination balance `i.amount`.  The statement does not say that the executed record is
+`i`, and it holds vacuously for a transfer with no prerequisite.  Its body is met by a run that
+executes another transfer, on a history where no nonzero value is ever on time
+(`Properties.OnTimeLegExecutesWitnessGap`).  The form pinned to `i`, with at least one
+prerequisite, is `Properties.OnTimeLegExecutesWitnessPinned`
+(`Properties/EndBranchStrong.lean`). -/
 def Properties.OnTimeLegExecutesWitness : Prop :=
   ∃ (H : History) (flow : Transfer → List Leg) (i : Transfer) (s : State),
     H.Valid ∧ (∀ l ∈ flow i, OnTime H l) ∧
@@ -192,8 +209,13 @@ def Properties.TimeoutComplete : Prop :=
     ∀ (R : Contracts.Timeout.SlRoot), l.deadline.val < R.created → TimeoutVia H R l
 
 /-- **§2 PREMISES SATISFIABLE ON THE BEGIN BRANCH.**  A valid history whose imported roots
-aggregate, a leg with an accepted BEGIN-branch timeout (a late batch inside the root), and a
-run of the bridge that refunds the prepared transfer. -/
+aggregate, a transfer `i` with a leg that has an accepted BEGIN-branch timeout (a late batch
+inside the root), and a run of the bridge from `initial i.amount 0` that ends refunded with
+source balance `i.amount`.  The statement pins neither the refunded record nor the branch that
+authorized the refund.  Its body is met by a run that refunds another transfer, none of whose
+legs has a BEGIN-branch timeout, on the END branch alone
+(`Properties.BeginBranchRefundWitnessGap`).  The form pinned to `i` and to the BEGIN branch is
+`Properties.BeginBranchRefundWitnessPinned` (`Properties/EndBranchStrong.lean`). -/
 def Properties.BeginBranchRefundWitness : Prop :=
   ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (i : Transfer) (s : State),
     H.Valid ∧ (∀ k, RootAggregates H (roots k)) ∧

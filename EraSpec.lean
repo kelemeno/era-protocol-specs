@@ -169,6 +169,7 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsOrder
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Forward
 import EraSpec.Examples.BurnMintBridge.Proofs.EndBranch
+import EraSpec.Examples.BurnMintBridge.Proofs.EndBranchStrong
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
