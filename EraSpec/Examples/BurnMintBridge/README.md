@@ -23,6 +23,20 @@ or BridgedStandardERC20. Their intended properties are tracked in `../../../REVI
   `UncheckedEndDoublePays` show `RootAggregates` and the last-batch check are
   load-bearing. At hash level the last-batch path is pinned
   (`PinnedBridgeNoDoublePaymentOrBreak`, no hash premise).
+- `Specs/EndBranchStrong.lean`, `Properties/EndBranchStrong.lean`,
+  `Proofs/EndBranchStrong.lean` (same namespace): the satisfiability witnesses of
+  `EndBranch` pinned to the resolved transfer. `EndBranchRefundWitness`,
+  `OnTimeLegExecutesWitness` and `BeginBranchRefundWitness` do not tie the run's record
+  to their transfer `i`; the `…Gap` statements show runs that meet their bodies by
+  resolving another transfer (for the BEGIN witness, a refund authorized by the END
+  branch alone; for the on-time witness, `i` has no prerequisite and no nonzero commit
+  value is ever on time). The `…Pinned` forms record `s.record = some i`. The two refund
+  forms run on single-form evidence (`endFormEvidence`, `beginOnlyEvidence`); in §1 the
+  END form does not exclude the BEGIN form, and what pins the BEGIN branch is that no leg
+  of its transfer has an END-branch timeout. The on-time form runs on `evidenceEither`
+  and asks for at least one prerequisite, each with a nonzero commit value.
+  `ReachableResolutionAuthorizedByRecord` says every reachable delivery or refund is
+  backed by evidence for the recorded transfer.
 
 The model uses natural-number amounts, fixed token/endpoint identities, exact
 full recovery, and a declared set of permitted interference steps. Concrete

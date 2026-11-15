@@ -52,6 +52,11 @@ import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRoot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshot
 import EraSpec.Contracts.AtomicInteropProof.Proofs.Timestamps
 import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeaf
+import EraSpec.Contracts.AtomicInteropProof.Proofs.LastBatchInRootOffset
+import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeafFaithful
+import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarityFaithful
+import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshotBranches
+import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshotFaithful
 
 -- IndexedMerkleTree: abstract list model and insertion requirements
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
@@ -164,10 +169,12 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsOrder
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Forward
 import EraSpec.Examples.BurnMintBridge.Proofs.EndBranch
+import EraSpec.Examples.BurnMintBridge.Proofs.EndBranchStrong
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
+import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
 -- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
 import EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery
