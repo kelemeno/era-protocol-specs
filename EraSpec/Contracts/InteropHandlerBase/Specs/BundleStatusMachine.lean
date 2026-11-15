@@ -135,10 +135,17 @@ That means the two machines divide by path:
 * PUBLIC bundles — two routes, so delivery-once genuinely needs BOTH machines, as recorded above.
 
 So the earlier composition is not wrong for atomic bundles, it is more than they require.  Worth
-knowing which half is load-bearing where. -/
+knowing which half is load-bearing where.
 
-/-- The transitions available to an ATOMIC bundle: `verify` is unreachable (no L1 proof exists), and
-with it every edge that needs `Verified`. -/
+The argument above is prose: `AtomicStep` below builds it into a definition.  Topic
+`BundleStatusMachineStrong` proves it over the handler model, up to named clashes. -/
+
+/-- **TAKEN AS A DEFINITION.**  The transitions available to an ATOMIC bundle, on the premise that
+`verify` is unreachable for it (no L1 proof exists), and with it every edge that needs `Verified`.
+That premise is assumed here, not proved: any one-edge relation gives the results stated about this
+one.  Topic `BundleStatusMachineStrong` derives the sub-machine from the handler's guards
+(`NoProofKeepsBundleInAtomicMachine`) and the premise from the source chain
+(`AtomicLegStaysAtomicAtDestinationOrClash`). -/
 inductive AtomicStep : Status → Status → Prop
   | executeAtomic : AtomicStep .Unreceived .FullyExecuted
 

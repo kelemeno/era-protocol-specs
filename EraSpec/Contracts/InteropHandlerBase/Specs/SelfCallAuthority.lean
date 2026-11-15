@@ -26,8 +26,10 @@ import Mathlib.Tactic
   then makes the self-call.
 
   The pattern is sound exactly when every self-call site is preceded by the matching check.  That is an
-  ENUMERATION, not a guard, so this file states what the enumeration buys and
-  `scripts/check-source-invariants.sh` tests that it still holds.  Verified at the time of writing:
+  ENUMERATION, not a guard.  Topic `SelfCallAuthorityStrong` models the dispatch table and states what
+  the enumeration buys; `scripts/check-source-invariants.sh`, a script of the sibling
+  contracts-formal-verification repository (not of this package), tests that it still holds.
+  Verified at the time of writing:
 
       InteropHandlerBase.sol:391   this.executeBundle     preceded by the executionAddress check
       InteropHandlerBase.sol:401   this.verifyBundle      permissionless by design, no check needed

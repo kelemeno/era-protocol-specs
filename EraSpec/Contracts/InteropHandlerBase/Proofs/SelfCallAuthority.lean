@@ -42,7 +42,10 @@ namespace AttackVectors.SelfCallAuthority
 
 /-- **THE DELEGATION IS SOUND.**  If every self-call is preceded by the attribute check against the
 ORIGINAL sender, then a gate passing via its self-call disjunct still had the attribute satisfied — by
-the outer handler, one frame up.  Authority is relayed, not widened. -/
+the outer handler, one frame up.  Authority is relayed, not widened.
+
+The statement proved is a tautology (`Faithful.selfCall_relays_authority_conclusion_always_holds`);
+the intended content is proved in `SelfCallAuthorityFaithful`. -/
 theorem selfCall_relays_authority {a : Attr} {thisChain senderChain senderAddr : ℕ}
     (checked : attrAllows a senderChain senderChain senderAddr) :
     Properties.selfCall_relays_authority (a := a) (thisChain := thisChain) (senderChain := senderChain) (senderAddr := senderAddr) (checked := checked) := by
