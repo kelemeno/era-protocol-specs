@@ -52,7 +52,8 @@ witnesses.  No result takes a hash premise.
 The three instances with a prepared burn (`PreparedBurnRefundFailsToL1`,
 `PreparedBurnRefundToL2Satisfiable`, `AtomicL1LegIsStranded`) tie the burning vault to the
 configuration where the send and the refund happen.  The vault's chain id, its own address and
-its asset router are the configuration's, and the burn's caller is that router (`bridgeBurn` is
+its asset router are the configuration's, the burn's destination is another chain, and the
+burn's caller is that router (`bridgeBurn` is
 `onlyAssetRouter`, `NativeTokenVaultBase.sol:326`; on L2 that router is `L2_ASSET_ROUTER_ADDR`,
 `L2NativeTokenVault.sol:248-250`).  In the two with a refund world, that world's registry has
 the burned asset's local token and origin chain as the burning vault has them.  The vault model's
@@ -86,8 +87,10 @@ AGREE ON THE ROUTER'S ADDRESS.**  For every destination, asset and mint data, th
 forms from the router's starter (`formedCall`, `InteropCenter.sol:709-740`) is the router-produced
 call `routerCallTo` if and only if the center's `L2_ASSET_ROUTER_ADDR` is the router's address.
 The formed call's `from` is the starter's recipient (`:739`), which is the center's
-`L2_ASSET_ROUTER_ADDR`.  This is what ties the starters `pinSend` admits to the bundle whose
-refund the other results describe. -/
+`L2_ASSET_ROUTER_ADDR`.  The "if" direction is what ties the starters `pinSend` admits to the
+bundle whose refund the other results describe.  The "only if" direction compares `from` fields
+alone: when the two addresses differ, the starter's recipient is some other contract, whose
+formed call `formedCall` does not model (`Specs`). -/
 def Properties.RouterStarterFormsRouterCall : Prop :=
   ∀ (cfg : FConfig) (env : CenterEnv) (dest : Chain) (a : AssetId) (md : MintData),
     formedCall cfg dest (routerStarter env) a md = routerCallTo cfg dest a md
@@ -196,7 +199,8 @@ def Properties.PreparedBurnRefundByDestination : Prop :=
 
 /-- **COUNTERMODEL: THE ORIGINAL HEADLINE (c) IS FALSE FOR AN L2→L1 LEG.**  One burn to L1, with
 one refund world, satisfies every premise of
-`AtomicRecovery.Properties.PreparedBurnRefundsDepositor`, and the mint succeeds.  The burn is
+`AtomicRecovery.Properties.PreparedBurnRefundsDepositor`, and the mint succeeds.  The burn goes
+to the router's `L1_CHAIN_ID`, which is not the chain it is made on.  It is
 prepared by the vault of the refund configuration, on its chain, called by its router, and the
 refund world's registry has the burned asset's local token and origin chain as that vault has
 them.  The bundle destination is the burn's own destination.  `AtomicRecovery`'s `routerCall` for
@@ -217,7 +221,8 @@ def Properties.PreparedBurnRefundFailsToL1 : Prop :=
     -- the refund world's registry has the burned asset as the burning vault has it
     ∧ w.vault.token r.assetId = NativeTokenVaultBase.widen s.config.tokenAddress
     ∧ w.vault.originChain r.assetId = s.config.originChainId
-    ∧ r.destinationChain = cfg.l1Chain
+    -- the burn goes to another chain, the router's `L1_CHAIN_ID`
+    ∧ r.destinationChain ≠ cfg.base.thisChain ∧ r.destinationChain = cfg.l1Chain
     ∧ cfg.l1Router ≠ cfg.base.router ∧ CodelessAt other cfg.l1Router
     ∧ w.paused = false ∧ w.vault.originChain r.assetId ≠ cfg.base.thisChain
     ∧ w.vault.token r.assetId ≠ 0
@@ -253,8 +258,8 @@ def Properties.PinAtomicityIrrelevantToL1 : Prop :=
 /-- **THE ONLY L1 SEND THE MODELLED CHECKS ADMIT IS THE ROUTER'S ONE STARTER.**  If a send to L1
 passes `PinSendChecks`, atomic or not, its starter list is `[routerStarter env]`: one starter
 (`InteropCenter.sol:382-384`), indirect, to `L2_ASSET_ROUTER_ADDR`, with zero `interopCallValue`
-(`:529-537`).  So the results stated on `[routerStarter env]` cover every send to L1 that these
-checks admit. -/
+(`:529-537`).  So the results stated on `[routerStarter env]` cover every starter list these
+checks admit for L1, for burns whose returned mint data decodes (`formedCall`). -/
 def Properties.PinL1SendIsRouterStarter : Prop :=
   ∀ (env : CenterEnv) (starters : List Starter) (isAtomic : Bool) (d : Dispatch),
     pinSend env env.l1Chain starters isAtomic = some d → starters = [routerStarter env]
@@ -398,7 +403,7 @@ def Properties.L1LegForeignTrueClosesWithoutRefund : Prop :=
 /-! ## Witnesses -/
 
 /-- **`PreparedBurnRefundsDepositorToL2`'S PREMISES ARE JOINTLY SATISFIABLE.**  The witness is a
-burn to an L2, refunded on the burn's own destination, with
+burn to an L2 other than the one it is made on, refunded on the burn's own destination, with
 `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR`, a depositor who is not the remote receiver, and a refund
 that succeeds.  The burn is prepared by the vault of the refund configuration, on its chain,
 called by its router, and the refund world's registry has the burned asset's local token and
@@ -419,6 +424,8 @@ def Properties.PreparedBurnRefundToL2Satisfiable : Prop :=
     ∧ w.vault.token r.assetId = NativeTokenVaultBase.widen s.config.tokenAddress
     ∧ w.vault.originChain r.assetId = s.config.originChainId
     ∧ r.depositor ≠ r.data.receiver
+    -- the burn goes to another chain, which is not the router's `L1_CHAIN_ID`
+    ∧ r.destinationChain ≠ cfg.base.thisChain
     ∧ r.destinationChain ≠ cfg.l1Chain ∧ cfg.l1Router ≠ cfg.base.router
     ∧ w.paused = false ∧ w.vault.originChain r.assetId ≠ cfg.base.thisChain
     ∧ w.vault.token r.assetId ≠ 0

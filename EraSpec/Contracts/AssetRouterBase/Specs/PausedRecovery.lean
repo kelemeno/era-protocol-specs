@@ -56,8 +56,9 @@ def unpauseVault (w : World X) : Option (World X) :=
 /-- The bundle has a call to the router whose data `recoverAtomicCall` decodes as a
 `finalizeDeposit` (`L2AssetRouter.sol:285-293`).  Every router-produced bundle call to another L2
 is one (`routerCall`), and so is a direct call that names the router with such data.  A
-router-produced call to L1 is not one: it carries the same data, but its target is
-`L1_ASSET_ROUTER` (`L2AssetRouter.sol:336`; `AtomicRecoveryFaithful.routerCallTo`). -/
+router-produced call to L1 carries the same data, but its target is `L1_ASSET_ROUTER`
+(`L2AssetRouter.sol:336`; `AtomicRecoveryFaithful.routerCallTo`), so it is not one unless
+`L1_ASSET_ROUTER` equals `L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`). -/
 def HasRouterDeposit (cfg : Config) (calls : List Call) : Prop :=
   ∃ c ∈ calls, c.target = cfg.router ∧ ∃ src a m, c.data = .finalizeDeposit src a m
 

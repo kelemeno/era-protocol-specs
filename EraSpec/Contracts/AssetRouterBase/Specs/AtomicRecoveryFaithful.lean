@@ -7,7 +7,8 @@ Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (`contracts/` b
 `l1-contracts/contracts/`).  One check is read from another tree, `e561b9cc2`, the snapshot of
 `feat/upgrade-simplification` that this repository's upgrade models pin.  That tree is not a
 successor of the pin: the two diverge at `76f40b530`, with 20 commits only on the pin's side and
-752 only on the other's.  It is "the other tree" below, and it is cited only for that check.
+752 only on the other's.  It is "the other tree" below, and it is cited only for that check
+and the matching check in its `_recoverBundle`.
 
 **This file is definitions only.**  The results are in
 `EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecoveryFaithful` and proved in
@@ -115,9 +116,9 @@ code at that address does (`L1LegRefundBypassesRouter`, `L1LegClaimOnlyByForeign
   are: pause and reentrancy (`:266`), ERC-7930 parsing (`:268-272, 285-288`), attribute parsing
   (`:294-308, 318`), the salt (`:479-483`), the destination base token (`:491-497`, which rejects
   only an unregistered destination other than L1), the router's own `initiateIndirectCall` and
-  burn (`:714-716`), the center's check that the router returned the starter's
-  `interopCallValue` (`IndirectCallValueMismatch`, `:723-729`), its parse of the returned address
-  (`:732`), fees and `msg.value` (`:548-567`, where an L1 destination is fee-free on both paths),
+  burn (`:714-716`), the center's parse of the returned call attributes (`:719-722`), its check
+  that the router returned the starter's `interopCallValue` (`IndirectCallValueMismatch`,
+  `:723-729`), its parse of the returned address (`:732`), fees and `msg.value` (`:548-567`, where an L1 destination is fee-free on both paths),
   and the manager's `append` (`:650-655`).
 * Two of the omitted steps depend on atomicity.  Attribute parsing decodes the three fields of
   the `atomicBundle` attribute only when it is present (`:877-880`, `AttributesDecoder.sol:21-25`)
@@ -232,7 +233,8 @@ This is the formed call only for an indirect starter whose recipient is the rout
 describes.  A direct starter (`:741-750`) and an indirect starter through another
 `IL2CrossChainSender` form other calls, which are not modelled.  For an L1 destination the pin
 admits neither (`:529-533`; `Properties.PinL1SendIsRouterStarter`).  The statements apply
-`formedCall` to `routerStarter` only. -/
+`formedCall` to `routerStarter` only.  The mint data is taken as decodable (`some md`), as in
+`routerCall`. -/
 def formedCall (cfg : FConfig) (dest : Chain) (s : Starter) (assetId : AssetId) (md : MintData) :
     Call :=
   ⟨destinationRouter cfg dest, s.recipient, s.callValue,

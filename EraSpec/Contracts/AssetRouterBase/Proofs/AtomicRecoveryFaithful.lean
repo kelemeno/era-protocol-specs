@@ -408,9 +408,12 @@ theorem PreparedBurnRefundFailsToL1 : Properties.PreparedBurnRefundFailsToL1 := 
   obtain ⟨out, hout⟩ := fBurn_prepares 1
   obtain ⟨hchain, hvault, hrouter, hcaller⟩ := fBurn_on_fCfg 1
   have hdest : (fBurn 1).destinationChain = fCfg.l1Chain := rfl
+  have hother : (fBurn 1).destinationChain ≠ fCfg.base.thisChain := by
+    show (1 : Chain) ≠ 7
+    decide
   refine ⟨Unit, NativeTokenVaultBase.witnessPrepHooks, fPrepState, fBurn 1, out, Unit, wEnc, fCfg,
     okHooks, codelessOther, fWorld, (), (), fPrep_wellFormed, hout, hchain, hvault, hrouter,
-    hcaller, (fWorld_same_asset 1).1, (fWorld_same_asset 1).2, hdest, fCfg_l1Router_ne,
+    hcaller, (fWorld_same_asset 1).1, (fWorld_same_asset 1).2, hother, hdest, fCfg_l1Router_ne,
     codelessOther_at, rfl, fWorld_known.1, fWorld_known.2, rfl, rfl, ?_, ?_⟩
   · rw [Contracts.AssetRouter.AtomicRecovery.PreparedBurnRefundsDepositor Unit
       NativeTokenVaultBase.witnessPrepHooks fPrepState (fBurn 1) out fPrep_wellFormed hout Unit wEnc
@@ -479,9 +482,12 @@ theorem PreparedBurnRefundToL2Satisfiable : Properties.PreparedBurnRefundToL2Sat
   have hd : (fBurn 8).destinationChain ≠ fCfg.l1Chain := by
     show (8 : Chain) ≠ 1
     decide
+  have hother : (fBurn 8).destinationChain ≠ fCfg.base.thisChain := by
+    show (8 : Chain) ≠ 7
+    decide
   refine ⟨Unit, NativeTokenVaultBase.witnessPrepHooks, fPrepState, fBurn 8, out, Unit, wEnc, fCfg,
     okHooks, codelessOther, fWorld, (), fPrep_wellFormed, hout, hchain, hvault, hrouter, hcaller,
-    (fWorld_same_asset 8).1, (fWorld_same_asset 8).2, by decide, hd, fCfg_l1Router_ne, rfl,
+    (fWorld_same_asset 8).1, (fWorld_same_asset 8).2, by decide, hother, hd, fCfg_l1Router_ne, rfl,
     fWorld_known.1, fWorld_known.2, rfl, ?_⟩
   rw [PreparedBurnRefundsDepositorToL2 Unit NativeTokenVaultBase.witnessPrepHooks fPrepState
     (fBurn 8) out fPrep_wellFormed hout Unit wEnc fCfg okHooks codelessOther

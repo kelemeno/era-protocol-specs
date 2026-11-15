@@ -173,7 +173,8 @@ succeeds.
 
 `routerCall`, `PausedRecovery` and `AssetBridgePreparation`'s `FullRecovery` are
 unchanged. Their statements are about calls that target the router, which a
-router-produced call to L1 does not.
+router-produced call to L1 does not, unless `L1_ASSET_ROUTER` equals
+`L2_ASSET_ROUTER_ADDR`.
 
 | Result | Statement |
 |---|---|
@@ -194,7 +195,7 @@ Environment premises: `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`) 
 instances with a prepared burn (`PreparedBurnRefundFailsToL1`,
 `PreparedBurnRefundToL2Satisfiable`, `AtomicL1LegIsStranded`) tie the burning vault to
 the refund configuration: same chain, the vault's own address, its router, and the
-burn's caller. The two with a refund world also have its registry agree with the vault
+burn's caller; the burn goes to another chain. The two with a refund world also have its registry agree with the vault
 on the asset's local token and origin chain.
 
 That L1 never executes an unpublished atomic bundle is argued from source, not

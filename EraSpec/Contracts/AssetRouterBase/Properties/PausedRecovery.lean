@@ -24,6 +24,8 @@ Statements about `EraSpec.Contracts.AssetRouterBase.Specs.PausedRecovery`.  Proo
   unpause return exactly that world, where the same claim succeeds with the same result.
   `PausedPreparedBurnRefundDelayed` gives the outcome concretely for a burn the vault prepared:
   it reverts while paused, and after unpausing the depositor is re-minted the burned amount.
+  It is stated on `routerCall`, which is the router-produced call only for a destination other
+  than L1 (`AtomicRecoveryFaithful`).
 
 Every property with premises has a witness below (`PausedRecoveryWitness`).
 -/
@@ -117,7 +119,8 @@ def Properties.PausedClaimRetriedAfterUnpause : Prop :=
 `Contracts.AssetRouter.AtomicRecovery.Properties.PreparedBurnRefundsDepositor`: the vault prepared
 a burn, the refund world knows the asset as bridged, and its tracker hook returns.  While the
 vault is paused, the router call carrying the burn's mint data reverts.  On the same world
-unpaused, it re-mints exactly the burned amount to the depositor. -/
+unpaused, it re-mints exactly the burned amount to the depositor.  The call is `routerCall`, the
+router-produced call for a destination other than L1; for L1 see `AtomicRecoveryFaithful`. -/
 def Properties.PausedPreparedBurnRefundDelayed : Prop :=
   ∀ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
     (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc),
