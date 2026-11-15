@@ -17,8 +17,9 @@ statement about the registration-only fragment of `AllWriters`
 the initializers (`setNativeTokenVault`, `initL2`), the L2 counterpart's
 `setAssetHandlerAddress`, and the L1 owner's `setAssetDeploymentTracker`.
 `AtomicRecovery` models `L2AssetRouter.recoverAtomicCall` and the refund loop that
-calls it. `AtomicRecoveryFaithful` repairs one place where that model differs from
-the source: the target of a router-produced call to L1.
+calls it. `AtomicRecoveryFaithful` models one place where that model differs from
+the source, the target of a router-produced call to L1, and restates the results
+that depend on it. `AtomicRecovery.routerCall` itself is unchanged.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -136,7 +137,7 @@ threaded state (`AtomicFlowManager.sol:165-180, 219-230`).
 | `CustomHandlerDepositRefundReverts` | Headline (a): the refund of a custom-handler deposit reverts. |
 | `CustomHandlerBundleNeverRefunded` | Headline (b): one such call blocks every claim of its bundle, vault-asset calls included, in every registry state the model reaches. Also `UnknownAssetOutcomeBlocksClaim`, `ClaimRevertsWithUnknownAssetCall`, `LegNeverRefunded`; concrete: `CustomHandlerBundleIsStranded`. |
 | `ClaimSucceedsIffAccepted` | The stateful loop succeeds iff the outcome list satisfies `RecoveryLimits.ClaimAccepted`. |
-| `PreparedBurnRefundsDepositor` | Headline (c): router-produced calls on assets the vault knows refund the burn's original caller the burned amount (`KnownBridgedAssetRefundsOriginalCaller`, `NativeAssetRefundsOriginalCaller`, `RefundIgnoresRemoteReceiver`). |
+| `PreparedBurnRefundsDepositor` | Headline (c): router-produced calls on assets the vault knows refund the burn's original caller the burned amount (`KnownBridgedAssetRefundsOriginalCaller`, `NativeAssetRefundsOriginalCaller`, `RefundIgnoresRemoteReceiver`). This is about `routerCall`, which is the router-produced call only for a destination other than L1. For an L1 destination the call targets `L1_ASSET_ROUTER` and the result does not apply: see `AtomicRecoveryFaithful` below. |
 | `RefundIgnoresCallSender`, `DirectCallIsRefunded`, `DirectCallMintsUnbacked` | Countermodel: the refund cannot see a call's sender, so a direct call with self-written mint data is refunded although nothing was burned. |
 | `RecoveryOnlyByManager`, `VaultRefundOnlyByRouter` | Only the manager invokes recovery; only the router invokes the vault's refund. |
 
@@ -160,33 +161,61 @@ maintainer of this repo, not yet confirmed upstream):
 `AtomicRecovery.routerCall` always targets `L2_ASSET_ROUTER_ADDR`. The router chooses
 the target by destination: `_chainId == L1_CHAIN_ID ? address(L1_ASSET_ROUTER) :
 request.l2Contract` (`L2AssetRouter.sol:336`). `routerCallTo` models that choice, and
-`CenterEnv`/`PinSendChecks`/`pinSend` model the checks of `InteropCenter.sendBundle`
-that restrict an L1 destination, plus `_validateAtomicBundle` and `_dispatchBundle`'s
-branch. The other send checks read no atomic flag and are omitted (listed in the
-Specs header); the admission results do not say every send succeeds.
+`formedCall` the call the center forms from a starter routed through the router
+(`InteropCenter.sol:709-740`). `CenterEnv`/`PinSendChecks`/`pinSend` model the checks of
+`InteropCenter.sendBundle` that restrict an L1 destination, plus `_validateAtomicBundle`
+and `_dispatchBundle`'s branch. The other send steps are omitted and listed in the Specs
+header. Two of them depend on atomicity: the decoding of the `atomicBundle` attribute,
+and the manager's `append`, which runs only for an atomic send. That the omitted steps
+otherwise treat an atomic send to L1 like the L2→L1 withdrawal is argued from source.
+The admission results are about the modelled checks only; they do not say every send
+succeeds.
+
+`routerCall`, `PausedRecovery` and `AssetBridgePreparation`'s `FullRecovery` are
+unchanged. Their statements are about calls that target the router, which a
+router-produced call to L1 does not.
 
 | Result | Statement |
 |---|---|
 | `RouterCallToL2IsModelled`, `RouterCallToL1RetargetsModelled` | Off L1 the real call is `routerCall`, so every `AtomicRecovery` result on `routerCall` holds for it; to L1 only the target differs. No premises. |
-| `L1LegRefundBypassesRouter`, `L1LegClaimOnlyByForeignCode` | With `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR`, the refund of an L2→L1 call is whatever the code at the L1 router's address on L2 does, and a one-call claim succeeds exactly when that code returns `true`. Concrete: `L1LegForeignTrueClosesWithoutRefund` (a foreign `true` closes the leg, nothing refunded). |
+| `RouterStarterFormsRouterCall` | The call the center forms from the router's starter is `routerCallTo` if and only if the center's `L2_ASSET_ROUTER_ADDR` is the router's address. |
+| `L1LegRefundBypassesRouter`, `L1LegClaimOnlyByForeignCode` | With `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR`, the refund of an L2→L1 call is whatever the code at the L1 router's address on L2 does, and a one-call claim succeeds exactly when that code returns `true`. Witness: `L1LegForeignTrueClosesWithoutRefund` (a foreign `true` that changes nothing closes the leg, nothing refunded). |
 | `L1LegRefundReverts`, `L1LegNeverRefunded` | Adding `CodelessAt` (no code at that address, `VM-CALL`), the refund reverts and every claim of every bundle containing the call reverts, in every leg state and world. |
 | `PreparedBurnRefundsDepositorToL2`, `PreparedBurnRefundByDestination` | Headline (c) on the real call: holds off L1 (witness `PreparedBurnRefundToL2Satisfiable`); for every destination, an exact case split. |
-| `PreparedBurnRefundFailsToL1` | Countermodel: one burn to L1 meets every premise of `AtomicRecovery.PreparedBurnRefundsDepositor`; the modelled call is refunded, the real one reverts. |
-| `PinAdmitsAtomicL1Leg`, `PinAtomicityIrrelevantToL1`, `UpgradeGuardRejectsAtomicL1` | At the pin, atomicity never changes whether an L1 send passes the modelled checks; it only turns publication into `append`. The upgrade's guard (`e561b9cc2`, `InteropCenter.sol:550-554`) rejects the atomic L1 send. |
-| `AtomicL1LegIsStranded` | Headline (d), concrete: a prepared burn to L1 debits the depositor, the pin appends its atomic bundle instead of publishing it, and no claim of that bundle ever succeeds. |
-| `CustomHandlerBundleIsStrandedToL2` | `AtomicRecovery.CustomHandlerBundleIsStranded` on the real calls of a two-call bundle to another L2 that passes `PinSendChecks`. |
+| `PreparedBurnRefundFailsToL1` | Countermodel: one burn to L1 meets every premise of `AtomicRecovery.PreparedBurnRefundsDepositor`; the modelled call is refunded, the real one reverts, under the two environment premises. |
+| `PinAdmitsAtomicL1Leg`, `PinAtomicityIrrelevantToL1`, `PinL1SendIsRouterStarter` | At the pin, atomicity never changes whether an L1 send passes the modelled checks; it only turns publication into `append`. The only starter list those checks admit for L1 is the router's one starter. |
+| `UpgradeGuardRejectsAtomicL1` | The guard of the other tree, `e561b9cc2` (`InteropCenter.sol:550-554`), rejects the atomic L1 send. That tree is not a successor of the pin. |
+| `AdmittedAtomicL1LegNeverRefunded` | Headline (d). Premises: the center is on an L2, the center and the router agree on `L1_CHAIN_ID` and `L2_ASSET_ROUTER_ADDR`, and the two environment premises. Then the atomic one-starter send to L1 passes the modelled checks and is appended instead of published, the call the center forms from the starter is the router-produced call to L1, and no claim of that bundle ever succeeds, in any world and leg state. |
+| `AtomicL1LegIsStranded` | Headline (d), one instance: a burn prepared by the configuration's own vault, on its chain, called by its router, debits the depositor, and the bundle formed with its mint data is stranded. |
+| `CustomHandlerBundleIsStrandedToL2` | `AtomicRecovery.CustomHandlerBundleIsStranded` on the real calls of a two-call bundle to another L2 that passes `PinSendChecks`. The bundle the center forms from the two starters is the bundle of the two router-produced calls. |
 
 Environment premises: `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`) and
-`CodelessAt other L1_ASSET_ROUTER` (`VM-CALL`, one address). No hash premise. That L1
-never executes an unpublished atomic bundle rests on message-inclusion soundness
-(`PROTO-EVIDENCE`) and is argued from source, not modelled; so are `append`'s own
-checks and the step that moves such a leg to `Revertable`.
+`CodelessAt other L1_ASSET_ROUTER` (`VM-CALL`, one address). No hash premise. The three
+instances with a prepared burn (`PreparedBurnRefundFailsToL1`,
+`PreparedBurnRefundToL2Satisfiable`, `AtomicL1LegIsStranded`) tie the burning vault to
+the refund configuration: same chain, the vault's own address, its router, and the
+burn's caller. The two with a refund world also have its registry agree with the vault
+on the asset's local token and origin chain.
 
-Possible finding (one agent's analysis, not independently verified; not reported
-upstream): at the pin an atomic bundle to L1 is admitted and appended, never
-published, and its refund cannot reach the router, so the burned amount is neither
-minted on L1 nor refunded (`AtomicL1LegIsStranded`). The upgrade tree `e561b9cc2`
-rejects it at send time and in `_recoverBundle`.
+That L1 never executes an unpublished atomic bundle is argued from source, not
+modelled here. This chain's half of it, that the bytes of an atomic dispatch are never
+the bytes of a bundle published to L1, is `Contracts.InteropCenter.AtomicBytesNeverPublished`
+(under `EncInjOn`, except a pinned cross-sender salt clash). The L1 side rests on
+message-inclusion soundness (`PROTO-EVIDENCE`). That `append` accepts such a leg, and
+the step that moves it to `Revertable`, are argued from source too.
+
+Possible finding (one agent's analysis; one independent review of this model, on
+2026-11-14, re-traced the send, execution and refund paths in the pinned source and
+agreed; no severity assessed; not reported upstream and not confirmed there). At the
+pin, an atomic one-call bundle to L1 passes the destination and atomicity checks and is
+dispatched to the manager's `append`, never published. If `L1_ASSET_ROUTER` is not
+`L2_ASSET_ROUTER_ADDR` and has no code on the L2, the refund of that bundle cannot reach
+the router, so the burned amount is neither minted on L1 nor refunded
+(`AdmittedAtomicL1LegNeverRefunded`, instance `AtomicL1LegIsStranded`). Without the
+no-code premise the refund is whatever the code at that address does
+(`L1LegClaimOnlyByForeignCode`). The other tree, `e561b9cc2`, rejects the send
+(`InteropCenter.sol:550-554`) and the recovery of an L1-destined bundle
+(`AtomicFlowManager.sol:295`).
 
 ## Assumptions to review
 

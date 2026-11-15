@@ -4,7 +4,10 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
 # Model: the router-produced bundle call's target depends on its destination
 
 Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (`contracts/` below is
-`l1-contracts/contracts/`).  The upgrade tree `e561b9cc2` is cited only for the fix.
+`l1-contracts/contracts/`).  One check is read from another tree, `e561b9cc2`, the snapshot of
+`feat/upgrade-simplification` that this repository's upgrade models pin.  That tree is not a
+successor of the pin: the two diverge at `76f40b530`, with 20 commits only on the pin's side and
+752 only on the other's.  It is "the other tree" below, and it is cited only for that check.
 
 **This file is definitions only.**  The results are in
 `EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecoveryFaithful` and proved in
@@ -12,9 +15,10 @@ Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (`contracts/` b
 
 ## What `AtomicRecovery` merges
 
-`AtomicRecovery.Config.router` is documented as "the target of every router-produced bundle
-call", and `AtomicRecovery.routerCall` hard-codes that target.  The router chooses the target by
-destination (`bridge/asset-router/L2AssetRouter.sol:333-341`, inside `initiateIndirectCall`):
+Before this topic, `AtomicRecovery.Config.router` was documented as "the target of every
+router-produced bundle call".  `AtomicRecovery.routerCall` still hard-codes that target.  The
+router chooses the target by destination (`bridge/asset-router/L2AssetRouter.sol:333-341`, inside
+`initiateIndirectCall`):
 
     address destinationAssetRouter = _chainId == L1_CHAIN_ID ? address(L1_ASSET_ROUTER) : request.l2Contract;
     interopCallStarter = InteropCallStarter({
@@ -28,9 +32,14 @@ nonzero).  The data is the same `finalizeDeposit(block.chainid, assetId, bridgeM
 both branches (`AssetRouterBase.sol:361, 378-384`).  The center copies the returned address into
 the bundle call's `to`, and sets `from` to the starter's recipient and `value` to the starter's
 `interopCallValue` (`interop/InteropCenter.sol:732-740`).  So an L2→L1 router-produced call targets
-the L1 router's address on L1, not `L2_ASSET_ROUTER_ADDR`.  The `L2AssetRouter.sol:233-234` that
-`Config.router`'s docstring cites for "the same address on every chain" is a comment in
-`_isValidInteropSender` about ZK chains only.
+the L1 router's address on L1, not `L2_ASSET_ROUTER_ADDR`.  The old docstring cited
+`L2AssetRouter.sol:233-234` for "the same address on every chain".  That is a comment on
+`_isValidInteropSender` about ZKsync chains only.  The docstring now gives the target by
+destination.
+
+`AtomicRecovery.routerCall` is unchanged, and so are the two topics built on it,
+`AssetRouterBase/PausedRecovery` and `Protocol/AssetBridgePreparation/FullRecovery`.  Their
+statements are about calls that target the router.  A router-produced call to L1 is not one.
 
 ## An atomic L2→L1 leg is admitted at the pin
 
@@ -51,16 +60,23 @@ L1 never executes such a leg.  `executeAtomicBundle` exists only in
 `interop/interop-handler/L2InteropHandler.sol:49`.  `L1InteropHandler` executes only bundles proven
 as L2→L1 messages from the interop center (`InteropHandlerBase.sol:86-123, 296-316`;
 `L1InteropHandler.sol:68-77`), and unbundles only verified ones (`InteropHandlerBase.sol:195`).
-An atomic bundle is never sent as such a message.  That step rests on message-inclusion
-soundness (`PROTO-EVIDENCE`) and is argued from source, not modelled.
+An atomic bundle is never sent as such a message: the only `sendToL1` of a bundle is on the
+non-atomic branch (`InteropCenter.sol:626, 657`).  This chain's half of that is already proved in
+the center's model, as `Contracts.InteropCenter.Properties.AtomicBytesNeverPublished`: along a run
+whose encoder separates its bundles (`EncInjOn`), the bytes of an atomic dispatch differ from the
+bytes of every public dispatch, unless the two dispatches are a cross-sender salt clash
+(`CrossSenderSaltClash`).  No result of this topic uses it.  What stays argued from source is the
+L1 side: that L1 executes nothing but included messages rests on message-inclusion soundness
+(`PROTO-EVIDENCE`), and bundles published by other chains are outside the center's one-chain
+model.
 
-The upgrade rejects the combination at the top of `_sendBundle` (upgrade
+The other tree rejects the combination at the top of `_sendBundle` (other tree,
 `interop/InteropCenter.sol:550-554`):
 
     if (_atomicSend.isAtomic) { require(_destinationChainId != L1_CHAIN_ID, AtomicBundleToL1NotSupported()); }
     else { require(_destinationChainId == L1_CHAIN_ID, NonAtomicSendUnsupported()); }
 
-The upgrade's `_recoverBundle` also rejects an L1-destined bundle (upgrade
+Its `_recoverBundle` also rejects an L1-destined bundle (other tree,
 `atomic-interop/AtomicFlowManager.sol:295`).
 
 ## Its refund does not reach the router
@@ -68,7 +84,7 @@ The upgrade's `_recoverBundle` also rejects an L1-destined bundle (upgrade
 `_recoverBundle` (`atomic-interop/AtomicFlowManager.sol:219-230`) calls
 `IAtomicRecoverable(c.to).recoverAtomicCall(destChainId, c.data)` with no `try/catch`.  For an
 L2→L1 leg, `c.to` is the L1 router's address, so the call goes to that address on L2.  The vault's
-refund is `onlyAssetRouter` (`bridge/ntv/NativeTokenVaultBase.sol:106-109, 217`), so no code at
+refund is `onlyAssetRouter` (`bridge/ntv/NativeTokenVaultBase.sol:107-110, 217`), so no code at
 that address can run it.
 
 Whether that address has code on L2 is an environment fact (`VM-CALL`), stated here as a premise
@@ -88,22 +104,34 @@ code at that address does (`L1LegRefundBypassesRouter`, `L1LegClaimOnlyByForeign
 * `routerCallTo` is the call the router produces for a destination.  For a destination other than
   `l1Chain` it is `AtomicRecovery.routerCall` exactly.  For `l1Chain` it differs from
   `AtomicRecovery.routerCall` in its target alone.
+* `formedCall` is the bundle call the center forms from one starter that is routed through this
+  router (`_processCallStarter`, `InteropCenter.sol:709-740`).  For the router's own starter
+  (`routerStarter`) it is `routerCallTo` exactly when the center's `L2_ASSET_ROUTER_ADDR` is the
+  router's address.  Calls formed from a direct starter, or through another
+  `IL2CrossChainSender`, are not modelled.  For an L1 destination the pin admits neither.
 * The send-side model (`PinSendChecks`, `pinSend`) keeps the checks of `sendBundle` that restrict
-  an L1 destination (`_ensureValidDestination` and the loop checks, as listed above) and the one
-  check that only an atomic send runs (`_validateAtomicBundle`).  The other checks are left out,
-  and none of them reads the atomic flag.  So each treats an atomic send like the same send without
-  the `atomicBundle` attribute.  They are: pause and reentrancy, ERC-7930 parsing, attribute
-  parsing, the salt, the destination base token (`:491-497`, which rejects only an unregistered
-  destination other than L1), the router's own `initiateIndirectCall` and burn, fees and
-  `msg.value` (`:548-567`, where an L1 destination is fee-free on both paths).  The one exception is
-  the manager's `append`, which runs only for an atomic send.  It needs an `Unset` leg and an
-  accepted commitment-tree insertion (`AtomicFlowManager.sol:87-102`).  The salt makes the bundle
-  hash fresh (`:479-483, 507`), and the sender supplies the low-nullifier index.  So the admission
-  results say that the L1-destination and atomicity checks accept the send, and that the omitted
-  checks cannot tell it from the canonical L2→L1 withdrawal.  They do not say that every send
-  succeeds.
-* `UpgradeAtomicityGuard` is only the upgrade's new check.  The rest of the upgrade's send path is
-  not modelled.
+  an L1 destination (`_ensureValidDestination` and the loop checks, as listed above), and
+  `_validateAtomicBundle`, which only an atomic send runs.  The other checks are left out.  They
+  are: pause and reentrancy (`:266`), ERC-7930 parsing (`:268-272, 285-288`), attribute parsing
+  (`:294-308, 318`), the salt (`:479-483`), the destination base token (`:491-497`, which rejects
+  only an unregistered destination other than L1), the router's own `initiateIndirectCall` and
+  burn (`:714-716`), the center's check that the router returned the starter's
+  `interopCallValue` (`IndirectCallValueMismatch`, `:723-729`), its parse of the returned address
+  (`:732`), fees and `msg.value` (`:548-567`, where an L1 destination is fee-free on both paths),
+  and the manager's `append` (`:650-655`).
+* Two of the omitted steps depend on atomicity.  Attribute parsing decodes the three fields of
+  the `atomicBundle` attribute only when it is present (`:877-880`, `AttributesDecoder.sol:21-25`)
+  and rejects a second one (`:844`).  A well-formed attribute passes.  `append` runs only for an
+  atomic send (`:646-655`).  It needs an `Unset` leg and an accepted commitment-tree insertion
+  (`AtomicFlowManager.sol:87-102`).  The salt makes the bundle hash fresh (`:479-483, 507`), and
+  the sender supplies the low-nullifier index.  The other omitted checks do not read the atomic
+  flag, which is set at `:252` and `:880` and read only at `:646`.
+* So the admission results say only that the modelled checks accept the send.  That the omitted
+  checks treat an atomic send to L1 like the canonical L2→L1 withdrawal, apart from the two steps
+  above, is argued here from the source.  No Lean result states it, and none says that every
+  send succeeds.
+* `UpgradeAtomicityGuard` is only the check the other tree has.  The rest of that tree's send
+  path is not modelled.
 * `msg.value`, events, the asset tracker's L1 accounting, and the flow-level proofs that move a
   leg to `Revertable` are not modelled.  The stranding results hold for every leg state.
 -/
@@ -168,20 +196,47 @@ structure Starter where
   /-- `callAttributes.interopCallValue`, which becomes the formed call's `value` (`:738, :747`). -/
   callValue : UInt256
 
-/-- The interop center's chain parameters. -/
+/-- The interop center's chain parameters.  The center and the router are separate contracts on
+one chain, and the two sides are kept as separate records.  `Properties.RouterStarterFormsRouterCall`
+and `Properties.AdmittedAtomicL1LegNeverRefunded` take the agreement they need as a premise. -/
 structure CenterEnv where
-  /-- `block.chainid`. -/
+  /-- `block.chainid`, as the center reads it (`InteropCenter.sol:380-381`).  No universally
+  quantified result compares it with the router's `block.chainid` (`FConfig.base.thisChain`): the
+  stranding of an L1 leg does not depend on the source chain id in the call's data.  The concrete
+  instances have the two equal. -/
   thisChain : Chain
   /-- `InteropCenter.L1_CHAIN_ID` (`InteropCenter.sol:90`, written by `initL2`, `:199`).  It is a
-  different storage slot from the router's `L1_CHAIN_ID`.  The results that join the two sides
-  take their equality as a premise. -/
+  different storage slot from the router's `L1_CHAIN_ID`.  `Properties.AdmittedAtomicL1LegNeverRefunded`
+  takes their equality as a premise. -/
   l1Chain : Chain
-  /-- `L2_ASSET_ROUTER_ADDR`. -/
+  /-- `L2_ASSET_ROUTER_ADDR`, as the center reads it (`InteropCenter.sol:531`).  At the source this
+  is one compile-time constant (`common/l2-helpers/L2ContractAddresses.sol:94`), the address
+  `FConfig.base.router` also stands for.  The model keeps the two fields apart, and the results
+  that join the two sides take `l2Router = base.router` as a premise. -/
   l2Router : Address
 
 /-- The router-routed indirect starter of a deposit or withdrawal: recipient the L2 router,
 indirect, zero `interopCallValue`. -/
 def routerStarter (env : CenterEnv) : Starter := ⟨env.l2Router, true, 0⟩
+
+/-- **The bundle call the center forms from one starter routed through this router**
+(`_processCallStarter`, indirect branch, `InteropCenter.sol:709-740`), given the `assetId` and the
+`bridgeMintCalldata` of the burn that the router's `initiateIndirectCall` made for the starter
+(`L2AssetRouter.sol:320-326`).  `to` is the address the router returned (`:732, :736`;
+`L2AssetRouter.sol:336-338`), which is `destinationRouter cfg dest`.  `from` is the starter's
+recipient (`:739`), the contract whose `initiateIndirectCall` the center called.  `value` is the
+starter's `interopCallValue` (`:738`).  `data` is the returned
+`finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)` (`:737`; `L2AssetRouter.sol:339`).
+
+This is the formed call only for an indirect starter whose recipient is the router that `cfg`
+describes.  A direct starter (`:741-750`) and an indirect starter through another
+`IL2CrossChainSender` form other calls, which are not modelled.  For an L1 destination the pin
+admits neither (`:529-533`; `Properties.PinL1SendIsRouterStarter`).  The statements apply
+`formedCall` to `routerStarter` only. -/
+def formedCall (cfg : FConfig) (dest : Chain) (s : Starter) (assetId : AssetId) (md : MintData) :
+    Call :=
+  ⟨destinationRouter cfg dest, s.recipient, s.callValue,
+    .finalizeDeposit cfg.base.thisChain assetId (some md)⟩
 
 /-- **The checks of `sendBundle` at the pin that restrict an L1 destination, and the atomic-only
 check.**  `_ensureValidDestination` (`InteropCenter.sol:378-385`); for an L1 destination, the loop
@@ -222,9 +277,10 @@ def pinSend (env : CenterEnv) (dest : Chain) (starters : List Starter) (isAtomic
     Option Dispatch :=
   if PinSendChecks env dest starters isAtomic then some (dispatchOf isAtomic) else none
 
-/-- **The upgrade's added check** (upgrade `interop/InteropCenter.sol:550-554`): an atomic send
-must not go to L1 (`AtomicBundleToL1NotSupported`), and a non-atomic send must go to L1
-(`NonAtomicSendUnsupported`). -/
+/-- **The check the other tree has** (`e561b9cc2`, `interop/InteropCenter.sol:550-554`): an
+atomic send must not go to L1 (`AtomicBundleToL1NotSupported`), and a non-atomic send must go to L1
+(`NonAtomicSendUnsupported`).  "Upgrade" in the name is that tree's branch,
+`feat/upgrade-simplification`.  The tree is not a successor of the pin (see the header). -/
 def UpgradeAtomicityGuard (env : CenterEnv) (dest : Chain) (isAtomic : Bool) : Prop :=
   (isAtomic = true → dest ≠ env.l1Chain) ∧ (isAtomic = false → dest = env.l1Chain)
 
