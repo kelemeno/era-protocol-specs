@@ -40,6 +40,8 @@ import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonical
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
+import EraSpec.Contracts.AtomicFlowManager.Proofs.ModelStrong
+import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimitsStrong
 
 -- AtomicInteropProof: finalization, timeout, source binding, and proof snapshots
 import EraSpec.Contracts.AtomicInteropProof.Proofs.TimeoutSoundness
@@ -66,6 +68,9 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.RunHeight
 -- Interop handlers and the bundle encoding library
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthority
+import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineFaithful
+import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
+import EraSpec.Contracts.InteropHandlerBase.Proofs.ValueLedgerFaithful
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
 
@@ -133,9 +138,11 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.DiamondStorage
 import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorCheck
 import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorScan
 import EraSpec.Contracts.ChainTypeManager.Proofs.Enabledness
+import EraSpec.Contracts.ChainTypeManager.Proofs.EngineGettersFaithful
 import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorRowsUnvalidated
 import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorUpgradeChain
 import EraSpec.Contracts.ChainTypeManager.Proofs.GenesisWriters
+import EraSpec.Contracts.ChainTypeManager.Proofs.LegacyCrossingFaithful
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
@@ -179,6 +186,17 @@ import EraSpec.Contracts.FullMerkle.Proofs.TreeShapeStrong
 import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinnedStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ModelStrong
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
+
+-- Strengthened handler statements (InteropHandlerBase, L2InteropHandler)
+import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
+import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
+
+-- Strengthened row-application liveness and parked-CTM exits (ProxyUpgradeRowLib, RegistryBootstrapMigration)
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
+import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop

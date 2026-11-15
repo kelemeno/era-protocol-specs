@@ -37,12 +37,16 @@ exact named propositions, plus auxiliary lemmas.
 | LiveRouting | [Specs/LiveRouting.lean](Specs/LiveRouting.lean) | [Properties/LiveRouting.lean](Properties/LiveRouting.lean) | [Proofs/LiveRouting.lean](Proofs/LiveRouting.lean) |
 | DuplicateSelectorScan | [Specs/DuplicateSelectorScan.lean](Specs/DuplicateSelectorScan.lean) | [Properties/DuplicateSelectorScan.lean](Properties/DuplicateSelectorScan.lean) | [Proofs/DuplicateSelectorScan.lean](Proofs/DuplicateSelectorScan.lean) |
 | GenesisWriters | [Specs/GenesisWriters.lean](Specs/GenesisWriters.lean) | [Properties/GenesisWriters.lean](Properties/GenesisWriters.lean) | [Proofs/GenesisWriters.lean](Proofs/GenesisWriters.lean) |
+| EngineGettersFaithful | [Specs/EngineGettersFaithful.lean](Specs/EngineGettersFaithful.lean) | [Properties/EngineGettersFaithful.lean](Properties/EngineGettersFaithful.lean) | [Proofs/EngineGettersFaithful.lean](Proofs/EngineGettersFaithful.lean) |
+| LegacyCrossingFaithful | [Specs/LegacyCrossingFaithful.lean](Specs/LegacyCrossingFaithful.lean) | [Properties/LegacyCrossingFaithful.lean](Properties/LegacyCrossingFaithful.lean) | [Proofs/LegacyCrossingFaithful.lean](Proofs/LegacyCrossingFaithful.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
 the `Properties` segment. `GenesisWriters` uses the sub-namespace
 `Contracts.ChainTypeManager.GenesisWriters` (statements
-`Contracts.ChainTypeManager.GenesisWriters.Properties.*`).
+`Contracts.ChainTypeManager.GenesisWriters.Properties.*`); likewise `EngineGettersFaithful`
+uses `Contracts.ChainTypeManager.EngineGetters` and `LegacyCrossingFaithful` uses
+`Contracts.ChainTypeManager.LegacyCrossing`.
 
 The topics after `ChainMigration` extend the first four:
 
@@ -52,6 +56,8 @@ The topics after `ChainMigration` extend the first four:
 - liveness: `Enabledness`, `DuplicateSelectorCheck`;
 - the routing guard by its code: `DiamondStorage`, `LiveRouting`, `DuplicateSelectorScan`;
 - chain creation by its code: `GenesisWriters`.
+- faithfulness repairs of the executor topics: `EngineGettersFaithful` (the engine's own
+  getters), `LegacyCrossingFaithful` (pre-v35 chains crossing opaque legacy edges themselves).
 
 Each section below says how its model relates to the one it extends. None is composed
 with another unless its section says so.
@@ -181,7 +187,9 @@ bare transition step and adds the chain admin's direct `Admin.upgradeChainFromVe
   (`RefinedRunIsAnExecutorRun`), and every executor run is a refined run whose crossings are
   `forward`s of the CTM call (`ExecutorRunsNeedNoUpgradeChain`), so both reach the same
   states. The routing headline holds whatever replacements report
-  (`RefinedTameRunKeepsChainsOnTheirRelease`).
+  as `oldProtocolVersion()` (`RefinedTameRunKeepsChainsOnTheirRelease`). The model runs every
+  object's derived cuts and lands on its `newProtocolVersion()`; for the getters only the
+  engine reads, see `EngineGettersFaithful`.
 - **Liveness depends on what the slot's transition reports.** `upgradeChain` is enabled exactly
   when the chain can cross and the slot's transition reports the chain's version
   (`UpgradeChainEnabledIff`). With reporting slots it is exactly the transition step
@@ -384,6 +392,55 @@ rows):
   flattened step admits a release the code refuses (`SelectorlessRowRevertsCreation`).
 - Witnesses: `GenesisWritersWitness`, `CodeRunWitness`.
 
+**EngineGettersFaithful** (the getters `DefaultUpgrade.upgradeFromTransition` reads and the CTM
+never checks: `facetCuts()` and `upgradeTarget()`, `upgrades/DefaultUpgrade.sol:30-44, 66-67`;
+refines the transition step of `ExecutorUpgradeChain`):
+
+- The derived cut list, applied action by action with `Diamond.sol`'s semantics, is
+  `ChainRouting`'s `applyDerived` (`DerivedCutsAreApplyDerived`). With every committed slot
+  holding an object whose two getters are what a `CTMTransition` returns (`SlotsDerived`), a
+  refined step is exactly a `ChainRouting` step (`DerivedEngineStepIsAStep`), and a refined run
+  that commits or installs only such objects is an `ExecutorUpgradeChain` run
+  (`DerivedEngineRunIsAUpgradeChainRun`).
+- **The headline with the premise explicit**: `DerivedEngineTameRunKeepsChainsOnTheirRelease`.
+  No premise on what replacements report as `oldProtocolVersion()`.
+- **Load-bearing.** `replaceUpgradeTransition` checks neither getter
+  (`ChainTypeManager.sol:429-457`). A replacement `400` that passes every check the model keeps
+  (`World.Genuine`) but adds one selector to its cuts leaves chain `0` at version 2 routing
+  more than release `200` after a tame run (`ForeignCutsBreakTheHeadline`); one whose
+  `upgradeTarget()` lands on 3 instead of 2 puts the chain ahead of its CTM, and after a tame
+  commit to 3 the chain does not route release `250` (`ForeignTargetBreaksTheHeadline`). Both
+  need the owner to commit or install a non-`CTMTransition` object.
+- Witness: `EngineGettersWitness`.
+
+**LegacyCrossingFaithful** (a pre-v35 chain's admin or validator calling the cut-taking
+`Admin.upgradeChainFromVersion(_, old, cut)` on the chain's own diamond, `c67894b9`
+`state-transition/chain-deps/facets/Admin.sol:494-525`, against the hash the CTM still serves,
+`ChainTypeManager.sol:876-878` at `e561b9cc2`):
+
+- A crossing writes exactly what `Step.arbitraryCut` writes (`CrossIsABreakGlassStep`), and keeps
+  `SysInv` iff it lands its chain consistent with the CTM (`CrossKeepsSysInvIff`).
+- **The source reading of the tame headlines is false**
+  (`ChainSideCrossingBreaksTameHeadline`). A tame `forward` of `setUpgradeDiamondCut(cut, 0)`
+  re-commits the bootstrap edge with an opaque cut; pre-registry chain `5` crosses it on its own
+  diamond and ends at version 1 not routing release `100`. `SysInv` fails, and no tame
+  `ExecutorForward` or `ExecutorUpgradeChain` run reaches that state. So
+  `TameRunPreservesSysInv`, `TameRunKeepsChainsOnTheirRelease`,
+  `RefinedTameRunKeepsChainsOnTheirRelease` and `TamePremiseImpliesChainLocal` hold of their
+  models but not of "every run whose executor transactions are tame" once such chains act.
+- **What survives.** Counting crossings as break-glass, the old conclusions stand
+  (`CrossFreeRunsAreUpgradeChainRuns`, `TameRefinedRunKeepsChainsOnTheirRelease`). With every
+  crossing landing consistently (a property of the opaque cut the owner committed), `SysInv`
+  and the headline hold (`LandingRunPreservesSysInv`). With no premise on crossings, per chain:
+  `CrossRunIsARoutingRun`, `ChainRunsItsVersionsReleaseAcrossCrossings`, and
+  `ExecTamePremiseImpliesChainLocal` for every chain no crossing names. The slot results are
+  unaffected (`MisreportingSlotStaysFrozenAcrossCrossings`,
+  `GenuineReplacementsKeepUpgradeChainLiveAcrossCrossings`).
+- Dispatch is not modelled: the step exists for every chain at an opaque edge, while in the
+  source only chains still routing a v31-v34 `Admin` facet can take it. That only adds runs; the
+  countermodel and witness use pre-registry chains of the bootstrap states.
+- Witness: `LegacyCatchUpWitness` (a lagging pre-registry chain catches up with no owner action).
+
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises. Each later topic lists
 its own above.
@@ -415,6 +472,12 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
   - `ChainMigration` and `ExecutorForward` steps are not lifted to `DStep`.
 - The upgrade engine named by a transition is assumed to run `DefaultUpgrade`'s logic.
   A transition's cuts are assumed to be `CTMTransition`'s derived cuts.
+  `EngineGettersFaithful` makes the second assumption (and that `upgradeTarget()` lands on
+  `newProtocolVersion()`) an explicit premise, `EngineDerived`, and shows it is load-bearing.
+- Outside `LegacyCrossingFaithful`, a pre-v35 chain's own call of the cut-taking
+  `upgradeChainFromVersion` is not an executor transaction of any topic: `ExecutorForward`
+  reaches the routing label `arbitraryCut` only through a forwarded CTM call, which `Tame`
+  excludes. `LegacyCrossingFaithful` adds it and says which executor headlines survive.
 - In `ExecutorForward`, a CTM code swap (forwarded, or by an infrastructure row naming the
   CTM proxy) leaves the CTM's version state arbitrary; ownership transfers through
   `forward` (modelled for the authority state in `../RegistryBootstrapMigration/`, topic

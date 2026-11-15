@@ -1,0 +1,1235 @@
+{
+  "date": "2026-11-13",
+  "repository": "https://github.com/kelemeno/era-protocol-specs",
+  "integration_branch": "claude/proof-round-6",
+  "integration_snapshot_commit": "6fa71e0f383760b3d42955687683bcaab72cdfd0",
+  "scope": "All 98 local branch heads immediately before the handoff documentation commit; the documentation commit advances only claude/proof-round-6. Existing remote-only branches remain on origin.",
+  "verification": "All 98 snapshot branch heads matched origin via git ls-remote; all 80 registered worktrees had empty git status --porcelain=v1 -uall.",
+  "new_wip_checkpoint_commits": 44,
+  "worktrees_checked": 80,
+  "branches": [
+    {
+      "branch": "claude/codegen-token-slice",
+      "checkpoint_commit": "24afbe406c9c078e4747ba46fd4d8f9ebf469033",
+      "remote_ref": "refs/heads/claude/codegen-token-slice",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/claude/codegen-token-slice",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/coverage-round6",
+      "checkpoint_commit": "000028d9b1d8a9e3e15593f897f8cd97712f4df9",
+      "remote_ref": "refs/heads/claude/coverage-round6",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/coverage2-round6",
+      "checkpoint_commit": "000028d9b1d8a9e3e15593f897f8cd97712f4df9",
+      "remote_ref": "refs/heads/claude/coverage2-round6",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/port-bridge-upgrade",
+      "checkpoint_commit": "b0c8b8619d0462120e5eb1081d46a36060be4f41",
+      "remote_ref": "refs/heads/claude/port-bridge-upgrade",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/claude/port-bridge-upgrade",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/proof-attempt-4f3778",
+      "checkpoint_commit": "98016f001c4873d3f16e38a99bbb157f726b8c32",
+      "remote_ref": "refs/heads/claude/proof-attempt-4f3778",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/claude/proof-attempt-4f3778",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/proof-attempt-handoff-caa64d",
+      "checkpoint_commit": "df2cc1ba721dbb38d06083b3eec7e80f5ffa1a51",
+      "remote_ref": "refs/heads/claude/proof-attempt-handoff-caa64d",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/proof-round-5",
+      "checkpoint_commit": "000028d9b1d8a9e3e15593f897f8cd97712f4df9",
+      "remote_ref": "refs/heads/claude/proof-round-5",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/claude/proof-round-5",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/proof-round-6",
+      "checkpoint_commit": "6fa71e0f383760b3d42955687683bcaab72cdfd0",
+      "remote_ref": "refs/heads/claude/proof-round-6",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ProxyUpgradeRowLib/README.md"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/upgrade-round6",
+      "checkpoint_commit": "000028d9b1d8a9e3e15593f897f8cd97712f4df9",
+      "remote_ref": "refs/heads/claude/upgrade-round6",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "claude/what-is-this-646950",
+      "checkpoint_commit": "3a1c799773604b3b1de5beb66ac7aa0b195bd060",
+      "remote_ref": "refs/heads/claude/what-is-this-646950",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "codex/handoff-2026-11-13-cov-chain-admin-wt",
+      "checkpoint_commit": "6fc09d14b12f134cf0d49910cdf5e2882350f1dd",
+      "remote_ref": "refs/heads/codex/handoff-2026-11-13-cov-chain-admin-wt",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ChainAdmin/Proofs/Basics.lean",
+        "EraSpec/Contracts/ChainAdmin/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": true
+    },
+    {
+      "branch": "codex/handoff-2026-11-13-cov2-e2e-deposit",
+      "checkpoint_commit": "5b4559e8c967590d16495129c1cd7c90222c50af",
+      "remote_ref": "refs/heads/codex/handoff-2026-11-13-cov2-e2e-deposit",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Protocol/DepositWithdrawConservation/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": true
+    },
+    {
+      "branch": "codex/handoff-2026-11-13-proof-attempt-4f3778",
+      "checkpoint_commit": "37cfd1d4d64fabb0d571dbeb74cabdcd04cf2b80",
+      "remote_ref": "refs/heads/codex/handoff-2026-11-13-proof-attempt-4f3778",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/AdminFacet/Proofs/Access.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/Basic.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/NatSpec.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/PriorityMode.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/Upgrade.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/Access.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/NatSpec.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/PriorityMode.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/Upgrade.lean",
+        "EraSpec/Contracts/AdminFacet/Specs/AdminFacet.lean",
+        "EraSpec/Contracts/AdminFacet/Specs/Mutants.lean",
+        "EraSpec/Contracts/Bridgehub/Proofs/Registry.lean",
+        "EraSpec/Contracts/Bridgehub/Properties/Registry.lean",
+        "EraSpec/Contracts/Bridgehub/README.md",
+        "EraSpec/Contracts/Bridgehub/Specs/Registry.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Proofs/Migration.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Proofs/Pause.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Properties/Migration.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Properties/Pause.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Specs/Migration.lean",
+        "EraSpec/Contracts/ChainTypeManager/Properties/UpgradeWedgeV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/Specs/UpgradeWedgeV35.lean",
+        "EraSpec/Contracts/L1Nullifier/Proofs/Model.lean",
+        "EraSpec/Contracts/L1Nullifier/Properties/Model.lean",
+        "EraSpec/Contracts/L1Nullifier/README.md",
+        "EraSpec/Contracts/L1Nullifier/Specs/Model.lean",
+        "EraSpec/Contracts/SecondProofSystem/Specs/FlagAuthorityV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": true
+    },
+    {
+      "branch": "codex/prepared-application-guarantees",
+      "checkpoint_commit": "0f830e8d18dc3e97db78896da93e7c7c03a370e6",
+      "remote_ref": "refs/heads/codex/prepared-application-guarantees",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/codex/prepared-application-guarantees",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/admin-facet",
+      "checkpoint_commit": "484e7547c3db614af9a37b94bab0cc3bfe954773",
+      "remote_ref": "refs/heads/cov/admin-facet",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/Access.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/Basic.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/NatSpec.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/PriorityMode.lean",
+        "EraSpec/Contracts/AdminFacet/Proofs/Upgrade.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/Access.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/NatSpec.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/PriorityMode.lean",
+        "EraSpec/Contracts/AdminFacet/Properties/Upgrade.lean",
+        "EraSpec/Contracts/AdminFacet/README.md",
+        "EraSpec/Contracts/AdminFacet/Specs/AdminFacet.lean",
+        "EraSpec/Contracts/AdminFacet/Specs/Mutants.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/bridgehub",
+      "checkpoint_commit": "a9740658e0a812341e4fc3981a47f954f0fecc64",
+      "remote_ref": "refs/heads/cov/bridgehub",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec/Contracts/Bridgehub/Proofs/Registry.lean",
+        "EraSpec/Contracts/Bridgehub/Properties/Registry.lean",
+        "EraSpec/Contracts/Bridgehub/README.md",
+        "EraSpec/Contracts/Bridgehub/Specs/Registry.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/chain-admin",
+      "checkpoint_commit": "933e534a22f199b0c89bced575ce15c1d8469aaa",
+      "remote_ref": "refs/heads/cov/chain-admin",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ChainAdmin/Proofs/Basics.lean",
+        "EraSpec/Contracts/ChainAdmin/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/chain-asset-handler",
+      "checkpoint_commit": "293f2bb79d319836cf06f4979ffeecab999cfb51",
+      "remote_ref": "refs/heads/cov/chain-asset-handler",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ChainAssetHandler/Proofs/Migration.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Proofs/Pause.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Properties/Migration.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Properties/Pause.lean",
+        "EraSpec/Contracts/ChainAssetHandler/Specs/Migration.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/diamond",
+      "checkpoint_commit": "44f8bf12677e056b20b782a3808b33570f46be76",
+      "remote_ref": "refs/heads/cov/diamond",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "T.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/executor",
+      "checkpoint_commit": "f79d770ea9af215e9ceb9d42a480e43fd597449f",
+      "remote_ref": "refs/heads/cov/executor",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ExecutorFacet/Proofs/Invariant.lean",
+        "EraSpec/Contracts/ExecutorFacet/Proofs/StepFacts.lean",
+        "EraSpec/Contracts/ExecutorFacet/Properties/Pipeline.lean",
+        "EraSpec/Contracts/ExecutorFacet/Specs/Pipeline.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/governance",
+      "checkpoint_commit": "ef201d22f92a6259a88275c3397ed98db353ee0e",
+      "remote_ref": "refs/heads/cov/governance",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/interop-root",
+      "checkpoint_commit": "3b9074e4c9fafa016bde082a399314c10016df76",
+      "remote_ref": "refs/heads/cov/interop-root",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/InteropRootStorage/Specs/Verification.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/l1-nullifier",
+      "checkpoint_commit": "990ebe35917c19e251aa2ae9dd8838e39aae6b01",
+      "remote_ref": "refs/heads/cov/l1-nullifier",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/mailbox",
+      "checkpoint_commit": "212f84679fc66b2bdaf2a09a2c4f70131cdf9ea6",
+      "remote_ref": "refs/heads/cov/mailbox",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/MailboxFacet/Proofs/PriorityTree.lean",
+        "EraSpec/Contracts/MailboxFacet/Properties/PriorityTree.lean",
+        "EraSpec/Contracts/MailboxFacet/Specs/PriorityTree.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/message-root",
+      "checkpoint_commit": "ff668cb47c21f209ca0d00a8eebd9a63e3b73543",
+      "remote_ref": "refs/heads/cov/message-root",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/MessageRoot/Proofs/Countermodels.lean",
+        "EraSpec/Contracts/MessageRoot/Proofs/Invariant.lean",
+        "EraSpec/Contracts/MessageRoot/Proofs/Model.lean",
+        "EraSpec/Contracts/MessageRoot/Proofs/Steps.lean",
+        "EraSpec/Contracts/MessageRoot/Properties/Countermodels.lean",
+        "EraSpec/Contracts/MessageRoot/Properties/Model.lean",
+        "EraSpec/Contracts/MessageRoot/Specs/Countermodels.lean",
+        "EraSpec/Contracts/MessageRoot/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov/validator-timelock",
+      "checkpoint_commit": "87cddbfd940bbb1cd40535378fa6dd7375adc359",
+      "remote_ref": "refs/heads/cov/validator-timelock",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ValidatorTimelock/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/da",
+      "checkpoint_commit": "7dd67bf15179f5b89b8c5957cdea00405b3a77bf",
+      "remote_ref": "refs/heads/cov2/da",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/DataAvailability/Proofs/Bytes.lean",
+        "EraSpec/Contracts/DataAvailability/Proofs/RollupDAManager.lean",
+        "EraSpec/Contracts/DataAvailability/Properties/RollupDAManager.lean",
+        "EraSpec/Contracts/DataAvailability/Specs/Common.lean",
+        "EraSpec/Contracts/DataAvailability/Specs/OtherValidators.lean",
+        "EraSpec/Contracts/DataAvailability/Specs/RollupDAManager.lean",
+        "EraSpec/Contracts/DataAvailability/Specs/RollupL1DAValidator.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/e2e-deposit",
+      "checkpoint_commit": "adba0e8066721d3d5e60ee0e3efaa21cfa82145c",
+      "remote_ref": "refs/heads/cov2/e2e-deposit",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Protocol/DepositWithdrawConservation/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/e2e-migration",
+      "checkpoint_commit": "503b7a224c4853c142dd4efefc94ec387acc5371",
+      "remote_ref": "refs/heads/cov2/e2e-migration",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Protocol/ChainMigration/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/encodings",
+      "checkpoint_commit": "ac695bee3f03c90d644f19ccac1fcfd6bf36f504",
+      "remote_ref": "refs/heads/cov2/encodings",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/DataEncoding/Proofs/Abi.lean",
+        "EraSpec/Contracts/DataEncoding/Proofs/TransferData.lean",
+        "EraSpec/Contracts/DataEncoding/Properties/TransferData.lean",
+        "EraSpec/Contracts/DataEncoding/Specs/Abi.lean",
+        "EraSpec/Contracts/DataEncoding/Specs/TransferData.lean",
+        "EraSpec/Contracts/InteroperableAddress/Properties/Erc7930.lean",
+        "EraSpec/Contracts/InteroperableAddress/Specs/Erc7930.lean",
+        "EraSpec/Contracts/SemVer/Proofs/SemVer.lean",
+        "EraSpec/Contracts/SemVer/Properties/SemVer.lean",
+        "EraSpec/Contracts/SemVer/Specs/SemVer.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/l2-bridge",
+      "checkpoint_commit": "7e243a8763b08edb2b20ba4e8a04f352a8969b61",
+      "remote_ref": "refs/heads/cov2/l2-bridge",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/L2AssetRouter/Specs/Basics.lean",
+        "EraSpec/Contracts/L2NativeTokenVault/Specs/Vault.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/l2-system",
+      "checkpoint_commit": "34f34e4ae995be048532b17ff95db9070046ce89",
+      "remote_ref": "refs/heads/cov2/l2-system",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/L2BaseToken/Proofs/Supply.lean",
+        "EraSpec/Contracts/L2BaseToken/Properties/Supply.lean",
+        "EraSpec/Contracts/L2BaseToken/Specs/Supply.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/l2-upgrades",
+      "checkpoint_commit": "fdbfba2891bce0114f689ded3fa02af5b825f40e",
+      "remote_ref": "refs/heads/cov2/l2-upgrades",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/L2ComplexUpgrader/Specs/SystemProxy.lean",
+        "EraSpec/Contracts/L2ComplexUpgrader/Specs/UpgradePath.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/merkle-libs",
+      "checkpoint_commit": "f76cf548d8f2f3f71c9b464e1cbfc1cc7f8aac3e",
+      "remote_ref": "refs/heads/cov2/merkle-libs",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/DynamicIncrementalMerkle/Proofs/Lemmas.lean",
+        "EraSpec/Contracts/DynamicIncrementalMerkle/Properties/Model.lean",
+        "EraSpec/Contracts/DynamicIncrementalMerkle/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/misc-core",
+      "checkpoint_commit": "6073f3518db393c1beb7aa7820bfbc1cb77b4001",
+      "remote_ref": "refs/heads/cov2/misc-core",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/L1InteropFeeManager/Proofs/Model.lean",
+        "EraSpec/Contracts/L1InteropFeeManager/Properties/Model.lean",
+        "EraSpec/Contracts/L1InteropFeeManager/Specs/Model.lean",
+        "EraSpec/Contracts/L2AdminFactory/Proofs/Model.lean",
+        "EraSpec/Contracts/L2AdminFactory/Properties/Model.lean",
+        "EraSpec/Contracts/L2AdminFactory/Specs/Model.lean",
+        "EraSpec/Contracts/ServerNotifier/Proofs/Model.lean",
+        "EraSpec/Contracts/ServerNotifier/Properties/Model.lean",
+        "EraSpec/Contracts/ServerNotifier/Specs/Model.lean",
+        "EraSpec/Contracts/TransitionaryOwner/Proofs/Model.lean",
+        "EraSpec/Contracts/TransitionaryOwner/Properties/Model.lean",
+        "EraSpec/Contracts/TransitionaryOwner/Specs/Model.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "cov2/verifier-routing",
+      "checkpoint_commit": "168ad3e9078e3cfd74af1c8a6ae619ca2e52a197",
+      "remote_ref": "refs/heads/cov2/verifier-routing",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/MultiProofVerifier/Proofs/Routing.lean",
+        "EraSpec/Contracts/MultiProofVerifier/Properties/Routing.lean",
+        "EraSpec/Contracts/MultiProofVerifier/Specs/Routing.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "master",
+      "checkpoint_commit": "3a1c799773604b3b1de5beb66ac7aa0b195bd060",
+      "remote_ref": "refs/heads/master",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/master",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/codex-findings-10",
+      "checkpoint_commit": "000028d9b1d8a9e3e15593f897f8cd97712f4df9",
+      "remote_ref": "refs/heads/salvage/codex-findings-10",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/codex-findings/10",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/codex-findings-11",
+      "checkpoint_commit": "cbbb4e442dc6a0360e50923d79db8262c97fc517",
+      "remote_ref": "refs/heads/salvage/codex-findings-11",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/InteropHandlerBase/Proofs/AtomicUnbundlingAtHead.lean",
+        "EraSpec/Contracts/InteropHandlerBase/Proofs/ReentrancyAtHead.lean",
+        "EraSpec/Contracts/InteropHandlerBase/Properties/AtomicUnbundlingAtHead.lean",
+        "EraSpec/Contracts/InteropHandlerBase/Properties/ReentrancyAtHead.lean",
+        "EraSpec/Contracts/InteropHandlerBase/Specs/ReentrancyAtHead.lean"
+      ],
+      "previous_upstream": "origin/wip/codex-findings/11",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/codex-findings-12",
+      "checkpoint_commit": "26af1c3f1c712ceed9e65709e9c529a7b49686ec",
+      "remote_ref": "refs/heads/salvage/codex-findings-12",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ChainTypeManager/Proofs/MutableSelectors.lean",
+        "EraSpec/Contracts/ChainTypeManager/Properties/MutableSelectors.lean",
+        "EraSpec/Contracts/ChainTypeManager/Specs/MutableSelectors.lean"
+      ],
+      "previous_upstream": "origin/wip/codex-findings/12",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/codex-findings-13",
+      "checkpoint_commit": "2475ddaabfecaea92bfc5f432ccbd62645bd49bd",
+      "remote_ref": "refs/heads/salvage/codex-findings-13",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/codex-findings/13",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/codex-findings-14",
+      "checkpoint_commit": "86db24020a5bf90e1850edbeed8c7e4ff9105ea5",
+      "remote_ref": "refs/heads/salvage/codex-findings-14",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec.lean",
+        "EraSpec/Protocol/InteropAtomicity/Proofs/BatchPosition.lean",
+        "EraSpec/Protocol/InteropAtomicity/Properties/BatchPosition.lean",
+        "EraSpec/Protocol/InteropAtomicity/README.md",
+        "EraSpec/Protocol/InteropAtomicity/Specs/BatchPosition.lean"
+      ],
+      "previous_upstream": "origin/wip/codex-findings/14",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/codex-findings-8",
+      "checkpoint_commit": "3fa93c33859963e20948b93b65b071150de5c040",
+      "remote_ref": "refs/heads/salvage/codex-findings-8",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/codex-findings/8",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/codex-findings-9",
+      "checkpoint_commit": "90b737e0b761d6ea48846f72d7e35ec8f3d5706a",
+      "remote_ref": "refs/heads/salvage/codex-findings-9",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/codex-findings/9",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-1",
+      "checkpoint_commit": "d70b27e41495f5ef55a7ef8d94d6e4d8b922185f",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-1",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/1",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-10",
+      "checkpoint_commit": "c67eef3cbf8b2a0f9e7d8d17faaa6f4c5d1754d7",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-10",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/10",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-2",
+      "checkpoint_commit": "86c620ec5f68c7c3e2966c481273fc0423c109c9",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-2",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/2",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-3",
+      "checkpoint_commit": "8368229896197252d6b870246074ae93f906b10a",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-3",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/3",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-4",
+      "checkpoint_commit": "df33676c407bf048969cd54daf79a77db57d0d78",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-4",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/4",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-5",
+      "checkpoint_commit": "718f9f0cf330bede0206b6fdaefdbcc2b9676eab",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-5",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/5",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-6",
+      "checkpoint_commit": "0418437c346c3778c07119113601a9353711a4b3",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-6",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/6",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-7",
+      "checkpoint_commit": "130b1f5f6e13c17cb049774658f59fd97af0ec45",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-7",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/7",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-8",
+      "checkpoint_commit": "d1a1778753baa40152ab8f5a2deebf85cc69bb1b",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-8",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/8",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/faithfulness-repair-9",
+      "checkpoint_commit": "42a37a9e93f4c7674db53f58f8fad18f75cdfbdd",
+      "remote_ref": "refs/heads/salvage/faithfulness-repair-9",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/faithfulness-repair/9",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/head-fixes-1",
+      "checkpoint_commit": "7321008057de5480e48295ce7e4965b5bd18dba6",
+      "remote_ref": "refs/heads/salvage/head-fixes-1",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec.lean",
+        "EraSpec/Contracts/L2InteropCommitmentTree/Properties/PaddingAtHead.lean",
+        "EraSpec/Contracts/L2InteropCommitmentTree/README.md",
+        "EraSpec/Contracts/L2InteropCommitmentTree/Specs/PaddingAtHead.lean",
+        "PROVENANCE.md",
+        "REVIEW.md"
+      ],
+      "previous_upstream": "origin/wip/head-fixes/1",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/head-fixes-2",
+      "checkpoint_commit": "48010946cb7cae8fa8c2b97b7a0a2fdc85db84ab",
+      "remote_ref": "refs/heads/salvage/head-fixes-2",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/AssetRouterBase/Proofs/AtomicRecoveryAtHead.lean",
+        "EraSpec/Contracts/AssetRouterBase/Properties/AtomicRecoveryAtHead.lean",
+        "EraSpec/Contracts/AssetRouterBase/Specs/AtomicRecoveryAtHead.lean"
+      ],
+      "previous_upstream": "origin/wip/head-fixes/2",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/head-fixes-3",
+      "checkpoint_commit": "a1d7242b3f494a9f48151ff64b163d70f55ea18b",
+      "remote_ref": "refs/heads/salvage/head-fixes-3",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec.lean",
+        "EraSpec/Contracts/AtomicFlowManager/Properties/FlowCanonicalAtHead.lean",
+        "EraSpec/Contracts/AtomicFlowManager/README.md",
+        "EraSpec/Protocol/InteropAtomicity/Proofs/FlowBindingAtHead.lean",
+        "EraSpec/Protocol/InteropAtomicity/Properties/FlowBindingAtHead.lean",
+        "EraSpec/Protocol/InteropAtomicity/README.md",
+        "EraSpec/Protocol/InteropAtomicity/Specs/FlowBindingAtHead.lean",
+        "PROVENANCE.md"
+      ],
+      "previous_upstream": "origin/wip/head-fixes/3",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/head-fixes-4",
+      "checkpoint_commit": "3a3a4851fa57b1c16e1eac0667f9c7766e6bd51f",
+      "remote_ref": "refs/heads/salvage/head-fixes-4",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec.lean",
+        "EraSpec/Protocol/InteropAtomicity/Proofs/LegSourceFilterAtV35.lean",
+        "EraSpec/Protocol/InteropAtomicity/Properties/LegSourceFilterAtV35.lean",
+        "EraSpec/Protocol/InteropAtomicity/README.md",
+        "EraSpec/Protocol/InteropAtomicity/Specs/LegSourceFilterAtV35.lean",
+        "PROVENANCE.md"
+      ],
+      "previous_upstream": "origin/wip/head-fixes/4",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/head-fixes-5",
+      "checkpoint_commit": "23dc96dfac98d9f3a32c1b87455e8134239d9739",
+      "remote_ref": "refs/heads/salvage/head-fixes-5",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec.lean",
+        "EraSpec/Contracts/ChainTypeManager/Proofs/ExecutorEngineAtV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/README.md",
+        "PROVENANCE.md"
+      ],
+      "previous_upstream": "origin/wip/head-fixes/5",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/head-fixes-6",
+      "checkpoint_commit": "4d61d0c5723ee45e38b9123a406f8c7dbb9f9166",
+      "remote_ref": "refs/heads/salvage/head-fixes-6",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec.lean",
+        "EraSpec/Contracts/ChainTypeManager/Proofs/ProofGateAtV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/Proofs/UpgradeTimingAtV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/Properties/ProofGateAtV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/Properties/UpgradeTimingAtV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/Specs/ProofGateAtV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/Specs/UpgradeTimingAtV35.lean"
+      ],
+      "previous_upstream": "origin/wip/head-fixes/6",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-1",
+      "checkpoint_commit": "4bd157d3a1ed3254f2208ad8d51039d7f8b95787",
+      "remote_ref": "refs/heads/salvage/strengthen-1",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/1",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-10",
+      "checkpoint_commit": "e61e38dc6bd64660f6f90013e99814606282b3bc",
+      "remote_ref": "refs/heads/salvage/strengthen-10",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/10",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-11",
+      "checkpoint_commit": "4d7f3ae9d22a4372498b824c1927b883b5602ceb",
+      "remote_ref": "refs/heads/salvage/strengthen-11",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/11",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-12",
+      "checkpoint_commit": "cbf25c1a33563fe6de36553ad13f20f9d1c8c063",
+      "remote_ref": "refs/heads/salvage/strengthen-12",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/12",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-13",
+      "checkpoint_commit": "d3c6a031df31e6248f4d2bb79d4acb26ba6a1df6",
+      "remote_ref": "refs/heads/salvage/strengthen-13",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/13",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-2",
+      "checkpoint_commit": "e81441e06c79aa63c7474d79680e0fbfea80c177",
+      "remote_ref": "refs/heads/salvage/strengthen-2",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/2",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-3",
+      "checkpoint_commit": "cc30c9ddd69584df4a5394e853ee46438556041d",
+      "remote_ref": "refs/heads/salvage/strengthen-3",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/3",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-4",
+      "checkpoint_commit": "d90e2e7c898fcad6a757f2985c00b021c92a4031",
+      "remote_ref": "refs/heads/salvage/strengthen-4",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/4",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-5",
+      "checkpoint_commit": "ebc92b7cc695f1aadb7a6684f940fc4ce327927e",
+      "remote_ref": "refs/heads/salvage/strengthen-5",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/5",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-6",
+      "checkpoint_commit": "b5a532341915b6869beb19a50d15aedcbb03e58c",
+      "remote_ref": "refs/heads/salvage/strengthen-6",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/6",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-7",
+      "checkpoint_commit": "fa1ff7fe694ad43b3a1e9cde0a66202dd3abb01d",
+      "remote_ref": "refs/heads/salvage/strengthen-7",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/7",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-8",
+      "checkpoint_commit": "dd3603c251198fa62513b0b38af593f942e72d1f",
+      "remote_ref": "refs/heads/salvage/strengthen-8",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/8",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "salvage/strengthen-9",
+      "checkpoint_commit": "08fbdd01500a7d8318c6054cba2fbd1939144341",
+      "remote_ref": "refs/heads/salvage/strengthen-9",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/wip/strengthen/9",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/core-domain-leg-v35",
+      "checkpoint_commit": "018c96729876a02fefce16e22db0e6ae43031764",
+      "remote_ref": "refs/heads/up/core-domain-leg-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Proofs/CoreLegV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Properties/CoreLegV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Specs/CoreLegV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/ctm-proxy-admin-aliasing-v35",
+      "checkpoint_commit": "fb1411b47a543b6b39d4a89e0a724717c36e2ef7",
+      "remote_ref": "refs/heads/up/ctm-proxy-admin-aliasing-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Proofs/DomainHoldersV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Properties/DomainHoldersV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Specs/DomainHoldersV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/engine-leg-authority-frame-v35",
+      "checkpoint_commit": "6a5d261462ac3c16ad181130dc4533895073a420",
+      "remote_ref": "refs/heads/up/engine-leg-authority-frame-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/RegistryBootstrapMigration/Proofs/AuthorityEngineV35.lean",
+        "EraSpec/Contracts/RegistryBootstrapMigration/Properties/AuthorityEngineV35.lean",
+        "EraSpec/Contracts/RegistryBootstrapMigration/Specs/AuthorityEngineV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/forward-is-not-the-only-bypass-v35",
+      "checkpoint_commit": "00fcd17de8c68e3c63930792c330c4e15f0b495e",
+      "remote_ref": "refs/heads/up/forward-is-not-the-only-bypass-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Specs/NatSpecForwardV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/leg-postcheck-v35",
+      "checkpoint_commit": "6f962066ec20ea7f55e3ce48228e2f1e5c1fce27",
+      "remote_ref": "refs/heads/up/leg-postcheck-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Proofs/EngineLegV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Properties/EngineLegV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Specs/EngineLegV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/notifier-binding-blind-spot-v35",
+      "checkpoint_commit": "e057fde617dfc20b4945c5cc23057ece901178af",
+      "remote_ref": "refs/heads/up/notifier-binding-blind-spot-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Proofs/NotifierBindingV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Properties/NotifierBindingV35.lean",
+        "EraSpec/Contracts/ProxyUpgradeExecutorBase/Specs/NotifierBindingV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/pending-l2-upgrade-wedge-v35",
+      "checkpoint_commit": "a7027f18d4c4eb41a869dbf38988128f1e65bc31",
+      "remote_ref": "refs/heads/up/pending-l2-upgrade-wedge-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/ChainTypeManager/Properties/UpgradeWedgeV35.lean",
+        "EraSpec/Contracts/ChainTypeManager/Specs/UpgradeWedgeV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/second-proof-across-migration-v35",
+      "checkpoint_commit": "d737e903a0cc310b5d7418eb854fdd3a67bfca55",
+      "remote_ref": "refs/heads/up/second-proof-across-migration-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/SecondProofSystem/Properties/MigrationV35.lean",
+        "EraSpec/Contracts/SecondProofSystem/Specs/MigrationV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/second-proof-flag-authority-v35",
+      "checkpoint_commit": "1586a33b5e1fb4e22379de2ee0f1f55b1ab997e9",
+      "remote_ref": "refs/heads/up/second-proof-flag-authority-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/SecondProofSystem/Proofs/FlagAuthorityV35.lean",
+        "EraSpec/Contracts/SecondProofSystem/Properties/FlagAuthorityV35.lean",
+        "EraSpec/Contracts/SecondProofSystem/Specs/FlagAuthorityV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/second-proof-upgrade-gate-v35",
+      "checkpoint_commit": "975d4d74198eafb8633cc1fd775190259fb7b201",
+      "remote_ref": "refs/heads/up/second-proof-upgrade-gate-v35",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/SecondProofSystem/Proofs/UpgradeGateV35.lean",
+        "EraSpec/Contracts/SecondProofSystem/Properties/UpgradeGateV35.lean",
+        "EraSpec/Contracts/SecondProofSystem/Specs/UpgradeGateV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "up/second-proof-upgrade-gate-v35-r2",
+      "checkpoint_commit": "d80e5727c7af35b0d20ab77fe50d5b81d8df57c7",
+      "remote_ref": "refs/heads/up/second-proof-upgrade-gate-v35-r2",
+      "contained_in_round6_at_snapshot": false,
+      "new_wip_checkpoint": true,
+      "checkpoint_files": [
+        "EraSpec/Contracts/SecondProofSystem/Proofs/UpgradeGateV35.lean",
+        "EraSpec/Contracts/SecondProofSystem/Properties/UpgradeGateV35.lean",
+        "EraSpec/Contracts/SecondProofSystem/Specs/UpgradeGateV35.lean"
+      ],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_137a7bf5-9a6-1",
+      "checkpoint_commit": "f98c40fb9787a23a30e6a5eefcc1cf378b41f20b",
+      "remote_ref": "refs/heads/worktree-wf_137a7bf5-9a6-1",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "origin/worktree-wf_137a7bf5-9a6-1",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_137a7bf5-9a6-2",
+      "checkpoint_commit": "d4dd4c43cf73f32a92181bbd2a300f213b90f3f4",
+      "remote_ref": "refs/heads/worktree-wf_137a7bf5-9a6-2",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_137a7bf5-9a6-3",
+      "checkpoint_commit": "9bf634e122f516c2a5b5aa23bd1588d60a7e0f76",
+      "remote_ref": "refs/heads/worktree-wf_137a7bf5-9a6-3",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_2802f775-8da-1",
+      "checkpoint_commit": "9a16381cd7a8a196f1a3a1f3ed2fb7fb6aa0ad21",
+      "remote_ref": "refs/heads/worktree-wf_2802f775-8da-1",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_2802f775-8da-2",
+      "checkpoint_commit": "d97202ca91487be25a738ff4a7504c08e8b81e50",
+      "remote_ref": "refs/heads/worktree-wf_2802f775-8da-2",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_2802f775-8da-3",
+      "checkpoint_commit": "433f9970e1b923cae8f69ef05840e3dfd4d35390",
+      "remote_ref": "refs/heads/worktree-wf_2802f775-8da-3",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_2802f775-8da-4",
+      "checkpoint_commit": "b6b6ce626a36b0f8c5ce991b53ae3515d305461e",
+      "remote_ref": "refs/heads/worktree-wf_2802f775-8da-4",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_a5b2e810-248-1",
+      "checkpoint_commit": "8513142a903fa6eec61eab20c9bfcbe13eba05bc",
+      "remote_ref": "refs/heads/worktree-wf_a5b2e810-248-1",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_ba0771f0-05f-1",
+      "checkpoint_commit": "4a0813e1ff9dea1fa5d6232f31226cec19161db9",
+      "remote_ref": "refs/heads/worktree-wf_ba0771f0-05f-1",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_ba0771f0-05f-2",
+      "checkpoint_commit": "15bdd8d8600fbfc8ca3ac097d59d41fe84681fa1",
+      "remote_ref": "refs/heads/worktree-wf_ba0771f0-05f-2",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_ba0771f0-05f-3",
+      "checkpoint_commit": "6cf034db37a3ad730877568094c69ab19380d696",
+      "remote_ref": "refs/heads/worktree-wf_ba0771f0-05f-3",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_e4c7bae6-671-1",
+      "checkpoint_commit": "cfa751df31ff5ab0ba87b7a1d0f4f35c074b7f11",
+      "remote_ref": "refs/heads/worktree-wf_e4c7bae6-671-1",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_e4c7bae6-671-2",
+      "checkpoint_commit": "a5a1ceaa2bacdcda3ee2bd2b3bde9a6511fb3a86",
+      "remote_ref": "refs/heads/worktree-wf_e4c7bae6-671-2",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    },
+    {
+      "branch": "worktree-wf_e4c7bae6-671-3",
+      "checkpoint_commit": "74225ca988eb0d4d603454e55464edea6fb9566d",
+      "remote_ref": "refs/heads/worktree-wf_e4c7bae6-671-3",
+      "contained_in_round6_at_snapshot": true,
+      "new_wip_checkpoint": false,
+      "checkpoint_files": [],
+      "previous_upstream": "",
+      "recovered_from_detached_worktree": false
+    }
+  ]
+}

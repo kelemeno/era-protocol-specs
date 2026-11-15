@@ -38,11 +38,15 @@ premise: the handler keys its state by the bundle hash, and so do the statements
 ## (b) A failing call rolls the execution back
 
 * **A reverting target reverts the whole execution** (`RevertingCallRevertsTheExecution`):
-  for every order, whatever the earlier targets committed.
+  for every order, whatever the earlier targets committed — for a target that is the leaf
+  `Callee.reverts`. The premise is syntactic: a target that reverts after nested work, or whose
+  uncaught re-entrant call fails, is not covered here. Topic `ReentrancyStrong` covers them
+  (`AlwaysRevertingTargetRevertsTheExecution`, `TargetRevertingWhereReachedRevertsTheExecution`).
 * **So a failed attempt can be retried** (`FailedAttemptCanBeRetried`): it leaves the state
   exactly as it was, so the bundle is still `Unreceived`, and a retry whose targets return
   delivers each call once and executes the bundle. This is `VM-REVERT` as modelled
-  (`Specs`, "A revert is `none`").
+  (`Specs`, "A revert is `none`"). Same leaf premise; the semantic form is
+  `ReentrancyStrong.FailedAttemptWithAlwaysRevertingTargetCanBeRetried`.
 * `FailedAttemptRetryWitness`: the failed attempt had executed another bundle re-entrantly;
   that is undone too. `CaughtReentrantRevertWitness`: a re-entrant execution that reverts
   inside a committed transaction is undone alone, and its bundle stays executable.
@@ -150,8 +154,13 @@ def Properties.ReentrantExecutionWitness : Prop :=
 /-! ## (b) A failing call rolls the execution back -/
 
 /-- **A REVERTING TARGET REVERTS THE WHOLE EXECUTION.** In every order, if the target of one of
-bundle `b`'s calls reverts, then `executeAtomicBundle` and `executeBundle` of `b` revert,
-whatever the targets before it did and committed in their own frames. -/
+bundle `b`'s calls is the leaf `Callee.reverts`, then `executeAtomicBundle` and `executeBundle` of
+`b` revert, whatever the targets before it did and committed in their own frames. The premise is
+syntactic, on the top-level callee list: a target that does nested work and then reverts, or whose
+uncaught re-entrant call fails, does not satisfy it although it reverts the execution. Those are
+`ReentrancyStrong.AlwaysRevertingTargetRevertsTheExecution` (a target that reverts from every state)
+and `TargetRevertingWhereReachedRevertsTheExecution` (one that reverts where the loop reaches
+it). -/
 def Properties.RevertingCallRevertsTheExecution : Prop :=
   ∀ (v : Variant) (n : ℕ) (b : Bundle) (ok : Bool) (cs : List Callee) (s : State),
     Callee.reverts ∈ cs.take b.calls →
@@ -159,7 +168,9 @@ def Properties.RevertingCallRevertsTheExecution : Prop :=
       exec v n (.entry (.executeBundle b ok) cs) s = none
 
 /-- **SO A FAILED ATTEMPT CAN BE RETRIED.** If bundle `b` is `Unreceived` and one of its calls'
-targets reverts, the transaction `executeAtomicBundle(b)` leaves the state exactly as it was
+targets is the leaf `Callee.reverts` (for every target that reverts from every state, see
+`ReentrancyStrong.FailedAttemptWithAlwaysRevertingTargetCanBeRetried`), the transaction
+`executeAtomicBundle(b)` leaves the state exactly as it was
 and commits nothing: the status write before the calls is undone, so `b` is still
 `Unreceived`. From that same state, a retry whose targets return delivers each of `b`'s calls
 once, in order, executes `b`, and leaves it `FullyExecuted` with its calls `Executed`. -/

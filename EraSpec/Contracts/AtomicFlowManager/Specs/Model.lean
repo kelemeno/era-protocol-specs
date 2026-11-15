@@ -36,7 +36,11 @@ any run, `Reverted` is a fixed point, and no-double-refund is a corollary rather
 than a separate argument.  This is the state-machine analogue of the
 checked-then-set nullifier pattern, and it is why `claimRefund` needs no
 reentrancy guard: the flip to `Reverted` precedes the external calls, so a
-reentrant claim meets a leg that is no longer `Revertable`.
+reentrant claim meets a leg that is no longer `Revertable`.  That last argument
+is about the order of operations inside `claimRefund`, which `Step.claim` cannot
+express because it is a single atomic transition.  It is proved over a model with
+reentrant callbacks in `EraSpec.Contracts.AtomicFlowManager.Properties.ModelStrong`
+(`claim_order_decides_double_payout`).
 -/
 
 namespace Contracts.AtomicFlowManager
