@@ -23,7 +23,15 @@ The three gaps that resolve another transfer run a second one-unit transfer, `ga
 from the same starting balance.  The branch gap refunds `sampleTransfer` itself, on
 `twoRootHistory` with `twoRoots`: its leg has a BEGIN-branch timeout against `laterRoot` and an
 END-branch timeout against `earlyRoot`.  Both roots aggregate (`twoRoots_aggregate`), and every
-batch inside a root settled by its creation (`twoRoots_physical`).
+batch inside a root settled by its creation (`twoRoots_physical`).  The single-root gap refunds
+`sampleTransfer` itself on `splitHistory` with `demoRoots`, every root of which is
+`Contracts.Timeout.demoRoot`, through `twoLegFlow`: `demoLeg` has a BEGIN-branch timeout and
+`chainOneLeg` an END-branch timeout against that root.
+
+The two checked-execution gaps run on the halted history, with no prerequisite and with the
+zero-valued `zeroLeg`.  The §3 gap refunds `sampleTransfer` on the BEGIN branch on
+`splitHistory`, next to the honest END submission `chainOneSubmission`, whose leg is not a
+prerequisite of `sampleTransfer`.
 -/
 
 namespace Applications.BurnMintBridge.EndBranch
@@ -423,6 +431,88 @@ theorem begin_branch_refund_witness_branch_gap :
     demo_refund_run ⟨demoLeg, List.mem_singleton_self _, 1, twoRoots_beginVia⟩, rfl,
     demoLeg, List.mem_singleton_self _, ⟨1, twoRoots_beginVia⟩, 0, twoRoots_endVia⟩
 
+/-! ### One imported root, a second leg -/
+
+theorem chainOneLeg_ne_demoLeg : chainOneLeg ≠ demoLeg := fun h =>
+  absurd (congrArg Leg.sourceChain h) (by decide)
+
+theorem begin_branch_refund_witness_single_root_gap :
+    Properties.BeginBranchRefundWitnessSingleRootGap := by
+  have hb : BeginVia splitHistory (demoRoots 0) demoLeg := split_beginVia
+  have he : EndVia splitHistory (demoRoots 0) chainOneLeg := split_endVia
+  have hmem0 : demoLeg ∈ twoLegFlow sampleTransfer := by simp [twoLegFlow]
+  have hmem1 : chainOneLeg ∈ twoLegFlow sampleTransfer := by simp [twoLegFlow]
+  exact ⟨splitHistory, demoRoots, twoLegFlow, sampleTransfer, _,
+    ⟨splitHistory_valid, fun _ => split_aggregates, ⟨demoLeg, hmem0, 0, hb⟩,
+      demo_refund_run ⟨demoLeg, hmem0, 0, Or.inl hb⟩, rfl, rfl⟩,
+    fun _ => rfl, demo_refund_run ⟨demoLeg, hmem0, 0, hb⟩, rfl,
+    demoLeg, hmem0, chainOneLeg, hmem1, chainOneLeg_ne_demoLeg, hb, he⟩
+
+/-! ### The gaps of two older witnesses -/
+
+theorem checked_execution_witness_gap : Properties.CheckedExecutionWitnessGap := by
+  have hnone : (checkedEvidence haltedHistory demoRoots (fun _ => [])).finalize
+      sampleTransfer := by
+    intro l hl
+    simp at hl
+  refine ⟨haltedHistory, demoRoots, fun _ => [], _, _, sampleTransfer,
+    ⟨haltedHistory_valid, fun _ => halted_aggregates, demo_prepare, hnone, _, hnone,
+      demo_execute⟩, rfl, ?_⟩
+  rintro l hv ⟨n, -, hmem⟩
+  exact halted_never_on_time hv n hmem
+
+/-- The sentinel `0` is in the halted chain's genesis snapshot, settled at time `0`. -/
+theorem zeroLeg_onTime : OnTime haltedHistory zeroLeg :=
+  ⟨0, le_refl _, Finset.mem_image.mpr ⟨⟨0, 0⟩, Finset.mem_singleton_self _, rfl⟩⟩
+
+theorem checked_execution_witness_zero_value_gap :
+    Properties.CheckedExecutionWitnessZeroValueGap := by
+  have hfin : (checkedEvidence haltedHistory demoRoots (fun _ => [zeroLeg])).finalize
+      sampleTransfer := by
+    intro l hl
+    rw [List.mem_singleton.mp hl]
+    exact zeroLeg_onTime
+  refine ⟨haltedHistory, demoRoots, fun _ => [zeroLeg], _, _, sampleTransfer,
+    ⟨haltedHistory_valid, fun _ => halted_aggregates, demo_prepare, hfin, _, hfin,
+      demo_execute⟩, List.cons_ne_nil _ _, ?_, ?_⟩
+  · intro l hl
+    rw [List.mem_singleton.mp hl]
+    rfl
+  · rintro l hv ⟨n, -, hmem⟩
+    exact halted_never_on_time hv n hmem
+
+/-- `chainOneSubmission`'s path passes `_verifyLastBatchInRoot` against every chain's tree of
+`demoBacking`, as the demo submission's does. -/
+theorem chainOne_lastBatch :
+    Contracts.Timeout.LastBatchAccepted Contracts.Timeout.demoBacking chainOneLeg.sourceChain 1
+      chainOneSubmission.sibs chainOneSubmission.leaf :=
+  ⟨Contracts.Timeout.demo_endBranchAccepted.lastBatch.inRange,
+    Contracts.Timeout.demo_endBranchAccepted.lastBatch.authenticated,
+    Contracts.Timeout.demo_endBranchAccepted.lastBatch.zeroRightSiblings⟩
+
+theorem pinned_bridge_refund_witness_gap : Properties.PinnedBridgeRefundWitnessGap := by
+  have ha : EndAcceptedBy splitHistory demoRoots (fun _ => Contracts.Timeout.demoBacking)
+      chainOneSubmission :=
+    ⟨by decide, by decide, chainOne_lastBatch, genesis_gap_one⟩
+  have hnb : ¬ EndBreak (roots := demoRoots) (fun _ => Contracts.Timeout.demoBacking)
+      chainOneSubmission := by
+    rintro (hpb | hpc)
+    · rcases hpb with ⟨_, _, hlt, _⟩ | ⟨hlt, _⟩ <;> exact absurd hlt (by decide)
+    · exact MerkleSpec.Verifier.honest_walk_no_collision MerkleSpec.LastLeaf.demoHash 0
+        [5, 7] 2 1 hpc
+  refine ⟨MerkleSpec.LastLeaf.demoHash, 0, splitHistory, demoRoots,
+    fun _ => Contracts.Timeout.demoBacking, demoFlow, fun _ => chainOneSubmission,
+    sampleTransfer, _,
+    ⟨splitHistory_valid, fun _ => split_aggregates,
+      demo_refund_run (Or.inl ⟨demoLeg, List.mem_singleton_self _, 0, split_beginVia⟩),
+      rfl, rfl, ha, hnb, MerkleSpec.LastLeaf.demo_collides⟩,
+    ?_, ⟨demoLeg, List.mem_singleton_self _, 0, split_beginVia⟩, ?_⟩
+  · intro hmem
+    exact chainOneLeg_ne_demoLeg (mem_demoFlow hmem)
+  · intro l hl k
+    rw [mem_demoFlow hl]
+    exact beginVia_not_endVia splitHistory_valid split_beginVia
+
 end Applications.BurnMintBridge.EndBranch
 
 /-! ## Certificates -/
@@ -461,5 +551,14 @@ theorem BeginBranchRefundWitnessGap : Properties.BeginBranchRefundWitnessGap :=
   begin_branch_refund_witness_gap
 theorem BeginBranchRefundWitnessBranchGap : Properties.BeginBranchRefundWitnessBranchGap :=
   begin_branch_refund_witness_branch_gap
+theorem BeginBranchRefundWitnessSingleRootGap :
+    Properties.BeginBranchRefundWitnessSingleRootGap :=
+  begin_branch_refund_witness_single_root_gap
+theorem CheckedExecutionWitnessGap : Properties.CheckedExecutionWitnessGap :=
+  checked_execution_witness_gap
+theorem CheckedExecutionWitnessZeroValueGap : Properties.CheckedExecutionWitnessZeroValueGap :=
+  checked_execution_witness_zero_value_gap
+theorem PinnedBridgeRefundWitnessGap : Properties.PinnedBridgeRefundWitnessGap :=
+  pinned_bridge_refund_witness_gap
 
 end Applications.BurnMintBridge.EndBranch

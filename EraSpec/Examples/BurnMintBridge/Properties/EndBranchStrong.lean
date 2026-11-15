@@ -30,26 +30,29 @@ and point here.
   branch alone (`BeginBranchRefundWitnessGap`).  Still, in every world where the body holds,
   `i` itself can also be refunded on the BEGIN branch alone
   (`BeginBranchRefundWitnessRecordPinFree`).  What the statement does not exclude is an
-  END-branch timeout on a leg of `i` against another imported root
-  (`BeginBranchRefundWitnessBranchGap`), so it does not show that the BEGIN branch is needed.
-  `BeginBranchRefundWitnessPinned` excludes it.
+  END-branch timeout on a leg of `i`: on another leg, even against the same root
+  (`BeginBranchRefundWitnessSingleRootGap`, with one imported root); on the leg with the
+  BEGIN-branch timeout, against another imported root (`BeginBranchRefundWitnessBranchGap`).
+  So it does not show that the BEGIN branch is needed.  `BeginBranchRefundWitnessPinned`
+  excludes both.
 * `OnTimeLegExecutesWitness` was documented as a history "in which every prerequisite of a
   transfer is on time, and a run that executes it", and `CheckedExecutionWitness` as "a
   prepared transfer whose prerequisite is on time, and its authorized execution".  Neither
   asks `i` to have a prerequisite, and with `flow i = []` the on-time premise holds
-  vacuously: `OnTimeLegExecutesWitness`'s body is then met on a history where no nonzero value
-  is ever on time (`OnTimeLegExecutesWitnessGap`).  A prerequisite with commit value `0` does
-  not help either: `0` is the tree's sentinel key, in every snapshot of a valid history, so
-  such a leg is on time as soon as some batch of its chain settled by its deadline, with
-  nothing committed.  `OnTimeLegExecutesWitnessPinned` and `CheckedExecutionWitnessPinned` ask
-  for at least one prerequisite, each with a nonzero commit value.  Per world that is all
-  `OnTimeLegExecutesWitnessPinned` adds: its record pin comes free
-  (`OnTimeLegExecutesWitnessRecordPinFree`).
+  vacuously: each body is then met on a history where no nonzero value is ever on time
+  (`OnTimeLegExecutesWitnessGap`, `CheckedExecutionWitnessGap`).  A prerequisite with commit
+  value `0` does not help either: `0` is the tree's sentinel key, in every snapshot of a valid
+  history, so such a leg is on time as soon as some batch of its chain settled by its deadline,
+  with nothing committed (for `CheckedExecutionWitness`,
+  `CheckedExecutionWitnessZeroValueGap`).  `OnTimeLegExecutesWitnessPinned` and
+  `CheckedExecutionWitnessPinned` ask for at least one prerequisite, each with a nonzero commit
+  value.  Per world that is all `OnTimeLegExecutesWitnessPinned` adds: its record pin comes
+  free (`OnTimeLegExecutesWitnessRecordPinFree`).
 * `PinnedBridgeRefundWitness` was documented as a refund of the recorded transfer "on its END
   submission".  Its body asks that the transfer be refunded and that its END submission be
   accepted with no break, but not that the refund used that submission: the submission's leg
   need not be a prerequisite of the transfer, and a BEGIN-branch timeout may authorize the
-  refund.  `PinnedBridgeRefundWitnessLinked` excludes both.
+  refund (`PinnedBridgeRefundWitnessGap`).  `PinnedBridgeRefundWitnessLinked` excludes both.
 
 ## What is claimed
 
@@ -85,19 +88,25 @@ and point here.
   say which evidence paid: for `BeginBranchRefundWitnessPinned`, a BEGIN-branch timeout of a
   leg of `i`; for `PinnedBridgeRefundWitnessLinked`, the END submission of `i`.
 * **The gaps** (`EndBranchRefundWitnessGap`, `OnTimeLegExecutesWitnessGap`,
-  `BeginBranchRefundWitnessGap`, `BeginBranchRefundWitnessBranchGap`).  Each one's first
-  conjunct is the unpinned statement's body, verbatim, and its remaining conjuncts show what
-  that body allows.  `EndBranchRefundWitnessGap` and `BeginBranchRefundWitnessGap` show final
-  states that resolve another transfer.  `OnTimeLegExecutesWitnessGap` and
-  `BeginBranchRefundWitnessBranchGap` show worlds in which no final state meets the pinned
-  body.
+  `BeginBranchRefundWitnessGap`, `BeginBranchRefundWitnessBranchGap`,
+  `BeginBranchRefundWitnessSingleRootGap`; for the two older witnesses with stronger forms,
+  `CheckedExecutionWitnessGap`, `CheckedExecutionWitnessZeroValueGap` and
+  `PinnedBridgeRefundWitnessGap`).  Each one's first conjunct is the unpinned or older
+  statement's body, verbatim, and its remaining conjuncts show what that body allows.
+  `EndBranchRefundWitnessGap` and `BeginBranchRefundWitnessGap` show final states that resolve
+  another transfer.  `OnTimeLegExecutesWitnessGap`, `BeginBranchRefundWitnessBranchGap` and
+  `BeginBranchRefundWitnessSingleRootGap` show worlds in which no final state meets the pinned
+  body.  `CheckedExecutionWitnessGap` and `CheckedExecutionWitnessZeroValueGap` show histories
+  on which nothing meets `CheckedExecutionWitnessPinned`'s body, and
+  `PinnedBridgeRefundWitnessGap` a world in which no final state meets
+  `PinnedBridgeRefundWitnessLinked`'s body.
 
 The pinned witnesses, the stronger forms and the gaps are existential statements with no
 premise.  The per-world statements are equivalences with no premise.
 `ReachableResolutionAuthorizedByRecord` has only the `Run` premise, which the empty run meets,
 and the pinned refund witnesses reach states where its refund clause is not idle.  Only
-`PinnedBridgeRefundWitnessLinked` uses a hash: as in `PinnedBridgeRefundWitness`, one that
-collides elsewhere.
+`PinnedBridgeRefundWitnessLinked` and `PinnedBridgeRefundWitnessGap` use a hash: as in
+`PinnedBridgeRefundWitness`, one that collides elsewhere.
 -/
 
 namespace Applications.BurnMintBridge.EndBranch
@@ -144,9 +153,10 @@ whose legs has an END-branch timeout against any imported root; and a run from
 it ends with `i` recorded and refunded and the source balance restored.
 
 Per world, the no-END conjunct is all this adds to `BeginBranchRefundWitness`: the record pin
-and the `beginOnlyEvidence` run come free (`BeginBranchRefundWitnessRecordPinFree`).  Across
-two imported roots that conjunct can fail where the rest holds
-(`BeginBranchRefundWitnessBranchGap`). -/
+and the `beginOnlyEvidence` run come free (`BeginBranchRefundWitnessRecordPinFree`).  That
+conjunct can fail where the rest holds: on a second leg of `i`, even with one imported root
+(`BeginBranchRefundWitnessSingleRootGap`), and on the leg with the BEGIN-branch timeout, across
+two imported roots (`BeginBranchRefundWitnessBranchGap`). -/
 def Properties.BeginBranchRefundWitnessPinned : Prop :=
   ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (i : Transfer) (s : State),
     H.Valid ∧ (∀ k, RootAggregates H (roots k)) ∧
@@ -221,8 +231,9 @@ conjunct is `CheckedExecutionWitness`'s body, verbatim: a valid history whose im
 aggregate, a prepared transfer `i` all of whose prerequisites are on time, and its authorized
 execution.  The other conjuncts ask `i` to have at least one prerequisite, each with a nonzero
 commit value, as `OnTimeLegExecutesWitnessPinned` does.  Without them the body is met by a
-transfer with no prerequisite, for which `finalize` holds vacuously, or by one whose only
-prerequisite has commit value `0` and is on time with nothing committed. -/
+transfer with no prerequisite, for which `finalize` holds vacuously
+(`CheckedExecutionWitnessGap`), or by one whose prerequisites all have commit value `0` and are
+on time with nothing committed (`CheckedExecutionWitnessZeroValueGap`). -/
 def Properties.CheckedExecutionWitnessPinned : Prop :=
   ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (s p : State) (i : Transfer),
     (H.Valid ∧ (∀ k, RootAggregates H (roots k)) ∧ Prepare s i p ∧
@@ -236,7 +247,8 @@ imported root aggregates, the recorded transfer `i` is refunded, and its END sub
 accepted and carries no break.  The other conjuncts make that submission's leg a prerequisite
 of `i` and exclude a BEGIN-branch timeout on every leg of `i`, against any imported root.  So
 the only recovery evidence `pinnedEvidence` accepts for `i` is that END submission, and the
-refund used it. -/
+refund used it.  Without them the body is met by a refund on the BEGIN branch, next to an END
+submission for a leg that is not a prerequisite of `i` (`PinnedBridgeRefundWitnessGap`). -/
 def Properties.PinnedBridgeRefundWitnessLinked : Prop :=
   ∃ (h : MerkleSpec.Hash) (ze : UInt256) (H : History) (roots : Roots) (bk : Backing h ze roots)
     (flow : Transfer → List Leg) (sub : Transfer → EndSubmission) (i : Transfer) (s : State),
@@ -247,7 +259,7 @@ def Properties.PinnedBridgeRefundWitnessLinked : Prop :=
       (∃ a b c d : UInt256, (a, b) ≠ (c, d) ∧ h a b = h c d)) ∧
     (sub i).leg ∈ flow i ∧ ∀ l ∈ flow i, ∀ k, ¬ BeginVia H (roots k) l
 
-/-! ## What the unpinned statements allow -/
+/-! ## What the unpinned and older statements allow -/
 
 /-- **`EndBranchRefundWitness`'s BODY ALLOWS A REFUND OF ANOTHER TRANSFER.**  The first
 conjunct is that body, verbatim.  In the instance, the refunded record is not `i`.
@@ -303,5 +315,70 @@ def Properties.BeginBranchRefundWitnessBranchGap : Prop :=
       s.sourceBalance = i.amount) ∧
     Run (beginOnlyEvidence H roots flow) (initial i.amount 0) s ∧ s.record = some i ∧
     ∃ l ∈ flow i, (∃ k, BeginVia H (roots k) l) ∧ ∃ k, EndVia H (roots k) l
+
+/-- **`BeginBranchRefundWitness`'s BODY DOES NOT SHOW THAT THE BEGIN BRANCH IS NEEDED, EVEN WITH
+ONE IMPORTED ROOT.**  The first conjunct is that body, verbatim.  In the instance every imported
+root is the same root (`roots k = roots 0` for every `k`), `i` is recorded and refunded on a run
+of `beginOnlyEvidence`, one leg of `i` has a BEGIN-branch timeout against that root, and another
+leg of `i` has an END-branch timeout against the same root.  Every conjunct of
+`BeginBranchRefundWitnessPinned`'s body holds except the no-END one, which fails, so in this world
+no final state meets that body.  A second root is needed only for an END-branch timeout on the
+leg that has the BEGIN-branch timeout (`beginVia_not_endVia`,
+`BeginBranchRefundWitnessBranchGap`). -/
+def Properties.BeginBranchRefundWitnessSingleRootGap : Prop :=
+  ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (i : Transfer) (s : State),
+    (H.Valid ∧ (∀ k, RootAggregates H (roots k)) ∧
+      (∃ l ∈ flow i, ∃ k, BeginVia H (roots k) l) ∧
+      Run (checkedEvidence H roots flow) (initial i.amount 0) s ∧ s.refunded = true ∧
+      s.sourceBalance = i.amount) ∧
+    (∀ k, roots k = roots 0) ∧
+    Run (beginOnlyEvidence H roots flow) (initial i.amount 0) s ∧ s.record = some i ∧
+    ∃ l ∈ flow i, ∃ l' ∈ flow i, l' ≠ l ∧ BeginVia H (roots 0) l ∧ EndVia H (roots 0) l'
+
+/-- **`CheckedExecutionWitness`'s BODY HOLDS FOR A TRANSFER WITH NO PREREQUISITE.**  The first
+conjunct is that body, verbatim.  In the instance `i` has no prerequisite, so the `finalize`
+conjunct holds vacuously, and no leg with a nonzero commit value is ever on time.  So
+`CheckedExecutionWitnessPinned`'s body fails on this history, whatever the roots, flow, states
+and transfer: its `finalize` conjunct would put a nonzero prerequisite on time. -/
+def Properties.CheckedExecutionWitnessGap : Prop :=
+  ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (s p : State) (i : Transfer),
+    (H.Valid ∧ (∀ k, RootAggregates H (roots k)) ∧ Prepare s i p ∧
+      (checkedEvidence H roots flow).finalize i ∧
+      ∃ u, AuthorizedExecution (checkedEvidence H roots flow) p i i u) ∧
+    flow i = [] ∧ ∀ l : Leg, l.commitValue ≠ 0 → ¬ OnTime H l
+
+/-- **`CheckedExecutionWitness`'s BODY HOLDS FOR A TRANSFER WHOSE PREREQUISITES HAVE COMMIT
+VALUE `0`.**  The first conjunct is that body, verbatim.  In the instance `i` has a
+prerequisite, every prerequisite of `i` has commit value `0`, the tree's sentinel key, and no leg
+with a nonzero commit value is ever on time: the prerequisites are on time with nothing
+committed.  So `CheckedExecutionWitnessPinned`'s body fails on this history too, although
+`flow i ≠ []` holds here. -/
+def Properties.CheckedExecutionWitnessZeroValueGap : Prop :=
+  ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (s p : State) (i : Transfer),
+    (H.Valid ∧ (∀ k, RootAggregates H (roots k)) ∧ Prepare s i p ∧
+      (checkedEvidence H roots flow).finalize i ∧
+      ∃ u, AuthorizedExecution (checkedEvidence H roots flow) p i i u) ∧
+    flow i ≠ [] ∧ (∀ l ∈ flow i, l.commitValue = 0) ∧
+    ∀ l : Leg, l.commitValue ≠ 0 → ¬ OnTime H l
+
+/-- **`PinnedBridgeRefundWitness`'s BODY ALLOWS A REFUND ON THE BEGIN BRANCH, NEXT TO AN END
+SUBMISSION FOR ANOTHER LEG.**  The first conjunct is that body, verbatim.  In the instance the
+leg of `i`'s END submission is not a prerequisite of `i`, one leg of `i` has a BEGIN-branch
+timeout against an imported root, and no leg of `i` has an END-branch timeout against any
+imported root.  So `pinnedEvidence` accepts a recovery of `i` only on the BEGIN branch, and the
+refund of the recorded `i` was authorized by a BEGIN-branch timeout
+(`ReachableResolutionAuthorizedByRecord`), not by the accepted, break-free END submission.  The
+two extra conjuncts of `PinnedBridgeRefundWitnessLinked` both fail here, so in this world no
+final state meets that body. -/
+def Properties.PinnedBridgeRefundWitnessGap : Prop :=
+  ∃ (h : MerkleSpec.Hash) (ze : UInt256) (H : History) (roots : Roots) (bk : Backing h ze roots)
+    (flow : Transfer → List Leg) (sub : Transfer → EndSubmission) (i : Transfer) (s : State),
+    (H.Valid ∧ (∀ k, RootAggregates H (roots k)) ∧
+      Run (pinnedEvidence H roots bk flow sub) (initial i.amount 0) s ∧
+      s.refunded = true ∧ s.record = some i ∧
+      EndAcceptedBy H roots bk (sub i) ∧ ¬ EndBreak bk (sub i) ∧
+      (∃ a b c d : UInt256, (a, b) ≠ (c, d) ∧ h a b = h c d)) ∧
+    (sub i).leg ∉ flow i ∧ (∃ l ∈ flow i, ∃ k, BeginVia H (roots k) l) ∧
+    ∀ l ∈ flow i, ∀ k, ¬ EndVia H (roots k) l
 
 end Applications.BurnMintBridge.EndBranch

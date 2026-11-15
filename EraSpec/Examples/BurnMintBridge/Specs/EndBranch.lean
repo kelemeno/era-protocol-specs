@@ -48,6 +48,15 @@ This file supplies it at three levels.
    behind the root (`Contracts.Timeout.RootBacking`); no hash premise.  A failure is located
    on the submitted path (`PinnedBreak` / `PathCollision`).
 
+**Correction (LastBatchInRootOffset).**  Levels 2 and 3 use one number as the chain-tree leaf
+position and as the batch number, and `Roots` reads a root as holding the chain's batches
+`0 … upTo`: first pushed batch 0 and every later batch pushed (`PROTO-CONTIGUOUS-PUSH`,
+ASSUMPTIONS.md).
+
+**Correction (LastLeafFaithful).**  Level 3's `LastBatchAccepted` takes the batch-leaf walk's
+length to be the chain tree's height and the batch to be an occupied leaf, which the deployed
+verifier does not check.  `../Properties/EndBranch.lean` spells out both notes.
+
 The settlement layer's side of the bargain is `RootAggregates` (`PROTO-AGGREGATES`,
 `Contracts.Timeout.Aggregates` for this history): a batch that settled by the time a root
 was created is inside that root.  It is a property of how the settlement layer builds roots,
@@ -110,7 +119,10 @@ def batchHistory (H : History) (c : UInt256) : AttackVectors.TimeoutSoundness.Ba
 slBlock)`, indexed by the SL block.  Each is a `Contracts.Timeout.SlRoot`: its creation
 timestamp `created` (`rootTimestamp`, nonzero once imported, :171-174) and, per chain, the
 last batch `upTo` it aggregates — the root holds that chain's batches `0 … upTo`, so every
-chain has a batch inside it (`README.md:77-90`). -/
+chain has a batch inside it (`README.md:77-90`).
+
+**Correction (LastBatchInRootOffset).**  "Batches `0 … upTo`" holds only with first pushed batch 0
+and every later batch pushed (`PROTO-CONTIGUOUS-PUSH`); see the module docstring. -/
 abbrev Roots := ℕ → Contracts.Timeout.SlRoot
 
 /-- **THE SETTLEMENT LAYER'S SIDE OF THE BARGAIN** (`PROTO-AGGREGATES`;

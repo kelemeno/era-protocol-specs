@@ -61,6 +61,15 @@ tree's root, with the zero-sibling check `_verifyLastBatchInRoot` runs.
 collision" (premise-free only over the tree's own siblings: the accepted-path versions take global
 pair-injectivity, which cannot hold; see ASSUMPTIONS.md), so the dependency chain runs all the way from the accepted proof to the
 justified timeout.
+
+**Correction (LastLeafFaithful).**  The accepted proof here is `LastBatchAccepted`, which takes
+the batch-leaf walk's length to be the chain tree's height and the batch to be an occupied leaf.
+The deployed verifier checks neither (see `LastBatchAccepted`), so the chain starts from an
+acceptance condition stronger than the contract's checks.
+
+**Correction (LastBatchInRootOffset).**  `RootBacking` reads chain-tree leaf position `i` as
+batch `i`, which needs first pushed batch 0 and every later batch pushed
+(`PROTO-CONTIGUOUS-PUSH`, ASSUMPTIONS.md); see `RootBacking`.
 -/
 
 namespace Contracts.Timeout
@@ -74,7 +83,13 @@ against it.
   root must be imported (`ProofSettlementLayerInteropRootNotImported`).
 * `upTo` — the last batch of each chain aggregated into this root.  The contract
   never reads this number; it proves a batch *equals* it, which is what
-  `_verifyLastBatchInRoot` establishes. -/
+  `_verifyLastBatchInRoot` establishes.
+
+**Correction (LastBatchInRootOffset).**  `_verifyLastBatchInRoot` shows that the proven leaf is
+the chain tree's last leaf, a position.  The model reads that position as a batch number and
+gets `N = upTo c` from `RootBacking.upToLast`, which needs first pushed batch 0 and every later
+batch pushed (`PROTO-CONTIGUOUS-PUSH`, ASSUMPTIONS.md); see
+`AttackVectors.LastBatchInRootOffset`. -/
 structure SlRoot where
   created : ℕ
   upTo : Chain → ℕ
@@ -153,13 +168,24 @@ root" are the same index.
 
 `ze` is the chain tree's empty-entry constant `CHAIN_TREE_EMPTY_ENTRY_HASH`, which is
 a different constant from the IMT's `IMT_EMPTY_LEAF_HASH` — the two trees are built
-by different libraries and pad with their own values. -/
+by different libraries and pad with their own values.
+
+**Correction (LastBatchInRootOffset).**  Leaf `i` is batch `i` only if the chain's first pushed
+batch is 0 and every later batch is pushed into this tree (`PROTO-CONTIGUOUS-PUSH`,
+ASSUMPTIONS.md).  At `c67894b9` every atomic-interop source chain's first pushed batch on L1 is
+0, so the reading is exact there while pushes are contiguous; the realistic break is a
+non-contiguous push after a Gateway round trip.
+`AttackVectors.LastBatchInRootOffset.EndBranchFromOnchainCheckOffset` keeps position and number
+apart; the results over `RootBacking` do not use it. -/
 structure RootBacking (h : Hash) (ze : UInt256) (R : SlRoot) where
   /-- Chain `c`'s batch leaves inside this root, in batch order. -/
   leaves : Chain → List UInt256
   /-- The chain tree's height. -/
   height : Chain → ℕ
-  /-- `R.upTo c` is the last leaf index, so the root holds batches `0 … upTo c`. -/
+  /-- `R.upTo c` is the last leaf index, so the root holds batches `0 … upTo c`.
+
+  **Correction (LastBatchInRootOffset).**  That reads leaf index `i` as batch `i`: first pushed
+  batch 0 and `PROTO-CONTIGUOUS-PUSH`; see the structure's docstring. -/
   upToLast : ∀ c, (leaves c).length = R.upTo c + 1
   /-- The tree fits its height. -/
   capacity : ∀ c, (leaves c).length ≤ 2 ^ height c
@@ -169,7 +195,18 @@ structure RootBacking (h : Hash) (ze : UInt256) (R : SlRoot) where
 `authenticated` is the path recomputing the chain tree's root — the same proof words
 `_authenticateRoot` already verified, which is what stops the prover from choosing
 its own siblings.  `zeroRightSiblings` is the check itself: wherever the path goes
-left, the right sibling must be that level's empty-subtree hash. -/
+left, the right sibling must be that level's empty-subtree hash.
+
+**Correction (LastLeafFaithful).**  This takes the walk's length to be the chain tree's height
+(`B.height c`) and `N` to be an occupied leaf (`inRange`).  The deployed verifier checks neither:
+the batch-leaf path length and mask are the prover's, and `Merkle.sol` accepts a padded index.
+The acceptance with both free is `MerkleSpec.LastLeafFaithful.LastBatchPathAccepted`, and the
+last-leaf result over every accepted submission is
+`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`, with a wrong-length
+(`HeightBreak`) and a padded-entry case added.  `WrongLengthLastLeafAccepted` and
+`PaddedIndexLastLeafAccepted` show both cases passing every check the contract performs; there
+the claimed leaf hash is free, and on chain each witness needs a cross-length keccak preimage.
+The timeout results do not use them. -/
 structure LastBatchAccepted {h : Hash} {ze : UInt256} {R : SlRoot} (B : RootBacking h ze R)
     (c : Chain) (N : ℕ) (sibs : ℕ → UInt256) (x : UInt256) : Prop where
   inRange : N < (B.leaves c).length
@@ -177,7 +214,10 @@ structure LastBatchAccepted {h : Hash} {ze : UInt256} {R : SlRoot} (B : RootBack
   zeroRightSiblings : ∀ l < B.height c, (N / 2 ^ l) % 2 = 0 → sibs l = zeros h ze l
 
 /-- The END branch with `lastInRoot` replaced by the proof that establishes it —
-this is the branch as the contract runs it. -/
+this is the branch as the contract runs it.
+
+**Correction (LastLeafFaithful).**  Except that `LastBatchAccepted` pins the walk's length and
+an occupied index, which the contract does not check; see `LastBatchAccepted`. -/
 structure EndBranchAccepted {h : Hash} {ze : UInt256} {R : SlRoot} (B : RootBacking h ze R)
     (S : System) (c : Chain) (D N : ℕ) (sibs : ℕ → UInt256) (x : UInt256) : Prop where
   /-- `ProofInteropRootNotAfterDeadline`. -/
@@ -189,7 +229,15 @@ structure EndBranchAccepted {h : Hash} {ze : UInt256} {R : SlRoot} (B : RootBack
 
 /-- **THE TIMEOUT GATE AS THE CONTRACT RUNS IT.**  Same as `LegRefundableVerified`
 except that the END branch carries the last-batch *proof* rather than its
-conclusion. -/
+conclusion.
+
+**Correction (LastLeafFaithful).**  The END branch's `LastBatchAccepted` takes the batch-leaf
+walk's length to be the chain tree's height and the batch to be an occupied leaf.  The contract
+checks neither, so a wrong-length or padded-index submission that passes every check it
+performs is not accepted here; see `LastBatchAccepted`.
+
+**Correction (LastBatchInRootOffset).**  The END branch's `N` is both the leaf position and the
+batch number; see `RootBacking`. -/
 def LegRefundableAccepted (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) {ze : UInt256} {R : SlRoot} (B : RootBacking h ze R) (F : Flow)
     (leg : FlowLeg) : Prop :=

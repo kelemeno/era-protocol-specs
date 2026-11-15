@@ -98,7 +98,18 @@ def Properties.TimeoutExcludesFinality : Prop :=
 
 `EndBranchVerified.lastInRoot` was still a conclusion taken as given.  These close
 that gap: the accepted proof identifies the last included batch, or exhibits a
-concrete hash break. -/
+concrete hash break.
+
+**Correction (LastLeafFaithful).**  Here and in the pinned section below, the accepted
+last-batch proof is `LastBatchAccepted`, also where it sits inside the END branch or the gate
+"as run".  It takes the batch-leaf walk's length to be the chain tree's height and the batch to
+be an occupied leaf, and the deployed verifier checks neither (Specs, `LastBatchAccepted`).  The
+last-leaf result over every accepted submission is
+`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`; it is not composed here.
+
+**Correction (LastBatchInRootOffset).**  "The last included batch" is read off the leaf
+position: `N = R.upTo c` comes from `RootBacking.upToLast`, which reads leaf `i` as batch `i`
+(first pushed batch 0 and `PROTO-CONTIGUOUS-PUSH`, ASSUMPTIONS.md; Specs, `RootBacking`). -/
 
 /-- **AN ACCEPTED LAST-BATCH PROOF IDENTIFIES THE LAST INCLUDED BATCH.**  What
 `_verifyLastBatchInRoot` checks — every left-child sibling on the batch leaf's
@@ -161,7 +172,10 @@ a collision located on the submitted proof: a `PinnedBreak` on the chain tree's
 subtree right after batch `N`, or a `PathCollision` at a named level of the
 batch-leaf path `(sibs, x)`.  The `…On` versions collapse the escape under a
 bounded premise: injectivity only on the finite set of pairs this chain tree and
-this verification hash. -/
+this verification hash.
+
+The two corrections at the start of the last-batch section above (LastLeafFaithful,
+LastBatchInRootOffset) apply to these statements too. -/
 
 /-- Naming the gate's witnesses loses nothing. -/
 def Properties.LegRefundableAcceptedIffBy : Prop :=
@@ -326,7 +340,14 @@ def Properties.TimeoutExcludesFinalityOrBreak : Prop :=
 it, with submitted batch `N`, absence proof `p` and batch-leaf path `(sibs, x)`: the
 leg missed its deadline, or `p` carries a located break, or the last-batch proof
 pins a collision (`PinnedBreak` right after batch `N` in the chain tree, or a
-`PathCollision` on `(sibs, x)`). -/
+`PathCollision` on `(sibs, x)`).
+
+**Correction (LastLeafFaithful).**  The gate's END branch is `LastBatchAccepted`, with the
+walk's length taken to be the chain tree's height and the batch an occupied leaf, which the
+deployed verifier does not check (Specs, `LastBatchAccepted`).
+
+**Correction (LastBatchInRootOffset).**  `N` is both the leaf position and the batch number
+(Specs, `RootBacking`). -/
 def Properties.AcceptedTimeoutMeansMissedDeadlineOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System), Wf S →
     ∀ (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →

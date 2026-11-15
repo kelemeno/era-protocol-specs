@@ -18,6 +18,11 @@ Definitions used by `../Properties/EndBranchStrong.lean`; proofs in
 * `twoRootHistory`, `earlyRoot`, `laterRoot` and `twoRoots` form an instance with two imported
   roots and one clock for every chain. Against one root the demo leg has an END-branch
   timeout, against the other a BEGIN-branch timeout.
+* `twoLegFlow` gives a transfer two prerequisites. On `splitHistory`, against one imported
+  root, one of them has a BEGIN-branch timeout and the other an END-branch timeout.
+* `zeroLeg` (commit value `0`) and `chainOneSubmission` (an honest END submission for
+  `chainOneLeg`) are the instances of the gaps of `CheckedExecutionWitness` and
+  `PinnedBridgeRefundWitness`.
 
 **This file is definitions only.**
 -/
@@ -88,5 +93,25 @@ def laterRoot : Contracts.Timeout.SlRoot where
 
 /-- Root `0` is `earlyRoot`; every other root is `laterRoot`. -/
 def twoRoots : Roots := fun k => if k = 0 then earlyRoot else laterRoot
+
+/-! ## One imported root for two legs
+
+On `splitHistory`, `twoLegFlow` gives every transfer two prerequisites: `demoLeg` on chain `0`,
+whose batch `1` settles late inside `Contracts.Timeout.demoRoot` (a BEGIN-branch timeout), and
+`chainOneLeg` on chain `1`, whose last batch inside that root, `1`, is in time (an END-branch
+timeout).  With every imported root equal to `demoRoot`, both timeouts are against one root. -/
+
+/-- Every transfer needs `demoLeg` (chain `0`) and `chainOneLeg` (chain `1`). -/
+def twoLegFlow : Transfer → List Leg := fun _ => [demoLeg, chainOneLeg]
+
+/-! ## Instances for the gaps of two older witnesses -/
+
+/-- The leg on chain `0` with commit value `0`, the tree's sentinel key, and deadline `0`. -/
+def zeroLeg : Leg := ⟨0, 0, 0⟩
+
+/-- An honest END submission for `chainOneLeg` against root `0`: batch `1`, the last leaf of
+`Contracts.Timeout.demoBacking`, on its honest path. -/
+def chainOneSubmission : EndSubmission :=
+  ⟨chainOneLeg, 0, 1, MerkleSpec.Verifier.honestSibs MerkleSpec.LastLeaf.demoHash 0 [5, 7] 1, 7⟩
 
 end Applications.BurnMintBridge.EndBranch

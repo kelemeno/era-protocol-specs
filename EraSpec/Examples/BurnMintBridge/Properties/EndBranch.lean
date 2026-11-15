@@ -33,6 +33,30 @@ Statements about `../Specs/EndBranch.lean`; proofs in `../Proofs/EndBranch.lean`
   honest submission (`PinnedBridgeRefundWitness`) and fires on a forged one
   (`ForgedLastBatchLocatesBreak`).
 
+**Correction (LastBatchInRootOffset).**  §2 and §3 use one number as a chain-tree leaf position
+and as a batch number.  `EndVia`'s `B` is the position in `RightEmpty` and the batch in
+`settledAt` and `tree`; an `EndSubmission`'s `batch` is the index in `LastBatchAccepted` and the
+batch of `EndAcceptedBy`'s clock and gap witness; and a root holds the chain's batches
+`0 … upTo` (`Roots`, `Contracts.Timeout.RootBacking`).  The END soundness above takes the same
+reading from `LastBatchInRoot.end_branch_from_onchain_check`.  At `c67894b9` every
+atomic-interop source chain's first pushed batch on L1 is 0, so the reading is exact there while
+every later batch is pushed into the chain tree (`PROTO-CONTIGUOUS-PUSH`, ASSUMPTIONS.md); the
+realistic break is a non-contiguous push after a Gateway round trip.
+`AttackVectors.LastBatchInRootOffset.EndBranchFromOnchainCheckOffset` keeps position and number
+apart; it is not composed into the bridge.
+
+**Correction (LastLeafFaithful).**  §3's `LastBatchAccepted` takes the batch-leaf walk's length
+to be the chain tree's height and the batch to be an occupied leaf.  The deployed verifier
+checks neither: the path length and mask are the prover's, and `Merkle.sol` accepts a padded
+index.  A wrong-length or padded-index submission that passes every check the contract performs
+is no `EndAcceptedBy` submission, so the §3 results say nothing about a refund on one.  The
+last-leaf result over every accepted submission is
+`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`, with a wrong-length
+(`HeightBreak`) and a padded-entry case added.  `WrongLengthLastLeafAccepted` and
+`PaddedIndexLastLeafAccepted` show both cases passing those checks; there the claimed leaf hash
+is free, and on chain each witness needs a cross-length keccak preimage.  None of this is
+composed into the bridge.
+
 ## Premises, and where each is shown satisfiable
 
 * `History.Valid` (guarded IMT evolution from genesis, monotone settlement times):
@@ -49,9 +73,9 @@ Statements about `../Specs/EndBranch.lean`; proofs in `../Proofs/EndBranch.lean`
   `PinnedBridgeRefundWitnessLinked`); on the forged path with the leg on time:
   `ForgedLastBatchLocatesBreak`.
 * A prepared transfer with every prerequisite on time (`CheckedExecutionRemainsPossible`):
-  `CheckedExecutionWitness`, which a transfer with no prerequisite meets vacuously; with at
-  least one prerequisite, each with a nonzero commit value: `CheckedExecutionWitnessPinned`
-  (`Properties/EndBranchStrong.lean`).
+  `CheckedExecutionWitness`, which a transfer with no prerequisite meets vacuously
+  (`CheckedExecutionWitnessGap`); with at least one prerequisite, each with a nonzero commit
+  value: `CheckedExecutionWitnessPinned` (`Properties/EndBranchStrong.lean`).
 * A never-committed leg, a root after the deadline and a recorded unrefunded transfer
   (`TimeoutComplete`, `TimedOutTransferRefundEnabled`): `HaltedChainNeedsEndBranch` (its END
   timeout carries the root's post-deadline creation; its burned state records the transfer).
@@ -63,7 +87,8 @@ that prepares and resolves `i` itself meets it too, so pinning the record adds n
 by world (`Properties/EndBranchStrong.lean`).  What the pinned forms there add per world is at
 least one prerequisite with nonzero commit values for the on-time witness, and for the BEGIN
 witness the exclusion of an END-branch timeout on `i`'s legs, which is what pins its branch.
-The stronger forms of `CheckedExecutionWitness` and `PinnedBridgeRefundWitness` are there too.
+The stronger forms of `CheckedExecutionWitness` and `PinnedBridgeRefundWitness` are there too,
+with gaps that show what their bodies admit.
 
 No hash-injectivity premise appears anywhere.  `PinnedBridgeRefundWitness` and
 `ForgedLastBatchLocatesBreak` use the colliding toy hash `demoHash`.
@@ -181,7 +206,11 @@ def Properties.BeginViaNeverFinalized : Prop :=
 
 /-- **AN END-BRANCH TIMEOUT MEANS NEVER FINALIZED**, from the on-chain check
 (`LastBatchInRoot.end_branch_from_onchain_check`), when the root aggregates every batch
-settled before it. -/
+settled before it.
+
+**Correction (LastBatchInRootOffset).**  `EndVia`'s `B` is both the chain-tree leaf position and
+the batch number, as in `end_branch_from_onchain_check`: exact at `c67894b9` for atomic-interop
+source chains while pushes are contiguous (`PROTO-CONTIGUOUS-PUSH`); see the module docstring. -/
 def Properties.EndViaNeverFinalized : Prop :=
   ∀ (H : History) (R : Contracts.Timeout.SlRoot), H.Valid → RootAggregates H R →
     ∀ (l : Leg), EndVia H R l → ∀ n, H.settledAt l.sourceChain n ≤ l.deadline →
@@ -232,9 +261,11 @@ authorized the refund.  Its body is met by a run that refunds another transfer, 
 legs has a BEGIN-branch timeout, on the END branch alone
 (`Properties.BeginBranchRefundWitnessGap`).  But in every world where it holds, `i` itself can
 also be refunded on the BEGIN branch alone (`Properties.BeginBranchRefundWitnessRecordPinFree`).
-What the statement does not exclude is an END-branch timeout on a leg of `i` against another
-imported root (`Properties.BeginBranchRefundWitnessBranchGap`), so it does not show that the
-BEGIN branch is needed.  The form that excludes it, pinned to `i` and to the BEGIN branch, is
+What the statement does not exclude is an END-branch timeout on a leg of `i`: on another leg,
+even against the same root (`Properties.BeginBranchRefundWitnessSingleRootGap`, with one imported
+root); on the leg with the BEGIN-branch timeout, against another imported root
+(`Properties.BeginBranchRefundWitnessBranchGap`).  So it does not show that the BEGIN branch is
+needed.  The form that excludes it, pinned to `i` and to the BEGIN branch, is
 `Properties.BeginBranchRefundWitnessPinned` (`Properties/EndBranchStrong.lean`). -/
 def Properties.BeginBranchRefundWitness : Prop :=
   ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (i : Transfer) (s : State),
@@ -300,9 +331,11 @@ def Properties.CheckedExecutionRemainsPossible : Prop :=
 /-- **ITS PREMISES ARE SATISFIABLE.**  A valid history whose imported roots aggregate, a
 prepared transfer all of whose prerequisites are on time, and its authorized execution.  The
 statement does not ask the transfer to have a prerequisite; for one with none, the `finalize`
-conjunct holds vacuously.  A prerequisite with commit value `0`, the tree's sentinel, is on time
-on a valid history as soon as some batch of its chain settled by its deadline, with nothing
-committed.  The form with at least one prerequisite, each with a nonzero commit value, is
+conjunct holds vacuously (`Properties.CheckedExecutionWitnessGap`).  A prerequisite with commit
+value `0`, the tree's sentinel, is on time on a valid history as soon as some batch of its chain
+settled by its deadline, with nothing committed, so such prerequisites meet the body on a
+history where no nonzero value is ever on time (`Properties.CheckedExecutionWitnessZeroValueGap`).
+The form with at least one prerequisite, each with a nonzero commit value, is
 `Properties.CheckedExecutionWitnessPinned` (`Properties/EndBranchStrong.lean`). -/
 def Properties.CheckedExecutionWitness : Prop :=
   ∃ (H : History) (roots : Roots) (flow : Transfer → List Leg) (s p : State) (i : Transfer),
@@ -349,7 +382,14 @@ def Properties.UncheckedEndDoublePays : Prop :=
 /-- **AN ACCEPTED END SUBMISSION FOR A LEG COMMITTED ON TIME IS A LOCATED BREAK.**  No hash
 premise.  Under `RootAggregates`, if `_verifyLastBatchInRoot` (as `LastBatchAccepted`) and the
 non-inclusion proof both pass for a leg that was committed on time, the chain tree carries a
-`PinnedBreak` right after the submitted batch or the submitted path a `PathCollision`. -/
+`PinnedBreak` right after the submitted batch or the submitted path a `PathCollision`.
+
+**Correction (LastLeafFaithful).**  `LastBatchAccepted` takes the walk's length to be the chain
+tree's height and the batch to be an occupied leaf, which the deployed verifier does not check;
+see the module docstring.
+
+**Correction (LastBatchInRootOffset).**  The submission's `batch` is both the leaf position and
+the batch number; see the module docstring. -/
 def Properties.AcceptedEndOnTimeLocatesBreak : Prop :=
   ∀ (h : MerkleSpec.Hash) (ze : UInt256) (H : History) (roots : Roots)
     (bk : Backing h ze roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
@@ -379,9 +419,10 @@ def Properties.PinnedBridgeValueConservedOrBreak : Prop :=
 that collides elsewhere, every imported root aggregates, the recorded transfer is refunded, and
 its END submission is accepted and carries no break.  The statement does not say that the
 refund used that submission: it asks neither that the submission's leg is a prerequisite of the
-transfer nor that no leg of the transfer has a BEGIN-branch timeout.  The form that does is
-`Properties.PinnedBridgeRefundWitnessLinked` (`Properties/EndBranchStrong.lean`).  In the
-instance the submission is the honest batch-leaf path for the root's last batch. -/
+transfer nor that no leg of the transfer has a BEGIN-branch timeout, and its body is met by a
+refund on the BEGIN branch alone (`Properties.PinnedBridgeRefundWitnessGap`).  The form that
+asks both is `Properties.PinnedBridgeRefundWitnessLinked` (`Properties/EndBranchStrong.lean`).
+In the instance the submission is the honest batch-leaf path for the root's last batch. -/
 def Properties.PinnedBridgeRefundWitness : Prop :=
   ∃ (h : MerkleSpec.Hash) (ze : UInt256) (H : History) (roots : Roots) (bk : Backing h ze roots)
     (flow : Transfer → List Leg) (sub : Transfer → EndSubmission) (i : Transfer) (s : State),

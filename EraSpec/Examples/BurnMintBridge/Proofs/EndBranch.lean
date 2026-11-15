@@ -234,7 +234,10 @@ theorem outsideRootLate_of_aggregates {H : History} {R : Contracts.Timeout.SlRoo
   exact hm (Nat.lt_succ_of_le hin)
 
 /-- **AN END-BRANCH TIMEOUT MEANS NEVER FINALIZED**, via
-`LastBatchInRoot.end_branch_from_onchain_check`. -/
+`LastBatchInRoot.end_branch_from_onchain_check`.
+
+**Correction (LastBatchInRootOffset).**  `B` is passed as both the leaf position and the batch
+number; see the module docstring of `../Properties/EndBranch.lean`. -/
 theorem endVia_never_finalized {H : History} {R : Contracts.Timeout.SlRoot} (hH : H.Valid)
     (hagg : RootAggregates H R) {l : Leg} (he : EndVia H R l) (n : ℕ)
     (hn : H.settledAt l.sourceChain n ≤ l.deadline) :
@@ -354,7 +357,13 @@ theorem timedOut_transfer_refund_enabled {H : History} {roots : Roots}
 
 /-- **AN ACCEPTED END SUBMISSION FOR A LEG COMMITTED ON TIME IS A LOCATED BREAK.**  Through
 `Contracts.Timeout.LastBatchProofIdentifiesLastBatchPinned`: the submitted batch is the root's
-last, which the END branch's soundness excludes, or the break is on the submission. -/
+last, which the END branch's soundness excludes, or the break is on the submission.
+
+**Correction (LastLeafFaithful).**  The walk's length is taken to be the chain tree's height and
+the batch to be an occupied leaf; see the module docstring of `../Properties/EndBranch.lean`.
+
+**Correction (LastBatchInRootOffset).**  The submission's `batch` is both the leaf position and
+the batch number; see the same place. -/
 theorem acceptedEnd_onTime_locates_break {h : MerkleSpec.Hash} {ze : UInt256} {H : History}
     {roots : Roots} {bk : Backing h ze roots} (hH : H.Valid)
     (hagg : ∀ k, RootAggregates H (roots k)) {e : EndSubmission} (hon : OnTime H e.leg)
