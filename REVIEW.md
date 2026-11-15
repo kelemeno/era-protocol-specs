@@ -170,8 +170,12 @@ of the successor-pinned `Missing` (`MissingEndImpliesMissing`;
 must cite a batch inside an imported root created after the deadline
 (`checkedEvidence`). Under `RootAggregates` every accepted timeout refines `Missing`
 (`TimeoutViaImpliesMissing`; END soundness from
-`LastBatchInRoot.end_branch_from_onchain_check`), so `CheckedBridgeNoDoublePayment` and
-`CheckedBridgeValueConserved` hold. Completeness holds for every post-deadline root
+`LastBatchInRoot.end_branch_from_onchain_check`, which reads the root's chain-tree leaf
+`i` as batch `i`: exact at `c67894b9`, where every atomic-interop source chain's first
+pushed batch on L1 is 0, while pushes are contiguous, ASSUMPTIONS.md
+`PROTO-CONTIGUOUS-PUSH`; `LastBatchInRootOffset` keeps the two apart), so
+`CheckedBridgeNoDoublePayment` and `CheckedBridgeValueConserved` hold.
+Completeness holds for every post-deadline root
 (`TimeoutComplete`) and needs the END branch: with the BEGIN branch alone a halted
 chain's transfer stays in limbo forever (`HaltedChainNeedsEndBranch`).
 `StaleRootDoublePays` and `UncheckedEndDoublePays` show that `RootAggregates` and the

@@ -52,7 +52,9 @@ theorem accepted_last_leaf_any_length_or_break (h : Hash) (z0 : UInt256) (L : Li
     · exact Or.inr (LastLeafAnyLengthBreak.pathCollision rfl hc)
   · exact Or.inr (LastLeafAnyLengthBreak.wrongLength hb)
 
-/-! ## The two excluded cases are live -/
+/-! ## The two excluded cases pass every check the contract performs
+
+In the model, where the claimed leaf hash is free (Specs, model boundary). -/
 
 /-- No pinned break at leaf 0 of `[5, 7, 9]`: no level-`(l+1)` node starts at index 1,
 and entry 1 is not the empty constant. -/
@@ -119,21 +121,86 @@ theorem accepted_last_leaf_pinned_length_or_break (h : Hash) (z0 : UInt256) (L :
     | pinned _ hp => exact Or.inr (Or.inl hp)
     | pathCollision _ hc => exact Or.inr (Or.inr hc)
 
+/-- Beyond the occupied range, a level's entry is that level's zero. -/
+theorem levels_getD_beyond (h : Hash) (z0 : UInt256) (L : List UInt256) (i n : ℕ)
+    (hn : L.length ≤ n * 2 ^ i) :
+    (levels h z0 L i).getD n (zeros h z0 i) = zeros h z0 i := by
+  apply getD_default
+  by_cases hne : L.length = 0
+  · rw [List.length_eq_zero_iff.mp hne, levels_nil]
+    simp
+  · rw [levels_length h z0 L hne i]
+    have h2 : 0 < 2 ^ i := pow_pos (by norm_num) i
+    have hlt : (L.length - 1) / 2 ^ i < n := by
+      rw [Nat.div_lt_iff_lt_mul h2]
+      omega
+    omega
+
+/-- `PathTreePair` adds nothing to `TreePair`: the tree's pair along `j`'s path at a
+level is an occupied pair or that level's zero pair. -/
+theorem pathTreePair_sub_treePair (h : Hash) (z0 : UInt256) (L : List UInt256) (height j : ℕ)
+    (p : UInt256 × UInt256) (hp : PathTreePair h z0 L height j p) : TreePair h z0 L height p := by
+  obtain ⟨i, hi, rfl⟩ := hp
+  by_cases hocc : (j / 2 ^ i / 2) * 2 ^ (i + 1) < L.length
+  · exact Or.inl ⟨i, hi, j / 2 ^ i / 2, hocc, rfl⟩
+  · refine Or.inr ⟨i, hi, ?_⟩
+    have hle : L.length ≤ (j / 2 ^ i / 2) * 2 ^ (i + 1) := not_lt.mp hocc
+    have e1 : (j / 2 ^ i / 2) * 2 ^ (i + 1) = (2 * (j / 2 ^ i / 2)) * 2 ^ i := by
+      rw [pow_succ]; ring
+    have hA : L.length ≤ (2 * (j / 2 ^ i / 2)) * 2 ^ i := by rw [← e1]; exact hle
+    have hB : L.length ≤ (2 * (j / 2 ^ i / 2) + 1) * 2 ^ i := by
+      calc L.length ≤ (2 * (j / 2 ^ i / 2)) * 2 ^ i := hA
+        _ ≤ (2 * (j / 2 ^ i / 2) + 1) * 2 ^ i := Nat.mul_le_mul_right _ (by omega)
+    unfold treePair zeroPair
+    rw [levels_getD_beyond h z0 L i _ hA, levels_getD_beyond h z0 L i _ hB]
+
+/-- The bounded collapse with the entry link, over `LastLeaf.AcceptedLastLeafOn`'s pair
+set. -/
+theorem collapse_with_entry (h : Hash) (z0 : UInt256) (L : List UInt256)
+    (sibs : ℕ → UInt256) (k height j : ℕ) (x : UInt256)
+    (hcap : L.length ≤ 2 ^ height) (hacc : LastBatchPathAccepted h z0 L height sibs k j x)
+    (hk : k = height) (hx : x ≠ z0) (hsep : EntriesNotEmpty z0 L)
+    (hinj : PairInjOn h (fun p => TreePair h z0 L height p ∨ VerifiedPair h sibs height j x p)) :
+    j + 1 = L.length ∧ L.getD j z0 = x := by
+  rcases accepted_last_leaf_any_length_or_break h z0 L sibs k height j x hcap hacc with
+    ⟨_, hl, he⟩ | hb
+  · exact ⟨hl, he⟩
+  · exfalso
+    cases hb with
+    | wrongLength hh =>
+      subst hk
+      exact heightBreak_not_tautology.1 _ _ _ _ _ _ _ hh
+    | paddedEntry _ _ hxz => exact hx hxz
+    | pinned _ hp =>
+      exact no_pinned_break_on h z0 L height j hcap hsep
+        (pairInjOn_mono hinj (fun p hp => Or.inl hp)) hp
+    | pathCollision _ hc =>
+      obtain ⟨i, hi, hne, heq⟩ := hc
+      subst hk
+      exact hne (hinj _ _ (Or.inr ⟨i, hi, rfl⟩)
+        (Or.inl (pathTreePair_sub_treePair h z0 L k j _ ⟨i, hi, by rw [Nat.zero_add]⟩)) heq)
+
 theorem accepted_last_leaf_any_length_on (h : Hash) (z0 : UInt256) (L : List UInt256)
     (sibs : ℕ → UInt256) (k height j : ℕ) (x : UInt256)
     (hcap : L.length ≤ 2 ^ height) (hacc : LastBatchPathAccepted h z0 L height sibs k j x)
     (hk : k = height) (hx : x ≠ z0) (hsep : EntriesNotEmpty z0 L)
     (hinj : PairInjOn h (fun p => TreePair h z0 L height p ∨ PathTreePair h z0 L height j p
       ∨ VerifiedPair h sibs height j x p)) :
-    j + 1 = L.length := by
-  rcases accepted_last_leaf_pinned_length_or_break h z0 L sibs k height j x hcap hacc hk hx with
-    hl | hp | ⟨i, hi, hne, heq⟩
-  · exact hl
-  · exact absurd hp (no_pinned_break_on h z0 L height j hcap hsep
-      (pairInjOn_mono hinj (fun p hp => Or.inl hp)))
+    j + 1 = L.length ∧ L.getD j z0 = x :=
+  collapse_with_entry h z0 L sibs k height j x hcap hacc hk hx hsep
+    (pairInjOn_mono hinj (fun _ hp => hp.elim Or.inl (fun hv => Or.inr (Or.inr hv))))
+
+theorem accepted_last_leaf_no_height_break_on (h : Hash) (z0 : UInt256) (L : List UInt256)
+    (sibs : ℕ → UInt256) (k height j : ℕ) (x : UInt256)
+    (hcap : L.length ≤ 2 ^ height) (hacc : LastBatchPathAccepted h z0 L height sibs k j x)
+    (hnb : ¬ HeightBreak h z0 L sibs k height j x) (hx : x ≠ z0) (hsep : EntriesNotEmpty z0 L)
+    (hinj : PairInjOn h (fun p => TreePair h z0 L height p ∨ VerifiedPair h sibs k j x p)) :
+    k = height ∧ j + 1 = L.length ∧ L.getD j z0 = x := by
+  rcases accept_forces_height_or_break h z0 L sibs k height j x hacc.inBounds
+      hacc.authenticated with hk | hb
   · subst hk
-    exact absurd (hinj _ _ (Or.inr (Or.inr ⟨i, hi, rfl⟩))
-      (Or.inr (Or.inl ⟨i, hi, by rw [Nat.zero_add]⟩)) heq) hne
+    exact ⟨rfl, collapse_with_entry h z0 L sibs k k j x hcap hacc rfl hx hsep hinj⟩
+  · exact absurd hb hnb
 
 /-- Every pair in the extended bounded set of the demo instance is one of four explicit
 pairs (the tree's pairs along index 1's path are already among them). -/
@@ -187,6 +254,9 @@ theorem AcceptedLastLeafPinnedLengthOrBreak : Properties.AcceptedLastLeafPinnedL
 
 theorem AcceptedLastLeafAnyLengthOn : Properties.AcceptedLastLeafAnyLengthOn :=
   accepted_last_leaf_any_length_on
+
+theorem AcceptedLastLeafNoHeightBreakOn : Properties.AcceptedLastLeafNoHeightBreakOn :=
+  accepted_last_leaf_no_height_break_on
 
 theorem AcceptedLastLeafAnyLengthOnSatisfiable :
     Properties.AcceptedLastLeafAnyLengthOnSatisfiable :=

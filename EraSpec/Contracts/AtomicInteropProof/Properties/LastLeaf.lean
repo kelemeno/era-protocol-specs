@@ -91,7 +91,15 @@ def Properties.NoPinnedBreakAtEnd : Prop :=
 /-- **AN ACCEPTED SUBMITTED PATH: LAST LEAF, A PINNED BREAK, OR A PATH COLLISION.**
 `AcceptedLastLeafOrBreak` without its global-injectivity premise: the step pinning
 the submitted siblings to the tree's is `MerkleSpec.Verifier.walk_pins_or_collision`,
-whose failure is a `PathCollision` at a named level of this path. -/
+whose failure is a `PathCollision` at a named level of this path.
+
+**Correction (LastLeafFaithful).**  This takes the submitted walk's length to be the
+tree's `height` and the index to be occupied (`j < L.length`).  The deployed verifier
+checks neither: the batch-leaf path length and mask are the prover's, and `Merkle.sol`
+accepts a padded index.  The statement over every accepted submission is
+`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`, with a wrong-length
+(`HeightBreak`) and a padded-entry case added; `WrongLengthLastLeafAccepted` and
+`PaddedIndexLastLeafAccepted` show the old premises excluded both. -/
 def Properties.AcceptedLastLeafOrPinnedBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (height j : ℕ)
     (x : UInt256),
@@ -134,7 +142,13 @@ def Properties.NoPinnedBreakOn : Prop :=
 /-- **AN ACCEPTED PATH WITH THE CHECK IS THE LAST LEAF, UNDER A BOUNDED PREMISE.**
 The collapse of `AcceptedLastLeafOrPinnedBreak`: if `h` has no collision among the
 tree's pairs, the zero cascade's, and the `height` pairs this verification hashed,
-and no entry of this tree is the empty constant, then the leaf is last. -/
+and no entry of this tree is the empty constant, then the leaf is last.
+
+**Correction (LastLeafFaithful).**  Like `AcceptedLastLeafOrPinnedBreak`, this assumes the
+walk has the tree's height and an occupied index, which the deployed verifier does not
+check; `MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOn` drops `j < L.length`
+and names the length pin, and `AcceptedLastLeafNoHeightBreakOn` replaces the pin by the
+absence of a located `HeightBreak`. -/
 def Properties.AcceptedLastLeafOn : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (height j : ℕ)
     (x : UInt256),

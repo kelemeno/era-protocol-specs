@@ -1,4 +1,5 @@
 import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
+import EraSpec.Contracts.AtomicInteropProof.Specs.Timestamps
 
 /-!
 # The stale-snapshot pin, mapped onto the two deployed timeout branches
@@ -29,13 +30,17 @@ checks:
   NUMBERED after `B` settles no earlier than `T`".  `_verifyLastBatchInRoot` gives only
   an INDEX fact (the proven leaf is the last leaf of the chain's tree in the root);
   `LaterBatchesLate` is the TIME fact the branch needs.  It is the restricted form
-  `LastBatchInRootOffset` derives (`LaterBatchesLateOfOffset`).  The unrestricted
-  `OutsideRootLate inRoot t T` ("every batch NOT in the root settles no earlier than
-  `T`", `AttackVectors.LastBatchInRoot.hlast_of_last_in_root`) is false at the pin for
-  every EraVM chain: `seedGenesisRoot` returns early for EraVM chains and
-  `_addNewChain` starts an empty tree at `_startingBatchNumber`, so batch 0 (and batches
-  `1 .. s` of a chain onboarded at `s > 0`) are in no root yet settle before `T`.  It is
-  kept below only to state that it implies the restricted form.
+  `LastBatchInRootOffset` derives (`LaterBatchesLateOfOffset`), and what
+  `Contracts.Timeout.Aggregates` (ASSUMPTIONS.md `PROTO-AGGREGATES`) gives at the root's
+  last batch of the chain.  The unrestricted `OutsideRootLate inRoot t T` with true root
+  membership ("every batch NOT in the root settles no earlier than `T`", as in
+  `AttackVectors.LastBatchInRoot.hlast_of_last_in_root`) fails whenever a batch that is
+  in no root settled before `T`: below the first pushed batch of a chain whose first
+  pushed batch is above 0, or in a gap left by a non-contiguous push
+  (`PROTO-CONTIGUOUS-PUSH`).  At `c67894b9` every atomic-interop source chain is
+  genesis-seeded with batch 0 on L1 (`LastBatchInRootOffset`), so there the two forms
+  coincide while pushes are contiguous.  The unrestricted form is kept below only to
+  state that it implies the restricted one.
 
 And `D < t (j+1)` does not make `j` on time: in the begin branch `j = L - 1` may itself
 be late.  What the pin does give, under monotone `t`, is that every on-time snapshot is
@@ -66,19 +71,23 @@ IMT-root leaf (2 or 3) of ONE batch and never relates two batches. -/
 def BeginIsPrevEnd (H : BatchSnapshots) : Prop :=
   ∀ n, H.beginS (n + 1) = H.endS n
 
-/-- **UNRESTRICTED, FALSE AT THE PIN FOR ERAVM CHAINS.**  A batch outside the aggregated
-root settles no earlier than the root's creation time `T` (`LastBatchInRoot.OutsideRootLate`,
-on the `UInt256` clock `StaleSnapshot` uses).  Batches below a chain's first pushed batch
-are never in any root but settle earlier, so this fails for every EraVM chain (batch 0)
-and every chain onboarded at a non-zero starting batch.  No headline here takes it; see
-`LaterBatchesLate`. -/
+/-- **UNRESTRICTED, AND TAKEN BY NO HEADLINE HERE.**  A batch outside the aggregated root
+settles no earlier than the root's creation time `T` (`LastBatchInRoot.OutsideRootLate`,
+on the `UInt256` clock `StaleSnapshot` uses).  Read with true root membership it fails
+whenever a batch that is in no root settled before `T`: below the first pushed batch of
+a chain whose first pushed batch is above 0, or in a gap left by a non-contiguous push.
+At `c67894b9` every atomic-interop source chain is genesis-seeded with batch 0 on L1, so
+only the second case can arise there.  See `LaterBatchesLate`. -/
 def OutsideRootLate (inRoot : ℕ → Prop) (t : ℕ → UInt256) (T : UInt256) : Prop :=
   ∀ n, ¬ inRoot n → T ≤ t n
 
 /-- **THE END-BRANCH BRIDGE.**  Every batch numbered after `B` settles no earlier than the
 root's creation time `T`.  This is the restricted form: batches before `B` (including
-those never pushed) are unconstrained.  Generic in the clock type so that it also reads
-over `TimeoutSoundness.BatchHistory.time`. -/
+those never pushed) are unconstrained.  `Contracts.Timeout.Aggregates`
+(`PROTO-AGGREGATES`) implies it, per chain, at the root's last batch of that chain; the
+end branch needs it at its proven batch `B`, so `B` must be that last batch, which the
+repository's compositions read off the last-leaf check under `PROTO-CONTIGUOUS-PUSH`.
+Generic in the clock type so that it also reads over `TimeoutSoundness.BatchHistory.time`. -/
 def LaterBatchesLate {α : Type} [LE α] (B : ℕ) (t : ℕ → α) (T : α) : Prop :=
   ∀ m, B < m → T ≤ t m
 
@@ -109,10 +118,11 @@ structure EndBranch (H : BatchSnapshots) (D T v : UInt256) (B : ℕ) (W : AbsLea
   mem : W ∈ H.endS B
   window : Straddles W v
 
-/-! ## Countermodel histories -/
+/-! ## Countermodel and satisfiability histories -/
 
 /-- Begin snapshots unrelated to end snapshots: every begin snapshot is the genesis
-singleton, while the end snapshots of `Timestamps.attackHistory 1` commit `1` in batch 0.
+singleton, while the end snapshots of `Timestamps.attackHistory 1` commit `1` in batch 1
+(`endS 0` is the genesis singleton, and `1` is in `endS n` for every `n ≥ 1`).
 Batches 0 and 1 settle at time 0, later ones at time 1. -/
 def unlinkedHistory : BatchSnapshots where
   endS := fun m => if m = 0 then {⟨0, 0⟩} else imtInsert {⟨0, 0⟩} ⟨0, 0⟩ 1
@@ -126,19 +136,15 @@ def staleRootHistory : BatchSnapshots where
   beginS := fun m => if m ≤ 1 then {⟨0, 0⟩} else imtInsert {⟨0, 0⟩} ⟨0, 0⟩ 1
   t := fun _ => 0
 
-/-- An honest refund on a fresh EraVM chain: nothing is ever committed (every snapshot is
-the genesis singleton).  Batch 0 is never pushed (`seedGenesisRoot` returns early), batch
-1 is the first pushed batch; batches 0 and 1 settle at time 0, later ones at time 1. -/
-def eraVMHonestHistory : BatchSnapshots where
-  endS := fun _ => {⟨0, 0⟩}
-  beginS := fun _ => {⟨0, 0⟩}
+/-- An honest history that commits a value on time.  Its end snapshots are those of
+`Timestamps.attackHistory 2` (value `2` committed in batch 1: `endS 0` is the genesis
+singleton, and `2` is in `endS n` for every `n ≥ 1`), each begin snapshot is the previous
+end snapshot (`beginS 0` is the genesis singleton), and batches 0 and 1 settle at time 0,
+later ones at time 1.  Value `1` is never committed. -/
+def richSnapshots : BatchSnapshots where
+  endS := AttackVectors.Timestamps.attackHistory 2
+  beginS := fun n =>
+    if n = 0 then {⟨0, 0⟩} else AttackVectors.Timestamps.attackHistory 2 (n - 1)
   t := fun n => if n ≤ 1 then 0 else 1
-
-/-- An honest refund history: nothing is ever committed (every snapshot is the genesis
-singleton, begin and end alike), batch 0 settles at time 0 and every later batch at time 1. -/
-def honestHistory : BatchSnapshots where
-  endS := fun _ => {⟨0, 0⟩}
-  beginS := fun _ => {⟨0, 0⟩}
-  t := fun n => if n = 0 then 0 else 1
 
 end AttackVectors.StaleSnapshotBranches

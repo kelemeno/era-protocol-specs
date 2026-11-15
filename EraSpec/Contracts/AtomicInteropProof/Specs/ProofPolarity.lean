@@ -29,6 +29,16 @@ import Mathlib.Tactic
 
   The pleasing part, and the reason it is worth writing down: the SAME assumption that makes inclusion
   self-binding is exactly what makes absence chain-blind.  One hypothesis, opposite consequences.
+
+  Correction (ProofPolarityFaithful).  The "defense-in-depth" reading is false of the pinned
+  contract, even under honest insertion.  This file writes a leg's chain as one value `srcOf v`,
+  but both checks compare the proof's chain with the flow's DECLARED chain
+  `legSourceChainIds[i]`, which the pinned `append` does not bind to the committing chain.  With
+  the two kept apart the finality-side check is load-bearing:
+  `AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared` (per leg),
+  `FlowDoubleMintIffSomeMisdeclared` (per flow) and `PinnedMisdeclaredDoubleMint` (a state the
+  pinned `append` reaches, with honest insertion).  The set facts here stay true; reading them as
+  "the check adds nothing on the inclusion path" does not.
 -/
 
 namespace AttackVectors.ProofPolarity

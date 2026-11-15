@@ -37,6 +37,12 @@ This file restates the stale-snapshot gate over the concrete contract state:
 * delivery as genuine membership, `v ∈ keys (toAbs (R i))` at an on-time snapshot
   (`t i ≤ D`), and the reclaim pin `D < t (j+1)` exactly as `StaleSnapshot` has it.
 
+That pin is `StaleSnapshot`'s abstract model of the deadline gate: the deployed gate
+makes no such comparison.  `AttackVectors.StaleSnapshotBranches` maps the two deployed
+timeout branches onto the pin, under its own bridging premises.  The two topics are
+separate results: no theorem composes a deployed branch with `verifyNonInclusion`
+acceptance over a contract run.
+
 The located break is `Contracts.InteropCommitmentTree.TreeRootBreak` on the submitted
 reclaim proof; its `paddingHit` case is the padding forgery.
 
@@ -61,5 +67,19 @@ def paddedRunHeight : ℕ → ℕ :=
 every later one at time 1.  Monotone. -/
 def paddedRunTime : ℕ → UInt256 :=
   fun n => if n ≤ 2 then 0 else 1
+
+/-- The contract run `setup; insert 2 (low 0)`, idle afterwards: value `2` is committed
+at snapshot 1, and value `1` is never committed. -/
+def oneInsertRun : ℕ → Tree :=
+  fun n => if n = 0 then setup else insert setup 2 0
+
+/-- The `FullMerkle` heights along `oneInsertRun`: one leaf at height 0, two at height 1. -/
+def oneInsertRunHeight : ℕ → ℕ :=
+  fun n => if n = 0 then 0 else 1
+
+/-- Settlement timestamps along `oneInsertRun`: snapshots 0 and 1 settle at time 0, every
+later one at time 1.  Monotone. -/
+def oneInsertRunTime : ℕ → UInt256 :=
+  fun n => if n ≤ 1 then 0 else 1
 
 end AttackVectors.StaleSnapshotFaithful

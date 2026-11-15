@@ -208,7 +208,11 @@ theorem pinned_break_not_always : Properties.PinnedBreakNotAlways :=
   ⟨demoHash, 0, [5, 7, 9], 1, ⟨2, 0, 0, 1, by decide, by decide⟩, by decide,
     demo_no_pinned_break⟩
 
-/-- **AN ACCEPTED SUBMITTED PATH: LAST LEAF, A PINNED BREAK, OR A PATH COLLISION.** -/
+/-- **AN ACCEPTED SUBMITTED PATH: LAST LEAF, A PINNED BREAK, OR A PATH COLLISION.**
+
+**Correction (LastLeafFaithful).**  The walk's length is taken to be the tree's height
+and the index to be occupied, which the deployed verifier does not check; see
+`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`. -/
 theorem accepted_last_leaf_or_pinned_break (h : Hash) (z0 : UInt256)
     (L : List UInt256) (sibs : ℕ → UInt256) (height j : ℕ) (x : UInt256)
     (hcap : L.length ≤ 2 ^ height) (hj : j < L.length)
@@ -280,7 +284,10 @@ lemma treePair_mem (h : Hash) (z0 : UInt256) (L : List UInt256) (height j i : �
   rw [hd]
   exact lt_of_le_of_lt (Nat.div_mul_le_self j _) hj
 
-/-- **AN ACCEPTED PATH WITH THE CHECK IS THE LAST LEAF, UNDER A BOUNDED PREMISE.** -/
+/-- **AN ACCEPTED PATH WITH THE CHECK IS THE LAST LEAF, UNDER A BOUNDED PREMISE.**
+
+**Correction (LastLeafFaithful).**  As above, the length and an occupied index are
+assumed; see `MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOn`. -/
 theorem accepted_last_leaf_on (h : Hash) (z0 : UInt256)
     (L : List UInt256) (sibs : ℕ → UInt256) (height j : ℕ) (x : UInt256)
     (hcap : L.length ≤ 2 ^ height) (hj : j < L.length) (hsep : EntriesNotEmpty z0 L)

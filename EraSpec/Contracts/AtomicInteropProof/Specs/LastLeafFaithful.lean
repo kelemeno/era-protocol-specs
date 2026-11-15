@@ -27,6 +27,22 @@ last leaf": a wrong length located by `MerkleSpec.Verifier.HeightBreak`, a padde
 whose claimed leaf hash is the empty-entry constant, or (at the right length) the
 pinned break / path collision `LastLeaf` already names.
 
+## Model boundary: the claimed leaf hash
+
+The model takes the claimed leaf hash `x` as free.  On chain it is computed:
+`localBatchLeafHash = batchLeafHash(batchSettlementRoot, _batchNumber, l1BatchTimestamp)`
+(`MessageHashing.sol:195-199`), that is `keccak256(BATCH_LEAF_PADDING ‖ root ‖ number ‖
+timestamp)` over a 128-byte preimage (`:78-84`), which the prover controls only through
+its inputs.  A tree node is the keccak of 64 bytes (`Merkle.sol:124-131`), and the
+empty-entry constant is the keccak of 96 zero bytes (`IMessageRoot.sol:8-11`).  So, on
+chain, presenting an interior node as the leaf (`HeightBreak.shortInteriorLeaf`) needs a
+batch leaf equal to a node hash, `HeightBreak.longEntryIsNode` needs a stored entry (a
+batch leaf or the empty-entry constant) equal to a node hash, and a padded entry needs a
+batch leaf equal to the empty-entry constant: each is a cross-length keccak preimage,
+excluded by hash domain separation and by no check the contract performs.  The other
+`HeightBreak` cases (`shortCollision`, `longCollision`) are same-length 64-byte
+collisions on the walk, so length separation alone does not exclude every wrong length.
+
 ## Model boundary that remains: the outer hop
 
 `authenticated` says the batch-leaf walk reaches chain `c`'s own batch-tree root.  On
@@ -48,11 +64,13 @@ open MerkleSpec MerkleSpec.Verifier MerkleSpec.LastLeaf
 /-- **THE BATCH-LEAF HOP AND `_verifyLastBatchInRoot`, AS DEPLOYED.**  `L` is chain
 `c`'s batch-leaf list inside the aggregated root, `height` its tree height, `z0` the
 empty-entry constant `CHAIN_TREE_EMPTY_ENTRY_HASH` (the tree's padding and the base of
-the zero cascade the check compares against).  The submitted length `k`, mask `j`,
-siblings `sibs` and leaf hash `x` are the prover's. -/
+the zero cascade the check compares against).  The submitted length `k`, mask `j` and
+siblings `sibs` are the prover's.  The claimed leaf hash `x` is modelled as free; on
+chain it is `batchLeafHash(root, n, t)`, a keccak of a 128-byte preimage
+(`MessageHashing.sol:78-84`, `:195-199`), see the module docstring. -/
 structure LastBatchPathAccepted (h : Hash) (z0 : UInt256) (L : List UInt256) (height : ℕ)
     (sibs : ℕ → UInt256) (k j : ℕ) (x : UInt256) : Prop where
-  /-- `Merkle.sol:138-140`, `MerkleIndexOutOfBounds`. -/
+  /-- `Merkle.sol:137-139`, `MerkleIndexOutOfBounds`. -/
   inBounds : j < 2 ^ k
   /-- `calculateRootMemory` over the submitted path returns chain `c`'s root (the outer
   hop's conclusion; see the module docstring). -/
@@ -69,7 +87,8 @@ compared value is a function of the instance `(h, z0, L, sibs, k, height, j, x)`
   node hash of the verifier's own pair, or a collision on the re-anchored / split walk);
 * `paddedEntry` — the right length, an index beyond the occupied leaves, and the
   claimed leaf hash IS the empty-entry constant (on chain: `localBatchLeafHash ==
-  CHAIN_TREE_EMPTY_ENTRY_HASH`, a preimage of that constant);
+  CHAIN_TREE_EMPTY_ENTRY_HASH`, a 128-byte keccak preimage of that constant, which is
+  itself the keccak of 96 zero bytes);
 * `pinned` — the right length, and `LastLeaf.PinnedBreak` on the subtree after `j`;
 * `pathCollision` — the right length, and a `PathCollision` on the submitted path. -/
 inductive LastLeafAnyLengthBreak (h : Hash) (z0 : UInt256) (L : List UInt256)
@@ -85,7 +104,9 @@ inductive LastLeafAnyLengthBreak (h : Hash) (z0 : UInt256) (L : List UInt256)
 
 /-- The tree's own pairs along index `j`'s path, one per level below `height`.  With
 `TreePair` and `VerifiedPair` this is the finite, instance-determined set the bounded
-no-collision premise ranges over. -/
+no-collision premise ranges over.  It adds nothing to that set: every such pair is
+already a `TreePair` (`pathTreePair_sub_treePair` in the Proofs), so the set is the one
+`LastLeaf.AcceptedLastLeafOn` uses. -/
 def PathTreePair (h : Hash) (z0 : UInt256) (L : List UInt256) (height j : ℕ)
     (p : UInt256 × UInt256) : Prop :=
   ∃ i < height, p = treePair h z0 L i (j / 2 ^ i)

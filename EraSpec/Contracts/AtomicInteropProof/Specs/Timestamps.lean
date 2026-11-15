@@ -24,6 +24,13 @@ import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
   the last on-time snapshot, while the delivery gate accepts a strictly later
   snapshot as on-time.
 
+  Correction (StaleSnapshotBranches).  `D < t (j+1)` does not pin `j` as the
+  LAST on-time snapshot: under monotone `t` it puts every on-time snapshot at
+  or before `j` (`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`), and
+  `j` itself can be late (`PinDoesNotMakeSnapshotOnTime`).  The deployed gate
+  makes no such comparison; `StaleSnapshotBranches` maps its two timeout
+  branches onto the pin.
+
   What this file establishes.
 
   * `monotone_timestamps_indispensable` — THE HEADLINE.  Without `Monotone t`

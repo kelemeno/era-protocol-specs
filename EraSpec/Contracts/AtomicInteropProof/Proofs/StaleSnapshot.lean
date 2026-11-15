@@ -63,6 +63,16 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
   timestamp assignment satisfying both gates for this history is
   impossible (that is precisely `stale_witness_not_redeemable`).
 
+  Correction (StaleSnapshotBranches).  `D < t (j+1)` does not pin `j` as
+  the LAST on-time snapshot: under monotone `t` it puts every on-time
+  snapshot at or before `j`
+  (`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`), and `j` itself
+  can be late (`PinDoesNotMakeSnapshotOnTime`, `BeginBranchPinMayBeLate`).
+  The theorems here use only the former.  Nor is the pin a comparison the
+  deployed gate makes: `StaleSnapshotBranches` maps the two deployed
+  timeout branches onto it, under `BeginIsPrevEnd` and `LaterBatchesLate`
+  (`BeginBranchNotRedeemable`, `EndBranchNotRedeemable`).
+
   Pure order theory over `IMTAbstract` — axiom-free, no EVM semantics.
 -/
 
@@ -104,7 +114,13 @@ delivery gate accepts membership only at an ON-TIME snapshot (`t i ≤ D`).
 Under these gates a witness accepted at `j` entails that `v` is a key of
 NO on-time snapshot — the attacker's early witness and any on-time
 delivery are mutually exclusive.  Packaging of
-`delivered_and_reclaimed_impossible`. -/
+`delivered_and_reclaimed_impossible`.
+
+**Correction (StaleSnapshotBranches).**  The pin does not make `j` on
+time, so `j` need not be the last snapshot settled by the deadline; it
+bounds every on-time snapshot by `j`
+(`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`,
+`PinDoesNotMakeSnapshotOnTime`), which is all the proof uses. -/
 theorem stale_witness_not_redeemable {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)
     {j : ℕ} {W : AbsLeaf}

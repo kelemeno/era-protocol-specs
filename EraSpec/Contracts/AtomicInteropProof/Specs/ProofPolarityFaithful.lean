@@ -27,8 +27,9 @@ the send path ties them together.  This file models both, and the results in
 * `authorizeRefund` (`AtomicFlowManager.sol:142-151`): check B
   `if (_absence.sourceChainId != missingLegChainId) revert ProofSourceChainMismatch(...)`
   with `missingLegChainId = _flow.legSourceChainIds[_missingLegIndex]`, then
-  `verifyTimeoutAbsence` against the tree of that chain; then every leg this chain
-  committed is marked `Revertable` (`:155-161`) and `claimRefund` (`:165-180`) pays it.
+  `verifyTimeoutAbsence` against the tree of that chain; then every leg of the flow that
+  this chain committed is marked `Revertable` (`:153-161`), whichever leg was proved
+  missing, and `claimRefund` (`:165-180`) asks each such leg's call targets to recover it.
 
 So both gates pin the proof to the DECLARED chain `legSourceChainIds[i]`; the real
 source chain (`block.chainid` at dispatch, inside `bundleHash`) is a different
@@ -64,6 +65,15 @@ The upgrade tree (era-contracts `e561b9cc2`) adds the missing binding:
   and without check A; `RefundChecked` — `authorizeRefund` for the missing leg
   (check B is present at both pins and is never dropped here).
 
+Model boundaries.  A proof is identified with the set fact it proves (`v ∈ tree c`,
+`v ∉ tree c`), and each chain has ONE timeless tree.  On chain the finality gate reads
+the batch-END IMT root of an on-time batch (`AtomicInteropProof.sol:113-139`), and the
+refund gate the BEGIN root of a late batch or the END root of the last in-time batch of
+a post-deadline root (`:152-206`): different snapshots, each read through an IMT proof.
+Those snapshots, the deadline and timeout branches (`TimeoutSoundness`,
+`StaleSnapshotBranches`), the Merkle authentication of roots and the IMT proofs
+themselves are not modelled here.
+
 **This file is definitions only.**
 -/
 
@@ -95,7 +105,12 @@ inductive PinnedReach (srcOf : Value → Chain) : (Chain → Set Value) → Prop
       PinnedReach srcOf tree → srcOf v = c → PinnedReach srcOf (appendAt tree c v)
 
 /-- The states honest chains reach under the UPGRADED `append`, which also requires
-the leg to be declared on the committing chain (`decl v = c`). -/
+the leg to be declared on the committing chain (`decl v = c`).
+
+Scope: it starts from empty trees, so it covers histories in which every tree was
+written only by the binding `append` (for example a fresh deployment).  Values from a
+binding-free `append`, if any chain carries them, are outside it, and check A stays
+load-bearing for flows that use them. -/
 inductive UpgradeReach (srcOf decl : Value → Chain) : (Chain → Set Value) → Prop
   | genesis : UpgradeReach srcOf decl (fun _ => ∅)
   | append {tree : Chain → Set Value} (c : Chain) (v : Value) :
@@ -130,8 +145,9 @@ def FlowFinalizedUnchecked (tree : Chain → Set Value) (legs : List Value) (pc 
     Prop :=
   ∀ v ∈ legs, FinalityUnchecked tree v (pc v)
 
-/-- Some leg of the flow passes `authorizeRefund`; its source chain then marks it
-`Revertable` and `claimRefund` pays it. -/
+/-- Some leg of the flow passes `authorizeRefund` as the missing leg.  The chain running
+`authorizeRefund` then marks every leg it committed under the flow `Revertable`
+(`AtomicFlowManager.sol:153-161`), whether or not that leg is the one proved missing. -/
 def FlowRefunded (decl : Value → Chain) (tree : Chain → Set Value) (legs : List Value) : Prop :=
   ∃ v ∈ legs, ∃ c, RefundChecked decl tree v c
 

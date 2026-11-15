@@ -131,18 +131,61 @@ theorem padding_reclaim_redeems_delivered_leg : Properties.PaddingReclaimRedeems
 
 /-! ## Satisfiability of the collision form -/
 
-theorem stale_witness_or_collision_satisfiable : Properties.StaleWitnessOrCollisionSatisfiable := by
-  have hcap : setup.leafCount ≤ 2 ^ 0 := by simp [setup]
-  have hI := inclusion_complete (h := toyNodeHash) (z0 := 1) (hl := toyLeafHash) (T := setup)
-    (height := 0) hcap (i := 0) (by simp [setup])
-  have hlate : ¬ ((1 : UInt256) ≤ 0) := by decide
-  refine ⟨toyNodeHash, 1, toyLeafHash, fun _ => setup, fun _ => 0, fun _ => 1, 0, 1, 0,
-    ⟨0, 0, 0⟩, 0, honestSibs toyNodeHash 1 (leafHashes toyLeafHash setup) 0, 0,
-    fun _ => Or.inl rfl, rfl, monotone_const, by decide, ?_, by decide, ?_, ?_⟩
-  · exact ⟨by decide, by decide, Or.inl rfl, hI.path⟩
-  · exact honest_proof_no_break toyNodeHash 1 toyLeafHash setup 0 0 (by simp [setup])
-  · intro i hti
-    exact absurd hti hlate
+theorem oneInsertRun_run : Run oneInsertRun := by
+  intro n
+  match n with
+  | 0 => exact Or.inr ⟨2, 0, setup_insertGuard (by decide), rfl⟩
+  | n + 1 => left; simp [oneInsertRun]
+
+theorem oneInsertRunTime_monotone : Monotone oneInsertRunTime := by
+  intro m n hmn
+  unfold oneInsertRunTime
+  split_ifs with h1 h2 h2
+  · exact le_refl _
+  · decide
+  · exact absurd (le_trans hmn h2) h1
+  · exact le_refl _
+
+theorem oneInsertRun_one_count : (oneInsertRun 1).leafCount = 2 := rfl
+
+theorem oneInsertRun_one_leaf0 : (oneInsertRun 1).leaf 0 = ⟨0, 1, 2⟩ := by
+  simp [oneInsertRun, Contracts.InteropCommitmentTree.insert, setup]
+
+/-- The honest low-leaf proof for `1` at snapshot 1 is accepted. -/
+theorem oneInsertRun_accepted :
+    NonInclusionAccepted toyNodeHash toyLeafHash
+      (root toyNodeHash 1 toyLeafHash (oneInsertRun 1) (oneInsertRunHeight 1)) 1
+      ((oneInsertRun 1).leaf 0) 0
+      (honestSibs toyNodeHash 1 (leafHashes toyLeafHash (oneInsertRun 1)) 0)
+      (oneInsertRunHeight 1) := by
+  have hcap : (oneInsertRun 1).leafCount ≤ 2 ^ (oneInsertRunHeight 1) := by
+    rw [oneInsertRun_one_count]; simp [oneInsertRunHeight]
+  have hI := inclusion_complete (h := toyNodeHash) (z0 := 1) (hl := toyLeafHash)
+    (T := oneInsertRun 1) (height := oneInsertRunHeight 1) hcap (i := 0)
+    (by rw [oneInsertRun_one_count]; norm_num)
+  refine ⟨by decide, ?_, ?_, hI.path⟩
+  · rw [oneInsertRun_one_leaf0]; decide
+  · rw [oneInsertRun_one_leaf0]; right; decide
+
+theorem oneInsertRun_keys (n : ℕ) : keys (toAbs (oneInsertRun n)) ⊆ {0, 2} := by
+  by_cases h : n = 0
+  · subst h; decide
+  · have : oneInsertRun n = insert setup 2 0 := by simp [oneInsertRun, h]
+    rw [this]; decide
+
+theorem stale_witness_or_collision_satisfiable : Properties.StaleWitnessOrCollisionSatisfiable :=
+  ⟨toyNodeHash, 1, toyLeafHash, oneInsertRun, oneInsertRunHeight, oneInsertRunTime, 0, 1, 1,
+    (oneInsertRun 1).leaf 0, 0,
+    honestSibs toyNodeHash 1 (leafHashes toyLeafHash (oneInsertRun 1)) 0,
+    oneInsertRunHeight 1,
+    oneInsertRun_run, rfl, oneInsertRunTime_monotone, by decide, oneInsertRun_accepted,
+    by rw [oneInsertRun_one_leaf0]; decide,
+    honest_proof_no_break toyNodeHash 1 toyLeafHash (oneInsertRun 1) (oneInsertRunHeight 1) 0
+      (by rw [oneInsertRun_one_count]; norm_num),
+    fun i _ hmem => by have := oneInsertRun_keys i hmem; simp at this,
+    by decide,
+    ⟨1, 2, by decide, by decide,
+      by show (2 : UInt256) ∈ keys (toAbs (insert setup 2 0)); decide⟩⟩
 
 /-! ## Certificates -/
 

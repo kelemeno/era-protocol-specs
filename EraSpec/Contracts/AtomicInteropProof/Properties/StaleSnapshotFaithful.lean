@@ -10,19 +10,28 @@ Statements over `../Specs/StaleSnapshotFaithful.lean`.  Proofs:
   `StaleSnapshot.stale_witness_not_redeemable` / `pinning_gate_rejects_stale_witness`
   (and `Timestamps.monotone_blocks_the_attack`) for an absence proof ACCEPTED by
   `verifyNonInclusion` against a run's published root, with index and path length the
-  prover's: no on-time delivery coexists with a deadline-pinned accepted reclaim, or
-  the reclaim proof carries a located `TreeRootBreak`.  No hash premise.
+  prover's: no on-time delivery coexists with an accepted reclaim at a snapshot that
+  meets the abstract pin `D < t (j+1)`, or the reclaim proof carries a located
+  `TreeRootBreak`.  No hash premise.
 * `PaddingReclaimRedeemsDeliveredLeg` is the countermodel to the original headline's
-  reading as a statement about the deployed gate: at the extraction pin (padding
-  constant `hashLeaf({0,0,0})`), on a real run with monotone timestamps, a value is
-  delivered at an on-time snapshot AND an absence proof for it is accepted at a
-  deadline-pinned snapshot.  The accepted low leaf is not a leaf of the snapshot, the
-  original conclusion is false, and the break is exactly `paddingHit`.
+  reading as a statement about the deployed absence check: at the extraction pin
+  (padding constant `hashLeaf({0,0,0})`), on a real run with monotone timestamps, a
+  value is delivered at an on-time snapshot AND an absence proof for it is accepted at a
+  snapshot that meets the abstract pin.  The accepted low leaf is not a leaf of the
+  snapshot, the original conclusion is false, and the break is exactly `paddingHit`.
 * `StaleWitnessNotRedeemableOrCollision` is what the upgrade's padding buys: once the
   presented leaf does not hash to the padding constant, the only remaining ways out
   are genuine hash collisions (a wrong path length, a path collision, a leaf-hash
   collision), never a free padding hit.  `StaleWitnessOrCollisionSatisfiable` shows its
-  premises hold, with no break, on an honest refund.
+  premises hold, with no break, on an honest refund in a run that commits a value on
+  time, at a pinned snapshot that is itself on time, so the first disjunct is not true
+  of every value there.
+
+Scope.  The pin `D < t (j+1)` is `StaleSnapshot`'s abstract model of the deadline gate,
+not a comparison the deployed gate makes.  The deployed branches are mapped onto it in
+`AttackVectors.StaleSnapshotBranches`; that topic and this one are separate and not
+composed, so "a reclaim of a delivered leg" here means the absence check plus the
+abstract pin.
 -/
 
 namespace AttackVectors.StaleSnapshotFaithful
@@ -46,8 +55,9 @@ def Properties.StaleWitnessNotRedeemableOrBreak : Prop :=
         ∨ TreeRootBreak h z0 hl (R j) (ht j) sibs k idx ℓ
 
 /-- **THE ATTACKER'S VIEW.**  Given a genuine on-time delivery of `v`, every absence
-proof `verifyNonInclusion` accepts against a snapshot's root either fails the pinning
-comparison `D < t (j+1)` or carries a located break. -/
+proof `verifyNonInclusion` accepts against a snapshot's root either fails the abstract
+pin `D < t (j+1)` (`StaleSnapshot`'s model of the deadline gate; the deployed gate makes
+no such comparison) or carries a located break. -/
 def Properties.PinningGateRejectsStaleWitnessOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → Tree) (ht : ℕ → ℕ) (t : ℕ → UInt256)
     (D v : UInt256),
@@ -65,7 +75,9 @@ snapshot 2 is deadline-pinned for deadline `0`; yet `verifyNonInclusion` accepts
 `{0,0,0}` at the empty slot 3 as an absence proof for `a` against snapshot 2's root.
 The accepted low leaf `⟨0,0⟩` is not a leaf of the snapshot, so
 `StaleSnapshot.stale_witness_not_redeemable`'s conclusion fails for this accepted
-reclaim, and the located break is exactly `paddingHit`. -/
+reclaim, and the located break is exactly `paddingHit`.  "Deadline-pinned" is the
+abstract pin `D < t (j+1)`; the deployed timeout branches are not part of this
+statement (see the module docstring). -/
 def Properties.PaddingReclaimRedeemsDeliveredLeg : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
     Run (paddedRun a b) ∧ paddedRun a b 0 = setup ∧ Monotone paddedRunTime
@@ -101,11 +113,14 @@ def Properties.StaleWitnessNotRedeemableOrCollision : Prop :=
         ∨ (k = ht j ∧ PathCollision h z0 (leafHashes hl (R j)) sibs 0 k idx (hl ℓ))
         ∨ (idx < (R j).leafCount ∧ (R j).leaf idx ≠ ℓ ∧ hl ((R j).leaf idx) = hl ℓ)
 
-/-- **THE PREMISES ARE SATISFIABLE, WITH NO BREAK.**  An honest refund under a padding
-constant distinct from the sentinel's leaf hash (the toy hashes, padding `1`): the idle
-run at `setup`, every snapshot late for deadline `0`, the honest absence proof for `1`
-at snapshot 0.  Every premise of `StaleWitnessNotRedeemableOrCollision` holds, the
-proof carries no `TreeRootBreak`, and the first disjunct is what holds. -/
+/-- **THE PREMISES ARE SATISFIABLE, WITH NO BREAK, AND THE FIRST DISJUNCT HAS CONTENT.**
+An honest refund under a padding constant distinct from the sentinel's leaf hash (the
+toy hashes, padding `1`): the run `oneInsertRun` (`setup; insert 2`) with
+`oneInsertRunTime` and deadline `0`, the honest low-leaf absence proof for `1` at
+snapshot `j = 1`, which meets the pin and is itself on time.  Every premise of
+`StaleWitnessNotRedeemableOrCollision` holds, the proof carries no `TreeRootBreak`, and
+the first disjunct holds for `1`.  A nonzero value (`2`) is a key of an on-time
+snapshot, so that disjunct is false for it: on this run it is not true of every value. -/
 def Properties.StaleWitnessOrCollisionSatisfiable : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → Tree) (ht : ℕ → ℕ) (t : ℕ → UInt256)
     (D v : UInt256) (j : ℕ) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
@@ -114,5 +129,7 @@ def Properties.StaleWitnessOrCollisionSatisfiable : Prop :=
       ∧ hl ℓ ≠ z0
       ∧ ¬ TreeRootBreak h z0 hl (R j) (ht j) sibs k idx ℓ
       ∧ (∀ i, t i ≤ D → v ∉ keys (toAbs (R i)))
+      ∧ t j ≤ D
+      ∧ (∃ i w, t i ≤ D ∧ w ≠ 0 ∧ w ∈ keys (toAbs (R i)))
 
 end AttackVectors.StaleSnapshotFaithful

@@ -77,7 +77,12 @@ variable (tree : Chain → Set Value) (Inserted Appended : Chain → Value → P
 
 /-- **`HonestInsertion` IS "EVERY CHAIN RUNS THIS CODE".**  Given the guards at every chain, the global
 hypothesis `ProofPolarity.inclusion_self_binds` needs follows -- with nothing added.  The premise is
-the standard elastic-chain one, not a new assumption introduced by the atomic-interop layer. -/
+the standard elastic-chain one, not a new assumption introduced by the atomic-interop layer.
+
+**Correction (ProofPolarityFaithful).**  This gives `inclusion_self_binds`, not the
+"defense-in-depth" reading of it: even when every chain runs this code, the finality-side
+`sourceChainId` check is load-bearing at `c67894b9`
+(`AttackVectors.ProofPolarityFaithful.PinnedMisdeclaredDoubleMint`); see the section below. -/
 theorem honestInsertion_of_guards_everywhere
     (g : ∀ c : Chain, Guards srcOf c (· ∈ tree c) (Inserted c) (Appended c)) :
     ∀ c v, v ∈ tree c → srcOf v = c :=
@@ -104,6 +109,17 @@ Combining with `ProofPolarity`:
 * Absence never self-binds regardless, so the refund path's check is unconditional.
 
 The practical upshot for a reviewer is narrow and checkable: the inclusion-side redundancy claim is
-only as strong as `sole_call_site`, and that is the one link no compiler enforces. -/
+only as strong as `sole_call_site`, and that is the one link no compiler enforces.
+
+Correction (ProofPolarityFaithful).  The redundancy claim needs more than this.  The finality-side
+check (check A in `ProofPolarityFaithful`) compares the proof's chain with the flow's DECLARED chain
+`legSourceChainIds[i]`, and the pinned `append` (`c67894b9`) does not bind that to the committing
+chain: a leg can be committed on chain `S` under a flow that declares `X ≠ S`.  So even when every
+chain runs an unmodified deployment (honest insertion holds), check A is load-bearing at the pin
+(`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
+`PinnedMisdeclaredDoubleMint`).  The self-binding in the first bullet is to the committing chain,
+and the label does not follow from it; and, against the second bullet, a leg's declared chain can
+differ from its committing chain while both run the deployment.  The upgrade's binding `append`
+(`e561b9cc2`) makes check A redundant on the states it reaches (`UpgradeCheckARedundant`). -/
 
 end AttackVectors.LocalHonesty

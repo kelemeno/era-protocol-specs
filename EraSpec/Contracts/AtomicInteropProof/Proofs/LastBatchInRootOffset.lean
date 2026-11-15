@@ -46,15 +46,32 @@ theorem position_as_batch_misreads : Properties.PositionAsBatchMisreads := by
     simp [offsetHistory, hm']
   · simp [offsetHistory, batchAt]
 
+theorem richOffsetHistory_appendOnly : AppendOnly richOffsetHistory := by
+  intro n
+  by_cases h0 : n = 0
+  · subst h0; simp [richOffsetHistory]
+  · by_cases h3 : n ≤ 3
+    · by_cases h3' : n + 1 ≤ 3
+      · simp [richOffsetHistory, h0, h3, h3']
+      · simp [richOffsetHistory, h0, h3, h3']
+    · have h3' : ¬ n + 1 ≤ 3 := by omega
+      simp [richOffsetHistory, h0, h3, h3']
+
 theorem end_branch_offset_satisfiable : Properties.EndBranchOffsetSatisfiable := by
-  refine ⟨fun n => by simp [emptyOffsetHistory], by norm_num, rfl, by norm_num, by norm_num,
-    rightEmpty_of_last, ?_, by simp [emptyOffsetHistory], ?_⟩
+  refine ⟨richOffsetHistory_appendOnly, by norm_num, rfl, by norm_num, by norm_num,
+    rightEmpty_of_last, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro m hm
-    have hm' : ¬ m ≤ 2 := by omega
-    simp [emptyOffsetHistory, hm']
+    have : ¬ m ≤ 3 := by omega
+    simp [richOffsetHistory, this]
+  · simp [richOffsetHistory]
   · intro hout
-    have h2 : 1 ≤ emptyOffsetHistory.time 2 := hout 2 (by norm_num)
-    simp [emptyOffsetHistory] at h2
+    have h3 : 1 ≤ richOffsetHistory.time 3 := hout 3 (by norm_num)
+    simp [richOffsetHistory] at h3
+  · intro h
+    have := h 0 (by norm_num) (by norm_num) 3 (by norm_num) (by norm_num)
+    omega
+  · simp [richOffsetHistory]
+  · simp [richOffsetHistory]
 
 /-! ## Certificates -/
 

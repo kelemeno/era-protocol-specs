@@ -20,6 +20,16 @@ one-step consequences of `HonestInsertion`, and none of them mentions a gate:
 Nothing there shows that the premises can hold together: honest insertion, a live leg, and a
 second chain.
 
+Correction (ProofPolarityFaithful).  The comparison is redundant on the inclusion path exactly
+when every value in a chain's tree is declared on that chain
+(`AttackVectors.ProofPolarityFaithful.RedundantIffDeclared`), which
+`unchecked_inclusion_gate_iff_checked` below assumes by passing `srcOf v` as the declared
+chain.  At the pin the flow's declared chain is a separate value that the pinned `append`
+does not bind to the committing chain, and with it kept apart the comparison is
+load-bearing even under honest insertion
+(`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
+`PinnedMisdeclaredDoubleMint`).
+
 This file states the asymmetry against the gates of `Specs/ProofPolarityStrong.lean`, with
 non-vacuity witnesses, and lifts it to commitment-tree states.
 
@@ -86,7 +96,7 @@ abbrev Properties.checked_absence_gate_iff_absent (declared : Chain) (v : Value)
   (∃ c, CheckedAbsenceGate tree declared c v) ↔ v ∉ tree declared
 
 
-/-! ## The inclusion path: the comparison is redundant under honest insertion -/
+/-! ## The inclusion path: redundant under honest insertion, with the declared chain `srcOf v` -/
 
 /-- **ON THE INCLUSION PATH THE COMPARISON CHANGES NOTHING.**  Under honest insertion, the
 finality gate with the comparison deleted accepts exactly the legs that the deployed gate
@@ -95,7 +105,14 @@ already pins that chain.  This is the "defense-in-depth" label of `requireFlowFi
 statement about the two gates.
 
 Witness for the premise, with a leg each side accepts and one it rejects:
-`honest_polarity_model_exists`. -/
+`honest_polarity_model_exists`.
+
+**Correction (ProofPolarityFaithful).**  The statement fixes the declared chain to `srcOf v`, so
+it is true but does not establish the label for the pinned contract: there the flow's declared
+chain is a separate value that the pinned `append` does not bind to the committing chain, and
+with it kept apart check A is load-bearing even under honest insertion
+(`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
+`PinnedMisdeclaredDoubleMint`). -/
 abbrev Properties.unchecked_inclusion_gate_iff_checked (h : HonestInsertion srcOf tree) (v : Value) :=
   (∃ c, UncheckedInclusionGate tree c v) ↔ (∃ c, CheckedInclusionGate tree (srcOf v) c v)
 

@@ -139,30 +139,49 @@ theorem begin_branch_pin_may_be_late : Properties.BeginBranchPinMayBeLate :=
 
 /-! ## Satisfiability of the headline premises -/
 
-theorem honestHistory_monotone : Monotone honestHistory.t := by
+theorem two_ne_zero_word : (2 : UInt256) ≠ 0 := by decide
+
+theorem richSnapshots_monotone : Monotone richSnapshots.t := by
   intro m n hmn
-  show (if m = 0 then (0 : UInt256) else 1) ≤ (if n = 0 then (0 : UInt256) else 1)
+  show (if m ≤ 1 then (0 : UInt256) else 1) ≤ (if n ≤ 1 then (0 : UInt256) else 1)
   split_ifs with h1 h2 h2
   · exact le_refl _
   · decide
-  · exact absurd (by omega : m = 0) h1
+  · exact absurd (le_trans hmn h2) h1
   · exact le_refl _
 
+theorem richSnapshots_beginIsPrevEnd : BeginIsPrevEnd richSnapshots := by
+  intro n
+  show (if n + 1 = 0 then {⟨0, 0⟩} else AttackVectors.Timestamps.attackHistory 2 (n + 1 - 1))
+    = AttackVectors.Timestamps.attackHistory 2 n
+  simp
+
+theorem richSnapshots_end_one : richSnapshots.endS 1 = imtInsert {⟨0, 0⟩} ⟨0, 0⟩ 2 := by
+  show AttackVectors.Timestamps.attackHistory 2 1 = _
+  simp [AttackVectors.Timestamps.attackHistory]
+
+theorem richSnapshots_witness_mem : (⟨0, 2⟩ : AbsLeaf) ∈ richSnapshots.endS 1 := by
+  rw [richSnapshots_end_one]; decide
+
 theorem begin_branch_not_redeemable_satisfiable :
-    Properties.BeginBranchNotRedeemableSatisfiable :=
-  ⟨fun _ => Or.inl rfl, genesis_soundState, honestHistory_monotone, fun _ => rfl,
-    ⟨by decide, by decide, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩, by decide⟩
+    Properties.BeginBranchNotRedeemableSatisfiable := by
+  refine ⟨AttackVectors.Timestamps.attackHistory_evolution two_ne_zero_word, genesis_soundState,
+    richSnapshots_monotone, richSnapshots_beginIsPrevEnd,
+    ⟨by decide, by decide, ?_, by decide, Or.inr (by decide)⟩,
+    by decide, by rw [richSnapshots_end_one]; decide⟩
+  rw [richSnapshots_beginIsPrevEnd 1]; exact richSnapshots_witness_mem
 
 theorem end_branch_not_redeemable_satisfiable :
     Properties.EndBranchNotRedeemableSatisfiable := by
-  refine ⟨fun _ => Or.inl rfl, genesis_soundState, ?_,
-    ⟨by decide, by decide, Finset.mem_singleton_self _, by decide, Or.inl rfl⟩, ?_⟩
+  refine ⟨AttackVectors.Timestamps.attackHistory_evolution two_ne_zero_word, genesis_soundState,
+    ?_, ⟨by decide, by decide, richSnapshots_witness_mem, by decide, Or.inr (by decide)⟩, ?_,
+    by decide, by rw [richSnapshots_end_one]; decide⟩
   · intro m hm
     have hm1 : ¬ m ≤ 1 := by omega
     show (1 : UInt256) ≤ (if m ≤ 1 then (0 : UInt256) else 1)
     simp [hm1]
   · intro hout
-    have h0 : (1 : UInt256) ≤ eraVMHonestHistory.t 0 := hout 0 (by norm_num)
+    have h0 : (1 : UInt256) ≤ richSnapshots.t 0 := hout 0 (by norm_num)
     exact absurd h0 (by decide)
 
 /-! ## Certificates -/

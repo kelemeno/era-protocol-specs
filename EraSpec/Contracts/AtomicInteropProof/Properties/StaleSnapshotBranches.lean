@@ -15,8 +15,9 @@ Statements over `../Specs/StaleSnapshotBranches.lean`.  Proofs:
   excludes every on-time delivery.  The end branch needs no timestamp monotonicity.
 * `LaterBatchesLateOfOffset` / `OutsideRootLateGivesLaterBatchesLate` — where the
   end-branch bridge comes from: it is exactly `LastBatchInRootOffset`'s re-indexed premise
-  at `B = batchAt f p`, `n = p + 1`; the unrestricted `OutsideRootLate` (false at the pin
-  for EraVM chains) implies it, and is not used.
+  at `B = batchAt f p`, `n = p + 1`; the unrestricted `OutsideRootLate` with true root
+  membership implies it, and no headline here uses that form.  (`PROTO-AGGREGATES` also
+  gives it, at the root's last batch of the chain; see `LaterBatchesLate`.)
 * `BeginBranchNeedsBeginIsPrevEnd` / `EndBranchNeedsLaterBatchesLate` — each bridging
   assumption is load-bearing: without it, a branch passes with a genuine witness for a
   value delivered on time.
@@ -25,10 +26,12 @@ Statements over `../Specs/StaleSnapshotBranches.lean`.  Proofs:
   not be on time (so "j is the LAST on-time snapshot" is wrong without `t j ≤ D`), and
   on the begin branch it can be late.
 * `BeginBranchNotRedeemableSatisfiable` / `EndBranchNotRedeemableSatisfiable` — every
-  premise of each headline holds together on an honest refund with an on-time batch, so
-  neither headline is vacuous.  The end-branch witness is a fresh EraVM chain
-  (`eraVMHonestHistory`, batch 0 never in a root), on which the unrestricted
-  `OutsideRootLate` is false.
+  premise of each headline holds together on `richSnapshots`, which commits value `2` on
+  time, so neither headline is vacuous and each conclusion, which the premises give for
+  the refunded value `1`, is false for `2`.  Read as an abstract chain whose first pushed
+  batch is 1 (no atomic-interop source chain has one at `c67894b9`), the end-branch
+  instance also has the unrestricted `OutsideRootLate` false while `LaterBatchesLate`
+  holds.
 -/
 
 namespace AttackVectors.StaleSnapshotBranches
@@ -91,7 +94,7 @@ def Properties.OutsideRootLateGivesLaterBatchesLate : Prop :=
 /-- **`BeginIsPrevEnd` IS LOAD-BEARING.**  `unlinkedHistory` has a sound evolution of end
 snapshots and monotone timestamps but begin snapshots stuck at genesis; the begin branch
 passes at batch 2 with the genesis leaf as a genuine member of the begin snapshot, while
-`1` was committed in batch 0 and is in batch 1's end snapshot, on time. -/
+`1` was committed in batch 1 and is in batch 1's end snapshot, on time. -/
 def Properties.BeginBranchNeedsBeginIsPrevEnd : Prop :=
   Evolution unlinkedHistory.endS ∧ SoundState (unlinkedHistory.endS 0)
     ∧ Monotone unlinkedHistory.t ∧ ¬ BeginIsPrevEnd unlinkedHistory
@@ -127,27 +130,32 @@ def Properties.BeginBranchPinMayBeLate : Prop :=
   ∃ (H : BatchSnapshots) (D T v : UInt256) (L : ℕ) (W : AbsLeaf),
     BeginIsPrevEnd H ∧ BeginBranch H D T v L W ∧ 0 < L ∧ D < H.t (L - 1)
 
-/-- **THE BEGIN-BRANCH PREMISES ARE SATISFIABLE.**  On `honestHistory` (nothing committed,
-batch 0 on time for deadline `0`), the begin branch passes at batch `L = 1` with the
-genesis leaf as witness for `v = 1`: every premise of `BeginBranchNotRedeemable` holds,
-and batch 0 is on time, so its conclusion is not vacuous. -/
+/-- **THE BEGIN-BRANCH PREMISES ARE SATISFIABLE, AND THE HEADLINE DOES WORK.**  On
+`richSnapshots` (value `2` committed in batch 1, `BeginIsPrevEnd`, batches 0 and 1 on
+time for deadline `0`), the begin branch passes at the late batch `L = 2` with the
+genuine leaf `⟨0, 2⟩` of its begin snapshot as witness for `v = 1`: every premise of
+`BeginBranchNotRedeemable` holds.  Batch 1 is on time and holds `2`, so the headline's
+conclusion, which these premises give for `1`, is false for `2`. -/
 def Properties.BeginBranchNotRedeemableSatisfiable : Prop :=
-  Evolution honestHistory.endS ∧ SoundState (honestHistory.endS 0) ∧ Monotone honestHistory.t
-    ∧ BeginIsPrevEnd honestHistory ∧ BeginBranch honestHistory 0 1 1 1 ⟨0, 0⟩
-    ∧ honestHistory.t 0 ≤ 0
+  Evolution richSnapshots.endS ∧ SoundState (richSnapshots.endS 0) ∧ Monotone richSnapshots.t
+    ∧ BeginIsPrevEnd richSnapshots ∧ BeginBranch richSnapshots 0 1 1 2 ⟨0, 2⟩
+    ∧ richSnapshots.t 1 ≤ 0 ∧ (2 : UInt256) ∈ keys (richSnapshots.endS 1)
 
-/-- **THE END-BRANCH PREMISES ARE SATISFIABLE, ON A FRESH ERAVM CHAIN.**  On
-`eraVMHonestHistory`, a root created at time 1 whose last batch is batch 1 (the chain's
-first pushed batch, position 0) satisfies `LaterBatchesLate 1`, and the end branch passes
-at batch `B = 1` (on time for deadline `0`) with the genesis leaf as witness for `v = 1`:
-every premise of `EndBranchNotRedeemable` holds, and batch 1 is on time, so the
-conclusion is not vacuous.  Batch 0 is in no root (`seedGenesisRoot` returns early for
-EraVM chains) and settled at time 0, so the unrestricted `OutsideRootLate` with
-`inRoot = (· = 1)` is false here. -/
+/-- **THE END-BRANCH PREMISES ARE SATISFIABLE, AND THE HEADLINE DOES WORK.**  On
+`richSnapshots`, a root created at time 1 whose last batch of the chain is batch 1
+satisfies `LaterBatchesLate 1`, and the end branch passes at batch `B = 1` (on time for
+deadline `0`) with the genuine leaf `⟨0, 2⟩` as witness for `v = 1`: every premise of
+`EndBranchNotRedeemable` holds.  Batch 1 holds `2`, so the headline's conclusion, which
+these premises give for `1`, is false for `2`.
+
+Read as an abstract chain whose first pushed batch is 1, the root holds batch 1 only;
+batch 0 is then in no root and settled at time 0, so the unrestricted `OutsideRootLate`
+with `inRoot = (· = 1)` is false here while `LaterBatchesLate 1` holds.  No
+atomic-interop source chain has a first pushed batch above 0 at `c67894b9`. -/
 def Properties.EndBranchNotRedeemableSatisfiable : Prop :=
-  Evolution eraVMHonestHistory.endS ∧ SoundState (eraVMHonestHistory.endS 0)
-    ∧ LaterBatchesLate 1 eraVMHonestHistory.t 1
-    ∧ EndBranch eraVMHonestHistory 0 1 1 1 ⟨0, 0⟩
-    ∧ ¬ OutsideRootLate (· = 1) eraVMHonestHistory.t 1
+  Evolution richSnapshots.endS ∧ SoundState (richSnapshots.endS 0)
+    ∧ LaterBatchesLate 1 richSnapshots.t 1 ∧ EndBranch richSnapshots 0 1 1 1 ⟨0, 2⟩
+    ∧ ¬ OutsideRootLate (· = 1) richSnapshots.t 1
+    ∧ richSnapshots.t 1 ≤ 0 ∧ (2 : UInt256) ∈ keys (richSnapshots.endS 1)
 
 end AttackVectors.StaleSnapshotBranches

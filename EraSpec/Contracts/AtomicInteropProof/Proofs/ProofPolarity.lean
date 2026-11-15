@@ -30,6 +30,16 @@ import Mathlib.Tactic
 
   The pleasing part, and the reason it is worth writing down: the SAME assumption that makes inclusion
   self-binding is exactly what makes absence chain-blind.  One hypothesis, opposite consequences.
+
+  Correction (ProofPolarityFaithful).  The "defense-in-depth" reading is false of the pinned
+  contract, even under honest insertion.  This file writes a leg's chain as one value `srcOf v`,
+  but both checks compare the proof's chain with the flow's DECLARED chain
+  `legSourceChainIds[i]`, which the pinned `append` does not bind to the committing chain.  With
+  the two kept apart the finality-side check is load-bearing:
+  `AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared` (per leg),
+  `FlowDoubleMintIffSomeMisdeclared` (per flow) and `PinnedMisdeclaredDoubleMint` (a state the
+  pinned `append` reaches, with honest insertion).  The set facts here stay true; reading them as
+  "the check adds nothing on the inclusion path" does not.
 -/
 
 namespace AttackVectors.ProofPolarity
@@ -54,7 +64,13 @@ variable (tree : Chain → Set Value)
 /-! ## Positive polarity: inclusion carries its own chain binding -/
 
 /-- **INCLUSION SELF-BINDS.**  A membership witness already determines the chain, so the explicit
-equality check adds nothing on this path — the "defense-in-depth" reading. -/
+equality check adds nothing on this path — the "defense-in-depth" reading.
+
+**Correction (ProofPolarityFaithful).**  The statement is true; the reading is not.  The check
+compares the proof's chain with the flow's DECLARED chain, which at the pin need not be the
+committing chain `srcOf v`, so it is load-bearing even under honest insertion
+(`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
+`PinnedMisdeclaredDoubleMint`). -/
 theorem inclusion_self_binds (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hmem : v ∈ tree c) :
     Properties.inclusion_self_binds (h := h) (c := c) (v := v) (hmem := hmem) := by
@@ -102,7 +118,13 @@ theorem finalized_leg_still_absent_elsewhere (h : HonestInsertion srcOf tree)
 
 
 /-- **THE CHECK RESTORES SOUNDNESS.**  With the proof's chain pinned to the leg's declared chain, a
-committed leg leaves no absence witness — the refund gate cannot pass. -/
+committed leg leaves no absence witness — the refund gate cannot pass.
+
+**Correction (ProofPolarityFaithful).**  The premise pins to `srcOf v`, not to the declared chain
+the contract pins to.  Pinned to the declared chain, a committed leg can still have an absence
+witness (`AttackVectors.ProofPolarityFaithful.RefundNotBlockedWhenPinnedToDeclared`), and a live
+leg fails `authorizeRefund` as the missing leg exactly when its declared chain is `srcOf v`
+(`RefundBlockedIffDeclaredIsSource`). -/
 theorem refund_blocked_when_chain_pinned {v : Value} {c : Chain}
     (hpinned : c = srcOf v) (hlive : v ∈ tree (srcOf v)) :
     Properties.refund_blocked_when_chain_pinned (v := v) (c := c) (hpinned := hpinned) (hlive := hlive) := by
@@ -119,7 +141,13 @@ the one running the code.  A chain that inserts a foreign leg's commit value int
 it, and nothing in this contract can prevent that: the foreign chain's IMT is its own.  So the label
 is accurate under honest insertion and only then; drop the assumption and the check is load-bearing on
 BOTH paths.  This is not a defect — the check is present — but it does mean the two paths rest on
-different amounts of trust, which the comment does not say. -/
+different amounts of trust, which the comment does not say.
+
+Correction (ProofPolarityFaithful).  Honest insertion is not enough for the label either: with
+the flow's declared chain kept apart from the committing chain, the check is load-bearing even
+when every chain inserts honestly (`AttackVectors.ProofPolarityFaithful.PinnedMisdeclaredDoubleMint`
+satisfies `HonestInsertion`).  The label holds in the states the upgrade's binding `append`
+(`e561b9cc2`) reaches (`UpgradeCheckARedundant`). -/
 
 /-- **WITHOUT HONEST INSERTION, INCLUSION DOES NOT SELF-BIND.**  A misbehaving chain can hold a foreign
 leg's commit value, so a membership witness exists against the wrong chain and the explicit equality

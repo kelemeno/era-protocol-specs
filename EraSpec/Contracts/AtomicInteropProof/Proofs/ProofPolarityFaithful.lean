@@ -57,6 +57,23 @@ theorem unchecked_double_mint_iff_misdeclared {srcOf decl : Value → Chain}
   · rintro ⟨hlive, hne⟩
     exact ⟨⟨srcOf v, hlive⟩, ⟨decl v, rfl, fun hmem => hne (hHI (decl v) v hmem).symm⟩⟩
 
+theorem flow_double_mint_iff_some_misdeclared {srcOf decl : Value → Chain}
+    {tree : Chain → Set Value} {legs : List Value} (hHI : HonestInsertion srcOf tree) :
+    ((∃ pc, FlowFinalizedUnchecked tree legs pc) ∧ FlowRefunded decl tree legs)
+      ↔ ((∀ v ∈ legs, v ∈ tree (srcOf v)) ∧ ∃ v ∈ legs, decl v ≠ srcOf v) := by
+  constructor
+  · rintro ⟨⟨pc, hfin⟩, v, hv, c, hc, habs⟩
+    have hlive : ∀ u ∈ legs, u ∈ tree (srcOf u) := by
+      intro u hu
+      have hm : u ∈ tree (pc u) := hfin u hu
+      rw [hHI _ _ hm]; exact hm
+    refine ⟨hlive, v, hv, fun heq => ?_⟩
+    rw [hc, heq] at habs
+    exact habs (hlive v hv)
+  · rintro ⟨hlive, v, hv, hne⟩
+    exact ⟨⟨srcOf, fun u hu => hlive u hu⟩,
+      v, hv, decl v, rfl, fun hm => hne (hHI _ _ hm).symm⟩
+
 theorem refund_blocked_iff_declared_is_source {srcOf decl : Value → Chain}
     {tree : Chain → Set Value} {v : Value} (hHI : HonestInsertion srcOf tree)
     (hlive : v ∈ tree (srcOf v)) :
@@ -76,6 +93,18 @@ theorem unchecked_exclusive_under_declared {decl : Value → Chain} {tree : Chai
   have hc : FlowFinalizedChecked decl tree legs pc :=
     fun v hv => ⟨(hDI (pc v) v (hfin v hv)).symm, hfin v hv⟩
   exact ⟨hc, checked_gates_exclusive hc⟩
+
+theorem redundant_iff_declared {decl : Value → Chain} {tree : Chain → Set Value} :
+    (∀ (legs : List Value) (pc : Value → Chain),
+        FlowFinalizedUnchecked tree legs pc → FlowFinalizedChecked decl tree legs pc)
+      ↔ DeclaredInsertion decl tree := by
+  constructor
+  · intro hred c v hv
+    have h := hred [v] (fun _ => c) (fun u hu => by
+      rw [List.mem_singleton] at hu; subst hu; exact hv)
+    exact ((h v (List.mem_singleton_self v)).1).symm
+  · intro hDI legs pc hfin
+    exact (unchecked_exclusive_under_declared hDI hfin).1
 
 theorem upgrade_checkA_redundant {srcOf decl : Value → Chain} {tree : Chain → Set Value}
     {legs : List Value} {pc : Value → Chain} (hR : UpgradeReach srcOf decl tree)
@@ -145,6 +174,9 @@ theorem CheckedGatesExclusive : Properties.CheckedGatesExclusive :=
 theorem UncheckedDoubleMintIffMisdeclared : Properties.UncheckedDoubleMintIffMisdeclared :=
   fun _ _ _ _ _ _ hHI => unchecked_double_mint_iff_misdeclared hHI
 
+theorem FlowDoubleMintIffSomeMisdeclared : Properties.FlowDoubleMintIffSomeMisdeclared :=
+  fun _ _ _ _ _ _ hHI => flow_double_mint_iff_some_misdeclared hHI
+
 theorem PinnedMisdeclaredDoubleMint : Properties.PinnedMisdeclaredDoubleMint :=
   pinned_misdeclared_double_mint
 
@@ -156,6 +188,9 @@ theorem RefundBlockedIffDeclaredIsSource : Properties.RefundBlockedIffDeclaredIs
 
 theorem UncheckedExclusiveUnderDeclared : Properties.UncheckedExclusiveUnderDeclared :=
   fun _ _ _ _ _ _ hDI hfin => unchecked_exclusive_under_declared hDI hfin
+
+theorem RedundantIffDeclared : Properties.RedundantIffDeclared :=
+  fun _ _ _ _ => redundant_iff_declared
 
 theorem UpgradeCheckARedundant : Properties.UpgradeCheckARedundant :=
   fun _ _ _ _ _ _ _ hR hfin => upgrade_checkA_redundant hR hfin

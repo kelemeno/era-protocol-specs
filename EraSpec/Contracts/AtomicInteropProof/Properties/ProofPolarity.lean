@@ -34,6 +34,16 @@ set_option linter.unusedVariables false
   The pleasing part, and the reason it is worth writing down: the SAME assumption that makes inclusion
   self-binding is exactly what makes absence chain-blind.  One hypothesis, opposite consequences.
 
+  Correction (ProofPolarityFaithful).  The "defense-in-depth" reading is false of the pinned
+  contract, even under honest insertion.  This file writes a leg's chain as one value `srcOf v`,
+  but both checks compare the proof's chain with the flow's DECLARED chain
+  `legSourceChainIds[i]`, which the pinned `append` does not bind to the committing chain.  With
+  the two kept apart the finality-side check is load-bearing:
+  `AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared` (per leg),
+  `FlowDoubleMintIffSomeMisdeclared` (per flow) and `PinnedMisdeclaredDoubleMint` (a state the
+  pinned `append` reaches, with honest insertion).  The set facts here stay true; reading them as
+  "the check adds nothing on the inclusion path" does not.
+
   Scope note.  The named statements below are the SET-LEVEL consequences of `HonestInsertion`
   (`v ∈ tree c`, `v ∉ tree c`).  Each is a one-step use of a premise, and none mentions a gate.  The
   asymmetry stated against the gates is in `ProofPolarityStrong`: the finality and refund gates with
@@ -63,7 +73,13 @@ variable (tree : Chain → Set Value)
 /-! ## Positive polarity: inclusion carries its own chain binding -/
 
 /-- **INCLUSION SELF-BINDS.**  A membership witness already determines the chain, so the explicit
-equality check adds nothing on this path — the "defense-in-depth" reading. -/
+equality check adds nothing on this path — the "defense-in-depth" reading.
+
+**Correction (ProofPolarityFaithful).**  The statement is true; the reading is not.  The check
+compares the proof's chain with the flow's DECLARED chain, which at the pin need not be the
+committing chain `srcOf v`, so it is load-bearing even under honest insertion
+(`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
+`PinnedMisdeclaredDoubleMint`). -/
 abbrev Properties.inclusion_self_binds (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hmem : v ∈ tree c) :=
   srcOf v = c
@@ -126,7 +142,13 @@ predicate, so it does not by itself say that the refund gate cannot pass.  That 
   gate rejects a live leg whatever chain the prover names.  `checked_absence_gate_iff_absent` there is
   the exact form.
 * On commitment-tree states, `Contracts.Protocol.bound_gate_excludes_delivered`, with
-  `chains_bound_gate_iff_checked_absence_gate` identifying the two gates. -/
+  `chains_bound_gate_iff_checked_absence_gate` identifying the two gates.
+
+**Correction (ProofPolarityFaithful).**  The contract pins the refund proof to the leg's
+DECLARED chain, not to `srcOf v`.  Pinned to the declared chain, a committed leg can still have
+an absence witness (`AttackVectors.ProofPolarityFaithful.RefundNotBlockedWhenPinnedToDeclared`),
+and a live leg fails `authorizeRefund` as the missing leg exactly when its declared chain is
+`srcOf v` (`RefundBlockedIffDeclaredIsSource`). -/
 abbrev Properties.refund_blocked_when_chain_pinned {v : Value} {c : Chain}
     (hpinned : c = srcOf v) (hlive : v ∈ tree (srcOf v)) :=
   v ∈ tree c
@@ -139,7 +161,13 @@ the one running the code.  A chain that inserts a foreign leg's commit value int
 it, and nothing in this contract can prevent that: the foreign chain's IMT is its own.  So the label
 is accurate under honest insertion and only then; drop the assumption and the check is load-bearing on
 BOTH paths.  This is not a defect — the check is present — but it does mean the two paths rest on
-different amounts of trust, which the comment does not say. -/
+different amounts of trust, which the comment does not say.
+
+Correction (ProofPolarityFaithful).  Honest insertion is not enough for the label either: with
+the flow's declared chain kept apart from the committing chain, the check is load-bearing even
+when every chain inserts honestly (`AttackVectors.ProofPolarityFaithful.PinnedMisdeclaredDoubleMint`
+satisfies `HonestInsertion`).  The label holds in the states the upgrade's binding `append`
+(`e561b9cc2`) reaches (`UpgradeCheckARedundant`). -/
 
 /-- **WITHOUT HONEST INSERTION, INCLUSION DOES NOT SELF-BIND.**  A misbehaving chain can hold a foreign
 leg's commit value, so a membership witness exists against the wrong chain and the explicit equality

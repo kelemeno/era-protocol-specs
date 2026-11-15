@@ -62,6 +62,16 @@ import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
   timestamp assignment satisfying both gates for this history is
   impossible (that is precisely `stale_witness_not_redeemable`).
 
+  Correction (StaleSnapshotBranches).  `D < t (j+1)` does not pin `j` as
+  the LAST on-time snapshot: under monotone `t` it puts every on-time
+  snapshot at or before `j`
+  (`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`), and `j` itself
+  can be late (`PinDoesNotMakeSnapshotOnTime`, `BeginBranchPinMayBeLate`).
+  The theorems here use only the former.  Nor is the pin a comparison the
+  deployed gate makes: `StaleSnapshotBranches` maps the two deployed
+  timeout branches onto it, under `BeginIsPrevEnd` and `LaterBatchesLate`
+  (`BeginBranchNotRedeemable`, `EndBranchNotRedeemable`).
+
   Pure order theory over `IMTAbstract` — axiom-free, no EVM semantics.
 -/
 

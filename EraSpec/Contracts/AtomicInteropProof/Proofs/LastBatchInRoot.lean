@@ -162,7 +162,11 @@ theorem hlast_of_last_in_root {inRoot : ℕ → Prop} {time : ℕ → ℕ} {T B 
     fun n hn => hout n (fun hin => absurd (hlastIdx n hin) (by omega))
 
 
-/-- The zero-cascade check supplies `hlastIdx` when the root holds batches `0 .. n-1`. -/
+/-- The zero-cascade check supplies `hlastIdx` when the root holds batches `0 .. n-1`.
+
+**Correction (LastBatchInRootOffset).**  That reads leaf position `m` as batch `m`: first pushed
+batch 0 and every later batch pushed (`PROTO-CONTIGUOUS-PUSH`, ASSUMPTIONS.md); see
+`AttackVectors.LastBatchInRootOffset`. -/
 theorem lastIdx_of_rightEmpty {i n h : ℕ} (hi : i < n) (hn : n ≤ 2 ^ h)
     (hemp : RightEmpty i n h) :
     Properties.lastIdx_of_rightEmpty (i := i) (n := n) (h := h) (hi := hi) (hn := hn) (hemp := hemp) := by
@@ -177,7 +181,15 @@ theorem lastIdx_of_rightEmpty {i n h : ℕ} (hi : i < n) (hn : n ≤ 2 ^ h)
 /-- **THE WHOLE END-BRANCH CHAIN, COMPOSED.**  On-chain zero-cascade check ⇒ `B` is the last batch in
 the root ⇒ (with aggregation ordering) `hlast` ⇒ the value is absent from every in-time batch, i.e. the
 leg can never finalize.  Every hypothesis is either an on-chain check or a named assumption; nothing is
-left implicit. -/
+left implicit.
+
+**Correction (LastBatchInRootOffset).**  One identification is implicit: `B` is both the chain-tree
+leaf position (in `RightEmpty`) and the batch number (in `H.endSet B` and the clock), and `hout`
+reads the root as holding batches `0 .. nBatches - 1`.  At `c67894b9` every atomic-interop source
+chain's first pushed batch on L1 is 0, so this is exact there while every later batch is pushed
+into the chain tree; that contiguity is `PROTO-CONTIGUOUS-PUSH` (ASSUMPTIONS.md), which a Gateway
+round trip breaks.  `AttackVectors.LastBatchInRootOffset.EndBranchFromOnchainCheckOffset` keeps
+position and number apart and takes the identification as a premise. -/
 theorem end_branch_from_onchain_check {H : AttackVectors.TimeoutSoundness.BatchHistory} {time : ℕ → ℕ}
     (hao : AttackVectors.TimeoutSoundness.AppendOnly H)
     {B nBatches hDepth D T : ℕ} {v : UInt256}
