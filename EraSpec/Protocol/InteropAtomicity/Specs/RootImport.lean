@@ -58,12 +58,13 @@ chain's data availability.  Imported roots are never overwritten
 rejection at `:177-179`, and `L2MessageVerification` terminates at `interopRoots` in the
 same way.
 
-`head-v35-d9f6789` adds a destination-local check that `c67894b9`, `upgrade-e561b9cc2` and
-`head-main-3605e82` do not have.  There `requireFlowFinalized` calls `_checkLegSourceAllowed`
-for every leg (`AtomicFlowManager.sol:201`), and `authorizeRefund` calls it for the missing
-leg (`:231`).  `_checkLegSourceAllowed` (`:338-344`) reverts with
-`ManagerLegSourceChainNotAllowed` unless the leg's source chain is the destination itself
-(`block.chainid`) or an allowed interop peer: `L2Bridgehub.isPeerAllowed`
+`head-v35-d9f6789` adds a check, local to the calling chain, that `c67894b9`,
+`upgrade-e561b9cc2` and `head-main-3605e82` do not have.  There `requireFlowFinalized` calls
+`_checkLegSourceAllowed` for every leg (`AtomicFlowManager.sol:201`), and `authorizeRefund`
+calls it for the missing leg (`:231`).  `_checkLegSourceAllowed` (`:338-344`) reverts with
+`ManagerLegSourceChainNotAllowed` unless the leg's source chain is the calling chain itself
+(`block.chainid`: the destination in `requireFlowFinalized`, the refunding source chain in
+`authorizeRefund`) or an allowed interop peer: `L2Bridgehub.isPeerAllowed`
 (`core/bridgehub/L2Bridgehub.sol:43`), set through `allowInteropPeer` (`:95-99`) and cleared
 by `deregisterChainForInterop` (`:102-105`).  So a re-pin to `d9f6789` must add this check to
 readiness and to the refund-side statements.

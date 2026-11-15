@@ -51,7 +51,15 @@ leaf hash, padding constant, commit value and flow hash, with no hash premise.
    not), on the BEGIN or, for a halted chain, the END branch
    (`OpFinalizedFlowIsExecutable`, `OpTimedOutLegIsRefundable`,
    `OpFlowFateDecidedAfterRoot`); and from then on the on-time settled batches never change
-   (`OpOnTimeBatchesFinalAfterRoot`).  This is enabledness, not eventual delivery: nobody
+   (`OpOnTimeBatchesFinalAfterRoot`).  The execution is through the model's gate, the IMT
+   half, which asks for no root (`OpExecChecks`), and the model imports every recorded root
+   on every chain at once (`Specs/Operational.lean`, "Model boundaries").  On the contract a
+   destination's gate needs roots covering each leg's batch imported on that destination
+   (one imported post-deadline root suffices, given `PROTO-AGGREGATES`), its `L1_CHAIN_ID`
+   equal to the flow's settlement layer, and settlement data available: the destination
+   form, with these premises, is in `Contracts.RootImport`.  Likewise `authorizeRefund`
+   needs the post-deadline root it resolves against imported on the chain that runs it
+   (`AtomicInteropProof.sol:171-179`).  This is enabledness, not eventual delivery: nobody
    is assumed to send the call, and presenting the honest proofs needs `PROTO-DA`.
 
 ## What `Aggregates` became
@@ -296,16 +304,22 @@ def Properties.OpExecutedImpliesAllFinalizableOrBreak : Prop :=
       LegFinalizableBy h z0 hl cv Y.history A e.flow other
         ∨ InclusionBreak h z0 hl Y.history other.chain (e.evidence other).1 (e.evidence other).2
 
-/-- **EVERY SIBLING CAN EXECUTE NOW, OR A LOCATED BREAK.**  The operational reading of
-partial atomicity.  Premise beyond the run: prover access `A` meets data availability on the
-run's history.  For every logged execution `e` and every leg `other` of `e.flow`, the batch
-`e` cited for `other` has settled, and either a presentable proof for `other` is accepted
-against that very batch (on time), or the proof `e` submitted for `other` carries a located
-break.  The accepted proof is the IMT half (`LegFinalizedBy`, against the batch's END root).
-In the first case a destination with imported covering roots (`ImportAvailable`) and
-settlement data available (`SettlementDataAvailable`) can run the gate for `other` today and
-at every later state (`OpRunSettledHistoryIsFinal`).  The destination form, over a fixed
-history, is in `Contracts.RootImport` (`ExecutedImpliesAllFinalizableAtOrBreak`). -/
+/-- **EVERY SIBLING CAN EXECUTE NOW, ON THE IMT HALF OF THE GATE, OR A LOCATED BREAK.**  The
+operational reading of partial atomicity.  Premise beyond the run: prover access `A` meets
+data availability on the run's history.  For every logged execution `e` and every leg `other`
+of `e.flow`, the batch `e` cited for `other` has settled, and either a presentable proof for
+`other` is accepted against that very batch (on time), or the proof `e` submitted for `other`
+carries a located break.  The accepted proof is the IMT half (`LegFinalizedBy`, against the
+batch's END root).  In the first case, on a destination whose `L1_CHAIN_ID` is the flow's
+settlement layer, that holds an imported root covering that batch (`RootImported`;
+`ImportAvailable` suffices) and has settlement data available (`SettlementDataAvailable`), the
+gate's check for `other` passes at that batch, today and at every later state
+(`OpRunSettledHistoryIsFinal`).  The destination form, over a fixed history, is
+`Contracts.RootImport.Properties.ExecutedImpliesAllFinalizableAtOrBreak`.  Over a `Wf`
+history, under data availability, `ImportAvailable` and `SettlementDataAvailable`, it
+concludes, per leg, finalizability on the destination at some on-time batch, not necessarily
+the batch the execution cited, or a located break on the execution's proof for that leg; being
+per leg, it takes no `L1_CHAIN_ID` premise. -/
 def Properties.OpSiblingFinalizableNowOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
     (Y : OpState) (log : List Obligation) (clog : List CheckedCall),
@@ -488,17 +502,20 @@ enabledness of the operational steps: the evidence they exhibit is the honest pr
 `authorizeRefund` result also needs the marked leg to be `Committed` on its chain. -/
 
 /-- **A FLOW EVERY LEG OF WHICH IS IN AN ON-TIME SETTLED BATCH CAN BE EXECUTED, ON ANY LEG,
-NOW.**  On every run from `opGenesis` to `Y`: take a flow `F` that passes `_checkFlowId` and
-in which every leg's commit value is a key of the tree of some batch of its declared chain
-that has settled by the deadline.  Then for every leg `leg` of `F`,
-`executeAtomicBundle`'s gate accepts an execution of `leg` at `Y` (a one-step continuation
-with that call logged).
+NOW, BY THE MODEL'S GATE (THE IMT HALF).**  On every run from `opGenesis` to `Y`: take a flow
+`F` that passes `_checkFlowId` and in which every leg's commit value is a key of the tree of
+some batch of its declared chain that has settled by the deadline.  Then for every leg `leg`
+of `F`, `executeAtomicBundle`'s gate accepts an execution of `leg` at `Y` (a one-step
+continuation with that call logged).
 
 The gate here is the model's (`OpExecChecks`): the IMT half, on settled batches, without
 asking that a batch lie inside a root the destination has imported (`Specs/Operational.lean`,
-"What a call may cite").  On the contract the destination also needs imported covering roots
-(`ImportAvailable`) and settlement data available (`SettlementDataAvailable`), as in
-`Contracts.RootImport` (per leg, over a fixed history: `MemberIsFinalizableAt`). -/
+"What a call may cite").  On the contract the destination also needs its `L1_CHAIN_ID` to be
+the flow's settlement layer, imported roots covering each leg's batch (`RootImported`;
+`ImportAvailable` suffices), and settlement data available (`SettlementDataAvailable`), as in
+`Contracts.RootImport`: per leg, over a fixed history, `MemberIsFinalizableAt` (which takes
+`RootImported` for the leg's batch), and for the whole flow `FlowFinalizableAt`, which
+includes `W.l1 d = sl`. -/
 def Properties.OpFinalizedFlowIsExecutable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
     (Y : OpState) (log : List Obligation) (clog : List CheckedCall),
@@ -555,7 +572,8 @@ def Properties.OpOnTimeBatchesFinalAfterRoot : Prop :=
 commit values (`FlowWf`), and a recorded root created after its deadline.  Then one of two
 holds:
 
-* every leg of `F` can be executed now (`OpFinalizedFlowIsExecutable`'s conclusion);
+* every leg of `F` can be executed now, by the model's gate (`OpFinalizedFlowIsExecutable`'s
+  conclusion);
 * some leg `missing` of `F` makes every `Committed` leg of `F` refundable now
   (`OpTimedOutLegIsRefundable`'s conclusion).
 

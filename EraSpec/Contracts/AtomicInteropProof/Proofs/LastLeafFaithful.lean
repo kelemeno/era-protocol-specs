@@ -202,6 +202,16 @@ theorem accepted_last_leaf_no_height_break_on (h : Hash) (z0 : UInt256) (L : Lis
     exact ⟨rfl, collapse_with_entry h z0 L sibs k k j x hcap hacc rfl hx hsep hinj⟩
   · exact absurd hb hnb
 
+theorem accepted_last_leaf_no_height_break_or_break (h : Hash) (z0 : UInt256)
+    (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ) (x : UInt256)
+    (hcap : L.length ≤ 2 ^ height) (hacc : LastBatchPathAccepted h z0 L height sibs k j x)
+    (hnb : ¬ HeightBreak h z0 L sibs k height j x) (hx : x ≠ z0) :
+    j + 1 = L.length ∨ PinnedBreak h z0 L j ∨ PathCollision h z0 L sibs 0 k j x := by
+  rcases accept_forces_height_or_break h z0 L sibs k height j x hacc.inBounds
+      hacc.authenticated with hk | hb
+  · exact accepted_last_leaf_pinned_length_or_break h z0 L sibs k height j x hcap hacc hk hx
+  · exact absurd hb hnb
+
 /-- Every pair in the extended bounded set of the demo instance is one of four explicit
 pairs (the tree's pairs along index 1's path are already among them). -/
 lemma demo_pairs_mem' (p : UInt256 × UInt256)
@@ -235,6 +245,20 @@ theorem accepted_last_leaf_any_length_on_satisfiable :
   · norm_num at hev
   · decide
 
+/-- The instance of `accepted_last_leaf_any_length_on_satisfiable`, at `k = height = 2`:
+no `HeightBreak` at the tree's height, and the pair set without the path pairs is a subset
+of that instance's. -/
+theorem accepted_last_leaf_no_height_break_on_satisfiable :
+    Properties.AcceptedLastLeafNoHeightBreakOnSatisfiable := by
+  refine ⟨demoHash, 0, [5, 7], honestSibs demoHash 0 [5, 7] 1, 2, 2, 1, 7, by decide,
+    ⟨by norm_num, by decide, ?_⟩, heightBreak_not_tautology.1 _ _ _ _ _ _ _, by decide,
+    demo_entriesNotEmpty,
+    pairInjOn_mono demo_pairInjOn' (fun _ hp => hp.elim Or.inl (fun hv => Or.inr (Or.inr hv)))⟩
+  intro l hl hev
+  interval_cases l
+  · norm_num at hev
+  · decide
+
 /-! ## Certificates -/
 
 theorem AcceptedLastLeafAnyLengthOrBreak : Properties.AcceptedLastLeafAnyLengthOrBreak :=
@@ -258,8 +282,15 @@ theorem AcceptedLastLeafAnyLengthOn : Properties.AcceptedLastLeafAnyLengthOn :=
 theorem AcceptedLastLeafNoHeightBreakOn : Properties.AcceptedLastLeafNoHeightBreakOn :=
   accepted_last_leaf_no_height_break_on
 
+theorem AcceptedLastLeafNoHeightBreakOrBreak : Properties.AcceptedLastLeafNoHeightBreakOrBreak :=
+  accepted_last_leaf_no_height_break_or_break
+
 theorem AcceptedLastLeafAnyLengthOnSatisfiable :
     Properties.AcceptedLastLeafAnyLengthOnSatisfiable :=
   accepted_last_leaf_any_length_on_satisfiable
+
+theorem AcceptedLastLeafNoHeightBreakOnSatisfiable :
+    Properties.AcceptedLastLeafNoHeightBreakOnSatisfiable :=
+  accepted_last_leaf_no_height_break_on_satisfiable
 
 end MerkleSpec.LastLeafFaithful

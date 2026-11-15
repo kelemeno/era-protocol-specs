@@ -28,10 +28,12 @@ Statements over `../Specs/LastLeafFaithful.lean`.  Proofs:
   recovered under two extra premises: `k = height` (a length pin the deployed contract
   does NOT perform for `batchLeafProofLen`) and `x ≠ z0` (the claimed leaf hash is not
   the empty-entry constant).  `j < L.length` is no longer assumed.
-  `AcceptedLastLeafNoHeightBreakOn` recovers the bounded collapse with `k = height`
-  replaced by "no `HeightBreak` located on the instance", which also yields
-  `k = height`.  `AcceptedLastLeafAnyLengthOnSatisfiable` exhibits all the bounded
-  premises together.
+  `AcceptedLastLeafNoHeightBreakOrBreak` / `AcceptedLastLeafNoHeightBreakOn` recover the
+  old disjunction and the bounded collapse with `k = height` replaced by "no `HeightBreak`
+  located on the instance" (the collapse also concludes `k = height`).
+  `AcceptedLastLeafAnyLengthOnSatisfiable` exhibits all the bounded premises together, and
+  `AcceptedLastLeafNoHeightBreakOnSatisfiable` all the premises of the `NoHeightBreak`
+  forms.
 * Witness shapes.  `PaddedIndexLastLeafAccepted` (one leaf at height 2) and
   `AcceptedLastLeafAnyLengthOnSatisfiable` (two leaves at height 2) use tree shapes a
   deployed chain tree does not have: `DynamicIncrementalMerkle.push` grows the tree only
@@ -146,6 +148,19 @@ def Properties.AcceptedLastLeafNoHeightBreakOn : Prop :=
     PairInjOn h (fun p => TreePair h z0 L height p ∨ VerifiedPair h sibs k j x p) →
       k = height ∧ j + 1 = L.length ∧ L.getD j z0 = x
 
+/-- **THE OLD DISJUNCTION AT ANY LENGTH, WITH NO LOCATED `HeightBreak`.**  As
+`AcceptedLastLeafPinnedLengthOrBreak`, with the length pin `k = height` replaced by "the
+instance exhibits no `HeightBreak`": an accepted path whose claimed leaf hash is not the
+empty-entry constant (`x ≠ z0`) is the last leaf, or a `PinnedBreak`, or a `PathCollision`
+on the submitted path.  `j < L.length` is not assumed, and no hash premise beyond
+`¬ HeightBreak` on this instance. -/
+def Properties.AcceptedLastLeafNoHeightBreakOrBreak : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
+    (x : UInt256),
+    L.length ≤ 2 ^ height → LastBatchPathAccepted h z0 L height sibs k j x →
+    ¬ HeightBreak h z0 L sibs k height j x → x ≠ z0 →
+      j + 1 = L.length ∨ PinnedBreak h z0 L j ∨ PathCollision h z0 L sibs 0 k j x
+
 /-- **THE BOUNDED PREMISES ARE SATISFIABLE.**  Two leaves `[5, 7]` under `demoHash`,
 height 2, the honest path for leaf 1: every premise of `AcceptedLastLeafAnyLengthOn`
 holds, and the zero check fires (and passes) at level 1.  The last conjunct (`h` has a
@@ -161,5 +176,19 @@ def Properties.AcceptedLastLeafAnyLengthOnSatisfiable : Prop :=
           ∨ VerifiedPair h sibs height j x p)
       ∧ (∃ l < k, (j / 2 ^ l) % 2 = 0)
       ∧ (∃ a b c d : UInt256, (a, b) ≠ (c, d) ∧ h a b = h c d)
+
+/-- **THE `NoHeightBreak` PREMISES ARE SATISFIABLE.**  On the instance of
+`AcceptedLastLeafAnyLengthOnSatisfiable` (two leaves `[5, 7]` under `demoHash`, height 2,
+the honest path for leaf 1, so `k = height`), every premise of
+`AcceptedLastLeafNoHeightBreakOn` holds: at the tree's height no `HeightBreak` is located,
+and its pair set (the tree's pairs and the pairs this verification hashed) lies inside that
+instance's.  So `AcceptedLastLeafNoHeightBreakOn` and `AcceptedLastLeafNoHeightBreakOrBreak`
+are not vacuous. -/
+def Properties.AcceptedLastLeafNoHeightBreakOnSatisfiable : Prop :=
+  ∃ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
+    (x : UInt256),
+    L.length ≤ 2 ^ height ∧ LastBatchPathAccepted h z0 L height sibs k j x
+      ∧ ¬ HeightBreak h z0 L sibs k height j x ∧ x ≠ z0 ∧ EntriesNotEmpty z0 L
+      ∧ PairInjOn h (fun p => TreePair h z0 L height p ∨ VerifiedPair h sibs k j x p)
 
 end MerkleSpec.LastLeafFaithful

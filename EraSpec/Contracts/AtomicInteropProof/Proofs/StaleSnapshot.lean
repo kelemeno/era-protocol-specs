@@ -73,6 +73,14 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
   timeout branches onto it, under `BeginIsPrevEnd` and `LaterBatchesLate`
   (`BeginBranchNotRedeemable`, `EndBranchNotRedeemable`).
 
+  Correction (StaleSnapshotFaithful).  An accepted reclaim here is a genuine
+  leaf `W ∈ S j`.  At `c67894b9` the deployed absence check also accepts the
+  sentinel `{0,0,0}` at an empty slot (the tree's padding hashes like it), so
+  a value delivered on time can have an accepted absence proof at a snapshot
+  that meets `D < t (j+1)`
+  (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+  Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`.
+
   Pure order theory over `IMTAbstract` — axiom-free, no EVM semantics.
 -/
 
@@ -120,7 +128,14 @@ delivery are mutually exclusive.  Packaging of
 time, so `j` need not be the last snapshot settled by the deadline; it
 bounds every on-time snapshot by `j`
 (`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`,
-`PinDoesNotMakeSnapshotOnTime`), which is all the proof uses. -/
+`PinDoesNotMakeSnapshotOnTime`), which is all the proof uses.
+
+**Correction (StaleSnapshotFaithful).**  The witness here is a genuine leaf
+`W ∈ S j`.  At `c67894b9` the deployed absence check also accepts the
+sentinel `{0,0,0}` at an empty slot, so a value delivered on time can have
+an accepted absence proof at a snapshot that meets `D < t (j+1)`
+(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`. -/
 theorem stale_witness_not_redeemable {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)
     {j : ℕ} {W : AbsLeaf}

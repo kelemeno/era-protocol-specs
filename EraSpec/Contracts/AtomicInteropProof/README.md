@@ -39,7 +39,8 @@ which the deployed verifier does not check; `LastLeafFaithful` (below) drops bot
 
 Five topics restate earlier results against the Solidity as deployed, in new files.
 The original statements are unchanged; each repair names the old reading it replaces,
-and the old docstrings carry a "Correction (<topic>)" note pointing to the replacement.
+and the old docstrings in this folder carry a "Correction (<topic>)" note pointing to the
+replacement.
 
 * `LastBatchInRootOffset` — `LastBatchInRoot.end_branch_from_onchain_check` uses one
   `B` as the chain-tree leaf POSITION and as the BATCH NUMBER. In `MessageRootBase`
@@ -73,11 +74,13 @@ and the old docstrings carry a "Correction (<topic>)" note pointing to the repla
   hash, resp. of the empty-entry constant). "Live" here means not excluded by any check
   the contract performs, only by hash domain separation. The old disjunction and the
   bounded collapse come back under `k = height` and `x ≠ z0`, which the contract does
-  not check, or with `k = height` replaced by an instance-located absence of
-  `HeightBreak` (`AcceptedLastLeafNoHeightBreakOn`). Preimage-length separation alone
-  does not give that: `HeightBreak` also covers same-length 64-byte collisions. Open
-  item: the outer chain-id hop into the imported settlement-layer root is not modelled;
-  the `authenticated` field takes that hop's conclusion as given.
+  not check (`AcceptedLastLeafPinnedLengthOrBreak`, `AcceptedLastLeafAnyLengthOn`), or
+  with `k = height` replaced by an instance-located absence of `HeightBreak`
+  (`AcceptedLastLeafNoHeightBreakOrBreak`, `AcceptedLastLeafNoHeightBreakOn`; premises
+  satisfiable by `AcceptedLastLeafNoHeightBreakOnSatisfiable`). Preimage-length
+  separation alone does not give that: `HeightBreak` also covers same-length 64-byte
+  collisions. Open item: the outer chain-id hop into the imported settlement-layer root
+  is not modelled; the `authenticated` field takes that hop's conclusion as given.
 * `ProofPolarityFaithful` — the flow's DECLARED chain `legSourceChainIds[i]` is kept apart
   from the committing chain. The pinned `append` does not bind them. Both checks together
   are exclusive with no honesty premise in this abstraction (`CheckedGatesExclusive`),
@@ -123,9 +126,23 @@ and the old docstrings carry a "Correction (<topic>)" note pointing to the repla
   value on time, so the headlines do work on them. The pin does not make `j` on time.
 
 The deployed-branch results (`StaleSnapshotBranches`) and the verifier-faithfulness
-results (`StaleSnapshotFaithful`) are separate and not composed: no theorem combines a
-deployed branch and its bridging premise with `verifyNonInclusion` acceptance over a
-contract run.
+results (`StaleSnapshotFaithful`) are separate: no theorem composes `StaleSnapshotBranches`
+with `StaleSnapshotFaithful`. The composed statement is in the Atomicity model.
+`Contracts.Timeout.TimeoutExcludesFinalityOrBreak`
+(`Protocol/InteropAtomicity/Properties/Timeout.lean`) takes a `Wf` system (every chain's
+trees reached from `setup` by guarded inserts, batch times monotone, every tree within its
+height) and a timeout verified on either deployed branch, with the absence proof accepted
+by `verifyNonInclusion` (`Contracts.Atomicity.AbsenceAccepted`). Its BEGIN branch reads
+`beginTree`, in which `begin(n+1) = end(n)` is built in (the counterpart of
+`BeginIsPrevEnd`). Its END branch (`Contracts.Timeout.EndBranchVerified`) takes
+`_verifyLastBatchInRoot` by its conclusion, and the theorem's `Contracts.Timeout.Aggregates`
+premise on the root (`PROTO-AGGREGATES`) is that branch's bridge. It concludes, for every
+batch `n` and inclusion proof `p'`, that `p'` does not finalize the leg at `n` on time, or
+`p'` carries an `InclusionBreak`, or the absence proof carries an `AbsenceBreak`. The
+padding instance `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak` is the
+deployed-branch counterpart of `PaddingReclaimRedeemsDeliveredLeg`: with the pinned padding
+constant `hashLeaf({0,0,0})`, a leg committed on time passes that gate on the BEGIN branch
+on the forged padding proof, and the break is an `AbsenceBreak` on that proof.
 
 These modules expose the hypotheses used by the library's argument. They do not
 prove the compiled verifier, authenticate imported roots, or establish settlement

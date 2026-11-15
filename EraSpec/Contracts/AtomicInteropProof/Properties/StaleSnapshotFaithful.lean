@@ -32,6 +32,10 @@ not a comparison the deployed gate makes.  The deployed branches are mapped onto
 `AttackVectors.StaleSnapshotBranches`; that topic and this one are separate and not
 composed, so "a reclaim of a delivered leg" here means the absence check plus the
 abstract pin.
+
+Readings this repair replaces, each now marked "Correction (StaleSnapshotFaithful)":
+`StaleSnapshot`'s header (in its Specs, Properties and Proofs files) and its
+`stale_witness_not_redeemable`.
 -/
 
 namespace AttackVectors.StaleSnapshotFaithful

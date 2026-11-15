@@ -98,7 +98,12 @@ and a deadline `D`.  Suppose
 
 Then `False`: the two evidences cannot coexist.  On-time membership persists
 to the pinned snapshot (keys only grow, timestamps are monotone so `i ≤ j`),
-where the gap witness excludes it (`gap_excludes_member`). -/
+where the gap witness excludes it (`gap_excludes_member`).
+
+**Correction (StaleSnapshotBranches).**  The pin does not make `j` on time, so
+`j` need not be the last snapshot settled by the deadline; it bounds every
+on-time snapshot by `j` (`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`,
+`PinDoesNotMakeSnapshotOnTime`), which is all the proof uses (`i ≤ j`). -/
 abbrev Properties.delivered_and_reclaimed_impossible {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : GapSound (S 0)) (hinj0 : KeyInj (S 0))
     (htmono : Monotone t)

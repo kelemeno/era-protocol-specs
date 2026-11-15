@@ -47,7 +47,11 @@ Statements about `EraSpec.Protocol.InteropAtomicity.Specs.Pause`.  Proofs are in
    exactly the unpaused gate (`Properties.UnpausedGateIsTheGate`).  From every reachable state,
    at most one `unpause` followed by the execution is a run, on presentable evidence, under data
    availability (`Properties.UnpauseRestoresExecution`).  The gate has no clock (see the Specs
-   header), so a long pause delays the execution but cannot expire it.
+   header), so a long pause delays the execution but cannot expire it.  The gate here is
+   `Contracts.Atomicity.ExecutedViaBy`, the IMT half.  On the contract the destination also
+   needs its `L1_CHAIN_ID` to be the flow's settlement layer, imported roots covering each
+   leg's batch and settlement data available; the destination form, with these premises, is in
+   `Contracts.RootImport` (per leg: `MemberIsFinalizableAt`).
 4. **A paused source vault blocks the refund claim, and the claim can be retried.**  While the
    source vault stays paused, a `Revertable` leg whose bundle has a router call stays
    `Revertable` and is never claimed (`Properties.PausedVaultKeepsLegRevertable`).  From every
@@ -357,15 +361,21 @@ def Properties.UnpausedGateIsTheGate : Prop :=
     ExecutedViaPausedBy h z0 hl cv fh S prof (P.set (prof.dest leg.bundleHash) .vault false) F ev leg
       ↔ ExecutedViaBy h z0 hl cv fh S F ev leg
 
-/-- **HEADLINE 3: UNPAUSING RESTORES EXECUTION, AT ANY TIME.**  Premises: a well-formed
-history with data availability; a checked flow `F` whose legs are all committed by on-time
-batches; a leg `leg` of `F`; and any paused run from `X` to `Y`.  Then there is gate evidence
-`ev` that a prover can present for every leg, and an extension of the run by at most one
-`unpause` of the leg's destination vault followed by the execution of `leg` on `ev`.  The
-extension leaves every manager and every other flag as at `Y`.
+/-- **HEADLINE 3: UNPAUSING RESTORES EXECUTION BY THE MODEL'S GATE (THE IMT HALF), AT ANY
+TIME.**  Premises: a well-formed history with data availability; a checked flow `F` whose legs
+are all committed by on-time batches; a leg `leg` of `F`; and any paused run from `X` to `Y`.
+Then there is gate evidence `ev` that a prover can present for every leg, and an extension of
+the run by at most one `unpause` of the leg's destination vault followed by the execution of
+`leg` on `ev`.  The extension leaves every manager and every other flag as at `Y`.
 
 `Y` is arbitrary, so this holds however long the vault was paused and however many other steps
-happened meanwhile.  The gate has no clock, so the deadline having passed does not matter. -/
+happened meanwhile.  The gate has no clock, so the deadline having passed does not matter.
+
+The execution is through the model's gate (`Contracts.Atomicity.ExecutedViaBy`), the IMT half.
+On the contract the destination also needs its `L1_CHAIN_ID` to be the flow's settlement
+layer, imported roots covering each leg's batch (`RootImported`; `ImportAvailable` suffices)
+and settlement data available (`SettlementDataAvailable`), as in `Contracts.RootImport` (per
+leg, over a fixed history: `MemberIsFinalizableAt`). -/
 def Properties.UnpauseRestoresExecution : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →

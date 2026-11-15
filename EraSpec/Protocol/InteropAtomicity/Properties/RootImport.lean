@@ -21,12 +21,12 @@ availability does not supply that import.
 
 So those results do not say "every leg's destination can run `requireFlowFinalized` and
 pass".  Take every source leg committed on time, with all IMT data available.  A
-destination that has not imported a covering root still cannot pass, while another
-destination that has imported one executes.  In `Properties.WithoutImportFlowSitsHalfExecuted`
-the stuck destination has imported nothing.  In `Properties.StaleImportFlowSitsHalfExecuted`
-it has imported a genuine root that does not cover the legs' batch, and every execution there
-carries a located break.  So the coverage half of the import premise is load-bearing too
-(`Properties.WithoutCoverageCrossDestinationFails`).
+destination that has not imported a covering root still cannot pass on break-free evidence,
+while another destination that has imported one executes.  In
+`Properties.WithoutImportFlowSitsHalfExecuted` the stuck destination has imported nothing.  In
+`Properties.StaleImportFlowSitsHalfExecuted` it has imported a genuine root that does not cover
+the legs' batch, and every execution there carries a located break.  So the coverage half of
+the import premise is load-bearing too (`Properties.WithoutCoverageCrossDestinationFails`).
 
 The safety results (`GateRequiresEveryLeg`, `FinalitySignalMeansMembership`,
 `ExecutedExcludesAnyRefund`, the flow-id results) are unaffected.  Authenticating the root

@@ -72,6 +72,14 @@ import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
   timeout branches onto it, under `BeginIsPrevEnd` and `LaterBatchesLate`
   (`BeginBranchNotRedeemable`, `EndBranchNotRedeemable`).
 
+  Correction (StaleSnapshotFaithful).  An accepted reclaim here is a genuine
+  leaf `W ∈ S j`.  At `c67894b9` the deployed absence check also accepts the
+  sentinel `{0,0,0}` at an empty slot (the tree's padding hashes like it), so
+  a value delivered on time can have an accepted absence proof at a snapshot
+  that meets `D < t (j+1)`
+  (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+  Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`.
+
   Pure order theory over `IMTAbstract` — axiom-free, no EVM semantics.
 -/
 

@@ -69,7 +69,15 @@ The delivery gate accepts a membership proof against SOME settled root with
 LAST settled root with `l1Timestamp ≤ deadline`, pinned by a successor root
 with `l1Timestamp > deadline`.  With monotone timestamps and a key-set that
 only grows (the IMT insert never removes a key — it only retargets a
-`nextKey`), both cannot hold for the same commit value. -/
+`nextKey`), both cannot hold for the same commit value.
+
+Correction (StaleSnapshotBranches).  `D < t (j+1)` does not pin `j` as the
+LAST on-time snapshot: under monotone `t` it puts every on-time snapshot at
+or before `j` (`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`), and
+`j` itself can be late (`PinDoesNotMakeSnapshotOnTime`).  The deployed gate
+makes no such comparison; `StaleSnapshotBranches` maps its two timeout
+branches onto the pin.  `delivered_and_reclaimed_impossible` uses only
+`i ≤ j` for an on-time snapshot `i`. -/
 
 /-- The key set of a leaf set. -/
 def keys (s : Finset AbsLeaf) : Finset UInt256 :=
