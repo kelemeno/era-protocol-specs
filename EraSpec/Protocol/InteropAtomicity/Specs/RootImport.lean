@@ -58,6 +58,16 @@ chain's data availability.  Imported roots are never overwritten
 rejection at `:177-179`, and `L2MessageVerification` terminates at `interopRoots` in the
 same way.
 
+`head-v35-d9f6789` adds a destination-local check that `c67894b9`, `upgrade-e561b9cc2` and
+`head-main-3605e82` do not have.  There `requireFlowFinalized` calls `_checkLegSourceAllowed`
+for every leg (`AtomicFlowManager.sol:201`), and `authorizeRefund` calls it for the missing
+leg (`:231`).  `_checkLegSourceAllowed` (`:338-344`) reverts with
+`ManagerLegSourceChainNotAllowed` unless the leg's source chain is the destination itself
+(`block.chainid`) or an allowed interop peer: `L2Bridgehub.isPeerAllowed`
+(`core/bridgehub/L2Bridgehub.sol:43`), set through `allowInteropPeer` (`:95-99`) and cleared
+by `deregisterChainForInterop` (`:102-105`).  So a re-pin to `d9f6789` must add this check to
+readiness and to the refund-side statements.
+
 ## What is modelled
 
 * `World` is the destination side.  It holds the settlement layer's aggregation roots
@@ -68,9 +78,10 @@ same way.
   steps 1 and 2 above.  `AcceptsAt` adds the flow's settlement layer and the IMT check.
 * The gate on a destination is `ExecutedAtBy`.  Finalizability on a destination is
   `LegFinalizableAt` / `FlowFinalizableAt`.  Two world assumptions in the style of
-  `DataAvailable` go with them.  `ImportAvailable` says the destination holds imported
-  roots covering every batch that settled by the deadline.  `SettlementDataAvailable`
-  says the multi-hop proof for a batch inside a root is presentable.
+  `DataAvailable` go with them (`PROTO-ROOT-IMPORT` in `ASSUMPTIONS.md`).
+  `ImportAvailable` says the destination holds imported roots covering every batch that
+  settled by the deadline.  `SettlementDataAvailable` says the multi-hop proof for a batch
+  inside a root is presentable.
 
 ## Model boundary
 
@@ -79,10 +90,14 @@ puts the aggregation tree out of scope in the same way.  A `SettlementProof` sta
 well-formed proof (`ProofInvalidChainBatchRootDepth` passes) whose paths are the honest
 ones for its root.  It is accepted exactly when that root is imported on the destination
 and aggregates the batch.  This idealizes the soundness direction only: a forged
-aggregation path is never accepted.  The results here are liveness results.  The
-countermodel's rejection uses only the import half: with
-`interopRoots[slChainId][slBlock]` zero, `proveL2LeafInclusionShared` returns false
-whatever the path.
+aggregation path is never accepted.  The results here are liveness results.  The rejection in
+the countermodel `Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted` uses only
+the import half: with `interopRoots[slChainId][slBlock]` zero, `proveL2LeafInclusionShared`
+returns false whatever the path.  The rejection in
+`Contracts.RootImport.Properties.StaleImportFlowSitsHalfExecuted` uses the coverage half, so it
+rests on this idealization: there the destination holds a nonzero root that does not
+aggregate the legs' batch, and the contract would accept that batch against it only through a
+forged aggregation path.
 
 Source chains are assumed to settle directly on the flow's settlement layer `sl`, so the
 one-hop settlement proof (source batch root, then `sl`'s imported root) applies.
@@ -220,9 +235,10 @@ settlement layer `sl` at block `k`.  It is not a final node and it terminates at
 `interopRoots[sl][k]`. -/
 def honestSettlementProof (sl : Chain) (k : ℕ) : SettlementProof := ⟨false, sl, k⟩
 
-/-- **THE SETTLEMENT-PROOF AVAILABILITY ASSUMPTION.**  For every settlement-layer root and
-every batch it aggregates, the honest multi-hop proof is presentable.  Like
-`DataAvailable`, nothing in the protocol makes it true. -/
+/-- **THE SETTLEMENT-PROOF AVAILABILITY ASSUMPTION** (`PROTO-ROOT-IMPORT` in
+`ASSUMPTIONS.md`).  For every settlement-layer root and every batch it aggregates, the honest
+multi-hop proof is presentable.  Like `DataAvailable`, nothing in the protocol makes it
+true. -/
 def SettlementDataAvailable (W : World) (SA : SettlementAccess) : Prop :=
   ∀ (c : Chain) (n : ℕ) (sl : Chain) (k : ℕ), n ≤ (W.slRoot sl k).upTo c →
     SA c n (honestSettlementProof sl k)
@@ -240,8 +256,9 @@ def noSettlementAccess : SettlementAccess := fun _ _ _ => False
 def RootImported (W : World) (d : Dest) (sl c : Chain) (n : ℕ) : Prop :=
   ∃ k, W.imported d sl k ∧ n ≤ (W.slRoot sl k).upTo c
 
-/-- **THE IMPORT-AVAILABILITY ASSUMPTION.**  Destination `d` has imported roots of settlement
-layer `sl` that together cover every batch, of every chain, that settled by time `D`.
+/-- **THE IMPORT-AVAILABILITY ASSUMPTION** (`PROTO-ROOT-IMPORT` in `ASSUMPTIONS.md`).
+Destination `d` has imported roots of settlement layer `sl` that together cover every batch,
+of every chain, that settled by time `D`.
 
 This is an assumption about the destination, stated in the style of `DataAvailable`.  An
 import is a destination-local transition by the bootloader
@@ -249,7 +266,8 @@ import is a destination-local transition by the bootloader
 `Contracts.RootImport.Properties.ImportAvailableOfPostDeadlineImport` shows that one imported
 root created at or after `D` is enough, given the settlement layer's `Aggregates`.
 `Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted` is the countermodel
-without it. -/
+without it, and `Contracts.RootImport.Properties.StaleImportFlowSitsHalfExecuted` the one in
+which the destination has imported a genuine root that does not cover the legs' batch. -/
 def ImportAvailable (W : World) (S : System) (d : Dest) (sl : Chain) (D : ℕ) : Prop :=
   ∀ (c : Chain) (n : ℕ), S.time c n ≤ D → RootImported W d sl c n
 
@@ -264,9 +282,13 @@ def LegFinalizableAt (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue
     S.time leg.chain n ≤ F.deadline ∧ A leg.chain n p ∧ SA leg.chain n sp
       ∧ AcceptsAt h z0 hl W S d sl leg.chain n (legValue cv F leg) p sp
 
-/-- **THE WHOLE FLOW CAN BE FINALIZED ON DESTINATION `d`.**  `d` can run
-`requireFlowFinalized` on presentable proofs and pass: its `L1_CHAIN_ID` is the flow's
-settlement layer and every leg is finalizable on `d`. -/
+/-- **THE WHOLE FLOW CAN BE FINALIZED ON DESTINATION `d`.**  Every leg is finalizable on `d`:
+it has presentable proofs, at an on-time batch, that pass `verifyInclusion` on `d`.  And `d`'s
+`L1_CHAIN_ID` is the flow's settlement layer.  Together with `_checkFlowId` and an executing
+leg, both of which any execution supplies (`ExecutedAtBy`), this is `d`'s
+`requireFlowFinalized` on presentable proofs.  Without them it can hold where
+`requireFlowFinalized` reverts: for a flow whose id fails `_checkFlowId`, or one with no legs
+(`ManagerExecutingBundleNotInFlow`). -/
 def FlowFinalizableAt (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (W : World)
     (S : System) (A : Access) (SA : SettlementAccess) (d : Dest) (sl : Chain) (F : Flow) : Prop :=
   W.l1 d = sl ∧ ∀ leg ∈ F.legs, LegFinalizableAt h z0 hl cv W S A SA d sl F leg
@@ -305,6 +327,33 @@ imported anything else.  Every destination's `L1_CHAIN_ID` is `sl`. -/
 def importWorld (sl : Chain) (imp : Dest → Prop) : World where
   slRoot := fun _ _ => Contracts.Timeout.timeOneRoot
   imported := fun d c k => imp d ∧ c = sl ∧ k = 0
+  l1 := fun _ => sl
+
+/-! The stale-root countermodel needs an on-time batch that an imported root can miss, so its
+legs are committed one batch later than in `twoChainSystem`. -/
+
+/-- Chains `0` and `1` commit `a` and `b` during batch 1: every chain's batch 0 is `setup`, from
+batch 1 on chain `0` holds `a` and chain `1` holds `b`, and every other chain stays at
+`setup`.  Batch `n` settles at time `n + 1`, so no batch has timestamp 0. -/
+def lateSystem (a b : UInt256) : System where
+  tree := fun c n =>
+    if n = 0 then setup else if c = 0 then insert setup a 0 else if c = 1 then insert setup b 0
+    else setup
+  time := fun _ n => n + 1
+  height := fun c n => if n = 0 then 0 else if c = 0 ∨ c = 1 then 1 else 0
+
+/-- The flow of the stale-root countermodel: id `0`, legs `⟨0, 1⟩` and `⟨1, 2⟩`, deadline
+`2`.  In `lateSystem` batches 0 and 1 settle on time and every later batch is late. -/
+def lateFlow : Flow := ⟨0, [⟨0, 1⟩, ⟨1, 2⟩], 2⟩
+
+/-- The destination side of the stale-root countermodel.  Block 0 of every settlement layer
+holds a root created at time 1 that holds every chain's batch 0, and every later block holds
+a root created at time 2 that holds every chain's batches 0 and 1.  `dA` has imported `sl`'s
+block-1 root and `dB` its block-0 root, and nothing else is imported.  Every destination's
+`L1_CHAIN_ID` is `sl`. -/
+def twoRootWorld (sl : Chain) (dA dB : Dest) : World where
+  slRoot := fun _ k => if k = 0 then ⟨1, fun _ => 0⟩ else ⟨2, fun _ => 1⟩
+  imported := fun d c k => c = sl ∧ ((d = dA ∧ k = 1) ∨ (d = dB ∧ k = 0))
   l1 := fun _ => sl
 
 end Contracts.RootImport

@@ -1,9 +1,11 @@
 # Interop atomicity across chains and batches
 
 Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized`,
-`_checkFlowId`, `authorizeRefund`, `claimRefund`) and
+`_checkFlowId`, `authorizeRefund`, `claimRefund`),
 `contracts/atomic-interop/libraries/AtomicInteropProof.sol`
-(`verifyTimeoutAbsence`, `_verifyLastBatchInRoot`) in the pinned era-contracts tree.
+(`verifyTimeoutAbsence`, `_verifyLastBatchInRoot`, `_authenticateRoot`),
+`contracts/interop/L2MessageVerification.sol` and
+`contracts/interop/L2InteropRootStorage.sol` in the pinned era-contracts tree.
 
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
@@ -113,18 +115,26 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   (`interopRoots`, bootloader-only imports), and final-node proofs are rejected. Source
   DA does not supply the import. `FlowFinalizableAt` is finalizability on a named
   destination; `FlowFinalizableBy` is its IMT half (`FinalizableAtImpliesBy`) and the two
-  coincide on a ready destination (`ReadyFinalizableAtIffBy`). The none-or-all results are
+  coincide on a ready destination with settlement data available
+  (`SettlementDataAvailable`, `ReadyFinalizableAtIffBy`). The none-or-all results are
   restated per destination with two new world premises, `ImportAvailable` and
-  `SettlementDataAvailable`, and no hash premise (`NoneOrAllAtOrBreak`,
-  `NoneOrAllAtOrBreakPinned`, `ExecutedAtImpliesAllFinalizableAtOrBreak` for an execution
-  on one destination and finalizability on another, `…FromRuns`, the logged-clash form).
+  `SettlementDataAvailable` (`PROTO-ROOT-IMPORT` in `ASSUMPTIONS.md`), and no hash premise
+  (`NoneOrAllAtOrBreak`, `NoneOrAllAtOrBreakPinned`,
+  `ExecutedAtImpliesAllFinalizableAtOrBreak` for an execution on one destination and
+  finalizability on another, `…FromRuns`, the logged-clash form).
   `ImportAvailableOfPostDeadlineImport` discharges import availability from one
   post-deadline import plus `Aggregates`. Countermodel `WithoutImportFlowSitsHalfExecuted`:
   every leg committed on time and all data available, `FlowFinalizableBy` holds, one
-  destination executes a leg, another can execute none, and no leg is refundable;
-  `ImportAloneRestoresFinalizability` shows the single import is all that is missing, and
-  `WithoutImportCrossDestinationFails` is the negation of
-  `ExecutedAtImpliesAllFinalizableAtOrBreak` without the import premise.
+  destination executes a leg, another can execute none, and no leg is refundable without a
+  located `AbsenceBreak` on the refund's absence proof (what blocks the refunds is the legs'
+  on-time commitment, not the missing import); `ImportAloneRestoresFinalizability` shows
+  the single import is all that is missing, and `WithoutImportCrossDestinationFails` is the
+  negation of `ExecutedAtImpliesAllFinalizableAtOrBreak` without the import premise
+  (`WithoutImportLoggedFormFails` likewise for the logged-clash form).
+  `StaleImportFlowSitsHalfExecuted` is the variant in which the stuck destination has
+  imported a genuine root that does not cover the legs' batch, and
+  `WithoutCoverageCrossDestinationFails` shows that the coverage half of the import premise
+  is load-bearing, not only the import.
   Source chains are assumed to settle directly on the flow's settlement layer
   (`L2MessageVerification` allows one recursion level); Gateway-settled sources are out
   of scope.

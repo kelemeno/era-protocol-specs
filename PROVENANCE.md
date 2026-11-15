@@ -180,6 +180,12 @@ supplying that correspondence.
   `GovernanceUpgradeTimer` were deleted from the branch before `e561b9cc2`
   (`f64622022d`, `469310c94e`); it describes a design that no longer exists at the
   newer pin.
+* `EraSpec/Protocol/InteropAtomicity/Specs/RootImport.lean` models the destination gate at
+  `c67894b9`. Its cross-pin paragraph also cites era-contracts commits
+  `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` (branch `main`, label `head-main-3605e82`)
+  and `d9f678900e1bc8286412b78f56d4a9f443983c29` (branch `draft/v0.35.0`, label
+  `head-v35-d9f6789`), with `e561b9cc2` (label `upgrade-e561b9cc2`), to record what
+  changes at those commits. The model itself stays pinned at `c67894b9`.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.

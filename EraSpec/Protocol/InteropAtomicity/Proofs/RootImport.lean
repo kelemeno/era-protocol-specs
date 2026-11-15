@@ -16,7 +16,10 @@ pushed through those two facts.  No hash premise enters: the hash side is only e
 through the existing `…OrBreak` lemmas.
 
 The countermodel's rejection on `dB` needs no hash reasoning at all.  `dB` has imported
-nothing, so `SettlementAccepted` fails on every proof.
+nothing, so `SettlementAccepted` fails on every proof.  In the stale-root countermodel `dB`'s
+root covers batch 0 only, so `SettlementAccepted` fails on every later batch.  Batch 0 holds
+neither leg, so an execution on `dB` needs a break in its own IMT proof
+(`finality_means_membership_or_break`).
 -/
 
 namespace Contracts.RootImport
@@ -405,6 +408,130 @@ theorem twoChain_evidence_no_gate_break (h : Hash) (z0 : UInt256) (hl : LeafHash
     norm_num
   exact honestProof_no_break h z0 hl (twoChainSystem 1 2) l.chain 0 1 hlt hb
 
+/-! ### The stale-root configuration -/
+
+lemma lateSystem_tree_zero (a b : UInt256) (c : Chain) : (lateSystem a b).tree c 0 = setup := by
+  simp [lateSystem]
+
+lemma lateSystem_tree_c0 (a b : UInt256) (n : ℕ) :
+    (lateSystem a b).tree 0 (n + 1) = insert setup a 0 := by
+  simp [lateSystem]
+
+lemma lateSystem_tree_c1 (a b : UInt256) (n : ℕ) :
+    (lateSystem a b).tree 1 (n + 1) = insert setup b 0 := by
+  simp [lateSystem, (by decide : (1 : Chain) ≠ 0)]
+
+lemma lateSystem_tree_other {a b : UInt256} {c : Chain} (h0 : c ≠ 0) (h1 : c ≠ 1) (n : ℕ) :
+    (lateSystem a b).tree c n = setup := by
+  by_cases hn : n = 0 <;> simp [lateSystem, h0, h1, hn]
+
+lemma lateSystem_height_zero (a b : UInt256) (c : Chain) : (lateSystem a b).height c 0 = 0 := by
+  simp [lateSystem]
+
+lemma lateSystem_height_c0 (a b : UInt256) (n : ℕ) : (lateSystem a b).height 0 (n + 1) = 1 := by
+  simp [lateSystem]
+
+lemma lateSystem_height_c1 (a b : UInt256) (n : ℕ) : (lateSystem a b).height 1 (n + 1) = 1 := by
+  simp [lateSystem]
+
+lemma lateSystem_height_other {a b : UInt256} {c : Chain} (h0 : c ≠ 0) (h1 : c ≠ 1) (n : ℕ) :
+    (lateSystem a b).height c n = 0 := by
+  by_cases hn : n = 0 <;> simp [lateSystem, h0, h1, hn]
+
+lemma lateSystem_wf {a b : UInt256} (ha : 0 < a) (hb : 0 < b) : Wf (lateSystem a b) := by
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro c
+    rw [lateSystem_tree_zero]
+    exact Reaches.refl
+  · intro c n
+    by_cases h0 : c = 0
+    · subst h0
+      cases n with
+      | zero =>
+        rw [lateSystem_tree_zero, lateSystem_tree_c0]
+        exact Reaches.tail Reaches.refl (setup_insertGuard ha)
+      | succ m =>
+        rw [lateSystem_tree_c0, lateSystem_tree_c0]
+        exact Reaches.refl
+    by_cases h1 : c = 1
+    · subst h1
+      cases n with
+      | zero =>
+        rw [lateSystem_tree_zero, lateSystem_tree_c1]
+        exact Reaches.tail Reaches.refl (setup_insertGuard hb)
+      | succ m =>
+        rw [lateSystem_tree_c1, lateSystem_tree_c1]
+        exact Reaches.refl
+    rw [lateSystem_tree_other h0 h1, lateSystem_tree_other h0 h1]
+    exact Reaches.refl
+  · intro c i j hij
+    exact Nat.succ_le_succ hij
+  · intro c n
+    cases n with
+    | zero =>
+      rw [lateSystem_tree_zero, lateSystem_height_zero]
+      show (1 : ℕ) ≤ 2 ^ 0
+      norm_num
+    | succ m =>
+      by_cases h0 : c = 0
+      · subst h0
+        rw [lateSystem_tree_c0, lateSystem_height_c0, insertSetup_leafCount]
+        norm_num
+      by_cases h1 : c = 1
+      · subst h1
+        rw [lateSystem_tree_c1, lateSystem_height_c1, insertSetup_leafCount]
+        norm_num
+      rw [lateSystem_tree_other h0 h1, lateSystem_height_other h0 h1]
+      show (1 : ℕ) ≤ 2 ^ 0
+      norm_num
+
+lemma late_wf : Wf (lateSystem 1 2) := lateSystem_wf (by decide) (by decide)
+
+/-- Each leg of `lateFlow` sits at index 1 of its chain's tree from batch 1 on. -/
+lemma late_leg_tree {l : FlowLeg} (hl' : l ∈ lateFlow.legs) (n : ℕ) :
+    (lateSystem 1 2).tree l.chain (n + 1) = insert setup l.bundleHash 0 := by
+  rcases List.mem_cons.mp hl' with rfl | hl'
+  · exact lateSystem_tree_c0 1 2 n
+  · obtain rfl := List.mem_singleton.mp hl'
+    exact lateSystem_tree_c1 1 2 n
+
+lemma late_leg_pos {l : FlowLeg} (hl' : l ∈ lateFlow.legs) : 0 < l.bundleHash := by
+  rcases List.mem_cons.mp hl' with rfl | hl'
+  · show (0 : UInt256) < 1
+    decide
+  · obtain rfl := List.mem_singleton.mp hl'
+    show (0 : UInt256) < 2
+    decide
+
+lemma late_leg_mem {l : FlowLeg} (hl' : l ∈ lateFlow.legs) :
+    legValue (fun _ b => b) lateFlow l ∈ keys (toAbs ((lateSystem 1 2).tree l.chain 1)) := by
+  rw [late_leg_tree hl' 0]
+  exact mem_insertSetup (late_leg_pos hl')
+
+lemma late_leg_accepts (h : Hash) (z0 : UInt256) (hl : LeafHash) {l : FlowLeg}
+    (hl' : l ∈ lateFlow.legs) :
+    Accepts h z0 hl (lateSystem 1 2) l.chain 1 (legValue (fun _ b => b) lateFlow l)
+      (honestProof h z0 hl (lateSystem 1 2) l.chain 1 1) :=
+  accepts_inserted_leaf (late_leg_tree hl' 0) (late_wf.capacity _ _)
+
+/-- Honest destination evidence on `lateSystem 1 2`: for each leg, batch 1, the honest proof
+of leaf 1 of its chain's tree, and the honest multi-hop proof to the root of `sl` at block 1. -/
+def lateEvidence (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain) : GateEvidenceAt :=
+  fun l => (1, honestProof h z0 hl (lateSystem 1 2) l.chain 1 1, honestSettlementProof sl 1)
+
+/-- Everything `dB` has imported in `twoRootWorld` is `sl`'s block-0 root, which covers batch 0
+only. -/
+lemma twoRootWorld_dB_accepts_only_batch_zero {sl : Chain} {dA dB : Dest} (hne : dA ≠ dB)
+    {c : Chain} {n : ℕ} {sp : SettlementProof}
+    (hacc : SettlementAccepted (twoRootWorld sl dA dB) dB c n sp) : n = 0 := by
+  obtain ⟨_, ⟨_, himp⟩, hcov⟩ := hacc
+  rcases himp with ⟨hd, _⟩ | ⟨_, hk⟩
+  · exact absurd hd.symm hne
+  · have hcov' : n ≤ ((twoRootWorld sl dA dB).slRoot sp.slChainId 0).upTo c := by
+      rw [← hk]
+      exact hcov
+    exact Nat.le_zero.mp hcov'
+
 /-! ## Countermodels -/
 
 theorem without_import_flow_sits_half_executed (h : Hash) (z0 : UInt256) (hl : LeafHash)
@@ -450,6 +577,116 @@ theorem without_import_flow_sits_half_executed (h : Hash) (z0 : UInt256) (hl : L
     exact member_not_refundable_or_break twoChain_wf (n := 0) (le_refl _)
       (twoChain_leg_mem hother 0) N q
 
+theorem stale_import_flow_sits_half_executed (h : Hash) (z0 : UInt256) (hl : LeafHash)
+    (sl : Chain) (dA dB : Dest) (hne : dA ≠ dB) :
+    Wf (lateSystem 1 2)
+      ∧ DataAvailable h z0 hl (lateSystem 1 2) (honestAccess h z0 hl (lateSystem 1 2))
+      ∧ SettlementDataAvailable (twoRootWorld sl dA dB)
+          (honestSettlementAccess (twoRootWorld sl dA dB))
+      ∧ (twoRootWorld sl dA dB).l1 dA = sl ∧ (twoRootWorld sl dA dB).l1 dB = sl
+      ∧ (∀ k : ℕ, Contracts.Timeout.Aggregates (lateSystem 1 2)
+          ((twoRootWorld sl dA dB).slRoot sl k))
+      ∧ (∀ (k : ℕ) (c : Chain) (n : ℕ), n ≤ ((twoRootWorld sl dA dB).slRoot sl k).upTo c →
+          (lateSystem 1 2).time c n ≤ ((twoRootWorld sl dA dB).slRoot sl k).created)
+      ∧ (twoRootWorld sl dA dB).imported dB sl 0
+      ∧ ImportAvailable (twoRootWorld sl dA dB) (lateSystem 1 2) dA sl lateFlow.deadline
+      ∧ ¬ ImportAvailable (twoRootWorld sl dA dB) (lateSystem 1 2) dB sl lateFlow.deadline
+      ∧ (∃ ev : GateEvidenceAt,
+          ExecutedAtBy h z0 hl (fun _ b => b) (honestFlowHash lateFlow) (twoRootWorld sl dA dB)
+            (lateSystem 1 2) dA sl lateFlow ev ⟨0, 1⟩
+          ∧ ¬ GateBreak h z0 hl (lateSystem 1 2) lateFlow (imtEvidence ev))
+      ∧ FlowFinalizableBy h z0 hl (fun _ b => b) (lateSystem 1 2)
+          (honestAccess h z0 hl (lateSystem 1 2)) lateFlow
+      ∧ (∀ (SA : SettlementAccess), ∀ leg ∈ lateFlow.legs,
+          ¬ LegFinalizableAt h z0 hl (fun _ b => b) (twoRootWorld sl dA dB) (lateSystem 1 2)
+              (honestAccess h z0 hl (lateSystem 1 2)) SA dB sl lateFlow leg)
+      ∧ (∀ (fh : FlowHash) (ev : GateEvidenceAt) (leg : FlowLeg),
+          ExecutedAtBy h z0 hl (fun _ b => b) fh (twoRootWorld sl dA dB) (lateSystem 1 2) dB sl
+            lateFlow ev leg →
+          GateBreak h z0 hl (lateSystem 1 2) lateFlow (imtEvidence ev))
+      ∧ (∀ other ∈ lateFlow.legs, ∀ (N : ℕ) (q : ImtProof),
+          ¬ LegRefundableBy h z0 hl (fun _ b => b) (lateSystem 1 2) lateFlow other N q
+            ∨ AbsenceBreak h z0 hl (lateSystem 1 2) lateFlow.deadline other.chain N q) := by
+  have hmemA : (⟨0, 1⟩ : FlowLeg) ∈ lateFlow.legs := List.mem_cons_self
+  refine ⟨late_wf, honestAccess_dataAvailable h z0 hl _, honest_settlement_access_available _,
+    rfl, rfl, ?_, ?_, ⟨rfl, Or.inr ⟨rfl, rfl⟩⟩, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · -- every root aggregates every batch settled by its creation
+    intro k c n hn
+    by_cases hk : k = 0
+    · subst hk
+      have hn' : n + 1 ≤ 1 := hn
+      show n ≤ 0
+      omega
+    · have hn' : n + 1 ≤ ((twoRootWorld sl dA dB).slRoot sl k).created := hn
+      have hroot : (twoRootWorld sl dA dB).slRoot sl k = ⟨2, fun _ => 1⟩ := by
+        simp [twoRootWorld, hk]
+      rw [hroot] at hn' ⊢
+      show n ≤ 1
+      have : n + 1 ≤ 2 := hn'
+      omega
+  · -- and holds no batch that settled after it
+    intro k c n hn
+    by_cases hk : k = 0
+    · subst hk
+      have hn' : n ≤ 0 := hn
+      show n + 1 ≤ 1
+      omega
+    · have hroot : (twoRootWorld sl dA dB).slRoot sl k = ⟨2, fun _ => 1⟩ := by
+        simp [twoRootWorld, hk]
+      rw [hroot] at hn ⊢
+      have hn' : n ≤ 1 := hn
+      show n + 1 ≤ 2
+      omega
+  · -- `dA` is ready
+    intro c n hn
+    have hn' : n + 1 ≤ 2 := hn
+    refine ⟨1, ⟨rfl, Or.inl ⟨rfl, rfl⟩⟩, ?_⟩
+    show n ≤ 1
+    omega
+  · -- `dB` is not ready: chain 0's batch 1 settled at time 2, by the deadline, and `dB`'s
+    -- root does not cover it
+    intro hI
+    obtain ⟨k, ⟨_, himp⟩, hcov⟩ := hI 0 1 (le_refl _)
+    rcases himp with ⟨hd, _⟩ | ⟨_, hk⟩
+    · exact hne hd.symm
+    · subst hk
+      have : (1 : ℕ) ≤ 0 := hcov
+      omega
+  · -- `dA` executes, on break-free evidence
+    refine ⟨lateEvidence h z0 hl sl,
+      ⟨hmemA, (honest_flowHash_no_clash _).1, rfl, fun l hl' => ?_⟩, ?_⟩
+    · exact ⟨le_refl _, ⟨rfl, ⟨rfl, Or.inl ⟨rfl, rfl⟩⟩, le_refl _⟩, rfl,
+        late_leg_accepts h z0 hl hl'⟩
+    · rintro ⟨l, hl', hb⟩
+      have hlt : 1 < ((lateSystem 1 2).tree l.chain 1).leafCount := by
+        rw [late_leg_tree hl' 0, insertSetup_leafCount]
+        norm_num
+      exact honestProof_no_break h z0 hl (lateSystem 1 2) l.chain 1 1 hlt hb
+  · -- the IMT half holds
+    intro l hl'
+    exact member_is_finalizable late_wf (honestAccess_dataAvailable h z0 hl _) (n := 1)
+      (le_refl _) (late_leg_mem hl')
+  · -- no leg is finalizable on `dB` under honest IMT access
+    rintro SA leg hleg ⟨n, p, sp, _, ⟨i, hi, rfl⟩, _, hset, _, hacc⟩
+    obtain rfl := twoRootWorld_dB_accepts_only_batch_zero hne hset
+    have hv := hacc.valueMatch
+    change (((lateSystem 1 2).tree leg.chain 0).leaf i).value = leg.bundleHash at hv
+    rw [lateSystem_tree_zero] at hv
+    change (0 : UInt256) = leg.bundleHash at hv
+    exact absurd hv (ne_of_lt (late_leg_pos hleg))
+  · -- an execution on `dB` carries a break on leg `⟨0, 1⟩`'s proof
+    rintro fh ev leg ⟨_, _, _, hall⟩
+    obtain ⟨_, hset, _, hacc⟩ := hall ⟨0, 1⟩ hmemA
+    have hn0 : (ev ⟨0, 1⟩).1 = 0 := twoRootWorld_dB_accepts_only_batch_zero hne hset
+    rcases finality_means_membership_or_break hacc with hmem | hb
+    · exfalso
+      rw [hn0, lateSystem_tree_zero] at hmem
+      exact not_mem_setup (by decide : (0 : UInt256) < 1) hmem
+    · exact ⟨⟨0, 1⟩, hmemA, hb⟩
+  · -- no leg is refundable without a break: both were committed on time, at batch 1
+    intro other hother N q
+    exact member_not_refundable_or_break late_wf (n := 1) (le_refl _) (late_leg_mem hother) N q
+
 /-- The negation of `executed_at_implies_all_finalizable_at_or_break` without the import
 premise on `dB`, refuted by `without_import_flow_sits_half_executed` at `dA = 0`, `dB = 1`. -/
 theorem without_import_cross_destination_fails :
@@ -465,6 +702,25 @@ theorem without_import_cross_destination_fails :
     without_import_flow_sits_half_executed (fun _ _ => 0) 0 toyLeafHash 0 0 1 (by decide)
   rcases hall _ _ _ _ _ _ _ hwf _ hda _ hsa _ _ _ _ ev _ hex hl1B with hF | hb
   · exact hnf _ _ ⟨0, 1⟩ List.mem_cons_self (hF.2 ⟨0, 1⟩ List.mem_cons_self)
+  · exact hnb hb
+
+/-- The negation of `executed_at_implies_all_finalizable_at_or_break` with the import premise
+on `dB` weakened to "`dB` has imported some root of `sl`", refuted by
+`stale_import_flow_sits_half_executed` at `dA = 0`, `dB = 1`. -/
+theorem without_coverage_cross_destination_fails :
+    ¬ ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (W : World)
+      (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+      ∀ (SA : SettlementAccess), SettlementDataAvailable W SA →
+      ∀ (dA dB : Dest) (sl : Chain) (F : Flow) (ev : GateEvidenceAt) (leg : FlowLeg),
+        ExecutedAtBy h z0 hl cv fh W S dA sl F ev leg → W.l1 dB = sl →
+        (∃ k, W.imported dB sl k) →
+          FlowFinalizableAt h z0 hl cv W S A SA dB sl F
+            ∨ GateBreak h z0 hl S F (imtEvidence ev) := by
+  intro hall
+  obtain ⟨hwf, hda, hsa, _, hl1B, _, _, himpB, _, _, ⟨ev, hex, hnb⟩, _, hnf, _⟩ :=
+    stale_import_flow_sits_half_executed (fun _ _ => 0) 0 toyLeafHash 0 0 1 (by decide)
+  rcases hall _ _ _ _ _ _ _ hwf _ hda _ hsa _ _ _ _ ev _ hex hl1B ⟨0, himpB⟩ with hF | hb
+  · exact hnf _ ⟨0, 1⟩ List.mem_cons_self (hF.2 ⟨0, 1⟩ List.mem_cons_self)
   · exact hnb hb
 
 theorem import_alone_restores_finalizability (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain)
@@ -502,6 +758,59 @@ theorem without_settlement_data_leg_is_stuck (h : Hash) (z0 : UInt256) (hl : Lea
     exact hsa
   · intro N q
     exact member_not_refundable_or_break twoChain_wf (n := 0) (le_refl _) (twoChain_leg_mem hmemA 0) N q
+
+/-- On the world of `without_import_flow_sits_half_executed`, the one-call log of `dA`'s
+execution `e`, with `c = e`, fails all three disjuncts of the logged-run form on `dB`, which
+is not ready. -/
+theorem logged_form_needs_readiness (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain)
+    (dA dB : Dest) (hne : dA ≠ dB) :
+    ∃ e : Contracts.FlowBinding.ExecCall,
+      Contracts.FlowBinding.RunLog h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+          (twoChainSystem 1 2) Contracts.Refund.emptyManagers Contracts.Refund.emptyManagers
+          [.execute e]
+        ∧ (importWorld sl (· = dA)).l1 dB = sl
+        ∧ ¬ ImportAvailable (importWorld sl (· = dA)) (twoChainSystem 1 2) dB sl e.flow.deadline
+        ∧ ¬ (FlowFinalizableAt h z0 hl (fun _ b => b) (importWorld sl (· = dA))
+                (twoChainSystem 1 2) (honestAccess h z0 hl (twoChainSystem 1 2))
+                (honestSettlementAccess (importWorld sl (· = dA))) dB sl e.flow
+              ∨ PinnedGateBreak h z0 hl (fun _ b => b) (twoChainSystem 1 2)
+                (honestAccess h z0 hl (twoChainSystem 1 2)) e.flow e.evidence
+              ∨ FlowIdClash (honestFlowHash (mixedFlow 0 1 2)) e.flow e.flow) := by
+  obtain ⟨_, _, _, _, _, _, hnI, _, hBy, _, hnf, _⟩ :=
+    without_import_flow_sits_half_executed h z0 hl sl dA dB hne
+  let e : Contracts.FlowBinding.ExecCall :=
+    ⟨mixedFlow 0 1 2, imtEvidence (twoChainEvidence h z0 hl sl), ⟨0, 1⟩⟩
+  have hver : e.Verified h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
+      (twoChainSystem 1 2) :=
+    executed_at_projects (twoChain_executed_at h z0 hl (sl := sl) (imp := (· = dA)) rfl)
+  refine ⟨e, Contracts.FlowBinding.RunLog.execute e Contracts.FlowBinding.RunLog.refl hver, rfl,
+    hnI, ?_⟩
+  rintro (hf | hp | hcl)
+  · exact hnf _ _ ⟨0, 1⟩ List.mem_cons_self (hf.2 ⟨0, 1⟩ List.mem_cons_self)
+  · exact Contracts.FlowBinding.no_pinned_break_of_finalizable _ hBy hp
+  · exact hcl.1 rfl
+
+/-- The negation of `executed_implies_real_flow_finalizable_at_or_logged_clash` without the
+import premise, refuted by `logged_form_needs_readiness` at `dA = 0`, `dB = 1`. -/
+theorem without_import_logged_form_fails :
+    ¬ ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
+      (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+      ∀ (W : World) (SA : SettlementAccess), SettlementDataAvailable W SA →
+      ∀ (Ms Ns : Contracts.Refund.Managers) (log : List Contracts.FlowBinding.CheckedCall),
+        Contracts.FlowBinding.RunLog h z0 hl cv fh S Ms Ns log →
+      ∀ (e : Contracts.FlowBinding.ExecCall), Contracts.FlowBinding.CheckedCall.execute e ∈ log →
+      ∀ c ∈ log, c.flow.flowId = e.flow.flowId →
+      ∀ (d : Dest) (sl : Chain), W.l1 d = sl →
+        FlowFinalizableAt h z0 hl cv W S A SA d sl c.flow
+          ∨ PinnedGateBreak h z0 hl cv S A e.flow e.evidence
+          ∨ FlowIdClash fh e.flow c.flow := by
+  intro hall
+  obtain ⟨hwf, hda, hsa, _⟩ :=
+    without_import_flow_sits_half_executed (fun _ _ => 0) 0 toyLeafHash 0 0 1 (by decide)
+  obtain ⟨e, hrun, hl1B, _, hfail⟩ :=
+    logged_form_needs_readiness (fun _ _ => 0) 0 toyLeafHash 0 0 1 (by decide)
+  exact hfail (hall _ _ _ _ _ _ hwf _ hda _ _ hsa _ _ _ hrun e (List.mem_singleton_self _)
+    (.execute e) (List.mem_singleton_self _) rfl _ _ hl1B)
 
 /-! ## Anti-vacuity -/
 
@@ -616,38 +925,81 @@ theorem none_or_all_at_or_break_pinned_from_runs_stranded (h : Hash) (z0 : UInt2
   rw [hEq]
   exact ⟨hDA, hSA, hl1, hI, hnf, ev, hnex, hnp⟩
 
-theorem executed_implies_real_flow_finalizable_at_or_logged_clash_witness (h : Hash) (z0 : UInt256)
-    (hl : LeafHash) (sl : Chain) (d : Dest) :
-    ∃ (log : List Contracts.FlowBinding.CheckedCall) (e : Contracts.FlowBinding.ExecCall),
-      Wf (twoChainSystem 1 2)
-        ∧ DataAvailable h z0 hl (twoChainSystem 1 2) (honestAccess h z0 hl (twoChainSystem 1 2))
-        ∧ SettlementDataAvailable (importWorld sl (· = d))
-            (honestSettlementAccess (importWorld sl (· = d)))
-        ∧ Contracts.FlowBinding.RunLog h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
-            (twoChainSystem 1 2) Contracts.Refund.emptyManagers Contracts.Refund.emptyManagers log
-        ∧ Contracts.FlowBinding.CheckedCall.execute e ∈ log
-        ∧ e.flow = mixedFlow 0 1 2
-        ∧ (importWorld sl (· = d)).l1 d = sl
-        ∧ ImportAvailable (importWorld sl (· = d)) (twoChainSystem 1 2) d sl e.flow.deadline
-        ∧ FlowFinalizableAt h z0 hl (fun _ b => b) (importWorld sl (· = d)) (twoChainSystem 1 2)
-            (honestAccess h z0 hl (twoChainSystem 1 2))
-            (honestSettlementAccess (importWorld sl (· = d))) d sl e.flow
-        ∧ ¬ PinnedGateBreak h z0 hl (fun _ b => b) (twoChainSystem 1 2)
-            (honestAccess h z0 hl (twoChainSystem 1 2)) e.flow e.evidence
-        ∧ ¬ FlowIdClash (honestFlowHash (mixedFlow 0 1 2)) e.flow e.flow := by
-  let e : Contracts.FlowBinding.ExecCall :=
-    ⟨mixedFlow 0 1 2, imtEvidence (twoChainEvidence h z0 hl sl), ⟨0, 1⟩⟩
-  have hver : e.Verified h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
-      (twoChainSystem 1 2) :=
-    executed_at_projects (twoChain_executed_at h z0 hl (sl := sl) (imp := (· = d)) rfl)
-  have hfin := twoChain_flow_finalizable_at h z0 hl (sl := sl) (imp := (· = d)) rfl
-  refine ⟨[.execute e], e, twoChain_wf, honestAccess_dataAvailable h z0 hl _,
-    honest_settlement_access_available _,
-    Contracts.FlowBinding.RunLog.execute e Contracts.FlowBinding.RunLog.refl hver,
-    List.mem_singleton_self _, rfl, rfl, importWorld_ready rfl _ (fun _ _ hn => hn) (Nat.zero_le _),
-    hfin, ?_, fun hcl => hcl.1 rfl⟩
-  rintro ⟨leg, hf, _⟩
-  exact first_stranded_leg_iff_not_finalizable.1 ⟨leg, hf⟩ (flow_finalizable_at_imp_by hfin)
+open Contracts.Refund Contracts.FlowBinding in
+/-- `Contracts.FlowBinding`'s witness (`pairSystem 1 2`, `pairLog`), on the ready destination
+`dst` of `importWorld sl (· = dst)`, with `FlowFinalizableAt` in place of `FlowFinalizableBy`. -/
+theorem executed_implies_real_flow_finalizable_at_or_logged_clash_witness (h : Hash)
+    (z0 : UInt256) (hl : LeafHash) (sl : Chain) (dst : Dest) :
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access)
+      (Ms : Contracts.Refund.Managers) (log : List Contracts.FlowBinding.CheckedCall)
+      (e e' : Contracts.FlowBinding.ExecCall) (c d : Contracts.FlowBinding.CheckedCall)
+      (r : Contracts.Refund.AuthCall),
+      Wf S ∧ DataAvailable h z0 hl S A
+        ∧ SettlementDataAvailable (importWorld sl (· = dst))
+            (honestSettlementAccess (importWorld sl (· = dst)))
+        ∧ Contracts.FlowBinding.RunLog h z0 hl cv fh S Contracts.Refund.emptyManagers Ms log
+        ∧ Contracts.FlowBinding.CheckedCall.execute e ∈ log ∧ c ∈ log ∧ d ∈ log
+        ∧ c = Contracts.FlowBinding.CheckedCall.execute e' ∧ e'.flow = e.flow ∧ e'.leg ≠ e.leg
+        ∧ d = Contracts.FlowBinding.CheckedCall.authorize r
+        ∧ (importWorld sl (· = dst)).l1 dst = sl
+        ∧ ImportAvailable (importWorld sl (· = dst)) S dst sl c.flow.deadline
+        ∧ ImportAvailable (importWorld sl (· = dst)) S dst sl d.flow.deadline
+        ∧ c.flow.flowId = e.flow.flowId
+        ∧ FlowFinalizableAt h z0 hl cv (importWorld sl (· = dst)) S A
+            (honestSettlementAccess (importWorld sl (· = dst))) dst sl c.flow
+        ∧ ¬ PinnedGateBreak h z0 hl cv S A e.flow e.evidence
+        ∧ (∀ c' ∈ log, ¬ FlowIdClash fh e.flow c'.flow)
+        ∧ d.flow.flowId ≠ e.flow.flowId
+        ∧ ¬ (FlowFinalizableAt h z0 hl cv (importWorld sl (· = dst)) S A
+                (honestSettlementAccess (importWorld sl (· = dst))) dst sl d.flow
+              ∨ PinnedGateBreak h z0 hl cv S A e.flow e.evidence
+              ∨ FlowIdClash fh e.flow d.flow) := by
+  have h20 : (2 : Chain) ≠ 0 := by decide
+  have h21 : (2 : Chain) ≠ 1 := by decide
+  have hSA := honest_settlement_access_available (importWorld sl (· = dst))
+  have hI : ImportAvailable (importWorld sl (· = dst)) (pairSystem 1 2) dst sl 0 :=
+    importWorld_ready rfl _ (fun _ _ hn => hn) (Nat.zero_le _)
+  have hfin := pair_flow_finalizable h z0 hl
+  have hfinAt : FlowFinalizableAt h z0 hl (fun _ b => b) (importWorld sl (· = dst))
+      (pairSystem 1 2) (honestAccess h z0 hl (pairSystem 1 2))
+      (honestSettlementAccess (importWorld sl (· = dst))) dst sl (mixedFlow 1 1 2) :=
+    (ready_finalizable_at_iff_by hSA rfl hI).2 hfin
+  have hnp : ¬ PinnedGateBreak h z0 hl (fun _ b => b) (pairSystem 1 2)
+      (honestAccess h z0 hl (pairSystem 1 2)) (mixedFlow 1 1 2) (pairEvidence h z0 hl) :=
+    no_pinned_break_of_finalizable _ hfin
+  have hnoclashF : ¬ FlowIdClash lengthFlowHash (mixedFlow 1 1 2) (mixedFlow 1 1 2) :=
+    fun hcl => hcl.1 rfl
+  have hnoclashG : ¬ FlowIdClash lengthFlowHash (mixedFlow 1 1 2) strandedFlow := by
+    rintro ⟨_, heq⟩
+    exact absurd heq (by decide)
+  have hnfinG : ¬ FlowFinalizableBy h z0 hl (fun _ b => b) (pairSystem 1 2)
+      (honestAccess h z0 hl (pairSystem 1 2)) strandedFlow := by
+    intro hall
+    obtain ⟨n, p, _, ⟨i, _, rfl⟩, hacc⟩ := hall ⟨2, 3⟩ (List.mem_singleton_self _)
+    have hv := hacc.valueMatch
+    change (((pairSystem 1 2).tree 2 n).leaf i).value = 3 at hv
+    rw [pairSystem_tree_other h20 h21] at hv
+    change (0 : UInt256) = 3 at hv
+    exact absurd hv (by decide)
+  refine ⟨fun _ b => b, lengthFlowHash, pairSystem 1 2, honestAccess h z0 hl (pairSystem 1 2),
+    pairMs, pairLog h z0 hl, pairExec h z0 hl ⟨0, 1⟩, pairExec h z0 hl ⟨1, 2⟩,
+    .execute (pairExec h z0 hl ⟨1, 2⟩), .authorize (strandedAuth h z0 hl), strandedAuth h z0 hl,
+    pairSystem_wf (by decide) (by decide), honestAccess_dataAvailable h z0 hl _, hSA,
+    pair_run h z0 hl,
+    List.mem_cons_of_mem _ List.mem_cons_self, List.mem_cons_self,
+    List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self), rfl, rfl,
+    by show (⟨1, 2⟩ : FlowLeg) ≠ ⟨0, 1⟩; decide, rfl, rfl, hI, hI, rfl, hfinAt, hnp, ?_,
+    by show (0 : UInt256) ≠ 1; decide, ?_⟩
+  · intro c' hc'
+    simp only [pairLog, List.mem_cons, List.mem_nil_iff, or_false] at hc'
+    rcases hc' with rfl | rfl | rfl
+    · exact hnoclashF
+    · exact hnoclashF
+    · exact hnoclashG
+  · rintro (hf | hp | hcl)
+    · exact hnfinG (flow_finalizable_at_imp_by hf)
+    · exact hnp hp
+    · exact hnoclashG hcl
 
 end Contracts.RootImport
 
@@ -728,14 +1080,23 @@ theorem ExecutedImpliesRealFlowFinalizableAtOrLoggedClash :
 theorem WithoutImportFlowSitsHalfExecuted : Properties.WithoutImportFlowSitsHalfExecuted :=
   without_import_flow_sits_half_executed
 
+theorem StaleImportFlowSitsHalfExecuted : Properties.StaleImportFlowSitsHalfExecuted :=
+  stale_import_flow_sits_half_executed
+
 theorem WithoutImportCrossDestinationFails : Properties.WithoutImportCrossDestinationFails :=
   without_import_cross_destination_fails
+
+theorem WithoutCoverageCrossDestinationFails : Properties.WithoutCoverageCrossDestinationFails :=
+  without_coverage_cross_destination_fails
 
 theorem ImportAloneRestoresFinalizability : Properties.ImportAloneRestoresFinalizability :=
   import_alone_restores_finalizability
 
 theorem WithoutSettlementDataLegIsStuck : Properties.WithoutSettlementDataLegIsStuck :=
   without_settlement_data_leg_is_stuck
+
+theorem WithoutImportLoggedFormFails : Properties.WithoutImportLoggedFormFails :=
+  without_import_logged_form_fails
 
 theorem ExecutedAtOrBreakSatisfiable : Properties.ExecutedAtOrBreakSatisfiable :=
   executed_at_or_break_satisfiable

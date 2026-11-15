@@ -130,7 +130,10 @@ def Properties.OneExecutionFreezesTheFlowOrBreakUnderPause : Prop :=
 
 /-- **NONE OR ALL, OR A LOCATED BREAK, UNDER PAUSE.**
 `Contracts.Atomicity.Properties.NoneOrAllOrBreak`, with execution through the gate under any
-pause flags.  Finalizability does not depend on the flags. -/
+pause flags.  Finalizability does not depend on the flags.  Finalizable here is
+`FlowFinalizableBy`, the IMT half.  The destination form is
+`Contracts.RootImport.Properties.NoneOrAllAtOrBreak`; an execution under pause is an
+`ExecutedViaBy`, so it covers these executions too. -/
 def Properties.NoneOrAllOrBreakUnderPause : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -140,7 +143,9 @@ def Properties.NoneOrAllOrBreakUnderPause : Prop :=
         ∨ GateBreak h z0 hl S F ev
 
 /-- **NONE OR ALL, OR A BREAK ON THE FIRST STRANDED LEG, UNDER PAUSE.**
-`Contracts.Atomicity.Properties.NoneOrAllOrBreakPinned`, likewise. -/
+`Contracts.Atomicity.Properties.NoneOrAllOrBreakPinned`, likewise.  Finalizable here is the
+IMT half; the destination form is `Contracts.RootImport.Properties.NoneOrAllAtOrBreakPinned`,
+which covers executions under pause in the same way. -/
 def Properties.NoneOrAllOrBreakPinnedUnderPause : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -164,7 +169,10 @@ def Properties.LoggedExecutionExcludesLoggedRefundOrBreakUnderPause : Prop :=
 
 /-- **PARTIAL ATOMICITY OVER THE REAL FLOW, UNDER PAUSE.**
 `Contracts.FlowBinding.Properties.ExecutedImpliesRealFlowFinalizableOrLoggedClash`, verbatim,
-over paused runs. -/
+over paused runs.  Finalizable here is `FlowFinalizableBy`, the IMT half.  The destination
+form is `Contracts.RootImport.Properties.ExecutedImpliesRealFlowFinalizableAtOrLoggedClash`,
+stated over a `RunLog`; the checked calls of a paused run form one
+(`Properties.PausedRunIsRunLog`). -/
 def Properties.ExecutedImpliesRealFlowFinalizableOrLoggedClashUnderPause : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →

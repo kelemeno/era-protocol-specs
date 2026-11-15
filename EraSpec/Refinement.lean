@@ -156,12 +156,14 @@ shows that one is load-bearing too.
 `DataAvailable` is source-chain data only, and the none-or-all results conclude
 finalizability against the true root. The destination's own gate needs two more world
 assumptions, stated in `Contracts.RootImport`: `ImportAvailable` (the destination has
-imported a settlement-layer root covering the batch) and `SettlementDataAvailable` (the
-multi-hop settlement proof is presentable). `WithoutImportCrossDestinationFails` (no
-hash premise) shows the first is load-bearing: it is the negation of
-`ExecutedAtImpliesAllFinalizableAtOrBreak` with the import premise dropped. Its instance,
-`WithoutImportFlowSitsHalfExecuted`, has one leg execute on its destination on break-free
-evidence while a sibling's destination cannot pass, and no leg is refundable.
+imported settlement-layer roots covering every batch, of every chain, that settled by the
+deadline) and `SettlementDataAvailable` (the multi-hop settlement proof is presentable).
+`WithoutImportCrossDestinationFails` (no hash premise) shows the first is load-bearing: it
+is the negation of `ExecutedAtImpliesAllFinalizableAtOrBreak` with the import premise
+dropped. Its instance, `WithoutImportFlowSitsHalfExecuted`, has one leg execute on its
+destination on break-free evidence while a sibling's destination cannot pass, and no leg is
+refundable without a located `AbsenceBreak` on the refund's absence proof. What blocks the
+refunds there is the legs' on-time commitment, not the missing import.
 
 ## Additional bridge correspondence
 

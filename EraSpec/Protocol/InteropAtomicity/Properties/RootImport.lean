@@ -22,7 +22,11 @@ availability does not supply that import.
 So those results do not say "every leg's destination can run `requireFlowFinalized` and
 pass".  Take every source leg committed on time, with all IMT data available.  A
 destination that has not imported a covering root still cannot pass, while another
-destination that has imported one executes (`Properties.WithoutImportFlowSitsHalfExecuted`).
+destination that has imported one executes.  In `Properties.WithoutImportFlowSitsHalfExecuted`
+the stuck destination has imported nothing.  In `Properties.StaleImportFlowSitsHalfExecuted`
+it has imported a genuine root that does not cover the legs' batch, and every execution there
+carries a located break.  So the coverage half of the import premise is load-bearing too
+(`Properties.WithoutCoverageCrossDestinationFails`).
 
 The safety results (`GateRequiresEveryLeg`, `FinalitySignalMeansMembership`,
 `ExecutedExcludesAnyRefund`, the flow-id results) are unaffected.  Authenticating the root
@@ -43,7 +47,9 @@ Otherwise a break is located on a submitted proof, as in
 * `Properties.FinalizableAtImpliesBy`: finalizability on a destination implies the old
   predicate, which is its IMT half.  `Properties.ReadyFinalizableAtIffBy`: on a ready
   destination, with settlement data available, the two coincide.  So a result that
-  concludes `FlowFinalizableBy` speaks about ready destinations, and about no others.
+  concludes `FlowFinalizableBy` carries over to every ready destination with settlement data
+  available; on a destination that is not ready it can fail
+  (`Properties.WithoutImportFlowSitsHalfExecuted`).
 * The restated results are `MemberIsFinalizableAt`, `ExecutedImpliesAllFinalizableAtOrBreak`,
   `ExecutedAtImpliesAllFinalizableAtOrBreak` (an execution on one destination, finalizability
   on another), `NoneOrAllAtOrBreak`, `NoneOrAllAtOrBreakPinned`,
@@ -60,14 +66,18 @@ Otherwise a break is located on a submitted proof, as in
 
 | Result | What it shows |
 |---|---|
-| `WithoutImportFlowSitsHalfExecuted` | import availability is necessary: `dA` executes a leg on break-free evidence, `dB` can execute none, no leg is refundable, and `FlowFinalizableBy` holds |
+| `WithoutImportFlowSitsHalfExecuted` | import availability is necessary: `dA` executes a leg on break-free evidence, `dB` can execute none, no leg is refundable without a located `AbsenceBreak` on the refund's absence proof, and `FlowFinalizableBy` holds.  What blocks the refunds is the legs' on-time commitment, not the missing import |
+| `StaleImportFlowSitsHalfExecuted` | covering, not just importing, is necessary: with genuine roots and the legs committed one batch later, `dB` has imported a root that does not cover their batch.  `dA` executes a leg on break-free evidence and `FlowFinalizableBy` holds, but no leg is finalizable on `dB` under honest IMT access, and every execution on `dB` carries a `GateBreak` |
 | `WithoutImportCrossDestinationFails` | the negation of `ExecutedAtImpliesAllFinalizableAtOrBreak` with the import premise on `dB` dropped |
-| `ImportAloneRestoresFinalizability` | in that world, the one root import is all `dB` lacks |
+| `WithoutCoverageCrossDestinationFails` | the negation of `ExecutedAtImpliesAllFinalizableAtOrBreak` with the import premise on `dB` weakened to "`dB` has imported some root of `sl`": the coverage half is load-bearing |
+| `ImportAloneRestoresFinalizability` | in the world of `WithoutImportFlowSitsHalfExecuted`, the one root import is all `dB` lacks |
 | `WithoutSettlementDataLegIsStuck` | settlement-proof availability is necessary |
+| `WithoutImportLoggedFormFails` | the negation of `ExecutedImpliesRealFlowFinalizableAtOrLoggedClash` with its import premise dropped |
 | `ExecutedAtOrBreakSatisfiable` | every premise of the cross-destination result at once, with no break and the conclusion true |
 | `NoneOrAllAtOrBreakPinnedStrandedNotTautology` | on a ready destination, the pinned break is evaluated on a stranded leg and is false |
 | `PinnedGateBreakAtFires` | on that world, a destination execution on a forged sibling proof lands in the pinned break |
-| `NoneOrAllAtOrBreakPinnedFromRunsStranded`, `ExecutedImpliesRealFlowFinalizableAtOrLoggedClashWitness` | the premises of the runs and logged-run forms, together |
+| `NoneOrAllAtOrBreakPinnedFromRunsStranded` | the premises of the runs form, together |
+| `ExecutedImpliesRealFlowFinalizableAtOrLoggedClashWitness` | the premises of the logged-run form, together, on a ready destination: the first disjunct holds for a same-id call that executes a different leg, and all three fail for a call with a different id |
 -/
 
 namespace Contracts.RootImport
@@ -181,7 +191,9 @@ presentable proofs and pass, or the evidence `dA` accepted carries a located bre
 the flow's legs.  The import premise on `dB` cannot be dropped:
 `Properties.WithoutImportCrossDestinationFails` is the negation of this statement with that
 premise removed (instance: `Properties.WithoutImportFlowSitsHalfExecuted`, where `dA` executes
-on break-free evidence and no leg is finalizable on `dB`). -/
+on break-free evidence and no leg is finalizable on `dB`).  Nor can it be weakened to "`dB`
+has imported some root of `sl`": `Properties.WithoutCoverageCrossDestinationFails` (instance:
+`Properties.StaleImportFlowSitsHalfExecuted`). -/
 def Properties.ExecutedAtImpliesAllFinalizableAtOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (W : World)
     (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -285,7 +297,7 @@ logged run, an execution `e` in its log, a call `c` of the same log claiming `e`
 and a destination `d` that is ready for `c.flow`.  Then one of three things holds: every leg
 of `c.flow` is finalizable on `d`; `e`'s evidence carries a break on the first leg of `e.flow`
 that is not finalizable (`PinnedGateBreak`); or the two logged flows clash on the flow
-hash. -/
+hash.  The import premise cannot be dropped (`Properties.WithoutImportLoggedFormFails`). -/
 def Properties.ExecutedImpliesRealFlowFinalizableAtOrLoggedClash : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
@@ -316,12 +328,15 @@ settlement-layer root, and both destinations are configured for `sl`.  Then:
 * `dB` is not ready.  No leg can execute on `dB`, under any flow hash, and no leg is
   finalizable on `dB`, whatever the prover can present;
 * no leg can be refunded either: no timeout evidence passes the gate unless it carries a
-  located `AbsenceBreak`.
+  located `AbsenceBreak`.  This conjunct mentions no destination: what blocks the refunds is
+  that both legs were committed on time, not the missing import.
 
 So a leg whose bundle is addressed to `dB` cannot complete until `dB` imports a root
-(`Properties.ImportAloneRestoresFinalizability`), and the flow cannot be unwound meanwhile.
-No contract defect is involved.  This is a liveness assumption about destinations, like
-data availability. -/
+(`Properties.ImportAloneRestoresFinalizability`), and meanwhile the flow cannot be unwound
+either, unless a refund's absence proof carries a located `AbsenceBreak`.  No contract defect
+is involved.  This is a liveness assumption about destinations, like data availability.
+`Properties.StaleImportFlowSitsHalfExecuted` is a variant in which `dB` has imported a genuine
+root, only one that does not cover the legs' batch. -/
 def Properties.WithoutImportFlowSitsHalfExecuted : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain) (dA dB : Dest), dA ≠ dB →
     Wf (twoChainSystem 1 2)
@@ -350,6 +365,61 @@ def Properties.WithoutImportFlowSitsHalfExecuted : Prop :=
             ∨ AbsenceBreak h z0 hl (twoChainSystem 1 2) (mixedFlow 0 1 2).deadline other.chain
                 N q)
 
+/-- **WITH A STALE ROOT IMPORTED, A FLOW STILL SITS HALF-EXECUTED.**  The setting holds for
+every node hash, leaf hash and padding constant, every settlement layer `sl`, and two distinct
+destinations `dA ≠ dB`.  The system is `lateSystem 1 2`, and the flow is `lateFlow` with
+commit value `cv _ b = b`.  Both of its legs, `⟨0, 1⟩` and `⟨1, 2⟩`, are committed during
+batch 1, which settles at time 2, the deadline.  IMT and settlement data are both available
+(honest access).  The world is `twoRootWorld sl dA dB`, and both destinations are configured
+for `sl`.  `sl`'s roots are genuine: each aggregates every batch that settled by its creation
+(`Contracts.Timeout.Aggregates`) and holds no batch that settled later.  `dA` has imported
+`sl`'s root created at time 2, and `dB` has imported `sl`'s root created at time 1, which
+holds batch 0 only.  Then:
+
+* `dA` is ready, and leg `⟨0, 1⟩` executes on `dA` through `dA`'s own gate, on evidence that
+  carries no `GateBreak`;
+* `FlowFinalizableBy` holds;
+* `dB` has imported a root of `sl` but is not ready.  No leg is finalizable on `dB` under
+  honest IMT access, whatever settlement proofs can be presented, and every execution on
+  `dB`, under any flow hash, carries a located `GateBreak` in its own evidence;
+* no leg can be refunded unless the refund's absence proof carries a located `AbsenceBreak`.
+
+So a destination needs a covering root, not just some imported root.  Unlike
+`Properties.WithoutImportFlowSitsHalfExecuted`, the coverage relation is exercised at a
+nonzero batch here.  The rejection on `dB` uses the coverage half of `SettlementAccepted`, so
+it rests on the model's idealization that a forged aggregation path is never accepted
+(`Specs/RootImport.lean`, "Model boundary"). -/
+def Properties.StaleImportFlowSitsHalfExecuted : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain) (dA dB : Dest), dA ≠ dB →
+    Wf (lateSystem 1 2)
+      ∧ DataAvailable h z0 hl (lateSystem 1 2) (honestAccess h z0 hl (lateSystem 1 2))
+      ∧ SettlementDataAvailable (twoRootWorld sl dA dB)
+          (honestSettlementAccess (twoRootWorld sl dA dB))
+      ∧ (twoRootWorld sl dA dB).l1 dA = sl ∧ (twoRootWorld sl dA dB).l1 dB = sl
+      ∧ (∀ k : ℕ, Contracts.Timeout.Aggregates (lateSystem 1 2)
+          ((twoRootWorld sl dA dB).slRoot sl k))
+      ∧ (∀ (k : ℕ) (c : Chain) (n : ℕ), n ≤ ((twoRootWorld sl dA dB).slRoot sl k).upTo c →
+          (lateSystem 1 2).time c n ≤ ((twoRootWorld sl dA dB).slRoot sl k).created)
+      ∧ (twoRootWorld sl dA dB).imported dB sl 0
+      ∧ ImportAvailable (twoRootWorld sl dA dB) (lateSystem 1 2) dA sl lateFlow.deadline
+      ∧ ¬ ImportAvailable (twoRootWorld sl dA dB) (lateSystem 1 2) dB sl lateFlow.deadline
+      ∧ (∃ ev : GateEvidenceAt,
+          ExecutedAtBy h z0 hl (fun _ b => b) (honestFlowHash lateFlow) (twoRootWorld sl dA dB)
+            (lateSystem 1 2) dA sl lateFlow ev ⟨0, 1⟩
+          ∧ ¬ GateBreak h z0 hl (lateSystem 1 2) lateFlow (imtEvidence ev))
+      ∧ FlowFinalizableBy h z0 hl (fun _ b => b) (lateSystem 1 2)
+          (honestAccess h z0 hl (lateSystem 1 2)) lateFlow
+      ∧ (∀ (SA : SettlementAccess), ∀ leg ∈ lateFlow.legs,
+          ¬ LegFinalizableAt h z0 hl (fun _ b => b) (twoRootWorld sl dA dB) (lateSystem 1 2)
+              (honestAccess h z0 hl (lateSystem 1 2)) SA dB sl lateFlow leg)
+      ∧ (∀ (fh : FlowHash) (ev : GateEvidenceAt) (leg : FlowLeg),
+          ExecutedAtBy h z0 hl (fun _ b => b) fh (twoRootWorld sl dA dB) (lateSystem 1 2) dB sl
+            lateFlow ev leg →
+          GateBreak h z0 hl (lateSystem 1 2) lateFlow (imtEvidence ev))
+      ∧ (∀ other ∈ lateFlow.legs, ∀ (N : ℕ) (q : ImtProof),
+          ¬ LegRefundableBy h z0 hl (fun _ b => b) (lateSystem 1 2) lateFlow other N q
+            ∨ AbsenceBreak h z0 hl (lateSystem 1 2) lateFlow.deadline other.chain N q)
+
 /-- **THE CROSS-DESTINATION RESULT IS FALSE WITHOUT THE IMPORT PREMISE.**  This is exactly
 the negation of `Properties.ExecutedAtImpliesAllFinalizableAtOrBreak` with its premise
 `ImportAvailable W S dB sl F.deadline` removed (every other premise kept).  The refuting
@@ -362,6 +432,23 @@ def Properties.WithoutImportCrossDestinationFails : Prop :=
     ∀ (SA : SettlementAccess), SettlementDataAvailable W SA →
     ∀ (dA dB : Dest) (sl : Chain) (F : Flow) (ev : GateEvidenceAt) (leg : FlowLeg),
       ExecutedAtBy h z0 hl cv fh W S dA sl F ev leg → W.l1 dB = sl →
+        FlowFinalizableAt h z0 hl cv W S A SA dB sl F ∨ GateBreak h z0 hl S F (imtEvidence ev)
+
+/-- **THE CROSS-DESTINATION RESULT IS FALSE WITH AN IMPORT THAT DOES NOT COVER THE FLOW.**
+This is the negation of `Properties.ExecutedAtImpliesAllFinalizableAtOrBreak` with its premise
+`ImportAvailable W S dB sl F.deadline` weakened to `∃ k, W.imported dB sl k`: `dB` has
+imported some root of `sl`, which need not cover the flow's batches (every other premise
+kept).  So the coverage half of the import premise is load-bearing, not only the import.  The
+refuting instance is the world of `Properties.StaleImportFlowSitsHalfExecuted`, with `dA = 0`
+and `dB = 1`: all premises hold, `dB` is not finalizable, and the executing evidence carries
+no `GateBreak`. -/
+def Properties.WithoutCoverageCrossDestinationFails : Prop :=
+  ¬ ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (W : World)
+    (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+    ∀ (SA : SettlementAccess), SettlementDataAvailable W SA →
+    ∀ (dA dB : Dest) (sl : Chain) (F : Flow) (ev : GateEvidenceAt) (leg : FlowLeg),
+      ExecutedAtBy h z0 hl cv fh W S dA sl F ev leg → W.l1 dB = sl →
+      (∃ k, W.imported dB sl k) →
         FlowFinalizableAt h z0 hl cv W S A SA dB sl F ∨ GateBreak h z0 hl S F (imtEvidence ev)
 
 /-- **THE IMPORT IS ALL THAT IS MISSING.**  In the world of
@@ -395,6 +482,27 @@ def Properties.WithoutSettlementDataLegIsStuck : Prop :=
           ¬ LegRefundableBy h z0 hl (fun _ b => b) (twoChainSystem 1 2) (mixedFlow 0 1 2)
               ⟨0, 1⟩ N q
             ∨ AbsenceBreak h z0 hl (twoChainSystem 1 2) (mixedFlow 0 1 2).deadline 0 N q
+
+/-- **THE LOGGED-RUN FORM IS FALSE WITHOUT THE IMPORT PREMISE.**  This is exactly the negation
+of `Properties.ExecutedImpliesRealFlowFinalizableAtOrLoggedClash` with its premise
+`ImportAvailable W S d sl c.flow.deadline` removed (every other premise kept).  The refuting
+instance is the world of `Properties.WithoutImportFlowSitsHalfExecuted`, with `dA = 0` and
+`dB = 1`.  The log is that world's execution `e` of leg `⟨0, 1⟩` alone, the call `c` is `e`,
+and the destination is `dB`.  There all three disjuncts fail: no leg is finalizable on `dB`,
+`e`'s evidence carries no pinned break because `FlowFinalizableBy` holds, and a flow never
+clashes with itself. -/
+def Properties.WithoutImportLoggedFormFails : Prop :=
+  ¬ ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
+    Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+    ∀ (W : World) (SA : SettlementAccess), SettlementDataAvailable W SA →
+    ∀ (Ms Ns : Contracts.Refund.Managers) (log : List Contracts.FlowBinding.CheckedCall),
+      Contracts.FlowBinding.RunLog h z0 hl cv fh S Ms Ns log →
+    ∀ (e : Contracts.FlowBinding.ExecCall), Contracts.FlowBinding.CheckedCall.execute e ∈ log →
+    ∀ c ∈ log, c.flow.flowId = e.flow.flowId →
+    ∀ (d : Dest) (sl : Chain), W.l1 d = sl →
+      FlowFinalizableAt h z0 hl cv W S A SA d sl c.flow
+        ∨ PinnedGateBreak h z0 hl cv S A e.flow e.evidence
+        ∨ FlowIdClash fh e.flow c.flow
 
 /-! ## Anti-vacuity -/
 
@@ -504,32 +612,49 @@ def Properties.NoneOrAllAtOrBreakPinnedFromRunsStranded : Prop :=
               (honestAccess h z0 hl (systemOfRuns St (fun _ n => n)))
               (honestSettlementAccess (importWorld sl (· = d))) d sl (mixedFlow 0 1 2) ev
 
-/-- **THE LOGGED-RUN FORM'S PREMISES HOLD TOGETHER.**  The setting holds for every node hash,
-leaf hash, padding constant, settlement layer `sl` and destination `d`.  The system is the
-well-formed `twoChainSystem 1 2`, with honest IMT access.  A logged run from fresh managers
-executes leg `⟨0, 1⟩` of `mixedFlow 0 1 2` on honest evidence.  In `importWorld sl (· = d)`,
-settlement data is available and `d` is ready for that flow.  Taking the execution itself as
-the call `c`, the first disjunct of
-`Properties.ExecutedImpliesRealFlowFinalizableAtOrLoggedClash` holds and the other two
-fail. -/
+/-- **THE LOGGED-RUN FORM'S PREMISES HOLD TOGETHER ON A READY DESTINATION, AND ITS SAME-ID
+PREMISE IS LOAD-BEARING.**  The destination form of
+`Contracts.FlowBinding.Properties.ExecutedImpliesRealFlowFinalizableOrLoggedClashWitness`.  For
+every node hash, leaf hash, padding constant, settlement layer `sl` and destination `dst` there
+is a well-formed system with IMT data available and a logged run from fresh managers whose log
+holds:
+
+* an execution `e`;
+* a second execution `e'` of the same flow, for a different leg, presented as the call `c`;
+* an `authorizeRefund` call `d` (a call here, not a destination) for a flow with a different
+  id.
+
+In `importWorld sl (· = dst)`, settlement data is available, `dst`'s `L1_CHAIN_ID` is `sl`, and
+`dst` has import availability for the deadlines of both logged flows.  For `c` the first
+disjunct of `Properties.ExecutedImpliesRealFlowFinalizableAtOrLoggedClash` holds on `dst`, so
+`e`'s evidence carries no pinned break, and `e.flow` clashes with no flow of the log, which
+also holds `d`'s different flow.  For `d` all three disjuncts fail on the same ready
+destination, so the conclusion cannot be drawn without the same-id premise. -/
 def Properties.ExecutedImpliesRealFlowFinalizableAtOrLoggedClashWitness : Prop :=
-  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain) (d : Dest),
-    ∃ (log : List Contracts.FlowBinding.CheckedCall) (e : Contracts.FlowBinding.ExecCall),
-      Wf (twoChainSystem 1 2)
-        ∧ DataAvailable h z0 hl (twoChainSystem 1 2) (honestAccess h z0 hl (twoChainSystem 1 2))
-        ∧ SettlementDataAvailable (importWorld sl (· = d))
-            (honestSettlementAccess (importWorld sl (· = d)))
-        ∧ Contracts.FlowBinding.RunLog h z0 hl (fun _ b => b) (honestFlowHash (mixedFlow 0 1 2))
-            (twoChainSystem 1 2) Contracts.Refund.emptyManagers Contracts.Refund.emptyManagers log
-        ∧ Contracts.FlowBinding.CheckedCall.execute e ∈ log
-        ∧ e.flow = mixedFlow 0 1 2
-        ∧ (importWorld sl (· = d)).l1 d = sl
-        ∧ ImportAvailable (importWorld sl (· = d)) (twoChainSystem 1 2) d sl e.flow.deadline
-        ∧ FlowFinalizableAt h z0 hl (fun _ b => b) (importWorld sl (· = d)) (twoChainSystem 1 2)
-            (honestAccess h z0 hl (twoChainSystem 1 2))
-            (honestSettlementAccess (importWorld sl (· = d))) d sl e.flow
-        ∧ ¬ PinnedGateBreak h z0 hl (fun _ b => b) (twoChainSystem 1 2)
-            (honestAccess h z0 hl (twoChainSystem 1 2)) e.flow e.evidence
-        ∧ ¬ FlowIdClash (honestFlowHash (mixedFlow 0 1 2)) e.flow e.flow
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (sl : Chain) (dst : Dest),
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (A : Access)
+      (Ms : Contracts.Refund.Managers) (log : List Contracts.FlowBinding.CheckedCall)
+      (e e' : Contracts.FlowBinding.ExecCall) (c d : Contracts.FlowBinding.CheckedCall)
+      (r : Contracts.Refund.AuthCall),
+      Wf S ∧ DataAvailable h z0 hl S A
+        ∧ SettlementDataAvailable (importWorld sl (· = dst))
+            (honestSettlementAccess (importWorld sl (· = dst)))
+        ∧ Contracts.FlowBinding.RunLog h z0 hl cv fh S Contracts.Refund.emptyManagers Ms log
+        ∧ Contracts.FlowBinding.CheckedCall.execute e ∈ log ∧ c ∈ log ∧ d ∈ log
+        ∧ c = Contracts.FlowBinding.CheckedCall.execute e' ∧ e'.flow = e.flow ∧ e'.leg ≠ e.leg
+        ∧ d = Contracts.FlowBinding.CheckedCall.authorize r
+        ∧ (importWorld sl (· = dst)).l1 dst = sl
+        ∧ ImportAvailable (importWorld sl (· = dst)) S dst sl c.flow.deadline
+        ∧ ImportAvailable (importWorld sl (· = dst)) S dst sl d.flow.deadline
+        ∧ c.flow.flowId = e.flow.flowId
+        ∧ FlowFinalizableAt h z0 hl cv (importWorld sl (· = dst)) S A
+            (honestSettlementAccess (importWorld sl (· = dst))) dst sl c.flow
+        ∧ ¬ PinnedGateBreak h z0 hl cv S A e.flow e.evidence
+        ∧ (∀ c' ∈ log, ¬ FlowIdClash fh e.flow c'.flow)
+        ∧ d.flow.flowId ≠ e.flow.flowId
+        ∧ ¬ (FlowFinalizableAt h z0 hl cv (importWorld sl (· = dst)) S A
+                (honestSettlementAccess (importWorld sl (· = dst))) dst sl d.flow
+              ∨ PinnedGateBreak h z0 hl cv S A e.flow e.evidence
+              ∨ FlowIdClash fh e.flow d.flow)
 
 end Contracts.RootImport

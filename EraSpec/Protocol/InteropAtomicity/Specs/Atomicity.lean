@@ -326,7 +326,8 @@ operational claim rather than an existence claim.  But it is only the source-sid
 A destination must also authenticate the root against a settlement-layer root it has
 imported, and nothing here models that.  Finalizability on a destination is
 `Contracts.RootImport.LegFinalizableAt`.  It implies this predicate, and on a ready
-destination the two coincide. -/
+destination with settlement data available (`Contracts.RootImport.SettlementDataAvailable`)
+the two coincide. -/
 def LegFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (A : Access) (F : Flow) (leg : FlowLeg) : Prop :=
   ∃ (n : ℕ) (p : ImtProof),
@@ -337,9 +338,10 @@ def LegFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue
 (`LegFinalizableBy`).  This depends on no destination.  So it does not say that a leg's
 destination can run `requireFlowFinalized` and pass: that also needs the destination's
 imported settlement-layer root and a presentable settlement proof
-(`Contracts.RootImport.FlowFinalizableAt`).  The two coincide on a ready destination
-(`Contracts.RootImport.Properties.ReadyFinalizableAtIffBy`), and
-`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted` shows they differ
+(`Contracts.RootImport.FlowFinalizableAt`).  The two coincide on a ready destination with
+settlement data available (`Contracts.RootImport.SettlementDataAvailable`;
+`Contracts.RootImport.Properties.ReadyFinalizableAtIffBy`), and
+`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted` shows they can differ
 otherwise. -/
 def FlowFinalizableBy (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
     (S : System) (A : Access) (F : Flow) : Prop :=

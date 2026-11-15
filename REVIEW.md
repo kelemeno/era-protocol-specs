@@ -257,10 +257,15 @@ Refinement to the reference `AuthorizedExecution` is still OPEN.
 "Finalizable" in these results is `FlowFinalizableBy`, the IMT half: an IMT proof accepted
 against the true END root. A destination must also authenticate that root against a
 settlement-layer root it has imported, which source DA does not supply. Without that import
-a flow can sit half-executed with no leg refundable (`WithoutImportFlowSitsHalfExecuted`).
+a flow can sit half-executed, with no leg refundable without a located `AbsenceBreak` on the
+refund's absence proof (`WithoutImportFlowSitsHalfExecuted`); what blocks the refunds there
+is the legs' on-time commitment, not the missing import.
 The destination forms, with `ImportAvailable` and `SettlementDataAvailable` as named
 premises and no hash premise, are in `Contracts.RootImport` (`NoneOrAllAtOrBreakPinned`,
 `ExecutedAtImpliesAllFinalizableAtOrBreak`, `ExecutedImpliesRealFlowFinalizableAtOrLoggedClash`).
+This also applies to `execution_enables_other_prepared_legs`: its evidence names no
+destination, so refining it to the contract's gate needs `PROTO-ROOT-IMPORT` on each other
+destination.
 
 ### P8. Recovery completion and progress need their own promises
 

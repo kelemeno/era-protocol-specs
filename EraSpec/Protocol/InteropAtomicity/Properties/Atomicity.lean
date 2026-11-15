@@ -16,9 +16,11 @@ that sense (`FlowFinalizableBy`), or no leg executes.
 That is the source-side half of finalizability.  A destination must also hold an
 imported settlement-layer root covering the batch, and nothing here assumes that it
 does.  Without that premise, one leg can execute on its destination while a sibling's
-destination cannot pass its gate and no leg can be refunded
-(`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted`).  The destination
-form, with import availability as a named premise, is `Contracts.RootImport`
+destination cannot pass its gate, and no leg can be refunded without a located
+`AbsenceBreak` on the refund's absence proof
+(`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted`).  What blocks the
+refunds there is that the legs were committed on time, not the missing import.  The
+destination form, with import availability as a named premise, is `Contracts.RootImport`
 (`NoneOrAllAtOrBreak`, `NoneOrAllAtOrBreakPinned`).
 
 ## Why it holds, and what each ingredient does
@@ -66,10 +68,14 @@ only can every leg finalize, no leg can be refunded once any leg has executed.
   Note this is not a contract defect — no contract can conjure unavailable data —
   which is why DA appears as a named assumption rather than a proof obligation.
 
-A fourth premise lives in `Contracts.RootImport`: the destination's import of a
-settlement-layer root covering the batch.  Without it the flow can sit half-executed
-(`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted`).  Like DA, it is
-an assumption about the world, not a contract defect.
+Two further premises live in `Contracts.RootImport`.  `ImportAvailable`: the destination
+has imported settlement-layer roots covering every batch, of every chain, that settled by
+the deadline.  `SettlementDataAvailable`: the multi-hop settlement proof to such a root is
+presentable.  Without the first the flow can sit half-executed
+(`Contracts.RootImport.Properties.WithoutImportFlowSitsHalfExecuted`).  Without the second a
+committed leg is not finalizable even on a destination that has imported a covering root
+(`Contracts.RootImport.Properties.WithoutSettlementDataLegIsStuck`).  Like DA, they are
+assumptions about the world, not contract defects.
 -/
 
 namespace Contracts.Atomicity
