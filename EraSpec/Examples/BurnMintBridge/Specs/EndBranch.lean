@@ -20,7 +20,7 @@ with two predicates over a history of per-chain IMT snapshots: `OnTime` (finaliz
 while snapshot `n + 1` settled after the deadline — which is the BEGIN branch of
 `verifyTimeoutAbsence` with `begin(n + 1) = end(n)`.  The END branch, which the header adds
 so that a source chain that HALTS can still be refunded (`AtomicInteropProof.sol:77-78`,
-`README.md:55-57`), was not composed (`ProtocolComposition.lean:14-16`, `REVIEW.md:135-137`).
+`README.md:55-57`), was not composed (`ProtocolComposition.lean:14-16`).
 This file supplies it at three levels.
 
 1. **Over the adapter's history (§1).**  `MissingEnd` is the END disjunct of

@@ -24,19 +24,25 @@ or BridgedStandardERC20. Their intended properties are tracked in `../../../REVI
   load-bearing. At hash level the last-batch path is pinned
   (`PinnedBridgeNoDoublePaymentOrBreak`, no hash premise).
 - `Specs/EndBranchStrong.lean`, `Properties/EndBranchStrong.lean`,
-  `Proofs/EndBranchStrong.lean` (same namespace): the satisfiability witnesses of
-  `EndBranch` pinned to the resolved transfer. `EndBranchRefundWitness`,
+  `Proofs/EndBranchStrong.lean` (same namespace): stronger forms of satisfiability
+  witnesses of `EndBranch`. The bodies of `EndBranchRefundWitness`,
   `OnTimeLegExecutesWitness` and `BeginBranchRefundWitness` do not tie the run's record
-  to their transfer `i`; the `…Gap` statements show runs that meet their bodies by
-  resolving another transfer (for the BEGIN witness, a refund authorized by the END
-  branch alone; for the on-time witness, `i` has no prerequisite and no nonzero commit
-  value is ever on time). The `…Pinned` forms record `s.record = some i`. The two refund
-  forms run on single-form evidence (`endFormEvidence`, `beginOnlyEvidence`); in §1 the
-  END form does not exclude the BEGIN form, and what pins the BEGIN branch is that no leg
-  of its transfer has an END-branch timeout. The on-time form runs on `evidenceEither`
-  and asks for at least one prerequisite, each with a nonzero commit value.
-  `ReachableResolutionAuthorizedByRecord` says every reachable delivery or refund is
-  backed by evidence for the recorded transfer.
+  to their transfer `i`: `EndBranchRefundWitnessGap`, `OnTimeLegExecutesWitnessGap` and
+  `BeginBranchRefundWitnessGap` show final states that resolve another transfer (for the
+  BEGIN witness, a refund authorized by the END branch alone; for the on-time witness,
+  `i` has no prerequisite and no nonzero commit value is ever on time). But in every
+  world where such a body holds, the run that prepares and resolves `i` itself meets it
+  too (`…RecordPinFree`), so the record pin of the `…Pinned` forms adds nothing world by
+  world: `EndBranchRefundWitnessPinned` restates `EndBranchRefundWitness`, and in §1 its
+  END-form evidence pins no branch. What the other two pinned forms add per world is at
+  least one prerequisite, each with a nonzero commit value (on-time form), and the
+  exclusion of an END-branch timeout on `i`'s legs (BEGIN form); without that exclusion
+  the BEGIN witness does not show that the BEGIN branch is needed
+  (`BeginBranchRefundWitnessBranchGap`). `CheckedExecutionWitnessPinned` adds the
+  on-time form's requirement to `CheckedExecutionWitness`, and
+  `PinnedBridgeRefundWitnessLinked` ties `PinnedBridgeRefundWitness`'s refund to the END
+  submission it names. `ReachableResolutionAuthorizedByRecord` says every reachable
+  delivery or refund is backed by evidence for the recorded transfer.
 
 The model uses natural-number amounts, fixed token/endpoint identities, exact
 full recovery, and a declared set of permitted interference steps. Concrete
