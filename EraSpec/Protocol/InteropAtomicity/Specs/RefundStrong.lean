@@ -1,19 +1,28 @@
 import EraSpec.Protocol.InteropAtomicity.Specs.Refund
+import EraSpec.Protocol.InteropAtomicity.Specs.Operational
 
 /-!
 # Model: the honest timeout proof, and a hash under which none can be forged
 
 `Contracts.Refund` (`Specs/Refund.lean`) and `Contracts.Timeout` (`Specs/Timeout.lean`)
 state the refund side's SAFETY: a refund needs a verified timeout, and a verified
-timeout means the leg missed its deadline (or a located break).  Nothing there says the
-timeout gate can ever be passed.  `Properties.TimeoutProofRefundsCommittedLeg` takes
-`RefundAuthorized` as a premise, so every refund-side safety result would stay true of a
-gate that never fires.  This file adds the definitions the completeness statements of
+timeout means the leg missed its deadline (or a located break).  Nothing in those two
+topics says the timeout gate can ever be passed.
+`Properties.TimeoutProofRefundsCommittedLeg` takes `RefundAuthorized` as a premise, so
+every refund-side safety result there would stay true of a gate that never fires.  The
+operational topic does have a completeness result, as enabledness of `authorizeRefund`
+against a recorded root
+(`Contracts.InteropOperational.Properties.OpTimedOutLegIsRefundable`, with
+`_verifyLastBatchInRoot` taken by its conclusion).  This file adds the definitions the
+gate-level completeness statements of
 `EraSpec.Protocol.InteropAtomicity.Properties.RefundStrong` are stated with.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Protocol.InteropAtomicity.Properties.RefundStrong`, proofs in
 `EraSpec.Protocol.InteropAtomicity.Proofs.RefundStrong`.
+
+`Specs/Operational.lean` is imported for one definition, the strict aggregation fact
+`Contracts.InteropOperational.AggregatesBefore`.
 
 ## The honest timeout proof
 

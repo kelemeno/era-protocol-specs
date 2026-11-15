@@ -1,5 +1,6 @@
 import EraSpec.Protocol.InteropAtomicity.Properties.RefundStrong
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
+import EraSpec.Protocol.InteropAtomicity.Proofs.Operational
 
 /-!
 # Proofs: the refund side, strengthened
@@ -14,6 +15,13 @@ occupied index) gives a proof the gate accepts, and an honest proof carries no
 `TreeRootBreak` (`honest_proof_no_break`).  On the END branch the honest batch-leaf path
 of the root's last batch passes `_verifyLastBatchInRoot`: every right sibling on a
 left-going step is past the end of its level, so it reads the level's zero.
+
+For the gate as run the batch has to lie inside the imported root, and
+`accepted_gate_complete_from_any_post_deadline_root` splits on the root's last batch of
+the leg's chain.  If it is late, the first late batch is at or before it, so the BEGIN
+submission is inside the root.  If it is on time, the leg is absent from its tree and the
+END submission passes there.  Soundness uses the strict aggregation fact through
+`Contracts.InteropOperational.isLastOnTime_of_aggregatesBefore` (`Proofs/Operational.lean`).
 
 The run-level results are one induction (`logged_mark_refunded`: the manager's lifecycle
 is monotone) plus `refund_logged` from `Proofs/Refund.lean`.
@@ -135,37 +143,6 @@ theorem missed_deadline_refundable_by_honest_proof {h : Hash} {z0 : UInt256} {hl
   | zero => exact Or.inl rfl
   | succ M => exact Or.inr (hDA leg.chain M i hi)
 
-theorem accepted_gate_iff_missed_deadline {h : Hash} {z0 : UInt256} {hl : LeafHash}
-    {cv : CommitValue} {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot}
-    (B : RootBacking h ze R) (hagg : Aggregates S R) {F : Flow} {leg : FlowLeg}
-    (hR : F.deadline < R.created) (hv : legValue cv F leg ≠ 0) :
-    LegMissedDeadline cv S F leg
-      ↔ ∃ (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
-          LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
-          ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
-          ∧ ¬ (EndBranchAccepted B S leg.chain F.deadline N sibs x
-              ∧ (PinnedBreak h ze (B.leaves leg.chain) N
-                ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
-  constructor
-  · intro hmiss
-    have hlate : ∃ N, F.deadline < S.time leg.chain N := by
-      refine ⟨R.upTo leg.chain + 1, ?_⟩
-      by_contra hcon
-      push Not at hcon
-      have := hagg leg.chain _ (le_trans hcon (le_of_lt hR))
-      omega
-    obtain ⟨N, hN, hfirst⟩ := exists_first_late hlate
-    obtain ⟨i, _, hacc, _, hnb⟩ :=
-      honest_begin_refundable (h := h) (z0 := z0) (hl := hl) hS hv hmiss hN hfirst
-    refine ⟨N, _, fun _ => 0, 0, Or.inl ⟨⟨hR, hN⟩, hacc⟩, hnb, ?_⟩
-    rintro ⟨he, _⟩
-    exact absurd hN (not_lt.mpr he.onTime)
-  · rintro ⟨N, p, sibs, x, ha, hnb, hne⟩
-    rcases accepted_timeout_means_missed_deadline_or_break hS hagg ha with hm | hb | hrest
-    · exact hm
-    · exact absurd hb hnb
-    · exact absurd hrest hne
-
 /-- The honest path of the LAST leaf of a list reads the level's zero wherever it goes
 left: the right neighbour is past the end of the level. -/
 lemma honest_last_zero_right {h : Hash} {ze : UInt256} {L : List UInt256} {j : ℕ}
@@ -210,30 +187,107 @@ theorem end_branch_accepts_honest_proofs {h : Hash} {z0 : UInt256} {hl : LeafHas
   · exact absurd hlate (not_lt.mpr hon)
   · exact honestProof_no_break h z0 hl S leg.chain _ i hi hb
 
+/-- **THE GATE AS RUN IS COMPLETE FROM ANY ROOT CREATED AFTER THE DEADLINE**, with the
+submitted batch inside the root.  END at the root's last batch when that batch is on time,
+else BEGIN at the first late batch, which is then at or before the root's last batch.  On
+the BEGIN branch the submitted batch-leaf path is the honest one too; that branch does not
+read it. -/
+theorem accepted_gate_complete_from_any_post_deadline_root {h : Hash} {z0 : UInt256}
+    {hl : LeafHash} {cv : CommitValue} {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot}
+    (B : RootBacking h ze R) {F : Flow} {leg : FlowLeg} (hR : F.deadline < R.created)
+    (hv : legValue cv F leg ≠ 0) (hmiss : LegMissedDeadline cv S F leg) :
+    ∃ (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+      N ≤ R.upTo leg.chain
+        ∧ LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
+        ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+        ∧ ¬ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+            ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+              ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
+  by_cases hon : S.time leg.chain (R.upTo leg.chain) ≤ F.deadline
+  · -- the root holds no late batch of the chain: END at its last batch
+    obtain ⟨i, _, hacc, hnb, hnp, hnc⟩ :=
+      end_branch_accepts_honest_proofs (h := h) (z0 := z0) (hl := hl) hS B hR hon hv
+        (hmiss _ hon)
+    exact ⟨_, _, _, _, le_refl _, hacc, hnb, fun hh => hh.2.elim hnp hnc⟩
+  · -- the root's last batch is late: BEGIN at the first late batch, which is inside the root
+    obtain ⟨N, hN, hfirst⟩ := exists_first_late ⟨_, not_le.mp hon⟩
+    have hle : N ≤ R.upTo leg.chain := by
+      by_contra hcon
+      exact hon (hfirst _ (not_le.mp hcon))
+    obtain ⟨i, _, hacc, _, hnb⟩ :=
+      honest_begin_refundable (h := h) (z0 := z0) (hl := hl) hS hv hmiss hN hfirst
+    refine ⟨N, _, honestSibs h ze (B.leaves leg.chain) N, (B.leaves leg.chain).getD N ze, hle,
+      Or.inl ⟨⟨hR, hN⟩, hacc⟩, hnb, ?_⟩
+    rintro ⟨he, _⟩
+    exact absurd hN (not_lt.mpr he.onTime)
+
+theorem accepted_gate_iff_missed_deadline {h : Hash} {z0 : UInt256} {hl : LeafHash}
+    {cv : CommitValue} {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot}
+    (B : RootBacking h ze R) (hagg : Contracts.InteropOperational.AggregatesBefore S R)
+    {F : Flow} {leg : FlowLeg} (hR : F.deadline < R.created) (hv : legValue cv F leg ≠ 0) :
+    LegMissedDeadline cv S F leg
+      ↔ ∃ (N : ℕ) (p : ImtProof) (sibs : ℕ → UInt256) (x : UInt256),
+          N ≤ R.upTo leg.chain
+          ∧ LegRefundableAcceptedBy h z0 hl cv S B F leg N p sibs x
+          ∧ ¬ AbsenceBreak h z0 hl S F.deadline leg.chain N p
+          ∧ ¬ (EndBranchAccepted B S leg.chain F.deadline N sibs x
+              ∧ (PinnedBreak h ze (B.leaves leg.chain) N
+                ∨ PathCollision h ze (B.leaves leg.chain) sibs 0 (B.height leg.chain) N x)) := by
+  constructor
+  · -- completeness: no aggregation premise
+    exact accepted_gate_complete_from_any_post_deadline_root hS B hR hv
+  · -- soundness: the strict aggregation fact is enough, for a batch inside the root or not
+    rintro ⟨N, p, sibs, x, _, ha, hnb, hne⟩ n hon hmem
+    have href : LegRefundableBy h z0 hl cv S F leg N p := by
+      rcases ha with ⟨hb, habs⟩ | ⟨he, habs⟩
+      · exact Or.inl ⟨hb.late, habs⟩
+      · rcases endBranch_of_accepted_pinned he with hver | hrest
+        · exact Or.inr
+            ⟨Contracts.InteropOperational.isLastOnTime_of_aggregatesBefore hagg hver, habs⟩
+        · exact absurd ⟨he, hrest⟩ hne
+    rcases member_not_refundable_or_break hS hon hmem N p with hn | hb
+    · exact hn href
+    · exact hnb hb
+
+/-- Logged runs compose.  The later run's calls come first in the log. -/
+theorem reachLog_trans {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {Ms Ns Ps : Managers} {l₁ l₂ : List AuthCall}
+    (h₁ : ReachLog h z0 hl cv fh S Ms Ns l₁) (h₂ : ReachLog h z0 hl cv fh S Ns Ps l₂) :
+    ReachLog h z0 hl cv fh S Ms Ps (l₂ ++ l₁) := by
+  induction h₂ with
+  | refl => exact h₁
+  | append _ hg ih => exact ReachLog.append ih hg
+  | authorize a _ hv hg ih => exact ReachLog.authorize a ih hv hg
+  | claim _ hg ih => exact ReachLog.claim ih hg
+
 theorem stranded_flow_committed_leg_refundable {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {cv : CommitValue} {fh : FlowHash} {S : System} (hS : Wf S) {F : Flow}
     (hchk : FlowIdChecked fh F) {m : FlowLeg} (hm : m ∈ F.legs) (hv : legValue cv F m ≠ 0)
     (hlate : ∃ N, F.deadline < S.time m.chain N) (hmiss : LegMissedDeadline cv S F m)
-    {Ms : Managers} {log : List AuthCall}
-    (hrun : ReachLog h z0 hl cv fh S emptyManagers Ms log) {leg : FlowLeg} (hleg : leg ∈ F.legs)
+    (Ms : Managers) {leg : FlowLeg} (hleg : leg ∈ F.legs)
     (hcom : stateOf Ms (obligationOf F leg) = .Committed) :
     ∃ (a : AuthCall) (Ms₁ Ms₂ : Managers),
       a.flow = F ∧ a.leg = leg ∧ a.missing = m ∧ a.Verified h z0 hl cv fh S
       ∧ ¬ AbsenceBreak h z0 hl S F.deadline m.chain a.batch a.proof
-      ∧ ReachLog h z0 hl cv fh S emptyManagers Ms₁ (a :: log)
+      ∧ ReachLog h z0 hl cv fh S Ms Ms₁ [a]
       ∧ stateOf Ms₁ (obligationOf F leg) = .Revertable
-      ∧ ReachLog h z0 hl cv fh S emptyManagers Ms₂ (a :: log)
+      ∧ (∀ o, o ≠ obligationOf F leg → stateOf Ms₁ o = stateOf Ms o)
+      ∧ ReachLog h z0 hl cv fh S Ms₁ Ms₂ []
       ∧ stateOf Ms₂ (obligationOf F leg) = .Reverted
       ∧ ∀ o, o ≠ obligationOf F leg → stateOf Ms₂ o = stateOf Ms o := by
   obtain ⟨N, p, hr, hnb⟩ :=
     (refundable_iff_missed_deadline (h := h) (z0 := z0) (hl := hl) hS hv).mp ⟨hlate, hmiss⟩
   have hver : AuthCall.Verified h z0 hl cv fh S ⟨F, leg, m, N, p⟩ := ⟨hchk, hleg, hm, hr⟩
-  have r1 := ReachLog.authorize ⟨F, leg, m, N, p⟩ hrun hver hcom
+  -- the `authorizeRefund` step from `Ms`
+  have r1 := ReachLog.authorize ⟨F, leg, m, N, p⟩ (ReachLog.refl (Ms := Ms)) hver hcom
   have hs1 : stateOf (setAt Ms leg.chain ((Ms leg.chain).set F.flowId leg.bundleHash .Revertable))
       (obligationOf F leg) = .Revertable :=
     stateOf_setAt_self Ms leg.chain F.flowId leg.bundleHash .Revertable
-  have r2 := ReachLog.claim (c := leg.chain) (f := F.flowId) (b := leg.bundleHash) r1 hs1
-  refine ⟨⟨F, leg, m, N, p⟩, _, _, rfl, rfl, rfl, hver, hnb, r1, hs1, r2,
+  -- the `claimRefund` step from the state it reaches
+  have r2 := ReachLog.claim (h := h) (z0 := z0) (hl := hl) (cv := cv) (fh := fh) (S := S)
+    (c := leg.chain) (f := F.flowId) (b := leg.bundleHash) ReachLog.refl hs1
+  refine ⟨⟨F, leg, m, N, p⟩, _, _, rfl, rfl, rfl, hver, hnb, r1, hs1,
+    fun o ho => stateOf_setAt_other ho, r2,
     stateOf_setAt_self _ leg.chain F.flowId leg.bundleHash .Reverted, ?_⟩
   intro o ho
   rw [stateOf_setAt_other ho, stateOf_setAt_other ho]
@@ -339,23 +393,38 @@ theorem missed_deadline_refundable_by_honest_proof_witness :
   ⟨mixedSystem_wf (by decide), honestAccess_dataAvailable h z0 hl _, by decide,
     mixed_leg_one_missed, by simp [mixedFlow], fun M hM => by simp [mixedFlow]; omega⟩
 
-theorem accepted_gate_iff_missed_deadline_witness :
-    Properties.AcceptedGateIffMissedDeadlineWitness := fun h ze =>
-  ⟨⟨trivialBacking h ze⟩, mixedSystem_wf (by decide), timeOneRoot_aggregates_mixed 1,
-    by simp [mixedFlow, timeOneRoot], by decide, mixed_leg_one_missed, by decide,
-    mixed_leg_zero_not_missed⟩
-
-/-- A backing for `demoRoot` under any node hash and padding: two batch leaves, height 1. -/
+/-- A backing for `demoRoot` under any node hash and padding: two batch leaves at height 2.
+Batch `1`, the root's last, is a right child at level `0` and a left child at level `1`,
+so `_verifyLastBatchInRoot` compares its level-`1` sibling with that level's zero. -/
 def demoRootAnyBacking (h : Hash) (ze : UInt256) : RootBacking h ze demoRoot where
   leaves := fun _ => [0, 0]
-  height := fun _ => 1
+  height := fun _ => 2
   upToLast := fun _ => rfl
   capacity := fun _ => by norm_num
 
+/-- In `demoSystem` no batch inside `demoRoot` settled after deadline `0`. -/
+lemma demo_no_begin_inside_root (N : ℕ) (hN : N ≤ demoRoot.upTo 0) :
+    ¬ BeginBranchVerified demoSystem demoRoot 0 (⟨0, [⟨0, 0⟩], 0⟩ : Flow).deadline N := by
+  intro hb
+  have hlate : 0 < demoSystem.time 0 N := hb.late
+  have h0 : demoSystem.time 0 N = 0 := ite_eq_left hN
+  omega
+
+theorem accepted_gate_iff_missed_deadline_witness :
+    Properties.AcceptedGateIffMissedDeadlineWitness := fun h ze =>
+  ⟨⟨⟨trivialBacking h ze⟩, mixedSystem_wf (by decide),
+      Contracts.InteropOperational.AggregatesImpliesAggregatesBefore _ _
+        (timeOneRoot_aggregates_mixed 1),
+      by simp [mixedFlow, timeOneRoot], by decide, mixed_leg_one_missed, by decide,
+      mixed_leg_zero_not_missed, by simp [mixedFlow, mixedSystem, timeOneRoot]⟩,
+    ⟨demoRootAnyBacking h ze⟩, demoSystem_wf,
+      Contracts.InteropOperational.AggregatesImpliesAggregatesBefore _ _ demoSystem_aggregates,
+      by decide, by decide, fun _ _ => not_mem_setup (by decide), demo_no_begin_inside_root⟩
+
 theorem end_branch_accepts_honest_proofs_witness :
     Properties.EndBranchAcceptsHonestProofsWitness := fun h ze =>
-  ⟨⟨demoRootAnyBacking h ze⟩, demoSystem_wf, by decide, by decide, by decide,
-    not_mem_setup (by decide)⟩
+  ⟨demoRootAnyBacking h ze, ⟨1, show (1 : ℕ) < 2 by decide, by decide⟩, demoSystem_wf,
+    by decide, by decide, by decide, not_mem_setup (by decide)⟩
 
 theorem stranded_flow_committed_leg_refundable_witness :
     Properties.StrandedFlowCommittedLegRefundableWitness := fun h z0 hl =>
@@ -398,31 +467,53 @@ lemma chainOne_refundable (h : Hash) (z0 : UInt256) (hl : LeafHash) (G : Flow) (
     rw [mixedSystem_tree_other hne, mixedSystem_height_other hne]
     exact setup_absence_accepted h z0 hl (by decide)
 
+/-- The sentinel proof carries no break as BEGIN-branch evidence for chain `1` of
+`mixedSystem 1` at batch `1`, against deadline `0`: it is the honest proof of `setup`. -/
+lemma setupProof_no_absenceBreak (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ¬ AbsenceBreak h z0 hl (mixedSystem 1) 0 1 1 (setupProof h z0 hl) := by
+  have hne : (1 : Chain) ≠ 0 := by decide
+  rintro (⟨_, hb⟩ | ⟨hon, _⟩)
+  · have hb' : TreeRootBreak h z0 hl ((mixedSystem 1).tree 1 0) ((mixedSystem 1).height 1 0)
+        (honestSibs h z0 (leafHashes hl setup) 0) 0 0 ⟨0, 0, 0⟩ := hb
+    rw [mixedSystem_tree_other hne, mixedSystem_height_other hne] at hb'
+    exact honest_proof_no_break h z0 hl setup 0 0 (by norm_num [setup]) hb'
+  · exact absurd hon (by simp [mixedSystem])
+
+/-- The delivered leg `⟨0, 1⟩` of the truncated flow `subsetFlow 0 1`, refunded through the
+full flow `mixedFlow 0 1 2`: append the leg's obligation on chain `0`, then authorize the
+full flow's refund of that leg on the absence of its other leg `⟨1, 2⟩` from chain `1`.
+Both flows pass `_checkFlowId` under the constant flow hash. -/
 theorem cross_flow_refund_yields_logged_pinned_clash_witness :
     Properties.CrossFlowRefundYieldsLoggedPinnedClashWitness := by
   intro h z0 hl
-  let F : Flow := ⟨0, [⟨1, 2⟩], 0⟩
-  let G : Flow := ⟨0, [⟨1, 2⟩], 5⟩
-  let M1 : Managers := setAt emptyManagers 1 ((emptyManagers 1).set 0 2 .Committed)
-  let a : AuthCall := ⟨G, ⟨1, 2⟩, ⟨1, 2⟩, 6, setupProof h z0 hl⟩
-  have hchkF : FlowIdChecked lengthFlowHash F := by simp [FlowIdChecked, lengthFlowHash, F]
-  have hchkG : FlowIdChecked lengthFlowHash G := by simp [FlowIdChecked, lengthFlowHash, G]
-  have hmemG : (⟨1, 2⟩ : FlowLeg) ∈ G.legs := List.mem_singleton_self _
-  have r1 : ReachLog h z0 hl (fun _ _ => 1) lengthFlowHash (mixedSystem 1) emptyManagers M1 [] :=
-    ReachLog.append (c := 1) (f := 0) (b := 2) ReachLog.refl rfl
+  have hne : (1 : Chain) ≠ 0 := by decide
+  obtain ⟨hex, hnb⟩ := subsetFlow_executes h z0 hl (fun _ _ => 0) rfl
+  let M1 : Managers := setAt emptyManagers 0 ((emptyManagers 0).set 0 1 .Committed)
+  let a : AuthCall := ⟨mixedFlow 0 1 2, ⟨0, 1⟩, ⟨1, 2⟩, 1, setupProof h z0 hl⟩
+  have hver : a.Verified h z0 hl (fun _ _ => 1) (fun _ _ => 0) (mixedSystem 1) :=
+    ⟨rfl, by simp [a, mixedFlow], by simp [a, mixedFlow],
+      chainOne_refundable h z0 hl (mixedFlow 0 1 2) 1 (by simp [mixedFlow])⟩
+  have r1 : ReachLog h z0 hl (fun _ _ => 1) (fun _ _ => 0) (mixedSystem 1) emptyManagers M1 [] :=
+    ReachLog.append (c := 0) (f := 0) (b := 1) ReachLog.refl rfl
   have hg : AuthorizeGuard (M1 a.leg.chain) a.flow.flowId a.leg.bundleHash :=
-    stateOf_setAt_self emptyManagers 1 0 2 .Committed
-  have r2 := ReachLog.authorize a r1
-    ⟨hchkG, hmemG, hmemG, chainOne_refundable h z0 hl G 6 (by simp [G])⟩ hg
-  refine ⟨F, ⟨1, 2⟩, _, [a], hchkF, List.mem_singleton_self _, r2, List.cons_ne_nil _ _, ?_, ?_⟩
-  · simp only [Refunded]
-    show 2 ≤ rank (stateOf (setAt M1 1 ((M1 1).set 0 2 .Revertable)) ⟨0, 2, 1⟩)
+    stateOf_setAt_self emptyManagers 0 0 1 .Committed
+  have r2 := ReachLog.authorize a r1 hver hg
+  refine ⟨_, a, rfl, r2, ?_, ?_, mixedSystem_wf (by decide), hex, ?_, rfl, rfl, rfl, ?_,
+    setupProof_no_absenceBreak h z0 hl⟩
+  · show 2 ≤ rank (stateOf (setAt M1 0 ((M1 0).set 0 1 .Revertable)) ⟨0, 1, 0⟩)
     rw [stateOf_setAt_self]
     simp [rank]
   · intro c hc _ heq
     rw [List.mem_singleton] at hc
     subst hc
-    exact absurd (congrArg Flow.deadline heq) (by simp [a, G, F])
+    exact absurd (congrArg (fun G : Flow => G.legs.length) heq) (by simp [a, mixedFlow, subsetFlow])
+  · rintro ⟨l, hl', hb⟩
+    obtain rfl : l = ⟨0, 1⟩ := List.mem_singleton.mp hl'
+    exact hnb hb
+  · intro n _ hmem
+    change (1 : UInt256) ∈ keys (toAbs ((mixedSystem 1).tree 1 n)) at hmem
+    rw [mixedSystem_tree_other hne] at hmem
+    exact not_mem_setup (by decide) hmem
 
 theorem refund_break_implies_refunded_witness : Properties.RefundBreakImpliesRefundedWitness := by
   intro h hl
@@ -636,8 +727,8 @@ lemma sealed_no_refund_chain_zero (z0 : UInt256) (G : Flow) (l : FlowLeg) (hc : 
     rw [mixedSystem_tree_zero, mixedSystem_height_zero] at this
     exact sealed_absence_rejected z0 p this
 
-theorem executed_obligation_refund_blocked_only_by_timeout_gate :
-    Properties.ExecutedObligationRefundBlockedOnlyByTimeoutGate := by
+theorem executed_obligation_live_and_unmarkable_under_sealed_hash :
+    Properties.ExecutedObligationLiveAndUnmarkableUnderSealedHash := by
   obtain ⟨hS, hex, hnb, hr, hcom, hcl, hnrb, hnr⟩ := live_run_facts sealedNodeHash 0 sealedLeafHash
   refine ⟨sealedNodeHash, 0, sealedLeafHash, _, _, _, _, _, _, _, _, hS, hex, hnb, hr, hcom, hcl,
     fun N p => sealed_no_refund_chain_zero 0 _ ⟨0, 1⟩ rfl N p, ?_, hnrb, hnr⟩
@@ -670,6 +761,10 @@ theorem MissedDeadlineRefundableByHonestProof : Properties.MissedDeadlineRefunda
 theorem MissedDeadlineRefundableByHonestProofWitness :
     Properties.MissedDeadlineRefundableByHonestProofWitness :=
   missed_deadline_refundable_by_honest_proof_witness
+theorem AcceptedGateCompleteFromAnyPostDeadlineRoot :
+    Properties.AcceptedGateCompleteFromAnyPostDeadlineRoot :=
+  fun _ _ _ _ _ hS _ _ B _ _ hR hv hmiss =>
+    accepted_gate_complete_from_any_post_deadline_root hS B hR hv hmiss
 theorem AcceptedGateIffMissedDeadline : Properties.AcceptedGateIffMissedDeadline :=
   fun _ _ _ _ _ hS _ _ B hagg _ _ hR hv => accepted_gate_iff_missed_deadline hS B hagg hR hv
 theorem AcceptedGateIffMissedDeadlineWitness : Properties.AcceptedGateIffMissedDeadlineWitness :=
@@ -679,8 +774,8 @@ theorem EndBranchAcceptsHonestProofs : Properties.EndBranchAcceptsHonestProofs :
 theorem EndBranchAcceptsHonestProofsWitness : Properties.EndBranchAcceptsHonestProofsWitness :=
   end_branch_accepts_honest_proofs_witness
 theorem StrandedFlowCommittedLegRefundable : Properties.StrandedFlowCommittedLegRefundable :=
-  fun _ _ _ _ _ _ hS _ hchk _ hm hv hlate hmiss _ _ hrun _ hleg hcom =>
-    stranded_flow_committed_leg_refundable hS hchk hm hv hlate hmiss hrun hleg hcom
+  fun _ _ _ _ _ _ hS _ hchk _ hm hv hlate hmiss Ms _ hleg hcom =>
+    stranded_flow_committed_leg_refundable hS hchk hm hv hlate hmiss Ms hleg hcom
 theorem StrandedFlowCommittedLegRefundableWitness :
     Properties.StrandedFlowCommittedLegRefundableWitness :=
   stranded_flow_committed_leg_refundable_witness
@@ -702,8 +797,8 @@ theorem RefundBreakImpliesRefundedWitness : Properties.RefundBreakImpliesRefunde
 theorem ExecutedObligationNeverRefundedOrBreakAppendedWitness :
     Properties.ExecutedObligationNeverRefundedOrBreakAppendedWitness :=
   executed_obligation_never_refunded_or_break_appended_witness
-theorem ExecutedObligationRefundBlockedOnlyByTimeoutGate :
-    Properties.ExecutedObligationRefundBlockedOnlyByTimeoutGate :=
-  executed_obligation_refund_blocked_only_by_timeout_gate
+theorem ExecutedObligationLiveAndUnmarkableUnderSealedHash :
+    Properties.ExecutedObligationLiveAndUnmarkableUnderSealedHash :=
+  executed_obligation_live_and_unmarkable_under_sealed_hash
 
 end Contracts.Refund
