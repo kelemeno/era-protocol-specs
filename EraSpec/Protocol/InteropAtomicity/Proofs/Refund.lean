@@ -154,8 +154,13 @@ theorem accepted_timeout_authorizes {h : Hash} {z0 : UInt256} {hl : LeafHash}
   · exact Or.inl ⟨leg, hmem, hr⟩
   · exact Or.inr hb
 
-/-- **THE PUNCHLINE.**  An accepted timeout proof for a flow that delivered is a
-hash break.
+/-- **THE PUNCHLINE.**  Under `HashAssumptions`, an accepted timeout proof for a flow that
+delivered comes with a `HashBreak` on the chain tree.
+
+**Correction (StaleSnapshotFaithful).**  Not a hash break in the sense of a collision:
+`HashBreak` is always inhabited, and at `c67894b9` an executed flow passes the timeout gate as
+run on a forged padding proof with no collision.  See the note on
+`Properties.AcceptedTimeoutForDeliveredFlowIsABreak` (`../Properties/Refund.lean`).
 
 The Correction notes (LastLeafFaithful, LastBatchInRootOffset) on
 `Properties.AcceptedTimeoutAuthorizes` (`../Properties/Refund.lean`) apply here. -/

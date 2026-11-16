@@ -28,7 +28,10 @@ or BridgedStandardERC20. Their intended properties are tracked in `../../../REVI
   `PROTO-CONTIGUOUS-PUSH`), and at hash level takes the batch-leaf walk's length to be the
   tree's height and the batch to be an occupied leaf, which the deployed verifier does not
   check; `Properties/EndBranch.lean` carries a "Correction (LastBatchInRootOffset)" and a
-  "Correction (LastLeafFaithful)" note.
+  "Correction (LastLeafFaithful)" note. The topic's non-inclusion proof is its opened low
+  leaf, a genuine leaf of the snapshot (`GapWitness`), while the deployed check at `c67894b9`
+  also accepts the padding sentinel `{0,0,0}` at an empty slot: see the "Correction
+  (StaleSnapshotFaithful)" notes in `Specs/EndBranch.lean` and `Properties/EndBranch.lean`.
 - `Specs/EndBranchStrong.lean`, `Properties/EndBranchStrong.lean`,
   `Proofs/EndBranchStrong.lean` (same namespace): stronger forms of satisfiability
   witnesses of `EndBranch`. The bodies of `EndBranchRefundWitness`,

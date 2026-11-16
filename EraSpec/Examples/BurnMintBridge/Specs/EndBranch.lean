@@ -74,6 +74,19 @@ layer chain id, the begin/end leaf masks (`IMT_BEGIN_ROOT_LEAF_INDEX` /
 is its opened low leaf (`GapWitness`), exactly as in `Missing`.  Finalization keeps the
 adapter's unrestricted `OnTime`; restricting it to imported roots only removes executions,
 so the safety results below are the stronger claims.
+
+**Correction (StaleSnapshotFaithful).**  `GapWitness` takes the opened low leaf to be a leaf of
+the snapshot.  At `c67894b9` the deployed `verifyNonInclusion` also accepts the sentinel
+`{0,0,0}` at an empty slot, whose padding hashes like it, and once a value is inserted the
+sentinel is not a leaf of the tree (`IndexedMerkleTree.sol:47-48`, `:153-171`).  So the deployed
+check accepts an absence proof for a value the tree holds
+(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`), and the timeout gate
+passes on it, on the BEGIN branch, for a leg committed on time
+(`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).  On a valid history a `GapWitness`
+excludes the value from its snapshot, so a refund on such a proof is not one of this model's,
+and the §2 and §3 results say nothing about it.  The §3 breaks are located on the END
+submission (`EndBreak`): a BEGIN-branch refund involves none, and the honest batch-leaf path for
+the root's last batch carries no `EndBreak`.
 -/
 
 namespace Applications.BurnMintBridge.EndBranch
@@ -82,7 +95,11 @@ open IMTAbstract Properties.PreparedBridge
 
 /-- `IndexedMerkleTree.verifyNonInclusion`'s opened low leaf: a leaf of `s` whose window
 straddles `v` (`W.key < v` and `W.nextKey = 0 ∨ v < W.nextKey`).  `Missing` and the
-reclaim gate use exactly this shape. -/
+reclaim gate use exactly this shape.
+
+**Correction (StaleSnapshotFaithful).**  At `c67894b9` the deployed check accepts more: it also
+accepts the sentinel `{0,0,0}` at an empty slot, which is not a leaf of the tree once a value is
+inserted; see the module docstring. -/
 def GapWitness (s : Finset AbsLeaf) (v : UInt256) : Prop :=
   ∃ W ∈ s, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)
 

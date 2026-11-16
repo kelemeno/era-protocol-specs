@@ -363,7 +363,10 @@ last, which the END branch's soundness excludes, or the break is on the submissi
 the batch to be an occupied leaf; see the module docstring of `../Properties/EndBranch.lean`.
 
 **Correction (LastBatchInRootOffset).**  The submission's `batch` is both the leaf position and
-the batch number; see the same place. -/
+the batch number; see the same place.
+
+**Correction (StaleSnapshotFaithful).**  The break list is over the model's genuine-leaf absence
+witness (`GapWitness`); see the module docstring of `../Specs/EndBranch.lean`. -/
 theorem acceptedEnd_onTime_locates_break {h : MerkleSpec.Hash} {ze : UInt256} {H : History}
     {roots : Roots} {bk : Backing h ze roots} (hH : H.Valid)
     (hagg : ∀ k, RootAggregates H (roots k)) {e : EndSubmission} (hon : OnTime H e.leg)

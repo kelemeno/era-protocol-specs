@@ -57,6 +57,18 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
     both.  Each leg individually has exactly one outcome: no leg is ever
     permanently stuck, and no leg is ever double-paid.
 
+  Correction (StaleSnapshotBranches).  The deployed timeout gate makes no
+  `D < t (j+1)` comparison: `AttackVectors.StaleSnapshotBranches` maps its
+  two branches onto the pin, under `BeginIsPrevEnd` and `LaterBatchesLate`.
+
+  Correction (StaleSnapshotFaithful).  The reclaim witness above is a genuine
+  leaf of `S j`.  The deployed absence check at `c67894b9` also accepts the
+  padding sentinel `{0,0,0}` at an empty slot, so the exclusivity above holds
+  for genuine witnesses only: see the padding entries of the assumption
+  ledger of `AttackVectors.NoTheft` (`Protocol/NoTheft.lean`, hypothesis 1
+  and (iii), `IMTAbstract.forged_padding_witness_breaks_exclusivity`) and
+  `AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`.
+
   HONEST LIMITATION — MIXED OUTCOMES ARE PERMITTED AT THIS LAYER: the
   abstract layer does NOT prove that all legs of a flow reach the SAME
   outcome.  That would be all-or-nothing delivery, which is NOT the

@@ -77,7 +77,13 @@ or before `j` (`AttackVectors.StaleSnapshotBranches.PinBoundsOnTime`), and
 `j` itself can be late (`PinDoesNotMakeSnapshotOnTime`).  The deployed gate
 makes no such comparison; `StaleSnapshotBranches` maps its two timeout
 branches onto the pin.  `delivered_and_reclaimed_impossible` uses only
-`i ≤ j` for an on-time snapshot `i`. -/
+`i ≤ j` for an on-time snapshot `i`.
+
+Correction (StaleSnapshotFaithful).  The gap witness here is a leaf of the
+set.  At `c67894b9` the deployed check also accepts the `hashLeaf({0,0,0})`
+padding forgery, whose low leaf `⟨0, 0⟩` is not a member once a value is
+inserted: see the Sharpness section of `../Properties/Model.lean` (and
+`../Proofs/Model.lean`). -/
 
 /-- The key set of a leaf set. -/
 def keys (s : Finset AbsLeaf) : Finset UInt256 :=
@@ -100,7 +106,11 @@ commit value.  The exclusivity results say such a witness is *sound*; this
 section says one is always *available*: in a well-formed linked list, the
 maximal key below an absent `v` carries a straddling window.  Two more
 list invariants make "well-formed" precise, and both are preserved by the
-guarded insert. -/
+guarded insert.
+
+Correction (StaleSnapshotFaithful).  "Sound" is for a witness that is a leaf
+of the set; the padding forgery's low leaf is not one once a value is inserted
+(Sharpness section of `../Properties/Model.lean`). -/
 
 /-- Every nonzero `nextKey` resolves to an actual leaf — no dangling links. -/
 def NextClosed (s : Finset AbsLeaf) : Prop :=

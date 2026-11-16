@@ -34,9 +34,32 @@ composed, so "a reclaim of a delivered leg" here means the absence check plus th
 abstract pin.
 
 Readings this repair replaces, each now marked "Correction (StaleSnapshotFaithful)":
-`StaleSnapshot`'s header (in its Specs, Properties and Proofs files), its
-`stale_witness_not_redeemable` and `pinning_gate_rejects_stale_witness`, and
-`Timestamps.monotone_blocks_the_attack` (these three in their Properties and Proofs files).
+
+* `StaleSnapshot`'s header (in its Specs, Properties and Proofs files), its
+  `stale_witness_not_redeemable` and `pinning_gate_rejects_stale_witness`, and
+  `Timestamps.monotone_blocks_the_attack` and `delivered_and_reclaimed_impossible_local`
+  (these four in their Properties and Proofs files);
+* `Contracts.Protocol.AbsenceWitnessAt` (`MultichainGate` Specs) and the `MultichainGate`
+  Properties header.
+
+The same mark is on other readings of the absence check over a genuine leaf or under
+`HashAssumptions`:
+
+* `IndexedMerkleTree` (Specs/Model): the section docstrings on the temporal layer and on
+  reclaim liveness;
+* `Contracts.InteropCommitmentTree.genesis_run_reclaimable_iff_absent` (Properties and Proofs);
+* `AttackVectors.FlowAtomicity`'s header;
+* `Protocol/InteropAtomicity`: the Timeout Properties header,
+  `Contracts.Timeout.Properties.TimeoutMeansMissedDeadline` and
+  `AcceptedTimeoutMeansMissedDeadline`; the Refund Properties header and
+  `Contracts.Refund.Properties.AcceptedTimeoutForDeliveredFlowIsABreak` (and its Proofs twin);
+  the Atomicity Properties header and
+  `Contracts.Atomicity.Properties.WithoutDaCommittedLegIsStuck`;
+* the reference bridge's `EndBranch` (`Applications.BurnMintBridge.EndBranch`): the Specs module
+  docstring and `GapWitness`; the Properties header, `EndViaNeverFinalized`,
+  `TimeoutViaImpliesMissing`, `CheckedBridgeNoDoublePayment`, `CheckedBridgeValueConserved`,
+  `CheckedExecutionRemainsPossible`, `AcceptedEndOnTimeLocatesBreak` (and its Proofs twin),
+  `PinnedBridgeNoDoublePaymentOrBreak` and `PinnedBridgeValueConservedOrBreak`.
 -/
 
 namespace AttackVectors.StaleSnapshotFaithful

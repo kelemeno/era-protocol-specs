@@ -27,6 +27,14 @@ Three things had to come together for it:
    (`Contracts.Atomicity.Properties.ExecutedExcludesAnyRefund`), which is where the tree side
    comes in.
 
+**Correction (StaleSnapshotFaithful).**  The milestone and step 3 take `HashAssumptions`, so
+they are vacuous and say nothing about the deployed absence check: at `c67894b9` an executed
+obligation is refunded on a forged padding proof
+(`Properties.PaddingRefundOfExecutedObligationLocatesAbsenceBreak`; note on
+`Contracts.InteropCommitmentTree.HashAssumptions`).  The forms to read are
+`Properties.ExecutedObligationNeverRefundedOrBreak` and
+`Contracts.Atomicity.Properties.ExecutedExcludesAnyRefundOrBreak`.
+
 ## Timeout validity is derived, not assumed
 
 `Properties.VerifiedTimeoutAuthorizes` closes the loop with `EraSpec.Protocol.InteropAtomicity.Properties.Timeout`: a
@@ -180,13 +188,21 @@ def Properties.AcceptedTimeoutAuthorizes : Prop :=
       LegRefundableAccepted h z0 hl cv S B F leg →
         RefundAuthorized h z0 hl cv S F ∨ HashBreak h ze (B.leaves leg.chain)
 
-/-- **THE PUNCHLINE.**  Producing an accepted timeout proof for a flow that has a
-delivered leg *is* producing a hash break.
+/-- **THE PUNCHLINE.**  The intended reading: producing an accepted timeout proof for a flow
+that has a delivered leg *is* producing a hash break.
 
-Reading the hypotheses left to right: keccak behaves on the IMT, the tree histories
+Reading the hypotheses left to right: `HashAssumptions` holds on the IMT, the tree histories
 are well formed, the settlement layer aggregates honestly, the flow passed
-`_checkFlowId`, and one of its legs executed.  Then no accepted timeout proof for
-any of its legs exists — unless the prover has a collision in hand.
+`_checkFlowId`, and one of its legs executed.  Then every accepted timeout proof for any of its
+legs comes with a `HashBreak` on that leg's chain tree.
+
+**Correction (StaleSnapshotFaithful).**  As stated this says nothing: `HashAssumptions` is
+unsatisfiable, and `HashBreak` is always inhabited (`MerkleSpec.LastLeaf.HashBreakAlways`), so
+the conclusion holds for every hash.  Nor is `HashAssumptions` "keccak behaves" at `c67894b9`
+(note on `Contracts.InteropCommitmentTree.HashAssumptions`): there an executed flow passes the
+timeout gate as run on a forged padding proof, with no collision in hand
+(`Properties.PaddingAcceptedRefundLocatesAbsenceBreak`).  The result to read is
+`Properties.ExecutedExcludesAcceptedRefundOrBreak`, whose `AbsenceBreak` locates that proof.
 
 This is the dependency chain complete: accepted proof → last included batch → no
 later in-time batch → justified timeout → obligation exclusivity.

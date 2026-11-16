@@ -148,10 +148,10 @@ deployed-branch counterpart of `PaddingReclaimRedeemsDeliveredLeg`: with the pin
 constant `hashLeaf({0,0,0})`, a leg committed on time passes that gate on the BEGIN branch
 on the forged padding proof, and the break is an `AbsenceBreak` on that proof.
 `Contracts.Timeout.AcceptedTimeoutMeansMissedDeadlineOrBreak` runs the END branch with the
-last-batch proof instead and adds a `PinnedBreak` or `PathCollision` located on the
-submitted batch-leaf path. That proof is `LastBatchAccepted`, which pins the walk's length
-to the tree's height and `N` to an occupied leaf, over `RootBacking`, which reads leaf
-position `N` as batch `N` (see their Correction notes).
+last-batch proof instead and adds a `PinnedBreak` right after batch `N` in the chain tree or a
+`PathCollision` on the submitted batch-leaf path. That proof is `LastBatchAccepted`, which
+pins the walk's length to the tree's height and `N` to an occupied leaf, over `RootBacking`,
+which reads leaf position `N` as batch `N` (see their Correction notes).
 
 These modules expose the hypotheses used by the library's argument. They do not
 prove the compiled verifier, authenticate imported roots, or establish settlement

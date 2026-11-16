@@ -238,7 +238,14 @@ reclaimable exactly when it is absent — so a delivered leg can never be refund
 and an undelivered one always has a witness.
 
 Stated here as the headline consequence for the deployed contract; the
-mathematics is `IMTAbstract.guardedEvolution_reclaimable_iff_absent`. -/
+mathematics is `IMTAbstract.guardedEvolution_reclaimable_iff_absent`.
+
+**Correction (StaleSnapshotFaithful).**  "Reclaimable" here is a straddling leaf of
+`toAbs (R n)`, a genuine leaf.  At `c67894b9` the deployed `verifyNonInclusion` also accepts
+the sentinel `{0,0,0}` at an empty slot, so it accepts an absence proof for a delivered value
+against the root the contract stores (`CThreeLeafWitness`, `PaddingCollisionRefundsDeliveredLeg`;
+`../README.md`), and a delivered leg can be refunded
+(`Contracts.Refund.PaddingRefundOfExecutedObligationLocatesAbsenceBreak`). -/
 abbrev Properties.genesis_run_reclaimable_iff_absent {R : ℕ → Tree}
     (hR : Run R) (h0 : R 0 = setup) (n : ℕ) (v : UInt256) (hv : v ≠ 0) :=
   (∃ W ∈ toAbs (R n), W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))

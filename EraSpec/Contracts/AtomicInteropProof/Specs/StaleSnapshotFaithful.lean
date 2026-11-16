@@ -55,7 +55,8 @@ proof carries a located break.  The padding instance
 `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak` is the deployed-branch counterpart of
 `Properties.PaddingReclaimRedeemsDeliveredLeg`.
 `Contracts.Timeout.AcceptedTimeoutMeansMissedDeadlineOrBreak` runs the END branch with the
-last-batch proof instead (`Contracts.Timeout.LastBatchAccepted`; see its Correction notes).
+last-batch proof instead (`Contracts.Timeout.LastBatchAccepted`, over
+`Contracts.Timeout.RootBacking`; see the Correction notes on both).
 
 The located break is `Contracts.InteropCommitmentTree.TreeRootBreak` on the submitted
 reclaim proof; its `paddingHit` case is the padding forgery.

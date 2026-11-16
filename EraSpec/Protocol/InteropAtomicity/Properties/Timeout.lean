@@ -33,6 +33,12 @@ a leg with a verified timeout proof was absent from its own source chain's tree 
 **every** batch that settled by the deadline.  The refund is not merely permitted,
 it is deserved — the obligation was never committed in time.
 
+**Correction (StaleSnapshotFaithful).**  It takes `HashAssumptions`, so it is vacuous and says
+nothing about the deployed absence check: at `c67894b9` a leg committed on time passes the gate
+on a forged padding proof (`Properties.PaddingTimeoutLocatesAbsenceBreak`; note on
+`Contracts.InteropCommitmentTree.HashAssumptions`).  The one to read is
+`Properties.TimeoutMeansMissedDeadlineOrBreak`.
+
 ## What remains assumed, and why it is the right place for it
 
 `Aggregates` — a batch that had settled when a root was created is inside that
@@ -78,7 +84,12 @@ root could ever have existed for it.
 
 This is the statement that makes the refund *justified* rather than merely
 permitted, and it holds on both branches: a late batch's begin state is an earlier
-batch's end state, and the last in-time batch is at or after every in-time batch. -/
+batch's end state, and the last in-time batch is at or after every in-time batch.
+
+**Correction (StaleSnapshotFaithful).**  Only under `HashAssumptions`: at `c67894b9` the gate
+verifies on a forged padding proof for a leg committed on time
+(`Properties.PaddingTimeoutLocatesAbsenceBreak`).  Over every accepted proof the statement is
+`Properties.TimeoutMeansMissedDeadlineOrBreak`. -/
 def Properties.TimeoutMeansMissedDeadline : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (S : System), Wf S → ∀ (R : SlRoot), Aggregates S R →
@@ -133,8 +144,16 @@ def Properties.EndBranchAcceptedImpliesVerified : Prop :=
 batch → the obligation was absent at every batch that settled in time.
 
 Every link is now a theorem.  What is left on the far side is `Aggregates`, which is
-a property of the settlement layer, and the `HashBreak` escape, which
-`Properties.NoBreakUnderIdealizations` closes for anyone willing to assume keccak behaves. -/
+a property of the settlement layer, and the `HashBreak` escape.  That escape is always
+inhabited (`MerkleSpec.LastLeaf.HashBreakAlways`), so the conclusion holds outright, and
+`Properties.NoBreakUnderIdealizations` closes it only by assuming global pair-injectivity, which
+no hash meets.
+
+**Correction (StaleSnapshotFaithful).**  Nor is the premise `HashAssumptions` "keccak behaves"
+at `c67894b9` (note on `Contracts.InteropCommitmentTree.HashAssumptions`): there a leg
+committed on time passes the timeout gate's BEGIN branch on a forged padding proof, which needs
+no collision (`Properties.PaddingTimeoutLocatesAbsenceBreak`).  The form to read is
+`Properties.AcceptedTimeoutMeansMissedDeadlineOrBreak`. -/
 def Properties.AcceptedTimeoutMeansMissedDeadline : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (S : System), Wf S → ∀ (ze : UInt256) (R : SlRoot)

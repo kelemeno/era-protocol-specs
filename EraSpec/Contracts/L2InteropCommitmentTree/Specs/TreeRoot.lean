@@ -96,11 +96,24 @@ structure NonInclusionAccepted (h : Hash) (hl : LeafHash) (R v : UInt256) (ℓ :
 
 /-! ## The cryptographic idealizations -/
 
-/-- Every hash assumption the soundness argument needs, as one bundle.  Each is a
-statement about `keccak256`; none is proved anywhere in this package.  **Unsatisfiable**:
-no `h`, `z0`, `hl` meets it (`Properties.HashAssumptionsUnsatisfiable`), so a result
-premised on it is vacuous.  `TreeRootStrongLogSafe` keeps each field on the values one
-verification touches. -/
+/-- Every hash assumption the soundness argument needs, as one bundle; none is proved
+anywhere in this package.  **Unsatisfiable**: no `h`, `z0`, `hl` meets it
+(`Properties.HashAssumptionsUnsatisfiable`), so a result premised on it is vacuous.
+`TreeRootStrongLogSafe` keeps each field on the values one verification touches.
+
+**Not a keccak premise at `c67894b9`.**  `padNotLeaf` depends on the contract's padding
+constant, not only on the hash: `IndexedMerkleTree.setup` pads with `z0 = hashLeaf({0,0,0})`
+(`IndexedMerkleTree.sol:47-48`, against `FullMerkle.sol:25-26`), so `padNotLeaf` fails at
+`ℓ = ⟨0,0,0⟩` for every `hl`.  The padding forgery is exactly that failure and needs no
+collision: its located break is `TreeRootBreak.paddingHit`, and of `TreeRootStrongLogSafe`'s
+clauses it fails only `padNotPresented` when the tree's own log has no node-hash collision
+(`Properties.TreeRootStrongPinForgeryFailsOnlyPadding`; instances: `Properties.CThreeLeafWitness`,
+`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`,
+`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).  So a result premised
+on `HashAssumptions`, vacuous anyway, says nothing about the deployed absence check under any
+keccak idealization, and a gloss that such a result holds once keccak behaves, or fails only on
+a hash collision, is false at the pin.  Read the repaired `…OrBreak` forms, which take no hash
+premise: a forged padding proof is the `paddingHit` case of the `TreeRootBreak` they locate. -/
 structure HashAssumptions (h : Hash) (z0 : UInt256) (hl : LeafHash) : Prop where
   /-- Node-hash pair-injectivity on ALL pairs.  Not collision resistance: it is false for
   every `h` by counting (`not_nodeInj`). -/

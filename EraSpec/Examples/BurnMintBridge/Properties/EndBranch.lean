@@ -58,6 +58,13 @@ is free, and on chain each witness needs a cross-length keccak preimage.  None o
 composed into the bridge.  At the index level, §2's `EndVia` likewise takes an occupied batch
 (`B < upTo + 1`) and a walk depth the tree fits in.
 
+**Correction (StaleSnapshotFaithful).**  §2 and §3 take the non-inclusion proof to open a leaf of
+the snapshot (`GapWitness`).  At `c67894b9` the deployed check also accepts the padding sentinel
+`{0,0,0}` at an empty slot, and the timeout gate passes on it for a leg committed on time
+(`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).  The §2 and §3 results say nothing
+about a refund on such a proof, and §3's breaks, located on the END submission, do not locate
+it; see the module docstring of `../Specs/EndBranch.lean`.
+
 ## Premises, and where each is shown satisfiable
 
 * `History.Valid` (guarded IMT evolution from genesis, monotone settlement times):
@@ -211,7 +218,10 @@ settled before it.
 
 **Correction (LastBatchInRootOffset).**  `EndVia`'s `B` is both the chain-tree leaf position and
 the batch number, as in `end_branch_from_onchain_check`: exact at `c67894b9` for atomic-interop
-source chains while pushes are contiguous (`PROTO-CONTIGUOUS-PUSH`); see the module docstring. -/
+source chains while pushes are contiguous (`PROTO-CONTIGUOUS-PUSH`); see the module docstring.
+
+**Correction (StaleSnapshotFaithful).**  The absence witness is a genuine leaf (`GapWitness`);
+the deployed check accepts more (module docstring of `../Specs/EndBranch.lean`). -/
 def Properties.EndViaNeverFinalized : Prop :=
   ∀ (H : History) (R : Contracts.Timeout.SlRoot), H.Valid → RootAggregates H R →
     ∀ (l : Leg), EndVia H R l → ∀ n, H.settledAt l.sourceChain n ≤ l.deadline →
@@ -219,7 +229,10 @@ def Properties.EndViaNeverFinalized : Prop :=
 
 /-- **THE GATE AS RUN REFINES THE ADAPTER.**  An accepted timeout against an aggregating
 root is an instance of `Missing`, so every `ProtocolComposition` result applies to the path
-the contract takes. -/
+the contract takes.
+
+**Correction (StaleSnapshotFaithful).**  With a genuine-leaf absence witness (`GapWitness`); the
+deployed check accepts more (module docstring of `../Specs/EndBranch.lean`). -/
 def Properties.TimeoutViaImpliesMissing : Prop :=
   ∀ (H : History) (R : Contracts.Timeout.SlRoot), H.Valid → RootAggregates H R →
     ∀ (l : Leg), TimeoutVia H R l → Missing H l
@@ -229,14 +242,20 @@ def Properties.CheckedEvidenceSound : Prop :=
   ∀ (H : History) (roots : Roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
     ∀ (flow : Transfer → List Leg), (checkedEvidence H roots flow).Sound
 
-/-- **NO DOUBLE PAYMENT, BOTH BRANCHES AS RUN.** -/
+/-- **NO DOUBLE PAYMENT, BOTH BRANCHES AS RUN.**
+
+**Correction (StaleSnapshotFaithful).**  "As run" with a genuine-leaf absence witness; see the
+module docstring of `../Specs/EndBranch.lean`. -/
 def Properties.CheckedBridgeNoDoublePayment : Prop :=
   ∀ (H : History) (roots : Roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
     ∀ (flow : Transfer → List Leg) (source destination : ℕ) (s : State),
       Run (checkedEvidence H roots flow) (initial source destination) s →
         ¬ (s.delivered = true ∧ s.refunded = true)
 
-/-- **VALUE CONSERVED, BOTH BRANCHES AS RUN.** -/
+/-- **VALUE CONSERVED, BOTH BRANCHES AS RUN.**
+
+**Correction (StaleSnapshotFaithful).**  "As run" with a genuine-leaf absence witness; see the
+module docstring of `../Specs/EndBranch.lean`. -/
 def Properties.CheckedBridgeValueConserved : Prop :=
   ∀ (H : History) (roots : Roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
     ∀ (flow : Transfer → List Leg) (source destination : ℕ) (s : State),
@@ -319,7 +338,10 @@ def Properties.HaltedAdapterMissingCitesUnimportedBatch : Prop :=
 
 /-- **EXECUTION STAYS POSSIBLE** (`prepared_execution_remains_possible`, REVIEW.md P2) with
 both branches as run: once a prepared transfer's prerequisites are all on time, no run
-refunds it, and it is executed or still executable. -/
+refunds it, and it is executed or still executable.
+
+**Correction (StaleSnapshotFaithful).**  "As run" with a genuine-leaf absence witness; see the
+module docstring of `../Specs/EndBranch.lean`. -/
 def Properties.CheckedExecutionRemainsPossible : Prop :=
   ∀ (H : History) (roots : Roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
     ∀ (flow : Transfer → List Leg) (s p t : State) (i : Transfer),
@@ -391,13 +413,25 @@ tree's height and the batch to be an occupied leaf, which the deployed verifier 
 see the module docstring.
 
 **Correction (LastBatchInRootOffset).**  The submission's `batch` is both the leaf position and
-the batch number; see the module docstring. -/
+the batch number; see the module docstring.
+
+**Correction (StaleSnapshotFaithful).**  The break list is over the model's genuine-leaf absence
+witness (`GapWitness`).  With the deployed check, an END submission on a padding-forged absence
+proof and the honest batch-leaf path for the root's last batch can pass for a leg committed on
+time and carries neither break; see the module docstring of `../Specs/EndBranch.lean`. -/
 def Properties.AcceptedEndOnTimeLocatesBreak : Prop :=
   ∀ (h : MerkleSpec.Hash) (ze : UInt256) (H : History) (roots : Roots)
     (bk : Backing h ze roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
     ∀ (e : EndSubmission), OnTime H e.leg → EndAcceptedBy H roots bk e → EndBreak bk e
 
-/-- **NO DOUBLE PAYMENT, OR A BREAK ON THE RECORDED TRANSFER'S SUBMISSION.** -/
+/-- **NO DOUBLE PAYMENT, OR A BREAK ON THE RECORDED TRANSFER'S SUBMISSION.**
+
+**Correction (StaleSnapshotFaithful).**  The break is on the END submission only because both
+branches take a genuine-leaf absence witness.  With the deployed check, a transfer that executed
+can also be refunded on the BEGIN branch on a padding-forged proof, which needs no END
+submission, so it is paid twice with no break on one (an executed flow passes that branch:
+`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`); see the module docstring of
+`../Specs/EndBranch.lean`. -/
 def Properties.PinnedBridgeNoDoublePaymentOrBreak : Prop :=
   ∀ (h : MerkleSpec.Hash) (ze : UInt256) (H : History) (roots : Roots)
     (bk : Backing h ze roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
@@ -407,7 +441,11 @@ def Properties.PinnedBridgeNoDoublePaymentOrBreak : Prop :=
         ¬ (s.delivered = true ∧ s.refunded = true)
           ∨ ∃ i, s.record = some i ∧ EndAcceptedBy H roots bk (sub i) ∧ EndBreak bk (sub i)
 
-/-- **VALUE CONSERVED, OR A BREAK ON THE RECORDED TRANSFER'S SUBMISSION.** -/
+/-- **VALUE CONSERVED, OR A BREAK ON THE RECORDED TRANSFER'S SUBMISSION.**
+
+**Correction (StaleSnapshotFaithful).**  As for `Properties.PinnedBridgeNoDoublePaymentOrBreak`:
+the break list is over a genuine-leaf absence witness; see the module docstring of
+`../Specs/EndBranch.lean`. -/
 def Properties.PinnedBridgeValueConservedOrBreak : Prop :=
   ∀ (h : MerkleSpec.Hash) (ze : UInt256) (H : History) (roots : Roots)
     (bk : Backing h ze roots), H.Valid → (∀ k, RootAggregates H (roots k)) →

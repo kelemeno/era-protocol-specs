@@ -67,6 +67,11 @@ only can every leg finalize, no leg can be refunded once any leg has executed.
   refunded (it *is* in the tree, so no absence proof can exist).  Funds stranded.
   Note this is not a contract defect — no contract can conjure unavailable data —
   which is why DA appears as a named assumption rather than a proof obligation.
+  **Correction (StaleSnapshotFaithful).**  Being in the tree excludes only a genuine absence
+  witness, and the countermodel takes `HashAssumptions`.  At `c67894b9` the deployed check
+  also accepts a forged padding proof for a value in the tree
+  (`Properties.PaddingRefundOfExecutedLegLocatesAbsenceBreak`); the form without a hash premise
+  is `Properties.WithoutDaCommittedLegIsStuckOrBreak`.
 
 Two further premises live in `Contracts.RootImport`.  `ImportAvailable`: the destination
 has imported settlement-layer roots covering every batch, of every chain, that settled by
@@ -267,7 +272,13 @@ in the tree and so no absence proof can be accepted on either timeout branch.
 
 So `Properties.ExecutedImpliesAllFinalizable` genuinely needs its DA hypothesis, and the
 failure mode without it is stranded funds rather than a double spend.  No contract
-change can fix this one — it is an assumption about the world. -/
+change can fix this one — it is an assumption about the world.
+
+**Correction (StaleSnapshotFaithful).**  "No absence proof can be accepted" holds only under
+`HashAssumptions`.  At `c67894b9` the deployed check also accepts a forged padding proof for a
+value in the tree (`Properties.PaddingRefundOfExecutedLegLocatesAbsenceBreak`), so the form to
+read is `Properties.WithoutDaCommittedLegIsStuckOrBreak`: no timeout evidence for the leg passes
+unless its absence proof carries a located break. -/
 def Properties.WithoutDaCommittedLegIsStuck : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (id hA hB : UInt256), 0 < cv id hA →
@@ -357,8 +368,8 @@ def Properties.SubsetFlowRejectedByCheckOnSatisfiable : Prop :=
 /-! ## The headlines without hash premises: the property, or a located break
 
 `Properties.FinalitySignalMeansMembership`, `ExecutedImpliesAllFinalizable`, `NoneOrAll`,
-`ExecutedImpliesFinalityPersists`, `ExecutedExcludesAnyRefund` and
-`FullGateBlocksMixedOutcome` take `HashAssumptions`, which cannot hold.  Each is
+`ExecutedImpliesFinalityPersists`, `ExecutedExcludesAnyRefund`, `FullGateBlocksMixedOutcome`
+and `WithoutDaCommittedLegIsStuck` take `HashAssumptions`, which cannot hold.  Each is
 restated below with no hash premise, over the NAMED evidence (`ExecutedViaBy`,
 `LegRefundableBy`), concluding the original property or a `TreeRootBreak` located on
 a specific submitted proof: the inclusion proof `ev other` submitted for a named leg

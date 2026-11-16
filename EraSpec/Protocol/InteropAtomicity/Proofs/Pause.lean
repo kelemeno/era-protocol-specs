@@ -439,7 +439,7 @@ theorem unpaused_gate_is_the_gate {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv 
   ⟨fun hp => hp.2, fun hex => ⟨fun _ => Flags.set_same _ _ _ _, hex⟩⟩
 
 /-- Presentable gate evidence for a finalizable flow: for every leg, a batch and a proof a prover
-can present, on which the deployed gate passes. -/
+can present, on which the model's gate (`FlowFinalizedBy`, the IMT half) passes. -/
 theorem finalizable_evidence {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
     {S : System} {A : Access} {F : Flow} (hfin : FlowFinalizableBy h z0 hl cv S A F) :
     ∃ ev : GateEvidence, (∀ l ∈ F.legs, A l.chain (ev l).1 (ev l).2)
