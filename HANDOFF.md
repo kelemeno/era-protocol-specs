@@ -1,6 +1,13 @@
-# Current handoff — 2026-11-13
+# Current handoff — 2026-11-16
 
-Continue from **`claude/proof-round-6`**. The current [continuation note](handoff/2026-11-13/README.md)
+Continue from **`claude/proof-round-7`**. The [continuation note](handoff/2026-11-16/README.md)
+records what was merged, reviewed and fixed since round 6, the checks at the round-7
+checkpoint, and what is still open. Its [branch inventory](handoff/2026-11-16/branches.json)
+lists the branches handed back and whether each other `origin` branch merges into round 7.
+
+## Previous handoff — 2026-11-13
+
+Round 6 was the continuation point. The [2026-11-13 continuation note](handoff/2026-11-13/README.md)
 records the saved work, review queue, validation limits, and next steps. Its
 [branch inventory](handoff/2026-11-13/branches.json) lists all 98 local branch heads
 preserved on `origin`, including three recovered detached worktrees.

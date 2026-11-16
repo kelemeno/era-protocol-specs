@@ -1,0 +1,883 @@
+{
+  "date": "2026-11-16",
+  "repository": "https://github.com/kelemeno/era-protocol-specs",
+  "integration_branch": "claude/proof-round-7",
+  "integration_snapshot_commit": "d92dad53587832b4e202a6c44e63c51ee718f12b",
+  "base": {
+    "branch": "claude/proof-round-6",
+    "commit": "dffd2dc1c71f33ec7783c5971c7b05ac2de65de7"
+  },
+  "scope": "The branches handed back, at their heads before the handoff documentation commit (which advances only claude/proof-round-7), and every origin branch (fetched 2026-11-16) not contained in the round-7 snapshot, with whether it merges into the snapshot without conflicts (git merge-tree --write-tree).",
+  "verification": "At the snapshot: lake build EraSpec succeeded (3574 jobs); scripts/audit-axioms.sh OK with 9421 theorems, 1948 properties, 0 axioms, 0 not clean; scripts/emit-solidity.sh --check passed; scripts/check-word-fidelity.sh failed with the same 9 entries as claude/proof-round-6 (pending human sign-off).",
+  "round7_commits_first_parent": [
+    {
+      "commit": "414877624df62364cf571fee25a0d5c593e32208",
+      "subject": "Merge salvage/codex-findings-9 (reviewed)"
+    },
+    {
+      "commit": "424229d4c2521f5e3e9706c0502bbc41c6f66b99",
+      "subject": "Merge salvage/faithfulness-repair-2 (reviewed)"
+    },
+    {
+      "commit": "6ccc212603dba6b996ed4b57481c7f1af3383b05",
+      "subject": "Merge salvage/strengthen-13 (reviewed)"
+    },
+    {
+      "commit": "34689399f9820c84dda4428dc31138e019f1a2c8",
+      "subject": "Strengthen-13 review fixes: nonzero commit values in the on-time pinned witness"
+    },
+    {
+      "commit": "ac870bad2385233c86012747863c1b4215bf3c6e",
+      "subject": "RootImport review fixes (round 7): stale-root countermodel, ported logged witness"
+    },
+    {
+      "commit": "6acec836db7f77df970cfe689c588ae61aa7f570",
+      "subject": "Faithfulness-repair-2 review fixes (round 7): pin facts, working witnesses, correction notes"
+    },
+    {
+      "commit": "817d391d6ea3280e5ddbfac1a11c301e425868de",
+      "subject": "Strengthen-13 review fixes (round 7): per-world pins, branch gap, stronger witnesses"
+    },
+    {
+      "commit": "57023fa5367be3a676cbd42ec372d1c55031ecd4",
+      "subject": "RootImport and faithfulness-repair-2 re-review fixes (round 7): composition scope, NoHeightBreak forms"
+    },
+    {
+      "commit": "88dba5cc96cc353159fa79abd134dce8ffe45ed9",
+      "subject": "Strengthen-13 and Timeout re-review fixes (round 7): correction notes, four gaps"
+    },
+    {
+      "commit": "306cc4b6f239c3f342bb41b19b27a88299aa2a0f",
+      "subject": "Round-7 second re-review fixes: deployed-shape certificate, correction notes, sweep"
+    },
+    {
+      "commit": "d4dd6b6dc6cb37f6e1361ccbb825e6b669546554",
+      "subject": "Round-7 padding-forgery notes: HashAssumptions, keccak glosses, genuine-leaf readings"
+    },
+    {
+      "commit": "d92dad53587832b4e202a6c44e63c51ee718f12b",
+      "subject": "Round-7 padding-forgery notes, follow-up: the remaining absence-soundness readings"
+    }
+  ],
+  "handed_back": [
+    {
+      "branch": "claude/proof-round-7",
+      "commit": "d92dad53587832b4e202a6c44e63c51ee718f12b",
+      "state": "integration branch; snapshot before the handoff documentation commit"
+    },
+    {
+      "branch": "salvage/faithfulness-repair-1-fixed",
+      "commit": "f07cb6d446e587d1aba006a90881f39a734121d5",
+      "original": "salvage/faithfulness-repair-1",
+      "original_origin_commit": "d70b27e41495f5ef55a7ef8d94d6e4d8b922185f",
+      "contains_round7_merges_at": "34689399f9820c84dda4428dc31138e019f1a2c8",
+      "independently_re_reviewed": true,
+      "merges_cleanly_into_round7_snapshot": true,
+      "state": "review fixes and a re-review fix; not merged"
+    },
+    {
+      "branch": "salvage/strengthen-12-fixed",
+      "commit": "aa19ce8fbe68269f036ebb59b4f388c5fcc8015b",
+      "original": "salvage/strengthen-12",
+      "original_origin_commit": "cbf25c1a33563fe6de36553ad13f20f9d1c8c063",
+      "contains_round7_merges_at": "34689399f9820c84dda4428dc31138e019f1a2c8",
+      "independently_re_reviewed": false,
+      "merges_cleanly_into_round7_snapshot": false,
+      "conflicted_files": [
+        "ASSUMPTIONS.md"
+      ],
+      "state": "review fixes not yet independently re-reviewed; not merged"
+    }
+  ],
+  "origin_branches_not_in_round7": [
+    {
+      "branch": "claude/proof-attempt-handoff-caa64d",
+      "head": "df2cc1ba721dbb38d06083b3eec7e80f5ffa1a51",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "codex/handoff-2026-11-13-cov-chain-admin-wt",
+      "head": "6fc09d14b12f134cf0d49910cdf5e2882350f1dd",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "codex/handoff-2026-11-13-cov2-e2e-deposit",
+      "head": "5b4559e8c967590d16495129c1cd7c90222c50af",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "codex/handoff-2026-11-13-proof-attempt-4f3778",
+      "head": "37cfd1d4d64fabb0d571dbeb74cabdcd04cf2b80",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov/admin-facet",
+      "head": "484e7547c3db614af9a37b94bab0cc3bfe954773",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "cov/bridgehub",
+      "head": "a9740658e0a812341e4fc3981a47f954f0fecc64",
+      "commits_not_in_round7": 2,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "cov/chain-admin",
+      "head": "933e534a22f199b0c89bced575ce15c1d8469aaa",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov/chain-asset-handler",
+      "head": "293f2bb79d319836cf06f4979ffeecab999cfb51",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov/diamond",
+      "head": "44f8bf12677e056b20b782a3808b33570f46be76",
+      "commits_not_in_round7": 2,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "cov/executor",
+      "head": "f79d770ea9af215e9ceb9d42a480e43fd597449f",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov/governance",
+      "head": "ef201d22f92a6259a88275c3397ed98db353ee0e",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "cov/interop-root",
+      "head": "3b9074e4c9fafa016bde082a399314c10016df76",
+      "commits_not_in_round7": 2,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov/l1-nullifier",
+      "head": "990ebe35917c19e251aa2ae9dd8838e39aae6b01",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "cov/mailbox",
+      "head": "212f84679fc66b2bdaf2a09a2c4f70131cdf9ea6",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov/message-root",
+      "head": "ff668cb47c21f209ca0d00a8eebd9a63e3b73543",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov/validator-timelock",
+      "head": "87cddbfd940bbb1cd40535378fa6dd7375adc359",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/da",
+      "head": "7dd67bf15179f5b89b8c5957cdea00405b3a77bf",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/e2e-deposit",
+      "head": "adba0e8066721d3d5e60ee0e3efaa21cfa82145c",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/e2e-migration",
+      "head": "503b7a224c4853c142dd4efefc94ec387acc5371",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/encodings",
+      "head": "ac695bee3f03c90d644f19ccac1fcfd6bf36f504",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/l2-bridge",
+      "head": "7e243a8763b08edb2b20ba4e8a04f352a8969b61",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/l2-system",
+      "head": "34f34e4ae995be048532b17ff95db9070046ce89",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/l2-upgrades",
+      "head": "fdbfba2891bce0114f689ded3fa02af5b825f40e",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/merkle-libs",
+      "head": "f76cf548d8f2f3f71c9b464e1cbfc1cc7f8aac3e",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/misc-core",
+      "head": "6073f3518db393c1beb7aa7820bfbc1cb77b4001",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "cov2/verifier-routing",
+      "head": "168ad3e9078e3cfd74af1c8a6ae619ca2e52a197",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/codex-findings-11",
+      "head": "cbbb4e442dc6a0360e50923d79db8262c97fc517",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/codex-findings-12",
+      "head": "26af1c3f1c712ceed9e65709e9c529a7b49686ec",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "salvage/codex-findings-14",
+      "head": "86db24020a5bf90e1850edbeed8c7e4ff9105ea5",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec/Protocol/InteropAtomicity/README.md"
+      ]
+    },
+    {
+      "branch": "salvage/faithfulness-repair-1",
+      "head": "d70b27e41495f5ef55a7ef8d94d6e4d8b922185f",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "ASSUMPTIONS.md"
+      ]
+    },
+    {
+      "branch": "salvage/faithfulness-repair-10",
+      "head": "c67eef3cbf8b2a0f9e7d8d17faaa6f4c5d1754d7",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/faithfulness-repair-5",
+      "head": "718f9f0cf330bede0206b6fdaefdbcc2b9676eab",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/faithfulness-repair-6",
+      "head": "0418437c346c3778c07119113601a9353711a4b3",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/faithfulness-repair-7",
+      "head": "130b1f5f6e13c17cb049774658f59fd97af0ec45",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "salvage/faithfulness-repair-8",
+      "head": "d1a1778753baa40152ab8f5a2deebf85cc69bb1b",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/faithfulness-repair-9",
+      "head": "42a37a9e93f4c7674db53f58f8fad18f75cdfbdd",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/head-fixes-1",
+      "head": "7321008057de5480e48295ce7e4965b5bd18dba6",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/head-fixes-2",
+      "head": "48010946cb7cae8fa8c2b97b7a0a2fdc85db84ab",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/head-fixes-3",
+      "head": "a1d7242b3f494a9f48151ff64b163d70f55ea18b",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec/Protocol/InteropAtomicity/README.md"
+      ]
+    },
+    {
+      "branch": "salvage/head-fixes-4",
+      "head": "3a3a4851fa57b1c16e1eac0667f9c7766e6bd51f",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec/Protocol/InteropAtomicity/README.md"
+      ]
+    },
+    {
+      "branch": "salvage/head-fixes-5",
+      "head": "23dc96dfac98d9f3a32c1b87455e8134239d9739",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "ASSUMPTIONS.md",
+        "EraSpec/Contracts/ChainTypeManager/README.md"
+      ]
+    },
+    {
+      "branch": "salvage/head-fixes-6",
+      "head": "4d61d0c5723ee45e38b9123a406f8c7dbb9f9166",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "salvage/strengthen-12",
+      "head": "cbf25c1a33563fe6de36553ad13f20f9d1c8c063",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/core-domain-leg-v35",
+      "head": "018c96729876a02fefce16e22db0e6ae43031764",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/ctm-proxy-admin-aliasing-v35",
+      "head": "fb1411b47a543b6b39d4a89e0a724717c36e2ef7",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/engine-leg-authority-frame-v35",
+      "head": "6a5d261462ac3c16ad181130dc4533895073a420",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/forward-is-not-the-only-bypass-v35",
+      "head": "00fcd17de8c68e3c63930792c330c4e15f0b495e",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/leg-postcheck-v35",
+      "head": "6f962066ec20ea7f55e3ce48228e2f1e5c1fce27",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/notifier-binding-blind-spot-v35",
+      "head": "e057fde617dfc20b4945c5cc23057ece901178af",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/pending-l2-upgrade-wedge-v35",
+      "head": "a7027f18d4c4eb41a869dbf38988128f1e65bc31",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/second-proof-across-migration-v35",
+      "head": "d737e903a0cc310b5d7418eb854fdd3a67bfca55",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/second-proof-flag-authority-v35",
+      "head": "1586a33b5e1fb4e22379de2ee0f1f55b1ab997e9",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/second-proof-upgrade-gate-v35",
+      "head": "975d4d74198eafb8633cc1fd775190259fb7b201",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "up/second-proof-upgrade-gate-v35-r2",
+      "head": "d80e5727c7af35b0d20ab77fe50d5b81d8df57c7",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/codex-findings/11",
+      "head": "d99852d5fa49dac707b1f85ab29ca9ca45806d00",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/codex-findings/12",
+      "head": "601c13fffb940b0f5b2a6ae537e5d23d70059c9c",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "wip/codex-findings/14",
+      "head": "7260e93e97df59d5205812f1ead3c9157257b41b",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/faithfulness-repair/1",
+      "head": "75cc182570a1c060be922d0937ef4206b87fce32",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/faithfulness-repair/10",
+      "head": "c67eef3cbf8b2a0f9e7d8d17faaa6f4c5d1754d7",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/faithfulness-repair/5",
+      "head": "718f9f0cf330bede0206b6fdaefdbcc2b9676eab",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/faithfulness-repair/6",
+      "head": "0418437c346c3778c07119113601a9353711a4b3",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/faithfulness-repair/7",
+      "head": "130b1f5f6e13c17cb049774658f59fd97af0ec45",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "wip/faithfulness-repair/8",
+      "head": "d1a1778753baa40152ab8f5a2deebf85cc69bb1b",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/faithfulness-repair/9",
+      "head": "42a37a9e93f4c7674db53f58f8fad18f75cdfbdd",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/1",
+      "head": "7993e86da6e7588819584f88704a5a6e8da2a037",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/2",
+      "head": "3501cb406296cdd7c946728b9171c36e396c8acd",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/3",
+      "head": "f0802b63490475b7149343219dc04a304880b75b",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/4",
+      "head": "a04d176fbb43b695c7bf603c734cc23e1074bbfb",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/5",
+      "head": "6bd077ce2728865680556ff5c00681f3d4b56c80",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/6",
+      "head": "0dec8a030b56d1800054564331a678b0db2ae2db",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/7",
+      "head": "756cf6a9d0e08389029bb84673df3a0473740118",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/head-fixes/8",
+      "head": "975e4477cfc00d136b74facdbae9f37b71a65989",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "wip/modernize/1",
+      "head": "32136591707abbbe1e9e861787448fbafc19d11e",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/10",
+      "head": "8d690b5e470e00ba667b13ae6fa3f8e910d16569",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/11",
+      "head": "a0b6bca997f34ec02e2414e30e217f5984555a6a",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/12",
+      "head": "3e9629eb9b98299387df50be459d6d9d4b3f2202",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/13",
+      "head": "45dee917dfa11eed232ac3882c97415a0a57982f",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/14",
+      "head": "80a2bab0e52fe9a1bdad9e48d3cf3b47a99dc3e0",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/15",
+      "head": "38c98772d26b5454d7192f93fd06483c1df80e7d",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/2",
+      "head": "11ebc2c7e1706d5b11abae0d547c154855b40958",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/3",
+      "head": "2cc9614b04265bc80aeeba09080ccef5938543be",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/4",
+      "head": "9cb46de81e2dd2683fb83eeefab67e8fb2eab077",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/5",
+      "head": "57858fa813502c407a12c2028f0720fab21114e3",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/6",
+      "head": "98c24a2bdd4bb2595f453a5724106f88a2ec7f9f",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/7",
+      "head": "5018f22330a1508f054482d701651457fc3a0905",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/8",
+      "head": "a2c4d032dd301f91e45f21b5a1f1ebf46c58e207",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/modernize/9",
+      "head": "178bd9aff215386acc92d43e344252223136aae0",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/13",
+      "head": "dc0b4e7119a256e02d63a210776c1154684e0ae3",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/14",
+      "head": "28471de3b2158939ec41ca1263327f709441bc86",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/15",
+      "head": "3afed41e88cb47d25381925c5e02015d617dd481",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/16",
+      "head": "83cc95f6e1416e6afbd098d23d3943a3de9c2ac2",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/17",
+      "head": "27e0bb33a0a8a5798323db4d241dedd47513cdff",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/18",
+      "head": "e348539811d72b5b27e51608ed35c1906c02e0f3",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/19",
+      "head": "c7896b9e5dff273511bdb47cace171ca57622543",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/20",
+      "head": "648f2ce6720cfc088d6a851bfec6b3152af1e224",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/repin-v35/21",
+      "head": "8acea4153869c37ca068dd67a8190c2f7645c479",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/strengthen/12",
+      "head": "8733bce3dc2c2283f8f203a77bb918bc662b4312",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/1",
+      "head": "d736906fd5abc315599c5290e87dd095d97fd615",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/10",
+      "head": "4dade56e86fe1a034ed2c9e0ae20fda15a20f177",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/2",
+      "head": "5f95c9dda199f1df14d7a7b4c94d979713ab6ff8",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/3",
+      "head": "990e6197f0bb822be2c702105d85232a475b93f1",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/4",
+      "head": "cc7c131e80d310f70bb7ff476563bf57f005161d",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/5",
+      "head": "9ad58d3bddbb5f2e8c4fde48bf5bcf2ce3dcb407",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/6",
+      "head": "09247cbd920c73d30789d79a665085c7c4ddd030",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": false,
+      "conflicted_files": [
+        "EraSpec.lean"
+      ]
+    },
+    {
+      "branch": "wip/wave3a/7",
+      "head": "de94af1833577ba4da6cfd228e38eb0438cd10f2",
+      "commits_not_in_round7": 3,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/8",
+      "head": "6d990b1d9363ede4a6a34c02dca7c3d8ac85e931",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    },
+    {
+      "branch": "wip/wave3a/9",
+      "head": "28d0e2771e7ae2354b2b9a65c135e3627cbb5361",
+      "commits_not_in_round7": 1,
+      "merges_cleanly_into_round7": true,
+      "conflicted_files": []
+    }
+  ],
+  "summary": {
+    "origin_branches_not_in_round7": 107,
+    "merge_cleanly": 91,
+    "conflict": 16
+  }
+}
