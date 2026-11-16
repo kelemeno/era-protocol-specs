@@ -182,7 +182,9 @@ chain's transfer stays in limbo forever (`HaltedChainNeedsEndBranch`).
 last-batch check are load-bearing. With the batch-leaf path checked at hash level, a
 double payment locates a `PinnedBreak`/`PathCollision` on the recorded transfer's END
 submission (`PinnedBridgeNoDoublePaymentOrBreak`; `PinnedBridgeRefundWitness`,
-`ForgedLastBatchLocatesBreak`).
+`ForgedLastBatchLocatesBreak`). That check takes the walk's length to be the chain tree's
+height and the batch to be an occupied leaf, which the deployed verifier does not check
+(`LastLeafFaithful` drops both), and it too reads chain-tree leaf `i` as batch `i`.
 
 For the real manager's model (`Protocol/InteropAtomicity`), round 5 states P4 per
 call without a flow-hash premise: a logged execution and a logged refund authorization

@@ -26,6 +26,12 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
   single-chain all-or-nothing delivery of the whole flow, and nothing here
   claims it.
 
+  "Executable" here is the IMT half: the leg's membership persists.  A
+  destination's gate also needs a root covering the leg's batch imported on
+  that destination, its `L1_CHAIN_ID` equal to the flow's settlement layer,
+  and settlement data available (`Contracts.RootImport`: `ImportAvailable`,
+  `SettlementDataAvailable`).
+
   What this file establishes:
 
   * `leg_evidence_never_decays` — delivery evidence for a leg of the flow

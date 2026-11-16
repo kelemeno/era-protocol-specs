@@ -43,7 +43,12 @@ def Delivered (P : Protocol) (src : Chain) (v : UInt256) : Prop :=
 /-- A valid non-inclusion witness for `v` against chain `c`'s tree: a leaf whose
 window straddles `v`.  This is what `IndexedMerkleTree.verifyNonInclusion`
 accepts (modulo the Merkle path, which authenticates the leaf as belonging to
-`c`'s tree — see `EraSpec.Contracts.FullMerkle.Proofs.Model`). -/
+`c`'s tree — see `EraSpec.Contracts.FullMerkle.Proofs.Model`).
+
+**Correction (StaleSnapshotFaithful).**  At `c67894b9` the deployed check accepts more:
+`verifyNonInclusion` also accepts the sentinel `{0,0,0}` at an empty slot, whose padding
+hashes like it, and that sentinel is not a leaf of the tree
+(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`). -/
 def AbsenceWitnessAt (P : Protocol) (c : Chain) (v : UInt256) : Prop :=
   ∃ W ∈ P.trees c, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)
 

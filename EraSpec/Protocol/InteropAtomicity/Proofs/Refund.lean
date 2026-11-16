@@ -155,7 +155,10 @@ theorem accepted_timeout_authorizes {h : Hash} {z0 : UInt256} {hl : LeafHash}
   · exact Or.inr hb
 
 /-- **THE PUNCHLINE.**  An accepted timeout proof for a flow that delivered is a
-hash break. -/
+hash break.
+
+The Correction notes (LastLeafFaithful, LastBatchInRootOffset) on
+`Properties.AcceptedTimeoutAuthorizes` (`../Properties/Refund.lean`) apply here. -/
 theorem accepted_timeout_for_delivered_flow_is_a_break {h : Hash} {z0 : UInt256}
     {hl : LeafHash} (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash}
     {S : System} (hS : Wf S) {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R}

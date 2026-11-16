@@ -70,8 +70,13 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   the three comparisons and the last-batch proof (`IsLastOnTimeDerived`,
   `TimeoutMeansMissedDeadline`), under the settlement layer's `Aggregates`
   invariant. `StaleRootRefundsDeliveredLeg` shows that invariant is load-bearing,
-  so real-path claims inherit it. The halted-chain END branch is composed into the
-  reference bridge in `../../Examples/BurnMintBridge/` (topic `EndBranch`).
+  so real-path claims inherit it. The last-batch proof is modelled with the walk's
+  length taken to be the chain tree's height and the batch an occupied leaf, which the
+  deployed verifier does not check (`LastLeafFaithful`), and chain-tree leaf `i` is read
+  as batch `i` (first pushed batch 0 and `PROTO-CONTIGUOUS-PUSH`): see the Correction
+  notes in `Specs/Timeout.lean` (`LastBatchAccepted`, `RootBacking`). The halted-chain
+  END branch is composed into the reference bridge in `../../Examples/BurnMintBridge/`
+  (topic `EndBranch`).
 - **Refund.** One outcome per obligation over every interleaving of every chain's
   manager calls (`ExecutedObligationNeverRefunded`). A cross-flow refund yields a
   collision of the flow-id hash on the two flows' own preimages

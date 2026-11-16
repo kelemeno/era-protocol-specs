@@ -38,7 +38,9 @@ Statements over `../Specs/LastLeafFaithful.lean`.  Proofs:
   `AcceptedLastLeafAnyLengthOnSatisfiable` (two leaves at height 2) use tree shapes a
   deployed chain tree does not have: `DynamicIncrementalMerkle.push` grows the tree only
   when it is full (`DynamicIncrementalMerkle.sol:93-108`), so `n ≥ 1` leaves sit at
-  height `⌈log2 n⌉`.  The other witnesses use three leaves at height 2, a deployed shape.
+  height `⌈log2 n⌉`.  The other witnesses (`WrongLengthLastLeafAccepted`,
+  `AnyLengthConclusionNotAlways`, `AcceptedLastLeafNoHeightBreakOnSatisfiable`) use the
+  three leaves `[5, 7, 9]` at height 2, a deployed shape.
 -/
 
 namespace MerkleSpec.LastLeafFaithful
@@ -177,13 +179,14 @@ def Properties.AcceptedLastLeafAnyLengthOnSatisfiable : Prop :=
       ∧ (∃ l < k, (j / 2 ^ l) % 2 = 0)
       ∧ (∃ a b c d : UInt256, (a, b) ≠ (c, d) ∧ h a b = h c d)
 
-/-- **THE `NoHeightBreak` PREMISES ARE SATISFIABLE.**  On the instance of
-`AcceptedLastLeafAnyLengthOnSatisfiable` (two leaves `[5, 7]` under `demoHash`, height 2,
-the honest path for leaf 1, so `k = height`), every premise of
-`AcceptedLastLeafNoHeightBreakOn` holds: at the tree's height no `HeightBreak` is located,
-and its pair set (the tree's pairs and the pairs this verification hashed) lies inside that
-instance's.  So `AcceptedLastLeafNoHeightBreakOn` and `AcceptedLastLeafNoHeightBreakOrBreak`
-are not vacuous. -/
+/-- **THE `NoHeightBreak` PREMISES ARE SATISFIABLE.**  Three leaves `[5, 7, 9]` under
+`demoHash`, height 2, the honest path for the LAST leaf 2 with claimed leaf hash `9`, at
+`k = height = 2`: every premise of `AcceptedLastLeafNoHeightBreakOn` holds.  The zero check
+fires (and passes) at level 0, at the tree's height no `HeightBreak` is located, and
+`demoHash` is injective on the pair set (the tree's pairs and the pairs this verification
+hashed, five pairs).  So `AcceptedLastLeafNoHeightBreakOn` and
+`AcceptedLastLeafNoHeightBreakOrBreak` are not vacuous.  Three leaves at height 2 is a shape
+a deployed chain tree has (`DynamicIncrementalMerkle.push` puts three leaves at height 2). -/
 def Properties.AcceptedLastLeafNoHeightBreakOnSatisfiable : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
     (x : UInt256),

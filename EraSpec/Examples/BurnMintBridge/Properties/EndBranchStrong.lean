@@ -363,10 +363,10 @@ def Properties.CheckedExecutionWitnessZeroValueGap : Prop :=
 
 /-- **`PinnedBridgeRefundWitness`'s BODY ALLOWS A REFUND ON THE BEGIN BRANCH, NEXT TO AN END
 SUBMISSION FOR ANOTHER LEG.**  The first conjunct is that body, verbatim.  In the instance the
-leg of `i`'s END submission is not a prerequisite of `i`, one leg of `i` has a BEGIN-branch
-timeout against an imported root, and no leg of `i` has an END-branch timeout against any
-imported root.  So `pinnedEvidence` accepts a recovery of `i` only on the BEGIN branch, and the
-refund of the recorded `i` was authorized by a BEGIN-branch timeout
+leg of `i`'s END submission is not a prerequisite of `i`, so `pinnedEvidence` accepts a recovery
+of `i` only on the BEGIN branch.  One leg of `i` has a BEGIN-branch timeout against an imported
+root, and no leg of `i` has an END-branch timeout against any imported root.  The refund of the
+recorded `i` was therefore authorized by a BEGIN-branch timeout
 (`ReachableResolutionAuthorizedByRecord`), not by the accepted, break-free END submission.  The
 two extra conjuncts of `PinnedBridgeRefundWitnessLinked` both fail here, so in this world no
 final state meets that body. -/

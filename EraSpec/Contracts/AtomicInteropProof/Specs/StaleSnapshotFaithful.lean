@@ -40,16 +40,22 @@ This file restates the stale-snapshot gate over the concrete contract state:
 That pin is `StaleSnapshot`'s abstract model of the deadline gate: the deployed gate
 makes no such comparison.  `AttackVectors.StaleSnapshotBranches` maps the two deployed
 timeout branches onto the pin, under its own bridging premises.  The two topics are
-separate results: no theorem composes `StaleSnapshotBranches` with this one.  The composed
-statement is in the Atomicity model.  `Contracts.Timeout.TimeoutExcludesFinalityOrBreak`
-takes, over `Wf` systems, a timeout verified on either deployed branch with
-`verifyNonInclusion` acceptance (`Contracts.Atomicity.AbsenceAccepted`): the BEGIN branch
-reads `Contracts.Atomicity.beginTree`, in which `begin(n+1) = end(n)` is built in, and the
-END branch (which takes `_verifyLastBatchInRoot` by its conclusion) is bridged by
-`Contracts.Timeout.Aggregates`.  It concludes that no inclusion proof finalizes the leg at
-an on-time batch unless that proof or the absence proof carries a located break.  The
-padding instance `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak` is the
-deployed-branch counterpart of `Properties.PaddingReclaimRedeemsDeliveredLeg`.
+separate results: no theorem composes `StaleSnapshotBranches` with this one.  A composed
+statement is in the Atomicity model: `Contracts.Timeout.TimeoutMeansMissedDeadlineOrBreak`,
+the counterpart of `Properties.StaleWitnessNotRedeemableOrBreak`.  It takes, over `Wf`
+systems, a timeout verified on either deployed branch with `verifyNonInclusion` acceptance
+(`Contracts.Atomicity.AbsenceAccepted`): the BEGIN branch reads
+`Contracts.Atomicity.beginTree`, in which `begin(n+1) = end(n)` is built in, and the END
+branch (which takes `_verifyLastBatchInRoot` by its conclusion) is bridged by
+`Contracts.Timeout.Aggregates`.  It concludes that the leg's commit value is absent from its
+source chain's tree at every on-time batch, or the absence proof carries a located break.
+`Contracts.Timeout.TimeoutExcludesFinalityOrBreak`, on the same premises, concludes that no
+inclusion proof finalizes the leg at an on-time batch unless that proof or the absence
+proof carries a located break.  The padding instance
+`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak` is the deployed-branch counterpart of
+`Properties.PaddingReclaimRedeemsDeliveredLeg`.
+`Contracts.Timeout.AcceptedTimeoutMeansMissedDeadlineOrBreak` runs the END branch with the
+last-batch proof instead (`Contracts.Timeout.LastBatchAccepted`; see its Correction notes).
 
 The located break is `Contracts.InteropCommitmentTree.TreeRootBreak` on the submitted
 reclaim proof; its `paddingHit` case is the padding forgery.

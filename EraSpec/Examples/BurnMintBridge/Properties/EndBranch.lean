@@ -55,7 +55,8 @@ last-leaf result over every accepted submission is
 (`HeightBreak`) and a padded-entry case added.  `WrongLengthLastLeafAccepted` and
 `PaddedIndexLastLeafAccepted` show both cases passing those checks; there the claimed leaf hash
 is free, and on chain each witness needs a cross-length keccak preimage.  None of this is
-composed into the bridge.
+composed into the bridge.  At the index level, §2's `EndVia` likewise takes an occupied batch
+(`B < upTo + 1`) and a walk depth the tree fits in.
 
 ## Premises, and where each is shown satisfiable
 
@@ -333,8 +334,9 @@ prepared transfer all of whose prerequisites are on time, and its authorized exe
 statement does not ask the transfer to have a prerequisite; for one with none, the `finalize`
 conjunct holds vacuously (`Properties.CheckedExecutionWitnessGap`).  A prerequisite with commit
 value `0`, the tree's sentinel, is on time on a valid history as soon as some batch of its chain
-settled by its deadline, with nothing committed, so such prerequisites meet the body on a
-history where no nonzero value is ever on time (`Properties.CheckedExecutionWitnessZeroValueGap`).
+settled by its deadline, with nothing committed, so a transfer whose prerequisites all have
+commit value `0` meets the body on a history where no nonzero value is ever on time
+(`Properties.CheckedExecutionWitnessZeroValueGap`).
 The form with at least one prerequisite, each with a nonzero commit value, is
 `Properties.CheckedExecutionWitnessPinned` (`Properties/EndBranchStrong.lean`). -/
 def Properties.CheckedExecutionWitness : Prop :=

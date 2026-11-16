@@ -35,6 +35,10 @@ one settles no earlier than the root's creation time `T`).  The on-chain form of
 `LastBatchInRoot.RightEmpty` together with the aggregation assumption
 `LastBatchInRoot.OutsideRootLate`.  Hashes, proof encodings, and the settlement-layer
 chain-id check are not modelled.
+
+That on-chain form reads chain-tree leaf position `B` as batch `B` and takes the walk at the
+tree's height with an occupied index: the Correction notes (LastBatchInRootOffset,
+LastLeafFaithful) in `LastBatchInRoot` apply to it.
 -/
 
 namespace AttackVectors.TimeoutSoundness

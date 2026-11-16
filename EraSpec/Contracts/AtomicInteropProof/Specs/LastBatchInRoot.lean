@@ -31,6 +31,18 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.TimeoutSoundness
   it is a computable one.  If leaf `i+1` is also filled, the level that betrays it is the number of
   TRAILING ONES of `i` -- the level at which the path first turns left.  So the check cannot be
   weakened to "some prefix of levels" without losing exactly this witness.
+
+  Correction (LastLeafFaithful).  The index argument takes the walk at the tree's height and an
+  occupied index `i < n`.  The deployed loop runs over the submitted path length and mask, and a
+  wrong length or a padded index passes every check the contract performs, excluded only by hash
+  domain separation (`MerkleSpec.LastLeafFaithful.WrongLengthLastLeafAccepted`,
+  `PaddedIndexLastLeafAccepted`).
+
+  Correction (LastBatchInRootOffset).  The composition (`end_branch_from_onchain_check`) uses `B`
+  both as the leaf position the check proves last and as a batch number, and its
+  `OutsideRootLate (· < nBatches)` reads positions `0 … nBatches - 1` as batches: first pushed
+  batch 0 and every later batch pushed (`PROTO-CONTIGUOUS-PUSH`, ASSUMPTIONS.md); see
+  `AttackVectors.LastBatchInRootOffset`.
 -/
 
 namespace AttackVectors.LastBatchInRoot

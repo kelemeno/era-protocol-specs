@@ -92,6 +92,13 @@ The batch and settlement-layer side, which the fixed history took as given:
 * **`_verifyLastBatchInRoot` is modelled by its conclusion** `N = R.upTo c`
   (`EndBranchVerified.lastInRoot`).  The path form reduces to it, or to a pinned collision on
   the submitted path (`Contracts.Timeout.Properties.EndBranchAcceptedImpliesVerifiedPinned`).
+  **Correction (LastLeafFaithful).**  That path form is `EndBranchAccepted`, which takes the
+  walk's length to be the chain tree's height and the batch to be an occupied leaf; the deployed
+  check leaves both to the prover
+  (`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`).
+  **Correction (LastBatchInRootOffset).**  That reduction gets `N = R.upTo c` from
+  `RootBacking.upToLast`, which reads chain-tree leaf position `i` as batch `i`: first pushed
+  batch 0 and `PROTO-CONTIGUOUS-PUSH` (`Specs/Timeout.lean`, `RootBacking`).
 * **Every chain id is registered at genesis**, with its genesis batch 0 (the freshly seeded
   tree) settled at time 0.  That is `MessageRoot.seedGenesisRoot` (`MessageRootBase.sol:
   364-387`) with `ChainBatchRootTree.genesisChainBatchRoot` (`ChainBatchRootTree.sol:57-65`),

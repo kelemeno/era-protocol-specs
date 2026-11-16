@@ -56,7 +56,10 @@ These checks are omitted.  All of them can only reject a call:
 
 * the handler's pause check, destination check, execution-address check and
   `bundleStatus == Unreceived` replay guard (`L2InteropHandler.sol:50-79`);
-* the settlement-layer check (`AtomicFlowManager.sol:111, 136, 236-240`).
+* the settlement-layer check (`AtomicFlowManager.sol:111, 136, 236-240`);
+* the authentication of each proof's batch root against a settlement-layer root imported
+  on the chain that runs the call (`_authenticateRoot`): `ExecutedViaBy` is the IMT half
+  of the gate, checked against the true root (`Contracts.RootImport` adds the import).
 
 Omitting them admits more executions, never fewer, so a result that excludes an outcome
 over `RunLog` is the stronger claim.  As in `ReachLog`, the tree side is the fixed

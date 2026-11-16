@@ -44,6 +44,12 @@ The only thing standing between the protocol and that attack is one comparison i
 `unbound_gate_refunds_delivered_leg` is the countermodel showing the attack is
 real without it; `bound_gate_excludes_delivered` shows the check is sufficient.
 
+**Correction (StaleSnapshotFaithful).**  Sufficient for a genuine absence witness, a leaf of
+the tree (`AbsenceWitnessAt`).  At `c67894b9` the deployed `verifyNonInclusion` also accepts
+the sentinel `{0,0,0}` at an empty slot, so a delivered leg can pass the refund gate on its
+declared source chain (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`,
+`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).
+
 ## What is assumed
 
 Nothing about keccak: no statement here has a hash premise.  The countermodel is
@@ -69,7 +75,10 @@ open IMTAbstract
 
 /-- **THE SOURCE-CHAIN CHECK IS SUFFICIENT.**  With the binding in place, a
 delivered leg can never pass the refund gate.  Only the source chain's tree is
-assumed sound; the other chains may be in any state. -/
+assumed sound; the other chains may be in any state.
+
+The gate here takes a genuine leaf as the witness; the module docstring's Correction
+(StaleSnapshotFaithful) note says what the deployed absence check accepts beyond that. -/
 abbrev Properties.bound_gate_excludes_delivered {P : Protocol} {src : Chain} {v : UInt256}
     (hsound : SoundState (P.trees src)) (hdel : Delivered P src v) :=
   ¬ BoundGate P src v

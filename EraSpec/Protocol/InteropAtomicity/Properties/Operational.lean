@@ -535,7 +535,9 @@ every leg `leg` of `F` that is `Committed` on its chain, `authorizeRefund` accep
 marking `leg` with `missing` as the missing leg, against `R`: on the BEGIN branch at the
 first late batch inside `R` if there is one, else on the END branch at `R`'s last batch of
 `missing`'s chain (a chain that halted before the deadline still gets its refund).  The
-call is a one-step continuation of the run. -/
+call is a one-step continuation of the run.  The model imports every recorded root on every
+chain at once; on the contract `authorizeRefund` also needs `R` imported on the chain that runs
+it (`AtomicInteropProof.sol:171-179`, header item 5). -/
 def Properties.OpTimedOutLegIsRefundable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
     (Y : OpState) (log : List Obligation) (clog : List CheckedCall),
@@ -574,8 +576,10 @@ holds:
 
 * every leg of `F` can be executed now, by the model's gate (`OpFinalizedFlowIsExecutable`'s
   conclusion);
-* some leg `missing` of `F` makes every `Committed` leg of `F` refundable now
-  (`OpTimedOutLegIsRefundable`'s conclusion).
+* some leg `missing` of `F` makes every `Committed` leg of `F` refundable now, by an
+  `authorizeRefund` call against a recorded root, which the model imports on every chain
+  (`OpTimedOutLegIsRefundable`'s conclusion); on the contract that root must also be imported
+  on the chain that runs the call (header item 5).
 
 By `OpOnTimeBatchesFinalAfterRoot` the case that holds never changes along any continuation
 (the conclusion of each case is a statement about the state it is evaluated at).  This is

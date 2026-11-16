@@ -481,8 +481,10 @@ theorem checked_execution_witness_zero_value_gap :
   · rintro l hv ⟨n, -, hmem⟩
     exact halted_never_on_time hv n hmem
 
-/-- `chainOneSubmission`'s path passes `_verifyLastBatchInRoot` against every chain's tree of
-`demoBacking`, as the demo submission's does. -/
+/-- `chainOneSubmission`'s path passes `_verifyLastBatchInRoot` (`LastBatchAccepted`, batch 1)
+against the tree of chain `chainOneLeg.sourceChain` in `demoBacking`.  The fields are those of
+`Contracts.Timeout.demo_endBranchAccepted`, stated for chain 0: every chain's tree in
+`demoBacking` is `[5, 7]` at height 2. -/
 theorem chainOne_lastBatch :
     Contracts.Timeout.LastBatchAccepted Contracts.Timeout.demoBacking chainOneLeg.sourceChain 1
       chainOneSubmission.sibs chainOneSubmission.leaf :=

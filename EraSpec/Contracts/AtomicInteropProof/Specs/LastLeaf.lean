@@ -40,6 +40,12 @@ the disjunction when one is willing to assume both idealizations.
 Ported from the `claude/proof-attempt-4f3778` line (`EraSpec/Core/LastLeaf.lean`).
 `_verifyLastBatchInRoot` is in `AtomicInteropProof`, so it lives here, next to the
 older `LastBatchInRoot` topic.  Results: `../Properties/LastLeaf.lean`.
+
+**Correction (LastLeafFaithful).**  The argument walks the tree's own height from an
+occupied leaf `j`.  The deployed check takes the path length and mask from the prover;
+over every accepted submission the result is
+`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`, with a wrong-length and a
+padded-entry case added.
 -/
 
 namespace MerkleSpec.LastLeaf

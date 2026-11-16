@@ -111,6 +111,10 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
   `AttackVectors.StaleSnapshot.deadline_gate_indispensable` shows accepting
   a gap witness at an UNPINNED (stale) snapshot re-admits double redemption.
 
+  Correction (StaleSnapshotBranches).  The deployed timeout gate makes no
+  `D < t (j+1)` comparison: `AttackVectors.StaleSnapshotBranches` maps its
+  two branches onto the pin, under `BeginIsPrevEnd` and `LaterBatchesLate`.
+
   ## OUT OF SCOPE / NOT PROVED HERE
 
   (i)  This is the ABSTRACT set-level layer.  It does NOT by itself prove

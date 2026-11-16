@@ -55,7 +55,9 @@ ASSUMPTIONS.md).
 
 **Correction (LastLeafFaithful).**  Level 3's `LastBatchAccepted` takes the batch-leaf walk's
 length to be the chain tree's height and the batch to be an occupied leaf, which the deployed
-verifier does not check.  `../Properties/EndBranch.lean` spells out both notes.
+verifier does not check.  Level 2's `EndVia` likewise takes an occupied batch
+(`B < upTo + 1`) and a walk depth the tree fits in.  `../Properties/EndBranch.lean` spells out
+both notes.
 
 The settlement layer's side of the bargain is `RootAggregates` (`PROTO-AGGREGATES`,
 `Contracts.Timeout.Aggregates` for this history): a batch that settled by the time a root

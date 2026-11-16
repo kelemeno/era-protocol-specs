@@ -127,22 +127,31 @@ replacement.
 
 The deployed-branch results (`StaleSnapshotBranches`) and the verifier-faithfulness
 results (`StaleSnapshotFaithful`) are separate: no theorem composes `StaleSnapshotBranches`
-with `StaleSnapshotFaithful`. The composed statement is in the Atomicity model.
-`Contracts.Timeout.TimeoutExcludesFinalityOrBreak`
-(`Protocol/InteropAtomicity/Properties/Timeout.lean`) takes a `Wf` system (every chain's
-trees reached from `setup` by guarded inserts, batch times monotone, every tree within its
-height) and a timeout verified on either deployed branch, with the absence proof accepted
-by `verifyNonInclusion` (`Contracts.Atomicity.AbsenceAccepted`). Its BEGIN branch reads
+with `StaleSnapshotFaithful`. A composed statement is in the Atomicity model
+(`Protocol/InteropAtomicity/Properties/Timeout.lean`):
+`Contracts.Timeout.TimeoutMeansMissedDeadlineOrBreak`, the counterpart of
+`StaleWitnessNotRedeemableOrBreak`. It takes a `Wf` system (every chain's trees reached
+from `setup` by guarded inserts, batch times monotone, every tree within its height), the
+`Contracts.Timeout.Aggregates` premise on the root (`PROTO-AGGREGATES`), and a timeout
+verified on either deployed branch at batch `N`, with the absence proof accepted by
+`verifyNonInclusion` (`Contracts.Atomicity.AbsenceAccepted`). Its BEGIN branch reads
 `beginTree`, in which `begin(n+1) = end(n)` is built in (the counterpart of
 `BeginIsPrevEnd`). Its END branch (`Contracts.Timeout.EndBranchVerified`) takes
-`_verifyLastBatchInRoot` by its conclusion, and the theorem's `Contracts.Timeout.Aggregates`
-premise on the root (`PROTO-AGGREGATES`) is that branch's bridge. It concludes, for every
-batch `n` and inclusion proof `p'`, that `p'` does not finalize the leg at `n` on time, or
-`p'` carries an `InclusionBreak`, or the absence proof carries an `AbsenceBreak`. The
-padding instance `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak` is the
+`_verifyLastBatchInRoot` by its conclusion, and `Aggregates` is that branch's bridge. It
+concludes that the leg's commit value is absent from its source chain's tree at every
+batch that settled by the deadline, or the absence proof carries an `AbsenceBreak`.
+`Contracts.Timeout.TimeoutExcludesFinalityOrBreak` takes the same premises and concludes,
+for every batch `n` and inclusion proof `p'`, that `p'` does not finalize the leg at `n` on
+time, or `p'` carries an `InclusionBreak`, or the absence proof carries an `AbsenceBreak`.
+The padding instance `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak` is the
 deployed-branch counterpart of `PaddingReclaimRedeemsDeliveredLeg`: with the pinned padding
 constant `hashLeaf({0,0,0})`, a leg committed on time passes that gate on the BEGIN branch
 on the forged padding proof, and the break is an `AbsenceBreak` on that proof.
+`Contracts.Timeout.AcceptedTimeoutMeansMissedDeadlineOrBreak` runs the END branch with the
+last-batch proof instead and adds a `PinnedBreak` or `PathCollision` located on the
+submitted batch-leaf path. That proof is `LastBatchAccepted`, which pins the walk's length
+to the tree's height and `N` to an occupied leaf, over `RootBacking`, which reads leaf
+position `N` as batch `N` (see their Correction notes).
 
 These modules expose the hypotheses used by the library's argument. They do not
 prove the compiled verifier, authenticate imported roots, or establish settlement

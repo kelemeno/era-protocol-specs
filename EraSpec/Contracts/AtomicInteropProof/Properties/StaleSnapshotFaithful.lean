@@ -34,8 +34,9 @@ composed, so "a reclaim of a delivered leg" here means the absence check plus th
 abstract pin.
 
 Readings this repair replaces, each now marked "Correction (StaleSnapshotFaithful)":
-`StaleSnapshot`'s header (in its Specs, Properties and Proofs files) and its
-`stale_witness_not_redeemable`.
+`StaleSnapshot`'s header (in its Specs, Properties and Proofs files), its
+`stale_witness_not_redeemable` and `pinning_gate_rejects_stale_witness`, and
+`Timestamps.monotone_blocks_the_attack` (these three in their Properties and Proofs files).
 -/
 
 namespace AttackVectors.StaleSnapshotFaithful

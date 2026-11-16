@@ -20,9 +20,10 @@ Definitions used by `../Properties/EndBranchStrong.lean`; proofs in
   timeout, against the other a BEGIN-branch timeout.
 * `twoLegFlow` gives a transfer two prerequisites. On `splitHistory`, against one imported
   root, one of them has a BEGIN-branch timeout and the other an END-branch timeout.
-* `zeroLeg` (commit value `0`) and `chainOneSubmission` (an honest END submission for
-  `chainOneLeg`) are the instances of the gaps of `CheckedExecutionWitness` and
-  `PinnedBridgeRefundWitness`.
+* `zeroLeg` (commit value `0`) is the only prerequisite in the instance of
+  `CheckedExecutionWitnessZeroValueGap`; the instance of `CheckedExecutionWitnessGap` has no
+  prerequisite.  `chainOneSubmission` (an honest END submission for `chainOneLeg`) is the END
+  submission in the instance of the §3 gap, `PinnedBridgeRefundWitnessGap`.
 
 **This file is definitions only.**
 -/

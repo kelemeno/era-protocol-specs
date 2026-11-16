@@ -36,6 +36,12 @@ aggregation root, with the last-batch proof itself discharged in
 step.  So the capstone covers the real path, and the "last in-time batch" fact that
 `Contracts.Atomicity.IsLastOnTime` used to stand for is derived rather than assumed.
 
+**Correction (LastLeafFaithful).**  That discharge is over `LastBatchAccepted`, which takes the
+batch-leaf walk's length to be the chain tree's height and the batch to be an occupied leaf; the
+deployed verifier checks neither.  **Correction (LastBatchInRootOffset).**  It reads the proven
+leaf position as the batch number, which needs first pushed batch 0 and `PROTO-CONTIGUOUS-PUSH`.
+See the notes on `Properties.AcceptedTimeoutAuthorizes` and in `../Specs/Timeout.lean`.
+
 What that conclusion *does* carry is `Contracts.Timeout.Aggregates`, the settlement
 layer's own invariant: the route from a verified timeout to this capstone runs
 through `Properties.VerifiedTimeoutAuthorizes`, which needs it.  The capstone's own statement
@@ -129,7 +135,12 @@ def Properties.OneExecutionFreezesTheFlow : Prop :=
 
 /-- **A VERIFIED TIMEOUT ENABLES THE REFUND.**  What `verifyTimeoutAbsence` actually
 checks, against an imported aggregation root, is enough to authorize the step — so
-the results above cover the real path with no "last in-time batch" fact assumed. -/
+the results above cover the real path with no "last in-time batch" fact assumed.
+
+**Correction (LastLeafFaithful).**  The END branch's `lastInRoot` is taken as a conclusion.  The
+deployed check, with the walk's length and index the prover's, shows that the proven leaf is the
+last one at the tree's height or exhibits a located break
+(`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`), not composed here. -/
 def Properties.VerifiedTimeoutAuthorizes : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (S : System) (R : SlRoot),
     Aggregates S R → ∀ (F : Flow) (leg : FlowLeg), leg ∈ F.legs →
@@ -150,7 +161,18 @@ def Properties.RefundedFlowMissedDeadline : Prop :=
 
 /-- **AN ACCEPTED TIMEOUT PROOF ENABLES THE REFUND, OR BREAKS A HASH.**  The gate as
 the contract runs it — including `_verifyLastBatchInRoot` rather than its conclusion
-— authorizes the step. -/
+— authorizes the step.
+
+**Correction (LastLeafFaithful).**  The gate here is `LegRefundableAccepted`, whose END branch's
+`LastBatchAccepted` takes the batch-leaf walk's length to be the chain tree's height and the
+batch to be an occupied leaf; the deployed verifier checks neither (`../Specs/Timeout.lean`,
+`LastBatchAccepted`).  The last-leaf result over every accepted submission is
+`MerkleSpec.LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak`; it is not composed here.
+
+**Correction (LastBatchInRootOffset).**  `RootBacking` reads chain-tree leaf position `N` as
+batch `N`, which needs first pushed batch 0 and `PROTO-CONTIGUOUS-PUSH` (`../Specs/Timeout.lean`,
+`RootBacking`); `AttackVectors.LastBatchInRootOffset.EndBranchFromOnchainCheckOffset` keeps the
+two apart. -/
 def Properties.AcceptedTimeoutAuthorizes : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (S : System) (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R),
@@ -167,7 +189,11 @@ are well formed, the settlement layer aggregates honestly, the flow passed
 any of its legs exists — unless the prover has a collision in hand.
 
 This is the dependency chain complete: accepted proof → last included batch → no
-later in-time batch → justified timeout → obligation exclusivity. -/
+later in-time batch → justified timeout → obligation exclusivity.
+
+Its "accepted proof" is `LegRefundableAccepted` and its "last included batch" is the proven
+leaf position read as a batch number: the Correction notes (LastLeafFaithful,
+LastBatchInRootOffset) on `Properties.AcceptedTimeoutAuthorizes` apply here. -/
 def Properties.AcceptedTimeoutForDeliveredFlowIsABreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (fh : FlowHash) (S : System), Wf S →
@@ -489,7 +515,10 @@ open MerkleSpec.Verifier
 take `HashAssumptions` and conclude an unpinned `HashBreak`, which is always inhabited.
 The forms below take no hash premise and locate the break on the submitted proofs:
 the batch-leaf path `(sibs, x)` (`PinnedBreak` / `PathCollision`), the absence proof
-`p` (`AbsenceBreak`), and the executed flow's inclusion proof (`InclusionBreak`). -/
+`p` (`AbsenceBreak`), and the executed flow's inclusion proof (`InclusionBreak`).
+
+The Correction notes (LastLeafFaithful, LastBatchInRootOffset) on
+`Properties.AcceptedTimeoutAuthorizes` apply to these statements too. -/
 
 /-- **AN ACCEPTED TIMEOUT PROOF AUTHORIZES THE REFUND, OR PINS A COLLISION ON ITS
 LAST-BATCH PATH.** -/
@@ -520,7 +549,10 @@ def Properties.AcceptedTimeoutAuthorizesPinnedWitness : Prop :=
 repaired `Properties.AcceptedTimeoutForDeliveredFlowIsABreak`: if a leg executed on gate
 evidence `ev`, then no leg `other` of the flow passes the timeout gate as the contract
 runs it on `(N, p, sibs, x)`, unless `ev other` carries a break, or `p` does, or the
-last-batch path `(sibs, x)` pins a collision. -/
+last-batch path `(sibs, x)` pins a collision.
+
+"As the contract runs it" is `LegRefundableAcceptedBy`: the Correction notes (LastLeafFaithful,
+LastBatchInRootOffset) on `Properties.AcceptedTimeoutAuthorizes` apply here. -/
 def Properties.ExecutedExcludesAcceptedRefundOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (ze : UInt256) (R : SlRoot) (B : RootBacking h ze R), Aggregates S R →

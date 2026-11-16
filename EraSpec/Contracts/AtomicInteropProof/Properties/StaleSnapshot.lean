@@ -145,7 +145,13 @@ snapshot carrying a reclaim witness for `v` can pass the pinning check
 `D < t (j+1)`.  The attacker's stale witness is genuine — absence at `j`
 really held — but the reclaim gate's timestamp comparison is precisely the
 condition it can never satisfy.  Contrapositive packaging of
-`delivered_and_reclaimed_impossible`. -/
+`delivered_and_reclaimed_impossible`.
+
+**Correction (StaleSnapshotFaithful).**  The witness here is a genuine leaf
+`W ∈ S j`; for an absence proof the deployed check accepts, the pin can pass
+on a value delivered on time
+(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+Over accepted proofs the statement is `PinningGateRejectsStaleWitnessOrBreak`. -/
 abbrev Properties.pinning_gate_rejects_stale_witness {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)
     {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i))

@@ -245,19 +245,45 @@ theorem accepted_last_leaf_any_length_on_satisfiable :
   · norm_num at hev
   · decide
 
-/-- The instance of `accepted_last_leaf_any_length_on_satisfiable`, at `k = height = 2`:
-no `HeightBreak` at the tree's height, and the pair set without the path pairs is a subset
-of that instance's. -/
+/-- Three leaves `[5, 7, 9]` at height 2, a shape a deployed chain tree has, and the honest
+path for the last leaf 2 with `x = 9`, at `k = height = 2`: no `HeightBreak` at the tree's
+height, the zero check fires (and passes) at level 0, and the pair set is five explicit
+pairs on which `demoHash` is injective. -/
 theorem accepted_last_leaf_no_height_break_on_satisfiable :
     Properties.AcceptedLastLeafNoHeightBreakOnSatisfiable := by
-  refine ⟨demoHash, 0, [5, 7], honestSibs demoHash 0 [5, 7] 1, 2, 2, 1, 7, by decide,
-    ⟨by norm_num, by decide, ?_⟩, heightBreak_not_tautology.1 _ _ _ _ _ _ _, by decide,
-    demo_entriesNotEmpty,
-    pairInjOn_mono demo_pairInjOn' (fun _ hp => hp.elim Or.inl (fun hv => Or.inr (Or.inr hv)))⟩
+  have hmem : ∀ p, TreePair demoHash 0 [5, 7, 9] 2 p
+      ∨ VerifiedPair demoHash (honestSibs demoHash 0 [5, 7, 9] 2) 2 2 9 p →
+      p = (5, 7) ∨ p = (9, 0) ∨ p = (20, 10) ∨ p = (0, 0) ∨ p = (1, 1) := by
+    rintro p ((⟨l, hl, m, hm, rfl⟩ | ⟨l, hl, rfl⟩) | ⟨i, hi, rfl⟩)
+    · interval_cases l
+      · rcases m with _ | _ | m
+        · decide
+        · decide
+        · exact absurd hm (Nat.not_lt.mpr (Nat.le_trans (by decide)
+            (Nat.mul_le_mul_right _ (Nat.le_add_left 2 m))))
+      · rcases m with _ | m
+        · decide
+        · exact absurd hm (Nat.not_lt.mpr (Nat.le_trans (by decide)
+            (Nat.mul_le_mul_right _ (Nat.le_add_left 1 m))))
+    · interval_cases l <;> decide
+    · interval_cases i <;> decide
+  have hinj : PairInjOn demoHash (fun p => TreePair demoHash 0 [5, 7, 9] 2 p
+      ∨ VerifiedPair demoHash (honestSibs demoHash 0 [5, 7, 9] 2) 2 2 9 p) := by
+    intro p q hp hq he
+    rcases hmem p hp with rfl | rfl | rfl | rfl | rfl <;>
+      rcases hmem q hq with rfl | rfl | rfl | rfl | rfl <;>
+      first | rfl | exact absurd he (by decide)
+  have hsep : EntriesNotEmpty 0 [5, 7, 9] := by
+    intro m hm
+    have hm' : m < 3 := hm
+    interval_cases m <;> decide
+  refine ⟨demoHash, 0, [5, 7, 9], honestSibs demoHash 0 [5, 7, 9] 2, 2, 2, 2, 9, by decide,
+    ⟨by norm_num, honest_walk_root demoHash 0 [5, 7, 9] 2 2 (by norm_num), ?_⟩,
+    heightBreak_not_tautology.1 _ _ _ _ _ _ _, by decide, hsep, hinj⟩
   intro l hl hev
   interval_cases l
-  · norm_num at hev
   · decide
+  · norm_num at hev
 
 /-! ## Certificates -/
 

@@ -125,7 +125,10 @@ theorem accepted_implies_refundable {h : Hash} {z0 : UInt256} {hl : LeafHash}
   · exact Or.inl (verified_implies_refundable hagg hv)
   · exact Or.inr hbreak
 
-/-- **THE COMPLETE CHAIN.** -/
+/-- **THE COMPLETE CHAIN.**
+
+The Correction notes (LastLeafFaithful, LastBatchInRootOffset) at the start of the last-batch
+section of `../Properties/Timeout.lean` apply here. -/
 theorem accepted_timeout_means_missed_deadline {h : Hash} {z0 : UInt256} {hl : LeafHash}
     (hA : HashAssumptions h z0 hl) {cv : CommitValue} {S : System} (hS : Wf S)
     {ze : UInt256} {R : SlRoot} {B : RootBacking h ze R} (hagg : Aggregates S R)

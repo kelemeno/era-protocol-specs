@@ -149,7 +149,14 @@ exhibited by `monotone_timestamps_indispensable` is impossible: no history from
 a sound base admits both on-time delivery evidence and a deadline-pinned
 reclaim witness for the same value.  Direct packaging of
 `IMTAbstract.delivered_and_reclaimed_impossible` (cited, not re-proved) — the
-exact statement whose hypothesis the counterexample above removes. -/
+exact statement whose hypothesis the counterexample above removes.
+
+**Correction (StaleSnapshotFaithful).**  The reclaim witness here is a genuine
+leaf `W ∈ S j`.  For an absence proof the deployed check accepts, monotone times
+do not block the attack: there is a run with monotone times on which a value
+delivered on time has an accepted absence proof at a snapshot that meets
+`D < t (j+1)` (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`. -/
 abbrev Properties.monotone_blocks_the_attack {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)
     {i : ℕ} (hti : t i ≤ D) (hdel : v ∈ keys (S i))
@@ -171,7 +178,13 @@ core holds under the purely local hypothesis `j + 1 ≤ i → t (j+1) ≤ t i`: 
 timestamps of ALL OTHER snapshot pairs may be arbitrary — inverted, random,
 adversarial.  The contract therefore only needs settlement times to be ordered
 between the pinning snapshot `j+1` and the snapshot a delivery proof is
-verified against. -/
+verified against.
+
+**Correction (StaleSnapshotFaithful).**  That is what the times must satisfy for a genuine
+witness `W ∈ S j`.  For an absence proof the deployed check accepts, ordered times are not
+enough: `AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg` has monotone
+times, a value delivered on time and an accepted absence proof at a snapshot that meets
+`D < t (j+1)`. -/
 abbrev Properties.delivered_and_reclaimed_impossible_local {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : GapSound (S 0)) (hinj0 : KeyInj (S 0))
     {i j : ℕ} (hloc : j + 1 ≤ i → t (j + 1) ≤ t i)
