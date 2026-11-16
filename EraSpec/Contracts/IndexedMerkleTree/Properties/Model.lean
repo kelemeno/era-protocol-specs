@@ -547,12 +547,21 @@ Specializing the analytic theorems to a `GuardedEvolution` from the genesis
 singleton `{⟨0,0⟩}`.  These are the statements a concrete `L2InteropCommitmentTree`
 run discharges directly: no `Evolution`/`SoundState` obligations survive — the
 guard shape and genesis are the only hypotheses (plus timestamp monotonicity for
-the delivery statement). -/
+the delivery statement).
+
+**Correction (StaleSnapshotFaithful).**  The reclaim witness here is a member leaf `W ∈ S j`.
+At `c67894b9` the deployed `verifyNonInclusion` can also accept the padding sentinel `{0,0,0}`
+at an empty slot, so on a real run a delivered value can have an accepted reclaim proof
+(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`;
+`padding_leaf_forges_on_guarded_history` in `Properties/ModelStrong.lean`; the Sharpness
+section below). -/
 
 /-- **RECLAIM DICHOTOMY FOR REAL HISTORIES.**  Along any guarded history from
 genesis, a nonzero commit value `v` has a valid reclaim witness at snapshot `j`
 iff `v` is absent from `S j`: the refund gate fires on exactly the legs the tree
-never delivered — no false refunds, no missed refunds. -/
+never delivered — no false refunds, no missed refunds.
+
+**Correction (StaleSnapshotFaithful).**  For a member-leaf witness; see this section's note. -/
 abbrev Properties.guardedEvolution_reclaimable_iff_absent {S : ℕ → Finset AbsLeaf} (hge : GuardedEvolution S)
     (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf))
     {j : ℕ} {v : UInt256} (hv0 : v ≠ 0) :=
@@ -563,7 +572,9 @@ abbrev Properties.guardedEvolution_reclaimable_iff_absent {S : ℕ → Finset Ab
 /-- **DELIVERY IS FINAL FOR REAL HISTORIES.**  On-time delivery evidence for
 `v` at snapshot `i` (of a guarded history from genesis, with monotone settlement
 timestamps) persists at every later snapshot AND forecloses every future reclaim
-witness for `v`: a delivered leg can never be raced by a refund. -/
+witness for `v`: a delivered leg can never be raced by a refund.
+
+**Correction (StaleSnapshotFaithful).**  For a member-leaf witness; see this section's note. -/
 abbrev Properties.guardedEvolution_delivered_available_forever {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hge : GuardedEvolution S) (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf))
     (htmono : Monotone t)

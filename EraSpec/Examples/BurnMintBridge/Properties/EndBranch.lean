@@ -206,7 +206,10 @@ def Properties.EndCheckIffLastInRoot : Prop :=
   ∀ (H : History) (R : Contracts.Timeout.SlRoot) (l : Leg), EndVia H R l ↔ EndLastVia H R l
 
 /-- **A BEGIN-BRANCH TIMEOUT MEANS NEVER FINALIZED**, with no settlement-layer premise
-(`TimeoutSoundness.begin_absence_implies_never_finalized`). -/
+(`TimeoutSoundness.begin_absence_implies_never_finalized`).
+
+**Correction (StaleSnapshotFaithful).**  The absence witness is a genuine leaf (`GapWitness`);
+the deployed check accepts more (module docstring of `../Specs/EndBranch.lean`). -/
 def Properties.BeginViaNeverFinalized : Prop :=
   ∀ (H : History) (R : Contracts.Timeout.SlRoot), H.Valid → ∀ (l : Leg), BeginVia H R l →
     ∀ n, H.settledAt l.sourceChain n ≤ l.deadline →
@@ -237,7 +240,10 @@ def Properties.TimeoutViaImpliesMissing : Prop :=
   ∀ (H : History) (R : Contracts.Timeout.SlRoot), H.Valid → RootAggregates H R →
     ∀ (l : Leg), TimeoutVia H R l → Missing H l
 
-/-- The as-run evidence is sound when every imported root aggregates. -/
+/-- The as-run evidence is sound when every imported root aggregates.
+
+**Correction (StaleSnapshotFaithful).**  "As run" with a genuine-leaf absence witness; see the
+module docstring of `../Specs/EndBranch.lean`. -/
 def Properties.CheckedEvidenceSound : Prop :=
   ∀ (H : History) (roots : Roots), H.Valid → (∀ k, RootAggregates H (roots k)) →
     ∀ (flow : Transfer → List Leg), (checkedEvidence H roots flow).Sound

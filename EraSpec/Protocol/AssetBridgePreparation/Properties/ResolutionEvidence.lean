@@ -20,7 +20,9 @@ quantified, and the breaks are located on named submitted proofs.
 
 ## Multichain refund gate
 
-* `MultichainGateSound`: with every chain's tree valid, the bound gate is sound outright.
+* `MultichainGateSound`: with every chain's tree valid, the bound gate is sound outright, for a
+  genuine-leaf absence witness (Correction (StaleSnapshotFaithful) in
+  `../Specs/ResolutionEvidence.lean`).
 * `MultichainTwoChainConserved`: the books balance and each entry is resolved at most once.
 * `MultichainUnboundGateDoublePays` (countermodel): without the source-chain check, a bridge run
   over valid trees delivers and refunds the same entry and the books end its amount too high.
@@ -145,7 +147,10 @@ def Properties.InteropTwoChainPaddingDoublePayLocated : Prop :=
 
 /-- **THE BOUND MULTICHAIN GATE IS SOUND.** If every chain's commitment-tree contract state is
 valid, no entry has both a delivered commit value and an absence witness on its declared source
-chain. -/
+chain.
+
+**Correction (StaleSnapshotFaithful).**  The absence witness is a genuine leaf; the deployed check
+can accept more (see `../Specs/ResolutionEvidence.lean`). -/
 def Properties.MultichainGateSound : Prop :=
   ∀ (T : UInt256 → Tree) (route : ResolutionValueRoute),
     (∀ c, Valid (T c)) → (multichainResolutionGate T route).Sound

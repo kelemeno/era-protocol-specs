@@ -130,7 +130,12 @@ def Properties.ExecutedObligationNeverRefunded : Prop :=
 
 /-- The same for every leg of the flow at once: one delivered leg freezes the whole
 flow's refund path, which is what makes the outcome a property of the flow rather
-than of the leg that happened to execute. -/
+than of the leg that happened to execute.
+
+**Correction (StaleSnapshotFaithful).**  Premised on `HashAssumptions`: at `c67894b9` a forged
+padding proof can refund an executed flow's obligation
+(`Properties.PaddingRefundOfExecutedObligationLocatesAbsenceBreak`); read
+`Properties.OneExecutionFreezesTheFlowOrBreak`. -/
 def Properties.OneExecutionFreezesTheFlow : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (fh : FlowHash), FlowHashInj fh → ∀ (S : System), Wf S →
@@ -157,7 +162,13 @@ def Properties.VerifiedTimeoutAuthorizes : Prop :=
 /-- **AND A REFUNDED FLOW REALLY MISSED ITS DEADLINE.**  Composed with
 `Protocol/InteropAtomicity/Properties/Timeout.lean`: if an obligation is refunded on the strength of a verified
 timeout for its own flow, no leg of that flow was committed in time on its own
-chain.  The refund is deserved, not merely permitted. -/
+chain.  The refund is deserved, not merely permitted.
+
+**Correction (StaleSnapshotFaithful).**  Only under `HashAssumptions`, as for
+`Contracts.Timeout.Properties.TimeoutMeansMissedDeadline`, which is the same statement: at
+`c67894b9` the timeout can verify on a forged padding proof for a leg committed on time
+(`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).  Over every accepted proof read
+`Properties.RefundedFlowMissedDeadlineOrBreak`. -/
 def Properties.RefundedFlowMissedDeadline : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (S : System), Wf S → ∀ (R : SlRoot), Aggregates S R →

@@ -46,6 +46,11 @@ The argument is four steps, and each is a property below:
 Then `Properties.ExecutedImpliesAllFinalizable` is 1 → 2 → 3 → 4, and `Properties.NoneOrAll` is its
 dichotomy form.  `Properties.ExecutedExcludesAnyRefund` is the other half of atomicity: not
 only can every leg finalize, no leg can be refunded once any leg has executed.
+**Correction (StaleSnapshotFaithful).**  `Properties.ExecutedExcludesAnyRefund` takes
+`HashAssumptions`.  At `c67894b9` the executed leg itself can pass the timeout gate on a forged
+padding proof when its tree has an empty slot
+(`Properties.PaddingRefundOfExecutedLegLocatesAbsenceBreak`); the form without a hash premise is
+`Properties.ExecutedExcludesAnyRefundOrBreak`.
 
 ## Three hypotheses, three countermodels
 
@@ -186,7 +191,12 @@ gate, on either of its two branches.
 This is the cross-leg no-double-spend, and it is the second half of atomicity: the
 first says all legs *can* finalize, this says none *can* be unwound.  Both timeout
 branches need the timestamp reasoning: a late batch comes after every on-time one,
-and the last on-time batch comes after every on-time one. -/
+and the last on-time batch comes after every on-time one.
+
+**Correction (StaleSnapshotFaithful).**  Premised on `HashAssumptions`, which no hash meets (see
+the note at its definition).  At `c67894b9` an executed leg's own refund can pass on a forged
+padding proof (`Properties.PaddingRefundOfExecutedLegLocatesAbsenceBreak`); read
+`Properties.ExecutedExcludesAnyRefundOrBreak`. -/
 def Properties.ExecutedExcludesAnyRefund : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (fh : FlowHash) (S : System), Wf S →

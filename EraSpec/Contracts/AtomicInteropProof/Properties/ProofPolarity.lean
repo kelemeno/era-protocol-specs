@@ -109,7 +109,9 @@ paths, and it says nothing about the refund gate.  The gate-level statements are
   comparison accepts EVERY leg.
 * `unchecked_absence_gate_iff`: that gate's exact acceptance set.
 * `checked_absence_gate_iff_absent`: the deployed gate opens exactly on legs absent from their declared
-  chain. -/
+  chain, with absence as the set fact (Correction (StaleSnapshotFaithful) in
+  `Specs/ProofPolarityStrong.lean`: the deployed absence check can also accept a padding forgery
+  when the tree has an empty slot). -/
 abbrev Properties.absence_at_every_wrong_chain (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hne : srcOf v ≠ c) :=
   v ∉ tree c
@@ -139,8 +141,9 @@ leg's value is in that chain's tree.
 As stated, this is `hlive` rewritten along `hpinned`.  It mentions no refund gate and no absence
 predicate, so it does not by itself say that the refund gate cannot pass.  That statement is elsewhere:
 * `checked_absence_gate_rejects_live_leg` in `Properties/ProofPolarityStrong.lean`: the deployed refund
-  gate rejects a live leg whatever chain the prover names.  `checked_absence_gate_iff_absent` there is
-  the exact form.
+  gate rejects a live leg whatever chain the prover names, with absence as the set fact
+  (Correction (StaleSnapshotFaithful) in `Specs/ProofPolarityStrong.lean`).
+  `checked_absence_gate_iff_absent` there is the exact form.
 * On commitment-tree states, `Contracts.Protocol.bound_gate_excludes_delivered`, with
   `chains_bound_gate_iff_checked_absence_gate` identifying the two gates.
 
@@ -185,9 +188,11 @@ no live-leg premise.  So this is not the whole content of the asymmetry.
 
 The asymmetry as a statement about the two gates is `polarity_asymmetry` in
 `Properties/ProofPolarityStrong.lean`.  Dropping the comparison changes nothing on the inclusion path,
-and on every live leg it flips the refund verdict.  `honest_polarity_model_exists` there shows the
-premises hold.  That asymmetry is why no amount of care in `commitValue` could have removed the
-refund-path check: once two chains exist, the refund gate without it accepts every leg. -/
+and on every live leg it flips the refund verdict (over the set-fact absence check;
+Correction (StaleSnapshotFaithful) in `Specs/ProofPolarityStrong.lean`).
+`honest_polarity_model_exists` there shows the premises hold.  That asymmetry is why no amount of
+care in `commitValue` could have removed the refund-path check: once two chains exist, the refund
+gate without it accepts every leg. -/
 abbrev Properties.polarity_summary (h : HonestInsertion srcOf tree) {v : Value} {c : Chain} (hne : srcOf v ≠ c) :=
   (v ∈ tree c → srcOf v = c) ∧ v ∉ tree c
 

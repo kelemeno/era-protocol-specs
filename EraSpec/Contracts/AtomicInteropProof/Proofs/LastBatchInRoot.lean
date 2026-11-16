@@ -195,7 +195,10 @@ reads the root as holding batches `0 .. nBatches - 1`.  At `c67894b9` every atom
 chain's first pushed batch on L1 is 0, so this is exact there while every later batch is pushed
 into the chain tree; that contiguity is `PROTO-CONTIGUOUS-PUSH` (ASSUMPTIONS.md), which a Gateway
 round trip breaks.  `AttackVectors.LastBatchInRootOffset.EndBranchFromOnchainCheckOffset` keeps
-position and number apart and takes the identification as a premise. -/
+position and number apart and takes the identification as a premise.
+
+**Correction (StaleSnapshotFaithful).**  `habsent` is the set fact; see the note on
+`Properties.end_branch_from_onchain_check`. -/
 theorem end_branch_from_onchain_check {H : AttackVectors.TimeoutSoundness.BatchHistory} {time : ℕ → ℕ}
     (hao : AttackVectors.TimeoutSoundness.AppendOnly H)
     {B nBatches hDepth D T : ℕ} {v : UInt256}

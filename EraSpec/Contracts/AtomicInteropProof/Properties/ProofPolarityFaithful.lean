@@ -42,6 +42,11 @@ legSourceChainIds[i]`) "adds nothing" under honest insertion.  With the declared
   of `ProofPolarity.refund_blocked_when_chain_pinned`, whose premise `c = srcOf v` is not
   the contract's pin.  (A leg that fails as the missing leg is still marked `Revertable`
   when a sibling leg passes `authorizeRefund` on the chain that committed it.)
+  **Correction (StaleSnapshotFaithful).**  "Fails `authorizeRefund`" here and in the
+  per-leg and per-flow statements is over the set-fact absence check.  At `c67894b9` the
+  deployed absence check can also accept a padding forgery when the tree has an empty slot,
+  so a live leg declared on its real source chain can still pass `authorizeRefund`
+  (`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`).
 * **Check A is redundant exactly under `DeclaredInsertion`** (`RedundantIffDeclared`;
   the exclusive form is `UncheckedExclusiveUnderDeclared`, whose premises hold together
   by `UncheckedExclusiveUnderDeclaredSatisfiable`), which the upgrade's `append`
@@ -105,7 +110,8 @@ real source chain and its flow declares a different chain.
 This is about the two per-leg gates, not about the flow being executed and refunded:
 execution needs every leg of the flow finalized, and a passing `authorizeRefund` marks
 every leg the running chain committed under the flow `Revertable`.  The flow-level
-statement is `FlowDoubleMintIffSomeMisdeclared`. -/
+statement is `FlowDoubleMintIffSomeMisdeclared`.  Absence is the set fact
+(Correction (StaleSnapshotFaithful) in the module docstring). -/
 def Properties.UncheckedDoubleMintIffMisdeclared : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value) (v : Value),
     HonestInsertion srcOf tree →
@@ -118,7 +124,8 @@ leg of the flow through the finality check with check A removed (`requireFlowFin
 the gate execution calls), and some leg passes `authorizeRefund` as the missing leg (so
 the chain running it marks every leg it committed under the flow `Revertable`), iff
 every leg is committed on its real source chain and some leg's flow declares a chain
-other than its real one. -/
+other than its real one.  Absence is the set fact (Correction (StaleSnapshotFaithful) in
+the module docstring). -/
 def Properties.FlowDoubleMintIffSomeMisdeclared : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value)
     (legs : List Value),
@@ -153,7 +160,11 @@ has no accepted refund proof as the missing leg, for any chain the prover names,
 declared chain is its real source chain.  (When it is not, finality is blocked instead,
 by check A.)  This is per leg: a leg that fails as the missing leg is still marked
 `Revertable` when a sibling leg of its flow passes `authorizeRefund` on the chain that
-committed it. -/
+committed it.
+
+**Correction (StaleSnapshotFaithful).**  Over the set-fact absence check: at `c67894b9` a
+padding forgery can pass `authorizeRefund` for a live leg declared on its real source chain
+when the tree has an empty slot (`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`). -/
 def Properties.RefundBlockedIffDeclaredIsSource : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value) (v : Value),
     HonestInsertion srcOf tree → v ∈ tree (srcOf v) →

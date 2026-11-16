@@ -174,7 +174,10 @@ must cite a batch inside an imported root created after the deadline
 `i` as batch `i`: exact at `c67894b9`, where every atomic-interop source chain's first
 pushed batch on L1 is 0, while pushes are contiguous, ASSUMPTIONS.md
 `PROTO-CONTIGUOUS-PUSH`; `LastBatchInRootOffset` keeps the two apart), so
-`CheckedBridgeNoDoublePayment` and `CheckedBridgeValueConserved` hold.
+`CheckedBridgeNoDoublePayment` and `CheckedBridgeValueConserved` hold, with a
+genuine-leaf absence witness (`GapWitness`; at `c67894b9` the deployed check also
+accepts the padding sentinel at an empty slot: see the Correction
+(StaleSnapshotFaithful) notes in `Examples/BurnMintBridge`).
 Completeness holds for every post-deadline root
 (`TimeoutComplete`) and needs the END branch: with the BEGIN branch alone a halted
 chain's transfer stays in limbo forever (`HaltedChainNeedsEndBranch`).

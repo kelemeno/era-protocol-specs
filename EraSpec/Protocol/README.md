@@ -6,7 +6,10 @@ and properties remain under `../Contracts/<SolidityName>/`.
 - `MultichainGate/{Specs,Properties,Proofs}/Model.lean`: multi-chain
   source-bound refund gate (namespace `Contracts.Protocol`). Safety:
   `bound_gate_excludes_delivered`, `no_double_spend_multichain`, and
-  `chains_no_double_spend` over valid per-chain contract states. Necessity of the
+  `chains_no_double_spend` over valid per-chain contract states, for a genuine
+  absence witness (at `c67894b9` the deployed check also accepts the padding
+  sentinel at an empty slot: the Correction (StaleSnapshotFaithful) note in
+  `MultichainGate/Properties/Model.lean`). Necessity of the
   source-chain check: `unbound_gate_refunds_delivered_leg` (abstract wrong-chain
   absence countermodel) and `chains_unbound_gate_refunds_delivered_leg` (the same
   attack realized by contract states: `setup` plus one guarded `insert`).
@@ -31,7 +34,12 @@ and properties remain under `../Contracts/<SolidityName>/`.
 - [InteropAtomicity](InteropAtomicity/README.md): the destination's all-legs gate
   across chains and batches (none-or-all, given data availability), the timeout
   decision derived from what `verifyTimeoutAbsence` checks, and one outcome per
-  obligation over every interleaving of every chain's manager calls.
+  obligation over every interleaving of every chain's manager calls. The forms
+  without a hash premise end in "or a located break" (for example
+  `ExecutedObligationNeverRefundedOrBreak`), and at `c67894b9` the padding forgery
+  can supply the absence-proof break of the refund and timeout forms when the tree
+  has an empty slot (for example `PaddingRefundOfExecutedObligationLocatesAbsenceBreak`;
+  see the note at `HashAssumptions`).
 
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.

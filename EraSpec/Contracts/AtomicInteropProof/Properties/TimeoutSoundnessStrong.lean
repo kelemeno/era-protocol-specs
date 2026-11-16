@@ -36,7 +36,8 @@ the leaf binding buys:
   `timeoutGate_end_flag_begin_leaf_iff_witness` has the swapped gate accept the same batch for a
   finalized value and for a value that never finalized.
 * `timeoutGate_deployed_leaf_sound` and its witness `timeoutGate_deployed_leaf_not_dead`: the
-  deployed coupling is sound on both branches, and both branches do open.
+  deployed coupling is sound on both branches, and both branches do open.  (Absence is the set
+  fact; Correction (StaleSnapshotFaithful) on `timeoutGate_deployed_leaf_sound`.)
 * `timeoutGate_sound_iff_not_end_flag_begin_leaf`: of the four (flag, leaf) combinations,
   exactly one is unsound over append-only, time-ordered histories, namely the end flag with
   the begin leaf.
@@ -158,7 +159,13 @@ abbrev Properties.timeoutGate_end_flag_begin_leaf_iff_witness :=
 /-- **THE DEPLOYED COUPLING IS SOUND ON BOTH BRANCHES.**  On an append-only, time-ordered
 history, if the gate accepts with the leaf derived from the flag (`deployedLeaf`), the value
 did not finalize by the deadline.  This is `timeout_implies_never_finalized` restated over the
-gate.  Witness for its premises: `timeoutGate_deployed_leaf_not_dead`. -/
+gate.  Witness for its premises: `timeoutGate_deployed_leaf_not_dead`.
+
+**Correction (StaleSnapshotFaithful).**  "Deployed" here is the (flag, leaf) coupling; absence is
+the set fact.  At `c67894b9` the deployed absence check can also accept a padding forgery when
+the tree has an empty slot, so the deployed gate can pass for a finalized value: on the BEGIN
+branch (`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`) and on the END branch
+(`Contracts.InteropOperational.OpPaddingRefundLocatesAbsenceBreak`). -/
 abbrev Properties.timeoutGate_deployed_leaf_sound {H : BatchHistory}
     (hao : AppendOnly H) (hto : TimeOrdered H) {D T n : ℕ} {b : Bool} {v : UInt256}
     (hacc : TimeoutGateAt H D T b (deployedLeaf b) n v) :=
@@ -189,7 +196,8 @@ the value never finalizes) iff `b = true` or `leaf = .endRoot`.
   so an end root proves more.
 * `(false, beginRoot)` is the dangerous swap, and it is the only failure.
 
-So `deployedLeaf` matters in exactly one direction. -/
+So `deployedLeaf` matters in exactly one direction.  (Over the set-fact absence check;
+Correction (StaleSnapshotFaithful) on `timeoutGate_deployed_leaf_sound`.) -/
 abbrev Properties.timeoutGate_sound_iff_not_end_flag_begin_leaf (b : Bool) (leaf : ImtRootLeaf) :=
   (∀ (H : BatchHistory) (D T n : ℕ) (v : UInt256), AppendOnly H → TimeOrdered H →
       TimeoutGateAt H D T b leaf n v → ¬ FinalizedBy H D v) ↔

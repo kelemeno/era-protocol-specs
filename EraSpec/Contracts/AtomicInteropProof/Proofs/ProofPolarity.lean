@@ -124,7 +124,8 @@ committed leg leaves no absence witness — the refund gate cannot pass.
 the contract pins to.  Pinned to the declared chain, a committed leg can still have an absence
 witness (`AttackVectors.ProofPolarityFaithful.RefundNotBlockedWhenPinnedToDeclared`), and a live
 leg fails `authorizeRefund` as the missing leg exactly when its declared chain is `srcOf v`
-(`RefundBlockedIffDeclaredIsSource`). -/
+(`RefundBlockedIffDeclaredIsSource`).  Absence here is the set fact
+(Correction (StaleSnapshotFaithful) in `Specs/ProofPolarityStrong.lean`). -/
 theorem refund_blocked_when_chain_pinned {v : Value} {c : Chain}
     (hpinned : c = srcOf v) (hlive : v ∈ tree (srcOf v)) :
     Properties.refund_blocked_when_chain_pinned (v := v) (c := c) (hpinned := hpinned) (hlive := hlive) := by

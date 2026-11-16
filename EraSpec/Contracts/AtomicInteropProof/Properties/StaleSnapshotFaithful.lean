@@ -46,18 +46,38 @@ The same mark is on other readings of the absence check over a genuine leaf or u
 `HashAssumptions`:
 
 * `IndexedMerkleTree` (Specs/Model): the section docstrings on the temporal layer and on
-  reclaim liveness;
+  reclaim liveness; (Properties and Proofs/Model) the section on genesis-rooted capstones for
+  real histories, `guardedEvolution_reclaimable_iff_absent` and
+  `guardedEvolution_delivered_available_forever`;
 * `Contracts.InteropCommitmentTree.genesis_run_reclaimable_iff_absent` (Properties and Proofs);
+  `PredeployRunReclaimableIffAbsent` and the InitOnce Properties header;
+* `AttackVectors.TimeoutSoundness` (TimeoutSoundnessStrong): the Properties header,
+  `timeoutGate_deployed_leaf_sound`, `timeoutGate_sound_iff_not_end_flag_begin_leaf` and the
+  Proofs lemma `timeoutGate_sound_of_ne`; `AttackVectors.LastBatchInRoot`:
+  `end_branch_from_onchain_check` (Properties and Proofs);
 * `AttackVectors.FlowAtomicity`'s header;
 * `Protocol/InteropAtomicity`: the Timeout Properties header,
-  `Contracts.Timeout.Properties.TimeoutMeansMissedDeadline` and
-  `AcceptedTimeoutMeansMissedDeadline`; the Refund Properties header and
-  `Contracts.Refund.Properties.AcceptedTimeoutForDeliveredFlowIsABreak` (and its Proofs twin);
-  the Atomicity Properties header and
-  `Contracts.Atomicity.Properties.WithoutDaCommittedLegIsStuck`;
+  `Contracts.Timeout.Properties.TimeoutMeansMissedDeadline`, `TimeoutExcludesFinality` and
+  `AcceptedTimeoutMeansMissedDeadline`; the Refund Properties header,
+  `Contracts.Refund.Properties.OneExecutionFreezesTheFlow`, `RefundedFlowMissedDeadline` and
+  `AcceptedTimeoutForDeliveredFlowIsABreak` (and its Proofs twin);
+  the Atomicity Properties header (two notes),
+  `Contracts.Atomicity.Properties.WithoutDaCommittedLegIsStuck` and
+  `Contracts.Atomicity.Properties.ExecutedExcludesAnyRefund` (and its Proofs twin);
+* `ProofPolarity`'s set facts: the `ProofPolarityStrong` Specs module docstring and
+  `CheckedAbsenceGate`; the `ProofPolarityStrong` Properties header,
+  `checked_absence_gate_rejects_live_leg`, `checked_absence_gate_iff_absent`,
+  `polarity_asymmetry` and `finalized_leg_passes_unchecked_absence_gate`; in the `ProofPolarity`
+  Properties, `absence_at_every_wrong_chain`, `refund_blocked_when_chain_pinned` (and its Proofs
+  twin) and `polarity_summary`; and the `ProofPolarityFaithful` Properties header,
+  `UncheckedDoubleMintIffMisdeclared`, `FlowDoubleMintIffSomeMisdeclared` and
+  `RefundBlockedIffDeclaredIsSource`;
+* `Protocol/AssetBridgePreparation`: the `ResolutionEvidence` Specs section on the multichain
+  gate, and `MultichainGateSound` (its Properties header bullet and docstring);
 * the reference bridge's `EndBranch` (`Applications.BurnMintBridge.EndBranch`): the Specs module
-  docstring and `GapWitness`; the Properties header, `EndViaNeverFinalized`,
-  `TimeoutViaImpliesMissing`, `CheckedBridgeNoDoublePayment`, `CheckedBridgeValueConserved`,
+  docstring and `GapWitness`; the Properties header, `BeginViaNeverFinalized`,
+  `EndViaNeverFinalized`, `TimeoutViaImpliesMissing`, `CheckedEvidenceSound`,
+  `CheckedBridgeNoDoublePayment`, `CheckedBridgeValueConserved`,
   `CheckedExecutionRemainsPossible`, `AcceptedEndOnTimeLocatesBreak` (and its Proofs twin),
   `PinnedBridgeNoDoublePaymentOrBreak` and `PinnedBridgeValueConservedOrBreak`.
 -/

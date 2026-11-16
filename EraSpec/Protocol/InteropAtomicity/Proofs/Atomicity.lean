@@ -125,7 +125,11 @@ the one that proved inclusion", where membership persists and
   strictly after the on-time inclusion batch, and `begin(N) = end(N-1)` still
   contains the commit value.
 * END branch — the batch is the last on-time one, so it is at or after every
-  on-time batch, the inclusion batch included. -/
+  on-time batch, the inclusion batch included.
+
+**Correction (StaleSnapshotFaithful).**  See the note on `Properties.ExecutedExcludesAnyRefund`:
+the premise `HashAssumptions` fails at `c67894b9`, where a forged padding proof can refund an
+executed leg. -/
 theorem executed_excludes_any_refund {h : Hash} {z0 : UInt256} {hl : LeafHash}
     (hA : HashAssumptions h z0 hl) {cv : CommitValue} {fh : FlowHash} {S : System}
     (hS : Wf S) {F : Flow} {leg : FlowLeg} (hex : ExecutedVia h z0 hl cv fh S F leg)

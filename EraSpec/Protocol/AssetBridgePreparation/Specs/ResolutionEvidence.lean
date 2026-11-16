@@ -48,6 +48,13 @@ refund passes when that same chain's tree has an absence witness for it
 an absence witness from any chain (`Contracts.Protocol.UnboundGate`), as the countermodel needs.
 `route i` names the declared source chain and the commit value of entry `i`.
 
+**Correction (StaleSnapshotFaithful).**  `BoundGate` takes a genuine absence witness, a leaf of
+the tree (`Contracts.Protocol.AbsenceWitnessAt`).  At `c67894b9` the deployed `verifyNonInclusion`
+can also accept the sentinel `{0,0,0}` at an empty slot, so a delivered leg can pass the refund
+gate on its declared source chain (see the note on `AbsenceWitnessAt`;
+`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).  The multichain results below are about
+the genuine-leaf gate.
+
 **This file is definitions only.** Statements: `../Properties/ResolutionEvidence.lean`; proofs:
 `../Proofs/ResolutionEvidence.lean`.
 -/

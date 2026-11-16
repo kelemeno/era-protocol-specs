@@ -33,7 +33,8 @@ Statements about `EraSpec.Contracts.L2InteropCommitmentTree.Specs.InitOnce`; pro
   valid, and reached from `hSetup` with the source's own `(_leafNumber, _height)`
   (`PredeployRunStates`): every `RunHeight` headline, which takes `HReaches hSetup S` as
   its only state premise, applies at every initialized state of a run from deployment.
-  The security corollary holds there too (`PredeployRunReclaimableIffAbsent`).
+  The security corollary holds there too (`PredeployRunReclaimableIffAbsent`), for a genuine
+  straddling leaf (Correction (StaleSnapshotFaithful) on that statement).
   `GenesisRunWitness` shows the premises are met by a run with an `initL2` and two inserts.
 * **The hash tree's own copy agrees.** `FullMerkle` folds its stored leaf hashes
   (`_nodes[0]`), not `leaves`. Tracking them as a ghost along the run (`LevelRun`): along
@@ -195,7 +196,13 @@ def Properties.PredeployRunStates : Prop :=
 /-- **THE SECURITY COROLLARY, FROM DEPLOYMENT.** At every initialized state of every run
 from the predeploy, `initL2()` included, a nonzero value has a straddling leaf (is
 reclaimable) exactly when it is not a key. (`Initialized` is needed: the predeploy holds
-no leaf at all.) -/
+no leaf at all.)
+
+**Correction (StaleSnapshotFaithful).**  "Reclaimable" here is a straddling leaf of `toAbs (R n)`,
+a genuine leaf.  At `c67894b9` the deployed `verifyNonInclusion` can also accept the sentinel
+`{0,0,0}` at an empty slot: at step 3 of `genesisRun a b`, a run from the predeploy, the key `a`
+has an accepted non-inclusion proof at the root the source publishes
+(`Properties.StoredRootWitness`; `Properties.CThreeLeafWitness` at the stored root). -/
 def Properties.PredeployRunReclaimableIffAbsent : Prop :=
   ∀ (K : Roles) (R : ℕ → Tree) (tx : Trace), TxRun K R tx →
     R 0 = predeploy →

@@ -35,7 +35,9 @@ non-vacuity witnesses, and lifts it to commitment-tree states.
 
 * **Refund path, with the check.**  `checked_absence_gate_rejects_live_leg` and
   `checked_absence_gate_iff_absent`: the deployed refund gate opens exactly for legs absent from
-  their declared chain, whichever chain the prover names.
+  their declared chain, whichever chain the prover names.  (Absence is the set fact; at
+  `c67894b9` the deployed absence check can also accept a padding forgery for a live leg: see
+  the Correction (StaleSnapshotFaithful) note in `../Specs/ProofPolarityStrong.lean`.)
 * **Inclusion path.**  `unchecked_inclusion_gate_iff_checked`: under honest insertion, deleting
   the comparison changes nothing; the two gates accept the same legs.
   `unchecked_inclusion_gate_differs_without_honesty`: without honest insertion they differ.
@@ -79,7 +81,9 @@ variable (tree : Chain → Set Value)
 /-- **THE CHECKED REFUND GATE REJECTS EVERY LIVE LEG.**  If a leg's value is in its own chain's
 tree, the deployed refund gate, with the declared chain set to that chain, rejects it whatever
 chain `c` the prover names.  If `c` is a different chain the comparison fails.  If `c` is the
-leg's chain, the absence check fails.
+leg's chain, the absence check fails.  (The set-fact absence check; at `c67894b9` the deployed
+one can accept a padding forgery here when the tree has an empty slot:
+Correction (StaleSnapshotFaithful) in `../Specs/ProofPolarityStrong.lean`.)
 
 This is the gate-level form of `refund_blocked_when_chain_pinned`.  It needs no
 `HonestInsertion`.  Witness for the premise: `honest_polarity_model_exists`. -/
@@ -91,7 +95,9 @@ abbrev Properties.checked_absence_gate_rejects_live_leg {v : Value}
 /-- **THE CHECKED REFUND GATE OPENS EXACTLY ON LEGS ABSENT FROM THEIR DECLARED CHAIN.**  Some
 prover choice passes the deployed refund gate iff the value is absent from the declared chain's
 tree.  The forward direction is safety and the reverse is liveness: an honest prover can always
-refund a missing leg, by naming its declared chain. -/
+refund a missing leg, by naming its declared chain.  (Absence is the set fact; at `c67894b9` the
+deployed absence check can also accept a padding forgery, and safety can then fail:
+Correction (StaleSnapshotFaithful) in `../Specs/ProofPolarityStrong.lean`.) -/
 abbrev Properties.checked_absence_gate_iff_absent (declared : Chain) (v : Value) :=
   (∃ c, CheckedAbsenceGate tree declared c v) ↔ v ∉ tree declared
 
@@ -146,7 +152,8 @@ and two distinct chains:
 * on the inclusion path, deleting the comparison changes nothing: the two finality gates accept
   the same legs;
 * on the refund path, deleting it changes everything: for every live leg, the unchecked refund
-  gate accepts while the deployed one rejects.
+  gate accepts while the deployed one rejects (with the set-fact absence check;
+  Correction (StaleSnapshotFaithful) in `../Specs/ProofPolarityStrong.lean`).
 
 Witness for the premises, with a live leg: `honest_polarity_model_exists`. -/
 abbrev Properties.polarity_asymmetry (h : HonestInsertion srcOf tree)
@@ -163,7 +170,9 @@ end Abstract
 /-- **THE ATTACK THE CHECK BLOCKS, NON-VACUOUSLY.**  There is a model with honest insertion and
 a leg that FINALIZED: the deployed finality gate accepts it against its own chain.  The refund
 gate with the comparison deleted accepts the same leg against another chain, which is the
-double-mint.  The deployed refund gate rejects it for every chain the prover names.
+double-mint.  The deployed refund gate rejects it for every chain the prover names (with the
+set-fact absence check; see the Correction (StaleSnapshotFaithful) note in
+`../Specs/ProofPolarityStrong.lean`).
 
 This is the satisfiable form of `finalized_leg_still_absent_elsewhere`, stated against the
 gates.  The same attack on commitment-tree states is

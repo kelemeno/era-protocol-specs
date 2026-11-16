@@ -179,7 +179,8 @@ theorem timeoutGate_end_flag_begin_leaf_iff_witness :
 
 
 /-- The three sound combinations, proved once: the deployed begin branch, the harmless swap,
-and the deployed end branch. -/
+and the deployed end branch.  (Over the set-fact absence check; see the
+Correction (StaleSnapshotFaithful) note on `Properties.timeoutGate_deployed_leaf_sound`.) -/
 private lemma timeoutGate_sound_of_ne {b : Bool} {leaf : ImtRootLeaf}
     (hcomb : b = true ∨ leaf = .endRoot) {H : BatchHistory} (hao : AppendOnly H)
     (hto : TimeOrdered H) {D T n : ℕ} {v : UInt256}

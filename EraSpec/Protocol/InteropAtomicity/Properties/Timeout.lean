@@ -98,7 +98,12 @@ def Properties.TimeoutMeansMissedDeadline : Prop :=
       legValue cv F leg ∉ keys (toAbs (S.tree leg.chain n))
 
 /-- The same conclusion in the form the finality gate consumes: a leg with a
-verified timeout has no on-time batch it could be finalized against. -/
+verified timeout has no on-time batch it could be finalized against.
+
+**Correction (StaleSnapshotFaithful).**  Only under `HashAssumptions`, as for
+`Properties.TimeoutMeansMissedDeadline`: on the padding instance
+(`Properties.PaddingTimeoutLocatesAbsenceBreak`) the leg is committed on time.  Over every
+accepted proof the statement is `Properties.TimeoutExcludesFinalityOrBreak`. -/
 def Properties.TimeoutExcludesFinality : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), HashAssumptions h z0 hl →
     ∀ (cv : CommitValue) (S : System), Wf S → ∀ (R : SlRoot), Aggregates S R →

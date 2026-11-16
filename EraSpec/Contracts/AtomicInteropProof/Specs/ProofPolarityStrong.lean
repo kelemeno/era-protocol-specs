@@ -37,6 +37,13 @@ settlement-layer check are not modelled here.  `srcOf` is the abstract source ch
 value, as in `ProofPolarity`.  `HonestInsertion srcOf (liveKeys T)` is a premise about one
 concrete family of states: no nonzero key sits in the tree of a chain other than its source.
 It is not a hash premise.
+
+**Correction (StaleSnapshotFaithful).**  The two gates labelled "as deployed" below are so in
+their chain comparison; the absence gates' absence half is the set fact `v ∉ tree c`.  At
+`c67894b9` the deployed `verifyNonInclusion` accepts more: it also accepts the sentinel
+`{0,0,0}` at an empty slot, whose padding hashes like it, so a live leg can pass the absence
+check on its own chain (`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`,
+`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
 -/
 
 namespace AttackVectors.ProofPolarity
@@ -62,7 +69,9 @@ def UncheckedInclusionGate (tree : Chain → Set Value) (c : Chain) (v : Value) 
 
 /-- **`authorizeRefund`'S ABSENCE GATE, AS DEPLOYED.**  The prover names the proof's chain `c`
 (`_absence.sourceChainId`), the contract requires `c` to be the missing leg's declared chain
-(`legSourceChainIds[_missingLegIndex]`), and the absence is checked against `c`'s tree. -/
+(`legSourceChainIds[_missingLegIndex]`), and the absence is checked against `c`'s tree, as the
+set fact `v ∉ tree c` (see the Correction (StaleSnapshotFaithful) note in the module
+docstring). -/
 def CheckedAbsenceGate (tree : Chain → Set Value) (declared c : Chain) (v : Value) : Prop :=
   c = declared ∧ v ∉ tree c
 
