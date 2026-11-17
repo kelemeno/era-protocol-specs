@@ -71,6 +71,7 @@ EraSpec/
     L2InteropHandler/         Specs/, Properties/, Proofs/
     Merkle/                  Specs/, Properties/, Proofs/
     NativeTokenVaultBase/     Specs/, Properties/, Proofs/
+    ProxyUpgradeExecutorBase/ Specs/, Properties/, Proofs/
     ProxyUpgradeRowLib/       Specs/, Properties/, Proofs/
     RegistryBootstrapMigration/ Specs/, Properties/, Proofs/
   Core/                      words, arithmetic, preparation, safety simulation

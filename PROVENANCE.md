@@ -186,6 +186,12 @@ supplying that correspondence.
   and `d9f678900e1bc8286412b78f56d4a9f443983c29` (branch `draft/v0.35.0`, label
   `head-v35-d9f6789`), with `e561b9cc2` (label `upgrade-e561b9cc2`), to record what
   changes at those commits. The model itself stays pinned at `c67894b9`.
+* `EraSpec/Contracts/ProxyUpgradeExecutorBase/` topic `NotifierBindingV35` models the CTM
+  executor's check around an engine leg and the ServerNotifier binding at era-contracts
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label
+  `head-v35-b17415d`). The branch moves; `_domainHolders` changed in `9775be946`, after
+  `d9f6789`. Its bound results refine into `EraSpec/Contracts/ChainTypeManager/Specs/UpgradeTiming.lean`,
+  which stays pinned at `e561b9cc2`.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.
