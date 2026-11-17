@@ -16,11 +16,13 @@ Three loop lemmas carry the results that hold without `KeepsAdmin`:
 The verification field and `read_admin` then give the target slot of any proxy `_admin`
 still administers.
 
-The transfer is one step lemma, `applyRow_to_current`. Under `SelfOnly` and `KeepsAdmin`, an
-iteration on an administered proxy is a `RowsCurrent` iteration on the implementation slots
-and leaves the admin slots alone. Its loop forms (`applyLoop_to_current`,
-`applyLoop_of_current`) give `ApplyRowsCorrespond`. The `RowsCurrent` certificates then
-transfer. The countermodels and the witness are computations.
+The transfer is one step lemma, `applyRow_to_current`. If the reinitializer leaves every admin
+slot as it was, an iteration on an administered proxy is a `RowsCurrent` iteration on the
+implementation slots and leaves the admin slots alone. Its loop forms (`applyLoop_to_current`,
+`applyLoop_of_current`) give `applyRows_correspond`. `SelfOnly` and `KeepsAdmin` give its
+hypothesis (`reinit_admin`), and so does every lift, by definition; hence `ApplyRowsCorrespond`
+and `LiftedCallIsRowsCurrentCall`. The `RowsCurrent` certificates then transfer. The
+countermodels and the witnesses are computations.
 -/
 
 namespace Contracts.ProxyUpgradeCurrent.AdminSlot
@@ -51,14 +53,14 @@ lemma reinit_admin {C : Config} (hs : SelfOnly C) (hk : KeepsAdmin C) (r : Row) 
   · subst hq; exact hk r S
   · exact (hs.1 r S q hq).2
 
-/-- Under `SelfOnly` and `KeepsAdmin` a swap is the `RowsCurrent` swap on the implementation
-slots. -/
-lemma swap_eq {C : Config} (hs : SelfOnly C) (hk : KeepsAdmin C) (r : Row) (S : Slots) :
+/-- If the reinitializer leaves every admin slot alone, a swap is the `RowsCurrent` swap of the
+projection on the implementation slots. -/
+lemma swap_eq {C : Config} (hra : ∀ r S, (C.reinit r S).admin = S.admin) (r : Row) (S : Slots) :
     swap C r S = ⟨ProxyUpgradeCurrent.swap (C.project S.admin) r S.impl, S.admin⟩ := by
   unfold swap ProxyUpgradeCurrent.swap
   by_cases hc : r.callInitializeUpgrade = true
   · rw [ite_eq_left hc, ite_eq_left hc]
-    exact Slots.ext' rfl (reinit_admin hs hk r _)
+    exact Slots.ext' rfl (hra r _)
   · rw [ite_eq_right hc, ite_eq_right hc]; rfl
 
 /-! ## One row -/
@@ -116,10 +118,11 @@ lemma applyRow_admin_change {C : Config} (hs : SelfOnly C) {S K : Slots} {r : Ro
       · subst hq; exact absurd hS hna
       · exact absurd ((hs.2 _ _ _ hcall p hq).2.trans hS) hK
 
-/-- Under `SelfOnly` and `KeepsAdmin`, an iteration on a proxy `_admin` administers is a
-`RowsCurrent` iteration on the implementation slots, and leaves the admin slots alone. -/
-lemma applyRow_to_current {C : Config} (hs : SelfOnly C) (hk : KeepsAdmin C) {S K : Slots}
-    {r : Row} (h : ApplyRow C S r K) (ha : S.admin r.proxy = C.proxyAdmin) :
+/-- If the reinitializer leaves every admin slot alone, an iteration on a proxy `_admin`
+administers is a `RowsCurrent` iteration on the implementation slots, and leaves the admin
+slots alone. -/
+lemma applyRow_to_current {C : Config} (hra : ∀ r S, (C.reinit r S).admin = S.admin)
+    {S K : Slots} {r : Row} (h : ApplyRow C S r K) (ha : S.admin r.proxy = C.proxyAdmin) :
     K.admin = S.admin ∧ ProxyUpgradeCurrent.ApplyRow (C.project S.admin) S.impl r K.impl := by
   cases h with
   | alreadyAtTarget he =>
@@ -128,7 +131,7 @@ lemma applyRow_to_current {C : Config} (hs : SelfOnly C) (hk : KeepsAdmin C) {S 
   | upgrade ho hv hne hsrc _ =>
       rw [read_admin ha] at hv
       obtain rfl := Option.some.inj hv
-      rw [swap_eq hs hk]
+      rw [swap_eq hra]
       exact ⟨rfl, ProxyUpgradeCurrent.ApplyRow.upgrade ho hne hsrc⟩
   | upgradeForwarded _ _ _ _ hna _ => exact absurd ha hna
 
@@ -208,22 +211,22 @@ lemma applyLoop_admin_change {C : Config} (hs : SelfOnly C) {S J : Slots} {rows 
       · exact ⟨r, List.mem_cons_self, applyRow_admin_change hs hstep hS hK⟩
 
 /-- `applyRow_to_current` for the loop. -/
-lemma applyLoop_to_current {C : Config} (hs : SelfOnly C) (hk : KeepsAdmin C) {S J : Slots}
-    {rows : List Row} (h : ApplyLoop C S rows J) :
+lemma applyLoop_to_current {C : Config} (hra : ∀ r S, (C.reinit r S).admin = S.admin)
+    {S J : Slots} {rows : List Row} (h : ApplyLoop C S rows J) :
     (∀ r ∈ rows, S.admin r.proxy = C.proxyAdmin) →
       J.admin = S.admin ∧ ProxyUpgradeCurrent.ApplyLoop (C.project S.admin) S.impl rows J.impl := by
   induction h with
   | nil => intro _; exact ⟨rfl, ProxyUpgradeCurrent.ApplyLoop.nil⟩
   | @cons S K J r rs hstep _ ih =>
       intro ha
-      obtain ⟨hK, h0⟩ := applyRow_to_current hs hk hstep (ha r List.mem_cons_self)
+      obtain ⟨hK, h0⟩ := applyRow_to_current hra hstep (ha r List.mem_cons_self)
       obtain ⟨hJ, h1⟩ := ih (fun t ht => by rw [hK]; exact ha t (List.mem_cons_of_mem _ ht))
       rw [hK] at h1 hJ
       exact ⟨hJ, ProxyUpgradeCurrent.ApplyLoop.cons h0 h1⟩
 
 /-- The converse: a `RowsCurrent` loop on the implementation slots is a refined loop with the
 admin slots fixed. -/
-lemma applyLoop_of_current {C : Config} (hs : SelfOnly C) (hk : KeepsAdmin C)
+lemma applyLoop_of_current {C : Config} (hra : ∀ r S, (C.reinit r S).admin = S.admin)
     {A : Address → Address} {I I' : Impl} {rows : List Row}
     (h : ProxyUpgradeCurrent.ApplyLoop (C.project A) I rows I') :
     (∀ r ∈ rows, A r.proxy = C.proxyAdmin) → ApplyLoop C ⟨I, A⟩ rows ⟨I', A⟩ := by
@@ -241,8 +244,29 @@ lemma applyLoop_of_current {C : Config} (hs : SelfOnly C) (hk : KeepsAdmin C)
       | upgrade ho hne hsrc =>
           have hstep' : ApplyRow C ⟨I, A⟩ r (swap C r ⟨I, A⟩) :=
             ApplyRow.upgrade ho (read_admin (S := ⟨I, A⟩) har) hne hsrc har
-          rw [swap_eq hs hk] at hstep'
+          rw [swap_eq hra] at hstep'
           exact ApplyLoop.cons hstep' hrest
+
+/-- The correspondence for a configuration whose reinitializer leaves every admin slot alone,
+from a state in which `_admin` administers every row's proxy. -/
+lemma applyRows_correspond {C : Config} (hra : ∀ r S, (C.reinit r S).admin = S.admin)
+    {S J : Slots} {rows : List Row} (ha : Administered C S rows) :
+    ApplyRows C S rows J ↔
+      ProxyUpgradeCurrent.ApplyRows (C.project S.admin) S.impl rows J.impl ∧ J.admin = S.admin := by
+  constructor
+  · intro h
+    obtain ⟨hJ, h0⟩ := applyLoop_to_current hra h.loop ha
+    refine ⟨⟨h.code, h0, fun r hr => ?_⟩, hJ⟩
+    have hv := h.verified r hr
+    rw [read_admin (show J.admin r.proxy = C.proxyAdmin by rw [hJ]; exact ha r hr)] at hv
+    exact Option.some.inj hv
+  · rintro ⟨h0, hJ⟩
+    have hloop := applyLoop_of_current hra h0.loop ha
+    have hJ' : (⟨J.impl, S.admin⟩ : Slots) = J := Slots.ext' rfl hJ.symm
+    rw [hJ'] at hloop
+    refine ⟨h0.code, hloop, fun r hr => ?_⟩
+    rw [read_admin (show J.admin r.proxy = C.proxyAdmin by rw [hJ]; exact ha r hr)]
+    exact congrArg some (h0.verified r hr)
 
 end Contracts.ProxyUpgradeCurrent.AdminSlot
 
@@ -320,7 +344,7 @@ theorem SourceIsNotAppliedOnSlots : Properties.SourceIsNotAppliedOnSlots := by
 
 end Contracts.ProxyUpgradeCurrent.AdminSlot
 
-/-! ## Certificates: the transfer under `KeepsAdmin` -/
+/-! ## Certificates: `RowsCurrent` as a fragment, and the transfer under `KeepsAdmin` -/
 
 namespace Contracts.ProxyUpgradeCurrent.AdminSlot
 
@@ -334,22 +358,12 @@ theorem RowsCurrentIsTheKeepsAdminFragment : Properties.RowsCurrentIsTheKeepsAdm
       fun hf => ⟨fun r S q hq => ⟨hf r S.impl q hq, rfl⟩, fun r S S' h q _ => ?_⟩⟩, rfl⟩
   cases h
 
-theorem ApplyRowsCorrespond : Properties.ApplyRowsCorrespond := by
-  intro C S J rows hs hk ha
-  constructor
-  · intro h
-    obtain ⟨hJ, h0⟩ := applyLoop_to_current hs hk h.loop ha
-    refine ⟨⟨h.code, h0, fun r hr => ?_⟩, hJ⟩
-    have hv := h.verified r hr
-    rw [read_admin (show J.admin r.proxy = C.proxyAdmin by rw [hJ]; exact ha r hr)] at hv
-    exact Option.some.inj hv
-  · rintro ⟨h0, hJ⟩
-    have hloop := applyLoop_of_current hs hk h0.loop ha
-    have hJ' : (⟨J.impl, S.admin⟩ : Slots) = J := Slots.ext' rfl hJ.symm
-    rw [hJ'] at hloop
-    refine ⟨h0.code, hloop, fun r hr => ?_⟩
-    rw [read_admin (show J.admin r.proxy = C.proxyAdmin by rw [hJ]; exact ha r hr)]
-    exact congrArg some (h0.verified r hr)
+theorem LiftedCallIsRowsCurrentCall : Properties.LiftedCallIsRowsCurrentCall :=
+  fun C0 a I _ _ =>
+    applyRows_correspond (C := lift C0 a) (S := ⟨I, fun _ => a⟩) (fun _ _ => rfl) (fun _ _ => rfl)
+
+theorem ApplyRowsCorrespond : Properties.ApplyRowsCorrespond :=
+  fun _ _ _ _ hs hk ha => applyRows_correspond (reinit_admin hs hk) ha
 
 theorem ApplyRowsPostconditionOnSlots : Properties.ApplyRowsPostconditionOnSlots := by
   intro C S J rows hs hk ha h r hr
@@ -369,12 +383,13 @@ theorem OnlyNamedEdgesAcrossTransitionOnSlots :
 theorem ReinitMovesAreCaughtOnLastRowOnSlots :
     Properties.ReinitMovesAreCaughtOnLastRowOnSlots := by
   intro C S J K L pre post r hs hk ha h hK hL hpost
+  have hra := reinit_admin hs hk
   obtain ⟨h0, _⟩ := (ApplyRowsCorrespond C S J _ hs hk ha).mp h
   obtain ⟨hKA, hK0⟩ :=
-    applyLoop_to_current hs hk hK (fun t ht => ha t (List.mem_append_left _ ht))
+    applyLoop_to_current hra hK (fun t ht => ha t (List.mem_append_left _ ht))
   have hr : K.admin r.proxy = C.proxyAdmin := by
     rw [hKA]; exact ha r (List.mem_append_right pre List.mem_cons_self)
-  obtain ⟨hLA, hL0⟩ := applyRow_to_current hs hk hL hr
+  obtain ⟨hLA, hL0⟩ := applyRow_to_current hra hL hr
   rw [hKA] at hL0
   exact Slots.ext' (ProxyUpgradeCurrent.ReinitMovesAreCaughtOnLastRow _ _ _ _ _ pre post r
     (SelfOnlyProjectsToReinitFrames C S.admin hs) h0 hK0 hL0 hpost) hLA
@@ -395,7 +410,7 @@ theorem OrderIndependentOnSlots : Properties.OrderIndependentOnSlots := by
 
 end Contracts.ProxyUpgradeCurrent.AdminSlot
 
-/-! ## Countermodels and the witness -/
+/-! ## Countermodels and witnesses -/
 
 namespace Contracts.ProxyUpgradeCurrent.AdminSlot
 
@@ -438,7 +453,7 @@ lemma adminRewrite_rows :
         ApplyLoop.nil), ?_⟩
   intro r hr; rcases mem_pair hr with rfl | rfl <;> decide
 
-/-- `RowsCurrent` reverts the same call: its verification sees proxy `6` at `99`. -/
+/-- `RowsCurrent` reverts the projected call: its verification sees proxy `6` at `99`. -/
 lemma adminRewrite_current_reverts :
     ¬ ∃ I, ProxyUpgradeCurrent.ApplyRows (wAdminRewrite.project wSlots.admin) wSlots.impl
       [rowA, rowB] I := by
@@ -456,7 +471,7 @@ lemma adminRewrite_current_reverts :
   rw [ProxyUpgradeCurrent.applyLoop_det h.loop hloop] at h6
   exact absurd h6 (by decide)
 
-theorem AdminRewriteDefeatsVerification : Properties.AdminRewriteDefeatsVerification := by
+theorem AdminRewritePassesVerification : Properties.AdminRewritePassesVerification := by
   refine ⟨adminRewrite_selfOnly, SelfOnlyProjectsToReinitFrames _ _ adminRewrite_selfOnly,
     fun hk => absurd (hk rowB wSlots) (by decide), valid_AB, fun _ _ => rfl,
     adminRewrite_current_reverts, _, adminRewrite_rows, ⟨trivial, rfl, adminRewrite_rows⟩,
@@ -472,7 +487,43 @@ theorem AdminRewriteDefeatsVerification : Properties.AdminRewriteDefeatsVerifica
       · exact absurd hp (by decide)
       · exact absurd himpl (by decide)
   · intro h
-    exact absurd (congrArg (fun S => S.impl 6) h) (by decide)
+    exact absurd (congrFun h 6) (by decide)
+
+/-- `RowsCurrent` reverts the projected call `rowA`, `rowB`: proxy `6` ends at `98`. -/
+lemma adminRewriteOrder_current_reverts_AB :
+    ¬ ∃ I, ProxyUpgradeCurrent.ApplyRows (wAdminRewriteOrder.project wSlots.admin) wSlots.impl
+      [rowA, rowB] I := by
+  rintro ⟨I, h⟩
+  have hloop : ProxyUpgradeCurrent.ApplyLoop (wAdminRewriteOrder.project wSlots.admin)
+      wSlots.impl [rowA, rowB]
+      (ProxyUpgradeCurrent.swap (wAdminRewriteOrder.project wSlots.admin) rowB
+        (ProxyUpgradeCurrent.swap (wAdminRewriteOrder.project wSlots.admin) rowA wSlots.impl)) :=
+    ProxyUpgradeCurrent.ApplyLoop.cons
+      (ProxyUpgradeCurrent.ApplyRow.upgrade rfl (by decide) (by decide))
+      (ProxyUpgradeCurrent.ApplyLoop.cons
+        (ProxyUpgradeCurrent.ApplyRow.upgrade rfl (by decide) (by decide))
+        ProxyUpgradeCurrent.ApplyLoop.nil)
+  have h6 := h.verified rowB (by simp)
+  rw [ProxyUpgradeCurrent.applyLoop_det h.loop hloop] at h6
+  exact absurd h6 (by decide)
+
+/-- `RowsCurrent` reverts the projected call `rowB`, `rowA`: proxy `6` ends at `99`. -/
+lemma adminRewriteOrder_current_reverts_BA :
+    ¬ ∃ I, ProxyUpgradeCurrent.ApplyRows (wAdminRewriteOrder.project wSlots.admin) wSlots.impl
+      [rowB, rowA] I := by
+  rintro ⟨I, h⟩
+  have hloop : ProxyUpgradeCurrent.ApplyLoop (wAdminRewriteOrder.project wSlots.admin)
+      wSlots.impl [rowB, rowA]
+      (ProxyUpgradeCurrent.swap (wAdminRewriteOrder.project wSlots.admin) rowA
+        (ProxyUpgradeCurrent.swap (wAdminRewriteOrder.project wSlots.admin) rowB wSlots.impl)) :=
+    ProxyUpgradeCurrent.ApplyLoop.cons
+      (ProxyUpgradeCurrent.ApplyRow.upgrade rfl (by decide) (by decide))
+      (ProxyUpgradeCurrent.ApplyLoop.cons
+        (ProxyUpgradeCurrent.ApplyRow.upgrade rfl (by decide) (by decide))
+        ProxyUpgradeCurrent.ApplyLoop.nil)
+  have h6 := h.verified rowB (by simp)
+  rw [ProxyUpgradeCurrent.applyLoop_det h.loop hloop] at h6
+  exact absurd h6 (by decide)
 
 theorem AdminRewriteMakesOrderMatter : Properties.AdminRewriteMakesOrderMatter := by
   have hJ : ApplyRows wAdminRewriteOrder wSlots [rowA, rowB]
@@ -495,6 +546,7 @@ theorem AdminRewriteMakesOrderMatter : Properties.AdminRewriteMakesOrderMatter :
     intro r hr; rcases mem_pair hr with rfl | rfl <;> decide
   exact ⟨adminRewriteOrder_selfOnly,
     SelfOnlyProjectsToReinitFrames _ _ adminRewriteOrder_selfOnly, valid_AB, fun _ _ => rfl,
+    adminRewriteOrder_current_reverts_AB, adminRewriteOrder_current_reverts_BA,
     _, _, hJ, hK, by simp, by decide⟩
 
 /-- On the implementation mapping, `wAdminRewriteBack` is `wSelfMoving`. -/
@@ -517,11 +569,21 @@ theorem MoveBackWithAdminRewriteIsNotCaught : Properties.MoveBackWithAdminRewrit
   exact ⟨adminRewriteBack_selfOnly, adminRewriteBack_project, valid_AB, fun _ _ => rfl,
     ProxyUpgradeCurrent.ReinitMovingOwnProxyIsCaught.2.2.2, rfl, _, hJ, by decide, by decide⟩
 
-theorem UnadministeredProxyFoolsTheSkip : Properties.UnadministeredProxyFoolsTheSkip := by
+theorem UnadministeredRowSkippedWhileOffTarget :
+    Properties.UnadministeredRowSkippedWhileOffTarget := by
   refine ⟨wCfg_selfOnly, wCfg_keeps, valid_B, fun ha => absurd (ha rowB (by simp)) (by decide),
     ⟨fun _ _ => trivial, ApplyLoop.cons (ApplyRow.alreadyAtTarget (by decide)) ApplyLoop.nil,
       ?_⟩, by decide⟩
   intro r hr; rw [List.mem_singleton.mp hr]; decide
+
+theorem SelfOnlyIsNeededOnSlots : Properties.SelfOnlyIsNeededOnSlots := by
+  obtain ⟨hnf, _, J, hJ, hnamed, h7⟩ := ProxyUpgradeCurrent.ReinitLeakIsNotCaught
+  have hfrag := RowsCurrentIsTheKeepsAdminFragment wLeaky wAdmin wSlots.admin
+  exact ⟨fun hs => hnf (hfrag.2.1.mp hs), hfrag.1, valid_AB, fun _ _ => rfl,
+    ⟨J, fun _ => wAdmin⟩,
+    (LiftedCallIsRowsCurrentCall wLeaky wAdmin wImpl [rowA, rowB] ⟨J, fun _ => wAdmin⟩).mpr
+      ⟨hJ, rfl⟩,
+    rfl, hnamed, h7⟩
 
 theorem AdminSlotWitness : Properties.AdminSlotWitness := by
   have hs' : SelfOnly wKeepAdminSelfMoving :=
@@ -537,8 +599,25 @@ theorem AdminSlotWitness : Properties.AdminSlotWitness := by
           (ApplyRow.upgrade (v := 10) rfl (by decide) (by decide) (by decide) (by decide))
           ApplyLoop.nil), ?_⟩
     intro r hr; rcases mem_pair hr with rfl | rfl <;> decide
+  have hK : ApplyRows wCfg wSlots [rowB, rowA] (swap wCfg rowA (swap wCfg rowB wSlots)) := by
+    refine ⟨fun _ _ => trivial,
+      ApplyLoop.cons
+        (ApplyRow.upgrade (v := 10) rfl (by decide) (by decide) (by decide) (by decide))
+        (ApplyLoop.cons
+          (ApplyRow.upgrade (v := 10) rfl (by decide) (by decide) (by decide) (by decide))
+          ApplyLoop.nil), ?_⟩
+    intro r hr; rcases mem_pair hr with rfl | rfl <;> decide
+  have heq := OrderIndependentOnSlots wCfg wSlots _ _ [rowA, rowB] [rowB, rowA]
+    (List.Perm.swap _ _ _) wCfg_selfOnly wCfg_keeps (fun _ _ => rfl) hJ hK
   refine ⟨wCfg_selfOnly, wCfg_keeps, fun _ _ => rfl, valid_AB,
-    ⟨_, hJ, by decide, by decide, rfl⟩, hs', hk', fun _ _ => rfl,
+    ⟨_, hJ, by rw [heq]; exact hK, ⟨trivial, rfl, hJ⟩, by decide, by decide, rfl,
+      swap wCfg rowA wSlots, _,
+      ApplyLoop.cons
+        (ApplyRow.upgrade (v := 10) rfl (by decide) (by decide) (by decide) (by decide))
+        ApplyLoop.nil,
+      ApplyRow.upgrade (v := 10) rfl (by decide) (by decide) (by decide) (by decide),
+      by decide, rfl⟩,
+    hs', hk', fun _ _ => rfl,
     ⟨_, ApplyLoop.cons
         (ApplyRow.upgrade (v := 10) rfl (by decide) (by decide) (by decide) (by decide))
         (ApplyLoop.cons
@@ -547,5 +626,12 @@ theorem AdminSlotWitness : Properties.AdminSlotWitness := by
   rintro ⟨J, h⟩
   obtain ⟨h0, _⟩ := (ApplyRowsCorrespond _ _ _ _ hs' hk' (fun _ _ => rfl)).mp h
   exact ProxyUpgradeCurrent.ReinitMovingOwnProxyIsCaught.2.2.2 ⟨J.impl, h0⟩
+
+theorem AdminSlotCasesWitness : Properties.AdminSlotCasesWitness := by
+  refine ⟨adminRewrite_selfOnly, fun _ _ => rfl, valid_AB.distinctProxies, _, adminRewrite_rows,
+    ⟨?_, by decide, by decide⟩, ⟨by decide, by decide, by decide, by decide, by decide⟩,
+    ⟨by decide, by decide, rfl⟩, swap wAdminRewrite rowA wSlots, ApplyLoop.nil,
+    ApplyRow.upgrade (v := 10) rfl (by decide) (by decide) (by decide) (by decide), rfl⟩
+  intro r hr; rcases mem_pair hr with rfl | rfl <;> decide
 
 end Contracts.ProxyUpgradeCurrent.AdminSlot
