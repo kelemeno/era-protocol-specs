@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Registry-driven upgrades at draft/v0.35.0 (b17415d20): engine legs on the bootstrap's
+-- authority state (RegistryBootstrapMigration)
+import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityEngineV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
