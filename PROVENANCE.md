@@ -98,18 +98,20 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
 
 * At era-contracts `c67894b9`:
   - `AssetRouterBase`: `AtomicRecovery`, `AllWriters`, `VaultMintGate`,
-    `CounterpartGate`, `HandlerRegistrationRuns`.
+    `CounterpartGate`, `HandlerRegistrationRuns`, `PausedRecovery`.
   - `NativeTokenVaultBase`: `Resolution` (with `ResolutionCorrespondence`),
-    `RegistrationUnified`, `Reinitialization`, `LegacyFallback`.
+    `RegistrationUnified`, `Reinitialization`, `LegacyFallback`, `Pause`.
   - `BridgedStandardERC20`: `Reinitialization`, `LegacyFallback`. The OpenZeppelin
     v4.9 lines `Reinitialization` cites were read from a v4.9.6 copy, because the
     pinned tree's submodules are not checked out (see that spec's header).
   - `InteropCenter` (new contract folder): `Dispatch`.
   - `InteropDataEncoding` `BundleHashPinned`; `InteropHandlerBase` `Reentrancy`;
+    `L2InteropHandler` `SourceBindingReduced`;
     `L2InteropCommitmentTree` `CachedRoot`, `InitOnce`, `PublishedRootCommits`;
     `FullMerkle` `CachedNodes`; `Merkle` `RootForgeryPinned`.
-  - `Protocol/InteropAtomicity` `FlowBinding`, `OncePerLeg`;
-    `Protocol/AssetBridgePreparation` `RegistryCorrespondence`, `Reinitialization`;
+  - `Protocol/InteropAtomicity` `FlowBinding`, `OncePerLeg`, `Pause`, `SharedCommitment`,
+    `Operational`; `Protocol/AssetBridgePreparation` `RegistryCorrespondence`,
+    `Reinitialization`, `Resolution`, `ResolutionEvidence`, `FullRecovery`;
     `Examples/BurnMintBridge` `EndBranch`.
   - `Codegen/Calls.lean` (single module) and `Codegen/VaultPreparationSlice/`, which
     transcribes the vault's registered bridged-token `bridgeBurn` branch.

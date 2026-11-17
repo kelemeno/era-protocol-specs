@@ -44,6 +44,9 @@ discharge these concrete obligations.
 | Tracked token's full storage, metadata-aware preparation hooks, witness vault | [Specs/Reinitialization.lean](Specs/Reinitialization.lean) |
 | Reinitialization leaves the vault state and invariants alone; only prepared metadata bytes can change | [Properties/Reinitialization.lean](Properties/Reinitialization.lean) |
 | Checked reinitialization derivations and witness | [Proofs/Reinitialization.lean](Proofs/Reinitialization.lean) |
+| The owner's `pause`/`unpause` and attempted entry-point calls during a pause | [Specs/Pause.lean](Specs/Pause.lean) |
+| A paused vault commits nothing; delivery and recovery after unpausing are as before | [Properties/Pause.lean](Properties/Pause.lean) |
+| Checked pause derivations and witness | [Proofs/Pause.lean](Proofs/Pause.lean) |
 
 ## Two overlapping models
 
@@ -283,8 +286,10 @@ Witnesses: `ResolutionSatisfiable` (non-identity hooks satisfying `HooksCancel`)
 `SpendingAndDeliverySatisfiable`, `ResolutionRejectionsSatisfiable`,
 `FirstBridgeSatisfiable`, `ResolutionCorrespondenceSatisfiable`. No result takes a
 hash premise. Native escrow release, legacy-token and base-token branches, and
-recovery's own deploy branch are not modelled; trace-level conservation and single
-resolution remain open.
+recovery's own deploy branch are not modelled. Trace-level conservation and single
+resolution across a source and a destination vault are in
+[`Protocol/AssetBridgePreparation`](../../Protocol/AssetBridgePreparation/README.md)
+(`Resolution`), and full recovery of router-deposit bundles in `FullRecovery` there.
 
 Source observations, reported to the maintainer of this repo, not yet confirmed
 upstream. Both verifiers classify the first as a NatSpec error and the second as a
@@ -297,6 +302,29 @@ low-severity bug:
 - A zero receiver is accepted at the source and rejected at every modelled
   destination (`ZeroReceiverOnlyRecoverable`). On routes without a refund path the
   burned value may be unrecoverable; that is not modelled.
+
+## Pause
+
+`Specs/Pause.lean` adds the owner's `pause()` and `unpause()` (`NativeTokenVaultBase.sol:660-668`; `vaultPause`,
+`vaultUnpause`: OpenZeppelin's `whenNotPaused`/`whenPaused`, writing only the flag) and
+attempted calls to the three modelled `whenNotPaused` entry points: `bridgeBurn` (as
+`prepare`), `bridgeMint` and `bridgeRecoverFailedTransfer`, on the registered branches. An
+attempt commits as the commit interfaces do: the successor on success, the unchanged state on
+failure. No hash premise.
+
+| Result | Statement |
+|---|---|
+| `VaultPauseTogglesOnlyTheFlag` | Pausing an unpaused vault sets the flag and nothing else; unpausing returns the original state; neither succeeds from the wrong state. |
+| `PausedVaultCommitsNothing` | On a paused vault every attempted burn, mint and recovery reverts, so any sequence of attempts leaves the state unchanged. |
+| `DeliveryDelayedNotLost` | A paused vault rejects every `bridgeMint`; unpausing after any attempts returns exactly the pre-pause state. No hook premise. |
+| `RecoveryDelayedNotLost` | After a preparation from a `WellFormed` state and a pause: the router's recovery of the prepared data reverts while paused; unpausing after any attempts returns the post-preparation state; and the recovery from there restores the pre-preparation state. The last part is `PrepareThenRecoverRoundTrip` and needs `HooksCancel`, which the L2 tracker's counters do not satisfy (`RoundTripNeedsCancellingHooks`, `REP-RESOLVE`). |
+
+Witness: `VaultPauseWitness`, with B2's counter hooks and a nonzero preparation that changes
+the accounting. Calls by other contracts during the pause, such as token transfers, are not
+attempts on the vault (`RecoverAfterSpending` covers ordinary transfers). Ownership of the
+pause functions is fixed configuration (`OPS-CONFIG`). The protocol-level pause model is
+`Protocol/InteropAtomicity` `Pause`; the refund it delays is `AssetRouterBase`
+`PausedRecovery`.
 
 ## Legacy tokens
 

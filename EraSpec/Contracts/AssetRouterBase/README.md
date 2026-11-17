@@ -35,6 +35,7 @@ for those exact named propositions, plus auxiliary lemmas.
 | CounterpartGate | [Specs/CounterpartGate.lean](Specs/CounterpartGate.lean) | [Properties/CounterpartGate.lean](Properties/CounterpartGate.lean) | [Proofs/CounterpartGate.lean](Proofs/CounterpartGate.lean) |
 | AtomicRecovery | [Specs/AtomicRecovery.lean](Specs/AtomicRecovery.lean) | [Properties/AtomicRecovery.lean](Properties/AtomicRecovery.lean) | [Proofs/AtomicRecovery.lean](Proofs/AtomicRecovery.lean) |
 | AtomicRecoveryFaithful | [Specs/AtomicRecoveryFaithful.lean](Specs/AtomicRecoveryFaithful.lean) | [Properties/AtomicRecoveryFaithful.lean](Properties/AtomicRecoveryFaithful.lean) | [Proofs/AtomicRecoveryFaithful.lean](Proofs/AtomicRecoveryFaithful.lean) |
+| PausedRecovery | [Specs/PausedRecovery.lean](Specs/PausedRecovery.lean) | [Properties/PausedRecovery.lean](Properties/PausedRecovery.lean) | [Proofs/PausedRecovery.lean](Proofs/PausedRecovery.lean) |
 
 Namespaces: `Contracts.AssetRouter` (HandlerRegistration, HandlerRegistrationRuns),
 `Contracts.AssetRouter.AllWriters` (AllWriters, AllWritersStrong, VaultMintGate,
@@ -217,6 +218,32 @@ no-code premise the refund is whatever the code at that address does
 (`L1LegClaimOnlyByForeignCode`). The other tree, `e561b9cc2`, rejects the send
 (`InteropCenter.sol:550-554`) and the recovery of an L1-destined bundle
 (`AtomicFlowManager.sol:295`).
+
+## Atomic recovery while the vault is paused (`PausedRecovery`)
+
+Namespace `Contracts.AssetRouter.PausedRecovery`, in `AtomicRecovery`'s refund model, whose
+world already carries the vault's `paused()` flag and whose vault refund begins with
+`whenNotPaused` (`NativeTokenVaultBase.sol:217`). It adds the owner's `pause()`/`unpause()`
+(`pauseVault`, `unpauseVault`: OpenZeppelin's guards, writing only the flag) and two frame
+premises on the bundle's other targets: `OthersLeavePause` (they do not write the vault's
+flag) and `OthersIgnorePause` (they neither read nor write it). No hash premise.
+
+| Result | Statement |
+|---|---|
+| `PausedVaultRevertsRouterDeposit`, `PausedRouterDepositBlocksClaim`, `RouterRefundLeavesPause` | While the vault is paused, `recoverAtomicCall` on any `finalizeDeposit` call reverts (outcome `reverts`, not `declined`), so no outcome list containing it is accepted. A returning router refund leaves the flag alone. |
+| `PausedVaultBlocksClaim` | Paused vault, `OthersLeavePause`, and a call in the bundle that targets the router with `finalizeDeposit` data (`HasRouterDeposit`): `claimRefund` reverts, for any leg state, on the state the earlier calls leave. The leg keeps its state. |
+| `PauseIrrelevantWithoutRouterDeposit` | With `OthersIgnorePause` and no router deposit, the claim's result does not depend on the flag. |
+| `PauseUnpauseRoundTrip`, `PausedClaimRetriedAfterUnpause` | A claim that succeeds on an unpaused world reverts once the vault is paused; pause then unpause returns exactly the original world, where the claim gives the same result. |
+| `PausedPreparedBurnRefundDelayed` | In `PreparedBurnRefundsDepositor`'s setting (a burn the vault prepared from a `WellFormed` state, an asset the refund world knows as bridged, a returning tracker hook): the router call carrying the burn's data reverts while paused, and unpaused it re-mints the burned amount to the depositor. Stated on `routerCall`, the router-produced call only for a destination other than L1. |
+
+Witness: `PausedRecoveryWitness`, on `AtomicRecovery`'s concrete world: a one-call bundle
+with a vault-asset router deposit is claimed unpaused and reverts paused, and a bundle with
+no router deposit is claimed both paused and unpaused. A router-produced call to L1 targets
+`L1_ASSET_ROUTER` and is a router deposit here only if that address is
+`L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`). The protocol-level pause model is
+`Protocol/InteropAtomicity` `Pause`, whose refund gate reads the vault flag exactly for
+bundles with a router call, which `PauseIrrelevantWithoutRouterDeposit` justifies for this
+model.
 
 ## Assumptions to review
 

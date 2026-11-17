@@ -16,9 +16,14 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
 | RootImport | [Specs/RootImport.lean](Specs/RootImport.lean) | [Properties/RootImport.lean](Properties/RootImport.lean) | [Proofs/RootImport.lean](Proofs/RootImport.lean) |
+| Pause | [Specs/Pause.lean](Specs/Pause.lean) | [Properties/Pause.lean](Properties/Pause.lean) | [Proofs/Pause.lean](Proofs/Pause.lean) |
+| SharedCommitment | [Specs/SharedCommitment.lean](Specs/SharedCommitment.lean) | [Properties/SharedCommitment.lean](Properties/SharedCommitment.lean) | [Proofs/SharedCommitment.lean](Proofs/SharedCommitment.lean) |
+| Operational | [Specs/Operational.lean](Specs/Operational.lean) | [Properties/Operational.lean](Properties/Operational.lean) | [Proofs/Operational.lean](Proofs/Operational.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
-`Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`).
+`Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
+`Pause` on `FlowBinding` and `OncePerLeg`, `SharedCommitment` on `OncePerLeg`, and
+`Operational` on `OncePerLeg`, `FlowBinding` and `SourceHeight`).
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -43,6 +48,8 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
 > structural results. `CrossFlowRefundYieldsCollision` and
 > `SharedCommitmentYieldsCollision` take no premise but end in an unpinned "some
 > collision exists", which is always true (`UnpinnedCollisionsAlwaysExist`).
+> `SharedCommitmentYieldsCollision` has a run-level restatement with content in
+> `SharedCommitment`.
 > `ExecutedImpliesRealFlowFinalizable` now has a logged-clash form
 > (`ExecutedImpliesRealFlowFinalizableOrLoggedClash`, `FlowBinding`), and
 > `CommitmentPinsLegOn`'s premise is discharged on a run's own append log
@@ -147,13 +154,169 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   Aggregation paths inside a settlement proof are idealized as the honest ones; the import
   transitions themselves are not modelled (a snapshot `World`, `ImportsGrow`).
 
-The tree side is a fixed multi-chain, multi-batch history, and steps may cite
+- **Pause** (namespace `Contracts.InteropPause`). Each chain gets the `paused()` flags of
+  its L2 `InteropCenter`, `L2AssetRouter` and `NativeTokenVault`, the owner's `pause` and
+  `unpause` steps, and a pause gate on each step of `RunLog` (`PRun`) and of the
+  tree-attached `SysSteps` (`PSysSteps`). Which pausable contract a bundle's send,
+  execution and refund reach is the parameter `Profile`, fixed for the run; every result
+  quantifies over profiles. The L2 interop handler has no pause gate (its
+  `_ensureNotPaused` is a no-op on L2), and the manager has none. No hash premise.
+  - Pause only removes steps. A paused run is a `RunLog` with the same checked calls, its
+    authorizations are a `ReachLog`, and a paused `PSysSteps` run is a `SysSteps` run with
+    the same logs (`PausedRunIsRunLog`, `PausedRunAuthCallsReachLog`,
+    `PausedSystemIsSystemRun`; with every flag clear the converses hold,
+    `RunLogIsUnpausedRun`, `SystemRunIsUnpausedSystemRun`). So the `…OrBreak` results hold
+    verbatim over paused runs: `ExecutedObligationNeverRefundedOrBreakUnderPause`,
+    `OneExecutionFreezesTheFlowOrBreakUnderPause`, `NoneOrAllOrBreakUnderPause` and its
+    pinned form, `LoggedExecutionExcludesLoggedRefundOrBreakUnderPause`,
+    `ExecutedImpliesRealFlowFinalizableOrLoggedClashUnderPause`, `SystemOncePerLegUnderPause`,
+    `SystemExecutedObligationNeverRefundedOrBreakUnderPause`.
+  - A paused destination vault (`PausedDestinationLeavesFlowStuck`). Take a checked flow
+    whose legs were all committed by on-time batches, and a paused run from fresh managers
+    to a state where the destination vault of one leg is paused, that leg minting through
+    it. Then that leg cannot execute; no obligation of the flow is refunded unless a logged
+    call that marked it carries a `CommittedRefundBreak` (a flow-id clash, or an
+    `AbsenceBreak` on the call's own absence proof); and no timeout evidence for a leg of the
+    flow passes without an `AbsenceBreak`. The first part is the gate's definition; the
+    refund parts do not use the pause (`CommittedOnTimeNeverRefundedOrBreak`,
+    `CommittedOnTimeExcludesRefundOrBreak`). In a continuation that never unpauses that
+    vault, the leg is not executed and the same refund exclusion holds, also after a sibling
+    leg executed on another destination (`PermanentDestinationPauseStrandsLeg`,
+    `DestinationPauseStrandsSiblingWitness`); ending that state rests on the vault's owner
+    (`OPS-CONFIG`).
+  - Unpausing restores enabledness. At the end of any paused run, under `Wf` and
+    `DataAvailable`, for a checked, committed-on-time flow, an extension by unpauses of that
+    vault only (at most one, by `unpause`'s `whenPaused` guard) followed by the leg's
+    execution on presentable evidence is a run (`UnpauseRestoresExecution`;
+    `UnpausedGateIsTheGate`). The gate has no clock, so a long pause delays the execution
+    but cannot expire it. The execution is `ExecutedViaBy`, the IMT half; the destination's
+    root import is `RootImport`'s. `PRun`'s execute step, like `RunLog`'s, has no
+    bundle-status check, so this is enabledness at the gate.
+  - A paused source vault keeps a `Revertable` leg whose bundle has a router call
+    `Revertable` and unclaimed for as long as it stays paused
+    (`PausedVaultKeepsLegRevertable`); an unpause followed by the claim is then a run that
+    leaves the leg `Reverted` (`UnpauseReEnablesClaim`). That the concrete claim succeeds
+    is `AssetRouterBase` `PausedRecovery`.
+  - Frames: `PauseGatesReadOnlyTheirOwnFlags`, `PausedDestinationStaysPausedAlongRuns`,
+    `PausedCenterStaysPausedAlongRuns` (a paused center logs no `append` on its chain). That a
+    source pause lasting past the deadline makes the timeout genuine is not a theorem here:
+    the history is fixed and not tied to the run's appends.
+
+  Witnesses: `PauseRunWitness`, `PausedDestinationStuckWitness`, `PausedVaultClaimWitness`,
+  `DestinationPauseStrandsSiblingWitness`, `PausedCenterWitness`, `PausedSystemWitness`,
+  and `LoggedExecutionExcludesLoggedRefundOrBreakUnderPauseWitness` (the padding run: the
+  absence break is located). In `PauseRunWitness` and `PausedDestinationStuckWitness` the
+  refund-break disjuncts are false because the one logged authorization marks another
+  flow's obligation.
+
+- **SharedCommitment** (namespace `Contracts.SharedCommitment`). Restates
+  `SharedCommitmentYieldsCollision`, whose collision disjunct is unpinned and whose pinned
+  form `CommitmentPinsLegOrCollision` is excluded middle, as statements the run decides. No
+  hash premise and no premise on the commit value.
+  - On a run. Two distinct obligations with one nonzero commit value can both be appended
+    in one `SysSteps` run iff they are on different chains
+    (`SharedCommitmentCoexistsIffCrossChain`). A list is the `append` log of some run of
+    chain `c` iff its entries are on `c`, have nonzero commit values, appear once and have
+    no `CommitClash` among them (`ChainLogIffAppendable`; every chain at once,
+    `SystemLogIffAppendablePerChain`), and every duplicate-free list on one chain is a run's
+    log under some clash-free commit value (`HonestCommitValueRealizesChainLog`).
+    `SharedCommitmentPinnedToRun` is the backlog sketch's shape: two obligations drawn from
+    a run's append and authorize logs with one commit value are equal, or on different
+    chains (the same leg there, or a `CommitClash` on exactly those two). Once the commit
+    values are equal that inner disjunction is excluded middle; the content is that on one
+    chain only equality is possible. The managers alone admit a same-chain clash; the
+    tree's `IMTValueAlreadyExists` check is what refutes it
+    (`SharedCommitmentManagersAloneAdmitSameChainClash`).
+  - At the gate, under the premise `HistoryFromRuns` (each batch-end tree of the fixed
+    history is a tree its chain's run reaches; `MODEL-HISTORY-FROM-RUNS`). A leg that passes
+    the inclusion check was appended on its declared chain by that batch, or has a
+    `CommitClash` with an obligation in that chain's log, or has commit value `0`, or its
+    proof carries an `InclusionBreak` (`GateLegWasAppendedOrClash`; flow form
+    `ExecutedFlowLegsWereAppendedOrClash`; for a history cut from one `SysSteps` run,
+    `SystemHistoryIsHistoryFromRuns`, `ExecutedFlowLegsWereAppendedInSystemOrClash`). Each
+    exception fires alone on a never-appended leg
+    (`SharedCommitmentClashLetsUnappendedLegExecute`,
+    `SharedCommitmentZeroLetsUnappendedLegExecute`,
+    `SharedCommitmentForgedProofLetsUnappendedLegExecute`); `SharedCommitmentGateWitness`
+    and `SystemHistoryWitness` meet the premises with all three false.
+  - At the timeout check, under `HistoryFromRuns`. If an absence proof passes, no
+    obligation appended behind the root the check used shares the missing leg's commit
+    value, or the proof carries an `AbsenceBreak`; there is no clash or zero exception
+    (`TimeoutAbsenceExcludesSharedCommitmentOrBreak`, witness `TimeoutAbsenceWitness`). In
+    `SharedCommitmentClashBlocksTimeout` a never-appended leg whose value clashes with an
+    appended one executes, and every absence proof that passes for it carries an
+    `AbsenceBreak`; it does not show that such a proof exists.
+  - The same `(flowId, bundleHash)` can be appended on two chains in the model, because
+    `bundleHash` embedding `block.chainid` is not modelled
+    (`SharedCommitmentSameLegTwoChainsWitness`).
+
+- **Operational** (namespace `Contracts.InteropOperational`). One global interleaving of
+  every chain's `append` (with the tree insert), `authorizeRefund` (one leg per step, on the
+  leg's declared chain), `claimRefund` and `initL2`; every destination's
+  `executeAtomicBundle` (the gate only; it writes no destination state); and the
+  settlement layer's batch end, in-order settlement at a non-decreasing clock, and root
+  recording. An execution may cite only settled batches; `authorizeRefund` resolves against
+  a recorded root and cites a settled batch. Every result is for every run from
+  `opGenesis` and every node hash, leaf hash, padding constant, commit value and flow hash;
+  none takes a hash, `Wf` or `Aggregates` premise. Boundaries: `MODEL-INTEROP-OPERATIONAL`.
+  - Projection. The history the end state determines is `Wf`, with heights `fmHeight` of
+    the leaf count by construction (`OpRunHistoryWf`). Every recorded root aggregates every
+    batch settled strictly before it (`OpRunRootsAggregateBefore`), and that strict form is
+    what the END branch needs (`IsLastOnTimeDerivedBefore`). The non-strict `Aggregates`
+    can fail for a root recorded before a same-timestamp settlement
+    (`OpRootMayMissSameTimeBatch`), so fixed-history results that take `Aggregates` do not
+    apply verbatim; their content is re-proved (`OpRefundedLegMissedDeadlineOrBreak`,
+    `OpRefundStaysDeserved`). Settled batches and recorded roots never change
+    (`OpRunSettledHistoryIsFinal`), and every logged call cites settled batches
+    (`OpLoggedEvidenceIsSettled`).
+  - Embedding. A run's steps are a `SysSteps`, a `RunLog` and a `ReachLog` run over that
+    history (`OpRunEmbedsInSysSteps`, `OpRunEmbedsInRunLog`, `OpRunEmbedsInReachLog`), and
+    a prefix's calls stay valid against every later history (`OpPrefixEmbedsInLaterHistory`).
+  - Transfer: `OpExecutedObligationNeverRefundedOrBreak`,
+    `OpOneExecutionFreezesTheFlowOrBreak`, `OpRefundImpliesOwnFlowTimeoutOrLoggedClash`,
+    `OpExecutedImpliesAllFinalizableOrBreak`, `OpSiblingFinalizableNowOrBreak`,
+    `OpNoneOrAllOrBreakPinned`, `OpLoggedExecutionExcludesLoggedRefundOrBreak`,
+    `OpExecutedImpliesRealFlowFinalizableOrLoggedClash`, `OpSystemOncePerLeg`,
+    `OpRefundedWasAppendedOnce`, with `DataAvailable` where the original takes it. The
+    projected history gives a batch that has not settled the live tree and the time `now`,
+    so an existential conclusion over it ("finalizable", `RefundAuthorized`) may be met at
+    such a batch, which can still settle late. `OpSiblingFinalizableNowOrBreak` is the
+    reading on the settled batch the execution cited.
+  - Escrow. For every logged execution and every leg of its flow: the leg's obligation was
+    appended on its declared chain and is still `Committed` there, or a `CommitClash` with an
+    obligation appended there, a zero commit value, an `InclusionBreak` on the execution's
+    proof for that leg, or a `RefundBreak` holds (`OpExecutedLegWasAppendedOrBreak`,
+    `OpExecutedLegEscrowedAndNotRefundedOrBreak`). The model has no burn: reading "appended"
+    as "escrowed" rests on the center calling `append` in the source burn's transaction,
+    argued from source. Over a fixed history an execution of a never-appended leg passes
+    with no break (`FixedHistoryAdmitsUnescrowedExecution`).
+  - Liveness as enabledness. Once a root created after the deadline is recorded, a checked
+    flow with nonzero commit values can be executed now on every leg, or some leg makes
+    every `Committed` leg refundable now on the BEGIN or (for a halted chain) END branch
+    (`OpFinalizedFlowIsExecutable`, `OpTimedOutLegIsRefundable`,
+    `OpFlowFateDecidedAfterRoot`), and the on-time settled batches never change again
+    (`OpOnTimeBatchesFinalAfterRoot`). The exhibited evidence is the honest proof
+    (`PROTO-DA`); the model imports every recorded root on every chain at once, and the
+    omitted reject-only checks (pause, replay guard, sortedness) can still reject the call.
+    Nobody is assumed to send it (`OPS-PROGRESS`).
+  - `_verifyLastBatchInRoot` is modelled by its conclusion `N = R.upTo c`; the path forms
+    (`RootBacking`, `LastBatchAccepted`) are not transferred.
+
+  Witnesses: `OpHonestRunWitness` (two segments with nonempty logs, an execution and a
+  refund of another flow; every break and clash disjunct false, and every recorded root
+  meets even the non-strict `Aggregates`), `OpPaddingRefundLocatesAbsenceBreak` (with the
+  pin's padding constant an executed, appended leg is refunded on a forged END-branch
+  absence proof; the located break is that proof's `paddingHit`), `OpLivenessWitness`, and
+  the countermodels `OpRootMayMissSameTimeBatch` and `FixedHistoryAdmitsUnescrowedExecution`.
+
+The other topics' tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an
-operational model, so excluding both is the stronger claim. An operational model
-(or a projection theorem from one) is open; `OncePerLeg`'s `SysSteps` still checks
-timeout evidence against that fixed history. Also open: liveness (every committed
-obligation eventually executes or refunds). Source-side obligations are O7–O9 in
-`../../Refinement.lean`.
+operational model, so excluding both is the stronger claim. `Operational` is such an
+operational model, and its runs project to fixed histories over which the `…OrBreak`
+results hold; `OncePerLeg`'s `SysSteps`, `Pause` and the `SharedCommitment` gate results
+are still stated over a fixed history. Also open: liveness as eventual delivery (every
+committed obligation eventually executes or refunds); `Operational` proves enabledness
+only. Source-side obligations are O7–O9 in `../../Refinement.lean`.
 
 These modules keep the namespaces they had on the `claude/proof-attempt-4f3778`
 line (`Contracts.Atomicity`, `Contracts.Timeout`, `Contracts.Refund`).

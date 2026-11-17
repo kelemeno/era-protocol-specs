@@ -40,15 +40,17 @@ leaf hash, padding constant, commit value and flow hash, with no hash premise.
    `OpRefundedWasAppendedOnce`.
 4. **New: executions are escrowed.**  Because the history is built by the run's own
    `append`s, an executed leg was appended on its declared source chain, and stays
-   `Committed` there, or a located break or a pinned collision holds
+   `Committed` there, or a located break, a pinned collision or a zero commit value holds
    (`OpExecutedLegWasAppendedOrBreak`, `OpExecutedLegEscrowedAndNotRefundedOrBreak`).  The
+   model has no burn: reading "appended" as "escrowed" rests on the source (see
+   `OpExecutedLegWasAppendedOrBreak`).  The
    fixed history cannot say this: it admits an execution of a leg no chain ever appended
    (`FixedHistoryAdmitsUnescrowedExecution`).
 5. **New: the fate of a flow is decided by a post-deadline root.**  The source's
    COMPLETENESS claim (`AtomicInteropProof.sol:89-94`) as enabledness: once a root created
-   after the deadline is recorded, a checked flow can be executed on every leg (if every
-   leg is in an on-time settled batch), or refunded on every committed leg (if some leg is
-   not), on the BEGIN or, for a halted chain, the END branch
+   after the deadline is recorded, a checked flow with nonzero commit values can be executed
+   on every leg (if every leg is in an on-time settled batch), or refunded on every committed
+   leg (if some leg is not), on the BEGIN or, for a halted chain, the END branch
    (`OpFinalizedFlowIsExecutable`, `OpTimedOutLegIsRefundable`,
    `OpFlowFateDecidedAfterRoot`); and from then on the on-time settled batches never change
    (`OpOnTimeBatchesFinalAfterRoot`).  The execution is through the model's gate, the IMT
@@ -443,8 +445,9 @@ of four holds:
 * the inclusion proof `e` submitted for `ℓ` carries a located `TreeRootBreak`.
 
 The center calls `append` (`interop/InteropCenter.sol:650`) in the same transaction as the
-leg's source burn (`atomic-interop/README.md:30-35`), so the first disjunct says the leg's
-funds were escrowed on its declared source chain.  No
+leg's source burn (`atomic-interop/README.md:30-35`), so, read with the source, the first
+disjunct says the leg's funds were escrowed on its declared source chain.  The burn itself is
+not modelled.  No
 fixed-history result can say this, because `S` is not tied to the trees the `append`s build
 (`FixedHistoryAdmitsUnescrowedExecution`). -/
 def Properties.OpExecutedLegWasAppendedOrBreak : Prop :=
@@ -460,7 +463,8 @@ def Properties.OpExecutedLegWasAppendedOrBreak : Prop :=
 /-- **CAPSTONE: EVERY LEG OF AN EXECUTED FLOW IS ESCROWED ON ITS OWN CHAIN AND NEVER
 REFUNDED, OR A LOCATED BREAK.**  For every run from `opGenesis`, every logged execution `e`
 and every leg `ℓ` of `e.flow`: the leg's obligation was appended on `ℓ.chain` and is
-`Committed` there at the end state (escrowed, not refunded); or a `CommitClash` with an
+`Committed` there at the end state (escrowed, in the reading of
+`OpExecutedLegWasAppendedOrBreak`, and not refunded); or a `CommitClash` with an
 obligation appended on `ℓ.chain`; or a zero commit value; or a located break on `e`'s
 inclusion proof for `ℓ`; or a `RefundBreak` on an authorization in the run's own log that
 marked that obligation.  No hash premise, no `Wf`, no `Aggregates`. -/
