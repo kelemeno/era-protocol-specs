@@ -4,8 +4,15 @@ import EraSpec.Core.Word
 /-!
 # Model: the second-proof-system flag and the ZiSK switch of one diamond (draft/v0.35.0)
 
-Source: era-contracts `draft/v0.35.0` at commit `d9f678900e1bc8286412b78f56d4a9f443983c29`.
-Paths are relative to `l1-contracts/contracts/`; `protocol-docs/` is at the repository root.
+Source: era-contracts branch `draft/v0.35.0` at commit
+**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`** (`b17415d20`). Every `file:line` below is at
+that commit. Paths are relative to `l1-contracts/contracts/`; `protocol-docs/` is at the
+repository root.
+
+The model was first written against `d9f678900e1bc8286412b78f56d4a9f443983c29`. None of the
+Solidity files cited here differs between the two commits. `protocol-docs/interop-gating.md`
+gained six lines (`:43-48`, "Releases keep the second proof system too"), which moved its
+citations after `:42`; they are given here at `b17415d20`.
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.SecondProofSystem.Properties.FlagAuthorityV35` and are proved in
@@ -25,14 +32,14 @@ One ZK chain diamond, projected onto the storage the requirement reads and write
 model keeps that answer as the field `bridgehubOwner`. It is Bridgehub storage, not diamond
 storage (`core/bridgehub/BridgehubBase.sol:52`, `Ownable2StepUpgradeable`); the model lets it
 change to any address at any time (`Call.bridgehubOwnerChanged`), which only adds runs.
-`s.bridgehub` itself is written only at creation (`state-transition/chain-deps/DiamondInit.sol:90`),
-so "the Bridgehub" is the one of the chain this diamond is deployed on. The read is assumed to
-return: a reverting `owner()` would make the disable call on a flagged diamond revert for
-everyone, which the model does not have (it matters for `OwnerDisablesOnFlagged` and for the
-"exactly one caller" half of `ZiskOffAuthorityExact`, not for the safety statements).
+`s.bridgehub` itself is written only at creation (`state-transition/chain-deps/DiamondInit.sol:90`).
+The read is assumed to return: a reverting `owner()` would make the disable call on a flagged
+diamond revert for everyone, which the model does not have. That matters for the statements
+that say a call succeeds (`OwnerDisablesOnFlagged`, the success half of
+`ZiskOffAuthorityExact`), not for the safety statements.
 
-The writers of the flag and of the mask in the whole `l1-contracts/contracts` tree at `d9f6789`
-(`grep secondProofSystemRequired`, `grep disabledProofSystems`) are exactly:
+The writers of the flag and of the mask in the whole `l1-contracts/contracts` tree at
+`b17415d20` (`grep secondProofSystemRequired`, `grep disabledProofSystems`) are exactly:
 
 * `Admin.setProofSystemStatus` (`state-transition/chain-deps/facets/Admin.sol:416-432`), the
   only write of the mask (`:430`):
@@ -45,7 +52,7 @@ The writers of the flag and of the mask in the whole `l1-contracts/contracts` tr
         s.disabledProofSystems = _enabled ? old & ~proofSystemMask
                                           : old | proofSystemMask;           // :426-430
 
-  It has no `onlySettlementLayer` modifier.
+  It has no modifier (`:416`).
 
 * `Admin.permanentlyRequireSecondProofSystem` (`Admin.sol:454-465`), `onlyAdmin`
   (`state-transition/chain-deps/facets/ZKChainBase.sol:46-51`) and `onlySettlementLayer`
@@ -60,7 +67,7 @@ The writers of the flag and of the mask in the whole `l1-contracts/contracts` tr
   where `_getProofMode()` is `s.verifier.getProofMode(s.disabledProofSystems)`
   (`ZKChainBase.sol:188-190`).
 
-Everything else that can write them is code delegatecalled by a diamond cut's init
+Any other write would come from code delegatecalled by a diamond cut's init
 (`state-transition/libraries/Diamond.sol:109-137, 310-340`). The cut entry points are
 `upgradeChainFromVersion` (`Admin.sol:559-590`; the cut is the one the chain's CTM composes for
 the edge, `:566-568`), `executeUpgrade` (`Admin.sol:593-595`, `onlyChainTypeManager`, reached
@@ -98,53 +105,67 @@ An init is one of three things (`Init`):
         }
         s.verifier = _newVerifier;                                                // :151
 
-  `g.newVerifier = none` is the `address(0)` case. The rest of what these inits write (the
-  protocol version, the L2 upgrade transaction hash, facet routing) is outside the projection.
-  Their reject-only checks (batches executed, timestamps, settlement-layer order, release
-  routing) are omitted, which only adds runs. Their own facet cuts carry no init
-  (`BaseZkSyncUpgrade.sol:124-129`), and their external calls are to `view` functions.
-* `arbitrary f`: any other delegatecalled code, as a function of the projected storage. This is
-  the CTM owner's break-glass cut, and any cut whose init is not the genuine engine. The init
-  address of an `upgradeChainFromVersion` cut is the engine the committed transition names
-  (`upgrades/registry/libraries/CTMUpgradeComposer.sol:37-43`), so it is `genuine` exactly when
-  that transition names a genuine engine. The statements say "no break-glass cut" for "no cut
-  with an `arbitrary` init".
+  `g.newVerifier = none` is the `address(0)` case; `some v` is any address the engine reads,
+  so the model does not assume which verifier a release ships. The rest of what these inits
+  write (the protocol version, the L2 upgrade transaction hash, facet routing) is outside the
+  projection. Their reject-only checks (batches executed, timestamps, settlement-layer order,
+  release routing) are omitted, which only adds runs. Their own facet cuts carry no init
+  (`BaseZkSyncUpgrade.sol:124-129`), and the external calls they make are to functions declared
+  `view`.
+* `arbitrary f`: any other delegatecalled code, as a function of the projected storage, chosen
+  per call. This is the CTM owner's break-glass cut, and any cut whose init is not a genuine
+  engine. The init address of an `upgradeChainFromVersion` cut is the engine the committed
+  transition names (`upgrades/registry/libraries/CTMUpgradeComposer.sol:37-43`), so it is
+  `genuine` exactly when that transition names a genuine engine. The statements say "no
+  break-glass cut" for "no cut with an `arbitrary` init".
 
 ## The verifier
 
-`Env.proofMode v m` is what `getProofMode(m)` at address `v` returns (`none`: it reverts). The
-genuine `MultiProofVerifier.getProofMode`
-(`state-transition/verifiers/MultiProofVerifier.sol:101-109`) is transcribed as
-`multiProofGetProofMode`. `ReportsZisk` is the property of it that matters: it reports
-multi-proof mode only for a mask with the ZiSK bit clear.
+`Env.proofMode v m` is what `getProofMode(m)` at address `v` returns (`none`: it reverts). In
+`Reach` an `Env` is fixed for a whole run. In `ReachEnvs` every call carries its own, so a
+verifier whose answers change over time is covered there; the safety statements whose
+conclusions do not mention the verifier are also proved along those runs (`…AnyVerifiers`). Two
+genuine verifiers are transcribed, both `pure` in the source:
+
+* `MultiProofVerifier.getProofMode` (`state-transition/verifiers/MultiProofVerifier.sol:101-109`)
+  as `multiProofGetProofMode`. `ReportsZisk` is the property of it that matters: it reports
+  multi-proof mode only for a mask with the ZiSK bit clear.
+* `ZKsyncOSVerifier.getProofMode` (`state-transition/verifiers/ZKsyncOSVerifier.sol:104-106`),
+  the Airbender-only verifier, as `airbenderGetProofMode`: PLONK mode for every mask.
 
 ## Not modelled
 
-* **Facet replacement.** The entry points are the `AdminFacet`'s at `d9f6789`. A cut that
-  replaces that facet with other code (the genuine engines do replace facets, with the next
-  release's) leaves this model: every statement is about runs in which the installed `AdminFacet`
-  is this one.
+* **Facet replacement.** The entry points are the `AdminFacet`'s at `b17415d20`, and the other
+  facets are those at `b17415d20` (which write none of the projected fields, below). A cut that
+  replaces facets with other code (the genuine engines do, with the next release's) leaves this
+  model: every statement is about runs in which the installed facets are these.
+* **Dispatch.** The diamond proxy's routing and freeze check
+  (`state-transition/chain-deps/DiamondProxy.sol:25-60`; `:36` makes a facet marked freezable
+  unreachable while the diamond is frozen) are not modelled: a call reaches the facet. For the
+  safety statements this only adds runs. The statements that say a call succeeds are about the
+  facet code, for a call that reaches it.
+* **Senders.** The model excludes no address as a sender, the zero address included.
 * **Other storage and other facets.** `AdminFacet` has 27 selectors (`Admin.sol:646-702`): two
   views (`getRollupDAManager`, `ROLLUP_DA_MANAGER`), the seven entry points transcribed here,
   and eighteen that write none of the projected fields (`OtherAdminEntry`, each with its lines).
-  Outside `AdminFacet` the only writers of a projected field at `d9f6789` are `Migrator`
+  Outside `AdminFacet` the only writers of a projected field at `b17415d20` are `Migrator`
   (`s.settlementLayer`, `state-transition/chain-deps/facets/Migrator.sol:207, 299, 332`,
   `Call.migratorSetsSettlementLayer`) and the creation-time `DiamondInit`
-  (`state-transition/chain-deps/DiamondInit.sol:90-119`, which writes neither the flag nor the
+  (`state-transition/chain-deps/DiamondInit.sol:89-119`, which writes neither the flag nor the
   mask). `Call.otherFacet` stands for every other entry point of every other facet. That those
   write none of the projected fields is a source reading (`grep` for the assignments; no
-  assembly storage write in `state-transition/chain-deps` or `upgrades`), not a theorem.
+  `sstore` in `state-transition` or `upgrades`), not a theorem.
 * **Guards over storage outside the projection.** The eighteen other `AdminFacet` entry points,
   `Migrator`, and the callers of `upgradeChainFromVersion`
   (`onlyAdminOrChainTypeManagerOrValidator`, `Admin.sol:562`) and its version and timestamp
   checks (`:570-589`) are not checked. The model lets these calls succeed for any caller, which
   only adds runs.
 * **Reentrancy.** A call is one atomic step. None of the transcribed entry points makes a
-  state-changing external call; the engines' callees are trusted `view` code.
-* **Other diamonds of the same chain.** The model is one diamond. `ZKChainCommitment`
-  (`common/Config.sol:234-261`), which carries a chain's state to the diamond on its next
-  settlement layer, has no field for the flag or the mask, and `Migrator.forwardedBridgeMint`
-  writes neither. Nothing here says the flag of one diamond holds on another.
+  state-changing external call: `owner()` and `getProofMode` are declared `view`
+  (`common/interfaces/IOwnable.sol:8`,
+  `state-transition/chain-interfaces/IZKsyncOSVerifier.sol:12`).
+* **Other diamonds of the same chain.** The model is one diamond. Nothing here is about the
+  flag or the mask of any other diamond of the same chain.
 -/
 
 namespace Contracts.SecondProofSystem.FlagAuthorityV35
@@ -168,7 +189,7 @@ def ProofSystem.toUInt8 : ProofSystem → UInt8
   | .zisk => 2
 
 /-- `uint8(1 << uint8(_proofSystem))` (`Admin.sol:425`;
-`state-transition/chain-deps/facets/Getters.sol:121-125`). -/
+`state-transition/chain-deps/facets/Getters.sol:123-125`). -/
 def ProofSystem.bit (p : ProofSystem) : UInt8 := (1 : UInt8) <<< p.toUInt8
 
 /-- The ZiSK bit of the mask. -/
@@ -206,9 +227,9 @@ def ziskOn (s : St) : Prop := s.disabledProofSystems &&& ziskBit = 0
 instance (s : St) : Decidable (ziskOff s) := by unfold ziskOff; infer_instance
 instance (s : St) : Decidable (ziskOn s) := by unfold ziskOn; infer_instance
 
-/-- The diamond requires its second proof system and has ZiSK switched off: the state the
-requirement keeps out of the chain admin's reach. Governance reaches it on purpose (the
-emergency ZiSK-off). -/
+/-- The diamond requires its second proof system and has ZiSK switched off. Governance reaches
+it on purpose, with the emergency ZiSK-off (`interop-gating.md:37-38`); the statements of (c)
+are about whether anyone else can. -/
 def FlaggedZiskOff (s : St) : Prop := s.secondProofSystemRequired = true ∧ ziskOff s
 
 /-! ## The verifier -/
@@ -221,6 +242,10 @@ def FlaggedZiskOff (s : St) : Prop := s.secondProofSystemRequired = true ∧ zis
 def multiProofGetProofMode (m : UInt8) : Option ℕ :=
   if m &&& ~~~ziskBit ≠ 0 then none
   else if m &&& ziskBit = 0 then some MULTI_PROOF_TYPE else some PLONK_TYPE
+
+/-- `ZKsyncOSVerifier.getProofMode` (`ZKsyncOSVerifier.sol:104-106`), the Airbender-only
+verifier: `return ZKSYNC_OS_PLONK_VERIFICATION_TYPE;` for every mask. -/
+def airbenderGetProofMode (_m : UInt8) : Option ℕ := some PLONK_TYPE
 
 /-- The verifier at `v` reports multi-proof mode only for a mask whose ZiSK bit is clear.
 `multiProofGetProofMode` has it (`MultiProofVerifierReportsZisk`). -/
@@ -237,7 +262,8 @@ def multiProofEnv : Env := ⟨fun _ m => multiProofGetProofMode m⟩
     uint256 proofMode = IGetters(zkChain).getProofMode();                                      // :83
     require(proofMode == ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE, NotMultiProofMode(..));      // :84
 
-`getProofMode()` is `_getProofMode()` (`Getters.sol:109-111`). -/
+`getProofMode()` is `_getProofMode()` (`Getters.sol:109-111`). This is the predicate the checks
+evaluate; `enableInterop` itself runs once per chain (`L1MessageRoot.sol:76`). -/
 def InteropSecondProofGate (E : Env) (s : St) : Prop :=
   s.secondProofSystemRequired = true ∧
     E.proofMode s.verifier s.disabledProofSystems = some MULTI_PROOF_TYPE
@@ -426,6 +452,15 @@ inductive ReachWith (rule : St → Bool → Address) (E : Env) (ok : St → Addr
 abbrev Reach (E : Env) (ok : St → Address → Call → Prop) : St → St → Prop :=
   ReachWith callerRule E ok
 
+/-- Runs of the source in which every call may see its own verifier answers: each step carries
+an `Env`, which `ok` may read. A run of `Reach E (ok E)` is one, with `E` at every step
+(`ReachEnvsExtendsReach`). -/
+inductive ReachEnvs (ok : Env → St → Address → Call → Prop) : St → St → Prop
+  | refl (s : St) : ReachEnvs ok s s
+  | step {s s' s'' : St} (E : Env) (c : Address) (call : Call) :
+      ok E s c call → stepWith callerRule E c call s = some s' → ReachEnvs ok s' s'' →
+      ReachEnvs ok s s''
+
 /-! ## Run predicates -/
 
 /-- Every call, by anyone. -/
@@ -435,8 +470,9 @@ def AnyCall (_s : St) (_c : Address) (_call : Call) : Prop := True
 def NoBreakGlass (_s : St) (_c : Address) (call : Call) : Prop := call.isBreakGlass = false
 
 /-- Everyone but governance: no break-glass cut, and no `setProofSystemStatus` by whoever owns
-the Bridgehub at that moment. Every other call, by anyone, is allowed. It allows every call a
-chain admin who is not the Bridgehub owner can make. -/
+the Bridgehub at that moment. Every other call, by anyone, is allowed (the Bridgehub owner's
+other calls and the CTM's genuine cuts included). It allows every call a chain admin who is not
+the Bridgehub owner can make. -/
 def AdminSide (s : St) (c : Address) (call : Call) : Prop :=
   call.isBreakGlass = false ∧ (call.isSetStatus = true → c ≠ s.bridgehubOwner)
 
@@ -450,15 +486,16 @@ def NotOwnerStatus (s : St) (c : Address) (call : Call) : Prop :=
   call.isSetStatus = true → c ≠ s.bridgehubOwner
 
 /-- Everyone but the chain admin: no break-glass cut, and no `setProofSystemStatus` by the chain
-admin of that moment. It allows every call a Bridgehub owner who is not the chain admin can
-make. -/
+admin of that moment. Every other call, by anyone, is allowed. It allows every call a Bridgehub
+owner who is not the chain admin can make. -/
 def OwnerSide (s : St) (c : Address) (call : Call) : Prop :=
   call.isBreakGlass = false ∧ (call.isSetStatus = true → c ≠ s.admin)
 
 /-! ## Witness data -/
 
-/-- A diamond on its settlement layer, with the genuine verifier at `10`, admin `1`,
-Bridgehub owner `2`, CTM `3`, ZiSK on and the flag not yet set. -/
+/-- A diamond on its settlement layer, with the verifier at address `10`, admin `1`,
+Bridgehub owner `2`, CTM `3`, ZiSK on and the flag not yet set. Which code runs at `10` is the
+`Env`'s choice. -/
 def w0 : St :=
   { admin := 1, pendingAdmin := 0, chainTypeManager := 3, bridgehubOwner := 2,
     settlementLayer := 0, verifier := 10, secondProofSystemRequired := false,
@@ -476,6 +513,12 @@ def w3 : St := { w1 with disabledProofSystems := ziskBit }
 /-- `w0` with ZiSK off: the unflagged diamond's admin switched it off. -/
 def w4 : St := { w0 with disabledProofSystems := ziskBit }
 
+/-- `w2` after an admin handover to `4` and a Bridgehub ownership change to `5`. -/
+def w5 : St := { w2 with admin := 4, bridgehubOwner := 5 }
+
+/-- `w1` with the Boojum bit of the mask set (mask `1`), for the frame of the other bits. -/
+def w6 : St := { w1 with disabledProofSystems := ProofSystem.boojum.bit }
+
 /-- A verifier that reports multi-proof mode for every mask. -/
 def lyingEnv : Env := ⟨fun _ _ => some MULTI_PROOF_TYPE⟩
 
@@ -483,6 +526,11 @@ def lyingEnv : Env := ⟨fun _ _ => some MULTI_PROOF_TYPE⟩
 genuine `MultiProofVerifier.getProofMode`. -/
 def mixedEnv : Env :=
   ⟨fun v m => if v = 10 then some MULTI_PROOF_TYPE else multiProofGetProofMode m⟩
+
+/-- The address `12` runs the Airbender-only `ZKsyncOSVerifier.getProofMode`; every other
+address runs the genuine `MultiProofVerifier.getProofMode`. -/
+def airbenderAt12Env : Env :=
+  ⟨fun v m => if v = 12 then airbenderGetProofMode m else multiProofGetProofMode m⟩
 
 /-- The break-glass init that clears the flag. -/
 def clearFlagInit : Init := .arbitrary fun s => some { s with secondProofSystemRequired := false }
@@ -492,5 +540,8 @@ def ziskOffInit : Init := .arbitrary fun s => some { s with disabledProofSystems
 
 /-- The break-glass init that clears the mask. -/
 def clearMaskInit : Init := .arbitrary fun s => some { s with disabledProofSystems := 0 }
+
+/-- The break-glass init that writes the verifier slot directly, without `_setVerifier`. -/
+def writeVerifierInit (v : Address) : Init := .arbitrary fun s => some { s with verifier := v }
 
 end Contracts.SecondProofSystem.FlagAuthorityV35
