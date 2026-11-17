@@ -2,84 +2,104 @@ import Mathlib.Tactic
 import EraSpec.Core.Word
 
 /-!
-# Model: the domain-holder check of `ProxyUpgradeExecutorBase` at `d9f6789`
+# Model: the domain-holder check of `ProxyUpgradeExecutorBase` at `b17415d`
 
 Source: era-contracts `draft/v0.35.0` at commit
-**`d9f678900e1bc8286412b78f56d4a9f443983c29`** (`d9f6789` below). Every `file:line` is at
-that commit, relative to `l1-contracts/contracts/` unless it names OpenZeppelin. The
-OpenZeppelin v4 library is the submodule `lib/openzeppelin-contracts-v4` at `dc44c9f1a`
-(release 4.9.6), imported as `@openzeppelin/contracts-v4`.
+**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`** (`b17415d` below). Every `file:line` is at
+that commit, relative to `l1-contracts/contracts/`, unless it names OpenZeppelin or the
+commit `d9f6789`. The OpenZeppelin v4 library is the submodule `lib/openzeppelin-contracts-v4`
+at `dc44c9f1a` (release 4.9.6), imported as `@openzeppelin/contracts-v4`.
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.ProxyUpgradeExecutorBase.Properties.DomainHoldersV35` and are proved in
 `EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.DomainHoldersV35`.
 
-## What the executor does around the engine
+## Two commits
 
-`upgrades/registry/executors/ProxyUpgradeExecutorBase.sol:48-98`, `_applyProxyUpgradeTransition`:
+This topic was first modelled at `d9f678900e1bc8286412b78f56d4a9f443983c29` (`d9f6789`).
+Between `d9f6789` and `b17415d`, `upgrades/registry/executors/ProxyUpgradeExecutorBase.sol`
+changed in one commit, `9775be946` (#2669). `b17415d` itself (#2673) changes no file under
+`l1-contracts/contracts/`. Of the other files cited here, `ChainTypeManager.sol`,
+`ServerNotifier.sol`, `CTMUpgradeExecutor.sol`, `CoreUpgradeExecutor.sol` and
+`ProxyUpgradeTransition.sol` are identical at the two commits, and so is the OpenZeppelin
+submodule; `RegistryTypes.sol` and `ProxyUpgradeRowLib.sol` changed only in comments (the
+lines cited moved, by 2 and by 5); `UpgradeExecutorBase.sol` changed only in `forward`, which
+is not modelled; `IChainTypeManager.sol` and `IServerNotifier.sol` gained the getters
+`admin()` (`:93`) and `chainTypeManager()` (`:42`).
 
-    ObjectAnchorLib.requireCode(address(_transition));                          // :54
-    ProxyUpgradeTransitionManifest memory manifest = _transition.getManifest(); // :55
-    if (manifest.domain != _domain) revert ProxyUpgradeDomainMismatch(...);     // :56-58
-    ObjectAnchorLib.requireCode(manifest.proxyUpgradeEngine);                   // :60
-    ProxyUpgradeContext memory context = ProxyUpgradeContext({                  // :62-68
-        transition: address(_transition),
-        proxyUpgradeEngine: manifest.proxyUpgradeEngine,
-        domain: _domain,
-        proxyAdmin: address(_proxyAdmin),
-        chainTypeManager: _chainTypeManager
-    });
-    address ownerBefore = owner(); address pendingOwnerBefore = pendingOwner(); // :69-70
-    address serverNotifier = _chainTypeManager == address(0)                    // :71-73
-        ? address(0) : IChainTypeManager(_chainTypeManager).serverNotifierAddress();
-    bytes32 domainHoldersBefore = _domainHolders(_proxyAdmin, _chainTypeManager, serverNotifier); // :74
-    (bool success, bytes memory returnData) = manifest.proxyUpgradeEngine.delegatecall(...);     // :76-78
-    if (!success) { revert(...) }                                               // :79-85
-    if (owner() != ownerBefore || pendingOwner() != pendingOwnerBefore) revert ...;             // :87-89
-    if (_domainHolders(_proxyAdmin, _chainTypeManager, serverNotifier) != domainHoldersBefore)  // :90-92
+What `b17415d` changes is the deployment procedure: a CTM whose proxies still sit behind the
+ecosystem `ProxyAdmin` gets its own CTM-domain `ProxyAdmin` before the bootstrap, so that the
+`ProxyAdmin` the CTM executor owns administers every CTM-domain proxy (era-contracts
+`docs/upgrade-operations.md:44-83`), and the ServerNotifier proxy is moved under that
+`ProxyAdmin` (`:9-42` there; `governance/ServerNotifier.sol:25-27`). `ExecutorHoldsCtm` asks
+for the first (the `ProxyAdmin` the executor owns administers the CTM proxy), and the
+witnesses also put the notifier under that `ProxyAdmin`.
+
+The model below is the `b17415d` leg (`leg`). The `d9f6789` leg is kept as `D9.leg` (section
+"The `d9f6789` leg") so that the two can be compared on the same engines.
+
+## What the executor does around the engine (`b17415d`)
+
+`upgrades/registry/executors/ProxyUpgradeExecutorBase.sol:51-104`, `_applyProxyUpgradeTransition`:
+
+    ObjectAnchorLib.requireCode(address(_transition));                          // :57
+    ProxyUpgradeTransitionManifest memory manifest = _transition.getManifest(); // :58
+    if (manifest.domain != _domain) revert ProxyUpgradeDomainMismatch(...);     // :59-61
+    ObjectAnchorLib.requireCode(manifest.proxyUpgradeEngine);                   // :63
+    ProxyUpgradeContext memory context = ProxyUpgradeContext({ ... });         // :65-71
+    if (_chainTypeManager != address(0)
+            && IChainTypeManager(_chainTypeManager).admin() == address(_proxyAdmin)) {
+        revert ProxyUpgradeCTMAdminIsProxyAdmin(_chainTypeManager);            // :75-77
+    }
+    address ownerBefore = owner(); address pendingOwnerBefore = pendingOwner(); // :78-79
+    bytes32 domainHoldersBefore = _domainHolders(_proxyAdmin, _chainTypeManager); // :80
+    (bool success, bytes memory returnData) = manifest.proxyUpgradeEngine.delegatecall(...); // :82-84
+    if (!success) { revert(...) }                                               // :85-91
+    if (owner() != ownerBefore || pendingOwner() != pendingOwnerBefore) revert ...;          // :93-95
+    if (_domainHolders(_proxyAdmin, _chainTypeManager) != domainHoldersBefore)  // :96-98
         revert ProxyUpgradeEngineMovedDomainAuthority(...);
-    ProxyUpgradeRow[] memory rows = ProxyUpgradeRowLib.toRows(manifest.proxyUpgrades,            // :93-96
-        ProxyUpgradeRowLib.inventoryLength(_domain));
-    ProxyUpgradeRowLib.requireRowsApplied(_proxyAdmin, rows);                   // :97
+    ProxyUpgradeRow[] memory rows = ProxyUpgradeRowLib.toRows(manifest.proxyUpgrades,
+        ProxyUpgradeRowLib.inventoryLength(_domain));                           // :99-102
+    ProxyUpgradeRowLib.requireRowsApplied(_proxyAdmin, rows);                   // :103
 
-`_domainHolders` (`:109-139`) hashes `abi.encode(_proxyAdmin.owner())` in the `Core` domain;
-with a CTM it hashes
+`_domainHolders` (`:118-148`) hashes `abi.encode(_proxyAdmin.owner())` in the `Core` domain
+(`:119-121`). With a CTM it reads `serverNotifier = ctm.serverNotifierAddress()` (`:123`) and
+hashes the six words
 
-    holders = keccak256(abi.encode(_proxyAdmin.owner(), ctm.owner(), ctm.pendingOwner(),
-                                   _proxyAdmin.getProxyAdmin(ctm)))             // :118-125
+    _proxyAdmin.owner(), ctm.owner(), ctm.pendingOwner(), IChainTypeManager(ctm).admin(),
+    _proxyAdmin.getProxyAdmin(ctm), serverNotifier                              // :124-133
 
-and, with a nonzero notifier, `keccak256(abi.encode(holders, notifier.owner(),
-notifier.pendingOwner(), _proxyAdmin.getProxyAdmin(notifier)))` (`:130-138`). Its `@dev`
-(`:106-108`) is the claim under test:
+and, with a nonzero notifier, the five words `holders, notifier.owner(),
+notifier.pendingOwner(), _proxyAdmin.getProxyAdmin(notifier),
+IServerNotifier(notifier).chainTypeManager()` (`:137-147`). Its `@dev` (`:112-117`) says that a
+proxy `_proxyAdmin` no longer administers passes `getProxyAdmin`'s `admin()` query to its
+implementation, that a moved CTM answers its own `admin()` (the caller refusing that being the
+`ProxyAdmin`) and a moved ServerNotifier has none and reverts the leg, and that the CTM's
+`pendingAdmin` is not compared.
 
-    A proxy `_proxyAdmin` no longer administers passes `getProxyAdmin`'s `admin()` query to its
-    implementation: a moved CTM answers its own `admin()` and fails the comparison, a moved
-    ServerNotifier has none and reverts the leg.
-
-## What the holder values actually read
+## What the holder values read
 
 * `ProxyAdmin.getProxyAdmin(proxy)` (OZ `ProxyAdmin.sol:36-42`) is `address(proxy).staticcall(
   hex"f851a440")` (`admin()`), `require(success)`, decode. The caller is the `ProxyAdmin`.
-* `TransparentUpgradeableProxy._fallback` (OZ `TransparentUpgradeableProxy.sol:84-107`; the
-  `ifAdmin` modifier at `:73-79` is deprecated there and takes the same branch on the same
-  test): if
-  `msg.sender == _getAdmin()`, the five admin selectors are served from the EIP-1967 slots
-  (`admin()` returns the admin slot, `_dispatchAdmin` `:116-121`) and every other selector
-  reverts with "admin cannot fallback to proxy target" (`:99`); otherwise the call is
-  delegated to the implementation (`super._fallback()`, `:105`).
-* So `getProxyAdmin(ctm)` returns the admin slot while the `ProxyAdmin` is the CTM proxy's
-  admin, and otherwise the CTM implementation's public `admin` getter,
-  `ChainTypeManager.admin` (`state-transition/ChainTypeManager.sol:113`), a different
-  variable: the CTM's "non critical updates" role.
+* `TransparentUpgradeableProxy._fallback` (OZ `TransparentUpgradeableProxy.sol:84-107`): if
+  `msg.sender == _getAdmin()`, the five selectors `upgradeTo`, `upgradeToAndCall`,
+  `changeAdmin`, `admin` and `implementation` are served from the EIP-1967 slots (`admin()`
+  returns the admin slot, `_dispatchAdmin` `:116-121`) and every other selector reverts with
+  "admin cannot fallback to proxy target" (`:99`); otherwise the call is delegated to the
+  implementation (`super._fallback()`, `:105`).
+* So `admin()` sent to the CTM proxy, by the `ProxyAdmin` through `getProxyAdmin` or by the
+  executor at `:75` and `:129`, returns the admin slot when the sender is the CTM proxy's admin,
+  and otherwise the implementation's public `admin` getter, `ChainTypeManager.admin`
+  (`state-transition/ChainTypeManager.sol:113`): the CTM's "non critical updates" role.
 * `ServerNotifier` (`governance/ServerNotifier.sol:28`, `Ownable2Step`, `ReentrancyGuard`,
   `Initializable`) declares no `admin()` and no fallback, so the fall-through reverts and
-  `require(success)` reverts the leg.
+  `require(success)` reverts the call. Its public `chainTypeManager` is `:30`.
 
 ## The operations an engine leg can use here
 
 The engine runs by `delegatecall`, so its external calls come from the executor's address.
-The executor owns the CTM (`CTMUpgradeExecutor.sol:20`, and `acceptCTMOwnership` `:55-61`) and
-the CTM domain's `ProxyAdmin` (`:38-40`).
+The executor owns the CTM and the CTM domain's `ProxyAdmin` (`CTMUpgradeExecutor.sol:20-21`,
+`:38-40`, and `acceptCTMOwnership` `:55-61`).
 
 * `ChainTypeManager.setPendingAdmin` (`:354-360`) is `onlyOwnerOrAdmin` (`:208-213`) and
   writes `pendingAdmin` (`:116`).
@@ -90,8 +110,8 @@ the CTM domain's `ProxyAdmin` (`:38-40`).
   runs `_upgradeToAndCall(newImplementation, data, true)` (OZ `ERC1967Upgrade.sol:59-64`):
   the implementation slot is written and `data` is delegatecalled into the implementation
   (`Address.functionDelegateCall`, OZ `Address.sol:180-187`) **in the proxy's frame**, where
-  `msg.sender` is still the `ProxyAdmin`. This is the route `ProxyUpgradeRowLib.applyRows`
-  itself uses for `initializeUpgrade()` reinitializers (`ProxyUpgradeRowLib.sol:116`).
+  `msg.sender` is still the `ProxyAdmin`. `ProxyUpgradeRowLib.applyRows` uses this route for
+  `initializeUpgrade()` reinitializers (`upgrades/registry/libraries/ProxyUpgradeRowLib.sol:121`).
 * `ProxyAdmin.changeProxyAdmin` (OZ `ProxyAdmin.sol:51-53`, `onlyOwner`) calls
   `proxy.changeAdmin`; the admin branch (`TransparentUpgradeableProxy.sol:142-148`) writes the
   admin slot, refusing zero (`ERC1967Upgrade.sol:104-105`).
@@ -107,20 +127,24 @@ the CTM domain's `ProxyAdmin` (`:38-40`).
   answers to a fall-through call is a field of the world, per proxy: `owner`,
   `pendingOwner` (OZ `Ownable2Step`/`Ownable2StepUpgradeable`), `adminAnswer` (`some a` for a
   public `admin` getter holding `a`, as `ChainTypeManager.sol:113`; `none` for an
-  implementation without `admin()` and without a fallback, as `ServerNotifier`) and
-  `implAnswer` (the answer to `implementation()`). `owner` and `pendingOwner` always answer:
-  an implementation without them would add reverts, which every "the leg reverts" result
-  here already allows, and the legs shown to pass run against `ChainTypeManager` and
-  `ServerNotifier`, which have both. `ChainTypeManager`'s `pendingAdmin` and
-  `serverNotifierAddress` (`:116`, `:125`) are single fields, as there is one CTM.
-  That the bound CTM and its notifier ARE OZ 4.9.6 `TransparentUpgradeableProxy` instances is
-  a deployment fact the model takes as given. `MODEL-DOMAIN-HOLDERS-V35` in `ASSUMPTIONS.md`.
+  implementation without `admin()` and without a fallback, as `ServerNotifier`),
+  `implAnswer` (the answer to `implementation()`) and `notifierCtm` (the answer to
+  `chainTypeManager()`, `ServerNotifier.sol:30`). These answers do not depend on the caller,
+  as for the public getters of `ChainTypeManager` and `ServerNotifier`; implementations whose
+  answers depend on `msg.sender` are not represented. `owner`, `pendingOwner` and
+  `notifierCtm` always answer: an implementation without them would only add reverts, which
+  every "the leg reverts" conclusion here allows, and results that conclude a leg passes apply
+  to implementations that have them, as `ChainTypeManager` and `ServerNotifier` do.
+  `ChainTypeManager`'s `pendingAdmin` and `serverNotifierAddress` (`:116`, `:125`) are single
+  fields, as there is one CTM. That the bound CTM and its notifier ARE OZ 4.9.6
+  `TransparentUpgradeableProxy` instances is a deployment fact the model takes as given
+  (`MODEL-DOMAIN-HOLDERS-V35` in `ASSUMPTIONS.md`).
 * **`ProxyAdmin` is not a proxy**; its `owner()` is the field `paOwner`.
 * **`keccak256(abi.encode(...))` is an arbitrary function `Hash` of the word list.** Every
   argument is a static 32-byte word, so `abi.encode` is the concatenation of the words, and
   two calls hash the same byte string exactly when their word lists are equal. No property of
   `Hash` is assumed anywhere; results that need distinct hashes say so as a pinned collision
-  disjunct on the two encodings compared.
+  disjunct on the encodings compared (`HolderPairCollides`).
 * **The engine is an arbitrary function** of the executor's address, the context, the
   manifest's slots and the world (`Engine`). The named engines below are built from the
   operations above.
@@ -139,9 +163,8 @@ the CTM domain's `ProxyAdmin` (`:38-40`).
 
 The statements are about one `_applyProxyUpgradeTransition` call and the operations
 above. Not modelled: what the rest of an engine does (it is the arbitrary `Engine`, or the
-arbitrary prefix `pre` constrained by `HolderFrame`), `forward`, the implementation swaps of
-the rows themselves (see `../ProxyUpgradeRowLib/`), `setServerNotifier` (the notifier the leg
-compares is the one read before the engine ran, `:71-74`), and `msg.value`.
+arbitrary prefix `pre` constrained by `D9.HolderFrame`), `forward`, the implementation swaps of
+the rows themselves (see `../ProxyUpgradeRowLib/`), and `msg.value`.
 -/
 
 namespace Contracts.DomainHoldersV35
@@ -173,7 +196,8 @@ deriving DecidableEq
 
 /-- The state the leg reads and the engine operations write. -/
 structure World where
-  /-- The executor's `owner()` (`UpgradeExecutorBase`, `Ownable2Step`). -/
+  /-- The executor's `owner()` (`UpgradeExecutorBase`, `Ownable2Step`,
+  `governance/UpgradeExecutorBase.sol:23`). -/
   execOwner : Address
   /-- The executor's `pendingOwner()`. -/
   execPendingOwner : Address
@@ -195,8 +219,11 @@ structure World where
   ctmPendingAdmin : Address
   /-- `ChainTypeManager.serverNotifierAddress` (`:125`) of the bound CTM. -/
   serverNotifier : Address
+  /-- `chainTypeManager()` as the implementation behind `p` answers it (the public
+  `ServerNotifier.chainTypeManager`, `ServerNotifier.sol:30`). -/
+  notifierCtm : Address → Address
 
-/-- `ProxyUpgradeDomain` (`upgrades/registry/RegistryTypes.sol`). -/
+/-- `ProxyUpgradeDomain` (`upgrades/registry/RegistryTypes.sol:180-187`). -/
 inductive Domain
   | core
   | ctm
@@ -225,7 +252,7 @@ structure Row where
   implNew : Address
 deriving DecidableEq
 
-/-- `ProxyUpgradeTransitionManifest` (`RegistryTypes.sol:203-207`), as `getManifest()`
+/-- `ProxyUpgradeTransitionManifest` (`RegistryTypes.sol:205-209`), as `getManifest()`
 returns it. -/
 structure Manifest where
   /-- `domain`. -/
@@ -235,7 +262,7 @@ structure Manifest where
   /-- `proxyUpgradeEngine`. -/
   engine : Address
 
-/-- `ProxyUpgradeContext` (`RegistryTypes.sol:219-225`). -/
+/-- `ProxyUpgradeContext` (`RegistryTypes.sol:221-227`). -/
 structure Context where
   /-- `transition`. -/
   transition : Address
@@ -249,7 +276,7 @@ structure Context where
   chainTypeManager : Address
 deriving DecidableEq
 
-/-- The context the executor builds (`ProxyUpgradeExecutorBase.sol:62-68`): `tr` is the
+/-- The context the executor builds (`ProxyUpgradeExecutorBase.sol:65-71`): `tr` is the
 `_transition` argument the entry point received from its `onlyOwner` caller
 (`CTMUpgradeExecutor.sol:64`, `CoreUpgradeExecutor.sol:33`). -/
 def buildContext (B : Bindings) (tr : Address) (m : Manifest) : Context :=
@@ -273,72 +300,97 @@ structure Env where
   H : Hash
   /-- `ObjectAnchorLib.requireCode` passes. -/
   hasCode : Address → Bool
-  /-- `ProxyUpgradeRowLib.inventoryLength` (`ProxyUpgradeRowLib.sol:42-44`). -/
+  /-- `ProxyUpgradeRowLib.inventoryLength` (`ProxyUpgradeRowLib.sol:47-49`). -/
   invLen : Domain → ℕ
 
 /-! ## Reading through the proxy -/
 
-/-- An external call from `sender` to proxy `p` with a selector that is none of the five admin
-selectors (`owner()`, `pendingOwner()`, `serverNotifierAddress()`, `setPendingAdmin`,
-`acceptAdmin`, …): reverts when `sender` is `p`'s admin (`TransparentUpgradeableProxy.sol:99`),
-otherwise is answered by the implementation (`:105`). -/
+/-- An external call from `sender` to proxy `p` with a selector other than the five the admin
+branch serves (`upgradeTo`, `upgradeToAndCall`, `changeAdmin`, `admin`, `implementation`), for
+example `owner()`, `pendingOwner()`, `serverNotifierAddress()` or `chainTypeManager()`: reverts
+when `sender` is `p`'s admin (`TransparentUpgradeableProxy.sol:99`), otherwise is answered by
+the implementation (`:105`) with `ans`. -/
 def fallthrough {α : Type} (w : World) (sender p : Address) (ans : α) : Option α :=
   if sender = (w.proxy p).adminSlot then none else some ans
 
-/-- `ProxyAdmin(pa).getProxyAdmin(p)` (OZ `ProxyAdmin.sol:36-42`): the admin slot when `pa` is
-`p`'s admin (`_dispatchAdmin`, `TransparentUpgradeableProxy.sol:116-121`), otherwise whatever
-the implementation's `admin()` answers, a revert if it has none. -/
-def getProxyAdmin (w : World) (pa p : Address) : Option Address :=
-  if pa = (w.proxy p).adminSlot then some (w.proxy p).adminSlot else w.adminAnswer p
+/-- `admin()` sent by `sender` to proxy `p`: the admin slot when `sender` is `p`'s admin
+(`_dispatchAdmin`, `TransparentUpgradeableProxy.sol:116-121`), otherwise whatever the
+implementation's `admin()` answers, a revert if it has none. With `sender` the `ProxyAdmin`
+this is `ProxyAdmin.getProxyAdmin(p)` (OZ `ProxyAdmin.sol:36-42`); with `sender` the executor
+it is `IChainTypeManager(ctm).admin()` (`ProxyUpgradeExecutorBase.sol:75`, `:129`). -/
+def adminCall (w : World) (sender p : Address) : Option Address :=
+  if sender = (w.proxy p).adminSlot then some (w.proxy p).adminSlot else w.adminAnswer p
 
-/-- `ProxyAdmin(pa).getProxyImplementation(p)` (OZ `ProxyAdmin.sol:21-27`), likewise. -/
+/-- `ProxyAdmin(pa).getProxyImplementation(p)` (OZ `ProxyAdmin.sol:21-27`): the implementation
+slot when `pa` is `p`'s admin, otherwise whatever the implementation's `implementation()`
+answers. -/
 def getProxyImplementation (w : World) (pa p : Address) : Option Address :=
   if pa = (w.proxy p).adminSlot then some (w.proxy p).impl else w.implAnswer p
 
-/-! ## The holder hash, `_domainHolders` (`ProxyUpgradeExecutorBase.sol:109-139`) -/
+/-! ## The holder hash, `_domainHolders` (`ProxyUpgradeExecutorBase.sol:118-148`) -/
 
-/-- The four words of `abi.encode(_proxyAdmin.owner(), ctm.owner(), ctm.pendingOwner(),
-_proxyAdmin.getProxyAdmin(ctm))` (`:118-125`). `ctm.owner()` and `ctm.pendingOwner()` are
-called by the executor and revert exactly when it is the CTM proxy's admin. -/
-def ctmWords (B : Bindings) (w : World) : Option (List Word) :=
+/-- The six words of `abi.encode(_proxyAdmin.owner(), ctm.owner(), ctm.pendingOwner(),
+IChainTypeManager(ctm).admin(), _proxyAdmin.getProxyAdmin(ctm), serverNotifier)`
+(`:124-133`), `serverNotifier` being `serverNotifierAddress()` (`:123`). The executor sends
+`serverNotifierAddress()`, `owner()` and `pendingOwner()` (all revert exactly when it is the
+CTM proxy's admin) and `admin()`; the `ProxyAdmin` sends `getProxyAdmin`'s `admin()`. -/
+def ctmTuple (B : Bindings) (w : World) : Option (List Word) :=
   if B.self = (w.proxy B.ctm).adminSlot then none
-  else (getProxyAdmin w B.pa B.ctm).map
-    fun ca => [w.paOwner, w.owner B.ctm, w.pendingOwner B.ctm, ca]
+  else
+    match adminCall w B.self B.ctm, adminCall w B.pa B.ctm with
+    | some a, some ca =>
+      some [w.paOwner, w.owner B.ctm, w.pendingOwner B.ctm, a, ca, w.serverNotifier]
+    | _, _ => none
 
-/-- `notifier.owner()`, `notifier.pendingOwner()` and `_proxyAdmin.getProxyAdmin(notifier)`
-(`:133-136`). -/
-def notifierReads (B : Bindings) (w : World) (n : Address) :
-    Option (Address × Address × Address) :=
+/-- The last four words of the outer `abi.encode(holders, notifier.owner(),
+notifier.pendingOwner(), _proxyAdmin.getProxyAdmin(notifier),
+IServerNotifier(notifier).chainTypeManager())` (`:138-147`) for the notifier `n`: the executor
+sends `owner()`, `pendingOwner()` and `chainTypeManager()` (all revert exactly when it is
+`n`'s admin), the `ProxyAdmin` sends `getProxyAdmin`'s `admin()`. -/
+def notifierReads (B : Bindings) (w : World) (n : Address) : Option (List Word) :=
   if B.self = (w.proxy n).adminSlot then none
-  else (getProxyAdmin w B.pa n).map fun na => (w.owner n, w.pendingOwner n, na)
+  else (adminCall w B.pa n).map fun na => [w.owner n, w.pendingOwner n, na, w.notifierCtm n]
 
-/-- The four words of the outer `abi.encode(holders, notifier.owner(), notifier.pendingOwner(),
-_proxyAdmin.getProxyAdmin(notifier))` (`:130-138`), `holders` being the hash of `ctmWords`. -/
-def notifierWords (B : Bindings) (H : Hash) (w : World) (n : Address) : Option (List Word) :=
-  match ctmWords B w, notifierReads B w n with
-  | some e, some (no, npo, na) => some [H e, no, npo, na]
-  | _, _ => none
+/-- The word list `_domainHolders(_proxyAdmin, _chainTypeManager)` hashes and returns the hash
+of (`:118-148`): `[_proxyAdmin.owner()]` without a CTM (`:119-121`); the CTM tuple when the
+CTM's `serverNotifierAddress()` is zero (`:134-136`); otherwise the outer tuple, whose first
+word is the hash of the CTM tuple (`:137-147`). `none` if a read reverts. -/
+def holderPreimage (B : Bindings) (H : Hash) (w : World) : Option (List Word) :=
+  if B.ctm = 0 then some [w.paOwner]
+  else
+    match ctmTuple B w with
+    | none => none
+    | some e =>
+      if w.serverNotifier = 0 then some e
+      else (notifierReads B w w.serverNotifier).map (H e :: ·)
 
-/-- `_domainHolders(_proxyAdmin, _chainTypeManager, n)` (`:109-139`). -/
-def domainHolders (B : Bindings) (H : Hash) (w : World) (n : Address) : Option Word :=
-  if B.ctm = 0 then some (H [w.paOwner])
-  else if n = 0 then (ctmWords B w).map H
-  else (notifierWords B H w n).map H
+/-- `_domainHolders(_proxyAdmin, _chainTypeManager)` (`:118-148`). -/
+def domainHolders (B : Bindings) (H : Hash) (w : World) : Option Word :=
+  (holderPreimage B H w).map H
 
-/-- The notifier the executor fixes before the engine runs (`:71-73`): zero without a CTM,
-otherwise `serverNotifierAddress()` called by the executor. -/
-def preNotifier (B : Bindings) (w : World) : Option Address :=
-  if B.ctm = 0 then some 0
-  else fallthrough w B.self B.ctm w.serverNotifier
+/-! ## The check before the engine (`:72-77`) -/
 
-/-! ## The rows post-check (`:93-97`) -/
+/-- The check at `:75-77` passes: there is no CTM, or the CTM's `admin()`, sent by the
+executor, answers with an address other than the `ProxyAdmin`. (A revert of that call reverts
+the leg.) -/
+def CtmAdminOk (B : Bindings) (w : World) : Prop :=
+  B.ctm = 0 ∨ ∃ a, adminCall w B.self B.ctm = some a ∧ a ≠ B.pa
 
-/-- `_dropInertSlots` (`ProxyUpgradeRowLib.sol:140-156`): a slot participates iff `implNew` is
+instance (B : Bindings) (w : World) : Decidable (CtmAdminOk B w) :=
+  decidable_of_iff
+    (B.ctm = 0 ∨ (adminCall w B.self B.ctm).any (fun a => decide (a ≠ B.pa)) = true)
+    (by
+      unfold CtmAdminOk
+      rcases adminCall w B.self B.ctm with _ | a <;> simp)
+
+/-! ## The rows post-check (`:99-103`) -/
+
+/-- `_dropInertSlots` (`ProxyUpgradeRowLib.sol:145-161`): a slot participates iff `implNew` is
 set. -/
 def toRows (slots : List Row) : List Row :=
   slots.filter (fun r => decide (r.implNew ≠ 0))
 
-/-- `requireRowsApplied(_proxyAdmin, rows)` (`ProxyUpgradeRowLib.sol:128-136`) passes. -/
+/-- `requireRowsApplied(_proxyAdmin, rows)` (`ProxyUpgradeRowLib.sol:133-141`) passes. -/
 def rowsApplied (B : Bindings) (w : World) (rows : List Row) : Prop :=
   ∀ r ∈ rows, getProxyImplementation w B.pa r.proxy = some r.implNew
 
@@ -347,7 +399,7 @@ instance (B : Bindings) (w : World) (rows : List Row) : Decidable (rowsApplied B
 
 /-! ## The leg -/
 
-/-- The checks before the delegatecall (`:54-60`) plus `toRows`' length check (`:93-96`;
+/-- The checks before the delegatecall (`:57-63`) plus `toRows`' length check (`:99-102`;
 it reads only the manifest, so its position does not matter). -/
 def Prechecks (E : Env) (B : Bindings) (tr : Address) (m : Manifest) : Prop :=
   E.hasCode tr = true ∧ m.domain = B.domain ∧ E.hasCode m.engine = true
@@ -358,7 +410,73 @@ instance (E : Env) (B : Bindings) (tr : Address) (m : Manifest) :
   unfold Prechecks; infer_instance
 
 /-- `_applyProxyUpgradeTransition(B.pa, tr, B.domain, B.ctm)` with `getManifest() = m`
-(`ProxyUpgradeExecutorBase.sol:48-98`): the world after a successful leg, or `none`. -/
+(`ProxyUpgradeExecutorBase.sol:51-104`): the world after a successful leg, or `none`. -/
+def leg (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (eng : Engine) (w : World) :
+    Option World :=
+  if ¬ Prechecks E B tr m then none else
+  if ¬ CtmAdminOk B w then none else
+  match domainHolders B E.H w with
+  | none => none
+  | some before =>
+    match eng B.self (buildContext B tr m) m.proxyUpgrades w with
+    | none => none
+    | some w' =>
+      if w'.execOwner ≠ w.execOwner ∨ w'.execPendingOwner ≠ w.execPendingOwner then none
+      else
+        match domainHolders B E.H w' with
+        | none => none
+        | some after =>
+          if after ≠ before then none
+          else if rowsApplied B w' (toRows m.proxyUpgrades) then some w' else none
+
+/-! ## The `d9f6789` leg
+
+At `d9f6789`, `_applyProxyUpgradeTransition` (`ProxyUpgradeExecutorBase.sol:48-98` at that
+commit) had no check on the CTM's `admin()` before the engine. It read the notifier once,
+before the engine (`:71-73` there: zero without a CTM, else `serverNotifierAddress()`), and
+passed it to both `_domainHolders` calls (`:74`, `:90`). `_domainHolders` (`:109-139` there)
+hashed `[_proxyAdmin.owner()]` without a CTM, the four words `_proxyAdmin.owner(),
+ctm.owner(), ctm.pendingOwner(), _proxyAdmin.getProxyAdmin(ctm)` (`:118-125` there), and with
+a nonzero notifier the four words `holders, notifier.owner(), notifier.pendingOwner(),
+_proxyAdmin.getProxyAdmin(notifier)` (`:130-138` there). Everything else in the leg is as at
+`b17415d`. -/
+
+namespace D9
+
+/-- The four CTM words of `_domainHolders` at `d9f6789` (`:118-125` there). -/
+def ctmWords (B : Bindings) (w : World) : Option (List Word) :=
+  if B.self = (w.proxy B.ctm).adminSlot then none
+  else (adminCall w B.pa B.ctm).map
+    fun ca => [w.paOwner, w.owner B.ctm, w.pendingOwner B.ctm, ca]
+
+/-- `notifier.owner()`, `notifier.pendingOwner()` and `_proxyAdmin.getProxyAdmin(notifier)` at
+`d9f6789` (`:133-136` there). -/
+def notifierReads (B : Bindings) (w : World) (n : Address) :
+    Option (Address × Address × Address) :=
+  if B.self = (w.proxy n).adminSlot then none
+  else (adminCall w B.pa n).map fun na => (w.owner n, w.pendingOwner n, na)
+
+/-- The four words of the outer `abi.encode` at `d9f6789` (`:130-138` there), `holders` being
+the hash of `ctmWords`. -/
+def notifierWords (B : Bindings) (H : Hash) (w : World) (n : Address) : Option (List Word) :=
+  match ctmWords B w, notifierReads B w n with
+  | some e, some (no, npo, na) => some [H e, no, npo, na]
+  | _, _ => none
+
+/-- `_domainHolders(_proxyAdmin, _chainTypeManager, n)` at `d9f6789` (`:109-139` there). -/
+def domainHolders (B : Bindings) (H : Hash) (w : World) (n : Address) : Option Word :=
+  if B.ctm = 0 then some (H [w.paOwner])
+  else if n = 0 then (ctmWords B w).map H
+  else (notifierWords B H w n).map H
+
+/-- The notifier the `d9f6789` executor fixes before the engine runs (`:71-73` there): zero
+without a CTM, otherwise `serverNotifierAddress()` sent by the executor. -/
+def preNotifier (B : Bindings) (w : World) : Option Address :=
+  if B.ctm = 0 then some 0
+  else fallthrough w B.self B.ctm w.serverNotifier
+
+/-- `_applyProxyUpgradeTransition(B.pa, tr, B.domain, B.ctm)` at `d9f6789` (`:48-98` there):
+the world after a successful leg, or `none`. -/
 def leg (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (eng : Engine) (w : World) :
     Option World :=
   if ¬ Prechecks E B tr m then none else
@@ -379,6 +497,33 @@ def leg (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (eng : Engine) (w
             if after ≠ before then none
             else if rowsApplied B w' (toRows m.proxyUpgrades) then some w' else none
 
+/-- What an engine prefix that runs before the aliasing calls must leave alone for the
+`d9f6789` statement: everything the `d9f6789` holder check and the executor-ownership check
+read, at the CTM and at the pre-leg notifier `n`. The rows of other proxies may move. -/
+structure HolderFrame (B : Bindings) (n : Address) (w₀ w₁ : World) : Prop where
+  /-- Executor `owner()`. -/
+  execOwner : w₁.execOwner = w₀.execOwner
+  /-- Executor `pendingOwner()`. -/
+  execPendingOwner : w₁.execPendingOwner = w₀.execPendingOwner
+  /-- `ProxyAdmin.owner()`. -/
+  paOwner : w₁.paOwner = w₀.paOwner
+  /-- The CTM proxy's slots. -/
+  ctmProxy : w₁.proxy B.ctm = w₀.proxy B.ctm
+  /-- The CTM's owner. -/
+  ctmOwner : w₁.owner B.ctm = w₀.owner B.ctm
+  /-- The CTM's pending owner. -/
+  ctmPendingOwner : w₁.pendingOwner B.ctm = w₀.pendingOwner B.ctm
+  /-- The notifier proxy's slots. -/
+  notifierProxy : w₁.proxy n = w₀.proxy n
+  /-- The notifier's owner. -/
+  notifierOwner : w₁.owner n = w₀.owner n
+  /-- The notifier's pending owner. -/
+  notifierPendingOwner : w₁.pendingOwner n = w₀.pendingOwner n
+  /-- The notifier implementation's `admin()` answer. -/
+  notifierAdmin : w₁.adminAnswer n = w₀.adminAnswer n
+
+end D9
+
 /-! ## Engine operations (each an external call from the executor's address) -/
 
 /-- `ChainTypeManager(ctm).setPendingAdmin(y)` called by `sender` (`:354-360`): falls through
@@ -392,10 +537,6 @@ def ctmSetPendingAdmin (w : World) (ctm sender y : Address) : Option World :=
 def ctmAcceptAdminBody (w : World) (ctm s : Address) : Option World :=
   if s ≠ w.ctmPendingAdmin then none
   else some { w with adminAnswer := upd w.adminAnswer ctm (some s), ctmPendingAdmin := 0 }
-
-/-- `ChainTypeManager(ctm).acceptAdmin()` called by `sender`: falls through the proxy. -/
-def ctmAcceptAdmin (w : World) (ctm sender : Address) : Option World :=
-  if sender = (w.proxy ctm).adminSlot then none else ctmAcceptAdminBody w ctm sender
 
 /-- `ProxyAdmin(pa).upgradeAndCall(ctm, liveImpl, abi.encodeCall(acceptAdmin, ()))` called by
 `sender`, `liveImpl` being the CTM proxy's current implementation (which `pa` can read with
@@ -445,12 +586,6 @@ def aliasCtmProxyAdmin (X : Address) : Engine := fun self ctx _ w =>
 def setCtmPendingAdmin (y : Address) : Engine := fun self ctx _ w =>
   ctmSetPendingAdmin w ctx.chainTypeManager self y
 
-/-- An engine that makes the executor the CTM's `admin`: `ctm.setPendingAdmin(this)` then
-`ctm.acceptAdmin()`. -/
-def takeCtmAdmin : Engine := fun self ctx _ w =>
-  (ctmSetPendingAdmin w ctx.chainTypeManager self self).bind fun w₁ =>
-  ctmAcceptAdmin w₁ ctx.chainTypeManager self
-
 /-- An engine whose only effect is `PA.changeProxyAdmin(p, x)`. -/
 def moveProxyAdmin (p x : Address) : Engine := fun self ctx _ w =>
   paChangeProxyAdmin w ctx.proxyAdmin self p x
@@ -460,18 +595,21 @@ def idle : Engine := fun _ _ _ w => some w
 
 /-! ## Premise bundles -/
 
-/-- The pinned collision the `@dev` at `:106-108` needs ruled out: the CTM tuple read before
-and after hashes the same although the encodings differ, or (with a notifier) the outer
-tuples do. -/
-def HolderPairCollides (B : Bindings) (H : Hash) (w w' : World) (n : Address) : Prop :=
-  (∃ e e', ctmWords B w = some e ∧ ctmWords B w' = some e' ∧ e ≠ e' ∧ H e = H e')
-  ∨ (n ≠ 0 ∧ ∃ o o', notifierWords B H w n = some o ∧ notifierWords B H w' n = some o'
-        ∧ o ≠ o' ∧ H o = H o')
+/-- The pinned collision the comparison at `:96-98` cannot see past: the two CTM tuples read
+before and after the engine differ and hash equal, or the two word lists whose hashes
+`_domainHolders` returned (`holderPreimage`) differ and hash equal. Both pairs are the leg's
+own reads. -/
+def HolderPairCollides (B : Bindings) (H : Hash) (w w' : World) : Prop :=
+  (B.ctm ≠ 0 ∧ ∃ e e', ctmTuple B w = some e ∧ ctmTuple B w' = some e' ∧ e ≠ e' ∧ H e = H e')
+  ∨ (∃ p p', holderPreimage B H w = some p ∧ holderPreimage B H w' = some p' ∧ p ≠ p'
+        ∧ H p = H p')
 
-/-- The CTM executor's standing configuration (`CTMUpgradeExecutor.sol:20,36-51`): CTM domain,
-nonzero CTM, the executor owns the CTM and the `ProxyAdmin`, the `ProxyAdmin` administers the
-CTM proxy, the executor is not the `ProxyAdmin`, the notifier is not the CTM, and the notifier
-reads succeed (as they must for any leg to pass the check at `:74`). -/
+/-- The CTM executor's standing configuration (`CTMUpgradeExecutor.sol:20-21,36-51`): CTM
+domain, nonzero CTM, the executor owns the CTM and the `ProxyAdmin`, the `ProxyAdmin`
+administers the CTM proxy, the executor is not the `ProxyAdmin`, the notifier is not the CTM,
+and the notifier is zero or its reads succeed (the executor is not its proxy's admin and
+`getProxyAdmin(notifier)` answers). It says nothing about `ChainTypeManager.admin`; the check at
+`:75-77` is the separate premise `CtmAdminOk`. -/
 structure ExecutorHoldsCtm (B : Bindings) (w : World) : Prop where
   /-- `ProxyUpgradeDomain.CTM`. -/
   domainCtm : B.domain = .ctm
@@ -487,32 +625,9 @@ structure ExecutorHoldsCtm (B : Bindings) (w : World) : Prop where
   selfNotPa : B.self ≠ B.pa
   /-- The notifier is a different contract from the CTM. -/
   notifierNotCtm : w.serverNotifier ≠ B.ctm
-  /-- Zero notifier, or its three reads succeed. -/
-  notifierReadable : w.serverNotifier = 0 ∨ (notifierReads B w w.serverNotifier).isSome
-
-/-- What an engine prefix that runs before the aliasing calls must leave alone: everything the
-holder check and the executor-ownership check read, at the CTM and at the pre-leg notifier
-`n`. The rows of other proxies may move. -/
-structure HolderFrame (B : Bindings) (n : Address) (w₀ w₁ : World) : Prop where
-  /-- Executor `owner()`. -/
-  execOwner : w₁.execOwner = w₀.execOwner
-  /-- Executor `pendingOwner()`. -/
-  execPendingOwner : w₁.execPendingOwner = w₀.execPendingOwner
-  /-- `ProxyAdmin.owner()`. -/
-  paOwner : w₁.paOwner = w₀.paOwner
-  /-- The CTM proxy's slots. -/
-  ctmProxy : w₁.proxy B.ctm = w₀.proxy B.ctm
-  /-- The CTM's owner. -/
-  ctmOwner : w₁.owner B.ctm = w₀.owner B.ctm
-  /-- The CTM's pending owner. -/
-  ctmPendingOwner : w₁.pendingOwner B.ctm = w₀.pendingOwner B.ctm
-  /-- The notifier proxy's slots. -/
-  notifierProxy : w₁.proxy n = w₀.proxy n
-  /-- The notifier's owner. -/
-  notifierOwner : w₁.owner n = w₀.owner n
-  /-- The notifier's pending owner. -/
-  notifierPendingOwner : w₁.pendingOwner n = w₀.pendingOwner n
-  /-- The notifier implementation's `admin()` answer. -/
-  notifierAdmin : w₁.adminAnswer n = w₀.adminAnswer n
+  /-- Zero notifier, or the executor is not its proxy's admin and `getProxyAdmin` answers. -/
+  notifierReadable : w.serverNotifier = 0 ∨
+    (B.self ≠ (w.proxy w.serverNotifier).adminSlot
+      ∧ (adminCall w B.pa w.serverNotifier).isSome)
 
 end Contracts.DomainHoldersV35
