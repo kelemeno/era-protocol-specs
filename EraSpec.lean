@@ -205,6 +205,12 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- L1 withdrawal finalization gate at draft/v0.35.0 head b17415d20: the L1 handler, the L2→L1 sender
+-- keying it relies on, and their composition
+import EraSpec.Contracts.L1InteropHandler.Proofs.WithdrawalGate
+import EraSpec.Contracts.L1Messenger.Proofs.SenderKeying
+import EraSpec.Protocol.L1WithdrawalProvenance.Proofs.Provenance
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
