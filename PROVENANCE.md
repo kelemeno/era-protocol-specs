@@ -174,6 +174,9 @@ supplying that correspondence.
   sources are under `l1-contracts/contracts/upgrades/registry/` and the
   `ChainTypeManager`, `Admin`, `DefaultUpgrade`, `BootstrapUpgrade` and `DiamondInit`
   contracts. Specs docstrings quote the transcribed guards with file:line at that commit.
+  `Specs/MutableSelectors.lean` is the exception: it cites era-contracts commit
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`), and its header says
+  where the code it reuses from the other topics sits at that commit.
 * `EraSpec/Contracts/RegistryBootstrapMigration/` (bootstrap authority) is pinned at
   `e561b9cc2` too. `EraSpec/Contracts/EcosystemUpgradeExecutor/` (the coordinator and
   its timer) is pinned at **`afa407085`**, because the coordinator and
