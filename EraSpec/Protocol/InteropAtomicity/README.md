@@ -16,9 +16,13 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
 | RootImport | [Specs/RootImport.lean](Specs/RootImport.lean) | [Properties/RootImport.lean](Properties/RootImport.lean) | [Proofs/RootImport.lean](Proofs/RootImport.lean) |
+| LegSourceFilterAtV35 | [Specs/LegSourceFilterAtV35.lean](Specs/LegSourceFilterAtV35.lean) | [Properties/LegSourceFilterAtV35.lean](Properties/LegSourceFilterAtV35.lean) | [Proofs/LegSourceFilterAtV35.lean](Proofs/LegSourceFilterAtV35.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
-`Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`).
+`Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`,
+`LegSourceFilterAtV35` on `FlowBinding` and `OncePerLeg`). `LegSourceFilterAtV35` is the one
+topic not at the pin: it adds the receive filter of `draft/v0.35.0` (`b17415d20`) to the
+`FlowBinding` and `OncePerLeg` models.
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -146,6 +150,68 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   `WithoutSettlementDataLegIsStuck` shows the settlement-proof premise is needed too.
   Aggregation paths inside a settlement proof are idealized as the honest ones; the import
   transitions themselves are not modelled (a snapshot `World`, `ImportsGrow`).
+
+- **LegSourceFilterAtV35** (namespace `Contracts.LegSourceFilterAtV35`; source
+  `draft/v0.35.0` at `b17415d20`, not the pin; every Solidity file it cites is the same at
+  `d9f678900`, where it was first written). v35 adds `_checkLegSourceAllowed` to the flow
+  manager (`AtomicFlowManager.sol:338-344`): `requireFlowFinalized` runs it on every leg's
+  source, on the bundle's destination, and `authorizeRefund` on the missing leg's source, on
+  the refunding chain. It reads `L2Bridgehub.isPeerAllowed`, which `allowInteropPeer` sets and
+  `deregisterChainForInterop` deletes. The model is `FlowBinding`'s `RunLog` and
+  `OncePerLeg`'s `SysSteps` with every chain's allow-list in the state, the filter on the gate
+  and authorize steps, and two admin steps enabled at every moment (`RunAtV35`,
+  `SysStepsAtV35`). The tree, the proof checks and the manager are the pin's models, checked
+  against true batch roots with no settlement-layer import, so this isolates the filter; the
+  rest of the v35 diff is not modelled (the spec header lists it). No result takes a hash
+  premise.
+  - *Safety survives.* The filter only rejects: a v35 run is a pin run once the
+    allow-lists are forgotten (`RunAtV35ProjectsToRunLog`, `SysStepsAtV35ProjectsToSysSteps`),
+    and every pin run is a v35 run under full mutual allowance
+    (`RunLogIsRunAtV35UnderFullAllowance`, `SysStepsIsSysStepsAtV35UnderFullAllowance`).
+    The pin's `…OrBreak` exclusion results hold over v35 runs with the same located breaks
+    (`ExecutedExcludesAnyRefundOrBreakAtV35`, `ExecutedObligationNeverRefundedOrBreakAtV35`,
+    `OneExecutionFreezesTheFlowOrBreakAtV35`, `SystemOncePerLegAtV35`,
+    `SystemExecutedObligationNeverRefundedOrBreakAtV35`, `NoneOrAllOrBreakAtV35`,
+    `ExecutedImpliesRealFlowFinalizableOrLoggedClashAtV35`). What the filter adds: a logged
+    execution and a logged refund of one flow id need a broken proof about the refund's
+    missing leg, accepted by a chain that allowed that leg's source when it accepted it, or a
+    flow-id clash between the two logged flows
+    (`LoggedGateExcludesLoggedRefundOrAllowedBreakAtV35`).
+    `ForgedSiblingExecutionNeedsAllowedForgerAtV35` and
+    `ForeignForgedRefundNeedsAllowedForgerAtV35` replay two pin forgeries under the filter,
+    the second on the pin's padding constant, which v35 no longer uses.
+  - *Liveness does not.* One deregistration after commit strands a committed leg. In a
+    complete swap the destination of one leg drops that leg's source: that leg passes the gate
+    there for no presented flow and no evidence, while its sibling has executed, and every
+    `authorizeRefund` call that presents the swap's flow id and passes carries a located break
+    (`SwapStrandedByDeregistrationAtV35`). In an incomplete swap the committed leg's chain
+    drops the missing leg's source: no refund passes there without a located break, though
+    the honest call passes every check the pin runs, and no gate passes without a located
+    break (`IncompleteSwapRefundStrandedByDeregistrationAtV35`). `StrandedIffAtV35` says
+    exactly which legs are stranded in this model, for flows that pass `_checkFlowId`, have
+    nonzero commit values and whose late legs' chains settle past the deadline
+    (`StrandedIffAtV35Witness`: both cases occur, and neither under full allowance). The
+    pin's `FlowFinalizableBy` has no destination, so it still holds of the stranded complete
+    swap. Upstream documents this as the known limitation K1, "stuck flows"
+    (`protocol-docs/interop-gating.md:256-266` at `b17415d20`); these results state it
+    exactly in this model and are not a new finding. A chain without the settlement-layer
+    import can be stuck for another reason (`RootImport`), which this topic does not combine
+    with the filter.
+  - *Re-allowing restores progress.* Both checks are monotone in the allow-lists
+    (`GateMonotoneInPeersAtV35`, `RefundMonotoneInPeersAtV35`); one `allowPeer` step
+    lets through a gate call with pin-valid evidence whose destination allows every other
+    leg source (`ReallowRestoresGateAtV35`, `ReallowRestoresGateAtV35Witness`) and an
+    `authorizeRefund` call that passes the pin's checks for a still-`Committed` leg
+    (`ReallowRestoresRefundAtV35`), and until then the dropped source stays blocked on that
+    chain (`BlockedUntilReallowedAtV35`). Who may take that step, and whether its service
+    transaction lands, is outside the model (`MODEL-LEG-SOURCE-FILTER`, `OPS-CONFIG`).
+  - Witnesses: `SafetyAtV35Witness`, `SystemAtV35Witness`, `StrandedIffAtV35Witness`,
+    `CompleteFlowGateOpenIffSourcesAllowedAtV35Witness`, `RefundEvidenceCompleteAtV35Witness`
+    (its filter premise is needed), `MonotoneInPeersAtV35Witness`,
+    `ReallowRestoresGateAtV35Witness`, `ReallowAtV35Witness`.
+  - Open: the filter on the operational model (`Operational`) and together with the
+    settlement-layer import (`RootImport`), the handler's `Verified` status as state,
+    `append`'s registration check, and the L1 side (`ChainRegistrationSender`).
 
 The tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

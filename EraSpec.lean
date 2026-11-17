@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- The receive filter `_checkLegSourceAllowed` of era-contracts draft/v0.35.0 (b17415d20; the
+-- cited Solidity is unchanged since d9f678900), on the pin's interop model
+import EraSpec.Protocol.InteropAtomicity.Proofs.LegSourceFilterAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
