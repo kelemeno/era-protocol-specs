@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Engine-leg checks of the proxy upgrade executors at draft/v0.35.0 b17415d20 (ProxyUpgradeExecutorBase)
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.EngineLegV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

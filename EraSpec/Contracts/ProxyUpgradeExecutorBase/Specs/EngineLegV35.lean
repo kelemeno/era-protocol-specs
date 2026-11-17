@@ -2,126 +2,164 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrent
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashEncoding
 
 /-!
-# Model: the engine leg of `ProxyUpgradeExecutorBase` at `d9f6789`
+# Model: the engine leg of `ProxyUpgradeExecutorBase` at `b17415d20`
 
 Source: era-contracts branch `draft/v0.35.0` at commit
-**`d9f678900e1bc8286412b78f56d4a9f443983c29`**. Every `file:line` below is at that commit,
-relative to `l1-contracts/contracts/upgrades/registry/` unless it says otherwise.
+**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**. Every `file:line` below is at that commit,
+relative to `l1-contracts/contracts/upgrades/registry/` unless it says otherwise. The model was
+first written against `d9f678900e1bc8286412b78f56d4a9f443983c29` and re-pinned; the last
+section lists what changed between the two.
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.ProxyUpgradeExecutorBase.Properties.EngineLegV35` and are proved in
 `EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.EngineLegV35`.
 
-## What changed since `e561b9cc2`
+## The leg
 
 At `e561b9cc2` (the snapshot `../../ChainTypeManager/` and `../../ProxyUpgradeRowLib/` model)
-each executor applied the rows itself through `ProxyUpgradeRowLib.applyTransition`. At
-`d9f6789` both executors (`CoreUpgradeExecutor.applyL1Upgrade`,
+each executor applied the rows itself through `ProxyUpgradeRowLib.applyTransition`. On
+`draft/v0.35.0` both executors (`CoreUpgradeExecutor.applyL1Upgrade`,
 `executors/CoreUpgradeExecutor.sol:33-36`; `CTMUpgradeExecutor.applyInfrastructureUpgrade`,
 `executors/CTMUpgradeExecutor.sol:64-72`) call `_applyProxyUpgradeTransition`
-(`executors/ProxyUpgradeExecutorBase.sol:48-98`). That function DELEGATECALLS the engine the
-transition pins, so the engine runs with the executor's storage and authority. The post-checks
+(`executors/ProxyUpgradeExecutorBase.sol:51-104`). That function DELEGATECALLS the engine the
+transition pins, so the engine runs with the executor's storage and authority. The checks
 after the delegatecall are the executor's only on-chain defence against what the engine did.
 
-## `_applyProxyUpgradeTransition` (`executors/ProxyUpgradeExecutorBase.sol:48-98`)
+## `_applyProxyUpgradeTransition` (`executors/ProxyUpgradeExecutorBase.sol:51-104`)
 
-    ObjectAnchorLib.requireCode(address(_transition));                              // :54
-    ProxyUpgradeTransitionManifest memory manifest = _transition.getManifest();     // :55
-    if (manifest.domain != _domain) { revert ProxyUpgradeDomainMismatch(...); }     // :56-58
+    ObjectAnchorLib.requireCode(address(_transition));                              // :57
+    ProxyUpgradeTransitionManifest memory manifest = _transition.getManifest();     // :58
+    if (manifest.domain != _domain) { revert ProxyUpgradeDomainMismatch(...); }     // :59-61
     // A codeless delegatecall target succeeds silently.
-    ObjectAnchorLib.requireCode(manifest.proxyUpgradeEngine);                       // :59-60
-    ProxyUpgradeContext memory context = ProxyUpgradeContext({...});                // :62-68
-    address ownerBefore = owner();                                                  // :69
-    address pendingOwnerBefore = pendingOwner();                                    // :70
-    address serverNotifier = _chainTypeManager == address(0)
-        ? address(0) : IChainTypeManager(_chainTypeManager).serverNotifierAddress(); // :71-73
-    bytes32 domainHoldersBefore = _domainHolders(_proxyAdmin, _chainTypeManager, serverNotifier); // :74
-    (bool success, bytes memory returnData) = manifest.proxyUpgradeEngine.delegatecall(
-        abi.encodeCall(IProxyUpgradeEngine.executeUpgrade, (context, manifest.proxyUpgrades))); // :76-78
-    if (!success) { assembly { revert(add(returnData, 0x20), mload(returnData)) } } // :79-85
-    if (owner() != ownerBefore || pendingOwner() != pendingOwnerBefore) {
-        revert ProxyUpgradeEngineChangedExecutorOwnership(manifest.proxyUpgradeEngine); // :87-89
+    ObjectAnchorLib.requireCode(manifest.proxyUpgradeEngine);                       // :62-63
+    ProxyUpgradeContext memory context = ProxyUpgradeContext({...});                // :65-71
+    if (_chainTypeManager != address(0) &&
+        IChainTypeManager(_chainTypeManager).admin() == address(_proxyAdmin)) {
+        revert ProxyUpgradeCTMAdminIsProxyAdmin(_chainTypeManager);                 // :75-77
     }
-    if (_domainHolders(_proxyAdmin, _chainTypeManager, serverNotifier) != domainHoldersBefore) {
-        revert ProxyUpgradeEngineMovedDomainAuthority(manifest.proxyUpgradeEngine);  // :90-92
+    address ownerBefore = owner();                                                  // :78
+    address pendingOwnerBefore = pendingOwner();                                    // :79
+    bytes32 domainHoldersBefore = _domainHolders(_proxyAdmin, _chainTypeManager);   // :80
+    (bool success, bytes memory returnData) = manifest.proxyUpgradeEngine.delegatecall(
+        abi.encodeCall(IProxyUpgradeEngine.executeUpgrade, (context, manifest.proxyUpgrades))); // :82-84
+    if (!success) { assembly { revert(add(returnData, 0x20), mload(returnData)) } } // :85-91
+    if (owner() != ownerBefore || pendingOwner() != pendingOwnerBefore) {
+        revert ProxyUpgradeEngineChangedExecutorOwnership(manifest.proxyUpgradeEngine); // :93-95
+    }
+    if (_domainHolders(_proxyAdmin, _chainTypeManager) != domainHoldersBefore) {
+        revert ProxyUpgradeEngineMovedDomainAuthority(manifest.proxyUpgradeEngine);  // :96-98
     }
     ProxyUpgradeRow[] memory rows = ProxyUpgradeRowLib.toRows(
-        manifest.proxyUpgrades, ProxyUpgradeRowLib.inventoryLength(_domain));       // :93-96
-    ProxyUpgradeRowLib.requireRowsApplied(_proxyAdmin, rows);                       // :97
+        manifest.proxyUpgrades, ProxyUpgradeRowLib.inventoryLength(_domain));       // :99-102
+    ProxyUpgradeRowLib.requireRowsApplied(_proxyAdmin, rows);                       // :103
 
-`_domainHolders` (`:109-139`):
+The comment above the CTM-admin check (`:72-74`): "A CTM the `ProxyAdmin` no longer
+administers answers `getProxyAdmin` with its own `admin()`: were that the `ProxyAdmin`, a moved
+CTM would hash as unmoved. The hash pins `admin()`, so refusing that state before the engine
+runs covers the leg."
+
+`_domainHolders` (`:118-148`):
 
     if (_chainTypeManager == address(0)) {
-        return keccak256(abi.encode(_proxyAdmin.owner()));                          // :114-116
+        return keccak256(abi.encode(_proxyAdmin.owner()));                          // :119-121
     }
     IOwnable ctm = IOwnable(_chainTypeManager);
+    address serverNotifier = IChainTypeManager(_chainTypeManager).serverNotifierAddress(); // :123
     bytes32 holders = keccak256(abi.encode(_proxyAdmin.owner(), ctm.owner(), ctm.pendingOwner(),
-        _proxyAdmin.getProxyAdmin(ITransparentUpgradeableProxy(_chainTypeManager)))); // :117-125
-    if (_serverNotifier == address(0)) { return holders; }                          // :126-128
-    IOwnable notifier = IOwnable(_serverNotifier);
+        IChainTypeManager(_chainTypeManager).admin(),
+        _proxyAdmin.getProxyAdmin(ITransparentUpgradeableProxy(_chainTypeManager)),
+        serverNotifier));                                                           // :124-133
+    if (serverNotifier == address(0)) { return holders; }                           // :134-136
+    IOwnable notifier = IOwnable(serverNotifier);
     return keccak256(abi.encode(holders, notifier.owner(), notifier.pendingOwner(),
-        _proxyAdmin.getProxyAdmin(ITransparentUpgradeableProxy(_serverNotifier)))); // :129-138
+        _proxyAdmin.getProxyAdmin(ITransparentUpgradeableProxy(serverNotifier)),
+        IServerNotifier(serverNotifier).chainTypeManager()));                       // :137-147
 
-The contract's description (`:32-38`): "What the executor checks after it returns: its own
+So the ServerNotifier is read inside `_domainHolders`, once before the engine runs and once
+after, and its address is one of the hashed words.
+
+The contract's description (`:34-41`): "What the executor checks after it returns: its own
 ownership (owner and pending owner unchanged), the holders of the domain it lends the engine
 (…) and every row's proxy at its `implNew`. Anything else the engine does is what governance
 reviewed when it approved the transition, and the engine's own postconditions."
 
-`ProxyUpgradeRowLib` at `d9f6789` (`libraries/ProxyUpgradeRowLib.sol`): `toRows` (`:53-61`)
-reverts unless the inventory has exactly `inventoryLength(domain)` slots (`:57-59`), then drops
-the inert slots (`_dropInertSlots`, `:140-156`); `requireRowsApplied` (`:128-136`) reverts
-unless every row's proxy runs its `implNew`; `applyRows` (`:101-123`) is `requireRowCode`, the
-source-checked loop, then `requireRowsApplied`. `git diff e561b9cc2 d9f6789` on the library
-only removes `applyTransition` and splits the last loop of `applyRows` out as
-`requireRowsApplied`, so these are the semantics of the `e561b9cc2` model
-(`ProxyUpgradeCurrent.toRows`, `RowsApplied`, `ApplyRows`), which this file reuses. The
-length check is a separate conjunct here (`LegPre.inventoryLength`).
+`ProxyUpgradeRowLib` (`libraries/ProxyUpgradeRowLib.sol`): `toRows` (`:58-66`) reverts unless
+the inventory has exactly `inventoryLength(domain)` slots (`:62-64`), then drops the inert
+slots (`_dropInertSlots`, `:145-161`); `requireRowsApplied` (`:133-141`) reverts unless every
+row's proxy runs its `implNew`; `applyRows` (`:106-128`) is `requireRowCode`, the
+source-checked loop, then `requireRowsApplied`. These are the semantics the `e561b9cc2` model
+transcribes (`ProxyUpgradeCurrent.toRows`, `RowsApplied`, `ApplyRows`; compare the code quoted
+in `../../ProxyUpgradeRowLib/Specs/RowsCurrent.lean` with `:106-141`), and this file reuses
+them. The length check is a separate conjunct here (`LegPre.inventoryLength`).
 
 ## Modelling choices
 
 * **A revert is the absence of a step.** `Leg … st s st' s'` says the call succeeds from
-  executor storage `st` and world `s` and ends in `st'`, `s'`.
+  executor storage `st` and world `s` and ends in `st'`, `s'`. The caller check of the two
+  entry points (`onlyOwner`) is not modelled.
 * **Executor storage** (`Store`) is the two slots the executors declare, `owner` and
-  `pendingOwner` (`Ownable2Step`, `l1-contracts/contracts/governance/UpgradeExecutorBase.sol:22`;
+  `pendingOwner` (`Ownable2Step`, `l1-contracts/contracts/governance/UpgradeExecutorBase.sol:23`;
   the executors' other bindings are immutables, `executors/CoreUpgradeExecutor.sol:23`,
   `executors/CTMUpgradeExecutor.sol:36,40`), and every other slot (`Store.other`). No executor
   function reads the other slots. Delegatecalled code can write them, and the engine of a
   later transition can read them.
 * **Everything else is a world state `σ` read through getters**: `_proxyAdmin.owner()`,
   `IOwnable(x).owner()`, `IOwnable(x).pendingOwner()`, `_proxyAdmin.getProxyAdmin(x)`,
-  `ctm.serverNotifierAddress()`, `_proxyAdmin.getProxyImplementation(p)`, code existence. The
-  getters are arbitrary total functions of `σ`. In the source a getter can revert, and then
-  the leg reverts; so the model admits at least the legs the source admits, and each
-  "successful leg ⇒ …" result carries over. What `getProxyAdmin` and
-  `getProxyImplementation` answer for a proxy the admin no longer administers (`:106-108`) is a
-  separate topic.
+  `IChainTypeManager(ctm).admin()`, `ctm.serverNotifierAddress()`,
+  `IServerNotifier(x).chainTypeManager()`, `_proxyAdmin.getProxyImplementation(p)`, code
+  existence. The getters are view calls, arbitrary total functions of `σ`. In the source a
+  getter can revert, and then the leg reverts; so the model admits at least the legs the source
+  admits, and each "successful leg ⇒ …" result carries over. `Env.adminSlot` (who administers
+  a proxy) is not read by the executor; it only states `AdminFallsThrough`.
 * **The engine** (`Engine`) is an arbitrary relation: from the context, the inventory, the
   executor storage and the world, it picks the executor storage at return and a list of calls
   sent with `msg.sender` = the executor. The storage at return covers the engine's own writes
   and those of any reentrant call (a nominee calling `acceptOwnership`, say). The calls run in
   order through the world's call relation (`CallRun`); a call whose failure the engine catches
   is not in the list. A codeless delegatecall target succeeds with no effect (`Delegate`,
-  second disjunct; the comment at `:59`).
+  second disjunct; the comment at `:62`).
 * **Hashing.** `keccak256` is an arbitrary function `Env.keccak` on byte strings. Nothing is
   assumed about it. `abi.encode` of a tuple of static words (addresses, `bytes32`) is the
   concatenation of their 32-byte big-endian words (`abiEncode`, reusing
   `AttackVectors.BundleHashEncoding.word`). A real address is a `UInt256` below `2^160`; the
   model encodes the whole word, which is the left-padded encoding for real addresses.
-* **`getManifest()`** is a `view` call read once (`:55`): the manifest `M` is the value it
+* **`getManifest()`** is a `view` call read once (`:58`): the manifest `M` is the value it
   returned. Nothing is assumed about how the object was constructed.
 * **Not modelled**: events, the executor's ETH balance (an engine can send it), the revert
-  data bubbled at `:79-85`, gas.
+  data bubbled at `:85-91`, gas.
 
 ## The concrete world
 
 `WState`/`WCall` is one concrete world, used for the witnesses, the countermodels and the
 description of `DefaultProxyUpgradeEngine`: one `ProxyAdmin` (`2`) and an executor (`1`), and
-three kinds of executor-sent calls (`ProxyAdmin.upgrade`, `Ownable2Step.transferOwnership`,
-`ChainTypeManager.setServerNotifier`). Reinitializers are inert there, so
-`upgradeAndCall(…, initializeUpgrade())` is `upgrade`. The engines of that world are
-`DefaultProxyUpgradeEngine` (`engines/DefaultProxyUpgradeEngine.sol:32-46`, empty hooks
-`:51`, `:56`, `:62-65`) and subclasses that add a storage write or follow-up calls
+four kinds of executor-sent calls (`ProxyAdmin.upgrade`, `ProxyAdmin.changeProxyAdmin`,
+`Ownable2Step.transferOwnership`, `ChainTypeManager.setServerNotifier`). Reinitializers are
+inert there, so `upgradeAndCall(…, initializeUpgrade())` is `upgrade`. Contracts are
+transparent proxies, and no state used below has the executor as a proxy's admin. The
+`ProxyAdmin`'s `getProxyAdmin(x)` answers `2` when `2` is `x`'s admin, and otherwise the
+`admin()` of `x`'s implementation, which for a CTM is its admin role (`wGetProxyAdmin`; the
+behaviour the comments at `:72-74` and `:112-114` describe). For a proxy whose implementation
+has no `admin()` the source reverts there; no scenario below reads such a proxy. The engines of that
+world are `DefaultProxyUpgradeEngine` (`engines/DefaultProxyUpgradeEngine.sol:32-47`, empty
+hooks `:52`, `:57`, `:63-66`) and subclasses that add a storage write or follow-up calls
 (`engineWith`).
+
+## What changed since `d9f6789`
+
+`git diff d9f6789 b17415d20` (commit `9775be946`) on the files this model reads:
+
+* `_applyProxyUpgradeTransition` gained the CTM-admin check (`:72-77`), and the `@dev`
+  (`:34-41`) now lists the CTM's admin, its ServerNotifier, and that notifier's CTM among the
+  holders.
+* `_domainHolders` lost its notifier parameter. It reads `serverNotifierAddress()` itself
+  (`:123`), so the before and after hashes each use the notifier of their time. The CTM tuple
+  gained the CTM's `admin()` and the notifier's address (`:124-133`), and the notifier tuple
+  gained `IServerNotifier(serverNotifier).chainTypeManager()` (`:137-147`). At `d9f6789` the
+  notifier was read once before the engine ran and the tuples had four words each.
+* `DefaultProxyUpgradeEngine.executeUpgrade` (`:32-47`) gives each hook its own memory copy of
+  the calldata inventory. The engines modelled here do not read the inventory in their hooks.
+* `ProxyUpgradeRowLib` gained a `@dev` paragraph (`:28-32`) and no code change, so its line
+  numbers moved by five.
 -/
 
 namespace Contracts.EngineLegV35
@@ -143,15 +181,15 @@ def Collides (k : List UInt8 → UInt256) (x y : List UInt8) : Prop := x ≠ y �
 
 /-! ## Types -/
 
-/-- `ProxyUpgradeRowLib.inventoryLength` (`libraries/ProxyUpgradeRowLib.sol:42-44`): the member
-counts of `L1EcosystemContract` (9) and `CTMContract` (21), counted from the enums at
-`d9f6789` (`libraries/ContractIdentifiers.sol:111-121`, `:61-89`, `:127-128`). The enums are
+/-- `ProxyUpgradeRowLib.inventoryLength` (`libraries/ProxyUpgradeRowLib.sol:47-49`): the member
+counts of `L1EcosystemContract` (9) and `CTMContract` (21), counted from the enums
+(`libraries/ContractIdentifiers.sol:117-127`, `:64-92`, `:133-134`). The enums are
 append-only, so a later commit can have larger counts. -/
 def inventoryLength : Domain → ℕ
   | .core => 9
   | .ctm => 21
 
-/-- `ProxyUpgradeTransitionManifest` (`RegistryTypes.sol:203-207`). -/
+/-- `ProxyUpgradeTransitionManifest` (`RegistryTypes.sol:205-209`). -/
 structure Manifest where
   /-- `domain`. -/
   domain : Domain
@@ -160,7 +198,7 @@ structure Manifest where
   /-- `proxyUpgradeEngine`. -/
   proxyUpgradeEngine : Address
 
-/-- `ProxyUpgradeContext` (`RegistryTypes.sol:219-225`). -/
+/-- `ProxyUpgradeContext` (`RegistryTypes.sol:221-227`). -/
 structure Context where
   /-- `transition`. -/
   transition : Address
@@ -186,8 +224,6 @@ structure Store where
 /-- The executor's bindings and the world it runs in, as getters of a world state `σ`, and
 the calls `κ` the executor can send. -/
 structure Env (σ κ : Type) where
-  /-- `address(this)`: the executor. -/
-  self : Address
   /-- `_proxyAdmin`: the executor's bound `ProxyAdmin`. -/
   proxyAdmin : Address
   /-- `_chainTypeManager`: the bound CTM, or `0` in the `Core` domain. -/
@@ -202,10 +238,16 @@ structure Env (σ κ : Type) where
   pendingOwnerOf : σ → Address → Address
   /-- `_proxyAdmin.getProxyAdmin(x)`. -/
   getProxyAdmin : σ → Address → Address
+  /-- `IChainTypeManager(_chainTypeManager).admin()`, read by the executor. -/
+  ctmAdmin : σ → Address
   /-- `IChainTypeManager(_chainTypeManager).serverNotifierAddress()`. -/
   serverNotifierAddress : σ → Address
+  /-- `IServerNotifier(x).chainTypeManager()`. -/
+  notifierCtm : σ → Address → Address
   /-- `_proxyAdmin.getProxyImplementation(p)`. -/
   impl : σ → Impl
+  /-- The admin of proxy `x` (its EIP-1967 admin slot). The executor does not read it. -/
+  adminSlot : σ → Address → Address
   /-- `keccak256`. Nothing is assumed about it. -/
   keccak : List UInt8 → UInt256
   /-- One successful call sent with `msg.sender` = the executor. -/
@@ -225,85 +267,106 @@ inductive CallRun (E : Env σ κ) : σ → List κ → σ → Prop
   | cons {s s' s'' : σ} {c : κ} {cs : List κ} :
       E.call s c s' → CallRun E s' cs s'' → CallRun E s (c :: cs) s''
 
-/-- The successful delegatecall at `:76-85`. With code at `e`: the engine's storage writes and
-calls. Without code: a silent success that changes nothing (the comment at `:59`). -/
+/-- The successful delegatecall at `:82-91`. With code at `e`: the engine's storage writes and
+calls. Without code: a silent success that changes nothing (the comment at `:62`). -/
 def Delegate (E : Env σ κ) (eng : Engine σ κ) (e : Address) (ctx : Context) (inv : List Row)
     (st : Store) (s : σ) (st' : Store) (s' : σ) : Prop :=
   (E.hasCode s e ∧ ∃ calls, eng ctx inv st s st' calls ∧ CallRun E s calls s') ∨
   (¬ E.hasCode s e ∧ st' = st ∧ s' = s)
 
-/-! ## The domain holders (`:109-139`) -/
+/-! ## The domain holders (`:118-148`) -/
 
-/-- The ServerNotifier read at `:71-73`, before the engine runs. -/
-def notifierAt (E : Env σ κ) (s : σ) : Address :=
-  if E.chainTypeManager = 0 then 0 else E.serverNotifierAddress s
-
-/-- The `Core` preimage: `abi.encode(_proxyAdmin.owner())` (`:115`). -/
+/-- The `Core` preimage: `abi.encode(_proxyAdmin.owner())` (`:120`). -/
 def corePre (E : Env σ κ) (s : σ) : List UInt8 := abiEncode [E.paOwner s]
 
-/-- The CTM preimage (`:118-125`): the `ProxyAdmin`'s owner, the CTM's owner and pending
-owner, and the CTM's proxy admin. -/
-def ctmPre (E : Env σ κ) (s : σ) : List UInt8 :=
-  abiEncode [E.paOwner s, E.ownerOf s E.chainTypeManager, E.pendingOwnerOf s E.chainTypeManager,
-    E.getProxyAdmin s E.chainTypeManager]
+/-- The six words of the CTM tuple (`:125-132`): the `ProxyAdmin`'s owner, the CTM's owner,
+pending owner and admin, the CTM's proxy admin, and the CTM's ServerNotifier. -/
+def ctmWords (E : Env σ κ) (s : σ) : List Address :=
+  [E.paOwner s, E.ownerOf s E.chainTypeManager, E.pendingOwnerOf s E.chainTypeManager,
+    E.ctmAdmin s, E.getProxyAdmin s E.chainTypeManager, E.serverNotifierAddress s]
 
-/-- The ServerNotifier preimage (`:130-137`): the CTM hash, then the notifier `n`'s owner,
-pending owner and proxy admin. -/
-def notifierPre (E : Env σ κ) (n : Address) (s : σ) : List UInt8 :=
-  abiEncode [E.keccak (ctmPre E s), E.ownerOf s n, E.pendingOwnerOf s n, E.getProxyAdmin s n]
+/-- The CTM preimage (`:124-133`). -/
+def ctmPre (E : Env σ κ) (s : σ) : List UInt8 := abiEncode (ctmWords E s)
 
-/-- `_domainHolders(_proxyAdmin, _chainTypeManager, n)` in world `s` (`:109-139`). -/
-def domainHolders (E : Env σ κ) (n : Address) (s : σ) : UInt256 :=
-  if E.chainTypeManager = 0 then E.keccak (corePre E s)
-  else if n = 0 then E.keccak (ctmPre E s)
-  else E.keccak (notifierPre E n s)
+/-- The four words the notifier tuple adds after the CTM hash (`:142-145`), for the
+ServerNotifier the CTM names in `s`: its owner, pending owner, proxy admin and CTM. -/
+def notifierWords (E : Env σ κ) (s : σ) : List Address :=
+  [E.ownerOf s (E.serverNotifierAddress s), E.pendingOwnerOf s (E.serverNotifierAddress s),
+    E.getProxyAdmin s (E.serverNotifierAddress s), E.notifierCtm s (E.serverNotifierAddress s)]
 
-/-- The holder tuple `_domainHolders` hashes, unhashed (`:104-105`): one address in the `Core`
-domain, four with a CTM and no notifier, seven with both. -/
-def holderTuple (E : Env σ κ) (n : Address) (s : σ) : List Address :=
+/-- The ServerNotifier preimage (`:139-146`): the CTM hash, then `notifierWords`. -/
+def notifierPre (E : Env σ κ) (s : σ) : List UInt8 :=
+  abiEncode (E.keccak (ctmPre E s) :: notifierWords E s)
+
+/-- The preimage of the hash `_domainHolders` returns in world `s`: the `Core` preimage; with a
+CTM and no ServerNotifier, the CTM preimage; with both, the notifier preimage. -/
+def holdersPre (E : Env σ κ) (s : σ) : List UInt8 :=
+  if E.chainTypeManager = 0 then corePre E s
+  else if E.serverNotifierAddress s = 0 then ctmPre E s
+  else notifierPre E s
+
+/-- `_domainHolders(_proxyAdmin, _chainTypeManager)` in world `s` (`:118-148`): `keccak256` of
+`holdersPre` in each of the three branches. -/
+def domainHolders (E : Env σ κ) (s : σ) : UInt256 := E.keccak (holdersPre E s)
+
+/-- The holder tuple `_domainHolders` hashes, unhashed (`:109-111`): one address in the `Core`
+domain, the six `ctmWords` with a CTM and no ServerNotifier, and those followed by the four
+`notifierWords` with both. -/
+def holderTuple (E : Env σ κ) (s : σ) : List Address :=
   if E.chainTypeManager = 0 then [E.paOwner s]
-  else if n = 0 then
-    [E.paOwner s, E.ownerOf s E.chainTypeManager, E.pendingOwnerOf s E.chainTypeManager,
-      E.getProxyAdmin s E.chainTypeManager]
-  else
-    [E.paOwner s, E.ownerOf s E.chainTypeManager, E.pendingOwnerOf s E.chainTypeManager,
-      E.getProxyAdmin s E.chainTypeManager, E.ownerOf s n, E.pendingOwnerOf s n,
-      E.getProxyAdmin s n]
+  else if E.serverNotifierAddress s = 0 then ctmWords E s
+  else ctmWords E s ++ notifierWords E s
 
 /-- A collision on the named preimages the holders check compares between `s` and `s'`: the
-`Core` preimage; the CTM preimage; or, with a notifier, the notifier preimage or the CTM
-preimage nested in it. -/
-def HoldersBreak (E : Env σ κ) (n : Address) (s s' : σ) : Prop :=
-  if E.chainTypeManager = 0 then Collides E.keccak (corePre E s) (corePre E s')
-  else if n = 0 then Collides E.keccak (ctmPre E s) (ctmPre E s')
-  else Collides E.keccak (notifierPre E n s) (notifierPre E n s') ∨
-    Collides E.keccak (ctmPre E s) (ctmPre E s')
+two preimages whose hashes `:96` compares, or, when both are notifier preimages, the CTM
+preimages nested in them. -/
+def HoldersBreak (E : Env σ κ) (s s' : σ) : Prop :=
+  Collides E.keccak (holdersPre E s) (holdersPre E s') ∨
+    (E.chainTypeManager ≠ 0 ∧ E.serverNotifierAddress s ≠ 0 ∧ E.serverNotifierAddress s' ≠ 0 ∧
+      Collides E.keccak (ctmPre E s) (ctmPre E s'))
+
+/-- The `ProxyAdmin`'s `getProxyAdmin(ctm)` answers the `ProxyAdmin` when it is the CTM proxy's
+admin, and otherwise the CTM's `admin()` role, the value the executor reads as
+`IChainTypeManager(ctm).admin()`. This is the behaviour the comments at `:72-74` and `:112-114`
+describe: OpenZeppelin v4's `TransparentUpgradeableProxy` answers `admin()` itself only to its
+admin and forwards every other caller's call to the implementation, here a CTM implementation
+whose `admin()` getter does not depend on the caller. (The submodule
+`lib/openzeppelin-contracts-v4`, at `693e945` in `b17415d20`, was not available to cite by
+line.) In a state where the executor itself is the CTM proxy's admin, the proxy answers the
+executor's `admin()` read itself, so the two answers can differ there; but in such a state
+the executor's other reads of the CTM (`serverNotifierAddress()`, `ctm.owner()`) revert, so no
+leg starts or ends in it, and total getters satisfying this premise can be chosen for it. -/
+def AdminFallsThrough (E : Env σ κ) : Prop :=
+  ∀ s, E.getProxyAdmin s E.chainTypeManager =
+    if E.adminSlot s E.chainTypeManager = E.proxyAdmin then E.proxyAdmin else E.ctmAdmin s
 
 /-! ## The leg -/
 
-/-- The context the executor builds (`:62-68`) from its own bindings. -/
+/-- The context the executor builds (`:65-71`) from its own bindings. -/
 def context (E : Env σ κ) (T : Address) (M : Manifest) (d : Domain) : Context :=
   ⟨T, M.proxyUpgradeEngine, d, E.proxyAdmin, E.chainTypeManager⟩
 
-/-- The two requirements no countermodel deletes: the transition is code (`:54`) and
-`toRows`' length check (`:93-96` with `libraries/ProxyUpgradeRowLib.sol:57-59`). -/
+/-- The two requirements no countermodel deletes: the transition is code (`:57`) and
+`toRows`' length check (`:99-102` with `libraries/ProxyUpgradeRowLib.sol:62-64`). -/
 structure LegPre (E : Env σ κ) (T : Address) (M : Manifest) (d : Domain) (s : σ) : Prop where
-  /-- `requireCode(address(_transition))` (`:54`). -/
+  /-- `requireCode(address(_transition))` (`:57`). -/
   transitionCode : E.hasCode s T
-  /-- `toRows`' length check (`libraries/ProxyUpgradeRowLib.sol:57-59`). -/
+  /-- `toRows`' length check (`libraries/ProxyUpgradeRowLib.sol:62-64`). -/
   inventoryLength : M.proxyUpgrades.length = inventoryLength d
 
-/-- The leg's five checks, which the countermodels delete one at a time. -/
+/-- The leg's six checks, which the countermodels delete one at a time. -/
 inductive Check
-  /-- `manifest.domain == _domain` (`:56-58`). -/
+  /-- `manifest.domain == _domain` (`:59-61`). -/
   | domain
-  /-- `requireCode(manifest.proxyUpgradeEngine)` (`:59-60`). -/
+  /-- `requireCode(manifest.proxyUpgradeEngine)` (`:62-63`). -/
   | engineCode
-  /-- Owner and pending owner unchanged (`:87-89`). -/
+  /-- With a CTM, its `admin()` is not the `ProxyAdmin` before the engine runs (`:75-77`). -/
+  | ctmAdmin
+  /-- Owner and pending owner unchanged (`:93-95`). -/
   | ownership
-  /-- Domain holders' hash unchanged (`:90-92`). -/
+  /-- Domain holders' hash unchanged (`:96-98`). -/
   | holders
-  /-- `requireRowsApplied` (`:97`). -/
+  /-- `requireRowsApplied` (`:103`). -/
   | rows
 deriving DecidableEq
 
@@ -312,11 +375,12 @@ def Check.Holds (E : Env σ κ) (M : Manifest) (d : Domain) (st : Store) (s : σ
     (s' : σ) : Check → Prop
   | .domain => M.domain = d
   | .engineCode => E.hasCode s M.proxyUpgradeEngine
+  | .ctmAdmin => E.chainTypeManager ≠ 0 → E.ctmAdmin s ≠ E.proxyAdmin
   | .ownership => st'.owner = st.owner ∧ st'.pendingOwner = st.pendingOwner
-  | .holders => domainHolders E (notifierAt E s) s' = domainHolders E (notifierAt E s) s
+  | .holders => domainHolders E s' = domainHolders E s
   | .rows => RowsApplied (E.impl s') (toRows M.proxyUpgrades)
 
-/-- Everything in the leg except the five checks: the two fixed requirements and the
+/-- Everything in the leg except the six checks: the two fixed requirements and the
 delegatecall into the code at `manifest.proxyUpgradeEngine`, whose behaviour is `eng`. -/
 def LegCore (E : Env σ κ) (eng : Engine σ κ) (T : Address) (M : Manifest) (d : Domain)
     (st : Store) (s : σ) (st' : Store) (s' : σ) : Prop :=
@@ -324,7 +388,7 @@ def LegCore (E : Env σ κ) (eng : Engine σ κ) (T : Address) (M : Manifest) (d
     Delegate E eng M.proxyUpgradeEngine (context E T M d) M.proxyUpgrades st s st' s'
 
 /-- A successful `_applyProxyUpgradeTransition(_proxyAdmin, T, d, _chainTypeManager)`
-(`:48-98`) whose transition returned manifest `M` and whose engine behaves as `eng`. -/
+(`:51-104`) whose transition returned manifest `M` and whose engine behaves as `eng`. -/
 def Leg (E : Env σ κ) (eng : Engine σ κ) (T : Address) (M : Manifest) (d : Domain)
     (st : Store) (s : σ) (st' : Store) (s' : σ) : Prop :=
   LegCore E eng T M d st s st' s' ∧ ∀ c, Check.Holds E M d st s st' s' c
@@ -347,12 +411,12 @@ def AcceptsWithout (c₀ : Check) (E : Env σ κ) (eng : Engine σ κ) (T : Addr
 /-! ## The concrete world
 
 Executor `1`, `ProxyAdmin` `2`, transition `3`, engine `4`, CTM proxy `8`, ServerNotifier `9`,
-another notifier contract `13`. Row proxy `5`, another proxy `6`; implementations `10`, `11`,
-`12`. -/
+another notifier contract `13`, the CTM's admin role `15`. Row proxy `5`, another proxy `6`;
+implementations `10`, `11`, `12`. -/
 
 /-- A concrete world: the implementation behind each proxy, the `ProxyAdmin`'s owner, each
-`Ownable2Step` contract's owner and pending owner, each proxy's admin, and each CTM's
-ServerNotifier. -/
+`Ownable2Step` contract's owner and pending owner, each proxy's admin, each CTM's admin role
+and ServerNotifier, and each ServerNotifier's CTM. -/
 structure WState where
   /-- `getProxyImplementation`. -/
   impl : Impl
@@ -362,27 +426,43 @@ structure WState where
   owner : Address → Address
   /-- `IOwnable(x).pendingOwner()`. -/
   pending : Address → Address
-  /-- `ProxyAdmin.getProxyAdmin(x)`. -/
-  admin : Address → Address
-  /-- `IChainTypeManager(t).serverNotifierAddress()`. -/
+  /-- The admin of each proxy (its EIP-1967 admin slot). -/
+  adminSlot : Address → Address
+  /-- `ChainTypeManager(x).admin()`: the CTM's admin role
+  (`l1-contracts/contracts/state-transition/ChainTypeManager.sol:113`). -/
+  roleAdmin : Address → Address
+  /-- `ChainTypeManager(x).serverNotifierAddress()` (`ChainTypeManager.sol:125`). -/
   notifier : Address → Address
+  /-- `ServerNotifier(x).chainTypeManager()`
+  (`l1-contracts/contracts/governance/ServerNotifier.sol:30`). -/
+  notifierCtm : Address → Address
+
+/-- `ProxyAdmin(2).getProxyAdmin(x)`: `2` if `2` administers `x`, else the `admin()` of `x`'s
+implementation, the CTM admin role. -/
+def wGetProxyAdmin (s : WState) (x : Address) : Address :=
+  if s.adminSlot x = 2 then 2 else s.roleAdmin x
 
 /-- Calls the executor (`1`) can send in the concrete world. -/
 inductive WCall
   /-- `ProxyAdmin.upgrade(p, x)`. -/
   | upgrade (p x : Address)
+  /-- `ProxyAdmin.changeProxyAdmin(p, x)`: makes `x` the admin of proxy `p`. -/
+  | changeProxyAdmin (p x : Address)
   /-- `Ownable2Step(t).transferOwnership(x)`: nominates `x`. -/
   | transferOwnership (t x : Address)
-  /-- `ChainTypeManager(t).setServerNotifier(x)`
-  (`l1-contracts/contracts/state-transition/ChainTypeManager.sol:387-391`). -/
+  /-- `ChainTypeManager(t).setServerNotifier(x)` (`ChainTypeManager.sol:387-391`). -/
   | setServerNotifier (t x : Address)
 
-/-- One successful executor-sent call in the concrete world. Each is `onlyOwner` on its
-target, with the executor `1` as `msg.sender`; an upgrade needs code at the new implementation
-(OpenZeppelin's `ERC1967Upgrade._setImplementation`). -/
+/-- One successful executor-sent call in the concrete world, with the executor `1` as
+`msg.sender`. The `ProxyAdmin` calls are `onlyOwner` and reach a proxy's admin functions only
+when `2` is its admin; an upgrade needs code at the new implementation (OpenZeppelin's
+`ERC1967Upgrade._setImplementation`) and a new admin is nonzero (`_setAdmin`).
+`transferOwnership` and `setServerNotifier` are `onlyOwner` on their target. -/
 inductive WStep (code : Address → Prop) : WState → WCall → WState → Prop
-  | upgrade {s : WState} {p x : Address} : s.paOwner = 1 → code x →
+  | upgrade {s : WState} {p x : Address} : s.paOwner = 1 → s.adminSlot p = 2 → code x →
       WStep code s (.upgrade p x) { s with impl := upd s.impl p x }
+  | changeProxyAdmin {s : WState} {p x : Address} : s.paOwner = 1 → s.adminSlot p = 2 →
+      x ≠ 0 → WStep code s (.changeProxyAdmin p x) { s with adminSlot := upd s.adminSlot p x }
   | transferOwnership {s : WState} {t x : Address} : s.owner t = 1 →
       WStep code s (.transferOwnership t x) { s with pending := upd s.pending t x }
   | setServerNotifier {s : WState} {t x : Address} : s.owner t = 1 →
@@ -392,16 +472,18 @@ inductive WStep (code : Address → Prop) : WState → WCall → WState → Prop
 executor), code predicate `code`, hash `k`. -/
 def wEnvWith (c : Address) (code : Address → Prop) (k : List UInt8 → UInt256) :
     Env WState WCall where
-  self := 1
   proxyAdmin := 2
   chainTypeManager := c
   hasCode := fun _ a => code a
   paOwner := WState.paOwner
   ownerOf := WState.owner
   pendingOwnerOf := WState.pending
-  getProxyAdmin := WState.admin
+  getProxyAdmin := wGetProxyAdmin
+  ctmAdmin := fun s => s.roleAdmin c
   serverNotifierAddress := fun s => s.notifier c
+  notifierCtm := WState.notifierCtm
   impl := WState.impl
+  adminSlot := WState.adminSlot
   keccak := k
   call := WStep code
 
@@ -413,21 +495,20 @@ def rowConfig (code : Address → Prop) (s : WState) : ProxyUpgradeCurrent.Confi
   hasCode := code
   reinit := fun _ I => I
 
-/-- The `ProxyAdmin` calls `applyRows`' first loop sends
-(`libraries/ProxyUpgradeRowLib.sol:104-121`): nothing for a row already at `implNew`, else
-`upgrade`. -/
+/-- The `ProxyAdmin` calls `applyRows`' loop sends (`libraries/ProxyUpgradeRowLib.sol:109-126`):
+nothing for a row already at `implNew`, else `upgrade`. -/
 def rowCalls : Impl → List Row → List WCall
   | _, [] => []
   | I, r :: rs =>
       if I r.proxy = r.implNew then rowCalls I rs
       else .upgrade r.proxy r.implNew :: rowCalls (upd I r.proxy r.implNew) rs
 
-/-- `DefaultProxyUpgradeEngine.executeUpgrade` (`engines/DefaultProxyUpgradeEngine.sol:32-46`)
+/-- `DefaultProxyUpgradeEngine.executeUpgrade` (`engines/DefaultProxyUpgradeEngine.sol:32-47`)
 in a subclass whose `_afterSwaps` writes executor storage by `write` and sends the follow-up
 calls `after`; `_beforeSwaps` and `_checkPostconditions` are empty. In order: the `ProxyAdmin`
 owner check (`:33-37`), `toRows`' length check and `applyRows` with its own
-`requireRowsApplied` (`:40-43`, `libraries/ProxyUpgradeRowLib.sol:122`), then the hook
-(`:44`). -/
+`requireRowsApplied` (`:41-44`, `libraries/ProxyUpgradeRowLib.sol:127`), then the hook
+(`:45`). -/
 def engineWith (code : Address → Prop) (write : Store → Store) (after : List WCall) :
     Engine WState WCall :=
   fun ctx inv st s st' calls =>
@@ -435,7 +516,7 @@ def engineWith (code : Address → Prop) (write : Store → Store) (after : List
       (∃ J, ProxyUpgradeCurrent.ApplyRows (rowConfig code s) s.impl (toRows inv) J) ∧
       st' = write st ∧ calls = rowCalls s.impl (toRows inv) ++ after
 
-/-- `DefaultProxyUpgradeEngine` itself: empty hooks (`:51`, `:56`, `:62-65`). -/
+/-- `DefaultProxyUpgradeEngine` itself: empty hooks (`:52`, `:57`, `:63-66`). -/
 def defaultEngineWith (code : Address → Prop) : Engine WState WCall := engineWith code id []
 
 /-! ## Witness data -/
@@ -446,15 +527,16 @@ def allCode : Address → Prop := fun _ => True
 /-- `DefaultProxyUpgradeEngine` where every address has code. -/
 def defaultEngine : Engine WState WCall := defaultEngineWith allCode
 
-/-- The preimage of the CTM hash in `w0`. -/
-def ctmPre0 : List UInt8 := abiEncode [1, 1, 0, 2]
+/-- The six CTM words in `w0`. -/
+def ctmWords0 : List UInt256 := [1, 1, 0, 15, 2, 9]
 
-/-- The notifier preimage in `w0` once the CTM hash is `100`. -/
-def notifierPre0 : List UInt8 := abiEncode [100, 1, 0, 2]
+/-- The words of the notifier preimage in `w0` once the CTM hash is `100`. -/
+def notifierWords0 : List UInt256 := [100, 1, 0, 2, 8]
 
-/-- A toy hash: `100` on `ctmPre0`, `200` on `notifierPre0`, `0` on everything else. -/
+/-- A toy hash: `100` on the CTM preimage of `w0`, `200` on its notifier preimage, `0` on
+everything else. -/
 def wKeccak (b : List UInt8) : UInt256 :=
-  if b = ctmPre0 then 100 else if b = notifierPre0 then 200 else 0
+  if b = abiEncode ctmWords0 then 100 else if b = abiEncode notifierWords0 then 200 else 0
 
 /-- A hash that maps everything to `0`. -/
 def constKeccak : List UInt8 → UInt256 := fun _ => 0
@@ -504,14 +586,16 @@ def wStore : Store := ⟨100, 0, fun _ => 0⟩
 
 /-- The start world: every proxy at `10`; the executor `1` owns the `ProxyAdmin`, the CTM and
 the ServerNotifier `9`; contract `13` is owned by `6`; no nominees; `2` administers every
-proxy; every CTM's notifier is `9`. -/
+proxy; every CTM's admin role is `15` and its notifier `9`; every notifier serves CTM `8`. -/
 def w0 : WState where
   impl := fun _ => 10
   paOwner := 1
   owner := fun a => if a = 13 then 6 else 1
   pending := fun _ => 0
-  admin := fun _ => 2
+  adminSlot := fun _ => 2
+  roleAdmin := fun _ => 15
   notifier := fun _ => 9
+  notifierCtm := fun _ => 8
 
 /-- `w0` after the row: proxy `5` at `11`. -/
 def w1 : WState := { w0 with impl := upd w0.impl 5 11 }
@@ -530,6 +614,16 @@ def wRepointed : WState := { w1 with notifier := upd w1.notifier 8 13 }
 
 /-- `w1` with the `ProxyAdmin` owned by `6`, not by the executor. -/
 def wUnowned : WState := { w1 with paOwner := 6 }
+
+/-- `w0` with every CTM's admin role held by the `ProxyAdmin` `2`. -/
+def wAliased : WState := { w0 with roleAdmin := fun _ => 2 }
+
+/-- `wAliased` after the row: proxy `5` at `11`. -/
+def wAliased1 : WState := { wAliased with impl := upd wAliased.impl 5 11 }
+
+/-- `wAliased1` after `ProxyAdmin.changeProxyAdmin(ctm, 13)`: `13`, not the `ProxyAdmin`,
+administers the CTM proxy. -/
+def wCtmMoved : WState := { wAliased1 with adminSlot := upd wAliased1.adminSlot 8 13 }
 
 /-! ## The witness engines -/
 
@@ -557,5 +651,9 @@ def unlistedMoveEngine : Engine WState WCall :=
 /-- An engine whose `_afterSwaps` calls `ctm.setServerNotifier(13)`. -/
 def notifierRepointEngine : Engine WState WCall :=
   engineWith allCode id [.setServerNotifier 8 13]
+
+/-- An engine whose `_afterSwaps` calls `ProxyAdmin.changeProxyAdmin(ctm, 13)`. -/
+def ctmMoveEngine : Engine WState WCall :=
+  engineWith allCode id [.changeProxyAdmin 8 13]
 
 end Contracts.EngineLegV35
