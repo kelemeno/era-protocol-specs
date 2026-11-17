@@ -35,8 +35,9 @@ cap's "rejected identically on the append, finalize and refund paths"
 Two flows that pass `_checkFlowId` with one id are the same flow, or `enc` collides on
 their two preimages (`Properties.CheckedFlowsAgreeOrClash`). That is an unfolding, as for
 the pin (`ASSUMPTIONS.md`, "Recorded but without protocol content"), and so is
-`Properties.DifferentVersionsShareAnIdOnlyByClash`. Its use is in the
-protocol topic `FlowBindingAtHead`, where both preimages come from a run's own log.
+`Properties.DifferentVersionsShareAnIdOnlyByClash`. The protocol topic
+`Protocol/InteropAtomicity` `FlowBindingAtHead` makes the same case split on two preimages
+from one run's own log, where the clash disjunct is pinned to calls of the run.
 -/
 
 namespace Contracts.FlowCanonicalAtHead
@@ -70,8 +71,10 @@ def Properties.AcceptedIffValidVersionCap : Prop :=
 
 /-- **`Valid` IS NO LONGER SUFFICIENT: ONE COUNTERMODEL PER NEW CHECK.**
 
-1. A `Valid` preimage with two legs and version `0x02` is rejected, for every hash.
-2. A `Valid` preimage with version `0x01` and nine legs is rejected, for every hash. -/
+1. Some `Valid` preimage within the leg cap whose version byte is not `0x01` is rejected,
+   for every hash.
+2. Some `Valid` preimage with version `0x01` and more than eight legs is rejected, for every
+   hash. -/
 def Properties.ValidNoLongerSufficient : Prop :=
   (∃ P : FlowPreimage, Valid P.arrays ∧ P.legBundleHashes.length ≤ MAX_ATOMIC_FLOW_LEGS
       ∧ P.version ≠ ATOMIC_FLOW_PREIMAGE_VERSION
@@ -102,6 +105,11 @@ def Properties.SharedValidationNoDrift : Prop :=
 (`AtomicFlowManager.sol:184-207`), verifies at most eight. -/
 def Properties.AcceptedHasAtMostMaxLegs : Prop :=
   ∀ P : FlowPreimage, PreimageAccepted P → P.legPairs.length ≤ MAX_ATOMIC_FLOW_LEGS
+
+/-- **THE CAP IS REACHED.** Some accepted preimage has exactly `MAX_ATOMIC_FLOW_LEGS` legs,
+so the bound of `Properties.AcceptedHasAtMostMaxLegs` is attained. -/
+def Properties.AcceptedCapIsReached : Prop :=
+  ∃ P : FlowPreimage, PreimageAccepted P ∧ P.legPairs.length = MAX_ATOMIC_FLOW_LEGS
 
 /-! ## What acceptance buys -/
 
@@ -156,9 +164,10 @@ def Properties.HonestPreimageHashNoClash : Prop :=
       ∧ ∀ P : FlowPreimage, ¬ PreimageClash (honestPreimageHash P0 id) P0 P
 
 /-- **BOUNDED INJECTIVITY IS SATISFIABLE.** For every list of fewer than `2^256` preimages
-there is a hash with no clash on it. So the `…On` premise is a real assumption about a
-run's own preimages, unlike global injectivity, which no function from preimages to words
-satisfies. -/
+there is a hash with no clash on it. So `PreimageHashInjOn`, the premise of the `…On` forms
+in `Protocol/InteropAtomicity` `FlowBindingAtHead` (taken on a run's own logged preimages),
+is an assumption that can hold, unlike global injectivity, which no function from
+preimages to words satisfies. -/
 def Properties.PreimageHashInjOnSatisfiable : Prop :=
   ∀ Ps : List FlowPreimage, Ps.length < UInt256.size → ∃ enc : PreimageHash, PreimageHashInjOn enc Ps
 

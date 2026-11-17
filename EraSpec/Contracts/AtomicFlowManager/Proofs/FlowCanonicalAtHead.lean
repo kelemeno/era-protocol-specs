@@ -195,6 +195,13 @@ theorem AcceptedHasAtMostMaxLegs : Properties.AcceptedHasAtMostMaxLegs := by
   rw [legPairs_length hP.lengths]
   exact hP.legCap
 
+/-- A version-`0x01` preimage with eight ascending legs: exactly at the cap. -/
+def eightLegPreimage : FlowPreimage :=
+  ⟨0x01, 0, 0, [0, 1, 2, 3, 4, 5, 6, 7], [0, 0, 0, 0, 0, 0, 0, 0]⟩
+
+theorem AcceptedCapIsReached : Properties.AcceptedCapIsReached :=
+  ⟨eightLegPreimage, ⟨rfl, by decide, by decide, rfl⟩, by decide⟩
+
 theorem AcceptedPreimageIsCanonical : Properties.AcceptedPreimageIsCanonical := by
   intro P hP
   obtain ⟨hnd, hlen⟩ := valid_pairing_functional (f := P.arrays) hP.valid

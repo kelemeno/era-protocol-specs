@@ -5,11 +5,13 @@ import EraSpec.Contracts.AtomicFlowManager.Specs.FlowCanonicalAtHead
 /-!
 # Model: `append` binds the leg to its flow preimage, at head (`3605e82`)
 
-Source: matter-labs/era-contracts `main` at commit `3605e82` (2026-11), commits #2312 and
-#2339. Paths are relative to `l1-contracts/contracts/` at that commit. The pin models
+Source: matter-labs/era-contracts `main` at commit `3605e82` (2026-11). The binding `append`
+came with era-contracts pull request #2312, the expiry gate and the leg cap with #2339.
+Paths are relative to `l1-contracts/contracts/` at that commit. The pin models
 (`Specs/Refund.lean`, `Specs/FlowBinding.lean`, `Specs/OncePerLeg.lean`, all `c67894b9`)
 are not changed; this file models the head code next to them and reuses their state,
-evidence and gate definitions.
+evidence and gate definitions. The last section models the `draft/v0.35.0` head
+`b17415d20`, which adds one reject-only check (`RunAtV35`).
 
 **This file is definitions only.** Statements are in
 `EraSpec.Protocol.InteropAtomicity.Properties.FlowBindingAtHead`, proofs in
@@ -36,7 +38,8 @@ in this order:
     uint256 value = AtomicInteropProof.commitValue(flowId, _bundleHash);                // :167
     (uint256 index, ) = IL2InteropCommitmentTree(commitmentTree()).insert(value, _lowNullifierIndex); // :169
 
-The tree's insert is `IndexedMerkleTree.insert` (`common/libraries/IndexedMerkleTree.sol:65-107`),
+The commitment tree's `insert` (`atomic-interop/L2InteropCommitmentTree.sol:50-63`) checks
+its caller and runs `IndexedMerkleTree.insert` (`common/libraries/IndexedMerkleTree.sol:65-107`),
 with the same checks as at the pin except that the low-leaf walk is now unbounded
 (`:90-93`, `while (lowLeaf.nextValue != 0 && lowLeaf.nextValue < _value)`).
 
@@ -56,6 +59,9 @@ the manager that runs the call, whatever chain the flow declares for that leg.
 `claimRefund(_flowId, _bundle)` (`:247-262`) is unchanged in shape: a raw key, guarded only
 by `Revertable`.
 
+`main` at `70096e2` (its head when this was re-read) changes nothing under
+`l1-contracts/contracts` since `3605e82`, so every citation above holds there verbatim.
+
 ## What changed from the pin
 
 At `c67894b9`, `append(_flowId, _bundleHash, _deadline, _lowNullifierIndex)`
@@ -67,13 +73,6 @@ At head every one of the three entry points takes a preimage and runs
 `_validateAndComputeFlowId` (`Contracts.FlowCanonicalAtHead`), so the run below logs a
 preimage for every call, `append` included.
 
-## At `draft/v0.35.0` (`d9f6789`)
-
-`append` (`AtomicFlowManager.sol`), `_validateAndComputeFlowId` and
-`IndexedMerkleTree.insert` are the same text as at `3605e82` (`git diff 3605e82 d9f6789`
-has no hunk in them). `requireFlowFinalized` and `authorizeRefund` add one reject-only
-check, `_checkLegSourceAllowed`, which this file does not model.
-
 ## What is modelled
 
 `RunAtHead` interleaves, over every chain at once, the head `append` (manager and tree in one
@@ -84,28 +83,35 @@ recent first.
 * `append` is `AppendSucceedsAtHead`: every check above, in source order, and both writes.
   The values it reads from other contracts (`latestInteropRootTimestamp`, the Bridgehub's
   `baseTokenAssetId`) are the call's `AppendEnv`, arbitrary at each call and logged with it.
-* `authorizeRefund` marks one leg per step, as in the pin models. Unlike the pin's
-  `Contracts.Refund.ReachLog`, which marks the leg in the manager of the leg's DECLARED chain,
-  the step here marks it in the manager of the chain that RUNS the call (`AuthCallAtHead.chain`),
-  as the code does (`:235-243`). Whether those coincide is a result
+* `authorizeRefund` marks one leg per step, as in the pin models; a call that marks several
+  legs is several steps with the same evidence, and a call that marks none changes nothing
+  and is not logged. Unlike the pin's `Contracts.Refund.ReachLog`, which marks the leg in
+  the manager of the leg's DECLARED chain, the step here marks it in the manager of the chain
+  that RUNS the call (`AuthCallAtHead.chain`), as the code does (`:235-243`). Whether those
+  coincide is a result
   (`Contracts.FlowBindingAtHead.Properties.AuthorizeMarksDeclaredLegOrLoggedClash`), not an
   assumption.
 * `requireFlowFinalized` and `authorizeRefund` check their evidence against the fixed history
   `S` (`Contracts.Atomicity.System`), exactly as in `Contracts.Refund`. `S` is not tied to the
-  live trees; that is the operational projection (A5).
+  live trees. `Specs/Operational.lean` ties it to them for the pin models; that is not done
+  for this model.
+* Every chain's manager holds the same `L1_CHAIN_ID`, the parameter `l1`, which
+  `_checkSettlementLayerIsL1` (`:326-330`) compares with the flow's settlement layer. The
+  manager's own `initL2` (`:75-84`), which writes it once, is not a step.
 * The flow id is `enc preimage` (`Contracts.FlowCanonicalAtHead.PreimageHash`), the commit
   value `cv flowId bundleHash`; no property of either is assumed.
 
 Omitted checks, all reject-only (so every safety result holds a fortiori): the callers
-(`onlyInteropCenter` `:87-92, :107`, `onlyInteropHandler` `:95-100, :178`), the proof count
-(`:184-187`), the root-authentication and settlement-layer metadata checks inside
+(`onlyInteropCenter` `:87-92, :107`, `onlyInteropHandler` `:95-100, :178`, the tree's
+appender check `L2InteropCommitmentTree.sol:51-53`), the proof count (`:184-187`), the
+root-authentication and settlement-layer metadata checks inside
 `verifyInclusion`/`verifyTimeoutAbsence` (`atomic-interop/libraries/AtomicInteropProof.sol:44-124`)
 beyond what `LegFinalizedBy`/`LegRefundableBy` keep, the imported-root timestamp check of
 `verifyTimeoutAbsence` (`:94-100`), the handler's pause, permission, destination and
 `bundleStatus` checks (`L2InteropHandler.sol:51-68`), and the commitment tree's L2→L1 leaf
-report after insert (`atomic-interop/L2InteropCommitmentTree.sol:50-63`). Also not modelled:
-`claimRefund`'s recovery calls (`AtomicFlowManager.sol:289-322`, item H-2), events, and
-upgrades of either contract (`OPS-CONFIG`). Callers are fixed by the step set.
+report after insert (`L2InteropCommitmentTree.sol:61`, `:70-75`). Also not modelled:
+`claimRefund`'s recovery calls (`AtomicFlowManager.sol:289-322`), events, and upgrades of
+either contract (`OPS-CONFIG`). Callers are fixed by the step set.
 
 Because checks are omitted, a result that says a call SUCCEEDS (the witness runs,
 `Properties.CommittedLegRefundableOnTimeout`) is about the modelled checks only; it is not a
@@ -168,7 +174,8 @@ structure InsertSucceedsAtHead (T : Tree) (v : UInt256) (hint low : ℕ) : Prop 
 /-- What `append` reads from contracts outside the manager and the tree, at the moment of the
 call. -/
 structure AppendEnv where
-  /-- `L2_INTEROP_ROOT_STORAGE.latestInteropRootTimestamp(chainId)` (`AtomicFlowManager.sol:119-121`). -/
+  /-- `L2_INTEROP_ROOT_STORAGE.latestInteropRootTimestamp(chainId)`
+  (`AtomicFlowManager.sol:119-121`). -/
   latestRootTimestamp : UInt256 → ℕ
   /-- `L2_BRIDGEHUB.baseTokenAssetId(chainId) != bytes32(0)` (`:156`). -/
   registered : UInt256 → Prop
@@ -324,11 +331,134 @@ inductive RunAtHead (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
   | authorize {Y log} (a : AuthCallAtHead) : RunAtHead h z0 hl cv enc l1 S X Y log →
       a.Verified h z0 hl cv enc l1 S → AuthorizeGuard (Y a.chain).mgr a.flow.flowId a.marked →
       RunAtHead h z0 hl cv enc l1 S X
-        (Y.update a.chain ⟨(Y a.chain).mgr.set a.flow.flowId a.marked .Revertable, (Y a.chain).tree⟩)
+        (Y.update a.chain
+          ⟨(Y a.chain).mgr.set a.flow.flowId a.marked .Revertable, (Y a.chain).tree⟩)
         (.authorize a :: log)
   | claim {Y log c f b} : RunAtHead h z0 hl cv enc l1 S X Y log → ClaimGuard (Y c).mgr f b →
       RunAtHead h z0 hl cv enc l1 S X (Y.update c ⟨(Y c).mgr.set f b .Reverted, (Y c).tree⟩) log
   | initL2 {Y log c} : RunAtHead h z0 hl cv enc l1 S X Y log → (Y c).tree.leafCount = 0 →
       RunAtHead h z0 hl cv enc l1 S X (Y.update c ⟨(Y c).mgr, reseed (Y c).tree⟩) log
+
+/-! ## Bounded preimage injectivity on a run's own log -/
+
+/-- The preimages a log's calls took, most recent first. `PreimageHashInjOn enc
+(loggedPreimages log)` is bounded injectivity on exactly these: the premise of the `…On`
+forms in `Properties/FlowBindingAtHead.lean`. -/
+def loggedPreimages (log : List CallAtHead) : List FlowPreimage :=
+  log.map CallAtHead.preimage
+
+/-! ## The `draft/v0.35.0` head (`b17415d20`)
+
+At `draft/v0.35.0` `b17415d20` (and at `d9f6789`; `git diff d9f6789 b17415d20` has no hunk
+under `atomic-interop/`, `interop/` or `IndexedMerkleTree.sol`), against `3605e82`:
+
+* `append` (`atomic-interop/AtomicFlowManager.sol:104-173`), `_validateAndComputeFlowId`
+  (`:360-379`), `_checkFlowId` (`:348-353`), `claimRefund` (`:250-265`) and
+  `IndexedMerkleTree.insert` (unchanged file, `:65-107`) are the text modelled above, at the
+  new line numbers. So `AppendSucceedsAtHead` is also the `append` of this head.
+* `requireFlowFinalized` (`:176-213`) and `authorizeRefund` (`:216-247`) each add calls of one
+  reject-only check:
+
+      // AtomicFlowManager.sol:338-344
+      function _checkLegSourceAllowed(uint256 _legSourceChainId) internal view {
+          if (_legSourceChainId != block.chainid
+              && !IL2Bridgehub(address(L2_BRIDGEHUB)).isPeerAllowed(_legSourceChainId))
+              revert ManagerLegSourceChainNotAllowed(_legSourceChainId);
+      }
+
+  `requireFlowFinalized` runs it on every leg's declared source chain (`:201`, inside the
+  per-leg loop, after the proof-source check); `authorizeRefund` runs it on the missing leg's
+  declared chain (`:231`). `isPeerAllowed` is the `L2Bridgehub` mapping of the chain that runs
+  the call (`core/bridgehub/L2Bridgehub.sol:43`), written by `allowInteropPeer` (`:95-99`) and
+  `deregisterChainForInterop` (`:102-105`), so it can change between calls.
+* The callers are unchanged in what this file models: `L2InteropHandler.executeAtomicBundle`
+  calls `requireFlowFinalized` at `:73-75` and `verifyAtomicBundle` at `:89`;
+  `InteropCenter._dispatchBundle` (`interop/InteropCenter.sol:727-750`) calls `append` at
+  `:742-746` and then only increments a fee-unit counter (`:749`).
+
+`RunAtV35` is `RunAtHead` with that check: each logged execution also names the chain that
+ran it and what `isPeerAllowed` returned there, and each logged refund authorization what
+`isPeerAllowed` returned on its chain. Both readings are arbitrary per call, like
+`AppendEnv`. -/
+
+/-- `_checkLegSourceAllowed(src)` passes on chain `x` (`AtomicFlowManager.sol:338-344` at
+`b17415d20`), where `allowed` is what `L2_BRIDGEHUB.isPeerAllowed` returns on `x` at the
+moment of the call. -/
+def LegSourceAllowed (x : Chain) (allowed : UInt256 → Prop) (src : UInt256) : Prop :=
+  src = x ∨ allowed src
+
+/-- One successful `requireFlowFinalized` call at `b17415d20`: the call as modelled at
+`3605e82`, the chain that ran it (`block.chainid`), and what `isPeerAllowed` returned
+there. -/
+structure ExecCallAtV35 where
+  /-- The flow, the evidence and the executing bundle. -/
+  call : ExecCallAtHead
+  /-- The destination chain running the call. -/
+  dest : Chain
+  /-- `L2_BRIDGEHUB.isPeerAllowed` on `dest`, at the moment of the call. -/
+  allowed : UInt256 → Prop
+
+/-- The checks `requireFlowFinalized` runs at `b17415d20` (`:176-213`): those of `3605e82`
+(`ExecCallAtHead.Verified`), and `_checkLegSourceAllowed` on every leg's declared source chain
+(`:201`). -/
+def ExecCallAtV35.Verified (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (enc : PreimageHash) (l1 : UInt256) (S : System) (e : ExecCallAtV35) : Prop :=
+  e.call.Verified h z0 hl cv enc l1 S
+    ∧ ∀ src ∈ e.call.flow.preimage.legSourceChainIds, LegSourceAllowed e.dest e.allowed src
+
+/-- One `authorizeRefund` step at `b17415d20`: the step as modelled at `3605e82` (whose
+`chain` runs the call), and what `isPeerAllowed` returned on that chain. -/
+structure AuthCallAtV35 where
+  /-- The chain, the flow, the marked leg and the timeout evidence. -/
+  call : AuthCallAtHead
+  /-- `L2_BRIDGEHUB.isPeerAllowed` on `call.chain`, at the moment of the call. -/
+  allowed : UInt256 → Prop
+
+/-- The checks `authorizeRefund` runs at `b17415d20` (`:216-234`): those of `3605e82`
+(`AuthCallAtHead.Verified`), and `_checkLegSourceAllowed` on the missing leg's declared chain
+(`:231`). -/
+def AuthCallAtV35.Verified (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (enc : PreimageHash) (l1 : UInt256) (S : System) (a : AuthCallAtV35) : Prop :=
+  a.call.Verified h z0 hl cv enc l1 S ∧ LegSourceAllowed a.call.chain a.allowed a.call.missing.chain
+
+/-- A call that takes a flow preimage, at `b17415d20`. -/
+inductive CallAtV35 where
+  | append (a : AppendCall)
+  | execute (e : ExecCallAtV35)
+  | authorize (a : AuthCallAtV35)
+
+/-- The same call as `RunAtHead` logs it: the readings of `isPeerAllowed` and the executing
+chain dropped. -/
+def CallAtV35.toHead : CallAtV35 → CallAtHead
+  | .append a => .append a
+  | .execute e => .execute e.call
+  | .authorize a => .authorize a.call
+
+/-- **EVERY CHAIN'S CALLS, INTERLEAVED, AT `b17415d20`.** `RunAtHead`'s steps with the same
+guards and writes, except that `execute` and `authorize` also need `_checkLegSourceAllowed`
+(`ExecCallAtV35.Verified`, `AuthCallAtV35.Verified`). -/
+inductive RunAtV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue)
+    (enc : PreimageHash) (l1 : UInt256) (S : System) (X : Chains) :
+    Chains → List CallAtV35 → Prop
+  | refl : RunAtV35 h z0 hl cv enc l1 S X X []
+  | append {Y log} (a : AppendCall) {hint low : ℕ} : RunAtV35 h z0 hl cv enc l1 S X Y log →
+      AppendSucceedsAtHead enc cv l1 a.env a.chain (Y a.chain) a.bundleHash a.preimage hint low →
+      RunAtV35 h z0 hl cv enc l1 S X
+        (Y.update a.chain ((Y a.chain).appended cv (enc a.preimage) a.bundleHash low))
+        (.append a :: log)
+  | execute {Y log} (e : ExecCallAtV35) : RunAtV35 h z0 hl cv enc l1 S X Y log →
+      e.Verified h z0 hl cv enc l1 S → RunAtV35 h z0 hl cv enc l1 S X Y (.execute e :: log)
+  | authorize {Y log} (a : AuthCallAtV35) : RunAtV35 h z0 hl cv enc l1 S X Y log →
+      a.Verified h z0 hl cv enc l1 S →
+      AuthorizeGuard (Y a.call.chain).mgr a.call.flow.flowId a.call.marked →
+      RunAtV35 h z0 hl cv enc l1 S X
+        (Y.update a.call.chain
+          ⟨(Y a.call.chain).mgr.set a.call.flow.flowId a.call.marked .Revertable,
+            (Y a.call.chain).tree⟩)
+        (.authorize a :: log)
+  | claim {Y log c f b} : RunAtV35 h z0 hl cv enc l1 S X Y log → ClaimGuard (Y c).mgr f b →
+      RunAtV35 h z0 hl cv enc l1 S X (Y.update c ⟨(Y c).mgr.set f b .Reverted, (Y c).tree⟩) log
+  | initL2 {Y log c} : RunAtV35 h z0 hl cv enc l1 S X Y log → (Y c).tree.leafCount = 0 →
+      RunAtV35 h z0 hl cv enc l1 S X (Y.update c ⟨(Y c).mgr, reseed (Y c).tree⟩) log
 
 end Contracts.FlowBindingAtHead

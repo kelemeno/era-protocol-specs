@@ -125,8 +125,15 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
   - `AtomicFlowManager` `FlowCanonicalAtHead`; `Protocol/InteropAtomicity`
     `FlowBindingAtHead`. Both sit next to the pin models, which are unchanged, and cite
     `atomic-interop/AtomicFlowManager.sol`, `atomic-interop/IAtomicInterop.sol`,
+    `atomic-interop/L2InteropCommitmentTree.sol`,
+    `atomic-interop/libraries/AtomicInteropProof.sol`,
     `common/libraries/IndexedMerkleTree.sol`, `interop/InteropCenter.sol` and
-    `interop/interop-handler/L2InteropHandler.sol` at that commit.
+    `interop/interop-handler/L2InteropHandler.sol` at that commit. `main` at `70096e2`
+    changes nothing under `l1-contracts/contracts` since `3605e82`.
+  - `FlowBindingAtHead`'s `RunAtV35` and the "Other heads" section of
+    `FlowCanonicalAtHead` cite `draft/v0.35.0` at `b17415d20` (`AtomicFlowManager.sol`,
+    `L2InteropHandler.sol`, `InteropCenter.sol`, `core/bridgehub/L2Bridgehub.sol`);
+    `d9f6789` has the same text in the `atomic-interop/` and `interop/` files.
 
 Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
 to the maintainer of this repo, not yet confirmed upstream.

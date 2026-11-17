@@ -117,14 +117,16 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   Witnesses: `OncePerLegWitness`, `NoSecondAppendWitness`, `SystemWitness`. Obligations on
   different chains may clash harmlessly; that `bundleHash` embeds `block.chainid` is not
   modelled.
-- **FlowBindingAtHead** (namespace `Contracts.FlowBindingAtHead`, source `3605e82`). At
-  the pin `append` took an opaque `flowId`; at `3605e82` it takes the preimage, recomputes
-  the id, and requires the bundle to be a leg declared on `block.chainid`
-  (`AtomicFlowManager.sol:103-172`). `RunAtHead` interleaves every chain's head `append`
-  (manager and tree in one step, with every check in source order), `requireFlowFinalized`,
-  `authorizeRefund`, `claimRefund` and `initL2`, and logs every call that takes a preimage.
-  Unlike the pin's `ReachLog`, `authorizeRefund` marks the leg in the manager of the chain
-  that runs the call, as the code does. No result takes an injectivity premise.
+- **FlowBindingAtHead** (namespace `Contracts.FlowBindingAtHead`, source `main` `3605e82`;
+  `main` at `70096e2` changes no contract since). At the pin `append` took an opaque
+  `flowId`; at `3605e82` it takes the preimage, recomputes the id, and requires the bundle
+  to be a leg declared on `block.chainid` (`AtomicFlowManager.sol:103-172`). `RunAtHead`
+  interleaves every chain's head `append` (manager and tree in one step, with every check
+  in source order), `requireFlowFinalized`, `authorizeRefund`, `claimRefund` and the tree's
+  `initL2`, and logs every call that takes a preimage. Unlike the pin's `ReachLog`,
+  `authorizeRefund` marks the leg in the manager of the chain that runs the call, as the
+  code does. No result takes a global injectivity premise; the `…On` forms take
+  injectivity on the run's own logged preimages.
   - The flow a leg was committed under is now on the log: every leg that is not `Unset`
     was committed by exactly one logged `append`, whose preimage hashes to its id, passes
     `_checkFlowId`, and declares the leg on the committing chain
@@ -139,6 +141,9 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
     leg `ExecutedImpliesCommittedLegFinalizableOrLoggedClash`,
     `LoggedExecutionExcludesLoggedRefundOrBreakAtHead`,
     `ExecutionFreezesItsFlowOrLoggedBreakAtHead`, `RefundedLegWasAuthorizedOnItsChain`).
+    With the preimage hash injective on the run's logged preimages the clash disjuncts go
+    (`DeclaredSourceIsCommittingChainOn`, `ExecutedImpliesCommittedFlowFinalizableOn`;
+    `NoLoggedClashIffInjOn` ties that premise to `LoggedPreimageClash`).
   - Each chain of a head run is a pin `Steps` run (`RunAtHeadProjectsToChainRuns`), so the
     one-chain `OncePerLeg` results hold at head (`OncePerLegAtHead`). The unbounded low-leaf
     walk lands where a pin insert lands (`HeadInsertLandsWherePinInsertLands`) but accepts
@@ -148,26 +153,32 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   - What the pin allowed and head rejects. In the pin's own model, a leg committed under an
     id that no refund authorization's flow lists it under stays `Committed`
     (`PinUnboundLegIsStrandedLogged`; `PinUnboundLegIsStranded` is the form over every
-    checked flow, `PinUnboundLegWitness` builds one next to a refunded sibling). At head
-    `append` rejects a leg its preimage does not declare on the calling chain
-    (`AppendRejectsUndeclaredLeg`, `PinUnboundLegRejectedAtHead`), and in the model a
+    checked flow; `PinUnboundLegWitness` meets both forms' premises on a run that refunds a
+    sibling). At head `append` rejects a leg its preimage does not declare on the calling
+    chain (`AppendRejectsUndeclaredLeg`, `PinUnboundLegRejectedAtHead`), and in the model a
     committed leg can always be marked `Revertable` through the flow it was committed
     under, given a verified timeout of one of its legs (`CommittedLegRefundableOnTimeout`).
     That last result is enabledness of the modelled checks only: the root-authentication
     and imported-root checks of `verifyTimeoutAbsence` are omitted.
+  - `draft/v0.35.0` (`b17415d20`; `d9f6789` has the same text in these files): `append`,
+    `_validateAndComputeFlowId` and `IndexedMerkleTree.insert` are unchanged, and
+    `requireFlowFinalized` and `authorizeRefund` add the reject-only
+    `_checkLegSourceAllowed` (`AtomicFlowManager.sol:338-344` at that commit), modelled in
+    `RunAtV35`. Its runs project to `RunAtHead` runs between the same states
+    (`RunAtV35ProjectsToRunAtHead`), so every result above holds there;
+    `CommittedLegRefundableOnTimeoutAtV35` is the enabledness result with the extra
+    premise that the timed-out leg's chain passes that check on the refunding chain.
   - Witnesses: `FlowBindingAtHeadWitness` (an honest run using every call, no clash, no
     break, and the headline's same-id premise load-bearing),
     `SubsetFlowAttackAtHeadLandsInLoggedClash` (only the clash disjunct holds),
-    `SameKeyOnTwoChainsWitness`, `PinUnboundLegRejectedAtHeadWitness`,
-    `AppendRejectsUndeclaredLegWitness`, `CommittedLegRefundableOnTimeoutWitness`.
-  - Not covered: `_recoverBundle`, callers, the proof count, upgrades, events. The gate and
-    timeout evidence is still checked against the fixed history `S`, through the pin's
-    `LegFinalizedBy`/`LegRefundableBy`, not against the live trees. At `draft/v0.35.0`
-    (`d9f6789`) `append`, `_validateAndComputeFlowId` and `IndexedMerkleTree.insert` are
-    the same text; `requireFlowFinalized` and `authorizeRefund` add a reject-only
-    `_checkLegSourceAllowed`, which is not modelled here. The safety results are unaffected
-    by a reject-only check; `CommittedLegRefundableOnTimeout` does not carry over without
-    it.
+    `SameKeyOnTwoChainsWitness`, `PinUnboundLegWitness`, `PinUnboundLegRejectedAtHeadWitness`,
+    `AppendRejectsUndeclaredLegWitness`, `CommittedLegRefundableOnTimeoutWitness`,
+    `RunAtV35Witness`, `CommittedLegRefundableOnTimeoutAtV35Witness` (the timed-out leg on
+    another chain, admitted through `isPeerAllowed`).
+  - Not covered: `_recoverBundle`, callers, the proof count, upgrades, events, and the
+    manager's `initL2` (every chain's `L1_CHAIN_ID` is the one parameter `l1`). The gate
+    and timeout evidence is still checked against the fixed history `S`, through the pin's
+    `LegFinalizedBy`/`LegRefundableBy`, not against the live trees.
 
 - **RootImport** (namespace `Contracts.RootImport`). The gate as a destination runs it:
   `_authenticateRoot` must authenticate the IMT root through a multi-hop settlement

@@ -70,12 +70,25 @@ under its own rules and "today the only accepted one" is `0x01`. The cap's NatSp
 (`IAtomicInterop.sol:93-99`) says an oversized flow "is rejected identically on the
 append, finalize and refund paths and can never commit a leg".
 
+## Other heads
+
+* `main` at `70096e2` (the head of `main` when this was re-read) changes nothing under
+  `l1-contracts/contracts` since `3605e82`, so every citation above holds there verbatim.
+* `draft/v0.35.0` at `b17415d20` (and at `d9f6789`; the two have the same text in these
+  files): `IAtomicInterop.sol` is unchanged from `3605e82`, so its citations hold. In
+  `AtomicFlowManager.sol` the two functions are the same text, one or more lines lower:
+  `_validateAndComputeFlowId` at `:360-379` (the hash at `:378`), `_checkFlowId` at
+  `:348-353`, and the three call sites at `:109` (`append`), `:182`
+  (`requireFlowFinalized`) and `:217` (`authorizeRefund`). This file models that head
+  too.
+
 ## Modelling choices
 
 * `keccak256(abi.encode(preimage))` is the free parameter `enc : PreimageHash`. No
   property of it is assumed. Results that need binding state a `PreimageClash` on two
-  named preimages instead, so they never assume global injectivity (see `CRYPTO-ID` in
-  `ASSUMPTIONS.md`).
+  named preimages instead, so they never assume global injectivity, which no hash into
+  256-bit words has (`CRYPTO-PAIR-INJ` in `ASSUMPTIONS.md`, where the pin's flow-id form
+  `FlowHashInj` is listed).
 * `bytes1` is `UInt8`; `bytes32`/`uint256` words are `UInt256`; `uint64 deadline` is `ℕ`,
   as in the pin's `Contracts.Atomicity.Flow`.
 * A revert is `none`. Which error is raised is not modelled, only that the call reverts.
@@ -163,9 +176,10 @@ structure PreimageAccepted (P : FlowPreimage) : Prop where
   /-- `ManagerLegSourceChainIdsLengthMismatch` (`:361-363`). -/
   lengths : P.legSourceChainIds.length = P.legBundleHashes.length
 
-/-- **A PINNED PREIMAGE COLLISION.** `enc` maps two distinct preimages to one id. This is a
-keccak collision on the two named `abi.encode` images; it is false for a hash that
-separates those two preimages. -/
+/-- **A PINNED PREIMAGE COLLISION.** `enc` maps two distinct preimages to one id. For two
+preimages whose deadlines fit in `uint64`, as every calldata preimage's does, this is a
+keccak collision on their two `abi.encode` images, which differ because the encoding is
+injective on such values. It is false for a hash that separates those two preimages. -/
 def PreimageClash (enc : PreimageHash) (P P' : FlowPreimage) : Prop :=
   P ≠ P' ∧ enc P = enc P'
 

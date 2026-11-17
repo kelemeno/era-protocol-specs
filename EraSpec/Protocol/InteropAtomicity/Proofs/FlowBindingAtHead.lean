@@ -20,6 +20,10 @@ Three pieces carry everything.
 * **The log.** Every logged call passed its checks (`logged_calls_checked`); in particular
   every logged `append`'s preimage is accepted and declares the committed leg on the
   committing chain. With `declared_source_chain_unique` this binds the declared chain.
+
+The `…On` forms discharge the clash disjunct with `not_clash_of_injOn`. A `b17415d20` run
+projects to a `3605e82` run step by step (`runAtV35_toHead`): each of its steps is the head
+step with one more conjunct in its guard.
 -/
 
 namespace Contracts.FlowBindingAtHead
@@ -716,9 +720,9 @@ theorem HeadInsertLandsWherePinInsertLands : Properties.HeadInsertLandsWherePinI
     exact ⟨hint, InsertSucceeds.atHead hins⟩
 
 theorem HeadWalkAcceptsHintPinRejects : Properties.HeadWalkAcceptsHintPinRejects := by
-  obtain ⟨_, hcount, hval0, hnone, hsome, hguard⟩ := HonestInsertRevertsAtDeployedFuel
-  refine ⟨⟨hguard.initialized, hguard.nonzero, hguard.fresh, by rw [hcount]; decide, hval0,
-    ⟨_, hsome⟩⟩, ?_⟩
+  obtain ⟨hreach, hcount, hval0, hnone, hsome, hguard⟩ := HonestInsertRevertsAtDeployedFuel
+  refine ⟨reaches_valid hreach setup_valid, ⟨hguard.initialized, hguard.nonzero, hguard.fresh,
+    by rw [hcount]; decide, hval0, ⟨_, hsome⟩⟩, ?_, InsertGuard.pinInsert hguard⟩
   intro low hins
   have := hins.search
   rw [hnone] at this
@@ -739,10 +743,10 @@ theorem CommittedLegHasLoggedPreimage : Properties.CommittedLegHasLoggedPreimage
   obtain ⟨a, ha, he⟩ := appended_of_not_unset hr hne
   have hca := (logged_calls_checked hr).1 a ha
   obtain ⟨hf, hb, hc⟩ := AppendCall.obligation_eq_iff.mp he
-  refine ⟨a, ⟨ha, he, ?_, hca.slIsL1, ?_⟩, ?_⟩
+  refine ⟨a, ha, he, ?_, hca.slIsL1, ?_, ?_⟩
   · rw [← hf]; exact hca.check
   · rw [← hb, ← hc]; exact hca.declares
-  · rintro a' ⟨ha', he', _, _, _⟩
+  · intro a' ha' he'
     exact appendCall_unique hr ha' ha (he'.trans he.symm)
 
 theorem UnsetIffNotAppended : Properties.UnsetIffNotAppended :=
@@ -836,6 +840,42 @@ theorem ExecutionFreezesItsFlowOrLoggedBreakAtHead :
 
 theorem RefundedLegWasAuthorizedOnItsChain : Properties.RefundedLegWasAuthorizedOnItsChain :=
   fun _ _ _ _ _ _ _ _ _ hr c f b hrk => authorized_of_refunded hr c f b hrk
+
+/-- A log has no logged clash iff the hash is injective on its preimages. -/
+theorem no_logged_clash_iff_injOn {enc : PreimageHash} {log : List CallAtHead} :
+    ¬ LoggedPreimageClash enc log ↔ PreimageHashInjOn enc (loggedPreimages log) := by
+  unfold LoggedPreimageClash PreimageHashInjOn loggedPreimages
+  constructor
+  · intro hno P hP P' hP' hcl
+    obtain ⟨k, hk, rfl⟩ := List.mem_map.mp hP
+    obtain ⟨k', hk', rfl⟩ := List.mem_map.mp hP'
+    exact hno ⟨k, hk, k', hk', hcl⟩
+  · rintro hinj ⟨k, hk, k', hk', hcl⟩
+    exact hinj _ (List.mem_map_of_mem hk) _ (List.mem_map_of_mem hk') hcl
+
+/-- Under bounded injectivity on the logged preimages, two logged calls do not clash. -/
+theorem not_clash_of_injOn {enc : PreimageHash} {log : List CallAtHead}
+    (hinj : PreimageHashInjOn enc (loggedPreimages log)) {k k' : CallAtHead} (hk : k ∈ log)
+    (hk' : k' ∈ log) : ¬ PreimageClash enc k.preimage k'.preimage :=
+  hinj _ (List.mem_map_of_mem hk) _ (List.mem_map_of_mem hk')
+
+theorem NoLoggedClashIffInjOn : Properties.NoLoggedClashIffInjOn :=
+  fun _ _ => no_logged_clash_iff_injOn
+
+theorem DeclaredSourceIsCommittingChainOn : Properties.DeclaredSourceIsCommittingChainOn := by
+  intro h z0 hl cv enc l1 S X Y log hr hinj a ha k hk hid c' hd
+  rcases declared_source_or_clash hr ha hk hid hd with heq | hcl
+  · exact heq
+  · exact absurd hcl (not_clash_of_injOn hinj hk (mem_appendCalls.mp ha))
+
+theorem ExecutedImpliesCommittedFlowFinalizableOn :
+    Properties.ExecutedImpliesCommittedFlowFinalizableOn := by
+  intro h z0 hl cv enc l1 S hS A hDA X Y log hr hinj e he a ha hid
+  rcases executed_implies_committed_flow_finalizable_or_logged_clash hS hDA hr he ha hid with
+    hf | hp | hcl
+  · exact Or.inl hf
+  · exact Or.inr hp
+  · exact absurd hcl (not_clash_of_injOn hinj he (mem_appendCalls.mp ha))
 
 theorem PinUnboundLegIsStranded : Properties.PinUnboundLegIsStranded := by
   intro h z0 hl cv fh S Ms Ns alog o hrun hunbound hcom
@@ -932,200 +972,240 @@ open Contracts.FlowCanonicalAtHead Contracts.FlowBinding
 /-! ### The pin countermodel -/
 
 /-- The one-leg flow whose timeout the pin witness proves: id `0`, bundle `1` on chain `1`. -/
-def pinBoundFlow : Flow := ⟨0, [⟨1, 1⟩], 0⟩
+def pinUnboundF0 : Flow := ⟨0, [⟨1, 1⟩], 0⟩
 
-/-- The refund authorization of `pinBoundFlow`, on the honest absence proof at batch 1. -/
-def pinBoundAuth (h : Hash) (z0 : UInt256) (hl : LeafHash) : AuthCall :=
-  ⟨pinBoundFlow, ⟨1, 1⟩, ⟨1, 1⟩, 1, setupAbsence h z0 hl⟩
+/-- The refund authorization of `pinUnboundF0`, on the honest absence proof at batch 1. -/
+def pinUnboundAuth (h : Hash) (z0 : UInt256) (hl : LeafHash) : AuthCall :=
+  ⟨pinUnboundF0, ⟨1, 1⟩, ⟨1, 1⟩, 1, setupAbsence h z0 hl⟩
 
 /-- Chain `1` has appended `(0, 1)`. -/
-def pinM1 : Managers := setAt emptyManagers 1 ((emptyManagers 1).set 0 1 .Committed)
+def pinUnboundM1 : Managers := setAt emptyManagers 1 ((emptyManagers 1).set 0 1 .Committed)
 
-/-- Then `(0, 2)`, under the same id, which `pinBoundFlow` does not list. -/
-def pinM2 : Managers := setAt pinM1 1 ((pinM1 1).set 0 2 .Committed)
+/-- Then `(0, 2)`, under the same id, which `pinUnboundF0` does not list. -/
+def pinUnboundM2 : Managers := setAt pinUnboundM1 1 ((pinUnboundM1 1).set 0 2 .Committed)
 
-/-- Then the timeout of `pinBoundFlow` marks `(0, 1)` `Revertable`. -/
-def pinMs : Managers := setAt pinM2 1 ((pinM2 1).set 0 1 .Revertable)
+/-- Then the timeout of `pinUnboundF0` marks `(0, 1)` `Revertable`. -/
+def pinUnboundMs : Managers := setAt pinUnboundM2 1 ((pinUnboundM2 1).set 0 1 .Revertable)
 
-theorem pin_unbound_run (h : Hash) (z0 : UInt256) (hl : LeafHash) :
-    ReachLog h z0 hl (fun _ b => b) (honestFlowHash pinBoundFlow) (mixedSystem 5) emptyManagers
-      pinMs [pinBoundAuth h z0 hl] := by
-  have r1 : ReachLog h z0 hl (fun _ b => b) (honestFlowHash pinBoundFlow) (mixedSystem 5)
-      emptyManagers pinM1 [] := ReachLog.append (c := 1) (f := 0) (b := 1) ReachLog.refl rfl
-  have r2 : ReachLog h z0 hl (fun _ b => b) (honestFlowHash pinBoundFlow) (mixedSystem 5)
-      emptyManagers pinM2 [] := by
-    refine ReachLog.append (c := 1) (f := 0) (b := 2) r1 ?_
-    show (pinM1 1).legState 0 2 = .Unset
-    decide
+/-- From fresh managers, chain `1` appends `(0, 1)` and then `(0, 2)`. -/
+theorem pinUnbound_prefix (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ReachLog h z0 hl (fun _ b => b) (honestFlowHash pinUnboundF0) (mixedSystem 5) emptyManagers
+      pinUnboundM2 [] := by
+  have r1 : ReachLog h z0 hl (fun _ b => b) (honestFlowHash pinUnboundF0) (mixedSystem 5)
+      emptyManagers pinUnboundM1 [] := ReachLog.append (c := 1) (f := 0) (b := 1) ReachLog.refl rfl
+  refine ReachLog.append (c := 1) (f := 0) (b := 2) r1 ?_
+  show (pinUnboundM1 1).legState 0 2 = .Unset
+  decide
+
+/-- From there, the timeout of `pinUnboundF0` marks `(0, 1)` `Revertable`: one logged call. -/
+theorem pinUnbound_suffix (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ReachLog h z0 hl (fun _ b => b) (honestFlowHash pinUnboundF0) (mixedSystem 5) pinUnboundM2
+      pinUnboundMs [pinUnboundAuth h z0 hl] := by
   have h10 : (1 : Chain) ≠ 0 := by decide
-  have hmem : (⟨1, 1⟩ : FlowLeg) ∈ pinBoundFlow.legs := List.mem_singleton_self _
-  have hv : (pinBoundAuth h z0 hl).Verified h z0 hl (fun _ b => b) (honestFlowHash pinBoundFlow)
+  have hmem : (⟨1, 1⟩ : FlowLeg) ∈ pinUnboundF0.legs := List.mem_singleton_self _
+  have hv : (pinUnboundAuth h z0 hl).Verified h z0 hl (fun _ b => b) (honestFlowHash pinUnboundF0)
       (mixedSystem 5) := by
-    refine ⟨(honest_flowHash_no_clash pinBoundFlow).1, hmem, hmem, ?_⟩
-    exact setupAbsence_refundable (F := pinBoundFlow) (leg := ⟨1, 1⟩) (N := 0)
+    refine ⟨(honest_flowHash_no_clash pinUnboundF0).1, hmem, hmem, ?_⟩
+    exact setupAbsence_refundable (F := pinUnboundF0) (leg := ⟨1, 1⟩) (N := 0)
       (by show (0 : ℕ) < 1; norm_num) (mixedSystem_tree_other h10 0)
       (mixedSystem_height_other h10 0) (by show (0 : UInt256) < 1; decide)
-  have hg : AuthorizeGuard (pinM2 1) 0 1 := by
-    show (pinM2 1).legState 0 1 = .Committed
+  have hg : AuthorizeGuard (pinUnboundM2 1) 0 1 := by
+    show (pinUnboundM2 1).legState 0 1 = .Committed
     decide
-  exact ReachLog.authorize (pinBoundAuth h z0 hl) r2 hv hg
+  exact ReachLog.authorize (pinUnboundAuth h z0 hl) ReachLog.refl hv hg
+
+/-- Under the flow hash honest about `pinUnboundF0`, no checked flow with id `0` lists bundle
+hash `2`. -/
+theorem pinUnbound_unbound :
+    ∀ F : Flow, FlowIdChecked (honestFlowHash pinUnboundF0) F → F.flowId = 0 →
+      ∀ leg ∈ F.legs, leg.bundleHash ≠ 2 := by
+  intro F hF hid leg hleg hb
+  by_cases hp : (F.legs, F.deadline) = (pinUnboundF0.legs, pinUnboundF0.deadline)
+  · have hl' : F.legs = [⟨1, 1⟩] := congrArg Prod.fst hp
+    rw [hl', List.mem_singleton] at hleg
+    rw [hleg] at hb
+    exact absurd hb (by decide)
+  · have hval : honestFlowHash pinUnboundF0 F.legs F.deadline = pinUnboundF0.flowId + 1 := by
+      simp only [honestFlowHash, ite_eq_right hp]
+    have h1 : F.flowId = 1 := by
+      rw [← hF, hval]
+      rfl
+    rw [h1] at hid
+    exact absurd hid (by decide)
 
 theorem PinUnboundLegWitness : Properties.PinUnboundLegWitness := by
   intro h z0 hl
-  refine ⟨fun _ b => b, honestFlowHash pinBoundFlow, mixedSystem 5, pinMs, [pinBoundAuth h z0 hl],
-    ⟨0, 2, 1⟩, pin_unbound_run h z0 hl, ?_, by decide,
-    ⟨pinBoundAuth h z0 hl, List.mem_singleton_self _, rfl, rfl⟩, ?_⟩
-  · intro F hF hid leg hleg hb
-    by_cases hp : (F.legs, F.deadline) = (pinBoundFlow.legs, pinBoundFlow.deadline)
-    · have hl' : F.legs = [⟨1, 1⟩] := congrArg Prod.fst hp
-      rw [hl', List.mem_singleton] at hleg
-      rw [hleg] at hb
-      exact absurd hb (by decide)
-    · have hval : honestFlowHash pinBoundFlow F.legs F.deadline = pinBoundFlow.flowId + 1 := by
-        simp only [honestFlowHash, ite_eq_right hp]
-      have h1 : F.flowId = 1 := by
-        rw [← hF, hval]
-        rfl
-      rw [h1] at hid
-      exact absurd hid (by decide)
-  · show 2 ≤ rank ((pinMs 1).legState 0 1)
+  refine ⟨fun _ b => b, honestFlowHash pinUnboundF0, mixedSystem 5, pinUnboundM2, pinUnboundMs,
+    [pinUnboundAuth h z0 hl], ⟨0, 2, 1⟩, pinUnbound_prefix h z0 hl, pinUnbound_suffix h z0 hl,
+    pinUnbound_unbound, ?_, by decide, by decide,
+    ⟨pinUnboundAuth h z0 hl, List.mem_singleton_self _, rfl, rfl⟩, ?_⟩
+  · intro a ha hid leg hleg
+    rw [List.mem_singleton] at ha
+    subst ha
+    exact pinUnbound_unbound _ (honest_flowHash_no_clash pinUnboundF0).1 hid leg hleg
+  · show 2 ≤ rank ((pinUnboundMs 1).legState 0 1)
     decide
 
 /-! ### The honest head run -/
 
 /-- The L1 chain id of the witnesses. -/
-def witnessL1 : UInt256 := 9
+def headWitnessL1 : UInt256 := 9
 
 /-- The two-leg flow: bundle `1` on chain `0`, bundle `2` on chain `1`. -/
-def pairPreimage : FlowPreimage := ⟨0x01, 0, witnessL1, [1, 2], [0, 1]⟩
+def headPairPreimage : FlowPreimage := ⟨0x01, 0, headWitnessL1, [1, 2], [0, 1]⟩
 
 /-- The one-leg flow: bundle `3` on chain `2`. -/
-def singlePreimage : FlowPreimage := ⟨0x01, 0, witnessL1, [3], [2]⟩
+def headSinglePreimage : FlowPreimage := ⟨0x01, 0, headWitnessL1, [3], [2]⟩
 
-/-- A preimage hash with `pairPreimage ↦ 1` and everything else `↦ 0`. -/
-def witnessEnc : PreimageHash := fun P => if P = pairPreimage then 1 else 0
+/-- A preimage hash with `headPairPreimage ↦ 1` and everything else `↦ 0`. -/
+def headWitnessEnc : PreimageHash := fun P => if P = headPairPreimage then 1 else 0
 
-theorem witnessEnc_pair : witnessEnc pairPreimage = 1 := by
-  unfold witnessEnc
+theorem headWitnessEnc_pair : headWitnessEnc headPairPreimage = 1 := by
+  unfold headWitnessEnc
   exact ite_eq_left rfl
 
-theorem witnessEnc_single : witnessEnc singlePreimage = 0 := by
-  unfold witnessEnc
+theorem headWitnessEnc_single : headWitnessEnc headSinglePreimage = 0 := by
+  unfold headWitnessEnc
   exact ite_eq_right (by decide)
 
-theorem pairPreimage_accepted : PreimageAccepted pairPreimage :=
+theorem headPairPreimage_accepted : PreimageAccepted headPairPreimage :=
   ⟨rfl, by decide, by decide, rfl⟩
 
-theorem singlePreimage_accepted : PreimageAccepted singlePreimage :=
+theorem headSinglePreimage_accepted : PreimageAccepted headSinglePreimage :=
   ⟨rfl, by decide, by decide, rfl⟩
 
 /-- An environment in which no root has been imported and every chain is registered. -/
-def witnessEnv : AppendEnv := ⟨fun _ => 0, fun _ => True⟩
+def headWitnessEnv : AppendEnv := ⟨fun _ => 0, fun _ => True⟩
 
 /-- A head `append` at genesis, for an accepted preimage that declares the leg here. -/
-theorem append_at_genesis {enc : PreimageHash} {cv : CommitValue} {l1 : UInt256}
+theorem headAppend_at_genesis {enc : PreimageHash} {cv : CommitValue} {l1 : UInt256}
     {c b : UInt256} {P : FlowPreimage} (hP : PreimageAccepted P)
     (hsl : P.settlementLayerChainId = l1)
     (hleg : ∃ i, P.legBundleHashes.idxOf? b = some i ∧ P.legSourceChainIds[i]? = some c)
     (hv : 0 < cv (enc P) b) :
-    AppendSucceedsAtHead enc cv l1 witnessEnv c genesis b P 0 0 :=
+    AppendSucceedsAtHead enc cv l1 headWitnessEnv c genesis b P 0 0 :=
   ⟨validate_of_accepted enc hP, hsl, Nat.zero_le _, hleg, fun _ _ _ => trivial, rfl,
     InsertSucceeds.atHead (InsertGuard.pinInsert (setup_insertGuard hv))⟩
 
-def wa0 : AppendCall := ⟨0, 1, pairPreimage, witnessEnv⟩
-def wa1 : AppendCall := ⟨1, 2, pairPreimage, witnessEnv⟩
-def wa2 : AppendCall := ⟨2, 3, singlePreimage, witnessEnv⟩
+def headWitnessA0 : AppendCall := ⟨0, 1, headPairPreimage, headWitnessEnv⟩
+def headWitnessA1 : AppendCall := ⟨1, 2, headPairPreimage, headWitnessEnv⟩
+def headWitnessA2 : AppendCall := ⟨2, 3, headSinglePreimage, headWitnessEnv⟩
 
 /-- The refund authorization of the one-leg flow, on chain `2`. -/
-def wr (h : Hash) (z0 : UInt256) (hl : LeafHash) : AuthCallAtHead :=
-  ⟨2, ⟨0, singlePreimage⟩, 3, ⟨2, 3⟩, 1, setupAbsence h z0 hl⟩
+def headWitnessAuth (h : Hash) (z0 : UInt256) (hl : LeafHash) : AuthCallAtHead :=
+  ⟨2, ⟨0, headSinglePreimage⟩, 3, ⟨2, 3⟩, 1, setupAbsence h z0 hl⟩
 
 /-- The execution of the two-leg flow's first leg, on honest evidence. -/
-def we (h : Hash) (z0 : UInt256) (hl : LeafHash) : ExecCallAtHead :=
-  ⟨⟨1, pairPreimage⟩, pairEvidence h z0 hl, 1⟩
+def headWitnessExec (h : Hash) (z0 : UInt256) (hl : LeafHash) : ExecCallAtHead :=
+  ⟨⟨1, headPairPreimage⟩, pairEvidence h z0 hl, 1⟩
 
 /-- The states. -/
-def wY1 : Chains :=
-  genesisAll.update 0 ((genesisAll 0).appended (fun _ b => b) (witnessEnc pairPreimage) 1 0)
-def wY2 : Chains := wY1.update 1 ((wY1 1).appended (fun _ b => b) (witnessEnc pairPreimage) 2 0)
-def wY3 : Chains := wY2.update 2 ((wY2 2).appended (fun _ b => b) (witnessEnc singlePreimage) 3 0)
-def wY4 : Chains := wY3.update 2 ⟨(wY3 2).mgr.set 0 3 .Revertable, (wY3 2).tree⟩
+def headWitnessY1 : Chains :=
+  genesisAll.update 0
+    ((genesisAll 0).appended (fun _ b => b) (headWitnessEnc headPairPreimage) 1 0)
+def headWitnessY2 : Chains :=
+  headWitnessY1.update 1
+    ((headWitnessY1 1).appended (fun _ b => b) (headWitnessEnc headPairPreimage) 2 0)
+def headWitnessY3 : Chains :=
+  headWitnessY2.update 2
+    ((headWitnessY2 2).appended (fun _ b => b) (headWitnessEnc headSinglePreimage) 3 0)
+def headWitnessY4 : Chains :=
+  headWitnessY3.update 2 ⟨(headWitnessY3 2).mgr.set 0 3 .Revertable, (headWitnessY3 2).tree⟩
 
 /-- The log, most recent first. -/
-def wLog (h : Hash) (z0 : UInt256) (hl : LeafHash) : List CallAtHead :=
-  [.execute (we h z0 hl), .authorize (wr h z0 hl), .append wa2, .append wa1, .append wa0]
+def headWitnessLog (h : Hash) (z0 : UInt256) (hl : LeafHash) : List CallAtHead :=
+  [.execute (headWitnessExec h z0 hl), .authorize (headWitnessAuth h z0 hl),
+    .append headWitnessA2, .append headWitnessA1, .append headWitnessA0]
 
-theorem wY1_one : wY1 1 = genesis := update_other _ _ (by decide)
-theorem wY2_two : wY2 2 = genesis := by
-  rw [wY2, update_other _ _ (by decide), wY1, update_other _ _ (by decide)]
+theorem headWitnessY1_one : headWitnessY1 1 = genesis := update_other _ _ (by decide)
+theorem headWitnessY2_two : headWitnessY2 2 = genesis := by
+  rw [headWitnessY2, update_other _ _ (by decide), headWitnessY1, update_other _ _ (by decide)]
   rfl
 
-theorem wY3_two_mgr :
-    (wY3 2).mgr = Contracts.AtomicFlowManager.empty.set 0 3 .Committed := by
-  rw [wY3, update_self, appended_mgr, wY2_two, witnessEnc_single]
+theorem headWitnessY3_two_mgr :
+    (headWitnessY3 2).mgr = Contracts.AtomicFlowManager.empty.set 0 3 .Committed := by
+  rw [headWitnessY3, update_self, appended_mgr, headWitnessY2_two, headWitnessEnc_single]
   rfl
 
-theorem pinFlow_pair : pinFlow ⟨1, pairPreimage⟩ = mixedFlow 1 1 2 := rfl
+theorem pinFlow_headPair : pinFlow ⟨1, headPairPreimage⟩ = mixedFlow 1 1 2 := rfl
 
-theorem pinFlow_single : pinFlow ⟨0, singlePreimage⟩ = strandedFlow := rfl
+theorem pinFlow_headSingle : pinFlow ⟨0, headSinglePreimage⟩ = strandedFlow := rfl
 
-theorem witness_run (h : Hash) (z0 : UInt256) (hl : LeafHash) :
-    RunAtHead h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) genesisAll wY4
-      (wLog h z0 hl) := by
-  have r1 : RunAtHead h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) genesisAll
-      wY1 [.append wa0] := by
-    refine RunAtHead.append (hint := 0) (low := 0) wa0 RunAtHead.refl ?_
-    exact append_at_genesis pairPreimage_accepted rfl ⟨0, by decide, rfl⟩
-      (by show (0 : UInt256) < 1; decide)
-  have r2 : RunAtHead h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) genesisAll
-      wY2 [.append wa1, .append wa0] := by
-    refine RunAtHead.append (hint := 0) (low := 0) wa1 r1 ?_
-    show AppendSucceedsAtHead witnessEnc (fun _ b => b) witnessL1 witnessEnv 1 (wY1 1) 2
-      pairPreimage 0 0
-    rw [wY1_one]
-    exact append_at_genesis pairPreimage_accepted rfl ⟨1, by decide, rfl⟩
-      (by show (0 : UInt256) < 2; decide)
-  have r3 : RunAtHead h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) genesisAll
-      wY3 [.append wa2, .append wa1, .append wa0] := by
-    refine RunAtHead.append (hint := 0) (low := 0) wa2 r2 ?_
-    show AppendSucceedsAtHead witnessEnc (fun _ b => b) witnessL1 witnessEnv 2 (wY2 2) 3
-      singlePreimage 0 0
-    rw [wY2_two]
-    exact append_at_genesis singlePreimage_accepted rfl ⟨0, by decide, rfl⟩
-      (by show (0 : UInt256) < 3; decide)
+/-- The three `append`s of the witness run pass every check of `append`. -/
+theorem headWitnessA0_succeeds :
+    AppendSucceedsAtHead headWitnessEnc (fun _ b => b) headWitnessL1 headWitnessEnv 0
+      (genesisAll 0) 1 headPairPreimage 0 0 :=
+  headAppend_at_genesis headPairPreimage_accepted rfl ⟨0, by decide, rfl⟩
+    (by show (0 : UInt256) < 1; decide)
+
+theorem headWitnessA1_succeeds :
+    AppendSucceedsAtHead headWitnessEnc (fun _ b => b) headWitnessL1 headWitnessEnv 1
+      (headWitnessY1 1) 2 headPairPreimage 0 0 := by
+  rw [headWitnessY1_one]
+  exact headAppend_at_genesis headPairPreimage_accepted rfl ⟨1, by decide, rfl⟩
+    (by show (0 : UInt256) < 2; decide)
+
+theorem headWitnessA2_succeeds :
+    AppendSucceedsAtHead headWitnessEnc (fun _ b => b) headWitnessL1 headWitnessEnv 2
+      (headWitnessY2 2) 3 headSinglePreimage 0 0 := by
+  rw [headWitnessY2_two]
+  exact headAppend_at_genesis headSinglePreimage_accepted rfl ⟨0, by decide, rfl⟩
+    (by show (0 : UInt256) < 3; decide)
+
+/-- The refund authorization of the one-leg flow passes `authorizeRefund`'s checks. -/
+theorem headWitnessAuth_verified (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    (headWitnessAuth h z0 hl).Verified h z0 hl (fun _ b => b) headWitnessEnc headWitnessL1
+      (pairSystem 1 2) := by
   have h20 : (2 : Chain) ≠ 0 := by decide
   have h21 : (2 : Chain) ≠ 1 := by decide
-  have hchk1 : CheckFlowId witnessEnc ⟨0, singlePreimage⟩ := by
-    have := checkFlowId_of_accepted witnessEnc singlePreimage_accepted
-    rw [witnessEnc_single] at this
+  have hchk1 : CheckFlowId headWitnessEnc ⟨0, headSinglePreimage⟩ := by
+    have := checkFlowId_of_accepted headWitnessEnc headSinglePreimage_accepted
+    rw [headWitnessEnc_single] at this
     exact this
-  have hrv : (wr h z0 hl).Verified h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) := by
-    refine ⟨hchk1, rfl, (by show (⟨2, 3⟩ : FlowLeg) ∈ pinLegs singlePreimage; decide), ?_,
-      (by show (3 : UInt256) ∈ singlePreimage.legBundleHashes; decide)⟩
-    rw [show (wr h z0 hl).flow = ⟨0, singlePreimage⟩ from rfl, pinFlow_single]
-    exact setupAbsence_refundable (F := strandedFlow) (leg := ⟨2, 3⟩) (N := 0)
-      (by show (0 : ℕ) < 1; norm_num) (pairSystem_tree_other h20 h21 0)
-      (pairSystem_height_other h20 h21 0) (by show (0 : UInt256) < 3; decide)
-  have hg : AuthorizeGuard (wY3 2).mgr 0 3 := by
-    show (wY3 2).mgr.legState 0 3 = .Committed
-    rw [wY3_two_mgr]
-    decide
-  have r4 := RunAtHead.authorize (wr h z0 hl) r3 hrv hg
-  have hchk0 : CheckFlowId witnessEnc ⟨1, pairPreimage⟩ := by
-    have := checkFlowId_of_accepted witnessEnc pairPreimage_accepted
-    rw [witnessEnc_pair] at this
+  refine ⟨hchk1, rfl, (by show (⟨2, 3⟩ : FlowLeg) ∈ pinLegs headSinglePreimage; decide), ?_,
+    (by show (3 : UInt256) ∈ headSinglePreimage.legBundleHashes; decide)⟩
+  rw [show (headWitnessAuth h z0 hl).flow = ⟨0, headSinglePreimage⟩ from rfl, pinFlow_headSingle]
+  exact setupAbsence_refundable (F := strandedFlow) (leg := ⟨2, 3⟩) (N := 0)
+    (by show (0 : ℕ) < 1; norm_num) (pairSystem_tree_other h20 h21 0)
+    (pairSystem_height_other h20 h21 0) (by show (0 : UInt256) < 3; decide)
+
+/-- The leg it marks is `Committed` on chain `2` after the three `append`s. -/
+theorem headWitnessY3_guard : AuthorizeGuard (headWitnessY3 2).mgr 0 3 := by
+  show (headWitnessY3 2).mgr.legState 0 3 = .Committed
+  rw [headWitnessY3_two_mgr]
+  decide
+
+/-- The execution of the two-leg flow passes `requireFlowFinalized`'s checks. -/
+theorem headWitnessExec_verified (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    (headWitnessExec h z0 hl).Verified h z0 hl (fun _ b => b) headWitnessEnc headWitnessL1
+      (pairSystem 1 2) := by
+  have hchk0 : CheckFlowId headWitnessEnc ⟨1, headPairPreimage⟩ := by
+    have := checkFlowId_of_accepted headWitnessEnc headPairPreimage_accepted
+    rw [headWitnessEnc_pair] at this
     exact this
-  have hev : (we h z0 hl).Verified h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) := by
-    refine ⟨hchk0, rfl, (by show (1 : UInt256) ∈ pairPreimage.legBundleHashes; decide), ?_⟩
-    rw [show (we h z0 hl).flow = ⟨1, pairPreimage⟩ from rfl, pinFlow_pair]
-    exact fun _ hl' => pair_leg_finalizedBy h z0 hl hl'
-  exact RunAtHead.execute (we h z0 hl) r4 hev
+  refine ⟨hchk0, rfl, (by show (1 : UInt256) ∈ headPairPreimage.legBundleHashes; decide), ?_⟩
+  rw [show (headWitnessExec h z0 hl).flow = ⟨1, headPairPreimage⟩ from rfl, pinFlow_headPair]
+  exact fun _ hl' => pair_leg_finalizedBy h z0 hl hl'
+
+theorem headWitness_run (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    RunAtHead h z0 hl (fun _ b => b) headWitnessEnc headWitnessL1 (pairSystem 1 2) genesisAll
+      headWitnessY4 (headWitnessLog h z0 hl) :=
+  RunAtHead.execute (headWitnessExec h z0 hl)
+    (RunAtHead.authorize (headWitnessAuth h z0 hl)
+      (RunAtHead.append (hint := 0) (low := 0) headWitnessA2
+        (RunAtHead.append (hint := 0) (low := 0) headWitnessA1
+          (RunAtHead.append (hint := 0) (low := 0) headWitnessA0 RunAtHead.refl
+            headWitnessA0_succeeds)
+          headWitnessA1_succeeds)
+        headWitnessA2_succeeds)
+      (headWitnessAuth_verified h z0 hl) headWitnessY3_guard)
+    (headWitnessExec_verified h z0 hl)
 
 /-- Every preimage of the witness log is one of the two. -/
-theorem wLog_preimages (h : Hash) (z0 : UInt256) (hl : LeafHash) :
-    ∀ k ∈ wLog h z0 hl, k.preimage = pairPreimage ∨ k.preimage = singlePreimage := by
+theorem headWitnessLog_preimages (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ∀ k ∈ headWitnessLog h z0 hl, k.preimage = headPairPreimage ∨ k.preimage = headSinglePreimage := by
   intro k hk
-  simp only [wLog, List.mem_cons, List.mem_nil_iff, or_false] at hk
+  simp only [headWitnessLog, List.mem_cons, List.mem_nil_iff, or_false] at hk
   rcases hk with rfl | rfl | rfl | rfl | rfl
   · exact Or.inl rfl
   · exact Or.inr rfl
@@ -1133,21 +1213,21 @@ theorem wLog_preimages (h : Hash) (z0 : UInt256) (hl : LeafHash) :
   · exact Or.inl rfl
   · exact Or.inl rfl
 
-theorem witness_no_logged_clash (h : Hash) (z0 : UInt256) (hl : LeafHash) :
-    ¬ LoggedPreimageClash witnessEnc (wLog h z0 hl) := by
+theorem headWitness_no_logged_clash (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ¬ LoggedPreimageClash headWitnessEnc (headWitnessLog h z0 hl) := by
   rintro ⟨k, hk, k', hk', hne, heq⟩
-  rcases wLog_preimages h z0 hl k hk with hp | hp <;>
-    rcases wLog_preimages h z0 hl k' hk' with hp' | hp' <;>
+  rcases headWitnessLog_preimages h z0 hl k hk with hp | hp <;>
+    rcases headWitnessLog_preimages h z0 hl k' hk' with hp' | hp' <;>
     rw [hp, hp'] at hne heq
   · exact hne rfl
-  · rw [witnessEnc_pair, witnessEnc_single] at heq
+  · rw [headWitnessEnc_pair, headWitnessEnc_single] at heq
     exact absurd heq (by decide)
-  · rw [witnessEnc_pair, witnessEnc_single] at heq
+  · rw [headWitnessEnc_pair, headWitnessEnc_single] at heq
     exact absurd heq (by decide)
   · exact hne rfl
 
 /-- The one-leg flow is not finalizable: chain `2` commits nothing in `pairSystem 1 2`. -/
-theorem stranded_not_finalizable (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+theorem headSingle_not_finalizable (h : Hash) (z0 : UInt256) (hl : LeafHash) :
     ¬ FlowFinalizableBy h z0 hl (fun _ b => b) (pairSystem 1 2)
       (honestAccess h z0 hl (pairSystem 1 2)) strandedFlow := by
   have h20 : (2 : Chain) ≠ 0 := by decide
@@ -1164,116 +1244,127 @@ theorem FlowBindingAtHeadWitness : Properties.FlowBindingAtHeadWitness := by
   intro h z0 hl
   have hfin := pair_flow_finalizable h z0 hl
   have hnp : ¬ PinnedGateBreak h z0 hl (fun _ b => b) (pairSystem 1 2)
-      (honestAccess h z0 hl (pairSystem 1 2)) (pinFlow (we h z0 hl).flow) (we h z0 hl).evidence :=
+      (honestAccess h z0 hl (pairSystem 1 2)) (pinFlow (headWitnessExec h z0 hl).flow)
+      (headWitnessExec h z0 hl).evidence :=
     no_pinned_break_of_finalizable _ hfin
-  have hcf0 : pinFlow (committedFlow witnessEnc wa0.preimage) = mixedFlow 1 1 2 := by
-    show pinFlow ⟨witnessEnc pairPreimage, pairPreimage⟩ = _
-    rw [witnessEnc_pair]
+  have hcf0 :
+      pinFlow (committedFlow headWitnessEnc headWitnessA0.preimage) = mixedFlow 1 1 2 := by
+    show pinFlow ⟨headWitnessEnc headPairPreimage, headPairPreimage⟩ = _
+    rw [headWitnessEnc_pair]
     rfl
-  have hcf2 : pinFlow (committedFlow witnessEnc wa2.preimage) = strandedFlow := by
-    show pinFlow ⟨witnessEnc singlePreimage, singlePreimage⟩ = _
-    rw [witnessEnc_single]
+  have hcf2 :
+      pinFlow (committedFlow headWitnessEnc headWitnessA2.preimage) = strandedFlow := by
+    show pinFlow ⟨headWitnessEnc headSinglePreimage, headSinglePreimage⟩ = _
+    rw [headWitnessEnc_single]
     rfl
-  have hmem0 : wa0 ∈ appendCalls (wLog h z0 hl) :=
+  have hmem0 : headWitnessA0 ∈ appendCalls (headWitnessLog h z0 hl) :=
     mem_appendCalls.mpr (List.mem_cons_of_mem _ (List.mem_cons_of_mem _
       (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self))))
-  have hkey : (fun _ b => b : CommitValue) (witnessEnc wa0.preimage) wa0.bundleHash
-      ∈ keys (toAbs (wY4 wa0.chain).tree) :=
-    (runAtHead_inv (witness_run h z0 hl) wa0.chain).key_of_mem
-      (mem_chainLog.mpr ⟨wa0, hmem0, rfl⟩)
-  have hcom : (wY4 wa0.chain).mgr.legState (witnessEnc wa0.preimage) wa0.bundleHash = .Committed := by
-    show (wY4 0).mgr.legState (witnessEnc pairPreimage) 1 = .Committed
-    rw [wY4, update_other _ _ (by decide), wY3, update_other _ _ (by decide), wY2,
-      update_other _ _ (by decide), wY1, update_self, appended_mgr, set_same]
-  refine ⟨fun _ b => b, witnessEnc, witnessL1, pairSystem 1 2, honestAccess h z0 hl (pairSystem 1 2),
-    wY4, wLog h z0 hl, we h z0 hl, wr h z0 hl, wa0, wa2,
-    pairSystem_wf (by decide) (by decide), honestAccess_dataAvailable h z0 hl _, witness_run h z0 hl,
+  have hkey : (fun _ b => b : CommitValue) (headWitnessEnc headWitnessA0.preimage)
+      headWitnessA0.bundleHash ∈ keys (toAbs (headWitnessY4 headWitnessA0.chain).tree) :=
+    (runAtHead_inv (headWitness_run h z0 hl) headWitnessA0.chain).key_of_mem
+      (mem_chainLog.mpr ⟨headWitnessA0, hmem0, rfl⟩)
+  have hcom : (headWitnessY4 headWitnessA0.chain).mgr.legState
+      (headWitnessEnc headWitnessA0.preimage) headWitnessA0.bundleHash = .Committed := by
+    show (headWitnessY4 0).mgr.legState (headWitnessEnc headPairPreimage) 1 = .Committed
+    rw [headWitnessY4, update_other _ _ (by decide), headWitnessY3, update_other _ _ (by decide),
+      headWitnessY2, update_other _ _ (by decide), headWitnessY1, update_self, appended_mgr,
+      set_same]
+  refine ⟨fun _ b => b, headWitnessEnc, headWitnessL1, pairSystem 1 2,
+    honestAccess h z0 hl (pairSystem 1 2), headWitnessY4, headWitnessLog h z0 hl,
+    headWitnessExec h z0 hl, headWitnessAuth h z0 hl, headWitnessA0, headWitnessA2,
+    pairSystem_wf (by decide) (by decide), honestAccess_dataAvailable h z0 hl _,
+    headWitness_run h z0 hl,
     List.mem_cons_self, List.mem_cons_of_mem _ List.mem_cons_self, hmem0, ?_, rfl,
-    witness_no_logged_clash h z0 hl, hcom, (by show (1 : UInt256) ≠ 0; decide), hkey,
-    witnessEnc_pair, ?_, hnp, ?_, ?_,
-    (by show singlePreimage.Declares 3 2; decide), ?_⟩
-  · exact mem_appendCalls.mpr (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self))
+    headWitness_no_logged_clash h z0 hl,
+    no_logged_clash_iff_injOn.mp (headWitness_no_logged_clash h z0 hl), hcom,
+    (by show (1 : UInt256) ≠ 0; decide), hkey,
+    headWitnessEnc_pair, ?_, hnp, ?_, ?_,
+    (by show headSinglePreimage.Declares 3 2; decide), ?_⟩
+  · exact mem_appendCalls.mpr
+      (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self))
   · rw [hcf0]; exact hfin
-  · show witnessEnc singlePreimage ≠ 1
-    rw [witnessEnc_single]
+  · show headWitnessEnc headSinglePreimage ≠ 1
+    rw [headWitnessEnc_single]
     decide
   · rintro (hf | hp | hcl)
     · rw [hcf2] at hf
-      exact stranded_not_finalizable h z0 hl hf
+      exact headSingle_not_finalizable h z0 hl hf
     · exact hnp hp
     · have heq := hcl.2
-      change witnessEnc pairPreimage = witnessEnc singlePreimage at heq
-      rw [witnessEnc_pair, witnessEnc_single] at heq
+      change headWitnessEnc headPairPreimage = headWitnessEnc headSinglePreimage at heq
+      rw [headWitnessEnc_pair, headWitnessEnc_single] at heq
       exact absurd heq (by decide)
-  · show 2 ≤ rank ((wY4 2).mgr.legState 0 3)
-    rw [wY4, update_self]
-    show 2 ≤ rank (((wY3 2).mgr.set 0 3 .Revertable).legState 0 3)
+  · show 2 ≤ rank ((headWitnessY4 2).mgr.legState 0 3)
+    rw [headWitnessY4, update_self]
+    show 2 ≤ rank (((headWitnessY3 2).mgr.set 0 3 .Revertable).legState 0 3)
     rw [set_same]
     decide
 
 /-! ### One key on two chains -/
 
 /-- Bundle `5`, declared on chain `0`. -/
-def keyPreimage0 : FlowPreimage := ⟨0x01, 0, witnessL1, [5], [0]⟩
+def headKeyPreimage0 : FlowPreimage := ⟨0x01, 0, headWitnessL1, [5], [0]⟩
 
 /-- Bundle `5`, declared on chain `1`. -/
-def keyPreimage1 : FlowPreimage := ⟨0x01, 0, witnessL1, [5], [1]⟩
+def headKeyPreimage1 : FlowPreimage := ⟨0x01, 0, headWitnessL1, [5], [1]⟩
 
-def ka0 : AppendCall := ⟨0, 5, keyPreimage0, witnessEnv⟩
-def ka1 : AppendCall := ⟨1, 5, keyPreimage1, witnessEnv⟩
+def headKeyAppend0 : AppendCall := ⟨0, 5, headKeyPreimage0, headWitnessEnv⟩
+def headKeyAppend1 : AppendCall := ⟨1, 5, headKeyPreimage1, headWitnessEnv⟩
 
 theorem SameKeyOnTwoChainsWitness : Properties.SameKeyOnTwoChainsWitness := by
   intro h z0 hl
-  have hacc0 : PreimageAccepted keyPreimage0 := ⟨rfl, by decide, by decide, rfl⟩
-  have hacc1 : PreimageAccepted keyPreimage1 := ⟨rfl, by decide, by decide, rfl⟩
+  have hacc0 : PreimageAccepted headKeyPreimage0 := ⟨rfl, by decide, by decide, rfl⟩
+  have hacc1 : PreimageAccepted headKeyPreimage1 := ⟨rfl, by decide, by decide, rfl⟩
   let enc : PreimageHash := fun _ => 0
-  let Y1 : Chains := genesisAll.update 0 ((genesisAll 0).appended (fun _ b => b) (enc keyPreimage0) 5 0)
-  have r1 : RunAtHead h z0 hl (fun _ b => b) enc witnessL1 (pairSystem 1 2) genesisAll Y1
-      [.append ka0] := by
-    refine RunAtHead.append (hint := 0) (low := 0) ka0 RunAtHead.refl ?_
-    exact append_at_genesis hacc0 rfl ⟨0, by decide, rfl⟩ (by show (0 : UInt256) < 5; decide)
+  let Y1 : Chains :=
+    genesisAll.update 0 ((genesisAll 0).appended (fun _ b => b) (enc headKeyPreimage0) 5 0)
+  have r1 : RunAtHead h z0 hl (fun _ b => b) enc headWitnessL1 (pairSystem 1 2) genesisAll Y1
+      [.append headKeyAppend0] := by
+    refine RunAtHead.append (hint := 0) (low := 0) headKeyAppend0 RunAtHead.refl ?_
+    exact headAppend_at_genesis hacc0 rfl ⟨0, by decide, rfl⟩
+      (by show (0 : UInt256) < 5; decide)
   have hY1 : Y1 1 = genesis := update_other _ _ (by decide)
-  have r2 := RunAtHead.append (hint := 0) (low := 0) ka1 r1 (by
-    show AppendSucceedsAtHead enc (fun _ b => b) witnessL1 witnessEnv 1 (Y1 1) 5 keyPreimage1 0 0
+  have r2 := RunAtHead.append (hint := 0) (low := 0) headKeyAppend1 r1 (by
+    show AppendSucceedsAtHead enc (fun _ b => b) headWitnessL1 headWitnessEnv 1 (Y1 1) 5
+      headKeyPreimage1 0 0
     rw [hY1]
-    exact append_at_genesis hacc1 rfl ⟨0, by decide, rfl⟩ (by show (0 : UInt256) < 5; decide))
-  refine ⟨fun _ b => b, enc, witnessL1, pairSystem 1 2, _, _, ka0, ka1, r2, ?_, ?_, rfl, rfl,
-    by decide, by decide, ⟨by decide, rfl⟩⟩
+    exact headAppend_at_genesis hacc1 rfl ⟨0, by decide, rfl⟩
+      (by show (0 : UInt256) < 5; decide))
+  refine ⟨fun _ b => b, enc, headWitnessL1, pairSystem 1 2, _, _, headKeyAppend0, headKeyAppend1,
+    r2, ?_, ?_, rfl, rfl, by decide, by decide, ⟨by decide, rfl⟩⟩
   · exact mem_appendCalls.mpr (List.mem_cons_of_mem _ List.mem_cons_self)
   · exact mem_appendCalls.mpr List.mem_cons_self
 
 theorem AppendRejectsUndeclaredLegWitness : Properties.AppendRejectsUndeclaredLegWitness := by
-  have hacc : PreimageAccepted (⟨0x01, 0, witnessL1, [1], [0]⟩ : FlowPreimage) :=
+  have hacc : PreimageAccepted (⟨0x01, 0, headWitnessL1, [1], [0]⟩ : FlowPreimage) :=
     ⟨rfl, by decide, by decide, rfl⟩
-  have hacc1 : PreimageAccepted keyPreimage1 := ⟨rfl, by decide, by decide, rfl⟩
-  refine ⟨⟨0x01, 0, witnessL1, [1], [0]⟩, keyPreimage1, hacc, by decide, by decide, hacc1,
-    by decide, by decide, by decide, fun _ => 0, fun _ b => b, witnessL1, witnessEnv, genesis,
-    0, 0, ?_⟩
-  exact append_at_genesis hacc1 rfl ⟨0, by decide, rfl⟩ (by show (0 : UInt256) < 5; decide)
+  have hacc1 : PreimageAccepted headKeyPreimage1 := ⟨rfl, by decide, by decide, rfl⟩
+  refine ⟨⟨0x01, 0, headWitnessL1, [1], [0]⟩, headKeyPreimage1, hacc, by decide, by decide,
+    hacc1, by decide, by decide, by decide, fun _ => 0, fun _ b => b, headWitnessL1,
+    headWitnessEnv, genesis, 0, 0, ?_⟩
+  exact headAppend_at_genesis hacc1 rfl ⟨0, by decide, rfl⟩ (by show (0 : UInt256) < 5; decide)
 
 /-! ### A committed leg next to a verified timeout of its own flow -/
 
 theorem CommittedLegRefundableOnTimeoutWitness :
     Properties.CommittedLegRefundableOnTimeoutWitness := by
   intro h z0 hl
-  have h20 : (2 : Chain) ≠ 0 := by decide
-  have h21 : (2 : Chain) ≠ 1 := by decide
-  have r1 : RunAtHead h z0 hl (fun _ b => b) witnessEnc witnessL1 (pairSystem 1 2) genesisAll
-      (genesisAll.update 2 ((genesisAll 2).appended (fun _ b => b) (witnessEnc singlePreimage) 3 0))
-      [.append wa2] := by
-    refine RunAtHead.append (hint := 0) (low := 0) wa2 RunAtHead.refl ?_
-    exact append_at_genesis singlePreimage_accepted rfl ⟨0, by decide, rfl⟩
-      (by show (0 : UInt256) < 3; decide)
-  refine ⟨fun _ b => b, witnessEnc, witnessL1, pairSystem 1 2, _, _, wa2, ⟨2, 3⟩, 1,
-    setupAbsence h z0 hl, r1, mem_appendCalls.mpr List.mem_cons_self, ?_,
-    (by show (⟨2, 3⟩ : FlowLeg) ∈ pinLegs singlePreimage; decide), ?_⟩
-  · show ((genesisAll.update 2 ((genesisAll 2).appended (fun _ b => b)
-      (witnessEnc singlePreimage) 3 0)) 2).mgr.legState (witnessEnc singlePreimage) 3 = .Committed
-    rw [update_self, appended_mgr, set_same]
-  · exact setupAbsence_refundable (F := pinFlow (committedFlow witnessEnc wa2.preimage))
-      (leg := ⟨2, 3⟩) (N := 0) (by show (0 : ℕ) < 1; norm_num)
-      (pairSystem_tree_other h20 h21 0) (pairSystem_height_other h20 h21 0)
-      (by show (0 : UInt256) < 3; decide)
+  have h10 : (1 : Chain) ≠ 0 := by decide
+  have r1 : RunAtHead h z0 hl (fun _ b => b) headWitnessEnc headWitnessL1 (mixedSystem 1)
+      genesisAll headWitnessY1 [.append headWitnessA0] :=
+    RunAtHead.append (hint := 0) (low := 0) headWitnessA0 RunAtHead.refl headWitnessA0_succeeds
+  refine ⟨fun _ b => b, headWitnessEnc, headWitnessL1, mixedSystem 1, headWitnessY1,
+    [.append headWitnessA0], headWitnessA0, ⟨1, 2⟩, 1, setupAbsence h z0 hl, r1,
+    mem_appendCalls.mpr List.mem_cons_self, ?_,
+    (by show (⟨1, 2⟩ : FlowLeg) ∈ pinLegs headPairPreimage; decide), by decide, ?_⟩
+  · show (headWitnessY1 0).mgr.legState (headWitnessEnc headPairPreimage) 1 = .Committed
+    rw [headWitnessY1, update_self, appended_mgr, set_same]
+  · exact setupAbsence_refundable
+      (F := pinFlow (committedFlow headWitnessEnc headWitnessA0.preimage))
+      (leg := ⟨1, 2⟩) (N := 0) (by show (0 : ℕ) < 1; norm_num)
+      (mixedSystem_tree_other h10 0) (mixedSystem_height_other h10 0)
+      (by show (0 : UInt256) < 2; decide)
 
 /-! ### Once per leg on each chain -/
 
@@ -1289,23 +1380,23 @@ theorem OncePerLegAtHead : Properties.OncePerLegAtHead := by
 
 /-! ### The pin instance's premise, at head -/
 
-/-- The truncation of `pairPreimage`: bundle `1` on chain `0` only. -/
-def subsetPreimage : FlowPreimage := ⟨0x01, 0, witnessL1, [1], [0]⟩
+/-- The truncation of `headPairPreimage`: bundle `1` on chain `0` only. -/
+def headSubsetPreimage : FlowPreimage := ⟨0x01, 0, headWitnessL1, [1], [0]⟩
 
-theorem subsetPreimage_accepted : PreimageAccepted subsetPreimage :=
+theorem headSubsetPreimage_accepted : PreimageAccepted headSubsetPreimage :=
   ⟨rfl, by decide, by decide, rfl⟩
 
 theorem PinUnboundLegRejectedAtHeadWitness : Properties.PinUnboundLegRejectedAtHeadWitness := by
-  refine ⟨honestPreimageHash subsetPreimage 0, witnessL1, subsetPreimage, subsetPreimage_accepted,
+  refine ⟨honestPreimageHash headSubsetPreimage 0, headWitnessL1, headSubsetPreimage, headSubsetPreimage_accepted,
     rfl, ?_, by decide⟩
   intro F hF hid leg hleg hb
-  have hencP : honestPreimageHash subsetPreimage 0 subsetPreimage = 0 := ite_eq_left rfl
+  have hencP : honestPreimageHash headSubsetPreimage 0 headSubsetPreimage = 0 := ite_eq_left rfl
   rw [hencP] at hid
-  have hval : pinFlowHash (honestPreimageHash subsetPreimage 0) witnessL1 F.legs F.deadline = 0 := by
+  have hval : pinFlowHash (honestPreimageHash headSubsetPreimage 0) headWitnessL1 F.legs F.deadline = 0 := by
     rw [hF, hid]
   unfold pinFlowHash honestPreimageHash at hval
-  by_cases hq : (⟨ATOMIC_FLOW_PREIMAGE_VERSION, F.deadline, witnessL1, F.legs.map FlowLeg.bundleHash,
-      F.legs.map FlowLeg.chain⟩ : FlowPreimage) = subsetPreimage
+  by_cases hq : (⟨ATOMIC_FLOW_PREIMAGE_VERSION, F.deadline, headWitnessL1, F.legs.map FlowLeg.bundleHash,
+      F.legs.map FlowLeg.chain⟩ : FlowPreimage) = headSubsetPreimage
   · have hm : F.legs.map FlowLeg.bundleHash = [1] := congrArg FlowPreimage.legBundleHashes hq
     have hin : leg.bundleHash ∈ F.legs.map FlowLeg.bundleHash := List.mem_map_of_mem hleg
     rw [hm, List.mem_singleton, hb] at hin
@@ -1324,11 +1415,11 @@ theorem SubsetFlowAttackAtHeadLandsInLoggedClash :
   let S : System := mixedSystem 1
   have hS : Wf S := mixedSystem_wf (by decide)
   -- the real flow's leg `2` is appended on chain `1`
-  let sa : AppendCall := ⟨1, 2, pairPreimage, witnessEnv⟩
-  let Y1 : Chains := genesisAll.update 1 ((genesisAll 1).appended cv (enc pairPreimage) 2 0)
-  have r1 : RunAtHead h z0 hl cv enc witnessL1 S genesisAll Y1 [.append sa] := by
+  let sa : AppendCall := ⟨1, 2, headPairPreimage, headWitnessEnv⟩
+  let Y1 : Chains := genesisAll.update 1 ((genesisAll 1).appended cv (enc headPairPreimage) 2 0)
+  have r1 : RunAtHead h z0 hl cv enc headWitnessL1 S genesisAll Y1 [.append sa] := by
     refine RunAtHead.append (hint := 0) (low := 0) sa RunAtHead.refl ?_
-    exact append_at_genesis pairPreimage_accepted rfl ⟨1, by decide, rfl⟩
+    exact headAppend_at_genesis headPairPreimage_accepted rfl ⟨1, by decide, rfl⟩
       (by show (0 : UInt256) < 2; decide)
   -- leg `1` executes through the truncated preimage
   have hcountA : (S.tree 0 0).leafCount = 2 := by
@@ -1338,10 +1429,10 @@ theorem SubsetFlowAttackAtHeadLandsInLoggedClash :
     honestProof_accepts hS (by rw [hcountA]; norm_num)
       (by show (((mixedSystem 1).tree 0 0).leaf 1).value = 1
           rw [mixedSystem_tree_zero, insertSetup_leaf_one_value])
-  let se : ExecCallAtHead := ⟨⟨7, subsetPreimage⟩, subsetEvidence h z0 hl S 1, 1⟩
-  have hev : se.Verified h z0 hl cv enc witnessL1 S := by
-    refine ⟨checkFlowId_of_accepted enc subsetPreimage_accepted, rfl,
-      (by show (1 : UInt256) ∈ subsetPreimage.legBundleHashes; decide), ?_⟩
+  let se : ExecCallAtHead := ⟨⟨7, headSubsetPreimage⟩, subsetEvidence h z0 hl S 1, 1⟩
+  have hev : se.Verified h z0 hl cv enc headWitnessL1 S := by
+    refine ⟨checkFlowId_of_accepted enc headSubsetPreimage_accepted, rfl,
+      (by show (1 : UInt256) ∈ headSubsetPreimage.legBundleHashes; decide), ?_⟩
     intro l hl'
     have hl'' : l = ⟨0, 1⟩ := by
       have : l ∈ [(⟨0, 1⟩ : FlowLeg)] := hl'
@@ -1353,17 +1444,17 @@ theorem SubsetFlowAttackAtHeadLandsInLoggedClash :
     exact ⟨le_refl _, accA⟩
   have r2 := RunAtHead.execute se r1 hev
   -- the real flow's refund is authorized on chain `1`
-  let sr : AuthCallAtHead := ⟨1, ⟨7, pairPreimage⟩, 2, ⟨1, 2⟩, 1, setupAbsence h z0 hl⟩
-  have hrv : sr.Verified h z0 hl cv enc witnessL1 S := by
-    refine ⟨checkFlowId_of_accepted enc pairPreimage_accepted, rfl,
-      (by show (⟨1, 2⟩ : FlowLeg) ∈ pinLegs pairPreimage; decide), ?_,
-      (by show (2 : UInt256) ∈ pairPreimage.legBundleHashes; decide)⟩
+  let sr : AuthCallAtHead := ⟨1, ⟨7, headPairPreimage⟩, 2, ⟨1, 2⟩, 1, setupAbsence h z0 hl⟩
+  have hrv : sr.Verified h z0 hl cv enc headWitnessL1 S := by
+    refine ⟨checkFlowId_of_accepted enc headPairPreimage_accepted, rfl,
+      (by show (⟨1, 2⟩ : FlowLeg) ∈ pinLegs headPairPreimage; decide), ?_,
+      (by show (2 : UInt256) ∈ headPairPreimage.legBundleHashes; decide)⟩
     exact setupAbsence_refundable (F := pinFlow sr.flow) (leg := ⟨1, 2⟩) (N := 0)
       (by show (0 : ℕ) < 1; norm_num) (mixedSystem_tree_other h10 0)
       (mixedSystem_height_other h10 0) (by show (0 : UInt256) < 2; decide)
   have hg : AuthorizeGuard (Y1 sr.chain).mgr sr.flow.flowId sr.marked := by
     show (Y1 1).mgr.legState 7 2 = .Committed
-    show ((genesisAll.update 1 ((genesisAll 1).appended cv (enc pairPreimage) 2 0)) 1).mgr.legState
+    show ((genesisAll.update 1 ((genesisAll 1).appended cv (enc headPairPreimage) 2 0)) 1).mgr.legState
       7 2 = .Committed
     rw [update_self, appended_mgr]
     exact set_same
@@ -1392,14 +1483,180 @@ theorem SubsetFlowAttackAtHeadLandsInLoggedClash :
     exact honestProof_no_break h z0 hl _ 1 0 0
       (by show 0 < ((mixedSystem 1).tree 1 0).leafCount
           rw [mixedSystem_tree_other h10]; norm_num [setup])
-  have hclash : PreimageClash enc subsetPreimage pairPreimage := ⟨by decide, rfl⟩
-  refine ⟨cv, enc, witnessL1, S, honestAccess h z0 hl S, _, _, se, sr, sa, hS,
+  have hclash : PreimageClash enc headSubsetPreimage headPairPreimage := ⟨by decide, rfl⟩
+  refine ⟨cv, enc, headWitnessL1, S, honestAccess h z0 hl S, _, _, se, sr, sa, hS,
     honestAccess_dataAvailable h z0 hl _, r3, List.mem_cons_of_mem _ List.mem_cons_self,
     List.mem_cons_self,
     mem_appendCalls.mpr (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self)),
-    rfl, rfl, fun hall => hnleg (hall _ (by show (⟨1, 2⟩ : FlowLeg) ∈ pinLegs pairPreimage; decide)),
+    rfl, rfl, fun hall => hnleg (hall _ (by show (⟨1, 2⟩ : FlowLeg) ∈ pinLegs headPairPreimage; decide)),
     no_pinned_break_of_finalizable _ hfinSub, hclash, hnb,
     setupAbsence_no_break (N := 0) (by show (0 : ℕ) < 1; norm_num)
       (mixedSystem_tree_other h10 0) (mixedSystem_height_other h10 0), hclash⟩
+
+end Contracts.FlowBindingAtHead
+
+/-! ## The `draft/v0.35.0` head (`b17415d20`) -/
+
+namespace Contracts.FlowBindingAtHead
+
+open MerkleSpec IMTAbstract Contracts.InteropCommitmentTree Contracts.Atomicity
+open Contracts.AtomicFlowManager Contracts.Refund Contracts.AppendPath
+open Contracts.FlowCanonicalAtHead Contracts.FlowBinding
+
+/-- A `b17415d20` run, with its log projected, is a `3605e82` run between the same states. -/
+theorem runAtV35_toHead {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {enc : PreimageHash} {l1 : UInt256} {S : System} {X Y : Chains} {log : List CallAtV35}
+    (hr : RunAtV35 h z0 hl cv enc l1 S X Y log) :
+    RunAtHead h z0 hl cv enc l1 S X Y (log.map CallAtV35.toHead) := by
+  induction hr with
+  | refl => exact RunAtHead.refl
+  | @append Y log a hint low _ ha ih => exact RunAtHead.append (hint := hint) (low := low) a ih ha
+  | @execute Y log e _ hv ih => exact RunAtHead.execute e.call ih hv.1
+  | @authorize Y log a _ hv hg ih => exact RunAtHead.authorize a.call ih hv.1 hg
+  | claim _ hg ih => exact RunAtHead.claim ih hg
+  | initL2 _ h0 ih => exact RunAtHead.initL2 ih h0
+
+/-- Every logged `b17415d20` call passed `_checkLegSourceAllowed`. -/
+theorem loggedV35_sources_allowed {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {enc : PreimageHash} {l1 : UInt256} {S : System} {X Y : Chains} {log : List CallAtV35}
+    (hr : RunAtV35 h z0 hl cv enc l1 S X Y log) :
+    (∀ e, CallAtV35.execute e ∈ log →
+        ∀ src ∈ e.call.flow.preimage.legSourceChainIds, LegSourceAllowed e.dest e.allowed src)
+      ∧ (∀ a, CallAtV35.authorize a ∈ log →
+          LegSourceAllowed a.call.chain a.allowed a.call.missing.chain) := by
+  induction hr with
+  | refl => exact ⟨by simp, by simp⟩
+  | append _ _ _ ih =>
+    refine ⟨fun e he => ?_, fun a ha => ?_⟩
+    · rcases List.mem_cons.mp he with he | he
+      · cases he
+      · exact ih.1 e he
+    · rcases List.mem_cons.mp ha with ha | ha
+      · cases ha
+      · exact ih.2 a ha
+  | @execute Y log e' _ hv ih =>
+    refine ⟨fun e he => ?_, fun a ha => ?_⟩
+    · rcases List.mem_cons.mp he with he | he
+      · cases he; exact hv.2
+      · exact ih.1 e he
+    · rcases List.mem_cons.mp ha with ha | ha
+      · cases ha
+      · exact ih.2 a ha
+  | @authorize Y log a' _ hv _ ih =>
+    refine ⟨fun e he => ?_, fun a ha => ?_⟩
+    · rcases List.mem_cons.mp he with he | he
+      · cases he
+      · exact ih.1 e he
+    · rcases List.mem_cons.mp ha with ha | ha
+      · cases ha; exact hv.2
+      · exact ih.2 a ha
+  | claim _ _ ih => exact ih
+  | initL2 _ _ ih => exact ih
+
+/-- A logged `append` of the projected log is a logged `append` of the `b17415d20` log. -/
+theorem mem_toHead_append {a : AppendCall} {log : List CallAtV35}
+    (ha : CallAtHead.append a ∈ log.map CallAtV35.toHead) : CallAtV35.append a ∈ log := by
+  obtain ⟨k, hk, hkeq⟩ := List.mem_map.mp ha
+  cases k with
+  | append a' =>
+    simp only [CallAtV35.toHead, CallAtHead.append.injEq] at hkeq
+    rw [← hkeq]
+    exact hk
+  | execute _ => simp [CallAtV35.toHead] at hkeq
+  | authorize _ => simp [CallAtV35.toHead] at hkeq
+
+theorem RunAtV35ProjectsToRunAtHead : Properties.RunAtV35ProjectsToRunAtHead :=
+  fun _ _ _ _ _ _ _ _ _ _ hr => runAtV35_toHead hr
+
+theorem LoggedCallsPassedLegSourceCheckAtV35 :
+    Properties.LoggedCallsPassedLegSourceCheckAtV35 :=
+  fun _ _ _ _ _ _ _ _ _ _ hr => loggedV35_sources_allowed hr
+
+theorem CommittedLegRefundableOnTimeoutAtV35 :
+    Properties.CommittedLegRefundableOnTimeoutAtV35 := by
+  intro h z0 hl cv enc l1 S Y log hr c f b hcom
+  have hr' := runAtV35_toHead hr
+  have hne : (Y c).mgr.legState f b ≠ .Unset := by rw [hcom]; decide
+  obtain ⟨a, ha, he⟩ := appended_of_not_unset hr' hne
+  have hca := (logged_calls_checked hr').1 a ha
+  have ha' : CallAtV35.append a ∈ log := mem_toHead_append (mem_appendCalls.mp ha)
+  obtain ⟨hf, hb, hc⟩ := AppendCall.obligation_eq_iff.mp he
+  subst hf hb hc
+  refine ⟨a, ha', he, ?_⟩
+  intro m N q allowed hm href hallowed
+  have hv : AuthCallAtHead.Verified h z0 hl cv enc l1 S
+      ⟨a.chain, committedFlow enc a.preimage, a.bundleHash, m, N, q⟩ :=
+    ⟨hca.check, hca.slIsL1, hm, href, hca.declares.mem.1⟩
+  exact RunAtV35.authorize ⟨⟨a.chain, committedFlow enc a.preimage, a.bundleHash, m, N, q⟩,
+    allowed⟩ hr ⟨hv, hallowed⟩ hcom
+
+/-! ### Witnesses at `b17415d20` -/
+
+/-- The execution of `headWitnessExec`, run on chain `3`, whose `isPeerAllowed` holds for
+chains `0` and `1`. -/
+def headWitnessExecV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) : ExecCallAtV35 :=
+  ⟨headWitnessExec h z0 hl, 3, fun s => s = 0 ∨ s = 1⟩
+
+/-- The refund authorization of `headWitnessAuth`, whose missing leg is on its own chain, so
+`isPeerAllowed` is not consulted; here it allows nothing. -/
+def headWitnessAuthV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) : AuthCallAtV35 :=
+  ⟨headWitnessAuth h z0 hl, fun _ => False⟩
+
+/-- The `b17415d20` log, most recent first. -/
+def headWitnessLogV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) : List CallAtV35 :=
+  [.execute (headWitnessExecV35 h z0 hl), .authorize (headWitnessAuthV35 h z0 hl),
+    .append headWitnessA2, .append headWitnessA1, .append headWitnessA0]
+
+theorem headWitnessExecV35_sources (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ∀ src ∈ (headWitnessExecV35 h z0 hl).call.flow.preimage.legSourceChainIds,
+      src ≠ (headWitnessExecV35 h z0 hl).dest ∧ (headWitnessExecV35 h z0 hl).allowed src := by
+  intro src hsrc
+  have hsrc' : src ∈ ([0, 1] : List UInt256) := hsrc
+  show src ≠ 3 ∧ (src = 0 ∨ src = 1)
+  rcases List.mem_cons.mp hsrc' with rfl | hsrc'
+  · exact ⟨by decide, Or.inl rfl⟩
+  · obtain rfl := List.mem_singleton.mp hsrc'
+    exact ⟨by decide, Or.inr rfl⟩
+
+theorem headWitnessV35_run (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    RunAtV35 h z0 hl (fun _ b => b) headWitnessEnc headWitnessL1 (pairSystem 1 2) genesisAll
+      headWitnessY4 (headWitnessLogV35 h z0 hl) :=
+  RunAtV35.execute (headWitnessExecV35 h z0 hl)
+    (RunAtV35.authorize (headWitnessAuthV35 h z0 hl)
+      (RunAtV35.append (hint := 0) (low := 0) headWitnessA2
+        (RunAtV35.append (hint := 0) (low := 0) headWitnessA1
+          (RunAtV35.append (hint := 0) (low := 0) headWitnessA0 RunAtV35.refl
+            headWitnessA0_succeeds)
+          headWitnessA1_succeeds)
+        headWitnessA2_succeeds)
+      ⟨headWitnessAuth_verified h z0 hl, Or.inl rfl⟩ headWitnessY3_guard)
+    ⟨headWitnessExec_verified h z0 hl,
+      fun src hsrc => Or.inr (headWitnessExecV35_sources h z0 hl src hsrc).2⟩
+
+theorem RunAtV35Witness : Properties.RunAtV35Witness := by
+  intro h z0 hl
+  exact ⟨fun _ b => b, headWitnessEnc, headWitnessL1, pairSystem 1 2, headWitnessY4,
+    headWitnessLogV35 h z0 hl, headWitnessExecV35 h z0 hl, headWitnessAuthV35 h z0 hl,
+    headWitnessV35_run h z0 hl, List.mem_cons_self, List.mem_cons_of_mem _ List.mem_cons_self,
+    rfl, headWitnessExecV35_sources h z0 hl⟩
+
+theorem CommittedLegRefundableOnTimeoutAtV35Witness :
+    Properties.CommittedLegRefundableOnTimeoutAtV35Witness := by
+  intro h z0 hl
+  have h10 : (1 : Chain) ≠ 0 := by decide
+  have r1 : RunAtV35 h z0 hl (fun _ b => b) headWitnessEnc headWitnessL1 (mixedSystem 1)
+      genesisAll headWitnessY1 [.append headWitnessA0] :=
+    RunAtV35.append (hint := 0) (low := 0) headWitnessA0 RunAtV35.refl headWitnessA0_succeeds
+  refine ⟨fun _ b => b, headWitnessEnc, headWitnessL1, mixedSystem 1, headWitnessY1,
+    [.append headWitnessA0], headWitnessA0, ⟨1, 2⟩, 1, setupAbsence h z0 hl, fun s => s = 1, r1,
+    List.mem_singleton_self _, ?_,
+    (by show (⟨1, 2⟩ : FlowLeg) ∈ pinLegs headPairPreimage; decide), by decide, ?_,
+    Or.inr rfl⟩
+  · show (headWitnessY1 0).mgr.legState (headWitnessEnc headPairPreimage) 1 = .Committed
+    rw [headWitnessY1, update_self, appended_mgr, set_same]
+  · exact setupAbsence_refundable (F := pinFlow (committedFlow headWitnessEnc headWitnessA0.preimage))
+      (leg := ⟨1, 2⟩) (N := 0) (by show (0 : ℕ) < 1; norm_num)
+      (mixedSystem_tree_other h10 0) (mixedSystem_height_other h10 0)
+      (by show (0 : UInt256) < 2; decide)
 
 end Contracts.FlowBindingAtHead

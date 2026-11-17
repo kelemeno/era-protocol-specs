@@ -47,8 +47,10 @@ check is over-approximated; retry results need a caller-supplied invariant).
 `_validateAndComputeFlowId` and `_checkFlowId` at era-contracts `main` `3605e82`, next to
 the pin's `FlowCanonical`, which is unchanged. At that commit the preimage is one struct
 with a version byte, two checks are new (version `0x01`, at most eight legs), and one
-function serves `append`, `requireFlowFinalized` and `authorizeRefund`. The function and
-`append` are the same text at `draft/v0.35.0` (`d9f6789`).
+function serves `append`, `requireFlowFinalized` and `authorizeRefund`. `main` at
+`70096e2` changes no contract since `3605e82`. At `draft/v0.35.0` (`d9f6789`, and the head
+`b17415d20`) the two functions and their three call sites are the same text at other line
+numbers, listed in the spec's "Other heads" section.
 
 - The pin's `Valid` is still necessary and no longer sufficient
   (`AcceptedPreimageIsValid`, `ValidNoLongerSufficient`); acceptance is exactly `Valid`
@@ -56,13 +58,13 @@ function serves `append`, `requireFlowFinalized` and `authorizeRefund`. The func
 - An accepted preimage is canonical and gives each leg one declared source chain
   (`AcceptedPreimageIsCanonical`, `DeclaredSourceChainUnique`, `ListedLegIsDeclared`).
 - A preimage the new checks reject is rejected on all three paths
-  (`NewChecksRejectOnEveryPath`); the gate verifies at most eight proofs
-  (`AcceptedHasAtMostMaxLegs`).
+  (`NewChecksRejectOnEveryPath`); an accepted preimage has at most eight legs, and some
+  has exactly eight (`AcceptedHasAtMostMaxLegs`, `AcceptedCapIsReached`).
 - Recorded, but unfoldings with no content of their own: `SharedValidationNoDrift` (the
   model has one function because the source has one), `CheckedFlowsAgreeOrClash` and
   `DifferentVersionsShareAnIdOnlyByClash` (two different preimages with one id are a
-  `PreimageClash` by definition). Their use is in `Protocol/InteropAtomicity`
-  `FlowBindingAtHead`, where both preimages come from one run's log.
+  `PreimageClash` by definition). `Protocol/InteropAtomicity` `FlowBindingAtHead` makes
+  the same case split on two preimages from one run's log, where it has content.
 - `keccak256(abi.encode(preimage))` is the free parameter `enc`; no property of it is
   assumed. `PreimageHashInjOnSatisfiable` and `HonestPreimageHashNoClash` show the bounded
   premise and the clash disjunct are not empty; `FlowCanonicalAtHeadWitness` is the

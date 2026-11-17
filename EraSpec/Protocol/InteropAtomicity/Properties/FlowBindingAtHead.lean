@@ -4,13 +4,15 @@ import EraSpec.Protocol.InteropAtomicity.Specs.FlowBindingAtHead
 # Properties: the committed leg is bound to a logged preimage, at head (`3605e82`)
 
 Statements about `EraSpec.Protocol.InteropAtomicity.Specs.FlowBindingAtHead`; proofs in
-`EraSpec.Protocol.InteropAtomicity.Proofs.FlowBindingAtHead`. No statement takes an
+`EraSpec.Protocol.InteropAtomicity.Proofs.FlowBindingAtHead`. No statement takes a global
 injectivity premise. Every collision a conclusion mentions is pinned: a `PreimageClash`
 between two logged preimages, or a `CommitClash` between a logged obligation and a logged
-obligation or a key the statement names. Two statements about the pin
-countermodel (`Properties.PinUnboundLegIsStranded`, `Properties.PinUnboundLegRejectedAtHead`)
-take a premise that ranges over every checked flow with one id; each has a witness and a
-companion whose premise does not mention the hash (`Properties.PinUnboundLegIsStrandedLogged`,
+obligation or a key the statement names. The `…On` forms instead take bounded injectivity on
+the run's own logged preimages (`PreimageHashInjOn enc (loggedPreimages log)`), which drops
+the clash disjunct. Two statements about the pin countermodel
+(`Properties.PinUnboundLegIsStranded`, `Properties.PinUnboundLegRejectedAtHead`) take a
+premise that ranges over every checked flow with one id; each has a witness and a companion
+whose premise does not mention the hash (`Properties.PinUnboundLegIsStrandedLogged`,
 `Properties.AppendRejectsUndeclaredLeg`).
 
 ## What the pin needed, and what is gone
@@ -19,13 +21,13 @@ companion whose premise does not mention the hash (`Properties.PinUnboundLegIsSt
   committed under was never on chain. `Contracts.FlowBinding`'s headline could only range
   over flows presented to some later call (its premise `c ∈ log`). At head `append` logs the
   preimage itself. `Properties.CommittedLegHasLoggedPreimage` says every leg that is not
-  `Unset` was committed under one logged preimage that contains it, declares it on the
-  committing chain, and passes `_checkFlowId` verbatim. So
+  `Unset` was committed by exactly one logged `append`, whose preimage lists it, declares it
+  on the committing chain, and passes `_checkFlowId` verbatim. So
   `Properties.ExecutedImpliesCommittedFlowFinalizableOrLoggedClash` ranges over the flows the
   legs were committed under, without the `c ∈ log` premise.
 * **The declared chain.** At the pin nothing tied a leg's declared source chain
-  (`legSourceChainIds[i]`) to the chain that committed it. That half of `A3`'s chain binding
-  was left to `bundleHash` embedding `block.chainid` (backlog S4), and the pin's refund model
+  (`legSourceChainIds[i]`) to the chain that committed it; the pin models left that to
+  `bundleHash` embedding `block.chainid`, which they do not model, and the pin's refund model
   marks a leg in the manager of its declared chain as a modelling choice. At head `append`
   checks `legSourceChainIds[legIndex] == block.chainid` on chain. So a leg's declared chain is
   the committing chain, in every logged preimage with its id, unless two logged preimages
@@ -34,10 +36,10 @@ companion whose premise does not mention the hash (`Properties.PinUnboundLegIsSt
   code's `authorizeRefund` marks legs of the chain that runs it, and those are the legs the
   flow declares there, unless two logged preimages clash
   (`Properties.AuthorizeMarksDeclaredLegOrLoggedClash`). A key of a chain's tree is declared
-  on that chain by every presented flow with its id
-  (`Properties.KeyIsDeclaredOnItsChainOrLoggedClash`), which is
-  `AttackVectors.ProofPolarity.HonestInsertion`'s declared-chain side, for a chain running the
-  head code, without the bundle-hash premise.
+  on that chain by every presented flow with its id, up to a logged clash
+  (`Properties.KeyIsDeclaredOnItsChainOrLoggedClash`): the head-code counterpart of the
+  premise `AttackVectors.ProofPolarityFaithful.DeclaredInsertion`, derived for one chain from
+  its own run rather than assumed.
 * **"On one chain".** `Contracts.AppendPath.Properties.SystemOncePerLeg` item 3 needs two
   obligations to be on one chain. `Properties.SystemOncePerLegAtHead` drops that premise:
   across chains, one commit value is a pinned `CommitClash` or a pinned `PreimageClash`.
@@ -63,6 +65,13 @@ Each chain of a head run is a run of the pin's one-chain model `Contracts.Append
 not get in the way: a head insert lands where a pin insert with the landing hint lands
 (`Properties.HeadInsertLandsWherePinInsertLands`), although it accepts hints the pin's
 five-hop walk rejects (`Properties.HeadWalkAcceptsHintPinRejects`).
+
+## The `draft/v0.35.0` head (`b17415d20`)
+
+Every `RunAtV35` run, with its log projected, is a `RunAtHead` run between the same states
+(`Properties.RunAtV35ProjectsToRunAtHead`), so every result above about all `RunAtHead` runs
+holds for it. The one result that says a call succeeds needs one more premise there, the new
+`_checkLegSourceAllowed` (`Properties.CommittedLegRefundableOnTimeoutAtV35`).
 -/
 
 namespace Contracts.FlowBindingAtHead
@@ -74,7 +83,9 @@ open Contracts.FlowCanonicalAtHead
 /-! ## The head check, in the pin's terms -/
 
 /-- **A HEAD FLOW THAT PASSES `_checkFlowId` PASSES THE PIN'S CHECK.** For the pin flow hash
-the head preimage hash induces, `pinFlowHash enc l1`. -/
+the head preimage hash induces, `pinFlowHash enc l1`. The premises hold for every logged
+execution and refund authorization of a head run (`Properties.LoggedCallsPassedTheirChecks`),
+for example those of `Properties.FlowBindingAtHeadWitness`. -/
 def Properties.HeadCheckIsPinCheck : Prop :=
   ∀ (enc : PreimageHash) (l1 : UInt256) (F : AtomicFlow),
     CheckFlowId enc F → F.preimage.settlementLayerChainId = l1 →
@@ -82,7 +93,8 @@ def Properties.HeadCheckIsPinCheck : Prop :=
 
 /-- **THE PIN'S FLOW-ID CLASH IS A PREIMAGE CLASH.** For two checked head flows settling on
 `l1`, the pin's `FlowIdClash` between their pin views is exactly a `PreimageClash` between
-their preimages. -/
+their preimages. The two flows of `Properties.SubsetFlowAttackAtHeadLandsInLoggedClash`'s
+execution and refund authorization meet the premises, with a `PreimageClash`. -/
 def Properties.PinClashIsPreimageClash : Prop :=
   ∀ (enc : PreimageHash) (l1 : UInt256) (F G : AtomicFlow),
     CheckFlowId enc F → F.preimage.settlementLayerChainId = l1 →
@@ -98,17 +110,22 @@ def Properties.PinLegIffDeclares : Prop :=
 /-! ## The unbounded walk -/
 
 /-- **THE HEAD INSERT LANDS WHERE A PIN INSERT LANDS.** On a valid tree, some hint makes the
-head insert land on `low` iff some hint makes the pin's bounded insert land there (the landing
-hint `low` itself, with no hop). The insert's writes depend only on `low`. -/
+head insert land on `low` iff some hint makes the pin's bounded insert land there. (The proof
+gives the pin insert the landing leaf `low` itself as its hint, which needs no hop.) The
+insert's writes depend only on `low` (`Contracts.InteropCommitmentTree.insert T v low`). -/
 def Properties.HeadInsertLandsWherePinInsertLands : Prop :=
   ∀ (T : Tree) (v : UInt256) (low : ℕ), Valid T →
     ((∃ hint, InsertSucceedsAtHead T v hint low) ↔ ∃ hint, InsertSucceeds T v hint low)
 
-/-- **…ALTHOUGH THE HEAD WALK ACCEPTS A HINT THE PIN REJECTS.** On the honest seven-leaf
-tree `chainTree 6`, inserting `7` from hint `0` needs six hops: the head insert succeeds and
-the pin's five-hop insert reverts for every landing. -/
+/-- **…ALTHOUGH THE HEAD WALK ACCEPTS A HINT THE PIN REJECTS.** On the seven-leaf tree
+`chainTree 6`, which six honest inserts reach from `setup` (so it is `Valid`), the head insert
+of `7` from hint `0` succeeds and lands on leaf `6`, while the pin's insert of `7` from hint
+`0`, whose walk stops after five hops, reverts for every landing; from hint `6` the pin's
+insert lands on `6` too. So both sides of `Properties.HeadInsertLandsWherePinInsertLands` hold
+there, with different hints. -/
 def Properties.HeadWalkAcceptsHintPinRejects : Prop :=
-  InsertSucceedsAtHead (chainTree 6) 7 0 6 ∧ ∀ low, ¬ InsertSucceeds (chainTree 6) 7 0 low
+  Valid (chainTree 6) ∧ InsertSucceedsAtHead (chainTree 6) 7 0 6
+    ∧ (∀ low, ¬ InsertSucceeds (chainTree 6) 7 0 low) ∧ InsertSucceeds (chainTree 6) 7 6 6
 
 /-! ## The shape of every run -/
 
@@ -122,9 +139,10 @@ def Properties.RunAtHeadProjectsToChainRuns : Prop :=
       ∀ c, Steps cv c genesis (Y c) ((appendLog enc log).filter (fun o => o.chain = c))
 
 /-- **EVERY LOGGED CALL PASSED ITS CHECKS.** Every logged `append`'s preimage is accepted and
-computes its id, settles on L1, was not expired when the call read the root storage, declares
-the committed bundle on the committing chain, and names only registered chains besides it.
-Every logged execution and refund authorization passed its checks. -/
+computes its id, names `l1` (the managers' `L1_CHAIN_ID`) as its settlement layer, was not
+expired when the call read the root storage, declares the committed bundle on the committing
+chain, and names only registered chains besides it. Every logged execution and refund
+authorization passed its checks (`ExecCallAtHead.Verified`, `AuthCallAtHead.Verified`). -/
 def Properties.LoggedCallsPassedTheirChecks : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (X Y : Chains) (log : List CallAtHead),
@@ -141,17 +159,19 @@ def Properties.LoggedCallsPassedTheirChecks : Prop :=
 /-! ## The stronger flow binding -/
 
 /-- **THE FLOW A LEG WAS COMMITTED UNDER IS A LOGGED PREIMAGE (HEADLINE).** On every head run
-from genesis, every leg `(f, b)` that is not `Unset` in chain `c`'s manager was committed by
-exactly one logged `append` on `c`. Its preimage hashes to `f`, passes `_checkFlowId` as the
-flow `⟨f, P⟩`, settles on L1, and declares `b` on `c`. -/
+from genesis, take a leg `(f, b)` that is not `Unset` in chain `c`'s manager. Some logged
+`append` committed it (its obligation is `(f, b, c)`), and every logged `append` with that
+obligation is that one call. Its preimage `P` passes `_checkFlowId` as the flow `⟨f, P⟩` (so
+`P` hashes to `f`), settles on `l1`, and declares `b` on `c`. -/
 def Properties.CommittedLegHasLoggedPreimage : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtHead),
     RunAtHead h z0 hl cv enc l1 S genesisAll Y log →
       ∀ (c f b : UInt256), (Y c).mgr.legState f b ≠ .Unset →
-        ∃! a, a ∈ appendCalls log ∧ a.obligation enc = ⟨f, b, c⟩
+        ∃ a ∈ appendCalls log, a.obligation enc = ⟨f, b, c⟩
           ∧ CheckFlowId enc ⟨f, a.preimage⟩ ∧ a.preimage.settlementLayerChainId = l1
           ∧ a.preimage.Declares b c
+          ∧ ∀ a' ∈ appendCalls log, a'.obligation enc = ⟨f, b, c⟩ → a' = a
 
 /-- **AND A LEG NEVER APPENDED IS `Unset`.** The converse: on every head run from genesis,
 `(f, b)` is `Unset` on `c` iff no logged `append` on `c` committed it. -/
@@ -162,14 +182,19 @@ def Properties.UnsetIffNotAppended : Prop :=
       ∀ (c f b : UInt256), (Y c).mgr.legState f b = .Unset ↔
         ∀ a ∈ appendCalls log, a.obligation enc ≠ ⟨f, b, c⟩
 
-/-- **EVERY COMMITTED LEG IS A LEG OF A FLOW THAT PASSES THE PIN'S CHECK.** The negation of
-the pin countermodel's condition, for the pin flow hash the head hash induces. -/
+/-- **EVERY COMMITTED LEG IS A LEG OF A FLOW THAT PASSES THE PIN'S CHECK.** On every head run
+from genesis, a leg `(f, b)` that is not `Unset` on chain `c` is the leg `⟨c, b⟩` of some flow
+with id `f` that passes the pin's `_checkFlowId` for the pin flow hash the head hash induces
+(`pinFlowHash enc l1`). So the premise of `Properties.PinUnboundLegIsStranded` (no checked
+flow with the leg's id lists its bundle hash) fails, for that hash, for every leg a head run
+has committed. -/
 def Properties.CommittedLegIsInACheckedPinFlow : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtHead),
     RunAtHead h z0 hl cv enc l1 S genesisAll Y log →
       ∀ (c f b : UInt256), (Y c).mgr.legState f b ≠ .Unset →
-        ∃ F : Flow, FlowIdChecked (pinFlowHash enc l1) F ∧ F.flowId = f ∧ (⟨c, b⟩ : FlowLeg) ∈ F.legs
+        ∃ F : Flow, FlowIdChecked (pinFlowHash enc l1) F ∧ F.flowId = f
+          ∧ (⟨c, b⟩ : FlowLeg) ∈ F.legs
 
 /-! ## The declared source chain is the committing chain -/
 
@@ -199,9 +224,9 @@ def Properties.SameKeyAppendedOnTwoChainsIsLoggedClash : Prop :=
 PREIMAGES CLASH.** The code marks the presented flow's `Committed` legs in the manager that
 runs the call (`AtomicFlowManager.sol:235-243`). For every logged refund authorization on
 chain `x` that marked `b`: the flow declares `b` on `x`, or the leg was appended on `x` under a
-logged preimage with the same id that clashes with the presented one. So the pin's
-`Contracts.Refund.ReachLog`, which marks a leg on its declared chain, is the code's behaviour
-at head up to a logged clash. -/
+logged preimage with the same id that clashes with the presented one. So, up to a logged
+clash, the code marks what the pin's `Contracts.Refund.ReachLog` marks: a leg of the presented
+flow, in the manager of the chain the flow declares for it. -/
 def Properties.AuthorizeMarksDeclaredLegOrLoggedClash : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtHead),
@@ -211,13 +236,16 @@ def Properties.AuthorizeMarksDeclaredLegOrLoggedClash : Prop :=
           ∨ ∃ ap ∈ appendCalls log, ap.obligation enc = ⟨a.flow.flowId, a.marked, a.chain⟩
               ∧ PreimageClash enc a.flow.preimage ap.preimage
 
-/-- **A KEY OF CHAIN `c`'S TREE IS DECLARED ON `c` (HONEST INSERTION AT HEAD).** Let a logged
-call present a preimage that lists bundle `b` with chain `c'`, and let the commit value of
-`(its flow id, b)` be a nonzero key of chain `c`'s tree. Then `c' = c`, or that commit value
-clashes with a leg appended on `c`, or the presented preimage clashes with a logged `append`
-preimage on `c`. This is `AttackVectors.ProofPolarity.HonestInsertion`'s declared-chain side
-for chain `c` running the head code. It takes no premise about other chains and none about
-how `bundleHash` is computed. -/
+/-- **A KEY OF CHAIN `c`'S TREE IS DECLARED ON `c` (DECLARED INSERTION AT HEAD).** On every
+head run from genesis, let a logged call present a preimage that lists bundle `b` with chain
+`c'`, and let the commit value of `(its flow id, b)` be a nonzero key of chain `c`'s tree.
+Then `c' = c`, or that commit value clashes with a leg appended on `c`, or the presented
+preimage clashes with a logged `append` preimage on `c`. The abstract model
+`AttackVectors.ProofPolarityFaithful` states the corresponding property, `DeclaredInsertion`,
+over set-valued trees: its `UpgradeReach` takes `decl v = c` as given at each insertion, and
+its check-A redundancy results take `DeclaredInsertion` as a premise. Here the property is
+derived from the head `append` for chain `c`, up to those logged clashes. It takes no premise
+about other chains and none about how `bundleHash` is computed. -/
 def Properties.KeyIsDeclaredOnItsChainOrLoggedClash : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtHead),
@@ -326,9 +354,9 @@ def Properties.LoggedExecutionExcludesLoggedRefundOrBreakAtHead : Prop :=
 CALLS.** On every head run from genesis, take a logged execution `e`. For every chain `c` and
 bundle hash `b`, either the obligation `(e.flow.flowId, b)` on `c` is not past `Committed`, or
 a logged `authorizeRefund` that ran on `c` and marked `(e.flow.flowId, b)` carries one of: a
-break on `e`'s inclusion proof for its missing leg, a break on its own absence proof, or a
-clash between the two logged preimages. In particular no leg of the executed flow is refunded
-without such a witness. Unlike the pin's
+break on the inclusion proof `e` submitted for that call's missing leg, a break on that call's
+own absence proof, or a clash between the two logged preimages. In particular no obligation
+with the executed flow id is refunded without such a witness. Unlike the pin's
 `Contracts.AppendPath.Properties.SystemExecutedObligationNeverRefundedOrBreak`, the executed
 flow comes from the log, and `authorizeRefund` marks legs where the code marks them. -/
 def Properties.ExecutionFreezesItsFlowOrLoggedBreakAtHead : Prop :=
@@ -354,6 +382,43 @@ def Properties.RefundedLegWasAuthorizedOnItsChain : Prop :=
     RunAtHead h z0 hl cv enc l1 S genesisAll Y log →
       ∀ (c f b : UInt256), 2 ≤ rank ((Y c).mgr.legState f b) →
         ∃ r, CallAtHead.authorize r ∈ log ∧ r.chain = c ∧ r.flow.flowId = f ∧ r.marked = b
+
+/-! ## Bounded injectivity on the run's own preimages -/
+
+/-- **NO LOGGED CLASH IS BOUNDED INJECTIVITY ON THE LOGGED PREIMAGES.** A log has no
+`LoggedPreimageClash` iff the preimage hash is injective on the preimages its calls took
+(`Contracts.FlowCanonicalAtHead.PreimageHashInjOn`). -/
+def Properties.NoLoggedClashIffInjOn : Prop :=
+  ∀ (enc : PreimageHash) (log : List CallAtHead),
+    ¬ LoggedPreimageClash enc log ↔ PreimageHashInjOn enc (loggedPreimages log)
+
+/-- **UNDER BOUNDED INJECTIVITY, THE DECLARED SOURCE IS THE COMMITTING CHAIN.**
+`Properties.DeclaredSourceIsCommittingChainOrLoggedClash` with its clash disjunct discharged:
+if the preimage hash is injective on the run's own logged preimages, every logged call with a
+logged `append`'s flow id whose preimage lists that `append`'s bundle lists it with the
+committing chain. -/
+def Properties.DeclaredSourceIsCommittingChainOn : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
+    (l1 : UInt256) (S : System) (X Y : Chains) (log : List CallAtHead),
+    RunAtHead h z0 hl cv enc l1 S X Y log → PreimageHashInjOn enc (loggedPreimages log) →
+      ∀ a ∈ appendCalls log, ∀ k ∈ log, k.flowId enc = enc a.preimage →
+        ∀ c' : UInt256, k.preimage.Declares a.bundleHash c' → c' = a.chain
+
+/-- **UNDER BOUNDED INJECTIVITY, AN EXECUTION FINALIZES THE COMMITTED-UNDER FLOW OR CARRIES A
+PINNED BREAK.** `Properties.ExecutedImpliesCommittedFlowFinalizableOrLoggedClash` with its
+clash disjunct discharged: if the preimage hash is injective on the run's own logged
+preimages, then for every logged execution `e` and every logged `append` whose preimage hashes
+to `e`'s flow id, every leg of the flow that `append` committed under is finalizable, or `e`'s
+gate evidence carries a `PinnedGateBreak`. -/
+def Properties.ExecutedImpliesCommittedFlowFinalizableOn : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
+    (l1 : UInt256) (S : System), Wf S → ∀ (A : Access), DataAvailable h z0 hl S A →
+    ∀ (X Y : Chains) (log : List CallAtHead), RunAtHead h z0 hl cv enc l1 S X Y log →
+    PreimageHashInjOn enc (loggedPreimages log) →
+    ∀ (e : ExecCallAtHead), CallAtHead.execute e ∈ log →
+    ∀ a ∈ appendCalls log, enc a.preimage = e.flow.flowId →
+      FlowFinalizableBy h z0 hl cv S A (pinFlow (committedFlow enc a.preimage))
+        ∨ PinnedGateBreak h z0 hl cv S A (pinFlow e.flow) e.evidence
 
 /-! ## The pin countermodel, and the fix -/
 
@@ -398,21 +463,32 @@ def Properties.PinUnboundLegIsStrandedLogged : Prop :=
       ∀ leg ∈ a.flow.legs, leg.bundleHash ≠ o.bundleHash) →
     stateOf Ms o = .Committed → stateOf Ns o = .Committed
 
-/-- **THE PIN COUNTERMODEL'S PREMISES HOLD, NEXT TO A REFUNDED SIBLING.** For every node hash,
-padding constant and leaf hash: in the pin's `Contracts.Refund.ReachLog`, chain `1` appends
-leg `(0, 1)` of the one-leg flow `F0` (id `0`) and the leg `(0, 2)` under the same id, which
-`F0` does not list. A timeout of `F0` is verified and `(0, 1)` is marked `Revertable`. The flow
-hash is honest about `F0`, so `(0, 2)` is unbound, and it is still `Committed`. -/
+/-- **THE PIN COUNTERMODEL'S PREMISES HOLD ON A NON-EMPTY RUN, NEXT TO A REFUNDED SIBLING.**
+For every node hash, padding constant and leaf hash, in the pin's `Contracts.Refund.ReachLog`:
+
+1. from fresh managers, chain `1` appends leg `(0, 1)` of the one-leg flow `F0` (id `0`) and
+   the leg `(0, 2)` under the same id, which `F0` does not list; this reaches `Ms`, where
+   `o = (0, 2)` on chain `1` is `Committed`;
+2. from `Ms`, a run with one logged call verifies a timeout of `F0` and marks `(0, 1)`
+   `Revertable` on chain `1`, reaching `Ns`.
+
+The flow hash is honest about `F0`, so `o` is unbound: no checked flow with id `0` lists its
+bundle hash, and in particular no logged flow does. `o` is still `Committed` in `Ns`, while
+its sibling `(0, 1)` is refunded. So every premise of `Properties.PinUnboundLegIsStranded`
+and `Properties.PinUnboundLegIsStrandedLogged` holds, on the run from `Ms` to `Ns`. -/
 def Properties.PinUnboundLegWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
-    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (Ms : Managers) (alog : List AuthCall)
-      (o : Obligation),
-      ReachLog h z0 hl cv fh S emptyManagers Ms alog
+    ∃ (cv : CommitValue) (fh : FlowHash) (S : System) (Ms Ns : Managers)
+      (alog : List AuthCall) (o : Obligation),
+      ReachLog h z0 hl cv fh S emptyManagers Ms []
+        ∧ ReachLog h z0 hl cv fh S Ms Ns alog
         ∧ (∀ F : Flow, FlowIdChecked fh F → F.flowId = o.flowId →
             ∀ leg ∈ F.legs, leg.bundleHash ≠ o.bundleHash)
-        ∧ stateOf Ms o = .Committed
+        ∧ (∀ a ∈ alog, a.flow.flowId = o.flowId →
+            ∀ leg ∈ a.flow.legs, leg.bundleHash ≠ o.bundleHash)
+        ∧ stateOf Ms o = .Committed ∧ stateOf Ns o = .Committed
         ∧ (∃ a ∈ alog, a.flow.flowId = o.flowId ∧ a.leg.chain = o.chain)
-        ∧ Refunded Ms ⟨o.flowId, 1, o.chain⟩
+        ∧ Refunded Ns ⟨o.flowId, 1, o.chain⟩
 
 /-- **A HEAD `append` REJECTS A LEG ITS PREIMAGE DOES NOT DECLARE ON THE CALLING CHAIN.** If
 `P` does not list bundle `b` with source chain `c`, then no head `append` of `b` under `P`
@@ -468,9 +544,11 @@ For every leg `m` of that flow and every verified timeout of `m`, the run extend
 This is enabledness in the model. "Verified timeout" is `LegRefundableBy` against the fixed
 history `S`; the checks of `verifyTimeoutAbsence` the model omits (root authentication, the
 imported-root timestamp, `AtomicInteropProof.sol:89-100`) can still revert the Solidity call.
-What is proved: the manager's own checks (`_checkFlowId`, the settlement layer, the leg
-lookup) never block the refund of a committed leg through the flow it was committed under,
-which is what failed for the pin's unbound leg. -/
+What is proved: the manager's own checks at `3605e82` (`_checkFlowId`, the settlement layer,
+the leg lookup) never block the refund of a committed leg through the flow it was committed
+under, which is what failed for the pin's unbound leg. At `b17415d20` `authorizeRefund` has
+one more check, and the result needs one more premise there
+(`Properties.CommittedLegRefundableOnTimeoutAtV35`). -/
 def Properties.CommittedLegRefundableOnTimeout : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtHead),
@@ -485,7 +563,8 @@ def Properties.CommittedLegRefundableOnTimeout : Prop :=
 
 /-- **`CommittedLegRefundableOnTimeout`'S PREMISES HOLD TOGETHER.** For every node hash,
 padding constant and leaf hash there is a head run from genesis with a logged `append` whose
-leg is still `Committed`, and a leg of its committed-under flow with a verified timeout. -/
+leg is still `Committed`, and a leg of its committed-under flow, declared on another chain,
+with a verified timeout. -/
 def Properties.CommittedLegRefundableOnTimeoutWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∃ (cv : CommitValue) (enc : PreimageHash) (l1 : UInt256) (S : System) (Y : Chains)
@@ -493,7 +572,7 @@ def Properties.CommittedLegRefundableOnTimeoutWitness : Prop :=
       RunAtHead h z0 hl cv enc l1 S genesisAll Y log
         ∧ a ∈ appendCalls log
         ∧ (Y a.chain).mgr.legState (enc a.preimage) a.bundleHash = .Committed
-        ∧ m ∈ pinLegs a.preimage
+        ∧ m ∈ pinLegs a.preimage ∧ m.chain ≠ a.chain
         ∧ LegRefundableBy h z0 hl cv S (pinFlow (committedFlow enc a.preimage)) m N q
 
 /-! ## Witnesses -/
@@ -507,12 +586,13 @@ availability and a head run from genesis whose log holds:
 * an execution `e` of the two-leg flow;
 * a refund authorization `r` of the one-leg flow, on chain `2`.
 
-On it: the logged preimages have no clash; the leg `a` committed on chain `0` is still
-`Committed`, and its commit value is a nonzero key of chain `0`'s tree; that leg's flow has
-the executed id and is all finalizable, with no pinned break; for the `append` with the other
-id, all three disjuncts of `Properties.ExecutedImpliesCommittedFlowFinalizableOrLoggedClash`
-fail, so its same-id premise is load-bearing; `r` marked a leg its flow declares on chain
-`2`; and that leg is past `Committed`. -/
+On it: the logged preimages have no clash, so the preimage hash is injective on them (the
+premise of the `…On` forms); the leg `a` committed on chain `0` is still `Committed`, and its
+commit value is a nonzero key of chain `0`'s tree; that leg's flow has the executed id and is
+all finalizable, with no pinned break; for the `append` with the other id, all three disjuncts
+of `Properties.ExecutedImpliesCommittedFlowFinalizableOrLoggedClash` fail, so its same-id
+premise is load-bearing; `r` marked a leg its flow declares on chain `2`; and that leg is past
+`Committed`. -/
 def Properties.FlowBindingAtHeadWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∃ (cv : CommitValue) (enc : PreimageHash) (l1 : UInt256) (S : System) (A : Access)
@@ -521,7 +601,7 @@ def Properties.FlowBindingAtHeadWitness : Prop :=
       Wf S ∧ DataAvailable h z0 hl S A ∧ RunAtHead h z0 hl cv enc l1 S genesisAll Y log
         ∧ CallAtHead.execute e ∈ log ∧ CallAtHead.authorize r ∈ log
         ∧ a ∈ appendCalls log ∧ a' ∈ appendCalls log ∧ (appendCalls log).length = 3
-        ∧ ¬ LoggedPreimageClash enc log
+        ∧ ¬ LoggedPreimageClash enc log ∧ PreimageHashInjOn enc (loggedPreimages log)
         ∧ (Y a.chain).mgr.legState (enc a.preimage) a.bundleHash = .Committed
         ∧ cv (enc a.preimage) a.bundleHash ≠ 0
         ∧ cv (enc a.preimage) a.bundleHash ∈ keys (toAbs (Y a.chain).tree)
@@ -584,5 +664,88 @@ def Properties.SameKeyOnTwoChainsWitness : Prop :=
         ∧ enc a.preimage = enc a'.preimage ∧ a.bundleHash = a'.bundleHash ∧ a.chain ≠ a'.chain
         ∧ a'.preimage.Declares a.bundleHash a'.chain
         ∧ PreimageClash enc a'.preimage a.preimage
+
+/-! ## The `draft/v0.35.0` head (`b17415d20`) -/
+
+/-- **A `b17415d20` RUN IS A `3605e82` RUN.** Dropping the executing chain and the readings of
+`isPeerAllowed` from its log (`CallAtV35.toHead`) turns every `RunAtV35` run into a `RunAtHead`
+run between the same states. So every property above that holds for all `RunAtHead` runs (from
+any states, or from `genesisAll`) holds for the projected log of every `RunAtV35` run. -/
+def Properties.RunAtV35ProjectsToRunAtHead : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
+    (l1 : UInt256) (S : System) (X Y : Chains) (log : List CallAtV35),
+    RunAtV35 h z0 hl cv enc l1 S X Y log →
+      RunAtHead h z0 hl cv enc l1 S X Y (log.map CallAtV35.toHead)
+
+/-- **EVERY LOGGED `b17415d20` CALL PASSED `_checkLegSourceAllowed`.** Every logged execution
+passed it on its own chain for every leg source of its flow, and every logged refund
+authorization on its own chain for its missing leg's declared chain. -/
+def Properties.LoggedCallsPassedLegSourceCheckAtV35 : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
+    (l1 : UInt256) (S : System) (X Y : Chains) (log : List CallAtV35),
+    RunAtV35 h z0 hl cv enc l1 S X Y log →
+      (∀ e, CallAtV35.execute e ∈ log →
+          ∀ src ∈ e.call.flow.preimage.legSourceChainIds, LegSourceAllowed e.dest e.allowed src)
+        ∧ (∀ a, CallAtV35.authorize a ∈ log →
+            LegSourceAllowed a.call.chain a.allowed a.call.missing.chain)
+
+/-- **AT `b17415d20` A COMMITTED LEG IS REFUNDABLE ONCE ITS OWN FLOW TIMES OUT, GIVEN THE NEW
+SOURCE CHECK.** `Properties.CommittedLegRefundableOnTimeout` for `RunAtV35`, with one more
+premise. On every `b17415d20` run from genesis, a leg `(f, b)` `Committed` on chain `c` has a
+logged `append` that committed it. For every leg `m` of that flow, every verified timeout of
+`m`, and every reading `allowed` of `c`'s `isPeerAllowed` under which `m`'s declared chain
+passes `_checkLegSourceAllowed` on `c` (it is `c`, or `allowed` holds for it), the run extends
+by the `authorizeRefund` on `c` that presents the committed-under flow with that reading, and
+that step marks `(f, b)` `Revertable`.
+
+The extra premise is the condition of `_checkLegSourceAllowed` (the "receive filter" of
+`protocol-docs/interop-gating.md` at that commit) for the missing leg. Enabledness in the
+model, with the caveats of `Properties.CommittedLegRefundableOnTimeout`: the omitted checks of
+`verifyTimeoutAbsence` can still revert the Solidity call. -/
+def Properties.CommittedLegRefundableOnTimeoutAtV35 : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
+    (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtV35),
+    RunAtV35 h z0 hl cv enc l1 S genesisAll Y log →
+      ∀ (c f b : UInt256), (Y c).mgr.legState f b = .Committed →
+        ∃ a, CallAtV35.append a ∈ log ∧ a.obligation enc = ⟨f, b, c⟩
+          ∧ ∀ (m : FlowLeg) (N : ℕ) (q : ImtProof) (allowed : UInt256 → Prop),
+              m ∈ pinLegs a.preimage →
+              LegRefundableBy h z0 hl cv S (pinFlow (committedFlow enc a.preimage)) m N q →
+              LegSourceAllowed c allowed m.chain →
+                RunAtV35 h z0 hl cv enc l1 S genesisAll
+                  (Y.update c ⟨(Y c).mgr.set f b .Revertable, (Y c).tree⟩)
+                  (.authorize ⟨⟨c, committedFlow enc a.preimage, b, m, N, q⟩, allowed⟩ :: log)
+
+/-- **`CommittedLegRefundableOnTimeoutAtV35`'S PREMISES HOLD, WITH THE TIMED-OUT LEG ON ANOTHER
+CHAIN.** For every node hash, padding constant and leaf hash there is a `b17415d20` run from
+genesis with a logged `append` whose leg is still `Committed`, a leg `m` of its committed-under
+flow declared on a different chain with a verified timeout, and a reading of `isPeerAllowed`
+under which `m`'s chain passes `_checkLegSourceAllowed` on the committing chain. -/
+def Properties.CommittedLegRefundableOnTimeoutAtV35Witness : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (enc : PreimageHash) (l1 : UInt256) (S : System) (Y : Chains)
+      (log : List CallAtV35) (a : AppendCall) (m : FlowLeg) (N : ℕ) (q : ImtProof)
+      (allowed : UInt256 → Prop),
+      RunAtV35 h z0 hl cv enc l1 S genesisAll Y log
+        ∧ CallAtV35.append a ∈ log
+        ∧ (Y a.chain).mgr.legState (enc a.preimage) a.bundleHash = .Committed
+        ∧ m ∈ pinLegs a.preimage ∧ m.chain ≠ a.chain
+        ∧ LegRefundableBy h z0 hl cv S (pinFlow (committedFlow enc a.preimage)) m N q
+        ∧ LegSourceAllowed a.chain allowed m.chain
+
+/-- **A `b17415d20` RUN THAT USES EVERY CALL.** For every node hash, padding constant and leaf
+hash there is a `RunAtV35` run from genesis that appends three legs, executes a flow on a
+destination chain that is none of the flow's leg sources (so each passes
+`_checkLegSourceAllowed` through `isPeerAllowed`), and authorizes a refund. So the premises of
+`Properties.RunAtV35ProjectsToRunAtHead` and `Properties.LoggedCallsPassedLegSourceCheckAtV35`
+hold on a run with every kind of logged call. -/
+def Properties.RunAtV35Witness : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    ∃ (cv : CommitValue) (enc : PreimageHash) (l1 : UInt256) (S : System) (Y : Chains)
+      (log : List CallAtV35) (e : ExecCallAtV35) (r : AuthCallAtV35),
+      RunAtV35 h z0 hl cv enc l1 S genesisAll Y log
+        ∧ CallAtV35.execute e ∈ log ∧ CallAtV35.authorize r ∈ log
+        ∧ (appendCalls (log.map CallAtV35.toHead)).length = 3
+        ∧ (∀ src ∈ e.call.flow.preimage.legSourceChainIds, src ≠ e.dest ∧ e.allowed src)
 
 end Contracts.FlowBindingAtHead
