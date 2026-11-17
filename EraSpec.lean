@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- The second-proof-system requirement of one chain, its two diamonds, interop enabling and
+-- settlement-layer migration (draft/v0.35.0 at b17415d2; see the folder README)
+import EraSpec.Contracts.SecondProofSystem.Proofs.MigrationV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

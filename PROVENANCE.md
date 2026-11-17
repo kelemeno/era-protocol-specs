@@ -186,6 +186,14 @@ supplying that correspondence.
   and `d9f678900e1bc8286412b78f56d4a9f443983c29` (branch `draft/v0.35.0`, label
   `head-v35-d9f6789`), with `e561b9cc2` (label `upgrade-e561b9cc2`), to record what
   changes at those commits. The model itself stays pinned at `c67894b9`.
+* `EraSpec/Contracts/SecondProofSystem/*/MigrationV35.lean` is pinned at era-contracts commit
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`). It was first written
+  at `d9f678900e1bc8286412b78f56d4a9f443983c29`; every Solidity file it cites is unchanged
+  between the two commits. Its main sources are the chain's `Admin`, `Migrator` and `Getters`
+  facets, `ZKChainBase`, `ZKChainStorage`, `DiamondInit`, `BaseZkSyncUpgrade`,
+  `ChainTypeManager`, `ChainAssetHandlerBase`, `L1ChainAssetHandler`, `L1MessageRoot`,
+  `MultiProofVerifier` and `common/Config.sol` under `l1-contracts/contracts/`, and
+  `protocol-docs/interop-gating.md` and `protocol-docs/chain-lifecycle.md`.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.
