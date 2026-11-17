@@ -8,7 +8,7 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 A leg whose engine meets `EngineReviewed` is three `ExecutorForward` transactions: a `forward`
 of the `_beforeSwaps` calls, the `e561b9cc2` infrastructure step, and a `forward` of the
 `_afterSwaps` calls (`reviewed_leg`). The hook calls are tame CTM calls, so for rows that do
-not name the CTM proxy a reviewed engine is tame (`reviewed_tame`). A `d9f6789` run of tame
+not name the CTM proxy a reviewed engine is tame (`reviewed_tame`). A `b17415d20` run of tame
 transactions with tame engines maps to a tame `ExecutorForward` run (`tame_run`), and
 `TameRunPreservesSysInv` and `TameRunKeepsChainsOnTheirRelease` transfer. Hook runs move no
 proxy (`hookRun_impl`), so the row library's `OnlyNamedEdgesAcrossCallAnyRows` and
@@ -68,10 +68,10 @@ lemma engineCore_rows {X : XConfig} {T : V35Transition} {x x' : XState}
 lemma infra_inv {X : V35Config} {s s' : V35State} {T : V35Transition}
     (h : V35Step X s (.infra T) s') :
     X.base.rc.hasCode T.addr ∧ T.domain = .ctm ∧ X.base.rc.hasCode T.engine ∧
-      T.inventory.length = X.inventoryLength .ctm ∧ X.code T.engine T s s' ∧
-      PostChecks X T s s' := by
+      s.holders.ctmAdmin ≠ X.proxyAdmin ∧ T.inventory.length = X.inventoryLength .ctm ∧
+      X.code T.engine T s s' ∧ PostChecks X T s s' := by
   cases h with
-  | infra h1 h2 h3 h4 h5 h6 => exact ⟨h1, h2, h3, h4, h5, h6⟩
+  | infra h1 h2 h3 h4 h5 h6 h7 => exact ⟨h1, h2, h3, h4, h5, h6, h7⟩
   | other hl _ => simp [V35Label.toX?] at hl
 
 lemma toX?_none {l : V35Label} (h : l.toX? = none) : ∃ T, l = .infra T := by
@@ -82,7 +82,7 @@ lemma toX?_none {l : V35Label} (h : l.toX? = none) : ∃ T, l = .infra T := by
 lemma other_inv {X : V35Config} {s s' : V35State} {l : V35Label} {x : XLabel}
     (hl : l.toX? = some x) (h : V35Step X s l s') : XStep X.base s.x x s'.x := by
   cases h with
-  | infra _ _ _ _ _ _ => simp [V35Label.toX?] at hl
+  | infra _ _ _ _ _ _ _ => simp [V35Label.toX?] at hl
   | other hl' hs =>
       rw [hl] at hl'
       cases hl'
@@ -111,7 +111,7 @@ lemma reviewed_leg {X : V35Config} {T : V35Transition} {s s' : V35State}
     (hr : EngineReviewed X T) (h : V35Step X s (.infra T) s') :
     ∃ pre post : List FCall, (∀ c ∈ pre, ReviewedHookCall c) ∧ (∀ c ∈ post, ReviewedHookCall c) ∧
       XRun X.base s.x [.forward pre, .infra T.toCurrent, .forward post] s'.x := by
-  obtain ⟨hcode, hd, _, _, hc, _⟩ := infra_inv h
+  obtain ⟨hcode, hd, _, _, _, hc, _⟩ := infra_inv h
   obtain ⟨x₁, x₂, ⟨pre, hpre, hr₁⟩, hcore, ⟨post, hpost, hr₂⟩⟩ := hr s s' hc
   obtain ⟨hx, _⟩ := engineCore_xstep hcore hcode hd
   exact ⟨pre, post, hpre, hpost,
@@ -142,7 +142,7 @@ lemma reviewed_tame {X : V35Config} {T : V35Transition} (hr : EngineReviewed X T
   · exact ht
   · exact fun c hc => reviewedHookCall_tame (hpost c hc)
 
-/-- One `d9f6789` transaction as tame `ExecutorForward` transactions. -/
+/-- One `b17415d20` transaction as tame `ExecutorForward` transactions. -/
 lemma tame_step {X : V35Config} {s s' : V35State} {l : V35Label} (h : V35Step X s l s')
     (ht : l.Tame X) (hr : ∀ T, l = .infra T → EngineIsTame X T) :
     ∃ ys : List XLabel, XRun X.base s.x ys s'.x ∧ ∀ y ∈ ys, y.Tame X.base := by
@@ -174,29 +174,29 @@ namespace Contracts.ChainTypeManager.ExecutorEngineAtV35
 
 theorem ExecutorChecksAfterAnyEngine : Properties.ExecutorChecksAfterAnyEngine := by
   intro X T s s' h
-  obtain ⟨hcode, hd, hcodeE, _, _, hp⟩ := infra_inv h
-  refine ⟨hcode, hd, hcodeE, hp.rows, hp.owner, hp.pendingOwner, ?_⟩
+  obtain ⟨hcode, hd, hcodeE, hadm, hlen, _, hp⟩ := infra_inv h
+  refine ⟨hcode, hd, hcodeE, hlen, hadm, hp.rows, hp.owner, hp.pendingOwner, ?_⟩
   by_cases heq : s'.holders = s.holders
   · exact Or.inl heq
   · exact Or.inr ⟨heq, hp.holders⟩
 
 theorem EveryForwardIsAnEngineLeg : Properties.EveryForwardIsAnEngineLeg := by
-  intro X T s calls x' hcodeEq hcode hd hcodeE hlen
+  intro X T s calls x' hcodeEq hcode hd hcodeE hadm hlen
   constructor
   · intro h
-    obtain ⟨_, _, _, _, hc, hp⟩ := infra_inv h
+    obtain ⟨_, _, _, _, _, hc, hp⟩ := infra_inv h
     rw [hcodeEq] at hc
     exact ⟨XStep.forward hc.1, hp.rows⟩
   · rintro ⟨hx, hrows⟩
     cases hx with
     | forward hr =>
-        refine V35Step.infra hcode hd hcodeE hlen ?_ ⟨rfl, rfl, rfl, hrows⟩
+        refine V35Step.infra hcode hd hcodeE hadm hlen ?_ ⟨rfl, rfl, rfl, hrows⟩
         rw [hcodeEq]
         exact ⟨hr, rfl, rfl⟩
 
 theorem DefaultEngineLegIsAnInfraStep : Properties.DefaultEngineLegIsAnInfraStep := by
   intro X T s s' hdef h
-  obtain ⟨hcode, hd, _, _, hc, _⟩ := infra_inv h
+  obtain ⟨hcode, hd, _, _, _, hc, _⟩ := infra_inv h
   rw [EngineIsDefault] at hdef
   rw [hdef] at hc
   obtain ⟨hcore, ho, hp⟩ := hc
@@ -204,9 +204,9 @@ theorem DefaultEngineLegIsAnInfraStep : Properties.DefaultEngineLegIsAnInfraStep
   exact ⟨hx, hown, ho, hp⟩
 
 theorem InfraStepIsADefaultEngineLeg : Properties.InfraStepIsADefaultEngineLeg := by
-  intro X T s x' hdef hx ho hcodeE hlen
+  intro X T s x' hdef hx ho hcodeE hadm hlen
   obtain ⟨hcore, hcode, hd⟩ := xstep_engineCore hx ho
-  refine V35Step.infra hcode hd hcodeE hlen ?_ ⟨rfl, rfl, rfl, engineCore_rows hcore⟩
+  refine V35Step.infra hcode hd hcodeE hadm hlen ?_ ⟨rfl, rfl, rfl, engineCore_rows hcore⟩
   rw [EngineIsDefault] at hdef
   rw [hdef]
   exact ⟨hcore, rfl, rfl⟩
@@ -255,7 +255,7 @@ theorem ReviewedLegsMoveProxiesOnlyAlongRows :
     Properties.ReviewedLegsMoveProxiesOnlyAlongRows := by
   intro X s s' l hf h hnf hrev p
   cases h with
-  | @infra s' T _ _ _ _ hc _ =>
+  | @infra s' T _ _ _ _ _ hc _ =>
       obtain ⟨x₁, x₂, h₁, hcore, h₂⟩ := hrev T rfl s s' hc
       have e₁ := hookRun_impl h₁
       have e₂ := hookRun_impl h₂
@@ -285,7 +285,7 @@ theorem ReviewedLegsMoveProxiesOnlyAlongRows :
 
 theorem ReviewedEngineRefusesStaleRows : Properties.ReviewedEngineRefusesStaleRows := by
   rintro X T s r hf hrev hd hr hsrc htgt ⟨s', h⟩
-  obtain ⟨_, _, _, _, hc, _⟩ := infra_inv h
+  obtain ⟨_, _, _, _, _, hc, _⟩ := infra_inv h
   obtain ⟨x₁, x₂, h₁, hcore, _⟩ := hrev s s' hc
   have e₁ := hookRun_impl h₁
   cases hcore with
@@ -312,21 +312,53 @@ lemma wCode72 : wCode 72 = subclassEngine wX [] wCutCalls := by
   unfold wCode; rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
 
 lemma wCode73 : wCode 73 = subclassEngine wX [] wSwapCalls := by
-  unfold wCode; rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
+  unfold wCode
+  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
 
 lemma wCode74 : wCode 74 = callingEngine wX [.upgradeProxy 5 11] := by
   unfold wCode
-  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
+  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_left rfl]
 
 lemma wCode75 : wCode 75 = subclassEngine wX [] [.upgradeProxy 7 42] := by
   unfold wCode
-  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
-    ite_eq_right (by decide), ite_eq_left rfl]
+  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
 
 lemma wCode76 : wCode 76 = subclassEngine wX [.upgradeProxy 5 10] [] := by
   unfold wCode
-  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
+
+lemma wCode77 : wCode 77 = wExecutorNominatingEngine := by
+  unfold wCode
+  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_left rfl]
+
+lemma wCode78 : wCode 78 = wCtmNominatingEngine := by
+  unfold wCode
+  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
     ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
+
+lemma wCode79 : wCode 79 = subclassEngine wX [] [.upgradeProxy 5 42] := by
+  unfold wCode
+  rw [ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide),
+    ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_right (by decide), ite_eq_left rfl]
+
+/-- A forward of one `ProxyAdmin.upgrade(p, v)` leaves proxy `p` at `v`. -/
+lemma frun_single_upgrade {X : XConfig} {x x' : XState} {p v : Address}
+    (h : FRun X x [.upgradeProxy p v] x') : x'.impl p = v := by
+  cases h with
+  | cons hs hr =>
+      cases hr
+      cases hs with
+      | upgradeProxy _ _ _ => simp [ProxyUpgradeCurrent.upd]
+
+/-- The CTM's admin `50` in the witness holders is not the `ProxyAdmin` `60`. -/
+lemma wHolders_adm : wHolders.ctmAdmin ≠ wV35.proxyAdmin := by decide
 
 lemma wTAB_rows (e : Address) :
     (wTAB e).rows = [ProxyUpgradeCurrent.rowA, ProxyUpgradeCurrent.rowB] := by
@@ -366,35 +398,43 @@ lemma wTA2_tame : V35Label.Tame wV35 (.infra wTA2) := by
   rw [wTA2_rows, List.mem_singleton] at hr
   subst hr; decide
 
+/-- Both rows of `wTAB e` are at their `implNew` in `wJ`. -/
+lemma wTAB_applied (e : Address) : ProxyUpgradeCurrent.RowsApplied wJ (wTAB e).rows := by
+  rw [wTAB_rows]; intro r hr
+  rcases ProxyUpgradeCurrent.mem_AB hr with rfl | rfl <;> decide
+
 /-! ### Building legs -/
 
 lemma default_leg {X : V35Config} {T : V35Transition} {s : V35State} {x' : XState}
     (hcodeEq : X.code T.engine = defaultEngine X.base) (hcode : X.base.rc.hasCode T.addr)
     (hd : T.domain = .ctm) (hcodeE : X.base.rc.hasCode T.engine)
+    (hadm : s.holders.ctmAdmin ≠ X.proxyAdmin)
     (hlen : T.inventory.length = X.inventoryLength .ctm) (h : EngineCore X.base T s.x x') :
     V35Step X s (.infra T) { s with x := x' } := by
-  refine V35Step.infra hcode hd hcodeE hlen ?_ ⟨rfl, rfl, rfl, engineCore_rows h⟩
+  refine V35Step.infra hcode hd hcodeE hadm hlen ?_ ⟨rfl, rfl, rfl, engineCore_rows h⟩
   rw [hcodeEq]
   exact ⟨h, rfl, rfl⟩
 
 lemma subclass_leg {X : V35Config} {T : V35Transition} {s : V35State} {pre post : List FCall}
     {x₁ x₂ x₃ : XState} (hcodeEq : X.code T.engine = subclassEngine X.base pre post)
     (hcode : X.base.rc.hasCode T.addr) (hd : T.domain = .ctm) (hcodeE : X.base.rc.hasCode T.engine)
+    (hadm : s.holders.ctmAdmin ≠ X.proxyAdmin)
     (hlen : T.inventory.length = X.inventoryLength .ctm)
     (h₁ : FRun X.base s.x pre x₁) (h₂ : EngineCore X.base T x₁ x₂) (h₃ : FRun X.base x₂ post x₃)
     (hrows : ProxyUpgradeCurrent.RowsApplied x₃.impl T.rows) :
     V35Step X s (.infra T) { s with x := x₃ } := by
-  refine V35Step.infra hcode hd hcodeE hlen ?_ ⟨rfl, rfl, rfl, hrows⟩
+  refine V35Step.infra hcode hd hcodeE hadm hlen ?_ ⟨rfl, rfl, rfl, hrows⟩
   rw [hcodeEq]
   exact ⟨⟨x₁, x₂, h₁, h₂, h₃⟩, rfl, rfl⟩
 
 lemma calling_leg {X : V35Config} {T : V35Transition} {s : V35State} {calls : List FCall}
     {x' : XState} (hcodeEq : X.code T.engine = callingEngine X.base calls)
     (hcode : X.base.rc.hasCode T.addr) (hd : T.domain = .ctm) (hcodeE : X.base.rc.hasCode T.engine)
+    (hadm : s.holders.ctmAdmin ≠ X.proxyAdmin)
     (hlen : T.inventory.length = X.inventoryLength .ctm) (h : FRun X.base s.x calls x')
     (hrows : ProxyUpgradeCurrent.RowsApplied x'.impl T.rows) :
     V35Step X s (.infra T) { s with x := x' } := by
-  refine V35Step.infra hcode hd hcodeE hlen ?_ ⟨rfl, rfl, rfl, hrows⟩
+  refine V35Step.infra hcode hd hcodeE hadm hlen ?_ ⟨rfl, rfl, rfl, hrows⟩
   rw [hcodeEq]
   exact ⟨h, rfl, rfl⟩
 
@@ -459,6 +499,14 @@ lemma wApplyA_back (a e : Address) :
   intro r hr
   rw [List.mem_singleton.mp hr]; decide
 
+/-- The executor-model state after the default engine's core on `wTAB e` from the fresh state:
+the CTM untouched, proxies `5` and `6` upgraded. -/
+abbrev wXJ : XState := ⟨{ wX0.sys with ctm := wX0.sys.ctm }, wJ⟩
+
+/-- The default engine's core on `wTAB e` from the fresh state. -/
+lemma wCoreAB (e : Address) : EngineCore wX (wTAB e) wX0 wXJ :=
+  EngineCore.mk rfl (wApplyAB e) (fun _ => rfl)
+
 end Contracts.ChainTypeManager.ExecutorEngineAtV35
 
 namespace Contracts.ChainTypeManager.ExecutorEngineAtV35
@@ -480,9 +528,7 @@ lemma frun_replace_slot {X : XConfig} {x x' : XState} {e r : Address}
 `71` reverts: there is no committed transition `300` to replace. -/
 lemma hook_not_default : ¬ EngineIsDefault wV35 (wTAB 71) := by
   intro h
-  have hd : defaultEngine wX (wTAB 71) wV0
-      { wV0 with x := ⟨{ wX0.sys with ctm := wX0.sys.ctm }, wJ⟩ } :=
-    ⟨EngineCore.mk rfl (wApplyAB 71) (fun _ => rfl), rfl, rfl⟩
+  have hd : defaultEngine wX (wTAB 71) wV0 { wV0 with x := wXJ } := ⟨wCoreAB 71, rfl, rfl⟩
   have h' : wCode 71 = defaultEngine wX := h
   rw [← h', wCode71] at hd
   obtain ⟨⟨x₁, x₂, h₁, h₂, h₃⟩, _, _⟩ := hd
@@ -505,7 +551,7 @@ lemma subclass_tame {X : V35Config} {T : V35Transition} {pre post : List FCall}
     (hpre : ∀ c ∈ pre, c.Tame) (hpost : ∀ c ∈ post, c.Tame) (ht : V35Label.Tame X (.infra T)) :
     EngineIsTame X T := by
   intro s s' h
-  obtain ⟨hcode, hd, _, _, hc, _⟩ := infra_inv h
+  obtain ⟨hcode, hd, _, _, _, hc, _⟩ := infra_inv h
   rw [hcodeEq] at hc
   obtain ⟨⟨x₁, x₂, h₁, h₂, h₃⟩, _, _⟩ := hc
   obtain ⟨hx, _⟩ := engineCore_xstep h₂ hcode hd
@@ -522,7 +568,7 @@ lemma calling_tame {X : V35Config} {T : V35Transition} {calls : List FCall}
     (hcodeEq : X.code T.engine = callingEngine X.base calls) (hcs : ∀ c ∈ calls, c.Tame) :
     EngineIsTame X T := by
   intro s s' h
-  obtain ⟨_, _, _, _, hc, _⟩ := infra_inv h
+  obtain ⟨_, _, _, _, _, hc, _⟩ := infra_inv h
   rw [hcodeEq] at hc
   exact ⟨[.forward calls], XRun.cons (XStep.forward hc.1) XRun.nil, fun y hy => by
     rw [List.mem_singleton.mp hy]; exact hcs⟩
@@ -533,7 +579,7 @@ theorem CuttingEngineBreaksTheHeadline : Properties.CuttingEngineBreaksTheHeadli
   have hrun := V35Run.cons (X := wV35) (s := wV0) (l := .env (.genesis 0))
     (V35Step.other rfl (XStep.env trivial
       (Step.genesis (id := 0) rfl (addAll_empty_eq xNodup100))))
-    (V35Run.cons (subclass_leg (T := wTAB 72) wCode72 trivial rfl trivial rfl FRun.nil
+    (V35Run.cons (subclass_leg (T := wTAB 72) wCode72 trivial rfl trivial wHolders_adm rfl FRun.nil
         (EngineCore.mk rfl (wApplyAB 72) (fun _ => rfl))
         (FRun.cons (FStep.sys (Step.arbitraryCut (id := 0) 1 bgExtra rfl)) FRun.nil)
         (by
@@ -582,7 +628,7 @@ theorem CtmSwappingEngineBreaksSysInv : Properties.CtmSwappingEngineBreaksSysInv
     refine ⟨_, _, hrun,
       (TameEngineRunPreservesSysInv wV35 wV0 _ _ ProxyUpgradeCurrent.wConfig_frames wX0_inv hrun
         htame3 (fun T hT => by simp at hT)).1,
-      subclass_leg (T := wTAB 73) wCode73 trivial rfl trivial rfl FRun.nil
+      subclass_leg (T := wTAB 73) wCode73 trivial rfl trivial wHolders_adm rfl FRun.nil
         (EngineCore.mk rfl (wApplyAB 73) (fun _ => rfl))
         (FRun.cons (FStep.swapCtm (x := 42) (c' := initState wWorld 100) rfl trivial) FRun.nil)
         (by
@@ -618,8 +664,8 @@ theorem ProxyMovingEngineMovesAnUnnamedProxy :
   have hex : ∃ s', V35Step wV35 wV0 (.infra (wTAB 75)) s' ∧ wV0.x.impl 7 = 10 ∧
       s'.x.impl 7 = 42 ∧ s'.owner = wV0.owner ∧ s'.pendingOwner = wV0.pendingOwner ∧
       s'.holders = wV0.holders ∧ ¬ V35MovesOnlyAlongRows wV0 s' (.infra (wTAB 75)) := by
-    refine ⟨_, subclass_leg (X := wV35) (T := wTAB 75) (s := wV0) wCode75 trivial rfl trivial rfl
-      FRun.nil (EngineCore.mk rfl (wApplyAB 75) (fun _ => rfl))
+    refine ⟨_, subclass_leg (X := wV35) (T := wTAB 75) (s := wV0) wCode75 trivial rfl trivial
+      wHolders_adm rfl FRun.nil (EngineCore.mk rfl (wApplyAB 75) (fun _ => rfl))
       (FRun.cons (FStep.upgradeProxy (p := 7) (x := 42) rfl trivial (by decide)) FRun.nil)
       (by
         rw [wTAB_rows]; intro r hr
@@ -649,9 +695,9 @@ lemma wStaleRun_run : V35Run wV35 wV0 wStaleRun
     { { wV0 with x := ⟨{ wX0.sys with ctm := wX0.sys.ctm }, wI1⟩ } with
       x := ⟨{ ({ wX0.sys with ctm := wX0.sys.ctm } : Sys) with
         ctm := ({ wX0.sys with ctm := wX0.sys.ctm } : Sys).ctm }, wI2⟩ } :=
-  V35Run.cons (default_leg (T := wTA 30 70) wCode70 trivial rfl trivial rfl
+  V35Run.cons (default_leg (T := wTA 30 70) wCode70 trivial rfl trivial wHolders_adm rfl
       (EngineCore.mk rfl (wApplyA 30 70) (fun _ => rfl)))
-    (V35Run.cons (default_leg (T := wTA2) wCode70 trivial rfl trivial rfl
+    (V35Run.cons (default_leg (T := wTA2) wCode70 trivial rfl trivial wHolders_adm rfl
       (EngineCore.mk rfl wApplyA2 (fun _ => rfl))) V35Run.nil)
 
 /-- After `wStaleRun` the default engine refuses the stale object `wTA 30 70`. -/
@@ -672,7 +718,7 @@ theorem DirectEngineSkipsTheSourceCheck : Properties.DirectEngineSkipsTheSourceC
         s'.owner = s.owner ∧ s'.pendingOwner = s.pendingOwner ∧ s'.holders = s.holders ∧
         ¬ V35MovesOnlyAlongRows s s' (.infra (wTA 34 74)) := by
     refine ⟨_, wStaleRun_run, by decide, by decide, by decide, wStale_refused _ (by decide), _,
-      calling_leg (T := wTA 34 74) wCode74 trivial rfl trivial rfl
+      calling_leg (T := wTA 34 74) wCode74 trivial rfl trivial wHolders_adm rfl
         (FRun.cons (FStep.upgradeProxy (p := 5) (x := 11) rfl trivial (by decide)) FRun.nil)
         (by rw [wTA_rows]; intro r hr; rw [List.mem_singleton.mp hr]; decide),
       by decide, rfl, rfl, rfl, ?_⟩
@@ -701,7 +747,7 @@ theorem BeforeHookDefeatsTheSourceCheck : Properties.BeforeHookDefeatsTheSourceC
         s'.owner = s.owner ∧ s'.pendingOwner = s.pendingOwner ∧ s'.holders = s.holders ∧
         ¬ V35MovesOnlyAlongRows s s' (.infra (wTA 36 76)) := by
     refine ⟨_, wStaleRun_run, by decide, _,
-      subclass_leg (T := wTA 36 76) wCode76 trivial rfl trivial rfl
+      subclass_leg (T := wTA 36 76) wCode76 trivial rfl trivial wHolders_adm rfl
         (FRun.cons (FStep.upgradeProxy (p := 5) (x := 10) rfl trivial (by decide)) FRun.nil)
         (EngineCore.mk rfl (wApplyA_back 36 76) (fun _ => rfl)) FRun.nil
         (by rw [wTA_rows]; intro r hr; rw [List.mem_singleton.mp hr]; decide),
@@ -767,28 +813,154 @@ theorem FixedEntrypointsNoLongerMoveOnlyAlongRows :
     ProxyMovingEngineMovesAnUnnamedProxy
   exact hnm (hall wV35 wV0 s' _ hf hleg (fun _ h => by cases h) (fun T hT => by cases hT; exact hgen))
 
-/-! ### The witness -/
+/-! ### Each check rejects some leg -/
 
-theorem ReviewedRunWitness : Properties.ReviewedRunWitness := by
+theorem CtmAdminPrecheckRefusesTheLeg : Properties.CtmAdminPrecheckRefusesTheLeg := by
+  refine ⟨wHolders_adm,
+    ⟨_, default_leg (T := wTAB 70) wCode70 trivial rfl trivial wHolders_adm rfl (wCoreAB 70)⟩,
+    ⟨{ wV0 with x := wXJ, holders := { wHolders with ctmAdmin := wV35.proxyAdmin } }, ?_⟩, ?_⟩
+  · show wCode 70 (wTAB 70) _ _
+    rw [wCode70]
+    exact ⟨wCoreAB 70, rfl, rfl⟩
+  · rintro ⟨s', h⟩
+    obtain ⟨_, _, _, hadm, _⟩ := infra_inv h
+    exact hadm rfl
+
+theorem OwnershipCheckRefusesAnEngineNomination :
+    Properties.OwnershipCheckRefusesAnEngineNomination := by
+  refine ⟨wTAB_genuine 77 (by decide), wTAB_tame 77,
+    ⟨{ wV0 with x := wXJ, pendingOwner := 66 }, ?_,
+      wTAB_applied 77, rfl, by decide⟩, ?_⟩
+  · show wCode 77 (wTAB 77) _ _
+    rw [wCode77]
+    exact ⟨wCoreAB 77, rfl, rfl, rfl⟩
+  · rintro ⟨s', h⟩
+    obtain ⟨_, _, _, _, _, hc, hp⟩ := infra_inv h
+    have hc' : wExecutorNominatingEngine (wTAB 77) wV0 s' := by
+      have e : wV35.code (wTAB 77).engine = wExecutorNominatingEngine := wCode77
+      rw [e] at hc; exact hc
+    have h66 : s'.pendingOwner = 66 := hc'.2.2.1
+    have h0 : s'.pendingOwner = wV0.pendingOwner := hp.pendingOwner
+    rw [h66] at h0
+    exact absurd h0 (by decide)
+
+theorem HoldersCheckRefusesAnEngineNomination :
+    Properties.HoldersCheckRefusesAnEngineNomination := by
+  refine ⟨wTAB_genuine 78 (by decide), wTAB_tame 78,
+    ⟨{ wV0 with x := wXJ, holders := { wHolders with ctmPendingOwner := 66 } }, ?_,
+      wTAB_applied 78, rfl, rfl, rfl, by decide⟩, ?_⟩
+  · show wCode 78 (wTAB 78) _ _
+    rw [wCode78]
+    exact ⟨wCoreAB 78, rfl, rfl, rfl⟩
+  · rintro ⟨s', h⟩
+    obtain ⟨_, _, _, _, _, hc, hp⟩ := infra_inv h
+    have hc' : wCtmNominatingEngine (wTAB 78) wV0 s' := by
+      have e : wV35.code (wTAB 78).engine = wCtmNominatingEngine := wCode78
+      rw [e] at hc; exact hc
+    have hh : s'.holders = { wHolders with ctmPendingOwner := 66 } := hc'.2.2.2
+    have h0 : wHoldersHash s'.holders = wHoldersHash wHolders := hp.holders
+    rw [hh] at h0
+    exact absurd h0 (by decide)
+
+theorem RowsCheckRefusesAHookThatMovesARowProxy :
+    Properties.RowsCheckRefusesAHookThatMovesARowProxy := by
+  have hf : FRun wX wXJ [.upgradeProxy 5 42]
+      { wXJ with impl := ProxyUpgradeCurrent.upd wXJ.impl 5 42 } :=
+    FRun.cons (FStep.upgradeProxy (p := 5) (x := 42) rfl trivial (by decide)) FRun.nil
+  have hmemA : ProxyUpgradeCurrent.rowA ∈ (wTAB 79).rows := by rw [wTAB_rows]; simp
+  refine ⟨wTAB_genuine 79 (by decide), wTAB_tame 79,
+    ⟨{ wV0 with x := { wXJ with impl := ProxyUpgradeCurrent.upd wXJ.impl 5 42 } }, ?_, rfl, rfl,
+      rfl, by decide, fun hra => absurd (hra _ hmemA) (by decide)⟩, ?_⟩
+  · show wCode 79 (wTAB 79) _ _
+    rw [wCode79]
+    exact ⟨⟨wX0, wXJ, FRun.nil, wCoreAB 79, hf⟩, rfl, rfl⟩
+  · rintro ⟨s', h⟩
+    obtain ⟨_, _, _, _, _, hc, hp⟩ := infra_inv h
+    have hc' : subclassEngine wX [] [.upgradeProxy 5 42] (wTAB 79) wV0 s' := by
+      have e : wV35.code (wTAB 79).engine = subclassEngine wX [] [.upgradeProxy 5 42] := wCode79
+      rw [e] at hc; exact hc
+    obtain ⟨⟨_, _, _, _, h₃⟩, _, _⟩ := hc'
+    have h42 : s'.x.impl 5 = 42 := frun_single_upgrade h₃
+    have h11 : s'.x.impl 5 = 11 := hp.rows _ hmemA
+    rw [h42] at h11
+    exact absurd h11 (by decide)
+
+theorem HoldersCollisionCaseIsReachable : Properties.HoldersCollisionCaseIsReachable := by
+  have hcode : wV35Blind.code (wTAB 78).engine = wCtmNominatingEngine := wCode78
+  refine ⟨{ wV0 with x := wXJ, holders := { wHolders with ctmPendingOwner := 66 } },
+    V35Step.infra trivial rfl trivial wHolders_adm rfl ?_ ⟨rfl, rfl, rfl, wTAB_applied 78⟩,
+    rfl, by decide, rfl⟩
+  rw [hcode]
+  exact ⟨wCoreAB 78, rfl, rfl, rfl⟩
+
+/-! ### The witnesses -/
+
+/-- The run `wDefaultRun`, with the commit's checks discharged. -/
+lemma wDefaultRun_run : ∃ s', V35Run wV35 wV0 wDefaultRun s' ∧ s'.x.impl 5 = 11 ∧
+    s'.x.impl 6 = 12 ∧ s'.x.sys.ctm.ut 1 = 300 ∧ s'.x.sys.ctm.pv = 2 ∧
+    s'.x.sys.ctm.relAt 2 = 200 ∧
+    (∃ c, s'.x.sys.chains 0 = some c ∧ c.pv = 2 ∧ c.routing = rowsRouting (wRows 200)) ∧
+    s'.owner = wV0.owner ∧ s'.pendingOwner = wV0.pendingOwner ∧ s'.holders = wV0.holders := by
   have hc : CStep wWorld (initState wWorld 100) (.commit 300) _ :=
     CStep.commit (t := 300) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
   obtain ⟨p1, p2⟩ := ExecutorPostcheckPasses _ _ _ _ hc
   have hrun := V35Run.cons (X := wV35) (s := wV0) (l := .infra (wTAB 70))
-    (default_leg wCode70 trivial rfl trivial rfl (EngineCore.mk rfl (wApplyAB 70) (fun _ => rfl)))
+    (default_leg wCode70 trivial rfl trivial wHolders_adm rfl (wCoreAB 70))
     (V35Run.cons (V35Step.other (l := .env (.genesis 0)) rfl (XStep.env trivial
         (Step.genesis (id := 0) rfl (addAll_empty_eq xNodup100))))
     (V35Run.cons (V35Step.other (l := .commit 300) rfl (XStep.commit (Step.ctm hc) p1 p2))
     (V35Run.cons (V35Step.other (l := .upgradeChain 0) rfl (XStep.upgradeChain
         (Step.transition (id := 0) rfl (by decide) rfl
           (applyDerived_rows_eq xNodup100 xNodup200) (by decide))))
-    (V35Run.cons (subclass_leg (T := wTAB 71) wCode71 trivial rfl trivial rfl FRun.nil
+    V35Run.nil)))
+  exact ⟨_, hrun, by decide, by decide, by decide, by decide, by decide,
+    ⟨_, rfl, by decide, rfl⟩, rfl, rfl, rfl⟩
+
+theorem DefaultEngineRunWitness : Properties.DefaultEngineRunWitness := by
+  obtain ⟨s', hrun, h5, h6, _, _, hrel, hc, _⟩ := wDefaultRun_run
+  refine ⟨ProxyUpgradeCurrent.wConfig_frames, wX0_inv, ?_, ?_, s', hrun, h5, h6, hrel, hc⟩
+  · intro l hl
+    simp only [wDefaultRun, List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl | rfl | rfl
+    · exact wTAB_tame 70
+    · trivial
+    · trivial
+    · trivial
+  · intro T hT
+    simp only [wDefaultRun, List.mem_cons, List.not_mem_nil, or_false, reduceCtorEq,
+      V35Label.infra.injEq] at hT
+    subst hT
+    exact wCode70
+
+theorem EveryForwardIsAnEngineLegWitness : Properties.EveryForwardIsAnEngineLegWitness := by
+  have hf : FRun wX wX0 [.upgradeProxy 5 11]
+      { wX0 with impl := ProxyUpgradeCurrent.upd wX0.impl 5 11 } :=
+    FRun.cons (FStep.upgradeProxy (p := 5) (x := 11) rfl trivial (by decide)) FRun.nil
+  have hrows : ProxyUpgradeCurrent.RowsApplied
+      ({ wX0 with impl := ProxyUpgradeCurrent.upd wX0.impl 5 11 } : XState).impl
+      (wTA 34 74).rows := by
+    rw [wTA_rows]; intro r hr; rw [List.mem_singleton.mp hr]; decide
+  exact ⟨wCode74, trivial, rfl, trivial, wHolders_adm, rfl, _, XStep.forward hf, by decide, hrows,
+    calling_leg wCode74 trivial rfl trivial wHolders_adm rfl hf hrows⟩
+
+theorem ReviewedRunWitness : Properties.ReviewedRunWitness := by
+  have hc : CStep wWorld (initState wWorld 100) (.commit 300) _ :=
+    CStep.commit (t := 300) (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+  obtain ⟨p1, p2⟩ := ExecutorPostcheckPasses _ _ _ _ hc
+  have hrun := V35Run.cons (X := wV35) (s := wV0) (l := .infra (wTAB 70))
+    (default_leg wCode70 trivial rfl trivial wHolders_adm rfl (wCoreAB 70))
+    (V35Run.cons (V35Step.other (l := .env (.genesis 0)) rfl (XStep.env trivial
+        (Step.genesis (id := 0) rfl (addAll_empty_eq xNodup100))))
+    (V35Run.cons (V35Step.other (l := .commit 300) rfl (XStep.commit (Step.ctm hc) p1 p2))
+    (V35Run.cons (V35Step.other (l := .upgradeChain 0) rfl (XStep.upgradeChain
+        (Step.transition (id := 0) rfl (by decide) rfl
+          (applyDerived_rows_eq xNodup100 xNodup200) (by decide))))
+    (V35Run.cons (subclass_leg (T := wTAB 71) wCode71 trivial rfl trivial wHolders_adm rfl FRun.nil
         (EngineCore.mk rfl (wApplyAB_again 71) (fun _ => rfl))
         (FRun.cons (FStep.sys (Step.ctm (CStep.replace (e := 300) (r := 400)
                 (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
                 (by decide) (by decide)))) FRun.nil)
-        (by
-          rw [wTAB_rows]; intro r hr
-          rcases ProxyUpgradeCurrent.mem_AB hr with rfl | rfl <;> decide))
+        (wTAB_applied 71))
     V35Run.nil))))
   have hhook : ∀ c ∈ wHookCalls, ReviewedHookCall c := by
     intro c hc
@@ -798,13 +970,14 @@ theorem ReviewedRunWitness : Properties.ReviewedRunWitness := by
   have hrev70 : EngineReviewed wV35 (wTAB 70) := DefaultEngineIsReviewed _ _ wCode70
   have hrev71 : EngineReviewed wV35 (wTAB 71) :=
     subclass_reviewed wCode71 (fun _ h => absurd h List.not_mem_nil) hhook
-  refine ⟨ProxyUpgradeCurrent.wConfig_frames, wX0_inv, rfl, wCode70, hrev70, hrev71,
+  refine ⟨ProxyUpgradeCurrent.wConfig_frames, wX0_inv, rfl, wHolders_adm, wCode70, hrev70, hrev71,
     hook_not_default, reviewed_tame hrev70 (wTAB_tame 70), reviewed_tame hrev71 (wTAB_tame 71),
-    wTAB_genuine 70 (by decide), wTAB_genuine 71 (by decide), trivial, trivial,
+    wTAB_genuine 70 (by decide), wTAB_genuine 71 (by decide), trivial, trivial, trivial, trivial,
     ⟨_, XStep.infra ⟨trivial, rfl, wApplyAB 70⟩ (fun _ => rfl)⟩, ?_, _, hrun,
-    by decide, by decide, by decide, by decide, ⟨_, rfl, by decide, rfl⟩, rfl, rfl, rfl⟩
+    by decide, by decide, by decide, by decide, by decide, ⟨_, rfl, by decide, rfl⟩, rfl, rfl, rfl⟩
   intro l hl
-  simp only [wReviewedRun, List.mem_cons, List.not_mem_nil, or_false] at hl
+  simp only [wReviewedRun, wDefaultRun, List.cons_append, List.nil_append, List.mem_cons,
+    List.not_mem_nil, or_false] at hl
   rcases hl with rfl | rfl | rfl | rfl | rfl
   · exact wTAB_tame 70
   · trivial

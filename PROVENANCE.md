@@ -121,11 +121,13 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
     that commit unchanged.
   - `RegistryBootstrapMigration` `Forward`, citing the OpenZeppelin v4.9 submodules
     that commit pins (`2d081f2`, `dc44c9f`).
-* At `draft/v0.35.0` commit `d9f6789` (2026-11-06; contains #2654, `95b5c469d`):
+* At `draft/v0.35.0` commit `b17415d20` (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`,
+  2026-11-16; contains #2654, `95b5c469d`, and #2669, `9775be946`):
   - `ChainTypeManager` `ExecutorEngineAtV35`: `applyInfrastructureUpgrade` through
-    `ProxyUpgradeExecutorBase` and `DefaultProxyUpgradeEngine`. It reuses the
-    `e561b9cc2` models `ExecutorForward` and `RowsCurrent`; of those, only the function
-    bodies its header names were re-read at `d9f6789`.
+    `ProxyUpgradeExecutorBase` and `DefaultProxyUpgradeEngine`. First written at `d9f6789`
+    (2026-11-06) and re-read at `b17415d20`; its Specs header lists what changed between the
+    two. It reuses the `e561b9cc2` models `ExecutorForward` and `RowsCurrent`; of those, only
+    the function bodies its header names were re-read at `b17415d20`.
 
 Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
 to the maintainer of this repo, not yet confirmed upstream.

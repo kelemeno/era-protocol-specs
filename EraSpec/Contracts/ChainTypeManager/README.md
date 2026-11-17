@@ -16,10 +16,13 @@ commit (`RowsCurrent`, and `RowsUnvalidated` for rows no `validateRows` has chec
 `RowsUnvalidated`.
 
 One topic is at a different commit: `ExecutorEngineAtV35` models
-`applyInfrastructureUpgrade` at branch `draft/v0.35.0`, commit **`d9f6789`** (2026-11-06),
+`applyInfrastructureUpgrade` at branch `draft/v0.35.0`, commit **`b17415d20`** (2026-11-16),
 where #2654 (`95b5c469d`) replaced the executor's own `applyTransition` by a delegatecall
-into the engine the transition names. Every other entry point it uses is `ExecutorForward`'s,
-whose bodies are unchanged at `d9f6789`; nothing else in this folder has been re-read there.
+into the engine the transition names. It was first written at `d9f6789` (2026-11-06) and
+re-read at `b17415d20`; its Specs header lists what changed in between. Every other entry
+point it uses is `ExecutorForward`'s; their bodies at `b17415d20` do what `ExecutorForward`
+models (`forward` gained a code check that never rejects a modelled call). Nothing else in
+this folder has been re-read there.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those
@@ -32,7 +35,7 @@ exact named propositions, plus auxiliary lemmas.
 | ChainMigration | [Specs/ChainMigration.lean](Specs/ChainMigration.lean) | [Properties/ChainMigration.lean](Properties/ChainMigration.lean) | [Proofs/ChainMigration.lean](Proofs/ChainMigration.lean) |
 | ChainLocal | [Specs/ChainLocal.lean](Specs/ChainLocal.lean) | [Properties/ChainLocal.lean](Properties/ChainLocal.lean) | [Proofs/ChainLocal.lean](Proofs/ChainLocal.lean) |
 | ExecutorForward | [Specs/ExecutorForward.lean](Specs/ExecutorForward.lean) | [Properties/ExecutorForward.lean](Properties/ExecutorForward.lean) | [Proofs/ExecutorForward.lean](Proofs/ExecutorForward.lean) |
-| ExecutorEngineAtV35 (`d9f6789`) | [Specs/ExecutorEngineAtV35.lean](Specs/ExecutorEngineAtV35.lean) | [Properties/ExecutorEngineAtV35.lean](Properties/ExecutorEngineAtV35.lean) | [Proofs/ExecutorEngineAtV35.lean](Proofs/ExecutorEngineAtV35.lean) |
+| ExecutorEngineAtV35 (`b17415d20`) | [Specs/ExecutorEngineAtV35.lean](Specs/ExecutorEngineAtV35.lean) | [Properties/ExecutorEngineAtV35.lean](Properties/ExecutorEngineAtV35.lean) | [Proofs/ExecutorEngineAtV35.lean](Proofs/ExecutorEngineAtV35.lean) |
 | ExecutorRowsUnvalidated | (uses [Specs/ExecutorForward.lean](Specs/ExecutorForward.lean)) | [Properties/ExecutorRowsUnvalidated.lean](Properties/ExecutorRowsUnvalidated.lean) | [Proofs/ExecutorRowsUnvalidated.lean](Proofs/ExecutorRowsUnvalidated.lean) |
 | ExecutorUpgradeChain | [Specs/ExecutorUpgradeChain.lean](Specs/ExecutorUpgradeChain.lean) | [Properties/ExecutorUpgradeChain.lean](Properties/ExecutorUpgradeChain.lean) | [Proofs/ExecutorUpgradeChain.lean](Proofs/ExecutorUpgradeChain.lean) |
 | ChainLocalExecutor | [Specs/ChainLocalExecutor.lean](Specs/ChainLocalExecutor.lean) | [Properties/ChainLocalExecutor.lean](Properties/ChainLocalExecutor.lean) | [Proofs/ChainLocalExecutor.lean](Proofs/ChainLocalExecutor.lean) |
@@ -61,7 +64,7 @@ The topics after `ChainMigration` extend the first four:
 - one chain at a time, and the break-glass repair: `ChainLocal`, `ChainLocalExecutor`;
 - the executor's entry points: `ExecutorRowsUnvalidated`, `ExecutorUpgradeChain`, and
   `UpgradeTiming` (callers and block time);
-- the executor's infrastructure leg at `d9f6789`: `ExecutorEngineAtV35`;
+- the executor's infrastructure leg at `b17415d20`: `ExecutorEngineAtV35`;
 - liveness: `Enabledness`, `DuplicateSelectorCheck`;
 - the routing guard by its code: `DiamondStorage`, `LiveRouting`, `DuplicateSelectorScan`;
 - chain creation by its code: `GenesisWriters`.
@@ -186,27 +189,34 @@ including `UpgradeExecutorBase.forward`, `governance/UpgradeExecutorBase.sol:32-
 - `ExecutorWitness` is a tame run that uses every entry point, including a `forward` that
   replaces a committed transition and upgrades a proxy.
 
-**ExecutorEngineAtV35** (`applyInfrastructureUpgrade` at `draft/v0.35.0`, `d9f6789`:
-`CTMUpgradeExecutor.sol:64-72` and `ProxyUpgradeExecutorBase.sol:48-98`, which delegatecall
+**ExecutorEngineAtV35** (`applyInfrastructureUpgrade` at `draft/v0.35.0`, `b17415d20`:
+`CTMUpgradeExecutor.sol:64-72` and `ProxyUpgradeExecutorBase.sol:51-104`, which delegatecall
 `executeUpgrade` on the engine the transition's manifest names; over `ExecutorForward`, whose
 other steps it reuses unchanged):
 
-- **What the executor checks, whatever the engine.** After a successful leg every row's proxy
-  is at its `implNew`, the executor's `owner` and `pendingOwner` are unchanged, and the domain
-  holders are unchanged or the logged pair (before, after) is a collision of the hash the
-  executor compares (`ExecutorChecksAfterAnyEngine`; the hash is an arbitrary function, no
-  keccak property is assumed). Nothing else: an engine that only makes the calls `calls`
-  succeeds exactly when `forward(calls)` does and the rows end applied
-  (`EveryForwardIsAnEngineLeg`).
+- **What the executor checks, whatever the engine.** Before the leg, that the CTM's `admin()` is
+  not the `ProxyAdmin`; after it, every row's proxy at its `implNew`, the executor's `owner` and
+  `pendingOwner` unchanged, and the domain holders unchanged or the logged pair (before, after)
+  a collision of the hash the executor compares (`ExecutorChecksAfterAnyEngine`; the hash is an
+  arbitrary function, no keccak property is assumed). The pre-check and each of the three
+  post-checks reject some witness leg whose engine code succeeds
+  (`CtmAdminPrecheckRefusesTheLeg`, `OwnershipCheckRefusesAnEngineNomination`,
+  `HoldersCheckRefusesAnEngineNomination`, `RowsCheckRefusesAHookThatMovesARowProxy`), and the
+  collision case is reachable when the hash does not separate the pair
+  (`HoldersCollisionCaseIsReachable`). Nothing else: an engine that only
+  makes the calls `calls` succeeds exactly when `forward(calls)` does and the rows end applied
+  (`EveryForwardIsAnEngineLeg`, witness `EveryForwardIsAnEngineLegWitness`).
 - **So `ExecutorForward`'s premise no longer suffices.** With "no row names the CTM proxy" as
-  the only condition on an infrastructure step, the run invariants fail at `d9f6789` even for
+  the only condition on an infrastructure step, the run invariants fail at `b17415d20` even for
   genuine `ProxyUpgradeTransition` objects (`TameRunsNoLongerPreserveSysInv`,
   `TameRunsNoLongerKeepChainsOnTheirRelease`, `FixedEntrypointsNoLongerMoveOnlyAlongRows`).
 - **With `DefaultProxyUpgradeEngine` nothing changes.** The leg is `ExecutorForward`'s
-  infrastructure step of the same object, and conversely given the checks #2654 added (the
-  executor owns its `ProxyAdmin`, the engine has code, the inventory has the domain's length)
+  infrastructure step of the same object, and conversely given the checks the executor and
+  engine now make (the executor owns its `ProxyAdmin`, the engine has code, the CTM's `admin()`
+  is not the `ProxyAdmin`, the inventory has the domain's length)
   (`DefaultEngineLegIsAnInfraStep`, `InfraStepIsADefaultEngineLeg`). The routing headline
-  holds across runs whose transitions pin it (`DefaultEngineRunKeepsChainsOnTheirRelease`).
+  holds across runs whose transitions pin it (`DefaultEngineRunKeepsChainsOnTheirRelease`,
+  witness `DefaultEngineRunWitness`).
 - **What must be established about any other engine** is stated as two premises; the executor
   checks neither.
   - `EngineIsTame` (every leg is a run of tame `e561b9cc2` transactions: no break-glass cut,
@@ -218,34 +228,28 @@ other steps it reuses unchanged):
     `forward`, the `e561b9cc2` infrastructure step and a `forward`
     (`ReviewedLegIsAnExecutorRun`). For rows that do not name the CTM proxy it implies
     `EngineIsTame` (`ReviewedEngineIsTame`, `ReviewedRunKeepsChainsOnTheirRelease`,
-    `DefaultEngineIsReviewed`). It also gives what the NatSpec calls source-checked swaps: a
-    proxy moves only along a row's edge, for any rows
+    `DefaultEngineIsReviewed`). It also gives the row library's source check at the executor:
+    a proxy moves only along a row's edge, for any rows
     (`ReviewedLegsMoveProxiesOnlyAlongRows`), and a stale object reverts
     (`ReviewedEngineRefusesStaleRows`, for rows naming distinct proxies).
 - **Countermodels**, each with a genuine object whose rows do not name the CTM proxy and with
-  every executor check passing (storage and holders unchanged):
+  every executor check passing (ownership and holders unchanged):
   `CuttingEngineBreaksTheHeadline` (an `_afterSwaps` break-glass cut; not tame),
   `CtmSwappingEngineBreaksSysInv` (an `_afterSwaps` `upgradeAndCall` on the CTM proxy; not
   tame), `ProxyMovingEngineMovesAnUnnamedProxy` (tame, not reviewed),
   `DirectEngineSkipsTheSourceCheck` (an engine without `applyRows` replays a stale object the
   default engine refuses; tame, not reviewed), `BeforeHookDefeatsTheSourceCheck` (a
-  `_beforeSwaps` hook puts a row's proxy on its `expectedOldImpl`; tame, not reviewed).
-- `ReviewedRunWitness` meets every premise in one run: a default-engine leg, a chain created,
-  a commit, an `upgradeChain`, then a leg whose reviewed subclass replaces the committed
-  transition in `_afterSwaps`.
-- **Read against the NatSpec** (`ICTMUpgradeExecutor.sol:33-34`, unchanged since `e561b9cc2`:
-  "Applies a CTM-domain transition's source-checked implementation swaps through the bound CTM
-  `ProxyAdmin`, and verifies every row at its `implNew` before returning"): the second half
-  holds for every engine; the first half describes `DefaultProxyUpgradeEngine`, not the
-  executor. The contract's own NatSpec (`ProxyUpgradeExecutorBase.sol:32-38`) and
-  `docs/registry-driven-upgrades.md:449-453` say the engine has the executor's authority; the
-  results above make that precise. This reading has had one pass, not the two-verifier check
-  of the list under "Source findings".
+  `_beforeSwaps` hook puts a row's proxy on its `expectedOldImpl`; tame, not reviewed). The
+  source documents this boundary: the engine runs with the executor's authority, and what it
+  does beyond the executor's checks rests on its review (`ProxyUpgradeExecutorBase.sol:34-41`,
+  `IProxyUpgradeEngine.sol:16-21`, `docs/registry-driven-upgrades.md:473-478`).
+- `ReviewedRunWitness` meets every premise of the positive results in one run: a
+  default-engine leg, a chain created, a commit, an `upgradeChain`, then a leg whose reviewed
+  subclass replaces the committed transition in `_afterSwaps`.
 - Not proved here: anything about the Core domain's executor, which shares
-  `_applyProxyUpgradeTransition`; what an engine's calls do to ownership (the holders and the
-  executor's owner are ghosts the witness engines never change, so the two ownership
-  post-checks are stated but never reject in a witness); that a release's actual engine subclass meets
-  `EngineReviewed`.
+  `_applyProxyUpgradeTransition`; what a real engine's calls do to ownership and to the holders
+  (only two witness engines write those ghosts, and no other step changes them); that a
+  release's actual engine subclass meets `EngineReviewed`.
 
 **ExecutorUpgradeChain** (the executor's `upgradeChain(t, id)` with its
 `t.oldProtocolVersion()` lookup, `CTMUpgradeExecutor.sol:87-102`; refines `ExecutorForward`'s
@@ -553,15 +557,16 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
   `forward` (modelled for the authority state in `../RegistryBootstrapMigration/`, topic
   `Forward`), CTM owner functions that touch no modelled state, and calls to other targets
   are not modelled; the `ProxyAdmin`'s owner is fixed configuration.
-- In `ExecutorEngineAtV35` (`d9f6789`), an engine is an arbitrary relation on the model
+- In `ExecutorEngineAtV35` (`b17415d20`), an engine is an arbitrary relation on the model
   state, so every engine is covered, but only its effect on `ExecutorForward`'s state (the
   CTM, its chains, the CTM domain's implementations) and on three ghosts is represented:
-  the executor's `owner()`/`pendingOwner()` and the seven values `_domainHolders` hashes.
+  the executor's `owner()`/`pendingOwner()` and the ten values `_domainHolders` reads.
   No other step changes the ghosts, the `ProxyAdmin`'s owner the row library reads stays
   fixed configuration, and the hash is an arbitrary function. The witness engines are
-  sequences of `ExecutorForward`'s forwarded calls around the row library's `applyRows`;
-  engine calls that touch no modelled state (the ServerNotifier's setters, events) are
-  no-ops, and `_checkPostconditions` and `onlyOwner` only reject and are omitted. `HookRun`
+  sequences of `ExecutorForward`'s forwarded calls around the row library's `applyRows`, two of
+  them also writing a ghost; engine calls that touch no modelled state (the ServerNotifier's setters, events) are
+  no-ops, and `_checkPostconditions`, `onlyOwner` and `_domainHolders` reverting for a
+  ServerNotifier the `ProxyAdmin` no longer administers only reject and are omitted. `HookRun`
   admits any CTM call that is not a break-glass cut, as `forward`'s `FCall.sys` does.
 - In `ExecutorUpgradeChain`, the three ways to cross an edge (`upgradeChain`, the chain
   admin's direct call, a forwarded CTM call) differ only before `Admin.upgradeChainFromVersion`.
