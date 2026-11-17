@@ -18,6 +18,7 @@ only import a shared specification when the topic needs no additional definition
 | CachedRoot | [Specs/CachedRoot.lean](Specs/CachedRoot.lean) | [Properties/CachedRoot.lean](Properties/CachedRoot.lean) | [Proofs/CachedRoot.lean](Proofs/CachedRoot.lean) |
 | PublishedRootCommits | [Specs/PublishedRootCommits.lean](Specs/PublishedRootCommits.lean) | [Properties/PublishedRootCommits.lean](Properties/PublishedRootCommits.lean) | [Proofs/PublishedRootCommits.lean](Proofs/PublishedRootCommits.lean) |
 | InitOnce | [Specs/InitOnce.lean](Specs/InitOnce.lean) | [Properties/InitOnce.lean](Properties/InitOnce.lean) | [Proofs/InitOnce.lean](Proofs/InitOnce.lean) |
+| PaddingAtHead (`main` `3605e82`) | [Specs/PaddingAtHead.lean](Specs/PaddingAtHead.lean) | [Properties/PaddingAtHead.lean](Properties/PaddingAtHead.lean) | [Proofs/PaddingAtHead.lean](Proofs/PaddingAtHead.lean) |
 
 The library's abstract list/order theory, insertion-guard countermodels, and
 reset/sentinel properties live under `../IndexedMerkleTree/`. The wrapper model
@@ -110,14 +111,67 @@ all-zero storage. No hash premise.
 - Out of model: proxy upgrades by the complex upgrader, who owns the
   `SystemContractProxyAdmin` (`OPS-CONFIG`).
 
-Source finding, reported to the maintainer of this repo, not yet confirmed upstream: the
+`PaddingAtHead` models the tree at era-contracts `main` (`3605e82`), where `setup` pads
+with `IMT_EMPTY_LEAF_HASH = keccak256("zkSync:IndexedMerkleTree:emptyLeaf")` and no longer
+with `hashLeaf({0,0,0})` (item F-04 of commit `78e14b3bc`). Every other topic in this folder
+models the pin `c67894b9`. The tree library files are byte-identical at `d9f6789`
+(draft/v0.35.0) and `e561b9cc2`. No property takes a hash premise; `keccak` is an arbitrary
+function `List UInt8 → UInt256`, applied to the byte strings the source hashes.
+- The model changes one argument of the pin's: `cSetupPad h hl ze` is `setup` with padding
+  `ze`, and `CachedRoot`'s `cSetup`/`CReaches` are the instance `ze = hashLeaf({0,0,0})`
+  (`PinSetupIsPadAtZeroLeafHash`). For every padding constant the storage caches the leaf
+  hashes and `root()` is the published root (`CSetupPadCaches`,
+  `CReachesPadRootIsPublished`, `CRunPadReaches`), and the reached list states and heights
+  are `RunHeight`'s (`CReachesPadViewsAreHReaches`). `insert` is the same `cInsert`.
+- Headline, `NonInclusionAtHeadIsAbsentOrKeccakCollision`: on every reached state, against
+  the root the contract stores, an accepted `verifyNonInclusion` means the value is absent,
+  or a `KeccakBreakAtHead`: keccak collides on two different byte strings that the
+  submitted proof names. The cases are a presented leaf's `abi.encode` (96 bytes) against
+  the tag (34 bytes) at a padding slot, against a different stored leaf's `abi.encode` at
+  an occupied slot, a node pair (64 bytes) at a named step of the path, or a wrong length
+  (`LengthKeccakBreak`). `InclusionAtHeadIsPresentOrKeccakCollision` and
+  `ProofsExclusiveAtHeadOrKeccakCollision` are the same for `verifyInclusion` and for a
+  pair of proofs.
+- The preimages are separated by length and determine what is hashed
+  (`ImtEmptyLeafTagIsTheLiteral`, `ImtPreimagesDomainSeparated`,
+  `ImtPreimagesDetermineTheirInputs`).
+- `KeccakBreakAtHead` implies `TreeRootBreak` at `main`'s hashes
+  (`KeccakBreakAtHeadIsTreeRootBreak`), and for leaves whose `nextIndex` fits a `uint256`
+  every `TreeRootBreak` there is one of the named keccak collisions
+  (`TreeRootBreakAtHeadIsKeccakCollision`; `PathCollisionAtHeadIffKeccak`,
+  `HeightBreakAtHeadIffKeccak`, `PaddingHitAtHeadIffEmptyLeafCollision`). At the pin the
+  padding case held for the zero leaf with no collision (`PaddingHitAtPinNeedsNoCollision`).
+- The pin's forged proof at `main` (`PinForgeryAtHeadNeedsKeccakCollision`): on the
+  three-leaf run it is accepted exactly when keccak collides on `abi.encode(0,0,0)` and the
+  tag, or on a node pair at one of its two steps. `PinForgeryAcceptedAtPinRejectedAtHead`
+  gives one toy hash for which the same proof against the same tree is accepted with the
+  pin's padding and rejected with `main`'s. The padding, node and leaf disjuncts each fire
+  on a toy hash (`PinForgeryAtHeadFiresOnCollision`, `NodeCollisionAtHeadFires`,
+  `LeafCollisionAtHeadFires`), so none of the three can be dropped.
+- `calculateRootMemory` still does not bound the index by the leaf count. At `main` the
+  honest siblings of an empty slot authenticate `IMT_EMPTY_LEAF_HASH` and nothing else
+  short of a collision (`OutOfRangeIndexAtHead`, `HonestSiblingsAcceptExactly`,
+  `OutOfRangeIndexAtHeadWitness`).
+- Anti-vacuity: `PaddingAtHeadThreeLeafRun`, `NonInclusionAtHeadWitness`,
+  `ContractProofsAtStoredRootAtHead` (the contract's own `merklePath` outputs are accepted
+  with no break), `HonestProofNoKeccakBreakAtHead`, `PaddingAtHeadBreakPremisesSatisfiable`.
+- Not covered: the firing witnesses use toy hashes, so they show the disjuncts are needed
+  in the statement, not that keccak256 collides. `PathAccepts` omits the
+  `_pathLength >= 256` revert, so the model accepts more proofs than the source. The
+  wrapper's `_reportLeaf` hook is taken not to call back into the tree. `InitOnce`'s
+  `initL2`/caller model and `Protocol/InteropAtomicity` are still at `c67894b9`; only the
+  break disjunct of their results is translated to `main`'s hashes, and how `main`'s
+  `AtomicFlowManager` obtains the root it verifies against is not modelled.
+
+Source finding at the pin `c67894b9`, since fixed upstream (see `PaddingAtHead` above): the
 tree pads empty slots with `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`), against
 `FullMerkle.sol:25-26`'s warning, and `verifyNonInclusion`
 (`IndexedMerkleTree.sol:153-171`) bounds the low-leaf index only by `2^pathLength`
 (`Merkle.sol:133-140`), not by the leaf count. So the padding forgery is accepted against
 the root the contract stores (`CThreeLeafWitness`, `PublishedRootPaddingHitFires`,
 `PaddingCollisionRefundsDeliveredLeg`). Both verifiers classified it as a bug, high
-severity.
+severity. At `main` (`3605e82`) `setup` pads with `IMT_EMPTY_LEAF_HASH`; the index bound is
+unchanged.
 
 Root authentication and hash assumptions have separate proofs under `../Merkle/`
 and `../FullMerkle/`. Caller checks are modelled in `InitOnce`; their source
