@@ -89,6 +89,7 @@ import EraSpec.Contracts.Merkle.Proofs.RootBinding
 import EraSpec.Contracts.Merkle.Proofs.RootForgery
 import EraSpec.Contracts.Merkle.Proofs.Verifier
 import EraSpec.Contracts.Merkle.Proofs.PathCollision
+import EraSpec.Contracts.Merkle.Proofs.DomainSeparation
 
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec
