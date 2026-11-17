@@ -39,14 +39,16 @@ exact named propositions, plus auxiliary lemmas.
 | GenesisWriters | [Specs/GenesisWriters.lean](Specs/GenesisWriters.lean) | [Properties/GenesisWriters.lean](Properties/GenesisWriters.lean) | [Proofs/GenesisWriters.lean](Proofs/GenesisWriters.lean) |
 | EngineGettersFaithful | [Specs/EngineGettersFaithful.lean](Specs/EngineGettersFaithful.lean) | [Properties/EngineGettersFaithful.lean](Properties/EngineGettersFaithful.lean) | [Proofs/EngineGettersFaithful.lean](Proofs/EngineGettersFaithful.lean) |
 | LegacyCrossingFaithful | [Specs/LegacyCrossingFaithful.lean](Specs/LegacyCrossingFaithful.lean) | [Properties/LegacyCrossingFaithful.lean](Properties/LegacyCrossingFaithful.lean) | [Proofs/LegacyCrossingFaithful.lean](Proofs/LegacyCrossingFaithful.lean) |
+| PendingL2UpgradeAtV35 | [Specs/PendingL2UpgradeAtV35.lean](Specs/PendingL2UpgradeAtV35.lean) | [Properties/PendingL2UpgradeAtV35.lean](Properties/PendingL2UpgradeAtV35.lean) | [Proofs/PendingL2UpgradeAtV35.lean](Proofs/PendingL2UpgradeAtV35.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
 the `Properties` segment. `GenesisWriters` uses the sub-namespace
 `Contracts.ChainTypeManager.GenesisWriters` (statements
 `Contracts.ChainTypeManager.GenesisWriters.Properties.*`); likewise `EngineGettersFaithful`
-uses `Contracts.ChainTypeManager.EngineGetters` and `LegacyCrossingFaithful` uses
-`Contracts.ChainTypeManager.LegacyCrossing`.
+uses `Contracts.ChainTypeManager.EngineGetters`, `LegacyCrossingFaithful` uses
+`Contracts.ChainTypeManager.LegacyCrossing`, and `PendingL2UpgradeAtV35` uses
+`Contracts.ChainTypeManager.PendingL2UpgradeAtV35`.
 
 The topics after `ChainMigration` extend the first four:
 
@@ -58,6 +60,8 @@ The topics after `ChainMigration` extend the first four:
 - chain creation by its code: `GenesisWriters`.
 - faithfulness repairs of the executor topics: `EngineGettersFaithful` (the engine's own
   getters), `LegacyCrossingFaithful` (pre-v35 chains crossing opaque legacy edges themselves).
+- the pending L2 upgrade transaction and the stored deadlines, at `draft/v0.35.0` `b17415d`:
+  `PendingL2UpgradeAtV35`, which extends `UpgradeTiming`.
 
 Each section below says how its model relates to the one it extends. None is composed
 with another unless its section says so.
@@ -441,6 +445,37 @@ refines the transition step of `ExecutorUpgradeChain`):
   countermodel and witness use pre-registry chains of the bootstrap states.
 - Witness: `LegacyCatchUpWitness` (a lagging pre-registry chain catches up with no owner action).
 
+**PendingL2UpgradeAtV35** (each chain's pending L2 protocol upgrade transaction, the batch that
+carries it, the batch steps, and the CTM's stored deadline overrides; pinned at `draft/v0.35.0`
+commit `b17415d`, not `e561b9cc2`. It extends `UpgradeTiming`, whose gates are re-read at
+`b17415d`, and replaces its `setAux` by the writers of each field; boundaries in
+`MODEL-CTM-PENDING-L2`):
+
+- The model refines `UpgradeTiming` (`PendingRunIsATimedRun`), and "an upgrade batch number only
+  with a transaction pending" is preserved along runs (`PendingInvAlongRuns`).
+- On its settlement layer, a chain with a pending transaction or a recorded upgrade batch has no
+  upgrade across an edge that changes the minor component, by any path, caller or time
+  (`PendingTxBlocksEveryUpgrade`; `BaseZkSyncUpgrade.sol:259-268`).
+- Take such a chain with the transaction in no batch, the CTM past its version, no legacy cut
+  there, and that version's deadline before `τ`. Along every run with no break-glass cut, no
+  `setProtocolVersionDeadline` at that version and block times from `τ` on, it keeps all of this
+  and is in dead time at every block time from `τ` (`ExpiredPendingChainStaysInDeadTime`;
+  `ExpiredPendingChainWitness`). From such a state in dead time at `τ`, the only steps of this
+  model after which it is not in dead time at `τ` are that override and a break-glass cut
+  (`OnlyOverrideOrBreakGlassEndsDeadTime`). Both do
+  (`OverrideRecoversExpiredPendingChain`, `BreakGlassEndsDeadTime`). An override to a nonzero
+  time `t ≥ τ` lets the pending batch be committed at `τ`, proved and executed, which clears the
+  transaction, when every committed batch is verified and executed (`OverrideClearsPendingTx`).
+  A swap of the CTM's implementation is not a step of the model.
+- `LateUpgradeLandsInDeadTime`: with edges `0.1.0 → 0.2.0 → 0.3.0` that change the minor
+  component, carry an L2 side and satisfy `ValidEdge`, a chain at `0.1.0` that is not in dead
+  time at `25` is upgraded at `25` and lands at `0.2.0` in the state above.
+- `ValidatedTimedRunsHaveNoDeadTime` holds in this model with two more premises: no transaction
+  pending or the edge a patch, and a patch carrying no L2 side (`NoDeadTimeWithoutPendingTx`;
+  witnesses `NoDeadTimeWithoutPendingTxWitness` and, through a patch with a transaction pending,
+  `NoDeadTimeAcrossPatchWithPendingTx`). Without the first premise its conclusion is false
+  (`NoDeadTimeNeedsItsPendingTxPremise`).
+
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises. Each later topic lists
 its own above.
@@ -536,6 +571,17 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
     code, `createNewChain` is L1-only and a fresh `forwardedBridgeMint` reverts on L1;
   - transitions, the bootstrap reset and break-glass cuts still use `ChainRouting`'s
     flattened steps.
+- In `PendingL2UpgradeAtV35` (at `b17415d`, `MODEL-CTM-PENDING-L2`):
+  - the L2 upgrade transaction's gates that `UpgradeTiming` omits are added: the
+    previous-upgrade-finalized check and the refusal of a transaction on a patch; the
+    transaction's own checks, the semver shape and the verifier checks stay omitted;
+  - `setAux` is replaced by the writers of each field; `DiamondInit` with the genesis upgrade and
+    the migration writers are one arbitrary `reinit` write, at the CTM's version or for a chain
+    that settles elsewhere;
+  - the stored deadline overrides are state, written by `setProtocolVersionDeadline` and the
+    legacy commit, and a replacement must keep the deadline;
+  - the bootstrap crossing may set any pending transaction; break-glass cuts move only the
+    version and the routing; a swap of the CTM's implementation is not a step.
 
 ## Source findings
 

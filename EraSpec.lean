@@ -151,6 +151,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.LegacyCrossingFaithful
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
+import EraSpec.Contracts.ChainTypeManager.Proofs.PendingL2UpgradeAtV35
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
