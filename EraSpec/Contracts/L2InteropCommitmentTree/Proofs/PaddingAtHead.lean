@@ -18,8 +18,11 @@ the level-0 entry, or a located `PathCollision` / `HeightBreak`).  What this fil
 * the setup with an independent padding constant, and the runs from it;
 * the headline: from an accepted path, either the opened leaf has the presented leaf's `value`
   and `nextValue` (so the gap argument applies), or a `KeccakBreakAtHead`;
-* the pin's three-leaf countermodel at `main`, and a toy keccak on which the forged proof is
-  accepted with the pin's padding and rejected with `main`'s.
+* the same core over contract runs, with `IMTAbstract`'s `delivered_and_reclaimed_impossible`
+  for the stale-snapshot reading;
+* the pin's three-leaf countermodel at `main`, a toy keccak on which the forged proof is
+  accepted with the pin's padding and rejected with `main`'s, and, for each case of
+  `KeccakBreakAtHead`, a forged proof on which that case alone holds.
 -/
 
 namespace Contracts.InteropCommitmentTree
@@ -30,11 +33,12 @@ open AttackVectors.BundleHashEncoding (word HashCollision word_length word_val_i
 
 /-! ## The byte strings -/
 
+/-- `String.toUTF8` of a literal is evaluated by the kernel (`decide +kernel`; no axiom beyond
+`propext`). -/
 theorem imtEmptyLeafTag_is_the_literal :
-    imtEmptyLeafTag = "zkSync:IndexedMerkleTree:emptyLeaf".toList.map (fun c => c.toNat.toUInt8)
-      ∧ (∀ c ∈ "zkSync:IndexedMerkleTree:emptyLeaf".toList, c.toNat < 128)
+    imtEmptyLeafTag = "zkSync:IndexedMerkleTree:emptyLeaf".toUTF8.toList
       ∧ imtEmptyLeafTag.length = 34 :=
-  ⟨by decide, by decide, rfl⟩
+  ⟨by decide +kernel, rfl⟩
 
 lemma imtLeafPreimage_length (ℓ : Leaf) : (imtLeafPreimage ℓ).length = 96 := by
   simp [imtLeafPreimage]
@@ -210,9 +214,129 @@ theorem treeRootBreak_at_head_is_keccak_collision (keccak : List UInt8 → UInt2
     exact Or.inr (Or.inl ⟨hidx, fun hp => hne (imtLeafPreimage_inj (hT idx hidx) hℓ hp), he⟩)
   | paddingHit hidx he => exact Or.inl ⟨hidx, imtLeafPreimage_ne_tag ℓ, he⟩
 
+/-! ## Which case of the keccak break fires -/
+
+theorem keccakBreakAtHead_iff_some_case (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ)
+    (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) :
+    KeccakBreakAtHead keccak T height sibs k idx ℓ
+      ↔ ∃ c : KeccakBreakAtHeadCase, KeccakBreakAtHeadAt keccak T height sibs k idx ℓ c := by
+  constructor
+  · intro hb
+    cases hb with
+    | emptyLeaf hk hidx hc => exact ⟨.emptyLeaf, hk, hidx, hc⟩
+    | leaf hk hidx hc => exact ⟨.leaf, hk, hidx, hc⟩
+    | node hk hc => exact ⟨.node, hk, hc⟩
+    | length hl => exact ⟨.length, hl⟩
+  · rintro ⟨c, hc⟩
+    cases c with
+    | emptyLeaf => exact KeccakBreakAtHead.emptyLeaf hc.1 hc.2.1 hc.2.2
+    | leaf => exact KeccakBreakAtHead.leaf hc.1 hc.2.1 hc.2.2
+    | node => exact KeccakBreakAtHead.node hc.1 hc.2
+    | length => exact KeccakBreakAtHead.length hc
+
+/-- To show case `c` fires alone: it fires, and every other case does not. -/
+private lemma keccakBreakAtHeadExactly_of {keccak : List UInt8 → UInt256} {T : Tree}
+    {height : ℕ} {sibs : ℕ → UInt256} {k idx : ℕ} {ℓ : Leaf} {c : KeccakBreakAtHeadCase}
+    (hc : KeccakBreakAtHeadAt keccak T height sibs k idx ℓ c)
+    (hno : ∀ c', c' ≠ c → ¬ KeccakBreakAtHeadAt keccak T height sibs k idx ℓ c') :
+    KeccakBreakAtHeadExactly keccak T height sibs k idx ℓ c := by
+  intro c'
+  constructor
+  · intro hc'
+    by_contra hne
+    exact hno c' hne hc'
+  · rintro rfl
+    exact hc
+
+/-- At the right length no `LengthKeccakBreak` holds. -/
+private lemma lengthKeccakBreak_not_at_height {keccak : List UInt8 → UInt256} {T : Tree}
+    {height : ℕ} {sibs : ℕ → UInt256} {j : ℕ} {ℓ : Leaf} :
+    ¬ LengthKeccakBreak keccak T height sibs height j ℓ := by
+  intro hb
+  cases hb with
+  | shortLeafIsNode hk _ => exact lt_irrefl _ hk
+  | shortCollision hk _ => exact lt_irrefl _ hk
+  | longLeafIsNode hk _ _ => exact lt_irrefl _ hk
+  | longEmptyLeafIsNode hk _ _ => exact lt_irrefl _ hk
+  | longCollision hk _ => exact lt_irrefl _ hk
+
+/-- On the tree's own siblings, presenting a leaf whose hash is the slot's level-0 entry, the
+`node` case does not hold. -/
+private lemma no_node_case_on_tree_siblings {keccak : List UInt8 → UInt256} {T : Tree}
+    {height idx : ℕ} {ℓ : Leaf}
+    (hx : imtHashLeaf keccak ℓ = (imtLevel0 keccak T).getD idx (imtEmptyLeafHash keccak)) :
+    ¬ KeccakBreakAtHeadAt keccak T height
+      (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtLevel0 keccak T) idx)
+      height idx ℓ .node := by
+  rintro ⟨_, hc⟩
+  rw [← pathCollision_at_head_iff_keccak, hx] at hc
+  exact honest_walk_no_collision _ _ _ _ _ hc
+
+/-! ## The `nextIndex` bound -/
+
+/-- `word` reduces modulo `2^256`. -/
+private lemma word_two_pow_256 : word (2 ^ 256) = word 0 := by decide
+
+private lemma imtLeafPreimage_wrap : imtLeafPreimage ⟨0, 2 ^ 256, 0⟩ = imtLeafPreimage ⟨0, 0, 0⟩ := by
+  unfold imtLeafPreimage
+  rw [word_two_pow_256]
+
+theorem treeRootBreak_at_head_needs_nextIndex_bound (keccak : List UInt8 → UInt256) :
+    ¬ (⟨0, 2 ^ 256, 0⟩ : Leaf).nextIndex < 2 ^ 256
+    ∧ (∀ i < setup.leafCount, (setup.leaf i).nextIndex < 2 ^ 256)
+    ∧ PathAccepts (imtNodeHash keccak)
+        (root (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak) setup 0)
+        (fun _ => 0) 0 0 (imtHashLeaf keccak ⟨0, 2 ^ 256, 0⟩)
+    ∧ TreeRootBreak (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak) setup 0
+        (fun _ => 0) 0 0 ⟨0, 2 ^ 256, 0⟩
+    ∧ ¬ ((setup.leafCount ≤ 0
+            ∧ HashCollision keccak (imtLeafPreimage ⟨0, 2 ^ 256, 0⟩) imtEmptyLeafTag)
+        ∨ (0 < setup.leafCount
+            ∧ HashCollision keccak (imtLeafPreimage (setup.leaf 0)) (imtLeafPreimage ⟨0, 2 ^ 256, 0⟩))
+        ∨ (0 = 0 ∧ PathKeccakCollision keccak (imtEmptyLeafHash keccak) (imtLevel0 keccak setup)
+            (fun _ => 0) 0 0 0 (imtHashLeaf keccak ⟨0, 2 ^ 256, 0⟩))
+        ∨ LengthKeccakBreak keccak setup 0 (fun _ => 0) 0 0 ⟨0, 2 ^ 256, 0⟩) := by
+  have hh : imtHashLeaf keccak ⟨0, 2 ^ 256, 0⟩ = imtHashLeaf keccak ⟨0, 0, 0⟩ := by
+    show keccak (imtLeafPreimage ⟨0, 2 ^ 256, 0⟩) = keccak (imtLeafPreimage ⟨0, 0, 0⟩)
+    rw [imtLeafPreimage_wrap]
+  refine ⟨by norm_num, fun i _ => ?_, ⟨by norm_num, ?_⟩, ?_, ?_⟩
+  · show (0 : ℕ) < 2 ^ 256
+    positivity
+  · rw [hh]
+    rfl
+  · refine TreeRootBreak.leafCollision (by norm_num [setup]) ?_ hh.symm
+    intro he
+    have := congrArg Leaf.nextIndex he
+    simp [setup] at this
+  · rintro (⟨hle, _⟩ | ⟨_, hne, _⟩ | ⟨_, i, hi, _⟩ | hl)
+    · exact absurd hle (by norm_num [setup])
+    · exact hne (by rw [imtLeafPreimage_wrap]; rfl)
+    · exact absurd hi (Nat.not_lt_zero _)
+    · exact lengthKeccakBreak_not_at_height hl
+
+/-! ## `padNotLeaf` at `main` -/
+
+theorem padNotLeaf_at_head_is_keccak_non_collision :
+    (∀ (keccak : List UInt8 → UInt256) (ℓ : Leaf),
+        imtHashLeaf keccak ℓ ≠ imtEmptyLeafHash keccak
+          ↔ ¬ HashCollision keccak (imtLeafPreimage ℓ) imtEmptyLeafTag)
+      ∧ (∃ keccak : List UInt8 → UInt256, ∀ ℓ : Leaf, imtHashLeaf keccak ℓ ≠ imtEmptyLeafHash keccak)
+      ∧ (∀ keccak : List UInt8 → UInt256,
+          ¬ ∀ ℓ : Leaf, imtHashLeaf keccak ℓ ≠ zeroLeafHash (imtHashLeaf keccak))
+      ∧ (∀ keccak : List UInt8 → UInt256,
+          ¬ HashAssumptions (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak)) := by
+  refine ⟨fun keccak ℓ => ⟨fun hne hc => hne hc.2, fun hnc he => hnc ⟨imtLeafPreimage_ne_tag ℓ, he⟩⟩,
+    ⟨fun x => if x = imtEmptyLeafTag then 1 else 0, fun ℓ => ?_⟩,
+    fun _ hall => hall ⟨0, 0, 0⟩ rfl,
+    fun _ => HashAssumptionsUnsatisfiable _ _ _⟩
+  show (if imtLeafPreimage ℓ = imtEmptyLeafTag then (1 : UInt256) else 0)
+    ≠ (if imtEmptyLeafTag = imtEmptyLeafTag then (1 : UInt256) else 0)
+  rw [ite_eq_right (imtLeafPreimage_ne_tag ℓ), ite_eq_left rfl]
+  decide
+
 /-! ## With the tree's own siblings, one collision anywhere suffices -/
 
-theorem honest_siblings_accept_exactly (h : Hash) (z0 : UInt256) (L : List UInt256)
+theorem honest_siblings_accept_entry_or_path_collision (h : Hash) (z0 : UInt256) (L : List UInt256)
     (height j : ℕ) (x : UInt256) (hj : j < 2 ^ height) :
     walkPure h (honestSibs h z0 L j) 0 height j x = rootOf h z0 L height
       ↔ L.getD j z0 = x ∨ PathCollision h z0 L (honestSibs h z0 L j) 0 height j x := by
@@ -244,7 +368,8 @@ theorem honest_siblings_accept_exactly (h : Hash) (z0 : UInt256) (L : List UInt2
 
 /-! ## The model: `setup` with an independent padding constant -/
 
-lemma leafHashes_setup_pad (hl : LeafHash) : leafHashes hl setup = [] ++ [hl ⟨0, 0, 0⟩] := rfl
+private lemma leafHashes_setup_pad (hl : LeafHash) : leafHashes hl setup = [] ++ [hl ⟨0, 0, 0⟩] :=
+  rfl
 
 theorem cSetupPad_caches (h : Hash) (hl : LeafHash) (ze : UInt256) :
     ∃ S : CState, cSetupPad h hl ze = some S ∧ S.tree = setup ∧ S.toH = hSetup
@@ -561,9 +686,39 @@ theorem paddingAtHead_three_leaf_run (h : Hash) (hl : LeafHash) (ze a b : UInt25
 
 /-! ## The pin's countermodel, at `main` -/
 
-lemma threeLeafTree_leafCount (a b : UInt256) : (threeLeafTree a b).leafCount = 3 := rfl
+private lemma threeLeafTree_leafCount (a b : UInt256) : (threeLeafTree a b).leafCount = 3 := rfl
 
-lemma threeLeafTree_leaf_zero (a b : UInt256) : (threeLeafTree a b).leaf 0 = ⟨0, 1, a⟩ := rfl
+private lemma threeLeafTree_leaf_zero (a b : UInt256) : (threeLeafTree a b).leaf 0 = ⟨0, 1, a⟩ :=
+  rfl
+
+theorem pin_forgery_proof_same_at_pin_and_head (keccak : List UInt8 → UInt256) (a b ze : UInt256) :
+    honestSibs (imtNodeHash keccak) ze (imtLevel0 keccak (threeLeafTree a b)) 3 0
+        = imtHashLeaf keccak ((threeLeafTree a b).leaf 2)
+      ∧ honestSibs (imtNodeHash keccak) ze (imtLevel0 keccak (threeLeafTree a b)) 3 1
+        = imtNodeHash keccak (imtHashLeaf keccak ((threeLeafTree a b).leaf 0))
+            (imtHashLeaf keccak ((threeLeafTree a b).leaf 1)) :=
+  ⟨rfl, rfl⟩
+
+/-- The pin's forged instance at `main`, for a keccak that collides on `abi.encode(0,0,0)` and the
+tag: of the four cases of `KeccakBreakAtHead`, exactly `emptyLeaf` holds. -/
+private lemma paddingAtHead_pin_instance_exactly_emptyLeaf (keccak : List UInt8 → UInt256)
+    (hc : HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag) (a b : UInt256) :
+    KeccakBreakAtHeadExactly keccak (threeLeafTree a b) 2
+      (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+        (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .emptyLeaf := by
+  refine keccakBreakAtHeadExactly_of ⟨rfl, by rw [threeLeafTree_leafCount], hc⟩ ?_
+  intro c' hc'
+  cases c' with
+  | emptyLeaf => exact absurd rfl hc'
+  | leaf =>
+    rintro ⟨_, hlt, _⟩
+    rw [threeLeafTree_leafCount] at hlt
+    exact lt_irrefl _ hlt
+  | node =>
+    refine no_node_case_on_tree_siblings ?_
+    rw [imtLevel0, getD_default _ _ _ (by rw [leafHashes_length, threeLeafTree_leafCount])]
+    exact hc.2
+  | length => exact lengthKeccakBreak_not_at_height
 
 /-- The pin's forged instance against `main`'s root of `threeLeafTree a b` at height 2: accepted
 exactly when keccak collides on `abi.encode(0,0,0)` and the tag, or on a node pair of its path. -/
@@ -580,7 +735,7 @@ lemma paddingAtHead_pin_instance_iff (keccak : List UInt8 → UInt256) {a b : UI
               (imtLevel0 keccak (threeLeafTree a b)) 3) 0 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩) := by
   have hlen : (imtLevel0 keccak (threeLeafTree a b)).length ≤ 3 := by
     rw [imtLevel0, leafHashes_length, threeLeafTree_leafCount]
-  have hacc := honest_siblings_accept_exactly (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+  have hacc := honest_siblings_accept_entry_or_path_collision (imtNodeHash keccak) (imtEmptyLeafHash keccak)
     (imtLevel0 keccak (threeLeafTree a b)) 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩) (by norm_num)
   rw [getD_default _ _ _ hlen] at hacc
   constructor
@@ -653,7 +808,10 @@ theorem pin_forgery_at_head_fires_on_collision :
                   (imtLevel0 keccak (threeLeafTree a b)) 3) 2
             ∧ KeccakBreakAtHead keccak S₂.tree S₂.fm.height
                 (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
-                  (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ := by
+                  (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
+            ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height
+                (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                  (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .emptyLeaf := by
   refine ⟨⟨fun _ => 0, imtLeafPreimage_ne_tag _, rfl⟩, ?_⟩
   intro keccak hc a b ha hab
   obtain ⟨_, _, S₂, _, r₂, _, _, _, hc₂, htree₂, _, hheight₂, hroot₂, hr₂, _⟩ :=
@@ -666,9 +824,11 @@ theorem pin_forgery_at_head_fires_on_collision :
     (by rw [threeLeafTree_leafCount]; norm_num) (i := 1) (by rw [threeLeafTree_leafCount]; norm_num)
   rw [threeLeafTree_leaf_one_value] at hI
   refine ⟨S₂, r₂, hc₂, htree₂, hroot₂, by rw [htree₂]; exact hmem, by rw [hr₂]; exact hI,
-    by rw [hr₂]; exact (paddingAtHead_pin_instance_iff keccak ha).2 (Or.inl hc), ?_⟩
-  rw [htree₂, hheight₂]
-  exact KeccakBreakAtHead.emptyLeaf rfl (by rw [threeLeafTree_leafCount]) hc
+    by rw [hr₂]; exact (paddingAtHead_pin_instance_iff keccak ha).2 (Or.inl hc), ?_, ?_⟩
+  · rw [htree₂, hheight₂]
+    exact KeccakBreakAtHead.emptyLeaf rfl (by rw [threeLeafTree_leafCount]) hc
+  · rw [htree₂, hheight₂]
+    exact paddingAtHead_pin_instance_exactly_emptyLeaf keccak hc a b
 
 /-! ### Two more firing witnesses: the node case alone, and the leaf case -/
 
@@ -720,7 +880,10 @@ theorem node_collision_at_head_fires :
           ∧ PathKeccakCollision keccak (imtEmptyLeafHash keccak)
               (imtLevel0 keccak (threeLeafTree a b))
               (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
-                (imtLevel0 keccak (threeLeafTree a b)) 3) 0 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩) := by
+                (imtLevel0 keccak (threeLeafTree a b)) 3) 0 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩)
+          ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height
+              (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .node := by
   have hnoPad : ¬ HashCollision paddingAtHeadNodeToyKeccak (imtLeafPreimage ⟨0, 0, 0⟩)
       imtEmptyLeafTag := by
     rintro ⟨_, he⟩
@@ -735,7 +898,7 @@ theorem node_collision_at_head_fires :
     exact absurd h21 (by decide)
   refine ⟨paddingAtHeadNodeToyKeccak, hnoPad, ?_⟩
   intro a b ha hab
-  obtain ⟨_, _, S₂, _, r₂, _, _, _, hc₂, htree₂, _, _, hroot₂, hr₂, _⟩ :=
+  obtain ⟨_, _, S₂, _, r₂, _, _, _, hc₂, htree₂, _, hheight₂, hroot₂, hr₂, _⟩ :=
     paddingAtHead_three_leaf_run (imtNodeHash paddingAtHeadNodeToyKeccak)
       (imtHashLeaf paddingAtHeadNodeToyKeccak) (imtEmptyLeafHash paddingAtHeadNodeToyKeccak) a b ha hab
   have hmem : a ∈ keys (toAbs (threeLeafTree a b)) :=
@@ -753,10 +916,30 @@ theorem node_collision_at_head_fires :
       = rootOf (imtNodeHash paddingAtHeadNodeToyKeccak) _ _ (1 + 1)
     rw [paddingAtHead_walkPure_const paddingAtHeadNodeToyKeccak_node,
       paddingAtHead_rootOf_const paddingAtHeadNodeToyKeccak_node]
-  refine ⟨S₂, r₂, hc₂, htree₂, hroot₂, by rw [htree₂]; exact hmem, by rw [hr₂]; exact hN, ?_⟩
-  rcases (paddingAtHead_pin_instance_iff paddingAtHeadNodeToyKeccak ha).1 hN with hc | hc
-  · exact absurd hc hnoPad
-  · exact hc
+  have hpc : PathKeccakCollision paddingAtHeadNodeToyKeccak
+      (imtEmptyLeafHash paddingAtHeadNodeToyKeccak)
+      (imtLevel0 paddingAtHeadNodeToyKeccak (threeLeafTree a b))
+      (honestSibs (imtNodeHash paddingAtHeadNodeToyKeccak)
+        (imtEmptyLeafHash paddingAtHeadNodeToyKeccak)
+        (imtLevel0 paddingAtHeadNodeToyKeccak (threeLeafTree a b)) 3) 0 2 3
+      (imtHashLeaf paddingAtHeadNodeToyKeccak ⟨0, 0, 0⟩) := by
+    rcases (paddingAtHead_pin_instance_iff paddingAtHeadNodeToyKeccak ha).1 hN with hc | hc
+    · exact absurd hc hnoPad
+    · exact hc
+  refine ⟨S₂, r₂, hc₂, htree₂, hroot₂, by rw [htree₂]; exact hmem, by rw [hr₂]; exact hN, hpc, ?_⟩
+  rw [htree₂, hheight₂]
+  refine keccakBreakAtHeadExactly_of ⟨rfl, hpc⟩ ?_
+  intro c' hc'
+  cases c' with
+  | emptyLeaf =>
+    rintro ⟨_, _, hcol⟩
+    exact hnoPad hcol
+  | leaf =>
+    rintro ⟨_, hlt, _⟩
+    rw [threeLeafTree_leafCount] at hlt
+    exact lt_irrefl _ hlt
+  | node => exact absurd rfl hc'
+  | length => exact lengthKeccakBreak_not_at_height
 
 theorem leaf_collision_at_head_fires :
     (∀ a : UInt256, 0 < a → ∃ keccak : List UInt8 → UInt256,
@@ -771,7 +954,10 @@ theorem leaf_collision_at_head_fires :
                   (imtLevel0 keccak (threeLeafTree a b)) 0) 2
             ∧ KeccakBreakAtHead keccak S₂.tree S₂.fm.height
                 (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
-                  (imtLevel0 keccak (threeLeafTree a b)) 0) 2 0 ⟨0, 1, 0⟩ := by
+                  (imtLevel0 keccak (threeLeafTree a b)) 0) 2 0 ⟨0, 1, 0⟩
+            ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height
+                (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                  (imtLevel0 keccak (threeLeafTree a b)) 0) 2 0 ⟨0, 1, 0⟩ .leaf := by
   refine ⟨fun a ha => ⟨fun _ => 0, fun he => ?_, rfl⟩, ?_⟩
   · have := (imtLeafPreimage_fields he).2.1
     exact absurd this (ne_of_lt ha).symm
@@ -794,12 +980,27 @@ theorem leaf_collision_at_head_fires :
       refine ⟨(ne_of_lt ha).symm, ha, Or.inl rfl, ⟨by norm_num, ?_⟩⟩
       rw [e]
       exact honest_walk_root _ _ _ 2 0 (by norm_num)
+    have hleaf : KeccakBreakAtHeadAt keccak (threeLeafTree a b) 2
+        (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+          (imtLevel0 keccak (threeLeafTree a b)) 0) 2 0 ⟨0, 1, 0⟩ .leaf := by
+      refine ⟨rfl, h0, ?_⟩
+      rw [threeLeafTree_leaf_zero]
+      exact hc
     refine ⟨S₂, r₂, hc₂, htree₂, hroot₂, by rw [htree₂]; exact hmem,
-      by rw [htree₂]; exact threeLeafTree_leaf_zero a b, by rw [hr₂]; exact hN, ?_⟩
-    rw [htree₂, hheight₂]
-    refine KeccakBreakAtHead.leaf rfl h0 ?_
-    rw [threeLeafTree_leaf_zero]
-    exact hc
+      by rw [htree₂]; exact threeLeafTree_leaf_zero a b, by rw [hr₂]; exact hN, ?_, ?_⟩
+    · rw [htree₂, hheight₂]
+      exact KeccakBreakAtHead.leaf hleaf.1 hleaf.2.1 hleaf.2.2
+    · rw [htree₂, hheight₂]
+      refine keccakBreakAtHeadExactly_of hleaf ?_
+      intro c' hc'
+      cases c' with
+      | emptyLeaf =>
+        rintro ⟨_, hle, _⟩
+        rw [threeLeafTree_leafCount] at hle
+        exact absurd hle (by norm_num)
+      | leaf => exact absurd rfl hc'
+      | node => exact no_node_case_on_tree_siblings e
+      | length => exact lengthKeccakBreak_not_at_height
 
 /-! ## A toy keccak: the same forged proof, accepted at the pin and rejected at `main` -/
 
@@ -888,6 +1089,164 @@ theorem pin_forgery_accepted_at_pin_rejected_at_head :
       rw [paddingAtHeadToyKeccak_walk, paddingAtHeadToyKeccak_leaf, hroot] at hwalk
       exact absurd hwalk (by decide)
 
+/-! ## Stale-snapshot reclaims over contract runs at `main` -/
+
+/-- The list states of a run of the tree from `cSetupPad` are a `Run` from `setup`. -/
+private lemma cRunPad_tree_run {h : Hash} {hl : LeafHash} {ze : UInt256} {R : ℕ → CState}
+    (hR : CRun h hl R) (h0 : cSetupPad h hl ze = some (R 0)) :
+    Run (fun n => (R n).tree) ∧ (R 0).tree = setup := by
+  refine ⟨fun n => ?_, ?_⟩
+  · rcases hR n with heq | ⟨v, low, r, hg, hins⟩
+    · left
+      show (R (n + 1)).tree = (R n).tree
+      rw [heq]
+    · right
+      refine ⟨v, low, hg, ?_⟩
+      obtain ⟨_, hRep, _⟩ :=
+        cReachesPad_root_is_published h hl ze (R n) (cRunPad_reaches h hl ze R hR h0 n)
+      obtain ⟨S'', r'', hins', htree, _⟩ := cInsert_caches h ze hl (R n) v low hRep hg.inBounds
+      rw [hins] at hins'
+      obtain ⟨hS', _⟩ := Prod.mk.inj (Option.some.inj hins')
+      show (R (n + 1)).tree = insert (R n).tree v low
+      rw [hS']
+      exact htree
+  · obtain ⟨S₀, hs₀, htree₀, _⟩ := cSetupPad_caches h hl ze
+    have e : R 0 = S₀ := Option.some.inj (h0.symm.trans hs₀)
+    rw [e]
+    exact htree₀
+
+theorem stale_witness_at_head_not_redeemable_or_keccak_collision (keccak : List UInt8 → UInt256)
+    (R : ℕ → CState) (t : ℕ → UInt256) (D v : UInt256)
+    (hR : CRun (imtNodeHash keccak) (imtHashLeaf keccak) R)
+    (h0 : cSetupPad (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak) = some (R 0))
+    (htmono : Monotone t) (j : ℕ) (rj : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ)
+    (hroot : (R j).root = some rj) (hpin : D < t (j + 1))
+    (hN : NonInclusionAccepted (imtNodeHash keccak) (imtHashLeaf keccak) rj v ℓ idx sibs k) :
+    (∀ i, t i ≤ D → v ∉ keys (toAbs (R i).tree))
+      ∨ KeccakBreakAtHead keccak (R j).tree (R j).fm.height sibs k idx ℓ := by
+  obtain ⟨_, hroot'⟩ := reached_at_head (cRunPad_reaches _ _ _ R hR h0 j)
+  have hrj := Option.some.inj (hroot.symm.trans hroot')
+  subst hrj
+  rcases paddingAtHead_accepted_path keccak (R j).tree (R j).fm.height sibs k idx ℓ hN.path with
+    ⟨_, hidx, hv, hn⟩ | hb
+  · -- a genuine low leaf of snapshot `j`: `StaleSnapshot`'s argument over the run's key sets
+    left
+    intro i hti hmem
+    obtain ⟨hrun, htree0⟩ := cRunPad_tree_run hR h0
+    have hV0 : Valid ((fun n => (R n).tree) 0) := by
+      show Valid (R 0).tree
+      rw [htree0]
+      exact setup_valid
+    have hevo := guardedEvolution_isEvolution (run_isGuardedEvolution hrun hV0) hV0.absSound
+    exact delivered_and_reclaimed_impossible (S := fun n => toAbs (R n).tree) hevo
+      hV0.absSound.1 hV0.absSound.2.1 htmono hti hmem hpin (W := ⟨ℓ.value, ℓ.nextValue⟩)
+      (mem_toAbs.mpr ⟨idx, hidx, hv, hn⟩) hN.lowBelow hN.window
+  · exact Or.inr hb
+
+/-- Times `0, 0, 1, 1, …`. -/
+private lemma paddingAtHead_timeOne_monotone :
+    Monotone (fun n : ℕ => if n ≤ 1 then (0 : UInt256) else 1) := by
+  intro m n hmn
+  dsimp only
+  split_ifs with h1 h2 h2
+  · exact le_refl _
+  · decide
+  · exact absurd (le_trans hmn h2) h1
+  · exact le_refl _
+
+/-- Times `0, 0, 0, 1, 1, …`. -/
+private lemma paddingAtHead_timeTwo_monotone :
+    Monotone (fun n : ℕ => if n ≤ 2 then (0 : UInt256) else 1) := by
+  intro m n hmn
+  dsimp only
+  split_ifs with h1 h2 h2
+  · exact le_refl _
+  · decide
+  · exact absurd (le_trans hmn h2) h1
+  · exact le_refl _
+
+theorem stale_witness_at_head_satisfiable (keccak : List UInt8 → UInt256) :
+    ∃ (R : ℕ → CState) (t : ℕ → UInt256) (rj : UInt256) (idx : ℕ) (p : List UInt256),
+      CRun (imtNodeHash keccak) (imtHashLeaf keccak) R
+      ∧ cSetupPad (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak) = some (R 0)
+      ∧ Monotone t ∧ t 1 ≤ 0 ∧ (0 : UInt256) < t (1 + 1)
+      ∧ (R 1).root = some rj ∧ (R 1).merklePath idx = some p
+      ∧ NonInclusionAccepted (imtNodeHash keccak) (imtHashLeaf keccak) rj 1 ((R 1).tree.leaf idx) idx
+          (FullMerkle.pathSibs p) p.length
+      ∧ ¬ KeccakBreakAtHead keccak (R 1).tree (R 1).fm.height (FullMerkle.pathSibs p) p.length idx
+          ((R 1).tree.leaf idx)
+      ∧ (∀ i, t i ≤ 0 → (1 : UInt256) ∉ keys (toAbs (R i).tree))
+      ∧ (2 : UInt256) ∈ keys (toAbs (R 1).tree) := by
+  obtain ⟨S₀, hs₀, htree₀, _, hR₀, _⟩ :=
+    cSetupPad_caches (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak)
+  have hg : InsertGuard S₀.tree 2 0 := by
+    rw [htree₀]
+    exact setup_insertGuard (by decide)
+  obtain ⟨S₁, r₁, hins₁, htree₁, _⟩ :=
+    cInsert_caches (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak) S₀ 2 0 hR₀
+      hg.inBounds
+  have hc₁ : CReachesAtHead keccak S₁ := CReachesPad.insert (CReachesPad.init hs₀) hg hins₁
+  have ht₁ : S₁.tree = insert setup 2 0 := by rw [htree₁, htree₀]
+  obtain ⟨R', hR', _, c2⟩ := contract_proofs_at_stored_root_at_head keccak S₁ hc₁
+  have habs : (1 : UInt256) ∉ keys (toAbs S₁.tree) := by rw [ht₁]; decide
+  obtain ⟨i, _, p, hp, _, hN, hnb⟩ := c2 1 (by decide) habs
+  refine ⟨fun n => if n = 0 then S₀ else S₁, fun n => if n ≤ 1 then (0 : UInt256) else 1, R', i, p,
+    ?_, hs₀, paddingAtHead_timeOne_monotone, by decide, by decide, hR', hp, hN, hnb, ?_, ?_⟩
+  · intro n
+    match n with
+    | 0 => exact Or.inr ⟨2, 0, r₁, hg, hins₁⟩
+    | n + 1 => exact Or.inl (by simp)
+  · intro m _
+    by_cases hm : m = 0
+    · subst hm
+      show (1 : UInt256) ∉ keys (toAbs S₀.tree)
+      rw [htree₀]
+      decide
+    · show (1 : UInt256) ∉ keys (toAbs (if m = 0 then S₀ else S₁).tree)
+      rw [ite_eq_right hm]
+      exact habs
+  · show (2 : UInt256) ∈ keys (toAbs S₁.tree)
+    rw [ht₁]
+    decide
+
+theorem padding_reclaim_at_head_locates_emptyLeaf_collision :
+    (∃ keccak : List UInt8 → UInt256,
+        HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag)
+      ∧ ∀ (keccak : List UInt8 → UInt256),
+          HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag →
+        ∀ a b : UInt256, 0 < a → a < b →
+          ∃ (R : ℕ → CState) (t : ℕ → UInt256) (r₂ : UInt256),
+            CRun (imtNodeHash keccak) (imtHashLeaf keccak) R
+            ∧ cSetupPad (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak)
+                = some (R 0)
+            ∧ Monotone t ∧ t 2 ≤ 0 ∧ (0 : UInt256) < t (2 + 1)
+            ∧ (R 2).tree = threeLeafTree a b ∧ (R 2).root = some r₂
+            ∧ a ∈ keys (toAbs (R 2).tree)
+            ∧ NonInclusionAccepted (imtNodeHash keccak) (imtHashLeaf keccak) r₂ a ⟨0, 0, 0⟩ 3
+                (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                  (imtLevel0 keccak (threeLeafTree a b)) 3) 2
+            ∧ ¬ (∀ i, t i ≤ 0 → a ∉ keys (toAbs (R i).tree))
+            ∧ KeccakBreakAtHeadExactly keccak (R 2).tree (R 2).fm.height
+                (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                  (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .emptyLeaf := by
+  refine ⟨⟨fun _ => 0, imtLeafPreimage_ne_tag _, rfl⟩, ?_⟩
+  intro keccak hc a b ha hab
+  obtain ⟨_, _, S₂, _, r₂, hs₀, _, _, _, htree₂, _, hheight₂, hroot₂, hr₂, _, R, hR, hR0, _, hR2⟩ :=
+    paddingAtHead_three_leaf_run (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak)
+      a b ha hab
+  have hmem : a ∈ keys (toAbs (threeLeafTree a b)) :=
+    (padding_collision_refunds_delivered_leg (imtNodeHash keccak) (imtHashLeaf keccak) ha hab).2.1
+  have e2 : R 2 = S₂ := hR2 2 le_rfl
+  refine ⟨R, fun n => if n ≤ 2 then (0 : UInt256) else 1, r₂, hR, by rw [hR0]; exact hs₀,
+    paddingAtHead_timeTwo_monotone, by decide, by decide, by rw [e2]; exact htree₂,
+    by rw [e2]; exact hroot₂, by rw [e2, htree₂]; exact hmem, ?_, ?_, ?_⟩
+  · rw [hr₂]
+    exact (paddingAtHead_pin_instance_iff keccak ha).2 (Or.inl hc)
+  · intro hall
+    exact hall 2 (by decide) (by rw [e2, htree₂]; exact hmem)
+  · rw [e2, htree₂, hheight₂]
+    exact paddingAtHead_pin_instance_exactly_emptyLeaf keccak hc a b
+
 /-! ## Out-of-range indices -/
 
 theorem out_of_range_index_at_head (keccak : List UInt8 → UInt256) (S : CState)
@@ -947,19 +1306,48 @@ theorem out_of_range_index_at_head_witness :
         CReachesAtHead keccak S₂ ∧ S₂.tree = threeLeafTree a b ∧ S₂.fm.height = 2
         ∧ S₂.root = some r₂
         ∧ PathAccepts (imtNodeHash keccak) r₂ (fun _ => 0) 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩)
-        ∧ PathAccepts (imtNodeHash keccak) r₂ (fun _ => 0) 3 4 (imtHashLeaf keccak ⟨0, 0, 0⟩) := by
+        ∧ PathAccepts (imtNodeHash keccak) r₂ (fun _ => 0) 3 4 (imtHashLeaf keccak ⟨0, 0, 0⟩)
+        ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height (fun _ => 0) 3 4 ⟨0, 0, 0⟩
+            .length := by
   have hc : ∀ a b : UInt256, imtNodeHash (fun _ => (0 : UInt256)) a b = 0 := fun _ _ => rfl
   refine ⟨fun _ => 0, fun a b ha hab => ?_⟩
   obtain ⟨_, _, S₂, _, r₂, _, _, _, hc₂, htree₂, _, hheight₂, hroot₂, hr₂, _⟩ :=
     paddingAtHead_three_leaf_run (imtNodeHash fun _ => 0) (imtHashLeaf fun _ => 0)
       (imtEmptyLeafHash fun _ => 0) a b ha hab
-  refine ⟨S₂, r₂, hc₂, htree₂, hheight₂, hroot₂, ⟨by norm_num, ?_⟩, ⟨by norm_num, ?_⟩⟩
-  · rw [hr₂]
+  have hp3 : PathAccepts (imtNodeHash fun _ => 0) r₂ (fun _ => 0) 2 3
+      (imtHashLeaf (fun _ => 0) ⟨0, 0, 0⟩) := by
+    refine ⟨by norm_num, ?_⟩
+    rw [hr₂]
     show walkPure (imtNodeHash fun _ => 0) _ 0 (1 + 1) 3 _ = rootOf (imtNodeHash fun _ => 0) _ _ (1 + 1)
     rw [paddingAtHead_walkPure_const hc, paddingAtHead_rootOf_const hc]
-  · rw [hr₂]
+  have hp4 : PathAccepts (imtNodeHash fun _ => 0) r₂ (fun _ => 0) 3 4
+      (imtHashLeaf (fun _ => 0) ⟨0, 0, 0⟩) := by
+    refine ⟨by norm_num, ?_⟩
+    rw [hr₂]
     show walkPure (imtNodeHash fun _ => 0) _ 0 (2 + 1) 4 _ = rootOf (imtNodeHash fun _ => 0) _ _ (1 + 1)
     rw [paddingAtHead_walkPure_const hc, paddingAtHead_rootOf_const hc]
+  refine ⟨S₂, r₂, hc₂, htree₂, hheight₂, hroot₂, hp3, hp4, ?_⟩
+  -- the length case, from clause 3 of `OutOfRangeIndexAtHead`; the other cases need `k = height`
+  obtain ⟨R, hR, _, _, c3⟩ := out_of_range_index_at_head (fun _ => 0) S₂ hc₂
+  have hRr : R = r₂ := Option.some.inj (hR.symm.trans hroot₂)
+  subst hRr
+  have hlen := (c3 (fun _ => 0) 3 4 ⟨0, 0, 0⟩ (by rw [hheight₂]; norm_num) hp4).2
+  refine keccakBreakAtHeadExactly_of hlen ?_
+  intro c' hc'
+  cases c' with
+  | emptyLeaf =>
+    rintro ⟨hk, _⟩
+    rw [hheight₂] at hk
+    exact absurd hk (by norm_num)
+  | leaf =>
+    rintro ⟨hk, _⟩
+    rw [hheight₂] at hk
+    exact absurd hk (by norm_num)
+  | node =>
+    rintro ⟨hk, _⟩
+    rw [hheight₂] at hk
+    exact absurd hk (by norm_num)
+  | length => exact absurd rfl hc'
 
 theorem paddingAtHead_break_premises_satisfiable :
     ∃ (keccak : List UInt8 → UInt256) (sibs : ℕ → UInt256),
@@ -1053,8 +1441,9 @@ theorem PaddingHitAtPinNeedsNoCollision : Properties.PaddingHitAtPinNeedsNoColli
   paddingHit_at_pin_needs_no_collision
 theorem TreeRootBreakAtHeadIsKeccakCollision : Properties.TreeRootBreakAtHeadIsKeccakCollision :=
   treeRootBreak_at_head_is_keccak_collision
-theorem HonestSiblingsAcceptExactly : Properties.HonestSiblingsAcceptExactly :=
-  honest_siblings_accept_exactly
+theorem HonestSiblingsAcceptEntryOrPathCollision :
+    Properties.HonestSiblingsAcceptEntryOrPathCollision :=
+  honest_siblings_accept_entry_or_path_collision
 theorem PaddingAtHeadThreeLeafRun : Properties.PaddingAtHeadThreeLeafRun :=
   paddingAtHead_three_leaf_run
 theorem PinForgeryAtHeadNeedsKeccakCollision : Properties.PinForgeryAtHeadNeedsKeccakCollision :=
@@ -1078,5 +1467,22 @@ theorem ContractProofsAtStoredRootAtHead : Properties.ContractProofsAtStoredRoot
   contract_proofs_at_stored_root_at_head
 theorem NonInclusionAtHeadWitness : Properties.NonInclusionAtHeadWitness :=
   nonInclusion_at_head_witness
+theorem KeccakBreakAtHeadIffSomeCase : Properties.KeccakBreakAtHeadIffSomeCase :=
+  keccakBreakAtHead_iff_some_case
+theorem TreeRootBreakAtHeadNeedsNextIndexBound :
+    Properties.TreeRootBreakAtHeadNeedsNextIndexBound :=
+  treeRootBreak_at_head_needs_nextIndex_bound
+theorem PadNotLeafAtHeadIsKeccakNonCollision : Properties.PadNotLeafAtHeadIsKeccakNonCollision :=
+  padNotLeaf_at_head_is_keccak_non_collision
+theorem PinForgeryProofSameAtPinAndHead : Properties.PinForgeryProofSameAtPinAndHead :=
+  pin_forgery_proof_same_at_pin_and_head
+theorem StaleWitnessAtHeadNotRedeemableOrKeccakCollision :
+    Properties.StaleWitnessAtHeadNotRedeemableOrKeccakCollision :=
+  stale_witness_at_head_not_redeemable_or_keccak_collision
+theorem StaleWitnessAtHeadSatisfiable : Properties.StaleWitnessAtHeadSatisfiable :=
+  stale_witness_at_head_satisfiable
+theorem PaddingReclaimAtHeadLocatesEmptyLeafCollision :
+    Properties.PaddingReclaimAtHeadLocatesEmptyLeafCollision :=
+  padding_reclaim_at_head_locates_emptyLeaf_collision
 
 end Contracts.InteropCommitmentTree

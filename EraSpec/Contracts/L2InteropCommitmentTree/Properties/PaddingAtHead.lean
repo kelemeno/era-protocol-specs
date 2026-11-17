@@ -5,11 +5,12 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.PaddingAtHead
 
 Statements about `EraSpec.Contracts.L2InteropCommitmentTree.Specs.PaddingAtHead`; proofs in
 `EraSpec.Contracts.L2InteropCommitmentTree.Proofs.PaddingAtHead`.  Source: era-contracts `main`
-`3605e82`, fix commit `78e14b3bc` ("F-04").  No property takes a hash premise.
+`3605e82` (unchanged at `70096e2`; the same tree code on `draft/v0.35.0` `d9f6789` and
+`b17415d20`), fix commit `78e14b3bc` ("F-04").  No property takes a hash premise.
 
-* **The byte strings.**  The tag is the string literal, and the three keccak preimages
-  (`abi.encode` of a leaf, a node pair, the tag) have lengths 96, 64 and 34, so no two of them
-  are equal.  A node preimage determines its pair, and a leaf preimage determines what the
+* **The byte strings.**  The tag is the UTF-8 encoding of the string literal, and the three keccak
+  preimages (`abi.encode` of a leaf, a node pair, the tag) have lengths 96, 64 and 34, so no two
+  of them are equal.  A node preimage determines its pair, and a leaf preimage determines what the
   verifiers read from the leaf.
 * **The model.**  The pin is the instance `ze = hashLeaf({0,0,0})` of the model with an
   independent padding constant.  At every padding constant, `setup` and every guarded insert keep
@@ -21,18 +22,34 @@ Statements about `EraSpec.Contracts.L2InteropCommitmentTree.Specs.PaddingAtHead`
   `keccak(abi.encode(ℓ)) = keccak("zkSync:IndexedMerkleTree:emptyLeaf")` for the presented leaf
   `ℓ`.  The same holds for `verifyInclusion`, and for a pair of proofs of the two kinds.
 * **Against `TreeRoot`'s break.**  `KeccakBreakAtHead` is a `TreeRootBreak` at `main`'s hashes,
-  and each case of `TreeRootBreak` there is a keccak collision on named inputs.  The padding
-  case is `hashLeaf(ℓ) = IMT_EMPTY_LEAF_HASH`, a collision between a 96-byte and a 34-byte
-  string.  At the pin, the same case held for the zero leaf with no collision.
+  and each case of `TreeRootBreak` there is a keccak collision on named inputs, for leaves whose
+  `nextIndex` fits a `uint256` (a bound the model needs: `TreeRootBreakAtHeadNeedsNextIndexBound`).
+  The padding case is `hashLeaf(ℓ) = IMT_EMPTY_LEAF_HASH`, a collision between a 96-byte and a
+  34-byte string.  At the pin, the same case held for the zero leaf with no collision.
+* **Against the round-7 padding-forgery notes.**  `HashAssumptions`' note "Not a keccak premise at
+  `c67894b9`": at `main`, `padNotLeaf` is a statement about keccak alone, satisfiable, and still
+  false at the pin's padding (`PadNotLeafAtHeadIsKeccakNonCollision`).  The
+  "Correction (StaleSnapshotFaithful)" readings: over contract runs at `main`, an accepted,
+  deadline-pinned reclaim excludes on-time delivery or carries a named keccak collision, with no
+  premise on the presented leaf (`StaleWitnessAtHeadNotRedeemableOrKeccakCollision`); for every
+  keccak that collides on `abi.encode(0,0,0)` and the tag, the pin's padding reclaim is accepted
+  at `main` with exactly the `emptyLeaf` case located
+  (`PaddingReclaimAtHeadLocatesEmptyLeafCollision`).
 * **The pin's countermodel at `main`.**  On the three-leaf run, the forged absence proof of
-  `PaddingCollisionRefundsDeliveredLeg` / `CThreeLeafWitness` is accepted at `main` exactly when
-  keccak collides on `abi.encode(0,0,0)` and the tag, or on a node pair at one of the two steps
-  of its path.  For one hash, the same proof against the same tree is accepted with the pin's
-  padding and rejected with `main`'s.
-* **Out-of-range indices.**  `calculateRoot` still accepts the honest siblings of an empty slot,
-  but what they authenticate there is `IMT_EMPTY_LEAF_HASH` itself.  Presenting any leaf at an
-  index at or beyond the leaf count is a keccak collision with the tag, a node collision, or a
-  wrong length, and beyond `2 ^ _height` only a wrong length.
+  `PaddingCollisionRefundsDeliveredLeg` / `CThreeLeafWitness` (the same leaf, index and sibling
+  words, `PinForgeryProofSameAtPinAndHead`) is accepted at `main` exactly when keccak collides on
+  `abi.encode(0,0,0)` and the tag, or on a node pair at one of the two steps of its path.  For one
+  hash, the same proof against the same tree is accepted with the pin's padding and rejected with
+  `main`'s.
+* **Which case fires.**  Each of the four cases of `KeccakBreakAtHead` is, alone, the located
+  break of an accepted forged proof on a reached state (`…Exactly`): `emptyLeaf`
+  (`PinForgeryAtHeadFiresOnCollision`), `node` (`NodeCollisionAtHeadFires`), `leaf`
+  (`LeafCollisionAtHeadFires`) and `length` (`OutOfRangeIndexAtHeadWitness`).  The first and
+  third hold for every keccak with the named collision; the other two use toy keccaks.
+* **Out-of-range indices.**  `calculateRootMemory` still accepts the tree's own siblings of an
+  empty slot, but what they authenticate there is `IMT_EMPTY_LEAF_HASH` itself.  An accepted
+  path presenting any leaf at an index at or beyond the leaf count carries a keccak collision
+  with the tag, a node collision, or a wrong length; beyond `2 ^ _height`, only a wrong length.
 * **Anti-vacuity.**  Honest proofs locate no break, for every keccak; the contract's own
   `merklePath` outputs are accepted, against the stored root, for present and absent values.
 -/
@@ -44,12 +61,11 @@ open AttackVectors.BundleHashEncoding (word HashCollision)
 
 /-! ## The byte strings -/
 
-/-- **THE TAG IS THE STRING LITERAL.**  `imtEmptyLeafTag` is the character codes of
-`"zkSync:IndexedMerkleTree:emptyLeaf"`, all below 128, so it is also the string's UTF-8
-encoding, which is what `keccak256("…")` hashes (`Config.sol:90`).  It has 34 bytes. -/
+/-- **THE TAG IS THE STRING LITERAL.**  `imtEmptyLeafTag` is the UTF-8 encoding of
+`"zkSync:IndexedMerkleTree:emptyLeaf"` (Lean's `String.toUTF8`), the bytes Solidity's
+`keccak256("…")` hashes in `IMT_EMPTY_LEAF_HASH` (`Config.sol:90`).  It has 34 bytes. -/
 def Properties.ImtEmptyLeafTagIsTheLiteral : Prop :=
-  imtEmptyLeafTag = "zkSync:IndexedMerkleTree:emptyLeaf".toList.map (fun c => c.toNat.toUInt8)
-    ∧ (∀ c ∈ "zkSync:IndexedMerkleTree:emptyLeaf".toList, c.toNat < 128)
+  imtEmptyLeafTag = "zkSync:IndexedMerkleTree:emptyLeaf".toUTF8.toList
     ∧ imtEmptyLeafTag.length = 34
 
 /-- **THE THREE PREIMAGES ARE SEPARATED BY LENGTH.**  A leaf preimage has 96 bytes, a node
@@ -117,7 +133,7 @@ def Properties.CReachesPadViewsAreHReaches : Prop :=
 
 /-! ## The headline -/
 
-/-- **H-1 HEADLINE: AT `main`, A VERIFIED ABSENCE IS AN ABSENCE OR A NAMED KECCAK COLLISION.**
+/-- **HEADLINE: AT `main`, A VERIFIED ABSENCE IS AN ABSENCE OR A NAMED KECCAK COLLISION.**
 For every function `keccak`, on every state reached from `main`'s `IndexedMerkleTree.setup` by
 guarded inserts, `root()` returns some `R`.  If `verifyNonInclusion(R, v, ℓ, idx, proof)`
 accepts, for any presented low leaf `ℓ`, index `idx` and sibling path of any length, then
@@ -172,6 +188,15 @@ def Properties.KeccakBreakAtHeadIsTreeRootBreak : Prop :=
       TreeRootBreak (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak) T height
         sibs k idx ℓ
 
+/-- **THE KECCAK BREAK IS ITS FOUR CASES.**  `KeccakBreakAtHead` holds exactly when the premise
+of one of its constructors holds (`KeccakBreakAtHeadAt`), so the `…Exactly` statements below say
+which case is located. -/
+def Properties.KeccakBreakAtHeadIffSomeCase : Prop :=
+  ∀ (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ)
+    (ℓ : Leaf),
+    KeccakBreakAtHead keccak T height sibs k idx ℓ
+      ↔ ∃ c : KeccakBreakAtHeadCase, KeccakBreakAtHeadAt keccak T height sibs k idx ℓ c
+
 /-- **`PathCollision` AT `main`'S NODE HASH IS A KECCAK COLLISION.**  For any padding and level-0
 list, a positional collision of `Merkle.efficientHash` on a path is exactly a keccak collision
 on the two named 64-byte preimages at the same step. -/
@@ -220,7 +245,8 @@ at the right length; or a `LengthKeccakBreak`.  This translates the break disjun
 `…OrBreak` results of this package and of `InteropAtomicity` (whose `ImtProofBreak` is
 `TreeRootBreak`) when they are instantiated at `main`'s hashes and padding constant.  It does
 not re-pin anything else those results depend on: `InteropAtomicity` models the manager at
-`c67894b9`. -/
+`c67894b9`.  The two `nextIndex` premises are needed in the model, whose `Leaf.nextIndex` is a
+natural number (`TreeRootBreakAtHeadNeedsNextIndexBound`). -/
 def Properties.TreeRootBreakAtHeadIsKeccakCollision : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ)
     (ℓ : Leaf),
@@ -233,15 +259,141 @@ def Properties.TreeRootBreakAtHeadIsKeccakCollision : Prop :=
             0 k idx (imtHashLeaf keccak ℓ))
         ∨ LengthKeccakBreak keccak T height sibs k idx ℓ
 
+/-- **THE `nextIndex` BOUND OF `TreeRootBreakAtHeadIsKeccakCollision` IS NEEDED.**  The model's
+`Leaf.nextIndex` is a natural number and `abi.encode` reduces it modulo `2^256`.  For every keccak,
+on the `setup` tree at height 0 (its height after `setup`), the presented leaf `{0, 2^256, 0}`,
+whose `nextIndex` does not fit a `uint256` while the stored leaf's does, is accepted at index 0
+with the empty path.  Its proof carries a `TreeRootBreak` (a different leaf with the same
+`hashLeaf`), yet none of the four disjuncts of `TreeRootBreakAtHeadIsKeccakCollision`'s conclusion
+holds: the two leaves have one `abi.encode`. -/
+def Properties.TreeRootBreakAtHeadNeedsNextIndexBound : Prop :=
+  ∀ keccak : List UInt8 → UInt256,
+    ¬ (⟨0, 2 ^ 256, 0⟩ : Leaf).nextIndex < 2 ^ 256
+    ∧ (∀ i < setup.leafCount, (setup.leaf i).nextIndex < 2 ^ 256)
+    ∧ PathAccepts (imtNodeHash keccak)
+        (root (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak) setup 0)
+        (fun _ => 0) 0 0 (imtHashLeaf keccak ⟨0, 2 ^ 256, 0⟩)
+    ∧ TreeRootBreak (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak) setup 0
+        (fun _ => 0) 0 0 ⟨0, 2 ^ 256, 0⟩
+    ∧ ¬ ((setup.leafCount ≤ 0
+            ∧ HashCollision keccak (imtLeafPreimage ⟨0, 2 ^ 256, 0⟩) imtEmptyLeafTag)
+        ∨ (0 < setup.leafCount
+            ∧ HashCollision keccak (imtLeafPreimage (setup.leaf 0)) (imtLeafPreimage ⟨0, 2 ^ 256, 0⟩))
+        ∨ (0 = 0 ∧ PathKeccakCollision keccak (imtEmptyLeafHash keccak) (imtLevel0 keccak setup)
+            (fun _ => 0) 0 0 0 (imtHashLeaf keccak ⟨0, 2 ^ 256, 0⟩))
+        ∨ LengthKeccakBreak keccak setup 0 (fun _ => 0) 0 0 ⟨0, 2 ^ 256, 0⟩)
+
 /-- **WITH THE TREE'S OWN SIBLINGS, ACCEPTANCE IS EXACTLY "THE SLOT'S ENTRY, OR A COLLISION".**
 For any node hash, padding, level-0 list and index below capacity, the honest sibling path of
 `j` accepts a presented hash `x` iff `x` is the level-0 entry at `j` (a leaf hash, or the
 padding constant at an empty slot) or the walk meets a `PathCollision`.  So the collision
 disjunct of the results below is not slack: one collision anywhere on the path suffices. -/
-def Properties.HonestSiblingsAcceptExactly : Prop :=
+def Properties.HonestSiblingsAcceptEntryOrPathCollision : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (height j : ℕ) (x : UInt256), j < 2 ^ height →
     (walkPure h (honestSibs h z0 L j) 0 height j x = rootOf h z0 L height
       ↔ L.getD j z0 = x ∨ PathCollision h z0 L (honestSibs h z0 L j) 0 height j x)
+
+/-! ## Against the round-7 padding-forgery notes -/
+
+/-- **AT `main`, `padNotLeaf` IS A STATEMENT ABOUT KECCAK.**  `TreeRoot`'s
+`HashAssumptions.padNotLeaf` asks `hl ℓ ≠ z0` for every leaf.  Its note "Not a keccak premise at
+`c67894b9`" records that this fails at the pin for every leaf hash; this states the `main` side.
+
+1. At `main`'s leaf hash and padding constant, `hashLeaf(ℓ) ≠ IMT_EMPTY_LEAF_HASH` holds exactly
+   when keccak does not collide on `ℓ`'s `abi.encode` and the tag.
+2. Some function `List UInt8 → UInt256` meets it for every leaf, so counting does not refute it,
+   unlike `nodeInj` and `leafInj`.
+3. With the pin's padding constant `hashLeaf({0,0,0})` it fails at `{0,0,0}`, for every keccak.
+4. `HashAssumptions` as a whole stays unsatisfiable at `main`'s hashes, so the results premised on
+   it are vacuous there too. -/
+def Properties.PadNotLeafAtHeadIsKeccakNonCollision : Prop :=
+  (∀ (keccak : List UInt8 → UInt256) (ℓ : Leaf),
+      imtHashLeaf keccak ℓ ≠ imtEmptyLeafHash keccak
+        ↔ ¬ HashCollision keccak (imtLeafPreimage ℓ) imtEmptyLeafTag)
+    ∧ (∃ keccak : List UInt8 → UInt256, ∀ ℓ : Leaf, imtHashLeaf keccak ℓ ≠ imtEmptyLeafHash keccak)
+    ∧ (∀ keccak : List UInt8 → UInt256,
+        ¬ ∀ ℓ : Leaf, imtHashLeaf keccak ℓ ≠ zeroLeafHash (imtHashLeaf keccak))
+    ∧ (∀ keccak : List UInt8 → UInt256,
+        ¬ HashAssumptions (imtNodeHash keccak) (imtEmptyLeafHash keccak) (imtHashLeaf keccak))
+
+/-- **AT `main`, NO ON-TIME DELIVERY COEXISTS WITH AN ACCEPTED, DEADLINE-PINNED RECLAIM, OR THE
+RECLAIM PROOF CARRIES A NAMED KECCAK COLLISION.**  The counterpart at `main` of
+`AttackVectors.StaleSnapshotFaithful`'s `StaleWitnessNotRedeemableOrCollision`, over runs of the
+tree with whole storage and against the root each snapshot stores.  That result asks the presented
+leaf not to hash to the padding constant (`hl ℓ ≠ z0`), which fails at the pin for the zero leaf;
+here the presented leaf is unconstrained, and a padding hit is the `emptyLeaf` case of the break.
+
+For every keccak: along any run `R` of `main`'s tree (`CRun` from `cSetupPad` at `main`'s hashes
+and padding constant), with monotone settlement times `t`, if snapshot `j` stores the root `rj`,
+meets the abstract pin `D < t (j+1)`, and `verifyNonInclusion` accepts an absence proof for `v`
+against `rj` (any presented leaf, any index, any path length), then `v` is a key of no snapshot
+`i` with `t i ≤ D`, or the submitted proof carries a `KeccakBreakAtHead` against snapshot `j`.
+
+The pin `D < t (j+1)` is `StaleSnapshot`'s abstract model of the deadline gate, as in
+`StaleSnapshotFaithful`: the deployed gate makes no such comparison, and how `main`'s timeout
+branches meet it is not modelled. -/
+def Properties.StaleWitnessAtHeadNotRedeemableOrKeccakCollision : Prop :=
+  ∀ (keccak : List UInt8 → UInt256) (R : ℕ → CState) (t : ℕ → UInt256) (D v : UInt256),
+    CRun (imtNodeHash keccak) (imtHashLeaf keccak) R →
+    cSetupPad (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak) = some (R 0) →
+    Monotone t →
+    ∀ (j : ℕ) (rj : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
+      (R j).root = some rj → D < t (j + 1) →
+      NonInclusionAccepted (imtNodeHash keccak) (imtHashLeaf keccak) rj v ℓ idx sibs k →
+      (∀ i, t i ≤ D → v ∉ keys (toAbs (R i).tree))
+        ∨ KeccakBreakAtHead keccak (R j).tree (R j).fm.height sibs k idx ℓ
+
+/-- **THE PREMISES ARE SATISFIABLE FOR EVERY KECCAK, WITH NO BREAK, AND THE FIRST DISJUNCT HAS
+CONTENT.**  For every keccak there is a run of `main`'s tree (in the proof, `setup; insert 2`,
+then idle) and monotone times with `t 1 ≤ 0 < t 2`, so snapshot 1 is on time and meets the pin
+for deadline `0`.  Against snapshot 1's stored root, the contract's own `merklePath` of a low
+leaf, presenting the stored leaf, is an accepted absence proof for `1` that carries no
+`KeccakBreakAtHead`, and `1` is a key of no snapshot with `t i ≤ 0`.  The nonzero `2` is a key of
+the on-time snapshot 1, so the first disjunct of
+`StaleWitnessAtHeadNotRedeemableOrKeccakCollision` is not true of every value on this run. -/
+def Properties.StaleWitnessAtHeadSatisfiable : Prop :=
+  ∀ keccak : List UInt8 → UInt256,
+    ∃ (R : ℕ → CState) (t : ℕ → UInt256) (rj : UInt256) (idx : ℕ) (p : List UInt256),
+      CRun (imtNodeHash keccak) (imtHashLeaf keccak) R
+      ∧ cSetupPad (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak) = some (R 0)
+      ∧ Monotone t ∧ t 1 ≤ 0 ∧ (0 : UInt256) < t (1 + 1)
+      ∧ (R 1).root = some rj ∧ (R 1).merklePath idx = some p
+      ∧ NonInclusionAccepted (imtNodeHash keccak) (imtHashLeaf keccak) rj 1 ((R 1).tree.leaf idx) idx
+          (FullMerkle.pathSibs p) p.length
+      ∧ ¬ KeccakBreakAtHead keccak (R 1).tree (R 1).fm.height (FullMerkle.pathSibs p) p.length idx
+          ((R 1).tree.leaf idx)
+      ∧ (∀ i, t i ≤ 0 → (1 : UInt256) ∉ keys (toAbs (R i).tree))
+      ∧ (2 : UInt256) ∈ keys (toAbs (R 1).tree)
+
+/-- **THE BREAK DISJUNCT IS LOAD-BEARING: THE PIN'S PADDING RECLAIM, AT `main`.**  Some keccak
+collides on `abi.encode(0,0,0)` and the tag.  For every such keccak and `0 < a < b` there is a run
+of `main`'s tree whose snapshot 2 is `threeLeafTree a b` (in the proof, `setup; insert a at 0;
+insert b at 1`, then idle) and monotone times with `t 2 ≤ 0 < t 3`: `a` is a key of the on-time
+snapshot 2, which meets the pin for deadline `0`, and
+`{0,0,0}` at the empty slot 3 with the tree's own siblings is an accepted absence proof for `a`
+against snapshot 2's stored root.  So the first disjunct of
+`StaleWitnessAtHeadNotRedeemableOrKeccakCollision` is false there, and of the four cases of
+`KeccakBreakAtHead` exactly `emptyLeaf` holds.  This is `StaleSnapshotFaithful`'s
+`PaddingReclaimRedeemsDeliveredLeg`, which holds at the pin for every hash, at `main`, for the
+keccaks with this collision. -/
+def Properties.PaddingReclaimAtHeadLocatesEmptyLeafCollision : Prop :=
+  (∃ keccak : List UInt8 → UInt256, HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag)
+    ∧ ∀ (keccak : List UInt8 → UInt256),
+        HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag →
+      ∀ a b : UInt256, 0 < a → a < b →
+        ∃ (R : ℕ → CState) (t : ℕ → UInt256) (r₂ : UInt256),
+          CRun (imtNodeHash keccak) (imtHashLeaf keccak) R
+          ∧ cSetupPad (imtNodeHash keccak) (imtHashLeaf keccak) (imtEmptyLeafHash keccak) = some (R 0)
+          ∧ Monotone t ∧ t 2 ≤ 0 ∧ (0 : UInt256) < t (2 + 1)
+          ∧ (R 2).tree = threeLeafTree a b ∧ (R 2).root = some r₂
+          ∧ a ∈ keys (toAbs (R 2).tree)
+          ∧ NonInclusionAccepted (imtNodeHash keccak) (imtHashLeaf keccak) r₂ a ⟨0, 0, 0⟩ 3
+              (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                (imtLevel0 keccak (threeLeafTree a b)) 3) 2
+          ∧ ¬ (∀ i, t i ≤ 0 → a ∉ keys (toAbs (R i).tree))
+          ∧ KeccakBreakAtHeadExactly keccak (R 2).tree (R 2).fm.height
+              (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .emptyLeaf
 
 /-! ## The pin's countermodel, at `main` -/
 
@@ -261,16 +413,32 @@ def Properties.PaddingAtHeadThreeLeafRun : Prop :=
       ∧ S₂.merklePath 3 = none
       ∧ ∃ R : ℕ → CState, CRun h hl R ∧ R 0 = S₀ ∧ R 1 = S₁ ∧ ∀ n, 2 ≤ n → R n = S₂
 
+/-- **THE PIN'S FORGED PROOF IS THE SAME WORDS AT `main`.**  On `threeLeafTree a b`, for every
+keccak and every padding constant `ze`, the two siblings of slot 3 that a length-2 path reads (the
+tree's own, `honestSibs`) are leaf 2's `hashLeaf` and the node over the `hashLeaf`s of leaves 0
+and 1; neither depends on `ze`.  So the forged proof `CThreeLeafWitness` accepts at the pin
+(padding `hashLeaf({0,0,0})`) is, word for word, the instance of
+`PinForgeryAtHeadNeedsKeccakCollision`'s clause 2 (padding `IMT_EMPTY_LEAF_HASH`). -/
+def Properties.PinForgeryProofSameAtPinAndHead : Prop :=
+  ∀ (keccak : List UInt8 → UInt256) (a b ze : UInt256),
+    honestSibs (imtNodeHash keccak) ze (imtLevel0 keccak (threeLeafTree a b)) 3 0
+        = imtHashLeaf keccak ((threeLeafTree a b).leaf 2)
+      ∧ honestSibs (imtNodeHash keccak) ze (imtLevel0 keccak (threeLeafTree a b)) 3 1
+        = imtNodeHash keccak (imtHashLeaf keccak ((threeLeafTree a b).leaf 0))
+            (imtHashLeaf keccak ((threeLeafTree a b).leaf 1))
+
 /-- **THE PIN'S FORGED ABSENCE PROOF NEEDS A KECCAK COLLISION AT `main`.**  For every keccak and
 `0 < a < b`, on the three-leaf run at `main` (stored root `r₂`, height 2), `a` is in the tree, and:
 
 1. any accepted non-inclusion proof for `a` presenting the zero leaf at a padding index
-   (`idx ≥ 3`, any siblings, any length) is a keccak collision: `abi.encode(0,0,0)` against
-   the tag at the right length, a node collision on the path, or a wrong length;
-2. the pin's own instance (the zero leaf at slot 3, with the honest siblings of slot 3 in
-   `main`'s tree, length 2), which `PaddingCollisionRefundsDeliveredLeg` and `CThreeLeafWitness`
-   accept at the pin for every hash, is accepted at `main` exactly when keccak collides on
-   `abi.encode(0,0,0)` and the tag, or on a node pair at one of its two steps. -/
+   (`idx ≥ 3`, any siblings, any length) carries a keccak collision: `abi.encode(0,0,0)` against
+   the tag at the right length, a node collision on the path at the right length, or a
+   `LengthKeccakBreak`;
+2. the zero leaf at slot 3 with the tree's own siblings of slot 3, length 2 (the proof
+   `PaddingCollisionRefundsDeliveredLeg` and `CThreeLeafWitness` accept at the pin for every
+   hash, with the same sibling words: `PinForgeryProofSameAtPinAndHead`) is accepted at `main`
+   exactly when keccak collides on `abi.encode(0,0,0)` and the tag, or on a node pair at one of
+   its two steps. -/
 def Properties.PinForgeryAtHeadNeedsKeccakCollision : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (a b : UInt256), 0 < a → a < b →
     ∃ (S₂ : CState) (r₂ : UInt256),
@@ -291,12 +459,13 @@ def Properties.PinForgeryAtHeadNeedsKeccakCollision : Prop :=
                 (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
                   (imtLevel0 keccak (threeLeafTree a b)) 3) 0 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩))
 
-/-- **THE PADDING DISJUNCT IS LOAD-BEARING.**  Some keccak collides on `abi.encode(0,0,0)` and
-the tag, and for every such keccak the pin's forged proof is accepted at `main` against the
-stored root, for the delivered `a`, whose honest inclusion proof (leaf 1) is accepted too; the
-located break is the `emptyLeaf` case.  So the premises of
+/-- **THE PADDING CASE FIRES ALONE.**  Some keccak collides on `abi.encode(0,0,0)` and the tag.
+For every such keccak and `0 < a < b`, on the three-leaf run at `main`, the delivered `a` has an
+accepted inclusion proof (leaf 1, the tree's own siblings) and the pin's forged absence proof for
+`a` is accepted too, both against the stored root.  Of the four cases of `KeccakBreakAtHead`
+exactly `emptyLeaf` holds on the forged proof.  So the premises of
 `PinForgeryAtHeadNeedsKeccakCollision`'s clause 1 and of `ProofsExclusiveAtHeadOrKeccakCollision`
-are satisfiable, and the padding disjunct cannot be dropped. -/
+are satisfiable, and the `emptyLeaf` case cannot be dropped from `KeccakBreakAtHead`. -/
 def Properties.PinForgeryAtHeadFiresOnCollision : Prop :=
   (∃ keccak : List UInt8 → UInt256, HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag)
     ∧ ∀ (keccak : List UInt8 → UInt256),
@@ -315,11 +484,16 @@ def Properties.PinForgeryAtHeadFiresOnCollision : Prop :=
           ∧ KeccakBreakAtHead keccak S₂.tree S₂.fm.height
               (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
                 (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
+          ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height
+              (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .emptyLeaf
 
-/-- **THE NODE DISJUNCT FIRES ALONE.**  There is a keccak with no collision on
-`abi.encode(0,0,0)` and the tag for which, for every `0 < a < b`, the pin's forged proof is still
-accepted at `main` against the stored root for the delivered `a`, through a node-hash collision
-on its path.  So the `node` case of `KeccakBreakAtHead` cannot be dropped either. -/
+/-- **THE NODE CASE FIRES ALONE.**  There is a keccak with no collision on `abi.encode(0,0,0)` and
+the tag for which, for every `0 < a < b`, the pin's forged proof is still accepted at `main`
+against the stored root for the delivered `a`, through a node-hash collision on its path; of the
+four cases of `KeccakBreakAtHead` exactly `node` holds.  So the `node` case cannot be dropped
+either.  The proof's keccak is a toy that maps every 64-byte input to one value, not a model of
+keccak256. -/
 def Properties.NodeCollisionAtHeadFires : Prop :=
   ∃ keccak : List UInt8 → UInt256,
     ¬ HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag
@@ -333,12 +507,15 @@ def Properties.NodeCollisionAtHeadFires : Prop :=
         ∧ PathKeccakCollision keccak (imtEmptyLeafHash keccak) (imtLevel0 keccak (threeLeafTree a b))
             (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
               (imtLevel0 keccak (threeLeafTree a b)) 3) 0 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩)
+        ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height
+            (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+              (imtLevel0 keccak (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .node
 
-/-- **THE LEAF DISJUNCT IS LOAD-BEARING.**  The fix does not touch occupied slots.  On the
-three-leaf run, leaf 0 is `{0, 1, a}`.  For every `0 < a < b` some keccak collides on its
-`abi.encode` and that of the fake low leaf `{0, 1, 0}`, and for every such keccak the honest
-path of index 0, presenting the fake leaf, is accepted at `main` as an absence proof for the
-delivered `a`; its located break is the `leaf` case. -/
+/-- **THE LEAF CASE FIRES ALONE.**  The fix does not touch occupied slots.  On the three-leaf run,
+leaf 0 is `{0, 1, a}`.  For every `0 < a` some keccak collides on its `abi.encode` and that of the
+fake low leaf `{0, 1, 0}`.  For every such keccak and `a < b`, the tree's own path of index 0,
+presenting the fake leaf, is accepted at `main` as an absence proof for the delivered `a`, and of
+the four cases of `KeccakBreakAtHead` exactly `leaf` holds on it. -/
 def Properties.LeafCollisionAtHeadFires : Prop :=
   (∀ a : UInt256, 0 < a → ∃ keccak : List UInt8 → UInt256,
       HashCollision keccak (imtLeafPreimage ⟨0, 1, a⟩) (imtLeafPreimage ⟨0, 1, 0⟩))
@@ -353,14 +530,17 @@ def Properties.LeafCollisionAtHeadFires : Prop :=
           ∧ KeccakBreakAtHead keccak S₂.tree S₂.fm.height
               (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
                 (imtLevel0 keccak (threeLeafTree a b)) 0) 2 0 ⟨0, 1, 0⟩
+          ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height
+              (honestSibs (imtNodeHash keccak) (imtEmptyLeafHash keccak)
+                (imtLevel0 keccak (threeLeafTree a b)) 0) 2 0 ⟨0, 1, 0⟩ .leaf
 
 /-- **SAME HASH, SAME TREE, SAME PROOF: ACCEPTED AT THE PIN, REJECTED AT `main`.**  There is a
 keccak that does not collide on `abi.encode(0,0,0)` and the tag, such that for every
 `0 < a < b`: with the pin's setup the forged proof of slot 3 is accepted against the stored root
 for the delivered `a` (as `CThreeLeafWitness` says for every hash), while with `main`'s setup no
-path of length 2 at slot 3 presenting the zero leaf is accepted for `a`.  So the conclusion of
-`PinForgeryAtHeadNeedsKeccakCollision` is not a tautology, and the only change between the two
-runs is the padding constant. -/
+path of length 2 at slot 3 presenting the zero leaf is accepted for `a`.  The inserts are the
+same in both runs; only the padding constant differs (`PinSetupIsPadAtZeroLeafHash`).  The proof's
+keccak is a toy that returns the right-hand word of a 64-byte input, not a model of keccak256. -/
 def Properties.PinForgeryAcceptedAtPinRejectedAtHead : Prop :=
   ∃ keccak : List UInt8 → UInt256,
     ¬ HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag
@@ -383,12 +563,13 @@ def Properties.PinForgeryAcceptedAtPinRejectedAtHead : Prop :=
 index only by `2 ^ pathLength` (`Merkle.sol:133-140`).  On every state reached at `main`, with
 stored root `R`:
 
-1. **still accepted:** for every padding slot `leafCount ≤ idx < 2 ^ _height`, the honest
-   siblings of `idx` (public, though `merklePath` refuses them) verify with item hash
-   `IMT_EMPTY_LEAF_HASH`; the slot commits the tag's keccak, not a leaf hash;
+1. **still accepted:** for every padding slot `leafCount ≤ idx < 2 ^ _height`, the tree's own
+   siblings of `idx` (`honestSibs`; `merklePath` refuses such an index, `FullMerkle.sol:111-114`)
+   verify against `R` with item hash `IMT_EMPTY_LEAF_HASH`, the keccak of the tag;
 2. **what presenting a leaf there takes:** an accepted path presenting `hashLeaf(ℓ)` at any
-   `idx ≥ leafCount` is, at the right length and below capacity, a keccak collision of
-   `abi.encode(ℓ)` with the tag, or a node collision on the path; otherwise a wrong length;
+   `idx ≥ leafCount` has the right length, an index below `2 ^ _height` and a keccak collision
+   of `abi.encode(ℓ)` with the tag; or the right length and a node collision on the path; or a
+   `LengthKeccakBreak`;
 3. **beyond capacity** (`idx ≥ 2 ^ _height`), only a longer path with a `LengthKeccakBreak`. -/
 def Properties.OutOfRangeIndexAtHead : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (S : CState), CReachesAtHead keccak S →
@@ -408,10 +589,12 @@ def Properties.OutOfRangeIndexAtHead : Prop :=
           PathAccepts (imtNodeHash keccak) R sibs k idx (imtHashLeaf keccak ℓ) →
             S.fm.height < k ∧ LengthKeccakBreak keccak S.tree S.fm.height sibs k idx ℓ)
 
-/-- **THE PREMISES OF `OutOfRangeIndexAtHead`'S CLAUSES 2 AND 3 ARE SATISFIABLE.**  For a keccak
-that collides everywhere (the constant one), on the three-leaf run at `main`, a path of length 2
-at the padding slot 3 and a path of length 3 at index 4, beyond `2 ^ 2`, both presenting the zero
-leaf, are accepted against the stored root. -/
+/-- **THE PREMISES OF `OutOfRangeIndexAtHead`'S CLAUSES 2 AND 3 ARE SATISFIABLE, AND THE LENGTH
+CASE FIRES ALONE.**  For some keccak (in the proof, the constant one, under which every two byte
+strings collide: a toy, not a model of keccak256), on the three-leaf run at `main`: a path of
+length 2 at the padding slot 3 and a path of length 3 at index 4, beyond `2 ^ 2`, both presenting
+the zero leaf, are accepted against the stored root.  On the second, of the four cases of
+`KeccakBreakAtHead` exactly `length` holds. -/
 def Properties.OutOfRangeIndexAtHeadWitness : Prop :=
   ∃ keccak : List UInt8 → UInt256, ∀ a b : UInt256, 0 < a → a < b →
     ∃ (S₂ : CState) (r₂ : UInt256),
@@ -419,13 +602,14 @@ def Properties.OutOfRangeIndexAtHeadWitness : Prop :=
       ∧ S₂.root = some r₂
       ∧ PathAccepts (imtNodeHash keccak) r₂ (fun _ => 0) 2 3 (imtHashLeaf keccak ⟨0, 0, 0⟩)
       ∧ PathAccepts (imtNodeHash keccak) r₂ (fun _ => 0) 3 4 (imtHashLeaf keccak ⟨0, 0, 0⟩)
+      ∧ KeccakBreakAtHeadExactly keccak S₂.tree S₂.fm.height (fun _ => 0) 3 4 ⟨0, 0, 0⟩ .length
 
 /-! ## Anti-vacuity -/
 
-/-- **THE PREMISES OF THE TWO BRIDGES ARE SATISFIABLE.**  On the `setup` tree at height 1, for the
-constant keccak, the zero leaf presented at the padding slot 1 with a length-1 path carries a
-`KeccakBreakAtHead` and a `TreeRootBreak` at `main`'s hashes, and every `nextIndex` involved fits
-a `uint256`.  This meets the premises of `KeccakBreakAtHeadIsTreeRootBreak` and
+/-- **THE PREMISES OF THE TWO BRIDGES ARE SATISFIABLE.**  On the `setup` tree at height 1, for some
+keccak (in the proof, the constant one) and some siblings, the zero leaf presented at the padding
+slot 1 with a length-1 path carries a `KeccakBreakAtHead` and a `TreeRootBreak` at `main`'s
+hashes, and every `nextIndex` involved fits a `uint256`.  This meets the premises of `KeccakBreakAtHeadIsTreeRootBreak` and
 `TreeRootBreakAtHeadIsKeccakCollision`. -/
 def Properties.PaddingAtHeadBreakPremisesSatisfiable : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (sibs : ℕ → UInt256),

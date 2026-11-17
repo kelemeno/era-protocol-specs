@@ -114,15 +114,19 @@ all-zero storage. No hash premise.
 `PaddingAtHead` models the tree at era-contracts `main` (`3605e82`), where `setup` pads
 with `IMT_EMPTY_LEAF_HASH = keccak256("zkSync:IndexedMerkleTree:emptyLeaf")` and no longer
 with `hashLeaf({0,0,0})` (item F-04 of commit `78e14b3bc`). Every other topic in this folder
-models the pin `c67894b9`. The tree library files are byte-identical at `d9f6789`
-(draft/v0.35.0) and `e561b9cc2`. No property takes a hash premise; `keccak` is an arbitrary
-function `List UInt8 → UInt256`, applied to the byte strings the source hashes.
+models the pin `c67894b9`. The cited files are byte-identical at the current `main`
+(`70096e2`); on draft/v0.35.0 (`d9f6789` and its current head `b17415d20`) the three library
+files and the constant are the same, and `L2InteropCommitmentTree.sol` differs only in its
+error imports. No property takes a hash premise; `keccak` is an arbitrary function
+`List UInt8 → UInt256`, applied to the byte strings the source hashes.
 - The model changes one argument of the pin's: `cSetupPad h hl ze` is `setup` with padding
   `ze`, and `CachedRoot`'s `cSetup`/`CReaches` are the instance `ze = hashLeaf({0,0,0})`
   (`PinSetupIsPadAtZeroLeafHash`). For every padding constant the storage caches the leaf
   hashes and `root()` is the published root (`CSetupPadCaches`,
   `CReachesPadRootIsPublished`, `CRunPadReaches`), and the reached list states and heights
-  are `RunHeight`'s (`CReachesPadViewsAreHReaches`). `insert` is the same `cInsert`.
+  are `RunHeight`'s (`CReachesPadViewsAreHReaches`). `insert` is the same `cInsert`; the
+  low-leaf search is unbounded at `main` (#2349), so `HintSearch`'s deployed-fuel caveat
+  (`HonestInsertRevertsAtDeployedFuel`) describes the pin only.
 - Headline, `NonInclusionAtHeadIsAbsentOrKeccakCollision`: on every reached state, against
   the root the contract stores, an accepted `verifyNonInclusion` means the value is absent,
   or a `KeccakBreakAtHead`: keccak collides on two different byte strings that the
@@ -132,36 +136,58 @@ function `List UInt8 → UInt256`, applied to the byte strings the source hashes
   (`LengthKeccakBreak`). `InclusionAtHeadIsPresentOrKeccakCollision` and
   `ProofsExclusiveAtHeadOrKeccakCollision` are the same for `verifyInclusion` and for a
   pair of proofs.
-- The preimages are separated by length and determine what is hashed
-  (`ImtEmptyLeafTagIsTheLiteral`, `ImtPreimagesDomainSeparated`,
+- The tag is the literal's UTF-8 encoding, and the preimages are separated by length and
+  determine what is hashed (`ImtEmptyLeafTagIsTheLiteral`, `ImtPreimagesDomainSeparated`,
   `ImtPreimagesDetermineTheirInputs`).
 - `KeccakBreakAtHead` implies `TreeRootBreak` at `main`'s hashes
   (`KeccakBreakAtHeadIsTreeRootBreak`), and for leaves whose `nextIndex` fits a `uint256`
   every `TreeRootBreak` there is one of the named keccak collisions
   (`TreeRootBreakAtHeadIsKeccakCollision`; `PathCollisionAtHeadIffKeccak`,
-  `HeightBreakAtHeadIffKeccak`, `PaddingHitAtHeadIffEmptyLeafCollision`). At the pin the
-  padding case held for the zero leaf with no collision (`PaddingHitAtPinNeedsNoCollision`).
-- The pin's forged proof at `main` (`PinForgeryAtHeadNeedsKeccakCollision`): on the
+  `HeightBreakAtHeadIffKeccak`, `PaddingHitAtHeadIffEmptyLeafCollision`). The bound is
+  needed, since the model's `nextIndex` is a natural number
+  (`TreeRootBreakAtHeadNeedsNextIndexBound`). At the pin the padding case held for the zero
+  leaf with no collision (`PaddingHitAtPinNeedsNoCollision`).
+- Against the round-7 padding-forgery notes. `HashAssumptions`' `padNotLeaf`, false at the
+  pin for every hash, is at `main` the statement that no leaf's `abi.encode` collides with
+  the tag under keccak; it is satisfiable, while `HashAssumptions` as a whole stays
+  unsatisfiable (`PadNotLeafAtHeadIsKeccakNonCollision`). Over contract runs at `main`, an
+  accepted absence proof at a snapshot meeting `StaleSnapshot`'s abstract deadline pin
+  excludes on-time delivery, or carries a `KeccakBreakAtHead`, with no premise on the
+  presented leaf (`StaleWitnessAtHeadNotRedeemableOrKeccakCollision`, the `main` counterpart
+  of `StaleSnapshotFaithful`'s `StaleWitnessNotRedeemableOrCollision`;
+  `StaleWitnessAtHeadSatisfiable`). For every keccak that collides on `abi.encode(0,0,0)`
+  and the tag, the pin's padding reclaim of a delivered value is accepted on such a run at
+  `main`, and its located break is exactly the `emptyLeaf` case
+  (`PaddingReclaimAtHeadLocatesEmptyLeafCollision`).
+- The pin's forged proof at `main` (`PinForgeryAtHeadNeedsKeccakCollision`; the same leaf,
+  index and sibling words as at the pin, `PinForgeryProofSameAtPinAndHead`): on the
   three-leaf run it is accepted exactly when keccak collides on `abi.encode(0,0,0)` and the
   tag, or on a node pair at one of its two steps. `PinForgeryAcceptedAtPinRejectedAtHead`
   gives one toy hash for which the same proof against the same tree is accepted with the
-  pin's padding and rejected with `main`'s. The padding, node and leaf disjuncts each fire
-  on a toy hash (`PinForgeryAtHeadFiresOnCollision`, `NodeCollisionAtHeadFires`,
-  `LeafCollisionAtHeadFires`), so none of the three can be dropped.
+  pin's padding and rejected with `main`'s.
+- Each of the four cases of `KeccakBreakAtHead` is, alone, the located break of an accepted
+  forged proof on a reached state (`KeccakBreakAtHeadExactly`, `KeccakBreakAtHeadIffSomeCase`):
+  `emptyLeaf` (`PinForgeryAtHeadFiresOnCollision`) and `leaf` (`LeafCollisionAtHeadFires`)
+  for every keccak with the named collision, `node` (`NodeCollisionAtHeadFires`) and
+  `length` (`OutOfRangeIndexAtHeadWitness`) on toy keccaks. So no case can be dropped.
 - `calculateRootMemory` still does not bound the index by the leaf count. At `main` the
-  honest siblings of an empty slot authenticate `IMT_EMPTY_LEAF_HASH` and nothing else
-  short of a collision (`OutOfRangeIndexAtHead`, `HonestSiblingsAcceptExactly`,
-  `OutOfRangeIndexAtHeadWitness`).
+  tree's own siblings of an empty slot authenticate `IMT_EMPTY_LEAF_HASH`, and presenting a
+  leaf there takes a collision (`OutOfRangeIndexAtHead`,
+  `HonestSiblingsAcceptEntryOrPathCollision`, `OutOfRangeIndexAtHeadWitness`).
 - Anti-vacuity: `PaddingAtHeadThreeLeafRun`, `NonInclusionAtHeadWitness`,
   `ContractProofsAtStoredRootAtHead` (the contract's own `merklePath` outputs are accepted
-  with no break), `HonestProofNoKeccakBreakAtHead`, `PaddingAtHeadBreakPremisesSatisfiable`.
-- Not covered: the firing witnesses use toy hashes, so they show the disjuncts are needed
-  in the statement, not that keccak256 collides. `PathAccepts` omits the
-  `_pathLength >= 256` revert, so the model accepts more proofs than the source. The
-  wrapper's `_reportLeaf` hook is taken not to call back into the tree. `InitOnce`'s
-  `initL2`/caller model and `Protocol/InteropAtomicity` are still at `c67894b9`; only the
-  break disjunct of their results is translated to `main`'s hashes, and how `main`'s
-  `AtomicFlowManager` obtains the root it verifies against is not modelled.
+  with no break), `HonestProofNoKeccakBreakAtHead`, `PaddingAtHeadBreakPremisesSatisfiable`,
+  `StaleWitnessAtHeadSatisfiable`.
+- Not covered: the firing witnesses show the disjuncts are needed in the statement, not that
+  keccak256 collides. `PathAccepts` omits the `_pathLength >= 256` revert, so the model
+  accepts more proofs than the source. The wrapper's `_reportLeaf` hook is taken not to
+  call back into the tree. That the pin's bounded search and `main`'s unbounded one reach
+  the same states is argued from `SearchYieldsGuard`, not stated as a theorem. The
+  stale-snapshot result uses the abstract pin `D < t (j+1)`, not `main`'s timeout branches.
+  `InitOnce`'s `initL2`/caller model and `Protocol/InteropAtomicity` are still at
+  `c67894b9`; only the break disjunct of their results is translated to `main`'s hashes,
+  and how `main`'s `AtomicFlowManager` obtains the root it verifies against is not
+  modelled.
 
 Source finding at the pin `c67894b9`, since fixed upstream (see `PaddingAtHead` above): the
 tree pads empty slots with `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`), against
@@ -170,8 +196,8 @@ tree pads empty slots with `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`), 
 (`Merkle.sol:133-140`), not by the leaf count. So the padding forgery is accepted against
 the root the contract stores (`CThreeLeafWitness`, `PublishedRootPaddingHitFires`,
 `PaddingCollisionRefundsDeliveredLeg`). Both verifiers classified it as a bug, high
-severity. At `main` (`3605e82`) `setup` pads with `IMT_EMPTY_LEAF_HASH`; the index bound is
-unchanged.
+severity. At `main` (`3605e82`, unchanged at `70096e2`) and on draft/v0.35.0 (`b17415d20`)
+`setup` pads with `IMT_EMPTY_LEAF_HASH`; the index bound is unchanged.
 
 Root authentication and hash assumptions have separate proofs under `../Merkle/`
 and `../FullMerkle/`. Caller checks are modelled in `InitOnce`; their source

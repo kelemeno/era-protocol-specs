@@ -6,14 +6,19 @@ import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 
 Source: era-contracts `main` at `3605e82` (`MAIN/` below is `l1-contracts/contracts/` of that
 tree).  The change modelled is item "F-04 domain-separate the IMT empty-leaf padding value" of
-commit `78e14b3bc` (PR #2285), which is on `main` through #2315 (`327072bd9`).  `CachedRoot`
-models the pin `c67894b9`, where the padding constant was the hash of a valid leaf; its
+commit `78e14b3bc` (merged by PR #2285); `3605e82` contains that commit.  `CachedRoot` models
+the pin `c67894b9`, where the padding constant was the hash of a valid leaf; its
 `CThreeLeafWitness` is the forged absence proof that this allowed against the stored root.
 
-`IndexedMerkleTree.sol`, `Merkle.sol` and `FullMerkle.sol` are byte-identical to `main` at
-`draft/v0.35.0` (`d9f6789`) and at `e561b9cc2`, `L2InteropCommitmentTree.sol` differs there only
-in two import lines, and `IMT_EMPTY_LEAF_HASH` is the same expression (`Config.sol:141` and
-`:134`).  So the model describes those two heads as well; the line numbers below are `main`'s.
+**Other heads.**  The five files cited below (`common/Config.sol`,
+`common/libraries/IndexedMerkleTree.sol`, `Merkle.sol`, `FullMerkle.sol` and
+`atomic-interop/L2InteropCommitmentTree.sol`) are byte-identical at the current `main`,
+`70096e2`.  On `draft/v0.35.0`, at `d9f6789` and at its current head `b17415d20` alike, the
+three library files are byte-identical to `main`'s, `IMT_EMPTY_LEAF_HASH` is the same
+declaration (`Config.sol:138-141` there), and `L2InteropCommitmentTree.sol` differs only in
+where it imports its three error types from: `main`'s import line 12 is two lines there, so the
+contract's line numbers from 13 on are one higher.  So the model describes these heads as
+well; the line numbers below are `main`'s.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.PaddingAtHead`, proofs in
@@ -21,7 +26,7 @@ in two import lines, and `IMT_EMPTY_LEAF_HASH` is the same expression (`Config.s
 
 ## What changed
 
-    MAIN/common/Config.sol:86-90
+    MAIN/common/Config.sol:87-90
         /// @dev Padding value for empty/unused leaves in an {IndexedMerkleTree}. Deliberately NOT a
         /// valid `hashLeaf(IMTLeaf)` output, so an unused padded index can't be presented as a
         /// `{0,0,0}` low leaf to forge a non-inclusion proof. ...
@@ -57,19 +62,23 @@ At the pin (`IndexedMerkleTree.sol:42-51` at `c67894b9`) the same function compu
   storage (`FullMerkle/Specs/CachedNodes.lean`) and `CachedRoot`'s `cInsert` describe `main`.
 * The insert guards and writes are unchanged (`IndexedMerkleTree.sol:70-106`).  The low-leaf
   search is now unbounded (`:90-93`, #2349).  `cInsert` takes the low leaf the search ends on,
-  with `InsertGuard`, and `InsertGuard` does not mention the bound: a search that ends, from any
-  hint and with any number of hops, ends on a guarded leaf (`SearchYieldsGuard` is stated for
-  every fuel), and from the hint `low` itself the loop runs zero times.  So the bounded search of
-  the pin and the unbounded one of `main` give the same reached states.
+  with `InsertGuard`, which does not mention the bound.  A search that ends, from a hint that
+  passed the checks before the loop (`:70-88`) and after any number of hops, ends on a leaf
+  meeting `InsertGuard`: that is `SearchYieldsGuard` (`HintSearch`), stated for every fuel and
+  every `Valid` tree, and reached trees are `Valid`.  Conversely, from a hint `low` meeting
+  `InsertGuard` the loop runs zero times.  So the bounded search of the pin and the unbounded one
+  of `main` give the same reached states.  This last step is argued here, not stated as a
+  theorem.
 * `L2InteropCommitmentTree.insert` (`MAIN/atomic-interop/L2InteropCommitmentTree.sol:50-63`) now
-  also calls `_reportLeaf` (`:70-75`) after `_imt.insert`.  It makes two calls: a self-call into
-  the contract's `fallback` (`:120-125`), which always reverts, and a call to the ZKsync OS
-  system hook `INTEROP_COMMITMENT_LEAF_HOOK`, whose failure reverts the insert.  Neither is a
-  Solidity write to `_imt`.  The hook is not in this source tree; that it does not call back
-  into the tree is taken from its description, not proved (`insert` is `appender()`-only in any
-  case, `:51-53`).  Given that, the call can only revert the insert, so the reached states
-  over-approximate the wrapper's and statements over all of them cover it.  `root()` (`:93-95`)
-  and `merklePath(i)` (`:108-110`) read the `IMT` as before.
+  also calls `_reportLeaf` (`:70-75`) after `_imt.insert`.  That makes two calls.  `_burnLogGas`
+  (`:79-90`) self-calls the contract's `fallback` (`:120-125`), which always reverts, and ignores
+  the result (it reverts itself with `NotEnoughGasSupplied` when too little gas is left).  Then
+  the ZKsync OS system hook `INTEROP_COMMITMENT_LEAF_HOOK` is called, and its failure reverts the
+  insert.  Neither is a Solidity write to `_imt`.  The hook is not in this source tree; that it
+  does not call back into the tree is taken from its description, not proved (`insert` is
+  `appender()`-only in any case, `:51-53`).  Given that, the calls can only revert the insert, so
+  the reached states over-approximate the wrapper's and statements over all of them cover it.
+  `root()` (`:93-95`) and `merklePath(i)` (`:108-110`) read the `IMT` as before.
 
 ## Two layers
 
@@ -82,12 +91,22 @@ At the pin (`IndexedMerkleTree.sol:42-51` at `c67894b9`) the same function compu
   `keccak` is assumed.  The located breaks of `TreeRoot` then become keccak collisions on two
   byte strings that the instance names (`KeccakBreakAtHead`).
 
+`TreeRoot`'s `HashAssumptions` note ("Not a keccak premise at `c67894b9`") records that
+`padNotLeaf` fails at the pin for every leaf hash, because the padding constant is a leaf hash
+there.  At `main` the same field is a statement about keccak alone, that no leaf's `abi.encode`
+collides with the tag (`Properties.PadNotLeafAtHeadIsKeccakNonCollision`).  This file assumes
+neither: a padding hit at `main` is the `emptyLeaf` case of the located break, a collision with
+the fixed 34-byte tag, so finding one is a second-preimage problem for keccak.
+
 ## Model boundaries
 
 * `keccak` is any function.  Collisions are conclusions, never excluded by a premise, and each is
   pinned: `HashCollision keccak x y` names `x` and `y`.
 * `word` is the 32-byte big-endian word of `InteropDataEncoding/Specs/BundleHashEncoding.lean`.
-  `Leaf.nextIndex` is `ℕ`, and `word` reduces it modulo `2^256` as a `uint256` field would.
+  `Leaf.nextIndex` is `ℕ`, while the source's `uint256` field is below `2^256`.  `word` keeps the
+  low 256 bits, so two leaves whose `nextIndex` differ by a multiple of `2^256` have one preimage
+  (`Properties.TreeRootBreakAtHeadNeedsNextIndexBound`); below `2^256` the encoding determines
+  the leaf (`Properties.ImtPreimagesDetermineTheirInputs`).
 * `PathAccepts` (from `TreeRoot`) keeps `MerkleIndexOutOfBounds` (`idx < 2 ^ k`) and drops
   `MerklePathOutOfBounds` (`_pathLength >= 256`, `Merkle.sol:134-136`).  So the model accepts
   every proof the source accepts and also paths of 256 or more siblings.  The results of the
@@ -95,7 +114,10 @@ At the pin (`IndexedMerkleTree.sol:42-51` at `c67894b9`) the same function compu
   witnesses use paths of length at most 3.
 * Only the tree is modelled here.  How `AtomicFlowManager` and `AtomicInteropProof` at `main`
   obtain the root they pass to the two verifiers is not, and `Protocol/InteropAtomicity` still
-  models the manager at `c67894b9`.
+  models the manager at `c67894b9`.  The run-level result
+  `Properties.StaleWitnessAtHeadNotRedeemableOrKeccakCollision` reads the deadline gate as
+  `StaleSnapshot`'s abstract pin `D < t (j+1)`, as `AttackVectors.StaleSnapshotFaithful` does;
+  the deployed timeout branches at `main` are not modelled.
 * As in `CachedRoot`: `IMTAlreadyInitialized` is replaced by starting from fresh storage, a
   revert inside `FullMerkle` is `none`, and compiled-code correspondence is obligation O7.
 -/
@@ -139,8 +161,8 @@ def imtNodePreimage (a b : UInt256) : List UInt8 := word a.val ++ word b.val
 /-- The node preimage of an ordered pair, as `walkPair` and `treePair` return them. -/
 def imtPairPreimage (p : UInt256 × UInt256) : List UInt8 := imtNodePreimage p.1 p.2
 
-/-- The bytes `keccak256` hashes in `IMT_EMPTY_LEAF_HASH` (`Config.sol:90`): the string literal
-`"zkSync:IndexedMerkleTree:emptyLeaf"`, 34 ASCII bytes, which are also its UTF-8 encoding
+/-- The bytes `keccak256` hashes in `IMT_EMPTY_LEAF_HASH` (`Config.sol:90`): the UTF-8 encoding
+of the string literal `"zkSync:IndexedMerkleTree:emptyLeaf"`, 34 bytes
 (`Properties.ImtEmptyLeafTagIsTheLiteral`). -/
 def imtEmptyLeafTag : List UInt8 :=
   [122, 107, 83, 121, 110, 99, 58, 73, 110, 100, 101, 120, 101, 100, 77, 101, 114, 107, 108, 101,
@@ -236,8 +258,8 @@ does not open a stored leaf with `ℓ`'s value and `nextValue`, yields one of:
 * `length`: a wrong length, located as in `LengthKeccakBreak`.
 
 Every case names its two byte strings.  So this is not "keccak has a collision", which is
-always true; `Properties.HonestProofNoKeccakBreakAtHead` shows it is false on every honest
-proof, for every `keccak`. -/
+always true; `Properties.HonestProofNoKeccakBreakAtHead` shows it is false on the honest proof of
+every occupied index, for every `keccak`. -/
 inductive KeccakBreakAtHead (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ)
     (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) : Prop
   | emptyLeaf : k = height → T.leafCount ≤ idx →
@@ -252,5 +274,39 @@ inductive KeccakBreakAtHead (keccak : List UInt8 → UInt256) (T : Tree) (height
       KeccakBreakAtHead keccak T height sibs k idx ℓ
   | length : LengthKeccakBreak keccak T height sibs k idx ℓ →
       KeccakBreakAtHead keccak T height sibs k idx ℓ
+
+/-! ## Which case of the keccak break fires
+
+As for `TreeRoot`'s `TreeRootBreak`: a proof term of `KeccakBreakAtHead` names one constructor,
+but the statement does not say which case holds on an instance, nor that only one does.
+`KeccakBreakAtHeadAt c` is the premise of constructor `c` as a proposition, and
+`KeccakBreakAtHeadExactly … c` says that case `c`, and no other, holds.
+`Properties.KeccakBreakAtHeadIffSomeCase` checks the two views agree. -/
+
+/-- The four cases of `KeccakBreakAtHead`. -/
+inductive KeccakBreakAtHeadCase
+  | emptyLeaf
+  | leaf
+  | node
+  | length
+deriving DecidableEq
+
+/-- The premise of the `KeccakBreakAtHead` constructor named by the case. -/
+def KeccakBreakAtHeadAt (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ)
+    (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) : KeccakBreakAtHeadCase → Prop
+  | .emptyLeaf => k = height ∧ T.leafCount ≤ idx
+      ∧ HashCollision keccak (imtLeafPreimage ℓ) imtEmptyLeafTag
+  | .leaf => k = height ∧ idx < T.leafCount
+      ∧ HashCollision keccak (imtLeafPreimage (T.leaf idx)) (imtLeafPreimage ℓ)
+  | .node => k = height
+      ∧ PathKeccakCollision keccak (imtEmptyLeafHash keccak) (imtLevel0 keccak T) sibs 0 k idx
+          (imtHashLeaf keccak ℓ)
+  | .length => LengthKeccakBreak keccak T height sibs k idx ℓ
+
+/-- **Exactly case `c` fires**: the premise of case `c` holds on this instance, and that of every
+other case does not. -/
+def KeccakBreakAtHeadExactly (keccak : List UInt8 → UInt256) (T : Tree) (height : ℕ)
+    (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) (c : KeccakBreakAtHeadCase) : Prop :=
+  ∀ c' : KeccakBreakAtHeadCase, KeccakBreakAtHeadAt keccak T height sibs k idx ℓ c' ↔ c' = c
 
 end Contracts.InteropCommitmentTree
