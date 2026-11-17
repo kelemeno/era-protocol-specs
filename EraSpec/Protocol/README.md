@@ -18,12 +18,38 @@ and properties remain under `../Contracts/<SolidityName>/`.
   undelivered legs). No statement takes a hash premise; every property is an
   `abbrev Properties.x` with certificate `x`. `Spec.lean` is now a compatibility
   module that only imports the proofs module.
+- `MultichainGate/{Specs,Properties,Proofs}/DeployedGate.lean` (namespace
+  `Contracts.Protocol.DeployedGate`, `c67894b9`): the source-bound gate as
+  `verifyNonInclusion` runs it, against the source chain's root at its own `_height`, with
+  leaf, index, siblings and path length the prover's. Read as statements about this gate,
+  `chains_no_double_spend` and `chains_bound_gate_iff_undelivered` fail at `c67894b9`
+  (`ChainsNoDoubleSpendFailsForDeployedGate`,
+  `ChainsBoundGateIffUndeliveredFailsForDeployedGate`): the padding sentinel at an empty slot
+  passes for a delivered value, with located break exactly `paddingHit`
+  (`PinnedPaddingDeployedGateRefundsDeliveredLeg`). With no hash premise: an accepted proof
+  for a delivered value carries a located `TreeRootBreak`
+  (`DeployedBoundGateExcludesDeliveredOrBreak`), a `CollisionBreak` when the presented leaf
+  does not hash to the padding or the source tree is full
+  (`DeployedBoundGateSeparatedPaddingNeedsCollision`,
+  `DeployedBoundGateFullTreeNeedsCollision`; a reached tree is full iff its leaf count is a
+  power of two, `FullAtOwnHeightIffPowerOfTwo`); the gate passes every undelivered nonzero
+  value (`DeployedBoundGateLiveOnUndelivered`) and accepts exactly when `BoundGate` holds or
+  an accepted proof carries a located break (`DeployedBoundGateIffAbstractOrBreak`).
+  Witnesses: `DeployedGateCollisionPremisesSatisfiable`, `DeployedBoundGateLiveWitness`,
+  `FullAtOwnHeightExamples`.
 - `LocalHonesty.lean`: the center → manager → commitment-tree authorization chain
   supplying the honest-insertion assumption.
 - `NoTheft.lean`: abstract per-leg commitment/reclaim exclusivity and provenance,
   with the caller's assumptions and limits stated explicitly.
 - `FlowAtomicity.lean`: commitment-evidence persistence and per-leg outcomes;
   it does not by itself establish application execution or uniform flow outcomes.
+- `FlowAtomicityPerChain/{Specs,Properties,Proofs}/Model.lean` (namespace
+  `AttackVectors.FlowAtomicityPerChain`): the `FlowAtomicity` results with one commitment
+  history per source chain, as the source keeps them (`LegsPresentAtLaterSnapshotsPerChain`,
+  `FlowOutcomeDichotomyPerChain`), and `SharedHistoryMisreadsTwoChainFlow`: on a two-chain
+  flow, the committing chain's history of one leg holds no key for the other leg and has a
+  reclaim witness for it, so one shared history `S` misreads the flow. Leaf sets only, no
+  hash premise.
 - `DestinationCapstone.lean`: composition of destination replay, identity, and
   accounting properties, with their cross-contract assumptions exposed.
 - [AssetBridgePreparation](AssetBridgePreparation/README.md): exact-burn
