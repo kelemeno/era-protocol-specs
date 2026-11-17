@@ -4,12 +4,14 @@ import EraSpec.Core.Word
 /-!
 # Model: the `Governance` timelock, with re-entrant execution
 
-Source: `l1-contracts/contracts/governance/Governance.sol` at `feat/upgrade-simplification`
-commit `e561b9cc2` (the commit `../ChainTypeManager/` models). The file is byte-identical at
-the era-contracts pin `c67894b9`. `IGovernance.sol` and `Common.sol` are in the same
-directory. `Ownable2Step` is OpenZeppelin `release-v4.9` (`lib/openzeppelin-contracts-v4`, a
-submodule that is not checked out in either tree; read at v4.9.6). Line numbers below are
-`Governance.sol` unless another file is named.
+Source: era-contracts `draft/v0.35.0` at commit `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`,
+`l1-contracts/contracts/governance/Governance.sol`, with `IGovernance.sol` and `Common.sol` from
+the same directory. The three files are byte-identical at the interop pin `c67894b9`, at
+`e561b9cc2` (the commit `../ChainTypeManager/` models), at `d9f67890` and at `main` `70096e2ea`,
+so every line number below holds at each of them. `Ownable` and `Ownable2Step` are OpenZeppelin
+`lib/openzeppelin-contracts-v4` at the gitlink `dc44c9f1a4c3b10af99492eed84f83ed244203f6`
+(release v4.9.6) that all of these commits record, read from a checkout of that commit. Line
+numbers are `Governance.sol` unless another file is named.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.Governance.Properties.Timelock` and are proved in
@@ -80,10 +82,10 @@ Only inside `_execute` (:263). There Governance calls each target in turn:
 
 * a **foreign target** runs arbitrary code. It may call any Governance entry point, any
   number of times, directly or through other contracts. The caller Governance then sees is
-  that contract, never Governance itself. The call may come from the owner's or the council's
-  own contract if the target reaches it: this model treats the owner and the council as
-  **abstract contracts** that may call back at any point (a stated boundary). The target may
-  catch a failing call or let it propagate.
+  that contract, never Governance itself. The model lets that caller be any address other than
+  Governance, the owner and the council included: it treats them as **abstract contracts**
+  that may call back at any point. For an externally owned owner or council this only adds
+  runs. The target may catch a failing call or let it propagate.
 * a **self-call** (`target == address(this)`) runs the Governance function its calldata
   selects, with `msg.sender == address(this)`. This is the only way to pass `onlySelf`.
 
@@ -127,7 +129,8 @@ Only inside `_execute` (:263). There Governance calls each target in turn:
   of transactions are not assumed ordered (`TimesMonotone` is available where wanted);
   none of the safety results needs it.
 * **Numbers.** Times, delays and timestamps are `ℕ`. The checked addition at :253 is the guard
-  `τ + delay < 2^256` ("overflow of τ+d means no step").
+  `τ + delay < 2^256` ("overflow of τ+d means no step"). Block times and the `uint256`
+  arguments `delay`/`_newDelay` are not bounded by `2^256`, which only adds runs.
 * **Reject-only checks omitted**: the `value` of a call (payable/non-payable checks and
   Governance's balance) and the owner-zero check of the constructor. Omitting a check that
   can only revert only adds runs. Events other than the ones listed carry no state.
@@ -282,9 +285,10 @@ inductive Effect
   | minDelayChanged (old new : ℕ)
   /-- `ChangeSecurityCouncil(old, new)` (:296). -/
   | councilChanged (old new : Address)
-  /-- `OwnershipTransferStarted(owner, newOwner)` (`Ownable2Step.sol:37`). -/
+  /-- `OwnershipTransferStarted(owner, newOwner)` (`Ownable2Step.sol:37`), keeping only
+  `newOwner`. -/
   | ownershipTransferStarted (newOwner : Address)
-  /-- `OwnershipTransferred(old, new)` (`Ownable.sol:81`). -/
+  /-- `OwnershipTransferred(old, new)` (`Ownable.sol:81`), keeping only `new`. -/
   | ownershipTransferred (newOwner : Address)
 deriving DecidableEq
 
@@ -489,6 +493,64 @@ def Effect.schedOf (x : OpId) : Effect → Option SchedRec
 def lastSchedule (x : OpId) (l : List Effect) : Option SchedRec :=
   (l.filterMap (Effect.schedOf x)).getLast?
 
+/-- The operation a schedule, cancel, delivery or execution entry concerns. -/
+def Effect.opId : Effect → Option OpId
+  | .scheduled x _ _ _ _ => some x
+  | .cancelled x => some x
+  | .delivered x _ => some x
+  | .executed x _ _ _ => some x
+  | _ => none
+
+/-! ### Replaying the log
+
+Every storage write is logged when it is made, by exactly one entry, and nothing else is
+logged except the ghost `delivered`, which writes nothing. `Effect.apply` is the write an
+entry records, read off the entry alone: a schedule of `x` at block time `t` with delay `d`
+writes `timestamps[x] = t + d` (:253), a cancel `0` (:174), an execution
+`EXECUTED_PROPOSAL_TIMESTAMP` (:203, :228); `ChangeMinDelay` and `ChangeSecurityCouncil` write
+their new value (:290, :297); `OwnershipTransferStarted` the pending owner
+(`Ownable2Step.sol:36`); `OwnershipTransferred` the owner, and it deletes the pending owner
+(`Ownable2Step.sol:45`, `Ownable.sol:80`). `replay s l` applies a log's writes in order. -/
+
+/-- The storage write that a log entry records. -/
+def Effect.apply (s : State) : Effect → State
+  | .scheduled x t d _ _ => s.setTs x (t + d)
+  | .cancelled x => s.setTs x 0
+  | .delivered _ _ => s
+  | .executed x _ _ _ => s.setTs x EXECUTED
+  | .minDelayChanged _ d => { s with minDelay := d }
+  | .councilChanged _ a => { s with council := a }
+  | .ownershipTransferStarted a => { s with pendingOwner := a }
+  | .ownershipTransferred a => { s with owner := a, pendingOwner := 0 }
+
+/-- The state reached from `s` by applying the writes of the log `l`, in order. -/
+def replay (s : State) (l : List Effect) : State := l.foldl Effect.apply s
+
+/-- The check a logged entry passed, read on the state `s` just before it was logged:
+* a schedule of `x` at block time `t` with delay `d` and recorded minimum delay `m`: `x` was
+  `Unset`, `m` was `minDelay`, `m ≤ d`, `t + d` did not overflow, and a published payload
+  hashes to `x` (:246-253, :146);
+* a cancel of `x`: `x` was pending (:171-173);
+* an execution of `x` with operation `op` at block time `τ`: `x = H op`, the predecessor of
+  `op` was zero or `Done`, and `x` was pending, and on the delayed path ready at `τ`. This is
+  the state after the operation's calls, so these are the re-check (:199-201, :224-226) and
+  the predecessor check (:189, :214), which `Done` being permanent carries over the calls;
+* `ChangeMinDelay(old, _)` and `ChangeSecurityCouncil(old, _)`: `old` was the stored value
+  (:289, :296);
+* the other entries: nothing (their checks concern the caller, which the log does not
+  record). -/
+def Effect.CheckedAt (E : Env) (s : State) : Effect → Prop
+  | .scheduled x t d m o =>
+      s.ts x = 0 ∧ m = s.minDelay ∧ m ≤ d ∧ t + d < UInt256.size ∧
+        ∀ op₀, o = some op₀ → E.H op₀ = x
+  | .cancelled x => s.ts x ≠ 0 ∧ s.ts x ≠ EXECUTED
+  | .executed x op τ b =>
+      x = E.H op ∧ (op.predecessor = 0 ∨ s.ts op.predecessor = EXECUTED) ∧
+        s.ts x ≠ 0 ∧ s.ts x ≠ EXECUTED ∧ (b = false → s.ts x ≤ τ)
+  | .minDelayChanged old _ => old = s.minDelay
+  | .councilChanged old _ => old = s.council
+  | _ => True
+
 /-! ## Witness data
 
 Governance at address `99`, owner `1`, council `2`, minimum delay `10`. The hash of an
@@ -605,5 +667,14 @@ executes `timelockCollideOp`, which has the same id. -/
 def timelockCollideRun : List Tx :=
   [timelockTx 1 100 (.scheduleTransparent timelockPlainOp 10),
     timelockTx 1 110 (.execute timelockCollideOp)]
+
+/-- The state after `timelockPlainRun`: operation `12` is `Done`. -/
+def timelockPlainDone : State := (submitAll .deployed timelockEnv timelockInit timelockPlainRun).1
+
+/-- After `timelockPlainRun`, at `120`: the owner schedules `timelockPlainOp` again, then
+schedules `timelockSuccOp`. -/
+def timelockAfterDoneRun : List Tx :=
+  [timelockTx 1 120 (.scheduleTransparent timelockPlainOp 10),
+    timelockTx 1 120 (.scheduleTransparent timelockSuccOp 10)]
 
 end Contracts.Governance
