@@ -205,6 +205,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Re-pinned to draft/v0.35.0 (b17415d20): the unbounded low-leaf walk of `insert`
+-- (IndexedMerkleTree, and its lift to the L2InteropCommitmentTree indexed state)
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.UnboundedSearchAtV35
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.UnboundedSearchAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
