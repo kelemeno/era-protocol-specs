@@ -3,23 +3,32 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy
 /-!
 # Model: re-entrant bundle execution in the interop handlers, at draft/v0.35.0
 
-Source: era-contracts branch `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`
-(`d9f6789`). Paths are relative to `l1-contracts/contracts/`. In this header `IHB` is
+Source: era-contracts branch `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`b17415d20`). Paths are relative to `l1-contracts/contracts/`. In this file `IHB` is
 `interop/interop-handler/InteropHandlerBase.sol`, `L2` is
 `interop/interop-handler/L2InteropHandler.sol` and `L1` is
-`interop/interop-handler/L1InteropHandler.sol`; every line number is at `d9f6789`.
+`interop/interop-handler/L1InteropHandler.sol`; every line number is at `b17415d20`.
+
+**Pin history.** This model was first written against `d9f678900e1bc8286412b78f56d4a9f443983c29`
+(`d9f6789`). Every file it cites is byte-identical at `d9f6789` and `b17415d20` (the three commits
+between them touch upgrade and governance contracts only), so every line number below holds at
+both.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.InteropHandlerBase.Properties.ReentrancyAtV35` and are proved in
 `EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyAtV35`. The pin model
 (`Specs/Reentrancy.lean`, era-contracts `c67894b9`) is left as it is; this file adds a model of
-the v35 code beside it.
+the v35 code beside it, and `EntryAtV35.toPin` below translates the one into the other.
 
-**Also at main `3605e82`.** At main the three handler files differ from `d9f6789` only by the
-getter names (`_executeBundleSelector`, `_verifyBundleSelector`,
-`_expectedDestinationBaseTokenAssetId`) and by `L2InteropHandler.updateL2` (absent at main, so
-main's `L2` line numbers after `:34` are 10 lower). Everything modelled here, and every result
-about it, also describes main.
+**Main.** At main `70096e2` the three handler files are those of main `3605e82`. They differ
+from `b17415d20` only by the names of three internal getters (`_executeBundleSelector`,
+`_verifyBundleSelector`, `_expectedDestinationBaseTokenAssetId` at main; the two selector getters
+are also `view` there instead of `pure`) and by `L2InteropHandler.updateL2` and its import, which
+main does not have (main's `L2` lines are 1 lower for `:9-35` and 10 lower from `:45` on). So
+`execAtV35` models main's handlers too. The receive-filter section does not apply to main: main's
+`requireFlowFinalized` (`atomic-interop/AtomicFlowManager.sol:175`) has no
+`_checkLegSourceAllowed`, and main's `L2Bridgehub` has no `isPeerAllowed`. Lines cited in files
+other than the three handlers can differ at main.
 
 ## What changed since the pin
 
@@ -27,15 +36,16 @@ about it, also describes main.
   `verifyBundle` and `_verifyBundle` left the base and L2. L2 now has exactly the atomic pair
   `executeAtomicBundle` (`L2:61-78`) and `verifyAtomicBundle` (`L2:83-92`, new). L1 has the
   message-inclusion pair `executeBundle` (`L1:81-98`) and `verifyBundle` (`L1:103-110`), for
-  L2→L1 withdrawals only. `unbundleBundle` (`IHB:113-175`) is shared and unchanged.
+  L2→L1 withdrawals only. `unbundleBundle` (`IHB:113-175`) is shared; its code is the pin's,
+  apart from comments.
 * **`executeAtomicBundle` admits `Verified`, and then skips the gate.** `_requireExecutable`
   (`IHB:282-287`) admits `Unreceived` or `Verified`, and `requireFlowFinalized` runs only
   `if (status != BundleStatus.Verified)` (`L2:73-75`). At the pin it admitted `Unreceived` only
   and always ran the gate (pin `L2:79`, `:83`).
 * **An atomic bundle can now be verified, then unbundled.** `verifyAtomicBundle` runs the gate and
-  then `_markVerified` (`IHB:317-320`), which is the only writer of `Verified` on L2. So an atomic
-  bundle can take `Unreceived → Verified → Unbundled`, with calls executed or cancelled one by one
-  (documented upstream at `protocol-docs/interop.md:256`).
+  then `_markVerified` (`IHB:317-320`), which on L2 is called from `verifyAtomicBundle` only
+  (`L2:91`). So an atomic bundle can take `Unreceived → Verified → Unbundled`, with calls
+  executed or cancelled one by one (documented upstream at `protocol-docs/interop.md:256`).
 
 ## The handler's replay state (unchanged; reused from the pin model)
 
@@ -45,11 +55,13 @@ about it, also describes main.
 
 The slots are the pin's (1 and 2). The gap is new and occupies slots 3-52. The enums are
 `common/Messaging.sol:283-288` (`BundleStatus`) and `:253-257` (`CallStatus`), with the same
-members in the same order. So this model reuses the pin model's `State`, `init`, `Bundle`,
-`Effect`, the state updates `setBundle`/`setCall`/`executeAll`/`executeEach`/`verifyIfUnreceived`,
-the unbundle loop `markCalls`/`toExecute`, the countermodel orders `Variant` and their write
-functions `beforeCalls`/`afterCalls`/`writesCallsFirst`/`afterUnbundle`, and the predicates
-`Spent`, `Recorded` and `CallsClosed`. Their docstrings cite the pin; at `d9f6789` the lines are:
+members in the same order. The writes to the two mappings in the three handler files are exactly
+`IHB:147`, `:155`, `:160`, `:318`, `:326` and `:330`. So this model reuses the pin model's `State`,
+`init`, `Bundle`, `Effect`, the state updates `setBundle`/`setCall`/`executeAll`/`executeEach`/
+`verifyIfUnreceived`, the unbundle loop `markCalls`/`toExecute`, the countermodel orders `Variant`
+and their write functions `beforeCalls`/`afterCalls`/`writesCallsFirst`/`afterUnbundle`, and the
+predicates `Spent`, `Recorded` and `CallsClosed`. Their docstrings cite the pin; at `b17415d20`
+the lines are:
 
 | pin model cite | v35 line |
 |---|---|
@@ -94,7 +106,7 @@ functions `beforeCalls`/`afterCalls`/`writesCallsFirst`/`afterUnbundle`, and the
 
     L1 verifyBundle (L1:103-110) = _verifyBundle (L1:203-224)
 
-    unbundleBundle (IHB:113-175), both layers, body unchanged from the pin
+    unbundleBundle (IHB:113-175), both layers
       _ensureNotPaused; unbundler permission                           // IHB:114, :118-132
       require(calls.length == _providedCallStatus.length)              // IHB:134-137
       require(status == Verified || status == Unbundled)               // IHB:139
@@ -109,37 +121,37 @@ functions `beforeCalls`/`afterCalls`/`writesCallsFirst`/`afterUnbundle`, and the
       selector = IERC7786Recipient(_interopCallTarget(to)).receiveMessage{value}(...)   // IHB:374-380
       require(selector == receiveMessage.selector)                     // IHB:381
 
-On L2, under `.deployed`, `executeAtomicBundle` writes nothing before `FullyExecuted`, while
-L1's `executeBundle` first writes `Verified` for an `Unreceived` bundle. The `Verified` write is
-overwritten by `FullyExecuted` before any call runs, so the two are indistinguishable from the
-calls' point of view. That is the content of the bisimulation `Properties.ExecMatchesPinAtV35`.
+On L2, `executeAtomicBundle` writes nothing before `FullyExecuted`, while L1's `executeBundle`
+first writes `Verified` for an `Unreceived` bundle, as the pin's `executeBundle` does.
+`_markFullyExecutedAndRun` overwrites that `Verified` with `FullyExecuted` before any call runs,
+so in the deployed order both layers' `execute` run their calls from the state the pin's
+`executeBundle` runs them from. That is why the translation below sends both layers' `execute` to
+the pin's `executeBundle`.
 
 ## Where execution can re-enter
 
-Only at the target's `receiveMessage` (`IHB:374-380`, no `try`/`catch`). Every other external call
-the handler makes is a static call or reaches no entry point:
+Only at the target's `receiveMessage` (`IHB:374-380`, no `try`/`catch`). The handler's other
+external calls are static calls or reach no entry point:
 
 * `requireFlowFinalized` (`atomic-interop/IAtomicFlowManager.sol:45`, `external view`;
   implementation `atomic-interop/AtomicFlowManager.sol:176-213`) is a static call. At v35 it also
   reads the mutable `L2Bridgehub.isPeerAllowed` through `_checkLegSourceAllowed`
-  (`AtomicFlowManager.sol:201`, `:338-344`), still inside the static call. So its verdict for a
-  fixed proof can change between transactions, never within one. The model takes the verdict as
-  a per-entry input, which covers both.
+  (`AtomicFlowManager.sol:201`, `:338-344`), inside the static call.
 * `_getExpectedDestinationBaseTokenAssetId` on L2 (`L2:157-159`) calls
-  `L2_NATIVE_TOKEN_VAULT.BASE_TOKEN_ASSET_ID()` from an `internal view` function, so as a static
-  call; on L1 it is pure computation (`L1:181-183`).
+  `L2_NATIVE_TOKEN_VAULT.BASE_TOKEN_ASSET_ID()`, declared `external view`
+  (`bridge/ntv/IL2NativeTokenVault.sol:34`), so as a static call; on L1 it is pure computation
+  (`L1:181-183`).
 * `_proveInclusion` exists on L1 only (`L1:227-236`, `internal view`); its call to
   `MESSAGE_ROOT.proveL2MessageInclusionShared` (`common/interfaces/IMessageVerification.sol:18-24`,
   `external view`) is a static call. L2 no longer proves message inclusion.
 * `_handleCallValue` on L2 (`L2:149-154`) calls `BaseTokenHolder.give`
-  (`l2-system/BaseTokenHolder.sol:67-76`). That calls
-  `L2AssetTracker.handleFinalizeBaseTokenBridgingOnL2` (`bridge/asset-tracker/L2AssetTracker.sol:277-298`),
-  whose inner function (`:209-229`) reads system contracts (`L2_NATIVE_TOKEN_VAULT.originChainId`,
-  `IERC20(L2_BASE_TOKEN_SYSTEM_CONTRACT).balanceOf`, `L2_SYSTEM_CONTEXT_SYSTEM_CONTRACT`) and
-  writes only tracker storage. `give` then sends the value to the handler's `receive()`
-  (`L2:164-168`), which writes nothing. None of these is the handler, and none calls it. On L1
-  `_handleCallValue` only checks the value is zero (`L1:175-177`). In this model its only effect
-  is that it may revert.
+  (`l2-system/BaseTokenHolder.sol:67-76`) for a nonzero value. That calls
+  `L2AssetTracker.handleFinalizeBaseTokenBridgingOnL2`
+  (`bridge/asset-tracker/L2AssetTracker.sol:277-298`), whose inner function (`:209-229`) reads
+  system contracts and writes only tracker storage, and then sends the value to the handler's
+  `receive()` (`L2:164-168`), which checks the sender and writes nothing. That transfer is the only
+  call back into the handler, and it reaches no entry point. On L1 `_handleCallValue` only checks
+  the value is zero (`L1:175-177`). In this model its only effect is that it may revert.
 
 The target is arbitrary code, as in the pin model. On L1 the target is pinned to `L1_ASSET_ROUTER`
 (`_interopCallTarget`, `L1:189-192`); the arbitrary target over-approximates it. When the target
@@ -152,13 +164,14 @@ makes exactly one of the layer's execute, verify and unbundle self-calls (`L2:13
 
 * **Per-layer entry sets.** `EntryAtV35 ℓ` has three constructors, the same for both layers
   (`execute`, `verify`, `unbundleBundle`), which is how the base itself abstracts them
-  (`_getExecuteBundleSelector`/`_getVerifyBundleSelector`, `IHB:89-106`). The layer `ℓ` is a type
-  parameter, so one tree holds one layer's entry points only; there is no `executeAtomicBundle` on
-  L1. On L2, `execute` is `executeAtomicBundle` and `verify` is `verifyAtomicBundle`; on L1 they
-  are `executeBundle` and `verifyBundle` (abbreviations below).
-* **Oracles are inputs.** `ok` is the verdict of the layer's proof oracle on the supplied proof:
-  `requireFlowFinalized` on L2, `_verifyBundle`'s message checks and `_proveInclusion` on L1.
-  `execute` consults it only when the bundle is `Unreceived`.
+  (`_getExecuteBundleSelector`/`_getVerifyBundleSelector`, `IHB:89-94`). The layer `ℓ` is a type
+  parameter, so one tree holds one layer's entry points only. On L2, `execute` is
+  `executeAtomicBundle` and `verify` is `verifyAtomicBundle`; on L1 they are `executeBundle` and
+  `verifyBundle`. L2 has no entry point that consults an inclusion proof.
+* **Oracles are inputs.** `ok` is the verdict of the layer's proof check on the supplied proof:
+  `requireFlowFinalized` on L2, `_verifyBundle`'s sender check and `_proveInclusion` on L1.
+  `execute` consults it only when the bundle is `Unreceived`. The verdict is an input bit of each
+  entry-point call, so two calls may get different verdicts, in one transaction or in two.
 * **Everything else is the pin model's**: `Callee` trees, fuel, `none` for a revert that leaves
   nothing, the committed log as the trace, a bundle as its hash and its number of calls.
 * **Reject-only checks are omitted**: the permission gates (`_requireExecutionAllowed`
@@ -168,18 +181,16 @@ makes exactly one of the layer's execute, verify and unbundle self-calls (`L2:13
   value checks of a call (folded into its target's failure). Omitting a check that can only revert
   only adds runs.
 * **The handler's other functions write neither mapping.** `initL2` (`L2:34`) only locks the
-  reentrancy guard. On L1, `initialize`, `pause`, `unpause` (`L1:59-72`) and ownership write OZ
-  storage only. `updateL2` (`L2:38-43`, new in v35, `onlyUpgrader`) does `sstore(101, 0)`
-  (`interop/InteropConstants.sol:12`). Slot 101 is past the gap (slots 3-52) and is neither
-  mapping's base slot. A mapping entry lives at a keccak image, so slot 101 holds one only if
-  keccak maps some `abi.encode(key, slot)` preimage to 101, which this model does not track.
+  reentrancy guard. On L1, `initialize`, `pause`, `unpause` (`L1:59-72`) and ownership write the
+  guard and OpenZeppelin storage only. `updateL2` (`L2:38-43`, `onlyUpgrader`) does
+  `sstore(101, 0)` (`interop/InteropConstants.sol:12`). Slot 101 is past the gap and is neither
+  mapping's base slot; a mapping entry lives at a keccak image, which this model does not track.
 * **Countermodel orders** reuse the pin's `Variant`: `statusWriteAfterCalls` moves
   `_markFullyExecutedAndRun`'s `FullyExecuted` write (`IHB:326`) after `_executeCalls`;
   `callWriteAfterCalls` moves `unbundleBundle`'s `Executed` write (`IHB:155`) after it.
-* **Ghost state for the gate.** `GhostStateAtV35` adds `passed : BundleHash → Bool`, set when an
-  entry evaluates its oracle and it says yes (`execute` on an `Unreceived` bundle, `verify`), in a
-  frame that commits. `ghostExecAtV35` is `execAtV35 .deployed` with that bookkeeping; its
-  erasure is `Properties.GhostErasesAtV35`.
+* **Gate predicates.** `PassesGateAtV35 h e` says entry-point call `e` names a bundle with hash `h`
+  and carries a passing verdict; `TxAllAtV35 P t` says every entry-point call of transaction `t`,
+  at every depth, satisfies `P`. The gate results are stated with them.
 -/
 
 namespace Contracts.InteropHandlerAtV35
@@ -199,8 +210,8 @@ deriving DecidableEq
 /-- A call of one of a v35 handler's entry points on layer `ℓ`, at top level or re-entrantly. -/
 inductive EntryAtV35 (ℓ : LayerAtV35)
   /-- The layer's proof-typed execution: `executeAtomicBundle(_bundle, _finality)` on L2
-  (`L2:61-78`), `executeBundle(_bundle, _proof)` on L1 (`L1:81-98`). `ok` is the oracle's verdict,
-  consulted only when the bundle is `Unreceived` (`L2:73-75`; `L1:92-95`). -/
+  (`L2:61-78`), `executeBundle(_bundle, _proof)` on L1 (`L1:81-98`). `ok` is the proof check's
+  verdict, consulted only when the bundle is `Unreceived` (`L2:73-75`; `L1:92-95`). -/
   | execute (b : Bundle) (ok : Bool)
   /-- The layer's proof-typed verification: `verifyAtomicBundle` on L2 (`L2:83-92`),
   `verifyBundle` on L1 (`L1:103-110`, `_verifyBundle` `L1:203-224`). -/
@@ -239,7 +250,8 @@ inductive CalleeAtV35 (ℓ : LayerAtV35)
   /-- Calls entry point `e`; `inner` are the targets of the calls that frame delivers, in order.
   If that frame reverts, the target either catches the failure (`caught`) and goes on from the
   state before the call, or reverts. Then it goes on as `next`. -/
-  | calls (e : EntryAtV35 ℓ) (inner : List (CalleeAtV35 ℓ)) (caught : Bool) (next : CalleeAtV35 ℓ)
+  | calls (e : EntryAtV35 ℓ) (inner : List (CalleeAtV35 ℓ)) (caught : Bool)
+      (next : CalleeAtV35 ℓ)
 
 /-- What runs: an entry point, the call loop of one, or the target of one delivered call. -/
 inductive FrameAtV35 (ℓ : LayerAtV35)
@@ -258,9 +270,9 @@ def proofWriteAtV35 : LayerAtV35 → BundleHash → State → State
   | .l1, h, s => s.verifyIfUnreceived h
   | .l2, _, s => s
 
-/-- **The v35 semantics.** `execAtV35 ℓ v n f s` runs frame `f` of a layer-`ℓ` handler from state
-`s` with budget `n`, in write order `v`: the state and committed log it leaves, or `none` if it
-reverts. -/
+/-- **The v35 semantics.** `execAtV35 ℓ v n f s` runs frame `f` of a layer-`ℓ` handler from
+state `s` with budget `n`, in write order `v`: the state and committed log it leaves, or `none` if
+it reverts. -/
 def execAtV35 (ℓ : LayerAtV35) (v : Variant) :
     ℕ → FrameAtV35 ℓ → State → Option (State × List Effect)
   | 0, _, _ => none
@@ -320,19 +332,26 @@ def submitAtV35 (ℓ : LayerAtV35) (v : Variant) (s : State) (t : TxAtV35 ℓ) :
   commit s (execAtV35 ℓ v t.fuel (.entry t.entry t.callees) s)
 
 /-- A sequence of transactions: the final state and the committed log, in order. -/
-def submitAllAtV35 (ℓ : LayerAtV35) (v : Variant) : State → List (TxAtV35 ℓ) → State × List Effect
+def submitAllAtV35 (ℓ : LayerAtV35) (v : Variant) :
+    State → List (TxAtV35 ℓ) → State × List Effect
   | s, [] => (s, [])
   | s, t :: ts =>
       ((submitAllAtV35 ℓ v (submitAtV35 ℓ v s t).1 ts).1,
         (submitAtV35 ℓ v s t).2 ++ (submitAllAtV35 ℓ v (submitAtV35 ℓ v s t).1 ts).2)
 
+/-- **A TARGET THAT REVERTS FROM EVERY STATE.** Run as the target of a delivered call, `c` reverts
+in the order `v` whatever the state and the budget (the v35 form of the pin's
+`ReentrancyStrong.AlwaysReverts`). -/
+def AlwaysRevertsAtV35 (ℓ : LayerAtV35) (v : Variant) (c : CalleeAtV35 ℓ) : Prop :=
+  ∀ (m : ℕ) (t : State), execAtV35 ℓ v m (.target c) t = none
+
 /-! ## The translation into the pin model
 
-A v35 entry is sent to the pin entry with the same writes once the overwritten `Verified` is
-ignored: `execute` to the pin's `executeBundle` (not `executeAtomicBundle`), `verify` to
+A v35 entry is sent to the pin entry point with the same guard: `execute` to the pin's
+`executeBundle` (not `executeAtomicBundle`, whose guard admits `Unreceived` only), `verify` to
 `verifyBundle`, `unbundleBundle` to itself. -/
 
-/-- The pin entry point with the same behaviour under `.deployed`. -/
+/-- The pin entry point with the same guard. -/
 def EntryAtV35.toPin {ℓ : LayerAtV35} : EntryAtV35 ℓ → Contracts.InteropHandler.Entry
   | .execute b ok => .executeBundle b ok
   | .verify b ok => .verifyBundle b ok
@@ -363,112 +382,63 @@ def FrameAtV35.toPin {ℓ : LayerAtV35} : FrameAtV35 ℓ → Contracts.InteropHa
 def TxAtV35.toPin {ℓ : LayerAtV35} (t : TxAtV35 ℓ) : Contracts.InteropHandler.Tx :=
   ⟨t.fuel, t.entry.toPin, CalleeAtV35.listToPin t.callees⟩
 
-/-! ## Ghost state: whether a bundle's gate has passed -/
+/-! ## Gate predicates -/
 
-/-- The replay state with a ghost record of the bundle hashes whose oracle has said yes in a
-committed frame. -/
-structure GhostStateAtV35 where
-  /-- The handler's storage. -/
-  core : State
-  /-- `passed h`: an entry evaluated the oracle on bundle hash `h`, it said yes, and that frame
-  committed. Not in storage. -/
-  passed : BundleHash → Bool
+/-- Entry-point call `e` names a bundle with hash `h` and carries a passing proof-check verdict:
+`execute` or `verify` with `ok = true`. On L2 that is `requireFlowFinalized` accepting the
+supplied `_finality` (`L2:74`, `:89`); on L1, `_verifyBundle` accepting `_proof` (`L1:213-221`).
+`unbundleBundle` consults no proof. -/
+def PassesGateAtV35 {ℓ : LayerAtV35} (h : BundleHash) : EntryAtV35 ℓ → Prop
+  | .execute b ok => b.hash = h ∧ ok = true
+  | .verify b ok => b.hash = h ∧ ok = true
+  | .unbundleBundle _ _ => False
 
-/-- Fresh storage, no gate passed yet. -/
-def ghostInitAtV35 : GhostStateAtV35 := ⟨init, fun _ => false⟩
+/-- Every entry-point call a target makes, at every depth, satisfies `P`. -/
+inductive CalleeAllAtV35 {ℓ : LayerAtV35} (P : EntryAtV35 ℓ → Prop) : CalleeAtV35 ℓ → Prop
+  | returns : CalleeAllAtV35 P .returns
+  | reverts : CalleeAllAtV35 P .reverts
+  | calls {e : EntryAtV35 ℓ} {inner : List (CalleeAtV35 ℓ)} {caught : Bool}
+      {next : CalleeAtV35 ℓ} :
+      P e → (∀ c ∈ inner, CalleeAllAtV35 P c) → CalleeAllAtV35 P next →
+        CalleeAllAtV35 P (.calls e inner caught next)
 
-/-- Record that `h`'s gate passed when `cond` holds. -/
-def markPassedAtV35 (cond : Bool) (h : BundleHash) (p : BundleHash → Bool) : BundleHash → Bool :=
-  fun h' => if cond ∧ h' = h then true else p h'
-
-/-- `execAtV35 ℓ .deployed`, with the gate bookkeeping: `execute` on an `Unreceived` bundle
-evaluates the oracle (`L2:73-75`, `L1:92-95`), and `verify` always does (`L2:89`, `L1:211-221`). -/
-def ghostExecAtV35 (ℓ : LayerAtV35) :
-    ℕ → FrameAtV35 ℓ → GhostStateAtV35 → Option (GhostStateAtV35 × List Effect)
-  | 0, _, _ => none
-  | n + 1, .entry (.execute b ok) cs, g =>
-      if g.core.bundle b.hash = .Verified ∨ (g.core.bundle b.hash = .Unreceived ∧ ok = true) then
-        match ghostExecAtV35 ℓ n (.calls b.hash (List.range b.calls) cs)
-            ⟨beforeCalls .deployed b (proofWriteAtV35 ℓ b.hash g.core),
-              markPassedAtV35 (decide (g.core.bundle b.hash = .Unreceived)) b.hash g.passed⟩ with
-        | some (g₂, l) => some (g₂, l ++ [.executed b.hash])
-        | none => none
-      else none
-  | _ + 1, .entry (.verify b ok) _, g =>
-      if g.core.bundle b.hash = .Unreceived ∧ ok = true then
-        some (⟨g.core.setBundle b.hash .Verified, markPassedAtV35 true b.hash g.passed⟩, [])
-      else none
-  | n + 1, .entry (.unbundleBundle b req) cs, g =>
-      if req.length = b.calls ∧
-          (g.core.bundle b.hash = .Verified ∨ g.core.bundle b.hash = .Unbundled) then
-        match markCalls true b.hash 0 req (g.core.setBundle b.hash .Unbundled) with
-        | some s₁ =>
-            match ghostExecAtV35 ℓ n (.calls b.hash (toExecute 0 req) cs) ⟨s₁, g.passed⟩ with
-            | some (g₂, l) => some (g₂, l)
-            | none => none
-        | none => none
-      else none
-  | _ + 1, .calls _ [] _, g => some (g, [])
-  | n + 1, .calls h (i :: is) cs, g =>
-      match ghostExecAtV35 ℓ n (.target (cs.headD .returns)) g with
-      | some (g₁, l₁) =>
-          match ghostExecAtV35 ℓ n (.calls h is cs.tail) g₁ with
-          | some (g₂, l₂) => some (g₂, .delivered h i :: (l₁ ++ l₂))
-          | none => none
-      | none => none
-  | _ + 1, .target .returns, g => some (g, [])
-  | _ + 1, .target .reverts, _ => none
-  | n + 1, .target (.calls e inner caught next), g =>
-      match ghostExecAtV35 ℓ n (.entry e inner) g with
-      | some (g₁, l₁) =>
-          match ghostExecAtV35 ℓ n (.target next) g₁ with
-          | some (g₂, l₂) => some (g₂, l₁ ++ l₂)
-          | none => none
-      | none => if caught then ghostExecAtV35 ℓ n (.target next) g else none
-
-/-- One transaction, with the ghost: a reverted transaction leaves the ghost as it was too. -/
-def ghostSubmitAtV35 (ℓ : LayerAtV35) (g : GhostStateAtV35) (t : TxAtV35 ℓ) :
-    GhostStateAtV35 × List Effect :=
-  match ghostExecAtV35 ℓ t.fuel (.entry t.entry t.callees) g with
-  | some r => r
-  | none => (g, [])
-
-/-- A sequence of transactions, with the ghost. -/
-def ghostSubmitAllAtV35 (ℓ : LayerAtV35) :
-    GhostStateAtV35 → List (TxAtV35 ℓ) → GhostStateAtV35 × List Effect
-  | g, [] => (g, [])
-  | g, t :: ts =>
-      ((ghostSubmitAllAtV35 ℓ (ghostSubmitAtV35 ℓ g t).1 ts).1,
-        (ghostSubmitAtV35 ℓ g t).2 ++ (ghostSubmitAllAtV35 ℓ (ghostSubmitAtV35 ℓ g t).1 ts).2)
-
-/-- **The gate invariant.** Every bundle that has left `Unreceived` has had its gate pass. -/
-def GatedAtV35 (g : GhostStateAtV35) : Prop :=
-  ∀ h, g.core.bundle h ≠ .Unreceived → g.passed h = true
+/-- Every entry-point call of transaction `t` satisfies `P`: its own entry, and every one its
+targets make, at every depth. -/
+def TxAllAtV35 {ℓ : LayerAtV35} (P : EntryAtV35 ℓ → Prop) (t : TxAtV35 ℓ) : Prop :=
+  P t.entry ∧ ∀ c ∈ t.callees, CalleeAllAtV35 P c
 
 /-! ## The v35 receive filter, as the gate's mutable input
 
 `requireFlowFinalized` reverts unless every leg's source is this chain or an allowed peer
 (`_checkLegSourceAllowed`, `AtomicFlowManager.sol:338-344`, called at `:201`). `isPeerAllowed` is
-`L2Bridgehub` storage (`core/bridgehub/L2Bridgehub.sol:43`), set by `allowInteropPeer` (`:95-98`)
-and deleted by `deregisterChainForInterop` (`:102-104`). The flow manager side (stranding of
-committed legs, refunds) is the concurrent `H-4` model of `AtomicFlowManager`; this file models
-only what the handler sees: a verdict that depends on `isPeerAllowed` at the moment the gate
-runs. -/
+`L2Bridgehub` storage (`core/bridgehub/L2Bridgehub.sol:43`), set by `allowInteropPeer` (`:95-99`)
+and deleted by `deregisterChainForInterop` (`:102-105`). This section models only what the
+handler sees: a verdict that depends on `isPeerAllowed` at the moment the gate runs. Upstream
+documents the consequence (`protocol-docs/interop-gating.md:195-197`): the filter is read when the
+bundle is verified, or executed if it was not verified first; a bundle from a removed peer stays
+unreceived until the peer is allowed again, and one verified before the removal still executes.
+The flow manager's own side (`authorizeRefund`'s filter, `:231`) is not modelled here. Not at main
+(see the header). -/
 
 /-- `_checkLegSourceAllowed(src)` passes (`AtomicFlowManager.sol:338-344`). -/
 def legSourceAllowedAtV35 (self : ℕ) (isPeerAllowed : ℕ → Bool) (src : ℕ) : Bool :=
   src == self || isPeerAllowed src
 
-/-- `requireFlowFinalized`'s verdict as a function of the receive filter: the per-leg proof
-checks (`proofsOk`, the rest of `AtomicFlowManager.sol:180-212`) and the filter on every leg's
-source. -/
+/-- `requireFlowFinalized`'s verdict as a function of the receive filter: `proofsOk` stands for
+every other check of `AtomicFlowManager.sol:180-212` (flow id, settlement layer, proof count,
+per-leg source chain and inclusion, executing bundle is a leg), and the filter runs on every
+leg's source. -/
 def gateVerdictAtV35 (self : ℕ) (isPeerAllowed : ℕ → Bool) (legSources : List ℕ)
     (proofsOk : Bool) : Bool :=
   proofsOk && legSources.all (legSourceAllowedAtV35 self isPeerAllowed)
 
-/-- `deregisterChainForInterop(c)`: `delete isPeerAllowed[c]` (`L2Bridgehub.sol:102-104`). -/
+/-- `deregisterChainForInterop(c)`: `delete isPeerAllowed[c]` (`L2Bridgehub.sol:102-105`). -/
 def deregisterAtV35 (isPeerAllowed : ℕ → Bool) (c : ℕ) : ℕ → Bool :=
   fun c' => if c' = c then false else isPeerAllowed c'
+
+/-- `allowInteropPeer(c, _)`: `isPeerAllowed[c] = true` (`L2Bridgehub.sol:95-99`). -/
+def allowAtV35 (isPeerAllowed : ℕ → Bool) (c : ℕ) : ℕ → Bool :=
+  fun c' => if c' = c then true else isPeerAllowed c'
 
 /-! ## Witness data
 
@@ -495,16 +465,23 @@ def wNestedUncaughtAtV35 : TxAtV35 .l2 :=
     [.calls (executeAtomicBundleAtV35 wB true) [] false
       (reenterAtV35 (executeAtomicBundleAtV35 wA true) false)]⟩
 
-/-- A failing attempt at `wA`: call 0's target executes `wB` re-entrantly and returns; call 1's
-target reverts. -/
-def wAttemptAtV35 : TxAtV35 .l2 :=
-  ⟨8, executeAtomicBundleAtV35 wA true,
-    [.calls (executeAtomicBundleAtV35 wB true) [] false .returns, .reverts]⟩
+/-- A target that executes `wB` re-entrantly (committing it in its own frame) and then reverts.
+It is not the leaf `CalleeAtV35.reverts`. -/
+def wRevertsAfterWorkAtV35 : CalleeAtV35 .l2 :=
+  .calls (executeAtomicBundleAtV35 wB true) [] false .reverts
 
-/-- The same attempt with call 1's target returning. -/
-def wAttemptOkAtV35 : TxAtV35 .l2 :=
+/-- A failing attempt at `wA`: call 0's target is `wRevertsAfterWorkAtV35`; call 1's target
+returns. -/
+def wAttemptAfterWorkAtV35 : TxAtV35 .l2 :=
+  ⟨8, executeAtomicBundleAtV35 wA true, [wRevertsAfterWorkAtV35, .returns]⟩
+
+/-- A failing attempt at `wA`: call 0's target executes `wB` re-entrantly and returns; call 1's
+target calls `executeAtomicBundle(wA)` and does not catch the failure. It reverts inside `wA`'s
+execution only because `wA` is `FullyExecuted` there. -/
+def wLateReentryAtV35 : TxAtV35 .l2 :=
   ⟨8, executeAtomicBundleAtV35 wA true,
-    [.calls (executeAtomicBundleAtV35 wB true) [] false .returns, .returns]⟩
+    [.calls (executeAtomicBundleAtV35 wB true) [] false .returns,
+      reenterAtV35 (executeAtomicBundleAtV35 wA true) false]⟩
 
 /-- A retry of `wA` whose targets return. -/
 def wRetryAtV35 : TxAtV35 .l2 := ⟨4, executeAtomicBundleAtV35 wA true, [.returns, .returns]⟩
@@ -521,7 +498,8 @@ def wRunBAtV35 : TxAtV35 .l2 := ⟨3, executeAtomicBundleAtV35 wB true, []⟩
 /-- Atomic execution of `wC` with a passing gate, whose call's target executes `wC` again with
 gate verdict `gate'`, catching a failure or not. -/
 def wReenterAtomicAtV35 (gate' caught : Bool) : TxAtV35 .l2 :=
-  ⟨6, executeAtomicBundleAtV35 wC true, [reenterAtV35 (executeAtomicBundleAtV35 wC gate') caught]⟩
+  ⟨6, executeAtomicBundleAtV35 wC true,
+    [reenterAtV35 (executeAtomicBundleAtV35 wC gate') caught]⟩
 
 /-- `verifyAtomicBundle` of `wC` with a passing gate. -/
 def wVerifyCAtV35 : TxAtV35 .l2 := ⟨1, verifyAtomicBundleAtV35 wC true, []⟩
@@ -529,7 +507,8 @@ def wVerifyCAtV35 : TxAtV35 .l2 := ⟨1, verifyAtomicBundleAtV35 wC true, []⟩
 /-- Atomic execution of a verified `wC` with no passing gate, whose call's target does the same
 again, not catching a failure. -/
 def wReenterVerifiedAtV35 : TxAtV35 .l2 :=
-  ⟨6, executeAtomicBundleAtV35 wC false, [reenterAtV35 (executeAtomicBundleAtV35 wC false) false]⟩
+  ⟨6, executeAtomicBundleAtV35 wC false,
+    [reenterAtV35 (executeAtomicBundleAtV35 wC false) false]⟩
 
 /-- L1 `executeBundle` of `wC` with a valid proof, whose call's target calls `executeBundle` of
 `wC` again with no valid proof, not catching a failure. -/
@@ -544,10 +523,30 @@ def wReenterUnbundleAtV35 (caught : Bool) : TxAtV35 .l2 :=
 /-- `verifyAtomicBundle` of `wA` with a passing gate. -/
 def wVerifyAAtV35 : TxAtV35 .l2 := ⟨1, verifyAtomicBundleAtV35 wA true, []⟩
 
-/-- `unbundleBundle` of `wA` executing call 0 and cancelling call 1; both targets return. -/
-def wUnbundleExecCancelAtV35 : TxAtV35 .l2 := ⟨4, .unbundleBundle wA [.Executed, .Cancelled], []⟩
+/-- `unbundleBundle` of `wA` executing call 0 and cancelling call 1; the target of call 0
+returns. -/
+def wUnbundleExecCancelAtV35 : TxAtV35 .l2 :=
+  ⟨4, .unbundleBundle wA [.Executed, .Cancelled], []⟩
 
 /-- `executeAtomicBundle` of `wA` with no passing gate; both targets return. -/
 def wExecANoGateAtV35 : TxAtV35 .l2 := ⟨4, executeAtomicBundleAtV35 wA false, []⟩
+
+/-- `executeAtomicBundle` of `b` with gate verdict `gate`, every target returning. -/
+def runAtomicAtV35 (b : Bundle) (gate : Bool) : TxAtV35 .l2 :=
+  ⟨b.calls + 2, executeAtomicBundleAtV35 b gate, List.replicate b.calls .returns⟩
+
+/-- `verifyAtomicBundle` of `b` with gate verdict `gate`. -/
+def verifyAtomicTxAtV35 (b : Bundle) (gate : Bool) : TxAtV35 .l2 :=
+  ⟨1, verifyAtomicBundleAtV35 b gate, []⟩
+
+/-- The receive-filter witness: chain `10` receiving a flow with legs from itself and from peer
+`20`, which it allows. -/
+def wFilterSelfAtV35 : ℕ := 10
+
+/-- Legs from chain `10` (this chain) and chain `20`. -/
+def wFilterLegsAtV35 : List ℕ := [10, 20]
+
+/-- The whitelist before the removal: only chain `20` is an allowed peer. -/
+def wFilterPeersAtV35 : ℕ → Bool := fun c => c == 20
 
 end Contracts.InteropHandlerAtV35
