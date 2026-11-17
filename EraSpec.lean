@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- L2 bridge configuration words across genesis and default upgrades (v0.35 head b17415d20)
+import EraSpec.Protocol.L2BridgeConfig.Proofs.Consistency
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

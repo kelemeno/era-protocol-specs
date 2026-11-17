@@ -41,5 +41,12 @@ and properties remain under `../Contracts/<SolidityName>/`.
   has an empty slot (for example `PaddingRefundOfExecutedObligationLocatesAbsenceBreak`;
   see the note at `HashAssumptions`).
 
+- [L2BridgeConfig](L2BridgeConfig/README.md): the L1 chain id and base-token asset id
+  copies held by the L2 built-ins (`b17415d20`). Genesis establishes one value for each,
+  every admissible step keeps it, a default upgrade succeeds only with the stored ids, and
+  only the upgrader's transactions write the scalar words. Countermodels: without either of
+  the vault's freezes, or with the router's `updateL2` called outside the helper, the copies
+  diverge; a default upgrade with the stored ids may rewrite the base token's origin data.
+
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.
