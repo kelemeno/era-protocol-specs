@@ -524,6 +524,14 @@ theorem VaultRecoverAtHeadIsPinRefundOffBaseToken :
 theorem VaultRecoverAtHeadOnBaseToken : Properties.VaultRecoverAtHeadOnBaseToken :=
   fun _ _ _ _ _ _ _ hd hp => vaultRecoverAtHead_base hd hp
 
+theorem VaultRouterCallIsPinIterationAtHead : Properties.VaultRouterCallIsPinIterationAtHead := by
+  intro X enc cfg hk code other dest base w a mintBytes md hd hb hn0 hh hdec
+  rw [recoverCallAtHead_routerCall, recoverAtomicCallAtHead_finalize hd, hh, ite_eq_right hn0,
+    handlerRecover_ntv, hdec, vaultRecoverAtHead_offBase hd hb]
+  unfold AtomicRecovery.recoverCall AtomicRecovery.routerCall
+  dsimp only
+  rw [ite_eq_left rfl, AtomicRecovery.recoverAtomicCall_finalize]
+
 theorem RecoveryReadsClaimTimeHandler : Properties.RecoveryReadsClaimTimeHandler :=
   fun _ _ _ _ _ _ _ _ _ _ hd => recoverAtomicCallAtHead_finalize hd
 
@@ -576,6 +584,15 @@ theorem PreparedBurnRefundsDepositorAtHead : Properties.PreparedBurnRefundsDepos
   obtain ⟨hoc, -, -, hamt, -, -⟩ := NativeTokenVaultBase.preparation_payload hw hprep
   rw [← hamt] at hf
   rw [recoverCallAtHead_router_known hd hh hn0 hb hdec hp hn ht hf, hoc, hamt]
+
+theorem VaultBurnRefundsDepositorAfterRunAtHead :
+    Properties.VaultBurnRefundsDepositorAfterRunAtHead := by
+  intro Acc prepHooks s r out hw hprep X enc cfg hk code K R ops dest base w mintBytes x₁ hd hdec
+    hn0 hbh hrun hnr hb hp hn ht hf
+  have h1 : (burnRouter cfg.toConfig R r.assetId).handler r.assetId = cfg.ntv := by
+    rw [BurnLeavesBurnHandler cfg.toConfig R r.assetId, hbh]
+  exact PreparedBurnRefundsDepositorAtHead Acc prepHooks s r out hw hprep X enc cfg hk code dest base
+    w mintBytes x₁ hd hdec (noRotation_keeps hn0 hrun h1 hnr) hn0 hb hp hn ht hf
 
 /-! ## Certificates: (c) rotation -/
 
@@ -659,6 +676,15 @@ theorem UnrecognisedRouterCallConsumedAtHead :
     · rw [recoverCallAtHead_direct hs, ite_eq_left hv]
   rw [claimRefundAtHead_revertable hd, recoverBundleAtHead_noop b.calls w hnoop]
   rfl
+
+/-! ## Certificates: (e) an L1 destination -/
+
+theorem L1DestinationClaimRevertsAtHead : Properties.L1DestinationClaimRevertsAtHead := by
+  intro X cfg step st w b hd
+  unfold claimRefundAtHead
+  split_ifs
+  · rfl
+  · rfl
 
 /-! ## Concrete instances
 
@@ -1067,6 +1093,13 @@ theorem DirectBundleClaimIsNoOpSatisfiable : Properties.DirectBundleClaimIsNoOpS
 theorem RouterSenderIffIndirectSatisfiable : Properties.RouterSenderIffIndirectSatisfiable :=
   ⟨headCfg, 13, 1, [], .other, by decide, rfl, by decide⟩
 
+theorem VaultRouterCallIsPinIterationSatisfiable :
+    Properties.VaultRouterCallIsPinIterationSatisfiable :=
+  ⟨Unit, AtomicRecovery.wEnc, headCfg, headOkHooks, headNoOpCode, 8, 1, AtomicRecovery.wWorld,
+    { AtomicRecovery.wWorld with rest := () }, 1, [], AtomicRecovery.wMd, head_dest, by decide,
+    head_ntv_ne_zero, head_wRouter_one, rfl,
+    head_vault_step_unit headNoOpCode AtomicRecovery.wWorld head_wRouter_one rfl rfl⟩
+
 theorem RoutingPremisesSatisfiable : Properties.RoutingPremisesSatisfiable := by
   have h2 : AtomicRecovery.wWorld.router.handler 2 = 11 := head_wRouter_two
   exact ⟨Unit, AtomicRecovery.wEnc, headCfg, headOkHooks, headNoOpCode,
@@ -1153,6 +1186,45 @@ theorem LoggedRoutingPremisesSatisfiable : Properties.LoggedRoutingPremisesSatis
           false, ()⟩ : World Unit).router.handler 2 = 11 from hR₂]; decide)]
     rfl
 
+theorem NoRotationKeepsHandlerLoggedOnSatisfiable :
+    Properties.NoRotationKeepsHandlerLoggedOnSatisfiable := by
+  have hid : headK.enc 7 9 0 = 2 := by
+    show AtomicRecovery.wEnc 7 9 0 = 2
+    unfold AtomicRecovery.wEnc; decide
+  have hguard : SetGuard AtomicRecovery.wEnc 7 4 4 AtomicRecovery.wRouter 4 0 :=
+    ⟨Or.inl rfl, by decide⟩
+  have hsend : senderOf headK.ntv headK.ntvAddr 4 = 4 := senderOf_self _ _
+  refine ⟨headK, AtomicRecovery.wRouter,
+    setHandler AtomicRecovery.wEnc 7 4 4 AtomicRecovery.wRouter 4 0 4, [.register 4 0 4], 7, 9, 0, 11,
+    AllWriters.ARun.snoc AllWriters.ARun.nil (AllWriters.AStep.register hguard),
+    by rw [hid]; exact head_wRouter_two, by decide, ?_, ?_, ?_, ?_, ?_⟩
+  · refine ⟨_, List.mem_singleton.mpr rfl, (7, 4, 0), ?_, by decide⟩
+    show some (headK.thisChain, senderOf headK.ntv headK.ntvAddr 4, (0 : AssetData)) = some (7, 4, 0)
+    rw [hsend]
+    rfl
+  · intro op hop p hp
+    rw [List.mem_singleton] at hop
+    subst hop
+    have hp' : some ((7 : Chain), (4 : Address), (0 : AssetData)) = some p := by
+      rw [← hp]
+      show some ((7 : Chain), (4 : Address), (0 : AssetData))
+        = some (headK.thisChain, senderOf headK.ntv headK.ntvAddr 4, (0 : AssetData))
+      rw [hsend]
+      rfl
+    cases hp'
+    exact AtomicRecovery.wEnc_injOn 7 7 0 0
+  · intro caller d h hmem heq
+    rw [List.mem_singleton] at hmem
+    cases hmem
+    rw [hsend] at heq
+    exact absurd heq (by decide)
+  · intro a' h hmem
+    rw [List.mem_singleton] at hmem
+    cases hmem
+  · intro hmem
+    rw [List.mem_singleton] at hmem
+    cases hmem
+
 theorem RouterLegReachesBurnHandlerSatisfiable :
     Properties.RouterLegReachesBurnHandlerSatisfiable := by
   have h2 : (⟨AllWriters.pointAt AtomicRecovery.wRouter 1 11, AtomicRecovery.wVault, false, ()⟩ :
@@ -1176,9 +1248,16 @@ theorem RouterLegReachesBurnHandlerSatisfiable :
   · rw [head_custom_noop_step _ _ 2 [] 1 (by rw [h2]; decide) (by rw [h2]; decide)]
     rfl
 
-theorem PreparedBurnRefundAtHeadSatisfiable : Properties.PreparedBurnRefundAtHeadSatisfiable := by
+/-- The vault-preparation model's witness state is well formed. -/
+theorem head_prep_wellFormed :
+    NativeTokenVaultBase.WellFormed NativeTokenVaultBase.witnessPrepState :=
+  ⟨NativeTokenVaultBase.witnessToken_ledger, NativeTokenVaultBase.witnessPrep_rc⟩
+
+/-- The vault-preparation model's witness request is prepared: the depositor `11` burns one token of
+asset `3`. -/
+theorem head_prep_enabled : ∃ out, NativeTokenVaultBase.prepare NativeTokenVaultBase.witnessPrepHooks
+    NativeTokenVaultBase.witnessPrepState NativeTokenVaultBase.witnessRequest = some out := by
   open NativeTokenVaultBase in
-  have hw : WellFormed witnessPrepState := ⟨witnessToken_ledger, witnessPrep_rc⟩
   have htok : witnessPrepState.registry.tokenForAsset (2 + 1) = 5 := witnessPrep_token
   have hs : InScope witnessPrepState witnessRequest := by
     refine ⟨by decide, by decide, by decide, by decide, ?_⟩
@@ -1195,30 +1274,80 @@ theorem PreparedBurnRefundAtHeadSatisfiable : Properties.PreparedBurnRefundAtHea
       (0 + (1 : UInt256).val) 11
     rw [Function.update_self]
     decide
-  obtain ⟨out, hout⟩ := preparation_enabled (hooks := witnessPrepHooks) (accounted := ())
-    (metadata := []) hw hs he rfl (by decide) hb (by decide) (by decide) rfl rfl
+  exact preparation_enabled (hooks := witnessPrepHooks) (accounted := ())
+    (metadata := []) head_prep_wellFormed hs he rfl (by decide) hb (by decide) (by decide) rfl rfl
+
+theorem head_pVault_known :
+    AtomicRecovery.pVault.originChain (2 + 1) ≠ AtomicRecovery.wCfg.thisChain
+    ∧ AtomicRecovery.pVault.token (2 + 1) ≠ 0 := by
   have ho : AtomicRecovery.pVault.originChain (2 + 1) = 1 :=
     NativeTokenVault.sn_originChain_self _ _ _ _ _
   have htk : AtomicRecovery.pVault.token (2 + 1) = 6 := NativeTokenVault.sn_token_self _ _ _ _ _
-  have hn : AtomicRecovery.pVault.originChain (2 + 1) ≠ AtomicRecovery.wCfg.thisChain := by
-    rw [ho]; decide
-  have ht : AtomicRecovery.pVault.token (2 + 1) ≠ 0 := by rw [htk]; decide
+  exact ⟨by rw [ho]; decide, by rw [htk]; decide⟩
+
+/-- The head configuration of the preparation witnesses: the witness setting, with a vault decoder
+that reads every byte string as the prepared mint data. -/
+def headPrepCfg (md : MintData) : HeadConfig :=
+  { toConfig := AtomicRecovery.wCfg, l1Chain := 99, baseAsset := 77, decodeMint := fun _ => some md }
+
+theorem PreparedBurnRefundAtHeadSatisfiable : Properties.PreparedBurnRefundAtHeadSatisfiable := by
+  obtain ⟨out, hout⟩ := head_prep_enabled
   have hd : (8 : Chain) ≠ 99 := by decide
   have hn0 : AtomicRecovery.wCfg.ntv ≠ 0 := by decide
-  have hb : witnessRequest.assetId ≠ 77 := by decide
-  refine ⟨Unit, witnessPrepHooks, witnessPrepState, witnessRequest, out, Unit, AtomicRecovery.wEnc,
-    { toConfig := AtomicRecovery.wCfg, l1Chain := 99, baseAsset := 77,
-      decodeMint := fun _ => some out.data },
+  have hb : NativeTokenVaultBase.witnessRequest.assetId ≠ 77 := by decide
+  refine ⟨Unit, NativeTokenVaultBase.witnessPrepHooks, NativeTokenVaultBase.witnessPrepState,
+    NativeTokenVaultBase.witnessRequest, out, Unit, AtomicRecovery.wEnc, headPrepCfg out.data,
     headOkHooks, headNoOpCode, 8, 1,
-    ⟨⟨fun _ => 4, fun _ => 0⟩, AtomicRecovery.pVault, false, ()⟩, [], (), hw, hout, by decide, hd,
-    rfl, rfl, hn0, hb, rfl, hn, ht, rfl, ?_⟩
-  rw [PreparedBurnRefundsDepositorAtHead Unit witnessPrepHooks witnessPrepState witnessRequest out hw
-    hout Unit AtomicRecovery.wEnc
-    { toConfig := AtomicRecovery.wCfg, l1Chain := 99, baseAsset := 77,
-      decodeMint := fun _ => some out.data }
-    headOkHooks headNoOpCode 8 1 ⟨⟨fun _ => 4, fun _ => 0⟩, AtomicRecovery.pVault, false, ()⟩
-    [] () hd rfl rfl hn0 hb rfl hn ht rfl]
+    ⟨⟨fun _ => 4, fun _ => 0⟩, AtomicRecovery.pVault, false, ()⟩, [], (), head_prep_wellFormed, hout,
+    by decide, hd, rfl, rfl, hn0, hb, rfl, head_pVault_known.1, head_pVault_known.2, rfl, ?_⟩
+  rw [PreparedBurnRefundsDepositorAtHead Unit NativeTokenVaultBase.witnessPrepHooks
+    NativeTokenVaultBase.witnessPrepState NativeTokenVaultBase.witnessRequest out head_prep_wellFormed
+    hout Unit AtomicRecovery.wEnc (headPrepCfg out.data) headOkHooks headNoOpCode 8 1
+    ⟨⟨fun _ => 4, fun _ => 0⟩, AtomicRecovery.pVault, false, ()⟩
+    [] () hd rfl rfl hn0 hb rfl head_pVault_known.1 head_pVault_known.2 rfl]
   rfl
+
+theorem VaultBurnRefundAfterRunSatisfiable : Properties.VaultBurnRefundAfterRunSatisfiable := by
+  obtain ⟨out, hout⟩ := head_prep_enabled
+  have hd : (8 : Chain) ≠ 99 := by decide
+  have hn0 : AtomicRecovery.wCfg.ntv ≠ 0 := by decide
+  have hb : NativeTokenVaultBase.witnessRequest.assetId ≠ 77 := by decide
+  have hbh : AtomicRecovery.burnHandler AtomicRecovery.wCfg ⟨fun _ => 4, fun _ => 0⟩
+      NativeTokenVaultBase.witnessRequest.assetId = AtomicRecovery.wCfg.ntv := by
+    unfold AtomicRecovery.burnHandler
+    rw [ite_eq_right (by decide)]
+    rfl
+  have hbr : burnRouter AtomicRecovery.wCfg ⟨fun _ => 4, fun _ => 0⟩
+      NativeTokenVaultBase.witnessRequest.assetId = ⟨fun _ => 4, fun _ => 0⟩ := by
+    unfold burnRouter
+    rw [ite_eq_right (by decide)]
+  have hrun : AllWriters.ARun headK (burnRouter AtomicRecovery.wCfg ⟨fun _ => 4, fun _ => 0⟩
+      NativeTokenVaultBase.witnessRequest.assetId) [.counterpartSet 0 13]
+      (AllWriters.pointAt ⟨fun _ => 4, fun _ => 0⟩ 0 13) := by
+    rw [hbr]
+    exact AllWriters.ARun.snoc AllWriters.ARun.nil (AllWriters.AStep.counterpartSet rfl)
+  have hnr : NoRotation headK NativeTokenVaultBase.witnessRequest.assetId AtomicRecovery.wCfg.ntv
+      [.counterpartSet 0 13] := by
+    intro op hop
+    rw [List.mem_singleton] at hop
+    subst hop
+    exact fun h => absurd h.1 (by decide)
+  refine ⟨Unit, NativeTokenVaultBase.witnessPrepHooks, NativeTokenVaultBase.witnessPrepState,
+    NativeTokenVaultBase.witnessRequest, out, Unit, AtomicRecovery.wEnc, headPrepCfg out.data,
+    headOkHooks, headNoOpCode, headK, ⟨fun _ => 4, fun _ => 0⟩, [.counterpartSet 0 13], 8, 1,
+    ⟨AllWriters.pointAt ⟨fun _ => 4, fun _ => 0⟩ 0 13, AtomicRecovery.pVault, false, ()⟩, [], (),
+    head_prep_wellFormed, hout, hd, rfl, hn0, hbh, hrun, List.cons_ne_nil _ _, ⟨0, ?_⟩, hnr, hb, rfl,
+    head_pVault_known.1, head_pVault_known.2, rfl, ?_⟩
+  · show (AllWriters.pointAt ⟨fun _ => 4, fun _ => 0⟩ 0 13).handler 0 ≠ (4 : Address)
+    rw [AllWriters.pointAt_handler_self]
+    decide
+  · rw [VaultBurnRefundsDepositorAfterRunAtHead Unit NativeTokenVaultBase.witnessPrepHooks
+      NativeTokenVaultBase.witnessPrepState NativeTokenVaultBase.witnessRequest out head_prep_wellFormed
+      hout Unit AtomicRecovery.wEnc (headPrepCfg out.data) headOkHooks headNoOpCode headK
+      ⟨fun _ => 4, fun _ => 0⟩ [.counterpartSet 0 13] 8 1
+      ⟨AllWriters.pointAt ⟨fun _ => 4, fun _ => 0⟩ 0 13, AtomicRecovery.pVault, false, ()⟩
+      [] () hd rfl hn0 hbh hrun hnr hb rfl head_pVault_known.1 head_pVault_known.2 rfl]
+    rfl
 
 theorem L2RotationSatisfiable : Properties.L2RotationSatisfiable := by
   refine ⟨headK, [.seed], AllWriters.pointAt empty 0 4,
@@ -1275,5 +1404,9 @@ theorem NothingRecoveredSatisfiable : Properties.NothingRecoveredSatisfiable := 
       subst hc
       rw [recoverCallAtHead_direct (show (13 : Address) ≠ headCfg.router by decide)]
       rfl
+
+theorem L1DestinationClaimRevertsSatisfiable : Properties.L1DestinationClaimRevertsSatisfiable :=
+  ⟨Unit, AtomicRecovery.wEnc, headCfg, headOkHooks, headNoOpCode, AtomicRecovery.wWorld, 1, 1, [], 8,
+    head_dest, L1DestinationClaimRevertsAtHead _ _ _ _ _ _ rfl, head_vault_alone _⟩
 
 end Contracts.AssetRouter.AtomicRecoveryAtHead

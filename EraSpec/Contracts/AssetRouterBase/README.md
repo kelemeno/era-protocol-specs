@@ -20,6 +20,9 @@ the initializers (`setNativeTokenVault`, `initL2`), the L2 counterpart's
 calls it. `AtomicRecoveryFaithful` models one place where that model differs from
 the source, the target of a router-produced call to L1, and restates the results
 that depend on it. `AtomicRecovery.routerCall` itself is unchanged.
+`AtomicRecoveryAtHead` models the refund at `draft/v0.35.0` (`b17415d20`), where the
+manager dispatches on the call's sender and the router refunds through the asset's
+registered handler.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -35,12 +38,14 @@ for those exact named propositions, plus auxiliary lemmas.
 | CounterpartGate | [Specs/CounterpartGate.lean](Specs/CounterpartGate.lean) | [Properties/CounterpartGate.lean](Properties/CounterpartGate.lean) | [Proofs/CounterpartGate.lean](Proofs/CounterpartGate.lean) |
 | AtomicRecovery | [Specs/AtomicRecovery.lean](Specs/AtomicRecovery.lean) | [Properties/AtomicRecovery.lean](Properties/AtomicRecovery.lean) | [Proofs/AtomicRecovery.lean](Proofs/AtomicRecovery.lean) |
 | AtomicRecoveryFaithful | [Specs/AtomicRecoveryFaithful.lean](Specs/AtomicRecoveryFaithful.lean) | [Properties/AtomicRecoveryFaithful.lean](Properties/AtomicRecoveryFaithful.lean) | [Proofs/AtomicRecoveryFaithful.lean](Proofs/AtomicRecoveryFaithful.lean) |
+| AtomicRecoveryAtHead | [Specs/AtomicRecoveryAtHead.lean](Specs/AtomicRecoveryAtHead.lean) | [Properties/AtomicRecoveryAtHead.lean](Properties/AtomicRecoveryAtHead.lean) | [Proofs/AtomicRecoveryAtHead.lean](Proofs/AtomicRecoveryAtHead.lean) |
 
 Namespaces: `Contracts.AssetRouter` (HandlerRegistration, HandlerRegistrationRuns),
 `Contracts.AssetRouter.AllWriters` (AllWriters, AllWritersStrong, VaultMintGate,
 CounterpartGate),
-`Contracts.AssetRouter.AtomicRecovery` and
-`Contracts.AssetRouter.AtomicRecoveryFaithful`. Statements are `<namespace>.Properties.*`;
+`Contracts.AssetRouter.AtomicRecovery`,
+`Contracts.AssetRouter.AtomicRecoveryFaithful` and
+`Contracts.AssetRouter.AtomicRecoveryAtHead`. Statements are `<namespace>.Properties.*`;
 each certificate has the same name without the `Properties` segment.
 
 ## Run-level registration (`HandlerRegistrationRuns`)
@@ -217,6 +222,41 @@ no-code premise the refund is whatever the code at that address does
 (`L1LegClaimOnlyByForeignCode`). The other tree, `e561b9cc2`, rejects the send
 (`InteropCenter.sol:550-554`) and the recovery of an L1-destined bundle
 (`AtomicFlowManager.sol:295`).
+
+## Atomic recovery at head (`AtomicRecoveryAtHead`)
+
+Source: `draft/v0.35.0` at `b17415d20`; the modelled functions are the same at `main`
+`70096e2ea`. Two upstream changes replaced the pin's refund. The manager dispatches on
+`InteropCall.from` (`AtomicFlowManager.sol:312-323`), ignores the router's answer, and no
+longer rejects a claim that recovers nothing. `recoverAtomicCall` calls the handler that
+`assetHandlerAddress` names at claim time (`L2AssetRouter.sol:299-302`). A direct call's
+value is refunded through `bridgehubRecoverBaseToken` (`:314-328`). On L2 the vault's
+refund gained a base-token branch (`L2NativeTokenVault.sol:204-227`); off this chain's
+base token it is the pin model's `ntvRecover`. The pin model is unchanged.
+
+| Result | Statement |
+|---|---|
+| `DirectCallSkipsRouterRecovery`, `DirectCallDataIgnoredAtHead`, `CallTargetIgnoredAtHead`, `DirectValueLegRefundsItsSenderAtHead`, `CrossBaseValueLegRefundAtHead`, `SameBaseValueLegRefundAtHead` | A call not from the router never reaches `recoverAtomicCall`: its iteration is the vault's refund of the call's own value to its own sender, or nothing when the value is zero. No call's target is read. |
+| `DirectBundleClaimIsNoOpAtHead` | Headline (a): a bundle of zero-value direct calls is claimed as a no-op, whatever data the calls carry. For a sender other than the router only indirect starters yield calls from the router (`RouterSenderIffIndirectAtHead`, `SentDirectCallNeverRecoveredAtHead`). The pin's forged-refund instance is rejected (`PinUnbackedMintRejectedAtHead`), and `DirectCallIsRefunded` is false of the head (`DirectCallIsRefundedFailsAtHead`). |
+| `VaultRecoverAtHeadIsPinRefundOffBaseToken`, `VaultRecoverAtHeadOnBaseToken`, `VaultRouterCallIsPinIterationAtHead` | Off this chain's base token and off L1 the vault's head refund is the pin model's `ntvRecover`; on the base token it is the base-token holder's `recoverBaseToken`. While the vault handles an asset, a router call's head iteration equals the pin model's iteration on the pin's router call, so the pin's results about it apply. |
+| `RecoveryReadsClaimTimeHandler`, `BurnLeavesBurnHandler`, `NoRotationKeepsHandler`, `NoRotationKeepsHandlerLoggedOn`, `HandlerMovesOnlyByRotation` | The refund uses the handler registered at claim time. The burn leaves its own handler registered, and a run of the router-map writers (`AllWriters`) that rotates nothing leaves it there: no hash premise, or in the logged form `IdInjOn` on the asset's triple paired with each triple the run hashes. |
+| `RouterLegReachesBurnHandler`, `RouterLegReachesBurnHandlerLoggedOn` | Headline (b): without a rotation, a router leg's refund is the burn handler's own refund on the burn's bytes. Also `CustomHandlerRecoveredByItsHandler` (no hash premise), `PreparedBurnRefundsDepositorAtHead`, `PinStrandedBundleRefundedAtHead`; `RecoveryCallsTheVaultFailsAtHead`, `RecoveryIgnoresHandlerFailsAtHead`. |
+| `VaultBurnRefundsDepositorAfterRunAtHead` | Headline (b) for a vault burn: after any run of the writers that does not rotate the asset away from the vault, the router leg's refund re-mints the prepared burn's amount to its depositor (with the vault-side premises of `PreparedBurnRefundsDepositorAtHead`). |
+| `RotationToNoOpHandlerStrandsBurn`, `RotationToRevertingHandlerBlocksClaim`, `ZeroedHandlerRecoveryReverts`, `L2RotationOnlyByCounterpartSeedOrVault` | Headline (c), upstream known issue 5 (`protocol-docs/atomicity/security.md:149-156`), as concrete instances: one counterpart call between burn and claim that re-points the asset at a no-op handler lets the claim consume the leg with nothing refunded, and one that re-points it at a reverting handler blocks the claim until a second call points it back. An unset handler makes the refund revert. On L2, along runs from fresh storage, only the counterpart, the initializer and the vault's own registration rotate a live route. |
+| `ClaimSucceedsIffLoopCompletesAtHead`, `RevertingCallBlocksClaimAtHead`, `UnrecoverableHandlerBlocksBundleAtHead`, `HandlerWithoutRecoveryStrandsBundleAtHead` | Headline (d): a claim succeeds exactly when no attempted recovery reverts, so one call that reverts in every reachable world blocks its whole bundle. |
+| `NothingRecoveredStillConsumesLegAtHead`, `UnrecognisedRouterCallConsumedAtHead`, `PinRejectsNothingRecoverableHeadAccepts` | A claim that recovers nothing consumes the leg (upstream known issue 1). |
+| `L1DestinationClaimRevertsAtHead` | (e) A claim with an L1 destination reverts in every leg state. An atomic bundle to L1 is rejected at send (`InteropCenter.sol:552-553`), which is not modelled. |
+
+Model boundaries (Specs header; `MODEL-ATOMIC-RECOVERY-HEAD`): the code at every handler
+other than the vault is arbitrary (`HandlerCode`); the vault's hooks and the base-token
+holder's `recoverBase` write only the rest of the world (`DEP-FRAME`); call and mint data
+are typed (`SOL-ABI`); router-map writes between burn and claim are `AllWriters` steps;
+the `L1_CHAIN_ID` slots of router, manager and tracker are one value, and the
+`BASE_TOKEN_ASSET_ID` slots of vault and tracker another (`OPS-CONFIG`); the send side is
+`_processCallStarter` alone, with the premise that the router never sends a bundle
+itself; `nonReentrant`, events and `claimRefund`'s bundle decoding are omitted. The only
+hash premises are in the two `…LoggedOn` forms. Every property with premises has a
+witness (the `…Satisfiable` statements and `ZeroedHandlerReachableByCounterpart`).
 
 ## Assumptions to review
 

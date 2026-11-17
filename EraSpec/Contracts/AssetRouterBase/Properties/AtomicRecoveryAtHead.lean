@@ -4,51 +4,64 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 /-!
 # Properties: atomic recovery at head — forged refunds and the custom-handler lock are gone
 
-Statements about `EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecoveryAtHead` (era-contracts `main`
-`3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73`; the modelled functions are the same at `draft/v0.35.0`
-`d9f678900`).  Proofs are in `EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryAtHead`.
+Statements about `EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecoveryAtHead` (era-contracts
+`draft/v0.35.0` `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`; the modelled functions are the same at
+`main` `70096e2ea`, see the Specs header).  Proofs are in
+`EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryAtHead`.
 
-The pin model (`AtomicRecovery`, `c67894b9`) found three things.  At head:
+The pin model (`AtomicRecovery`, `c67894b9`) found that the refund always went to the vault and
+that a direct call was refunded like a burn.  At head:
 
 * **(a) The forged refund is gone.**  The manager dispatches on `InteropCall.from`, so a direct call
-  never reaches `recoverAtomicCall`: its iteration refunds its own value to its own sender, or does
-  nothing (`DirectCallSkipsRouterRecovery`, `DirectCallDataIgnoredAtHead`, `CallTargetIgnoredAtHead`,
-  `DirectValueLegRefundsItsSenderAtHead`; through the pin's vault refund when the destination's base
-  token is not this chain's, `CrossBaseValueLegRefundAtHead`, and through the base-token holder when
-  it is, `SameBaseValueLegRefundAtHead`).  A bundle of zero-value direct calls is claimed as a no-op
-  (headline `DirectBundleClaimIsNoOpAtHead`).  On the send side only indirect starters, whose data the
-  router's own burn produced, yield calls from the router (`RouterSenderIffIndirectAtHead`,
+  never reaches `recoverAtomicCall`: its iteration is the vault's refund of the call's own value, in
+  the bundle's destination base-token asset, to the call's own sender, or nothing when the value is
+  zero (`DirectCallSkipsRouterRecovery`, `DirectCallDataIgnoredAtHead`, `CallTargetIgnoredAtHead`,
+  `DirectValueLegRefundsItsSenderAtHead`; through the pin's vault refund when that asset is not this
+  chain's base token, `CrossBaseValueLegRefundAtHead`, and through the base-token holder when it is,
+  `SameBaseValueLegRefundAtHead`).  A bundle of zero-value direct calls is claimed as a no-op
+  (headline `DirectBundleClaimIsNoOpAtHead`).  On the send side, for a sender other than the router,
+  only indirect starters yield calls from the router (`RouterSenderIffIndirectAtHead`,
   `SentDirectCallNeverRecoveredAtHead`).  The pin's countermodel instance is rejected
   (`PinUnbackedMintRejectedAtHead`) and the pin's statement is false of the head
   (`DirectCallIsRefundedFailsAtHead`).
 * **(b) The custom-handler lock is gone, while the handler is not rotated.**  The vault's own refund
   is the pin's except on this chain's base token (`VaultRecoverAtHeadIsPinRefundOffBaseToken`,
-  `VaultRecoverAtHeadOnBaseToken`).  The refund reads the
-  handler at claim time (`RecoveryReadsClaimTimeHandler`); the burn leaves its own handler registered
+  `VaultRecoverAtHeadOnBaseToken`), so while the vault handles an asset a router call's head
+  iteration is the pin's (`VaultRouterCallIsPinIterationAtHead`).  The refund reads the handler at
+  claim time (`RecoveryReadsClaimTimeHandler`); the burn leaves its own handler registered
   (`BurnLeavesBurnHandler`); a run of the router-map writers that rotates nothing leaves it there
   (`NoRotationKeepsHandler`, logged-hash form `NoRotationKeepsHandlerLoggedOn`; conversely
-  `HandlerMovesOnlyByRotation`).  So a router leg's refund reaches the handler that burned it, on the
+  `HandlerMovesOnlyByRotation`).  So a router leg's refund is the burn handler's own refund, on the
   burn's own bytes (headline `RouterLegReachesBurnHandler`, logged form
-  `RouterLegReachesBurnHandlerLoggedOn`).  A custom-handler deposit is refunded by its handler with no
-  hash premise (`CustomHandlerRecoveredByItsHandler`); a vault burn refunds its depositor
-  (`PreparedBurnRefundsDepositorAtHead`); the pin's stranded bundle is refunded
+  `RouterLegReachesBurnHandlerLoggedOn`).  The refund of a custom-handler deposit is that handler's
+  refund, with no hash premise (`CustomHandlerRecoveredByItsHandler`); a vault burn's call re-mints
+  the burned amount to its depositor while the vault is still its handler
+  (`PreparedBurnRefundsDepositorAtHead`), in particular after any run of the writers that does not
+  rotate the asset (`VaultBurnRefundsDepositorAfterRunAtHead`); the pin's stranded bundle is refunded
   (`PinStrandedBundleRefundedAtHead`); and the pin's `RecoveryCallsTheVault` and
   `RecoveryIgnoresHandler` are false of the head (`…FailsAtHead`).
 * **(c) Rotation misroutes recovery** (upstream known issue 5).  Rotating to a handler that no-ops
   consumes the leg with nothing refunded (headline `RotationToNoOpHandlerStrandsBurn`); rotating to one
   that reverts blocks the claim until rotated back (`RotationToRevertingHandlerBlocksClaim`); a zeroed
-  handler reverts (`ZeroedHandlerRecoveryReverts`).  On L2 only the L1 counterpart, the initializer
-  and the vault's own registration rotate a live route (`L2RotationOnlyByCounterpartSeedOrVault`).
+  handler reverts (`ZeroedHandlerRecoveryReverts`).  On L2, along runs from fresh storage, only the L1
+  counterpart, the initializer and the vault's own registration rotate a live route
+  (`L2RotationOnlyByCounterpartSeedOrVault`).
 * **(d) One failing recovery still blocks the whole bundle: the revert is still uncaught.**  The head
   acceptance rule is `RecoveryLimits.LoopCompletes` alone (`ClaimSucceedsIffLoopCompletesAtHead`):
   any revert blocks the claim (headline `RevertingCallBlocksClaimAtHead`, on the head loop
   `UnrecoverableHandlerBlocksBundleAtHead`, concrete `HandlerWithoutRecoveryStrandsBundleAtHead`), while
   a claim that recovers nothing consumes the leg (`NothingRecoveredStillConsumesLegAtHead`,
   `UnrecognisedRouterCallConsumedAtHead`, and against the pin `PinRejectsNothingRecoverableHeadAccepts`).
+* **(e) An L1 destination is refused at claim time**, in every leg state, world and per-call
+  behaviour (`L1DestinationClaimRevertsAtHead`).  The pin's stranded L1 leg
+  (`AtomicRecoveryFaithful.AdmittedAtomicL1LegNeverRefunded`) needs an atomic bundle to L1, which
+  `_sendBundle` rejects at head (`InteropCenter.sol:552-553`; the send is not modelled here).
 
 No statement takes a global hash premise.  The only hash premises are in the two `…LoggedOn` forms:
 injectivity of `encodeAssetId` on the burned asset's registration triple paired with each triple the
-run between burn and claim hashes.  Every property with premises has a satisfiability witness below.
+run between burn and claim hashes.  The configuration identifications of the Specs header (one
+`L1_CHAIN_ID`, one `BASE_TOKEN_ASSET_ID`, `OPS-CONFIG`) are model boundaries, not premises.  Every
+property with premises has a satisfiability witness below.
 
 Scope.  These are statements about the claim side.  What was collected at send — the burn behind an
 indirect starter (`AssetRouterBase._burn`), the value collected by `_ensureCorrectTotalValue` — enters
@@ -64,9 +77,11 @@ open AttackVectors.RecoveryLimits (Outcome LegState LoopCompletes claimEnabled)
 /-! ## (a) Direct calls never reach the router's refund -/
 
 /-- **A DIRECT CALL NEVER REACHES THE ROUTER'S REFUND.**  For a call whose `InteropCall.from` is not
-the router, the loop's iteration is the base-token refund of the call's own value to the call's own
-sender, or nothing at all when the value is zero (`AtomicFlowManager.sol:309-320`).  `recoverAtomicCall`
-is not called, so whatever `finalizeDeposit` data a direct call carries, no handler sees it. -/
+the router, the loop's iteration is the router's `bridgehubRecoverBaseToken` of the call's own value,
+in the bundle's destination base-token asset, to the call's own sender, or nothing at all when the
+value is zero (`AtomicFlowManager.sol:312-323`).  `recoverAtomicCall` is not called, and the call's
+`data` does not occur on the right-hand side: whatever `finalizeDeposit` data a direct call carries, no
+handler sees it. -/
 def Properties.DirectCallSkipsRouterRecovery : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (dest : Chain) (base : AssetId) (w : World X) (c : HeadCall),
@@ -89,9 +104,10 @@ def Properties.DirectCallDataIgnoredAtHead : Prop :=
 /-- **A DIRECT VALUE LEG REFUNDS ITS OWN VALUE TO ITS OWN SENDER.**  For a call not from the router
 with value `v ≠ 0` and a destination other than L1, the iteration is exactly the vault's head
 failed-transfer refund (`vaultRecoverAtHead`), called by the router with no value, of `v` of the
-bundle's destination base-token asset to the call's sender — the asset in which
-`_ensureCorrectTotalValue` collected `v` from that sender at send (`InteropCenter.sol:415-457`).  The
-routing table is not read: the refund goes to the vault whatever handler the asset has.  The two
+bundle's destination base-token asset, on the mint data `bridgehubRecoverBaseToken` rebuilds, whose
+`originalCaller` is the call's sender (`baseRefundMint`).  The right-hand side reads no router map:
+the refund goes to the vault whatever handler the asset has.  (At send, `_ensureCorrectTotalValue`,
+`InteropCenter.sol:418-460`, collected the bundle's call values; the send is not modelled.)  The two
 cases of the vault's refund are `CrossBaseValueLegRefundAtHead` and `SameBaseValueLegRefundAtHead`. -/
 def Properties.DirectValueLegRefundsItsSenderAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
@@ -103,7 +119,9 @@ def Properties.DirectValueLegRefundsItsSenderAtHead : Prop :=
 
 /-- **…CROSS-BASE: THROUGH THE PIN'S VAULT REFUND.**  When the destination's base-token asset is not
 this chain's base token, that refund is the pin model's `AtomicRecovery.ntvRecover` on the rebuilt
-mint data: the vault unlocks or re-mints `v` of the destination's base-token asset to the sender. -/
+mint data, called by the router with no value: `ntvRecover` passes `v` and the mint data's
+`originalCaller`, here the call's sender, to the vault's withdraw or mint hook (for a bridged asset it
+has no token for, only after the asset-id check and a deployment). -/
 def Properties.CrossBaseValueLegRefundAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (dest : Chain) (base : AssetId) (w : World X) (c : HeadCall),
@@ -115,8 +133,8 @@ def Properties.CrossBaseValueLegRefundAtHead : Prop :=
 /-- **…SAME-BASE: THROUGH THE BASE-TOKEN HOLDER.**  When the destination's base-token asset is this
 chain's base token, the vault is unpaused and does not record that asset as native to this chain, the
 iteration is exactly `L2_BASE_TOKEN_HOLDER.recoverBaseToken(sender, v, dest)`
-(`L2NativeTokenVault.sol:245-247`): the vault's registry, the tracker's `_handleBridgeFromChain` and
-the token hooks play no part. -/
+(`L2NativeTokenVault.sol:214-216`): the vault's registry is not written, and the tracker's
+`_handleBridgeFromChain` and the token hooks play no part. -/
 def Properties.SameBaseValueLegRefundAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (dest : Chain) (w : World X) (c : HeadCall),
@@ -127,7 +145,7 @@ def Properties.SameBaseValueLegRefundAtHead : Prop :=
             (fun x => ({ w with rest := x }, true))
 
 /-- **NO CALL'S TARGET IS READ.**  For every call, router-produced or direct, replacing
-`InteropCall.to` changes nothing about its iteration (`AtomicFlowManager.sol:300-320` reads `from`,
+`InteropCall.to` changes nothing about its iteration (`AtomicFlowManager.sol:302-324` reads `from`,
 `value` and `data` only). -/
 def Properties.CallTargetIgnoredAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
@@ -159,9 +177,10 @@ def Properties.RouterSenderIffIndirectAtHead : Prop :=
           ∧ processCallStarterAtHead cfg msgSender st = routerCallAtHead cfg a mintBytes)
 
 /-- **A SENT DIRECT CALL IS NEVER RECOVERED THROUGH THE ROUTER.**  For a send by any account other
-than the router, the claim-time iteration of the call a direct starter produced is the refund of the
-starter's own value to that account, or nothing — for every recipient and payload, the router and
-router-shaped `finalizeDeposit` data included. -/
+than the router, the claim-time iteration of the call a direct starter produced is
+`bridgehubRecoverBaseToken` of the starter's own value to that account, or nothing when the value is
+zero — for every recipient and payload, the router and router-shaped `finalizeDeposit` data
+included. -/
 def Properties.SentDirectCallNeverRecoveredAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (dest : Chain) (base : AssetId) (w : World X) (msgSender : Address)
@@ -216,8 +235,8 @@ def Properties.DirectCallIsRefundedFailsAtHead : Prop :=
 /-- **OFF THE CHAIN'S OWN BASE TOKEN, THE VAULT'S HEAD REFUND IS THE PIN'S.**  For every asset other
 than this chain's `BASE_TOKEN_ASSET_ID` and every destination other than L1, the head vault's
 `bridgeRecoverFailedTransfer` is the pin model's `AtomicRecovery.ntvRecover` on the pin hooks, for
-every caller, value and mint data (decode failures included).  So the pin model's results about the
-vault's refund carry over to the head for those assets. -/
+every caller, value and mint data (decode failures included).  So every statement about
+`ntvRecover` holds of the head refund of those assets to those destinations. -/
 def Properties.VaultRecoverAtHeadIsPinRefundOffBaseToken : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X) (w : World X)
     (caller : Address) (v : UInt256) (chainId : Chain) (a : AssetId) (m : Option MintData),
@@ -239,11 +258,28 @@ def Properties.VaultRecoverAtHeadOnBaseToken : Prop :=
           else (hk.recoverBase w.rest md.originalCaller md.amount chainId).map
             (fun x => { w with rest := x })
 
+/-- **WHILE THE VAULT HANDLES THE ASSET, A ROUTER CALL'S HEAD ITERATION IS THE PIN'S.**  For a
+router-produced call on an asset other than this chain's base token, to a destination other than L1,
+whose claim-time handler is the vault (at a nonzero address) and whose bytes the vault decodes to `md`:
+the head iteration equals the pin model's iteration (`AtomicRecovery.recoverCall`, for every behaviour
+`other` of non-router targets) on the pin's router call `AtomicRecovery.routerCall cfg a md`.  So the
+pin model's results about that call (`KnownBridgedAssetRefundsOriginalCaller`,
+`NativeAssetRefundsOriginalCaller`, `RefundIgnoresRemoteReceiver`) hold of it at head. -/
+def Properties.VaultRouterCallIsPinIterationAtHead : Prop :=
+  ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X) (code : HandlerCode X)
+    (other : Address → World X → Chain → AtomicRecovery.CallData → Option (World X × Bool))
+    (dest : Chain) (base : AssetId) (w : World X) (a : AssetId) (mintBytes : Bytes) (md : MintData),
+    dest ≠ cfg.l1Chain → a ≠ cfg.baseAsset → cfg.ntv ≠ 0 → w.router.handler a = cfg.ntv →
+    cfg.decodeMint mintBytes = some md →
+      recoverCallAtHead enc cfg hk code dest base w (routerCallAtHead cfg a mintBytes)
+        = AtomicRecovery.recoverCall enc cfg.toConfig hk.toHooks other dest w
+            (AtomicRecovery.routerCall cfg.toConfig a md)
+
 /-- **THE REFUND READS THE HANDLER AT CLAIM TIME.**  The manager's `recoverAtomicCall` on
 `finalizeDeposit` data, for a non-L1 destination: an unset handler reverts
 (`AssetHandlerDoesNotExist`), and otherwise the refund is exactly the claim-time handler's
 `bridgeRecoverFailedTransfer` on the call's own destination, asset and bytes, then `return true`
-(`L2AssetRouter.sol:305-308`). -/
+(`L2AssetRouter.sol:299-302`). -/
 def Properties.RecoveryReadsClaimTimeHandler : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (w : World X) (dest src : Chain) (a : AssetId) (data : Bytes),
@@ -303,11 +339,11 @@ def Properties.NoRotationKeepsHandlerLoggedOn : Prop :=
 /-- **HEADLINE (b): A ROUTER LEG'S REFUND REACHES THE HANDLER THAT BURNED IT, IF NOT ROTATED.**  The
 burn of asset `a` ran in router maps `R`, on the handler `burnHandler cfg R a`, and its bundle call is
 the router-produced `routerCallAtHead cfg a mintBytes`.  Between the burn and the claim the maps
-evolve by any run of the writers (`K` is the writers' configuration of this router) from
-`burnRouter cfg R a` to the claim-time maps, and no call of the run rotates `a` away from the burn
-handler.  Then, for a non-L1 destination and a nonzero vault address, the claim's iteration on that
-call is exactly the burn handler's `bridgeRecoverFailedTransfer` on the burn's own bytes, followed by
-`return true`. -/
+evolve by any run of the writers, for any writers' configuration `K` (in particular this router's),
+from `burnRouter cfg R a` to the claim-time maps, and no call of the run rotates `a` away from the
+burn handler.  Then, for a non-L1 destination and a nonzero vault address, the claim's iteration on
+that call is exactly the burn handler's `bridgeRecoverFailedTransfer` (`handlerRecover`) on the call's
+destination, the asset and the burn's own bytes, followed by `return true`. -/
 def Properties.RouterLegReachesBurnHandler : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (K : AllWriters.Cfg) (R : Router) (ops : List AllWriters.Op)
@@ -346,7 +382,8 @@ def Properties.RouterLegReachesBurnHandlerLoggedOn : Prop :=
 premise.  When the claim-time handler of asset `a` is set and is not the vault, and its
 `bridgeRecoverFailedTransfer` returns, the refund of a `finalizeDeposit` call on `a` returns `true` with
 exactly that handler's effect: the vault and its `assetIdCheck` play no part.  (At the pin the same
-call reverted whenever the id was not an NTV id, `AtomicRecovery.CustomHandlerDepositRefundReverts`.) -/
+call went to the vault, and reverted under the premises of
+`AtomicRecovery.CustomHandlerDepositRefundReverts`.) -/
 def Properties.CustomHandlerRecoveredByItsHandler : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (w w' : World X) (dest src : Chain) (a : AssetId) (data : Bytes),
@@ -360,9 +397,11 @@ vault's preparation (`bridgeBurn` on a registered representation token,
 `NativeTokenVaultBase.prepare`) returns mint data `out.data`; the router call carries bytes the vault
 decodes to it (the ABI round trip of `encodeBridgeMintData`, `SOL-ABI`); the claim-time handler of the
 asset is the vault (not rotated); the destination is not L1; the asset is not this chain's base token
-(whose burn and refund go through the base-token holder, not a representation token); the vault knows
-the asset (bridged, registered), is unpaused, and the tracker hook returns.  Then the claim's
-iteration re-mints exactly the burned amount to the depositor. -/
+(whose burn and refund go through the base-token holder, not a representation token); in the refund
+world the vault records the asset as bridged (not native to this chain) with a local token, is
+unpaused, and the tracker hook returns.  Then the claim's iteration is the mint hook on that token,
+to the request's depositor, of the request's amount, and returns `true` when the hook returns.  The
+refund world is tied to the preparation only through these premises. -/
 def Properties.PreparedBurnRefundsDepositorAtHead : Prop :=
   ∀ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
     (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc),
@@ -378,13 +417,38 @@ def Properties.PreparedBurnRefundsDepositorAtHead : Prop :=
           = (hk.mint x₁ (w.vault.token r.assetId) r.depositor r.data.amount).map
               (fun x₂ => ({ w with rest := x₂ }, true))
 
+/-- **HEADLINE (b) FOR A VAULT BURN: AFTER ANY RUN THAT DOES NOT ROTATE THE ASSET, THE DEPOSITOR IS
+RE-MINTED.**  `PreparedBurnRefundsDepositorAtHead` with its premise on the claim-time handler derived
+from the run: the burn ran in router maps `R` on the vault (`burnHandler cfg R a` is the vault), and
+between the burn and the claim the maps evolve by a run of the writers, for any writers'
+configuration `K`, from `burnRouter cfg R a` to the claim-time maps, with no call rotating the asset
+away from the vault.  The other premises are `PreparedBurnRefundsDepositorAtHead`'s.  Then the claim's
+iteration on the router call is the mint hook on the vault's token, to the request's depositor, of
+the request's amount. -/
+def Properties.VaultBurnRefundsDepositorAfterRunAtHead : Prop :=
+  ∀ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
+    (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc),
+    NativeTokenVaultBase.WellFormed s → NativeTokenVaultBase.prepare prepHooks s r = some out →
+    ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
+      (code : HandlerCode X) (K : AllWriters.Cfg) (R : Router) (ops : List AllWriters.Op)
+      (dest : Chain) (base : AssetId) (w : World X) (mintBytes : Bytes) (x₁ : X),
+      dest ≠ cfg.l1Chain → cfg.decodeMint mintBytes = some out.data → cfg.ntv ≠ 0 →
+      AtomicRecovery.burnHandler cfg.toConfig R r.assetId = cfg.ntv →
+      AllWriters.ARun K (burnRouter cfg.toConfig R r.assetId) ops w.router →
+      NoRotation K r.assetId cfg.ntv ops →
+      r.assetId ≠ cfg.baseAsset → w.paused = false → w.vault.originChain r.assetId ≠ cfg.thisChain →
+      w.vault.token r.assetId ≠ 0 → hk.fromChain w.rest dest r.assetId r.data.amount = some x₁ →
+        recoverCallAtHead enc cfg hk code dest base w (routerCallAtHead cfg r.assetId mintBytes)
+          = (hk.mint x₁ (w.vault.token r.assetId) r.depositor r.data.amount).map
+              (fun x₂ => ({ w with rest := x₂ }, true))
+
 /-- **THE PIN'S STRANDED BUNDLE IS REFUNDED AT HEAD.**  One world and one bundle of two
 router-produced calls: a deposit of a custom-handler asset, burned by its handler, and a deposit of a
 vault asset, burned by the vault.  In the PIN model the claim reverts (`AtomicRecovery`'s
-`CustomHandlerBundleIsStranded` instance).  In the HEAD model, with a custom handler whose
-`bridgeRecoverFailedTransfer` returns and bytes that decode to the same mint data, the claim of the
-same bundle succeeds.  (A custom handler that does not implement the hook still blocks its bundle:
-`HandlerWithoutRecoveryStrandsBundleAtHead`.) -/
+`CustomHandlerBundleIsStranded` instance).  In the HEAD model, in the same world, the claim of the
+bundle of the same two router-produced calls, with bytes that decode to the same mint data, succeeds
+(for handler code under which the custom handler's refund returns).  (A custom handler that does not
+implement the hook still blocks its bundle: `HandlerWithoutRecoveryStrandsBundleAtHead`.) -/
 def Properties.PinStrandedBundleRefundedAtHead : Prop :=
   ∃ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (other : Address → World X → Chain → AtomicRecovery.CallData → Option (World X × Bool))
@@ -425,7 +489,8 @@ def Properties.RecoveryIgnoresHandlerFailsAtHead : Prop :=
 /-- **A ZEROED HANDLER MAKES THE REFUND REVERT.**  If the claim-time handler of the asset is unset —
 for instance after the L2 counterpart's `setAssetHandlerAddress(_, a, 0)`, which the writers allow
 (`ZeroedHandlerReachableByCounterpart`) — the router call's iteration reverts
-(`AssetHandlerDoesNotExist`, `L2AssetRouter.sol:306`). -/
+(`AssetHandlerDoesNotExist`, `L2AssetRouter.sol:300`), for every destination (an L1 destination
+reverts earlier, `:275`). -/
 def Properties.ZeroedHandlerRecoveryReverts : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (w : World X) (dest : Chain) (base : AssetId) (a : AssetId)
@@ -433,14 +498,15 @@ def Properties.ZeroedHandlerRecoveryReverts : Prop :=
     w.router.handler a = 0 →
       recoverCallAtHead enc cfg hk code dest base w (routerCallAtHead cfg a mintBytes) = none
 
-/-- **HEADLINE (c): ROTATING TO A NO-OP HANDLER STRANDS THE BURN.**  A concrete L2 world.  An asset
-burned by the vault has its bundle call refunded on its own: the claim re-credits the depositor the
-burned amount.  One counterpart call `setAssetHandlerAddress` between burn and claim
-(`AllWriters.AStep … (.counterpartSet a h₁)`) re-points the asset at a handler whose
-`bridgeRecoverFailedTransfer` returns without moving funds.  The claim then still succeeds and marks
-the leg `Reverted`, which enables no second claim, and the world — the depositor's balance included —
-is unchanged (known issue 5, `protocol-docs/atomicity/security.md:149-156`, "silently no-op
-(consuming the claim)"). -/
+/-- **HEADLINE (c): ROTATING TO A NO-OP HANDLER STRANDS THE BURN.**  A concrete L2 world, and one
+bundle of one router-produced call on an asset whose burn handler is the vault.  Claimed in that
+world, the leg becomes `Reverted` and the mint data's `originalCaller` is re-credited its (positive)
+`amount`.  If instead one counterpart call `setAssetHandlerAddress` comes first
+(`AllWriters.AStep … (.counterpartSet a h₁)`), re-pointing the asset at a handler whose
+`bridgeRecoverFailedTransfer` returns without moving funds, the claim still succeeds and marks the
+leg `Reverted`, which enables no second claim, and the world apart from the router's maps — the
+`originalCaller`'s balance included — is unchanged (known issue 5,
+`protocol-docs/atomicity/security.md:149-156`, "silently no-op (consuming the claim)"). -/
 def Properties.RotationToNoOpHandlerStrandsBurn : Prop :=
   ∃ (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks (Addr160 → ℕ))
     (code : HandlerCode (Addr160 → ℕ)) (K : AllWriters.Cfg) (w : World (Addr160 → ℕ))
@@ -461,7 +527,8 @@ def Properties.RotationToNoOpHandlerStrandsBurn : Prop :=
 /-- **ROTATING TO A HANDLER WITHOUT RECOVERY BLOCKS THE CLAIM, UNTIL ROTATED BACK.**  The same setting
 with a new handler whose `bridgeRecoverFailedTransfer` reverts.  After the rotation the claim reverts,
 so the leg stays `Revertable`.  After a second counterpart call points the asset back at the vault,
-the claim re-credits the depositor ("blocking the refund until rotated back", known issue 5). -/
+the claim re-credits the mint data's `originalCaller` its (positive) `amount` ("blocking the refund
+until rotated back", known issue 5). -/
 def Properties.RotationToRevertingHandlerBlocksClaim : Prop :=
   ∃ (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks (Addr160 → ℕ))
     (code : HandlerCode (Addr160 → ℕ)) (K : AllWriters.Cfg) (w : World (Addr160 → ℕ))
@@ -558,7 +625,7 @@ def Properties.HandlerWithoutRecoveryStrandsBundleAtHead : Prop :=
 
 /-- **A CLAIM THAT RECOVERS NOTHING STILL CONSUMES THE LEG.**  For any per-call behaviour: if the loop
 completes having reversed nothing, the claim succeeds and the leg becomes `Reverted`, which enables
-no second claim (`AtomicFlowManager.sol:287-288`; per-bundle consumption, known issue 1,
+no second claim (`AtomicFlowManager.sol:290-291`; per-bundle consumption, known issue 1,
 `protocol-docs/atomicity/security.md:105-112`). -/
 def Properties.NothingRecoveredStillConsumesLegAtHead : Prop :=
   ∀ (X : Type) (cfg : HeadConfig)
@@ -571,8 +638,8 @@ def Properties.NothingRecoveredStillConsumesLegAtHead : Prop :=
 
 /-- **A ROUTER CALL THE ROUTER DOES NOT RECOGNISE IS CONSUMED WITHOUT A REFUND.**  On the head loop, a
 call from the router whose data is not a `finalizeDeposit` returns `false`
-(`L2AssetRouter.sol:290-292`) and is skipped: a bundle of such calls and zero-value direct calls is
-claimed as a no-op (the router's own note, `L2AssetRouter.sol:282-289`). -/
+(`L2AssetRouter.sol:284-286`) and is skipped: a bundle of such calls and zero-value direct calls is
+claimed as a no-op (the router's own note, `L2AssetRouter.sol:276-283`). -/
 def Properties.UnrecognisedRouterCallConsumedAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (w : World X) (b : HeadBundle),
@@ -593,6 +660,18 @@ def Properties.PinRejectsNothingRecoverableHeadAccepts : Prop :=
         LegState.Revertable w [AtomicRecovery.directCall cfg.router sender .other] = none
     ∧ claimRefundAtHead cfg (recoverCallAtHead enc cfg hk code) LegState.Revertable w
         ⟨dest, base, [directCallAtHead cfg.router sender 0 .other]⟩ = some (LegState.Reverted, w)
+
+/-! ## (e) An L1 destination is refused at claim time -/
+
+/-- **AN L1 DESTINATION IS REFUSED AT CLAIM TIME.**  For any per-call behaviour, leg state and world,
+the claim of a bundle whose destination is `L1_CHAIN_ID` reverts (`AtomicFlowManager.sol:299`,
+`RecoverToL1NotSupported`) before any call is attempted.  At send, `_sendBundle` rejects an atomic
+bundle to L1 (`InteropCenter.sol:552-553`); the send is not modelled here. -/
+def Properties.L1DestinationClaimRevertsAtHead : Prop :=
+  ∀ (X : Type) (cfg : HeadConfig)
+    (step : Chain → AssetId → World X → HeadCall → Option (World X × Bool)) (st : LegState)
+    (w : World X) (b : HeadBundle),
+    b.destChain = cfg.l1Chain → claimRefundAtHead cfg step st w b = none
 
 /-! ## Witnesses -/
 
@@ -660,6 +739,16 @@ def Properties.RouterSenderIffIndirectSatisfiable : Prop :=
     ∧ (processCallStarterAtHead cfg msgSender (.indirect a mintBytes)).sender = cfg.router
     ∧ (processCallStarterAtHead cfg msgSender (.direct cfg.router d 0)).sender ≠ cfg.router
 
+/-- **`VaultRouterCallIsPinIterationAtHead`'S PREMISES ARE SATISFIABLE**, with an iteration that
+returns `true`. -/
+def Properties.VaultRouterCallIsPinIterationSatisfiable : Prop :=
+  ∃ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X) (code : HandlerCode X)
+    (dest : Chain) (base : AssetId) (w w' : World X) (a : AssetId) (mintBytes : Bytes)
+    (md : MintData),
+    dest ≠ cfg.l1Chain ∧ a ≠ cfg.baseAsset ∧ cfg.ntv ≠ 0 ∧ w.router.handler a = cfg.ntv
+    ∧ cfg.decodeMint mintBytes = some md
+    ∧ recoverCallAtHead enc cfg hk code dest base w (routerCallAtHead cfg a mintBytes) = some (w', true)
+
 /-- **THE ROUTING PREMISES ARE SATISFIABLE.**  For `RecoveryReadsClaimTimeHandler`,
 `BurnHandlerNonzero` and `CustomHandlerRecoveredByItsHandler`: a non-L1 destination, a nonzero vault
 address, and a custom handler, set and not the vault, whose refund returns — and then the router's
@@ -685,10 +774,23 @@ def Properties.HandlerMovesOnlyByRotationSatisfiable : Prop :=
   ∃ (K : AllWriters.Cfg) (op : AllWriters.Op) (R R' : Router) (a : AssetId),
     AllWriters.AStep K op R R' ∧ R'.handler a ≠ R.handler a ∧ R.handler a ≠ 0
 
-/-- **THE LOGGED PREMISES ARE SATISFIABLE**, for `NoRotationKeepsHandlerLoggedOn` and
-`RouterLegReachesBurnHandlerLoggedOn`: a run with a registration hashing a triple other than the
-burned asset's, injectivity on that pair, a burned asset whose burn handler is a custom handler, a
-non-L1 destination, and a recovery that returns. -/
+/-- **`NoRotationKeepsHandlerLoggedOn`'S PREMISES ARE SATISFIABLE**, on a nonempty run whose one call
+is a registration hashing a triple other than the asset's, with `encodeAssetId` injective on that
+pair, from maps that point the asset at a custom handler. -/
+def Properties.NoRotationKeepsHandlerLoggedOnSatisfiable : Prop :=
+  ∃ (K : AllWriters.Cfg) (R₁ R₂ : Router) (ops : List AllWriters.Op) (c₀ : Chain) (s₀ : Address)
+    (d₀ : AssetData) (h₀ : Address),
+    AllWriters.ARun K R₁ ops R₂ ∧ R₁.handler (K.enc c₀ s₀ d₀) = h₀ ∧ h₀ ≠ 0
+    ∧ (∃ op ∈ ops, ∃ p, op.triple K = some p ∧ p ≠ (c₀, s₀, d₀))
+    ∧ (∀ op ∈ ops, ∀ p, op.triple K = some p → IdInjOn K.enc {(c₀, s₀, d₀), p})
+    ∧ (∀ caller d h, AllWriters.Op.register caller d h ∈ ops →
+        (K.thisChain, senderOf K.ntv K.ntvAddr caller, d) = (c₀, s₀, d₀) → h = h₀)
+    ∧ (∀ a' h, AllWriters.Op.counterpartSet a' h ∈ ops → a' = K.enc c₀ s₀ d₀ → h = h₀)
+    ∧ (AllWriters.Op.seed ∈ ops → K.seedId = K.enc c₀ s₀ d₀ → K.ntv = h₀)
+
+/-- **THE LOGGED PREMISES ARE SATISFIABLE**, for `RouterLegReachesBurnHandlerLoggedOn`: a run with a
+registration hashing a triple other than the burned asset's, injectivity on that pair, a burned asset
+whose burn handler is a custom handler, a non-L1 destination, and a recovery that returns. -/
 def Properties.LoggedRoutingPremisesSatisfiable : Prop :=
   ∃ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (K : AllWriters.Cfg) (R : Router) (ops : List AllWriters.Op)
@@ -734,6 +836,24 @@ def Properties.PreparedBurnRefundAtHeadSatisfiable : Prop :=
     ∧ dest ≠ cfg.l1Chain ∧ cfg.decodeMint mintBytes = some out.data
     ∧ w.router.handler r.assetId = cfg.ntv ∧ cfg.ntv ≠ 0 ∧ r.assetId ≠ cfg.baseAsset
     ∧ w.paused = false ∧ w.vault.originChain r.assetId ≠ cfg.thisChain
+    ∧ w.vault.token r.assetId ≠ 0 ∧ hk.fromChain w.rest dest r.assetId r.data.amount = some x₁
+    ∧ (recoverCallAtHead enc cfg hk code dest base w (routerCallAtHead cfg r.assetId mintBytes)).isSome
+
+/-- **`VaultBurnRefundsDepositorAfterRunAtHead`'S PREMISES ARE JOINTLY SATISFIABLE**, on a nonempty
+run between burn and claim that moves another asset's route, with a refund that returns. -/
+def Properties.VaultBurnRefundAfterRunSatisfiable : Prop :=
+  ∃ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
+    (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc)
+    (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
+    (code : HandlerCode X) (K : AllWriters.Cfg) (R : Router) (ops : List AllWriters.Op)
+    (dest : Chain) (base : AssetId) (w : World X) (mintBytes : Bytes) (x₁ : X),
+    NativeTokenVaultBase.WellFormed s ∧ NativeTokenVaultBase.prepare prepHooks s r = some out
+    ∧ dest ≠ cfg.l1Chain ∧ cfg.decodeMint mintBytes = some out.data ∧ cfg.ntv ≠ 0
+    ∧ AtomicRecovery.burnHandler cfg.toConfig R r.assetId = cfg.ntv
+    ∧ AllWriters.ARun K (burnRouter cfg.toConfig R r.assetId) ops w.router ∧ ops ≠ []
+    ∧ (∃ x, w.router.handler x ≠ R.handler x)
+    ∧ NoRotation K r.assetId cfg.ntv ops
+    ∧ r.assetId ≠ cfg.baseAsset ∧ w.paused = false ∧ w.vault.originChain r.assetId ≠ cfg.thisChain
     ∧ w.vault.token r.assetId ≠ 0 ∧ hk.fromChain w.rest dest r.assetId r.data.amount = some x₁
     ∧ (recoverCallAtHead enc cfg hk code dest base w (routerCallAtHead cfg r.assetId mintBytes)).isSome
 
@@ -785,5 +905,17 @@ def Properties.NothingRecoveredSatisfiable : Prop :=
     ∧ (∃ c ∈ b.calls, c.sender = cfg.router)
     ∧ recoverBundleAtHead (recoverCallAtHead enc cfg hk code b.destChain b.destBaseTokenAssetId) w
         b.calls = some (w, 0)
+
+/-- **`L1DestinationClaimRevertsAtHead`'S PREMISE IS SATISFIABLE, AND IT IS THE DESTINATION THAT
+BLOCKS:** a `Revertable` leg whose bundle is one router-produced call: with the L1 destination the
+claim reverts; with another destination the same call is refunded. -/
+def Properties.L1DestinationClaimRevertsSatisfiable : Prop :=
+  ∃ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X) (code : HandlerCode X)
+    (w : World X) (base : AssetId) (a : AssetId) (mintBytes : Bytes) (dest : Chain),
+    dest ≠ cfg.l1Chain
+    ∧ claimRefundAtHead cfg (recoverCallAtHead enc cfg hk code) LegState.Revertable w
+        ⟨cfg.l1Chain, base, [routerCallAtHead cfg a mintBytes]⟩ = none
+    ∧ (claimRefundAtHead cfg (recoverCallAtHead enc cfg hk code) LegState.Revertable w
+        ⟨dest, base, [routerCallAtHead cfg a mintBytes]⟩).isSome
 
 end Contracts.AssetRouter.AtomicRecoveryAtHead
