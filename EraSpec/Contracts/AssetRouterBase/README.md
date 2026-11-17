@@ -2,7 +2,8 @@
 
 Source: `contracts/bridge/asset-router/AssetRouterBase.sol` and the two routers
 (`L1AssetRouter.sol`, `L2AssetRouter.sol`) in the pinned era-contracts tree
-(`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`).
+(`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`). `HandlerGateAtV35` alone is pinned at
+`draft/v0.35.0` (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`); see its section below.
 
 `HandlerRegistration` models one writer, `_setAssetHandlerAddressThisChain`;
 `L1AssetRouter` and `L2AssetRouter` reach it through
@@ -35,12 +36,14 @@ for those exact named propositions, plus auxiliary lemmas.
 | CounterpartGate | [Specs/CounterpartGate.lean](Specs/CounterpartGate.lean) | [Properties/CounterpartGate.lean](Properties/CounterpartGate.lean) | [Proofs/CounterpartGate.lean](Proofs/CounterpartGate.lean) |
 | AtomicRecovery | [Specs/AtomicRecovery.lean](Specs/AtomicRecovery.lean) | [Properties/AtomicRecovery.lean](Properties/AtomicRecovery.lean) | [Proofs/AtomicRecovery.lean](Proofs/AtomicRecovery.lean) |
 | AtomicRecoveryFaithful | [Specs/AtomicRecoveryFaithful.lean](Specs/AtomicRecoveryFaithful.lean) | [Properties/AtomicRecoveryFaithful.lean](Properties/AtomicRecoveryFaithful.lean) | [Proofs/AtomicRecoveryFaithful.lean](Proofs/AtomicRecoveryFaithful.lean) |
+| HandlerGateAtV35 | [Specs/HandlerGateAtV35.lean](Specs/HandlerGateAtV35.lean) | [Properties/HandlerGateAtV35.lean](Properties/HandlerGateAtV35.lean) | [Proofs/HandlerGateAtV35.lean](Proofs/HandlerGateAtV35.lean) |
 
 Namespaces: `Contracts.AssetRouter` (HandlerRegistration, HandlerRegistrationRuns),
 `Contracts.AssetRouter.AllWriters` (AllWriters, AllWritersStrong, VaultMintGate,
 CounterpartGate),
-`Contracts.AssetRouter.AtomicRecovery` and
-`Contracts.AssetRouter.AtomicRecoveryFaithful`. Statements are `<namespace>.Properties.*`;
+`Contracts.AssetRouter.AtomicRecovery`,
+`Contracts.AssetRouter.AtomicRecoveryFaithful` and
+`Contracts.AssetRouter.HandlerGateAtV35`. Statements are `<namespace>.Properties.*`;
 each certificate has the same name without the `Properties` segment.
 
 ## Run-level registration (`HandlerRegistrationRuns`)
@@ -218,6 +221,36 @@ no-code premise the refund is whatever the code at that address does
 (`InteropCenter.sol:550-554`) and the recovery of an L1-destined bundle
 (`AtomicFlowManager.sol:295`).
 
+## The v35 handler gate (`HandlerGateAtV35`)
+
+Pinned at `draft/v0.35.0` (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). The router, message-root
+and Bridgehub files it cites are unchanged from the earlier head `d9f6789`. v35 adds a check
+to the L1 router, `_checkAssetHandlerAllowed` (`L1AssetRouter.sol:276-288`). It runs first in
+`bridgehubDepositBaseToken`, `bridgehubDeposit` (new encoding), `finalizeDeposit` and
+`bridgeConfirmTransferResult`, and lets the call through when the asset's handler is unset, the
+router's vault or `BRIDGE_HUB.chainAssetHandler()`, or when the chain is interop-enabled in the
+current message root. The model is `AllWriters`' L1 step relation, plus the four entry points as
+events that move an asset through its handler, plus `L1MessageRoot.enableInterop` and
+`L1Bridgehub.setAddresses` as the events that change what the gate reads. The handlers' own calls
+are taken to succeed and the entry points' other checks are not modelled, so "has a step" means
+that the gate and the handler-set check let the call through.
+
+| Result | Statement |
+|---|---|
+| `MovementEnabledIff` | A gated entry point at `(c, a)` has a step exactly when `a`'s handler is set and `(c, a)` is not stranded (custom handler, `c` without interop), and it changes nothing. The gate never stops the fallback. No premises. |
+| `MovementsUseExemptHandlerOrEnabledChain` | In every run, each event moving an asset at chain `c` moved it through the router's vault or the chain asset handler of the state it ran in, or `c` was interop-enabled in that state. Witness `CustomMovementAtEnabledChainWitness`. |
+| `MovementsAtDisabledChainUseExemptHandler` | Along a run without `setAddresses`, every asset moved at a chain still without interop at the end moved through the vault or the chain asset handler. Witness `MovementsAtDisabledChainWitness`. |
+| `RunProjectsToAllWriters`, `GatedRunWeakValidOn` | The router maps of every v35 run follow the `AllWriters` L1 run of its router-writing calls, so the gate adds no writer and `AllWriters`' L1 results carry over, for instance `WeakValid` under the run-local `IdInjOn`. Witnesses `RunProjectsToAllWritersWitness`, `GatedRunWeakValidOnWitness`. |
+| `InteropFlagsOneWayWithoutSetAddresses` | Without `setAddresses`, the chain asset handler stays, enabled chains stay enabled, and only `enableInterop(c)` changes `c`'s flag. Witness `InteropFlagsOneWayWitness`. |
+| `StrandedUntilListedCall`, `UnstrandingCallIsListed` | A stranded `(c, a)` stays stranded, and no event moves `a` at `c`, until `enableInterop(c)`, `setAddresses`, `setNativeTokenVault` seeding `a`, or a registration of `a` (by the vault or `a`'s recorded tracker). Witnesses `StrandedUntilListedCallWitness`, `UnstrandingCallIsListedWitness`. |
+| `OpenGateStaysOpen` | Once a gated entry point at `(c, a)` has a step, every gated entry point at `(c, a)` keeps one, through the same handler, along every run without `setAddresses` and without a call that can rewrite `a`'s handler. Witness `OpenGateStaysOpenWitness`. |
+| `SetAddressesClosesOpenGate`, `RepointingClosesOpenGate` | Both exclusions are needed: a `setAddresses` installing a message root that does not enable `c` closes an open gate, and a tracker's re-registration of an asset routed to the chain asset handler can leave it with a custom handler and close the gate at a chain without interop. |
+
+No hash premise, except `GatedRunWeakValidOn`'s, which is `AllWriters`'. Not modelled: the
+handlers' internal state (for instance the vault's per-chain balance cap, which the upstream
+documentation gives as the reason for the gate), callers of the configuration events, and router,
+Bridgehub and message-root upgrades (`OPS-CONFIG`).
+
 ## Assumptions to review
 
 `NoHijack` and `NtvTouchesOnlyItsOwnIds` take `IdAssumptions enc` as a premise.
@@ -249,3 +282,5 @@ Everything here is abstract. Events, `msg.value`, pause, `nonReentrant`, router
 upgrades, `_setAssetHandler`'s other effects, the L1 failed-deposit path
 (`bridgeConfirmTransferResult`, which does use the handler), and ABI encoding of the
 id preimage are not modelled. Router storage and call correspondence are open.
+`HandlerGateAtV35` models only the v35 gate on that failed-deposit path, with the handler's
+own call taken to succeed (`MODEL-ROUTER-GATE-V35`).

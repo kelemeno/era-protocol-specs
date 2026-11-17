@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- draft/v0.35.0 re-pins (b17415d20): the L1 asset router's handler gate
+import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerGateAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
