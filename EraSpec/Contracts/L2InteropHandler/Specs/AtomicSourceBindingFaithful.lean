@@ -1,5 +1,6 @@
 import EraSpec.Contracts.InteropCenter.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
+import EraSpec.Contracts.L2InteropHandler.Specs.SourceBindingReduced
 
 /-!
 # Model: where the atomic path's source chain comes from, over `executeAtomicBundle` itself
@@ -17,27 +18,28 @@ Topic `AtomicSourceBinding` (same folder) states the atomic path's source bindin
 symbols, `declared : Hash → Chain`, `commit : Hash → Value` and `tree : Chain → Set Value`. Its
 headline `atomic_source_bound` concludes `declared h = c` from `HonestCommits` and
 `commit h ∈ tree c`, and `HonestCommits` is that implication for all `c` and `h`, so the headline
-restates its premise. Three links to the contract are assumed there and not modelled:
+restates its premise. Two topics already derive the binding instead, for the decoded
+`sourceChainId` of the presented bytes. `AtomicSourceBindingStrong` derives it from the honest
+insertion of the one tree that vouched, with the gate read as `FlowGatePassed` (the executing bundle
+is a leg, and each leg's commit value is in its declared chain's tree). `SourceBindingReduced`
+derives it from the vouching chain's whole deployed send run.
 
-* (a) a successful atomicity gate gives an accepted inclusion proof of `commitValue(flowId, h)` for
-  the executing bundle hash `h`;
-* (b) the chain that proof is authenticated against is `proofs[i].sourceChainId`, which the gate
-  pins to `legSourceChainIds[i]`;
-* (c) the chain `declared h` is the one `_executeCalls` hands to the recipient.
+This topic models the entry point itself: every check of `executeAtomicBundle`, every revert of the
+gate `requireFlowFinalized` as written, and the calls `_executeCalls` makes. Its results therefore
+speak of a successful `executeAtomicBundle` and of the chain, sender and value each recipient call
+carries. Three links that `AtomicSourceBinding` assumed are proved here with no premise:
 
-Two further gaps:
+* (a) a successful gate gives an accepted inclusion proof of `commitValue(flowId, h)` for the
+  executing bundle hash `h`;
+* (b) that proof names `proofs[i].sourceChainId`, which the gate pins to `legSourceChainIds[i]`;
+* (c) the chain `_executeCalls` hands to every recipient, and passes to `_handleCallValue`, is the
+  decoded bundle's own `sourceChainId`.
 
-* `declared` is a function of the 32-byte hash. That is justified there by keccak injectivity,
-  which no map into `bytes32` has (`CRYPTO-PAIR-INJ`). In the contract two bundles with different
-  `sourceChainId` can share a bundle hash, and then the honest chain's commit vouches for a bundle
-  that declares another chain. `Properties.DeclaredOfHashForcesBundleBlindHash` shows what a
-  function `declared` of the hash would cost: every bundle of one chain would share one hash.
-* The countermodel `atomic_source_unbound_without_honest` is an existential over arbitrary types.
-  It does not show that the gate accepts such a configuration.
-
-This topic models `executeAtomicBundle`, the gate `requireFlowFinalized` it calls, and the
-`_executeCalls` delivery, at byte level where the binding is decided (the two keccak preimages), and
-restates the headline over that model.
+`AtomicSourceBinding` takes `declared` to be a function of the 32-byte hash. Two bundles with
+different `sourceChainId` and the same bundle hash are a keccak collision on their two named
+preimages, and with one the honest chain's commit vouches for a bundle that declares another chain
+(`Properties.BundlePreimageClashFires`). `Properties.DeclaredOfHashForcesBundleBlindHash` shows what
+a function `declared` of the hash costs: every bundle of one chain would share one hash.
 
 ## The code (pinned tree)
 
@@ -110,7 +112,8 @@ vouching chain exactly when the two keccak preimages agree, and that is what the
 
 * **Bundle type.** The decoded bundle is `Contracts.InteropCenter.Bundle`, the same structure the
   source-side `Dispatch` model builds, so source and destination talk about one type. It omits the
-  constant `version` fields and the reserved `shadowAccount`.
+  `version` fields, whose checks are part of `decode` (below), and the reserved `shadowAccount`,
+  which nothing on this path reads at the pin.
 * **Decoding.** `Dest.decode B = some b` means: `abi.decode(_bundle, (InteropBundle))` succeeds, the
   bundle version check (:248) passes, every call's version check (:276) passes, and `b` is the
   decoded struct. The call version check runs inside `_executeCalls`, after the status write, but a
@@ -125,43 +128,60 @@ vouching chain exactly when the two keccak preimages agree, and that is what the
   authentication against an imported settlement-layer root, the deadline and settlement-layer checks,
   IMT membership) are modelled in `AtomicInteropProof` and `L2InteropCommitmentTree`. Here only one
   fact about it is used, and it is a premise: on proofs naming the vouching chain it accepts only
-  that chain's honest commit values (`HonestVouching`). `VerifierSoundFor` and `TreeHoldsOnlyLog`
-  split that premise into its two halves.
-* **The honest chain's log.** An honest chain inserts into its tree only through `append`, whose
+  values that chain's tree holds (`HonestVouching`, `AcceptsOnlyKeysOf`).
+* **The sentinel.** Every commitment tree holds the value `0` from `initL2` on: `setup` writes the
+  `{0, 0, 0}` leaf at index 0 (`atomic-interop/L2InteropCommitmentTree.sol:47-50`,
+  `common/libraries/IndexedMerkleTree.sol:42-51`), and `IndexedMerkleTree.verifyInclusion` has no
+  zero-value check (`IndexedMerkleTree.sol:133-145`; `verifyNonInclusion` has one, `:160-162`). So
+  an inclusion proof of the commit value `0` can pass against any chain's authenticated root, and
+  every premise below about what a chain's tree holds allows `0`. A commit value of `0` is a keccak
+  preimage of `0` for a named input (`CommitValueIsSentinel`), one of the headline's break
+  disjuncts.
+* **The vouching chain's log.** An honest chain inserts into its tree only through `append`, whose
   sole call site (`InteropCenter.sol:650`) passes `encodeInteropBundleHash(block.chainid, B)`
   (`Protocol/LocalHonesty.lean`). A `CommittedLeg` is one such call: the flow id and the bytes `B`.
   Its commit value is computed with the chain's own id, as `:644` computes it. The log is a finite
   list given by the instance, so a collision with one of its entries is pinned
-  (ASSUMPTIONS.md, "Results whose premises cannot hold").
+  (ASSUMPTIONS.md, "Results whose premises cannot hold"). For a chain whose state is reached by
+  `SourceBindingReduced`'s deployed run, the log is that run's atomic dispatches (`dispatchLegs`).
 * **What a delivery is.** A `Delivery` is one recipient call `_executeCalls` makes: target,
   `receiveId`, the chain and address `formatEvmV1` encodes as the ERC-7930 sender, payload and value.
   `sourceChainId` is also the chain `_handleCallValue` passes to `BaseTokenHolder.give` when the call
-  carries value, which the asset tracker books the released base token against. Whether the
-  recipient accepts (returns the selector, :287) is the recipient's business: a rejecting recipient
-  reverts the transaction, which only removes runs.
+  carries value, and `give` passes it on to `L2_ASSET_TRACKER.handleFinalizeBaseTokenBridgingOnL2`
+  (`BaseTokenHolder.sol:106`). Whether the recipient accepts (returns the selector, :287), and
+  whether `give` succeeds, is outside the model: a failure reverts the transaction, which only
+  removes runs. So `ExecutesAtomic` is what every successful execution satisfies, not a claim that
+  the execution succeeds.
 * **Checks kept, checks omitted.** Every check of `executeAtomicBundle` and `requireFlowFinalized` is
-  kept, so a countermodel that passes them passes the deployed checks. Omitted: events,
+  kept, so a countermodel passes each of them as written. The decoder and the inclusion verifier are
+  abstract, so what they accept in a countermodel is its own choice (the countermodels use the ideal
+  verifier on trees they state, each holding the sentinel). Omitted: events,
   `callStatus` (written `Executed` for every call, :88-90, and read by nothing here),
   `_ensureNotPaused` (empty on L2), and `onlyInteropHandler` (the handler is the caller).
   Reentrancy through a recipient is a separate execution with its own bundle (topic
   `InteropHandlerBase` `Reentrancy`).
 
-## The upgrade tree (e561b9cc2), not modelled here
+## At the current `draft/v0.35.0` head (`b17415d20`), not modelled here
 
-At e561b9cc2 the same question has three differences: the bundle hash is `keccak256(_bundle)` with
-no leading chain word (`InteropDataEncoding.sol:14-16`), so the declared field is bound only through
-the bytes and needs the ABI decoder to read back the honest chain's own field; `append` requires the
-committing chain to be the leg's `legSourceChainIds` entry (`AtomicFlowManager.sol:139-145`); and
-`executeAtomicBundle` skips the gate for a bundle already `Verified` by `verifyAtomicBundle`, which
-runs the same gate first (`L2InteropHandler.sol:73-75`, :83-92). The destination-side gap is the
-same: the gate never compares the bundle's `sourceChainId` with the vouching chain
-(`AtomicFlowManager.sol:193-198`, `L2InteropHandler.sol:70`).
+Three differences bear on the binding. The bundle hash is `keccak256(_bundle)` with no leading
+chain word (`interop/InteropDataEncoding.sol:14-16`; computed at
+`interop/interop-handler/InteropHandlerBase.sol:231` and `interop/InteropCenter.sol:691`), so the
+declared field is bound only through the bytes, and the decoder must read back the honest chain's
+own field. `append` reverts unless the flow declares the committing leg on `block.chainid`
+(`atomic-interop/AtomicFlowManager.sol:141-147`). And `executeAtomicBundle` skips the gate for a
+bundle that `verifyAtomicBundle` has marked `Verified` after running the same gate
+(`interop/interop-handler/L2InteropHandler.sol:73-75`, `:83-92`). As at the pin, the destination
+never compares the bundle's `sourceChainId` with the vouching chain: the validator is called with
+the field itself (`L2InteropHandler.sol:70`), and the gate compares each proof's chain only with
+the leg's declared chain (`AtomicFlowManager.sol:198-200`).
 -/
 
 namespace Contracts.L2InteropHandler.AtomicSourceFaithful
 
 open AttackVectors.BundleHashEncoding (abiEncode word HashCollision)
 open Contracts.InteropCenter (Address Bundle)
+open IMTAbstract (keys)
+open Contracts.InteropCommitmentTree (toAbs)
 
 /-! ## Statuses, proofs and flows -/
 
@@ -355,8 +375,10 @@ structure AtomicChecksPass (D : Dest) (st : HandlerState) (caller : Address) (B 
   /-- `requireFlowFinalized(bundleHash, _finality)` (:83). -/
   gate : FlowGateAccepts D (executedHash D B b) fin
 
-/-- **A SUCCESSFUL `executeAtomicBundle(B, fin)`.** The checks pass, the bundle hash is marked
-`FullyExecuted`, and `_executeCalls` makes the calls `ds`. -/
+/-- **WHAT A SUCCESSFUL `executeAtomicBundle(B, fin)` SATISFIES.** Every check passes, `st'` is the
+state right after the status write (:86, before any call runs: a recipient may re-enter), and
+`_executeCalls` makes the calls `ds`. Whether the recipients accept is outside the model (see the
+header). -/
 structure ExecutesAtomic (D : Dest) (st : HandlerState) (caller : Address) (B : List UInt8)
     (fin : AtomicFinalityProof) (b : Bundle) (st' : HandlerState) (ds : List Delivery) : Prop where
   checks : AtomicChecksPass D st caller B fin b
@@ -387,18 +409,21 @@ def CommittedLeg.value (keccak : List UInt8 → UInt256) (c : UInt256) (e : Comm
   commitValue keccak e.flowId (e.bundleHash keccak c)
 
 /-- **HONEST VOUCHING BY CHAIN `c`, AGAINST ITS OWN LOG.** On every proof that names chain `c`, the
-destination's `verifyInclusion` accepts only commit values of legs in `log`, computed as chain `c`'s
-sole `append` call site computes them, with `c` as the leading word.
+destination's `verifyInclusion` accepts only the sentinel `0` and the commit values of the legs in
+`log`, each computed as chain `c`'s sole `append` call site computes it, with `c` as the leading
+word of the bundle-hash preimage. The sentinel is allowed because every tree holds it (see the
+header).
 
-This is the faithful form of `HonestCommits`, for the one chain the gate names. It packs two facts:
-chain `c` runs the deployed send path (`LocalHonesty`: its tree holds only values its `append`
-inserted, and `append` is reached only from `_dispatchBundle`), and the verifier is sound for chain
-`c`'s tree (Merkle and root authentication). `VerifierSoundFor` and `TreeHoldsOnlyLog` are the two
-halves. It is a premise, satisfiable (`Properties.AtomicSourceBoundWitness`), and it is the premise
-`Properties.MisbehavingLegChainImpersonates` drops. -/
+The premise packs two facts about the one chain the gate names. Its tree holds only those values:
+links 1–2 of `Protocol/LocalHonesty.lean`, derived for a deployed run in topic
+`SourceBindingReduced` (`Properties.DeployedRunVouchesHonestly` uses that derivation). And the
+verifier accepts, on proofs naming that chain, only values its tree holds: an idealization of
+Merkle-path soundness and root authentication, which are not modelled here
+(`SourceBindingReduced`'s `GateBindsExecutingSourceOrBreak` carries their located break instead).
+`VerifierSoundFor` and `TreeHoldsSentinelAndLog` are the two halves. -/
 def HonestVouching (D : Dest) (c : UInt256) (log : List CommittedLeg) : Prop :=
   ∀ (p : ImtProof) (v deadline sl : UInt256), p.sourceChainId = c →
-    D.verifyInclusion p v deadline sl → ∃ e ∈ log, v = e.value D.keccak c
+    D.verifyInclusion p v deadline sl → v = 0 ∨ ∃ e ∈ log, v = e.value D.keccak c
 
 /-- The verifier is sound for chain `c`'s tree: an accepted proof naming `c` proves a member of
 `tree c`. Here `tree c` is the set of values chain `c`'s authenticated batch-end trees held in
@@ -407,10 +432,10 @@ def VerifierSoundFor (D : Dest) (tree : UInt256 → Set UInt256) (c : UInt256) :
   ∀ (p : ImtProof) (v deadline sl : UInt256), p.sourceChainId = c →
     D.verifyInclusion p v deadline sl → v ∈ tree c
 
-/-- Chain `c`'s tree holds only the commit values of the legs in `log`. -/
-def TreeHoldsOnlyLog (keccak : List UInt8 → UInt256) (tree : UInt256 → Set UInt256) (c : UInt256)
-    (log : List CommittedLeg) : Prop :=
-  ∀ v ∈ tree c, ∃ e ∈ log, v = e.value keccak c
+/-- Chain `c`'s tree holds only the sentinel `0` and the commit values of the legs in `log`. -/
+def TreeHoldsSentinelAndLog (keccak : List UInt8 → UInt256) (tree : UInt256 → Set UInt256)
+    (c : UInt256) (log : List CommittedLeg) : Prop :=
+  ∀ v ∈ tree c, v = 0 ∨ ∃ e ∈ log, v = e.value keccak c
 
 /-- The verifier that accepts exactly the members of the named chain's tree. Sound and complete for
 `tree` by construction (`Properties.IdealVerifierSound`); used by the witnesses and countermodels,
@@ -419,7 +444,15 @@ def idealVerifier (tree : UInt256 → Set UInt256) :
     ImtProof → UInt256 → UInt256 → UInt256 → Prop :=
   fun p v _ _ => v ∈ tree p.sourceChainId
 
-/-! ## Pinned collisions -/
+/-! ## Pinned breaks -/
+
+/-- **THE EXECUTING LEG'S COMMIT VALUE IS THE SENTINEL.** keccak maps the commit preimage of the
+executing leg (the flow's claimed id and the executed bundle hash `h`) to `0`. Every tree holds `0`,
+so an inclusion proof of it passes against any chain. This is a keccak preimage of `0` for an input
+the instance names; `SourceBindingReduced`'s `SentinelHit` is the same event for an abstract commit
+value. -/
+def CommitValueIsSentinel (keccak : List UInt8 → UInt256) (flowId h : UInt256) : Prop :=
+  commitValue keccak flowId h = 0
 
 /-- **A PINNED COMMIT-VALUE COLLISION.** keccak collides on the commit preimage of the executing leg
 (the flow's claimed id and the executed bundle hash `h`) and the commit preimage of the logged leg
@@ -435,26 +468,23 @@ def BundlePreimageClash (keccak : List UInt8 → UInt256) (B : List UInt8) (b : 
     (e : CommittedLeg) : Prop :=
   HashCollision keccak (executedPreimage B b) (e.preimage c)
 
-/-! ## The vouching chain's run, from the `InteropCenter` `Dispatch` model -/
+/-! ## The vouching chain's deployed run, from topic `SourceBindingReduced` -/
 
-/-- The legs a chain's center appended along a run: one per atomic dispatch in the `Dispatch` ghost
-log, with the flow id passed to `append` and the bytes `abi.encode(bundle)` hashed at `:643-644`. -/
-def dispatchLegs (P : Contracts.InteropCenter.Params) (S : Contracts.InteropCenter.State) :
+/-- The legs a chain's center appended: one per atomic dispatch in the `Dispatch` ghost log, with
+the flow id passed to `append` and the bytes `abi.encode(bundle)` hashed at `InteropCenter.sol:643-644`. -/
+def dispatchLegs (P : Contracts.InteropCenter.Params) (C : Contracts.InteropCenter.State) :
     List CommittedLeg :=
-  (S.log.filter Contracts.InteropCenter.Dispatch.isAtomic).map fun d =>
+  (C.log.filter Contracts.InteropCenter.Dispatch.isAtomic).map fun d =>
     ⟨d.atomicSend.flowId, P.enc d.bundle⟩
 
-/-- **THE VERIFIER ACCEPTS ONLY THE CHAIN'S COMMITTED LEGS.** On a proof naming chain `P.chainId`,
-the destination's `verifyInclusion` accepts only `commitValue(f, h)` for a leg `(f, h)` that chain's
-manager holds as non-`Unset`. Its content: the tree's only inserter is the manager
-(`L2InteropCommitmentTree.sol:53-54`), `append` inserts exactly `commitValue(_flowId, _bundleHash)`
-right after marking that leg `Committed` (`AtomicFlowManager.sol:93-99`), the tree is append-only,
-and the verifier is sound for that chain's tree. The `Dispatch` model omits the tree insertion, so
-this is the link stated as a premise. -/
-def AcceptsOnlyCommittedLegs (D : Dest) (P : Contracts.InteropCenter.Params)
-    (S : Contracts.InteropCenter.State) : Prop :=
-  ∀ (p : ImtProof) (v deadline sl : UInt256), p.sourceChainId = P.chainId →
-    D.verifyInclusion p v deadline sl →
-      ∃ f h : UInt256, S.manager.legState f h ≠ .Unset ∧ v = commitValue D.keccak f h
+/-- **ON PROOFS NAMING CHAIN `c`, THE VERIFIER ACCEPTS ONLY KEYS OF `S`'S TREE.** `S` is chain `c`'s
+send-side state in topic `SourceBindingReduced`'s model: its center, flow manager and commitment
+tree. This is the verifier half of `HonestVouching` alone. It idealizes Merkle-path soundness and
+root authentication (not modelled here), and reads every batch-end tree the verifier can
+authenticate for chain `c` as holding no key that `S`'s tree lacks. The tree half is derived from
+`S`'s run (`Properties.DeployedRunVouchesHonestly`). -/
+def AcceptsOnlyKeysOf (D : Dest) (c : UInt256) (S : Contracts.SourceBinding.SourceState) : Prop :=
+  ∀ (p : ImtProof) (v deadline sl : UInt256), p.sourceChainId = c →
+    D.verifyInclusion p v deadline sl → v ∈ keys (toAbs S.tree)
 
 end Contracts.L2InteropHandler.AtomicSourceFaithful
