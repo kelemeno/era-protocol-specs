@@ -205,6 +205,12 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Head re-models of pin topics (main 70096e2, draft/v0.35.0 b17415d): the unbounded IMT walk,
+-- once per leg over it, and the vault escrow ledger with populateBridgedOut
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearchAtHead
+import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLegAtHead
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
