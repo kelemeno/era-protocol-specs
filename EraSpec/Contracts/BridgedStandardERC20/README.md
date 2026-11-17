@@ -26,6 +26,9 @@ models establishes Solidity correspondence.
 | The deployed token's runs: every modelled entry point with both `onlyNTV` branches | [Specs/ReinitializationStrong.lean](Specs/ReinitializationStrong.lean) |
 | Identity along deployed runs: repaired forms (nonzero vault or caller), conservativity, countermodels | [Properties/ReinitializationStrong.lean](Properties/ReinitializationStrong.lean) |
 | Checked deployed-run derivations and witness | [Proofs/ReinitializationStrong.lean](Proofs/ReinitializationStrong.lean) |
+| The deployed token's runs labelled call by call, with the `onlyNTV` branch of each bridge call | [Specs/ReinitializationFaithful.lean](Specs/ReinitializationFaithful.lean) |
+| Counting on deployed runs: version-writing calls, `bridgeInitialize`, legacy-branch calls; modelled runs as the deployed runs without a legacy call | [Properties/ReinitializationFaithful.lean](Properties/ReinitializationFaithful.lean) |
+| Checked counting derivations, two-legacy-call countermodel and witness | [Proofs/ReinitializationFaithful.lean](Proofs/ReinitializationFaithful.lean) |
 
 ## Source and scope
 
@@ -154,6 +157,30 @@ only "update the token's metadata"; the call also rewrites the EIP-712 domain
 
 `_initializing` is not modelled (nested and constructor-context initializer calls are
 outside the model). The beacon's `owner()` is an arbitrary per-call answer.
+
+## Counting calls on the deployed token
+
+`ReinitializationFaithful` labels the deployed token's runs (`DeployedStorageStep`, both
+`onlyNTV` branches) call by call. Each `bridgeMint` or `bridgeBurn` is labelled with the branch
+it took, which the vault slot at the start of the call decides (`DeployedStorageCall`,
+`DeployedStorageRun`).
+
+- The labelled `StorageRun`s of `Reinitialization` are exactly the deployed runs in which no call
+  takes the legacy branch (`ModelledRunsAreDeployedRunsWithoutLegacyCall`).
+- The counting results hold on every deployed run: the version counts the version-writing calls
+  (`DeployedVersionCountsInitializations`), at most 255 from a fresh proxy
+  (`DeployedLifetimeVersionCallBound`), a bound that is reached (`DeployedLifetimeBoundIsTight`),
+  and `bridgeInitialize` succeeds at most once (`DeployedBridgeInitializeAtMostOnce`).
+- From a nonzero version the legacy branch runs once if the vault slot goes from zero to
+  nonzero, and never otherwise (`DeployedLegacyBranchCountExact`), so at most one committed call
+  of the run reads `L1_CHAIN_ID()`. From any storage it runs at most once per `bridgeInitialize`,
+  plus once if the vault slot starts at zero (`DeployedLegacyBranchBound`). A fresh proxy that is
+  called before `bridgeInitialize` and initialized with caller `0` reaches two
+  (`DeployedLegacyBranchTwiceFromFreshProxy`); the vault's deploy-and-initialize
+  (`NativeTokenVaultBase.sol:629-630`) does neither.
+
+Lines are cited at `c67894b9`. At `b17415d20` (draft/v0.35.0) and `70096e2ea` (main) the token
+has the same code with rewritten comments; the Specs file maps the cited lines.
 
 ## Remaining work
 
