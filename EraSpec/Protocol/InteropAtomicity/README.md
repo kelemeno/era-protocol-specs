@@ -101,11 +101,20 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   - *The gate as the contract runs it* is `LegRefundableAcceptedBy` with the submitted
     batch inside the imported root (`N ≤ R.upTo`; `_authenticateRoot` requires it on both
     branches). From any imported root created after the deadline, a leg that missed its
-    deadline has an accepted, break-free submission inside that root: on the BEGIN branch
-    at the first late batch the root holds, else on the END branch at the root's last batch
-    (`AcceptedGateCompleteFromAnyPostDeadlineRoot`, no aggregation premise;
-    `EndBranchAcceptsHonestProofs` is the END case with the honest proofs named). With the
-    strict `AggregatesBefore` it is an equivalence (`AcceptedGateIffMissedDeadline`).
+    deadline has an accepted, break-free submission inside that root, with no aggregation
+    premise (`AcceptedGateCompleteFromAnyPostDeadlineRoot`). The source's case split is in
+    the statement of `AcceptedGateCompleteByHonestProofs`: if the root's last batch of the
+    chain is late, the honest BEGIN proof at the first late batch, which lies inside the
+    root; otherwise the honest END proofs at the root's last batch (alone:
+    `EndBranchAcceptsHonestProofs`). There both IMT proofs are presentable under data
+    availability. With the strict `AggregatesBefore` a break-free submission inside the root
+    exists exactly when the leg missed its deadline (`AcceptedGateIffMissedDeadline`). As in
+    `Timeout`, the END branch's last-batch check is `LastBatchAccepted`, stronger than the
+    deployed one (`LastLeafFaithful`), "inside the root" reads leaf position as batch number
+    (`PROTO-CONTIGUOUS-PUSH`), and the BEGIN tree of batch `n + 1` is the END tree of batch
+    `n` by definition (`PROTO-BATCH-SNAPSHOT`). The witnesses of these gate-as-run results
+    use a chain that has committed a value, so the tree the absence proof is checked against
+    is not the empty `setup`.
   - *In the fixed-history model*, at every manager state, each still `Committed` leg of a
     checked flow with a stranded leg can be authorized by a verified call on a break-free
     proof and then claimed (`StrandedFlowCommittedLegRefundable`). This is enabledness in a
@@ -207,9 +216,9 @@ still checks timeout evidence against the fixed history. Liveness is proved ther
 enabledness only (`OpFinalizedFlowIsExecutable`, `OpTimedOutLegIsRefundable`,
 `OpFlowFateDecidedAfterRoot`): nobody is assumed to send the call, and checks the model
 omits can still reject it (for an execution, among others, that the destination has
-imported a root holding the cited batches: `RootImport`). Still open: eventual liveness (every committed obligation
-eventually executes or refunds). Source-side obligations are O7–O9 in
-`../../Refinement.lean`.
+imported a root holding the cited batches: `RootImport`). Still open: eventual liveness
+(every committed obligation eventually executes or refunds). Source-side obligations are
+O7–O9 in `../../Refinement.lean`.
 
 These modules keep the namespaces they had on the `claude/proof-attempt-4f3778`
 line (`Contracts.Atomicity`, `Contracts.Timeout`, `Contracts.Refund`).
