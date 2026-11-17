@@ -4,12 +4,15 @@ import EraSpec.Contracts.InteropCenter.Specs.Dispatch
 /-!
 # Model: `InteropCenter` send path at head — every L2→L2 send is atomic
 
-Source: era-contracts **main `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73`**,
-`l1-contracts/contracts/interop/InteropCenter.sol` (a bare `:N` is a line of that file), with
+Source: era-contracts **main `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73`**. Nothing under
+`l1-contracts/contracts` changed between it and the current main
+`70096e2ea6eeb5373992e178064c4b26dcf6436a`, so every line cited here is also a line of `70096e2ea`.
+Files: `l1-contracts/contracts/interop/InteropCenter.sol` (a bare `:N` is a line of that file), with
 `interop/InteropAttributeParser.sol`, `interop/IERC7786Attributes.sol`, `interop/IInteropCenter.sol`,
 `interop/InteropDataEncoding.sol`, `atomic-interop/AtomicFlowManager.sol`,
 `atomic-interop/IAtomicInterop.sol` and `common/Messaging.sol` from the same commit. The pin model of
 the same path is `Specs/Dispatch.lean` (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`); it is unchanged.
+The last paragraph below gives the lines on the current `draft/v0.35.0` head `b17415d20`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.InteropCenter.Properties.SendAtHead` and are proved in
@@ -19,7 +22,8 @@ the same path is `Specs/Dispatch.lean` (`c67894b970a0dac6fe9144d8ebf4b0806e15a9a
 
 * **`sendMessage` parses the `atomicBundle` attribute.** At the pin it parsed its attributes under
   `CallAndBundleAttributes`, which accepts `atomicBundle`, and then passed a constant non-atomic
-  `AtomicSend` (pin :246-252): the round-5 finding O1-1. At head:
+  `AtomicSend` (pin :246-252): the round-5 source finding on `sendMessage` (REVIEW.md, "Round 5
+  source findings"). At head:
 
       (CallAttributes memory callAttributes, BundleAttributes memory bundleAttributes) = parseAttributes(
           attributes, AttributeParsingRestrictions.CallAndBundleAttributes);                     // :206-209
@@ -38,11 +42,11 @@ the same path is `Specs/Dispatch.lean` (`c67894b970a0dac6fe9144d8ebf4b0806e15a9a
 * **`_dispatchBundle` branches on the destination** (:721-741): an L1 destination publishes
   `bytes.concat(BUNDLE_IDENTIFIER, abi.encode(_bundle))` to L1 (:727-731); any other destination calls
   `append(bundleHash, lowNullifierIndex, flowPreimage)` (:736-740). Public L2→L2 interop is gone.
-* **`_validateAtomicBundle` is gone.** Native-value legs are allowed and are refunded on timeout by
-  `AtomicFlowManager._recoverBundle` (NatSpec :707-709). Instead, indirect call starters must target
-  the asset router (`IndirectCallOnlyToAssetRouter`, :664-667) and carry no `interopCallValue`
-  (`IndirectCallCannotCarryValue`, :673-676); an L1 destination takes one indirect zero-value call to
-  the asset router (:645-657, and :259-261 for the count).
+* **`_validateAtomicBundle` is gone.** Native-value legs are allowed; the NatSpec of `_dispatchBundle`
+  says `AtomicFlowManager._recoverBundle` refunds them on timeout (:707-709). Instead, indirect call
+  starters must target the asset router (`IndirectCallOnlyToAssetRouter`, :664-667) and carry no
+  `interopCallValue` (`IndirectCallCannotCarryValue`, :673-676); an L1 destination takes one indirect
+  zero-value call to the asset router (:645-657, and :259-261 for the count).
 * **The bundle hash has no outer chain id**: `keccak256(abi.encode(bundle))` (:689-691,
   `InteropDataEncoding.sol:14-16`); `claimRefund` hashes the bytes it is given the same way
   (AtomicFlowManager.sol:249). The source chain is the bundle's own `sourceChainId` field (:633).
@@ -58,10 +62,11 @@ be one of its legs, else the send reverts."
 ## The inventory the model rests on (checked against main)
 
 * `isInteropBundleSaltUsed` (:125) has one writer, :565, which writes `true`.
-* `append` has one call site, :736, in `_dispatchBundle`; `_dispatchBundle` has one call site, :601,
-  in `_sendBundle`; `_sendBundle` has two, :232 (`sendMessage`) and :271 (`sendBundle`). No contract
-  inherits `InteropCenter`. `previewBundleHash`/`previewMessageHash` (:281-332) build a bundle and
-  always revert (:350), so they are no step.
+* `append` has one call site in `l1-contracts/contracts`, :736, in `_dispatchBundle`;
+  `_dispatchBundle` has one call site, :601, in `_sendBundle`; `_sendBundle` has two, :232
+  (`sendMessage`) and :271 (`sendBundle`). No contract in the tree inherits `InteropCenter`.
+  `previewBundleHash`/`previewMessageHash` (:281-332) build a bundle and always revert (:350), so
+  they are no step.
 * `L2_TO_L1_MESSENGER_SYSTEM_CONTRACT.sendToL1` is called by the center only at :729.
 * The manager's `_state` (AtomicFlowManager.sol:60) has three writers: `append` (:165,
   `Unset → Committed`), `authorizeRefund` (:241, `Committed → Revertable`), `claimRefund` (:257,
@@ -69,50 +74,84 @@ be one of its legs, else the send reverts."
 
 ## Modelling choices
 
-* **One chain**, as in the pin model. `Params` fixes `block.chainid`, `L1_CHAIN_ID`, the center and
-  asset-router addresses, and the abstract functions the path composes: `abi.encode(InteropBundle)`,
-  `abi.encode(AtomicFlowPreimage)`, `keccak256`, `InteroperableAddress.formatEvmV1`. The center's
-  `L1_CHAIN_ID` (:95) and the manager's (AtomicFlowManager.sol:64) are one parameter: both are set at
-  genesis to the L1 chain id. The model takes **no hash or encoding premise**.
+* **One chain**, as in the pin model. `Params` fixes `block.chainid`, the center's `L1_CHAIN_ID`
+  (:95), the center and asset-router addresses, and the abstract functions the path composes:
+  `abi.encode(InteropBundle)`, `abi.encode(AtomicFlowPreimage)`, `keccak256`,
+  `InteroperableAddress.formatEvmV1`. The manager has its own `L1_CHAIN_ID` (AtomicFlowManager.sol:64);
+  it is read only by checks the model omits (`_checkSettlementLayerIsL1`, :109, :326-330, and
+  `_recoverBundle`'s `RecoverToL1NotSupported`, :296), so the model has no parameter for it.
+  `L2_ASSET_ROUTER_ADDR` is one constant (`L2ContractAddresses.sol:99`), read by the center and by
+  `_recoverBundle` alike. The model takes **no hash or encoding premise**.
 * **Attributes are decoded values.** An `Attribute` is one of the seven supported selectors
   (InteropAttributeParser.sol:143-154) with its decoded payload, or an unsupported selector.
   `parseAttributes` is transcribed exactly: an unsupported selector, a repeated attribute, or one
   that the restriction mask forbids reverts (:41-51); the payload decoding writes the fields of
   :55-77. Malformed payloads (`AttributesDecoder` reverts) and malformed ERC-7930 addresses are
-  reject-only and omitted. The pin's `parseAttributes` (pin :776-868) accepts and decodes exactly
-  the same lists (`pinAllowed`, `MaskTableIsPinTable`).
-* **A revert is the absence of a step; a send is one step** (`nonReentrant`, :198, :249), as in the
-  pin model. Indirect calls now reach only the asset router (:664-667).
+  reject-only and omitted. `pinParseAttributes` transcribes the pin's `parseAttributes`
+  (pin :776-868) on the same decoded lists, for comparison. The pin's `atomicBundle` payload had a
+  different layout (`flowId`, `deadline`, `lowNullifierIndex`; pin :878-879), and neither parser
+  decodes that payload, so a list is compared up to it.
+* **A revert is the absence of a step; a send is one step**, as in the pin model. `sendMessage` and
+  `sendBundle` are `nonReentrant` (:198, :249), sharing the guard with `claimProtocolFees` and
+  `claimZKFees` (:897, :913). During a send the center calls out to the asset router
+  (`initiateIndirectCall`, :779-781, whose starter is pinned to the router by :664-667), the base-token
+  holder or the router for the call value (:436, :443-448), the ZK token for a fixed fee (:580), and
+  the manager. None of these calls can start a second send or call `append` as the center. The
+  manager's `authorizeRefund` and `claimRefund` are permissionless and may run inside them; they only
+  move legs that are not `Unset`, while the send's own leg is `Unset` until `append`, so running them
+  before the send instead gives the same guards and the same final state. A preview (not
+  `nonReentrant`) reached from inside a send reverts as a whole (:350).
 * **Reject-only checks that read nothing the model tracks are omitted**: `whenNotPaused` (main only;
-  draft/v0.35.0 has no pause), the ERC-7930 format checks (:250, :364-391, :487, :802-805), the
-  destination's base-token lookup and v0.35's `isPeerAllowed` (:694-698), fees and `msg.value`
-  (:415-457, :578-583), the indirect value equality (:784-794), and in `append` the version, leg cap,
-  sortedness and length checks (AtomicFlowManager.sol:346-363), the settlement-layer check (:109),
-  the expired-flow gate (:119-124), the other legs' registration (:151-159) and the tree insert
-  (:167-169). `append`'s leg-membership and source-chain checks (:129-146) are kept: they are what
-  the `atomicBundle` NatSpec promises. Omitting a rejecting check only adds runs.
+  `draft/v0.35.0` has no pause), the ERC-7930 format checks (:250, :364-391, :487, :802-805), the
+  destination's base-token lookup (:694-698) and `draft/v0.35.0`'s `isPeerAllowed` in it, fees and
+  `msg.value` (:415-457, :578-583), the indirect value equality (:784-794), and in `append` the
+  version, leg cap, sortedness and length checks (AtomicFlowManager.sol:346-363), the
+  settlement-layer check (:109), the expired-flow gate (:119-124), the other legs' registration
+  (:151-159) and the tree insert (:167-169). `append`'s leg-membership and source-chain checks
+  (:129-146) are kept: they are what the `atomicBundle` NatSpec promises. In the manager's other two
+  steps, `authorizeRefund`'s proof checks are omitted and it moves one leg per step (the code moves
+  every `Committed` leg of the flow at once, :235-243), and `claimRefund`'s `_recoverBundle`, including
+  its `RecoverToL1NotSupported` revert, is not run. Omitting a rejecting check only adds runs.
 * **Six checks are switches** (`Checks`): `sendMessage`'s `parseAtomicSend` (:230; the pin passed a
   constant), `_ensureL2ToL2` (:204), the atomicity gate (:551-555), the salt check (:561-564), the
   indirect-call restrictions (:658-677), and `onlyInteropCenter` (AtomicFlowManager.sol:87-92,
-  :107). The deployed code has all six (`deployed`); each countermodel turns one off.
+  :107). The deployed code has all six (`deployed`); each countermodel turns one off. The other
+  checks of the send path that the model keeps are not switches: the parser, `sendBundle`'s
+  destination checks (:257-261), the zero-recipient checks (:202, :495), the L1-destination starter
+  checks (:645-657) and `append`'s flow checks.
 * **The asset router's returned recipient and calldata are free** (`FormsCall`, unchanged from the
-  pin: :806-822 set `value` from the starter, `from` to the starter's target for an indirect call
-  and to `msg.sender` for a direct one).
+  pin): :806-822 set `value` from the starter, `from` to the starter's target for an indirect call
+  and to `msg.sender` for a direct one.
 * **A ghost log** records every successful dispatch, with its entry point and raw attribute lists.
   `l1Messages` is the real messenger traffic of the center.
 * **Omitted**: fee state, the ZK-token cache, events, the per-call `MessageSent` ids, the constant
   `version` fields and the reserved `shadowAccount`, `__DEPRECATED_interopBundleNonce` (:99), and
-  draft/v0.35.0's `INTEROP_FEE_UNITS_SLOT` counter. Upgrades are `OPS-CONFIG`.
+  `draft/v0.35.0`'s `INTEROP_FEE_UNITS_SLOT` counter. Upgrades are `OPS-CONFIG`.
 
-On draft/v0.35.0 (`d9f678900e1bc8286412b78f56d4a9f443983c29`) this path differs only by reject-only
-checks (no `whenNotPaused`, plus `isPeerAllowed` in `_getDestinationBaseTokenAssetId`) and the
-fee-unit counter. The cited `InteropCenter.sol` lines move: `sendMessage` :197-245 and `sendBundle`
-:248-281 (`parseAtomicSend` :233, :272), `_ensureL2ToL2` :399-405; the gate :552-556, the salt check
-:562-566, `_buildInteropBundle` :621-687, `_hashBundle` :690-692; `_dispatchBundle` :727-750
-(publish :735, `append` :742); `_processCallStarter` :776-832. `InteropAttributeParser.sol` and
-`IERC7786Attributes.sol` are byte-identical, and `AtomicFlowManager.append` is unchanged (the v0.35
-`_checkLegSourceAllowed` is in `requireFlowFinalized` and `authorizeRefund` only). So the model also
-describes v0.35.0.
+## `draft/v0.35.0`
+
+At `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (the current head, checked) this path differs from
+main only by reject-only checks (no `whenNotPaused`; `isPeerAllowed` in
+`_getDestinationBaseTokenAssetId`, `:699-702`) and the fee-unit counter, which `_dispatchBundle`
+increments after `append` (`:749`). The v0.35 `_checkLegSourceAllowed` is called only in
+`requireFlowFinalized` and `authorizeRefund` (AtomicFlowManager.sol `:201`, `:231`), whose proof
+checks the model omits. So the model also describes this head. `interop/` and `atomic-interop/` did not
+change between `d9f678900e1bc8286412b78f56d4a9f443983c29` and `b17415d20`.
+`InteropAttributeParser.sol`, `IERC7786Attributes.sol`, `IAtomicInterop.sol`,
+`InteropDataEncoding.sol` and `AttributesDecoder.sol` are byte-identical to main;
+`IInteropCenter.sol` is identical up to line 102 and `Messaging.sol:5` is unchanged. The cited lines
+move as follows (main line `N` is the given line at `b17415d20`):
+
+* `InteropCenter.sol`: `N+3` for `N ≤ 499` (`sendMessage` :197-245, `parseAtomicSend` :233,
+  `sendBundle` :248-281, :272, `_ensureL2ToL2` :399-405, `_ensureCorrectTotalValue` :418-460);
+  `N+2` for `501 ≤ N ≤ 511` and `N+1` for `513 ≤ N ≤ 692` (main :500 and :512 are deleted lint
+  comments; the gate :552-556, the salt check :562-566, `_buildInteropBundle` :621-687, `_hashBundle`
+  :690-692); `N+2` for `694 ≤ N ≤ 696` and `N+6` for `697 ≤ N ≤ 740` (`_dispatchBundle` :727-750:
+  publish :735, `append` :742-746, the fee-unit line :749); `N+9` for `741 ≤ N ≤ 781` and `N+8` for
+  `783 ≤ N ≤ 871` (`_processCallStarter` :776-832, `from` :820 and :829, `parseAttributes` :859-866).
+* `AtomicFlowManager.sol`: `N+1` for `52 ≤ N ≤ 199` (`append` :104-173), `N+2` for
+  `200 ≤ N ≤ 228` (`authorizeRefund` from :216), `N+3` for `229 ≤ N ≤ 328` (`claimRefund` :250-265,
+  `_recoverBundle` :292-325), `N+14` for `N ≥ 329` (`_validateAndComputeFlowId` :360-379).
 -/
 
 namespace Contracts.InteropCenter.SendAtHead
@@ -227,7 +266,11 @@ def allowedUnder (idx : ℕ) (r : Restriction) : Bool :=
   (restrictionMask idx >>> r.toNat) &&& 1 == 1
 
 /-- The pin's table, written out as the explicit `_restriction == …` disjunctions of pin
-`InteropCenter.sol:791-863` (one branch per selector, same order). -/
+`InteropCenter.sol:791-863` (one branch per selector, same order): `interopCallValue` under
+`OnlyInteropCallValue`, `OnlyCallAttributes` or `CallAndBundleAttributes` (pin :794-796);
+`indirectCall` under `OnlyCallAttributes` or `CallAndBundleAttributes` (pin :804-805); the five
+bundle attributes under `OnlyBundleAttributes` or `CallAndBundleAttributes` (pin :814-815, :824-825,
+:834-835, :846-847, :858-859). -/
 def pinAllowed : ℕ → Restriction → Bool
   | 0, r => r == .onlyInteropCallValue || r == .onlyCallAttributes || r == .callAndBundleAttributes
   | 1, r => r == .onlyCallAttributes || r == .callAndBundleAttributes
@@ -241,7 +284,9 @@ def noCallAttributes : CallAttributes := ⟨0, 0, false⟩
 def noBundleAttributes : BundleAttributes := ⟨[], [], false, 0⟩
 
 /-- The fields one attribute writes (InteropAttributeParser.sol:55-77). `atomicBundle` writes
-nothing: its payload is parsed separately by `parseAtomicSend` and kept out of the bundle (:68-73). -/
+nothing: its payload is parsed separately by `parseAtomicSend` and kept out of the bundle (:68-73).
+The pin's branches write the same fields (pin :800, :809-810, :819, :829, :841-842, :863; nothing for
+`atomicBundle`, pin :843-854). -/
 def Attribute.apply : Attribute → CallAttributes × BundleAttributes → CallAttributes × BundleAttributes
   | .interopCallValue v, (ca, ba) => ({ ca with interopCallValue := v }, ba)
   | .indirectCall m, (ca, ba) => ({ ca with indirectCall := true, indirectCallMessageValue := m }, ba)
@@ -274,6 +319,29 @@ def parseAttributes (attrs : List Attribute) (r : Restriction) :
     Option (CallAttributes × BundleAttributes) :=
   parseFrom r [] (noCallAttributes, noBundleAttributes) attrs
 
+/-- The loop of the pin's `parseAttributes` (pin `InteropCenter.sol:788-867`): per attribute, the
+selector's branch (an unsupported selector reverts `UnsupportedAttribute`, pin :864-866), then
+`require(!attributeUsed[k], AttributeAlreadySet)`, then the explicit restriction disjunction
+(`pinAllowed`, `AttributeViolatesRestriction`), then `attributeUsed[k] = true` and the field writes.
+The selector-to-branch mapping is the head's `Attribute.index`. -/
+def pinParseFrom (r : Restriction) :
+    List ℕ → CallAttributes × BundleAttributes → List Attribute →
+      Option (CallAttributes × BundleAttributes)
+  | _, x, [] => some x
+  | used, x, a :: rest =>
+    match a.index with
+    | none => none
+    | some i =>
+      if i ∈ used then none
+      else if pinAllowed i r then pinParseFrom r (i :: used) (a.apply x) rest
+      else none
+
+/-- The pin's `parseAttributes(_attributes, _restriction)` (pin `InteropCenter.sol:776-868`), from
+the zero structs (`indirectCall = false`, pin :781). -/
+def pinParseAttributes (attrs : List Attribute) (r : Restriction) :
+    Option (CallAttributes × BundleAttributes) :=
+  pinParseFrom r [] (noCallAttributes, noBundleAttributes) attrs
+
 /-- `parseAtomicSend(_attributes)` (InteropAttributeParser.sol:82-96): the payload of the first
 `atomicBundle` attribute, with `isAtomic = true` (:87-93); the zero struct if there is none. -/
 def parseAtomicSend : List Attribute → AtomicSend
@@ -287,11 +355,11 @@ def parseAtomicSend : List Attribute → AtomicSend
 structure Params where
   /-- `block.chainid`. -/
   chainId : Word
-  /-- `L1_CHAIN_ID` of the center (:95) and of the manager (AtomicFlowManager.sol:64). -/
+  /-- The center's `L1_CHAIN_ID` (:95). -/
   l1ChainId : Word
   /-- `L2_INTEROP_CENTER_ADDR`, the only caller `append` accepts (AtomicFlowManager.sol:87-92). -/
   center : Address
-  /-- `L2_ASSET_ROUTER_ADDR`. -/
+  /-- `L2_ASSET_ROUTER_ADDR` (`L2ContractAddresses.sol:99`). -/
   assetRouter : Address
   /-- `abi.encode(InteropBundle)` (:690, :729). -/
   enc : Bundle → List UInt8
@@ -359,7 +427,8 @@ def Dispatch.salt (d : Dispatch) : Word := d.bundle.bundleAttributes.salt
 /-- The key `isInteropBundleSaltUsed` is indexed by (:562, :565). -/
 def Dispatch.key (d : Dispatch) : Address × Word := (d.sender, d.salt)
 
-/-- `_dispatchBundle` took the L2 branch (:733-740): the leg was appended, nothing published. -/
+/-- `_dispatchBundle` took the branch that is not L1's (:733-740): the leg was appended, nothing
+published. The destination is compared with the center's `L1_CHAIN_ID` (:727). -/
 def Dispatch.appends (P : Params) (d : Dispatch) : Prop :=
   d.bundle.destinationChainId ≠ P.l1ChainId
 
@@ -501,7 +570,8 @@ structure SendShape (K : Checks) (P : Params) (d : Dispatch) : Prop where
   formed : FormedBy P d
   /-- Its per-starter checks (:644-677). -/
   starterChecks : ∀ cs ∈ d.starters, StarterChecks K P d.bundle.destinationChainId cs
-  /-- In the L2 branch, `append`'s flow checks (:736-740 → AtomicFlowManager.sol:126-146). -/
+  /-- In the branch that is not L1's, `append`'s flow checks (:736-740 →
+  AtomicFlowManager.sol:126-146). -/
   flow : d.appends P → FlowAccepts P d.atomicSend (bundleHash P d.bundle)
 
 /-! ## State and steps -/
@@ -534,23 +604,25 @@ def State.afterSend (P : Params) (S : State) (d : Dispatch) : State where
 
 /-- One transaction that changes the modelled state. -/
 inductive Step (K : Checks) (P : Params) : State → State → Prop
-  /-- `sendMessage` or `sendBundle` by `d.sender`, through `_sendBundle` and `_dispatchBundle`. -/
+  /-- `sendMessage` or `sendBundle` by `d.sender`, through `_sendBundle` and `_dispatchBundle`.
+  `ManagerLegAlreadyCommitted` (AtomicFlowManager.sol:161-163) is the `Unset` premise. -/
   | send {S : State} (d : Dispatch) :
       SendShape K P d →
       (K.saltCheck = true → S.saltUsed d.sender d.salt = false) →
       (d.appends P →
         S.manager.legState (flowIdOf P d.atomicSend.flowPreimage) (bundleHash P d.bundle) = .Unset) →
       Step K P S (S.afterSend P d)
-  /-- `authorizeRefund` marking one of the flow's legs (AtomicFlowManager.sol:236-243). Its proof
-  checks are omitted. -/
+  /-- `authorizeRefund` marking one `Committed` leg (AtomicFlowManager.sol:236-243). Its proof checks
+  are omitted, and the leg need not be in a flow preimage. -/
   | authorize {S : State} (f h : Word) :
       AuthorizeGuard S.manager f h →
       Step K P S { S with manager := S.manager.set f h .Revertable }
-  /-- `claimRefund` (AtomicFlowManager.sol:251-257). The recovery calls go to the asset router. -/
+  /-- `claimRefund` (AtomicFlowManager.sol:251-257). `_recoverBundle` is not run. -/
   | claim {S : State} (f h : Word) :
       ClaimGuard S.manager f h →
       Step K P S { S with manager := S.manager.set f h .Reverted }
-  /-- A transaction calling `append` directly from an account other than the center. -/
+  /-- A transaction calling `append` directly from an account other than the center, passing
+  `append`'s kept flow checks. -/
   | foreignAppend {S : State} (caller : Address) (a : AtomicSend) (h : Word) :
       caller ≠ P.center →
       (K.onlyInteropCenter = true → caller = P.center) →
@@ -568,10 +640,12 @@ inductive Reach (K : Checks) (P : Params) : State → State → Prop
 /-- What the head's send path guarantees about the calls of a dispatched bundle, in place of the
 pin's `_validateAtomicBundle` (`∀ c, c.value = 0`). -/
 structure CallsChecked (P : Params) (d : Dispatch) : Prop where
-  /-- A call carrying base-token value is a direct call of the sender: `from: msg.sender` (:821). -/
+  /-- A call carrying base-token value has the sender as its `from`; in the code it is a direct call,
+  `from: msg.sender` (:821). -/
   valueFromSender : ∀ c ∈ d.bundle.calls, c.value ≠ 0 → c.fromAddr = d.sender
-  /-- Every other call is an indirect call through the asset router (`from: recipientAddress`,
-  :812, pinned to the router by :664-667) carrying no value (:673-676). -/
+  /-- A call whose `from` is not the sender has the asset router as its `from` and carries no value;
+  in the code it is an indirect call (`from: recipientAddress`, :812, pinned to the router by
+  :664-667, with no value by :673-676). -/
   othersFromRouter : ∀ c ∈ d.bundle.calls, c.fromAddr ≠ d.sender →
     c.fromAddr = P.assetRouter ∧ c.value = 0
 
@@ -620,7 +694,9 @@ def pinSendMessageAtomicSend (_attrs : List Attribute) : Contracts.InteropCenter
 
 The toy keccak and bundle encoder of the pin model (`lastWord`, `saltWordsEncoder`), so a bundle's
 hash is its user salt; the flow encoder writes the deadline, so a flow id is its deadline. The asset
-router is address `9`, the indirect sender of the pin witnesses; L1 is chain `1`. -/
+router is address `9`, the indirect sender of the pin witnesses; L1 is chain `1`. Every flow of the
+witnesses has version `1` (`ATOMIC_FLOW_PREIMAGE_VERSION`, `IAtomicInterop.sol:91`) and settlement
+layer `1` = L1, so the omitted `append` checks would accept them too. -/
 
 /-- The flow encoder of the witnesses: the deadline as one word. -/
 def deadlineEncoder (pre : FlowPreimage) : List UInt8 := toBytesBE 32 pre.deadline

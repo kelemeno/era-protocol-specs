@@ -11,7 +11,9 @@ non-atomic send cannot take the L2 branch, because the zero struct's flow has no
 (`nonatomic_toL1`); and the gate plus `_ensureL2ToL2` then pin every `sendMessage` to the atomic L2
 branch. Two run invariants, `Inv` (each field under the check it needs) and `LegInv` (no check),
 carry the restated pin results; the proofs follow `Proofs/Dispatch.lean`, with the head's bundle
-hash `keccak(abi.encode(bundle))` and the head's `CallsChecked` in place of `Validated`.
+hash `keccak(abi.encode(bundle))` and the head's `CallsChecked` in place of `Validated`. The pin's
+parser loop and the head's differ only in the restriction table, which agrees on the seven indices
+(`MaskTableIsPinTable`, then `pinParseFrom_eq_parseFrom`).
 -/
 
 namespace Contracts.InteropCenter.SendAtHead
@@ -143,6 +145,28 @@ theorem AtomicBundleIsABundleAttribute : Properties.AtomicBundleIsABundleAttribu
 theorem MaskTableIsPinTable : Properties.MaskTableIsPinTable := by
   intro i hi r
   interval_cases i <;> cases r <;> rfl
+
+/-- A supported selector's index is one of the seven table entries. -/
+theorem Attribute.index_lt_seven {a : Attribute} {i : ℕ} (h : a.index = some i) : i < 7 := by
+  cases a <;> simp only [Attribute.index, Option.some.injEq, reduceCtorEq] at h <;> omega
+
+/-- The two loops agree from any state: they differ only in the restriction table, and the tables
+agree on the seven indices (`MaskTableIsPinTable`). -/
+theorem pinParseFrom_eq_parseFrom (r : Restriction) :
+    ∀ (attrs : List Attribute) (used : List ℕ) (x : CallAttributes × BundleAttributes),
+      pinParseFrom r used x attrs = parseFrom r used x attrs
+  | [], _, _ => rfl
+  | a :: rest, used, x => by
+    have ih := pinParseFrom_eq_parseFrom r rest
+    rw [pinParseFrom, parseFrom]
+    cases hi : a.index with
+    | none => rfl
+    | some i =>
+      simp only
+      rw [MaskTableIsPinTable i (Attribute.index_lt_seven hi) r, ih]
+
+theorem PinParserIsHeadParser : Properties.PinParserIsHeadParser := fun attrs r =>
+  pinParseFrom_eq_parseFrom r attrs [] _
 
 /-! ## One step that logs a dispatch is that dispatch's send -/
 
@@ -502,11 +526,12 @@ theorem PinConstantMakesSendMessageUnusable : Properties.PinConstantMakesSendMes
   have hna : d.atomicSend.isAtomic = false := by rw [ha]; rfl
   exact happ (hshape.nonAtomicToL1 rfl hna)
 
-/-! ## 1. O1-1, pin and head -/
+/-! ## 1. The pin's `sendMessage` finding, pin and head -/
 
 theorem PinSendMessageDroppedAtomicBundle : Properties.PinSendMessageDroppedAtomicBundle := by
-  refine ⟨⟨[.atomicBundle ⟨1, 0, 1, [], []⟩ 0], ⟨_, _, List.mem_singleton_self _⟩, ?_⟩, ?_⟩
-  · rw [parseAttributes_single_atomic _ _ _ (by decide)]
+  refine ⟨⟨headMsgAttrs, ⟨_, _, List.mem_cons_self⟩, ?_⟩, ?_⟩
+  · rw [show pinParseAttributes headMsgAttrs .callAndBundleAttributes
+      = some (noCallAttributes, ⟨[], [], false, 1⟩) by rfl]
     exact Option.some_ne_none _
   · intro attrs _ _
     refine ⟨rfl, fun P S d hd => ?_⟩
@@ -982,9 +1007,9 @@ theorem SendAtHeadWitness : Properties.SendAtHeadWitness := by
 theorem SendAtHeadStepWitness : Properties.SendAtHeadStepWitness := by
   refine ⟨headStep1, rfl, rfl, ⟨_, _, List.mem_cons_self⟩, ?_, rfl, ?_, by rfl, headStep2,
     headStep3 _ (fun _ => by rfl), rfl, rfl, not_has_salt_only 3, rfl,
-    headStep3 _ (fun _ => by rfl), ⟨{ headMsg with attrs := [] }, rfl, ?_⟩⟩
-  · show parseAttributes headMsgAttrs .callAndBundleAttributes ≠ none
-    rw [show parseAttributes headMsgAttrs .callAndBundleAttributes
+    headStep3 _ (fun _ => by rfl), ⟨{ headMsg with attrs := [] }, rfl, ?_⟩, rfl⟩
+  · show pinParseAttributes headMsgAttrs .callAndBundleAttributes ≠ none
+    rw [show pinParseAttributes headMsgAttrs .callAndBundleAttributes
       = some (noCallAttributes, ⟨[], [], false, 1⟩) by rfl]
     exact Option.some_ne_none _
   · rw [headS1_legState]
@@ -1062,7 +1087,7 @@ theorem WithoutL2ToL2CheckSendMessagePublishes :
     Properties.WithoutL2ToL2CheckSendMessagePublishes := by
   refine ⟨headParams, init.afterSend headParams l1SendMessage,
     .tail .refl (Step.send l1SendMessage l1SendMessage_shape (fun _ => rfl) (fun h => absurd rfl h)),
-    l1SendMessage, by simp [State.afterSend], rfl, ?_, rfl, rfl⟩
+    l1SendMessage, by simp [State.afterSend], rfl, ?_, rfl, rfl, rfl⟩
   rintro ⟨_, _, h⟩
   simp [l1SendMessage, l1MsgAttrs] at h
 
@@ -1097,7 +1122,7 @@ theorem WithoutAtomicityGateAttributeBundleIsPublished :
     Properties.WithoutAtomicityGateAttributeBundleIsPublished := by
   refine ⟨headParams, init.afterSend headParams atomicToL1,
     .tail .refl (Step.send atomicToL1 atomicToL1_shape (fun _ => rfl) (fun h => absurd rfl h)),
-    atomicToL1, by simp [State.afterSend], ⟨_, _, List.mem_cons_self⟩, rfl, rfl, ?_⟩
+    atomicToL1, by simp [State.afterSend], rfl, ⟨_, _, List.mem_cons_self⟩, rfl, rfl, rfl, ?_⟩
   intro f h
   rw [afterSend_manager_of_toL1 rfl]
   rfl
@@ -1277,5 +1302,270 @@ theorem CollisionLetsForeignBytesMatchACommittedLeg :
   · intro d hd h
     have hl := congrArg List.length h
     simp [collidingHeadParams, saltWordsEncoder, length_toBytesBE] at hl
+
+/-- The same run, for bundles: the shared withdrawal (destination L1) is no logged bundle, and its
+bundle hash is the committed leg's. -/
+theorem CollisionLetsAForeignBundleMatchACommittedLeg :
+    Properties.CollisionLetsAForeignBundleMatchACommittedLeg := by
+  refine ⟨collidingHeadParams, init.afterSend collidingHeadParams headCollidingLeg, 0,
+    sharedWithdrawal,
+    .tail .refl (Step.send headCollidingLeg headCollidingLeg_shape (fun _ => rfl) (fun _ => rfl)),
+    ?_, ?_⟩
+  · rw [afterSend_legState, ite_eq_left ⟨by decide, rfl, rfl⟩]
+    exact LegState.noConfusion
+  · intro d hd h
+    simp only [State.afterSend, init, List.nil_append, List.mem_singleton] at hd
+    subst hd
+    exact absurd (congrArg Bundle.destinationChainId h) (by decide)
+
+/-- Under the constant keccak, sender `1`'s withdrawal with salt `4`. -/
+def clashWithdrawal : Dispatch :=
+  ⟨.sendBundle, 1, [.interopBundleSalt 4], [[.indirectCall 0]], [⟨9, [], ⟨0, 0, true⟩⟩],
+    ⟨324, 1, 1, 0, [⟨5, 9, 0, []⟩], wAttrs 4⟩, AtomicSend.empty⟩
+
+theorem clashWithdrawal_shape : SendShape deployed collidingHeadParams clashWithdrawal where
+  message := fun h => by cases h
+  bundleEntry := fun _ =>
+    { notOnL1 := by decide
+      notToSelf := show (1 : Word) ≠ 324 by decide
+      toL1Single := fun _ => rfl
+      calls := List.Forall₂.cons ⟨by decide, noBundleAttributes, by rfl⟩ List.Forall₂.nil
+      bundleAttrs := ⟨noCallAttributes, ⟨[], [], false, 4⟩, by rfl, by rfl⟩
+      atomic := rfl }
+  atomicNotToL1 := fun _ h => by cases h
+  nonAtomicToL1 := fun _ _ => rfl
+  formed := ⟨rfl, rfl, List.Forall₂.cons (Contracts.InteropCenter.formsCall_indirect 1)
+    List.Forall₂.nil⟩
+  starterChecks := by
+    intro cs hcs
+    simp only [clashWithdrawal, List.mem_singleton] at hcs
+    subst hcs
+    exact ⟨fun _ => ⟨rfl, rfl, rfl⟩, fun _ _ => ⟨rfl, rfl⟩⟩
+  flow := fun h => absurd rfl h
+
+/-- Sender `1`'s two withdrawals, salts `3` and `4`, under the constant keccak. -/
+def clashState : State :=
+  (init.afterSend collidingHeadParams (sharer 1)).afterSend collidingHeadParams clashWithdrawal
+
+theorem clashState_log : clashState.log = [sharer 1, clashWithdrawal] := rfl
+
+theorem BundleHashClashFiresAlone : Properties.BundleHashClashFiresAlone := by
+  have s1 : Step deployed collidingHeadParams init (init.afterSend collidingHeadParams (sharer 1)) :=
+    Step.send (sharer 1) (sharer_shape 1) (fun _ => rfl) (fun h => absurd rfl h)
+  have s2 : Step deployed collidingHeadParams (init.afterSend collidingHeadParams (sharer 1))
+      clashState :=
+    Step.send clashWithdrawal clashWithdrawal_shape (fun _ => by rfl) (fun h => absurd rfl h)
+  have hsalt : sharedWithdrawal.bundleAttributes.salt ≠ clashWithdrawal.bundle.bundleAttributes.salt :=
+    by decide
+  refine ⟨collidingHeadParams, clashState, .tail (.tail .refl s1) s2, ?_, 0, 1,
+    by rw [clashState_log]; decide, by rw [clashState_log]; decide, by decide, ?_⟩
+  · rw [clashState_log]
+    exact encInjOn_of_salts (by decide)
+  · simp only [clashState_log, List.getElem_cons_zero, List.getElem_cons_succ]
+    refine ⟨rfl, fun h => hsalt h.1, fun he => hsalt (saltWordsEncoder_salt he), rfl⟩
+
+/-! ## 4(d). One flow per bundle hash -/
+
+theorem BundleHashCommittedUnderOneFlowOrClash :
+    Properties.BundleHashCommittedUnderOneFlowOrClash := by
+  intro P S hr henc f f' h hf hf'
+  obtain ⟨d, hd, -, -, -, hdf, hdh, -, -, -⟩ := CommittedLegsAreCheckedDispatches P S hr f h hf
+  obtain ⟨d', hd', -, -, -, hdf', hdh', -, -, -⟩ :=
+    CommittedLegsAreCheckedDispatches P S hr f' h hf'
+  by_cases hdd : d = d'
+  · left
+    rw [← hdf, ← hdf', hdd]
+  · right
+    obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hd
+    obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hd'
+    have hij : i ≠ j := fun hij => hdd (by subst hij; rfl)
+    rcases DistinctDispatchesDistinctBundleHashes P S hr henc i j hi hj hij with hne | hc | hc
+    · exact absurd (hdh.trans hdh'.symm) hne
+    · exact ⟨_, hd, _, hd', hdf, hdf', hdh, hdh', Or.inl hc⟩
+    · exact ⟨_, hd, _, hd', hdf, hdf', hdh, hdh', Or.inr hc⟩
+
+theorem BundleHashCommittedUnderOneFlow : Properties.BundleHashCommittedUnderOneFlow := by
+  intro P S hr henc hsaltInj hencInj f f' h hf hf'
+  rcases BundleHashCommittedUnderOneFlowOrClash P S hr henc f f' h hf hf' with heq |
+    ⟨d, hd, d', hd', -, -, -, -, ⟨-, -, hs1, hs2⟩ | ⟨hb1, hb2⟩⟩
+  · exact heq
+  · exact absurd (hsaltInj _ (List.mem_map_of_mem hd) _ (List.mem_map_of_mem hd') hs2) hs1
+  · exact absurd (hencInj _ (List.mem_map_of_mem hd) _ (List.mem_map_of_mem hd') hb2) hb1
+
+/-- Any function is injective on a list of two equal elements. -/
+theorem keccakInjOn_twice {k : List UInt8 → Word} (x : List UInt8) : KeccakInjOn k [x, x] := by
+  intro a ha b hb _
+  simp only [List.mem_cons, List.not_mem_nil, or_false, or_self] at ha hb
+  rw [ha, hb]
+
+/-- Sender `1`'s `sendMessage` attributes: the flow of deadline `t` whose only leg is the bundle hash
+`1`, and the salt `1`. -/
+def twoFlowAttrs (t : ℕ) : List Attribute := [.atomicBundle (oneLegFlow t 1) 0, .interopBundleSalt 1]
+
+/-- Sender `1`'s `sendMessage` of `headMsg`'s bundle (hash `1`), as a leg of the flow of deadline
+`t`. The bundle does not depend on `t`. -/
+def twoFlowMsg (t : ℕ) : Dispatch :=
+  ⟨.sendMessage, 1, twoFlowAttrs t, [twoFlowAttrs t], [⟨5, [], noCallAttributes⟩], headMsg.bundle,
+    ⟨oneLegFlow t 1, 0, true⟩⟩
+
+theorem twoFlowMsg_shape (t : ℕ) : SendShape withoutSaltCheck headParams (twoFlowMsg t) where
+  message := fun _ =>
+    { l2ToL2 := fun _ => show (1 : Word) ≠ 324 ∧ (325 : Word) ≠ 1 ∧ (325 : Word) ≠ 324 by decide
+      parsed := ⟨5, [], noCallAttributes, ⟨[], [], false, 1⟩, by decide, by rfl, rfl, by rfl⟩
+      callAttrs := rfl
+      atomic := by rfl }
+  bundleEntry := fun h => by cases h
+  atomicNotToL1 := fun _ _ => show (325 : Word) ≠ 1 by decide
+  nonAtomicToL1 := fun _ h => by cases h
+  formed := ⟨rfl, rfl, List.Forall₂.cons (Contracts.InteropCenter.formsCall_direct 1 0)
+    List.Forall₂.nil⟩
+  starterChecks := by
+    intro cs hcs
+    simp only [twoFlowMsg, List.mem_singleton] at hcs
+    subst hcs
+    exact ⟨fun h => absurd h (show (325 : Word) ≠ 1 by decide), fun _ h => absurd h (by decide)⟩
+  flow := fun _ => by
+    have hh : bundleHash headParams (twoFlowMsg t).bundle = 1 := headMsg_hash
+    rw [hh]
+    exact ⟨List.mem_singleton_self _, rfl⟩
+
+/-- `headMsg`'s bundle dispatched as a leg of flow `7`, then as a leg of flow `8`. -/
+def twoFlowS1 : State := init.afterSend headParams (twoFlowMsg 7)
+def twoFlowS2 : State := twoFlowS1.afterSend headParams (twoFlowMsg 8)
+
+theorem twoFlowS2_legState (f h : Word) :
+    twoFlowS2.manager.legState f h =
+      if f = 8 ∧ h = 1 then .Committed else if f = 7 ∧ h = 1 then .Committed else .Unset := by
+  have h7 : flowIdOf headParams (twoFlowMsg 7).atomicSend.flowPreimage = 7 := flowIdOf_headParams _
+  have h8 : flowIdOf headParams (twoFlowMsg 8).atomicSend.flowPreimage = 8 := flowIdOf_headParams _
+  have hh : ∀ t, bundleHash headParams (twoFlowMsg t).bundle = 1 := fun _ => headMsg_hash
+  rw [twoFlowS2, afterSend_legState, h8, hh, twoFlowS1, afterSend_legState, h7, hh]
+  by_cases hc8 : f = 8 ∧ h = 1
+  · rw [ite_eq_left ⟨by decide, hc8.1, hc8.2⟩, ite_eq_left hc8]
+  · rw [ite_eq_right (fun h' => hc8 ⟨h'.2.1, h'.2.2⟩), ite_eq_right hc8]
+    by_cases hc7 : f = 7 ∧ h = 1
+    · rw [ite_eq_left ⟨by decide, hc7.1, hc7.2⟩, ite_eq_left hc7]
+    · rw [ite_eq_right (fun h' => hc7 ⟨h'.2.1, h'.2.2⟩), ite_eq_right hc7]
+      rfl
+
+theorem WithoutSaltCheckABundleJoinsTwoFlows :
+    Properties.WithoutSaltCheckABundleJoinsTwoFlows := by
+  have s1 : Step withoutSaltCheck headParams init twoFlowS1 :=
+    Step.send (twoFlowMsg 7) (twoFlowMsg_shape 7) (fun h => absurd h (by decide)) (fun _ => rfl)
+  have s2 : Step withoutSaltCheck headParams twoFlowS1 twoFlowS2 := by
+    refine Step.send (twoFlowMsg 8) (twoFlowMsg_shape 8) (fun h => absurd h (by decide))
+      (fun _ => ?_)
+    have h7 : flowIdOf headParams (twoFlowMsg 7).atomicSend.flowPreimage = 7 :=
+      flowIdOf_headParams _
+    have h8 : flowIdOf headParams (twoFlowMsg 8).atomicSend.flowPreimage = 8 :=
+      flowIdOf_headParams _
+    have hh : ∀ t, bundleHash headParams (twoFlowMsg t).bundle = 1 := fun _ => headMsg_hash
+    rw [twoFlowS1, afterSend_legState, h7, h8, hh, hh]
+    rfl
+  refine ⟨headParams, twoFlowS2, .tail (.tail .refl s1) s2, ?_, ?_, ?_, 7, 8, 1, by decide, ?_, ?_⟩
+  · intro b hb b' hb' _
+    have hlog : twoFlowS2.log = [twoFlowMsg 7, twoFlowMsg 8] := rfl
+    rw [hlog] at hb hb'
+    simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at hb hb'
+    rcases hb with rfl | rfl <;> rcases hb' with rfl | rfl <;> rfl
+  · exact keccakInjOn_twice (saltPreimage 1 1)
+  · exact keccakInjOn_twice (headParams.enc headMsg.bundle)
+  · rw [twoFlowS2_legState]; rfl
+  · rw [twoFlowS2_legState]; rfl
+
+/-- A keccak that collides on the 64-byte bundle encodings of the witness encoder and reads the last
+word of every other input. -/
+def encCollidingKeccak (x : List UInt8) : Word := if x.length = 64 then 0 else lastWord x
+
+/-- The witness chain under `encCollidingKeccak`: every bundle hash is `0`, a flow id is its
+deadline, and a bundle's `interopBundleSalt` is its user salt. -/
+def encCollidingParams : Params :=
+  ⟨324, 1, 0x8010, 9, saltWordsEncoder, deadlineEncoder, encCollidingKeccak, fun _ _ => [1]⟩
+
+theorem encColliding_bundleHash (b : Bundle) : bundleHash encCollidingParams b = 0 := by
+  have hl : (saltWordsEncoder b).length = 64 := by simp [saltWordsEncoder, length_toBytesBE]
+  simp only [bundleHash, encCollidingParams, encCollidingKeccak, hl, ↓reduceIte]
+
+theorem encColliding_flowId (pre : FlowPreimage) :
+    flowIdOf encCollidingParams pre = Fin.ofNat UInt256.size pre.deadline := by
+  have hl : (toBytesBE 32 pre.deadline).length ≠ 64 := by simp [length_toBytesBE]
+  have h := Contracts.InteropCenter.lastWord_append_word [] pre.deadline
+  rw [List.nil_append] at h
+  simp only [flowIdOf, encCollidingParams, deadlineEncoder, encCollidingKeccak, hl, ↓reduceIte, h]
+
+theorem encColliding_salt (a : Address) (s : Word) :
+    encCollidingParams.keccak (saltPreimage a s) = s := by
+  have hl : (saltPreimage a s).length ≠ 64 := by simp [saltPreimage, length_toBytesBE]
+  simp only [encCollidingParams, encCollidingKeccak, hl, ↓reduceIte,
+    Contracts.InteropCenter.lastWord_saltPreimage]
+
+/-- Sender `a`'s attributes: the flow of deadline `t` whose only leg is the bundle hash `0`, and the
+salt `s`. -/
+def jointAttrs (s : Word) (t : ℕ) : List Attribute :=
+  [.atomicBundle ⟨1, t, 1, [0], [324]⟩ 0, .interopBundleSalt s]
+
+/-- Sender `a`'s `sendMessage` with salt `s`, a leg of the flow of deadline `t`. -/
+def jointMsg (a : Address) (s : Word) (t : ℕ) : Dispatch :=
+  ⟨.sendMessage, a, jointAttrs s t, [jointAttrs s t], [⟨5, [], noCallAttributes⟩],
+    ⟨324, 325, 1, s, [⟨5, a, 0, []⟩], ⟨[], [1], false, s⟩⟩, ⟨⟨1, t, 1, [0], [324]⟩, 0, true⟩⟩
+
+theorem jointMsg_shape (a : Address) (s : Word) (t : ℕ) :
+    SendShape deployed encCollidingParams (jointMsg a s t) where
+  message := fun _ =>
+    { l2ToL2 := fun _ => show (1 : Word) ≠ 324 ∧ (325 : Word) ≠ 1 ∧ (325 : Word) ≠ 324 by decide
+      parsed := ⟨5, [], noCallAttributes, ⟨[], [], false, s⟩, by decide, by rfl, rfl, by rfl⟩
+      callAttrs := rfl
+      atomic := by rfl }
+  bundleEntry := fun h => by cases h
+  atomicNotToL1 := fun _ _ => show (325 : Word) ≠ 1 by decide
+  nonAtomicToL1 := fun _ h => by cases h
+  formed := ⟨rfl, (encColliding_salt a s).symm, List.Forall₂.cons
+    (Contracts.InteropCenter.formsCall_direct a 0) List.Forall₂.nil⟩
+  starterChecks := by
+    intro cs hcs
+    simp only [jointMsg, List.mem_singleton] at hcs
+    subst hcs
+    exact ⟨fun h => absurd h (show (325 : Word) ≠ 1 by decide), fun _ h => absurd h (by decide)⟩
+  flow := fun _ => by
+    rw [encColliding_bundleHash]
+    exact ⟨List.mem_singleton_self _, rfl⟩
+
+/-- Sender `1` (salt `1`, flow `7`) and sender `2` (salt `2`, flow `8`), both with bundle hash `0`. -/
+def jointS1 : State := init.afterSend encCollidingParams (jointMsg 1 1 7)
+def jointS2 : State := jointS1.afterSend encCollidingParams (jointMsg 2 2 8)
+
+theorem jointS2_legState (f h : Word) :
+    jointS2.manager.legState f h =
+      if f = 8 ∧ h = 0 then .Committed else if f = 7 ∧ h = 0 then .Committed else .Unset := by
+  have h7 : flowIdOf encCollidingParams (jointMsg 1 1 7).atomicSend.flowPreimage = 7 :=
+    encColliding_flowId _
+  have h8 : flowIdOf encCollidingParams (jointMsg 2 2 8).atomicSend.flowPreimage = 8 :=
+    encColliding_flowId _
+  rw [jointS2, afterSend_legState, h8, encColliding_bundleHash, jointS1, afterSend_legState, h7,
+    encColliding_bundleHash]
+  by_cases hc8 : f = 8 ∧ h = 0
+  · rw [ite_eq_left ⟨by decide, hc8.1, hc8.2⟩, ite_eq_left hc8]
+  · rw [ite_eq_right (fun h' => hc8 ⟨h'.2.1, h'.2.2⟩), ite_eq_right hc8]
+    by_cases hc7 : f = 7 ∧ h = 0
+    · rw [ite_eq_left ⟨by decide, hc7.1, hc7.2⟩, ite_eq_left hc7]
+    · rw [ite_eq_right (fun h' => hc7 ⟨h'.2.1, h'.2.2⟩), ite_eq_right hc7]
+      rfl
+
+theorem BundleHashCollisionJoinsTwoFlows : Properties.BundleHashCollisionJoinsTwoFlows := by
+  have s1 : Step deployed encCollidingParams init jointS1 :=
+    Step.send (jointMsg 1 1 7) (jointMsg_shape 1 1 7) (fun _ => rfl) (fun _ => rfl)
+  have s2 : Step deployed encCollidingParams jointS1 jointS2 := by
+    refine Step.send (jointMsg 2 2 8) (jointMsg_shape 2 2 8) (fun _ => by rfl) (fun _ => ?_)
+    have h7 : flowIdOf encCollidingParams (jointMsg 1 1 7).atomicSend.flowPreimage = 7 :=
+      encColliding_flowId _
+    have h8 : flowIdOf encCollidingParams (jointMsg 2 2 8).atomicSend.flowPreimage = 8 :=
+      encColliding_flowId _
+    rw [jointS1, afterSend_legState, h7, h8, encColliding_bundleHash, encColliding_bundleHash]
+    rfl
+  refine ⟨encCollidingParams, jointS2, .tail (.tail .refl s1) s2, ?_, 7, 8, 0, by decide, ?_, ?_⟩
+  · show EncInjOn saltWordsEncoder [(jointMsg 1 1 7).bundle, (jointMsg 2 2 8).bundle]
+    exact encInjOn_of_salts (by decide)
+  · rw [jointS2_legState]; rfl
+  · rw [jointS2_legState]; rfl
 
 end Contracts.InteropCenter.SendAtHead
