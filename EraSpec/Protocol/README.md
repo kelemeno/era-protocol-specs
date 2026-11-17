@@ -40,6 +40,11 @@ and properties remain under `../Contracts/<SolidityName>/`.
   can supply the absence-proof break of the refund and timeout forms when the tree
   has an empty slot (for example `PaddingRefundOfExecutedObligationLocatesAbsenceBreak`;
   see the note at `HashAssumptions`).
+- [PriorityRequests](PriorityRequests/README.md): every L1 entry that appends a priority
+  operation (`draft/v0.35.0` at `b17415d20`). A relay leaf forwards the hash pushed just before it
+  in the same transaction, service leaves carry one of three fixed calls, and no user request
+  yields either privileged sender, under stated account premises and genuine Bridgehub roles; a
+  redirected role breaks the service purposes.
 
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.

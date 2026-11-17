@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Mailbox request paths and the privileged L2 senders (draft/v0.35.0 at b17415d20)
+import EraSpec.Contracts.MailboxFacet.Proofs.RequestPaths
+import EraSpec.Protocol.PriorityRequests.Proofs.PrivilegedSenders
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
