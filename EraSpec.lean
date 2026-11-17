@@ -90,6 +90,11 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgery
 import EraSpec.Contracts.Merkle.Proofs.Verifier
 import EraSpec.Contracts.Merkle.Proofs.PathCollision
 
+-- L2 log leaves and the L1 status proof (MessageHashing, MessageVerification; v0.35.0 b17415d20)
+import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
+import EraSpec.Contracts.MessageVerification.Proofs.StatusProof
+import EraSpec.Contracts.MessageVerification.Proofs.StatusProofKeccak
+
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec
 import EraSpec.Protocol.MultichainGate.Proofs.Model
