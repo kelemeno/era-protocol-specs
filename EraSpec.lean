@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Interop-peer whitelist mirror and the L2 Bridgehub's baseTokenAssetId entries (b17415d20; N-15)
+import EraSpec.Protocol.InteropPeerRegistry.Proofs.PeerMirror
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
