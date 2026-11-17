@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Round 8, N-19: atomic recovery on the L2 asset tracker at v35 (b17415d20)
+import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
