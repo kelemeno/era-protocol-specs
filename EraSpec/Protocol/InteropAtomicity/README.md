@@ -16,6 +16,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
 | RootImport | [Specs/RootImport.lean](Specs/RootImport.lean) | [Properties/RootImport.lean](Properties/RootImport.lean) | [Proofs/RootImport.lean](Proofs/RootImport.lean) |
+| SettlementRoots | [Specs/SettlementRoots.lean](Specs/SettlementRoots.lean) | [Properties/SettlementRoots.lean](Properties/SettlementRoots.lean) | [Proofs/SettlementRoots.lean](Proofs/SettlementRoots.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`).
@@ -146,6 +147,26 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   `WithoutSettlementDataLegIsStuck` shows the settlement-proof premise is needed too.
   Aggregation paths inside a settlement proof are idealized as the honest ones; the import
   transitions themselves are not modelled (a snapshot `World`, `ImportsGrow`).
+
+- **SettlementRoots** (namespace `Contracts.SettlementRoots`). The roots the timeout gate
+  resolves against, from the settlement layer's `MessageRootBase` (`../../Contracts/MessageRoot/`)
+  and the destination's `L2InteropRootStorage` (`../../Contracts/L2InteropRootStorage/`). Every
+  fixed-history timeout and refund headline holds with `Aggregates` weakened to the strict
+  `Contracts.InteropOperational.AggregatesBefore` (the `…Before` forms; run level
+  `ExecutedObligationNeverRefundedOrBreakAt`, over `ReachLogAt`, whose refunds are verified
+  against roots). For a system whose batches are a MessageRoot run's pushed positions, clocked by
+  their `l1Timestamp` (`ClockedBy`), every historical root of the run, as it stood at any point,
+  satisfies the strict form (`HistoricalRootAggregatesBefore`), the clock gives `Wf.timeOrdered`
+  (`WfFromMessageRoot`), and the headlines hold with no aggregation and no `timeOrdered` premise
+  (the `…FromMessageRoot` forms). An L2 whose imports all passed the Executor's dependency-root
+  check holds only historical roots, so the root the timeout read accepts is one of them
+  (`ImportedRootsAreHistorical`, `ImportedTimeoutRootAggregatesBefore`). What remains: the trees
+  (`WfTrees`) read as the commitment trees at the end of each pushed batch, with the BEGIN branch
+  across a record-only or migration gap still needing `PROTO-BATCH-SNAPSHOT` and contiguous
+  pushes; the root's content is a ghost count, not tied to what a Merkle proof against the root
+  value shows. Witnesses: `SettlementRootsEndBranchWitness` (an END-branch timeout against a root
+  read mid-block, where `Aggregates` fails), `SettlementRootsAcceptedWitness`,
+  `SettlementRootsRefundRunWitness`, `SettlementRootsImportWitness`.
 
 The tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

@@ -165,19 +165,43 @@ theorem LegacyEntryCountermodel : Properties.LegacyEntryCountermodel := by
     rw [write_entries]; simp [legacyFreshImport]
   refine ⟨by rw [hw]; decide, by rw [hw]; decide⟩
 
-theorem StorageWitness : Properties.StorageWitness := by
-  let x : RootIn := ⟨1, 1, 5, [3]⟩
-  let y : RootIn := ⟨1, 2, 6, [4]⟩
-  have hx : AddGuard empty x 3 := ⟨rfl, by decide, by decide, rfl⟩
-  have hy : AddGuard (empty.write x 3) y 4 :=
-    ⟨rfl, by decide, by decide, by rw [write_entries]; simp [x, y, empty]⟩
-  have hrun : AddsAll (fun _ => True) empty [x, y] ((empty.write x 3).write y 4) :=
+/-- The witness imports: roots `3`, `4`, `8` of chain `1` at keys `1`, `2`, `3`, with timestamps
+`5`, `6`, `7`. -/
+def rootStorageImportA : RootIn := ⟨1, 1, 5, [3]⟩
+def rootStorageImportB : RootIn := ⟨1, 2, 6, [4]⟩
+def rootStorageImportC : RootIn := ⟨1, 3, 7, [8]⟩
+
+/-- After the batch import of `A` and `B`. -/
+def rootStorageAfterBatch : State :=
+  (empty.write rootStorageImportA 3).write rootStorageImportB 4
+
+theorem RootStorageRunWitness : Properties.RootStorageRunWitness := by
+  have hx : AddGuard empty rootStorageImportA 3 := ⟨rfl, by decide, by decide, rfl⟩
+  have hy : AddGuard (empty.write rootStorageImportA 3) rootStorageImportB 4 :=
+    ⟨rfl, by decide, by decide,
+      by rw [write_entries]; simp [rootStorageImportA, rootStorageImportB, empty]⟩
+  have hrun : AddsAll (fun _ => True) empty [rootStorageImportA, rootStorageImportB]
+      rootStorageAfterBatch :=
     AddsAll.cons 3 trivial hx (AddsAll.cons 4 trivial hy AddsAll.nil)
-  refine ⟨_, [x, y], hrun, rfl, ?_⟩
-  intro z hz
-  obtain ⟨-, r, -, hst⟩ := BatchImportWritesEach _ _ _ _ hrun z hz
-  rw [hst]
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hz
-  rcases hz with rfl | rfl <;> simp [x, y]
+  have hC0 : (rootStorageAfterBatch.entries 1 3).root = 0 := by
+    simp [rootStorageAfterBatch, write_entries, rootStorageImportA, rootStorageImportB, empty]
+  have hz : AddGuard rootStorageAfterBatch rootStorageImportC 8 :=
+    ⟨rfl, by decide, by decide, hC0⟩
+  refine ⟨rootStorageAfterBatch, rootStorageAfterBatch.write rootStorageImportC 8,
+    [rootStorageImportA, rootStorageImportB], rootStorageImportC, hrun, rfl, ?_,
+    Step.single rootStorageImportC 8 trivial hz, hC0, ?_⟩
+  · intro z hz'
+    obtain ⟨-, r, hsides, hst⟩ := BatchImportWritesEach _ _ _ _ hrun z hz'
+    rw [hst]
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hz'
+    rcases hz' with rfl | rfl
+    · have hr : r = 3 := by simpa [rootStorageImportA] using hsides.symm
+      subst hr
+      simp [rootStorageImportA]
+    · have hr : r = 4 := by simpa [rootStorageImportB] using hsides.symm
+      subst hr
+      simp [rootStorageImportB]
+  · rw [write_entries]
+    simp [rootStorageImportC]
 
 end Contracts.L2InteropRootStorage

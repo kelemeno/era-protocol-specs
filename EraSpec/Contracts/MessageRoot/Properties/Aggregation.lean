@@ -6,68 +6,73 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.LastBatchInRoot
 
 Statements about `EraSpec.Contracts.MessageRoot.Specs.Aggregation`. Proofs are in
 `EraSpec.Contracts.MessageRoot.Proofs.Aggregation`. Every run starts at `_initialize` (`init`) and
-interleaves the six steps of `Step` in any order; `r` is the timestamp rule of its blocks.
+interleaves the six steps of `Step` in any order; `r` is the timestamp rule of its blocks. No
+statement takes a premise on the hashes. Caller checks are not modelled (Specs), so every
+`∀`-statement over runs covers more runs than the callers allow.
 
 ## (a) The registry and the trees
 
 A registered chain has its own shared-tree position (`ChainIndexInjective`,
 `ChainIndexIsAPosition`), and the leaf at that position is `chainIdLeafHash` of the chain's current
-tree root — `chainIdLeafHash(0, c)` while the chain has no leaf (`SharedLeafIsChainIdLeaf`,
+tree root, `chainIdLeafHash(0, c)` while the chain has no leaf (`SharedLeafIsChainIdLeaf`,
 `FreshChainLeafIsZeroRoot`). A chain tree holds recorded batches only, in strictly increasing
 batch order, each with the timestamp the contract recorded for it (`ChainLeavesArePushedBatches`).
 The source's stated invariant "for all batches starting from `currentChainBatchNumber + 1`, the
-`chainBatchRoots` is 0" (:100) holds (`UnrecordedAboveCurrent`), and a recorded batch root is never
-rewritten (`BatchRootWriteOnce`).
+`chainBatchRoots` is 0" (:100) holds (`UnrecordedAboveCurrent`), a recorded batch root is never
+rewritten (`BatchRootWriteOnce`), and an unregistered chain has no leaf and no recorded batch
+(`UnregisteredChainHoldsNothing`).
 
 ## (b) The clock
 
-Along every chain tree, timestamps and blocks are non-decreasing (`LeavesOrdered`), so the clock
-indexed by pushed position is monotone (`LeafTimeMonotone`), also as a `uint256` clock
-(`LeafTimeMonotoneAsWord`). This is what `Wf.timeOrdered`, `NoTheft`'s `htmono` and
-`BurnMintBridge.History.Valid.monotone_time` ask of the settlement layer.
+Along every chain tree, timestamps and push blocks are non-decreasing (`LeavesOrdered`), so the
+clock indexed by pushed position is monotone (`LeafTimeMonotone`), also as a `uint256` clock
+(`LeafTimeMonotoneAsWord`). Monotone settlement times are what `Wf.timeOrdered`, `NoTheft`'s
+`htmono` and `BurnMintBridge.History.Valid.monotone_time` take as premises.
 
 ## (c) A historical root is the snapshot of its block
 
-`historicalRoots[b]` aggregates exactly the leaves pushed in blocks up to `b`: a chain's leaf at
-position `i` is inside it iff it was pushed in a block `≤ b`, and the root's timestamp is the
-push time of every leaf pushed in block `b` (`HistoricalRootIsSnapshot`). Within the current block
-the last write wins: the current block's entry is always the current shared root
-(`LastWriteInBlockWins`).
+In every reachable state, `historicalRoots[b]` counts exactly the leaves pushed in blocks up to
+`b`: a chain's leaf at position `i` is counted iff it was pushed in a block `≤ b`, and every leaf
+pushed in block `b` carries the root's timestamp (`HistoricalRootIsSnapshot`). The current block's
+entry, once written, is the current shared root, counting every leaf (`LastWriteInBlockWins`).
 
 ## (d) Aggregation, discharged
 
-Under non-decreasing timestamps, every leaf that settled **strictly before** a historical root was
-written is inside it — including a root read mid-block and overwritten later in the same block,
-and for every later state of the run (`AggregatesStrictFromMessageRoot`). The non-strict form
-holds under strictly increasing timestamps, for the roots as they stand
-(`AggregatesFromMessageRootStrictTs`).
+Under either timestamp rule, every leaf that settled **strictly before** a historical root was
+written is counted by it: for the root as it stood at any point of a run, possibly mid-block and
+overwritten later in the same block, and for every later state of the run
+(`AggregatesStrictFromMessageRoot`). Under strictly increasing timestamps the non-strict form
+holds for the roots as they stand in a state (`AggregatesFromMessageRootStrictTs`).
 
-## (e) The non-strict form needs both
+## (e) The non-strict form needs both premises
 
-Equal timestamps across blocks (`EqualTimestampEscapesRoot`) or a mid-block read even with strict
-timestamps (`MidBlockReadEscapesRoot`) put a leaf that settled exactly at the root's timestamp
-outside the root: the non-strict form fails, the strict form holds.
+Equal timestamps across two blocks (`EqualTimestampEscapesRoot`), or a root read mid-block even
+with strictly increasing timestamps (`MidBlockReadEscapesRoot`), leave a leaf that settled exactly
+at the root's timestamp outside the root: the non-strict form fails while the strict form holds.
 
 ## (g) Positions, not batch numbers
 
-With the contract's own per-batch timestamp (`chainBatchRootTimestamp`) as the clock and batch
-numbers as the index, `LastBatchInRoot.OutsideRootLate` is false: a record-only batch (the v31
-entry point) is outside the root and carries timestamp 0 (`RecordOnlyGap`). Indexed by pushed
-position it holds for every root (`PushedAfterLastIsLate`); a record-only batch is never pushed
-later, keeps timestamp 0, and so is never inside any root (`RecordOnlyBatchNotCitable`). A chain
-onboarded at a nonzero start carries batch numbers that are not its positions
+Indexed by pushed position, every leaf past a root's count settles no earlier than the root, for
+every root and every later state (`PushedAfterLastIsLate`, the shape of
+`LastBatchInRoot.OutsideRootLate`). Indexed by batch number, with the contract's own per-batch
+timestamp `chainBatchRootTimestamp` as the clock, it fails: a record-only batch is outside the
+root and carries timestamp 0 (`RecordOnlyGap`). A batch that is recorded and not pushed is never
+pushed later, keeps timestamp 0 and keeps its root (`RecordOnlyBatchNotCitable`). A chain
+registered at a nonzero start carries batch numbers that are not its positions
 (`OnboardedChainPositionsAreNotBatchNumbers`).
 
-## Non-vacuity
+## Witnesses
 
-`AggregationWitness`: a run under strict timestamps with two registered chains, a historical root
-holding some of a chain's leaves (one settled strictly before the root) and missing a later one,
-at a timestamp that fits a word. It meets every premise of (a)–(d), `LeafTimeMonotoneAsWord` and
-`PushedAfterLastIsLate` non-trivially. `RecordOnlyGap` meets the premises of
-`RecordOnlyBatchNotCitable`.
+| Witness | Premises it meets |
+|---|---|
+| `AggregationWitness` | a reachable state under strict timestamps whose current block has an entry `e` (`LastWriteInBlockWins`, `HistoricalRootIsSnapshot`), a registered chain `c ≠ self` with a recorded batch and with leaves both inside `e` (one strictly before it) and, in a later state, outside it (`AggregatesStrictFromMessageRoot`, `PushedAfterLastIsLate`, `BatchRootWriteOnce`, (a), (b), `AggregatesFromMessageRootStrictTs`), with a `block.timestamp` that fits a word (`LeafTimeMonotoneAsWord`) |
+| `AggregationRegistryWitness` | a registered chain `c ≠ self` with no leaf (`FreshChainLeafIsZeroRoot`), and an unregistered chain whose batch number was moved (`UnregisteredChainHoldsNothing`) |
+| `RecordOnlyBatchNotCitableWitness` | `RecordOnlyBatchNotCitable`, with a nonempty tree that grows in the continuation |
+
+The four existential statements of (e) and (g) are countermodels and need no witness.
 -/
 
-namespace Contracts.MessageRoot
+namespace Contracts.MessageRoot.Aggregation
 
 open AttackVectors.LastBatchInRoot (OutsideRootLate)
 
@@ -93,8 +98,8 @@ def Properties.SharedLeafIsChainIdLeaf : Prop :=
   ∀ (P : Params) (r : TsRule) (st : State), Reachable P r st → ∀ c, st.Registered P c →
     st.shared[st.chainIndex c]? = some (P.H.chainIdLeaf (chainRootVal P.H (st.leaves c)) c)
 
-/-- **A FRESH CHAIN'S LEAF IS `chainIdLeafHash(0, c)`** (:352), not the hash of an empty tree's
-root: while a registered chain has no leaf, its shared-tree leaf commits to the zero word. -/
+/-- **A FRESH CHAIN'S LEAF IS `chainIdLeafHash(0, c)`** (:352): while a registered chain has no
+leaf, its shared-tree leaf commits to the zero word. -/
 def Properties.FreshChainLeafIsZeroRoot : Prop :=
   ∀ (P : Params) (r : TsRule) (st : State), Reachable P r st → ∀ c, st.Registered P c →
     st.leaves c = [] → st.shared[st.chainIndex c]? = some (P.H.chainIdLeaf 0 c)
@@ -138,7 +143,7 @@ def Properties.LeafTimeMonotone : Prop :=
 
 /-- **…AS A `uint256` CLOCK TOO.** The form `NoTheft`'s `htmono : Monotone t` and
 `BurnMintBridge.History.Valid.monotone_time` take (`t : ℕ → UInt256`), given that the current
-`block.timestamp` plus one still fits a word (`block.timestamp` is a `uint256`). -/
+`block.timestamp` plus one still fits a word. -/
 def Properties.LeafTimeMonotoneAsWord : Prop :=
   ∀ (P : Params) (r : TsRule) (st : State), Reachable P r st → st.time + 1 < UInt256.size →
     ∀ c, Monotone (fun i => ((st.leafTime c i : ℕ) : UInt256))
@@ -146,9 +151,9 @@ def Properties.LeafTimeMonotoneAsWord : Prop :=
 /-! ## (c) A historical root is the snapshot of its block -/
 
 /-- **`historicalRoots[b]` IS THE STATE AT THE END OF BLOCK `b` (SO FAR).** It was written in a
-block `≤` the current one, at a timestamp `≤` the current one; it counts a prefix of every chain
-tree; a leaf at position `i` is inside it iff the leaf was pushed in a block `≤ b`; and a leaf
-pushed in block `b` carries the root's timestamp. So the write that survives is the block's last. -/
+block `≤` the current one, at a timestamp `≤` the current one; it counts at most the leaves each
+chain tree has; a leaf at position `i` is counted iff it was pushed in a block `≤ b`; and a leaf
+pushed in block `b` carries the root's timestamp. -/
 def Properties.HistoricalRootIsSnapshot : Prop :=
   ∀ (P : Params) (r : TsRule) (st : State), Reachable P r st → ∀ b e, st.hist b = some e →
     b ≤ st.block ∧ e.ts ≤ st.time ∧ ∀ c, e.count c ≤ (st.leaves c).length ∧
@@ -165,30 +170,32 @@ def Properties.LastWriteInBlockWins : Prop :=
 /-! ## (d) Aggregation, discharged -/
 
 /-- **STRICT AGGREGATION, FROM SOURCE.** Under either timestamp rule: take any historical root
-`e` as it stood at some point `st₁` of the run — possibly mid-block, possibly overwritten later —
-and any later state `st₂`. Every leaf of `st₂` that settled strictly before `e`'s timestamp is
-inside `e`. -/
+`e` as it stood at some reachable state `st₁`, possibly mid-block and possibly overwritten later,
+and any later state `st₂` of the run. Every leaf of `st₂` that settled strictly before `e`'s
+timestamp is counted by `e`. -/
 def Properties.AggregatesStrictFromMessageRoot : Prop :=
   ∀ (P : Params) (r : TsRule) (st₁ st₂ : State), Reachable P r st₁ → Reach P r st₁ st₂ →
     ∀ b e, st₁.hist b = some e → AggregatesStrictAt st₂ e
 
 /-- **NON-STRICT AGGREGATION, UNDER STRICT TIMESTAMPS.** With strictly increasing block
-timestamps, every root as it stands aggregates every leaf that settled at or before it. -/
+timestamps, every root as it stands in a reachable state counts every leaf of that state that
+settled at or before it. -/
 def Properties.AggregatesFromMessageRootStrictTs : Prop :=
   ∀ (P : Params) (st : State), Reachable P .strict st →
     ∀ b e, st.hist b = some e → AggregatesAt st e
 
 /-! ## (e) The non-strict form needs both premises -/
 
-/-- **EQUAL TIMESTAMPS ACROSS BLOCKS ESCAPE THE ROOT.** Under non-decreasing timestamps a leaf
+/-- **EQUAL TIMESTAMPS ACROSS BLOCKS ESCAPE THE ROOT.** Under non-decreasing timestamps, a leaf
 pushed in a later block with the same timestamp is outside the earlier block's root: the
-non-strict form fails, the strict form holds. -/
+non-strict form fails for that root, the strict form holds. -/
 def Properties.EqualTimestampEscapesRoot : Prop :=
   ∃ (P : Params) (st : State) (b : ℕ) (e : HistEntry), Reachable P .mono st ∧ st.hist b = some e
     ∧ AggregatesStrictAt st e ∧ ¬ AggregatesAt st e
 
-/-- **A MID-BLOCK READ ESCAPES TOO.** Even with strict timestamps: a root read mid-block misses a
-leaf pushed later in the same block, which carries the root's own timestamp. -/
+/-- **A MID-BLOCK READ ESCAPES TOO.** Even with strictly increasing timestamps: a root as it
+stood mid-block misses a leaf pushed later in the same block, which carries the root's own
+timestamp. -/
 def Properties.MidBlockReadEscapesRoot : Prop :=
   ∃ (P : Params) (st₁ st₂ : State) (b : ℕ) (e : HistEntry), Reachable P .strict st₁
     ∧ Reach P .strict st₁ st₂ ∧ st₂.block = st₁.block ∧ st₁.hist b = some e
@@ -196,50 +203,82 @@ def Properties.MidBlockReadEscapesRoot : Prop :=
 
 /-! ## (g) Positions, not batch numbers -/
 
-/-- **A RECORD-ONLY BATCH BREAKS `OutsideRootLate` BY BATCH NUMBER.** Batches 0 and 1 of a chain are
-pushed and aggregated; batch 2 is only recorded (`addChainBatchRoot`, the v31 entry point). With
-batch numbers as the index and `chainBatchRootTimestamp` as the clock, batch 2 is outside the
-root yet its time is `0`, before the root's: `LastBatchInRoot.OutsideRootLate` is false. -/
+/-- **A RECORD-ONLY BATCH BREAKS `OutsideRootLate` BY BATCH NUMBER.** Batches 0 and 1 of a chain
+are pushed and counted by a root; batch 2 is then only recorded (`addChainBatchRoot`). With batch
+numbers as the index and `chainBatchRootTimestamp` as the clock, batch 2 is outside the root yet
+its time is `0`, before the root's: `LastBatchInRoot.OutsideRootLate` is false.
+
+The run takes the record-only step after pushes. The pinned executor facet calls only
+`addChainBatchRootV32` (`Executor.sol:154`), so on chain this order needs a chain whose executor
+calls the record-only entry point after it has pushed (ASSUMPTIONS.md, `PROTO-CONTIGUOUS-PUSH`).
+Record-only batches before the first push are the v31 path; they give the offset of
+`OnboardedChainPositionsAreNotBatchNumbers` instead. -/
 def Properties.RecordOnlyGap : Prop :=
   ∃ (P : Params) (st : State) (b : ℕ) (e : HistEntry) (c : ChainId), Reachable P .strict st
     ∧ st.hist b = some e ∧ st.batchRoot c 2 ≠ 0 ∧ (∀ l ∈ st.leaves c, l.batch ≠ 2)
     ∧ ¬ OutsideRootLate (st.BatchInFirst c (e.count c)) (st.batchTs c) e.ts
 
-/-- **BY PUSHED POSITION, EVERYTHING OUTSIDE A ROOT IS LATE.** The replacement: for any root as it
-stood at some point of the run and any later state, every position past the root's count settles
-no earlier than the root — exactly `OutsideRootLate` for the position-indexed clock. -/
+/-- **BY PUSHED POSITION, EVERYTHING OUTSIDE A ROOT IS LATE.** For any root as it stood at some
+reachable state and any later state of the run, every position at or past the root's count
+settles no earlier than the root: `OutsideRootLate` for the position-indexed clock. -/
 def Properties.PushedAfterLastIsLate : Prop :=
   ∀ (P : Params) (r : TsRule) (st₁ st₂ : State), Reachable P r st₁ → Reach P r st₁ st₂ →
     ∀ b e, st₁.hist b = some e → ∀ c, OutsideRootLate (· < e.count c) (st₂.leafTime c) e.ts
 
-/-- **A RECORD-ONLY BATCH IS NEVER CITABLE.** A batch recorded but not pushed is never pushed
-later, so it is in no chain tree and in no historical root; its recorded timestamp stays `0`;
-its recorded root never changes (so `_getChainBatchRoot` still serves it for direct, single-hop
-message verification, :436-445). -/
+/-- **A RECORD-ONLY BATCH IS NEVER PUSHED LATER.** If batch `b` of chain `c` is recorded in a
+reachable state and is in none of `c`'s leaves, then in every later state of the run it is still
+in none of `c`'s leaves, its recorded timestamp is `0`, and its recorded root is unchanged.
+(At the source level the unchanged root is what `_getChainBatchRoot` serves for direct,
+single-hop message verification, :436-445; that path is not modelled.) -/
 def Properties.RecordOnlyBatchNotCitable : Prop :=
   ∀ (P : Params) (r : TsRule) (st₁ st₂ : State), Reachable P r st₁ → Reach P r st₁ st₂ →
     ∀ c b, st₁.batchRoot c b ≠ 0 → (∀ l ∈ st₁.leaves c, l.batch ≠ b) →
       (∀ l ∈ st₂.leaves c, l.batch ≠ b) ∧ st₂.batchTs c b = 0
         ∧ st₂.batchRoot c b = st₁.batchRoot c b
 
-/-- **AN ONBOARDED CHAIN'S POSITIONS ARE NOT ITS BATCH NUMBERS.** A chain registered at a nonzero
-start (`L1Bridgehub.sol:323`) pushes its first batch at position 0: the root holds one leaf of the
-chain, carrying batch number 6, and batch 0 is in no leaf. Reading `upTo` as a batch number
-counts batches `0 … 5` that are in no tree. -/
+/-- **AN ONBOARDED CHAIN'S POSITIONS ARE NOT ITS BATCH NUMBERS.** A chain registered at start 5
+(as `L1Bridgehub.sol:323` registers an existing chain at its executed-batch count) pushes its
+batch 6 at position 0: a root counts one leaf of the chain, that leaf carries batch number 6, and
+no leaf carries a batch number below 6. Reading the count as "batches `0 … count - 1`" names
+batches that are in no tree. -/
 def Properties.OnboardedChainPositionsAreNotBatchNumbers : Prop :=
   ∃ (P : Params) (st : State) (b : ℕ) (e : HistEntry) (c : ChainId) (l : Leaf),
     Reachable P .strict st ∧ st.hist b = some e ∧ e.count c = 1 ∧ (st.leaves c)[0]? = some l
       ∧ l.batch = 6 ∧ ∀ n < l.batch, ∀ l' ∈ st.leaves c, l'.batch ≠ n
 
-/-! ## Non-vacuity -/
+/-! ## Witnesses -/
 
 /-- **THE PREMISES OF (a)–(d) ARE MET NON-TRIVIALLY.** A run under strict timestamps reaching a
-state `st₁` with a registered chain `c ≠ self`, whose historical root `e` holds some of `c`'s leaves
-(one settled strictly before `e`), and a later state `st₂` with a leaf of `c` outside `e`. -/
+state `st₁` whose current block `b` has an entry `e`, with a registered chain `c ≠ self` that has
+a recorded batch 1 and leaves counted by `e` (one settled strictly before `e`), and a later state
+`st₂` with a leaf of `c` outside `e`, at a `block.timestamp` that fits a word. -/
 def Properties.AggregationWitness : Prop :=
   ∃ (P : Params) (st₁ st₂ : State) (b : ℕ) (e : HistEntry) (c : ChainId),
-    Reachable P .strict st₁ ∧ Reach P .strict st₁ st₂ ∧ st₁.hist b = some e
-      ∧ st₂.Registered P c ∧ c ≠ P.self ∧ 0 < e.count c ∧ e.count c < (st₂.leaves c).length
+    Reachable P .strict st₁ ∧ Reach P .strict st₁ st₂ ∧ st₁.hist b = some e ∧ b = st₁.block
+      ∧ st₂.Registered P c ∧ c ≠ P.self ∧ st₁.batchRoot c 1 ≠ 0
+      ∧ 0 < e.count c ∧ e.count c < (st₂.leaves c).length
       ∧ st₂.leafTime c 0 < e.ts ∧ st₂.time + 1 < UInt256.size
 
-end Contracts.MessageRoot
+/-- **THE REGISTRY PREMISES ARE MET NON-TRIVIALLY.** A run under strict timestamps reaching a
+state with a registered chain `c ≠ self` that has no leaf yet, and an unregistered chain `c'`
+whose `currentChainBatchNumber` was moved by `setMigratingChainBatchNumber`, which has no
+registration check (:178-183). Its deployed caller, the chain asset handler, calls it only for a
+chain already deployed on the settlement layer (`ChainAssetHandlerBase.sol:363-386`), so the
+second chain is a state of the model, not necessarily of the deployed system. -/
+def Properties.AggregationRegistryWitness : Prop :=
+  ∃ (P : Params) (st : State) (c c' : ChainId), Reachable P .strict st
+    ∧ c ≠ P.self ∧ st.Registered P c ∧ st.leaves c = []
+    ∧ ¬ st.Registered P c' ∧ st.current c' ≠ 0
+
+/-- **`RecordOnlyBatchNotCitable`'S PREMISES, ON THE v31-TO-v32 PATH.** A chain registered at start
+0 and never seeded (as for a chain `seedGenesisRoot` skips, :369-371) records its batch 1 with
+`addChainBatchRoot`, then pushes batches 2 and 3 with `addChainBatchRootV32`. With `st₁` after
+the first push and `st₂` after the second: batch 1 is recorded, is in none of the nonempty
+tree's leaves at `st₁`, and the tree grows from `st₁` to `st₂`. -/
+def Properties.RecordOnlyBatchNotCitableWitness : Prop :=
+  ∃ (P : Params) (st₁ st₂ : State) (c : ChainId) (b : ℕ),
+    Reachable P .strict st₁ ∧ Reach P .strict st₁ st₂ ∧ st₁.batchRoot c b ≠ 0
+      ∧ (∀ l ∈ st₁.leaves c, l.batch ≠ b) ∧ st₁.leaves c ≠ []
+      ∧ (st₁.leaves c).length < (st₂.leaves c).length
+
+end Contracts.MessageRoot.Aggregation

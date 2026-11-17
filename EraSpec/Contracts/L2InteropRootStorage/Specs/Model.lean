@@ -50,17 +50,28 @@ element fails a check, the call reverts and none of its writes persist (`VM-REVE
 ## Modelling choices
 
 * **Imports are admitted by a predicate** `ok` on the imported tuple. For the contract alone
-  `ok` is anything; the protocol instantiates it with the settlement layer's Executor check
-  (`Protocol/InteropAtomicity/Specs/AggregatesWeak.lean`), which is what an L2 batch must pass to
-  settle.
+  `ok` is anything (`fun _ => True`); `Protocol/InteropAtomicity/Specs/SettlementRoots.lean`
+  instantiates it with the settlement layer's Executor check (`AcceptedInRun`), which the
+  importing L2 batch must pass when it executes on the settlement layer. The contract itself
+  does not check `ok`: it is a premise about which imports a run contains.
+* **Callers are not modelled.** Both entry points are `onlyCallFromBootloader`; every step is a
+  bootloader call.
 * **A revert is the absence of a step.** `AddsAll` is the batch entry point's loop: it exists only
-  when every element passes, which is the all-or-nothing behaviour.
+  when every element passes, which is the all-or-nothing behaviour of one reverting call
+  (`VM-REVERT`).
 * **Numbers are `ℕ`.** `blockOrBatchNumber` and `timestamp` are `uint256` in the source.
 * **Events are omitted** (:105).
 * **Storage from earlier versions.** The NatSpec (:35-39) says no roots were recorded before this
   version (the v31 value type was a bare `bytes32`, so a carried-over entry would read as
   `(root, 0)`). The model's runs start from any storage; the results that need the clean start say
   `empty`.
+
+## Later heads
+
+The cited lines are at `c67894b9`. At `draft/v0.35.0` `b17415d20`, `_addInteropRoot` has the
+same four checks and the same write (lines `:77-93`), and additionally maintains a new mapping
+`latestInteropRootTimestamp` (`:36`, `:98-100`), which the model does not contain. The model was
+not re-pinned.
 -/
 
 namespace Contracts.L2InteropRootStorage

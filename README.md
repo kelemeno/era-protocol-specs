@@ -69,7 +69,9 @@ EraSpec/
     InteropHandlerBase/       Specs/, Properties/, Proofs/
     L2InteropCommitmentTree/   Specs/, Properties/, Proofs/
     L2InteropHandler/         Specs/, Properties/, Proofs/
+    L2InteropRootStorage/     Specs/, Properties/, Proofs/
     Merkle/                  Specs/, Properties/, Proofs/
+    MessageRoot/             Specs/, Properties/, Proofs/
     NativeTokenVaultBase/     Specs/, Properties/, Proofs/
     ProxyUpgradeRowLib/       Specs/, Properties/, Proofs/
     RegistryBootstrapMigration/ Specs/, Properties/, Proofs/

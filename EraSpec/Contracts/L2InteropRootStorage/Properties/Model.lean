@@ -5,33 +5,37 @@ import EraSpec.Contracts.L2InteropRootStorage.Specs.Model
 
 Statements about `EraSpec.Contracts.L2InteropRootStorage.Specs.Model`. Proofs are in
 `EraSpec.Contracts.L2InteropRootStorage.Proofs.Model`. `ok` is the admission predicate on imported
-tuples (anything, for the contract alone).
+tuples (anything, for the contract alone). No statement takes a hash premise.
 
 ## Write-once
 
-A stored root is never rewritten, and neither is its timestamp, in any run from any storage
-(`WriteOnce`); from fresh storage, an entry with a nonzero timestamp never changes
+In any run from any storage, an entry with a nonzero root is never rewritten, root and timestamp
+alike (`WriteOnce`); from fresh storage, an entry with a nonzero timestamp never changes
 (`TimestampNotRewritable`). A batch import that succeeds stores every tuple as given
-(`BatchImportWritesEach`) and so has pairwise distinct keys: a batch repeating a key reverts as a
-whole (`BatchKeysDistinct`).
+(`BatchImportWritesEach`), and its keys are pairwise distinct and unused before the call: a batch
+that repeats a key, or reuses a stored one, has no successful run (`BatchKeysDistinct`).
 
 ## A zero timestamp means "nothing imported"
 
-From fresh storage, an entry's timestamp is zero iff its root is (`ZeroTimestampIffAbsent`) — the
-`IL2InteropRootStorage.sol:18-19` invariant the timeout path relies on — and every nonzero entry
-is an admitted import, stored exactly as imported (`EntriesAreAdmittedImports`).
+From fresh storage, an entry's timestamp is zero iff its root is (`ZeroTimestampIffAbsent`), the
+`IL2InteropRootStorage.sol:18-19` invariant the timeout path relies on, and every nonzero entry
+is `(root, timestamp)` of an admitted tuple for its key (`EntriesAreAdmittedImports`).
 
-## A v31-format entry costs liveness, not safety
+## An entry with a zero timestamp, from earlier storage
 
-A storage holding `(root ≠ 0, timestamp 0)` — what a bare `bytes32` root carried over from v31
-would read as — keeps it forever: inclusion against it accepts, and every timeout against it
-reverts (`LegacyEntryBlocksTimeoutForever`, with `LegacyEntryCountermodel` as a concrete run). By
-`ZeroTimestampIffAbsent` such an entry is not reachable from fresh storage.
+A storage holding `(root ≠ 0, timestamp 0)` at a key, which is how a bare `bytes32` root carried
+over from v31 would read, keeps that entry forever: in every later state inclusion against that
+root is accepted at the key, and the timeout path's root read fails at the key for every deadline
+(`LegacyEntryBlocksTimeoutForever`; `LegacyEntryCountermodel` is a concrete run). By
+`ZeroTimestampIffAbsent` no such entry is reachable from fresh storage; the source's NatSpec says
+none was carried over (`L2InteropRootStorage.sol:35-39`).
 
-## Non-vacuity
+## Witnesses
 
-`StorageWitness`: a batch import of two tuples from fresh storage, both stored with nonzero
-timestamps.
+`RootStorageRunWitness` meets the premises of the six results above it: from fresh storage, a
+batch import of two tuples stores both with nonzero roots and timestamps, and a later single import
+writes a third, previously empty key. `LegacyEntryCountermodel` meets the premises of
+`LegacyEntryBlocksTimeoutForever`.
 -/
 
 namespace Contracts.L2InteropRootStorage
@@ -67,15 +71,16 @@ def Properties.BatchImportWritesEach : Prop :=
     ∀ x ∈ xs, ok x ∧ ∃ r, x.sides = [r] ∧ st'.entries x.chainId x.blockOrBatchNumber = ⟨r, x.ts⟩
 
 /-- **ALL OR NOTHING.** A successful batch import has pairwise distinct keys, each unused before
-the call: a batch that repeats a key, or reuses a stored one, reverts as a whole. -/
+the call. So a batch that repeats a key, or reuses a stored one, has no successful run: the call
+reverts as a whole. -/
 def Properties.BatchKeysDistinct : Prop :=
   ∀ (ok : RootIn → Prop) (st st' : State) (xs : List RootIn), AddsAll ok st xs st' →
     (xs.map fun x => (x.chainId, x.blockOrBatchNumber)).Nodup
       ∧ ∀ x ∈ xs, (st.entries x.chainId x.blockOrBatchNumber).root = 0
 
-/-- **A V31-FORMAT ENTRY BLOCKS EVERY TIMEOUT AGAINST IT, FOREVER.** From any storage holding
-`(r, 0)` with `r ≠ 0` at `(c, n)`, in every later state inclusion against `r` is accepted and the
-timeout path's root read fails for every deadline. -/
+/-- **A ZERO-TIMESTAMP ENTRY BLOCKS EVERY TIMEOUT READ AT ITS KEY, FOREVER.** From any storage
+holding `(r, 0)` with `r ≠ 0` at `(c, n)`, in every later state inclusion against `r` is accepted
+at `(c, n)` and the timeout path's root read fails at `(c, n)` for every deadline. -/
 def Properties.LegacyEntryBlocksTimeoutForever : Prop :=
   ∀ (ok : RootIn → Prop) (st₀ st : State) (c : ChainId) (n : ℕ) (r : Word), r ≠ 0 →
     st₀.entries c n = ⟨r, 0⟩ → Reach ok st₀ st →
@@ -89,10 +94,16 @@ def Properties.LegacyEntryCountermodel : Prop :=
     ∧ Reach (fun _ => True) st₀ st ∧ st.InclusionRootAccepts c n r
     ∧ (∀ D, ¬ st.TimeoutRootPasses c n D) ∧ st.TimeoutRootPasses c n' 0
 
-/-- **NON-VACUITY.** A batch import of two tuples from fresh storage stores both, with nonzero
-timestamps. -/
-def Properties.StorageWitness : Prop :=
-  ∃ (st : State) (xs : List RootIn), AddsAll (fun _ => True) empty xs st ∧ xs.length = 2
-    ∧ ∀ x ∈ xs, (st.entries x.chainId x.blockOrBatchNumber).ts ≠ 0
+/-- **NON-VACUITY.** From fresh storage, a batch import of two tuples stores both with nonzero
+roots and timestamps (`st₁`); a later single import (`st₂`) writes a key `y` that was empty in
+`st₁`. -/
+def Properties.RootStorageRunWitness : Prop :=
+  ∃ (st₁ st₂ : State) (xs : List RootIn) (y : RootIn),
+    AddsAll (fun _ => True) empty xs st₁ ∧ xs.length = 2
+      ∧ (∀ x ∈ xs, (st₁.entries x.chainId x.blockOrBatchNumber).root ≠ 0
+          ∧ (st₁.entries x.chainId x.blockOrBatchNumber).ts ≠ 0)
+      ∧ Step (fun _ => True) st₁ st₂
+      ∧ (st₁.entries y.chainId y.blockOrBatchNumber).root = 0
+      ∧ (st₂.entries y.chainId y.blockOrBatchNumber).root ≠ 0
 
 end Contracts.L2InteropRootStorage

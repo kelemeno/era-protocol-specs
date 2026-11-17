@@ -12,18 +12,21 @@ tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), with `L1MessageRoot.sol`,
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.MessageRoot.Properties.Aggregation` and are proved in
-`EraSpec.Contracts.MessageRoot.Proofs.Aggregation`.
+`EraSpec.Contracts.MessageRoot.Proofs.Aggregation`. Everything is in the namespace
+`Contracts.MessageRoot.Aggregation`.
 
 ## Why this contract matters to the timeout protocol
 
 `Contracts.Timeout.Aggregates` — "a batch that had settled by the time a settlement-layer root
-was created is inside that root" — is the last load-bearing premise behind the timeout and
-refund headlines (`Protocol/InteropAtomicity/Specs/Timeout.lean`, which says it "is not derived
-here"). The settlement layer that supplies it is this contract: every settled batch root is pushed
-into its chain's tree with `l1Timestamp = block.timestamp`, the chain's root is written into the
-shared tree, and the shared root is recorded per block together with `block.timestamp`. The
-timeout path reads that `(root, timestamp)` pair, imported into `L2InteropRootStorage` and
-double-checked by the Executor. This file models the settlement-layer half.
+was created is inside that root" — is a premise of the timeout and refund headlines
+(`PROTO-AGGREGATES` in ASSUMPTIONS.md; `Protocol/InteropAtomicity/Specs/Timeout.lean` says it
+"is not derived here"). The settlement layer that supplies it is this contract: every settled batch
+root it pushes goes into its chain's tree with `l1Timestamp = block.timestamp`, the chain's root is
+written into the shared tree, and the shared root is recorded per block together with
+`block.timestamp`. The timeout path reads that `(root, timestamp)` pair after it has been imported
+into `L2InteropRootStorage`, and the Executor double-checks the import against this contract
+(`Protocol/InteropAtomicity`, topic `SettlementRoots`). This file models the settlement-layer
+half.
 
 ## The code
 
@@ -99,27 +102,45 @@ double-checked by the Executor. This file models the settlement-layer half.
 ## Modelling choices
 
 * **One MessageRoot contract**, deployed on chain `Params.self` (`block.chainid`).
-* **Hashes are abstract functions** (`Hashes`), with no premise. `chainRoot` is the root
-  `DynamicIncrementalMerkle.push` returns over the leaf hashes pushed so far and `sharedRoot` the
-  root `FullMerkle` returns over its leaf list; that the libraries compute these folds is the
-  separate correspondence `MODEL-DIM` (backlog W-MER-2) and A1's `FullMerkle` results.
+* **Hashes are abstract functions** (`Hashes`), with no premise. `chainRoot` stands for the root
+  `DynamicIncrementalMerkle.push` returns over the leaf hashes pushed so far and `sharedRoot` for
+  the root `FullMerkle` returns over its leaf list. That the libraries compute one function of
+  those lists is not proved here: `DynamicIncrementalMerkle` is not modelled in this repository,
+  and `FullMerkle`'s cached storage is the separate topic `Contracts/FullMerkle` `CachedNodes`.
 * **A chain tree is the list of its pushed leaves, with their preimages** (`Leaf`): batch number,
   batch root, `l1Timestamp`, and a ghost field `blk`, the `block.number` of the push. Positions in
   that list are the tree's leaf indices.
 * **A historical root carries a ghost count** (`HistEntry.count`): how many leaves each chain tree
-  had when it was written. That is what the root aggregates; inclusion proofs against the root
-  value are a separate binding question (W-MER-5).
+  had when it was written. That count is what the results say the root aggregates. Nothing here
+  relates it to what a Merkle proof against the stored root VALUE (`HistEntry.root`) can show:
+  that binding is not modelled.
 * **The block is environment.** `nextBlock` advances `block.number` by one with a new
   `block.timestamp`, under one of two premises (`TsRule`): non-decreasing (`mono`) or strictly
   increasing (`strict`). Several transactions may run in one block.
-* **A revert is the absence of a step**, and **caller checks are omitted** (they only reject, so
-  omitting them adds runs and every safety result holds a fortiori). Also omitted: events and
-  `interopRootLogId` (:288-303), message verification (:393-452), `v31UpgradeChainBatchNumber`
-  (`L1MessageRoot.sol:54`), and `seedGenesisRoot`'s no-op branch for non-ZKsync-OS chains
-  (:369-371).
+* **A revert is the absence of a step**, and **caller checks are omitted** (`onlyChain`-style
+  restrictions, `onlyBridgehubOrChainAssetHandler`, `onlyChainAssetHandler`, the Bridgehub check of
+  `seedGenesisRoot`). They only reject, so omitting them adds runs, and every result that holds of
+  all runs holds a fortiori of the runs the callers allow. The existential statements of the
+  Properties module are the exception: a run they exhibit is a run of the model, and where its
+  steps need a caller the pinned code does not have, its docstring says so. Arithmetic is on `ℕ`, so
+  the checked increments that revert at `2^256 - 1` never do here (more runs again). Also omitted:
+  events and `interopRootLogId` (:288-303), message verification (:393-452),
+  `v31UpgradeChainBatchNumber` (`L1MessageRoot.sol:54`), and the external reads of
+  `seedGenesisRoot` (the genesis root is a parameter of the step, and its no-op branch for
+  non-ZKsync-OS chains, :369-371, writes nothing).
 * **Runs start at `_initialize`** (`init`), at any block and timestamp. A MessageRoot upgraded in
-  place without `_initialize` (`L1MessageRoot.initializeL1V31Upgrade`, :86-89) starts elsewhere and
-  is not covered.
+  place without `_initialize` (`L1MessageRoot.initializeL1V31Upgrade`, `L1MessageRoot.sol:86-89`)
+  starts from storage the model does not construct and is not covered.
+
+## Later heads
+
+The cited lines are at `c67894b9`. At `draft/v0.35.0` `b17415d20`, the modelled functions of
+`MessageRootBase.sol` are the same apart from line numbers, the internal getters' names
+(`_getBridgehub`, `_getChainAssetHandler`), the storage order of three variables, and
+`seedGenesisRoot`, which no longer has the non-ZKsync-OS no-op branch (the model never took it).
+`L1MessageRoot.saveV31UpgradeChainBatchNumber` is gone there, so `setMigratingChainBatchNumber`
+is the only writer of `currentChainBatchNumber` besides `_recordChainBatchRoot` and
+`_addNewChain`. The model was not re-pinned.
 
 ## Pushed positions, not batch numbers
 
@@ -130,7 +151,7 @@ the batch number without a leaf. So the clock the timeout protocol needs is inde
 position**: `State.leafTime c i` is the `l1Timestamp` of chain `c`'s `i`-th leaf.
 -/
 
-namespace Contracts.MessageRoot
+namespace Contracts.MessageRoot.Aggregation
 
 /-- `bytes32` and `uint256` words. -/
 abbrev Word := UInt256
@@ -302,11 +323,12 @@ structure SeedGuard (P : Params) (st : State) (c : ChainId) (r : Word) : Prop wh
   /-- `ChainBatchRootAlreadyExists(_chainId, 0)` (:381). -/
   unseeded : st.batchRoot c 0 = 0
 
-/-- How `block.timestamp` moves from one block to the next. -/
+/-- How `block.timestamp` moves from one block to the next: a premise about the chain the
+contract runs on, not something the contract checks. -/
 inductive TsRule
-  /-- Non-decreasing (`MonoTs`): equal timestamps across blocks are allowed. -/
+  /-- Non-decreasing: equal timestamps across blocks are allowed. -/
   | mono
-  /-- Strictly increasing (`StrictTs`). -/
+  /-- Strictly increasing. -/
   | strict
 deriving DecidableEq
 
@@ -389,4 +411,4 @@ takes "inside the root" to mean, for a root that holds `n` of `c`'s leaves. -/
 def State.BatchInFirst (st : State) (c : ChainId) (n : ℕ) (b : ℕ) : Prop :=
   ∃ l ∈ (st.leaves c).take n, l.batch = b
 
-end Contracts.MessageRoot
+end Contracts.MessageRoot.Aggregation

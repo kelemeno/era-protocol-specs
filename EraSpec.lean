@@ -205,6 +205,12 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Settlement-layer roots (c67894b9): MessageRootBase's historical roots, L2InteropRootStorage's
+-- imports, and the timeout and refund headlines against those roots
+import EraSpec.Contracts.MessageRoot.Proofs.Aggregation
+import EraSpec.Contracts.L2InteropRootStorage.Proofs.Model
+import EraSpec.Protocol.InteropAtomicity.Proofs.SettlementRoots
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

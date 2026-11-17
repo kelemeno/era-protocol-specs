@@ -1,6 +1,17 @@
 import EraSpec.Contracts.MessageRoot.Properties.Aggregation
 
-namespace Contracts.MessageRoot
+/-!
+# Proofs: what a historical root aggregates
+
+One run invariant, `AggInv`, holds in every state reachable from `_initialize` under either
+timestamp rule (`aggInv_reachable`); `AggInvStrict` adds what strictly increasing timestamps give
+(`aggInvStrict_reachable`). Strict aggregation for a root read at some state and every later state
+is `Frozen`: a snapshot's timestamp bounds every leaf pushed after it, and no step moves a leaf
+(`frozen_reach`, `aggregatesStrictAt_reach`). The witnesses are concrete runs from `init` checked
+by `decide`.
+-/
+
+namespace Contracts.MessageRoot.Aggregation
 
 /-! ## Field lemmas for the effects -/
 
@@ -119,9 +130,9 @@ theorem registered_addChain_iff {P : Params} {st : State} {c c' : ChainId} {s : 
   · subst h; simp; omega
   · simp [h]
 
-end Contracts.MessageRoot
+end Contracts.MessageRoot.Aggregation
 
-namespace Contracts.MessageRoot
+namespace Contracts.MessageRoot.Aggregation
 
 /-! ## The run invariant -/
 
@@ -1142,7 +1153,8 @@ theorem aggRunA6_reach : Reach aggWitnessParams .strict aggRunA4 aggRunA6 :=
 
 theorem AggregationWitness : Properties.AggregationWitness := by
   refine ⟨aggWitnessParams, aggRunA4, aggRunA6, 1, _, 1, ⟨0, 1, aggRunA4_reach⟩, aggRunA6_reach,
-    rfl, Or.inr (by decide), by decide, by decide, by decide, by decide, by decide⟩
+    rfl, rfl, Or.inr (by decide), by decide, by decide, by decide, by decide, by decide,
+    by decide⟩
 
 theorem RecordOnlyGap : Properties.RecordOnlyGap := by
   refine ⟨aggWitnessParams, aggRunAGap, 1, _, 1, ⟨0, 1, aggRunAGap_reach⟩, rfl, by decide, ?_, ?_⟩
@@ -1217,4 +1229,49 @@ theorem OnboardedChainPositionsAreNotBatchNumbers :
   simp only at hn ⊢
   omega
 
-end Contracts.MessageRoot
+/-! ### Run E: a fresh chain, and an unregistered chain whose batch number moved -/
+
+/-- Block 0 at time 1: chain 1 registered at start 0, then chain 2's batch number moved to 4
+by `setMigratingChainBatchNumber` (chain 2 stays unregistered). -/
+def aggRunE : State := (aggWitnessRegistered 0 1 0).migrate 2 4
+
+theorem AggregationRegistryWitness : Properties.AggregationRegistryWitness := by
+  have hr : Reach aggWitnessParams .strict (init aggWitnessParams 0 1) aggRunE :=
+    Reach.tail (aggWitnessRegistered_reach .strict 0 1 0)
+      (Step.setMigratingChainBatchNumber 2 4 (by decide))
+  refine ⟨aggWitnessParams, aggRunE, 1, 2, ⟨0, 1, hr⟩, by decide, Or.inr (by decide), by decide,
+    ?_, by decide⟩
+  unfold State.Registered
+  decide
+
+/-! ### Run F: record-only first, then pushes (the v31-to-v32 path) -/
+
+/-- Block 0 at time 1: chain 1 registered at start 0 and never seeded; its batch 1 recorded only.
+Block 1 at time 2: its batch 2 pushed, at position 0. -/
+def aggRunF1 : State :=
+  ((((aggWitnessRegistered 0 1 0).record 1 1 9).advance 2).record 1 2 11).push
+    aggWitnessParams 1 2 11
+
+/-- Block 2 at time 3: its batch 3 pushed, at position 1. -/
+def aggRunF2 : State := ((aggRunF1.advance 3).record 1 3 13).push aggWitnessParams 1 3 13
+
+theorem RecordOnlyBatchNotCitableWitness : Properties.RecordOnlyBatchNotCitableWitness := by
+  have hrec : Step aggWitnessParams .strict (aggWitnessRegistered 0 1 0)
+      ((aggWitnessRegistered 0 1 0).record 1 1 9) :=
+    Step.addChainBatchRoot 1 1 9 ⟨Or.inr (by decide), by decide, rfl, rfl⟩
+  have h1 : Reach aggWitnessParams .strict (init aggWitnessParams 0 1) aggRunF1 :=
+    Reach.tail (Reach.tail (Reach.tail (aggWitnessRegistered_reach .strict 0 1 0) hrec)
+      (Step.nextBlock 2 (by decide)))
+      (aggWitness_v32 2 11 (Or.inr (by decide)) (by decide) rfl rfl)
+  have h2 : Reach aggWitnessParams .strict aggRunF1 aggRunF2 :=
+    Reach.tail (Reach.tail Reach.refl (Step.nextBlock 3 (by decide)))
+      (aggWitness_v32 3 13 (Or.inr (by decide)) (by decide) rfl rfl)
+  have hleaves : aggRunF1.leaves 1 = [⟨2, 11, 2, 1⟩] := by decide
+  refine ⟨aggWitnessParams, aggRunF1, aggRunF2, 1, 1, ⟨0, 1, h1⟩, h2, by decide, ?_,
+    by rw [hleaves]; simp, by decide⟩
+  intro l hl
+  rw [hleaves, List.mem_singleton] at hl
+  subst hl
+  decide
+
+end Contracts.MessageRoot.Aggregation
