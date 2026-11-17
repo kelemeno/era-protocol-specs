@@ -139,6 +139,7 @@ import EraSpec.Contracts.BridgedStandardERC20.Proofs.ModelStrong
 import EraSpec.Contracts.BridgedStandardERC20.Proofs.ReinitializationStrong
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocal
 import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocalExecutor
+import EraSpec.Contracts.ChainTypeManager.Proofs.CommittedEdgeExecutable
 import EraSpec.Contracts.ChainTypeManager.Proofs.DiamondStorage
 import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorCheck
 import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorScan
@@ -151,6 +152,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.LegacyCrossingFaithful
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
+import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTxNonces
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned

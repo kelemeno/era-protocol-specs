@@ -39,6 +39,8 @@ exact named propositions, plus auxiliary lemmas.
 | GenesisWriters | [Specs/GenesisWriters.lean](Specs/GenesisWriters.lean) | [Properties/GenesisWriters.lean](Properties/GenesisWriters.lean) | [Proofs/GenesisWriters.lean](Proofs/GenesisWriters.lean) |
 | EngineGettersFaithful | [Specs/EngineGettersFaithful.lean](Specs/EngineGettersFaithful.lean) | [Properties/EngineGettersFaithful.lean](Properties/EngineGettersFaithful.lean) | [Proofs/EngineGettersFaithful.lean](Proofs/EngineGettersFaithful.lean) |
 | LegacyCrossingFaithful | [Specs/LegacyCrossingFaithful.lean](Specs/LegacyCrossingFaithful.lean) | [Properties/LegacyCrossingFaithful.lean](Properties/LegacyCrossingFaithful.lean) | [Proofs/LegacyCrossingFaithful.lean](Proofs/LegacyCrossingFaithful.lean) |
+| CommittedEdgeExecutable | [Specs/CommittedEdgeExecutable.lean](Specs/CommittedEdgeExecutable.lean) | [Properties/CommittedEdgeExecutable.lean](Properties/CommittedEdgeExecutable.lean) | [Proofs/CommittedEdgeExecutable.lean](Proofs/CommittedEdgeExecutable.lean) |
+| UpgradeTxNonces | [Specs/UpgradeTxNonces.lean](Specs/UpgradeTxNonces.lean) | [Properties/UpgradeTxNonces.lean](Properties/UpgradeTxNonces.lean) | [Proofs/UpgradeTxNonces.lean](Proofs/UpgradeTxNonces.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
@@ -46,7 +48,9 @@ the `Properties` segment. `GenesisWriters` uses the sub-namespace
 `Contracts.ChainTypeManager.GenesisWriters` (statements
 `Contracts.ChainTypeManager.GenesisWriters.Properties.*`); likewise `EngineGettersFaithful`
 uses `Contracts.ChainTypeManager.EngineGetters` and `LegacyCrossingFaithful` uses
-`Contracts.ChainTypeManager.LegacyCrossing`.
+`Contracts.ChainTypeManager.LegacyCrossing`. `CommittedEdgeExecutable` and `UpgradeTxNonces`
+share `Contracts.ChainTypeManager.EdgeChecks`; unlike the rest of this folder they are written
+against `draft/v0.35.0` commit `b17415d20`.
 
 The topics after `ChainMigration` extend the first four:
 
@@ -58,6 +62,9 @@ The topics after `ChainMigration` extend the first four:
 - chain creation by its code: `GenesisWriters`.
 - faithfulness repairs of the executor topics: `EngineGettersFaithful` (the engine's own
   getters), `LegacyCrossingFaithful` (pre-v35 chains crossing opaque legacy edges themselves).
+- the chain-side checks a committed edge must pass, and the L2 upgrade transaction's nonce, at
+  `b17415d20`: `CommittedEdgeExecutable` (composed with `VersionRegistry`'s CTM runs),
+  `UpgradeTxNonces`.
 
 Each section below says how its model relates to the one it extends. None is composed
 with another unless its section says so.
@@ -440,6 +447,74 @@ refines the transition step of `ExecutorUpgradeChain`):
   source only chains still routing a v31-v34 `Admin` facet can take it. That only adds runs; the
   countermodel and witness use pre-registry chains of the bootstrap states.
 - Witness: `LegacyCatchUpWitness` (a lagging pre-registry chain catches up with no owner action).
+
+**CommittedEdgeExecutable** (pin `b17415d20`: the commit-time checks of a registry edge,
+`VersionEdgeLib.requireValidEdge` and `L2PlanLib.build`/`requirePublished`, against the chain-side
+`BaseZkSyncUpgrade._setNewProtocolVersion`/`_setL2SystemContractUpgrade` and the transaction
+`CTMUpgradeComposer.buildL2UpgradeTxFromPlan` composes; `upgrades/registry/libraries/VersionEdgeLib.sol:35-91`,
+`L2PlanLib.sol:47-97`, `upgrades/BaseZkSyncUpgrade.sol:162-272`):
+
+- **The two copies agree.** Both version checks reduce to `EdgeVersionShape`: construction
+  passes exactly when the versions have that shape, the schedule is valid and a patch has no L2
+  side; a chain's version step passes exactly when its version and the target have that shape
+  and, for a minor change on the settlement layer, nothing is pending
+  (`EdgeShapeIsTheChainVersionCheck`). For a plan `build` returned, the composer's empty
+  transaction test is the constructor's `hasL2Side`, with no hash premise
+  (`ComposerEmptinessIsHasL2Side`). A constructed edge's composed transaction has the upgrade
+  type, nonce `minor(new)`, at most 64 factory dependencies and the canonical envelope
+  (`ConstructedEdgeChainFacts`).
+- **Headline.** `ConstructedEdgePassesChainChecks`: a constructed edge passes both chain-side
+  steps on a chain at its departure on its settlement layer, with nothing pending if the minor
+  changes, `priorityTxMaxPubdata` at least `90_000`, and composed calldata within
+  `UpgradeCalldataFits`. Off the settlement layer only the version step runs, and it passes
+  whatever is pending (`ConstructedEdgePassesOffLayerVersionStep`).
+  `CommittedSlotEdgePassesChainChecks` composes this with `VersionRegistry`'s CTM runs, whose
+  commit and replace steps were re-read at `b17415d20`: whatever a run with genuine replacements
+  leaves in slot `v` passes on a chain at `v`. `PublishedFactoryDepsStayPublished`: what the
+  commit's `requirePublished` checked stays published while the supplier's code stays.
+- **The premises are needed, at their exact thresholds.** `PubdataLimitThresholdIsExact`
+  (`89_999` reverts, `90_000` passes); `CalldataBoundIsExact` (composer answers of `1_799_375`
+  and `1_799_376` bytes; no commit-time check bounds the composed calldata);
+  `NonGenuineSlotEdgeRevertsOnChain` (a replacement reporting another departure leaves a slot
+  on which every chain at its version reverts); `UnbuiltPlanBreaksEmptinessAgreement`
+  (without `build`'s shape checks a patch edge passes construction and reverts on chains);
+  `SupplierSwapClearsPublication` (a supplier proxy upgrade can clear a checked publication).
+- Not covered: `_upgrade`'s time gate, its settlement-layer order check and the verifier
+  installation (which also reads the chain's `secondProofSystemRequired`), `requireReleaseRouting`
+  and the derived cuts (see `LiveRouting`), what the composer returns or whether its call
+  reverts, and the transaction's execution on L2.
+- Witnesses: `ConstructedEdgeWitness` (an L2-carrying minor edge, and a patch edge over a pending
+  upgrade), `CommittedSlotWitness`, `SupplierWitness`.
+
+**UpgradeTxNonces** (pin `b17415d20`: one chain's pending L2 upgrade transaction,
+`l2SystemContractsUpgradeTxHash` and its batch number, across genesis, crossings on and off the
+settlement layer, commit, execute, revert and migration copies, with a ghost log of the
+transactions written to the hash):
+
+- **Per step.** A crossing never overwrites a nonzero pending hash, a patch crossing leaves the
+  pending upgrade alone, and a crossing that writes found nothing pending and wrote nonce
+  `minor(new) > minor(old)` (`CrossingKeepsANonzeroPendingHash`,
+  `PatchCrossingKeepsThePendingUpgrade`, `WritingCrossingRaisesTheMinor`).
+- **Headline.** `UpgradeTxNoncesStrictlyIncrease`: from a chain before `createNewChain`
+  (`NonceInitSatisfiesInvariant`), along every run whose migrations onto an existing diamond land
+  at a version no lower than the one they left (`MintLandsNotBehind`), the log only grows and its
+  nonces strictly increase. Logged hashes are distinct up to a `TxHashCollision` on two logged
+  transactions with different nonces (`LoggedUpgradeTxHashesDistinctOrCollide`). No hash premise.
+- **Needed.** `LaggingReturnRepeatsNonce`: a migration back onto a diamond behind the version the
+  chain left with writes nonce `30` twice, with the same transaction. A destination deployed for
+  the migration starts at the version handed over; for an existing destination nothing on chain
+  relates the two CTMs' versions.
+- **Increasing nonces do not rule out a skipped transaction.** `ReturnAheadSkipsAnL2Upgrade`:
+  under `MintLandsNotBehind`, a diamond that crossed `0.29.0 → 0.30.0` off its settlement layer,
+  where nothing is written, becomes live through a migration back, and the L2 side of that
+  constructed edge is never written. With exact landings (`MintLandsExactly`) only a genesis or a
+  crossing on the settlement layer moves the chain's live version
+  (`ExactLandingRunsKeepTheActiveVersion`).
+- Every migration step of this model reverts at `b17415d20` (`CHAIN_MIGRATIONS_ENABLED = false`,
+  `common/Config.sol:320`); the model omits that check. Not modelled: break-glass cuts and
+  upgrade engines older than `b17415d20`.
+- Witnesses: `UpgradeTxNoncesWitness` (every kind of step; nonces 29, 30, 31),
+  `ExactLandingWitness`.
 
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises. Each later topic lists
