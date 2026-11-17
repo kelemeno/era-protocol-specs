@@ -17,6 +17,7 @@ only import a shared specification when the topic needs no additional definition
 | RunHeight | [Specs/RunHeight.lean](Specs/RunHeight.lean) | [Properties/RunHeight.lean](Properties/RunHeight.lean) | [Proofs/RunHeight.lean](Proofs/RunHeight.lean) |
 | CachedRoot | [Specs/CachedRoot.lean](Specs/CachedRoot.lean) | [Properties/CachedRoot.lean](Properties/CachedRoot.lean) | [Proofs/CachedRoot.lean](Proofs/CachedRoot.lean) |
 | PublishedRootCommits | [Specs/PublishedRootCommits.lean](Specs/PublishedRootCommits.lean) | [Properties/PublishedRootCommits.lean](Properties/PublishedRootCommits.lean) | [Proofs/PublishedRootCommits.lean](Proofs/PublishedRootCommits.lean) |
+| CommitmentTreeAtV35 (`draft/v0.35.0` `b17415d20`) | [Specs/CommitmentTreeAtV35.lean](Specs/CommitmentTreeAtV35.lean) | [Properties/CommitmentTreeAtV35.lean](Properties/CommitmentTreeAtV35.lean) | [Proofs/CommitmentTreeAtV35.lean](Proofs/CommitmentTreeAtV35.lean) |
 | InitOnce | [Specs/InitOnce.lean](Specs/InitOnce.lean) | [Properties/InitOnce.lean](Properties/InitOnce.lean) | [Proofs/InitOnce.lean](Proofs/InitOnce.lean) |
 
 The library's abstract list/order theory, insertion-guard countermodels, and
@@ -123,3 +124,33 @@ Root authentication and hash assumptions have separate proofs under `../Merkle/`
 and `../FullMerkle/`. Caller checks are modelled in `InitOnce`; their source
 correspondence, compiled search, and dispatcher-to-model correspondence remain
 implementation obligations in `../../Refinement.lean`.
+
+`CommitmentTreeAtV35` models the tree contract at era-contracts `draft/v0.35.0` (`b17415d20`;
+the tree code is the same at `main` `70096e2`) as one machine: `InitOnce`'s two entry points
+with their callers, from the predeploy's all-zero storage, acting on `CachedRoot`'s whole
+`FullMerkle` storage. `insert`'s low-leaf walk is unbounded (`b8cc61203`), read as "some number
+of hops exits at the written index" (`WalkExitsAtV35`), and `setup` pads with a parameter `zE`
+(`IMT_EMPTY_LEAF_HASH` at v35, item F-04 of `78e14b3bc`). Gas and the leaf hook report are not
+modelled. No hash premise.
+- On the predeploy's storage only the upgrader's `initL2()` succeeds, and it leaves storage
+  caching `hashLeaf({0,0,0})` padded with `zE` (`CInitL2AtV35OnPredeploy`); with the pin's
+  constant it is `cSetup` (`CInitL2AtV35AtPinPaddingIsCSetup`).
+- A run from there has no successful transaction, or exactly one successful `initL2()` with
+  nothing before it, and from there on it is a `CachedRoot.CRun` (`CTxRunAtV35Shape`; with the
+  pin's constant a `CRun` from `cSetup`, `CTxRunAtV35AtPinPaddingIsCRunFromCSetup`). Each
+  successful insert writes at the index where `InsertGuard` holds and returns the root that
+  `root()` then reads (`CTxRunAtV35InsertIsGuardedCInsert`).
+- Headline, `CTxRunAtV35StoredRootIsPublished`: at every step of every run the storage is the
+  predeploy's, or it caches the leaf hashes padded with `zE`, the list state is reached from
+  `setup` and valid, and `root()` is the fold at the source's own `_height`. Against that root
+  the contract's own `merklePath` outputs are accepted with no located break, and an accepted
+  inclusion and non-inclusion proof of one value locate a `TreeRootBreak`
+  (`CTxRunAtV35ContractProofsAtStoredRoot`). A path accepted at an index at or beyond the leaf
+  count locates `hashLeaf(ℓ) = zE`, a node-hash collision on the path, or a wrong length
+  (`CTxRunAtV35EmptySlotLocatesPadding`).
+- Witnesses: `StaleHintCRunWitnessAtV35` (for every hash and padding constant, a run whose last
+  insert exits six hops from its hint, which the pin's five-hop search refuses) and
+  `PaddingForgeryAtV35Witness` (with the pin's constant as `zE`, the pin's padding forgery is
+  accepted against the stored root of that run, and its located break is exactly `paddingHit`).
+- Not covered: keccak at the byte level (whether `hashLeaf(ℓ) = IMT_EMPTY_LEAF_HASH` has a
+  solution), gas, and that the leaf hook does not write the tree's storage.

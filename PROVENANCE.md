@@ -180,6 +180,12 @@ supplying that correspondence.
   `GovernanceUpgradeTimer` were deleted from the branch before `e561b9cc2`
   (`f64622022d`, `469310c94e`); it describes a design that no longer exists at the
   newer pin.
+* `EraSpec/Contracts/L2InteropCommitmentTree/*/CommitmentTreeAtV35.lean` models the tree
+  contract at era-contracts `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch
+  `draft/v0.35.0`, label `head-v35-b17415d`). It was first written against `d9f6789`; every
+  Solidity file it cites is unchanged between the two commits. At `main` `70096e2` the three
+  library files it cites are byte-identical and `atomic-interop/L2InteropCommitmentTree.sol`
+  differs only in its error imports.
 * `EraSpec/Protocol/InteropAtomicity/Specs/RootImport.lean` models the destination gate at
   `c67894b9`. Its cross-pin paragraph also cites era-contracts commits
   `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` (branch `main`, label `head-main-3605e82`)
