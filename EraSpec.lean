@@ -381,6 +381,9 @@ import EraSpec.Protocol.L1WithdrawalProvenance.Proofs.Provenance
 -- Interop-peer whitelist mirror and the L2 Bridgehub's baseTokenAssetId entries (b17415d20; N-15)
 import EraSpec.Protocol.InteropPeerRegistry.Proofs.PeerMirror
 
+-- Atomic interop at draft/v0.35.0: the composed system (InteropAtomicity, SystemAtV35)
+import EraSpec.Protocol.InteropAtomicity.Proofs.SystemAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
