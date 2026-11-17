@@ -4,14 +4,30 @@ import EraSpec.Codegen.VaultPreparationSlice.Specs.Correspondence
 # The L1 vault's per-chain balance cap, at draft/v0.35.0
 
 Transcribed from era-contracts `draft/v0.35.0` at
-`d9f678900e1bc8286412b78f56d4a9f443983c29` (paths under `l1-contracts/contracts/`). The
-cap is new on that branch (#2628); `main` at `3605e82` has none of it. Everything else the
-vault slice transcribes is unchanged there apart from renames (`_assetRouter()` is
-`_getAssetRouter()`, `_baseTokenAssetId()` is `_getBaseTokenAssetId()`), so
-`Specs/Program.lean` still describes the v35 `bridgeBurn` statement for statement:
-`NativeTokenVaultBase.sol` `bridgeBurn` (294-318), `_decodeBurnAndCheckAssetId` (337-354),
-`_bridgeBurnToken` (361-410), `_getERC20Metadata` (412-423), `_getTokenAndBridgeToChain`
-(425-457).
+`b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (paths under `l1-contracts/contracts/`). Every file
+cited here is identical at the earlier v35 pin `d9f678900e1bc8286412b78f56d4a9f443983c29`
+(`bridge/ntv/`, `core/bridgehub/`, `core/message-root/L1MessageRoot.sol`, `common/Config.sol`,
+`common/libraries/DataEncoding.sol`, `bridge/BridgedStandardERC20.sol`, `bridge/BridgeHelper.sol`,
+`bridge/interfaces/AssetHandlerModifiers.sol`), so the line numbers hold at both. The cap is new
+on that branch (#2628, `2d08bdaba`); `main` at `70096e2ea` (and at `3605e82`) has none of it.
+
+## The slice's program at v35
+
+`Specs/Program.lean` transcribes `bridgeBurn` at the interop pin `c67894b9`. At `b17415d20` the
+code it transcribes differs from the pin only by renames: `_assetRouter()` is
+`_getAssetRouter()`, `_baseTokenAssetId()` is `_getBaseTokenAssetId()` and `_wethToken()` is
+`_getWethToken()` (used only on the native branch, outside the slice), and three locals are
+renamed (`tokenAddress` to `parsedTokenAddress`, `originToken` to `resolvedOriginToken`, the
+local `originChainId` to `tokenOriginChainId`). Comments changed; no statement did. The v35
+locations: `NativeTokenVaultBase.sol` `bridgeBurn` (294-318), `_decodeBurnAndCheckAssetId`
+(337-354), `_bridgeBurnToken` (361-410), `_getERC20Metadata` (412-423),
+`_getTokenAndBridgeToChain` (425-457, the hook call at :447), `getERC20Getters` (478-480);
+`DataEncoding.sol` `decodeBridgeBurnData` (51-60) and `encodeBridgeMintData` (84-92, one
+comment line fewer than at the pin); the token's getters at `BridgedStandardERC20.sol:39,45`.
+`AssetHandlerModifiers.sol` and `BridgeHelper.sol` are identical to the pin's, and the
+OpenZeppelin upgradeable submodule is at the same commit `2d081f24`. So `vaultProgram` and
+`tokenProgram` describe the v35 code statement for statement; what changed in the slice is the
+L1 hook.
 
 ## What changed in the slice: the L1 accounting hook
 
@@ -42,21 +58,25 @@ So for a bridged token the hook is no longer a no-op: when the destination's bal
 tracked it adds the amount to `chainTotalDeposited[key][asset]`, in checked arithmetic
 (`pragma solidity 0.8.28`, `:3`), and an overflow reverts the whole `bridgeBurn` with
 `Panic(0x11)`. `handleBridgeToChainV35` is that function; `l1HooksV35` is the `CHooks` the
-slice's machine runs it as, and `l1ModelHooksV35` the model `Hooks` it stands for.
+slice's machine runs it as, `l1ModelHooksV35` the model `Hooks` it stands for, and
+`l1HooksPin` and `l1ModelHooksPin` the pin's hook, for comparison.
 
 **What the hook reads.** `originChainId[_assetId]` is the vault's own storage; the hook
-closes over it (`CapEnvV35.originChainId`). That is sound for the slice because no slice
-step writes vault storage (`SliceNeverWritesVaultStorageV35`), so the map the hook reads is
-the one in the vault's storage at every point of a run. `block.chainid` is L1's chain id.
-`_messageRoot()` (`:491-493`) is `L1_NULLIFIER.BRIDGE_HUB().messageRoot()`, and
-`isInteropEnabled` (`core/message-root/L1MessageRoot.sol:92-94`) is a view of its
-`interopEnabled` flags. Those answers are `CapEnvV35.interop`, a `DEP-RESULTS` input: the
-three view calls are assumed to return. The hook emits no event, so the slice's exact-log
-statements still hold for it.
+closes over it (`CapEnvV35.originChainId`), and `EnvMatchesV35` says the closure is the
+vault storage's mapping. No slice call writes vault storage (proved as part of
+`L1SliceRunCreditsJournalAtV35`), so the mapping is the same at every point of a slice run.
+`block.chainid` is L1's chain id. `_messageRoot()` (`:491-493`) is
+`L1_NULLIFIER.BRIDGE_HUB().messageRoot()`, and `isInteropEnabled`
+(`core/message-root/L1MessageRoot.sol:92-94`) is a view of its `interopEnabled` flags. Those
+answers are `CapEnvV35.interop`, a `DEP-RESULTS` input: the three view calls are assumed to
+return, and a revert of one of them is not modelled. The hook emits no event, so the slice's
+exact-log statements still hold for it. One `l1HooksV35 env` fixes the flags for a whole
+slice run; a run across an `enableInterop` (`L1MessageRoot.sol:72-89`) is two slice runs.
 
 ## The rest of the cap (v35-only), as a run model
 
-`CapStepV35` is every entry point that writes the cap's storage (`:96-108`):
+`CapStepV35` is every entry point that writes the storage `CapStateV35` holds (`:90`,
+`:96-108`):
 
 * the two hooks: `_handleBridgeToChain` (above) and `_handleBridgeFromChain` (`:439-459`),
   reached from `bridgeBurn`, `bridgeMint` and the recovery paths (`NativeTokenVaultBase.sol`
@@ -72,6 +92,8 @@ statements still hold for it.
         }
         chainTotalWithdrawn[balanceChainId][_assetId] = newWithdrawn;
 
+* `populateBridgedOut` (`:189-212`), which adds a legacy amount read from other contracts
+  to `bridgedOut` (any amount here; the once-per-asset flag `bridgedOutPopulated` is dropped);
 * `setChainBalanceBackfill` (`:219-239`, one array entry per step: a successful call is
   the sequence of its entries, each of which touches only its own `(chain, asset)` and the
   pool's deposits), `markBackfilled` (`:242-246`), `moveChainBalanceToInteropPool`
@@ -80,17 +102,23 @@ statements still hold for it.
 
 Each hook step takes its own `CapEnvV35`: the interop flags and the origin map may be
 anything at each step (they live in other contracts or change by registration), so every
-history of `enableInterop` (`L1MessageRoot.sol:71-89`) and every registration is covered.
-`onlyOwner`, the proxy-admin check of `initializeUpgrade` and `reinitializer(2)` are
-dropped: every run of the real vault is a run here, so the safety results carry over.
+history of `enableInterop` and every registration is covered, and so are histories the
+real system cannot have (`enableInterop` is one-way, `L1MessageRoot.sol:76`). `onlyOwner`,
+the proxy-admin check of `initializeUpgrade` and `reinitializer(2)` are dropped. Every run
+of the real vault's cap storage is therefore a run here, as long as the hooks' view calls
+return and the chains `initializeUpgrade` lists are below `2^48` (next paragraph); results
+about every run carry over.
 
 **The pool key.** `INTEROP_POOL_CHAIN_ID = uint256(keccak256("interop.pool")) - 1`
-(`common/Config.sol:37`). The Bridgehub refuses chain ids above `type(uint48).max`
-(`core/bridgehub/BridgehubBase.sol:496-499`, "also keeps `INTEROP_POOL_CHAIN_ID` from ever
-being registered"), so `initializeUpgrade` never marks the pool pending. The results take
-that as the pinned premise `PoolKeyOutsideChainIds pool` on the one constant, and
-`interopPoolChainIdV35` is its value, computed off-line (`cast keccak "interop.pool"` is
-`0x9cc7…2d0a`); `Proofs/L1PerChainCapAtV35.lean` checks the premise for it by `decide`.
+(`common/Config.sol:37`). `_validateChainParams` refuses chain ids above `type(uint48).max`
+(`core/bridgehub/BridgehubBase.sol:496-499`); L1 creates chains through it
+(`core/bridgehub/L1Bridgehub.sol:114`, `:308`). The model takes the bound as a premise of the
+`initializeUpgrade` step (every listed chain id is below `2^48`) rather than modelling chain
+registration, and the results take `PoolKeyOutsideChainIdsV35 pool` on the one constant, so
+`initializeUpgrade` never marks the pool pending. `interopPoolChainIdV35` is the constant's
+value, computed off-line with Foundry's `cast keccak "interop.pool"`
+(`0x9cc761dc…13382d0a`, minus one); `InteropPoolKeyOutsideChainIdsV35` checks the premise
+for it by `decide`.
 -/
 
 namespace Codegen.VaultPreparationSlice
@@ -105,17 +133,18 @@ def interopPoolChainIdV35 : Word :=
   0x9cc761dc886485f14b36f25560c0fb8022a9b62e0778612e6cc02bf213382d09
 
 /-- The Bridgehub's bound on chain ids: `_chainId > type(uint48).max` reverts
-(`core/bridgehub/BridgehubBase.sol:497-499`), so every registered chain id is below `2^48`. -/
+(`core/bridgehub/BridgehubBase.sol:497-499`), so a chain id that passed the check is below
+`2^48`. -/
 def chainIdBoundV35 : ℕ := 2 ^ 48
 
 /-- **THE PINNED PREMISE ON THE POOL KEY.** The pool key is not below the chain-id bound, so no
-chain the Bridgehub lists has it. It is a fact about the one value
+chain id that passed the Bridgehub's check is the pool key. It is a fact about the one value
 `uint256(keccak256("interop.pool")) - 1`, not a hash property. -/
-def PoolKeyOutsideChainIds (pool : Word) : Prop := chainIdBoundV35 ≤ pool.val
+def PoolKeyOutsideChainIdsV35 (pool : Word) : Prop := chainIdBoundV35 ≤ pool.val
 
 /-! ## State and environment -/
 
-/-- The vault's per-chain storage (`L1NativeTokenVault.sol:90-108`). Maps are indexed
+/-- The vault's per-chain storage (`L1NativeTokenVault.sol:90`, `:96-108`). Maps are indexed
 `[chainId][assetId]`. -/
 structure CapStateV35 where
   /-- `bridgedOut[assetId]` (`:90`). -/
@@ -131,7 +160,7 @@ structure CapStateV35 where
   /-- `chainBalanceBackfillPending[chainId]` (`:108`). -/
   pending : Word → Bool
 
-/-- Fresh cap storage: every slot zero, as after the upgrade that introduces it. -/
+/-- Fresh cap storage: every slot zero. -/
 def CapStateV35.zero : CapStateV35 :=
   ⟨fun _ => 0, fun _ _ => 0, fun _ _ => 0, fun _ _ => 0, fun _ _ => false, fun _ => false⟩
 
@@ -147,7 +176,7 @@ structure CapEnvV35 where
   pool : Word
 
 /-- `map[k][a] = v` on a two-level mapping. -/
-def update2 {β : Type} (f : Word → Word → β) (k a : Word) (v : β) : Word → Word → β :=
+def capUpdate2V35 {β : Type} (f : Word → Word → β) (k a : Word) (v : β) : Word → Word → β :=
   Function.update f k (Function.update (f k) a v)
 
 /-! ## The functions -/
@@ -159,9 +188,10 @@ def checkedAddV35 (x y : Word) : Except XFailure Word :=
 /-- `_trackedBalance(chain, origin)` (`L1NativeTokenVault.sol:468-477`): whether the asset's
 balance on `chain` is tracked, and the key of its totals. -/
 def trackedBalanceV35 (env : CapEnvV35) (chain origin : Word) : Bool × Word :=
-  if env.interop chain = true then (!env.interop origin, env.pool) else (decide (origin ≠ chain), chain)
+  if env.interop chain = true then (!env.interop origin, env.pool)
+  else (decide (origin ≠ chain), chain)
 
-/-- `bridgedOut[asset] += amount`, checked (`:427`). -/
+/-- `bridgedOut[asset] += amount`, checked (`:427`, `:207`). -/
 def creditBridgedOutV35 (s : CapStateV35) (asset amount : Word) : Except XFailure CapStateV35 :=
   match checkedAddV35 (s.bridgedOut asset) amount with
   | .ok v => .ok { s with bridgedOut := Function.update s.bridgedOut asset v }
@@ -171,7 +201,7 @@ def creditBridgedOutV35 (s : CapStateV35) (asset amount : Word) : Except XFailur
 def creditDepositedV35 (s : CapStateV35) (key asset amount : Word) :
     Except XFailure CapStateV35 :=
   match checkedAddV35 (s.deposited key asset) amount with
-  | .ok v => .ok { s with deposited := update2 s.deposited key asset v }
+  | .ok v => .ok { s with deposited := capUpdate2V35 s.deposited key asset v }
   | .error e => .error e
 
 /-- **`_handleBridgeToChain(chain, asset, amount)` AT V35** (`L1NativeTokenVault.sol:424-433`). -/
@@ -186,7 +216,7 @@ def handleBridgeToChainV35 (env : CapEnvV35) (s : CapStateV35) (chain asset amou
     else .ok s₁
 
 /-- `_handleBridgeToChain` at the pin (pin `L1NativeTokenVault.sol:260-264`): `bridgedOut` for
-L1-native assets, nothing else. Not v35 code; it shows what changed. -/
+L1-native assets, nothing else. Not v35 code; it is what the v35 hook is compared with. -/
 def handleBridgeToChainPin (env : CapEnvV35) (s : CapStateV35) (asset amount : Word) :
     Except XFailure CapStateV35 :=
   if env.originChainId asset = env.chainId then creditBridgedOutV35 s asset amount else .ok s
@@ -219,7 +249,7 @@ def recordWithdrawalV35 (s : CapStateV35) (chain key asset amount : Word) :
   | .ok newW =>
     match capCheckV35 s chain key asset newW with
     | .error e => .error e
-    | .ok () => .ok { s with withdrawn := update2 s.withdrawn key asset newW }
+    | .ok () => .ok { s with withdrawn := capUpdate2V35 s.withdrawn key asset newW }
 
 /-- **`_handleBridgeFromChain(chain, asset, amount)` AT V35** (`L1NativeTokenVault.sol:439-459`). -/
 def handleBridgeFromChainV35 (env : CapEnvV35) (s : CapStateV35) (chain asset amount : Word) :
@@ -239,7 +269,8 @@ def netChainBalanceV35 (s : CapStateV35) (chain asset backfill : Word) : Except 
   match checkedAddV35 (s.deposited chain asset) backfill with
   | .error e => .error e
   | .ok balance =>
-    .ok (if (s.withdrawn chain asset).val < balance.val then balance - s.withdrawn chain asset else 0)
+    .ok (if (s.withdrawn chain asset).val < balance.val then balance - s.withdrawn chain asset
+      else 0)
 
 /-- What a backfill adds to the pool for a chain already in it (`:233-234`):
 `_netChainBalance(chain, asset, amount) - _netChainBalance(chain, asset, 0)`, the subtraction
@@ -265,7 +296,7 @@ def setChainBalanceBackfillV35 (pool : Word) (s : CapStateV35) (chain asset amou
     match (if s.inPool chain asset = true then poolBackfillCreditV35 pool s chain asset amount
         else .ok s) with
     | .error e => .error e
-    | .ok s₁ => .ok { s₁ with backfill := update2 s₁.backfill chain asset amount }
+    | .ok s₁ => .ok { s₁ with backfill := capUpdate2V35 s₁.backfill chain asset amount }
 
 /-- `markBackfilled(chain)` (`:242-246`). -/
 def markBackfilledV35 (s : CapStateV35) (chain : Word) : Except XFailure CapStateV35 :=
@@ -283,8 +314,8 @@ def moveChainBalanceToInteropPoolV35 (pool : Word) (interop : Bool) (s : CapStat
   else
     match netChainBalanceV35 s chain asset (s.backfill chain asset) with
     | .error e => .error e
-    | .ok amount => creditDepositedV35 { s with inPool := update2 s.inPool chain asset true } pool
-        asset amount
+    | .ok amount => creditDepositedV35 { s with inPool := capUpdate2V35 s.inPool chain asset true }
+        pool asset amount
 
 /-- `initializeUpgrade()`'s writes (`:291-298`): every listed chain becomes pending. -/
 def markPendingV35 (s : CapStateV35) (chains : List Word) : CapStateV35 :=
@@ -292,9 +323,10 @@ def markPendingV35 (s : CapStateV35) (chains : List Word) : CapStateV35 :=
 
 /-! ## Runs of the cap -/
 
-/-- **ONE SUCCESSFUL CALL THAT WRITES THE CAP'S STORAGE.** The hooks may run under any
-environment with the given pool key; `initializeUpgrade` lists chains the Bridgehub accepted,
-so below `2^48`. -/
+/-- **ONE STEP OF THE CAP'S STORAGE**: one successful run of a writer of it, that is a hook, one
+entry of `setChainBalanceBackfill`, or one of the other entry points. The hooks may run under any
+environment with the given pool key; `populateBridgedOut` may add any amount;
+`initializeUpgrade` lists chains below `2^48` (the premise discussed in the module docstring). -/
 inductive CapStepV35 (pool : Word) : CapStateV35 → CapStateV35 → Prop
   | toChain {s t : CapStateV35} {env : CapEnvV35} {chain asset amount : Word} :
       env.pool = pool → handleBridgeToChainV35 env s chain asset amount = .ok t →
@@ -302,6 +334,8 @@ inductive CapStepV35 (pool : Word) : CapStateV35 → CapStateV35 → Prop
   | fromChain {s t : CapStateV35} {env : CapEnvV35} {chain asset amount : Word} :
       env.pool = pool → handleBridgeFromChainV35 env s chain asset amount = .ok t →
       CapStepV35 pool s t
+  | populateBridgedOut {s t : CapStateV35} {asset amount : Word} :
+      creditBridgedOutV35 s asset amount = .ok t → CapStepV35 pool s t
   | setBackfill {s t : CapStateV35} {chain asset amount : Word} :
       setChainBalanceBackfillV35 pool s chain asset amount = .ok t → CapStepV35 pool s t
   | markBackfilled {s t : CapStateV35} {chain : Word} :
@@ -312,13 +346,14 @@ inductive CapStepV35 (pool : Word) : CapStateV35 → CapStateV35 → Prop
       (∀ c ∈ chains, c.val < chainIdBoundV35) → CapStepV35 pool s (markPendingV35 s chains)
 
 /-- `chain`'s totals cover what left it: for every asset, withdrawals are at most deposits plus
-backfill. -/
-def BackfillCovers (s : CapStateV35) (chain : Word) : Prop :=
-  ∀ asset, (s.withdrawn chain asset).val ≤ (s.deposited chain asset).val + (s.backfill chain asset).val
+backfill (in `ℕ`). -/
+def BackfillCoversV35 (s : CapStateV35) (chain : Word) : Prop :=
+  ∀ asset, (s.withdrawn chain asset).val ≤
+    (s.deposited chain asset).val + (s.backfill chain asset).val
 
 /-- **THE CAP INVARIANT.** Every key whose backfill is not pending is covered. -/
 def CapInvV35 (s : CapStateV35) : Prop :=
-  ∀ key, s.pending key = false → BackfillCovers s key
+  ∀ key, s.pending key = false → BackfillCoversV35 s key
 
 /-- **THE POOL INVARIANT.** The pool key is never pending, has no backfill, and its withdrawals
 are at most its deposits. -/
@@ -327,9 +362,11 @@ def PoolInvV35 (pool : Word) (s : CapStateV35) : Prop :=
     ∀ asset, (s.withdrawn pool asset).val ≤ (s.deposited pool asset).val
 
 /-- A step whose owner calls are disciplined: whenever it clears a chain's pending flag
-(only `markBackfilled` does), that chain was covered first. -/
+(only `markBackfilled` does), that chain was covered first. The code does not check this
+(`markBackfilled`, `:242-246`, only checks the flag); it is the owner's side of the
+governance procedure. -/
 def CoveredCapStepV35 (pool : Word) (s t : CapStateV35) : Prop :=
-  CapStepV35 pool s t ∧ ∀ c, s.pending c = true → t.pending c = false → BackfillCovers s c
+  CapStepV35 pool s t ∧ ∀ c, s.pending c = true → t.pending c = false → BackfillCoversV35 s c
 
 /-! ## The slice's hooks on L1 at v35 -/
 
@@ -340,11 +377,26 @@ def l1HooksV35 (env : CapEnvV35) (metadata : Storage → Word → Except XFailur
   account acc _ c a m := handleBridgeToChainV35 env acc c a m
   metadata := metadata
 
+/-- The slice's concrete hooks on L1 at the pin (`handleBridgeToChainPin`), on the same state,
+for comparison with `l1HooksV35`. Not v35 code. -/
+def l1HooksPin (env : CapEnvV35) (metadata : Storage → Word → Except XFailure Bytes) :
+    CHooks CapStateV35 where
+  account acc _ _ a m := handleBridgeToChainPin env acc a m
+  metadata := metadata
+
 /-- The model hooks `l1HooksV35` stands for. -/
 def l1ModelHooksV35 (env : CapEnvV35)
     (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes) :
     Contracts.NativeTokenVaultBase.Hooks CapStateV35 where
   account acc _ c a m := (handleBridgeToChainV35 env acc c a m).toOption
+  metadata := metadata
+
+/-- The model hooks of the pin's L1 vault (`handleBridgeToChainPin`), on the same state, for
+comparison with `l1ModelHooksV35`. Not v35 code. -/
+def l1ModelHooksPin (env : CapEnvV35)
+    (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes) :
+    Contracts.NativeTokenVaultBase.Hooks CapStateV35 where
+  account acc _ _ a m := (handleBridgeToChainPin env acc a m).toOption
   metadata := metadata
 
 /-- The metadata implementations agree, on every token storage representing a model token. -/
@@ -360,7 +412,8 @@ def EnvMatchesV35 (env : CapEnvV35) (d : Deployment) (vault : Storage) : Prop :=
 /-- What one journal entry adds to `chainTotalDeposited[key][asset]`: the entry's returned amount,
 if it is for `asset` and its destination's balance is tracked under `key`. -/
 def entryDepositV35 (env : CapEnvV35) (key asset : Word) (e : Entry) : ℕ :=
-  if e.assetId = asset ∧ trackedBalanceV35 env e.destinationChain (env.originChainId asset) = (true, key)
+  if e.assetId = asset ∧
+      trackedBalanceV35 env e.destinationChain (env.originChainId asset) = (true, key)
   then mintAmount e.ret else 0
 
 /-- What a journal adds to `chainTotalDeposited[key][asset]`. -/

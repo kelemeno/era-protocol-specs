@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Re-pin to draft/v0.35.0 (b17415d20): the vault preparation slice on L1 with the per-chain
+-- balance cap's accounting hook, and the cap's own run model
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.L1PerChainCapAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
