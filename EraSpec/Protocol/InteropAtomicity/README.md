@@ -16,6 +16,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
 | RootImport | [Specs/RootImport.lean](Specs/RootImport.lean) | [Properties/RootImport.lean](Properties/RootImport.lean) | [Proofs/RootImport.lean](Proofs/RootImport.lean) |
+| OncePerLegAtHead (`main` `70096e2`, `draft/v0.35.0` `b17415d`) | [Specs/OncePerLegAtHead.lean](Specs/OncePerLegAtHead.lean) | [Properties/OncePerLegAtHead.lean](Properties/OncePerLegAtHead.lean) | [Proofs/OncePerLegAtHead.lean](Proofs/OncePerLegAtHead.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`).
@@ -113,6 +114,21 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   Witnesses: `OncePerLegWitness`, `NoSecondAppendWitness`, `SystemWitness`. Obligations on
   different chains may clash harmlessly; that `bundleHash` embeds `block.chainid` is not
   modelled.
+- **OncePerLegAtHead** (namespace `Contracts.AppendPath`, `main` `70096e2` and
+  `draft/v0.35.0` `b17415d`). `StepsAtHead` and `SysStepsAtHead` are `Steps` and `SysSteps`
+  with the tree's unbounded walk (`L2InteropCommitmentTree` topic `HintSearchAtHead`). The
+  checks the head adds to `append` and `authorizeRefund` (on `draft/v0.35.0` also
+  `_checkLegSourceAllowed`) only revert and are not modelled (`MODEL-APPEND-PATH-HEAD`).
+  From genesis the head's runs reach exactly the pin's states and logs
+  (`StepsAtHeadIffSteps`, `SysStepsAtHeadIffSysSteps`), so the headlines hold at head
+  (`OncePerLegAtHead`, `NoSecondAppendAtHead`, `SystemOncePerLegAtHead`,
+  `SystemExecutedObligationNeverRefundedOrBreakAtHead` and the rest). New: on every reachable
+  state an `append` passes the guard and the tree's checks exactly when its commit value is
+  nonzero and not a key and the hint is an occupied index below it (`AppendAtHeadEnabledIff`),
+  and the pin's stale-hint revert passes at head
+  (`StaleHintAppendRevertsAtPinSucceedsAtHead`). Witnesses: `OncePerLegAtHeadWitness`,
+  `RefundedLegAtHeadWitness`, `NoSecondAppendAtHeadWitness` (stale-hint appends),
+  `ClashBlocksFreshLegAtHead`, `SystemWitnessAtHead`.
 
 - **RootImport** (namespace `Contracts.RootImport`). The gate as a destination runs it:
   `_authenticateRoot` must authenticate the IMT root through a multi-hop settlement

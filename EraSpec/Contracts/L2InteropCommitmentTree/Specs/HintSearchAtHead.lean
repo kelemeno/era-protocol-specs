@@ -3,11 +3,15 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.InitOnce
 /-!
 # Model at head: `insert`'s low-leaf walk has no hop bound
 
-**Commit.** era-contracts `main` at `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73`.  The two
-files cited below, `common/libraries/IndexedMerkleTree.sol` and
-`atomic-interop/L2InteropCommitmentTree.sol`, are the same on `draft/v0.35.0` at
-`d9f678900e1bc8286412b78f56d4a9f443983c29` (the tree differs only in two import lines).
-Paths are relative to `l1-contracts/contracts/`.
+**Commits.** era-contracts `main` at `70096e2ea6eeb5373992e178064c4b26dcf6436a` and
+`draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.  The two files cited below,
+`common/libraries/IndexedMerkleTree.sol` and `atomic-interop/L2InteropCommitmentTree.sol`, are
+unchanged on `main` since `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` and on `draft/v0.35.0`
+since `d9f678900e1bc8286412b78f56d4a9f443983c29`, where this model was first written.
+`IndexedMerkleTree.sol` is identical on the two branches.  `L2InteropCommitmentTree.sol`
+differs only in its imports: line numbers below are `main`'s, and on `draft/v0.35.0` they are
+one higher from line 12 on (one import line is split in two).  Paths are relative to
+`l1-contracts/contracts/`.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.HintSearchAtHead`, proofs in
@@ -54,8 +58,14 @@ returns `none` only when the loop would need more hops.  A successful transactio
 reverts, which is no step.  So `WalkSucceedsAtHead T v hint low`, "some number of hops `n`
 makes `lowSearch T v n hint` return `low`", is exactly "the loop exits, at `low`".  Which `n`
 does not matter: once the walk exits, more hops do not change its result
-(`Contracts.InteropCommitmentTree.Properties.WalkAtHeadIsLeafCountSearch`).  Gas is outside
-the model.
+(`Contracts.InteropCommitmentTree.Properties.WalkAtHeadDeterministic`; on a valid tree
+`Contracts.InteropCommitmentTree.Properties.WalkAtHeadIsLeafCountSearch`).
+
+Gas is outside the model.  Each hop costs gas, so a walk that exits can still run out of gas,
+and the transaction then reverts.  `TxStepAtHead` admits such an insert as a step: it
+over-approximates the successful transactions, which is the safe direction for the statements
+about all runs.  The statements that an insert or an `append` is enabled are about the
+checks of the code, not about gas.
 
 ## The tree contract at head
 
@@ -71,22 +81,32 @@ not write the list state:
 * a `fallback` (`:120-125`) requires `msg.sender == address(this)` and then executes
   `invalid()`, so every call to it reverts.
 
+As in `InitOnce`, runs start from all-zero storage (`predeploy`), and `initL2()` is the call
+that seeds the tree; `L2GenesisForceDeploymentsHelper` makes it
+(`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:423` on `main`, `:373` on `draft/v0.35.0`).
+How each chain's tree storage came to be zero is not re-checked at head, and proxy upgrades
+stay outside the model.
+
 `IndexedMerkleTree.setup` (`IndexedMerkleTree.sol:46-54`) writes the same list state as at
 the pin: `pushNewLeaf` raises `_leafNumber` by one, and `leaves[0] := {0,0,0}`.  Its hash
-writes changed: `FullMerkle.setup` now pads with `IMT_EMPTY_LEAF_HASH`, and index 0's stored
-hash is still `hashLeaf({0,0,0})`.  `Tree` has no hash side, and the `_nodes[0]` ghost
-(`setupLevel`) records only index 0's stored hash, so neither changes here.  The padding
-change is a separate topic.  So `TxStepAtHead` is `InitOnce.TxStep` with the insert's
-five-hop search replaced by the head's walk, and nothing else differs.
+writes changed: `FullMerkle.setup` now pads with `IMT_EMPTY_LEAF_HASH` (`:51`; the constant is
+`keccak256("zkSync:IndexedMerkleTree:emptyLeaf")`, `common/Config.sol:90` on `main`, `:141` on
+`draft/v0.35.0`), and index 0's stored hash is still `hashLeaf({0,0,0})` (`:52`).  `Tree` has
+no hash side, and the `_nodes[0]` ghost (`setupLevel`) writes only the stored hash of index 0,
+which did not change.
+The padding enters only the statements about roots, which take it as the parameter `z0`.
+`FullMerkle.sol` itself is unchanged since the pin.  So `TxStepAtHead` is `InitOnce.TxStep`
+with the insert's five-hop search replaced by the head's walk, and nothing else differs.
 
 ## Relabelling a head run
 
 `landingAtHead T v hint` is where the walk from `hint` lands, computed with `leafCount` hops,
 which suffice on a valid tree (`LowSearchTerminates`).  `relabelAtHead R tx` is the trace `tx`
-with every insert's hint replaced by its landing index at the state it runs in.  Initial
-calls and idle steps stay as they are.  From its landing index the walk makes no hop, so the
-pin's five hops suffice.  That is why a head run, relabelled, is a pin run with the same
-states (`Contracts.InteropCommitmentTree.Properties.TxRunAtHeadIsRelabelledTxRun`).
+with every insert's hint replaced by its landing index at the state it runs in.  `initL2()`
+calls, senders and idle steps stay as they are.  From its landing index the walk makes no
+hop, so the pin's five hops suffice.  That is why a head run from the predeploy, relabelled,
+is a pin run with the same states
+(`Contracts.InteropCommitmentTree.Properties.TxRunAtHeadIsRelabelledTxRun`).
 `LevelRunAtHead` is the `_nodes[0]` ghost of a head run: `LevelRun` over the relabelled trace,
 so that each insert writes its leaf hashes at the index the walk lands on, as
 `IndexedMerkleTree.sol:100-106` does.
@@ -168,6 +188,17 @@ run `(R, tx)`.  It is `LevelRun` over the relabelled trace, so each insert write
 def LevelRunAtHead (hl : LeafHash) (R : ℕ → Tree) (tx : Trace) (L : ℕ → LeafLevel) : Prop :=
   LevelRun hl R (relabelAtHead R tx) L
 
+/-- `_nodes[0]` along the head run `(R, tx)`, from the array `L0`: unchanged by an idle step,
+and moved by each transaction's writes at its landing index.  It is a `LevelRunAtHead` ghost
+of the run by construction. -/
+def levelAlongAtHead (hl : LeafHash) (R : ℕ → Tree) (tx : Trace) (L0 : LeafLevel) :
+    ℕ → LeafLevel
+  | 0 => L0
+  | n + 1 =>
+      match relabelAtHead R tx n with
+      | none => levelAlongAtHead hl R tx L0 n
+      | some (_, call) => levelWrites hl (R n) (levelAlongAtHead hl R tx L0 n) call
+
 /-! ## A concrete head run, for the witness -/
 
 /-- The states of a run from deployment: the predeploy, then `chainTree k` after `initL2()`
@@ -183,5 +214,10 @@ def staleHintTxAtHead (K : Roles) : Trace := fun n =>
   else if n ≤ 6 then some (K.appender, .insert ((n : ℕ) : UInt256) (n - 1))
   else if n = 7 then some (K.appender, .insert 7 0)
   else none
+
+/-- `_nodes[0]` along `staleHintRunAtHead`, from the predeploy's empty array (read as
+zeros). -/
+def staleHintLevelAtHead (hl : LeafHash) (K : Roles) : ℕ → LeafLevel :=
+  levelAlongAtHead hl staleHintRunAtHead (staleHintTxAtHead K) (fun _ => 0)
 
 end Contracts.InteropCommitmentTree

@@ -81,7 +81,7 @@ theorem insertChecksAtHead_guard {T : Tree} (hV : Valid T) {v : UInt256} {hint l
 /-- On a valid tree, at most one index carries the guard for a value: the leaf whose window
 straddles it.  The windows are strict because the value is not a key (`fresh`), and two
 strict windows around one value would contradict `GapSound`. -/
-theorem insertGuard_unique {T : Tree} (hV : Valid T) {v : UInt256} {j j' : ℕ}
+theorem insertGuard_unique_atHead {T : Tree} (hV : Valid T) {v : UInt256} {j j' : ℕ}
     (hg : InsertGuard T v j) (hg' : InsertGuard T v j') : j = j' := by
   have hnot : v ∉ keys (toAbs T) := dedup_gate_sound hV hg.nonzero hg.fresh
   have hmem : lowAbs T j ∈ toAbs T := lowAbs_mem hg.inBounds
@@ -106,7 +106,7 @@ theorem insertGuard_unique {T : Tree} (hV : Valid T) {v : UInt256} {j j' : ℕ}
 theorem insertAtHead_landing_hint_independent {T : Tree} (hV : Valid T) {v : UInt256}
     {hint hint' low low' : ℕ} (h : InsertChecksAtHead T v hint low)
     (h' : InsertChecksAtHead T v hint' low') : low = low' :=
-  insertGuard_unique hV (insertChecksAtHead_guard hV h) (insertChecksAtHead_guard hV h')
+  insertGuard_unique_atHead hV (insertChecksAtHead_guard hV h) (insertChecksAtHead_guard hV h')
 
 theorem insertAtHead_enabled_iff {T : Tree} (hV : Valid T) (v : UInt256) (hint : ℕ) :
     (∃ low, InsertChecksAtHead T v hint low)
@@ -379,7 +379,112 @@ theorem staleHintRun_witness (K : Roles) :
       rfl
     rw [hl]
 
+theorem pin_txRun_is_txRunAtHead {K : Roles} {R : ℕ → Tree} {tx : Trace} (h : TxRun K R tx) :
+    TxRunAtHead K R tx := fun n =>
+  (h n).imp id fun ⟨c, call, he, hs⟩ => ⟨c, call, he, pin_txStep_is_txStepAtHead hs⟩
+
+/-- `insert(7, 0)` on `chainTree 6` has no pin step. -/
+private lemma no_pin_stale_step (K : Roles) (U : Tree) :
+    ¬ TxStep K (chainTree 6) K.appender (.insert 7 0) U := by
+  intro hs
+  obtain ⟨_, low, hch, _⟩ := txStep_insert_inv hs
+  exact honest_insert_succeeds_at_head.2.1 low hch
+
+private lemma chainTree6_init : Initialized (chainTree 6) := by
+  unfold Initialized; decide
+
+theorem insertAtHead_witness (K : Roles) :
+    Valid (chainTree 6)
+      ∧ InsertChecksAtHead (chainTree 6) 7 0 6 ∧ InsertChecksAtHead (chainTree 6) 7 3 6
+      ∧ InsertChecks (chainTree 6) 7 3 6
+      ∧ TxStepAtHead K (chainTree 6) K.appender (.insert 7 0) (chainTree 7)
+      ∧ ¬ TxStep K (chainTree 6) K.appender (.insert 7 0) (chainTree 7) := by
+  have hpin : InsertChecks (chainTree 6) 7 3 6 :=
+    ⟨chainTree6_init, by decide, by decide, by decide, by decide, by decide⟩
+  exact ⟨reaches_valid honest_insert_succeeds_at_head.1 setup_valid,
+    honest_insert_succeeds_at_head.2.2, insertChecksAtHead_of_pin hpin, hpin,
+    TxStepAtHead.insert rfl honest_insert_succeeds_at_head.2.2, no_pin_stale_step K _⟩
+
+theorem staleHintRun_from_valid_witness (K : Roles) :
+    TxRunAtHead K (fun n => staleHintRunAtHead (n + 1)) (fun n => staleHintTxAtHead K (n + 1))
+      ∧ Valid (staleHintRunAtHead 1)
+      ∧ staleHintTxAtHead K (6 + 1) = some (K.appender, .insert 7 0)
+      ∧ ¬ TxRun K (fun n => staleHintRunAtHead (n + 1)) (fun n => staleHintTxAtHead K (n + 1)) := by
+  have hrun := staleHintRun_txRunAtHead K
+  refine ⟨fun n => hrun (n + 1), setup_valid, rfl, fun hpin => ?_⟩
+  have hs := runOf_some hpin (n := 6) (rfl : staleHintTxAtHead K (6 + 1) = _)
+  exact no_pin_stale_step K _ hs
+
+theorem levelRunAtHead_exists (hl : LeafHash) (R : ℕ → Tree) (tx : Trace) (L0 : LeafLevel) :
+    LevelRunAtHead hl R tx (levelAlongAtHead hl R tx L0) ∧ levelAlongAtHead hl R tx L0 0 = L0 :=
+  ⟨fun _ => rfl, rfl⟩
+
+section StoredRoot
+
+open MerkleSpec MerkleSpec.Verifier
+
+theorem staleHint_stored_root_witness (K : Roles) (h : Hash) (hl : LeafHash) :
+    LevelRunAtHead hl staleHintRunAtHead (staleHintTxAtHead K) (staleHintLevelAtHead hl K)
+      ∧ staleHintRunAtHead 7 = chainTree 6 ∧ Initialized (staleHintRunAtHead 7)
+      ∧ (staleHintRunAtHead 7).leafCount = 7
+      ∧ fmHeight (staleHintRunAtHead 7).leafCount = 3
+      ∧ storedLeaves (staleHintLevelAtHead hl K 7) 7 = leafHashes hl (chainTree 6)
+      ∧ InclusionAccepted h hl
+          (rootOf h (hl ⟨0, 0, 0⟩) (storedLeaves (staleHintLevelAtHead hl K 7) 7) 3)
+          1 ⟨1, 2, 2⟩ 1
+          (honestSibs h (hl ⟨0, 0, 0⟩) (storedLeaves (staleHintLevelAtHead hl K 7) 7) 1) 3
+      ∧ NonInclusionAccepted h hl
+          (rootOf h (hl ⟨0, 0, 0⟩) (storedLeaves (staleHintLevelAtHead hl K 7) 7) 3)
+          1 ⟨0, 0, 0⟩ 7
+          (honestSibs h (hl ⟨0, 0, 0⟩) (storedLeaves (staleHintLevelAtHead hl K 7) 7) 7) 3
+      ∧ ¬ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (chainTree 6) 3
+          (honestSibs h (hl ⟨0, 0, 0⟩) (storedLeaves (staleHintLevelAtHead hl K 7) 7) 1) 3 1
+          ⟨1, 2, 2⟩
+      ∧ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (chainTree 6) 3
+          (honestSibs h (hl ⟨0, 0, 0⟩) (storedLeaves (staleHintLevelAtHead hl K 7) 7) 7) 3 7
+          ⟨0, 0, 0⟩ := by
+  have hlev := (levelRunAtHead_exists hl staleHintRunAtHead (staleHintTxAtHead K)
+    (fun _ => 0)).1
+  have hR7 : staleHintRunAtHead 7 = chainTree 6 := rfl
+  have hc : (chainTree 6).leafCount = 7 := rfl
+  have hst : storedLeaves (staleHintLevelAtHead hl K 7) 7 = leafHashes hl (chainTree 6) := by
+    have := StoredLeavesAreLeafHashes K hl staleHintRunAtHead
+      (relabelAtHead staleHintRunAtHead (staleHintTxAtHead K)) (staleHintLevelAtHead hl K)
+      (txRunAtHead_relabel (staleHintRun_txRunAtHead K) rfl) hlev rfl 7
+    rw [hR7, hc] at this
+    exact this
+  have hleaf1 : (chainTree 6).leaf 1 = ⟨1, 2, 2⟩ := by decide
+  have hget1 : (storedLeaves (staleHintLevelAtHead hl K 7) 7).getD 1 (hl ⟨0, 0, 0⟩)
+      = hl ⟨1, 2, 2⟩ := by
+    rw [hst, ← hleaf1]
+    simp [leafHashes, hc]
+  have hget7 : (storedLeaves (staleHintLevelAtHead hl K 7) 7).getD 7 (hl ⟨0, 0, 0⟩)
+      = hl ⟨0, 0, 0⟩ := by
+    rw [hst]
+    simp [leafHashes, hc]
+  have hnb := honest_proof_no_break h (hl ⟨0, 0, 0⟩) hl (chainTree 6) 3 1 (by rw [hc]; omega)
+  rw [← hst, hleaf1] at hnb
+  refine ⟨hlev, hR7, chainTree6_init, hc, rfl, hst,
+    ⟨rfl, stored_path_accepts _ (by norm_num) hget1⟩,
+    ⟨by decide, by decide, Or.inl rfl, stored_path_accepts _ (by norm_num) hget7⟩, hnb,
+    TreeRootBreak.paddingHit (by rw [hc]) rfl⟩
+
+end StoredRoot
+
 /-! ## The named statements -/
+
+theorem PinTxRunIsTxRunAtHead : Properties.PinTxRunIsTxRunAtHead :=
+  fun _ _ _ h => pin_txRun_is_txRunAtHead h
+
+theorem InsertAtHeadWitness : Properties.InsertAtHeadWitness := insertAtHead_witness
+
+theorem StaleHintRunFromValidWitnessAtHead : Properties.StaleHintRunFromValidWitnessAtHead :=
+  staleHintRun_from_valid_witness
+
+theorem LevelRunAtHeadExists : Properties.LevelRunAtHeadExists := levelRunAtHead_exists
+
+theorem StaleHintStoredRootWitnessAtHead : Properties.StaleHintStoredRootWitnessAtHead :=
+  staleHint_stored_root_witness
 
 theorem WalkAtHeadIsLeafCountSearch : Properties.WalkAtHeadIsLeafCountSearch :=
   fun _ hV v hint low hi => walkAtHead_iff_leafCount hV v hint low hi

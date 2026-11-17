@@ -3,11 +3,15 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.RegistryAndEscrow
 /-!
 # Model at head: the escrow ledger with `populateBridgedOut`
 
-**Commit.** era-contracts `main` at `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73`.  Paths are
-relative to `l1-contracts/contracts/`.  `draft/v0.35.0` at
-`d9f678900e1bc8286412b78f56d4a9f443983c29` has the same `populateBridgedOut`,
-`legacyBridgedOut` and `bridgedOut` hooks (`bridge/ntv/L1NativeTokenVault.sol:146-212, 424-459`
-there), plus per-chain caps that only reject inflows (see the last section).
+**Commits.** era-contracts `main` at `70096e2ea6eeb5373992e178064c4b26dcf6436a` and
+`draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.  `bridge/ntv/L1NativeTokenVault.sol`
+and `bridge/ntv/NativeTokenVaultBase.sol` are unchanged on `main` since
+`3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` and on `draft/v0.35.0` since
+`d9f678900e1bc8286412b78f56d4a9f443983c29`, where this model was first written.  Line numbers
+are `main`'s unless marked.  `draft/v0.35.0` has the same `populateBridgedOut` and
+`legacyBridgedOut` (`L1NativeTokenVault.sol:146-212` there) and the same `bridgedOut` updates
+in its hooks (`:424-459` there), plus per-chain caps that only reject inflows (see the last
+section).  Paths are relative to `l1-contracts/contracts/`.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.NativeTokenVaultBase.Properties.EscrowLedgerAtHead`, proofs in
@@ -29,11 +33,12 @@ start from fresh storage.  At head `L1NativeTokenVault` has a third writer
         }
     }
 
-It takes no privilege, and `bridgedOutPopulated` (`:77`) has no other writer.
+It takes no privilege, and `bridgedOutPopulated` (`:77`) has no other writer; `bridgedOut`
+(`:74`) is otherwise written only by the two hooks (`:335`, `:348`).
 `legacyBridgedOut(a)` (`:121-155`) reverts with `AssetNotNativeToL1` unless
 `originChainId[a] == L1_CHAIN_ID` (`:125-126`).  `L1_CHAIN_ID` is `block.chainid`
 (constructor, `:196`), so the check is the pin's `Native`.  The function then reads one of
-two frozen legacy sources:
+two legacy sources:
 
 * for an asset the removed v31 `L1AssetTracker` registered, `MAX_TOKEN_BALANCE -
   tracker.chainBalance(L1_CHAIN_ID, a)` (`:143-145`), the complement of L1's bulkhead there;
@@ -42,24 +47,34 @@ two frozen legacy sources:
 
 The motivation (`protocol-docs/bridging.md:183-214` at `main`) is an in-place upgrade: the
 upgraded vault starts with `bridgedOut == 0` while it still holds the escrow of everything
-bridged out before.  Until an asset is populated, withdrawing that escrow fails
-`InsufficientChainBalance`.  The hooks are unchanged since the pin (`:333-337`, `:343-350`).
+bridged out before.  Until an asset is populated, its `bridgedOut` counts only what was
+bridged out after the upgrade, and an inflow larger than that fails
+`InsufficientChainBalance` (`:343-350`).  The two hooks are unchanged since the pin
+(`:333-337`, `:343-350`), and so are their call sites in `NativeTokenVaultBase.sol` (`:240`,
+`:276`, `:444`, `:447`), which the pin's `bridgeOut` and `bridgeIn` model.  On L1 the registry
+maps still have one writer, `_setNewTokenStorage` (`NativeTokenVaultBase.sol:565-575`), reached
+from the two registration paths the pin's `StepOp` models (`_registerToken`, `:131-137`, now
+with a WETH check that only reverts, and `_ensureAndSaveTokenDeployedInner`, `:550-563`).  The
+pin's steps are reused unchanged, with their boundaries (`MODEL-ESCROW`).
 
 ## How the model reads it
 
 * **The legacy amount is a parameter.**  `legacy a` is what `legacyBridgedOut(a)` returns.
-  It is taken as fixed for a run: the source says nothing writes these entries any more
-  (`:138-139`, `:147-148`), the tracker's L1 entry is immune to its migration entry points
-  (`:130-134`), and chains are never removed from the bridgehub list
-  (`protocol-docs/bridging.md:202-205`).  These are claims about deployed legacy state that
-  this model cannot check.
-* **The legacy amount must be backed.**  Nothing on chain checks that the vault holds
-  `legacy a` of the asset.  The headline results assume it: an unpopulated asset's
-  outstanding ledger plus its legacy amount is at most what the vault holds
+  The model assumes the call returns: its external reads (`:143-144`, `:150`) and the
+  subtraction at `:144` are taken not to revert, so a `populate` step exists for every
+  unpopulated native asset.  The amount is taken as fixed for a run.  The source comments say
+  that nothing writes the vault's legacy entries any more (`:138-139`, `:147-148`) and that
+  the tracker branch is immune to amounts moving between chains, which the tracker's migration
+  entry points can still do (`:130-134`); the docs say that chains are never removed from
+  the bridgehub list (`protocol-docs/bridging.md:202-205`).  These are claims about deployed
+  legacy state that this model does not check.
+* **The legacy amount must be backed.**  `populateBridgedOut` does not compare `legacy a`
+  with what the vault holds.  The headline results take it as a premise: an unpopulated
+  asset's outstanding ledger plus its legacy amount is at most what the vault holds
   (`LedgerBackedAtHead`).  At the in-place upgrade this is `legacy a ≤ escrowed a`
   (`UpgradeStartAtHead.legacyBacked`), the legacy accounting's own solvency.
-  `Contracts.NativeTokenVault.Properties.UnbackedLegacyBreaksSolvencyAtHead` shows the
-  premise is needed.
+  `Contracts.NativeTokenVault.Properties.UnbackedLegacyBreaksSolvencyAtHead` shows that the
+  model's solvency needs this premise.
 * **One asset per step.**  A successful batch is a sequence of successful single-asset steps
   with nothing in between, so the model's runs contain every batch.  A batch that reverts
   midway is no step.  A repeated or already-populated asset is skipped before the native
@@ -73,14 +88,18 @@ bridged out before.  Until an asset is populated, withdrawing that escrow fails
 
 ## `draft/v0.35.0`
 
-At `d9f6789` the population code is the same, and `_handleBridgeFromChain` additionally
-reverts with `ChainBalanceExceeded` when a tracked chain's withdrawals would exceed its
-deposits plus backfill (`L1NativeTokenVault.sol:447-458` there).  The new owner-only and
-permissionless entry points (`setChainBalanceBackfill`, `markBackfilled`,
-`moveChainBalanceToInteropPool`, `initializeUpgrade`, `:219-258` and `:291-298` there) write only the
-per-chain maps, never `bridgedOut` or the escrow.  So `StepOpAtHead` over-approximates the
-v35 vault on everything it tracks.  Its results about runs hold for v35, and its liveness
-witness needs the per-chain check to pass.  The per-chain maps themselves are not modelled.
+At `b17415d` (as at `d9f6789`) the population code is the same.  `_handleBridgeToChain`
+additionally adds to `chainTotalDeposited` (`L1NativeTokenVault.sol:429-432` there), and
+`_handleBridgeFromChain` additionally reverts with `ChainBalanceExceeded` when a tracked
+chain's withdrawals would exceed its deposits plus backfill and adds to `chainTotalWithdrawn`
+(`:447-458` there).  The new entry points, owner-only `setChainBalanceBackfill` and
+`markBackfilled`, permissionless `moveChainBalanceToInteropPool` (`:219-258` there) and the
+proxy admin's `initializeUpgrade` (`:291-298` there), write only the per-chain maps, never
+`bridgedOut`, `bridgedOutPopulated` or the escrow.  So, projected to the storage modelled
+here, every successful operation of the v35 vault is a `StepOpAtHead` step (argued from the
+source, not proved), and the statements about all runs apply to it.  The enabledness
+statements additionally need the per-chain check to pass.  The per-chain maps are not
+modelled.
 -/
 
 namespace Contracts.NativeTokenVault
@@ -151,8 +170,9 @@ inductive StepOpAtHead (e : NtvAssetId) (thisChain : Chain) (legacy : LegacyAmou
   /-- An asset already populated is skipped (`:167-169`), whether or not it is native. -/
   | populateSkip {W : WorldAtHead} {a : AssetId} : W.populated a = true →
       StepOpAtHead e thisChain legacy (.populate a) W W
-  /-- An unpopulated asset is populated, if `legacyBridgedOut` does not revert: it must be
-  native to this chain (`:125-126`). -/
+  /-- An unpopulated asset native to this chain is populated (`:170-178`).  `legacyBridgedOut`
+  reverts for an asset that is not native (`:125-126`); its other reads are assumed to return
+  `legacy a` (see the module header). -/
   | populate {W : WorldAtHead} {a : AssetId} : W.populated a = false →
       Native thisChain W.world.vault a →
       StepOpAtHead e thisChain legacy (.populate a) W (populateAtHead legacy W a)

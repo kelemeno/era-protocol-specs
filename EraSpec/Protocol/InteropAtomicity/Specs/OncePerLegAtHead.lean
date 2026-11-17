@@ -4,9 +4,13 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.HintSearchAtHead
 /-!
 # Model at head: one source chain's `append` path, with the tree's unbounded walk
 
-**Commit.** era-contracts `main` at `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73`.  The tree
-side is the same on `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`.  Paths are
-relative to `l1-contracts/contracts/`.
+**Commits.** era-contracts `main` at `70096e2ea6eeb5373992e178064c4b26dcf6436a` and
+`draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.  The files cited below are
+unchanged on `main` since `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` and on `draft/v0.35.0`
+since `d9f678900e1bc8286412b78f56d4a9f443983c29`, where this model was first written.  Line
+numbers are `main`'s unless marked; the tree side is that of
+`Contracts/L2InteropCommitmentTree/Specs/HintSearchAtHead.lean`.  Paths are relative to
+`l1-contracts/contracts/`.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Protocol.InteropAtomicity.Properties.OncePerLegAtHead`, proofs in
@@ -23,20 +27,31 @@ the pin model, so `OncePerLeg` and the other results stated over `Steps` did not
 `StepsAtHead` and `SysStepsAtHead` below are `Steps` and `SysSteps` with the tree's insert
 replaced by the head's (`InsertChecksAtHead`).  Every other step is unchanged.
 
-The manager side of `append` is kept at the pin's abstraction: the guard
-`_state[flowId][bundleHash] == Unset` (`AtomicFlowManager.sol:161-163` at `main`), the write
-`Committed` (`:165`), and the insert of `commitValue(flowId, bundleHash)` (`:167-169`).  At
-head `append` takes the flow preimage, recomputes `flowId` and adds reject-only checks before
-the guard (`:108-159`: settlement layer, expired-flow gate, leg membership, the leg's declared
-source chain, registered sources).  Those checks are modelled elsewhere (the append-binding
-topic).  They only reject calls, so `StepsAtHead` over-approximates the head's manager side,
-and every statement below that quantifies over all runs holds for the head's runs.  Liveness
-statements here are about the tree insert and the `Unset` guard only.
+The manager side of `append` (`atomic-interop/AtomicFlowManager.sol:103-172`) is kept at the
+pin's abstraction: the guard `_state[flowId][bundleHash] == Unset` (`:161-163`; `:162-164` on
+`draft/v0.35.0`), the write `Committed` (`:165`; `:166`), and the insert of
+`commitValue(flowId, bundleHash)` (`:167-169`; `:168-170`), where `commitValue` is still
+`uint256(keccak256(abi.encode(ATOMIC_COMMIT_LEAF_TAG, flowId, bundleHash)))`
+(`atomic-interop/libraries/AtomicInteropProof.sol:34-36`).  At head `append` takes the flow
+preimage instead of `flowId`, recomputes `flowId` from it, and runs checks before the guard
+(`:108-159`: preimage version, length and order, settlement layer, expired-flow gate, leg
+membership, the leg's declared source chain, registered sources).  Each of them only
+reverts; none writes storage.  They are not modelled here, so `StepsAtHead` admits every
+`append` the head's manager admits (and more), and every statement below that quantifies
+over all runs holds for the head's runs.  Statements that an `append` is enabled are about
+the `Unset` guard and the tree's insert only.
 
 The center's call site is still the single `append` call inside `_dispatchBundle`
-(`interop/InteropCenter.sol:736` at `main`, `:742` at `draft/v0.35.0`).
-`authorizeRefund` and `claimRefund` move legs as the pin models them.  `claimRefund` writes
-`Reverted` before its external calls (`AtomicFlowManager.sol:257`).
+(`interop/InteropCenter.sol:736` at `main`, `:742` at `draft/v0.35.0`), and the manager's
+only writes to `_state` are in `append`, `authorizeRefund` and `claimRefund`.
+`authorizeRefund` (`:214-244`) runs the pin's checks (flow id, settlement layer, the absence
+proof's source chain, and `AtomicInteropProof.verifyTimeoutAbsence`, `:77-124`, whose
+timeout branches are the pin's), now with an explicit missing-leg index check (`:222-224`; an
+out-of-range index reverted at the pin too) and, on `draft/v0.35.0`, `_checkLegSourceAllowed`
+(`:231` there), which only reverts.  It marks the flow's `Committed` legs `Revertable`
+(`:236-243`).  `claimRefund` (`:247-262`) moves a leg from `Revertable` to `Reverted` (`:257`;
+`:260` on `draft/v0.35.0`) before its recovery calls.  Both models take these as the pin's
+`Steps` and `SysSteps` do.
 
 ## Why a separate relation
 
@@ -56,7 +71,8 @@ open Contracts.AtomicFlowManager Contracts.Refund
 /-- **`append(.., hint)` SUCCEEDS AT HEAD, THE TREE LANDING ON `low`.**  The manager's `Unset`
 guard and the tree's head insert of the commit value, in one transaction
 (`AtomicFlowManager.sol:161-169`, `L2InteropCommitmentTree.sol:50-63`,
-`IndexedMerkleTree.sol:65-107`). -/
+`IndexedMerkleTree.sol:65-107`).  These are the modelled checks; the head's other checks on
+`append` and gas are not modelled (module header). -/
 structure AppendSucceedsAtHead (cv : CommitValue) (s : ChainState) (f b : UInt256)
     (hint low : ℕ) : Prop where
   /-- `ManagerLegAlreadyCommitted` (`AtomicFlowManager.sol:161-163`). -/

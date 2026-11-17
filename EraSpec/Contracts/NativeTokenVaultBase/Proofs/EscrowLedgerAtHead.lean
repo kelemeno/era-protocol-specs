@@ -6,14 +6,14 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistryAndEscrow
 
 Solvency is one invariant, `LedgerBackedAtHead`.  A pin step keeps any fixed reserve backed,
 because registrations do not touch the ledger and flows move the ledger and the escrow
-together (`stepOp_keeps_reserve`).  A population moves an asset's legacy amount from the
+together (`stepOp_keeps_reserve_atHead`).  A population moves an asset's legacy amount from the
 reserve into the ledger.  No registry fact is used, so no hash premise either.
 
 The run-local headline carries the registry invariant and the head audit along a logged run,
 with the id hash bounded to the start's recorded pairs plus the run's own.  Registry steps
 reuse the pin's `stepIn_preserves_valid_on`.  The head audit is the pin's audit with the
 populated legacy amount on the outflow side, which pin steps leave fixed.  Its proof follows
-`stepIn_preserves_audited` with that extra term (`stepIn_preserves_shiftedAudit`).
+`stepIn_preserves_audited` with that extra term (`stepIn_preserves_shiftedAudit_atHead`).
 -/
 
 namespace Contracts.NativeTokenVault
@@ -59,13 +59,13 @@ lemma populatedLegacy_true {legacy : LegacyAmounts} {W : WorldAtHead} {a : Asset
   simp [populatedLegacy, h]
 
 /-- `Native` implies `Registered` on a valid vault of a nonzero chain. -/
-lemma registered_of_native {e : NtvAssetId} {thisChain : Chain} (hc0 : thisChain ≠ 0)
+lemma registered_of_native_atHead {e : NtvAssetId} {thisChain : Chain} (hc0 : thisChain ≠ 0)
     {V : Vault} (hV : Valid e thisChain V) {a : AssetId} (hnat : Native thisChain V a) :
     Registered V a :=
   (hV.originIff a).mpr (by rw [hnat]; exact hc0)
 
 /-- `Valid` survives a change of the ledger alone that keeps it native-only and solvent. -/
-lemma valid_with_bridgedOut {e : NtvAssetId} {thisChain : Chain} {V : Vault}
+lemma valid_with_bridgedOut_atHead {e : NtvAssetId} {thisChain : Chain} {V : Vault}
     (hV : Valid e thisChain V) (f : AssetId → ℕ)
     (hledg : ∀ a, ¬ Native thisChain V a → f a = 0) (hsolv : ∀ a, f a ≤ V.escrowed a) :
     Valid e thisChain { V with bridgedOut := f } :=
@@ -73,7 +73,7 @@ lemma valid_with_bridgedOut {e : NtvAssetId} {thisChain : Chain} {V : Vault}
     hV.idShape, hV.nativeToken, hledg, hsolv⟩
 
 /-- `Valid` survives a change of the escrow alone that keeps the ledger below it. -/
-lemma valid_with_escrowed {e : NtvAssetId} {thisChain : Chain} {V : Vault}
+lemma valid_with_escrowed_atHead {e : NtvAssetId} {thisChain : Chain} {V : Vault}
     (hV : Valid e thisChain V) (g : AssetId → ℕ) (hsolv : ∀ a, V.bridgedOut a ≤ g a) :
     Valid e thisChain { V with escrowed := g } :=
   ⟨hV.inverse, hV.tokenOfAsset, hV.originIff, hV.zeroUnregistered, hV.zeroTokenFree,
@@ -82,7 +82,7 @@ lemma valid_with_escrowed {e : NtvAssetId} {thisChain : Chain} {V : Vault}
 /-! ## Solvency, with no hash premise -/
 
 /-- **A PIN STEP KEEPS ANY FIXED RESERVE BACKED.** -/
-theorem stepOp_keeps_reserve {e : NtvAssetId} {thisChain : Chain} {o : Op} {W X : World}
+theorem stepOp_keeps_reserve_atHead {e : NtvAssetId} {thisChain : Chain} {o : Op} {W X : World}
     (hs : StepOp e thisChain o W X) (p : AssetId → ℕ)
     (hB : ∀ a, W.vault.bridgedOut a + p a ≤ W.vault.escrowed a) :
     ∀ a, X.vault.bridgedOut a + p a ≤ X.vault.escrowed a := by
@@ -134,7 +134,7 @@ theorem stepOpAtHead_preserves_backed {e : NtvAssetId} {thisChain : Chain}
     (hs : StepOpAtHead e thisChain legacy o W X) (hB : LedgerBackedAtHead legacy W) :
     LedgerBackedAtHead legacy X := by
   cases hs with
-  | pin hp => exact stepOp_keeps_reserve hp (pendingLegacy legacy W) hB
+  | pin hp => exact stepOp_keeps_reserve_atHead hp (pendingLegacy legacy W) hB
   | populateSkip _ => exact hB
   | @populate _ a hfalse _ =>
     intro a'
@@ -162,7 +162,7 @@ theorem reachLogAtHead_backed {e : NtvAssetId} {thisChain : Chain} {legacy : Leg
   | refl => exact h0
   | tail _ hs ih => exact stepOpAtHead_preserves_backed hs ih
 
-lemma solvent_of_backed {legacy : LegacyAmounts} {W : WorldAtHead}
+lemma solvent_of_ledgerBackedAtHead {legacy : LegacyAmounts} {W : WorldAtHead}
     (hB : LedgerBackedAtHead legacy W) (a : AssetId) :
     W.world.vault.bridgedOut a ≤ W.world.vault.escrowed a :=
   le_trans (Nat.le_add_right _ _) (hB a)
@@ -192,7 +192,7 @@ theorem pin_reachLog_atHead {e : NtvAssetId} {thisChain : Chain} {legacy : Legac
 
 /-! ## Population -/
 
-theorem populate_effect {e : NtvAssetId} {thisChain : Chain} {legacy : LegacyAmounts}
+theorem populate_effect_atHead {e : NtvAssetId} {thisChain : Chain} {legacy : LegacyAmounts}
     {W X : WorldAtHead} {a : AssetId} (hs : StepOpAtHead e thisChain legacy (.populate a) W X) :
     (W.populated a = true → X = W)
       ∧ (W.populated a = false →
@@ -245,7 +245,7 @@ theorem reachLogAtHead_populated_mono {e : NtvAssetId} {thisChain : Chain}
 /-- **THE PIN'S AUDIT STEP, WITH A FIXED EXTRA OUTFLOW TERM.**  As `stepIn_preserves_audited`,
 with `P a` added on the outflow side and a side condition `Q` on unregistered assets that
 forces `P` to vanish there.  Pin steps change neither `P` nor `Q`. -/
-theorem stepIn_preserves_shiftedAudit {e : NtvAssetId} {S : Set (Chain × Address)}
+theorem stepIn_preserves_shiftedAudit_atHead {e : NtvAssetId} {S : Set (Chain × Address)}
     (he : IdAssumptionsOn e S) {thisChain : Chain} (hc0 : thisChain ≠ 0) {W X : World}
     (hs : StepIn e thisChain S W X) (hV : Valid e thisChain W.vault) (hP : PairsIn S W.vault)
     (P : AssetId → ℕ) (Q : AssetId → Prop) (hPQ : ∀ a, Q a → P a = 0)
@@ -386,15 +386,15 @@ private theorem stepOpAtHead_preserves_inv {e : NtvAssetId} {S : Set (Chain × A
   | @pin o _ Xw hp =>
     have hin : StepIn e thisChain S W.world Xw := stepOp_stepIn hp hS
     obtain ⟨hV', hP'⟩ := stepIn_preserves_valid_on he hc0 hin hI.valid hI.pairs
-    obtain ⟨hnet, hq⟩ := stepIn_preserves_shiftedAudit he hc0 hin hI.valid hI.pairs
+    obtain ⟨hnet, hq⟩ := stepIn_preserves_shiftedAudit_atHead he hc0 hin hI.valid hI.pairs
       (populatedLegacy legacy W) (fun a => W.populated a = false)
       (fun _ h => populatedLegacy_false h) hI.audited.netFlow hI.audited.unregisteredQuiet
     exact ⟨hV', hP', hB', ⟨hnet, hq⟩⟩
   | populateSkip _ => exact hI
   | @populate _ a hfalse hnat =>
-    have hreg : Registered W.world.vault a := registered_of_native hc0 hI.valid hnat
+    have hreg : Registered W.world.vault a := registered_of_native_atHead hc0 hI.valid hnat
     refine ⟨?_, hI.pairs, hB', ?_, ?_⟩
-    · refine valid_with_bridgedOut hI.valid _ ?_ (solvent_of_backed hB')
+    · refine valid_with_bridgedOut_atHead hI.valid _ ?_ (solvent_of_ledgerBackedAtHead hB')
       intro a' hnn
       have h : a' ≠ a := by
         intro h
@@ -477,7 +477,7 @@ theorem logged_run_sound_at_head {e : NtvAssetId} {thisChain : Chain} {legacy : 
           populatedLegacy_false (hstart.unpopulated a)],
        fun a _ => ⟨hstart.auditInZero a, hstart.auditOutZero a, hstart.unpopulated a⟩⟩⟩
   have hI := reachLogAtHead_inv hc0 he hr Set.subset_union_right h0
-  refine ⟨hI.valid, hI.audited, hI.backed, solvent_of_backed hI.backed, fun a hnat => ?_⟩
+  refine ⟨hI.valid, hI.audited, hI.backed, solvent_of_ledgerBackedAtHead hI.backed, fun a hnat => ?_⟩
   have := hI.audited.netFlow a hnat
   omega
 
@@ -486,63 +486,63 @@ theorem logged_run_sound_at_head {e : NtvAssetId} {thisChain : Chain} {legacy : 
 section Upgraded
 variable {e : NtvAssetId} {thisChain : Chain} {t : Address}
 
-lemma upgraded_vault_eq (held : ℕ) :
+lemma upgradedAtHead_vault_eq (held : ℕ) :
     (upgradedVaultAtHead e thisChain t held).world.vault
       = { (afterRegister e thisChain t).vault with
           escrowed := upd (fun _ => 0) (e thisChain t) held } := rfl
 
-lemma upgraded_valid (hc0 : thisChain ≠ 0) (ht0 : t ≠ 0) (he0 : e thisChain t ≠ 0) (held : ℕ) :
+lemma upgradedAtHead_valid (hc0 : thisChain ≠ 0) (ht0 : t ≠ 0) (he0 : e thisChain t ≠ 0) (held : ℕ) :
     Valid e thisChain (upgradedVaultAtHead e thisChain t held).world.vault := by
-  rw [upgraded_vault_eq]
-  exact valid_with_escrowed
+  rw [upgradedAtHead_vault_eq]
+  exact valid_with_escrowed_atHead
     (run_valid_on (idAssumptionsOn_singleton he0) hc0
       (afterRegister_reachIn (Set.mem_singleton _) ht0)) _ (fun _ => Nat.zero_le _)
 
-lemma upgraded_pairsIn (ht0 : t ≠ 0) (held : ℕ) :
+lemma upgradedAtHead_pairsIn (ht0 : t ≠ 0) (held : ℕ) :
     PairsIn {(thisChain, t)} (upgradedVaultAtHead e thisChain t held).world.vault := by
   intro a h
   exact reachIn_pairsIn (afterRegister_reachIn (e := e) (thisChain := thisChain)
     (S := {(thisChain, t)}) (Set.mem_singleton _) ht0) a h
 
-lemma upgraded_registered (ht0 : t ≠ 0) (held : ℕ) :
+lemma upgradedAtHead_registered (ht0 : t ≠ 0) (held : ℕ) :
     Registered (upgradedVaultAtHead e thisChain t held).world.vault (e thisChain t) :=
   afterRegister_registered ht0
 
-lemma upgraded_native (held : ℕ) :
+lemma upgradedAtHead_native (held : ℕ) :
     Native thisChain (upgradedVaultAtHead e thisChain t held).world.vault (e thisChain t) :=
   afterRegister_native
 
-@[simp] lemma upgraded_bridgedOut (held : ℕ) (a : AssetId) :
+@[simp] lemma upgradedAtHead_bridgedOut (held : ℕ) (a : AssetId) :
     (upgradedVaultAtHead e thisChain t held).world.vault.bridgedOut a = 0 := rfl
 
-@[simp] lemma upgraded_populated (held : ℕ) (a : AssetId) :
+@[simp] lemma upgradedAtHead_populated (held : ℕ) (a : AssetId) :
     (upgradedVaultAtHead e thisChain t held).populated a = false := rfl
 
-@[simp] lemma upgraded_totalIn (held : ℕ) (a : AssetId) :
+@[simp] lemma upgradedAtHead_totalIn (held : ℕ) (a : AssetId) :
     (upgradedVaultAtHead e thisChain t held).world.audit.totalIn a = 0 := rfl
 
-@[simp] lemma upgraded_totalOut (held : ℕ) (a : AssetId) :
+@[simp] lemma upgradedAtHead_totalOut (held : ℕ) (a : AssetId) :
     (upgradedVaultAtHead e thisChain t held).world.audit.totalOut a = 0 := rfl
 
-lemma upgraded_escrowed_self (held : ℕ) :
+lemma upgradedAtHead_escrowed_self (held : ℕ) :
     (upgradedVaultAtHead e thisChain t held).world.vault.escrowed (e thisChain t) = held := by
   show upd (fun _ => 0) (e thisChain t) held (e thisChain t) = held
   rw [upd_same]
 
-lemma legacyOf_self (amt : ℕ) : legacyOfAtHead e thisChain t amt (e thisChain t) = amt := by
+lemma legacyOfAtHead_self (amt : ℕ) : legacyOfAtHead e thisChain t amt (e thisChain t) = amt := by
   show upd (fun _ => 0) (e thisChain t) amt (e thisChain t) = amt
   rw [upd_same]
 
-lemma legacyOf_le_escrowed (amt : ℕ) (a : AssetId) :
+lemma legacyOfAtHead_le_escrowed (amt : ℕ) (a : AssetId) :
     legacyOfAtHead e thisChain t amt a
       ≤ (upgradedVaultAtHead e thisChain t amt).world.vault.escrowed a := by
   show upd (fun _ => 0) (e thisChain t) amt a ≤ upd (fun _ => 0) (e thisChain t) amt a
   exact le_rfl
 
-lemma upgraded_start (amt : ℕ) :
+lemma upgradedAtHead_start (amt : ℕ) :
     UpgradeStartAtHead (legacyOfAtHead e thisChain t amt) (upgradedVaultAtHead e thisChain t amt) :=
-  ⟨upgraded_bridgedOut amt, upgraded_populated amt, upgraded_totalIn amt, upgraded_totalOut amt,
-    legacyOf_le_escrowed amt⟩
+  ⟨upgradedAtHead_bridgedOut amt, upgradedAtHead_populated amt, upgradedAtHead_totalIn amt, upgradedAtHead_totalOut amt,
+    legacyOfAtHead_le_escrowed amt⟩
 
 end Upgraded
 
@@ -559,23 +559,23 @@ theorem unbacked_legacy_breaks_solvency {e : NtvAssetId} {thisChain : Chain}
         ∧ FlowInGuard thisChain X.world.vault (e thisChain t) (held + 1)
         ∧ X.world.vault.escrowed (e thisChain t) < held + 1 := by
   intro W legacy
-  have hesc : W.world.vault.escrowed (e thisChain t) = held := upgraded_escrowed_self held
-  have hleg : legacy (e thisChain t) = held + 1 := legacyOf_self (held + 1)
+  have hesc : W.world.vault.escrowed (e thisChain t) = held := upgradedAtHead_escrowed_self held
+  have hleg : legacy (e thisChain t) = held + 1 := legacyOfAtHead_self (held + 1)
   have hbo : (populateAtHead legacy W (e thisChain t)).world.vault.bridgedOut (e thisChain t)
       = held + 1 := by
     rw [populateAtHead_bridgedOut, upd_same, hleg]
     exact Nat.zero_add _
-  refine ⟨upgraded_valid hc0 ht0 he0 held, upgraded_bridgedOut held, upgraded_populated held,
-    fun a => ⟨upgraded_totalIn held a, upgraded_totalOut held a⟩, ?_, ?_⟩
+  refine ⟨upgradedAtHead_valid hc0 ht0 he0 held, upgradedAtHead_bridgedOut held, upgradedAtHead_populated held,
+    fun a => ⟨upgradedAtHead_totalIn held a, upgradedAtHead_totalOut held a⟩, ?_, ?_⟩
   · intro hstart
     have := hstart.legacyBacked (e thisChain t)
     rw [hleg, hesc] at this
     omega
   · refine ⟨populateAtHead legacy W (e thisChain t),
-      StepOpAtHead.populate (upgraded_populated held _) (upgraded_native held), ?_, ?_, ?_⟩
+      StepOpAtHead.populate (upgradedAtHead_populated held _) (upgradedAtHead_native held), ?_, ?_, ?_⟩
     · rw [populateAtHead_escrowed, hesc, hbo]
       omega
-    · refine ⟨upgraded_registered ht0 held, fun _ => ?_⟩
+    · refine ⟨upgradedAtHead_registered ht0 held, fun _ => ?_⟩
       rw [hbo]
     · rw [populateAtHead_escrowed, hesc]
       omega
@@ -592,23 +592,23 @@ theorem populate_restores_legacy_withdrawal {e : NtvAssetId} {thisChain : Chain}
         ∧ (bridgeIn thisChain X.world c (e thisChain t) L).vault.bridgedOut (e thisChain t) = 0
         ∧ (bridgeIn thisChain X.world c (e thisChain t) L).vault.escrowed (e thisChain t) = 0 := by
   intro W legacy
-  have hnat : Native thisChain W.world.vault (e thisChain t) := upgraded_native L
-  have hesc : W.world.vault.escrowed (e thisChain t) = L := upgraded_escrowed_self L
-  have hleg : legacy (e thisChain t) = L := legacyOf_self L
+  have hnat : Native thisChain W.world.vault (e thisChain t) := upgradedAtHead_native L
+  have hesc : W.world.vault.escrowed (e thisChain t) = L := upgradedAtHead_escrowed_self L
+  have hleg : legacy (e thisChain t) = L := legacyOfAtHead_self L
   have hbo : (populateAtHead legacy W (e thisChain t)).world.vault.bridgedOut (e thisChain t)
       = L := by
     rw [populateAtHead_bridgedOut, upd_same, hleg]
     exact Nat.zero_add _
   have hnatX : Native thisChain (populateAtHead legacy W (e thisChain t)).world.vault
       (e thisChain t) := hnat
-  refine ⟨upgraded_start L, upgraded_valid hc0 ht0 he0 L, ?_, ?_⟩
+  refine ⟨upgradedAtHead_start L, upgradedAtHead_valid hc0 ht0 he0 L, ?_, ?_⟩
   · intro hg
     have := hg.sufficient hnat
-    rw [upgraded_bridgedOut] at this
+    rw [upgradedAtHead_bridgedOut] at this
     omega
   · refine ⟨populateAtHead legacy W (e thisChain t),
-      StepOpAtHead.populate (upgraded_populated L _) hnat,
-      ⟨upgraded_registered ht0 L, fun _ => by rw [hbo]⟩, ?_, ?_⟩
+      StepOpAtHead.populate (upgradedAtHead_populated L _) hnat,
+      ⟨upgradedAtHead_registered ht0 L, fun _ => by rw [hbo]⟩, ?_, ?_⟩
     · rw [bridgeIn_bridgedOut_native _ _ _ _ _ hnatX, upd_same, hbo]
       omega
     · rw [bridgeIn_escrowed_native _ _ _ _ _ hnatX, upd_same, populateAtHead_escrowed, hesc]
@@ -635,15 +635,15 @@ theorem pre_population_headroom_is_shared {e : NtvAssetId} {thisChain : Chain}
         ∧ ∃ Z, StepOpAtHead e thisChain (legacyOfAtHead e thisChain t L)
             (.populate (e thisChain t)) Y Z
           ∧ FlowInGuard thisChain Z.world.vault (e thisChain t) d
-  have hreg := upgraded_registered (e := e) (thisChain := thisChain) ht0 L
-  have hnat := upgraded_native (e := e) (thisChain := thisChain) (t := t) L
+  have hreg := upgradedAtHead_registered (e := e) (thisChain := thisChain) ht0 L
+  have hnat := upgradedAtHead_native (e := e) (thisChain := thisChain) (t := t) L
   have hnatX : Native thisChain (bridgeOut thisChain (upgradedVaultAtHead e thisChain t L).world
       cA (e thisChain t) d).vault (e thisChain t) := by simpa using hnat
   have hregX : Registered (bridgeOut thisChain (upgradedVaultAtHead e thisChain t L).world
       cA (e thisChain t) d).vault (e thisChain t) := by simpa using hreg
   have hboX : (bridgeOut thisChain (upgradedVaultAtHead e thisChain t L).world
       cA (e thisChain t) d).vault.bridgedOut (e thisChain t) = d := by
-    rw [bridgeOut_bridgedOut_native _ _ _ _ _ hnat, upd_same, upgraded_bridgedOut]
+    rw [bridgeOut_bridgedOut_native _ _ _ _ _ hnat, upd_same, upgradedAtHead_bridgedOut]
     omega
   have hnatY : Native thisChain (bridgeIn thisChain (bridgeOut thisChain
       (upgradedVaultAtHead e thisChain t L).world cA (e thisChain t) d) cB (e thisChain t) d).vault
@@ -667,9 +667,9 @@ theorem pre_population_headroom_is_shared {e : NtvAssetId} {thisChain : Chain}
     rw [hboY] at this
     omega
   · refine ⟨_, StepOpAtHead.populate
-      (upgraded_populated (e := e) (thisChain := thisChain) (t := t) L (e thisChain t)) hnatY,
+      (upgradedAtHead_populated (e := e) (thisChain := thisChain) (t := t) L (e thisChain t)) hnatY,
       ⟨hregY, fun _ => ?_⟩⟩
-    rw [populateAtHead_bridgedOut, upd_same, hboY, Nat.zero_add, legacyOf_self]
+    rw [populateAtHead_bridgedOut, upd_same, hboY, Nat.zero_add, legacyOfAtHead_self]
     exact hdL
 
 /-! ## The witness of the run-local headline -/
@@ -698,9 +698,9 @@ theorem logged_run_sound_at_head_satisfiable :
           ∧ W.world.audit.totalOut a ≠ 0
           ∧ W.world.audit.totalOut a < W.world.audit.totalIn a := by
   have hnat0 : Native 1 witnessStart.world.vault 1 :=
-    upgraded_native (e := honestId) (thisChain := 1) (t := 1) 2
+    upgradedAtHead_native (e := honestId) (thisChain := 1) (t := 1) 2
   have hreg0 : Registered witnessStart.world.vault 1 :=
-    upgraded_registered (e := honestId) (thisChain := 1) (t := 1) (by decide) 2
+    upgradedAtHead_registered (e := honestId) (thisChain := 1) (t := 1) (by decide) 2
   have hnat2 : Native 1 witnessX2.world.vault 1 := by
     show Native 1 (bridgeOut 1 witnessX1.world 5 1 1).vault 1
     rw [bridgeOut_native]
@@ -728,22 +728,24 @@ theorem logged_run_sound_at_head_satisfiable :
     rw [hpairs, Finset.coe_empty, Set.union_empty]
     exact idAssumptionsOn_singleton (by decide)
   refine ⟨honestId, 1, witnessLegacy, {(1, 1)}, witnessStart, witnessX3, witnessLog, by decide,
-    upgraded_start (e := honestId) (thisChain := 1) (t := 1) 2,
-    upgraded_valid (e := honestId) (thisChain := 1) (t := 1) (by decide) (by decide) (by decide) 2,
-    upgraded_pairsIn (e := honestId) (thisChain := 1) (t := 1) (by decide) 2, hr, he, 1, hnat3,
+    upgradedAtHead_start (e := honestId) (thisChain := 1) (t := 1) 2,
+    upgradedAtHead_valid (e := honestId) (thisChain := 1) (t := 1) (by decide) (by decide) (by decide) 2,
+    upgradedAtHead_pairsIn (e := honestId) (thisChain := 1) (t := 1) (by decide) 2, hr, he, 1, hnat3,
     by decide, by decide, by decide, by decide⟩
 
 theorem escrow_ledger_at_head_witness :
     ∃ (e : NtvAssetId) (thisChain : Chain) (legacy : LegacyAmounts) (W₀ X W : WorldAtHead)
-      (log₁ log₂ : List OpAtHead) (a : AssetId),
-      LedgerBackedAtHead legacy W₀ ∧ ReachLogAtHead e thisChain legacy W₀ X (log₁ ++ [.populate a])
-        ∧ ReachLogAtHead e thisChain legacy X W log₂ ∧ log₂ ≠ []
+      (log : List OpAtHead) (a : AssetId),
+      LedgerBackedAtHead legacy W₀ ∧ StepOpAtHead e thisChain legacy (.populate a) W₀ X
+        ∧ ReachLogAtHead e thisChain legacy W₀ X [.populate a]
+        ∧ ReachLogAtHead e thisChain legacy X W log ∧ log ≠ []
         ∧ W₀.populated a = false ∧ X.populated a = true ∧ legacy a ≠ 0
+        ∧ Native thisChain W₀.world.vault a ∧ LedgerBackedAtHead legacy W
         ∧ Native thisChain W.world.vault a ∧ FlowInGuard thisChain W.world.vault a 1 := by
   have hnat0 : Native 1 witnessStart.world.vault 1 :=
-    upgraded_native (e := honestId) (thisChain := 1) (t := 1) 2
+    upgradedAtHead_native (e := honestId) (thisChain := 1) (t := 1) 2
   have hreg0 : Registered witnessStart.world.vault 1 :=
-    upgraded_registered (e := honestId) (thisChain := 1) (t := 1) (by decide) 2
+    upgradedAtHead_registered (e := honestId) (thisChain := 1) (t := 1) (by decide) 2
   have hnat2 : Native 1 witnessX2.world.vault 1 := by
     show Native 1 (bridgeOut 1 witnessX1.world 5 1 1).vault 1
     rw [bridgeOut_native]
@@ -757,11 +759,17 @@ theorem escrow_ledger_at_head_witness :
     StepOpAtHead.populate rfl hnat0
   have s2 : StepOpAtHead honestId 1 witnessLegacy (.pin (.bridgeOut 5 1 1)) witnessX1 witnessX2 :=
     StepOpAtHead.pin (StepOp.bridgeOut ⟨hreg0, by decide⟩)
-  refine ⟨honestId, 1, witnessLegacy, witnessStart, witnessX1, witnessX2, [],
-    [] ++ [.pin (.bridgeOut 5 1 1)], 1,
-    upgradeStart_backed (upgraded_start (e := honestId) (thisChain := 1) (t := 1) 2),
-    ReachLogAtHead.tail ReachLogAtHead.refl s1, ReachLogAtHead.tail ReachLogAtHead.refl s2,
-    by simp, rfl, by decide, by decide, hnat2, ⟨hreg2, fun _ => by rw [hbo2]; decide⟩⟩
+  have hB0 : LedgerBackedAtHead witnessLegacy witnessStart :=
+    upgradeStart_backed (upgradedAtHead_start (e := honestId) (thisChain := 1) (t := 1) 2)
+  have r1 : ReachLogAtHead honestId 1 witnessLegacy witnessStart witnessX1 [.populate 1] :=
+    ReachLogAtHead.tail ReachLogAtHead.refl s1
+  have r2 : ReachLogAtHead honestId 1 witnessLegacy witnessX1 witnessX2
+      [.pin (.bridgeOut 5 1 1)] :=
+    ReachLogAtHead.tail ReachLogAtHead.refl s2
+  refine ⟨honestId, 1, witnessLegacy, witnessStart, witnessX1, witnessX2,
+    [.pin (.bridgeOut 5 1 1)], 1, hB0, s1, r1, r2, by simp, rfl, by decide, by decide, hnat0,
+    reachLogAtHead_backed r2 (reachLogAtHead_backed r1 hB0), hnat2,
+    ⟨hreg2, fun _ => by rw [hbo2]; decide⟩⟩
 
 /-! ## The named statements -/
 
@@ -777,19 +785,19 @@ theorem StepAtHeadPreservesLedgerBacked : Properties.StepAtHeadPreservesLedgerBa
 theorem SolvencyAtHead : Properties.SolvencyAtHead := by
   intro e thisChain legacy W₀ W log h0 hr
   have hB := reachLogAtHead_backed hr h0
-  exact ⟨hB, solvent_of_backed hB⟩
+  exact ⟨hB, solvent_of_ledgerBackedAtHead hB⟩
 
 theorem UpgradeStartIsLedgerBacked : Properties.UpgradeStartIsLedgerBacked :=
   fun _ _ h => upgradeStart_backed h
 
 theorem GuardedInflowIsBackedAtHead : Properties.GuardedInflowIsBackedAtHead :=
-  fun _ _ _ hB a _ hg hnat => le_trans (hg.sufficient hnat) (solvent_of_backed hB a)
+  fun _ _ _ hB a _ hg hnat => le_trans (hg.sufficient hnat) (solvent_of_ledgerBackedAtHead hB a)
 
 theorem UnbackedLegacyBreaksSolvencyAtHead : Properties.UnbackedLegacyBreaksSolvencyAtHead :=
   fun _ _ hc0 _ ht0 he0 held => unbacked_legacy_breaks_solvency hc0 ht0 he0 held
 
 theorem PopulateEffectAtHead : Properties.PopulateEffectAtHead :=
-  fun _ _ _ _ _ _ hs => populate_effect hs
+  fun _ _ _ _ _ _ hs => populate_effect_atHead hs
 
 theorem PopulatedFlagsPersistAtHead : Properties.PopulatedFlagsPersistAtHead :=
   fun _ _ _ _ _ _ hr a h => reachLogAtHead_populated_mono hr a h

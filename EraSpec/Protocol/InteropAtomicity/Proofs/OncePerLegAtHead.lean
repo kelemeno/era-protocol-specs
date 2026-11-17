@@ -274,4 +274,73 @@ theorem OncePerLegAtHeadWitness : Properties.OncePerLegAtHeadWitness := by
   · show ((honestState 6).mgr.set 0 7 .Committed).legState 0 7 = .Committed
     exact set_same
 
+/-- The state after the six honest appends and the stale-hint append of `(0, 7)`. -/
+private def staleState : ChainState := (honestState 6).appended headCv 0 7 6
+
+private lemma staleState_tree :
+    staleState.tree = Contracts.InteropCommitmentTree.insert (chainTree 6) 7 6 := by
+  show Contracts.InteropCommitmentTree.insert (honestState 6).tree (headCv 0 7) 6 = _
+  rw [honestState_tree 6]
+  rfl
+
+private lemma stale_steps :
+    StepsAtHead headCv 0 genesis staleState (⟨0, 7, 0⟩ :: honestLog 6) :=
+  StepsAtHead.append (steps_stepsAtHead (honest_steps 6 le_rfl)) stale_atHead
+
+/-- From hint `0` the pin's `append` of `(0, 7)` passes for no landing index. -/
+private lemma stale_not_pin (low : ℕ) : ¬ AppendSucceeds headCv (honestState 6) 0 7 0 low := by
+  intro happ
+  have hs : lowSearch (honestState 6).tree 7 maxLowIndexSearchAttempts 0 = some low :=
+    happ.treeInsert.search
+  rw [honestState_tree 6, HonestInsertRevertsAtDeployedFuel.2.2.2.1] at hs
+  exact absurd hs (by simp)
+
+theorem RefundedLegAtHeadWitness : Properties.RefundedLegAtHeadWitness := by
+  have hc : AuthorizeGuard staleState.mgr 0 7 := by
+    show ((honestState 6).mgr.set 0 7 .Committed).legState 0 7 = .Committed
+    exact set_same
+  have h8 := StepsAtHead.authorize stale_steps hc
+  have hr : ClaimGuard (staleState.mgr.set 0 7 .Revertable) 0 7 := set_same
+  have h9 := StepsAtHead.claim h8 hr
+  have hst : ((staleState.mgr.set 0 7 .Revertable).set 0 7 .Reverted).legState 0 7
+      = .Reverted := set_same
+  have hins : InsertChecksAtHead staleState.tree (headCv 0 8) 0 7 := by
+    rw [staleState_tree]
+    exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, 7,
+      by decide⟩
+  have hpin : lowSearch staleState.tree (headCv 0 8) maxLowIndexSearchAttempts 0 = none := by
+    rw [staleState_tree]
+    decide
+  refine ⟨headCv, _, _, h9, rfl, hst, by rw [hst]; decide, hins, fun low h => ?_⟩
+  rw [hpin] at h
+  exact absurd h (by simp)
+
+theorem NoSecondAppendAtHeadWitness : Properties.NoSecondAppendAtHeadWitness := by
+  have hcont : AppendSucceedsAtHead headCv staleState 0 8 7 7 := by
+    refine ⟨?_, ?_⟩
+    · show ((honestState 6).mgr.set 0 7 .Committed).legState 0 8 = .Unset
+      rw [set_other (by decide)]
+      decide
+    · show InsertChecksAtHead staleState.tree (headCv 0 8) 7 7
+      rw [staleState_tree]
+      exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, 0,
+        by decide⟩
+  exact ⟨headCv, honestState 6, honestLog 6, 0, 7, 0, 6, _, [⟨0, 8, 0⟩],
+    steps_stepsAtHead (honest_steps 6 le_rfl), stale_atHead, stale_not_pin,
+    StepsAtHead.append StepsAtHead.refl hcont, by simp⟩
+
+theorem ClashBlocksFreshLegAtHead : Properties.ClashBlocksFreshLegAtHead := by
+  obtain ⟨cv, s, log, f, b, hrun, hv0, hkey, hnot, hclash, hguard, hreg, hblocked, _, _⟩ :=
+    ClashBlocksFreshLeg
+  refine ⟨cv, s, log, f, b, steps_stepsAtHead hrun, hv0, hkey, hnot, hclash, hguard, hreg, ?_⟩
+  rintro ⟨hint, low, happ⟩
+  exact hblocked ⟨low, low, pin_append_of_atHead (inv_of_steps hrun).valid happ⟩
+
+theorem SystemWitnessAtHead : Properties.SystemWitnessAtHead := by
+  intro h z0 hl
+  obtain ⟨cv, fh, S, F, ev, leg, Y, log, alog, hS, hex, hr, hmem, hne, href, hnb, hnr, _⟩ :=
+    SystemWitness h z0 hl
+  exact ⟨cv, fh, S, F, ev, leg, Y, log, alog, hS, hex, sysSteps_sysStepsAtHead hr, hmem, hne,
+    href, hnb, hnr⟩
+
 end Contracts.AppendPath
