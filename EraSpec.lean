@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Governance: the owner/security-council timelock (draft/v0.35.0, d9f67890)
+import EraSpec.Contracts.Governance.Proofs.Timelock
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
