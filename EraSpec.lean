@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Registry-driven upgrades at draft/v0.35.0 (b17415d20): which CTM executor frames make the
+-- CTM's owner calls and what the executor logs, infrastructure legs' engines included
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.ExecutorOwnerCallsV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
