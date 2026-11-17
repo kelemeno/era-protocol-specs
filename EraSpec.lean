@@ -1,7 +1,5 @@
 -- Foundations with no corresponding Solidity contract or library
 import EraSpec.Core.Word
-import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
-import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
 import EraSpec.Core.FinBits
 import EraSpec.Core.PreparedApplication
 import EraSpec.Core.Simulation
@@ -206,6 +204,10 @@ import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
+
+-- Recovery targets on the source chain and atomic-attribute routing (AtomicFlowManager, InteropCenter)
+import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
+import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop

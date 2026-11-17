@@ -9,8 +9,8 @@ only if its target holds a recoverer, and then it is that recoverer. The loop re
 inductions over the call list: a returning loop is exactly a run of recoverers
 (`recoverers_of_recoverBundle_some`, `recoverBundle_of_recoverers`), and a non-recoverer anywhere
 makes the loop revert in every world (`recoverBundle_none_of_noRecoverer`). The router instance
-reuses the B1 proofs (`PreparedBurnRefundsDepositor`, `recoverAtomicCall_known`) and B1's witness
-data.
+reuses `AtomicRecovery`'s proofs (`PreparedBurnRefundsDepositor`, `recoverAtomicCall_known`) and
+its witness data.
 -/
 
 namespace Contracts.AtomicFlowManager.RecoveryTargets
@@ -271,7 +271,7 @@ theorem SourceRouterTargetRefundsDepositorWitness :
     (routerCall cfg r.assetId out.data) with _ | ⟨w', _ | _⟩ <;>
     simp [Contracts.AssetRouter.AtomicRecovery.outcomeOf]
 
-theorem DestinationOnlyTargetBlocksRefund : Properties.DestinationOnlyTargetBlocksRefund := by
+theorem CodelessCallTargetBlocksBundleClaim : Properties.CodelessCallTargetBlocksBundleClaim := by
   open Contracts.AssetRouter.AtomicRecovery in
   refine ⟨Unit, wEnc, wCfg, okHooks, declineOther, vmCall, 8, wWorld, 1, wMd, 55, 77, .other,
     vmCall_holds _ _, by decide, ?_, ?_, ?_⟩
@@ -299,36 +299,36 @@ theorem DestinationOnlyTargetBlocksRefund : Properties.DestinationOnlyTargetBloc
 
 end RouterInstance
 
-/-! ## The escrow witnesses -/
+/-! ## The witnesses on `witnessCode` -/
 
-theorem escrowCode_two : escrowCode 2 = .recoverer trueNoOp := by
-  simp [escrowCode]
+theorem witnessCode_two : witnessCode 2 = .recoverer trueNoOp := by
+  simp [witnessCode]
 
-theorem ForeignTrueStrandsEscrow : Properties.ForeignTrueStrandsEscrow := by
+theorem ForeignTrueCountsAsRecoveredWitness : Properties.ForeignTrueCountsAsRecoveredWitness := by
   refine ⟨vmCall, (2, 1, ()), vmCall_holds _ _, by decide,
-    ⟨trueNoOp, escrowCode_two, fun _ => rfl⟩, ?_, ?_, ?_⟩
-  · exact ForeignTrueCountsAsRecovered ℕ Unit ℕ TriCall vmCall escrowCode TriCall.target
+    ⟨trueNoOp, witnessCode_two, fun _ => rfl⟩, ?_, ?_, ?_⟩
+  · exact ForeignTrueCountsAsRecovered ℕ Unit ℕ TriCall vmCall witnessCode TriCall.target
       TriCall.data 0 5 [(2, 1, ())] (vmCall_holds _ _) (by simp)
       (fun c hc => by
         rw [List.mem_singleton] at hc
         subst hc
-        exact ⟨trueNoOp, escrowCode_two, fun _ => rfl⟩)
+        exact ⟨trueNoOp, witnessCode_two, fun _ => rfl⟩)
   · intro w
     unfold claimRefund
     rw [ite_eq_left (by decide)]
-  · simp [recoverStep, escrowCode, vmCall]
+  · simp [recoverStep, witnessCode, vmCall]
 
 theorem ClaimSucceedsIffWitness : Properties.ClaimSucceedsIffWitness := by
-  have h1 : escrowCode 1 = .recoverer (fun _ _ _ => some (0, true)) := by simp [escrowCode]
-  have h3 : escrowCode 3 = .recoverer (fun w _ _ => some (w, false)) := by simp [escrowCode]
-  have hrun : RecoverersReturn escrowCode TriCall.target TriCall.data 0 5
+  have h1 : witnessCode 1 = .recoverer (fun _ _ _ => some (0, true)) := by simp [witnessCode]
+  have h3 : witnessCode 3 = .recoverer (fun w _ _ => some (w, false)) := by simp [witnessCode]
+  have hrun : RecoverersReturn witnessCode TriCall.target TriCall.data 0 5
       [((1 : ℕ), (0 : ℕ), ()), ((3 : ℕ), (0 : ℕ), ())] [true, false] 0 :=
     .cons _ h1 rfl (.cons _ h3 rfl .nil)
   refine ⟨vmCall, [(1, 0, ()), (3, 0, ())], (3, 0, ()), 0, vmCall_holds _ _, rfl,
     ⟨[true, false], hrun, by simp, by simp⟩, ?_, ?_⟩
-  · exact (ClaimSucceedsIff ℕ Unit ℕ TriCall vmCall escrowCode TriCall.target TriCall.data 0 5 0 _
+  · exact (ClaimSucceedsIff ℕ Unit ℕ TriCall vmCall witnessCode TriCall.target TriCall.data 0 5 0 _
       (vmCall_holds _ _)).mpr ⟨[true, false], hrun, by simp⟩
-  · have hrun3 : RecoverersReturn escrowCode TriCall.target TriCall.data 0 5
+  · have hrun3 : RecoverersReturn witnessCode TriCall.target TriCall.data 0 5
         [((3 : ℕ), (0 : ℕ), ())] [false] 5 := .cons _ h3 rfl .nil
     unfold claimRefund
     rw [ite_eq_right (by simp), recoverBundle_of_recoverers (vmCall_holds _ _) hrun3]
@@ -339,13 +339,25 @@ theorem RecoveryReadsOnlyTargetAndDataWitness :
   ⟨(2, 1, ()), (2, 7, ()), by decide, rfl, rfl⟩
 
 theorem NonRecovererTargetBlocksClaimWitness : Properties.NonRecovererTargetBlocksClaimWitness := by
-  have h1 : escrowCode 1 = .recoverer (fun _ _ _ => some (0, true)) := by simp [escrowCode]
+  have h1 : witnessCode 1 = .recoverer (fun _ _ _ => some (0, true)) := by simp [witnessCode]
   refine ⟨vmCall, [(1, 0, ()), (4, 0, ())], vmCall_holds _ _, rfl,
-    ⟨(4, 0, ()), by simp, Or.inl (by simp [escrowCode, TriCall.target])⟩, (1, 0, ()), by simp, ?_⟩
-  have hrun : RecoverersReturn escrowCode TriCall.target TriCall.data 0 5
+    ⟨(4, 0, ()), by simp, Or.inl (by simp [witnessCode, TriCall.target])⟩, (1, 0, ()), by simp, ?_⟩
+  have hrun : RecoverersReturn witnessCode TriCall.target TriCall.data 0 5
       [((1 : ℕ), (0 : ℕ), ())] [true] 0 := .cons _ h1 rfl .nil
-  rw [(ClaimSucceedsIff ℕ Unit ℕ TriCall vmCall escrowCode TriCall.target TriCall.data 0 5 0 _
+  rw [(ClaimSucceedsIff ℕ Unit ℕ TriCall vmCall witnessCode TriCall.target TriCall.data 0 5 0 _
       (vmCall_holds _ _)).mpr ⟨[true], hrun, by simp⟩]
   rfl
+
+/-- Call semantics in which a call to an address without code returns `true` and changes nothing,
+and which is otherwise `vmCall`. -/
+def codelessTrueCall {W D : Type} : CallSem W D
+  | .none, w, _, _ => some (w, true)
+  | .recoverer f, w, dest, d => f w dest d
+  | .other, _, _, _ => none
+
+theorem NonRecovererTargetBlocksClaimNeedsVmCall :
+    Properties.NonRecovererTargetBlocksClaimNeedsVmCall :=
+  ⟨codelessTrueCall, (4, 0, ()), fun _ _ _ => rfl, fun _ _ _ _ => rfl, by simp [witnessCode, TriCall.target],
+    rfl⟩
 
 end Contracts.AtomicFlowManager.RecoveryTargets

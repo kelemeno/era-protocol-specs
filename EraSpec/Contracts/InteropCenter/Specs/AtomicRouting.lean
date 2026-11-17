@@ -14,7 +14,9 @@ Source: the pinned era-contracts tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af
 * `interop/interop-handler/InteropHandlerBase.sol`, `L1InteropHandler.sol`, `L2InteropHandler.sol`;
 * `interop/IERC7786Attributes.sol`.
 
-The fix is at `feat/upgrade-simplification` (`e561b9cc2`), cited as `UPG/…`.
+Two checks are read from another tree, `e561b9cc2` (the snapshot of `feat/upgrade-simplification`
+that the upgrade models pin, not a successor of the pin), cited as `UPG/…`. The current heads
+(`draft/v0.35.0` `b17415d20`, `main` `70096e2ea`) have the same two checks.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.InteropCenter.Properties.AtomicRouting` and are proved in
@@ -38,17 +40,21 @@ The two send entry points hand `_sendBundle` (:464-586) different `AtomicSend` v
     AtomicSend memory atomicSend = _parseAtomicSend(_bundleAttributes);              // :318
     _sendBundle(..., _atomicSend: atomicSend);                                       // :320-326
 
-`parseAttributes` accepts the `atomicBundle` attribute under `CallAndBundleAttributes` (:843-854),
-so `sendMessage` takes it and drops it. `_parseAtomicSend` (:874-883) sets `isAtomic = true` exactly
-when it is present. `IERC7786Attributes.sol:26-30` says of the attribute: "When present, the
-InteropCenter does not publish the bundle to L1; instead it appends the bundle's commit value to
-the interop IMT via the AtomicFlowManager".
+`parseAttributes` accepts the `atomicBundle` attribute, at most once, under
+`CallAndBundleAttributes` and `OnlyBundleAttributes` (:843-854). So `sendMessage` accepts it and
+passes `isAtomic: false` whatever it carried (:252); this is the source finding recorded in this
+folder's README. `_parseAtomicSend` (:874-883) sets `isAtomic = true` exactly when the attribute is
+present. `IERC7786Attributes.sol:26-28` says of the attribute: "When present, the InteropCenter does
+not publish the bundle to L1; instead it appends the bundle's commit value to the interop IMT via
+the AtomicFlowManager". At `UPG`, `sendMessage` passes `parseAtomicSend(attributes)` instead
+(`UPG/interop/InteropCenter.sol:229-231`).
 
 Destinations (:378-396): a bundle starts on an L2 and never targets its own chain; `sendMessage`
 never targets L1; a `sendBundle` to L1 has one call. Inside `_sendBundle`, an L1-destined call must
-be an indirect, zero-value call through the L2 asset router (:520-538). **Nothing checks the
-`atomicBundle` attribute against an L1 destination** at the pin; `UPG/interop/InteropCenter.sol:550-554`
-adds `require(_destinationChainId != L1_CHAIN_ID, AtomicBundleToL1NotSupported())`.
+be an indirect, zero-value call through the L2 asset router (:520-538). No check at the pin
+compares the `atomicBundle` attribute with an L1 destination; `UPG/interop/InteropCenter.sol:550-551`
+has `require(_destinationChainId != L1_CHAIN_ID, AtomicBundleToL1NotSupported())` for an atomic
+send.
 
 The indirect call through the router (:714-740) asks `L2AssetRouter.initiateIndirectCall`
 (`L2AssetRouter.sol:299-342`), which burns the asset (`_bridgehubDeposit`) and returns
@@ -63,12 +69,11 @@ assetId, bridgeMintCalldata))` (`AssetRouterBase.sol:361-376, 378-384`). The cen
 `to = actualCallRecipient`, `from = the router` (:732-740).
 
 `_dispatchBundle` (:639-659) appends an atomic bundle to the manager and publishes any other one
-(`_sendBundleToL1`, :622-627). The handler that would execute an atomic bundle,
+(`_sendBundleToL1`, :622-627). The handler entry point for an atomic bundle,
 `executeAtomicBundle`, exists only in `L2InteropHandler.sol:49` ("L2->L2 only", :39); the L1 handler
-(`L1InteropHandler.sol:30-94`) has the shared entry points `executeBundle`, `verifyBundle`,
-`unbundleBundle` (`InteropHandlerBase.sol:86-231`), which need an inclusion proof of the published
-message (`_verifyBundle`, :296-316). `grep -rn executeAtomicBundle` over the pinned tree finds no
-other definition.
+(`L1InteropHandler.sol:30-94`) has the shared entry points `executeBundle`, `verifyBundle` and
+`unbundleBundle` (`InteropHandlerBase.sol:86-231`). `grep -rn executeAtomicBundle` over the pinned
+tree finds no other definition.
 
 The refund (`AtomicFlowManager.sol:165-180, 219-230`) calls `IAtomicRecoverable(c.to)` on the
 **source** chain: for an L1-destined leg that is the L1 asset router's address, on the L2
@@ -80,9 +85,12 @@ The refund (`AtomicFlowManager.sol:165-180, 219-230`) calls `IAtomicRecoverable(
   (`bridge/asset-router/L1AssetRouter.sol:288-295`) and reached from `receiveMessage`, which only
   the configured L1 interop handler may call (`AssetRouterBase.sol:215-220`,
   `L1AssetRouter.sol:274-276`). `bridge/L1Nullifier.sol` has no finalization entry point.
-* The L1 handler runs a bundle's calls only from `executeBundle` and `unbundleBundle`; a bundle
+* The L1 handler runs a bundle's calls only from `executeBundle` and `unbundleBundle`. A bundle
   leaves `Unreceived` only through `_verifyBundle` (from `verifyBundle` or a fresh `executeBundle`),
-  since `unbundleBundle` needs `Verified` or `Unbundled` (`InteropHandlerBase.sol:195`).
+  which needs an inclusion proof of `BUNDLE_IDENTIFIER ++ bytes` sent by `L2_INTEROP_CENTER_ADDR`
+  (`InteropHandlerBase.sol:296-316`): `unbundleBundle` needs `Verified` or `Unbundled`
+  (`InteropHandlerBase.sol:195`). The handler's `receiveMessage` (`InteropHandlerBase.sol:334-362`)
+  reaches only these three functions.
 * `grep -rn 'sendToL1('` over the pinned `l1-contracts/contracts` finds one bundle publisher,
   `_sendBundleToL1` (:626); the other callers are the settlement-layer relay (`Committer.sol:419,
   540`) and DA (`RelayedSLDAValidator.sol:42`), and `L2ContractHelper.sendMessageToL1` has no
@@ -95,14 +103,21 @@ The refund (`AtomicFlowManager.sol:165-180, 219-230`) calls `IAtomicRecoverable(
   the `atomicBundle` attribute of every dispatch (`Send`).
 * **Sending** (`SysStep.send`) has `Dispatch`'s guards (salt, formation, `_validateAtomicBundle`,
   `append`'s `Unset` check) and in addition the destination and L1-withdrawal checks above, and
-  the router's returned call starter (`RouterReturns`). Two switches (`Guards`) add the repairs; the
-  pin has neither. Fees, `msg.value`, pause, attribute parsing beyond the `atomicBundle` attribute,
-  the indirect value equality (:723-729) and the Bridgehub registration check (:495-496) only reject,
-  and are omitted. The asset id and mint data the router's burn produces are free.
-* **Refunds.** `authorize` moves a `Committed` leg of a flow to `Revertable` when some leg of the
-  flow is missing: declared on this chain and never appended here (so its commit value is not in
-  this chain's tree, `LocalHonesty`), or declared elsewhere and absent there (`Env.absentElsewhere`,
-  other chains being outside the model). The deadline and the proof bytes are not modelled.
+  the router's returned call starter (`RouterReturns`). Two switches (`Guards`) add the two `UPG`
+  checks above; the pin has neither. The rest of `UPG` is not modelled. Fees, `msg.value`, pause,
+  attribute parsing beyond the `atomicBundle` attribute, the indirect value equality (:723-729) and
+  the Bridgehub registration check (:495-496) only reject, and are omitted. The asset id and mint
+  data the router's burn produces are free.
+* **One `L1_CHAIN_ID`.** `Env.l1ChainId` is the center's slot and also the router's own
+  `L1_CHAIN_ID`, a separate slot (`L2AssetRouter.sol:44`, written by `updateL2`, :187); their
+  agreement is `OPS-CONFIG`. `AssetRouterBase/Specs/AtomicRecoveryFaithful.lean` keeps them apart.
+* **Refunds.** `authorize` moves a `Committed` leg `h` of flow `f` to `Revertable`, for any `h`
+  among the flow's legs, as the loop at `AtomicFlowManager.sol:155-161` does, when some leg of the
+  flow is missing: declared on this chain and not appended here (so its commit value is not in this
+  chain's tree, `AttackVectors.LocalHonesty`), or declared elsewhere and absent there
+  (`Env.absentElsewhere`, other chains being outside the model). The deadline and the proof bytes
+  are not modelled, and `Env.flowLegs` takes a flow id to one leg list, so flow-id collisions are
+  left out. Only the witnesses read the `authorize` guard; no universally quantified result does.
   `claim` is `AtomicFlowManager.claimRefund` on bytes `x`, with the recovery loop of
   `RecoveryTargets` over the decoded bundle's calls, on the code map `Env.code` and the call
   semantics `Env.sem` (premise `VmCall` where a result needs it); recovery acts on the world `W`.
@@ -114,18 +129,18 @@ The refund (`AtomicFlowManager.sol:165-180, 219-230`) calls `IAtomicRecoverable(
   included from the bundle's source chain (`Env.included`, the inclusion-proof verdict) and the
   bundle's destination to be this chain; `executeVerified` and `unbundle` need no proof;
   `executeAtomic` exists only where the handler has `executeAtomicBundle` (`atomicEntry`), behind
-  the abstract flow gate `Env.finalized`. Execution-address and unbundler permissions, versions and
-  the base-token asset id check only reject, and are omitted.
+  the abstract flow gate `Env.finalized`. Execution-address and unbundler permissions, versions,
+  pause and the base-token asset id check only reject, and are omitted. A handler call nested
+  through `receiveMessage` is a later step.
 * **No hash or encoding premise is built in.** `Env.P.keccak`, `Env.P.enc` and `Env.dec` are
   abstract; results needing more take the run-local premise `DecodesRunBundles` (which also makes
   the encoder injective on the run's bundles, `Dispatch`'s `EncInjOn`) and return pinned
-  collisions otherwise. `CenterPublishesOnlyPublicDispatches` is the named
-  publication premise ("LocalHonesty"): the only `sendToL1` of a bundle message is
-  `_sendBundleToL1` (:622-627), called only in `_dispatchBundle`'s non-atomic branch (:657), and
-  inclusion proofs are sound (`PROTO-EVIDENCE`).
+  collisions otherwise. `CenterPublishesOnlyPublicDispatches` is the named publication premise
+  (`PROTO-EVIDENCE`): the only `sendToL1` of a bundle message is `_sendBundleToL1` (:622-627),
+  called only in `_dispatchBundle`'s non-atomic branch (:657), and inclusion proofs are sound.
 * **Token balances are not modelled.** The burn is the dispatch of a router call; its resolutions
   are execution on the destination (`finalizeDeposit` there) and a successful `claimRefund` on the
-  source. A result about the burn is a result about those two.
+  source. The results speak of handler statuses and leg states, not of balances.
 -/
 
 namespace Contracts.InteropCenter.AtomicRouting
@@ -152,20 +167,13 @@ structure AtomicAttr where
   lowNullifierIndex : ℕ
 deriving DecidableEq
 
-/-- The `AtomicSend` each entry point passes to `_sendBundle`: `sendMessage` always the empty one
-(:252); `sendBundle` the one `_parseAtomicSend` decodes (:874-883), atomic iff the attribute is
-present. -/
-def atomicSendOf : EntryPoint → Option AtomicAttr → AtomicSend
-  | .sendMessage, _ => ⟨0, 0, 0, false⟩
-  | .sendBundle, none => ⟨0, 0, 0, false⟩
-  | .sendBundle, some a => ⟨a.flowId, a.lowNullifierIndex, a.deadline, true⟩
-
 /-- One successful send, as the ghost log records it. -/
 structure Send where
   /-- The entry point the caller used. -/
   entry : EntryPoint
   /-- The `atomicBundle` attribute, if the caller passed it. `parseAttributes` accepts it at most
-  once (:844), under both entry points' restrictions (:845-849). -/
+  once (:844), under both entry points' restrictions (:845-849). At the pin `sendMessage` never
+  decodes its fields (:851-854); `attr` records what the caller passed. -/
   attr : Option AtomicAttr
   /-- What `_sendBundle` dispatched: sender, parsed starters, bundle, `AtomicSend`. -/
   dispatch : Dispatch
@@ -179,10 +187,13 @@ def Send.dest (s : Send) : Word := s.dispatch.bundle.destinationChainId
 structure Env (W : Type) where
   /-- The source chain's `block.chainid`, center address, `abi.encode(InteropBundle)` and keccak. -/
   P : Params
-  /-- `L1_CHAIN_ID` (:90, set by `initL2`, :199). The router's own `L1_CHAIN_ID`
-  (`L2AssetRouter.sol:44`) is set to the same value by the genesis upgrade (`OPS-CONFIG`). -/
+  /-- `L1_CHAIN_ID` (:90, set by `initL2`, :199). The model also reads it as the router's own
+  `L1_CHAIN_ID` (`L2AssetRouter.sol:44`, written by `updateL2`, :187), a separate slot; that the
+  two agree is `OPS-CONFIG`. -/
   l1ChainId : Word
-  /-- `L2_ASSET_ROUTER_ADDR`: the router, at the same address on every L2. -/
+  /-- `L2_ASSET_ROUTER_ADDR` (`common/l2-helpers/L2ContractAddresses.sol:94`), a constant: the
+  router's address on every L2, which the center compares starters with (:531) and the router
+  returns for an L2 destination (`AssetRouterBase.sol:365, 374-376`). -/
   l2Router : Address
   /-- The router's `L1_ASSET_ROUTER` (`L2AssetRouter.sol:54`): an L1 address. -/
   l1Router : Address
@@ -201,7 +212,8 @@ structure Env (W : Type) where
   /-- `finalized c h`: `requireFlowFinalized(h, _)` passes on chain `c` (`L2InteropHandler.sol:83`). -/
   finalized : Word → Word → Prop
   /-- The legs `_checkFlowId` binds to a flow id: bundle hash and declared source chain
-  (`AtomicFlowManager.sol:247-259`). -/
+  (`AtomicFlowManager.sol:247-259`). A function, so one leg list per flow id: flow-id collisions
+  are left out. Only `authorize` reads it. -/
   flowLegs : Word → List (Word × Word)
   /-- `absentElsewhere f h`: leg `h` of flow `f`, declared on another chain, is provably absent
   from that chain's tree after the deadline. -/
@@ -229,30 +241,43 @@ def atomicEntry : DestKind → Bool
 /-- **WHAT THE ROUTER RETURNS.** The call the center records for an indirect starter through the
 L2 asset router (`L2AssetRouter.sol:336-341`, `InteropCenter.sol:732-740`): `to` is the L1 asset
 router for an L1 destination and `L2_ASSET_ROUTER_ADDR` otherwise, and `data` is
-`finalizeDeposit(block.chainid, assetId, mintData)` for the burned asset and the mint data its
-handler returned. -/
+`finalizeDeposit(block.chainid, assetId, mintData)` for some asset id and mint data (those of the
+router's burn, which is not modelled). -/
 def RouterReturns (E : Env W) (dest : Word) (c : InteropCall) : Prop :=
   c.target = (if dest = E.l1ChainId then E.l1Router else E.l2Router) ∧
     ∃ (assetId : Word) (mintData : List UInt8), c.data = E.depositCalldata E.P.chainId assetId mintData
 
-/-- The checks a successful send passes. The pin has neither repair. -/
+/-- The two checks of the other tree (`e561b9cc2`) that decide where the `atomicBundle` attribute
+goes. The pin has neither. -/
 structure Guards where
-  /-- `sendBundle`: an atomic bundle must not go to L1 (`UPG/interop/InteropCenter.sol:550-551`). -/
+  /-- `_sendBundle`, under both entry points: an atomic bundle must not go to L1
+  (`UPG/interop/InteropCenter.sol:550-551`). -/
   atomicNotToL1 : Bool
-  /-- `sendMessage`: the `atomicBundle` attribute is rejected (the repair proposed here; `UPG`
-  honours the attribute instead, `UPG/interop/InteropCenter.sol:229-231`). -/
-  messageRejectsAtomic : Bool
+  /-- `sendMessage` passes the parsed `atomicBundle` attribute on
+  (`UPG/interop/InteropCenter.sol:229-231`) instead of the empty `AtomicSend` (:252). -/
+  messageHonoursAtomic : Bool
 
 /-- The pinned code. -/
 def pin : Guards := ⟨false, false⟩
 
-/-- The pinned code with both repairs. -/
-def repaired : Guards := ⟨true, true⟩
+/-- The pinned code with both checks of the other tree. -/
+def upgradeTree : Guards := ⟨true, true⟩
+
+/-- The `AtomicSend` each entry point passes to `_sendBundle`. `sendBundle`: the one
+`_parseAtomicSend` decodes (:874-883), atomic iff the attribute is present. `sendMessage`: the
+empty one at the pin (:252); the parsed one where `sendMessage` honours the attribute. -/
+def atomicSendOf (K : Guards) : EntryPoint → Option AtomicAttr → AtomicSend
+  | .sendMessage, none => ⟨0, 0, 0, false⟩
+  | .sendMessage, some a =>
+    bif K.messageHonoursAtomic then ⟨a.flowId, a.lowNullifierIndex, a.deadline, true⟩
+    else ⟨0, 0, 0, false⟩
+  | .sendBundle, none => ⟨0, 0, 0, false⟩
+  | .sendBundle, some a => ⟨a.flowId, a.lowNullifierIndex, a.deadline, true⟩
 
 /-- **THE STATE-INDEPENDENT PART OF A SUCCESSFUL SEND.** -/
 structure SendShape (K : Guards) (E : Env W) (s : Send) : Prop where
   /-- The `AtomicSend` reaching `_dispatchBundle` (:252, :318). -/
-  atomicSend : s.dispatch.atomicSend = atomicSendOf s.entry s.attr
+  atomicSend : s.dispatch.atomicSend = atomicSendOf K s.entry s.attr
   /-- Bundles start on an L2 (:380, :392). -/
   sourceNotL1 : E.P.chainId ≠ E.l1ChainId
   /-- …and never target this chain (:381, :395). -/
@@ -274,10 +299,8 @@ structure SendShape (K : Guards) (E : Env W) (s : Send) : Prop where
     RouterReturns E s.dest c) s.dispatch.starters s.dispatch.bundle.calls
   /-- `_validateAtomicBundle` (:649), in the atomic branch. -/
   validated : s.dispatch.isAtomic = true → Validated s.dispatch.bundle
-  /-- The `sendBundle` repair. -/
+  /-- The other tree's check that an atomic bundle does not go to L1, when `K` has it. -/
   atomicNotToL1 : K.atomicNotToL1 = true → s.dispatch.isAtomic = true → s.dest ≠ E.l1ChainId
-  /-- The `sendMessage` repair. -/
-  messageRejectsAtomic : K.messageRejectsAtomic = true → s.entry = .sendMessage → s.attr = none
 
 /-- **A SUCCESSFUL SEND** from source state `S`: its shape, the salt check (:479-482) and, in the
 atomic branch, `append`'s `Unset` check (`AtomicFlowManager.sol:93`). -/
@@ -362,10 +385,11 @@ inductive SysStep (K : Guards) (E : Env W) : Sys W → Sys W → Prop
   /-- `sendMessage` or `sendBundle`, through `_sendBundle` and `_dispatchBundle`. -/
   | send {S : Sys W} (s : Send) : SendOk K E S.src s →
       SysStep K E S { S with src := S.src.afterSend E.P s.dispatch, sends := S.sends ++ [s] }
-  /-- `authorizeRefund` marking leg `h` of flow `f` (`AtomicFlowManager.sol:134-162`), when a leg
-  of the flow is missing. -/
+  /-- `authorizeRefund` marking the committed leg `h` of flow `f` (`AtomicFlowManager.sol:134-162`;
+  the loop at :155-161 marks every committed leg of the flow, one step each here), when a leg of
+  the flow is missing. -/
   | authorize {S : Sys W} (f h : Word) :
-      AuthorizeGuard S.src.manager f h → (h, E.P.chainId) ∈ E.flowLegs f →
+      AuthorizeGuard S.src.manager f h → h ∈ (E.flowLegs f).map Prod.fst →
       (∃ p ∈ E.flowLegs f, (p.2 = E.P.chainId ∧ S.src.manager.legState f p.1 = .Unset) ∨
         (p.2 ≠ E.P.chainId ∧ E.absentElsewhere f p.1)) →
       SysStep K E S { S with src := { S.src with manager := S.src.manager.set f h .Revertable } }
@@ -389,8 +413,9 @@ inductive SysReach (K : Guards) (E : Env W) : Sys W → Sys W → Prop
 
 /-! ## Named premises -/
 
-/-- **LOCAL HONESTY FOR PUBLICATION (a named premise).** Every message from this chain's center that
-a destination can prove included is the bytes of a public dispatch of the run. -/
+/-- **THE CENTER PUBLISHES ONLY PUBLIC DISPATCHES** (a named premise, `PROTO-EVIDENCE`). Every
+message from this chain's center that a destination can prove included is the bytes of a public
+dispatch of the run. -/
 def CenterPublishesOnlyPublicDispatches (E : Env W) (S : Sys W) : Prop :=
   ∀ x, E.included E.P.chainId x → ∃ d ∈ S.src.log, d.isAtomic = false ∧ E.P.enc d.bundle = x
 
@@ -450,6 +475,11 @@ def arSG : Send := ⟨.sendBundle, some ⟨8, 100, 0⟩,
 `2`, salt `6`. -/
 def arSM : Send := ⟨.sendMessage, none,
   ⟨2, [arAppStarter], arBundle 325 2 6 [arAppCall 2], ⟨0, 0, 0, false⟩⟩⟩
+
+/-- `sMA`: `sendMessage` with the attribute of flow `10`, a direct call to the application on chain
+`325`, by `2`, salt `7`, as `upgradeTree` sends it: appended, not published. -/
+def arSMA : Send := ⟨.sendMessage, some ⟨10, 100, 0⟩,
+  ⟨2, [arAppStarter], arBundle 325 2 7 [arAppCall 2], ⟨10, 0, 100, true⟩⟩⟩
 
 /-- A decoder that inverts `wParams.enc` on the witness bundles: it reads the user salt (the last
 word). -/

@@ -3,7 +3,7 @@ import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
 
 /-!
-# Proofs: atomic legs whose recovery target has no source-side recoverer
+# Proofs: where an atomic leg's calls point, and an atomic leg sent to L1
 
 The source component of every system run is a run of `Specs/Dispatch.lean`'s deployed code
 (`sysReach_src`), so `Dispatch`'s invariants and `AtomicBytesNeverPublished` apply. One more
@@ -254,14 +254,20 @@ theorem AtomicL1BundleCarriesL1RouterTarget : Properties.AtomicL1BundleCarriesL1
   unfold recoverStep
   rw [hto]
 
-theorem PinAttributeRouting : Properties.PinAttributeRouting := by
+/-- `atomicSendOf`'s atomic flag, by cases. -/
+theorem atomicSendOf_isAtomic (K : Guards) (e : EntryPoint) (a : Option AtomicAttr) :
+    (atomicSendOf K e a).isAtomic = true ↔
+      a.isSome = true ∧ (e = .sendBundle ∨ K.messageHonoursAtomic = true) := by
+  rcases K with ⟨k₁, _ | _⟩ <;> rcases e with _ | _ <;> rcases a with _ | a <;> simp [atomicSendOf]
+
+theorem AttributeRoutingByEntryPoint : Properties.AttributeRoutingByEntryPoint := by
   intro W K E w₀ S hr s hs
   have ha := ((sysInv_reach hr).shape s hs).atomicSend
-  have hat : s.dispatch.isAtomic = (atomicSendOf s.entry s.attr).isAtomic := by
+  have hat : s.dispatch.isAtomic = (atomicSendOf K s.entry s.attr).isAtomic := by
     show s.dispatch.atomicSend.isAtomic = _
     rw [ha]
   rw [hat]
-  rcases s with ⟨_ | _, _ | a, d⟩ <;> simp [atomicSendOf]
+  exact atomicSendOf_isAtomic K s.entry s.attr
 
 /-! ## (b)–(d) -/
 
@@ -356,34 +362,26 @@ theorem IndirectL2RouterLegsReachSourceRouter :
 
 theorem AttributeHonouredOrRejected : Properties.AttributeHonouredOrRejected := by
   intro W E w₀ S hr s hs
-  have sh := (sysInv_reach hr).shape s hs
-  have hat : s.dispatch.isAtomic = (atomicSendOf s.entry s.attr).isAtomic := by
-    show s.dispatch.atomicSend.isAtomic = _
-    rw [sh.atomicSend]
   refine ⟨?_, fun ha => ?_⟩
-  · rw [hat]
-    rcases s with ⟨_ | _, _ | a, d⟩
-    · simp [atomicSendOf]
-    · have := sh.messageRejectsAtomic rfl rfl
-      simp at this
-    · simp [atomicSendOf]
-    · simp [atomicSendOf]
-  · have hne := sh.atomicNotToL1 rfl ha
+  · rw [AttributeRoutingByEntryPoint W upgradeTree E w₀ S hr s hs]
+    simp [upgradeTree]
+  · have hne := ((sysInv_reach hr).shape s hs).atomicNotToL1 rfl ha
     simp [destKind, hne, atomicEntry]
 
-theorem RepairedNoAtomicLegToL1 : Properties.RepairedNoAtomicLegToL1 := by
-  intro W E w₀ S hr d hd hat
+theorem GuardKeepsAtomicLegsOffL1 : Properties.GuardKeepsAtomicLegsOffL1 := by
+  intro W K E w₀ S hK hr d hd hat
   have hI := sysInv_reach hr
   obtain ⟨s, hs, rfl⟩ := send_of_dispatch hI hd
-  exact (hI.shape s hs).atomicNotToL1 rfl hat
+  exact (hI.shape s hs).atomicNotToL1 hK hat
 
 
 /-! ## Witness runs
 
 One pinned run carries every pinned witness: a public withdrawal `sW` and an atomic withdrawal
-`sL` to L1; the misrouted `sendMessage` `s1` and the other leg `s2` of its flow; the leg `sG` of a
-router deposit and a call to a destination-only application. L1 then executes `sW`, chain `325`
-executes `s1`, the three atomic legs are authorized, and `s2` is claimed. -/
+`sL` to L1; the `sendMessage` `s1` carrying the attribute of flow `9` and the other leg `s2` of that
+flow; the atomic leg `sG` of a router call and a direct call to an address with nothing deployed on
+the source chain. L1 then executes `sW`, chain `325` executes `s1`, the three atomic legs are
+authorized, and `s2` is claimed. The `upgradeTree` run sends `sW`, `sG`, `sM` and `sMA`. -/
 
 /-- A system send. -/
 def Sys.sendS (E : Env W) (S : Sys W) (s : Send) : Sys W :=
@@ -471,7 +469,6 @@ theorem arShape_SW (K : Guards) : SendShape K arEnv arSW where
   routed := .cons (fun _ _ => ⟨rfl, 0, [], rfl⟩) .nil
   validated := fun h => absurd h (by decide)
   atomicNotToL1 := fun _ h => absurd h (by decide)
-  messageRejectsAtomic := fun _ h => absurd h (by decide)
 
 theorem arShape_SL : SendShape pin arEnv arSL where
   atomicSend := rfl
@@ -492,7 +489,6 @@ theorem arShape_SL : SendShape pin arEnv arSL where
     rw [show arSL.dispatch.bundle.calls = [arL1Call] from rfl, List.mem_singleton] at hc
     subst hc; rfl
   atomicNotToL1 := fun h => absurd h (by decide)
-  messageRejectsAtomic := fun h => absurd h (by decide)
 
 theorem arShape_S1 : SendShape pin arEnv arS1 where
   atomicSend := rfl
@@ -506,7 +502,6 @@ theorem arShape_S1 : SendShape pin arEnv arS1 where
   routed := .cons (fun h _ => absurd h (by decide)) .nil
   validated := fun h => absurd h (by decide)
   atomicNotToL1 := fun h => absurd h (by decide)
-  messageRejectsAtomic := fun h => absurd h (by decide)
 
 theorem arShape_S2 (K : Guards) : SendShape K arEnv arS2 where
   atomicSend := rfl
@@ -523,7 +518,6 @@ theorem arShape_S2 (K : Guards) : SendShape K arEnv arS2 where
     rw [show arS2.dispatch.bundle.calls = [arL2Call] from rfl, List.mem_singleton] at hc
     subst hc; rfl
   atomicNotToL1 := fun _ _ => by decide
-  messageRejectsAtomic := fun _ h => absurd h (by decide)
 
 theorem arShape_SG (K : Guards) : SendShape K arEnv arSG where
   atomicSend := rfl
@@ -542,7 +536,6 @@ theorem arShape_SG (K : Guards) : SendShape K arEnv arSG where
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hc
     rcases hc with rfl | rfl <;> rfl
   atomicNotToL1 := fun _ _ => by decide
-  messageRejectsAtomic := fun _ h => absurd h (by decide)
 
 theorem arShape_SM (K : Guards) : SendShape K arEnv arSM where
   atomicSend := rfl
@@ -556,7 +549,22 @@ theorem arShape_SM (K : Guards) : SendShape K arEnv arSM where
   routed := .cons (fun h _ => absurd h (by decide)) .nil
   validated := fun h => absurd h (by decide)
   atomicNotToL1 := fun _ h => absurd h (by decide)
-  messageRejectsAtomic := fun _ _ => rfl
+
+theorem arShape_SMA : SendShape upgradeTree arEnv arSMA where
+  atomicSend := rfl
+  sourceNotL1 := by decide
+  notSelf := by decide
+  messageNotToL1 := fun _ => by decide
+  messageOneCall := fun _ => rfl
+  l1OneCall := fun h => absurd h (by decide)
+  l1Withdrawal := fun h => absurd h (by decide)
+  formed := ⟨rfl, rfl, .cons ⟨rfl, fun h => absurd h (by decide), fun _ => ⟨rfl, rfl, rfl⟩⟩ .nil⟩
+  routed := .cons (fun h _ => absurd h (by decide)) .nil
+  validated := by
+    intro _ c hc
+    rw [show arSMA.dispatch.bundle.calls = [arAppCall 2] from rfl, List.mem_singleton] at hc
+    subst hc; rfl
+  atomicNotToL1 := fun _ _ => by decide
 
 
 /-! ### The pinned run -/
@@ -576,7 +584,7 @@ def arH6 : Handler :=
     (arR5.dst 1).verified ++ [arX arSW]⟩
 def arR6 : Sys Unit := arR5.handlerS 1 arH6
 
-/-- Chain `325` executes the misrouted `sendMessage` bundle. -/
+/-- Chain `325` executes the `sendMessage` bundle `s1`. -/
 def arH7 : Handler :=
   ⟨setStatus (arR6.dst 325).status (handlerHash arEnv (arX arS1)) .FullyExecuted,
     (arR6.dst 325).verified ++ [arX arS1]⟩
@@ -756,7 +764,7 @@ theorem AtomicToL1StrandedWitness : Properties.AtomicToL1StrandedWitness := by
   refine ⟨Unit, arEnv, (), arR11, arReach, arVmCall, arNoRecovererAtL1, arPublishes,
     arDec_bundles, arSL.dispatch,
     by rw [arLog]; simp, rfl, rfl, ⟨arSL, by rw [arSends]; simp, rfl, rfl⟩, ?_, ?_, ?_, ?_, ?_, ?_,
-    handlerHash_enc arDec_SL rfl, claimPreimage_enc arDec_SL rfl⟩
+    handlerHash_enc arDec_SL rfl, claimPreimage_enc arDec_SL rfl, ?_⟩
   · rw [arHash, arR11_leg, arR10_leg, arR8_leg]; rfl
   · rw [arHash, arR11_dst1, arH6_status]; rfl
   · refine ⟨arSW.dispatch, by rw [arLog]; exact List.mem_cons_self, rfl, rfl, ?_⟩
@@ -779,10 +787,16 @@ theorem AtomicToL1StrandedWitness : Properties.AtomicToL1StrandedWitness := by
     subst hp
     rw [arHH_S2, arHash]
     decide
+  · intro st w
+    unfold refundStep
+    rw [arDec_SL]
+    exact claimRefund_none_of_loop (recoverBundle_none_of_noRecoverer arVmCall _ w
+      ⟨arL1Call, by simp [arSL, arBundle], Or.inl rfl⟩)
 
 theorem SendMessageAtomicMisrouted : Properties.SendMessageAtomicMisrouted := by
-  refine ⟨Unit, arEnv, (), arR11, arReach, arVmCall, arPublishes, arDec_bundles, arS1, arS2,
-    ⟨9, 100, 0⟩, by rw [arSends]; simp, by rw [arSends]; simp, rfl, rfl, rfl, rfl, rfl, rfl,
+  refine ⟨Unit, arEnv, (), arR11, arReach, arVmCall, arPublishes, arDec_bundles,
+    fun _ _ h => h, arS1, arS2,
+    ⟨9, 100, 0⟩, by rw [arSends]; simp, by rw [arSends]; simp, rfl, rfl, rfl, rfl, rfl, rfl, rfl,
     ?_, ?_, ?_, ?_, ?_, ?_⟩
   · rw [arHash]; decide
   · rw [arHash]; decide
@@ -815,31 +829,212 @@ theorem PinBreaksAttributeHonoured : Properties.PinBreaksAttributeHonoured :=
   ⟨Unit, arEnv, (), arR11, arReach, ⟨arS1, by rw [arSends]; simp, rfl, rfl⟩,
     ⟨arSL, by rw [arSends]; simp, rfl, rfl⟩⟩
 
-/-! ### The repaired witness -/
+/-! ### The premises of (d) are needed
+
+Two pinned runs with the one atomic withdrawal `sL`. `arEnvLeaky` differs from `arEnv` only in its
+inclusion verdict, which accepts `sL`'s bytes; `arEnvL1Code` deploys code that returns `true` at
+the L1 router's address `26`, and its inclusion verdict accepts nothing. -/
+
+/-- A send's shape reads the environment only through `P`, `L1_CHAIN_ID`, the two routers and
+`depositCalldata`. -/
+theorem sendShape_transport {K : Guards} {E E' : Env W} {s : Send} (h : SendShape K E s)
+    (hP : E'.P = E.P) (h1 : E'.l1ChainId = E.l1ChainId) (h2 : E'.l2Router = E.l2Router)
+    (h3 : E'.l1Router = E.l1Router) (h4 : E'.depositCalldata = E.depositCalldata) :
+    SendShape K E' s := by
+  rcases E' with ⟨P, l1, l2, r1, dc, dec, code, sem, inc, fin, fl, ae⟩
+  dsimp only at hP h1 h2 h3 h4
+  subst hP h1 h2 h3 h4
+  exact ⟨h.atomicSend, h.sourceNotL1, h.notSelf, h.messageNotToL1, h.messageOneCall, h.l1OneCall,
+    h.l1Withdrawal, h.formed, h.routed, h.validated, h.atomicNotToL1⟩
+
+/-- `arEnv`, with an inclusion verdict that accepts exactly the bytes of `sL` from chain `324`. -/
+def arEnvLeaky : Env Unit :=
+  { arEnv with included := fun c x => c = 324 ∧ x = wParams.enc arSL.dispatch.bundle }
+
+/-- `arEnv`, with code at the L1 router's address `26` that returns `true` and changes nothing, and
+an inclusion verdict that accepts nothing. -/
+def arEnvL1Code : Env Unit :=
+  { arEnv with
+    code := fun a => if a = 9 ∨ a = 26 then .recoverer Contracts.AtomicFlowManager.RecoveryTargets.trueNoOp
+      else .none
+    included := fun _ _ => False }
+
+theorem arEnvLeaky_dec : arEnvLeaky.dec = arDec := rfl
+theorem arEnvLeaky_P : arEnvLeaky.P = wParams := rfl
+theorem arEnvL1Code_dec : arEnvL1Code.dec = arDec := rfl
+theorem arEnvL1Code_P : arEnvL1Code.P = wParams := rfl
+
+theorem arDec_SL_leaky :
+    arEnvLeaky.dec (arEnvLeaky.P.enc arSL.dispatch.bundle) = arSL.dispatch.bundle := by
+  rw [arEnvLeaky_dec, arEnvLeaky_P, arDec_enc]; rfl
+
+theorem arDec_SL_l1Code :
+    arEnvL1Code.dec (arEnvL1Code.P.enc arSL.dispatch.bundle) = arSL.dispatch.bundle := by
+  rw [arEnvL1Code_dec, arEnvL1Code_P, arDec_enc]; rfl
+
+/-- `sL` is the first send of a fresh pinned system, in any environment with `arEnv`'s send fields. -/
+theorem arStepSL_fresh (E : Env Unit) (hP : E.P = arEnv.P) (h1 : E.l1ChainId = arEnv.l1ChainId)
+    (h2 : E.l2Router = arEnv.l2Router) (h3 : E.l1Router = arEnv.l1Router)
+    (h4 : E.depositCalldata = arEnv.depositCalldata) :
+    SysStep pin E (sysInit ()) ((sysInit ()).sendS E arSL) :=
+  SysStep.send arSL ⟨sendShape_transport arShape_SL hP h1 h2 h3 h4, rfl, fun _ => rfl⟩
+
+/-- L1 executes `sL` in the leaky environment. -/
+def arLeakyH : Handler :=
+  ⟨setStatus Handler.init.status (handlerHash arEnvLeaky (arEnvLeaky.P.enc arSL.dispatch.bundle))
+      .FullyExecuted, [arEnvLeaky.P.enc arSL.dispatch.bundle]⟩
+
+def arLeaky1 : Sys Unit := (sysInit ()).sendS arEnvLeaky arSL
+def arLeaky2 : Sys Unit := arLeaky1.handlerS 1 arLeakyH
+
+theorem arLeaky_hash :
+    handlerHash arEnvLeaky (arEnvLeaky.P.enc arSL.dispatch.bundle) = 1 := by
+  rw [handlerHash_enc arDec_SL_leaky rfl, arEnvLeaky_P, bundleHash_wParams]
+  rfl
+
+theorem arLeaky2_dst1 : arLeaky2.dst arEnvLeaky.l1ChainId = arLeakyH := rfl
+
+theorem arLeakyH_status (h : Word) :
+    arLeakyH.status h = if h = 1 then .FullyExecuted else .Unreceived := by
+  show setStatus Handler.init.status (handlerHash arEnvLeaky (arEnvLeaky.P.enc arSL.dispatch.bundle))
+    .FullyExecuted h = _
+  rw [setStatus_apply, arLeaky_hash]
+  rfl
+
+theorem arLeakyH_verified : arLeakyH.verified = [arEnvLeaky.P.enc arSL.dispatch.bundle] := rfl
+
+theorem arLeakyReach : SysReach pin arEnvLeaky (sysInit ()) arLeaky2 := by
+  have h1 := arStepSL_fresh arEnvLeaky rfl rfl rfl rfl rfl
+  have h2 : SysStep pin arEnvLeaky arLeaky1 arLeaky2 := by
+    refine SysStep.handler 1 arLeakyH
+      (HandlerStep.executeFresh (arEnvLeaky.P.enc arSL.dispatch.bundle) ?_ ?_ rfl)
+    · rw [arDec_SL_leaky]; exact ⟨rfl, rfl⟩
+    · rw [arDec_SL_leaky]; rfl
+  exact .tail (.tail .refl h1) h2
+
+theorem AtomicToL1StrandedNeedsPublicationPremise :
+    Properties.AtomicToL1StrandedNeedsPublicationPremise := by
+  have hlog : arLeaky2.src.log = [arSL.dispatch] := rfl
+  refine ⟨Unit, arEnvLeaky, (), arLeaky2, arLeakyReach, vmCall_holds _ _, Or.inl rfl, ?_,
+    arSL.dispatch, by rw [hlog]; exact List.mem_singleton_self _, rfl, rfl, ?_, ?_, ?_⟩
+  · intro d hd
+    rw [hlog, List.mem_singleton] at hd
+    subst hd
+    exact arDec_SL_leaky
+  · rw [arLeaky2_dst1, arLeakyH_status, arEnvLeaky_P, bundleHash_wParams]
+    rfl
+  · rintro ⟨d', hd', hpub, -⟩
+    rw [hlog, List.mem_singleton] at hd'
+    subst hd'
+    exact absurd hpub (by decide)
+  · intro x hx
+    rw [arLeaky2_dst1, arLeakyH_verified, List.mem_singleton] at hx
+    rw [hx]
+    exact claimPreimage_enc arDec_SL_leaky rfl
+
+def arL1Code1 : Sys Unit := (sysInit ()).sendS arEnvL1Code arSL
+def arL1Code2 : Sys Unit := arL1Code1.authS 7 1
+def arL1Code3 : Sys Unit :=
+  arL1Code2.claimS arEnvL1Code 7 (arEnvL1Code.P.enc arSL.dispatch.bundle) ()
+
+theorem arL1Code_hash :
+    handlerHash arEnvL1Code (arEnvL1Code.P.enc arSL.dispatch.bundle) = 1 := by
+  rw [handlerHash_enc arDec_SL_l1Code rfl, arEnvL1Code_P, bundleHash_wParams]
+  rfl
+
+theorem arL1Code1_leg (f h : Word) : arL1Code1.src.manager.legState f h =
+    if f = 7 ∧ h = 1 then .Committed else .Unset := by
+  show (init.afterSend wParams arSL.dispatch).manager.legState f h = _
+  simp only [afterSend_legState, bundleHash_wParams]
+  simp [arSL, arBundle, wAttrs, init]
+
+theorem arL1Code2_leg : arL1Code2.src.manager.legState 7 1 = .Revertable := by
+  show (arL1Code1.src.manager.set 7 1 .Revertable).legState 7 1 = _
+  rw [legState_set]
+  rfl
+
+theorem arL1Code3_leg : arL1Code3.src.manager.legState 7 1 = .Reverted := by
+  show (arL1Code2.src.manager.set 7 (handlerHash arEnvL1Code
+    (arEnvL1Code.P.enc arSL.dispatch.bundle)) .Reverted).legState 7 1 = _
+  rw [legState_set, arL1Code_hash]
+  rfl
+
+theorem arL1CodeReach : SysReach pin arEnvL1Code (sysInit ()) arL1Code3 := by
+  have h1 := arStepSL_fresh arEnvL1Code rfl rfl rfl rfl rfl
+  have h2 : SysStep pin arEnvL1Code arL1Code1 arL1Code2 := by
+    refine SysStep.authorize 7 1 ?_ (by decide) ⟨(99, 324), by decide, Or.inl ⟨rfl, ?_⟩⟩
+    · show arL1Code1.src.manager.legState 7 1 = .Committed
+      rw [arL1Code1_leg]; rfl
+    · show arL1Code1.src.manager.legState 7 99 = .Unset
+      rw [arL1Code1_leg]; rfl
+  have h3 : SysStep pin arEnvL1Code arL1Code2 arL1Code3 := by
+    refine SysStep.claim 7 (arEnvL1Code.P.enc arSL.dispatch.bundle) () ?_
+    rw [arL1Code_hash, arL1Code2_leg]
+    unfold refundStep
+    rw [arDec_SL_l1Code]
+    rfl
+  exact .tail (.tail (.tail .refl h1) h2) h3
+
+theorem AtomicToL1StrandedNeedsNoRecoverer : Properties.AtomicToL1StrandedNeedsNoRecoverer := by
+  have hlog : arL1Code3.src.log = [arSL.dispatch] := rfl
+  have hclaims : arL1Code3.claims = [(7, arEnvL1Code.P.enc arSL.dispatch.bundle)] := rfl
+  refine ⟨Unit, arEnvL1Code, (), arL1Code3, arL1CodeReach, vmCall_holds _ _,
+    fun _ h => False.elim h, ?_,
+    ⟨Contracts.AtomicFlowManager.RecoveryTargets.trueNoOp, rfl, fun _ _ _ => rfl⟩,
+    arSL.dispatch, by rw [hlog]; exact List.mem_singleton_self _, rfl, rfl, ?_, ?_⟩
+  · intro d hd
+    rw [hlog, List.mem_singleton] at hd
+    subst hd
+    exact arDec_SL_l1Code
+  · rw [arEnvL1Code_P, bundleHash_wParams]
+    exact arL1Code3_leg
+  · intro p hp
+    rw [hclaims, List.mem_singleton] at hp
+    subst hp
+    exact claimPreimage_enc arDec_SL_l1Code rfl
+
+/-! ### The `upgradeTree` witness -/
 
 def arQ1 : Sys Unit := (sysInit ()).sendS arEnv arSW
 def arQ2 : Sys Unit := arQ1.sendS arEnv arSG
 def arQ3 : Sys Unit := arQ2.sendS arEnv arSM
+def arQ4 : Sys Unit := arQ3.sendS arEnv arSMA
 
-theorem arQReach : SysReach repaired arEnv (sysInit ()) arQ3 := by
-  have h1 : SysStep repaired arEnv (sysInit ()) arQ1 :=
-    SysStep.send arSW ⟨arShape_SW repaired, rfl, fun h => absurd h (by decide)⟩
-  have h2 : SysStep repaired arEnv arQ1 arQ2 := by
-    refine SysStep.send arSG ⟨arShape_SG repaired, ?_, fun _ => ?_⟩
+theorem arQReach : SysReach upgradeTree arEnv (sysInit ()) arQ4 := by
+  have h1 : SysStep upgradeTree arEnv (sysInit ()) arQ1 :=
+    SysStep.send arSW ⟨arShape_SW upgradeTree, rfl, fun h => absurd h (by decide)⟩
+  have h2 : SysStep upgradeTree arEnv arQ1 arQ2 := by
+    refine SysStep.send arSG ⟨arShape_SG upgradeTree, ?_, fun _ => ?_⟩
     · show (init.afterSend wParams arSW.dispatch).saltUsed 1 5 = false
       rw [afterSend_saltUsed]; rfl
     · show (init.afterSend wParams arSW.dispatch).manager.legState 8
         (bundleHash wParams arSG.dispatch.bundle) = .Unset
       rw [afterSend_legState]; rfl
-  have h3 : SysStep repaired arEnv arQ2 arQ3 := by
-    refine SysStep.send arSM ⟨arShape_SM repaired, ?_, fun h => absurd h (by decide)⟩
+  have h3 : SysStep upgradeTree arEnv arQ2 arQ3 := by
+    refine SysStep.send arSM ⟨arShape_SM upgradeTree, ?_, fun h => absurd h (by decide)⟩
     show ((init.afterSend wParams arSW.dispatch).afterSend wParams arSG.dispatch).saltUsed 2 6 = false
     rw [afterSend_saltUsed, afterSend_saltUsed]; rfl
-  exact .tail (.tail (.tail .refl h1) h2) h3
+  have h4 : SysStep upgradeTree arEnv arQ3 arQ4 := by
+    refine SysStep.send arSMA ⟨arShape_SMA, ?_, fun _ => ?_⟩
+    · show (((init.afterSend wParams arSW.dispatch).afterSend wParams arSG.dispatch).afterSend
+        wParams arSM.dispatch).saltUsed 2 7 = false
+      rw [afterSend_saltUsed, afterSend_saltUsed, afterSend_saltUsed]; rfl
+    · show (((init.afterSend wParams arSW.dispatch).afterSend wParams arSG.dispatch).afterSend
+        wParams arSM.dispatch).manager.legState 10 (bundleHash wParams arSMA.dispatch.bundle) = .Unset
+      simp only [afterSend_legState, bundleHash_wParams]
+      simp [arSW, arSG, arSM, arSMA, arBundle, wAttrs, init]
+  exact .tail (.tail (.tail (.tail .refl h1) h2) h3) h4
 
-theorem AttributeHonouredOrRejectedWitness : Properties.AttributeHonouredOrRejectedWitness := by
-  have hs : arQ3.sends = [arSW, arSG, arSM] := rfl
-  exact ⟨Unit, arEnv, (), arQ3, arQReach, ⟨arSG, by rw [hs]; simp, rfl, rfl⟩,
-    ⟨arSM, by rw [hs]; simp, rfl, rfl⟩, ⟨arSW, by rw [hs]; simp, rfl⟩⟩
+theorem arQSends : arQ4.sends = [arSW, arSG, arSM, arSMA] := rfl
+
+theorem AttributeHonouredOrRejectedWitness : Properties.AttributeHonouredOrRejectedWitness :=
+  ⟨Unit, arEnv, (), arQ4, arQReach, ⟨arSG, by rw [arQSends]; simp, rfl, rfl, rfl⟩,
+    ⟨arSMA, by rw [arQSends]; simp, rfl, rfl, rfl⟩, ⟨arSM, by rw [arQSends]; simp, rfl, rfl⟩,
+    ⟨arSW, by rw [arQSends]; simp, rfl⟩⟩
+
+theorem AttributeRoutingByEntryPointWitness : Properties.AttributeRoutingByEntryPointWitness :=
+  ⟨Unit, arEnv, (), arR11, arQ4, arReach, arQReach,
+    ⟨arS1, by rw [arSends]; simp, rfl, rfl, rfl⟩, ⟨arSL, by rw [arSends]; simp, rfl, rfl, rfl⟩,
+    ⟨arSW, by rw [arSends]; simp, rfl, rfl, rfl⟩, ⟨arSMA, by rw [arQSends]; simp, rfl, rfl, rfl⟩⟩
 
 end Contracts.InteropCenter.AtomicRouting

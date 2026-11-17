@@ -38,28 +38,24 @@ tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), with `atomic-interop/IAtomicR
     }
 
 `claimRefund` runs on the leg's **source** chain: the manager whose `_state` holds the leg is the
-one the source chain's `InteropCenter` appended to (`InteropCenter.sol:650`). But `InteropCall.to`
-is the address the call targets on the **destination** chain:
+one the source chain's `InteropCenter` appended to (`InteropCenter.sol:650`). `InteropCall.to` is
+set when the bundle is formed on that chain (`InteropCenter.sol:701-751`):
 
-* a direct call's `to` is the sender's recipient on the destination (`InteropCenter.sol:742-749`);
-* an indirect call's `to` is what the indirect sender returned (`InteropCenter.sol:714-716, :733-740`):
-  for the L2 asset router, the destination's router (`L2AssetRouter.sol:336`), which for an L2
-  destination is `L2_ASSET_ROUTER_ADDR`, the source chain's own router too, and for an L1
-  destination is the L1 asset router, an L1 address.
+* a direct call's `to` is the recipient the sender named for the destination
+  (`InteropCenter.sol:742-749`);
+* an indirect call's `to` is the address the indirect sender returned (`InteropCenter.sol:714-716,
+  :732-740`). The L2 asset router returns `L1_ASSET_ROUTER` for an L1 destination and
+  `L2_ASSET_ROUTER_ADDR` otherwise (`L2AssetRouter.sol:336`, `AssetRouterBase.sol:365, 374-376`);
+  `L2_ASSET_ROUTER_ADDR` is also the router's own address on the source chain.
 
-So `_recoverBundle` calls, **on the source chain**, whatever happens to be deployed there at a
-destination-side address. `IAtomicRecoverable.sol:6-7` says the interface is "Implemented by any
-contract that can be the target (`InteropCall.to`) of an atomic-interop bundle call"; it does not
-say the target must exist on the source chain. `AtomicFlowManager.sol:208-211` and
-`atomic-interop/README.md:63-66` say that calls which "move no funds and have nothing to reverse
-(e.g. flipping a flag on some contract)" "legitimately return `false`". Such a call's `to` is the
-destination contract; where nothing is deployed at that address on the source chain, the call
-reverts instead of returning `false`, and takes the whole claim with it.
-
-The call that took the funds on the source chain is the indirect sender, `InteropCall.from`
-(`InteropCenter.sol:739`), which the manager never reads. At `feat/upgrade-simplification`
-(`e561b9cc2`), `atomic-interop/AtomicFlowManager.sol:308-310` calls `c.from` instead, and only when
-it is the asset router.
+The loop calls `recoverAtomicCall` at each `to` on the chain running `claimRefund`, that is, on
+the source chain, and reads only `to` and `data` (:224-225). `InteropCall.from`, which for an
+indirect call is the indirect sender (`InteropCenter.sol:739`), is not read.
+`AttackVectors.RecoveryLimits` records that one reverting target aborts the whole claim. This topic
+models what is deployed at each target, and so which targets revert. At `e561b9cc2` and at the
+current heads, `_recoverBundle` is different: it rejects an L1-destined bundle and calls `c.from`,
+only when that is the asset router (`atomic-interop/AtomicFlowManager.sol:295, 308-310` at
+`e561b9cc2`). That code is not modelled here.
 
 ## What is modelled
 
@@ -81,9 +77,11 @@ it is the asset router.
   reverts or counts zero. A revert is `none` (`VM-REVERT`): the leg stays `Revertable` and nothing
   the loop did persists. The world `W`, the data `D`, the address type `A` and the call type `C` are
   generic; `to` and `data` are the two fields the manager reads.
+* **The code map is fixed.** It is a parameter, not part of the world `W`: code deployed at an
+  address later, or removed, is outside the model.
 * **The router model of `EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery`** is an instance:
   `routerRecoverer` is the router's `recoverAtomicCall` as the manager calls it, and `routerCodeMap`
-  puts it at the router's address and B1's arbitrary `other` targets everywhere else.
+  puts it at the router's address and `AtomicRecovery`'s arbitrary `other` targets everywhere else.
 -/
 
 namespace Contracts.AtomicFlowManager.RecoveryTargets
@@ -185,15 +183,15 @@ def routerRecoverer (enc : AssetIdOf) (cfg : Config) (hk : Hooks X) :
     World X → Chain → CallData → Option (World X × Bool) :=
   fun w dest d => recoverAtomicCall enc cfg hk w cfg.manager dest d
 
-/-- B1's world as a code map: the router at `cfg.router`, B1's arbitrary `other target` at every
-other address. -/
+/-- `AtomicRecovery`'s refund step as a code map: the router at `cfg.router`, and
+`AtomicRecovery`'s arbitrary `other target` at every other address. -/
 def routerCodeMap (enc : AssetIdOf) (cfg : Config) (hk : Hooks X)
     (other : Address → World X → Chain → CallData → Option (World X × Bool)) :
     Address → Code (World X) CallData :=
   fun a => if a = cfg.router then .recoverer (routerRecoverer enc cfg hk) else .recoverer (other a)
 
-/-- A code map with the router at `cfg.router`, a destination-only application `app` (nothing
-deployed at its address on this chain), and B1's arbitrary `other` targets elsewhere. -/
+/-- A code map with the router at `cfg.router`, nothing deployed at the address `app`, and
+`AtomicRecovery`'s arbitrary `other` targets elsewhere. -/
 def routerAndAppCodeMap (enc : AssetIdOf) (cfg : Config) (hk : Hooks X) (app : Address)
     (other : Address → World X → Chain → CallData → Option (World X × Bool)) :
     Address → Code (World X) CallData :=
@@ -213,11 +211,10 @@ def TriCall.target (c : TriCall) : ℕ := c.1
 /-- Its `data`. -/
 def TriCall.data (c : TriCall) : Unit := c.2.2
 
-/-- The escrow witness: the world is the amount the indirect sender `1` holds for the depositor;
-its own recoverer would release it. The destination-side address `2` holds unrelated code that
-answers `true` and does nothing, address `3` code that answers `false` and does nothing, and every
-other address holds nothing. -/
-def escrowCode : ℕ → Code ℕ Unit :=
+/-- The witnesses' code map, over a world that is one number. Address `1` holds a recoverer that
+sets the number to `0` and returns `true`; address `2` one that returns `true` and changes nothing;
+address `3` one that returns `false` and changes nothing; every other address holds nothing. -/
+def witnessCode : ℕ → Code ℕ Unit :=
   fun a => if a = 1 then .recoverer (fun _ _ _ => some (0, true))
     else if a = 2 then .recoverer trueNoOp
     else if a = 3 then .recoverer (fun w _ _ => some (w, false)) else .none
