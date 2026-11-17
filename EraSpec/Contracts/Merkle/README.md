@@ -19,6 +19,7 @@ only import a shared specification when the topic needs no additional definition
 | Verifier | [Specs/Verifier.lean](Specs/Verifier.lean) | [Properties/Verifier.lean](Properties/Verifier.lean) | [Proofs/Verifier.lean](Proofs/Verifier.lean) |
 | PathCollision | [Specs/PathCollision.lean](Specs/PathCollision.lean) | [Properties/PathCollision.lean](Properties/PathCollision.lean) | [Proofs/PathCollision.lean](Proofs/PathCollision.lean) |
 | RootForgeryPinned | [Specs/RootForgeryPinned.lean](Specs/RootForgeryPinned.lean) | [Properties/RootForgeryPinned.lean](Properties/RootForgeryPinned.lean) | [Proofs/RootForgeryPinned.lean](Proofs/RootForgeryPinned.lean) |
+| RootPaths | [Specs/RootPaths.lean](Specs/RootPaths.lean) | [Properties/RootPaths.lean](Properties/RootPaths.lean) | [Proofs/RootPaths.lean](Proofs/RootPaths.lean) |
 
 `Verifier` drops `ProofSound`'s two hypotheses (occupied index, path length equal to
 the tree height), which `Merkle.calculateRootMemory` does not check: an accepted
@@ -65,3 +66,32 @@ does not alone prove that contract storage, proof indices, and hash inputs
 represent those same leaves. `../FullMerkle/` topic `CachedNodes` proves it for a
 statement-by-statement transcription of the library's storage; that compiled code
 executes the transcription remains obligation O7 in `../../Refinement.lean`.
+
+`RootPaths` (era-contracts `b17415d20`, `draft/v0.35.0`; the file is unchanged at `main`
+`70096e2ea`) models `calculateRootPaths` (`Merkle.sol:79-122`), the range proof
+`PriorityTree.processBatch` checks against the priority tree's historical roots
+(`../PriorityTree/`). No hash premise anywhere.
+- The checks accept exactly two paths of one length `P < 256`, at least one item, and a range
+  `[s, s + n)` ending at or below `2^P` (`RootPathsAcceptIff`); with empty paths only one item
+  at index 0, returned as the root (`RootPathsEmptyPathIsTheItem`). The `MerklePathEmpty` check
+  changes only the revert reason (`RootPathsEmptyCheckOnlyChangesReason`).
+- The loop writes its levels into the caller's array in place. It reads and writes only in-range
+  indices (`RootPathsReadsInBounds`), computes what a level-by-level computation into fresh
+  lists computes (`RootPathsInPlaceIsLevelByLevel`), and leaves the array at its length with
+  entry 0 the root and the entries from the first level's `nextLevelLen` on untouched
+  (`RootPathsFrame`; `RootPathsClobbersItems` shows the rest is overwritten).
+- A tree's own paths for the range's ends and its entries `[s, s + n)` as items (padding beyond
+  the leaves) return the tree's root (`RootPathsComplete`).
+- Each item's walk up the stream `rangeSib` (its neighbour inside the range, or a path entry at
+  the ends) reaches the returned root, hashing the loop's own pairs (`RootPathsIsItemWalks`,
+  `RootPathsWalkPairsAreLoopPairs`). So the single-leaf extractors apply per item: the items are
+  the tree's entries `[s, s + n)`, or some item's walk has a `PathCollision`
+  (`RootPathsSoundOrCollision`); each item's walk used the tree's siblings, path entries included,
+  or has a `PathCollision` (`RootPathsSiblingsPinnedOrCollision`); at a path length other than the
+  tree's height every item's walk
+  has a `HeightBreak` (`RootPathsAnyLengthOrBreak`; `calculateRootPaths` does not know the
+  height and `processBatch` does not check it).
+- `RootPathsHonestNoBreak` shows neither break holds on an honest proof, for every hash;
+  `RootPathsCollisionFires` (a reordered range accepted under the order-blind `sumHash`) and
+  `RootPathsWrongLengthFires` (too short and too long) show each is reached;
+  `RootPathsHonestWitness` meets the premises on a concrete proof.

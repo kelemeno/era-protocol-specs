@@ -205,6 +205,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Range proofs of the priority queue (b17415d20): `Merkle.calculateRootPaths` and
+-- `PriorityTree.processBatch` (N-8)
+import EraSpec.Contracts.Merkle.Proofs.RootPaths
+import EraSpec.Contracts.PriorityTree.Proofs.SegmentBinding
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
