@@ -39,6 +39,8 @@ exact named propositions, plus auxiliary lemmas.
 | GenesisWriters | [Specs/GenesisWriters.lean](Specs/GenesisWriters.lean) | [Properties/GenesisWriters.lean](Properties/GenesisWriters.lean) | [Proofs/GenesisWriters.lean](Proofs/GenesisWriters.lean) |
 | EngineGettersFaithful | [Specs/EngineGettersFaithful.lean](Specs/EngineGettersFaithful.lean) | [Properties/EngineGettersFaithful.lean](Properties/EngineGettersFaithful.lean) | [Proofs/EngineGettersFaithful.lean](Proofs/EngineGettersFaithful.lean) |
 | LegacyCrossingFaithful | [Specs/LegacyCrossingFaithful.lean](Specs/LegacyCrossingFaithful.lean) | [Properties/LegacyCrossingFaithful.lean](Properties/LegacyCrossingFaithful.lean) | [Proofs/LegacyCrossingFaithful.lean](Proofs/LegacyCrossingFaithful.lean) |
+| L2Derivation (pin `b17415d20`) | [Specs/L2Derivation.lean](Specs/L2Derivation.lean) | [Properties/L2Derivation.lean](Properties/L2Derivation.lean) | [Proofs/L2Derivation.lean](Proofs/L2Derivation.lean) |
+| L2Convergence (pin `b17415d20`) | [Specs/L2Convergence.lean](Specs/L2Convergence.lean) | [Properties/L2Convergence.lean](Properties/L2Convergence.lean) | [Proofs/L2Convergence.lean](Proofs/L2Convergence.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
@@ -47,6 +49,7 @@ the `Properties` segment. `GenesisWriters` uses the sub-namespace
 `Contracts.ChainTypeManager.GenesisWriters.Properties.*`); likewise `EngineGettersFaithful`
 uses `Contracts.ChainTypeManager.EngineGetters` and `LegacyCrossingFaithful` uses
 `Contracts.ChainTypeManager.LegacyCrossing`.
+`L2Derivation` and `L2Convergence` share the sub-namespace `Contracts.ChainTypeManager.L2Tables`.
 
 The topics after `ChainMigration` extend the first four:
 
@@ -440,6 +443,69 @@ refines the transition step of `ExecutorUpgradeChain`):
   source only chains still routing a v31-v34 `Admin` facet can take it. That only adds runs; the
   countermodel and witness use pre-registry chains of the bootstrap states.
 - Witness: `LegacyCatchUpWitness` (a lagging pre-registry chain catches up with no owner action).
+
+**L2Derivation** and **L2Convergence** (the L2 implementation tables; era-contracts
+`draft/v0.35.0` at **`b17415d20`**, a newer pin than the topics above; `MODEL-L2-TABLES`). The
+L2 analogue of `ChainRouting`: what L2 code a registry transition installs and whether chains on
+one version run the same L2 code.
+
+- **The derivation, pure** (`L2Derivation`; `CTMTransition.sol:50-143, 173-185`,
+  `TransitionDerivationLib.sol:95-169`, `L2PlanLib.sol:47-82`, `L2InventoryLib.sol:48-113`). A
+  successful construction deploys exactly the target table's new or changed rows (by keccak),
+  each at its member's fixed address with the target shell, at distinct addresses
+  (`TransitionDeploysExactlyTheChangedRows`). It has an L2 side iff it names a delegate; a changed
+  row, an extra or a composer each force one (`HasL2SideIffDelegate`). A patch edge has none
+  (`PatchEdgeHasNoL2Side`). An edge without one stores the empty plan and keeps the L2
+  description: tables equal member by member with padding, shell and blob equal, each up to a
+  named keccak clash, genesis parameters equal (`L1OnlyEdgeKeepsTheL2Description`).
+- **The two table comparisons** (`changedL2Rows`, `_l2TableChanged`). "No row changed" implies
+  `_l2TableChanged` is false with no hash premise; the converse holds up to an appended row
+  that hashes like the empty row (`TableComparisonsAgree`), and such a clash splits them, so
+  `releaseDiff()` can report an unchanged table for an edge that deploys a row
+  (`EmptyRowClashSplitsTheComparisons`). OpenZeppelin L-01: there is an L1-only patch edge onto
+  a table that only gained an empty row which reverts at `4e073f09b`, before the fix `9775be946`,
+  for every injective table hash, and succeeds at `b17415d20` for every hash
+  (`AppendedEmptyRowKeepsAnL1OnlyEdge`).
+- **Boundaries.** A nonempty row never becomes empty (`NonemptyRowStaysNonempty`). A row at a
+  member with no fixed address (members 14-19) can pass `CTMRelease`'s table checks
+  (`FrozenRowWitness`) but can be neither added nor changed by a transition
+  (`NoFixedAddressRowCannotChange`); once in a
+  departing release it is frozen (`NoFixedAddressRowIsFrozen`), and no bootstrap plan onto such a
+  release can be built (`BootstrapOntoNoFixedAddressRowReverts`); `FrozenRowWitness` shows all of
+  it on one 27-row release. The deploy tooling fills only fixed-address members
+  (`l1-contracts/deploy-scripts/upgrade/SystemContractsProcessing.s.sol:184-206`).
+- **Convergence** (`L2Convergence`). Each chain gets a ghost L2 state: per address, the system
+  proxy's shell and implementation row. A crossing of an L2-genuine transition with its L2
+  transaction executed writes exactly the new or changed rows (`CrossingWritesExactlyTheChangedRows`).
+  Headline: along runs from `L2Inv` (fresh or bootstrap starting states,
+  `FreshL2SysSatisfiesInvariant`, `BootstrapL2SysSatisfiesInvariant`) with no break-glass step,
+  every L2 upgrade transaction executed, every crossed transition L2-genuine and the genesis
+  images of the releases the CTM records holding their tables, every chain at a version with a
+  release runs that release's implementation at every member with a fixed address and a
+  nonempty row, or a crossed transition's two releases have a member whose rows clash under the
+  hash (`ChainsRunTheirVersionsL2Rows`); so two chains on one version agree there, however they
+  got there (`ChainsOnOneVersionRunOneL2`). Replacements, skips included, are covered:
+  `L2ConvergenceWitness` brings three chains onto one version by two crossings, by a skip
+  replacement and by genesis; `BootstrapConvergenceWitness` takes a pre-registry chain across
+  the bootstrap edge and a transition, and reads its result off the headline.
+- **What does not converge, and what is needed.** The proxy shell does not converge
+  (`ShellsDoNotConverge`; `TransitionDerivationLib.sol:91-94`). An unexecuted L2 transaction
+  and a plan `CTMTransition` did not derive each leave a chain on its old implementation with an
+  injective hash (`UnexecutedL2TxLeavesTheOldRow`, `NonGenuinePlanLeavesTheOldRow`); the CTM
+  checks only that the plan's bytecodes are published (`ChainTypeManager.sol:449-452`). A
+  genesis image that does not hold its release's table splits a version between a chain that
+  crossed to it and one created there (`StaleGenesisImageSplitsAVersion`); nothing on L1
+  checks the image.
+- **Rows along CTM runs.** With no legacy commit and L2-genuine commits, nonempty rows of the
+  current release stay nonempty and a row without a fixed address keeps its hash
+  (`NonemptyRowsStayNonemptyAlongRegistryRuns`, `NoFixedAddressRowFrozenAlongRegistryRuns`;
+  `FrozenRowAlongRunsWitness`); the legacy `setNewVersionUpgrade` can still replace it
+  (`LegacyCommitMovesTheFrozenRow`).
+- Model boundaries: the CTM steps are `VersionRegistry`'s, re-checked at `b17415d20`; the
+  authored delegate, extras and delegatecall are assumed to write no member's proxy; a new
+  chain's L2 state is its release's genesis image, checked only off chain
+  (`protocol-ops/src/upgrade_verification/registry/genesis.rs:311-371`); routing, callers,
+  timing and migration are not modelled; the factory-dependency cap is omitted.
 
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises. Each later topic lists

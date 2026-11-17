@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- N-10: L2 implementation tables of registry transitions (ChainTypeManager, pin b17415d20)
+import EraSpec.Contracts.ChainTypeManager.Proofs.L2Derivation
+import EraSpec.Contracts.ChainTypeManager.Proofs.L2Convergence
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
