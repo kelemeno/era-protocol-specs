@@ -154,6 +154,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
+import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashAtV35
 import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.InitOnce
