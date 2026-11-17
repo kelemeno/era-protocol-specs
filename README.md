@@ -166,7 +166,11 @@ package entry point:
   registration and its registry correspondence, token reinitialization
   (`PendingObligationsKeepTheirAsset`) and the legacy zero-vault fallback. Router
   writer coverage, mint and counterpart gates, run-level `LoggedRunNoHijack`, and
-  atomic recovery (`AssetRouterBase` `AtomicRecovery`).
+  atomic recovery (`AssetRouterBase` `AtomicRecovery`). `AtomicRecoveryFaithful` models
+  the router-produced call's target by destination and restates the affected results;
+  `AtomicRecovery.routerCall` and the topics built on it (`PausedRecovery`,
+  `FullRecovery`) are unchanged, and for router-produced calls they cover destinations
+  other than L1.
 - **Atomic interop.** `InteropCenter` dispatch (new contract folder), flow binding
   without `FlowHashInj` (`ExecutedImpliesRealFlowFinalizableOrLoggedClash`), once-per-leg
   append (`SystemOncePerLeg`), handler reentrancy (`NoEffectCommittedTwice`),

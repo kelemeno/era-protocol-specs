@@ -67,10 +67,15 @@ tracker (`DEP-FRAME`).
 
 A deposit is the pair `(assetId, mintData)` that a `finalizeDeposit` call carries.
 `DepositBundle cfg calls ds` says that call `i` targets the router with data
-`finalizeDeposit(_, ds[i].1, ds[i].2)` whose mint data decodes.  That is the shape
+`finalizeDeposit(_, ds[i].1, ds[i].2)` whose mint data decodes.  That is the data
 `AssetRouterBase.getDepositCalldata` (`bridge/asset-router/AssetRouterBase.sol:378-384`) gives every
-router-produced bundle call.  The call's sender and value are left free, because the refund reads
-neither (`Contracts.AssetRouter.AtomicRecovery.Properties.RefundIgnoresCallSender`).
+router-produced bundle call, and the router is the target of every such call to another L2.  A
+router-produced call to L1 carries the same data but targets `L1_ASSET_ROUTER`
+(`bridge/asset-router/L2AssetRouter.sol:336`).  Unless that address equals
+`L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`), it is not a deposit call in this sense and this topic
+does not cover it; see `Contracts.AssetRouter.AtomicRecoveryFaithful`.  The call's
+sender and value are left free, because the refund reads neither
+(`Contracts.AssetRouter.AtomicRecovery.Properties.RefundIgnoresCallSender`).
 
 ## The credits
 
@@ -146,7 +151,10 @@ call. -/
 abbrev Deposit := AssetId × MintData
 
 /-- Call `c` is a `finalizeDeposit` call to the router carrying deposit `d`: the shape every
-router-produced bundle call has (`AssetRouterBase.sol:378-384`), with mint data that decodes. -/
+router-produced bundle call to another L2 has (`AssetRouterBase.sol:378-384`), with mint data that
+decodes.  A router-produced call to L1 has this data but targets `L1_ASSET_ROUTER`
+(`L2AssetRouter.sol:336`), so it is not a `DepositCall` unless that address equals
+`L2_ASSET_ROUTER_ADDR`. -/
 def DepositCall (cfg : Config) (c : Call) (d : Deposit) : Prop :=
   c.target = cfg.router ∧ ∃ src, c.data = .finalizeDeposit src d.1 (some d.2)
 

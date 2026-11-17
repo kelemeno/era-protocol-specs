@@ -116,8 +116,10 @@ abbrev Bytes := List UInt8
 structure Config where
   /-- `block.chainid`. -/
   thisChain : Chain
-  /-- `L2_ASSET_ROUTER_ADDR`: the target of every router-produced bundle call (the router has
-  the same address on every chain, `L2AssetRouter.sol:233-234`). -/
+  /-- `L2_ASSET_ROUTER_ADDR`: the router's own address on this chain, and the target of every
+  router-produced bundle call to another L2 (`AssetRouterBase.sol:374-376`).  It is not the target
+  of a call to L1: there `initiateIndirectCall` targets `L1_ASSET_ROUTER`
+  (`L2AssetRouter.sol:336`).  `AtomicRecoveryFaithful` models that choice. -/
   router : Address
   /-- `_nativeTokenVaultAddr()` = `L2_NATIVE_TOKEN_VAULT_ADDR` (`L2AssetRouter.sol:72-74`).  On
   an L2 the vault's address is also the address hashed into every NTV asset id
@@ -166,9 +168,11 @@ structure Call where
   /-- `InteropCall.data`. -/
   data : CallData
 
-/-- The bundle call a router-routed indirect starter produces: `target` the router, `from` the
-router (`InteropCenter.sol:733-740`; `L2AssetRouter.sol:336-341`), value zero for a non-base
-asset, data `finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)`. -/
+/-- The bundle call a router-routed indirect starter to another L2 produces: `target` the router,
+`from` the router (`InteropCenter.sol:733-740`; `L2AssetRouter.sol:336-341`), value zero for a
+non-base asset, data `finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)`.  For an L1
+destination the real call's target is `L1_ASSET_ROUTER` instead; see
+`AtomicRecoveryFaithful.routerCallTo`, which equals this call off L1. -/
 def routerCall (cfg : Config) (assetId : AssetId) (md : MintData) : Call :=
   ⟨cfg.router, cfg.router, 0, .finalizeDeposit cfg.thisChain assetId (some md)⟩
 

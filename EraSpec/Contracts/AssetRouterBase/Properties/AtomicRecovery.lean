@@ -14,7 +14,11 @@ of bundle call and fails for two others.
 * **Router-produced calls on assets the vault knows** are refunded to the burn's
   `originalCaller` — the depositor — for exactly the burned amount, and the remote receiver is
   ignored (`KnownBridgedAssetRefundsOriginalCaller`, `NativeAssetRefundsOriginalCaller`,
-  `RefundIgnoresRemoteReceiver`, `PreparedBurnRefundsDepositor`).
+  `RefundIgnoresRemoteReceiver`, `PreparedBurnRefundsDepositor`).  These are results about the
+  router's refund, which the manager runs only for a call that targets the router, as
+  `routerCall` does.  The router produces such a call only for a destination other than L1.  For
+  an L1 destination its call targets `L1_ASSET_ROUTER` (`L2AssetRouter.sol:336`) and these
+  results do not apply: see `AtomicRecoveryFaithful`.
 * **Calls on a custom-handler asset revert.**  The source burn went to the asset's own handler
   (`BurnUsesRegisteredHandler`), but the refund goes to the native token vault whatever the
   routing table says (`RecoveryCallsTheVault`, `RecoveryIgnoresHandler`), and the vault reverts
@@ -302,7 +306,11 @@ def Properties.RefundIgnoresRemoteReceiver : Prop :=
 (`bridgeBurn` on a registered representation token, `Contracts.NativeTokenVaultBase.prepare`)
 returns mint data; the router's bundle call carrying it is refunded by re-minting exactly the
 burned amount to the depositor `r.depositor`, not to the remote receiver — on a vault that knows
-the asset, unpaused, once the tracker hook returns. -/
+the asset, unpaused, once the tracker hook returns.  `routerCall` is the call the router really
+produces only for a destination other than L1.  For an L1 destination the real call targets
+`L1_ASSET_ROUTER` and its refund does not reach the router: see
+`AtomicRecoveryFaithful.Properties.PreparedBurnRefundFailsToL1` and the case split
+`AtomicRecoveryFaithful.Properties.PreparedBurnRefundByDestination`. -/
 def Properties.PreparedBurnRefundsDepositor : Prop :=
   ∀ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
     (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc),
