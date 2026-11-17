@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- AtomicFlowManager at draft/v0.35.0 b17415d20: an authorized refund closes `append` for its flow
+import EraSpec.Contracts.AtomicFlowManager.Proofs.RefundClosesAppend
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
