@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Coverage round 6: Bridgehub (draft/v0.35.0 d9f6789)
+import EraSpec.Contracts.Bridgehub.Proofs.Registry
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
