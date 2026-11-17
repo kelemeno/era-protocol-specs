@@ -17,37 +17,45 @@ Statements about `EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks`.  P
   `amount ≤ bridgedOut` and subtracts it.
 * `L1BridgedBranchHooksAreIdentity`: for an asset not native on L1, both hooks are the identity.
 * `L1PrepareThenRecoverRoundTrip`: `Properties.PrepareThenRecoverRoundTrip` with the L1 hooks and
-  NO hook premise: prepare-then-recover returns the original state exactly.
+  no hook premise: prepare-then-recover returns the original state exactly.
 * `L1BridgedResolutionLeavesLedger`: on the bridged branch the resolution model covers, with the
   ledger agreeing with the configuration, preparation, destination mint and recovery leave the
   ledger unchanged.
+
+These are results about the hooks at the pin.  The L1 hooks at `main` `70096e2ea` are the same;
+at `draft/v0.35.0` `b17415d20` they also record per-chain deposit and withdrawal totals
+(`L1NativeTokenVault.sol:424-458` there), which `L1Ledger` does not model.
 
 ## L2: `HooksCancel` fails, and what holds instead
 
 * `HooksCancelIsModuloNothing`: `HooksCancel` is `HooksCancelModulo` with no side condition and
   the identity registration, so the generalization is conservative.
-* `PrepareThenRecoverRoundTripModulo`: B2's round trip under the weaker law: the router's
-  recovery of a preparation's data succeeds and returns the original state with the accounting
-  replaced by the registration `reg`, through the commit interfaces as well.
+* `PrepareThenRecoverRoundTripModulo`: `Properties.PrepareThenRecoverRoundTrip` under the weaker
+  law: the router's recovery of a preparation's data succeeds and returns the original state with
+  the accounting replaced by the registration `reg`, through the commit interfaces as well.
 * `L2HooksCancelModuloRegistration`: the L2 hooks satisfy `HooksCancelModulo` with side condition
   `L2OffL1` (the chain is not L1, or the chain does not settle on L1) and the tracker's
   first-touch registration.
-* `AtomicRecoveryRestoresVaultAndTrackerL2` (headline): for a burn whose destination is not L1 (or
-  while the chain settles off L1), the atomic-recovery refund restores the vault's whole state
-  (token ledger, registry, pause flag, configuration) and the tracker's whole storage, up to the
-  first-touch registration of the asset, which reads the PRE-burn token; for an asset the
-  tracker had registered, it restores everything exactly.
+* `AtomicRecoveryRestoresVaultAndTrackerL2` (headline): with the L2 hooks, for a preparation whose
+  destination is not L1 (or while the chain settles off L1), the recovery call the router makes
+  for its data (`recoveryCall`), applied to the prepared state, restores the modelled vault state
+  (token ledger, registry, pause flag, configuration) and the tracker's storage, up to the
+  first-touch registration of the asset, which reads the pre-burn token; for an asset the tracker
+  had registered, it restores the state exactly.
 * Countermodels, all on a well-formed vault state with a successful preparation and a successful
   recovery that restores the token ledger:
   - `L2L1DestinationCountersDiverge`: destination L1 while settling on L1: both L1 counters end
-    one unit higher, so `HooksCancel` fails for the L2 hooks;
+    one unit higher, and the L2 hooks do not satisfy `HooksCancel`;
   - `L2SlSwitchBetweenPrepareAndRecover`: destination L1, settling on L1 at the burn and on
     another layer at the recovery: only `totalWithdrawalsToL1` moves;
   - `L2FirstLegacyBridgeLeavesRegistration`: destination not L1, asset not yet registered in the
-    tracker: the recovery leaves the asset registered with the PRE-burn supply as snapshot.
-* `L2FirstBridgeRegistersAsNew`: on the first-bridge branch, the L2 registration hook registers
-  the token as new (snapshot `(true, 0)`) before the inbound hook runs, so a first bridge never
-  takes the first-touch path.
+    tracker: the recovery leaves the asset registered with the pre-burn supply as snapshot.
+  The first two are vault-model statements with destination L1.  Whether the deployed router
+  issues such a recovery is examined in `AssetRouterBase` (`AtomicRecoveryFaithful`); at
+  `b17415d20` and `70096e2ea` the L2 vault reverts any recovery whose original destination is L1
+  (`L2AssetTracker.assertRecoveryIsAccountingNeutral`, see `L2AssetTracker/Specs/Accounting.lean`).
+* `L2FirstBridgeRegistersAsNew`: on the first-bridge branch, the L2 registration hook has
+  registered the asset, with snapshot `(true, 0)`, by the time the inbound hook runs.
 
 ## Non-vacuity
 
@@ -58,7 +66,8 @@ Statements about `EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks`.  P
 `AtomicRecoveryRestoresVaultAndTrackerL2` with a registered asset and a nonzero amount, off L1;
 `L2FirstLegacyBridgeLeavesRegistration` meets them with an unregistered one.
 `L2FirstBridgeSatisfiable` meets the premises of `L2FirstBridgeRegistersAsNew` with a nonzero
-amount.
+amount.  In these witnesses the tracker's storage is reached from fresh storage by `initL2` and,
+for a registered asset, a first touch.
 -/
 
 namespace Contracts.NativeTokenVaultBase
@@ -164,11 +173,11 @@ def Properties.L2HooksCancelModuloRegistration : Prop :=
 /-- **ATOMIC RECOVERY ON L2 RESTORES THE VAULT AND THE TRACKER** (headline).  With the L2 hooks,
 on a `WellFormed` vault state, after a successful preparation whose destination is not L1 (or
 while the chain does not settle on L1): the tracker's first-touch registration of the asset from
-the starting tracker storage and the PRE-burn token is defined, with result `st₀`; the router's
-recovery of the returned data succeeds and yields the original vault state with tracker storage
-`st₀` (settlement layer unchanged), also through the commit interfaces; and if the tracker had
-already registered the asset, `st₀` is the original storage, so the recovery yields exactly the
-original state. -/
+the starting tracker storage and the pre-burn token is defined, with result `st₀`; the router's
+recovery call for the returned data (`recoveryCall`), applied to the prepared state, succeeds and
+yields the original vault state with tracker storage `st₀` (settlement layer unchanged), also
+through the commit interfaces; and if the tracker had already registered the asset, `st₀` is the
+original storage, so the recovery yields exactly the original state. -/
 def Properties.AtomicRecoveryRestoresVaultAndTrackerL2 : Prop :=
   ∀ (cfg : L2AssetTracker.Config) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting),
@@ -188,10 +197,10 @@ def Properties.AtomicRecoveryRestoresVaultAndTrackerL2 : Prop :=
           bridgeRecoverFailedTransfer (l2ResolutionHooks cfg) out.state
             (recoveryCall s.config.router r out.data) = some s)
 
-/-- **COUNTERMODEL: TO L1 WHILE SETTLING ON L1, THE L1 COUNTERS DIVERGE.**  A `WellFormed` state
-whose tracker has the asset registered, a successful preparation to L1 while the chain settles on
-L1, and a successful recovery: the token ledger is restored, and both of the asset's L1 counters
-are one unit higher, so the state is not; the L2 hooks violate `HooksCancel`. -/
+/-- **COUNTERMODEL: TO L1 WHILE SETTLING ON L1, THE L1 COUNTERS DO NOT CANCEL.**  A `WellFormed`
+state whose tracker has the asset registered, a successful preparation to L1 while the chain
+settles on L1, and a successful recovery: the token ledger is restored, and both of the asset's L1
+counters are one unit higher, so the state is not; the L2 hooks do not satisfy `HooksCancel`. -/
 def Properties.L2L1DestinationCountersDiverge : Prop :=
   ∃ (cfg : L2AssetTracker.Config) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (t : State L2Accounting),
@@ -233,7 +242,7 @@ def Properties.L2SlSwitchBetweenPrepareAndRecover : Prop :=
 /-- **COUNTERMODEL: THE FIRST LEGACY BRIDGE LEAVES A REGISTRATION.**  A `WellFormed` state whose
 tracker has not registered the asset, a successful preparation to a chain that is not L1, and a
 successful recovery: the token ledger, configuration, registry and pause flag are restored, the
-tracker now has the asset registered, with the PRE-burn supply (not the post-burn one) as its
+tracker now has the asset registered, with the pre-burn supply (not the post-burn one) as its
 snapshot, and the state is not restored. -/
 def Properties.L2FirstLegacyBridgeLeavesRegistration : Prop :=
   ∃ (cfg : L2AssetTracker.Config) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
@@ -250,11 +259,11 @@ def Properties.L2FirstLegacyBridgeLeavesRegistration : Prop :=
     t ≠ s
 
 /-- **ON L2 A FIRST BRIDGE REGISTERS THE TOKEN AS NEW, BEFORE THE INBOUND HOOK.**  With the L2
-registration hook (`_setNewTokenStorage` → `registerNewTokenIfNeeded`) and the L2 resolution
-hook: a successful first-bridge `bridgeMint` of an asset the tracker had not registered, whose
-origin chain is not this chain, leaves the asset registered with snapshot `(true, 0)`
-(`L2AssetTracker.sol:168-174`: never bridged before v31), so the inbound hook did not take the
-first-touch path and read nothing from the token. -/
+registration hook (`registerNewTokenIfNeeded`, called through `_setNewTokenStorage`) and the L2
+resolution hook: for a successful first-bridge `bridgeMint` of an asset the tracker had not
+registered, whose origin chain is not this chain, the fresh registration's tracker storage, which
+the inbound hook then reads, already has the asset registered; and the result has the asset
+registered with snapshot `(true, 0)` (`L2AssetTracker.sol:168-174`). -/
 def Properties.L2FirstBridgeRegistersAsNew : Prop :=
   ∀ (cfg : L2AssetTracker.Config) (reg : RegistrationHooks L2Accounting)
     (s : RegistrationState L2Accounting) (c : ResolutionCall) (t : State L2Accounting),
@@ -262,6 +271,8 @@ def Properties.L2FirstBridgeRegistersAsNew : Prop :=
     s.accounting.st.isAssetRegistered s.config.assetId = false →
     s.config.originChainId ≠ cfg.thisChain →
     bridgeMintFirst reg (l2ResolutionHooks cfg) s c = some t →
+      (∃ registered, registerFreshBranch reg s c.data.originToken = some registered ∧
+        registered.state.accounting.st.isAssetRegistered s.config.assetId = true) ∧
       t.accounting.st.isAssetRegistered s.config.assetId = true ∧
       t.accounting.st.totalPreV31TotalSupply s.config.assetId = ⟨true, 0⟩
 

@@ -67,6 +67,7 @@ EraSpec/
     InteropCenter/            Specs/, Properties/, Proofs/
     InteropDataEncoding/      Specs/, Properties/, Proofs/
     InteropHandlerBase/       Specs/, Properties/, Proofs/
+    L2AssetTracker/           Specs/, Properties/, Proofs/
     L2InteropCommitmentTree/   Specs/, Properties/, Proofs/
     L2InteropHandler/         Specs/, Properties/, Proofs/
     Merkle/                  Specs/, Properties/, Proofs/

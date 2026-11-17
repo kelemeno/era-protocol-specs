@@ -250,10 +250,11 @@ theorem L2FirstBridgeRegistersAsNew : Properties.L2FirstBridgeRegistersAsNew := 
   have hasset : c.assetId = s.config.assetId := hfirst.2
   have hregd : registered.state.accounting.st.isAssetRegistered c.assetId = true := by
     rw [← hacc, hst₁', hasset]; simp
+  have hregd' := hregd
   rw [L2AssetTracker.registerLegacyTokenIfNeeded_of_registered hregd] at h₃
   cases h₃
   rw [← hacc₂, ← hasset]
-  refine ⟨hreg₂, ?_⟩
+  refine ⟨⟨registered, hfresh, hregd'⟩, hreg₂, ?_⟩
   rw [hsnap₂, ← hacc, hst₁', hasset]
   simp
 
@@ -268,13 +269,20 @@ namespace TrackerHooksExample
 open ResolutionExample
 
 /-- The tracker's view of `ResolutionExample.exConfig`: vault `1`, this chain `1`, asset `3`
-from chain `4` with local token `5`. -/
-def l2Cfg : L2AssetTracker.Config :=
-  ⟨1, 20, 21, 22, 1, fun a => if a = 3 then 4 else 0, fun a => if a = 3 then 5 else 0, 9, 0⟩
+from chain `4` with local token `5`; the upgrader's `initL2` installs `L1_CHAIN_ID = l1` and base
+asset `0`. -/
+def l2Cfg (l1 : UInt256) : L2AssetTracker.Config :=
+  ⟨1, 20, 21, 22, 1, fun a => if a = 3 then 4 else 0, fun a => if a = 3 then 5 else 0, l1, 0⟩
 
-/-- Tracker storage with every asset registered or none, `L1_CHAIN_ID = l1`, `initL2` done. -/
+/-- Tracker storage reached from fresh storage by the upgrader's `initL2` and, if `reg`, anyone's
+`registerLegacyToken(3)` reading the example token (supply `4`, so snapshot `(true, 4)`). -/
 def trk (reg : Bool) (l1 : UInt256) : L2AssetTracker.Storage :=
-  ⟨fun _ _ => 0, fun _ => reg, l1, 0, fun _ => ⟨0, 0⟩, fun _ => ⟨false, 0⟩, false, true⟩
+  let s₁ := (L2AssetTracker.exec (l2Cfg l1) (L2AssetTracker.Sys.fresh l1) (.initL2 false)).getD
+    (L2AssetTracker.Sys.fresh l1)
+  if reg then
+    ((L2AssetTracker.exec (l2Cfg l1) s₁
+      (.registerLegacy (L2AssetTracker.tokenReads (l2Cfg l1) (tokenWith 11 4)) 3)).getD s₁).st
+  else s₁.st
 
 /-- A metadata dependency that always succeeds with empty metadata. -/
 def md0 : BridgedStandardERC20.State → UInt256 → Option Bytes := fun _ _ => some []
@@ -294,11 +302,12 @@ def dummyResult : Result L2Accounting := ⟨l2State false 0 0, ⟨0, 0, 0, 0, []
 
 /-- The preparation of `prepRequest 12` (one unit from `11` towards chain `6`). -/
 def l2Out (reg : Bool) (l1 sl : UInt256) : Result L2Accounting :=
-  (prepare (l2Hooks l2Cfg md0) (l2State reg l1 sl) (prepRequest 12)).getD dummyResult
+  (prepare (l2Hooks (l2Cfg l1) md0) (l2State reg l1 sl) (prepRequest 12)).getD dummyResult
 
 /-- The router's recovery, from `u`, of the data of `o`. -/
-def l2Rec (u : State L2Accounting) (o : Result L2Accounting) : State L2Accounting :=
-  (bridgeRecoverFailedTransfer (l2ResolutionHooks l2Cfg) u (recoveryCall 2 (prepRequest 12) o.data)).getD u
+def l2Rec (l1 : UInt256) (u : State L2Accounting) (o : Result L2Accounting) : State L2Accounting :=
+  (bridgeRecoverFailedTransfer (l2ResolutionHooks (l2Cfg l1)) u
+    (recoveryCall 2 (prepRequest 12) o.data)).getD u
 
 end TrackerHooksExample
 
@@ -312,19 +321,19 @@ theorem L1TrackerHooksSatisfiable : Properties.L1TrackerHooksSatisfiable := by
 
 open ResolutionExample TrackerHooksExample in
 theorem AtomicRecoveryL2Satisfiable : Properties.AtomicRecoveryL2Satisfiable :=
-  ⟨l2Cfg, md0, l2State true 9 9, prepRequest 12, _, stateWith_wf (by decide) 4 _, rfl, by decide,
+  ⟨(l2Cfg 9), md0, l2State true 9 9, prepRequest 12, _, stateWith_wf (by decide) 4 _, rfl, by decide,
     rfl, by decide⟩
 
 open ResolutionExample TrackerHooksExample in
 theorem L2L1DestinationCountersDiverge : Properties.L2L1DestinationCountersDiverge := by
   have hw : WellFormed (l2State true 6 6) := stateWith_wf (by decide) 4 _
-  have hp : prepare (l2Hooks l2Cfg md0) (l2State true 6 6) (prepRequest 12) =
+  have hp : prepare (l2Hooks (l2Cfg 6) md0) (l2State true 6 6) (prepRequest 12) =
       some (l2Out true 6 6) := rfl
-  have ht : bridgeRecoverFailedTransfer (l2ResolutionHooks l2Cfg) (l2Out true 6 6).state
+  have ht : bridgeRecoverFailedTransfer (l2ResolutionHooks (l2Cfg 6)) (l2Out true 6 6).state
       (recoveryCall (l2State true 6 6).config.router (prepRequest 12) (l2Out true 6 6).data) =
-      some (l2Rec (l2Out true 6 6).state (l2Out true 6 6)) := rfl
-  refine ⟨l2Cfg, md0, l2State true 6 6, prepRequest 12, l2Out true 6 6,
-    l2Rec (l2Out true 6 6).state (l2Out true 6 6), hw, rfl, rfl, rfl, hp, by decide, ht,
+      some (l2Rec 6 (l2Out true 6 6).state (l2Out true 6 6)) := rfl
+  refine ⟨(l2Cfg 6), md0, l2State true 6 6, prepRequest 12, l2Out true 6 6,
+    l2Rec 6 (l2Out true 6 6).state (l2Out true 6 6), hw, rfl, rfl, rfl, hp, by decide, ht,
     (PrepareThenRecoverRestoresToken L2Accounting _ _ _ _ _ _ _ hw.1 hp ht).1, by decide,
     by decide,
     trackerHooks_ne_of_field
@@ -339,27 +348,27 @@ theorem L2L1DestinationCountersDiverge : Properties.L2L1DestinationCountersDiver
 open ResolutionExample TrackerHooksExample in
 theorem L2SlSwitchBetweenPrepareAndRecover : Properties.L2SlSwitchBetweenPrepareAndRecover := by
   have hw : WellFormed (l2State true 6 6) := stateWith_wf (by decide) 4 _
-  have hp : prepare (l2Hooks l2Cfg md0) (l2State true 6 6) (prepRequest 12) =
+  have hp : prepare (l2Hooks (l2Cfg 6) md0) (l2State true 6 6) (prepRequest 12) =
       some (l2Out true 6 6) := rfl
   -- the recovery from the unmodified state restores the token
-  have ht₀ : bridgeRecoverFailedTransfer (l2ResolutionHooks l2Cfg) (l2Out true 6 6).state
+  have ht₀ : bridgeRecoverFailedTransfer (l2ResolutionHooks (l2Cfg 6)) (l2Out true 6 6).state
       (recoveryCall (l2State true 6 6).config.router (prepRequest 12) (l2Out true 6 6).data) =
-      some (l2Rec (l2Out true 6 6).state (l2Out true 6 6)) := rfl
+      some (l2Rec 6 (l2Out true 6 6).state (l2Out true 6 6)) := rfl
   have htok₀ := (PrepareThenRecoverRestoresToken L2Accounting _ _ _ _ _ _ _ hw.1 hp ht₀).1
   -- the recovery after the switch to layer `7`
-  have ht : bridgeRecoverFailedTransfer (l2ResolutionHooks l2Cfg)
+  have ht : bridgeRecoverFailedTransfer (l2ResolutionHooks (l2Cfg 6))
       { (l2Out true 6 6).state with accounting := { (l2Out true 6 6).state.accounting with sl := 7 } }
       (recoveryCall (l2State true 6 6).config.router (prepRequest 12) (l2Out true 6 6).data) =
-      some (l2Rec { (l2Out true 6 6).state with
+      some (l2Rec 6 { (l2Out true 6 6).state with
         accounting := { (l2Out true 6 6).state.accounting with sl := 7 } } (l2Out true 6 6)) := rfl
   have hm := (RecoverExact L2Accounting _ _ _ _ ht).2.2.2.1
   have hm₀ := (RecoverExact L2Accounting _ _ _ _ ht₀).2.2.2.1
-  have htok : (l2Rec { (l2Out true 6 6).state with
+  have htok : (l2Rec 6 { (l2Out true 6 6).state with
       accounting := { (l2Out true 6 6).state.accounting with sl := 7 } } (l2Out true 6 6)).token =
       (l2State true 6 6).token := by
     rw [← htok₀]
     exact Option.some.inj (hm.symm.trans hm₀)
-  refine ⟨l2Cfg, md0, l2State true 6 6, prepRequest 12, l2Out true 6 6, 7, _, hw, rfl, rfl, rfl,
+  refine ⟨(l2Cfg 6), md0, l2State true 6 6, prepRequest 12, l2Out true 6 6, 7, _, hw, rfl, rfl, rfl,
     by decide, hp, by decide, ht, htok, by decide, by decide,
     trackerHooks_ne_of_field
       (fun st : L2AssetTracker.Storage => (st.interopInfo 3).totalWithdrawalsToL1.val)
@@ -369,14 +378,14 @@ open ResolutionExample TrackerHooksExample in
 theorem L2FirstLegacyBridgeLeavesRegistration :
     Properties.L2FirstLegacyBridgeLeavesRegistration := by
   have hw : WellFormed (l2State false 9 9) := stateWith_wf (by decide) 4 _
-  have hp : prepare (l2Hooks l2Cfg md0) (l2State false 9 9) (prepRequest 12) =
+  have hp : prepare (l2Hooks (l2Cfg 9) md0) (l2State false 9 9) (prepRequest 12) =
       some (l2Out false 9 9) := rfl
-  have ht : bridgeRecoverFailedTransfer (l2ResolutionHooks l2Cfg) (l2Out false 9 9).state
+  have ht : bridgeRecoverFailedTransfer (l2ResolutionHooks (l2Cfg 9)) (l2Out false 9 9).state
       (recoveryCall (l2State false 9 9).config.router (prepRequest 12) (l2Out false 9 9).data) =
-      some (l2Rec (l2Out false 9 9).state (l2Out false 9 9)) := rfl
+      some (l2Rec 9 (l2Out false 9 9).state (l2Out false 9 9)) := rfl
   obtain ⟨htok, hcfg, hreg, hpause, _⟩ :=
     PrepareThenRecoverRestoresToken L2Accounting _ _ _ _ _ _ _ hw.1 hp ht
-  exact ⟨l2Cfg, md0, l2State false 9 9, prepRequest 12, l2Out false 9 9, _, hw, rfl,
+  exact ⟨(l2Cfg 9), md0, l2State false 9 9, prepRequest 12, l2Out false 9 9, _, hw, rfl,
     Or.inl (by decide), hp, by decide, ht, htok, hcfg, hreg, hpause, by decide, by decide,
     by decide,
     trackerHooks_ne_of_field
@@ -384,7 +393,7 @@ theorem L2FirstLegacyBridgeLeavesRegistration :
 
 open ResolutionExample TrackerHooksExample in
 theorem L2FirstBridgeSatisfiable : Properties.L2FirstBridgeSatisfiable :=
-  ⟨l2Cfg, { firstHooks with registerTracker := l2RegistrationHook l2Cfg },
+  ⟨(l2Cfg 9), { firstHooks with registerTracker := l2RegistrationHook (l2Cfg 9) },
     ⟨exConfig, ⟨fun _ => 0, fun _ => 0⟩, false, ⟨trk false 9, 9⟩⟩, mintCall, _, rfl, rfl,
     by decide, by decide, rfl⟩
 

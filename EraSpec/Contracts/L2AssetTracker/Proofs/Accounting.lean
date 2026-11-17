@@ -1428,9 +1428,11 @@ def cfgSelfNativeBase : Config := { cfgEx with initBaseAssetId := 3 }
 theorem cfgEx_fresh_inv (sl : ChainId) : Inv cfgEx (Sys.fresh sl) :=
   FreshTrackerSatisfiesInv cfgEx sl (by decide) (by decide)
 
-/-- Every asset registered, `L1_CHAIN_ID = 100`, everything else zero. -/
-def allRegistered : Storage :=
-  ⟨fun _ _ => 0, fun _ => true, 100, 0, fun _ => ⟨0, 0⟩, fun _ => ⟨false, 0⟩, false, false⟩
+/-- After `initL2`: `L1_CHAIN_ID = 100`, base asset `5`. -/
+def initedSys : Sys := (exec cfgEx (Sys.fresh 100) (.initL2 false)).getD (Sys.fresh 100)
+
+/-- After `initL2` and the vault's registration of the native asset `6` as new. -/
+def regNewSys : Sys := (exec cfgEx initedSys (.registerNewToken 6)).getD initedSys
 
 /-- After `initL2` and the genesis registration of the native base token `3`. -/
 def selfNativeBaseSys : Sys :=
@@ -1461,8 +1463,8 @@ theorem AccountingRunSatisfiable : Properties.AccountingRunSatisfiable :=
 
 open AccountingExample in
 theorem TrackerRoundTripSatisfiable : Properties.TrackerRoundTripSatisfiable :=
-  ⟨cfgEx, Storage.fresh, _, allRegistered, _, 100, ⟨4, 0⟩, 8, 100, 5, 1, by decide, by decide,
-    by decide, rfl, by decide, rfl, rfl, by decide⟩
+  ⟨cfgEx, initedSys.st, _, regNewSys.st, _, 100, ⟨0, 3⟩, 8, 100, 6, 1, by decide, by decide,
+    by decide, by decide, by decide, by decide, rfl, by decide, rfl, rfl, by decide⟩
 
 open AccountingExample in
 theorem BackfillSatisfiable : Properties.BackfillSatisfiable :=

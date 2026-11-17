@@ -44,6 +44,9 @@ discharge these concrete obligations.
 | Tracked token's full storage, metadata-aware preparation hooks, witness vault | [Specs/Reinitialization.lean](Specs/Reinitialization.lean) |
 | Reinitialization leaves the vault state and invariants alone; only prepared metadata bytes can change | [Properties/Reinitialization.lean](Properties/Reinitialization.lean) |
 | Checked reinitialization derivations and witness | [Proofs/Reinitialization.lean](Proofs/Reinitialization.lean) |
+| The chain-balance hooks at the pin: the L1 vault's `bridgedOut` ledger, the L2 vault's calls into the asset tracker, and the weaker cancel law `HooksCancelModulo` | [Specs/TrackerHooks.lean](Specs/TrackerHooks.lean) |
+| The L1 hooks cancel; the L2 round trip up to the tracker's first-touch registration; countermodels; the first bridge registers as new | [Properties/TrackerHooks.lean](Properties/TrackerHooks.lean) |
+| Checked tracker-hook derivations and witnesses | [Proofs/TrackerHooks.lean](Proofs/TrackerHooks.lean) |
 
 ## Two overlapping models
 
@@ -297,6 +300,42 @@ low-severity bug:
 - A zero receiver is accepted at the source and rejected at every modelled
   destination (`ZeroReceiverOnlyRecoverable`). On routes without a refund path the
   burned value may be unrecoverable; that is not modelled.
+
+## Tracker hooks: the chain-balance hooks at the pin
+
+`Specs/TrackerHooks.lean` supplies, at the pin, the two hooks that preparation and resolution
+leave abstract.
+
+* **L1.** They are the vault's own `bridgedOut` ledger (`L1NativeTokenVault.sol:259-277`): a
+  checked `+=` on the way out and a checked `-=` on the way in, for L1-native assets only. They
+  satisfy `HooksCancel` (`L1HooksCancel`), so prepare-then-recover restores the state with no
+  hook premise (`L1PrepareThenRecoverRoundTrip`), and on the bridged branch they are the identity
+  (`L1BridgedBranchHooksAreIdentity`, `L1BridgedResolutionLeavesLedger`). On L1 nothing calls the
+  vault's `bridgeRecoverFailedTransfer`; the failed-deposit refund `bridgeConfirmTransferResult`
+  runs the same inbound hook.
+* **L2.** They are the asset tracker's `handleInitiateBridgingOnL2` and
+  `handleFinalizeBridgingOnL2` (the [L2AssetTracker](../L2AssetTracker/README.md) folder). They
+  do not satisfy `HooksCancel`, only `HooksCancelModulo`: when the destination is not L1 or the
+  chain settles off L1, the inbound hook undoes the outbound one up to the tracker's first-touch
+  registration (`L2HooksCancelModuloRegistration`; for any hooks, `PrepareThenRecoverRoundTripModulo`).
+  So the router's recovery call, applied to the prepared state, restores the modelled vault state
+  and the tracker's storage up to that registration, and exactly for an asset the tracker had
+  registered (`AtomicRecoveryRestoresVaultAndTrackerL2`). Countermodels: with destination L1 while
+  settling on L1 both L1 counters rise (`L2L1DestinationCountersDiverge`), with a settlement-layer
+  change in between only one does (`L2SlSwitchBetweenPrepareAndRecover`), and the first legacy
+  bridge leaves its registration (`L2FirstLegacyBridgeLeavesRegistration`). On the first-bridge
+  branch the registration hook registers the asset as new before the inbound hook runs
+  (`L2FirstBridgeRegistersAsNew`).
+* **The vault slice.** `Codegen.VaultPreparationSlice` `L1TrackerHooks` gives the L1 outbound hook
+  as a concrete hook of the transcribed vault program: it meets the slice's `HooksAgree` premise
+  (`L1HooksAgree`), so the slice's simulation, with its one-step bound, holds with it
+  (`L1VaultSimulation`).
+
+Witnesses: `L1TrackerHooksSatisfiable`, `AtomicRecoveryL2Satisfiable`, `L2FirstBridgeSatisfiable`;
+in the L2 witnesses the tracker's storage is reached from fresh storage by `initL2` and a first
+touch. The L1 hooks at `main` `70096e2ea` are those of the pin; at `draft/v0.35.0` `b17415d20`
+they also keep per-chain deposit and withdrawal totals, and at both heads the L2 vault reverts a
+recovery whose original destination is L1. Nothing here is checked against those heads.
 
 ## Legacy tokens
 

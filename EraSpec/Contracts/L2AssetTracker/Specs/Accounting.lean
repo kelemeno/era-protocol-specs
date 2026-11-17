@@ -28,17 +28,19 @@ and `BTH` for `l2-system/BaseTokenHolder.sol`.
 ## What the tracker reads from elsewhere (`Config`, `TokenReads`, the settlement layer)
 
 * `block.chainid`, and the native token vault's `originChainId(assetId)` and
-  `tokenAddress(assetId)` (`TRK:311`, `:399`).  They are fixed for a run (`Config`): the vault
-  writes each asset's entries once, when it registers the asset, and the tracker cannot act on
-  an asset before that (`_tryGetTokenAddress` and `_registerLegacyToken` revert on a zero
-  entry).  `L2NativeTokenVault.updateL2` can rewrite the base token's entries
-  (`L2NTV:170-172`); that upgrade path is outside the model (`OPS-CONFIG`).
+  `tokenAddress(assetId)` (`TRK:311`, `:399`).  The model takes them as fixed for a run
+  (`Config`), at the values the vault eventually stores (model boundary).  The vault writes an
+  asset's two entries in `_setNewTokenStorage` (`bridge/ntv/NativeTokenVaultBase.sol:588-598`),
+  just before it registers the asset with the tracker, and `_tryGetTokenAddress` and
+  `_registerLegacyToken` revert on a zero entry, so the outbound flow and every first-touch
+  registration need them set.  `L2NativeTokenVault.updateL2` can rewrite the base token's
+  entries (`L2NTV:170-172`); that upgrade path is outside the model (`OPS-CONFIG`).
 * `L2_SYSTEM_CONTEXT_SYSTEM_CONTRACT.currentSettlementLayerChainId()` (`TRK:246`, `:301`): it
   changes when the chain migrates, so it is an argument of every flow, and a run can change it.
 * `IERC20(token).balanceOf(L2_NATIVE_TOKEN_VAULT_ADDR)` and `IERC20(token).totalSupply()`
   (`TRK:327`, `:336`), read only by the first-touch legacy registration: `TokenReads`, the
-  token's state at the moment of the call.  A read through the zero address fails (it has no
-  code, and the returned `uint256` cannot be decoded; `VM-CALL`/`SOL-ABI`).
+  token's state at the moment of the call.  A read through the zero address fails: the call
+  returns no data, which cannot be decoded as a `uint256` (`VM-CALL`/`SOL-ABI`).
 
 ## Checked arithmetic (`SOL-ARITH`)
 
@@ -57,7 +59,7 @@ are called only by the vault (`onlyL2NativeTokenVault`, `TRK:89-94`), from its t
 `BaseTokenHolder` (`BTH:99-118`) and by `L2BaseToken` (`l2-system/era/L2BaseTokenEra.sol:92`):
 `handleInitiateBaseTokenBridgingOnL2` reads the vault's origin chain for the base token
 (`TRK:256-260`), while `handleFinalizeBaseTokenBridgingOnL2` passes `_isNativeToThisChain: false`
-whatever it is (`TRK:359-380`).
+(`TRK:377`) whatever the vault's origin chain for the base token is (`TRK:359-380`).
 
 ## Runs
 
@@ -67,6 +69,24 @@ above); the upgrader's `initL2` passes `Config.initL1ChainId` and `Config.initBa
 (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:418-423`).  Each step also writes a ghost
 `Audit`: the amounts of all successful flows, per asset.  The audit is not tracker storage; it
 exists so that the meaning of `chainBalance` can be stated.
+
+## Later heads
+
+At `draft/v0.35.0` `b17415d20` and `main` `70096e2ea` the tracker's code is the same (the two
+files differ in comments only, and the first equals the file at the upgrade pin `e561b9cc2`).
+Against the pin it differs as follows; no result here is checked against it.
+
+* `backFillZKSyncOSBaseTokenV31MigrationData` and `registerBaseTokenDuringUpgrade` are gone, the
+  backfill flag's slot is deprecated, and `initL2` takes no flag (`L2AssetTracker.sol:61-65`,
+  `:96-99` at `b17415d20`): `Op.backfill`, `Op.registerBaseDuringUpgrade` and `initL2`'s flag
+  have no counterpart there.
+* `assertRecoveryIsAccountingNeutral` (`:176-185`) is new: it reverts when the recovered
+  transfer's original destination is L1, and for the base token when the vault's origin chain for
+  it is this chain.  The L2 vault's `_disburseFailedTransfer` calls it before any refund
+  (`bridge/ntv/L2NativeTokenVault.sol:213` at `b17415d20`, `:244` at `70096e2ea`).
+* `registerNewTokenIfNeeded`, `registerLegacyToken`, the four flow entry points and their inner
+  functions, `_registerLegacyToken`, `_decreaseChainBalance` and `_tryGetTokenAddress` are the same
+  code as at the pin.
 -/
 
 namespace Contracts.L2AssetTracker
@@ -271,9 +291,11 @@ def finalizeInner (cfg : Config) (st : Storage) (sl : ChainId) (reads : TokenRea
 /-! ## Entry points -/
 
 /-- `registerNewTokenIfNeeded(_assetId, _originChainId)` (`TRK:157-175`), `onlyL2NativeTokenVault`.
-Called from the vault's `_setNewTokenStorage` (`L2NTV:186-188`) and `registerBaseTokenIfNeeded`
-(`L2NTV:127-133`).  Note that it uses its ARGUMENT, not the vault's stored origin chain.  The
-native branch writes `chainBalance[_originChainId]` with `_originChainId == block.chainid`. -/
+Called from the vault's `_registerTokenInAssetTracker` (`L2NTV:186-188`, called by
+`_setNewTokenStorage`, `bridge/ntv/NativeTokenVaultBase.sol:597`) and `registerBaseTokenIfNeeded`
+(`L2NTV:127-133`).  It uses its argument, not the vault's stored origin chain; both callers pass
+the value the vault stores.  The native branch writes `chainBalance[_originChainId]` with
+`_originChainId == block.chainid`. -/
 def registerNewTokenIfNeeded (cfg : Config) (st : Storage) (caller : Address) (a : AssetId)
     (origin : ChainId) : Option Storage :=
   if caller ≠ cfg.ntv then none
@@ -323,8 +345,9 @@ def handleFinalizeBridgingOnL2 (cfg : Config) (st : Storage) (sl : ChainId) (rea
   else finalizeInner cfg st sl reads fromChain a amount (decide (tokenOrigin = cfg.thisChain)) token
 
 /-- `handleFinalizeBaseTokenBridgingOnL2(_fromChainId, _amount)` (`TRK:359-380`),
-`onlyBaseTokenHolderOrL2BaseToken`: nothing for a zero amount, a revert before `initL2`, and
-otherwise the finalize path with `_isNativeToThisChain: false` HARD-CODED (`:377`). -/
+`onlyBaseTokenHolderOrL2BaseToken`: nothing for a zero amount, a revert while the stored base
+asset id is zero (before `initL2`), and otherwise the finalize path with
+`_isNativeToThisChain: false` (`:377`) and the base token's address. -/
 def handleFinalizeBaseTokenBridgingOnL2 (cfg : Config) (st : Storage) (sl : ChainId)
     (reads : TokenReads) (caller : Address) (fromChain : ChainId) (amount : UInt256) :
     Option Storage :=
@@ -452,27 +475,28 @@ def Sys.fresh (sl : ChainId) : Sys := ⟨Storage.fresh, sl, Audit.zero⟩
 
 /-! ## The invariant of the chain balance -/
 
-/-- **WHAT `chainBalance` MEANS.**  For every registered native asset, the chain balance plus
-everything bridged out equals the registration snapshot plus everything bridged in:
-`chainBalance = totalPreV31TotalSupply.amount - (Σout - Σin)`.  The snapshot is
-`MAX_TOKEN_BALANCE` for an asset registered as new (`TRK:164-167`) and
-`MAX_TOKEN_BALANCE - balanceOf(vault)` for a legacy one (`TRK:327-331`), so
-`chainBalance = MAX - (E + Σout - Σin)` with `E` the vault's balance at registration. -/
+/-- **WHAT `chainBalance` MEANS**, for one asset `a`: the chain balance here plus the audited
+outflow equals the snapshot plus the audited inflow.  `Inv` requires it of every registered
+native asset.  The snapshot a native asset gets is `MAX_TOKEN_BALANCE` when registered as new
+(`TRK:164-167`) and `MAX_TOKEN_BALANCE - balanceOf(vault)` at a legacy first touch
+(`TRK:327-331`), so where it holds `chainBalance = MAX - (E + Σout - Σin)` with `E = MAX -
+snapshot` (`Properties.NativeSentinel`). -/
 def ChainBalanceSentinel (cfg : Config) (sys : Sys) (a : AssetId) : Prop :=
   (sys.st.chainBalance cfg.thisChain a).val + sys.audit.outflow a =
     (sys.st.totalPreV31TotalSupply a).amount.val + sys.audit.inflow a
 
-/-- The configuration premise that the base token is not native to this chain: true of the
-base asset the upgrader installs and of the one installed now.  UPG makes it a check for
-recovery (`BaseTokenNativeToThisChain`, `UPG/bridge/asset-tracker/L2AssetTracker.sol:182-184`). -/
+/-- The premise that the base token is not native to this chain: neither the base asset the
+upgrader's `initL2` installs (`Config.initBaseAssetId`) nor the one stored now.  The pin's
+NatSpec says so for the upgrade path (`TRK:182`).  The outbound base-token path reads the vault's
+origin chain for the base token (`TRK:256-260`); the inbound one does not (`TRK:377`). -/
 def BaseNotSelfNative (cfg : Config) (sys : Sys) : Prop :=
   ¬ Native cfg cfg.initBaseAssetId ∧ ¬ Native cfg sys.st.baseTokenAssetId
 
 /-- The inductive invariant of a run.
 * An unregistered asset has no recorded flows and a zero chain balance here.
 * A registered native asset satisfies `ChainBalanceSentinel`, and its snapshot is saved.
-* `initL2` has not run only while the backfill flag is clear (fresh storage).
-* The base token is not native here. -/
+* Before `initL2` has run, the backfill flag is clear.
+* `BaseNotSelfNative`. -/
 structure Inv (cfg : Config) (sys : Sys) : Prop where
   unregisteredQuiet : ∀ a, sys.st.isAssetRegistered a = false →
     sys.audit.outflow a = 0 ∧ sys.audit.inflow a = 0 ∧ sys.st.chainBalance cfg.thisChain a = 0

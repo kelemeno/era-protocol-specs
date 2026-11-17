@@ -1,12 +1,12 @@
 import EraSpec.Codegen.VaultPreparationSlice.Properties.L1TrackerHooks
-import EraSpec.Codegen.VaultPreparationSlice.Proofs.Refinement
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.AtMostOneStep
 
-/-! # Proofs: the vault slice with the deployed L1 accounting hook -/
+/-! # Proofs: the vault slice with the L1 accounting hook of the pin -/
 
 namespace Codegen.VaultPreparationSlice
 
 open Codegen Codegen.Calls
-open Contracts.NativeTokenVaultBase (L1Ledger l1Hooks l1ToChain)
+open Contracts.NativeTokenVaultBase (L1Ledger l1Hooks l1ToChain Hooks)
 
 theorem L1HooksAgree : Properties.L1HooksAgree := by
   intro thisChain cm md hm
@@ -18,10 +18,12 @@ theorem L1HooksAgree : Properties.L1HooksAgree := by
 
 theorem L1VaultSimulation : Properties.L1VaultSimulation := by
   intro d thisChain cm md hm
-  exact Simulation d (l1CHooks thisChain cm) (l1Hooks thisChain md) (L1HooksAgree thisChain cm md hm)
+  exact SimulationAtMostOneTraceStep d (l1CHooks thisChain cm) (l1Hooks thisChain md)
+    (L1HooksAgree thisChain cm md hm)
 
 theorem L1HooksAgreeSatisfiable : Properties.L1HooksAgreeSatisfiable := by
-  have hm : MetadataAgrees (fun _ _ => .ok []) (fun _ _ => some []) := fun _ _ _ _ => rfl
-  exact ⟨1, _, _, hm, L1HooksAgree 1 _ _ hm⟩
+  intro md
+  let h : Hooks L1Ledger := ⟨fun acc _ _ _ _ => some acc, md⟩
+  exact ⟨(liftHooks h).metadata, fun st t o ht => (liftHooks_agree h).2 st t o ht⟩
 
 end Codegen.VaultPreparationSlice

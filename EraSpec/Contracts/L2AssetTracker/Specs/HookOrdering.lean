@@ -27,21 +27,27 @@ relies on the read happening before the token moves:
 * `bridgedOut`: `_handleBridgeToChain`, then `IBridgedStandardToken(token).bridgeBurn(_originalCaller,
   amount)` (`NTV:469`, `:471-472`);
 * `nativeOut`: `_handleBridgeToChain`, then `_depositFunds(_originalCaller, token, amount)`,
-  which moves `amount` from the depositor to the vault (`NTV:469`, `:473-476`, `:490-497`);
+  which moves `amount` from the depositor to the vault and returns the vault's balance increase,
+  and the vault's check that the increase is `amount` (`NTV:469`, `:473-476`, `:490-497`;
+  `depositFunds`);
 * `bridgedIn`: `_handleBridgeFromChain`, then `bridgeMint(receiver, amount)` (`NTV:260`,
   `:262-263`; recovery `:296`, `:304`);
 * `nativeIn`: `_handleBridgeFromChain`, then `_withdrawFunds`, which moves `amount` from the vault
   to the receiver (`NTV:260`, `:264-265`; recovery `:296-298`; `L2NativeTokenVault.sol:238-241`).
 
 The token is the token model's ledger; a native token's transfers are modelled by its
-`transfer` (allowances are not modelled).  `runPath` is the source order: the hook reads the token
-as it is BEFORE the effect.  `runPathEffectFirst` is the other order, for the countermodel only;
-no source path runs it.
+`transfer` (allowances are not modelled, so `safeTransferFrom` is a transfer by the depositor).
+`runPath` is the source order: the hook reads the token as it is BEFORE the effect.
+`runPathEffectFirst` is the other order, for the countermodel only; no source path runs it.
+The vault's other checks (router, pause, nonzero amount, asset id, WETH, `msg.value`)
+are not part of a path.  Which path the vault takes is decided by `originChainId[_assetId] !=
+block.chainid` (`NTV:245`, `:389`); `runPath` takes the path as an argument, so a statement about
+every path covers combinations the vault never makes.
 
-The base token's outbound path is different: the vault sends the value to the
+The base token's outbound path is different: the vault forwards the value to the
 `BaseTokenHolder`, whose `burnAndStartBridging` then calls the tracker (`NTV:463`,
-`l2-system/BaseTokenHolder.sol:115-118`), so the effect precedes the hook there.  That is
-harmless only because the base token never takes the first-touch path
+`l2-system/BaseTokenHolder.sol:115-118`), so there the value moves before the hook runs.  It has
+no first-touch read once `initL2` has run and the base token is registered
 (`Properties.BaseNeverTakesLegacyPath`).
 -/
 
@@ -62,13 +68,27 @@ def VaultPath.outbound : VaultPath → Bool
   | .bridgedIn => false
   | .nativeIn => false
 
+/-- `_depositFunds(_originalCaller, token, amount)` and the check on its result
+(`NTV:474-476`, `:490-497`): `balanceBefore = balanceOf(vault)`, the transfer from the depositor
+to the vault, `balanceAfter = balanceOf(vault)`, and `require(amount == balanceAfter -
+balanceBefore)`, the subtraction checked.  With the token model's `transfer` the check fails
+exactly when the depositor is the vault and `amount ≠ 0`. -/
+def depositFunds (cfg : Config) (tok : Contracts.BridgedStandardERC20.State) (account : Address)
+    (amount : UInt256) : Option Contracts.BridgedStandardERC20.State :=
+  match Contracts.BridgedStandardERC20.transfer tok account cfg.ntv amount with
+  | none => none
+  | some tok' =>
+    if tok.balances cfg.ntv ≤ tok'.balances cfg.ntv ∧
+        tok'.balances cfg.ntv - tok.balances cfg.ntv = amount.val then some tok'
+    else none
+
 /-- The token effect of a path, by the vault, for `account` (the depositor on the way out, the
 receiver on the way in). -/
 def pathEffect (cfg : Config) (p : VaultPath) (tok : Contracts.BridgedStandardERC20.State)
     (account : Address) (amount : UInt256) : Option Contracts.BridgedStandardERC20.State :=
   match p with
   | .bridgedOut => Contracts.BridgedStandardERC20.burn tok cfg.ntv account amount
-  | .nativeOut => Contracts.BridgedStandardERC20.transfer tok account cfg.ntv amount
+  | .nativeOut => depositFunds cfg tok account amount
   | .bridgedIn => Contracts.BridgedStandardERC20.mint tok cfg.ntv account amount
   | .nativeIn => Contracts.BridgedStandardERC20.transfer tok cfg.ntv account amount
 

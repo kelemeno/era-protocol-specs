@@ -254,8 +254,8 @@ theorem FirstTouchSatisfiable : Properties.FirstTouchSatisfiable :=
 open Contracts.NativeTokenVaultBase.ResolutionExample
   Contracts.NativeTokenVaultBase.TrackerHooksExample in
 theorem HookPrecedesEffectSatisfiable : Properties.HookPrecedesEffectSatisfiable :=
-  ⟨l2Cfg, md0, l2State true 9 9, prepRequest 12, _, mintCall, _, rfl,
-    stateWith_wf (by decide) 4 _, rfl, rfl⟩
+  ⟨l2Cfg 9, md0, l2State true 9 9, prepRequest 12, _, mintCall, _, mintCall, _, rfl,
+    stateWith_wf (by decide) 4 _, rfl, rfl, rfl⟩
 
 open AccountingExample HookOrderingExample in
 theorem BaseNeverLegacySatisfiable : Properties.BaseNeverLegacySatisfiable :=

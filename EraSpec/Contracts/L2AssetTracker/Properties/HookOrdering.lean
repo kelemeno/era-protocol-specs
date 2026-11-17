@@ -6,9 +6,9 @@ import EraSpec.Contracts.L2AssetTracker.Specs.HookOrdering
 Statements about `EraSpec.Contracts.L2AssetTracker.Specs.HookOrdering`.  Proofs are in
 `EraSpec.Contracts.L2AssetTracker.Proofs.HookOrdering`.
 
-* `HookPrecedesEffect`: the vault model's preparation, destination mint and recovery, with the L2
-  hooks, ARE the source-order bridged paths: the tracker hook reads the token before the burn or
-  the mint.
+* `HookPrecedesEffect`: with the L2 hooks, the vault model's preparation, destination mint and
+  recovery (`NativeTokenVaultBase`) give exactly what the source-order bridged paths give: the
+  tracker hook reads the token before the burn or the mint.
 * `FirstTouchSnapshotIsPreOp`: on each of the four paths, a first touch registers the asset
   with the snapshot of the token as it was before the call.
 * `SnapshotIndependentOfEntry`: whichever path makes the first touch, from the same storage and
@@ -18,12 +18,13 @@ Statements about `EraSpec.Contracts.L2AssetTracker.Specs.HookOrdering`.  Proofs 
   snapshots of the same token differ, and neither is the pre-call one, for a bridged token and
   for a native one.
 * `BaseNeverTakesLegacyPath`: once `initL2` has run and the base token is registered, every later
-  state keeps the same base asset registered, and its first-touch registration is the identity
-  whatever it would read: the base token's snapshot is never taken from `totalSupply()`.
+  state of the run keeps the same base asset registered, and its first-touch registration is the
+  identity whatever it would read.
 
 Non-vacuity: `FirstTouchSatisfiable` (all four paths succeed on a first touch),
-`HookPrecedesEffectSatisfiable` (a successful preparation with the vault as the tracker's caller),
-`BaseNeverLegacySatisfiable` (a run with base-token flows from a post-genesis state).
+`HookPrecedesEffectSatisfiable` (a successful preparation, destination mint and recovery with the
+vault as the tracker's caller), `BaseNeverLegacySatisfiable` (a run with base-token flows from a
+state after `initL2` and the base token's registration).
 -/
 
 namespace Contracts.L2AssetTracker
@@ -32,10 +33,10 @@ open Contracts.NativeTokenVaultBase (State Request Result prepare bridgeMint
   bridgeRecoverFailedTransfer ResolutionCall L2Accounting l2Hooks l2ResolutionHooks WellFormed Bytes)
 
 /-- **THE VAULT MODEL'S BRIDGED PATHS ARE HOOK-THEN-EFFECT.**  With the L2 hooks and the vault as
-the tracker's caller: a successful preparation on a `WellFormed` state is the source-order
-`bridgedOut` path for the depositor, and a successful destination mint (recovery) is the
-source-order `bridgedIn` path for the remote receiver (the original caller); each reproduces the
-resulting tracker storage and token exactly. -/
+the tracker's caller: a successful preparation on a `WellFormed` state gives the tracker storage
+and token that the source-order `bridgedOut` path for the depositor gives, and a successful
+destination mint (recovery) those of the source-order `bridgedIn` path for the remote receiver
+(the original caller). -/
 def Properties.HookPrecedesEffect : Prop :=
   ∀ (cfg : Config) (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting),
@@ -78,10 +79,10 @@ def Properties.SnapshotIndependentOfEntry : Prop :=
       st₁.totalPreV31TotalSupply a = st₂.totalPreV31TotalSupply a
 
 /-- **COUNTERMODEL: EFFECT FIRST SKEWS THE SNAPSHOT.**  For a bridged legacy asset `a` (token
-`tok`) and a native legacy asset `aN` (token `tokN`), all unregistered: in the reversed order the
-outbound and the inbound path, from the same storage and token, both succeed and record different
-snapshots, neither equal to the pre-call one; in source order both paths succeed (and record the
-pre-call one, `FirstTouchSnapshotIsPreOp`). -/
+`tok`) and a native legacy asset `aN` (token `tokN`), all unregistered: in the reversed order
+(`runPathEffectFirst`, which no source path runs) the outbound and the inbound path, from the same
+storage and token, both succeed and record different snapshots, neither equal to the pre-call one;
+in source order both paths succeed (and record the pre-call one, `FirstTouchSnapshotIsPreOp`). -/
 def Properties.HookAfterEffectSkews : Prop :=
   ∃ (cfg : Config) (st : Storage) (sl : ChainId) (tok tokN : Contracts.BridgedStandardERC20.State)
     (chain : ChainId) (a aN : AssetId) (account : Address) (amount : UInt256)
@@ -132,13 +133,14 @@ def Properties.FirstTouchSatisfiable : Prop :=
     runPath cfg .nativeIn st sl tokN chain aN account amount = some x₄
 
 /-- **THE PREMISES OF `HookPrecedesEffect` ARE SATISFIABLE**: the vault is the tracker's caller,
-the state is `WellFormed`, and a preparation and a destination mint succeed. -/
+the state is `WellFormed`, and a preparation, a destination mint and a recovery succeed from it. -/
 def Properties.HookPrecedesEffectSatisfiable : Prop :=
   ∃ (cfg : Config) (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (c : ResolutionCall)
-    (t : State L2Accounting),
+    (t : State L2Accounting) (c' : ResolutionCall) (t' : State L2Accounting),
     cfg.ntv = s.config.vault ∧ WellFormed s ∧ prepare (l2Hooks cfg metadata) s r = some out ∧
-    bridgeMint (l2ResolutionHooks cfg) s c = some t
+    bridgeMint (l2ResolutionHooks cfg) s c = some t ∧
+    bridgeRecoverFailedTransfer (l2ResolutionHooks cfg) s c' = some t'
 
 /-- **A NONTRIVIAL RUN FROM A POST-GENESIS STATE**: `initL2` has run, the base token is
 registered, and the run moves the base token out and back in. -/

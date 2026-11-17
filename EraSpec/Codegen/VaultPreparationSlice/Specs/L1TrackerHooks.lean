@@ -2,7 +2,7 @@ import EraSpec.Codegen.VaultPreparationSlice.Specs.Correspondence
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks
 
 /-!
-# The deployed L1 chain-balance hook as a concrete hook of the vault slice
+# The L1 chain-balance hook of the pin as a concrete hook of the vault slice
 
 `Codegen.VaultPreparationSlice` runs the vault program against concrete hooks `CHooks` and asks
 only that they agree with the model's (`HooksAgree`).  On L1 the accounting hook is
@@ -10,7 +10,8 @@ only that they agree with the model's (`HooksAgree`).  On L1 the accounting hook
 `c67894b9`): it reads `originChainId` and reads and writes `bridgedOut`, and never reads the token.
 `l1CHooks` is that hook over the ledger `Contracts.NativeTokenVaultBase.L1Ledger`; it ignores the
 token storage the machine passes it.  Its failure (checked-addition overflow) is given empty revert
-data here, which `HooksAgree` does not constrain.  The metadata hook is a parameter.
+data here, where Solidity reverts with `Panic(0x11)`; `HooksAgree` does not constrain revert data.
+The metadata hook is a parameter.
 
 The ledger's `originChainId` is a copy of the vault's `_originChainId` map kept in the accounting
 state, because the slice's hooks see only the accounting state and the token: nothing in the slice

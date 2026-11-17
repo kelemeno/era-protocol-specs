@@ -10,17 +10,11 @@ hooks abstract (`Hooks.account`, `ResolutionHooks.fromChain`), and the round tri
 This file supplies the deployed hooks at source pin `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`
 (`l1-contracts/contracts/`):
 
-* **L1** (`bridge/ntv/L1NativeTokenVault.sol:259-277`, cited `L1NTV`):
-
-      function _handleBridgeToChain(uint256, bytes32 _assetId, uint256 _amount) internal override {
-          if (originChainId[_assetId] == block.chainid) { bridgedOut[_assetId] += _amount; }
-      }
-      function _handleBridgeFromChain(uint256 _chainId, bytes32 _assetId, uint256 _amount) internal override {
-          if (originChainId[_assetId] == block.chainid) {
-              if (bridgedOut[_assetId] < _amount) revert InsufficientChainBalance(...);
-              bridgedOut[_assetId] -= _amount;
-          }
-      }
+* **L1** (`bridge/ntv/L1NativeTokenVault.sol:259-277`, cited `L1NTV`).  For an asset whose
+  `originChainId` is `block.chainid`, `_handleBridgeToChain(_, assetId, amount)` adds `amount` to
+  `bridgedOut[assetId]` (`L1NTV:260-264`), and `_handleBridgeFromChain(chainId, assetId, amount)`
+  reverts with `InsufficientChainBalance` if `bridgedOut[assetId] < amount` and otherwise
+  subtracts it (`L1NTV:270-277`); for any other asset both do nothing.
 
   `L1Ledger` holds the two maps the hooks touch (`L1NTV:73`, and the vault's `originChainId`,
   which the hooks only read); `block.chainid` is a parameter.  `+=` is checked
@@ -39,17 +33,17 @@ This file supplies the deployed hooks at source pin `c67894b970a0dac6fe9144d8ebf
 
 ## Where the hooks run
 
-`bridgeRecoverFailedTransfer` has one caller, `L2AssetRouter.recoverAtomicCall`
-(`bridge/asset-router/L2AssetRouter.sol:294`); on L1 the vault's refund is
-`bridgeConfirmTransferResult` (`L1NTV:182-214`), which runs the same `_disburseFailedTransfer`
-(`bridge/ntv/NativeTokenVaultBase.sol:284-306`) and so the same inbound hook.  The L1 round trip
-below is therefore the hook half of the L1 failed-deposit refund, on the bridged branch the
-resolution model covers.
+The vault's `bridgeRecoverFailedTransfer` has one caller, `L2AssetRouter.recoverAtomicCall`
+(`bridge/asset-router/L2AssetRouter.sol:294`), so on L1 nothing calls it.  The L1 vault's refund
+of a failed deposit is `bridgeConfirmTransferResult` (`L1NTV:182-214`), which runs the same
+`_disburseFailedTransfer` (`bridge/ntv/NativeTokenVaultBase.sol:284-306`) and so the same inbound
+hook.  With the L1 hooks, the resolution model's recovery therefore stands for that refund's hook
+and mint only, not for its own checks and decoding.
 
 ## The weaker law the L2 tracker satisfies
 
-The L2 tracker does not satisfy `HooksCancel`: a first-touch legacy registration persists, and
-the L1 counters move in the same direction both ways.  `HooksCancelModulo hooks rh Off reg` is
+The L2 tracker does not satisfy `HooksCancel`: a first-touch legacy registration persists, and,
+for a transfer to L1 while the chain settles on L1, both L1 counters grow on a round trip.  `HooksCancelModulo hooks rh Off reg` is
 what it does satisfy: whenever `Off` holds of the starting accounting and the chain, the
 resolution hook undoes the preparation hook UP TO `reg`, a function of the starting accounting
 and the pre-burn token.  `HooksCancel` is the case `Off := True`, `reg := some`.
@@ -155,8 +149,10 @@ chain does not currently settle on L1 (`L2AssetTracker.sol:244-249, 299-304`). -
 def L2OffL1 (acc : L2Accounting) (chain : UInt256) : Prop :=
   chain ≠ acc.st.l1ChainId ∨ acc.sl ≠ acc.st.l1ChainId
 
-/-- The L2 registration hook of a first bridge (`_setNewTokenStorage`, `L2NativeTokenVault.sol:186-188`):
-`registerNewTokenIfNeeded(assetId, originChainId)` called by the vault. -/
+/-- The L2 registration hook of a first bridge: `_setNewTokenStorage`
+(`bridge/ntv/NativeTokenVaultBase.sol:588-598`) calls `_registerTokenInAssetTracker`
+(`L2NativeTokenVault.sol:186-188`), which is `registerNewTokenIfNeeded(assetId, originChainId)`
+called by the vault. -/
 def l2RegistrationHook (cfg : L2AssetTracker.Config) (acc : L2Accounting) (_ : Registry)
     (_ : BridgedStandardERC20.State) (asset origin : UInt256) : Option L2Accounting :=
   (L2AssetTracker.registerNewTokenIfNeeded cfg acc.st cfg.ntv asset origin).map

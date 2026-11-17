@@ -205,6 +205,13 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- L2AssetTracker accounting, and the vault's deployed chain-balance hooks (L1 `bridgedOut`, L2 tracker)
+import EraSpec.Contracts.L2AssetTracker.Proofs.Accounting
+import EraSpec.Contracts.L2AssetTracker.Proofs.HookOrdering
+import EraSpec.Contracts.L2AssetTracker.Proofs.NativeEscrow
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.TrackerHooks
+import EraSpec.Codegen.VaultPreparationSlice.Proofs.L1TrackerHooks
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
