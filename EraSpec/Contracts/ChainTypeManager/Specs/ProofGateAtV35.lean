@@ -4,24 +4,35 @@ import EraSpec.Contracts.ChainTypeManager.Specs.Enabledness
 /-!
 # Model: the routing system at `draft/v0.35.0`, with the second-proof-system gate
 
-Source: era-contracts branch `draft/v0.35.0` at commit **`d9f678900`** (`d9f6789`). That
-branch carries the `e561b9cc2` tree of `feat/upgrade-simplification` (squash-merged as
-`ccf00623c`, #2525) and later commits. Every `file:line` below is at `d9f6789` unless it
-names `e561b9cc2`. Paths are relative to `l1-contracts/contracts/`.
+Source: era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**. Every `file:line` below
+is at `b17415d20` unless it names another commit. Paths are relative to `l1-contracts/contracts/`.
+
+This model was first written against `d9f6789` (`d9f678900`), three commits earlier on the same
+branch, and re-read at `b17415d20`. Between the two, every file cited here is byte-identical
+except `upgrades/registry/RegistryTypes.sol` (comments), `upgrades/registry/objects/CTMRelease.sol`
+and `upgrades/registry/objects/CTMTransition.sol` (the manifest checks listed below), and
+`protocol-docs/interop-gating.md`, which gained the paragraph `:43-48` cited below. The cited
+lines of `RegistryTypes.sol` and `CTMTransition.sol` moved but did not change.
+
+`draft/v0.35.0` took the registry-driven upgrade code of `feat/upgrade-simplification` by the
+squash-merge `ccf00623c` (#2525). At `ccf00623c` the functions that this folder's `e561b9cc2`
+models cite sit at the lines those models give, so the comparison below is taken from
+`ccf00623c`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ProofGateAtV35` and are proved in
 `EraSpec.Contracts.ChainTypeManager.Proofs.ProofGateAtV35`. Namespace:
 `Contracts.ChainTypeManager.ProofGateAtV35`.
 
-## What changed on the routing paths between `e561b9cc2` and `d9f6789`
+## What changed on the routing paths since `e561b9cc2`
 
-A function-by-function diff, comments stripped, of every file that `ChainRouting`,
-`ChainMigration`, `ChainLocal` and `Enabledness` cite finds two changed bodies on the chain
-side. Both come from commit `2d08bdaba` (#2628, "interop gating").
+A function-by-function diff, from `ccf00623c` to `b17415d20`, of every file that
+`VersionRegistry`, `ChainRouting`, `ChainMigration`, `ChainLocal` and `Enabledness` cite finds
+two changed bodies on the chain side. Both come from commit `2d08bdaba` (#2628, "interop
+gating").
 
-1. `Admin._executeDiamondCut` (`state-transition/chain-deps/facets/Admin.sol:117-128`; it was
-   `:112-115` at `e561b9cc2`) now checks the state the cut leaves:
+1. `Admin._executeDiamondCut` (`state-transition/chain-deps/facets/Admin.sol:117-128`; `:112-115`
+   at `ccf00623c`) now checks the state the cut leaves:
 
         Diamond.diamondCut(_diamondCut);                                                // :118
         if (s.secondProofSystemRequired) {                                              // :121
@@ -31,12 +42,12 @@ side. Both come from commit `2d08bdaba` (#2628, "interop gating").
             }
         }
 
-   Every diamond cut of a running chain goes through it:
+   Every diamond cut that a v35 `Admin` facet executes goes through it:
    * the transition, `upgradeChainFromVersion` (`:586`);
    * the break-glass `executeUpgrade` (`:594`);
    * `genesisUpgrade` (`:608`).
 2. `BaseZkSyncUpgrade._setVerifier` (`upgrades/BaseZkSyncUpgrade.sol:133-153`; `:127-142` at
-   `e561b9cc2`) refuses, on a chain that requires its second proof system, a new verifier
+   `ccf00623c`) refuses, on a chain that requires its second proof system, a new verifier
    that does not report multi-proof mode (`:143-148`). The registry engines install the
    arriving release's verifier through it:
    * `DefaultUpgrade._upgradeFromCommittedObject` reads `ICTMRelease(newRelease).verifier()`
@@ -44,24 +55,34 @@ side. Both come from commit `2d08bdaba` (#2628, "interop gating").
    * `_upgrade` calls `_setVerifier` when that verifier is nonzero
      (`BaseZkSyncUpgrade.sol:97-99`);
    * `BootstrapUpgrade.upgradeFromBootstrap` ends with the same call
-     (`upgrades/BootstrapUpgrade.sol:42`, unchanged since `e561b9cc2`).
+     (`upgrades/BootstrapUpgrade.sol:42`, unchanged since `ccf00623c`).
 
-   So on a transition and on the bootstrap crossing both checks read one address: the
-   arriving release's verifier.
+   So on a transition both checks read one address, the arriving release's verifier. On the
+   bootstrap crossing the engine's check reads the genesis release's verifier, and so does the
+   cut check where the crossing runs a v35 `Admin` facet. A pre-registry chain crosses with its
+   own pre-v35 facet, which has no cut check.
 
 No other body these models cite changed its logic. That covers the routing guard, the derived
-cuts, `Diamond.sol`, `DiamondInit`, `BootstrapUpgrade`, `Migrator` and every
-`ChainTypeManager` function the models use. What else differs in the cited files:
+cuts, `Diamond.sol`, `DiamondProxy`, `DiamondInit`, `BootstrapUpgrade`, `Migrator`,
+`ChainAssetHandlerBase` and every `ChainTypeManager` function the models use. What else differs
+in the cited files:
 
-* a rename: the manifest field and getter `upgradeEngine` are `chainUpgradeEngine` at
-  `d9f6789` (`upgrades/registry/RegistryTypes.sol:144`, `:271`,
-  `upgrades/registry/objects/CTMTransition.sol:189-191`,
+* a rename: the manifest field and getter `upgradeEngine` are `chainUpgradeEngine`
+  (`upgrades/registry/RegistryTypes.sol:146`, `:273`,
+  `upgrades/registry/objects/CTMTransition.sol:210-212`,
   `upgrades/registry/libraries/CTMUpgradeComposer.sol:40`, `:52`). The cut still delegatecalls
   the engine the manifest names;
-* line numbers: `-5` in `ChainTypeManager.sol` after its constructor (#2626 removed
-  `INTEROP_CENTER`), `+31` for the upgrade entry points of `Admin.sol`;
+* `CTMRelease`'s constructor refuses more manifests (a zero facet address, an
+  `L2WrappedBaseToken` row, non-canonical L2 bytecode descriptors), and `CTMTransition` compares
+  L2 tables member by member (in its constructor and in the `releaseDiff()` getter). None of this
+  touches a getter the models read;
+* `INTEROP_CENTER` is gone from `ChainTypeManager.sol` (#2626), so its lines after the
+  constructor moved by `-5`; the upgrade entry points of `Admin.sol` moved by `+31`; the rest
+  is comments;
 * in `Admin.sol`, off the routing paths: `setProofSystemStatus` was `onlyAdmin` and now has
   the caller rule of `:417-420`, and `permanentlyRequireSecondProofSystem` is new (both below).
+  `ZKChainBase._getProofMode` (`state-transition/chain-deps/facets/ZKChainBase.sol:188-190`) is
+  new.
 
 So a `ChainRouting` step is still what the source does to the version and the routing. What is
 new is the state the two checks read, and its writers.
@@ -69,7 +90,7 @@ new is the state the two checks read, and its writers.
 ## The new state
 
 * `bool secondProofSystemRequired` (`state-transition/chain-deps/ZKChainStorage.sol:301-304`,
-  storage slot 70). In the source its only writer is
+  storage slot 70; at `ccf00623c` the struct ends at slot 69). In the source its only writer is
   `Admin.permanentlyRequireSecondProofSystem` (`Admin.sol:454-465`):
 
       function permanentlyRequireSecondProofSystem() external onlyAdmin onlySettlementLayer {
@@ -79,16 +100,21 @@ new is the state the two checks read, and its writers.
           s.secondProofSystemRequired = true;                                             // :463
 
   `_getProofMode()` is `IZKsyncOSVerifier(address(s.verifier)).getProofMode(s.disabledProofSystems)`
-  (`state-transition/chain-deps/facets/ZKChainBase.sol:188-190`). Its NatSpec says "once
-  activated, there is no way back!" (`state-transition/chain-interfaces/IAdmin.sol:137-140`).
-  Code a break-glass init delegatecalls runs in the diamond's storage and can write the field
-  too.
+  (`ZKChainBase.sol:188-190`). Its NatSpec says "once activated, there is no way back!"
+  (`state-transition/chain-interfaces/IAdmin.sol:137-140`). Code that a cut delegatecalls runs
+  in the diamond's storage and can write the field too.
 * `s.verifier`. `DiamondInit` writes the current release's verifier
   (`state-transition/chain-deps/DiamondInit.sol:114-118`), and `_setVerifier` writes later ones
-  (`BaseZkSyncUpgrade.sol:150-151`).
-* `s.disabledProofSystems`. `setProofSystemStatus` toggles its ZiSK bit (`Admin.sol:416-432`);
-  disabling on a chain that requires its second proof system is reserved for the Bridgehub
-  owner (`:417-420`).
+  (`BaseZkSyncUpgrade.sol:150-151`). A source search finds no other writer.
+* `s.disabledProofSystems` (`ZKChainStorage.sol:290`, a `uint8`). `setProofSystemStatus` toggles
+  its ZiSK bit (`Admin.sol:416-432`); disabling on a chain that requires its second proof system
+  is reserved for the Bridgehub owner (`:417-420`). A source search finds no other writer.
+
+The protocol documentation states the purpose (`protocol-docs/interop-gating.md:39-42`). At
+`b17415d20` it adds (`:43-48`) that the chain-side check can only refuse: once a chain of a CTM
+holds the requirement, every later release of that CTM must ship a multi-proof verifier, "or the
+CTM commits an edge those chains can never cross". Nothing on L1 checks this; off-chain
+`protocol-ops` package verification does, before the governance vote.
 
 ## Modelling choices
 
@@ -112,15 +138,22 @@ new is the state the two checks read, and its writers.
   * `state-transition/verifiers/MultiProofVerifier.sol:101-109` gives multi-proof mode for
     mask `0` and PLONK mode once the ZiSK bit is set, and reverts on any other bit;
   * `ZKsyncOSVerifier.sol:104-106` always gives the PLONK type `2`;
-  * `MultiProofTestnetVerifier.sol:52-54` delegates.
+  * `MultiProofTestnetVerifier.sol:52-54` returns what its inner verifier returns.
 
   A release's `verifier()` is a fixed function of the release (`ProofWorld.relVerifier`),
   since releases are write-once.
 * **One gate per cut.** `_executeDiamondCut` checks the verifier the cut leaves. On a
   transition and on the bootstrap crossing that is the arriving release's verifier, which
-  `_setVerifier` has just checked the same way. So the step is gated once, on it.
-* **Break-glass.** The CTM owner's cut runs an arbitrary init in the diamond's storage, so it
-  may leave any proof-system state that passes the final check (`ProofEffect.arbitraryCut`).
+  `_setVerifier` checks the same way. So the step is gated once, on it.
+* **Break-glass.** A `Label.arbitraryCut` runs an arbitrary init in the diamond's storage, so
+  it may leave any proof-system state that passes the final check (`ProofEffect.arbitraryCut`).
+  That check is the v35 `Admin` facet's. `ChainRouting` also files under `arbitraryCut` a
+  chain's own crossing of an opaque legacy edge, which runs the chain's pre-v35 `Admin` facet
+  and makes no such check; the model gives it the check. The two readings differ only for a
+  diamond that requires its second proof system and still routes a pre-v35 `Admin` facet.
+  Outside the v35 facet only code that a cut delegatecalls writes slot 70, so such a diamond is
+  left by an earlier cut (break-glass, or a legacy edge's) that wrote the slot or routed an
+  older facet after the requirement was set.
 * **New diamonds.** Genesis and migration in deploy a fresh proxy (`ChainTypeManager.sol:674-692`,
   `:703-711`, `:746-758`): requirement off, the current release's verifier, nothing disabled
   (`ProofState.fresh`). `genesisUpgrade`'s cut then passes the check vacuously.
@@ -128,18 +161,17 @@ new is the state the two checks read, and its writers.
   `Migrator.forwardedBridgeMint` writes none of them.
 * **Omitted**, as reject-only or as callers: `onlyAdmin` and `onlySettlementLayer` of
   `permanentlyRequireSecondProofSystem`, and the caller rule of `setProofSystemStatus` (see
-  `UpgradeTimingAtV35` for the timed model with callers). Also the zero check on the
-  release's verifier (`DefaultUpgrade.sol:69-71`), present at `e561b9cc2` too and omitted there
-  too. `setProofSystemStatus` is modelled as an arbitrary write of the mask
-  (`Step35.setProofSystems`), which only adds runs. The mask is read only by
-  `permanentlyRequireSecondProofSystem`.
+  `UpgradeTimingAtV35` for the timed model with callers for the first). Also the zero check on
+  the release's verifier (`DefaultUpgrade.sol:69-71`), present at `ccf00623c` too and omitted in
+  `ChainRouting` too. `setProofSystemStatus` is modelled as an arbitrary write of the mask
+  (`Step35.setProofSystems`), which only adds runs. Of the modelled steps only
+  `permanentlyRequireSecondProofSystem` reads the mask.
 * **Migration out** is no step, as in `ChainRouting`. A returning chain keeps its diamond, and
   with it its proof-system fields.
 * **One CTM's diamonds.** The three fields belong to a diamond. The migration commitment does
   not carry them (`Migrator.sol:221-241` reads the batch counters and `isPermanentRollup` from
-  it), so the diamond that migration deploys for a chain on another settlement layer starts
-  with its own fields, as `ProofEffect.migrateIn` says. Every result here is about the
-  diamonds registered on the one modelled CTM, not about a chain across settlement layers.
+  it), so a diamond that migration in deploys starts with fresh fields (`ProofEffect.migrateIn`).
+  Every result here is about the diamonds registered on the one modelled CTM.
 -/
 
 namespace Contracts.ChainTypeManager.ProofGateAtV35
@@ -290,21 +322,23 @@ multi-proof mode with nothing disabled: what #2628 is for
 def ProofInv (P : ProofWorld) (s : Sys35) : Prop :=
   ∀ id c, s.sys.chains id = some c → ProofGate P (s.proof id)
 
-/-- No chain requires its second proof system. Every pre-v35 diamond is in this state: slot 70
-did not exist before #2628. -/
+/-- No chain requires its second proof system. A diamond that predates #2628 is in this state
+unless code a cut delegatecalled wrote slot 70: no source before #2628 declares that slot. -/
 def NoChainRequires (s : Sys35) : Prop :=
   ∀ id, (s.proof id).required = false
 
 /-- **A verifier that is in multi-proof mode with some proof systems disabled is also in it
 with none disabled.** It relates the mask `permanentlyRequireSecondProofSystem` reads to the
-mask `0` the cut check reads. Every in-tree verifier satisfies it (`MultiProofVerifier.sol:101-109`:
-multi-proof only for mask `0`; `ZKsyncOSVerifier.sol:104-106`: never). -/
+mask `0` the cut check reads. `MultiProofVerifier` satisfies it (`MultiProofVerifier.sol:101-109`:
+multi-proof only for mask `0`), `ZKsyncOSVerifier` too (`ZKsyncOSVerifier.sol:104-106`: never),
+and `MultiProofTestnetVerifier` whenever its inner verifier does. -/
 def DisablingNeverEnablesMultiProof (P : ProofWorld) : Prop :=
   ∀ v m, P.multi v m = true → P.multi v 0 = true
 
 /-- **The ZiSK bit of `s.disabledProofSystems`**: `1 << uint8(ProofSystem.Zisk)` (`Admin.sol:425`),
 with `ProofSystem { Boojum, Airbender, Zisk }` (`common/Config.sol:126-130`), so `4`. It is the
-only bit `setProofSystemStatus` writes, so in the source a diamond's mask is `0` or `4`. -/
+only bit `setProofSystemStatus` writes, so in the source a diamond's mask is `0` or `4` unless
+code a cut delegatecalled wrote it. -/
 def ziskBit : ℕ := 4
 
 /-! ## Witness data
@@ -351,5 +385,14 @@ def wZiskOffRun : List Label35 :=
 /-- Chain `0` is created, has ZiSK switched off, and then requires its second proof system. -/
 def wZiskOffFirstRun : List Label35 :=
   [.routing (.genesis 0), .setProofSystems 0 ziskBit, .requireSecondProofSystem 0]
+
+/-- `ChainLocal`'s witness run `wLocalRun` with chain `0` requiring its second proof system right
+after the two geneses: break-glass cuts drift chains `0` and `1` to `bgExtra`, a third cut
+restores chain `0` to release `100`'s routing, the CTM commits `300`, and chain `0` crosses it. -/
+def wGateLocalRun : List Label35 :=
+  [.routing (.genesis 0), .routing (.genesis 1), .requireSecondProofSystem 0,
+    .routing (.arbitraryCut 0 1 bgExtra), .routing (.arbitraryCut 1 1 bgExtra),
+    .routing (.arbitraryCut 0 1 (rowsRouting (wRows 100))), .routing (.ctm (.commit 300)),
+    .routing (.transition 0)]
 
 end Contracts.ChainTypeManager.ProofGateAtV35

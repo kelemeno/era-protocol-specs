@@ -4,51 +4,66 @@ import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTimingAtV35
 # Properties: who may upgrade a chain, and when, at `draft/v0.35.0`
 
 Statements about `EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTimingAtV35` (commit
-`d9f6789`). Proofs are in `EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingAtV35`. The
+`b17415d20`). Proofs are in `EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingAtV35`. The
 statements live in `Contracts.ChainTypeManager.UpgradeTimingAtV35.Properties`; a statement named
 like one of `UpgradeTiming` is that statement over the v35 system.
 
 ## Do the `UpgradeTiming` theorems describe v35?
 
-Yes, verbatim for every chain that does not require its second proof system. For a chain that
-does, an upgrade has one more condition.
+For a chain that does not require its second proof system, yes. For a chain that does, an
+upgrade has one more condition.
 
 * A v35 timed step is the `e561b9cc2` timed step plus `TimedGateHolds`
   (`TimedStepIsTheE561StepPlusTheGate`). For a chain that does not require its second proof
   system, the gate is vacuous and an upgrade succeeds at v35 exactly when it does in
-  `UpgradeTiming` (`UnflaggedChainsUpgradeAsAtE561`). Every `UpgradeTiming` run is a v35 run in
-  which no chain requires it (`E561TimedRunsAreRunsWithoutTheRequirement`).
-* Every necessary condition `UpgradeTiming` proves still binds, because every v35 timed run is
-  an `UpgradeTiming` run (`TimedRunIsATimedRun`). That covers `ManifestTimestampGates`,
-  `EveryPathNeedsExecutedBatches`, `EveryPathNeedsTheSettlementLayerAhead`,
-  `OtherCallersNeedTheNotifier` and the routing headline (`TimedRunKeepsChainsOnTheirRelease`).
-* `ICTMUpgradeExecutor.sol:53-54` still holds: the executor's call does not depend on the
-  notifier (`ExecutorPathIgnoresNotifier`).
+  `UpgradeTiming`, with the same effect on the timed state (`UnflaggedChainsUpgradeAsAtE561`).
+  Every `UpgradeTiming` run is the timed image of a v35 run in which no chain requires it
+  (`E561TimedRunsAreRunsWithoutTheRequirement`).
+* Every necessary condition `UpgradeTiming` proves for a timed run still binds, because the
+  timed image of every v35 timed run is an `UpgradeTiming` run (`TimedRunIsATimedRun`). That
+  covers `ManifestTimestampGates`, `EveryPathNeedsExecutedBatches`,
+  `EveryPathNeedsTheSettlementLayerAhead`, `OtherCallersNeedTheNotifier` and the routing headline
+  (`TimedRunKeepsChainsOnTheirRelease`, restated here).
+* `ICTMUpgradeExecutor.sol:53-54` still holds: whether the executor's call succeeds, and what it
+  does, does not depend on the notifier (`ExecutorPathIgnoresNotifier`).
 * `ICTMUpgradeExecutor.sol:48-49` ("at any time") is still false, through the same instance
   (`NotAtAnyTime`, for every proof world). At v35 it fails in a second way: an upgrade of a
   chain that requires its second proof system needs the arriving release's verifier in
   multi-proof mode, whatever the path, the caller and the time (`ProofGateBindsEveryPath`). In
-  `OwnerCannotUpgradeARequiringChainToAPlonkRelease`, every condition of `UpgradeTiming`'s
-  repaired statement holds for the owner from time 10 on, yet nobody can ever upgrade the chain.
+  the state of `OwnerCannotUpgradeARequiringChainToAPlonkRelease`, every condition of
+  `UpgradeTiming`'s repaired statement holds for the owner from time 10 on, yet no upgrade of
+  the chain exists, by any path, for any caller, at any block time.
 * **The repaired statement at v35** is `UpgradeChainEnabledIffTimed`: `e561b9cc2`'s eight
   conditions plus "if the chain requires its second proof system, the verifier of the
-  transition's new release reports multi-proof mode with nothing disabled".
+  transition's new release reports multi-proof mode with nothing disabled". As in
+  `UpgradeTiming`, it is exact for the model; in the source these conditions are necessary, not
+  sufficient, since further reject-only checks are omitted.
 
 ## The proof-system guarantees along timed runs
 
-A v35 timed run is a `ProofGateAtV35` run of its routing steps and its proof-system writes
-(`TimedRunIsAProofGateRun`), so that file's results hold along timed runs:
+The routing image of a v35 timed run is a `ProofGateAtV35` run of its routing steps and its
+proof-system writes (`TimedRunIsAProofGateRun`), so that file's results hold along timed runs:
 
-* a chain that requires its second proof system keeps a verifier that reports multi-proof mode
-  for the empty mask (`TimedRunsKeepAMultiProofVerifier`);
-* the requirement is set only by `permanentlyRequireSecondProofSystem`, called by the chain's
-  admin while the diamond is on its settlement layer, and otherwise changed only by a
-  break-glass cut of the chain (`TimedRequirementWriters`);
+* from a state where `ProofInv` holds, a chain that requires its second proof system keeps a
+  verifier that reports multi-proof mode for the empty mask
+  (`TimedRunsKeepAMultiProofVerifier`);
+* a registered chain's requirement is set by `permanentlyRequireSecondProofSystem`, called by
+  the chain's admin while the diamond is on its settlement layer, and otherwise changed only by
+  a break-glass cut of the chain (`TimedRequirementWriters`);
 * without such a cut it stays set (`TimedRequirementIsPermanentWithoutBreakGlass`).
 
+The caller of `setProofSystemStatus` is not modelled; its mask write is arbitrary, as in
+`ProofGateAtV35`.
+
+## Witnesses
+
 `UpgradeTimingAtV35Witness` is a v35 run in which a chain that requires its second proof system
-is upgraded through `upgradeChain` by its admin. Its setup contains a successful
-`permanentlyRequireSecondProofSystem` by the admin.
+is upgraded through `upgradeChain` by its admin; it meets the premises of the run-level results
+and of `ProofGateBindsEveryPath`. `TimedRequirementWritersWitness` is the setup's successful
+`permanentlyRequireSecondProofSystem` by the admin, which a validator's call cannot replace.
+`UnflaggedUpgradeWitness` meets the premises of `E561TimedRunsAreRunsWithoutTheRequirement` and
+`UnflaggedChainsUpgradeAsAtE561` with an upgrade that exists on both sides.
+`NotAtAnyTime` and `OwnerCannotUpgradeARequiringChainToAPlonkRelease` are the countermodels.
 -/
 
 namespace Contracts.ChainTypeManager.UpgradeTimingAtV35
@@ -74,7 +89,8 @@ def Properties.TimedRunIsATimedRun : Prop :=
     TimedRun35 T P s ls s' → TimedRun T s.timed (ls.flatMap TimedLabel35.timedSteps) s'.timed
 
 /-- **EVERY `UpgradeTiming` RUN IS A v35 RUN IN WHICH NO CHAIN REQUIRES ITS SECOND PROOF
-SYSTEM.** -/
+SYSTEM.** Starting from any proof-system fields with the requirement off everywhere, the same
+labels run at v35 to the same timed state, and the requirement is still off everywhere. -/
 def Properties.E561TimedRunsAreRunsWithoutTheRequirement : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys) (ls : List TimedLabel)
     (pr : ChainId → ProofState), TimedRun T s ls s' → (∀ id, (pr id).required = false) →
@@ -91,7 +107,9 @@ def Properties.UnflaggedChainsUpgradeAsAtE561 : Prop :=
       TimedStep T s.timed (.upgrade id path caller τ) t')
 
 /-- **THE ROUTING HEADLINE ALONG v35 TIMED RUNS.** As
-`Contracts.ChainTypeManager.Properties.TimedRunKeepsChainsOnTheirRelease`, over v35 timed runs. -/
+`Contracts.ChainTypeManager.Properties.TimedRunKeepsChainsOnTheirRelease`, over v35 timed runs:
+from a state whose routing system satisfies `SysInv`, with no break-glass cut, every chain at a
+version `v` with a release `R_v` routes exactly `R_v`, which is a release of version `v`. -/
 def Properties.TimedRunKeepsChainsOnTheirRelease : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (ls : List TimedLabel35),
     SysInv T.X.W s.timed.sys → TimedRun35 T P s ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →
@@ -112,20 +130,22 @@ def Properties.TimedRunIsAProofGateRun : Prop :=
 
 /-- **ALONG v35 TIMED RUNS, A CHAIN THAT REQUIRES ITS SECOND PROOF SYSTEM KEEPS A MULTI-PROOF
 VERIFIER.** As `ProofGateAtV35.Properties.RequiringChainsKeepAMultiProofVerifier`, over timed
-runs, break-glass cuts included: from a state where `ProofInv` holds, every registered chain
-that requires its second proof system has a verifier that reports multi-proof mode for the
-empty mask. The verifiers must satisfy `DisablingNeverEnablesMultiProof`. -/
+runs, break-glass cuts included (each making the v35 `Admin` facet's final check, as there): from
+a state where `ProofInv` holds, every registered chain that requires its second proof system has
+a verifier that reports multi-proof mode for the empty mask. The verifiers must satisfy
+`DisablingNeverEnablesMultiProof`. -/
 def Properties.TimedRunsKeepAMultiProofVerifier : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (ls : List TimedLabel35),
     DisablingNeverEnablesMultiProof P → ProofInv P s.routing → TimedRun35 T P s ls s' →
     ProofInv P s'.routing
 
-/-- **ONLY THE CHAIN'S ADMIN, ON ITS SETTLEMENT LAYER, SETS THE REQUIREMENT; ONLY A BREAK-GLASS
-CUT OF THE CHAIN CHANGES IT OTHERWISE.** If a v35 timed step changes a registered chain's
-`secondProofSystemRequired`, then either the step is that chain's
+/-- **THE REQUIREMENT'S WRITER SUCCEEDS ONLY FOR THE CHAIN'S ADMIN, ON ITS SETTLEMENT LAYER; ONLY A
+BREAK-GLASS CUT OF THE CHAIN CHANGES IT OTHERWISE.** If a v35 timed step changes a registered
+chain's `secondProofSystemRequired`, then either the step is that chain's
 `permanentlyRequireSecondProofSystem`, its caller is the chain's admin, the diamond is on its
 settlement layer and the step sets the requirement, or the step is a break-glass cut of that
-chain. An upgrade by any path, by any caller and at any time leaves it alone. -/
+chain (which may set or clear it). An upgrade by any path, by any caller and at any time leaves
+it alone. -/
 def Properties.TimedRequirementWriters : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (l : TimedLabel35) (id : ChainId)
     (c : Chain), TimedStep35 T P s l s' → s.timed.sys.chains id = some c →
@@ -179,7 +199,8 @@ def Properties.ProofGateBindsEveryPath : Prop :=
 succeeds iff the eight conditions of
 `Contracts.ChainTypeManager.Properties.UpgradeChainEnabledIffTimed` hold and, if chain `id`
 requires its second proof system, the verifier of `t`'s new release reports multi-proof mode with
-nothing disabled. The notifier still does not appear. -/
+nothing disabled. The notifier still does not appear. As there, "succeeds" is relative to the
+checks the model keeps. -/
 def Properties.UpgradeChainEnabledIffTimed : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s : TimedSys35) (id : ChainId) (t caller : Address)
     (τ : ℕ),
@@ -196,7 +217,7 @@ def Properties.UpgradeChainEnabledIffTimed : Prop :=
 /-! ## Not at any time, at v35 -/
 
 /-- **NOBODY CAN UPGRADE BEFORE THE MANIFEST'S TIME, AT v35** (refutes `ICTMUpgradeExecutor.sol:48-49`
-at `d9f6789`). For every proof world: the instance of
+at `b17415d20`). For every proof world: the instance of
 `Contracts.ChainTypeManager.Properties.NotAtAnyTime`, run at v35 from `wTimingSys35`. At time `9`
 neither the executor's owner `2` nor the chain's admin `3` can upgrade chain `0` through
 `upgradeChain`, and nobody can by any path; at time `10` both can, through `upgradeChain(300, 0)`. -/
@@ -212,15 +233,17 @@ def Properties.NotAtAnyTime : Prop :=
     (∃ s', TimedStep35 wTiming P s (.timed (.upgrade 0 (.executor 300) 3 10)) s')
 
 /-- **AT v35 THE OWNER CANNOT UPGRADE A CHAIN THAT REQUIRES ITS SECOND PROOF SYSTEM ACROSS AN EDGE
-TO A RELEASE WITH A PLONK-ONLY VERIFIER, AT ANY TIME.** With `wProofPlonk` (release `200`'s
+TO A RELEASE WITH A PLONK-ONLY VERIFIER, AT ANY BLOCK TIME.** With `wProofPlonk` (release `200`'s
 verifier `52` is PLONK-only), run `wTimingGateSetup` from `wTimingSys35`: chain `0` is created
 and configured with admin `3`, the admin requires its second proof system (verifier `51`, in
 multi-proof mode), the CTM commits `300` (1→2, onto release `200`), and the admin schedules
-version 1 for time `12`.
-* At every time from `10` on, every condition of
+version 1 for time `12`. In the state this reaches:
+* at every time from `10` on, every condition of
   `Contracts.ChainTypeManager.Properties.UpgradeChainEnabledIffTimed` holds for
-  `upgradeChain(300, 0)` by the executor's owner `2`, and `UpgradeTiming` lets it upgrade.
-* At v35 nobody can upgrade chain `0`, by any path, at any time. -/
+  `upgradeChain(300, 0)` by the executor's owner `2`, and `UpgradeTiming` lets it upgrade;
+* no v35 upgrade of chain `0` exists, by any path, for any caller, at any block time.
+`protocol-docs/interop-gating.md:43-48` (at `b17415d20`) describes such an edge and leaves its
+prevention to off-chain package verification. -/
 def Properties.OwnerCannotUpgradeARequiringChainToAPlonkRelease : Prop :=
   ∃ s, TimedRun35 wTiming wProofPlonk wTimingSys35 wTimingGateSetup s ∧
     (s.proof 0).required = true ∧ wProofPlonk.multi (s.proof 0).verifier 0 = true ∧
@@ -235,18 +258,60 @@ def Properties.OwnerCannotUpgradeARequiringChainToAPlonkRelease : Prop :=
       ∃ t', TimedStep wTiming s.timed (.upgrade 0 (.executor 300) 2 τ) t') ∧
     ∀ path caller τ, ¬ ∃ s', TimedStep35 wTiming wProofPlonk s (.timed (.upgrade 0 path caller τ)) s'
 
+/-! ## Witnesses -/
+
 /-- **THE v35 PREMISES ARE MET, AND A CHAIN THAT REQUIRES ITS SECOND PROOF SYSTEM IS UPGRADED
-THROUGH `upgradeChain`.** With `wProofMulti` (release `200` ships the multi-proof verifier `53`),
-run `wTimingGateSetup` from `wTimingSys35`, whose routing system satisfies `SysInv`, then
-`upgradeChain(300, 0)` by the chain's admin `3` at time `10`. The run has no break-glass cut. At
-the end chain `0` is at version 2 on release `200`, still requires its second proof system, and
-has verifier `53` installed, which is in multi-proof mode. -/
+THROUGH `upgradeChain`.** With `wProofMulti` (release `200` ships the multi-proof verifier `53`;
+the verifiers satisfy `DisablingNeverEnablesMultiProof`), start from `wTimingSys35`, whose
+routing system satisfies `SysInv` and whose fields satisfy `ProofInv`. Run `wTimingGateSetup` to
+a state `s` in which chain `0` is registered and requires its second proof system, then take
+`upgradeChain(300, 0)` by the chain's admin `3` at time `10`, to `s'`. The whole run has no
+break-glass cut. At the end chain `0` is at version 2 on release `200`, still requires its second
+proof system, and has verifier `53` installed, which is in multi-proof mode; `ProofInv` holds.
+This meets the premises of `TimedRunIsATimedRun`, `TimedRunKeepsChainsOnTheirRelease`,
+`TimedRunIsAProofGateRun`, `TimedRunsKeepAMultiProofVerifier`, `ProofGateBindsEveryPath` (the
+last step, from `s`) and `TimedRequirementIsPermanentWithoutBreakGlass` (the one-step run from
+`s`). -/
 def Properties.UpgradeTimingAtV35Witness : Prop :=
-  SysInv wTiming.X.W wTimingSys35.timed.sys ∧
-    ∃ s, TimedRun35 wTiming wProofMulti wTimingSys35
-        (wTimingGateSetup ++ [.timed (.upgrade 0 (.executor 300) 3 10)]) s ∧
+  SysInv wTiming.X.W wTimingSys35.timed.sys ∧ ProofInv wProofMulti wTimingSys35.routing ∧
+    DisablingNeverEnablesMultiProof wProofMulti ∧
+    ∃ s s', TimedRun35 wTiming wProofMulti wTimingSys35 wTimingGateSetup s ∧
+      TimedStep35 wTiming wProofMulti s (.timed (.upgrade 0 (.executor 300) 3 10)) s' ∧
+      TimedRun35 wTiming wProofMulti wTimingSys35
+        (wTimingGateSetup ++ [.timed (.upgrade 0 (.executor 300) 3 10)]) s' ∧
       (∀ l ∈ wTimingGateSetup ++ [.timed (.upgrade 0 (.executor 300) 3 10)], ¬ l.isArbitrary) ∧
-      (∃ c, s.timed.sys.chains 0 = some c ∧ c.pv = 2 ∧ c.routing = rowsRouting (wRows 200)) ∧
-      (s.proof 0).required = true ∧ (s.proof 0).verifier = 53 ∧ wProofMulti.multi 53 0 = true
+      (∃ c, s.timed.sys.chains 0 = some c ∧ c.pv = 1) ∧ (s.proof 0).required = true ∧
+      (∃ c, s'.timed.sys.chains 0 = some c ∧ c.pv = 2 ∧ c.routing = rowsRouting (wRows 200)) ∧
+      (s'.proof 0).required = true ∧ (s'.proof 0).verifier = 53 ∧ wProofMulti.multi 53 0 = true ∧
+      ProofInv wProofMulti s'.routing
+
+/-- **THE REQUIREMENT IS SET BY THE CHAIN'S ADMIN, NOT BY ITS VALIDATOR.** With `wProofMulti`,
+from `wTimingSys35`, chain `0` is created and configured (admin `3`, validator `4`, on its
+settlement layer). Then `permanentlyRequireSecondProofSystem` on chain `0` by `3` is a step that
+changes the registered chain's requirement from off to on: the premises of
+`TimedRequirementWriters`, in its first case. The same call by `4` has no step. -/
+def Properties.TimedRequirementWritersWitness : Prop :=
+  ∃ s s' c, TimedRun35 wTiming wProofMulti wTimingSys35
+      [.timed (.base (.genesis 0)), .timed (.setAux 0 wTimingAux)] s ∧
+    TimedStep35 wTiming wProofMulti s (.requireSecondProofSystem 0 3) s' ∧
+    s.timed.sys.chains 0 = some c ∧ (s.timed.aux 0).admin = 3 ∧
+    (s.timed.aux 0).validators 4 = true ∧ (s.timed.aux 0).slVersion = none ∧
+    (s.proof 0).required = false ∧ (s'.proof 0).required = true ∧
+    ¬ ∃ s'', TimedStep35 wTiming wProofMulti s (.requireSecondProofSystem 0 4) s''
+
+/-- **AN UPGRADE OF A CHAIN THAT DOES NOT REQUIRE ITS SECOND PROOF SYSTEM, ON BOTH SIDES.** For
+every proof world: the `UpgradeTiming` run `wTimingSetup` from `wTimingSys0`, with the all-off
+fields of `wTimingSys35`, meets the premises of `E561TimedRunsAreRunsWithoutTheRequirement`, and
+its v35 counterpart reaches a state whose timed part is the `UpgradeTiming` one and in which no
+chain requires its second proof system (the premise of `UnflaggedChainsUpgradeAsAtE561`). There
+`upgradeChain(300, 0)` by the executor's owner `2` at time `10` is both an `UpgradeTiming` step and
+a v35 step. -/
+def Properties.UnflaggedUpgradeWitness : Prop :=
+  ∀ P : ProofWorld, ∃ s0 s, TimedRun wTiming wTimingSys0 wTimingSetup s0 ∧
+    (∀ id, (wTimingSys35.proof id).required = false) ∧
+    TimedRun35 wTiming P wTimingSys35 (wTimingSetup.map TimedLabel35.timed) s ∧ s.timed = s0 ∧
+    (∀ id, (s.proof id).required = false) ∧
+    (∃ t', TimedStep wTiming s.timed (.upgrade 0 (.executor 300) 2 10) t') ∧
+    ∃ s', TimedStep35 wTiming P s (.timed (.upgrade 0 (.executor 300) 2 10)) s'
 
 end Contracts.ChainTypeManager.UpgradeTimingAtV35

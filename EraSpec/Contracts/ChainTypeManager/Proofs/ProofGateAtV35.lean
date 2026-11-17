@@ -535,18 +535,25 @@ private def gEndSys : Sys :=
 private def gEndProof : ChainId → ProofState :=
   upd (upd (gProof wProofMulti) 0 ⟨true, 53, 0⟩) 1 ⟨false, 53, 0⟩
 
+/-- Chain `0`'s transition after the setup, with `wProofMulti`: verifier `53` installed. -/
+private lemma gT0_multi : Step35 wWorld wProofMulti ⟨gSys, gProof wProofMulti⟩
+    (.routing (.transition 0)) ⟨gMidSys, upd (gProof wProofMulti) 0 ⟨true, 53, 0⟩⟩ :=
+  Step35.routing (gSys_transition 0 (Or.inl rfl))
+    (ProofEffect.transition (c := ⟨1, rowsRouting (wRows 100)⟩) rfl (fun _ => by decide))
+
+/-- Chain `1`'s transition after that. -/
+private lemma gT1_multi : Step35 wWorld wProofMulti
+    ⟨gMidSys, upd (gProof wProofMulti) 0 ⟨true, 53, 0⟩⟩ (.routing (.transition 1))
+    ⟨gEndSys, gEndProof⟩ :=
+  Step35.routing (Step.transition (s := gMidSys) (id := 1) (c := ⟨1, rowsRouting (wRows 100)⟩)
+      rfl (by decide) rfl (applyDerived_rows_eq xNodup100 xNodup200) (by decide))
+    (ProofEffect.transition (c := ⟨1, rowsRouting (wRows 100)⟩) rfl
+      (fun h => absurd h (by decide)))
+
 private lemma gRun_multi : Run35 wWorld wProofMulti wSys35 wGateRun ⟨gEndSys, gEndProof⟩ := by
   have hsetup := gSetup_run wProofMulti rfl
-  have ht0 : Step35 wWorld wProofMulti ⟨gSys, gProof wProofMulti⟩ (.routing (.transition 0))
-      ⟨gMidSys, upd (gProof wProofMulti) 0 ⟨true, 53, 0⟩⟩ :=
-    Step35.routing (gSys_transition 0 (Or.inl rfl))
-      (ProofEffect.transition (c := ⟨1, rowsRouting (wRows 100)⟩) rfl (fun _ => by decide))
-  have ht1 : Step35 wWorld wProofMulti ⟨gMidSys, upd (gProof wProofMulti) 0 ⟨true, 53, 0⟩⟩
-      (.routing (.transition 1)) ⟨gEndSys, gEndProof⟩ :=
-    Step35.routing (Step.transition (s := gMidSys) (id := 1) (c := ⟨1, rowsRouting (wRows 100)⟩)
-        rfl (by decide) rfl (applyDerived_rows_eq xNodup100 xNodup200) (by decide))
-      (ProofEffect.transition (c := ⟨1, rowsRouting (wRows 100)⟩) rfl
-        (fun h => absurd h (by decide)))
+  have ht0 := gT0_multi
+  have ht1 := gT1_multi
   cases hsetup with
   | cons h1 r1 => cases r1 with
     | cons h2 r2 => cases r2 with
@@ -585,5 +592,89 @@ theorem ProofGateWitness : Properties.ProofGateWitness := by
         decide
       · exfalso
         simp [gEndSys, gMidSys, gSys, upd, h0, h1] at hc
+
+/-- The routing labels of `wGateSetup` install only well-formed releases. -/
+private lemma gSetup_installsWf :
+    ∀ l ∈ wGateSetup.flatMap Label35.routingSteps, l.InstallsWf wWorld := by
+  intro l hl
+  simp only [wGateSetup, List.flatMap_cons, Label35.routingSteps, List.flatMap_nil,
+    List.append_nil, List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil,
+    or_false] at hl
+  rcases hl with h | h | h <;> subst h
+  all_goals first | trivial | exact xNodup200
+
+theorem RequiringChainCanCrossWitness : Properties.RequiringChainCanCrossWitness := by
+  have hI0 : SysInv wWorld wSys0 := FreshSystemSatisfiesInvariant wWorld 100 (by decide)
+  have hL := StartingStatesMeetLivenessPremises wWorld 100
+  have hrun := gSetup_run wProofMulti rfl
+  have hC : CtmInv wWorld gSys.ctm := run_ctmInv hI0.1 (RunIsARun wWorld wProofMulti _ _ _ hrun)
+  refine ⟨hI0, hL.2.2.1, hL.1 xNodup100, gSetup_noArb, gSetup_installsWf,
+    ⟨gSys, gProof wProofMulti⟩, ⟨1, rowsRouting (wRows 100)⟩, hrun, hC, rfl, rfl, by decide, rfl,
+    xNodup100, xNodup200, rfl, by decide, ?_⟩
+  exact gT0_multi
+
+theorem RequirementLifecycleWitness : Properties.RequirementLifecycleWitness := by
+  have h2 : Run35 wWorld wProofMulti wSys35 [.routing (.genesis 0), .routing (.genesis 1)] _ :=
+    Run35.cons (Step35.routing (Step.genesis (s := wSys0) (id := 0) rfl (addAll_empty_eq xNodup100))
+        ProofEffect.genesis)
+      (Run35.cons (Step35.routing (Step.genesis (id := 1) rfl (addAll_empty_eq xNodup100))
+        ProofEffect.genesis) Run35.nil)
+  refine ⟨⟨_, _, ⟨1, rowsRouting (wRows 100)⟩, h2,
+      Step35.requireSecondProofSystem (id := 0) (c := ⟨1, rowsRouting (wRows 100)⟩) rfl rfl
+        (by decide), rfl, rfl, rfl⟩,
+    ⟨gSys, gProof wProofMulti⟩, ⟨gEndSys, gEndProof⟩, ⟨1, rowsRouting (wRows 100)⟩,
+    gSetup_run wProofMulti rfl, Run35.cons gT0_multi (Run35.cons gT1_multi Run35.nil), rfl, rfl,
+    ?_, rfl⟩
+  intro v ρ h
+  simp at h
+
+theorem PerChainHeadlineAtV35Witness : Properties.PerChainHeadlineAtV35Witness := by
+  have hrun : Run35 wWorld wProofMulti wSys35 wGateLocalRun _ :=
+    Run35.cons (Step35.routing (Step.genesis (s := wSys0) (id := 0) rfl (addAll_empty_eq xNodup100))
+      ProofEffect.genesis)
+    (Run35.cons (Step35.routing (Step.genesis (id := 1) rfl (addAll_empty_eq xNodup100))
+      ProofEffect.genesis)
+    (Run35.cons (Step35.requireSecondProofSystem (id := 0) (c := ⟨1, rowsRouting (wRows 100)⟩) rfl
+      rfl (by decide))
+    (Run35.cons (Step35.routing (Step.arbitraryCut (id := 0) 1 bgExtra rfl)
+      (ProofEffect.arbitraryCut (p := ⟨true, 51, 0⟩) (fun _ => by decide)))
+    (Run35.cons (Step35.routing (Step.arbitraryCut (id := 1) 1 bgExtra rfl)
+      (ProofEffect.arbitraryCut (p := ⟨false, 51, 0⟩) (fun h => absurd h (by decide))))
+    (Run35.cons (Step35.routing (Step.arbitraryCut (id := 0) 1 (rowsRouting (wRows 100)) rfl)
+      (ProofEffect.arbitraryCut (p := ⟨true, 51, 0⟩) (fun _ => by decide)))
+    (Run35.cons (Step35.routing (Step.ctm (CStep.commit (t := 300) (by decide) (by decide)
+        (by decide) (by decide) (by decide) (by decide))) ProofEffect.ctm)
+    (Run35.cons (Step35.routing (Step.transition (id := 0) rfl (by decide) rfl
+        (applyDerived_rows_eq xNodup100 xNodup200) (by decide))
+      (ProofEffect.transition rfl (fun _ => by decide))) Run35.nil)))))))
+  have hD : DisablingNeverEnablesMultiProof wProofMulti := by
+    intro v m h
+    simp only [wProofMulti, decide_eq_true_eq] at h ⊢
+    exact ⟨h.1, trivial⟩
+  have hP0 : ProofInv wProofMulti wSys35 := fun id c hc => by simp [wSys35, wSys0] at hc
+  have hlast0 : LastWriteNotBreakGlass 0 (wGateLocalRun.flatMap Label35.routingSteps) :=
+    lastWriteNotBreakGlass_snoc (l := .transition 0) rfl (fun h => h)
+      [.genesis 0, .genesis 1, .arbitraryCut 0 1 bgExtra, .arbitraryCut 1 1 bgExtra,
+        .arbitraryCut 0 1 (rowsRouting (wRows 100)), .ctm (.commit 300)]
+  have hlast1 : ¬ LastWriteNotBreakGlass 1 (wGateLocalRun.flatMap Label35.routingSteps) := by
+    intro h
+    exact h [.genesis 0, .genesis 1, .arbitraryCut 0 1 bgExtra] (.arbitraryCut 1 1 bgExtra)
+      [.arbitraryCut 0 1 (rowsRouting (wRows 100)), .ctm (.commit 300), .transition 0] rfl rfl
+      (by simp [Label.writesChain]) trivial
+  refine ⟨_, hrun, FreshSystemSatisfiesInvariant wWorld 100 (by decide), rfl,
+    ⟨.routing (.arbitraryCut 0 1 bgExtra),
+      List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self)),
+      trivial⟩,
+    hlast0, hlast1, ⟨_, rfl, by decide, by decide, rfl⟩, rfl, by decide,
+    RequiringChainsKeepAMultiProofVerifier wWorld wProofMulti _ _ _ hD hP0 hrun,
+    ⟨_, rfl, rfl, by decide, ?_⟩⟩
+  exact fun h => absurd (congrFun h 9) (by decide)
+
+theorem E561RunLiftWitness : Properties.E561RunLiftWitness := by
+  refine ⟨rfl, fun _ => rfl, gEndSys, RunIsARun wWorld wProofMulti _ _ _ gRun_multi, ?_⟩
+  intro id hid
+  interval_cases id
+  · exact ⟨_, rfl, rfl⟩
+  · exact ⟨_, rfl, rfl⟩
 
 end Contracts.ChainTypeManager.ProofGateAtV35

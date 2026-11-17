@@ -4,9 +4,15 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ProofGateAtV35
 /-!
 # Model: who may upgrade a chain, and when, at `draft/v0.35.0`
 
-Source: era-contracts branch `draft/v0.35.0` at commit **`d9f678900`** (`d9f6789`), as for
+Source: era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**, as for
 `EraSpec.Contracts.ChainTypeManager.Specs.ProofGateAtV35`. Every `file:line` below is at
-`d9f6789` unless it names `e561b9cc2`. Paths are relative to `l1-contracts/contracts/`.
+`b17415d20` unless it names another commit. Paths are relative to `l1-contracts/contracts/`.
+This model was first written against `d9f6789`. Between `d9f6789` and `b17415d20` the files it
+cites are byte-identical except `governance/UpgradeExecutorBase.sol`, whose `forward` gained the
+check named below, and `upgrades/registry/executors/ProxyUpgradeExecutorBase.sol`, whose
+infrastructure path is not modelled here. As in `ProofGateAtV35`, the comparison with the `e561b9cc2` model is
+taken from `ccf00623c`, the squash-merge of the registry code into `draft/v0.35.0` (#2525), at
+which the functions below sit at the lines `UpgradeTiming` gives.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.UpgradeTimingAtV35` and are proved in
@@ -15,8 +21,8 @@ Source: era-contracts branch `draft/v0.35.0` at commit **`d9f678900`** (`d9f6789
 
 ## The `upgradeChain` NatSpec and the timed model at v35
 
-`upgrades/registry/executors/ICTMUpgradeExecutor.sol` is byte-identical at `e561b9cc2` and
-`d9f6789`. So the NatSpec `UpgradeTiming` checks is the same text at the same lines
+`upgrades/registry/executors/ICTMUpgradeExecutor.sol` is byte-identical at `ccf00623c` and
+`b17415d20`. So the NatSpec `UpgradeTiming` checks is the same text at the same lines
 (`:47-56`):
 
     /// @dev Callers:
@@ -25,16 +31,19 @@ Source: era-contracts branch `draft/v0.35.0` at commit **`d9f678900`** (`d9f6789
     ///      The chain's own `upgradeTimestamp` gate does NOT apply here: the chain sees the CTM as
     ///      the caller, and the CTM is exempt from it.
 
-The code `UpgradeTiming` models, re-diffed function by function (comments stripped), at
-`d9f6789`:
+The code `UpgradeTiming` models, re-diffed function by function from `ccf00623c` to `b17415d20`:
 
 * **Byte-identical files:** `governance/ServerNotifier.sol` (`setUpgradeTimestamp` still
   `:113-131`), `upgrades/registry/libraries/VersionEdgeLib.sol`,
-  `state-transition/chain-deps/facets/Committer.sol` and `ICTMUpgradeExecutor.sol`.
+  `state-transition/chain-deps/facets/Committer.sol`, `state-transition/chain-deps/DiamondInit.sol`,
+  `state-transition/chain-deps/facets/Migrator.sol` and `ICTMUpgradeExecutor.sol`.
 * **Same bodies at new lines:**
   * `CTMUpgradeExecutor.upgradeChain`, now `upgrades/registry/executors/CTMUpgradeExecutor.sol:92-107`
     (was `:87-102`): caller check `:93-95`, the `oldProtocolVersion()` lookup `:96-102`, the
-    CTM call `:105`.
+    CTM call `:105`. The executor now derives from `ProxyUpgradeExecutorBase`
+    (`upgrades/registry/executors/ProxyUpgradeExecutorBase.sol:42`), itself an
+    `UpgradeExecutorBase`, so `owner()` is still `Ownable2Step`'s
+    (`governance/UpgradeExecutorBase.sol:23-32`).
   * `ChainTypeManager.upgradeChainFromVersion`, now `state-transition/ChainTypeManager.sol:618-621`
     (was `:623-626`), and `protocolVersionDeadline` / `setProtocolVersionDeadline` /
     `protocolVersionIsActive`, now `:545-572` (was `:550-577`).
@@ -53,6 +62,8 @@ The code `UpgradeTiming` models, re-diffed function by function (comments stripp
   its second proof system with a verifier outside multi-proof mode (#2628;
   `ProofGateAtV35` has the code). That is one more reject-only check on every upgrade path.
   It reads state `UpgradeTiming` does not track and does not read the notifier.
+  `UpgradeExecutorBase.forward` gained a reject-only check (`:42-44`: a call with calldata needs
+  code at its target); a `forward` of the CTM's `upgradeChainFromVersion` targets the CTM.
 
 So this file is `UpgradeTiming` with the proof-system fields of `ProofGateAtV35` added: each
 timed step carries its routing step's `ProofEffect`. The two new writers are steps of their

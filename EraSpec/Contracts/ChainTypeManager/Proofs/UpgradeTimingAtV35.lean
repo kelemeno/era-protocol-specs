@@ -470,11 +470,44 @@ theorem UpgradeTimingAtV35Witness : Properties.UpgradeTimingAtV35Witness := by
             | cons h5 r5 => cases r5 with
               | nil => exact TimedRun35.cons h1 (TimedRun35.cons h2 (TimedRun35.cons h3
                   (TimedRun35.cons h4 (TimedRun35.cons h5 (TimedRun35.cons hup TimedRun35.nil)))))
-  refine ⟨FreshSystemSatisfiesInvariant wWorld 100 (by decide), _, hrun, ?_, ⟨_, rfl, rfl, rfl⟩,
-    rfl, rfl, rfl⟩
+  have hD : DisablingNeverEnablesMultiProof wProofMulti := by
+    intro v m h
+    simp only [wProofMulti, decide_eq_true_eq] at h ⊢
+    exact ⟨h.1, trivial⟩
+  have hP0 : ProofInv wProofMulti wTimingSys35.routing := fun id c hc => by
+    simp [wTimingSys35, wTimingSys0, TimedSys35.routing, wSys0] at hc
+  refine ⟨FreshSystemSatisfiesInvariant wWorld 100 (by decide), hP0, hD,
+    ⟨tgTimed, tgProof wProofMulti⟩, tgEnd, tgSetup_run wProofMulti rfl, hup, hrun, ?_,
+    ⟨_, rfl, rfl⟩, rfl, ⟨_, rfl, rfl, rfl⟩, rfl, rfl, rfl,
+    TimedRunsKeepAMultiProofVerifier wTiming wProofMulti _ _ _ hD hP0 hrun⟩
   intro l hl
   simp only [wTimingGateSetup, List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil,
     or_false] at hl
   rcases hl with h | h | h | h | h | h <;> subst h <;> exact fun h => h
+
+theorem TimedRequirementWritersWitness : Properties.TimedRequirementWritersWitness := by
+  have h2 : TimedRun35 wTiming wProofMulti wTimingSys35
+      [.timed (.base (.genesis 0)), .timed (.setAux 0 wTimingAux)] _ :=
+    TimedRun35.cons (TimedStep35.timed (TimedStep.base (s := wTimingSys0) (l := .genesis 0)
+        (fun h => h) (Step.genesis (s := wSys0) rfl (addAll_empty_eq xNodup100)))
+        (TimedProofEffect.base ProofEffect.genesis))
+      (TimedRun35.cons (TimedStep35.timed (TimedStep.setAux (s := tg1)) TimedProofEffect.setAux)
+        TimedRun35.nil)
+  refine ⟨_, _, ⟨1, rowsRouting (wRows 100)⟩, h2,
+    TimedStep35.requireSecondProofSystem (c := ⟨1, rowsRouting (wRows 100)⟩) rfl rfl rfl rfl
+      (by decide), rfl, rfl, by decide, rfl, rfl, rfl, ?_⟩
+  rintro ⟨s'', h⟩
+  cases h with
+  | requireSecondProofSystem _ hcaller _ _ _ => exact absurd hcaller (by decide)
+
+theorem UnflaggedUpgradeWitness : Properties.UnflaggedUpgradeWitness := by
+  intro P
+  obtain ⟨s0, hrun, _, _, _, _, _, _, _, _, h10o, _⟩ := Contracts.ChainTypeManager.NotAtAnyTime
+  obtain ⟨pr', hrun35, hpr'⟩ := E561TimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0
+    s0 wTimingSetup (fun _ => ⟨false, 0, 0⟩) hrun (fun _ => rfl)
+  obtain ⟨t', h⟩ := h10o
+  obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsAtE561 wTiming P ⟨s0, pr'⟩ 0 (.executor 300) 2 10
+    t' (hpr' 0)).mpr h
+  exact ⟨s0, ⟨s0, pr'⟩, hrun, fun _ => rfl, hrun35, rfl, hpr', ⟨t', h⟩, ⟨_, h'⟩⟩
 
 end Contracts.ChainTypeManager.UpgradeTimingAtV35
