@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- draft/v0.35.0 (b17415d20): the second-proof-system gate on every chain upgrade
+import EraSpec.Contracts.SecondProofSystem.Proofs.UpgradeGateV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

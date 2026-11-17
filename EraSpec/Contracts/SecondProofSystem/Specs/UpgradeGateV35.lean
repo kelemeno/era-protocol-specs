@@ -5,8 +5,14 @@ import EraSpec.Contracts.ChainTypeManager.Specs.Enabledness
 # Model: the second-proof gate on every chain upgrade (draft/v0.35.0)
 
 Source: era-contracts branch `draft/v0.35.0` at commit
-**`d9f678900e1bc8286412b78f56d4a9f443983c29`**. Every `file:line` below is at that commit;
-paths are relative to `l1-contracts/contracts/`.
+**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`** (2026-11-16). Every `file:line` below is at that
+commit; paths are relative to `l1-contracts/contracts/` unless they start with `protocol-docs/` or
+`protocol-ops/`. The model was first written at `d9f678900` (2026-11-06). Between the two commits,
+of the files cited here only `upgrades/registry/objects/CTMRelease.sol` and `CTMTransition.sol`
+changed (new constructor checks on the L2 bytecode table, a member-wise L2 table comparison, and
+shifted lines; the verifier getter, the code-existence checks of `validate()` and
+`upgradeTarget()` are unchanged), and `protocol-docs/interop-gating.md` gained :43-48 (commit
+`9775be946`), quoted under "The release policy" below.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.SecondProofSystem.Properties.UpgradeGateV35` and are proved in
@@ -24,8 +30,11 @@ A chain's admin may make the chain require its second proof system, once and for
         s.secondProofSystemRequired = true;                                                // :463
 
 `_getProofMode()` is `IZKsyncOSVerifier(address(s.verifier)).getProofMode(s.disabledProofSystems)`
-(`state-transition/chain-deps/facets/ZKChainBase.sol:188-190`). No code at this commit writes
-`false` to the flag: a source search finds the one writer above (`Admin.sol:463`).
+(`state-transition/chain-deps/facets/ZKChainBase.sol:188-190`). A search of
+`l1-contracts/contracts/` finds one writer of the flag (`Admin.sol:463`, which writes `true`),
+one of the mask (`Admin.sol:430`) and two of `s.verifier` (`upgrades/BaseZkSyncUpgrade.sol:151`,
+`state-transition/chain-deps/DiamondInit.sol:118`), besides code that a cut's init
+delegatecalls.
 
 Every diamond cut a v35 Admin facet executes goes through `_executeDiamondCut`
 (`Admin.sol:116-128`):
@@ -39,10 +48,10 @@ Every diamond cut a v35 Admin facet executes goes through `_executeDiamondCut`
 
 It is reached by `upgradeChainFromVersion` (:558-590, cut at :586), `executeUpgrade`
 (:592-595, the CTM owner's break-glass cut through `ChainTypeManager.executeUpgrade`,
-`ChainTypeManager.sol:626-628`) and `genesisUpgrade` (:597-609). The check reads the
-**post-cut** state with the mask **`0`**, not the chain's `s.disabledProofSystems`.
+`state-transition/ChainTypeManager.sol:626-628`) and `genesisUpgrade` (:597-609). The check reads
+the **post-cut** state with the mask **`0`**, not the chain's `s.disabledProofSystems`.
 
-The engine repeats it where it installs a verifier (`upgrades/BaseZkSyncUpgrade.sol:133-153`):
+The engine repeats it where it installs a verifier (`BaseZkSyncUpgrade.sol:133-153`):
 
     if (_newVerifier == IVerifier(address(0))) { revert ZeroAddress(); }                    // :138-140
     if (s.secondProofSystemRequired) {
@@ -59,15 +68,18 @@ A registry edge installs the **target release's** verifier
     if (newVerifier == address(0)) { revert ZeroAddress(); }                               // :69-71
     _upgrade({ ..., _verifier: newVerifier, ... });                                        // :72-83
 
-and `_upgrade` calls `_setVerifier` for a nonzero verifier (`BaseZkSyncUpgrade.sol:97-99`).
+and `_upgrade` calls `_setVerifier` for a nonzero verifier (`BaseZkSyncUpgrade.sol:97-99`),
+whether or not the diamond is on its settlement layer. `CTMTransition.upgradeTarget()` returns the
+manifest's `newRelease` (`upgrades/registry/objects/CTMTransition.sol:223-226`).
 `BootstrapUpgrade.upgradeFromBootstrap` ends in the same `_upgradeFromCommittedObject`
 (`upgrades/BootstrapUpgrade.sol:42`). The genesis upgrade passes `_verifier: address(0)`
-(`upgrades/L1GenesisUpgrade.sol:42-47`): `DiamondInit` has already installed the release's
-verifier (`state-transition/chain-deps/DiamondInit.sol:112-118`, nonzero at :115-117).
+(`upgrades/L1GenesisUpgrade.sol:42-47`): `DiamondInit` has already installed the current
+release's verifier (`DiamondInit.sol:112-118`, nonzero at :115-117) and writes neither the flag
+nor the mask.
 
 A release's verifier is a field of its write-once manifest (`ICTMRelease.verifier()`,
-`upgrades/registry/objects/CTMRelease.sol:79-81`; "There is NO state-mutating function on this
-contract", :28-30), nonzero by construction (:32-38).
+`CTMRelease.sol:86-89`; "There is NO state-mutating function on this contract", :32-34), nonzero
+by construction (:35-42).
 
 ## The verifiers
 
@@ -82,7 +94,9 @@ with `ProofSystem { Boojum, Airbender, Zisk }` (`common/Config.sol:126-130`), so
 is `4`, `ZKSYNC_OS_PLONK_VERIFICATION_TYPE = 2` (:105) and
 `ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE = 5` (:108). The single-proof
 `ZKsyncOSVerifier.getProofMode(uint8)` returns `ZKSYNC_OS_PLONK_VERIFICATION_TYPE` for every
-mask (`state-transition/verifiers/ZKsyncOSVerifier.sol:104-106`).
+mask (`state-transition/verifiers/ZKsyncOSVerifier.sol:103-106`). The testnet wrapper
+`MultiProofTestnetVerifier` forwards to its inner verifier
+(`state-transition/verifiers/MultiProofTestnetVerifier.sol:51-54`).
 
 ## The emergency switch
 
@@ -92,22 +106,38 @@ chain's Zisk is the bridgehub owner's (:417-420). Any other proof system reverts
 
 ## What the CTM checks when it commits
 
-`setNewVersionUpgradeFromTransition` (`state-transition/ChainTypeManager.sol:403-418`) checks
-the departing release (:405-408), `_requireExecutable` (:449-452: `_transition.validate()`,
-which checks code existence of the engine and the composer, `CTMTransition.sol:227-233`, and the
-L2 bytecodes' publication), the version edge (:412, :523-537), and installs the target release
-through `_setCurrentRelease` (:300-318), whose `release.validate()` checks that the verifier
-**has code** (`CTMRelease.sol:109`). Nothing on that path calls `getProofMode`.
-`replaceUpgradeTransition` (:424-443) adds `_requireSameDeparture`, `_requireSameDeadline` and
-`_requireOnwardDestination` (:498-518), which pins a replacement landing at the CTM's current
-version to `currentRelease` (:506-507) and otherwise to the departing release of the edge
-committed at its target (:508-514). It does not call `getProofMode` either.
+`setNewVersionUpgradeFromTransition` (`ChainTypeManager.sol:403-418`) checks the departing release
+(:405-408), `_requireExecutable` (:449-452: `_transition.validate()`, which checks code existence
+of the engine and the delegate composer, `CTMTransition.sol:248-254`, and the L2 bytecodes'
+publication), the version edge (:412, :523-537), and installs the target release through
+`_setCurrentRelease` (:300-318), whose `release.validate()` (:305) checks that the verifier
+**has code** (`CTMRelease.sol:122`). Nothing on that path calls `getProofMode`.
+`replaceUpgradeTransition` (:424-443) adds `_requireSameDeparture` (:472-478),
+`_requireSameDeadline` (:483-489) and `_requireOnwardDestination` (:498-518), which pins a
+replacement landing at the CTM's current version to `currentRelease` (:506-507) and otherwise to
+the departing release of the edge committed at its target (:508-514). It does not call
+`getProofMode` either.
+
+## The release policy
+
+So a flagged chain refuses a committed edge whose target release ships a verifier that fails the
+gate, and nothing on L1 prevents such a commit. The source documents this
+(`protocol-docs/interop-gating.md:43-48`): "every later release of that CTM must ship a
+multi-proof verifier, or the CTM commits an edge those chains can never cross. Nothing on L1
+knows about the lock, so `protocol-ops` package verification enforces it before the vote". That
+check is `judge_proof_mode_kept` (`protocol-ops/src/upgrade_verification/registry/upgrade.rs:915-955`),
+run on every transition the package verifies (`upgrade.rs:856-860`), a commit's (`upgrade.rs:196`)
+and a replacement's (`protocol-ops/src/upgrade_verification/registry/replacement.rs:103`). It
+reports an error exactly when the departing release's verifier answers MULTI to
+`getProofMode(0)` and the arriving release's does not (or cannot be read); an unreadable
+departing mode is only a warning. `KeepsProofMode` is that condition.
 
 ## Modelling choices
 
 * **The rest is `ChainTypeManager.UpgradeTiming`.** That model (written at `e561b9cc2`) is
   reused unchanged for the routing, the CTM, the callers, the block time, the notifier and the
-  batch/settlement-layer gates. Its checks are at these lines at `d9f67890`, with the same code:
+  batch/settlement-layer gates. At `b17415d20` its checks are at these lines, where the code is
+  what `UpgradeTiming`'s docstrings quote:
   `Admin.upgradeChainFromVersion` — modifier :562 (`ZKChainBase.sol:127-132`), cut lookup
   :566-568, version :570-572, notifier gate :577-585, cut :586, version increase :587-589;
   `DefaultUpgrade.upgradeFromTransition` — batches :30, routing guard :36, derived cuts :40;
@@ -115,50 +145,64 @@ committed at its target (:508-514). It does not call `getProofMode` either.
   `CTMUpgradeExecutor.upgradeChain` (`upgrades/registry/executors/CTMUpgradeExecutor.sol:92-107`);
   `ChainTypeManager.upgradeChainFromVersion` (:618-621);
   `ServerNotifier.setUpgradeTimestamp` (`governance/ServerNotifier.sol:113-132`).
-* **Per chain, three more storage fields** (`GateState`): `s.secondProofSystemRequired`,
-  `s.verifier` and `s.disabledProofSystems` (a `uint8`, here a natural number).
+  `UpgradeTiming` omits the nonzero-verifier check (`DefaultUpgrade.sol:69-71`); this model
+  adds it back (`VerifierGate.nonzero`).
+* **Per chain, three more storage fields** (`GateState`): `s.secondProofSystemRequired`
+  (`state-transition/chain-deps/ZKChainStorage.sol:304`), `s.verifier` and
+  `s.disabledProofSystems` (:290, a `uint8`, here a natural number).
 * **`getProofMode` is configuration** (`GateConfig.proofMode`): the answer of the code at each
   verifier address for each mask, `none` for a revert. Verifiers are external contracts, so it is
   arbitrary; `multiProofMode` and `singleProofMode` transcribe the two deployed verifiers.
 * **`ICTMRelease(R).verifier()` is configuration** (`GateConfig.relVerifier`), fixed because the
-  release is write-once.
+  release is write-once. Nothing forces it nonzero; results that need a nonzero target verifier
+  say so.
 * **A revert is the absence of a step.** Every registry or bootstrap cut step carries both
   checks (`VerifierGate`): the engine's `_setVerifier` check and `_executeDiamondCut`'s post-cut
-  check. Those engines do not write the flag, so both read the same flag and the same verifier.
+  check. Those engines do not write the flag (their derived facet cuts carry no init), so both
+  read the same flag and the same verifier: the two fields of `VerifierGate` are the same
+  condition.
 * **The break-glass cut** (`GLabel.breakGlass`) runs an arbitrary init, which can write any
   storage slot, the flag included. It is `ChainRouting`'s `arbitraryCut` plus an arbitrary new
   `GateState`, subject only to the post-cut check. So it can install a MULTI verifier, or clear
   the flag.
-* **Every cut is executed by the v35 Admin facet** (`MODEL-SECOND-PROOF-GATE`). The post-cut
-  check is code of `Admin._executeDiamondCut`. A break-glass cut may replace the Admin facet by
-  one without the check, and a chain crossing an opaque legacy edge runs a pre-v35 Admin facet.
-  The model gates those cuts and every later one as if the v35 facet were still routed. So the
-  results that a flagged chain's verifier passes the gate (`FlaggedCutsKeepMultiProof`,
-  `FlaggedChainsStayMultiProof`) hold for chains that keep the v35 Admin facet. In the results
-  that a chain *cannot* cross an edge, the engine's own check (`BaseZkSyncUpgrade.sol:143-148`)
-  already refuses the cut; the model states it and the post-cut check as the same condition
-  (`VerifierGate`). As in `UpgradeTiming`, the engine of a registry edge is `DefaultUpgrade`.
-* **The mask is a natural number.** The source's `uint8` is below `256`; the model's writers
-  (`freshGate`, `setProofSystemStatus`) keep it there, and nothing else depends on the bound. The
-  statement about `MultiProofVerifier.getProofMode` carries it as a premise.
+* **Every cut is checked as if by the v35 Admin facet** (`MODEL-SECOND-PROOF-GATE` in
+  `ASSUMPTIONS.md`). The post-cut check is code of `Admin._executeDiamondCut`. A break-glass cut
+  may replace the Admin facet by one without the check, and a chain crossing an opaque legacy
+  edge runs a pre-v35 Admin facet. The model gates those cuts and every later one as if the v35
+  facet were still routed. So the results that a flagged chain's verifier passes the gate
+  (`FlaggedCutsKeepMultiProof`, `FlaggedChainsStayMultiProof`) hold for chains that keep the
+  v35 Admin facet, and so does the last item of `EscapesUnlockTheLockedChain` (no break-glass cut
+  leaves a flagged chain on a verifier that fails the gate). The lock results
+  (`LockedChainCannotUpgrade`, `StuckChainCannotUpgrade` and those built on them) use only the
+  engine's own check (`BaseZkSyncUpgrade.sol:143-148`, `VerifierGate.setVerifier`), which runs
+  whatever Admin facet executes the cut. A chain crossing the bootstrap edge also runs a pre-v35
+  Admin facet, whose `_executeDiamondCut` has no post-cut check; there the engine's
+  `_setVerifier` check (v35 code) reads the same slot and is the same condition, so the model's
+  bootstrap step admits exactly the crossings the engine admits. As in `UpgradeTiming`, the
+  engine of a registry edge is `DefaultUpgrade`.
+* **The mask is a natural number.** The source's `uint8` is below `256`. `freshGate` and
+  `setProofSystemStatus` keep a mask below `256`; a break-glass cut may write any value, which
+  only adds runs. The statement about `MultiProofVerifier.getProofMode` carries the bound as a
+  premise.
 * **Genesis and migration in** deploy a fresh diamond: `DiamondInit` installs the current
   release's verifier and leaves the flag and the mask zero. A migrated chain's commitment
-  (`ZKChainCommitment`, `common/Config.sol:234-261`) carries neither the flag nor the mask.
+  (`ZKChainCommitment`, `common/Config.sol:233-261`) carries neither the flag nor the mask.
   The genesis cut then runs `_executeDiamondCut` with the flag unset, so the gate passes.
+  `ChainRouting`'s migration in deploys a diamond for a chain id that has none on this CTM; a
+  chain returning to a diamond it kept is outside this model.
 * **The bootstrap reset** installs the migration's genesis release's verifier through
-  `_upgradeFromCommittedObject` (`BootstrapUpgrade.sol:42`) with both checks. A chain crossing
-  the bootstrap edge runs a pre-v35 Admin facet, which has no flag; the model gates it anyway,
-  which only removes runs of a chain that could not be flagged.
+  `_upgradeFromCommittedObject` (`BootstrapUpgrade.sol:42`), with the engine's check.
 * **`setProofSystemStatus`'s argument** is always `ProofSystem.Zisk`: any other reverts.
 * **The settlement-layer test** of `onlySettlementLayer` (`ZKChainBase.sol:141-146`,
   `s.settlementLayer == address(0)`) is `DiamondAux.slVersion = none`, as in `UpgradeTiming`.
 * **Omitted reject-only checks**, as in `UpgradeTiming`: the L2 upgrade transaction, the semver
   shape, the precondition checker, code existence, the `onlyL1` modifiers. Omitting them only
-  adds runs, so the negative results (a step cannot happen) hold at the source; a positive
-  result (a step exists) means no check the model keeps blocks it.
+  adds runs, so a negative result (a step cannot happen) holds at the source within the bounds
+  of the Admin-facet item above; a positive result (a step exists) means no check the model
+  keeps blocks it.
 -/
 
-namespace Contracts.SecondProofSystem
+namespace Contracts.SecondProofSystem.UpgradeGateV35
 
 open Contracts.ChainTypeManager
 
@@ -184,7 +228,7 @@ def multiProofMode (m : ℕ) : Option ℕ :=
   if m &&& notZiskBit ≠ 0 then none
   else if m &&& ziskBit = 0 then some MULTI else some PLONK
 
-/-- `ZKsyncOSVerifier.getProofMode(uint8)` (`state-transition/verifiers/ZKsyncOSVerifier.sol:104-106`):
+/-- `ZKsyncOSVerifier.getProofMode(uint8)` (`state-transition/verifiers/ZKsyncOSVerifier.sol:103-106`):
 `ZKSYNC_OS_PLONK_VERIFICATION_TYPE` whatever the mask. -/
 def singleProofMode (_ : ℕ) : Option ℕ := some PLONK
 
@@ -195,7 +239,7 @@ structure GateConfig where
   /-- `UpgradeTiming`'s configuration: the deployed objects, the executor, the CTM, the owners,
   the transition schedules. -/
   T : TimedConfig
-  /-- `ICTMRelease(R).verifier()` (`CTMRelease.sol:79-81`), fixed: the manifest is write-once. -/
+  /-- `ICTMRelease(R).verifier()` (`CTMRelease.sol:86-89`), fixed: the manifest is write-once. -/
   relVerifier : Address → Address
   /-- `IZKsyncOSVerifier(a).getProofMode(mask)` of the code at verifier address `a`; `none` is a
   revert. -/
@@ -214,7 +258,7 @@ structure GateState where
   flag : Bool
   /-- `s.verifier`. -/
   verifier : Address
-  /-- `s.disabledProofSystems`, a `uint8`. -/
+  /-- `s.disabledProofSystems` (`ZKChainStorage.sol:290`), a `uint8`. -/
   disabled : ℕ
 
 /-- `UpgradeTiming`'s system together with each chain's `GateState` (meaningful where a chain is
@@ -237,7 +281,7 @@ def departure (W : World) : UpgradePath → ℕ
   | .executor t => (W.tr t).old
 
 /-- The verifier a registry crossing of the edge committed at `v` installs: the verifier of that
-transition's `newRelease()` (`DefaultUpgrade.sol:66-67`). -/
+transition's `newRelease()` (`DefaultUpgrade.sol:66-67`, `CTMTransition.sol:223-226`). -/
 def edgeVerifier (G : GateConfig) (s : GSys) (v : ℕ) : Address :=
   G.relVerifier (s.ts.sys.edge G.T.X.W v).newRel
 
@@ -303,7 +347,8 @@ inductive GStep (G : GateConfig) : GSys → GLabel → GSys → Prop
       TimedStep G.T s.ts (.base (.migrateIn id)) ts' →
       G.relVerifier s.ts.sys.ctm.cur ≠ 0 →
       GStep G s (.migrateIn id) ⟨ts', upd s.gate id (freshGate G s.ts.sys.ctm.cur)⟩
-  /-- The bootstrap reset onto release `R`: installs `R`'s verifier through both checks. -/
+  /-- The bootstrap reset onto release `R`: installs `R`'s verifier through both checks (at the
+  source only the engine's runs; it is the same condition). -/
   | bootstrapReset {s : GSys} {id : ChainId} {c : Chain} {R : Address} {ts' : TimedSys} :
       s.ts.sys.chains id = some c →
       s.ts.sys.ctm.legacy c.pv = LegacyCut.bootstrap R →
@@ -347,6 +392,19 @@ inductive GRun (G : GateConfig) : GSys → List GLabel → GSys → Prop
   | nil {s : GSys} : GRun G s [] s
   | cons {s s' s'' : GSys} {l : GLabel} {ls : List GLabel} :
       GStep G s l s' → GRun G s' ls s'' → GRun G s (l :: ls) s''
+
+/-- What a gated label is in `UpgradeTiming`: the cuts are their timed steps (a break-glass cut
+is `arbitraryCut`), a gate-free label is itself, and the two gate-field writers are no timed
+step at all. -/
+def GLabel.timed : GLabel → List TimedLabel
+  | .upgrade id path caller τ => [.upgrade id path caller τ]
+  | .genesis id => [.base (.genesis id)]
+  | .migrateIn id => [.base (.migrateIn id)]
+  | .bootstrapReset id => [.base (.bootstrapReset id)]
+  | .breakGlass id v ρ _ => [.base (.arbitraryCut id v ρ)]
+  | .other l => [l]
+  | .requireSecondProof _ _ => []
+  | .setProofSystemStatus _ _ _ => []
 
 /-- The labels that cut chain `id`'s diamond. -/
 def GLabel.CutsChain (id : ChainId) : GLabel → Prop
@@ -448,13 +506,45 @@ def GLabel.BreakGlassOf (id : ChainId) : GLabel → Prop
   | .breakGlass i _ _ _ => i = id
   | _ => False
 
+/-! ## The release policy -/
+
+/-- **The `protocol-ops` proof-mode check of transition `t`**
+(`protocol-ops/src/upgrade_verification/registry/upgrade.rs:915-955`): if the departing release's
+verifier passes the gate, so does the arriving release's. The check refuses exactly the
+transitions that fail this. -/
+def KeepsProofMode (G : GateConfig) (t : Address) : Prop :=
+  IsMulti G (G.relVerifier (G.T.X.W.tr t).fromRel) → IsMulti G (G.relVerifier (G.T.X.W.tr t).newRel)
+
+/-- A label that passed the release policy: a registry commit of, or a replacement by, a
+transition that keeps the proof mode. Every other label carries no transition and passes
+trivially (the legacy commit, kept for the bootstrap edge, names no departing release). -/
+def GLabel.PassesReleasePolicy (G : GateConfig) : GLabel → Prop
+  | .other (.base (.ctm (.commit t))) => UpgradeGateV35.KeepsProofMode G t
+  | .other (.base (.ctm (.replace _ r))) => UpgradeGateV35.KeepsProofMode G r
+  | _ => True
+
+/-- **The invariant the release policy maintains.** The routing system satisfies `SysInv`; every
+flagged chain's verifier passes the gate; every chain at a version with a recorded release runs
+that release's verifier; and every committed transition keeps the proof mode. -/
+structure PolicyInv (G : GateConfig) (s : GSys) : Prop where
+  /-- `ChainRouting`'s invariant: `CtmInv`, and no chain ahead of the CTM. -/
+  sys : SysInv G.T.X.W s.ts.sys
+  /-- Every flagged chain's verifier passes the gate. -/
+  gate : GateInv G s
+  /-- Every chain at a version with a recorded release runs that release's verifier. -/
+  onRelease : ∀ id c, s.ts.sys.chains id = some c → s.ts.sys.ctm.relAt c.pv ≠ 0 →
+    (s.gate id).verifier = G.relVerifier (s.ts.sys.ctm.relAt c.pv)
+  /-- Every committed transition keeps the proof mode. -/
+  slotsKeep : ∀ v, s.ts.sys.ctm.ut v ≠ 0 → KeepsProofMode G (s.ts.sys.ctm.ut v)
+
 /-! ## Witness data
 
 The `ChainRouting` witness world extended by release `210` (version 2, release `200`'s routing,
 another object), the same-target replacement `410` (1→2 onto `210`), and the skip transition
 `420` (1→3 onto `250`). Verifier `700` is a `MultiProofVerifier`, `701` a single-proof
-`ZKsyncOSVerifier`. In `gCfg` releases `100`, `210` and `250` ship `700` and release `200` ships
-`701`. Chain admins are `3`, the bridgehub owner is `9`. -/
+`ZKsyncOSVerifier`; every other address reverts on `getProofMode`. In `gCfg` releases `100`,
+`210` and `250` ship `700` and release `200` ships `701`. Chain admins are `3`, the bridgehub
+owner is `9`. -/
 
 /-- Release versions. -/
 def gRelVersion : Address → ℕ := fun a => if a = 210 then 2 else wRelVersion a
@@ -514,4 +604,4 @@ def gLock : GSys :=
       fun _ _ => 0⟩,
     upd (upd (upd (fun _ => ⟨false, 0, 0⟩) 0 ⟨false, 700, 0⟩) 1 ⟨false, 700, 0⟩) 0 ⟨true, 700, 0⟩⟩
 
-end Contracts.SecondProofSystem
+end Contracts.SecondProofSystem.UpgradeGateV35
