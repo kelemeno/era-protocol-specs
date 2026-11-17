@@ -153,6 +153,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.Proofs.FeeState
+import EraSpec.Contracts.InteropCenter.Proofs.FeeReentry
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
 import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
