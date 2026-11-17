@@ -157,7 +157,7 @@ contracts that have not been modeled.
 
 ## Round 5
 
-Round 5 added 25 locally authored work items as new topics in the `Specs/`,
+Round 5 added 31 locally authored work items as new topics in the `Specs/`,
 `Properties/`, `Proofs/` layout (plus `Codegen/Calls.lean`), all imported by the
 package entry point:
 
@@ -171,14 +171,28 @@ package entry point:
   `AtomicRecovery.routerCall` and the topics built on it (`PausedRecovery`,
   `FullRecovery`) are unchanged, and for router-produced calls they cover destinations
   other than L1.
+  Across two chains, the vault trace gains delivery and refund steps guarded by each
+  chain's own record (`AssetBridgePreparation` `Resolution`): conservation and at-most-once
+  resolution under sound evidence, or with the atomic-interop evidence up to a located
+  break (`InteropTwoChainConservedOrBreak`). A bundle of router deposits on registered
+  assets is restored in full from a `Revertable` leg under stated conditions
+  (`FullRecovery`: `PreparedBundleFullyRecovered`). A paused vault commits nothing, and
+  after unpausing the same delivery or refund gives the same result (`NativeTokenVaultBase`
+  `Pause`, `AssetRouterBase` `PausedRecovery`).
 - **Atomic interop.** `InteropCenter` dispatch (new contract folder), flow binding
   without `FlowHashInj` (`ExecutedImpliesRealFlowFinalizableOrLoggedClash`), once-per-leg
   append (`SystemOncePerLeg`), handler reentrancy (`NoEffectCommittedTwice`),
   commitment-tree init-once (`InitL2AtMostOnce`), and the halted-chain END branch in
-  the reference bridge (`EndBranch`).
+  the reference bridge (`EndBranch`). Pause flags on the atomic path leave the safety
+  results unchanged (`InteropAtomicity` `Pause`). An operational model, in which calls cite
+  only settled batches, projects every run to a fixed history and carries the `…OrBreak`
+  results over (`Operational`). The atomic path's source binding is derived from the
+  vouching chain's code up to pinned breaks (`L2InteropHandler` `SourceBindingReduced`).
 - **Hash premises.** The remaining global-injectivity bundle-hash and Merkle results
   are restated in pinned form (`SendsDistinctBundleHashesOrKeccakCollision`,
-  `Merkle` `RootForgeryPinned`, `PublishedRootCommitsOrCollision`).
+  `Merkle` `RootForgeryPinned`, `PublishedRootCommitsOrCollision`), and
+  `SharedCommitmentYieldsCollision` is restated at run level (`SharedCommitment`:
+  `SharedCommitmentCoexistsIffCrossChain`).
 - **Stored roots.** FullMerkle's cached `_nodes` storage computes the abstract fold
   (`FullMerkle` `CachedNodes`; `L2InteropCommitmentTree` `CachedRoot`).
 - **Upgrades** (pin `e561b9cc2`). The counting routing check equals exact routing

@@ -45,8 +45,10 @@ the [vault preparation slice](EraSpec/Contracts/NativeTokenVaultBase/README.md)
 now composes that burn with source-side request and returned-data checks.
 [Preparation traces](EraSpec/Protocol/AssetBridgePreparation/README.md) account
 for multiple pending transfers while ordinary spending continues. Round 5 models the
-vault's destination mint and recovery on the registered bridged branch (P3, P8);
-publication, end-to-end destination execution, and full recovery remain open.
+vault's destination mint and recovery on the registered bridged branch (P3, P8), a
+two-chain trace of preparation, delivery and refund over two vaults (P5, P6), and full
+recovery of bundles of router deposits (P8). Publication and end-to-end destination
+execution remain open.
 
 The representation review now separates `LedgerInvariant` (token accounting)
 from `RepresentationConsistent` (independently stored identities and registry
@@ -123,7 +125,12 @@ Round 5 discharges it for token reinitialization in the vault preparation trace:
 later `bridgeMint`, `bridgeBurn` and `transfer` results are unchanged
 (`ReinitLeavesLedgerCallsUnchanged`) and pending obligations keep their asset
 (`PendingObligationsKeepTheirAsset`). On the vault, recovery stays enabled after
-ordinary spending (`RecoverAfterSpending`).
+ordinary spending (`RecoverAfterSpending`). Pausing is modelled for the L2 center, router and
+vault (`Protocol/InteropAtomicity` `Pause`): it only removes steps, so the safety results hold
+over paused runs verbatim, and a paused destination vault delays a committed leg's execution,
+which an unpause re-enables, without opening a refund except through a located break
+(`PausedDestinationLeavesFlowStuck`, `UnpauseRestoresExecution`). How long the pause lasts is
+the owner's choice (`OPS-CONFIG`).
 
 For the reference bridge, `prepared_execution_remains_possible` is stronger:
 under sound finalization evidence, every full permitted run leaves the transfer
@@ -219,6 +226,17 @@ once (`EachSaltDispatchesOnce`). The vault itself has no replay guard: the same
 recovery or `bridgeMint` succeeds twice (`VaultHasNoReplayGuard`), so at-most-once
 rests on the manager and handler.
 
+Round 5, two vaults (`Protocol/AssetBridgePreparation` `Resolution`): delivery and refund each
+check only their own chain's record, as at the pin. With no evidence premise each record counts
+its resolutions exactly (`TwoChainReplayCounts`). With evidence that never passes both sides for
+one entry (`Sound`, a premise), no entry is both delivered and refunded and each is resolved at
+most once (`TwoChainExclusive`, `TwoChainResolvesOnce`); each ingredient is needed
+(`TwoChainConflictingGateDoublePays`, `TwoChainWithoutRecordsPaysTwice`). With the atomic-interop
+evidence over a `Wf` fixed history and no hash premise, this holds or a `RefundBreak` is located
+on the refund's own logged manager run (`InteropTwoChainResolvesOnceOrBreak`); the padding
+forgery lands there (`InteropTwoChainPaddingDoublePayLocated`). Publication of each burn as
+exactly one leg is still `REP-PUBLISH`.
+
 ### P6. Value remains accounted for throughout the transfer
 
 For every reference run with sound evidence:
@@ -239,8 +257,13 @@ destination credit and total supply is unchanged (`PrepareThenDeliverConserves`)
 the vault slice's reachable states keep supply plus journaled mint amounts constant
 (`ReachableJournalBacked`). In the reference bridge, for any evidence, sound or not,
 conservation fails only in a state that is both delivered and refunded
-(`ValueConservedUnlessDoublePaid`). Two-chain trace conservation over
-the real vault remains OPEN.
+(`ValueConservedUnlessDoublePaid`). Over the vault model on two chains
+(`AssetBridgePreparation` `Resolution`), circulating supply on both chains plus value in flight
+changes by exactly the value paid twice, with no evidence premise (`TwoChainLedgerExact`), and is
+constant under `Sound` evidence (`TwoChainConservation`), or with the atomic-interop evidence
+constant up to a located `RefundBreak` (`InteropTwoChainConservedOrBreak`). It covers the
+registered bridged branch on both chains and one destination; solvency of escrowed native
+assets is not modelled.
 
 ### P7. First execution supplies evidence for other prepared destinations
 
@@ -261,7 +284,10 @@ execution and any logged call claiming the same flow id, every leg of that call'
 is finalizable, the execution's gate evidence carries a tree-root break, or the two
 logged flows clash on the flow hash (`ExecutedImpliesRealFlowFinalizableOrLoggedClash`). The
 truncated-subset attack lands in the clash case (`SubsetFlowAttackLandsInLoggedClash`).
-Refinement to the reference `AuthorizedExecution` is still OPEN.
+Refinement to the reference `AuthorizedExecution` is still OPEN. In the operational model
+(`Protocol/InteropAtomicity` `Operational`), where a call can cite only settled batches,
+every leg of a logged execution's flow is finalizable at the settled batch the execution cited,
+or its proof carries a located break (`OpSiblingFinalizableNowOrBreak`).
 
 "Finalizable" in these results is `FlowFinalizableBy`, the IMT half: an IMT proof accepted
 against the true END root. A destination must also authenticate that root against a
@@ -297,6 +323,17 @@ hooks cancel (`PrepareThenRecoverRoundTrip`); hooks with separate outflow and in
 counters, the `L2AssetTracker` pattern, leave it changed
 (`RoundTripNeedsCancellingHooks`).
 
+For bundles of router `finalizeDeposit` calls on assets the vault has registered,
+`AssetBridgePreparation` `FullRecovery` gives full, exact recovery from a `Revertable` leg: a
+successful claim of such a bundle recovers every call (`DepositBundleClaimIsFull`), and with an
+unpaused vault, a returning tracker hook, tokens behaving as the local token model and covered
+credits (`CreditsCovered`), the claim succeeds and credits each depositor exactly
+(`RegisteredDepositBundleFullyRecovered`; for deposits prepared on this chain, with headroom
+derived from the trace, `PreparedBundleFullyRecovered`). A terminal leg is a full restoration exactly when no call
+returned `false` (`TerminalIsFullIffNoDecline`). Still OPEN as a system guarantee:
+custom-handler assets, router calls to L1, reaching `Revertable`, native escrow preparation,
+restoration of the tracker's accounting, and progress.
+
 ## Contract-by-contract property map
 
 These are candidate review statements, not completed per-contract audits. Each
@@ -307,13 +344,13 @@ and a precise connection to the source and compiled-code proofs.
 |---|---|---|
 | `InteropCenter` | Sender salts, prepared calls, fee balances, bundle publication | All required preparation succeeds before commitment; failure rolls back source effects and salt/fee updates; the published bundle matches preparation; sender and destination identities are fixed; sender salts cannot replay; atomic calls carry no unsupported native value; fee claims cannot take another party's balance. Round 5, proved in the model (`InteropCenter` `Dispatch`): sender salts cannot replay (`EachSaltDispatchesOnce`); every committed atomic leg carries no native value (`CommittedLegsAreValidatedDispatches`, `ClaimedBundleValidatedOrCollision`); distinct dispatches have distinct bundle-hash preimages up to a pinned cross-sender salt clash (`DistinctDispatchesDistinctPreimages`). Fees and the bundle-matches-preparation link are not modelled. |
 | `L2AssetRouter` / `AssetRouterBase` | Routes assets and constructs indirect bridge calls | Source initiation really burns or escrows before returning the mint call; asset, original depositor, amount, destination, and recipient remain bound; only authenticated counterpart/self paths finalize; only the manager invokes atomic recovery; recovery restores the depositor rather than the remote recipient; routing changes cannot invalidate pending obligations without an explicit exception. Round 5: "only the manager invokes atomic recovery" is proved (`RecoveryOnlyByManager`, `VaultRefundOnlyByRouter`). "Recovery restores the depositor" holds only for router-produced calls on assets the vault knows (`PreparedBurnRefundsDepositor`); it fails for custom-handler assets, whose refund reverts and strands the whole bundle (`CustomHandlerBundleNeverRefunded`), and for direct calls, refunded as the call data names with no burn (`DirectCallIsRefunded`). On the call the router really produces, it is proved only for destinations other than L1 (`AssetRouterBase` `AtomicRecoveryFaithful`: `PreparedBurnRefundsDepositorToL2`). An L2→L1 router call targets `L1_ASSET_ROUTER` (`L2AssetRouter.sol:336`). If that address is not `L2_ASSET_ROUTER_ADDR`, the refund of such a call is whatever the code at that address on the L2 does, not the router's refund (`L1LegRefundBypassesRouter`, `PreparedBurnRefundByDestination`; `PreparedBurnRefundFailsToL1` is one burn, with no code at that address, whose modelled call is refunded and whose real call's refund reverts). If that address also has no code on the L2, every claim of a bundle containing the call reverts (`L1LegNeverRefunded`). The pin's destination and atomicity checks, as modelled, accept an atomic one-call bundle to L1 and dispatch it to the manager's `append` instead of publishing it; under the same two premises, with the center and the router agreeing on `L1_CHAIN_ID` and `L2_ASSET_ROUTER_ADDR`, no claim of that bundle succeeds (`AdmittedAtomicL1LegNeverRefunded`; `AtomicL1LegIsStranded` is one instance). The send steps left out of the model, and the fact that L1 executes no unpublished bundle, are argued from source. This is a possible finding, from one agent's analysis and one independent review of the model against the pin, with no severity assessed; it is not reported upstream and not confirmed there (`EraSpec/Contracts/AssetRouterBase/README.md`). Along logged runs a non-vault call does not move another sender's handler, under injectivity on the run's own triples (`LoggedRunNoHijack`); on L2 only the vault registers handlers (`L2OnlyVaultRegisters`). |
-| `NativeTokenVaultBase` / `L2NativeTokenVault` / `L1NativeTokenVault` | Asset identity, origin chain, escrow/burn/mint, chain accounting | Every outgoing obligation is funded; native escrow and representation burns are distinguished; mint/recovery use matching asset and chain accounting; exact recipient and amount are preserved; asset registration cannot substitute a token; identify which pause, metadata, deployment, token, and balance conditions can block pending execution or recovery. Round 5: resolution credits the exact recipient and amount on the registered bridged branch (`BridgeMintExact`, `RecoverExact`); unified registration cannot rebind a live token (`UnifiedRegistrationCannotRebindLiveToken`); the vault has no replay guard of its own (`VaultHasNoReplayGuard`); a zero receiver is accepted at the source and is only recoverable (`ZeroReceiverOnlyRecoverable`); an unregistered legacy token can be registered as native (`UnregisteredLegacyTokenRegistersNative`). Native-asset branches remain unmodelled. |
+| `NativeTokenVaultBase` / `L2NativeTokenVault` / `L1NativeTokenVault` | Asset identity, origin chain, escrow/burn/mint, chain accounting | Every outgoing obligation is funded; native escrow and representation burns are distinguished; mint/recovery use matching asset and chain accounting; exact recipient and amount are preserved; asset registration cannot substitute a token; identify which pause, metadata, deployment, token, and balance conditions can block pending execution or recovery. Round 5: resolution credits the exact recipient and amount on the registered bridged branch (`BridgeMintExact`, `RecoverExact`); unified registration cannot rebind a live token (`UnifiedRegistrationCannotRebindLiveToken`); the vault has no replay guard of its own (`VaultHasNoReplayGuard`); a zero receiver is accepted at the source and is only recoverable (`ZeroReceiverOnlyRecoverable`); an unregistered legacy token can be registered as native (`UnregisteredLegacyTokenRegistersNative`). Pause, in the model: a paused vault commits nothing and unpausing returns it exactly (`PausedVaultCommitsNothing`, `DeliveryDelayedNotLost`); a paused destination vault blocks the execution of a committed leg that mints through it until unpaused, and no refund of the flow passes except through a located break (`InteropAtomicity` `Pause`); a paused source vault makes every refund claim of a bundle with a router deposit revert, and the claim succeeds again after unpausing (`AssetRouterBase` `PausedRecovery`). Native-asset branches remain unmodelled. |
 | `BridgedStandardERC20` | Representation balances, total supply, mint/burn authority | Only the authorized vault mints/burns; amounts and total supply change exactly; a committed mint remains possible under permitted changes; initialization/reinitialization cannot change the asset represented by pending obligations; fixed-width arithmetic guards are sufficient. Round 5: reinitialization keeps the ledger and identity (`ReinitKeepsLedgerAndIdentity`), leaves later ledger calls unchanged (`ReinitLeavesLedgerCallsUnchanged`), and cannot change the asset of pending obligations (`PendingObligationsKeepTheirAsset`, `InitializedTraceWithReinitialization`). |
-| `AtomicFlowManager` | Per-flow/per-bundle lifecycle and flow gates | Only the center commits; only the handler checks execution finality; execution authenticates every declared leg and includes the executing bundle; one genuinely missing leg authorizes recovery only for that same flow; source chains and settlement layer are bound; recovery is at most once and closes its gate before callbacks; state terminality must not be mistaken for full asset restoration. Round 5: execution authenticates every declared leg up to a logged flow-hash clash (`ExecutedImpliesRealFlowFinalizableOrLoggedClash`); with the tree, each leg is appended once (`SystemOncePerLeg`). |
+| `AtomicFlowManager` | Per-flow/per-bundle lifecycle and flow gates | Only the center commits; only the handler checks execution finality; execution authenticates every declared leg and includes the executing bundle; one genuinely missing leg authorizes recovery only for that same flow; source chains and settlement layer are bound; recovery is at most once and closes its gate before callbacks; state terminality must not be mistaken for full asset restoration. Round 5: execution authenticates every declared leg up to a logged flow-hash clash (`ExecutedImpliesRealFlowFinalizableOrLoggedClash`); with the tree, each leg is appended once (`SystemOncePerLeg`). In the operational model every leg of an executed flow was appended on its declared chain and is still `Committed` there, up to located exceptions (`OpExecutedLegEscrowedAndNotRefundedOrBreak`). |
 | `L2InteropCommitmentTree` | Stored commitment keys and indexed links | Authorized insertions only; no duplicate/zero commitment insertion; guards preserve order, links, capacity, and root fidelity; no ordinary operation removes commitments; initialization cannot reset live history. Initialization cannot reset live history: proved in the model (`InitOnce`: `InitL2AtMostOnce`, `TxRunKeysMono`, `ResetHistoryUnreachable`), modulo governance proxy upgrades. |
 | `IndexedMerkleTree`, `FullMerkle`, `Merkle`, `ChainBatchRootTree` | Tree algorithms and proof structure | A root authenticates exactly the intended leaves and indices; unused padding cannot impersonate a leaf; depth/capacity/index bounds hold; begin/end roots are distinct authenticated positions; hash/domain assumptions are explicit. Round 5: FullMerkle's cached storage computes the abstract fold (`RootIsFold`, `ContractProofsAtStoredRoot`); the remaining global-injectivity Merkle results are restated in pinned form (`Merkle` `RootForgeryPinned`, `PublishedRootCommitsOrCollision`). Unused padding can impersonate a leaf at the stored root (`CThreeLeafWitness`, `PublishedRootPaddingHitFires`); see the source findings. |
 | `AtomicInteropProof` | Inclusion and both timeout branches | Prove correct source chain, commitment, settlement layer, and clock; on-time end-root inclusion permits finalization; late begin-root absence or last-in-time end-root absence excludes finalization; stale roots, wrong branches, and non-last batches cannot authorize recovery; halted-chain recovery has a usable witness under explicit publication assumptions. Round 5: in the reference bridge the END branch is composed, complete for every post-deadline root (`TimeoutComplete`), and necessary for halted chains (`HaltedChainNeedsEndBranch`); see P4. |
-| `L2InteropHandler` / `InteropHandlerBase` / `L1InteropHandler` | Bundle/call replay state and external execution context | Successful atomic execution passed the complete flow gate; bytes executed equal committed bytes; destination/source/sender and execution permissions are authenticated; each effect runs at most once; reentrancy cannot reopen execution; failing calls roll back the bundle; public verify/unbundle routes cannot consume atomic bundles; L1 restrictions are preserved. Round 5: no effect is committed twice and reentry for an executing bundle reverts (proved in the model: `InteropHandlerBase` `Reentrancy`, `NoEffectCommittedTwice`, `ReentryForAnExecutingBundleReverts`, `RevertingCallRevertsTheExecution`). |
+| `L2InteropHandler` / `InteropHandlerBase` / `L1InteropHandler` | Bundle/call replay state and external execution context | Successful atomic execution passed the complete flow gate; bytes executed equal committed bytes; destination/source/sender and execution permissions are authenticated; each effect runs at most once; reentrancy cannot reopen execution; failing calls roll back the bundle; public verify/unbundle routes cannot consume atomic bundles; L1 restrictions are preserved. Round 5: no effect is committed twice and reentry for an executing bundle reverts (proved in the model: `InteropHandlerBase` `Reentrancy`, `NoEffectCommittedTwice`, `ReentryForAnExecutingBundleReverts`, `RevertingCallRevertsTheExecution`). "Bytes executed equal committed bytes" and the source/sender identity are proved in the model, given that the vouching chain runs the pinned code (and, for the callers, the decoder round trip), up to a pinned break (sentinel commit value, commit-value clash, or keccak collision on named preimages): `L2InteropHandler` `SourceBindingReduced` (`ExecutedBytesAreDispatchedOrBreak`, `ExecutedCallersAreSourceSendersOrBreak`). |
 | `L2InteropRootStorage` | Imported `(chain, batch/block, root, timestamp)` tuples | Only the bootloader imports; a key is immutable; zero denotes absence unambiguously; root and timestamp match the same authenticated settlement snapshot. Local insertion guards alone do not prove settlement authenticity or timestamp order. |
 | `MessageVerification` / `L2MessageVerification` / `MessageRootBase` and variants | Recursive root authentication and settlement history | Every accepted leaf belongs to the claimed chain and snapshot; root history and timestamps are authentic; malformed recursion and cross-chain substitution fail; imported-root dependencies match settled roots; chain genesis and last-batch structure support the timeout promises. |
 | `BaseTokenHolder` | Native value collection and release | Release is backed by collected/bridged value with correct chain accounting; only authorized entry points collect/release; callbacks cannot duplicate payment. This is principally the public value path: native call value is excluded from atomic bundles. |
