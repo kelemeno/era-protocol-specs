@@ -318,6 +318,9 @@ import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.NotifierBindingV35
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.UnboundedSearchAtV35
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.UnboundedSearchAtV35
 
+-- draft/v0.35.0 (b17415d20) re-model: the commitment tree's transactions on its whole storage
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CommitmentTreeAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
