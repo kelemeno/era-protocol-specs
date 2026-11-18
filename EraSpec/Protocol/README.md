@@ -94,5 +94,16 @@ and properties remain under `../Contracts/<SolidityName>/`.
   `Contracts/L1InteropHandler` `WithdrawalGate` (the L1 handler) with `Contracts/L1Messenger`
   `SenderKeying` (each source chain's modelled L2→L1 output).
 
+- [NativeValueLegs](NativeValueLegs/README.md): native-value atomic legs at head `b17415d20`. On
+  the source chain, a successful refund moves exactly the leg's collected value, to its sender, in
+  the destination's base-token asset, and is the negation of the send's collection
+  (`ClaimReturnsCollected`, `RefundIsCollectionInverse`); along runs each refund is bound to the
+  send that committed its leg, up to a keccak collision on two named byte strings
+  (`EveryClaimRefundsItsSenderOrCollision`; the amount is stated except for a claim that is the
+  tracker's first registration of a token native to the source chain). Countermodel: an indirect
+  call carrying value. The frame premise on router-call recovery reduces, through the vault's own
+  refund at head, to handlers other than the vault (`HeadRouterRecoveryFramesOthers`,
+  `HeadCodeFrames`).
+
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.

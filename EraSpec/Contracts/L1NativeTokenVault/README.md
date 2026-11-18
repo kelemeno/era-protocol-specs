@@ -14,6 +14,8 @@ propositions, plus auxiliary lemmas.
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
 | InteropPool | [Specs/InteropPool.lean](Specs/InteropPool.lean) | [Properties/InteropPool.lean](Properties/InteropPool.lean) | [Proofs/InteropPool.lean](Proofs/InteropPool.lean) |
+| BulkheadIsolation | [Specs/BulkheadIsolation.lean](Specs/BulkheadIsolation.lean) | [Properties/BulkheadIsolation.lean](Properties/BulkheadIsolation.lean) | [Proofs/BulkheadIsolation.lean](Proofs/BulkheadIsolation.lean), step lemmas in [Proofs/BulkheadIsolationSteps.lean](Proofs/BulkheadIsolationSteps.lean) |
+| BulkheadPoolSimulation | [Specs/BulkheadPoolSimulation.lean](Specs/BulkheadPoolSimulation.lean) | [Properties/BulkheadPoolSimulation.lean](Properties/BulkheadPoolSimulation.lean) | [Proofs/BulkheadPoolSimulation.lean](Proofs/BulkheadPoolSimulation.lean) |
 
 Namespace `Contracts.L1NativeTokenVault.InteropPool`. Statements are
 `Contracts.L1NativeTokenVault.InteropPool.Properties.*`; each certificate has the same name
@@ -92,3 +94,76 @@ of the other), `LaterChainWitness`, `InvariantStepWitness`, `PoolKeyedWitness`,
   balances themselves, and whether the backfill amounts governance sets are right.
 - Implementation correspondence (storage layout, `uint256` arithmetic, call frames) is open, as
   for every model here.
+
+## BulkheadIsolation and BulkheadPoolSimulation
+
+Namespace `Contracts.L1NativeTokenVault.Bulkhead`. Statements are
+`Contracts.L1NativeTokenVault.Bulkhead.Properties.*`; each proof has the same name without the
+`Properties` segment. No statement takes a hash premise. Read them with the
+[assumption register](../../../ASSUMPTIONS.md): `MODEL-BULKHEAD-CAP` for what the model keeps and
+drops, `MODEL-ESCROW` for `bridgedOut` against the vault's token balance, and `OPS-CONFIG` for the
+owner's backfill amounts.
+
+`BulkheadIsolation` transcribes the same code as InteropPool, for a different question: what one
+chain can release from the vault when its proofs are not trusted. The model has both accounting
+hooks, the owner's backfill calls, the permissionless move to the interop pool,
+`initializeUpgrade`, `populateBridgedOut`, `L1MessageRoot.enableInterop`, chain registration and
+the write-once origin map. A withdrawal or failed-deposit claim (`fromChain c a x`) may be any asset
+and any `uint256` amount for any registered chain. The two transcriptions were written separately;
+`BulkheadPoolSimulation` proves that they agree. A third transcription of the cap's writers,
+`Codegen.VaultPreparationSlice` topic `L1PerChainCapAtV35`
+([Specs/L1PerChainCapAtV35.lean](../../Codegen/VaultPreparationSlice/Specs/L1PerChainCapAtV35.lean)),
+lets the interop flags and the origin map change freely at every step; it is not connected to these
+two.
+
+- Release bounds. Over any run that starts after the upgrade with chain `c` not pending, in which
+  `c` stays disabled and the asset is not native to `c`, what is released for `(c, a)` is at most
+  `deposited + backfill` at the end less `withdrawn` at the start
+  (`BulkheadDisabledChainReleaseBound`; per key, `BulkheadKeyReleaseBound`). The chains enabled at
+  the time of their withdrawals jointly release at most the pool's deposits, moves and pool backfill
+  credits included, less the pool's starting `withdrawn` (`BulkheadEnabledSetReleaseBound`). A capped
+  call ends within the limit (`BulkheadCappedWithdrawalWithinLimit`), and no call for one chain
+  changes another chain's counters (`BulkheadCrossChainFrame`).
+- The shared escrow. From the upgrade state, for an L1-native asset, `bridgedOut` plus the
+  backfills plus the deficits of moved chains equals the starting `bridgedOut`, the populated legacy
+  amounts, the unmoved chains' headrooms and the pool's headroom (`BulkheadLedgerIdentity`). If the
+  backfills fit the escrow and no moved chain is in deficit, `bridgedOut` covers those headrooms
+  (`BulkheadEscrowBacksHeadroom`). With no key in deficit, a disabled chain's withdrawal within its
+  headroom passes both checks, provided the pair's `deposited + backfill` is a `uint256`
+  (`BulkheadHonestWithdrawalSucceeds`; for assets not native to L1, from any state,
+  `BulkheadBridgedWithdrawalSucceeds`). No deficit, once reached with no chain pending, persists
+  (`BulkheadNoDeficitPersists`).
+- Countermodels, on the deployed constants from the upgrade state. A pending chain is uncapped: it
+  can withdraw `bridgedOut` past its headroom so another chain's withdrawal within its own headroom
+  reverts, and in an asset not native to L1 any amount (`BulkheadPendingChainUncapped`).
+  `markBackfilled` reads no counter, so it can close a window with `withdrawn > deposited + backfill`;
+  the chain's withdrawals of that asset then revert until deposits cover the difference
+  (`BulkheadMarkBackfilledKeepsDeficit`).
+- The same code as InteropPool. On `uint256` arguments, every successful call of the bulkhead model
+  is the matching successful InteropPool call, with the same effect on the storage both models keep
+  (`BulkheadStepIsPoolCall`; `registerAsset`, which writes only the origin map, has no
+  counterpart). A bulkhead upgrade state is an InteropPool post-upgrade state
+  (`BulkheadUpgradeStateIsPostUpgrade`). So every bulkhead run from its upgrade state is an
+  InteropPool run from its post-upgrade state (`BulkheadRunsArePoolRuns`; from any corresponding
+  state, `BulkheadRunIsPoolRun`), and the InteropPool results above hold of it.
+
+The witnesses `BulkheadCapWitness` and `BulkheadLedgerWitness` instantiate the premises with
+nonzero values and show the release bounds and the escrow bound tight.
+`BulkheadPoolSimulationWitness` meets the simulation's premises with a fifteen-call run.
+
+Model boundaries of the bulkhead model (InteropPool's boundaries on caller checks, registration,
+contract wiring and implementation correspondence apply to it too):
+
+- A withdrawal's chain is a registered chain (the guard `registered c` on both hooks). That L1
+  accepts no withdrawal or claim for an unregistered chain id is argued from
+  `L1AssetRouter.sol:264-269` and `L1MessageRoot.sol:96-120`, not proved. For an L1-native asset
+  the guard matters for L1's own chain id (such a withdrawal would not be tracked), for
+  `INTEROP_POOL_CHAIN_ID` (it would draw on the pool) and for an unregistered id the owner
+  backfilled; any other unregistered id would be capped at zero.
+- That a disabled chain's token transfers all go through the vault
+  (`L1AssetRouter._checkAssetHandlerAllowed`, `:271-288`) is argued, not proved. Enabled chains'
+  transfers through other handlers are not counted under the pool key.
+- The token transfer or mint after a hook is not modelled, so "a withdrawal passes" means the
+  vault's hook passes. Whether the owner's backfills fit the escrow is a premise (`OPS-CONFIG`).
+- The ledger results start at the post-`initializeUpgrade` state; a vault whose `initializeUpgrade`
+  runs late is covered only by the release bounds.

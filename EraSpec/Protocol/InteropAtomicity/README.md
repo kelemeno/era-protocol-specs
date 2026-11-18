@@ -26,6 +26,8 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | FlowBindingAtHead (`3605e82`) | [Specs/FlowBindingAtHead.lean](Specs/FlowBindingAtHead.lean) | [Properties/FlowBindingAtHead.lean](Properties/FlowBindingAtHead.lean) | [Proofs/FlowBindingAtHead.lean](Proofs/FlowBindingAtHead.lean) |
 | OncePerLegAtHead (`main` `70096e2`, `draft/v0.35.0` `b17415d`) | [Specs/OncePerLegAtHead.lean](Specs/OncePerLegAtHead.lean) | [Properties/OncePerLegAtHead.lean](Properties/OncePerLegAtHead.lean) | [Proofs/OncePerLegAtHead.lean](Proofs/OncePerLegAtHead.lean) |
 | SettlementRoots | [Specs/SettlementRoots.lean](Specs/SettlementRoots.lean) | [Properties/SettlementRoots.lean](Properties/SettlementRoots.lean) | [Proofs/SettlementRoots.lean](Proofs/SettlementRoots.lean) |
+| DispatchLiveness | [Specs/DispatchLiveness.lean](Specs/DispatchLiveness.lean) | [Properties/DispatchLiveness.lean](Properties/DispatchLiveness.lean) | [Proofs/DispatchLiveness.lean](Proofs/DispatchLiveness.lean) |
+| ExecutionLiveness | [Specs/ExecutionLiveness.lean](Specs/ExecutionLiveness.lean) | [Properties/ExecutionLiveness.lean](Properties/ExecutionLiveness.lean) | [Proofs/ExecutionLiveness.lean](Proofs/ExecutionLiveness.lean) |
 | SystemAtV35 (`draft/v0.35.0` `b17415d`) | [Specs/SystemAtV35.lean](Specs/SystemAtV35.lean) | [Properties/SystemAtV35.lean](Properties/SystemAtV35.lean) | [Proofs/SystemAtV35.lean](Proofs/SystemAtV35.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
@@ -36,8 +38,11 @@ Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePer
 `FlowBinding` and `OncePerLeg`, `FlowBindingAtHead` on `FlowBinding`, `OncePerLeg` and
 `AtomicFlowManager` `FlowCanonicalAtHead`, `OncePerLegAtHead` on `OncePerLeg` and
 `L2InteropCommitmentTree` `HintSearchAtHead`, `SettlementRoots` on `Refund`, `Operational`
-and the `MessageRoot` and `L2InteropRootStorage` contract models, and `SystemAtV35` on
-`FlowBinding`, `OncePerLegAtHead`, `LegSourceFilterAtV35` and the `AtomicFlowManager` topic
+and the `MessageRoot` and `L2InteropRootStorage` contract models, `DispatchLiveness` on
+`OncePerLeg` and `../../Contracts/InteropCenter/`, `ExecutionLiveness` on `Refund`,
+`RootImport` (its witness history) and the handler topics of
+`../../Contracts/InteropHandlerBase/`, and `SystemAtV35` on `FlowBinding`,
+`OncePerLegAtHead`, `LegSourceFilterAtV35` and the `AtomicFlowManager` topic
 `RefundClosesAppend`).
 The exception is `RefundStrong`, which also takes `AggregatesBefore` from the later
 `Operational` topic ([Specs/Operational.lean](Specs/Operational.lean)).
@@ -616,6 +621,44 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   read mid-block, where `Aggregates` fails), `SettlementRootsAcceptedWitness`,
   `SettlementRootsRefundRunWitness`, `SettlementRootsImportWitness`.
 
+- **DispatchLiveness** (namespace `Contracts.DispatchLiveness`, pin `c67894b9`). One chain's send
+  path: the center's salt flags and dispatch log (`InteropCenter`, topic `Dispatch`) composed with
+  `OncePerLeg`'s manager and tree, so an atomic `_sendBundle` is one step with the dispatch's own
+  hint (`Step`, `MODEL-SEND-PATH` in `ASSUMPTIONS.md`); its runs are runs of both
+  (`DispatchRunProjectsToCenter`, `DispatchRunProjectsToAppendPath`). With no hash premise, an
+  atomic dispatch with an unused salt, a formed and validated bundle, a nonzero commit value and the
+  exact hint (the occupied leaf with the largest value below the commit value,
+  `ExactHintIsLargestBelow`) has a step, or a `DispatchClash` pinned to the run's own log holds
+  (`HonestDispatchEnabledOrClash`), also when the hint was exact at an earlier state of the run with
+  at most five appends in between (`StaleHintDispatchEnabledOrClash`); no hint works iff such a
+  clash holds (`AtomicDispatchBlockedIffClash`). The hint search, counted: the search succeeds iff its fuel
+  covers `hopsNeeded` (`SearchSucceedsIffHopsWithinFuel`), so at the pin a hint works iff it is at
+  most five hops away (`HintWithinFiveHopsSucceeds`), an exact hint still works after five later
+  inserts (`StaleExactHintSurvivesFiveInserts`), and for every fuel some honest tree has an occupied
+  hint that needs one hop more (`HopsNeededUnbounded`). "Enabled" is relative to the modelled checks.
+  At the current heads the walk is unbounded and `append` checks more (Specs header).
+- **ExecutionLiveness** (namespace `Contracts.ExecutionLiveness`, pin `c67894b9`). On the handler
+  model of `InteropHandlerBase` topic `Reentrancy`. Outside `Verified`, without a valid proof,
+  `executeBundle`, `verifyBundle` and `unbundleBundle` revert (`PublicRoutesRevertOutsideVerified`).
+  Under the same no-proof condition only a call that passed the flow gate commits an effect of the
+  hash (`NeverPublishedBundleNeedsTheFlowGate`, topic `BundleStatusMachineFaithful`), and an atomic
+  leg's hash meets that condition up to two named clashes (`AtomicLegStaysAtomicAtDestinationOrClash`,
+  topic `BundleStatusMachineStrong`). If every attempt on the leg meets a target that always
+  reverts, whether or not the attempt passes the flow gate, the leg stays `Unreceived` and none of
+  its calls is delivered (`AtomicLegWithRevertingCallNeverExecutes`; from a source run, up to the
+  same two clashes, `…OrClash`); for a leg of a flow that passed the gate,
+  `FinalizedRevertingLegNeitherDeliveredNorRefunded` adds `Refund`'s
+  `OneExecutionFreezesTheFlowOrBreak`, a separate model linked by the leg's bundle hash. A bundle
+  with a valid proof can instead be verified and unbundled with that call cancelled
+  (`PublicBundleEscapesViaUnbundle`). The execution permission, which the handler model omits, is
+  stated on topic `SelfCallAuthorityFaithful`'s gate model, not composed with `exec`: at the pin a
+  call passes `executeAtomicBundle`'s gate for an `executionAddress` `(ch, a)` only as a direct call
+  from `a`, with `ch` this chain or `0` (`ExecutorGatedLegNeedsExecutor`); for any other `ch` none
+  passes it, while `receiveMessage` relays `executeBundle` for `(ch, a)`
+  (`ForeignChainExecutorHasNoAtomicRoute`). Enabledness: `UnbundleEnabled`,
+  `AtomicRouteStaysEnabled`. At `e561b9cc2` and the current heads the L2 handler has
+  `verifyAtomicBundle` and a `receiveMessage` route into `executeAtomicBundle` (Specs header).
+
 - **SystemAtV35** (namespace `Contracts.SystemAtV35`; source `draft/v0.35.0` at `b17415d20`,
   first written at `d9f678900`, where every cited Solidity line is the same). One relation,
   `RunV35`, keeps as state, on every chain at once, what the v35 atomic path reads: every
@@ -683,8 +726,10 @@ enabledness only (`OpFinalizedFlowIsExecutable`, `OpTimedOutLegIsRefundable`,
 `OpFlowFateDecidedAfterRoot`): nobody is assumed to send the call, and checks the model
 omits can still reject it (for an execution, among others, that the destination has
 imported a root holding the cited batches: `RootImport`). Still open: eventual liveness
-(every committed obligation eventually executes or refunds). Source-side obligations are
-O7–O9 in `../../Refinement.lean`.
+(every committed obligation eventually executes or refunds); `DispatchLiveness` and
+`ExecutionLiveness` state when the send and execution routes are enabled at the pin, and a
+case in which a leg of a finalized flow is neither delivered nor refunded. Source-side
+obligations are O7–O9 in `../../Refinement.lean`.
 
 These modules keep the namespaces they had on the `claude/proof-attempt-4f3778`
 line (`Contracts.Atomicity`, `Contracts.Timeout`, `Contracts.Refund`).

@@ -105,6 +105,12 @@ import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProof
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProofKeccak
 
+-- DynamicIncrementalMerkle: the storage push tree (MessageRoot chain trees, priority tree), its
+-- memory copy, and the chain trees as the backing of the timeout path's last-batch check
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.Model
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.MemoryLazy
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.ChainTreeBacking
+
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec
 import EraSpec.Protocol.MultichainGate.Proofs.Model
@@ -238,6 +244,11 @@ import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 -- L1NativeTokenVault at draft/v0.35.0 (b17415d20): the per-chain ledger, the interop pool and
 -- the interop flags (N-2)
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.InteropPool
+
+-- L1NativeTokenVault at draft/v0.35.0 (b17415d20): what one chain can release under the
+-- per-chain cap, the escrow ledger identity, and the bulkhead model's calls as InteropPool calls (N-3)
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadIsolation
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadPoolSimulation
 
 -- Range proofs of the priority queue (b17415d20): `Merkle.calculateRootPaths` and
 -- `PriorityTree.processBatch` (N-8)
@@ -380,6 +391,37 @@ import EraSpec.Protocol.L1WithdrawalProvenance.Proofs.Provenance
 
 -- Interop-peer whitelist mirror and the L2 Bridgehub's baseTokenAssetId entries (b17415d20; N-15)
 import EraSpec.Protocol.InteropPeerRegistry.Proofs.PeerMirror
+
+-- Liveness of the atomic send path and of an atomic leg's routes on its destination (InteropAtomicity)
+import EraSpec.Protocol.InteropAtomicity.Proofs.DispatchLiveness
+import EraSpec.Protocol.InteropAtomicity.Proofs.ExecutionLiveness
+
+-- Admin facet (draft/v0.35.0 at b17415d20): access control, admin handover, freezing, priority
+-- mode, chain upgrades, fee inputs
+import EraSpec.Contracts.AdminFacet.Proofs.Access
+import EraSpec.Contracts.AdminFacet.Proofs.PriorityMode
+import EraSpec.Contracts.AdminFacet.Proofs.Upgrade
+import EraSpec.Contracts.AdminFacet.Proofs.Fees
+
+-- L1Bridgehub at draft/v0.35.0 (b17415d20; cited files identical at d9f6789): the chain
+-- registry, settlement-layer bookkeeping and the two request paths
+import EraSpec.Contracts.Bridgehub.Proofs.Registry
+
+-- Native-value atomic legs at head b17415d20 (backlog N-5): collection and refund, and runs
+import EraSpec.Protocol.NativeValueLegs.Proofs.LegConservation
+import EraSpec.Protocol.NativeValueLegs.Proofs.LegConservationRuns
+import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
+
+-- Round 8, N-19: atomic recovery on the L2 asset tracker at v35 (b17415d20)
+import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
+
+-- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
+-- on the PriorityTree model copied from origin/cov/mailbox
+import EraSpec.Protocol.PriorityMirror.Proofs.Mirror
+
+-- L1ChainAssetHandler at draft/v0.35.0 (b17415d20): isValidSettlementLayer against the layer that
+-- executed each batch, over a run of executions and one migration round trip (N-22)
+import EraSpec.Contracts.L1ChainAssetHandler.Proofs.SettlementLayerValidation
 
 -- Atomic interop at draft/v0.35.0: the composed system (InteropAtomicity, SystemAtV35)
 import EraSpec.Protocol.InteropAtomicity.Proofs.SystemAtV35
