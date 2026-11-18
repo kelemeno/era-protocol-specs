@@ -664,12 +664,13 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   `RunV35`, keeps as state, on every chain at once, what the v35 atomic path reads: every
   manager and commitment tree (insert with the unbounded walk), the `L2Bridgehub` peer and
   registration entries with their admin writers, the L1 half of `L2InteropRootStorage`, and the
-  handler's `bundleStatus`. The merged v35 and head models each take part of this as a per-call
-  input (`RefundClosesAppend` and the `AtomicFlowManager` topic `FlowCanonicalAtV35` are one
-  chain; `LegSourceFilterAtV35` has the allow-lists only; `FlowBindingAtHead`'s `RunAtV35` reads
-  the other contracts per call; `OncePerLegAtHead` has managers and trees; the
-  `InteropHandlerBase` topic `ReentrancyAtV35` is one handler, whose gate verdict is an input
-  bit). No result takes a hash premise. Each result is in one of the categories below.
+  handler's `bundleStatus`. The merged v35 and head models each keep part of this as state and
+  take the rest as a per-call input or leave it out (`RefundClosesAppend` and the
+  `AtomicFlowManager` topic `FlowCanonicalAtV35` are one chain; `LegSourceFilterAtV35` has the
+  allow-lists only; `FlowBindingAtHead`'s `RunAtV35` reads the other contracts per call;
+  `OncePerLegAtHead` has managers and trees; the `InteropHandlerBase` topic `ReentrancyAtV35` is
+  one handler, whose gate verdict is an input bit). No result takes a hash premise. Each result
+  is in one of the categories below.
   - *New.* The runs project to `ReachLog`, `RunLog` and `SysStepsAtHead`
     (`RunV35ProjectsToReachLog`, `RunV35ProjectsToRunLog`, `RunV35ProjectsToSysStepsAtHead`; the
     second parallels `LegSourceFilterAtV35`'s `RunAtV35ProjectsToRunLog`). The expired-flow gate
