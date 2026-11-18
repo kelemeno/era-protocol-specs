@@ -40,19 +40,21 @@ without the `Properties` segment.
   Break-glass cuts are excluded. An L1 diamond that starts with mask `0` or the ZiSK bit always
   either has mask `0` and reports multi-proof mode, or has exactly the ZiSK bit set, the
   emergency state (`MultiProofOrZiskOffWhileMigrationsDisabled`).
-- If, moreover, no Bridgehub owner turns a proof system off, the ZiSK bit stays clear
-  (`ZiskStaysOnWithoutTheBridgehubOwner`), and an L1 diamond that starts with mask `0` keeps
-  mask `0` and keeps reporting multi-proof mode (`MultiProofKeptWhileMigrationsDisabled`).
-- `enableInterop(chainId, req)` succeeds exactly for the owner of L1's Bridgehub on a chain not
-  yet enabled, with `req` only if the chain's L1 diamond has the flag and reports multi-proof
-  mode, and changes only `interopEnabled` (`EnableInteropSucceedsIff`). `MultiProofVerifier`
-  reports multi-proof mode exactly for the empty mask (`MultiProofModeIffNothingDisabled`).
+- If, moreover, the owner of L1's Bridgehub turns no proof system off on the L1 diamond, the
+  L1 diamond's ZiSK bit stays clear (`ZiskStaysOnWithoutTheBridgehubOwner`), and an L1 diamond
+  that starts with mask `0` keeps mask `0` and keeps reporting multi-proof mode
+  (`MultiProofKeptWhileMigrationsDisabled`).
+- In the model, which omits its registration and backfill checks, `enableInterop(chainId, req)`
+  succeeds exactly for the owner of L1's Bridgehub on a chain not yet enabled, with `req` only if
+  the chain's L1 diamond has the flag and reports multi-proof mode, and changes only
+  `interopEnabled` (`EnableInteropSucceedsIff`). `MultiProofVerifier` reports multi-proof mode
+  exactly for the empty mask (`MultiProofModeIffNothingDisabled`).
 - Headline, `protocol-docs/interop-gating.md:26-27` in the source: a chain settling on L1 that
   is enabled with the requirement while its L1 verifier runs `MultiProofVerifier.getProofMode`
   stays enabled, on its L1 diamond, with the flag, mask `0` and multi-proof mode, along every
-  run without a break-glass cut in which no Bridgehub owner turns a proof system off
-  (`EnabledChainStaysMultiProof`). "Both proofs" is read as the proof mode the diamond reports;
-  what a verifier's `verify` accepts is outside the model.
+  run without a break-glass cut in which the owner of L1's Bridgehub turns no proof system off
+  on the L1 diamond (`EnabledChainStaysMultiProof`). "Both proofs" is read as the proof mode the
+  diamond reports; what a verifier's `verify` accepts is outside the model.
 - Only a diamond that accepts the chain's batches can take the requirement
   (`AwayDiamondCannotRequire`).
 - `isPermanentRollup` is carried by the migration commitment and guarded by the mint
@@ -63,7 +65,8 @@ Witnesses: `RequirementPermanentWitness` (the owner's emergency ZiSK-off makes t
 report PLONK mode, the admin's ZiSK-on restores multi-proof mode; the admin's ZiSK-off, a
 single-proof upgrade and a migration burn are refused), `MultiProofKeptWitness` (enabling, an
 upgrade, an admin handover and a Bridgehub ownership change), `ReturnedChainWitness` (a chain
-that also has a gateway diamond, left before the pin), `AwayDiamondCannotRequireWitness`,
+that also has a gateway diamond, left before the pin, on which the owner of the gateway's
+Bridgehub, made its admin, turns ZiSK off), `AwayDiamondCannotRequireWitness`,
 `PermanentRollupKeptWitness` (a permanent rollup's round trip to the gateway under the dev
 setting `migrationsEnabled = true`).
 

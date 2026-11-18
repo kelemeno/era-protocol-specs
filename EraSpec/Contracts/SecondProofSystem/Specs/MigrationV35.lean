@@ -26,11 +26,13 @@ for writes of these seven fields finds only the code transcribed below.
 
 A diamond accepts the chain's batches only while its `settlementLayer` is `address(0)`:
 commit, prove and execute are `onlySettlementLayer`
-(`state-transition/chain-deps/facets/Committer.sol:77`, `Executor.sol:175, 220`;
-`ZKChainBase.sol:141-146`). The proof format it reports is
+(`state-transition/chain-deps/facets/Committer.sol:77`,
+`state-transition/chain-deps/facets/Executor.sol:175, 220`;
+`state-transition/chain-deps/facets/ZKChainBase.sol:141-146`). The proof format it reports is
 `s.verifier.getProofMode(s.disabledProofSystems)` of **that** diamond (`ZKChainBase.sol:187-190`,
-`Getters.sol:109-111`). `MultiProofVerifier.verify` reads the mask of the calling chain and
-requires the proof type `getProofMode` returns (`state-transition/verifiers/MultiProofVerifier.sol:78-85`).
+`state-transition/chain-deps/facets/Getters.sol:109-111`). `MultiProofVerifier.verify` reads the
+mask of the calling chain and requires the proof type `getProofMode` returns
+(`state-transition/verifiers/MultiProofVerifier.sol:78-85`).
 
 ### The requirement, per diamond (`DCall`, `dstep`)
 
@@ -574,12 +576,12 @@ def Call.ziskOffLayer : Call → Option Layer
 /-- No break-glass cut. Every other call, by anyone, is allowed. -/
 def Tame (_s : Sys) (_c : Address) (call : Call) : Prop := call.isBreakGlass = false
 
-/-- No break-glass cut, and no proof system turned off by the owner of that layer's Bridgehub.
-Every other call, by anyone, is allowed. -/
+/-- No break-glass cut, and no proof system turned off on the L1 diamond by the owner of L1's
+Bridgehub. No other call is excluded, whoever makes it: a ZiSK-off on the gateway diamond by
+the owner of the gateway's Bridgehub is allowed. -/
 def AdminSide (s : Sys) (c : Address) (call : Call) : Prop :=
   call.isBreakGlass = false ∧
-  (call.ziskOffLayer = some .l1 → c ≠ s.l1BridgehubOwner) ∧
-  (call.ziskOffLayer = some .gw → c ≠ s.gwBridgehubOwner)
+  (call.ziskOffLayer = some .l1 → c ≠ s.l1BridgehubOwner)
 
 instance (s : Sys) (c : Address) (call : Call) : Decidable (Tame s c call) := by
   unfold Tame; infer_instance
@@ -671,13 +673,17 @@ def wDormant : Diamond := { freshDiamond wSource 1 with settlementLayer := 99 }
 `wDormant`. -/
 def wReturned : Sys := { w3 with gw := some wDormant }
 
-/-- On the gateway diamond of `wReturned`: its admin hands over to `4`. -/
+/-- On the gateway diamond of `wReturned`: its admin hands over to `3`, the owner of the
+gateway's Bridgehub, who then turns ZiSK off on it. -/
 def wDormantHandover : List (Address × Call) :=
-  [(1, .diamond .gw (.setPendingAdmin 4)),
-   (4, .diamond .gw .acceptAdmin)]
+  [(1, .diamond .gw (.setPendingAdmin 3)),
+   (3, .diamond .gw .acceptAdmin),
+   (3, .diamond .gw (.setProofSystemStatus .zisk false))]
 
-/-- `wReturned` after `wDormantHandover`. -/
-def wReturnedEnd : Sys := { w3 with gw := some { wDormant with admin := 4 } }
+/-- `wReturned` after `wDormantHandover`: the gateway diamond has admin `3` and the ZiSK bit
+set. -/
+def wReturnedEnd : Sys :=
+  { w3 with gw := some { wDormant with admin := 3, disabledProofSystems := ziskBit } }
 
 /-- On L1 under the ban: an upgrade to the multi-proof verifier `12`, the Bridgehub owner's
 emergency ZiSK-off, and the admin turning ZiSK back on. -/

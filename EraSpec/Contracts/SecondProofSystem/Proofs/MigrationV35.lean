@@ -279,7 +279,7 @@ theorem ZiskStaysOnWithoutTheBridgehubOwner :
       | false =>
         exfalso
         have hown : c = t.l1BridgehubOwner := by simpa [authorized, hf] using hc
-        exact hok.2.1 rfl hown
+        exact hok.2 rfl hown
       | true =>
         unfold ziskOff
         rw [hm]
@@ -302,7 +302,7 @@ theorem MultiProofKeptWhileMigrationsDisabled :
         | false =>
           exfalso
           have hown : c = t.l1BridgehubOwner := by simpa [authorized, hf] using hc
-          exact hok.2.1 rfl hown
+          exact hok.2 rfl hown
         | true =>
           rw [hm, hm0]
           simp [newMask]
@@ -541,7 +541,7 @@ theorem MultiProofKeptWitness : Properties.MultiProofKeptWitness := by
 private lemma wDormant_away : ¬ wDormant.accepts := by decide
 
 theorem ReturnedChainWitness : Properties.ReturnedChainWitness := by
-  refine ⟨⟨by decide, fun d h => ?_⟩, rfl, wDormant_away, rfl, rfl, by decide,
+  refine ⟨⟨by decide, fun d h => ?_⟩, rfl, wDormant_away, rfl, rfl, rfl, by decide,
     exec_run (by decide), ⟨by decide, fun d h => ?_⟩, rfl, by decide⟩
   · cases h; exact wDormant_away
   · cases h; decide
