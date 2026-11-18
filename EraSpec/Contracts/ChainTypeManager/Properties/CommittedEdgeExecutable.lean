@@ -249,9 +249,13 @@ def Properties.UnbuiltPlanBreaksEmptinessAgreement : Prop :=
     upgradeStoragePart wEnv.txHash ⟨v30, 0, 0⟩ 99000 v30p1
       (buildL2UpgradeTxFromPlan wEnv wUnbuiltPlan v30p1 []) true = none
 
-/-- **A SUPPLIER IMPLEMENTATION SWAP CAN CLEAR A CHECKED PUBLICATION.** A supplier on which `wPlan`'s
-factory dependencies `[7, 8]` are published, followed by one implementation swap whose code reads
-every hash as unpublished, ends with `requirePublished` false for that list. -/
+/-- **A SUPPLIER IMPLEMENTATION SWAP CAN CLEAR A CHECKED PUBLICATION.** A supplier on which
+`wPlan`'s factory dependencies `[7, 8]` are published, followed by one implementation swap whose
+code reads every hash as unpublished, ends with `requirePublished` false for that list. This holds
+by the model's definition: `implementationSwap` is an arbitrary new reading of `evmPublishingBlock`
+(new code, or a different storage layout). The source fact behind it is that the supplier is a
+CTM-domain proxy that the registry can upgrade
+(`upgrades/registry/libraries/ContractIdentifiers.sol:56-58` at `b17415d20`). -/
 def Properties.SupplierSwapClearsPublication : Prop :=
   ∃ s s', requirePublished s wPlan.factoryDepHashes ∧ wPlan.factoryDepHashes ≠ [] ∧
     SupplierRun s [.implementationSwap (fun _ => 0)] s' ∧
@@ -297,6 +301,22 @@ def Properties.CommittedSlotWitness : Prop :=
     ∃ hsh c', upgradeStoragePart wEnv.txHash ⟨v29, 0, 0⟩ 99000 (wEdgeWorld.tr 400).new
         (composedTx wEnv (wEdgeObjs.obj 400) (wEdgeObjs.plan 400) [1, 2, 3]) true = some (hsh, c') ∧
       c'.pv = v30
+
+/-- **THE WITNESS RUN MEETS THE SLOT HEADLINE'S PREMISES.** For `CommittedSlotWitness`'s run from
+`initState wEdgeWorld 100`: the start has no committed slot, so its slots report their own
+version; the run's one replacement reports its departing release's version; and the conclusion of
+`CommittedSlotEdgePassesChainChecks` at slot `0.29.0`, on the clean chain at `0.29.0` with
+`priorityTxMaxPubdata = 99_000` and composer answer `[1, 2, 3]`, is obtained from that theorem. -/
+def Properties.CommittedSlotWitnessMeetsHeadline : Prop :=
+  (∀ v, (initState wEdgeWorld 100).ut v ≠ 0 →
+      (wEdgeWorld.tr ((initState wEdgeWorld 100).ut v)).old = v) ∧
+  (∀ e r, Op.replace e r ∈ ([.commit 300, .replace 300 400] : List Op) →
+      (wEdgeWorld.tr r).old = wEdgeWorld.relVersion (wEdgeWorld.tr r).fromRel) ∧
+  ∃ s', CRun wEdgeWorld (initState wEdgeWorld 100) [.commit 300, .replace 300 400] s' ∧
+    s'.ut v29 = 400 ∧
+    ∃ hsh c', upgradeStoragePart wEnv.txHash ⟨v29, 0, 0⟩ 99000 (wEdgeWorld.tr 400).new
+        (composedTx wEnv (wEdgeObjs.obj 400) (wEdgeObjs.plan 400) [1, 2, 3]) true = some (hsh, c') ∧
+      c'.pv = (wEdgeWorld.tr 400).new
 
 /-- **THE SUPPLIER PREMISE IS MET BY A RUN THAT PUBLISHES MORE.** On a supplier where `wPlan`'s
 factory dependencies `[7, 8]` are published, two further publications (hashes `9` and `11`) run,

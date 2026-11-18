@@ -13,6 +13,12 @@ exact named propositions, plus auxiliary lemmas.
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
 | RequestPaths | [Specs/RequestPaths.lean](Specs/RequestPaths.lean) | [Properties/RequestPaths.lean](Properties/RequestPaths.lean) | [Proofs/RequestPaths.lean](Proofs/RequestPaths.lean) |
+| PriorityTree | [Specs/PriorityTree.lean](Specs/PriorityTree.lean) | none | none |
+
+`Specs/PriorityTree.lean` is a definitions-only model of the `PriorityTree` library and the
+`DynamicIncrementalMerkle` functions it calls (namespace `Contracts.MailboxFacet`), pinned at
+`d9f678900` and byte-identical at `b17415d20`. It has no Properties or Proofs modules of its own;
+it is used by `../../Protocol/PriorityMirror/` (topic `Mirror`).
 
 Namespace `Contracts.MailboxFacet.RequestPaths`. Statements are
 `Contracts.MailboxFacet.RequestPaths.Properties.*`; each certificate has the same name without the

@@ -122,22 +122,24 @@ the departing release of the edge committed at its target (:508-514). It does no
 
 So a flagged chain refuses a committed edge whose target release ships a verifier that fails the
 gate, and nothing on L1 prevents such a commit. The source documents this
-(`protocol-docs/interop-gating.md:43-48`): "every later release of that CTM must ship a
-multi-proof verifier, or the CTM commits an edge those chains can never cross. Nothing on L1
-knows about the lock, so `protocol-ops` package verification enforces it before the vote". That
-check is `judge_proof_mode_kept` (`protocol-ops/src/upgrade_verification/registry/upgrade.rs:915-955`),
-run on every transition the package verifies (`upgrade.rs:856-860`), a commit's (`upgrade.rs:196`)
-and a replacement's (`protocol-ops/src/upgrade_verification/registry/replacement.rs:103`). It
-reports an error exactly when the departing release's verifier answers MULTI to
-`getProofMode(0)` and the arriving release's does not (or cannot be read); an unreadable
-departing mode is only a warning. `KeepsProofMode` is that condition.
+(`protocol-docs/interop-gating.md:43-48`): "every later release of that CTM must ship a multi-proof
+verifier, or the CTM commits an edge those chains can never cross. Nothing on L1 knows about the
+lock, so `protocol-ops` package verification enforces it before the vote". That check is
+`judge_proof_mode_kept` (`protocol-ops/src/upgrade_verification/registry/upgrade.rs:915-955`), run
+on every transition the package verifies (`upgrade.rs:856-860`), a commit's (`upgrade.rs:193-204`)
+and a replacement's (`protocol-ops/src/upgrade_verification/registry/replacement.rs:100-111`). It
+reports an error exactly when the departing release's verifier answers MULTI to `getProofMode(0)`
+and the arriving release's does not (or cannot be read); an unreadable departing mode is only a
+warning. `KeepsProofMode` is that condition.
 
 ## Modelling choices
 
 * **The rest is `ChainTypeManager.UpgradeTiming`.** That model (written at `e561b9cc2`) is
   reused unchanged for the routing, the CTM, the callers, the block time, the notifier and the
   batch/settlement-layer gates. At `b17415d20` its checks are at these lines, where the code is
-  what `UpgradeTiming`'s docstrings quote:
+  what `UpgradeTiming`'s docstrings quote (checked by diffing `e561b9cc2` against `b17415d20`:
+  apart from the gate additions and `setProofSystemStatus`'s authorisation, the changes in these
+  files are comments, the `INTEROP_CENTER` immutable and the executor base refactor):
   `Admin.upgradeChainFromVersion` — modifier :562 (`ZKChainBase.sol:127-132`), cut lookup
   :566-568, version :570-572, notifier gate :577-585, cut :586, version increase :587-589;
   `DefaultUpgrade.upgradeFromTransition` — batches :30, routing guard :36, derived cuts :40;
@@ -189,7 +191,11 @@ departing mode is only a warning. `KeepsProofMode` is that condition.
   (`ZKChainCommitment`, `common/Config.sol:233-261`) carries neither the flag nor the mask.
   The genesis cut then runs `_executeDiamondCut` with the flag unset, so the gate passes.
   `ChainRouting`'s migration in deploys a diamond for a chain id that has none on this CTM; a
-  chain returning to a diamond it kept is outside this model.
+  chain returning to a diamond it kept is outside this model. At `b17415d20` chain migrations are
+  disabled in production (`CHAIN_MIGRATIONS_ENABLED = false`, `common/Config.sol:320`): the
+  `whenMigrationsEnabled` modifier (`core/chain-asset-handler/ChainAssetHandlerBase.sol:151-155`)
+  reverts `bridgeMint` (:365) and `bridgeBurn` (:201), so migration in cannot happen there. The
+  step is kept as an over-approximation, which only adds runs.
 * **The bootstrap reset** installs the migration's genesis release's verifier through
   `_upgradeFromCommittedObject` (`BootstrapUpgrade.sol:42`), with the engine's check.
 * **`setProofSystemStatus`'s argument** is always `ProofSystem.Zisk`: any other reverts.

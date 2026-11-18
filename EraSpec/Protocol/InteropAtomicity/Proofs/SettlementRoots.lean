@@ -7,11 +7,11 @@ import EraSpec.Contracts.L2InteropRootStorage.Proofs.Model
 /-!
 # Proofs: the timeout and refund headlines from the settlement layer's own roots
 
-(f) re-runs the existing proofs (`Proofs/Timeout.lean`, `Proofs/Refund.lean`) with
+(a) re-runs the existing proofs (`Proofs/Timeout.lean`, `Proofs/Refund.lean`) with
 `Contracts.InteropOperational.refundableBy_of_verifiedBy_before`, the END branch from the strict
-aggregation form, in place of `refundableBy_of_verifiedBy`. (j) takes the strict form from
+aggregation form, in place of `refundableBy_of_verifiedBy`. (c) takes the strict form from
 `Contracts.MessageRoot.Aggregation.aggregatesStrictAt_reach` and `Wf.timeOrdered` from
-`leafTime_mono`. (i) chains `L2InteropRootStorage.EntriesAreAdmittedImports` with the Executor's
+`leafTime_mono`. (b) chains `L2InteropRootStorage.EntriesAreAdmittedImports` with the Executor's
 check. The witnesses are concrete MessageRoot runs, checked by `decide`, under the systems and
 flows of `Proofs/Timeout.lean` and `Proofs/Refund.lean`.
 -/
@@ -24,7 +24,7 @@ open Contracts.Refund Contracts.AtomicFlowManager
 open Contracts.InteropOperational (AggregatesBefore isLastOnTime_of_aggregatesBefore
   refundableBy_of_verifiedBy_before)
 
-/-! ## (f) The strict form suffices -/
+/-! ## (a) The strict form suffices -/
 
 theorem verified_implies_refundable_before {h : Hash} {z0 : UInt256} {hl : LeafHash}
     {cv : CommitValue} {S : System} {R : SlRoot} (hagg : AggregatesBefore S R)
@@ -183,7 +183,7 @@ theorem reachLog_of_reachLogAt {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : C
       ⟨hchk, hleg, hmiss, refundableBy_of_verifiedBy_before (hroots R hR) href⟩ hg
   | claim _ hg ih => exact ReachLog.claim ih hg
 
-/-! ## (j) The settlement layer supplies the strict form -/
+/-! ## (c) The settlement layer supplies the strict form -/
 
 theorem historicalRoot_aggregatesBefore {P : MessageRoot.Aggregation.Params}
     {r : MessageRoot.Aggregation.TsRule} {stF : MessageRoot.Aggregation.State} {R : SlRoot}
@@ -233,7 +233,7 @@ theorem wf_of_messageRoot {P : MessageRoot.Aggregation.Params}
     exact MessageRoot.Aggregation.leafTime_mono (MessageRoot.Aggregation.aggInv_reachable hr) c
   capacity := hT.capacity
 
-/-! ## (i) Imported roots are historical -/
+/-! ## (b) Imported roots are historical -/
 
 theorem imported_roots_are_historical {P : MessageRoot.Aggregation.Params}
     {r : MessageRoot.Aggregation.TsRule} {stF : MessageRoot.Aggregation.State}

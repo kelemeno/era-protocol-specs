@@ -62,11 +62,17 @@ a bundle the center formed, a direct call's target is its starter's recipient
 (`DirectCallWithoutSourceCodeBlocksClaim`). Conforming code at every target, one of
 which recovers, suffices (`ConformingTargetsRefund`). The loop at `draft/v0.35.0`
 (`b17415d`; the same lines at `main` `70096e2`) calls only the router, reads no
-other code, needs no recovery, and rejects an L1 destination
-(`V35ClaimReadsOnlyRouterCode`, `V35ClaimSucceedsWithConformingRouter`,
-`V35ClaimRejectsL1Destination`). The witnesses use a two-call leg that the deployed
-center and manager bring to `Revertable`, on source chains that differ only in the
-code at the direct call's target.
+other code of the source-chain parameter, needs no recovery, and rejects an L1
+destination (`V35ClaimReadsOnlyRouterCode`, `V35ClaimSucceedsWithConformingRouter`,
+`V35ClaimRejectsL1Destination`). The base-token refund step is a fixed parameter
+`baseRecover` there, so the contracts it calls (the base token, the asset tracker)
+are outside these statements, and the independence from code off the router holds
+by how the v35 loop step is built. The witnesses use a two-call leg that the
+deployed center and manager bring to `Revertable`, on source chains that differ only
+in the code at the direct call's target. Open: `AssetRouterBase`'s
+`AtomicRecovery` (`MODEL-ATOMIC-RECOVERY`) models the same pinned loop over its own
+typed calls, and no refinement theorem relates that loop to this one over
+`InteropCenter`'s calls.
 
 **RefundClosesAppend** (pin `draft/v0.35.0` `b17415d20`; namespace
 `Contracts.AtomicFlowManager.RefundClosesAppend`). One chain's manager `_state` and

@@ -3,8 +3,9 @@
 Source: `l1-contracts/contracts/common/libraries/MessageHashing.sol` at era-contracts
 `draft/v0.35.0` head `b17415d20`, with the structs it builds (`common/Messaging.sol`: `L2Log`,
 `L2Message`, `TxStatus`) and the two sender constants (`common/l2-helpers/L2ContractAddresses.sol`).
-The modelled functions are unchanged at `main` `70096e2ea` (comments differ; the constants come
-from `system-contracts/contracts/Constants.sol` there, with the same values).
+The modelled functions are unchanged at `main` `70096e2ea` (comments differ); the sender
+constants are in `common/l2-helpers/L2ContractAddresses.sol` there too (`:41`, `:62`; `:41`, `:56`
+at `b17415d20`), with the same values.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence

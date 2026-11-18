@@ -69,9 +69,10 @@ reverts `setTokenMultiplier` with it.
   `:140-153`), by `DiamondInit.initialize` when the diamond is created (`DiamondInit.sol:119`), and
   by whatever a diamond cut's initialization delegatecall writes (`libraries/Diamond.sol:318`).
   Every cut is composed by the chain type manager: `executeUpgrade` and `genesisUpgrade` are
-  `onlyChainTypeManager` (`facets/Admin.sol:593-609`), and `upgradeChainFromVersion`, callable by
-  the admin, the chain type manager or a validator after the upgrade timestamp (`:559-590`), runs
-  the cut the chain type manager composed. `setTokenMultiplier(uint128,uint128)`, selector
+  `onlyChainTypeManager` (`facets/Admin.sol:593-609`), and `upgradeChainFromVersion` (`:559-590`),
+  callable by the admin or the chain type manager at any time and by a validator once the server
+  notifier's upgrade timestamp has passed (`:562`, `:577-585`), runs the cut the chain type
+  manager composed. `setTokenMultiplier(uint128,uint128)`, selector
   `0x235d9eb5` (`:662-663`), is `onlyAdminOrChainTypeManager onlyL1` (`:267`,
   `ZKChainBase.sol:120-125`).
 * **The Bridgehub's admin.** `DeployL1CoreContracts.s.sol:86` (`deploy-scripts/ecosystem/`)
@@ -89,12 +90,11 @@ reverts `setTokenMultiplier` with it.
 
 ## Modelling choices
 
-* **One inductive execution relation** `Sem cfg j S L S'`, in the style of the
-  `cov/chain-admin` branch's `ChainAdmin` model: judgement `j` takes the world state `S` to `S'`
-  and leaves the ghost log `L`. A revert is the absence of a derivation. A frame that reverts
-  leaves nothing in the log: its writes and its log are undone together. `callFails` is a call
-  that fails with no effect (a revert inside the callee, a failed value transfer, out of gas);
-  any call may fail.
+* **One inductive execution relation** `Sem cfg j S L S'` over a ghost log: judgement `j` takes the
+  world state `S` to `S'` and leaves the ghost log `L`. A revert is the absence of a derivation. A
+  frame that reverts leaves nothing in the log: its writes and its log are undone together.
+  `callFails` is a call that fails with no effect (a revert inside the callee, a failed value
+  transfer, out of gas); any call may fail.
 * **Three judgements.** `.call s c ok`: `s` makes call `c`, with low-level result `ok`. `.loop`:
   the remaining iterations of a `multicall`. `.acts`: code the model does not know, while it holds
   control. That code makes any sequence of calls, each by any sender other than the

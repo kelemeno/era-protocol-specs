@@ -84,6 +84,7 @@ EraSpec/
     ProxyUpgradeExecutorBase/ Specs/, Properties/, Proofs/
     ProxyUpgradeRowLib/       Specs/, Properties/, Proofs/
     RegistryBootstrapMigration/ Specs/, Properties/, Proofs/
+    SecondProofSystem/        Specs/, Properties/, Proofs/
   Core/                      words, arithmetic, preparation, safety simulation
   Protocol/                  cross-contract and multi-chain composition
   Examples/BurnMintBridge/   illustrative model and conditional composition

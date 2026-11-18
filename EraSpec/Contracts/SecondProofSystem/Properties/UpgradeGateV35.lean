@@ -84,7 +84,11 @@ open Contracts.ChainTypeManager
 
 /-- **(a) FLAGGED CUTS KEEP A MULTI-PROOF VERIFIER.** After any successful step that cuts chain
 `id`'s diamond (an upgrade by any path, genesis, migration in, the bootstrap reset, a break-glass
-cut), if the chain's flag is set its verifier answers MULTI to `getProofMode(0)`. -/
+cut), if the chain's flag is set its verifier answers MULTI to `getProofMode(0)`. Every cut step
+other than genesis and migration in carries `VerifierGate.postCut` or the break-glass post-cut
+premise, so for those this restates the cut guards. Genesis and migration in install an
+unflagged `freshGate`, so for them the conclusion holds because the flag is unset. The
+run-level result is `FlaggedChainsStayMultiProof`. -/
 def Properties.FlaggedCutsKeepMultiProof : Prop :=
   ∀ (G : GateConfig) (s s' : GSys) (l : GLabel) (id : ChainId), GStep G s l s' →
     l.CutsChain id → (s'.gate id).flag = true → IsMulti G (s'.gate id).verifier

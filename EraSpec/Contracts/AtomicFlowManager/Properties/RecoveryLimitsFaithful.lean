@@ -111,7 +111,9 @@ def Properties.PinnedClaimSucceedsIffAccepted : Prop :=
 
 /-- **A SUCCESSFUL CLAIM IS A `claim` STEP OF THE MANAGER MODEL.** Run on the state of leg
 `(f, h)` of a manager state `M`, a successful pinned claim found that leg `Revertable` and leaves it
-`Reverted`, and writing that state back is `Contracts.AtomicFlowManager.Step.claim`. `h` is the key
+`Reverted`, and writing that state back is `Contracts.AtomicFlowManager.Step.claim`. This is a gate
+lemma: `claimRefundPinned` succeeds only from `Revertable`, which is exactly `Step.claim`'s guard,
+so it ties the two models together and adds little beyond that gate. `h` is the key
 the claim reads; which key a presented bundle hashes to is not modelled here. Witnessed by
 `PinnedClaimStepWitness`. -/
 def Properties.PinnedClaimIsAManagerClaimStep : Prop :=
@@ -269,8 +271,11 @@ def Properties.PinnedClaimStepWitness : Prop :=
 /-! ## The loop at `draft/v0.35.0` (b17415d) -/
 
 /-- **THE `draft/v0.35.0` CLAIM READS THE SOURCE CHAIN'S CODE AT THE ROUTER ONLY.** Two source
-chains that agree at the router give the same claim, whatever runs at any other address. That
-includes every call's `to`, and the `from` of every call not sent by the router. Witnessed by
+chains that agree at the router give the same claim, whatever the source-chain parameter `S` runs
+at any other address. That includes every call's `to`, and the `from` of every call not sent by the
+router. The base-token refund step `baseRecover` is held fixed: in the contract it calls further
+contracts (the base token, the asset tracker), and this statement says nothing about them. The
+independence from `S` off the router holds by how `v35Step` is built. Witnessed by
 `DirectTargetCodeDecidesOnlyThePinnedClaim`. -/
 def Properties.V35ClaimReadsOnlyRouterCode : Prop :=
   ∀ (W : Type) (S S' : SourceChain W) (router : Address) (l1ChainId : Word)

@@ -560,7 +560,9 @@ def Properties.BundleHashCommittedUnderOneFlow : Prop :=
 :561-564 whose encoder separates its bundles and whose keccak is injective on its salt preimages and
 bundle encodings, with two `Committed` legs that share a bundle hash and have different flow ids.
 (In the witness one sender dispatches one bundle twice, with two flow preimages that both list its
-hash.) -/
+hash. So the salt-preimage list and the encoding list each hold one value twice, and injectivity
+on them holds trivially: what the countermodel shows is that the salt check, not hashing, keeps
+a bundle out of a second flow.) -/
 def Properties.WithoutSaltCheckABundleJoinsTwoFlows : Prop :=
   ∃ (P : Params) (S : State), Reach withoutSaltCheck P init S ∧
     EncInjOn P.enc (S.log.map Dispatch.bundle) ∧ KeccakInjOn P.keccak (saltPreimages S.log) ∧

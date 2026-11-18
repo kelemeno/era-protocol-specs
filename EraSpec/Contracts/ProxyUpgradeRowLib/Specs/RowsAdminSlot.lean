@@ -6,8 +6,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrent
 Source: `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on
 branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at commit
 **`e561b9cc2`**, the commit `Specs/RowsCurrent.lean` is pinned to. Library line numbers are at
-that commit. The library as it first appears on era-contracts `draft/v0.35.0`, at commit
-`ccf00623c` (#2525, 2026-10-19), has every library line cited here at the same number.
+that commit, and were checked against the library at `e561b9cc2` directly. The library as it
+first appears on era-contracts `draft/v0.35.0`, at commit `ccf00623c` (#2525, 2026-10-19), has
+every library line cited here at the same number.
 
 The proxy code the library calls is OpenZeppelin Contracts v4.9.6: the submodule
 `lib/openzeppelin-contracts-v4` at `dc44c9f`, remapped as `@openzeppelin/contracts-v4/`
@@ -21,7 +22,12 @@ and the current `draft/v0.35.0` head `b17415d20`. OpenZeppelin paths below are u
 `EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsAdminSlot`. It refines
 `Specs/RowsCurrent.lean`, which it imports and leaves unchanged, in the sub-namespace
 `Contracts.ProxyUpgradeCurrent.AdminSlot`. Names it does not redefine (`Row`, `upd`,
-`ValidRows`, `Transition`, `rowA`, ...) are the `RowsCurrent` ones.
+`ValidRows`, `Transition`, `rowA`, ...) are the `RowsCurrent` ones. Names it redefines
+(`Config`, `swap`, `ApplyRow`, `ApplyLoop`, `RowCode`, `ApplyRows`, `ApplyTransition`, and the
+proof lemmas `swap_frame`, `applyRow_frame`, `applyRow_det`, `applyLoop_det`,
+`applyLoop_append`, `applyLoop_first`, `applyLoop_frame`) shadow the parent ones inside the
+sub-namespace, so a file that uses both models should write them qualified rather than
+`open AdminSlot`. Its other names (`Slots`, `read`, `lift`, ...) are new.
 
 ## What `RowsCurrent` reads as one mapping
 

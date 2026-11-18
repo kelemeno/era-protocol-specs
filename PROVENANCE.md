@@ -123,6 +123,8 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
     that commit unchanged.
   - `RegistryBootstrapMigration` `Forward`, citing the OpenZeppelin v4.9 submodules
     that commit pins (`2d081f2`, `dc44c9f`).
+  - `ProxyUpgradeRowLib` `RowsAdminSlot`, refining `RowsCurrent` at that commit and
+    citing the OpenZeppelin v4.9.6 submodule `dc44c9f`.
 * At era-contracts `main` commit `3605e82`:
   - `L2InteropCommitmentTree` `PaddingAtHead`: the tree with the padding constant
     `IMT_EMPTY_LEAF_HASH` (`common/Config.sol:87-90`,

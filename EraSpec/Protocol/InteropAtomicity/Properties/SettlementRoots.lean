@@ -9,7 +9,7 @@ No statement takes a hash premise. `AggregatesBefore` is
 `Contracts.InteropOperational.AggregatesBefore`: a batch that settled strictly before the root was
 created is inside it.
 
-## (f) The strict form suffices
+## (a) The strict form suffices
 
 Every fixed-history timeout and refund headline below holds with `Aggregates` replaced by the
 strict `AggregatesBefore`, with the same conclusion and the same located breaks: the verified
@@ -29,7 +29,7 @@ the strict form, such a run is a `Contracts.Refund.ReachLog` run with the same l
 (`ReachLogAtProjects`), so the run-level headline holds for it with the same `RefundBreak`
 (`ExecutedObligationNeverRefundedOrBreakAt`, `OneExecutionFreezesTheFlowOrBreakAt`).
 
-## (i) Imported roots are historical
+## (b) Imported roots are historical
 
 On an L2 whose storage, from fresh, holds only imports that the Executor's dependency check
 accepts at some reachable state of a MessageRoot run, every entry with a nonzero timestamp is keyed
@@ -40,7 +40,7 @@ after `D`), and it satisfies the strict form for every system clocked by the run
 (`ImportedTimeoutRootAggregatesBefore`). Which root the END branch's last-batch proof is checked
 against, at the hash level, is not tied to that root's ghost count (Specs, "Model boundaries").
 
-## (j) No aggregation premise left
+## (c) No aggregation premise left
 
 For a `System` clocked by a MessageRoot run, every historical root of the run satisfies the strict
 form, under either timestamp rule (`HistoricalRootAggregatesBefore`); under strictly increasing
@@ -62,10 +62,10 @@ batch is outside the statements (Specs, "Model boundaries").
 
 | Witness | What it shows |
 |---|---|
-| `SettlementRootsEndBranchWitness` | for every node hash, padding constant and leaf hash: a MessageRoot run under strictly increasing timestamps, a clocked system with `WfTrees`, and a historical root read mid-block that satisfies `AggregatesBefore` but not `Aggregates`; a leg has a verified END-branch timeout against it, at the root's last batch of the leg's chain, which settled on time; no `AbsenceBreak`, and the leg missed its deadline. It meets the premises of every verified-gate statement of (f) and (j), of `HistoricalRootAggregatesBefore` and `WfFromMessageRoot`, and, with a registered chain the root counts no leaf of, of `UncountedChainHasNoEndBranch` |
+| `SettlementRootsEndBranchWitness` | for every node hash, padding constant and leaf hash: a MessageRoot run under strictly increasing timestamps, a clocked system with `WfTrees`, and a historical root read mid-block that satisfies `AggregatesBefore` but not `Aggregates`; a leg has a verified END-branch timeout against it, at the root's last batch of the leg's chain, which settled on time; no `AbsenceBreak`, and the leg missed its deadline. It meets the premises of every verified-gate statement of (a) and (c), of `HistoricalRootAggregatesBefore` and `WfFromMessageRoot`, and, with a registered chain the root counts no leaf of, of `UncountedChainHasNoEndBranch` |
 | `SettlementRootsAcceptedWitness` | the same run and root, with a `RootBacking` and the honest last-batch path under the toy hash `demoHash`: an accepted END-branch timeout with the bounded no-collision premises of `AcceptedImpliesRefundableOnBefore`; no `AbsenceBreak`, `PinnedBreak` or `PathCollision`, and the leg missed its deadline. It meets the premises of the accepted-gate statements |
 | `SettlementRootsRefundRunWitness` | for every node hash, padding constant and leaf hash: a MessageRoot run, a clocked system, an executed one-leg flow, and a logged refund of another flow verified against a historical root of the run (BEGIN branch); no `RefundBreak` for the executed obligation, which is not refunded. It meets the premises of the run-level statements, of `ExecutedExcludesAcceptedRefundOrBreak…`, and of `HistoricalRootAggregatesStrictTs` |
-| `SettlementRootsImportWitness` | an L2 storage built from fresh by one import the Executor's check accepts, whose entry passes the timeout read for a nonzero deadline; it meets the premises of (i) |
+| `SettlementRootsImportWitness` | an L2 storage built from fresh by one import the Executor's check accepts, whose entry passes the timeout read for a nonzero deadline; it meets the premises of (b) |
 -/
 
 namespace Contracts.SettlementRoots
@@ -75,7 +75,7 @@ open Contracts.InteropCommitmentTree Contracts.Atomicity Contracts.Timeout
 open Contracts.Refund Contracts.AtomicFlowManager
 open Contracts.InteropOperational (AggregatesBefore)
 
-/-! ## (f) The strict form suffices -/
+/-! ## (a) The strict form suffices -/
 
 /-- `Contracts.Timeout.Properties.VerifiedImpliesRefundable` with `AggregatesBefore` for
 `Aggregates`: a timeout verified against `R` is a refundable leg. -/
@@ -208,7 +208,7 @@ def Properties.OneExecutionFreezesTheFlowOrBreakAt : Prop :=
       ¬ Refunded Ms (obligationOf F other)
         ∨ RefundBreak h z0 hl fh S F ev (obligationOf F other) log
 
-/-! ## (i) Imported roots are historical -/
+/-! ## (b) Imported roots are historical -/
 
 /-- **EVERY IMPORTED ROOT IS A HISTORICAL ROOT.** If every import of an L2's storage, from fresh,
 passed the Executor's dependency check at some reachable state of the MessageRoot run that goes on
@@ -235,7 +235,7 @@ def Properties.ImportedTimeoutRootAggregatesBefore : Prop :=
       ∃ R, HistoricalRootOf P r stF R ∧ R.created = (st.entries c n).ts ∧ D < R.created
         ∧ ∀ S, ClockedBy S stF → AggregatesBefore S R
 
-/-! ## (j) No aggregation premise left -/
+/-! ## (c) No aggregation premise left -/
 
 /-- **EVERY HISTORICAL ROOT SATISFIES THE STRICT FORM**, for a system clocked by the run, under
 either timestamp rule. -/

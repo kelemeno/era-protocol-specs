@@ -190,7 +190,9 @@ transcribes `parseProofMetadata`, and the witness uses it. No result takes a has
   `(sourceChainId, batchNumber)` against the imported root. `AuthenticateRootSoundV35` proves that,
   for every leaf index, with no premise on the proof's three paths: given `SharedTreeBacking` and
   `ChainTreeEntries` (the source chain's tree entries as `MessageRootBase` pushes them, each chain
-  batch root `ChainBatchRootTree`'s height-3 tree), the claimed root is that leaf of the chain batch
+  batch root `ChainBatchRootTree`'s height-3 tree), and given that every shared-tree slot
+  registered to the source chain commits that tree's root (`rootOf` of its entries at its height),
+  the claimed root is that leaf of the chain batch
   root of an entry whose batch number is the proof's and whose timestamp is the returned one, or
   the instance exhibits an `AuthBreak` (a `PathCollision` on the log-leaf path at the pinned depth, a
   `batchLeafHash` collision, a padded entry, or a `PathCollision` / `HeightBreak` on the batch-leaf

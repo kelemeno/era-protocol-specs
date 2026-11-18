@@ -56,8 +56,8 @@ so that model's `NotifierWrittenOnlyByItsChainAdmin` applies to it
 changes a live entry is that one or a step by the executor (`BoundLiveEntryWritersV35`), and
 that stays so after any run of the domain (`OnlyDiamondAdminSchedulesAlongDomainRuns`, witnessed
 by `OnlyDiamondAdminSchedulesWitness`). Both premises are load-bearing
-(`BoundRefinementPremisesAreLoadBearing`), and they hold together (`BoundPremisesSatisfiable`). `Specs/UpgradeTiming.lean` is pinned at `e561b9cc2`; these results
-relate its model to this one.
+(`BoundRefinementPremisesAreLoadBearing`), and they hold together (`BoundPremisesSatisfiable`).
+`Specs/UpgradeTiming.lean` is pinned at `e561b9cc2`; these results relate its model to this one.
 -/
 
 namespace Contracts.NotifierBindingV35

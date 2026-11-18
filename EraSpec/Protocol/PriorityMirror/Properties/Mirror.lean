@@ -219,7 +219,11 @@ pending; the relay executes and is dropped; ops `1` and `3` were relayed and pro
 gateway, so `3` sits at the index of `2`; after the gateway burn the processed sequence
 `[11, 1, 3]` is not a prefix of the L1 leaves `[11, 1, 2, 3]`. With a nonzero L1 pause timestamp,
 `l1Reinit` and the batch checks would pass, but the commitment's root is not historical in the L1
-tree and the L1 mint step reverts. -/
+tree and the L1 mint step reverts. `ConsistentProcessing` bounds only the count, so the gateway step
+that processes op `3` at gateway index `2` is not shown to be realizable on L2: read it as the
+gateway copy advancing over op `3`. If the L2 refused op `3` at index `2`, the gateway copy could
+not reach `getSize = 0`, the gateway burn would be blocked, and op `2` would still never execute
+on either copy. -/
 def Properties.DroppedRelayCountermodel : Prop :=
   ∃ (s₀ s₁ s : St) (d : ChainDiamond) (c : ChainCommitment),
     Reach wParams ConsistentProcessing s₀

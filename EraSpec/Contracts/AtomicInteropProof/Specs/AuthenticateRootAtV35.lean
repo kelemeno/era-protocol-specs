@@ -324,7 +324,9 @@ The fields say that `R` is the `rootOf` of `slots` at `height` with padding `zS`
 occupied slot `i` holds `chainIdLeaf (chainRoot i) (chainAt i)`. Which chain sits in which slot,
 and with which root, is left free. That an imported root is such a root is the premise
 `PROTO-SHARED-ROOT` (`ASSUMPTIONS.md`); that `FullMerkle`'s stored root is `rootOf` is
-`FullMerkle` `CachedNodes`. -/
+`FullMerkle` `CachedNodes`. The structure does not ask `slots.length ≤ 2 ^ height`, which
+`FullMerkle` always meets on chain; the results quantify over every backing and do not need it,
+so the world it describes is only looser than `FullMerkle`'s. -/
 structure SharedTreeBacking (node : Hash) (chainIdLeaf : UInt256 → UInt256 → UInt256)
     (zS R : UInt256) where
   /-- The shared tree's occupied slots, in slot order. -/

@@ -27,7 +27,8 @@ credited to the coinbase alone (`SendAccruesExactProtocolFee`). Under the standa
 the fixed-fee path it adds exactly `ZK_INTEROP_FEE * calls` to the center's balance in the ZK token
 and to the coinbase's ZK entry, and off that path it changes neither (`SendAccruesExactZkFee`). Its
 payments are a forward to the asset router per indirect starter, totalling
-`Σ indirectCallMessageValue`; then one burn of the direct calls' total value through the holder
+`Σ indirectCallMessageValue`; then one burn of the direct calls' total value (the holder's
+`burnAndStartBridging`; a `Payment.burn` records no recipient, so the holder is not proved here)
 toward the destination exactly when the base tokens agree and that total is nonzero, and one
 value-free deposit request of that total toward the destination (for the destination's base-token
 asset id, with the sender as original caller) exactly when they differ and it is nonzero; with the
@@ -158,7 +159,8 @@ def Properties.SendAccruesExactZkFee : Prop :=
 payments are `sendPayments P inp`; every forward among them is to the asset router, the forwards
 (`forwardPayments`, one per indirect starter) are made to the asset router alone and total
 `Σ indirectCallMessageValue` over the indirect starters; the calls' value `totalBurnedCallsValue`
-is the sum over the direct starters; the payments contain a burn through the holder toward the
+is the sum over the direct starters; the payments contain a burn (the holder's
+`burnAndStartBridging`, by construction of `Payment.burn`, which records no recipient) toward the
 destination exactly when the base tokens agree and that value is nonzero, a value-free deposit
 request toward the destination exactly when they differ and it is nonzero. Every burn among the
 payments is toward the destination for exactly `totalBurnedCallsValue`, and that burn occurs once
