@@ -297,6 +297,10 @@ import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.DomainHoldersV35
 -- switch, and who may move them
 import EraSpec.Contracts.SecondProofSystem.Proofs.FlagAuthorityV35
 
+-- Registry-driven upgrades at draft/v0.35.0 (b17415d20): engine legs on the bootstrap's
+-- authority state (RegistryBootstrapMigration)
+import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityEngineV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
