@@ -245,6 +245,11 @@ import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 -- the interop flags (N-2)
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.InteropPool
 
+-- L1NativeTokenVault at draft/v0.35.0 (b17415d20): what one chain can release under the
+-- per-chain cap, the escrow ledger identity, and the bulkhead model's calls as InteropPool calls (N-3)
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadIsolation
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadPoolSimulation
+
 -- Range proofs of the priority queue (b17415d20): `Merkle.calculateRootPaths` and
 -- `PriorityTree.processBatch` (N-8)
 import EraSpec.Contracts.Merkle.Proofs.RootPaths
