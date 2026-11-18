@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- L1NativeTokenVault at draft/v0.35.0 (b17415d20): the per-chain ledger, the interop pool and
+-- the interop flags (N-2)
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.InteropPool
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
