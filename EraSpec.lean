@@ -311,6 +311,11 @@ import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.ExecutorOwnerCallsV35
 -- ServerNotifier binding under the CTM executor's engine-leg check (ProxyUpgradeExecutorBase, draft/v0.35.0 b17415d20)
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.NotifierBindingV35
 
+-- Re-pinned to draft/v0.35.0 (b17415d20): the unbounded low-leaf walk of `insert`
+-- (IndexedMerkleTree, and its lift to the L2InteropCommitmentTree indexed state)
+import EraSpec.Contracts.IndexedMerkleTree.Proofs.UnboundedSearchAtV35
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.UnboundedSearchAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

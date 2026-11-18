@@ -20,6 +20,7 @@ only import a shared specification when the topic needs no additional definition
 | InitOnce | [Specs/InitOnce.lean](Specs/InitOnce.lean) | [Properties/InitOnce.lean](Properties/InitOnce.lean) | [Proofs/InitOnce.lean](Proofs/InitOnce.lean) |
 | PaddingAtHead (`main` `3605e82`) | [Specs/PaddingAtHead.lean](Specs/PaddingAtHead.lean) | [Properties/PaddingAtHead.lean](Properties/PaddingAtHead.lean) | [Proofs/PaddingAtHead.lean](Proofs/PaddingAtHead.lean) |
 | HintSearchAtHead (`main` `70096e2`, `draft/v0.35.0` `b17415d`) | [Specs/HintSearchAtHead.lean](Specs/HintSearchAtHead.lean) | [Properties/HintSearchAtHead.lean](Properties/HintSearchAtHead.lean) | [Proofs/HintSearchAtHead.lean](Proofs/HintSearchAtHead.lean) |
+| UnboundedSearchAtV35 | [Specs/UnboundedSearchAtV35.lean](Specs/UnboundedSearchAtV35.lean) | [Properties/UnboundedSearchAtV35.lean](Properties/UnboundedSearchAtV35.lean) | [Proofs/UnboundedSearchAtV35.lean](Proofs/UnboundedSearchAtV35.lean) |
 
 The library's abstract list/order theory, insertion-guard countermodels, and
 reset/sentinel properties live under `../IndexedMerkleTree/`. The wrapper model
@@ -46,6 +47,25 @@ padding/domain hit). `HonestProofNoBreak` shows the break is not a tautology.
 `HonestInsertRevertsAtDeployedFuel` shows the revert at the deployed
 `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5`: on an honest seven-leaf run, an insert from a valid
 but distant hint reverts although a correct low leaf exists.
+
+`UnboundedSearchAtV35` is pinned to `draft/v0.35.0` at `b17415d20`, where the walk has no
+bound. It states the v35 `insert` call on this folder's indexed state (`InsertCallV35`: the
+five checks, the unbounded loop as "some fuel makes `lowSearch` return", `FullMerkle.updateLeaf`'s
+range check on the exit index, the writes) and lifts
+`../IndexedMerkleTree/`'s topic of the same name to it. No hash premise; gas not modelled.
+- On a `Valid` tree, every exiting run of the loop is a v35 walk of the projection and every
+  walk is a run (`SearchIsWalkV35`, `WalkIsSearchV35`), and the loop needs exactly as much fuel
+  as there are values strictly between the hint's value and the inserted one
+  (`SearchFuelIsGapV35`), so the pin's five hops sufficed exactly when that gap held at most five.
+- A v35 call projects to an abstract v35 insert and keeps `Valid` (`InsertCallProjectsV35`); a
+  call that passes the five checks succeeds (`InsertCallSucceedsV35`); a v35 history of the
+  indexed state projects to a v35 history (`RunCallProjectsV35`).
+- Hint indices: from `setup`, hint `0` always works (`SentinelIndexAlwaysWorksV35`), and a hint
+  index that passed the hint checks once keeps its value and still works
+  (`OnceValidHintIndexStaysValidV35`, the claim of `protocol-docs/message-root.md:95`).
+- Witnesses: `ChainTreeProjectsV35` (the pin's `chainTree k` projects to `chainSetV35 k`) and
+  `ChainTreeRunCallsV35` (a v35 history from `setup` whose seventh call, from hint `0`, is the
+  one `HonestInsertRevertsAtDeployedFuel` reverts at the pin).
 
 `RunHeight` carries `FullMerkle`'s `(_leafNumber, _height)` next to the list state, moved
 by `../FullMerkle/Specs/CapacityInvariant.lean`'s `push` once in `setup` and once per
