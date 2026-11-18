@@ -37,8 +37,8 @@ state, each owned by another contract:
 and the tree's `insert` walks from a stale hint without a hop bound
 (`common/libraries/IndexedMerkleTree.sol:90-93`).
 
-The merged v35 and head models each keep part of this as state and take the rest as an input
-of each call:
+The merged v35 and head models each keep part of this as state, and take the rest as an input
+of each call or leave it out:
 
 * `Contracts.AtomicFlowManager.RefundClosesAppend` (`b17415d20`): ONE chain's manager, root
   storage (both mappings) and an abstract tree; the bridgehub's answers are per-call inputs.
@@ -49,11 +49,29 @@ of each call:
   head `append`; the root timestamp, the registration and `isPeerAllowed` are per-call readings.
 * `Contracts.AppendPath.SysStepsAtHead` (`main` `70096e2ea`, `draft/v0.35.0` `b17415d20`):
   `SysSteps` with the unbounded walk.
+* `Contracts.FlowCanonicalAtV35` (`AtomicFlowManager/Specs/FlowCanonicalAtV35.lean`,
+  `b17415d20`): ONE chain's manager, written by the transcribed `append`, `authorizeRefund` (every
+  `Committed` key of the flow in one call) and `claimRefund` under the full
+  `_validateAndComputeFlowId`; no tree, root storage, bridgehub or bundle status.
+* `Contracts.InteropHandlerAtV35` (`InteropHandlerBase/Specs/ReentrancyAtV35.lean`,
+  `b17415d20`): ONE handler's `bundleStatus` and call statuses, with re-entrant call trees and
+  reverting frames; the gate's verdict is an input bit of each entry-point call, and for the
+  receive filter `gateVerdictAtV35` of a whitelist with every other check one input bit.
 
-`RunV35` below keeps all of it as state, on every chain at once, so that ordering facts between
-these pieces on different chains (an `authorizeRefund` on chain `x` before an `append` on chain
-`y`; a `verifyAtomicBundle` before a deregistration) can be stated.  The tree insert is
-`Contracts.InteropCommitmentTree.InsertChecksAtHead`, the one `SysStepsAtHead` uses.
+`RunV35` below keeps every piece of state in the table above, on every chain at once, so that
+ordering facts between these pieces on different chains (an `authorizeRefund` on chain `x`
+before an `append` on chain `y`; a `verifyAtomicBundle` before a deregistration) can be stated.
+The tree insert is `Contracts.InteropCommitmentTree.InsertChecksAtHead`, the one `SysStepsAtHead`
+uses.  `RunV35` has no call trees, re-entry, reverting frames or per-call statuses: each step is
+the committed write of a call that succeeded (for `authorize`, of one leg of it).
+
+**Names.**  Every declaration here is in `Contracts.SystemAtV35`.  The state's parts and helpers
+carry a `V35` suffix (`HubV35`, `RootsV35`, `AdminOpV35`, `SourceAllowedV35`, `setStatusV35`,
+`BundleStatusV35`, `maxAtomicFlowLegsV35`), so that none shares its short name with a
+declaration of another namespace.  `RunV35` is also declared in `IMTAbstract` and
+`Contracts.AssetRouter.HandlerGateAtV35`, `CallV35` in `Contracts.FlowCanonicalAtV35`, and
+`appendLog` in `Contracts.FlowBindingAtHead` and `Contracts.SourceBinding`: a file that opens one
+of those namespaces together with this one should qualify these three names.
 
 ## The state, per chain
 
@@ -153,29 +171,29 @@ namespace Contracts.SystemAtV35
 open MerkleSpec IMTAbstract Contracts.InteropCommitmentTree Contracts.Atomicity
 open Contracts.AtomicFlowManager Contracts.Refund Contracts.FlowBinding Contracts.AppendPath
 
-/-- `InteropHandlerBase.bundleStatus`'s type `BundleStatus` (`common/Messaging.sol`), as
-modelled at the pin by `AttackVectors.BundleStatusMachine.Status`. -/
-abbrev BundleStatus := AttackVectors.BundleStatusMachine.Status
+/-- `InteropHandlerBase.bundleStatus`'s Solidity type `BundleStatus` (`common/Messaging.sol`),
+as modelled at the pin by `AttackVectors.BundleStatusMachine.Status`. -/
+abbrev BundleStatusV35 := AttackVectors.BundleStatusMachine.Status
 
 /-! ## The other contracts' state the atomic path reads -/
 
 /-- One chain's `L2Bridgehub` entries for every peer chain `s`: `peer s` is
 `isPeerAllowed[s]` (`core/bridgehub/L2Bridgehub.sol:43`), and `registered s` is
 `baseTokenAssetId[s] != bytes32(0)` (`core/bridgehub/BridgehubBase.sol:96`). -/
-structure Hub where
+structure HubV35 where
   peer : Chain → Bool
   registered : Chain → Bool
 
 /-- **`_checkLegSourceAllowed(s)` PASSES ON CHAIN `c`** (`AtomicFlowManager.sol:338-344`): `s` is
 `block.chainid`, or `c`'s bridgehub allows `s`.  This is the receive filter of
 `protocol-docs/interop-gating.md:185-203`. -/
-def SourceAllowed (H : Hub) (c s : Chain) : Prop := s = c ∨ H.peer s = true
+def SourceAllowedV35 (H : HubV35) (c s : Chain) : Prop := s = c ∨ H.peer s = true
 
-instance (H : Hub) (c s : Chain) : Decidable (SourceAllowed H c s) := by
-  unfold SourceAllowed; infer_instance
+instance (H : HubV35) (c s : Chain) : Decidable (SourceAllowedV35 H c s) := by
+  unfold SourceAllowedV35; infer_instance
 
 /-- An admin step on one chain's bridgehub. -/
-inductive AdminOp where
+inductive AdminOpV35 where
   /-- `L2Bridgehub.allowInteropPeer(s, assetId)` (`L2Bridgehub.sol:95-99`): requires a nonzero
   `assetId` (`:96`), writes it to `baseTokenAssetId[s]` (`:97`) and sets `isPeerAllowed[s]`
   (`:98`). -/
@@ -188,7 +206,7 @@ inductive AdminOp where
   | setBaseToken (s : Chain) (r : Bool)
 
 /-- The bridgehub after the admin step. -/
-def AdminOp.apply : AdminOp → Hub → Hub
+def AdminOpV35.apply : AdminOpV35 → HubV35 → HubV35
   | .allow s, H => ⟨fun x => if x = s then true else H.peer x,
       fun x => if x = s then true else H.registered x⟩
   | .deregister s, H => ⟨fun x => if x = s then false else H.peer x,
@@ -199,13 +217,13 @@ def AdminOp.apply : AdminOp → Hub → Hub
 `storedInteropRoots[L1][blk].timestamp` (`interop/L2InteropRootStorage.sol:32, :39-44`; `0`
 means nothing was imported at `blk`), and `latest` is `latestInteropRootTimestamp[L1]`
 (`:36`). -/
-structure Roots where
+structure RootsV35 where
   stored : ℕ → ℕ
   latest : ℕ
 
 /-- `_addInteropRoot(L1, blk, t, _)` (`L2InteropRootStorage.sol:70-103`): store the timestamp
 (`:93`) and keep the maximum (`:98-100`). -/
-def Roots.import (R : Roots) (blk t : ℕ) : Roots :=
+def RootsV35.import (R : RootsV35) (blk t : ℕ) : RootsV35 :=
   ⟨fun x => if x = blk then t else R.stored x, max R.latest t⟩
 
 /-! ## Per-chain state and the world -/
@@ -216,11 +234,11 @@ structure ChainV35 where
   `ChainState`). -/
   base : ChainState
   /-- The bridgehub entries the atomic path reads. -/
-  hub : Hub
+  hub : HubV35
   /-- The imported settlement-layer roots' timestamps. -/
-  roots : Roots
+  roots : RootsV35
   /-- `InteropHandlerBase.bundleStatus`. -/
-  status : UInt256 → BundleStatus
+  status : UInt256 → BundleStatusV35
 
 /-- Every chain's state. -/
 abbrev WorldV35 := Chain → ChainV35
@@ -236,17 +254,17 @@ def WorldV35.chains (W : WorldV35) : Chains := fun c => (W c).base
 def WorldV35.mgrs (W : WorldV35) : Managers := fun c => (W c).base.mgr
 
 /-- Every chain's bridgehub. -/
-def WorldV35.hubs (W : WorldV35) : Chain → Hub := fun c => (W c).hub
+def WorldV35.hubs (W : WorldV35) : Chain → HubV35 := fun c => (W c).hub
 
 /-- One bundle's status updated. -/
-def setStatus (st : UInt256 → BundleStatus) (b : UInt256) (s : BundleStatus) :
-    UInt256 → BundleStatus :=
+def setStatusV35 (st : UInt256 → BundleStatusV35) (b : UInt256) (s : BundleStatusV35) :
+    UInt256 → BundleStatusV35 :=
   fun b' => if b' = b then s else st b'
 
 /-- **GENESIS AT v35.**  Every chain after the genesis upgrade: the pin's `genesis` (empty manager,
 `setup` tree), nothing imported, every bundle `Unreceived`, and the bridgehub in any state `H0 c`
 (entries written before the atomic path runs, legacy registrations included). -/
-def genesisV35 (H0 : Chain → Hub) : WorldV35 :=
+def genesisV35 (H0 : Chain → HubV35) : WorldV35 :=
   fun c => ⟨genesis, H0 c, ⟨fun _ => 0, 0⟩, fun _ => .Unreceived⟩
 
 /-- **THE ROOT STORAGE KEEPS ITS RUNNING MAXIMUM.**  On every chain, every stored L1 timestamp
@@ -259,8 +277,9 @@ def RootsWf (W : WorldV35) : Prop := ∀ c blk, (W c).roots.stored blk ≤ (W c)
 
 /-! ## The entry points' checks -/
 
-/-- `MAX_ATOMIC_FLOW_LEGS` (`atomic-interop/IAtomicInterop.sol:99`). -/
-def maxAtomicFlowLegs : ℕ := 8
+/-- `MAX_ATOMIC_FLOW_LEGS` (`atomic-interop/IAtomicInterop.sol:99`), the constant
+`Contracts.FlowCanonicalAtV35.MAX_ATOMIC_FLOW_LEGS_V35` also transcribes. -/
+def maxAtomicFlowLegsV35 : ℕ := 8
 
 /-- **`append(b, hint, F)` SUCCEEDS ON CHAIN `c` AT v35, THE TREE LANDING ON `low`**, as reached
 from `InteropCenter._sendBundle` (`interop/InteropCenter.sol:533-613`) for a bundle to chain
@@ -276,7 +295,7 @@ structure AppendOkV35 (cv : CommitValue) (fh : FlowHash) (x : ChainV35) (c : Cha
   hash of the preimage (`:378`). -/
   flowId : FlowIdChecked fh F
   /-- `ManagerTooManyLegs` (`:367-369`). -/
-  legCap : F.legs.length ≤ maxAtomicFlowLegs
+  legCap : F.legs.length ≤ maxAtomicFlowLegsV35
   /-- `ManagerBundleHashesNotSorted` (`:370-374`): strictly ascending bundle hashes. -/
   sorted : (F.legs.map FlowLeg.bundleHash).Pairwise (· < ·)
   /-- `ManagerFlowDeadlinePassed` (`:120-125`): the expired-flow gate. -/
@@ -306,7 +325,7 @@ structure AppendOkV35WithoutDeadlineGate (cv : CommitValue) (fh : FlowHash) (x :
   destRegistered : x.hub.registered dest = true
   destAllowed : x.hub.peer dest = true
   flowId : FlowIdChecked fh F
-  legCap : F.legs.length ≤ maxAtomicFlowLegs
+  legCap : F.legs.length ≤ maxAtomicFlowLegsV35
   sorted : (F.legs.map FlowLeg.bundleHash).Pairwise (· < ·)
   isLegHere : (⟨c, b⟩ : FlowLeg) ∈ F.legs
   othersRegistered : ∀ l ∈ F.legs, l.chain ≠ c → x.hub.registered l.chain = true
@@ -320,7 +339,7 @@ bundle `:210-212`), and the receive filter on every leg's source (`:201`), read 
 of chain `d`. -/
 def GateOkV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
     (S : System) (x : ChainV35) (d : Chain) (e : ExecCall) : Prop :=
-  e.Verified h z0 hl cv fh S ∧ ∀ l ∈ e.flow.legs, SourceAllowed x.hub d l.chain
+  e.Verified h z0 hl cv fh S ∧ ∀ l ∈ e.flow.legs, SourceAllowedV35 x.hub d l.chain
 
 /-- **`authorizeRefund` PASSES AT v35** (`AtomicFlowManager.sol:216-247`) for the logged call `a`,
 read on `x`, the state of chain `a.leg.chain`: the pin's checks (`AuthCall.Verified`:
@@ -331,11 +350,11 @@ the missing leg's source (`:231`), and an imported L1 root whose timestamp is af
 `ProofSettlementLayerInteropRootNotImported`, `ProofInteropRootNotAfterDeadline`). -/
 def AuthorizeOkV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash)
     (S : System) (x : ChainV35) (a : AuthCall) : Prop :=
-  a.Verified h z0 hl cv fh S ∧ SourceAllowed x.hub a.leg.chain a.missing.chain
+  a.Verified h z0 hl cv fh S ∧ SourceAllowedV35 x.hub a.leg.chain a.missing.chain
     ∧ ∃ blk, a.flow.deadline < x.roots.stored blk
 
 /-- The status edges that run no gate. -/
-inductive NoGateEdge : BundleStatus → BundleStatus → Prop
+inductive NoGateEdge : BundleStatusV35 → BundleStatusV35 → Prop
   /-- `executeAtomicBundle` on a `Verified` bundle skips `requireFlowFinalized`
   (`L2InteropHandler.sol:73-75`) and marks it `FullyExecuted` (`:77`;
   `InteropHandlerBase.sol:325-342`). -/
@@ -357,7 +376,7 @@ inductive CallV35 where
   /-- One leg of `authorizeRefund` for `a`, on chain `a.leg.chain`. -/
   | authorize (a : AuthCall)
   /-- An admin step on chain `c`'s bridgehub. -/
-  | admin (c : Chain) (op : AdminOp)
+  | admin (c : Chain) (op : AdminOpV35)
 
 /-- **EVERY INTERLEAVING OF EVERY CHAIN'S ATOMIC-INTEROP CALLS AT v35, LOGGED.**
 `RunV35 h z0 hl cv fh S X Y log`: from `X` the chains reach `Y`; `log` lists the logged calls,
@@ -385,12 +404,12 @@ inductive RunV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (f
       (Y d).status e.leg.bundleHash = .Unreceived →
       (st = .Verified ∨ st = .FullyExecuted) → GateOkV35 h z0 hl cv fh S (Y d) d e →
       RunV35 h z0 hl cv fh S X
-        (Y.set d { Y d with status := setStatus (Y d).status e.leg.bundleHash st })
+        (Y.set d { Y d with status := setStatusV35 (Y d).status e.leg.bundleHash st })
         (.gate d e :: log)
   /-- A status edge that runs no gate, on chain `d`. -/
   | resume {Y log d b st'} : RunV35 h z0 hl cv fh S X Y log →
       NoGateEdge ((Y d).status b) st' →
-      RunV35 h z0 hl cv fh S X (Y.set d { Y d with status := setStatus (Y d).status b st' }) log
+      RunV35 h z0 hl cv fh S X (Y.set d { Y d with status := setStatusV35 (Y d).status b st' }) log
   /-- `authorizeRefund`, marking the leg `a.leg` of the checked flow `a.flow` on its chain. -/
   | authorize {Y log} (a : AuthCall) : RunV35 h z0 hl cv fh S X Y log →
       AuthorizeOkV35 h z0 hl cv fh S (Y a.leg.chain) a →
@@ -406,7 +425,7 @@ inductive RunV35 (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (f
       RunV35 h z0 hl cv fh S X
         (Y.set c { Y c with base := ⟨(Y c).base.mgr.set f b .Reverted, (Y c).base.tree⟩ }) log
   /-- An admin step on chain `c`'s bridgehub. -/
-  | admin {Y log} (c : Chain) (op : AdminOp) : RunV35 h z0 hl cv fh S X Y log →
+  | admin {Y log} (c : Chain) (op : AdminOpV35) : RunV35 h z0 hl cv fh S X Y log →
       RunV35 h z0 hl cv fh S X (Y.set c { Y c with hub := op.apply (Y c).hub })
         (.admin c op :: log)
   /-- `L2InteropCommitmentTree.initL2` on chain `c`. -/
@@ -453,7 +472,7 @@ replayed in order. -/
 
 /-- **THE BRIDGEHUBS AFTER THE ADMIN CALLS OF `log`.**  The admin calls of `log` (most recent
 first) replayed, oldest first, on the bridgehubs `H`. -/
-def hubsAfter (H : Chain → Hub) : List CallV35 → Chain → Hub
+def hubsAfter (H : Chain → HubV35) : List CallV35 → Chain → HubV35
   | [] => H
   | .admin c op :: log => fun x => if x = c then op.apply (hubsAfter H log c) else hubsAfter H log x
   | .append _ _ _ _ :: log => hubsAfter H log
@@ -473,7 +492,7 @@ has id `0`, every other flow id `1`). -/
 def v35BundleCv : CommitValue := fun _ b => b
 
 /-- No chain allows or registers any peer. -/
-def v35ClosedHub : Hub := ⟨fun _ => false, fun _ => false⟩
+def v35ClosedHub : HubV35 := ⟨fun _ => false, fun _ => false⟩
 
 /-- A three-leg flow with deadline `0`: leg `⟨0, 1⟩` on chain `0`, legs `⟨1, 2⟩` and `⟨1, 3⟩` on
 chain `1`.  `lengthFlowHash` checks it with id `1`. -/

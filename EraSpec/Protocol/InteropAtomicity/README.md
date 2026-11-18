@@ -622,23 +622,24 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   manager and commitment tree (insert with the unbounded walk), the `L2Bridgehub` peer and
   registration entries with their admin writers, the L1 half of `L2InteropRootStorage`, and the
   handler's `bundleStatus`. The merged v35 and head models each take part of this as a per-call
-  input (`RefundClosesAppend` is one chain; `LegSourceFilterAtV35` has the allow-lists only;
-  `FlowBindingAtHead`'s `RunAtV35` reads the other contracts per call; `OncePerLegAtHead` has
-  managers and trees). No result takes a hash premise.
+  input (`RefundClosesAppend` and the `AtomicFlowManager` topic `FlowCanonicalAtV35` are one
+  chain; `LegSourceFilterAtV35` has the allow-lists only; `FlowBindingAtHead`'s `RunAtV35` reads
+  the other contracts per call; `OncePerLegAtHead` has managers and trees; the
+  `InteropHandlerBase` topic `ReentrancyAtV35` is one handler, whose gate verdict is an input
+  bit). No result takes a hash premise. Each result is in one of the categories below.
   - *New.* The runs project to `ReachLog`, `RunLog` and `SysStepsAtHead`
-    (`RunV35ProjectsToReachLog`, `RunV35ProjectsToRunLog`, `RunV35ProjectsToSysStepsAtHead`),
-    so the pin's refund result and the head's once-per-leg result transfer
-    (`V35ExecutedObligationNeverRefundedOrBreak`, `SystemOncePerLegV35`). The expired-flow gate
+    (`RunV35ProjectsToReachLog`, `RunV35ProjectsToRunLog`, `RunV35ProjectsToSysStepsAtHead`; the
+    second parallels `LegSourceFilterAtV35`'s `RunAtV35ProjectsToRunLog`). The expired-flow gate
     binds only the chain that refunded: on one run chain `1` authorizes a refund and chain `0`
     then appends a leg of the refunded flow (`RefundThenAppendWitnessV35`, as the NatSpec at
-    `AtomicFlowManager.sol:114-116` says). A bundle leaves `Unreceived` only through a logged
-    gate (`StatusLeavesUnreceivedOnlyThroughGateV35`), and one verified before a deregistration
-    executes after it, through the status edge that runs no gate
-    (`VerifiedBundleExecutesAfterDeregistrationV35`, as `protocol-docs/interop-gating.md:195-197`
-    documents). A refund step marks a leg on its declared chain, as in `ReachLog`; on runs from
-    genesis one code `authorizeRefund` call whose modelled checks pass on a chain is a sequence
-    of such steps ending in the code's write, unless a logged `append` there clashes with the
-    presented flow (`CodeAuthorizeCallIsAuthorizeStepsV35`).
+    `AtomicFlowManager.sol:114-116` says). A refund step marks a leg on its declared chain, as in
+    `ReachLog`; on runs from genesis one code `authorizeRefund` call whose modelled checks pass on
+    a chain is a sequence of such steps ending in the code's write, unless a logged `append`
+    there clashes with the presented flow (`CodeAuthorizeCallIsAuthorizeStepsV35`).
+  - *Transferred* along the projections: the pin's refund result and the head's once-per-leg
+    result (`V35ExecutedObligationNeverRefundedOrBreak`, `SystemOncePerLegV35`; they parallel
+    `LegSourceFilterAtV35`'s `ExecutedObligationNeverRefundedOrBreakAtV35` and
+    `SystemOncePerLegAtV35`).
   - *Counterparts over `RunV35`*, whose content is the merged result's: of `RefundClosesAppend`,
     `LatestRootTimestampMonotoneMaxV35`, `RefundedChainLatestPastDeadlineV35`,
     `NoAppendAfterRefundOnSameChainV35` and the countermodel
@@ -646,15 +647,26 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
     `HubsAreReplayedAdminLogV35`, `GateFilterHeldWhenLoggedV35`, `RefundFilterHeldWhenLoggedV35`,
     `DeregisteredPeerBlocksLaterGatesAndRefundsV35` (`BlockedUntilReallowedAtV35`) and
     `ReallowedPeerGateWitnessV35` (one instance of `ReallowRestoresGateAtV35`); of
-    `FlowBindingAtHead`, `SetKeyHasLoggedAppendV35` (`CommittedLegHasLoggedPreimage`) and
-    `CodeAuthorizeMarksDeclaredLegOrLoggedClashV35` (`AuthorizeMarksDeclaredLegOrLoggedClash`),
-    which here bounds the declared-chain marking; of `OncePerLegAtHead`, `AppendedAtMostOnceV35`.
-  - Witnesses: `RefundThenAppendWitnessV35`, `ExecutedObligationStaysCommittedWitnessV35` (the
-    executed obligation appended and still `Committed` next to a refunded one),
-    `VerifiedBundleExecutesAfterDeregistrationV35`, `DeregisteredPeerWitnessV35` (a gate and a
-    refund after the deregistration, both reading the filter on a still-allowed peer),
-    `CodeAuthorizeCallIsAuthorizeStepsWitnessV35` (one call marks two keys). Model boundary:
-    `MODEL-V35-SYSTEM` in `ASSUMPTIONS.md`.
+    `ReentrancyAtV35` (namespace `Contracts.InteropHandlerAtV35`),
+    `StatusLeavesUnreceivedOnlyThroughGateV35` (`DeliveryNeedsTheGateAtV35` in contrapositive
+    form; here a structural invariant of the step relation) and
+    `VerifiedBundleExecutesAfterDeregistrationV35` (`ReceiveFilterIsReadAtTheGateAtV35`,
+    `ReceiveFilterWitnessAtV35` and `VerifiedBundleExecutesWithoutTheGateAtV35`: a bundle
+    verified before a deregistration executes after it, as `protocol-docs/interop-gating.md:195-197`
+    documents), where `RunV35` reads the gate's verdict from the composed state instead of
+    taking it as an input bit; of `FlowBindingAtHead`, `SetKeyHasLoggedAppendV35`
+    (`CommittedLegHasLoggedPreimage`) and `CodeAuthorizeMarksDeclaredLegOrLoggedClashV35`
+    (`AuthorizeMarksDeclaredLegOrLoggedClash`), which here bounds the declared-chain marking; of
+    `OncePerLegAtHead`, `AppendedAtMostOnceV35`. On one chain, `SetKeyHasLoggedAppendV35` and
+    `AppendedAtMostOnceV35` also restate `FlowCanonicalAtV35`'s
+    `WrittenLegAppendedUnderAcceptedPreimageV35` and `RunV35AppendsEachLegAtMostOnce`.
+  - Witnesses: `RefundThenAppendWitnessV35`, `VerifiedBundleExecutesAfterDeregistrationV35` and
+    `ReallowedPeerGateWitnessV35` are runs themselves; `ExecutedObligationStaysCommittedWitnessV35`
+    (the executed obligation appended and still `Committed` next to a refunded one),
+    `DeregisteredPeerWitnessV35` (a gate and a refund after the deregistration, both reading the
+    filter on a still-allowed peer), `CodeAuthorizeCallIsAuthorizeStepsWitnessV35` (one call marks
+    two keys). `LegSourceFilterAtV35`'s `SystemAtV35Witness` belongs to that topic. Model
+    boundary: `MODEL-V35-SYSTEM` in `ASSUMPTIONS.md`.
 
 The other topics' tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

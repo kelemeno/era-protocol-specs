@@ -76,7 +76,7 @@ lemma v35_mgr_set_same (W : WorldV35) (c : Chain) {x : ChainV35}
     authLog (.gate d e :: log) = authLog log := rfl
 @[simp] lemma authLog_cons_authorize (a : AuthCall) (log : List CallV35) :
     authLog (.authorize a :: log) = a :: authLog log := rfl
-@[simp] lemma authLog_cons_admin (c : Chain) (op : AdminOp) (log : List CallV35) :
+@[simp] lemma authLog_cons_admin (c : Chain) (op : AdminOpV35) (log : List CallV35) :
     authLog (.admin c op :: log) = authLog log := rfl
 
 @[simp] lemma checkedLog_cons_append (c : Chain) (F : Flow) (b : UInt256) (d : Chain)
@@ -85,7 +85,7 @@ lemma v35_mgr_set_same (W : WorldV35) (c : Chain) {x : ChainV35}
     checkedLog (.gate d e :: log) = .execute e :: checkedLog log := rfl
 @[simp] lemma checkedLog_cons_authorize (a : AuthCall) (log : List CallV35) :
     checkedLog (.authorize a :: log) = .authorize a :: checkedLog log := rfl
-@[simp] lemma checkedLog_cons_admin (c : Chain) (op : AdminOp) (log : List CallV35) :
+@[simp] lemma checkedLog_cons_admin (c : Chain) (op : AdminOpV35) (log : List CallV35) :
     checkedLog (.admin c op :: log) = checkedLog log := rfl
 
 @[simp] lemma appendLog_cons_append (c : Chain) (F : Flow) (b : UInt256) (d : Chain)
@@ -95,16 +95,16 @@ lemma v35_mgr_set_same (W : WorldV35) (c : Chain) {x : ChainV35}
     appendLog (.gate d e :: log) = appendLog log := rfl
 @[simp] lemma appendLog_cons_authorize (a : AuthCall) (log : List CallV35) :
     appendLog (.authorize a :: log) = appendLog log := rfl
-@[simp] lemma appendLog_cons_admin (c : Chain) (op : AdminOp) (log : List CallV35) :
+@[simp] lemma appendLog_cons_admin (c : Chain) (op : AdminOpV35) (log : List CallV35) :
     appendLog (.admin c op :: log) = appendLog log := rfl
 
-@[simp] lemma hubsAfter_cons_append (H : Chain → Hub) (c : Chain) (F : Flow) (b : UInt256)
+@[simp] lemma hubsAfter_cons_append (H : Chain → HubV35) (c : Chain) (F : Flow) (b : UInt256)
     (d : Chain) (log : List CallV35) : hubsAfter H (.append c F b d :: log) = hubsAfter H log := rfl
-@[simp] lemma hubsAfter_cons_gate (H : Chain → Hub) (d : Chain) (e : ExecCall)
+@[simp] lemma hubsAfter_cons_gate (H : Chain → HubV35) (d : Chain) (e : ExecCall)
     (log : List CallV35) : hubsAfter H (.gate d e :: log) = hubsAfter H log := rfl
-@[simp] lemma hubsAfter_cons_authorize (H : Chain → Hub) (a : AuthCall) (log : List CallV35) :
+@[simp] lemma hubsAfter_cons_authorize (H : Chain → HubV35) (a : AuthCall) (log : List CallV35) :
     hubsAfter H (.authorize a :: log) = hubsAfter H log := rfl
-lemma hubsAfter_cons_admin (H : Chain → Hub) (c : Chain) (op : AdminOp) (log : List CallV35) :
+lemma hubsAfter_cons_admin (H : Chain → HubV35) (c : Chain) (op : AdminOpV35) (log : List CallV35) :
     hubsAfter H (.admin c op :: log)
       = fun x => if x = c then op.apply (hubsAfter H log c) else hubsAfter H log x := rfl
 
@@ -175,7 +175,7 @@ theorem RunV35ProjectsToReachLog : Properties.RunV35ProjectsToReachLog :=
 theorem RunV35ProjectsToRunLog : Properties.RunV35ProjectsToRunLog :=
   fun _ _ _ _ _ _ _ _ _ hr => runV35_runLog hr
 
-lemma genesisV35_mgrs (H0 : Chain → Hub) : (genesisV35 H0).mgrs = emptyManagers := rfl
+lemma genesisV35_mgrs (H0 : Chain → HubV35) : (genesisV35 H0).mgrs = emptyManagers := rfl
 
 theorem V35ExecutedObligationNeverRefundedOrBreak :
     Properties.V35ExecutedObligationNeverRefundedOrBreak := by
@@ -231,7 +231,7 @@ theorem runV35_sysStepsAtHead {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Co
 theorem RunV35ProjectsToSysStepsAtHead : Properties.RunV35ProjectsToSysStepsAtHead :=
   fun _ _ _ _ _ _ _ _ _ hr => runV35_sysStepsAtHead hr
 
-lemma genesisV35_chains (H0 : Chain → Hub) : (genesisV35 H0).chains = genesisAll := rfl
+lemma genesisV35_chains (H0 : Chain → HubV35) : (genesisV35 H0).chains = genesisAll := rfl
 
 theorem SystemOncePerLegV35 : Properties.SystemOncePerLegV35 := by
   intro h z0 hl cv fh S H0 Y log hr
@@ -265,7 +265,7 @@ theorem runV35_roots {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue
     · rw [v35_roots_import]
       split_ifs with hy
       · subst hy
-        simp only [Roots.import]
+        simp only [RootsV35.import]
         split_ifs
         · exact le_max_right _ _
         · exact le_trans (hwf y blk') (le_max_left _ _)
@@ -313,7 +313,7 @@ theorem runV35_refunded_latest {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : C
     rw [v35_roots_import]
     split_ifs with hy
     · rw [hy] at this
-      simp only [Roots.import]
+      simp only [RootsV35.import]
       exact lt_of_lt_of_le this (le_max_left _ _)
     · exact this
   | gate _ _ _ _ ih =>
@@ -435,7 +435,7 @@ theorem runV35_gate_filter {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Commi
     ∀ (later : List CallV35) (d : Chain) (e : ExecCall) (earlier : List CallV35),
       log = later ++ CallV35.gate d e :: earlier →
         e.Verified h z0 hl cv fh S
-          ∧ ∀ l ∈ e.flow.legs, SourceAllowed (hubsAfter X.hubs earlier d) d l.chain := by
+          ∧ ∀ l ∈ e.flow.legs, SourceAllowedV35 (hubsAfter X.hubs earlier d) d l.chain := by
   induction hr with
   | refl =>
     intro later d e earlier hlog
@@ -480,7 +480,8 @@ theorem runV35_refund_filter {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Com
     ∀ (later : List CallV35) (a : AuthCall) (earlier : List CallV35),
       log = later ++ CallV35.authorize a :: earlier →
         a.Verified h z0 hl cv fh S
-          ∧ SourceAllowed (hubsAfter X.hubs earlier a.leg.chain) a.leg.chain a.missing.chain := by
+          ∧ SourceAllowedV35 (hubsAfter X.hubs earlier a.leg.chain) a.leg.chain
+              a.missing.chain := by
   induction hr with
   | refl =>
     intro later a earlier hlog
@@ -521,10 +522,10 @@ theorem RefundFilterHeldWhenLoggedV35 : Properties.RefundFilterHeldWhenLoggedV35
 
 /-- After `deregister s` on `d`, replaying calls with no `allow s` on `d` keeps `s` disallowed
 on `d`. -/
-lemma hubsAfter_peer_deregistered (H : Chain → Hub) (d s : Chain) (earlier : List CallV35) :
+lemma hubsAfter_peer_deregistered (H : Chain → HubV35) (d s : Chain) (earlier : List CallV35) :
     ∀ l1 : List CallV35, CallV35.admin d (.allow s) ∉ l1 →
       (hubsAfter H (l1 ++ CallV35.admin d (.deregister s) :: earlier) d).peer s = false
-  | [], _ => by simp [hubsAfter_cons_admin, AdminOp.apply]
+  | [], _ => by simp [hubsAfter_cons_admin, AdminOpV35.apply]
   | c :: l1, hno => by
     have ih := hubsAfter_peer_deregistered H d s earlier l1
       (fun hm => hno (List.mem_cons_of_mem _ hm))
@@ -541,15 +542,15 @@ lemma hubsAfter_peer_deregistered (H : Chain → Hub) (d s : Chain) (earlier : L
         cases op with
         | allow s' =>
           have hs : s' ≠ s := fun hss => hno (by rw [hss]; exact List.mem_cons_self)
-          simp only [AdminOp.apply, ite_eq_right (Ne.symm hs)]
+          simp only [AdminOpV35.apply, ite_eq_right (Ne.symm hs)]
           exact ih
         | deregister s' =>
-          simp only [AdminOp.apply]
+          simp only [AdminOpV35.apply]
           split_ifs
           · rfl
           · exact ih
         | setBaseToken s' r =>
-          simp only [AdminOp.apply]
+          simp only [AdminOpV35.apply]
           exact ih
       · simp only [ite_eq_right hc]
         exact ih
@@ -582,6 +583,8 @@ theorem DeregisteredPeerBlocksLaterGatesAndRefundsV35 :
     · rw [hpeer] at h1
       exact absurd h1 (by simp)
 
+/-- A structural invariant of the step relation, by induction on the run: only `gate` writes a
+status from `Unreceived`, and every `resume` edge starts from `Verified` or `Unbundled`. -/
 theorem runV35_status {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
     {fh : FlowHash} {S : System} {X Y : WorldV35} {log : List CallV35}
     (hr : RunV35 h z0 hl cv fh S X Y log) :
@@ -603,12 +606,12 @@ theorem runV35_status {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValu
     by_cases hdb : d = d' ∧ b = e'.leg.bundleHash
     · obtain ⟨rfl, rfl⟩ := hdb
       exact ⟨e', List.mem_cons_self, rfl⟩
-    · have hst : ((Y.set d' { Y d' with status := setStatus (Y d').status e'.leg.bundleHash st })
+    · have hst : ((Y.set d' { Y d' with status := setStatusV35 (Y d').status e'.leg.bundleHash st })
           d).status b = (Y d).status b := by
         by_cases hd : d = d'
         · subst hd
           have hb : b ≠ e'.leg.bundleHash := fun hb => hdb ⟨rfl, hb⟩
-          simp [setStatus, hb]
+          simp [setStatusV35, hb]
         · simp [v35_set_other _ _ hd]
       rw [hst] at h2
       obtain ⟨e, he, hb⟩ := ih d b h1 h2
@@ -621,12 +624,12 @@ theorem runV35_status {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValu
         generalize (Y d).status b = s at hedge
         cases hedge <;> simp
       exact ih d b h1 hne
-    · have hst : ((Y.set d' { Y d' with status := setStatus (Y d').status b' st' }) d).status b
+    · have hst : ((Y.set d' { Y d' with status := setStatusV35 (Y d').status b' st' }) d).status b
           = (Y d).status b := by
         by_cases hd : d = d'
         · subst hd
           have hb : b ≠ b' := fun hb => hdb ⟨rfl, hb⟩
-          simp [setStatus, hb]
+          simp [setStatusV35, hb]
         · simp [v35_set_other _ _ hd]
       rw [hst] at h2
       exact ih d b h1 h2
@@ -666,7 +669,7 @@ lemma v35_mgr_set_key (Y : WorldV35) (c x : Chain) (s : ChainV35) (f b f' b' : U
   · simp [v35_set_other _ _ hx, hx]
 
 theorem runV35_set_key {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
-    {fh : FlowHash} {S : System} {H0 : Chain → Hub} {Y : WorldV35} {log : List CallV35}
+    {fh : FlowHash} {S : System} {H0 : Chain → HubV35} {Y : WorldV35} {log : List CallV35}
     (hr : RunV35 h z0 hl cv fh S (genesisV35 H0) Y log) :
     ∀ (x : Chain) (f b : UInt256), (Y x).base.mgr.legState f b ≠ .Unset →
       ∃ (F : Flow) (dest : Chain), CallV35.append x F b dest ∈ log ∧ F.flowId = f
@@ -732,7 +735,7 @@ theorem SetKeyHasLoggedAppendV35 : Properties.SetKeyHasLoggedAppendV35 :=
   fun _ _ _ _ _ _ _ _ _ hr => runV35_set_key hr
 
 theorem runV35_appended_once {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
-    {fh : FlowHash} {S : System} {H0 : Chain → Hub} {Y : WorldV35} {log : List CallV35}
+    {fh : FlowHash} {S : System} {H0 : Chain → HubV35} {Y : WorldV35} {log : List CallV35}
     (hr : RunV35 h z0 hl cv fh S (genesisV35 H0) Y log) :
     (appendLog log).Nodup
       ∧ ∀ o ∈ appendLog log, (Y o.chain).base.mgr.legState o.flowId o.bundleHash ≠ .Unset := by
@@ -850,7 +853,7 @@ theorem runV35_code_marks {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : Commit
     (hrf : LegRefundableBy h z0 hl cv S F m N p) :
     ∀ (L : List FlowLeg), (∀ l ∈ L, l ∈ F.legs) → (L.map FlowLeg.bundleHash).Pairwise (· < ·) →
     ∀ (Z : WorldV35) (logZ : List CallV35), RunV35 h z0 hl cv fh S X Z logZ →
-      SourceAllowed (Z x).hub x m.chain → (∃ blk, F.deadline < (Z x).roots.stored blk) →
+      SourceAllowedV35 (Z x).hub x m.chain → (∃ blk, F.deadline < (Z x).roots.stored blk) →
       (∀ l ∈ L, (Z x).base.mgr.legState F.flowId l.bundleHash = .Committed → l.chain = x) →
         ∃ steps : List CallV35,
           (∀ c ∈ steps, ∃ l ∈ L, l.chain = x ∧ c = CallV35.authorize ⟨F, l, m, N, p⟩)
@@ -949,13 +952,13 @@ computation.  Each is the world the corresponding `RunV35` constructor produces.
 def v35W0 : WorldV35 := genesisV35 (fun _ => v35ClosedHub)
 
 /-- Chain `1` allows peer `0`. -/
-def v35W1 : WorldV35 := v35W0.set 1 { v35W0 1 with hub := (AdminOp.allow 0).apply (v35W0 1).hub }
+def v35W1 : WorldV35 := v35W0.set 1 { v35W0 1 with hub := (AdminOpV35.allow 0).apply (v35W0 1).hub }
 
 /-! ### The refund-then-append run -/
 
 /-- Chain `0` allows peer `1`. -/
 def v35RefundW2 : WorldV35 :=
-  v35W1.set 0 { v35W1 0 with hub := (AdminOp.allow 1).apply (v35W1 0).hub }
+  v35W1.set 0 { v35W1 0 with hub := (AdminOpV35.allow 1).apply (v35W1 0).hub }
 
 /-- Chain `1` appends leg `⟨1, 2⟩` of `v35RefundFlow`. -/
 def v35RefundW3 : WorldV35 :=
@@ -1116,15 +1119,15 @@ def v35ExecCall (h : Hash) (z0 : UInt256) (hl : LeafHash) : ExecCall :=
 
 /-- Chain `1` verifies bundle `1`. -/
 def v35ExecW2 : WorldV35 :=
-  v35W1.set 1 { v35W1 1 with status := setStatus (v35W1 1).status 1 .Verified }
+  v35W1.set 1 { v35W1 1 with status := setStatusV35 (v35W1 1).status 1 .Verified }
 
 /-- Chain `1` deregisters peer `0`. -/
 def v35ExecW3 : WorldV35 :=
-  v35ExecW2.set 1 { v35ExecW2 1 with hub := (AdminOp.deregister 0).apply (v35ExecW2 1).hub }
+  v35ExecW2.set 1 { v35ExecW2 1 with hub := (AdminOpV35.deregister 0).apply (v35ExecW2 1).hub }
 
 /-- Chain `1` executes the `Verified` bundle `1`. -/
 def v35ExecW4 : WorldV35 :=
-  v35ExecW3.set 1 { v35ExecW3 1 with status := setStatus (v35ExecW3 1).status 1 .FullyExecuted }
+  v35ExecW3.set 1 { v35ExecW3 1 with status := setStatusV35 (v35ExecW3 1).status 1 .FullyExecuted }
 
 theorem VerifiedBundleExecutesAfterDeregistrationV35 :
     Properties.VerifiedBundleExecutesAfterDeregistrationV35 := by
@@ -1150,7 +1153,7 @@ theorem VerifiedBundleExecutesAfterDeregistrationV35 :
   have r4 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35ExecW4
       [.admin 1 (.deregister 0), .gate 1 (v35ExecCall h z0 hl), .admin 1 (.allow 0)] :=
     RunV35.resume (d := 1) (b := 1) (st' := .FullyExecuted) r3 hedge
-  have hnot : ¬ SourceAllowed (v35ExecW4 1).hub 1 0 := by decide
+  have hnot : ¬ SourceAllowedV35 (v35ExecW4 1).hub 1 0 := by decide
   refine ⟨v35ExecW3, v35ExecW4, v35ExecCall h z0 hl, rfl, rfl, r3, rfl, by decide, by decide,
     hedge, rfl, r4, by decide, hnot, ?_, by simp⟩
   intro hg
@@ -1181,7 +1184,7 @@ def v35ExObW6 : WorldV35 :=
 
 /-- Chain `1` executes bundle `1`. -/
 def v35ExObW7 : WorldV35 :=
-  v35ExObW6.set 1 { v35ExObW6 1 with status := setStatus (v35ExObW6 1).status 1 .FullyExecuted }
+  v35ExObW6.set 1 { v35ExObW6 1 with status := setStatusV35 (v35ExObW6 1).status 1 .FullyExecuted }
 
 theorem ExecutedObligationStaysCommittedWitnessV35 :
     Properties.ExecutedObligationStaysCommittedWitnessV35 := by
@@ -1263,16 +1266,16 @@ theorem ExecutedObligationStaysCommittedWitnessV35 :
 
 /-- Chain `1` deregisters peer `0`. -/
 def v35ReallowW2 : WorldV35 :=
-  v35W1.set 1 { v35W1 1 with hub := (AdminOp.deregister 0).apply (v35W1 1).hub }
+  v35W1.set 1 { v35W1 1 with hub := (AdminOpV35.deregister 0).apply (v35W1 1).hub }
 
 /-- Chain `1` allows peer `0` again. -/
 def v35ReallowW3 : WorldV35 :=
-  v35ReallowW2.set 1 { v35ReallowW2 1 with hub := (AdminOp.allow 0).apply (v35ReallowW2 1).hub }
+  v35ReallowW2.set 1 { v35ReallowW2 1 with hub := (AdminOpV35.allow 0).apply (v35ReallowW2 1).hub }
 
 /-- Chain `1` executes bundle `1`. -/
 def v35ReallowW4 : WorldV35 :=
   v35ReallowW3.set 1
-    { v35ReallowW3 1 with status := setStatus (v35ReallowW3 1).status 1 .FullyExecuted }
+    { v35ReallowW3 1 with status := setStatusV35 (v35ReallowW3 1).status 1 .FullyExecuted }
 
 theorem ReallowedPeerGateWitnessV35 : Properties.ReallowedPeerGateWitnessV35 := by
   intro h z0 hl
@@ -1299,15 +1302,15 @@ theorem ReallowedPeerGateWitnessV35 : Properties.ReallowedPeerGateWitnessV35 := 
 
 /-- Chain `0` allows peer `1`. -/
 def v35PeerW1 : WorldV35 :=
-  v35W0.set 0 { v35W0 0 with hub := (AdminOp.allow 1).apply (v35W0 0).hub }
+  v35W0.set 0 { v35W0 0 with hub := (AdminOpV35.allow 1).apply (v35W0 0).hub }
 
 /-- Chain `0` allows peer `2`. -/
 def v35PeerW2 : WorldV35 :=
-  v35PeerW1.set 0 { v35PeerW1 0 with hub := (AdminOp.allow 2).apply (v35PeerW1 0).hub }
+  v35PeerW1.set 0 { v35PeerW1 0 with hub := (AdminOpV35.allow 2).apply (v35PeerW1 0).hub }
 
 /-- Chain `0` deregisters peer `2`. -/
 def v35PeerW3 : WorldV35 :=
-  v35PeerW2.set 0 { v35PeerW2 0 with hub := (AdminOp.deregister 2).apply (v35PeerW2 0).hub }
+  v35PeerW2.set 0 { v35PeerW2 0 with hub := (AdminOpV35.deregister 2).apply (v35PeerW2 0).hub }
 
 /-- Chain `0` appends leg `⟨0, 4⟩` of `v35PeerRefundFlow`. -/
 def v35PeerW4 : WorldV35 :=
@@ -1327,7 +1330,7 @@ def v35PeerW6 : WorldV35 :=
 
 /-- Chain `0` executes bundle `2`. -/
 def v35PeerW7 : WorldV35 :=
-  v35PeerW6.set 0 { v35PeerW6 0 with status := setStatus (v35PeerW6 0).status 2 .FullyExecuted }
+  v35PeerW6.set 0 { v35PeerW6 0 with status := setStatusV35 (v35PeerW6 0).status 2 .FullyExecuted }
 
 /-- In the complete swap chain `1` never commits `5`: its tree holds `2` only. -/
 lemma v35_swap_five_not_committed :
@@ -1387,7 +1390,7 @@ theorem DeregisteredPeerWitnessV35 : Properties.DeregisteredPeerWitnessV35 := by
       decide
     · show (⟨1, 5⟩ : FlowLeg) ∈ v35PeerRefundFlow.legs
       decide
-    · show SourceAllowed (v35PeerW5 0).hub 0 1
+    · show SourceAllowedV35 (v35PeerW5 0).hub 0 1
       decide
     · show v35PeerRefundFlow.deadline < (v35PeerW5 0).roots.stored 0
       decide
@@ -1406,7 +1409,7 @@ theorem DeregisteredPeerWitnessV35 : Properties.DeregisteredPeerWitnessV35 := by
     simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl'
     rcases hl' with rfl | rfl
     · exact Or.inl rfl
-    · show SourceAllowed (v35PeerW6 0).hub 0 1
+    · show SourceAllowedV35 (v35PeerW6 0).hub 0 1
       decide
   have r7 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
       v35W0 v35PeerW7
@@ -1420,7 +1423,7 @@ theorem DeregisteredPeerWitnessV35 : Properties.DeregisteredPeerWitnessV35 := by
 
 /-- Chain `1` allows peer `2` (after `v35W1`, where it allowed peer `0`). -/
 def v35SameW2 : WorldV35 :=
-  v35W1.set 1 { v35W1 1 with hub := (AdminOp.allow 2).apply (v35W1 1).hub }
+  v35W1.set 1 { v35W1 1 with hub := (AdminOpV35.allow 2).apply (v35W1 1).hub }
 
 /-- Chain `1` appends leg `⟨1, 2⟩` of `v35SameChainLegsFlow`. -/
 def v35SameW3 : WorldV35 :=
