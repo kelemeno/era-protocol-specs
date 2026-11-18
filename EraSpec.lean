@@ -398,6 +398,10 @@ import EraSpec.Contracts.AdminFacet.Proofs.PriorityMode
 import EraSpec.Contracts.AdminFacet.Proofs.Upgrade
 import EraSpec.Contracts.AdminFacet.Proofs.Fees
 
+-- L1Bridgehub at draft/v0.35.0 (b17415d20; cited files identical at d9f6789): the chain
+-- registry, settlement-layer bookkeeping and the two request paths
+import EraSpec.Contracts.Bridgehub.Proofs.Registry
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
