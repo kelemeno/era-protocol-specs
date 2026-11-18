@@ -4,9 +4,15 @@ import EraSpec.Core.Word
 /-!
 # Model: `L1Bridgehub` — the chain registry, settlement-layer bookkeeping, and requests
 
-Source: era-contracts `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`,
-files `l1-contracts/contracts/core/bridgehub/BridgehubBase.sol` (written `BB:` below) and
-`l1-contracts/contracts/core/bridgehub/L1Bridgehub.sol` (written `L1:` below).
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, files
+`l1-contracts/contracts/core/bridgehub/BridgehubBase.sol` (written `BB:` below) and
+`l1-contracts/contracts/core/bridgehub/L1Bridgehub.sol` (written `L1:` below). The model was
+first written at `d9f678900e1bc8286412b78f56d4a9f443983c29`; both files, and every other file
+cited here (`Config.sol`, `DataEncoding.sol`, `AddressAliasHelper.sol`, `ReentrancyGuard.sol`,
+`Messaging.sol`, `CTMDeploymentTracker.sol`, `ChainAssetHandlerBase.sol`,
+`MessageRootBase.sol`), are byte-identical at the two commits, so every `file:line` holds at
+both. OpenZeppelin is v4.9.6, at the submodule commits `b17415d2` pins
+(`openzeppelin-contracts-v4` `dc44c9f1`, `openzeppelin-contracts-upgradeable-v4` `2d081f24`).
 
 **This file is definitions only.** The guarantees are stated in
 `EraSpec.Contracts.Bridgehub.Properties.Registry` and proved in
@@ -34,6 +40,10 @@ non-view external entry point of `L1Bridgehub` as one `Action`, executed by `exe
   `requestL2TransactionTwoBridges` (`L1:200-265`), through `_sendRequest`
   (`BB:366-381`). They write no Bridgehub storage; what they forward is the `Outcome`.
 
+`initialize` (`L1:71-74`) is not an action: the starting state `init` is the state it leaves,
+and a second call reverts with `SlotOccupied` (`reentrancyGuardInitializer`,
+`ReentrancyGuard.sol:43-63`).
+
 A revert is the absence of a step (`exec` returns `none`). Guards are written in source
 order. Modifiers are checked before the body, in the order they are listed.
 
@@ -41,31 +51,38 @@ order. Modifiers are checked before the body, in the order they are listed.
 
 * Addresses, chain ids, asset ids and values are 256-bit words (`UInt256`).
 * `zkChainMap` (an OpenZeppelin v4.9 `EnumerableMap.UintToAddressMap`) is a key set
-  `zkKeys` plus a value function `zkAddr`. `set` (`BB:303`) inserts the key and overwrites
-  the value; `get` (`BB:378`, `BB:419`) reverts unless the value is nonzero or the key is
-  present (`EnumerableMap.sol:137-141`); `tryGet` (`BB:346`, `L1:290`) returns `0` for an
-  absent key; `length` is the key count.
+  `zkKeys` plus a value function `zkAddr`. `set` (`BB:303`; `EnumerableMap.sol:73-76`)
+  inserts the key and overwrites the value; `get` (`BB:378`, `BB:419`) reverts unless the
+  value is nonzero or the key is present (`EnumerableMap.sol:137-141`); `tryGet`
+  (`BB:346`, `L1:290`; `EnumerableMap.sol:121-128`) returns the stored value, `0` if none,
+  and reports the key as existing under the same condition as `get`; `length` is the key
+  count.
 * External calls are inputs. The CTM's `createNewChain` return value (`L1:124`), the
-  deployed diamond's getters (`L1:294-302`), the second bridge's reply (`L1:232`), and
-  `actualRefundRecipient` when no recipient is given (`AddressAliasHelper.sol:56-80`,
+  deployed diamond's getters (`L1:294-302`), the second bridge's reply (`L1:232-238`), and
+  `actualRefundRecipient` when no recipient is given (`AddressAliasHelper.sol:60-79`,
   it reads `tx.origin` and code size) are supplied by the caller of `exec`. A call that
   reverts makes the whole entry point revert, which is the absence of a step. Calls to the
   message root (`L1:134-135`, `L1:316`), the asset router (`L1:164`, `L1:223`), the
-  Mailbox (`BB:380`) and the second bridge's confirmation (`L1:260`) are assumed to write
-  no Bridgehub storage and are otherwise not modelled.
+  second bridge's `bridgehubDeposit` (`L1:232-238`), the Mailbox (`BB:380`) and the second
+  bridge's confirmation (`L1:260`) are assumed not to revert and not to write Bridgehub
+  storage, and are otherwise not modelled. In particular a request whose chain's stored
+  diamond is `0` succeeds in the model; the source's call to a codeless address there is one
+  of these calls.
 * The calls are atomic. `createNewChain` calls the CTM after writing the chain's CTM, base
-  token and settlement layer (`L1:116-127`); a re-entrant call from the CTM into a
-  Bridgehub function without `nonReentrant` is not modelled (ASSUMPTIONS `MODEL-BRIDGEHUB`).
-* `setCTMAssetAddress` runs on L1, where `_getL1ChainId() == block.chainid`, so the sender
-  is `msg.sender` without unaliasing (`BB:280`).
-* `DataEncoding.encodeAssetId` (`keccak256(abi.encode(chainId, sender, data))`) is an
-  uninterpreted function `Config.encodeAssetId`. No injectivity is assumed anywhere.
+  token and settlement layer (`L1:116-127`); a re-entrant call from the CTM, or from any of
+  the calls above, into a Bridgehub function without `nonReentrant` is not modelled
+  (ASSUMPTIONS `MODEL-BRIDGEHUB`).
+* `setCTMAssetAddress` runs on L1, where `_getL1ChainId() == block.chainid` (`L1:56`,
+  `L1:87-89`), so the sender is `msg.sender` without unaliasing (`BB:280`).
+* `DataEncoding.encodeAssetId` (`keccak256(abi.encode(chainId, sender, data))`,
+  `DataEncoding.sol:125-127`) is an uninterpreted function `Config.encodeAssetId`. No
+  injectivity is assumed anywhere.
 
 ## What is not modelled
 
-Events; view functions other than `getZKChain`; `initialize`'s reentrancy-guard
-initializer (the starting state is `init`); the `nonReentrant` lock itself; the
-`L2Bridgehub` variant; storage gaps and deprecated slots (never written).
+Events; view functions other than `getZKChain`; the `nonReentrant` lock itself; the
+`L2Bridgehub` variant; storage gaps and deprecated slots (never written); storage left by
+earlier implementations of an upgraded proxy (`Reachable` starts at `init`).
 -/
 
 namespace Contracts.Bridgehub
@@ -175,12 +192,14 @@ def init (cfg : Config) (owner : Address) : State where
 
 /-! ## `zkChainMap` -/
 
-/-- `zkChainMap.tryGet(c)` / `getZKChain(c)` (`BB:344-347`): the stored address, or `0`
-for an absent key. -/
+/-- `getZKChain(c)` (`BB:344-347`): the value `zkChainMap.tryGet(c)` returns, which is the
+stored address, `0` if none was stored (`EnumerableMap.sol:121-128`, `:333-336`). -/
 def getZKChain (s : State) (c : ChainId) : Address :=
-  if c ∈ s.zkKeys then s.zkAddr c else 0
+  s.zkAddr c
 
-/-- `zkChainMap.get(c)` does not revert (`EnumerableMap.sol:139`). -/
+/-- `zkChainMap.get(c)` does not revert (`EnumerableMap.sol:137-141`): the stored value is
+nonzero or `c` is a key. This is also the `exists` flag `zkChainMap.tryGet(c)` returns
+(`EnumerableMap.sol:121-128`). -/
 def ZkGetOk (s : State) (c : ChainId) : Prop := s.zkAddr c ≠ 0 ∨ c ∈ s.zkKeys
 
 instance (s : State) (c : ChainId) : Decidable (ZkGetOk s c) := by
@@ -251,7 +270,7 @@ structure SecondBridgeReply where
   l2Contract : Address
 
 /-- The call's environment: `msg.value`, and what `actualRefundRecipient(0, msg.sender)`
-returns (the caller, or its alias; `AddressAliasHelper.sol:60-80`). -/
+returns (the caller, or its alias; `AddressAliasHelper.sol:60-79`). -/
 structure CallEnv where
   msgValue : UInt256
   defaultRefund : Address
@@ -449,7 +468,7 @@ def exec (cfg : Config) (caller : Address) : Action → State → Option State
   | .registerAlreadyDeployed c z info, s =>                                -- L1:285-319
       if caller ≠ s.owner then none                                        -- onlyOwner
       else if z = 0 then none                                              -- ZeroAddress :286
-      else if c ∈ s.zkKeys then none                                       -- ChainIdAlreadyExists :291
+      else if ZkGetOk s c then none                                        -- tryGet exists :290-293
       else if info.chainId ≠ c then none                                   -- ChainIdMismatch :294
       else if info.bridgehub ≠ cfg.self then none                          -- IncorrectBridgeHubAddress :304
       else if ¬ ValidChainParams cfg s c info.baseTokenAssetId info.ctm then none -- :308
@@ -481,7 +500,9 @@ inductive Run (cfg : Config) : State → List Call → State → Prop
   | snoc {s t u : State} {l : List Call} (k : Call) :
       Run cfg s l t → exec cfg k.1 k.2 t = some u → Run cfg s (l ++ [k]) u
 
-/-- A state some run reaches from an initialized Bridgehub. -/
+/-- A state some run reaches from an initialized Bridgehub: a fresh proxy whose
+`initialize` ran at this version. Storage written by earlier Bridgehub implementations
+before an upgrade to this version is not a `Reachable` start. -/
 def Reachable (cfg : Config) (s : State) : Prop :=
   ∃ owner l, Run cfg (init cfg owner) l s
 
@@ -529,6 +550,17 @@ the intended `l1CtmDeployer`, always passes `data = bytes32(uint256(uint160(m)))
 def Action.ctmAssetDisciplined : Action → Bool
   | .setCTMAssetAddress d m => decide (d = m)
   | _ => true
+
+/-! ## Logged collisions of the CTM asset-id hash -/
+
+/-- **A logged collision of the CTM asset-id hash at CTM `m`.** The run `l` contains two
+calls `(c₁, setCTMAssetAddress(m, m))` and `(c₂, setCTMAssetAddress(m', m'))` with `m' ≠ m`
+whose hash inputs `(this chain, m, c₁)` and `(this chain, m', c₂)` give the same asset id. Both
+colliding inputs are the inputs of calls in the run. -/
+def CtmAssetIdLoggedCollision (cfg : Config) (l : List Call) (m : Address) : Prop :=
+  ∃ c₁ c₂ m', (c₁, Action.setCTMAssetAddress m m) ∈ l ∧
+    (c₂, Action.setCTMAssetAddress m' m') ∈ l ∧ m' ≠ m ∧
+    cfg.encodeAssetId cfg.thisChain m c₁ = cfg.encodeAssetId cfg.thisChain m' c₂
 
 /-! ## Variants with one source check removed
 
@@ -597,5 +629,63 @@ def requestTwoBridgesNoMinAddress (cfg : Config) (s : State) (caller : Address) 
       mintValue := req.mintValue
       l2Value := req.l2Value
       refundRecipient := refundOf env req.refundRecipient }
+
+/-! ## Witness data
+
+One concrete deployment and the runs the witnesses and countermodels in
+`Properties.Registry` use. Owner `1`; asset router `50`, CTM deployer `51`, message root
+`52`, chain asset handler `53`, registration sender `54`; CTMs `60` and `61`; ETH's asset id
+`7` and a second base-token asset id `8`. The asset-id hash is `fun _ d _ => d + 100`: it
+ignores the chain and the sender and is injective in the data, so CTM `60`'s asset id is
+`160` and CTM `61`'s is `161`. -/
+
+/-- The concrete deployment of the witnesses: this chain is `1`, the Bridgehub is at `99`,
+at most `10` chains. -/
+def wRegistryCfg : Config where
+  thisChain := 1
+  self := 99
+  ethAssetId := 7
+  maxChains := 10
+  upgrader := 98
+  twoBridgesMagic := 5
+  encodeAssetId := fun _ d _ => d + 100
+
+/-- The first six calls of the witness run: the owner sets the addresses, adds CTMs `60` and
+`61` and asset id `8`; the CTM deployer sets both CTM asset ids as `CTMDeploymentTracker`
+does (data = CTM address). -/
+def wRegistryPrelude : List Call :=
+  [(1, .setAddresses 50 51 52 53 54), (1, .addChainTypeManager 60), (1, .addChainTypeManager 61),
+   (1, .addTokenAssetId 8), (51, .setCTMAssetAddress 60 60), (51, .setCTMAssetAddress 61 61)]
+
+/-- The owner creates chain `10` on CTM `60` with ETH as base token; the CTM returns diamond
+`70`. -/
+def wRegistryCreate10 : Call := (1, .createNewChain 10 60 7 0 70)
+
+/-- Then the owner creates chain `11` (CTM `60`, ETH, diamond `71`), registers the already
+deployed chain `12` (diamond `72`, reporting chain `12`, CTM `61`, base token `8` and this
+Bridgehub), and whitelists chain `10` as a settlement layer. -/
+def wRegistryRest : List Call :=
+  [(1, .createNewChain 11 60 7 0 71), (1, .registerAlreadyDeployed 12 72 ⟨12, 61, 8, 99⟩),
+   (1, .setSettlementLayerStatus 10 true)]
+
+/-- The chain asset handler migrates chain `11` onto chain `10`. -/
+def wRegistryBurn11 : Call := (53, .burnSetSettlementLayer 11 10)
+
+/-- The witness run without the handler's registry writers. -/
+def wRegistryRun : List Call :=
+  wRegistryPrelude ++ [wRegistryCreate10] ++ wRegistryRest ++ [wRegistryBurn11]
+
+/-- After `wRegistryRun`, the chain asset handler's first three calls: chain `12` migrates
+onto `10`; chain `11` comes back with CTM asset id `161` (CTM `61`) and base token `8`; and
+the handler registers chain `13`, which has no CTM, with diamond `73` and no chain-count
+check. -/
+def wRegistryHandlerPrefix : List Call :=
+  [(53, .burnSetSettlementLayer 12 10), (53, .forwardedBridgeMint 161 11 8),
+   (53, .registerNewZKChain 13 73 false)]
+
+/-- The handler's calls after `wRegistryRun`: `wRegistryHandlerPrefix`, then the handler
+replaces chain `12`'s diamond with `82`. -/
+def wRegistryHandlerRun : List Call :=
+  wRegistryHandlerPrefix ++ [(53, .registerNewZKChain 12 82 true)]
 
 end Contracts.Bridgehub
