@@ -205,6 +205,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Batch counters (draft/v0.35.0, b17415d20): each diamond's executed count against its layer's
+-- MessageRoot counter, and one chain's two copies across migration (latent at that head)
+import EraSpec.Protocol.BatchCounters.Proofs.MessageRootSync
+import EraSpec.Protocol.BatchCounters.Proofs.MigrationContinuity
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
