@@ -3,10 +3,11 @@ import Mathlib.Data.Nat.Notation
 /-!
 # Model: the chain diamond's `AdminFacet`
 
-Source: era-contracts `draft/v0.35.0` at commit `d9f678900e1bc8286412b78f56d4a9f443983c29`.
-Paths are relative to `l1-contracts/contracts/`; `Admin.sol` is
-`state-transition/chain-deps/facets/Admin.sol` and `ZKChainBase.sol` is
-`state-transition/chain-deps/facets/ZKChainBase.sol`. Every `file:line` below is at that commit.
+Source: era-contracts `draft/v0.35.0` at commit `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`. The
+model was first written against `d9f678900e1bc8286412b78f56d4a9f443983c29`; every file cited
+below is byte-identical at the two commits, so each `file:line` holds at both. Paths are relative
+to `l1-contracts/contracts/`; `Admin.sol` is `state-transition/chain-deps/facets/Admin.sol` and
+`ZKChainBase.sol` is `state-transition/chain-deps/facets/ZKChainBase.sol`.
 
 **This file is definitions only.** Statements are in
 `EraSpec.Contracts.AdminFacet.Properties.*` and proofs in `EraSpec.Contracts.AdminFacet.Proofs.*`.
@@ -23,10 +24,14 @@ Paths are relative to `l1-contracts/contracts/`; `Admin.sol` is
   which refuses a freezable selector while the diamond is frozen, then `exec`.
 * `Env`: what the facet reads from other contracts at call time — the CTM's
   `upgradeCutForVersion`, `l1GenesisUpgrade` and its `ServerNotifier`'s schedule, the Bridgehub
-  owner, the `RollupDAManager`, the verifier's `getProofMode`. The environment changes freely
-  between calls (`Label.env`).
+  owner, the `RollupDAManager`, the verifier's `getProofMode` — and `cutContext`, everything else
+  a cut's initializer may read. The environment changes freely between calls (`Label.env`) and is
+  fixed during one call.
 * `Config.runCut`: what `Diamond.diamondCut` does to this storage, including the delegatecalled
-  initializer (`Diamond.sol:109-137`). It is **arbitrary**: a cut is code chosen by the CTM.
+  initializer (`Diamond.sol:109-137`), as a function of the environment, the call's
+  `block.timestamp` (the upgrade engines read it, `upgrades/BaseZkSyncUpgrade.sol:82-84`), the
+  cut and the storage. It is **arbitrary**: a cut is code chosen by the CTM. It does not see
+  `msg.sender`; no initializer under `upgrades/` reads `msg.sender` at this commit.
   `genesisEffect` transcribes the one initializer this facet names itself, `L1GenesisUpgrade`
   (`upgrades/L1GenesisUpgrade.sol:31-53` through `upgrades/BaseZkSyncUpgrade.sol:72-108,162-202`
   and `upgrades/BaseZkSyncUpgradeGenesis.sol:25-82`); `GenuineGenesis` is the premise that the
@@ -34,23 +39,31 @@ Paths are relative to `l1-contracts/contracts/`; `Admin.sol` is
   succeeds, `genesisEffect` succeeds with the same result". The real code has further reverts
   (transaction validation, the external reads that compose the transaction); the premise allows
   them.
-* `Foreign`: a write by another facet (Executor, Committer, Mailbox, Migrator). A source search at
-  this commit finds that those facets write only batch counters, the priority tree and its request
-  timestamps, `pausedDepositsTimestamp`, `settlementLayer`, the DA pair, the L2 upgrade
-  transaction's hash and batch number, and `isPermanentRollup`, which `Migrator.forwardedBridgeMint`
-  may set but never clear (`Migrator.sol:234-236, 241`). Everything in `Owned` is left alone.
+* `Foreign`: a write by another facet (Executor, Committer, Mailbox, Migrator; Getters writes
+  nothing). A source search at this commit finds that, of the fields modelled here, those facets
+  write only batch counters, the priority tree and its request timestamps,
+  `pausedDepositsTimestamp`, `settlementLayer`, the DA pair, the L2 upgrade transaction's hash and
+  batch number, and `isPermanentRollup`, which `Migrator.forwardedBridgeMint` may set but never
+  clear (`Migrator.sol:234-236, 241`). Everything in `Owned` is left alone.
 * `Step`/`Run`: any interleaving of calls (any sender, any block time), environment changes and
-  foreign writes.
+  foreign writes. A change to state the model does not track (another contract's storage, this
+  diamond's selector routing table) is an environment step.
 
 ## What is not modelled
 
 * Routing: the diamond is assumed to send the facet's selectors to this facet's code. Which code a
   cut installs is `ChainTypeManager`'s `ChainRouting` model (at `e561b9cc2`).
-* The `nonReentrant` modifier of `activatePriorityMode` (the body makes no external call that
-  could re-enter; the reads are views).
+* The `nonReentrant` modifier of `activatePriorityMode` (`common/ReentrancyGuard.sol:72-98`). It
+  reverts unless its lock slot holds `_NOT_ENTERED`, the slot's value between calls on a diamond
+  whose initializer ran `reentrancyGuardInitializer` (`DiamondInit.initialize` does,
+  `state-transition/chain-deps/DiamondInit.sol:52`); the body makes no external call. Omitting
+  it admits more successful calls, never fewer.
 * Events. ABI widths: addresses, hashes and enums are `ℕ`, compared only for equality; `uint`
-  fields are `ℕ`, so checked-arithmetic overflow reverts are omitted (the model admits more
-  successful calls, never fewer).
+  fields are `ℕ`, so checked-arithmetic reverts (overflow, and the underflow of
+  `PriorityTree.getSize`, which reads as size `0` here) and ABI-decoding reverts are omitted (the
+  model admits more successful calls, never fewer).
+* `msg.value`: the facet's functions are not payable, so a call with value reverts; calls here
+  carry none.
 * The `L2CanonicalTransaction` validation inside the genesis upgrade
   (`TransactionValidator.validateL1ToL2Transaction`/`validateUpgradeTransaction`,
   `BaseZkSyncUpgrade.sol:181-187`) and the external reads composing that transaction
@@ -90,7 +103,8 @@ abbrev ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE : ℕ := 5
 /-- `ProofSystem.Zisk`, the third member of `enum ProofSystem { Boojum, Airbender, Zisk }`
 (`Config.sol:126-130`). -/
 abbrev PROOF_SYSTEM_ZISK : ℕ := 2
-/-- `PubdataPricingMode.Rollup`, the first member of the enum (`ZKChainStorage.sol`). -/
+/-- `PubdataPricingMode.Rollup`, the first member of `enum PubdataPricingMode { Rollup, Validium }`
+(`Config.sol:299-302`). -/
 abbrev PRICING_MODE_ROLLUP : ℕ := 0
 /-- `L2DACommitmentScheme.NONE`, the first member of the enum (`Config.sol:49-50`). -/
 abbrev DA_SCHEME_NONE : ℕ := 0
@@ -228,7 +242,7 @@ structure Env where
   /-- The hash `keccak256(abi.encode(tx))` of the L2 genesis transaction the CTM's current release
   composes for this chain at a given protocol version (`L1GenesisUpgrade.sol:35-40, 77-104`,
   `BaseZkSyncUpgrade.sol:179-199`). Arguments: the CTM address and `s.protocolVersion`; the
-  chain id and the Bridgehub are fixed for one diamond. -/
+  chain id and the Bridgehub, which no facet writes, are folded into the environment. -/
   genesisTxHash : Address → ℕ → ℕ
   /-- `IOwnable(s.bridgehub).owner()` (`Admin.sol:417`). -/
   bridgehubOwner : Address
@@ -236,14 +250,18 @@ structure Env where
   isPairAllowed : Address → ℕ → Bool
   /-- `IZKsyncOSVerifier(v).getProofMode(mask)` (`Admin.sol:122`, `ZKChainBase.sol:188-190`). -/
   getProofMode : Address → ℕ → ℕ
+  /-- Everything else a cut's initializer may read: the state of other contracts (the CTM's
+  transition objects, the settlement layer) and the part of this diamond's storage the model does
+  not track (the selector routing table, `chainId`, `bridgehub`). Only `Config.runCut` reads it. -/
+  cutContext : ℕ
 
 /-- Fixed configuration. -/
 structure Config where
   /-- `block.chainid == L1_CHAIN_ID` (`Admin.sol:100-104`): fixed per deployment. -/
   onL1 : Bool
-  /-- `Diamond.diamondCut(cut)` (`Diamond.sol:109-137`) on this storage, including the
-  delegatecalled initializer: arbitrary; `none` is a revert. -/
-  runCut : Env → Cut → State → Option State
+  /-- `Diamond.diamondCut(cut)` (`Diamond.sol:109-137`) on this storage at `block.timestamp = τ`,
+  including the delegatecalled initializer: `runCut e τ cut s`. Arbitrary; `none` is a revert. -/
+  runCut : Env → ℕ → Cut → State → Option State
 
 /-! ## Entry points (`Admin.sol:646-702` lists their selectors) -/
 
@@ -310,6 +328,14 @@ def Entry.runsCut : Entry → Bool
   | .genesisUpgrade => true
   | _ => false
 
+/-- The two entries that update the fee inputs and stamp the update time: `changeFeeParams`
+(`Admin.sol:260-261`) and `setTokenMultiplier` (`Admin.sol:290-292`). Both start with
+`_enforceMinUpdateInterval` (`Admin.sol:219, 272`). -/
+def Entry.isFeeUpdate : Entry → Bool
+  | .changeFeeParams _ => true
+  | .setTokenMultiplier _ _ => true
+  | _ => false
+
 /-- One external call: `msg.sender`, `block.timestamp`, and the function with its arguments. -/
 structure Call where
   sender : Address
@@ -340,6 +366,11 @@ def safeDerivedL2GasPrice (fp : FeeParams) (n d : ℕ) : ℕ :=
   if d = 0 ∨ fp.maxPubdataPerBatch = 0 ∨ fp.maxL2GasPerBatch = 0 then 0
   else deriveL2GasPriceFromParams fp n d PRICE_REFERENCE_L1_GAS REQUIRED_L2_GAS_PRICE_PER_PUBDATA
 
+/-- The L2 gas price `_enforcePriceChangeBound` compares for a storage: `_safeDerivedL2GasPrice` of
+its fee parameters and base-token multiplier (`Admin.sol:236-244, 276-285, 317-318`). -/
+def State.derivedGasPrice (s : State) : ℕ :=
+  safeDerivedL2GasPrice s.feeParams s.multNominator s.multDenominator
+
 /-- `_enforcePriceChangeBound` (`Admin.sol:309-337`): `true` when it does not revert. -/
 def priceChangeWithinBound (s : State) (oldFp newFp : FeeParams) (oldN oldD newN newD : ℕ) :
     Bool :=
@@ -364,10 +395,10 @@ def revertBatches (s : State) (n : ℕ) : Option State :=
     totalBatchesCommitted := n
     upgradeBatchNumber := if n < s.upgradeBatchNumber then 0 else s.upgradeBatchNumber }
 
-/-- `_executeDiamondCut` (`Admin.sol:117-128`): the cut, then the second-proof-system recheck
-against the verifier the cut leaves behind. -/
-def executeDiamondCut (K : Config) (e : Env) (cut : Cut) (s : State) : Option State :=
-  match K.runCut e cut s with
+/-- `_executeDiamondCut` (`Admin.sol:117-128`) at time `τ`: the cut, then the second-proof-system
+recheck against the verifier the cut leaves behind. -/
+def executeDiamondCut (K : Config) (e : Env) (τ : ℕ) (cut : Cut) (s : State) : Option State :=
+  match K.runCut e τ cut s with
   | none => none
   | some s₁ =>
     req (s₁.secondProofSystemRequired = true →
@@ -405,13 +436,13 @@ def genesisEffect (e : Env) (s : State) : Option State :=
   some { s with upgradeTxHash := e.genesisTxHash s.chainTypeManager s.protocolVersion }
 
 /-- The premise that the address the CTM reports as `l1GenesisUpgrade()` always holds the genuine
-`L1GenesisUpgrade` code of this commit: whenever the genesis cut succeeds on a storage, so does
-`genesisEffect`, with the same result. One-directional on purpose: the real code may also revert
-where `genesisEffect` does not (the omitted reject-only checks), and every theorem that takes
-this premise holds for it. -/
+`L1GenesisUpgrade` code of this commit: whenever the genesis cut succeeds on a storage, at any
+time, so does `genesisEffect`, with the same result. One-directional on purpose: the real code may
+also revert where `genesisEffect` does not (the omitted reject-only checks), and every theorem
+that takes this premise holds for it. -/
 def GenuineGenesis (K : Config) : Prop :=
-  ∀ (e : Env) (s s' : State),
-    K.runCut e (genesisCut (e.l1GenesisUpgrade s.chainTypeManager)) s = some s' →
+  ∀ (e : Env) (τ : ℕ) (s s' : State),
+    K.runCut e τ (genesisCut (e.l1GenesisUpgrade s.chainTypeManager)) s = some s' →
     genesisEffect e s = some s'
 
 /-! ## The facet's functions -/
@@ -434,7 +465,7 @@ def upgradeWithCut (K : Config) (e : Env) (s : State) (c : Call) (v : ℕ) (cut 
   req (c.sender ≠ s.admin ∧ c.sender ≠ s.chainTypeManager →                        -- :577-585
       e.upgradeTimestamp s.chainTypeManager v ≠ 0
         ∧ e.upgradeTimestamp s.chainTypeManager v ≤ c.time) <|
-  match executeDiamondCut K e cut s with                                            -- :586
+  match executeDiamondCut K e c.time cut s with                                     -- :586
   | none => none
   | some s₁ => req (v < s₁.protocolVersion) (some s₁)                               -- :587-589
 
@@ -571,7 +602,8 @@ def exec (K : Config) (e : Env) (s : State) (c : Call) : Option State :=
     req (c.sender = s.chainTypeManager) <| onlySettlementLayer s <| onlyL1 K <|
     some { s with priorityMode := { s.priorityMode with activated := false } }
   -- `activatePriorityMode` (`Admin.sol:524-552`),
-  -- `onlySettlementLayer onlyL1 notPriorityMode nonReentrant`; no caller check.
+  -- `onlySettlementLayer onlyL1 notPriorityMode nonReentrant`; no caller check; `nonReentrant` is
+  -- not modelled (module docstring).
   | .activatePriorityMode =>
     onlySettlementLayer s <| onlyL1 K <|
     req (s.priorityMode.activated = false) <|
@@ -591,11 +623,11 @@ def exec (K : Config) (e : Env) (s : State) (c : Call) : Option State :=
     | some cut => upgradeWithCut K e s c v cut
   -- `executeUpgrade` (`Admin.sol:593-595`), `onlyChainTypeManager`.
   | .executeUpgrade cut =>
-    req (c.sender = s.chainTypeManager) <| executeDiamondCut K e cut s
+    req (c.sender = s.chainTypeManager) <| executeDiamondCut K e c.time cut s
   -- `genesisUpgrade` (`Admin.sol:599-609`), `onlyChainTypeManager`.
   | .genesisUpgrade =>
     req (c.sender = s.chainTypeManager) <|
-    executeDiamondCut K e (genesisCut (e.l1GenesisUpgrade s.chainTypeManager)) s
+    executeDiamondCut K e c.time (genesisCut (e.l1GenesisUpgrade s.chainTypeManager)) s
   -- `freezeDiamond` (`Admin.sol:616-626`), `onlyChainTypeManager`.
   | .freezeDiamond =>
     req (c.sender = s.chainTypeManager) <|
@@ -744,5 +776,14 @@ def Stage1Inv (s : State) : Prop :=
       s.priorityMode.canBeActivated = true ∧ s.isPermanentRollup = true)
   ∧ (s.priorityMode.canBeActivated = true →
       s.l1TxFiltering = false ∧ s.transactionFilterer = s.priorityMode.transactionFilterer)
+
+/-- The conditions of `activatePriorityMode` at time `τ` on fields the facet does not own
+(`Admin.sol:524, 531-546`, `ZKChainBase.sol:317-323`): the diamond is on its settlement layer,
+the first unprocessed priority transaction has a recorded request time `t ≠ 0` with
+`t + PRIORITY_EXPIRATION ≤ τ`, and no more batches are executed than committed. -/
+def ActivationQueueReady (s : State) (τ : ℕ) : Prop :=
+  s.settlementLayer = 0 ∧ s.requestTimestamp s.firstUnprocessed ≠ 0 ∧
+  s.requestTimestamp s.firstUnprocessed + PRIORITY_EXPIRATION ≤ τ ∧
+  s.totalBatchesExecuted ≤ s.totalBatchesCommitted
 
 end Contracts.AdminFacet

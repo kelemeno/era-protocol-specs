@@ -22,9 +22,9 @@ Statements about `EraSpec.Contracts.AdminFacet.Specs.AdminFacet`; proofs in
   unfrozen; `unfreezeDiamond` iff the caller is the CTM, the diamond is frozen and the selector of
   `unfreezeDiamond` is not itself freezable.
 * `FreezableUnfreezeStrandsTheChain` (run): if `unfreezeDiamond` and the three cut entries are all
-  marked freezable, a frozen diamond stays frozen forever. That the facet is registered
-  non-freezable is load-bearing.
-* `AdminHandoverWitness`: a concrete run hands the admin role over.
+  marked freezable, a frozen diamond stays frozen forever.
+* Witnesses: `EveryEntrySucceedsSomewhere`, `ValidatorUpgradeWitness`, `AdminHandoverWitness`,
+  `ValidatorChangeWitness`, `FreezeWitness`, `StrandedChainWitness`.
 -/
 
 namespace Contracts.AdminFacet
@@ -40,7 +40,8 @@ def Properties.EveryEntryChecksItsRole : Prop :=
 
 /-- **THE CALLER ENTERS ONLY THROUGH ITS ROLE.** If a call succeeds, the same call from any other
 address with the same role succeeds with the same result. For `upgradeChainFromVersion` the
-replacement must be the admin or the CTM, which skip the notifier gate. -/
+replacement must be the admin or the CTM, which skip the notifier gate. (The model's cut
+semantics `Config.runCut` does not see the caller; see the module docstring of the spec.) -/
 def Properties.CallerMattersOnlyThroughRole : Prop :=
   ∀ (K : Config) (e : Env) (s s' : State) (c : Call) (b : Address),
     call K e s c = some s' → Role e s b c.entry →
@@ -128,9 +129,11 @@ def Properties.FreezeUnfreezeExact : Prop :=
 
 /-- **A FREEZABLE UNFREEZE STRANDS THE CHAIN.** If the diamond is frozen and the selectors of
 `unfreezeDiamond`, `upgradeChainFromVersion`, `executeUpgrade` and `genesisUpgrade` are all marked
-freezable, then every run — any calls, environment changes and foreign writes — ends frozen. So the
-deployment's choice to register the admin facet non-freezable is load-bearing for
-`unfreezeDiamond` to be reachable at all. -/
+freezable, then every run — any calls, environment changes and foreign writes, cuts included —
+ends frozen. (`FreezeUnfreezeExact` gives the one-call form: on a frozen diamond `unfreezeDiamond`
+succeeds only if its selector is not freezable. The CTM deployment scripts register the Admin
+facet non-freezable: `l1-contracts/deploy-scripts/ctm/DeployCTMUtils.s.sol:103`,
+`l1-contracts/deploy-scripts/gateway/GatewayCTMDeployerHelper.sol:358`.) -/
 def Properties.FreezableUnfreezeStrandsTheChain : Prop :=
   ∀ (K : Config) (w w' : World) (ls : List Label),
     Run K w ls w' → w.st.frozen = true →
@@ -140,11 +143,71 @@ def Properties.FreezableUnfreezeStrandsTheChain : Prop :=
     w.st.freezable Entry.genesisUpgrade.sel = true →
     w'.st.frozen = true
 
-/-- **WITNESS: AN ADMIN HANDOVER.** A run from a state with admin `1` in which the admin nominates
-`2` and `2` accepts ends with admin `2` and no pending admin. -/
+/-! ## Witnesses -/
+
+/-- **WITNESS: EVERY ENTRY CAN SUCCEED.** For each of the 25 entries, identified by its selector,
+there are arguments, a deployment, an environment, a state, a caller and a time at which the call
+through the diamond succeeds. So no entry of the model reverts unconditionally, and
+`EveryEntryChecksItsRole` constrains a satisfiable success of every entry. -/
+def Properties.EveryEntrySucceedsSomewhere : Prop :=
+  ∀ en : Entry, ∃ (en' : Entry) (K : Config) (e : Env) (s s' : State) (a : Address) (τ : ℕ),
+    en'.sel = en.sel ∧ call K e s ⟨a, τ, en'⟩ = some s'
+
+/-- **WITNESS: A VALIDATOR'S SCHEDULED UPGRADE, AND THE SAME CALL FROM THE ADMIN.** A call to
+`upgradeChainFromVersion` from an address that is neither the admin nor the CTM succeeds and raises
+the version (the premises of `ValidatorUpgradeWaitsForSchedule`), and the admin, a different
+address with the role, makes the same call with the same result (the premises and conclusion of
+`CallerMattersOnlyThroughRole` with a replacement caller). -/
+def Properties.ValidatorUpgradeWitness : Prop :=
+  ∃ (K : Config) (e : Env) (s s' : State) (a : Address) (τ : ℕ) (ch : Address) (v : ℕ),
+    call K e s ⟨a, τ, .upgradeChainFromVersion ch v⟩ = some s' ∧
+    a ≠ s.admin ∧ a ≠ s.chainTypeManager ∧ s.protocolVersion < s'.protocolVersion ∧
+    Role e s s.admin (.upgradeChainFromVersion ch v) ∧
+    call K e s ⟨s.admin, τ, .upgradeChainFromVersion ch v⟩ = some s'
+
+/-- **WITNESS: AN ADMIN HANDOVER ON A FROZEN DIAMOND.** On a frozen diamond whose `setPendingAdmin`
+and `acceptAdmin` selectors are not freezable (the premises of `AdminHandoverIsTwoStep`, with the
+diamond frozen), a run without cuts and with nonzero senders, starting from admin `1`, ends with
+admin `2` and no pending admin (the premises of `AdminChangesOnlyByAcceptance`, with the admin
+changed). -/
 def Properties.AdminHandoverWitness : Prop :=
   ∃ (K : Config) (w w' : World) (ls : List Label),
-    Run K w ls w' ∧ w.st.admin = 1 ∧ w'.st.admin = 2 ∧ w'.st.pendingAdmin = 0 ∧
-    (∀ l ∈ ls, l.runsCut = false)
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧ (∀ c, Label.call c ∈ ls → c.sender ≠ 0) ∧
+    w.st.frozen = true ∧
+    w.st.freezable (Entry.setPendingAdmin 0).sel = false ∧
+    w.st.freezable Entry.acceptAdmin.sel = false ∧
+    w.st.admin = 1 ∧ w'.st.admin = 2 ∧ w'.st.pendingAdmin = 0
+
+/-- **WITNESS: A VALIDATOR IS ADDED.** A run without cuts, containing an environment change and a
+foreign write, in which some validator bit goes from off to on (the premises of
+`ValidatorsChangeOnlyByCTM`, with a bit changed). -/
+def Properties.ValidatorChangeWitness : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label) (x : Address),
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧
+    (∃ e, Label.env e ∈ ls) ∧ (∃ s', Label.foreign s' ∈ ls) ∧
+    w.st.validators x = false ∧ w'.st.validators x = true
+
+/-- **WITNESS: FREEZE, THEN UNFREEZE.** Two consecutive runs without cuts: in the first the
+diamond goes from unfrozen to frozen; the second, of at least two steps, takes it back to
+unfrozen. Together they meet the antecedents of both halves of `FreezeOnlyByCTM`. -/
+def Properties.FreezeWitness : Prop :=
+  ∃ (K : Config) (w w₁ w₂ : World) (ls₁ ls₂ : List Label),
+    Run K w ls₁ w₁ ∧ Run K w₁ ls₂ w₂ ∧
+    (∀ l ∈ ls₁ ++ ls₂, l.runsCut = false) ∧ 2 ≤ ls₂.length ∧
+    w.st.frozen = false ∧ w₁.st.frozen = true ∧ w₂.st.frozen = false
+
+/-- **WITNESS: A STRANDED CHAIN.** A frozen diamond with the selectors of `unfreezeDiamond` and
+the three cut entries all marked freezable (the premises of `FreezableUnfreezeStrandsTheChain`)
+on which a run with an environment change and a foreign write changing
+`pausedDepositsTimestamp` takes place. -/
+def Properties.StrandedChainWitness : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label),
+    Run K w ls w' ∧ w.st.frozen = true ∧
+    w.st.freezable Entry.unfreezeDiamond.sel = true ∧
+    w.st.freezable (Entry.upgradeChainFromVersion 0 0).sel = true ∧
+    w.st.freezable (Entry.executeUpgrade ⟨[], 0, 0⟩).sel = true ∧
+    w.st.freezable Entry.genesisUpgrade.sel = true ∧
+    (∃ e, Label.env e ∈ ls) ∧ (∃ s', Label.foreign s' ∈ ls) ∧
+    w'.st.pausedDepositsTimestamp ≠ w.st.pausedDepositsTimestamp
 
 end Contracts.AdminFacet

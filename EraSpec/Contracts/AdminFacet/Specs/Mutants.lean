@@ -6,7 +6,8 @@ import EraSpec.Contracts.AdminFacet.Specs.AdminFacet
 Definitions only. Each mutant is the transcription in `Specs/AdminFacet.lean` with exactly one
 check deleted. The countermodels in `Properties/PriorityMode.lean` and `Properties/Upgrade.lean`
 use them to show that the deleted check is what a guarantee rests on. Source: era-contracts
-`d9f678900e1bc8286412b78f56d4a9f443983c29`.
+`draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`Admin.sol` is byte-identical at
+`d9f678900e1bc8286412b78f56d4a9f443983c29`).
 -/
 
 namespace Contracts.AdminFacet
@@ -39,6 +40,6 @@ def upgradeWithoutPostCheck (K : Config) (e : Env) (s : State) (c : Call) (v : �
     req (c.sender ≠ s.admin ∧ c.sender ≠ s.chainTypeManager →
         e.upgradeTimestamp s.chainTypeManager v ≠ 0
           ∧ e.upgradeTimestamp s.chainTypeManager v ≤ c.time) <|
-    executeDiamondCut K e cut s
+    executeDiamondCut K e c.time cut s
 
 end Contracts.AdminFacet

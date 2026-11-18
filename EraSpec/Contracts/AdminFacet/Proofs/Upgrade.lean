@@ -11,13 +11,13 @@ namespace Contracts.AdminFacet
 
 /-! ## Unfolding lemmas -/
 
-theorem executeDiamondCut_eq_some {K : Config} {e : Env} {cut : Cut} {s s' : State} :
-    executeDiamondCut K e cut s = some s' ↔
-      K.runCut e cut s = some s' ∧
+theorem executeDiamondCut_eq_some {K : Config} {e : Env} {τ : ℕ} {cut : Cut} {s s' : State} :
+    executeDiamondCut K e τ cut s = some s' ↔
+      K.runCut e τ cut s = some s' ∧
       (s'.secondProofSystemRequired = true →
         e.getProofMode s'.verifier 0 = ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE) := by
   unfold executeDiamondCut
-  cases h : K.runCut e cut s with
+  cases h : K.runCut e τ cut s with
   | none => simp
   | some s₁ =>
     simp only [req_eq_some, Option.some.injEq]
@@ -32,13 +32,13 @@ theorem upgradeWithCut_eq_some {K : Config} {e : Env} {s s' : State} {c : Call} 
       (c.sender ≠ s.admin ∧ c.sender ≠ s.chainTypeManager →
         e.upgradeTimestamp s.chainTypeManager v ≠ 0 ∧
         e.upgradeTimestamp s.chainTypeManager v ≤ c.time) ∧
-      K.runCut e cut s = some s' ∧
+      K.runCut e c.time cut s = some s' ∧
       (s'.secondProofSystemRequired = true →
         e.getProofMode s'.verifier 0 = ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE) ∧
       v < s'.protocolVersion := by
   unfold upgradeWithCut
   simp only [req_eq_some]
-  cases h : executeDiamondCut K e cut s with
+  cases h : executeDiamondCut K e c.time cut s with
   | none =>
     simp only [reduceCtorEq, and_false, false_iff, not_and]
     intro _ _ hr hp
@@ -71,7 +71,7 @@ theorem genesis_call {K : Config} {e : Env} {s s' : State} {a : Address} {τ : �
   simp only [exec, req_eq_some] at h
   obtain ⟨_, h⟩ := h
   obtain ⟨hr, _⟩ := executeDiamondCut_eq_some.1 h
-  obtain ⟨h0, rfl⟩ := genesisEffect_eq_some (hg e s s' hr)
+  obtain ⟨h0, rfl⟩ := genesisEffect_eq_some (hg e τ s s' hr)
   exact ⟨h0, rfl, rfl⟩
 
 theorem upgrade_call {K : Config} {e : Env} {s s' : State} {a : Address} {τ : ℕ} {ch : Address}
@@ -174,12 +174,12 @@ theorem genesis_runs_once : Properties.GenesisRunsOnce := by
 version by one. -/
 def bumpConfig : Config where
   onL1 := true
-  runCut := fun e cut s =>
+  runCut := fun e _ cut s =>
     if cut = genesisCut (e.l1GenesisUpgrade s.chainTypeManager) then genesisEffect e s
     else some { s with protocolVersion := s.protocolVersion + 1 }
 
 theorem bumpConfig_genuine : GenuineGenesis bumpConfig := by
-  intro e s s' h; simpa [bumpConfig] using h
+  intro e τ s s' h; simpa [bumpConfig] using h
 
 /-- The CTM `9` points genesis at `42` with transaction hash `77`, has a cut committed for version
 `0`, and the notifier's timestamp is `10`. -/
@@ -190,50 +190,94 @@ def upEnv : Env :=
     upgradeCutForVersion := fun _ v => if v = 0 then some ⟨[], 43, 0⟩ else none
     upgradeTimestamp := fun _ _ => 10 }
 
+/-- After the CTM's genesis upgrade: the genesis transaction (hash `77`) is pending. -/
 def up1 : State := { freshState with upgradeTxHash := 77 }
+/-- After the Executor finalized it (`Executor.sol:209-210`). -/
 def up2 : State := { up1 with upgradeTxHash := 0 }
+/-- After the CTM made `7` a validator. -/
 def up3 : State :=
   { up2 with validators := fun x => if x = 7 then true else up2.validators x }
+/-- After the validator's upgrade from version `0`. -/
 def up4 : State := { up3 with protocolVersion := 1 }
+
+theorem genesis_from_fresh :
+    call bumpConfig upEnv freshState ⟨9, 0, .genesisUpgrade⟩ = some up1 := by
+  simp [call, exec, req, executeDiamondCut, bumpConfig, genesisEffect, upEnv, up1, freshState,
+    genesisCut]
 
 theorem upgrade_witness : Properties.UpgradeWitness := by
   refine ⟨bumpConfig, ⟨freshState, upEnv⟩, ⟨up4, upEnv⟩,
     [.call ⟨9, 0, .genesisUpgrade⟩, .foreign up2, .call ⟨9, 0, .setValidator 7 true⟩,
-     .call ⟨7, 10, .upgradeChainFromVersion 0 0⟩], 7, 10, bumpConfig_genuine, ?_, ?_,
-    by decide, by decide, rfl, rfl⟩
-  · refine Run.cons (w₁ := ⟨up1, upEnv⟩) (Step.call ?_) ?_
-    · simp [call, exec, req, executeDiamondCut, bumpConfig, genesisEffect, upEnv, up1,
-        freshState, genesisCut]
+     .call ⟨7, 10, .upgradeChainFromVersion 0 0⟩], 7, 10, bumpConfig_genuine, ?_, ?_, ?_,
+    by decide, by decide, rfl, rfl, rfl, rfl⟩
+  · refine Run.cons (w₁ := ⟨up1, upEnv⟩) (Step.call genesis_from_fresh) ?_
     refine Run.cons (w₁ := ⟨up2, upEnv⟩) (Step.foreign ⟨rfl, fun h => h⟩) ?_
     refine Run.cons (w₁ := ⟨up3, upEnv⟩) (Step.call rfl) ?_
     refine Run.cons (Step.call ?_) (Run.nil _)
     simp [call, exec, req, upgradeWithCut, executeDiamondCut, bumpConfig, upEnv, up4, up3, up2,
       up1, freshState, genesisCut]
+  · intro l hl
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl | rfl | rfl <;> rfl
   · simp only [List.mem_cons, List.not_mem_nil, or_false]
     exact Or.inr (Or.inr (Or.inr rfl))
 
-theorem execute_upgrade_can_lower_version : Properties.ExecuteUpgradeCanLowerVersion :=
-  ⟨⟨true, fun _ _ s => some { s with protocolVersion := 0 }⟩, nullEnv,
-    { freshState with protocolVersion := 5 }, freshState, 0, ⟨[], 1, 0⟩, rfl, by decide⟩
+/-- `up1` after another facet committed batch `1` carrying the pending upgrade transaction. -/
+def upCommitted : State := { up1 with totalBatchesCommitted := 1, upgradeBatchNumber := 1 }
+/-- `upEnv` after the notifier's schedule moved to `20`. -/
+def upEnv' : Env := { upEnv with upgradeTimestamp := fun _ _ => 20 }
+
+theorem genesis_runs_once_witness : Properties.GenesisRunsOnceWitness := by
+  refine ⟨bumpConfig, ⟨freshState, upEnv⟩, ⟨up1, upEnv⟩,
+    ⟨{ upCommitted with validators := fun x => if x = 7 then true else upCommitted.validators x },
+      upEnv'⟩, 9, 0,
+    [.foreign upCommitted, .env upEnv', .call ⟨9, 0, .setValidator 7 true⟩],
+    bumpConfig_genuine, Step.call genesis_from_fresh, by decide, ?_, ?_, ?_,
+    ⟨⟨9, 0, .setValidator 7 true⟩, by simp⟩, ⟨upEnv', by simp⟩, ⟨upCommitted, by simp⟩⟩
+  · refine Run.cons (Step.foreign ⟨rfl, fun h => h⟩) ?_
+    refine Run.cons (Step.env _) ?_
+    exact Run.cons (Step.call rfl) (Run.nil _)
+  · intro l hl
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl | rfl <;> exact ⟨rfl, rfl⟩
+  · intro s' hs'
+    simp only [List.mem_cons, List.not_mem_nil, or_false, Label.foreign.injEq, reduceCtorEq,
+      or_false] at hs'
+    subst hs'; decide
+
+/-- A deployment whose genesis address holds the genuine code and whose every other cut sets the
+version to `0`. -/
+def lowerConfig : Config where
+  onL1 := true
+  runCut := fun e _ cut s =>
+    if cut = genesisCut (e.l1GenesisUpgrade s.chainTypeManager) then genesisEffect e s
+    else some { s with protocolVersion := 0 }
+
+theorem lowerConfig_genuine : GenuineGenesis lowerConfig := by
+  intro e τ s s' h; simpa [lowerConfig] using h
+
+theorem execute_upgrade_can_lower_version : Properties.ExecuteUpgradeCanLowerVersion := by
+  refine ⟨lowerConfig, ⟨{ freshState with protocolVersion := 5 }, nullEnv⟩, ⟨freshState, nullEnv⟩,
+    [.call ⟨9, 0, .executeUpgrade ⟨[], 1, 0⟩⟩], lowerConfig_genuine, ?_, by decide, by decide⟩
+  refine Run.cons (Step.call ?_) (Run.nil _)
+  simp [call, exec, req, executeDiamondCut, lowerConfig, genesisCut, freshState, nullEnv]
 
 /-- An environment with a cut committed for version `0`. -/
 def idEnv : Env := { nullEnv with upgradeCutForVersion := fun _ _ => some ⟨[], 1, 0⟩ }
 
 theorem upgrade_post_check_is_load_bearing : Properties.UpgradePostCheckIsLoadBearing :=
-  ⟨⟨true, fun _ _ s => some s⟩, idEnv, freshState, freshState, 0, 0, rfl, le_refl _, rfl⟩
-
-def gen1 : State := { freshState with upgradeTxHash := 77 }
+  ⟨⟨true, fun _ _ _ s => some s⟩, idEnv, freshState, freshState, 0, 0, rfl, le_refl _, rfl⟩
 
 theorem genesis_reruns_after_finalization : Properties.GenesisRerunsAfterFinalization := by
-  refine ⟨bumpConfig, ⟨freshState, upEnv⟩, ⟨gen1, upEnv⟩,
-    [.call ⟨9, 0, .genesisUpgrade⟩, .foreign freshState, .call ⟨9, 0, .genesisUpgrade⟩],
-    bumpConfig_genuine, ?_, by decide⟩
-  have hgen : call bumpConfig upEnv freshState ⟨9, 0, .genesisUpgrade⟩ = some gen1 := by
-    simp [call, exec, req, executeDiamondCut, bumpConfig, genesisEffect, upEnv, gen1,
-      freshState, genesisCut]
-  refine Run.cons (w₁ := ⟨gen1, upEnv⟩) (Step.call hgen) ?_
-  refine Run.cons (w₁ := ⟨freshState, upEnv⟩) (Step.foreign ⟨rfl, fun h => h⟩) ?_
-  exact Run.cons (Step.call hgen) (Run.nil _)
+  refine ⟨bumpConfig, ⟨freshState, upEnv⟩, ⟨up1, upEnv⟩, ⟨up1, upEnv⟩, 9, 0,
+    [.foreign freshState, .call ⟨9, 0, .genesisUpgrade⟩], bumpConfig_genuine,
+    Step.call genesis_from_fresh, by decide, ?_, ?_, ⟨freshState, List.mem_cons_self, rfl⟩,
+    ⟨.call ⟨9, 0, .genesisUpgrade⟩, List.mem_cons_of_mem _ List.mem_cons_self, rfl⟩⟩
+  · refine Run.cons (w₁ := ⟨freshState, upEnv⟩) (Step.foreign ⟨rfl, fun h => h⟩) ?_
+    exact Run.cons (Step.call genesis_from_fresh) (Run.nil _)
+  · intro l hl
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl <;> exact ⟨rfl, rfl⟩
 
 /-! ## Certificates -/
 
@@ -245,6 +289,8 @@ theorem GenesisRunsOnce : Properties.GenesisRunsOnce :=
   genesis_runs_once
 theorem UpgradeWitness : Properties.UpgradeWitness :=
   upgrade_witness
+theorem GenesisRunsOnceWitness : Properties.GenesisRunsOnceWitness :=
+  genesis_runs_once_witness
 theorem ExecuteUpgradeCanLowerVersion : Properties.ExecuteUpgradeCanLowerVersion :=
   execute_upgrade_can_lower_version
 theorem UpgradePostCheckIsLoadBearing : Properties.UpgradePostCheckIsLoadBearing :=

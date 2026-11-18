@@ -6,11 +6,16 @@ import EraSpec.Contracts.AdminFacet.Specs.Mutants
 Statements about `EraSpec.Contracts.AdminFacet.Specs.AdminFacet`; proofs in
 `EraSpec.Contracts.AdminFacet.Proofs.PriorityMode`.
 
-* `Stage1InvHoldsAlongRuns` (run, headline): `Stage1Inv` holds on a fresh chain and is kept by
-  every interleaving of calls, environment changes and foreign writes that runs no cut. While
+* `Stage1InvHoldsAlongRuns` (run, headline): `Stage1Inv` holds where priority mode is neither
+  allowed nor active (as on a fresh chain) and is kept by every interleaving of calls,
+  environment changes and foreign writes that runs no cut. While
   priority mode is active, it was allowed and the chain is a permanent rollup; once it is allowed,
   operator filtering of priority transactions is off and the transaction filterer is the one
   governance picked for priority mode.
+* `NoFacetCallBlocksDueActivation` (run, headline): once `activatePriorityMode` succeeds, after
+  any further run without cuts priority mode is active or activation still succeeds, provided the
+  selector is not freezable or the CTM sends none of the calls, and every foreign write keeps
+  `ActivationQueueReady`.
 * `OneWayFlagsAlongRuns` (run): without cuts, `isPermanentRollup`, `secondProofSystemRequired`
   and `canBeActivated` are never cleared, and once priority mode is allowed the fee parameters'
   pricing mode and three capacity fields never change.
@@ -18,22 +23,48 @@ Statements about `EraSpec.Contracts.AdminFacet.Specs.AdminFacet`; proofs in
   preconditions, and reverts every committed but unexecuted batch.
 * `PriorityModeTogglesOnlyByItsEntries` (run): without cuts, priority mode turns on only by
   `activatePriorityMode` and off only by the CTM's `deactivatePriorityMode`.
-* `PriorityModeWitness`: a concrete run from a fresh chain reaches active priority mode.
-* Countermodels `UnguardedFiltererBreaksStage1`, `UnguardedL1FilteringBreaksStage1`: deleting
-  either `NotCompatibleWithPriorityMode` check breaks `Stage1Inv` in one step.
+* Witnesses: `PriorityModeWitness`, `PriorityModeDeactivationWitness`, `OneWayFlagsWitness`,
+  `DueActivationSurvivesWitness`.
+* Countermodels: `CTMFreezeBlocksActivation` (the last premise of
+  `NoFacetCallBlocksDueActivation` is needed), `ActivationNeedsPermanentRollup` (the
+  permanent-rollup condition of `ActivatePriorityModeExact` is the only failing one in a reachable
+  state), `UnguardedFiltererBreaksStage1`, `UnguardedL1FilteringBreaksStage1` (deleting either
+  `NotCompatibleWithPriorityMode` check breaks `Stage1Inv` in one step).
 -/
 
 namespace Contracts.AdminFacet
 
 /-- **HEADLINE: THE STAGE-1 INVARIANT HOLDS ALONG EVERY RUN WITHOUT CUTS.** A state where priority
-mode is neither allowed nor active (every chain `DiamondInit` creates) satisfies `Stage1Inv`; and
-every run that runs no cut — any calls by anyone at any times, environment changes, writes by the
-other facets — keeps it. -/
+mode is neither allowed nor active satisfies `Stage1Inv` (every chain `DiamondInit` creates is one:
+of `priorityModeInfo` it writes only `permissionlessValidator`,
+`state-transition/chain-deps/DiamondInit.sol:128`); and every run that runs no cut — any calls by
+anyone at any times, environment changes, writes by the other facets — keeps it. -/
 def Properties.Stage1InvHoldsAlongRuns : Prop :=
   (∀ s : State, s.priorityMode.canBeActivated = false → s.priorityMode.activated = false →
       Stage1Inv s) ∧
   ∀ (K : Config) (w w' : World) (ls : List Label),
     Run K w ls w' → (∀ l ∈ ls, l.runsCut = false) → Stage1Inv w.st → Stage1Inv w'.st
+
+/-- **HEADLINE: NO FACET CALL BLOCKS A DUE ACTIVATION.** Suppose `activatePriorityMode` succeeds
+at time `τ` in the world `w`. Take any run from `w` that runs no cut and in which every foreign
+write leaves `ActivationQueueReady s' τ` true: the chain stays on its settlement layer, the first
+unprocessed priority transaction was requested at a recorded time `t ≠ 0` with
+`t + PRIORITY_EXPIRATION ≤ τ`, and no more batches are executed than committed. Environment
+changes are unrestricted. If the selector of `activatePriorityMode` is not marked freezable, or no
+call in the run is sent by the CTM, then at the end priority mode is active or
+`activatePriorityMode` succeeds for every caller at every time `τ' ≥ τ`. So calls by the chain
+admin, validators and everybody else cannot undo a due activation; with the selector freezable,
+calls by the CTM can (`CTMFreezeBlocksActivation`). Runs with cuts are outside the statement. -/
+def Properties.NoFacetCallBlocksDueActivation : Prop :=
+  ∀ (K : Config) (w w' : World) (ls : List Label) (a : Address) (τ : ℕ),
+    (∃ s₁, call K w.env w.st ⟨a, τ, .activatePriorityMode⟩ = some s₁) →
+    Run K w ls w' → (∀ l ∈ ls, l.runsCut = false) →
+    (∀ s', Label.foreign s' ∈ ls → ActivationQueueReady s' τ) →
+    (w.st.freezable Entry.activatePriorityMode.sel = false ∨
+      ∀ c, Label.call c ∈ ls → c.sender ≠ w.st.chainTypeManager) →
+    w'.st.priorityMode.activated = true ∨
+      ∀ (b : Address) (τ' : ℕ), τ ≤ τ' →
+        ∃ s₂, call K w'.env w'.st ⟨b, τ', .activatePriorityMode⟩ = some s₂
 
 /-- **ONE-WAY FLAGS.** Along any run without cuts: a permanent rollup stays one, a required second
 proof system stays required, an allowed priority mode stays allowed; and once priority mode is
@@ -58,7 +89,8 @@ unprocessed priority transaction has a recorded request time `t ≠ 0`, `t + 4 d
 `totalBatchesExecuted ≤ totalBatchesCommitted`. The new state differs only in: priority mode
 active; `totalBatchesCommitted := totalBatchesExecuted`; `totalBatchesVerified` lowered to
 `totalBatchesExecuted` if above it; the L2 upgrade batch number cleared if it was among the
-reverted batches. -/
+reverted batches. The model omits the `nonReentrant` lock and the overflow reverts (see the spec's
+module docstring), which can only make the source revert where the model succeeds. -/
 def Properties.ActivatePriorityModeExact : Prop :=
   ∀ (K : Config) (e : Env) (s s' : State) (a : Address) (τ : ℕ),
     call K e s ⟨a, τ, .activatePriorityMode⟩ = some s' ↔
@@ -89,16 +121,92 @@ def Properties.PriorityModeTogglesOnlyByItsEntries : Prop :=
     (w.st.priorityMode.activated = true → w'.st.priorityMode.activated = false →
       ∃ τ, Label.call ⟨w.st.chainTypeManager, τ, .deactivatePriorityMode⟩ ∈ ls)
 
-/-- **WITNESS: PRIORITY MODE IS REACHABLE.** From a chain with priority mode neither allowed nor
-active and not a permanent rollup, a run without cuts — a priority transaction enqueued by the
-Mailbox, the admin's `makePermanentRollup` and `permanentlyAllowPriorityMode`, and an outsider's
-`activatePriorityMode` four days later — ends with priority mode active. -/
+/-! ## Witnesses -/
+
+/-- **WITNESS: PRIORITY MODE IS REACHABLE.** From a chain satisfying `Stage1Inv` with priority mode
+neither allowed nor active and not a permanent rollup, a run without cuts ends with priority mode
+active and `Stage1Inv` holding (the premises of `Stage1InvHoldsAlongRuns` and the antecedent of
+the first half of `PriorityModeTogglesOnlyByItsEntries`). The run contains an
+`activatePriorityMode` call from an address that is neither the admin nor the CTM. -/
 def Properties.PriorityModeWitness : Prop :=
   ∃ (K : Config) (w w' : World) (ls : List Label),
-    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧ Stage1Inv w.st ∧
     w.st.priorityMode.canBeActivated = false ∧ w.st.priorityMode.activated = false ∧
     w.st.isPermanentRollup = false ∧
-    w'.st.priorityMode.activated = true ∧ Stage1Inv w'.st
+    w'.st.priorityMode.activated = true ∧ Stage1Inv w'.st ∧
+    ∃ a τ, Label.call ⟨a, τ, .activatePriorityMode⟩ ∈ ls ∧
+      a ≠ w.st.admin ∧ a ≠ w.st.chainTypeManager
+
+/-- **WITNESS: PRIORITY MODE TURNED OFF.** From a state satisfying `Stage1Inv` with priority mode
+active, a run without cuts ends with priority mode inactive and `Stage1Inv` holding (the
+antecedent of the second half of `PriorityModeTogglesOnlyByItsEntries`). -/
+def Properties.PriorityModeDeactivationWitness : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label),
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧ Stage1Inv w.st ∧
+    w.st.priorityMode.activated = true ∧ w'.st.priorityMode.activated = false ∧
+    Stage1Inv w'.st
+
+/-- **WITNESS: FEE PARAMETERS STILL CHANGE ON A STAGE-1 CHAIN.** From a permanent rollup that
+requires its second proof system and has priority mode allowed (every antecedent of
+`OneWayFlagsAlongRuns` true), a run without cuts changes the fee parameters. -/
+def Properties.OneWayFlagsWitness : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label),
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧
+    w.st.isPermanentRollup = true ∧ w.st.secondProofSystemRequired = true ∧
+    w.st.priorityMode.canBeActivated = true ∧
+    w'.st.feeParams ≠ w.st.feeParams
+
+/-- **WITNESS: A DUE ACTIVATION SURVIVES OTHER ACTIVITY.** From a world where
+`activatePriorityMode` succeeds at time `τ`, a run without cuts — containing a facet call, an
+environment change and a foreign write, with no call from the CTM and every foreign write keeping
+`ActivationQueueReady` at `τ` — meets every premise of `NoFacetCallBlocksDueActivation` (both
+disjuncts of its last one). At its end the committed batch count differs from the start, priority
+mode is inactive and `activatePriorityMode` at `τ` succeeds. -/
+def Properties.DueActivationSurvivesWitness : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label) (a : Address) (τ : ℕ) (s₁ s₂ : State),
+    call K w.env w.st ⟨a, τ, .activatePriorityMode⟩ = some s₁ ∧
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧
+    (∀ s', Label.foreign s' ∈ ls → ActivationQueueReady s' τ) ∧
+    w.st.freezable Entry.activatePriorityMode.sel = false ∧
+    (∀ c, Label.call c ∈ ls → c.sender ≠ w.st.chainTypeManager) ∧
+    (∃ c, Label.call c ∈ ls) ∧ (∃ e, Label.env e ∈ ls) ∧ (∃ s', Label.foreign s' ∈ ls) ∧
+    w'.st.totalBatchesCommitted ≠ w.st.totalBatchesCommitted ∧
+    w'.st.priorityMode.activated = false ∧
+    call K w'.env w'.st ⟨a, τ, .activatePriorityMode⟩ = some s₂
+
+/-! ## Countermodels -/
+
+/-- **COUNTERMODEL: WITH A FREEZABLE SELECTOR, THE CTM CAN STOP A DUE ACTIVATION.** The last
+premise of `NoFacetCallBlocksDueActivation` is needed. On a chain where `activatePriorityMode`
+succeeds at `τ` and its selector is marked freezable, a run without cuts and without foreign
+writes, all of whose calls are sent by the CTM, ends with priority mode inactive and
+`activatePriorityMode` at `τ` reverting. -/
+def Properties.CTMFreezeBlocksActivation : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label) (a : Address) (τ : ℕ) (s₁ : State),
+    call K w.env w.st ⟨a, τ, .activatePriorityMode⟩ = some s₁ ∧
+    w.st.freezable Entry.activatePriorityMode.sel = true ∧
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧ (∀ s', Label.foreign s' ∉ ls) ∧
+    (∀ c, Label.call c ∈ ls → c.sender = w.st.chainTypeManager) ∧
+    w'.st.priorityMode.activated = false ∧
+    call K w'.env w'.st ⟨a, τ, .activatePriorityMode⟩ = none
+
+/-- **THE PERMANENT-ROLLUP CONDITION IS THE FAILING ONE IN A REACHABLE STATE.** A run without cuts
+from a chain with priority mode neither allowed nor active reaches a state in which priority mode
+is allowed and inactive, `ActivationQueueReady` holds at `τ` (on its settlement layer; the first
+unprocessed priority transaction was requested at `t ≠ 0` with `t + PRIORITY_EXPIRATION ≤ τ`; no
+more batches executed than committed), the chain is on L1, the diamond is not frozen and the chain
+is not a permanent rollup; `activatePriorityMode` at `τ` reverts there. By
+`ActivatePriorityModeExact`, the condition that fails is the permanent-rollup one
+(`Admin.sol:528-530`; `permanentlyAllowPriorityMode`, `Admin.sol:482-515`, has no such check). -/
+def Properties.ActivationNeedsPermanentRollup : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label) (a : Address) (τ : ℕ),
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧
+    w.st.priorityMode.canBeActivated = false ∧ w.st.priorityMode.activated = false ∧
+    w'.st.priorityMode.canBeActivated = true ∧ w'.st.priorityMode.activated = false ∧
+    ActivationQueueReady w'.st τ ∧
+    K.onL1 = true ∧ w'.st.frozen = false ∧
+    w'.st.isPermanentRollup = false ∧
+    call K w'.env w'.st ⟨a, τ, .activatePriorityMode⟩ = none
 
 /-- **COUNTERMODEL: THE FILTERER GUARD IS LOAD-BEARING.** Without the `canBeActivated` check of
 `setTransactionFilterer` (`Admin.sol:369-371`), the admin can, from a state satisfying

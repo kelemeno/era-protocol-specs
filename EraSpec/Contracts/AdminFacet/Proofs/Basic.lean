@@ -154,6 +154,48 @@ theorem exec_oneWay (h : exec K e s c = some s') (hc : c.entry.runsCut = false) 
   rcases c with ⟨snd, τ, en⟩
   cases en <;> simp [Entry.runsCut] at hc <;> exec_simp
 
+/-- A non-cut call writes neither the settlement layer, nor the priority tree's start and
+unprocessed indices, nor the request timestamps, nor the executed-batch counter; only
+`activatePriorityMode` writes the committed-batch counter, and only down to the executed one. -/
+theorem exec_queue (h : exec K e s c = some s') (hc : c.entry.runsCut = false) :
+    s'.settlementLayer = s.settlementLayer ∧ s'.requestTimestamp = s.requestTimestamp ∧
+      s'.ptStartIndex = s.ptStartIndex ∧ s'.ptUnprocessedIndex = s.ptUnprocessedIndex ∧
+      s'.totalBatchesExecuted = s.totalBatchesExecuted ∧
+      (s'.totalBatchesCommitted = s.totalBatchesCommitted ∨
+        (c.entry = .activatePriorityMode ∧ s'.totalBatchesCommitted = s.totalBatchesExecuted)) := by
+  suffices H : Holds (fun s' => s'.settlementLayer = s.settlementLayer ∧
+      s'.requestTimestamp = s.requestTimestamp ∧
+      s'.ptStartIndex = s.ptStartIndex ∧ s'.ptUnprocessedIndex = s.ptUnprocessedIndex ∧
+      s'.totalBatchesExecuted = s.totalBatchesExecuted ∧
+      (s'.totalBatchesCommitted = s.totalBatchesCommitted ∨
+        (c.entry = .activatePriorityMode ∧ s'.totalBatchesCommitted = s.totalBatchesExecuted)))
+      (exec K e s c) from H s' h
+  rcases c with ⟨snd, τ, en⟩
+  cases en <;> simp [Entry.runsCut] at hc <;> exec_simp
+
+/-- A non-cut call writes the two fee-update stamps only as a fee update, which needs the
+one-day interval to have passed (`minUpdateIntervalPassed`) and stamps one of them with the call's
+time. -/
+theorem exec_feeStamps (h : exec K e s c = some s') (hc : c.entry.runsCut = false) :
+    (c.entry.isFeeUpdate = false →
+      s'.lastFeeParamsUpdate = s.lastFeeParamsUpdate ∧
+      s'.lastTokenMultiplierUpdate = s.lastTokenMultiplierUpdate) ∧
+    (c.entry.isFeeUpdate = true →
+      minUpdateIntervalPassed s c.time = true ∧
+      c.time ≤ max s'.lastFeeParamsUpdate s'.lastTokenMultiplierUpdate) := by
+  suffices H : Holds (fun s' =>
+      (c.entry.isFeeUpdate = false →
+        s'.lastFeeParamsUpdate = s.lastFeeParamsUpdate ∧
+        s'.lastTokenMultiplierUpdate = s.lastTokenMultiplierUpdate) ∧
+      (c.entry.isFeeUpdate = true →
+        minUpdateIntervalPassed s c.time = true ∧
+        c.time ≤ max s'.lastFeeParamsUpdate s'.lastTokenMultiplierUpdate)) (exec K e s c)
+    from H s' h
+  rcases c with ⟨snd, τ, en⟩
+  cases en <;> simp [Entry.runsCut] at hc <;>
+    simp (config := { contextual := true }) [exec, onlyL1, onlySettlementLayer,
+      noUnverifiedBatches, revertBatches, Entry.isFeeUpdate]
+
 /-- A non-cut call preserves `Stage1Inv`. -/
 theorem exec_stage1 (h : exec K e s c = some s') (hc : c.entry.runsCut = false)
     (hi : Stage1Inv s) : Stage1Inv s' := by

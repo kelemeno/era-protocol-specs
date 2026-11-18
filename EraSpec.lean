@@ -205,11 +205,12 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
--- Admin facet (d9f6789): access control, admin handover, freezing, priority mode, chain upgrades
+-- Admin facet (draft/v0.35.0 at b17415d20): access control, admin handover, freezing, priority
+-- mode, chain upgrades, fee inputs
 import EraSpec.Contracts.AdminFacet.Proofs.Access
 import EraSpec.Contracts.AdminFacet.Proofs.PriorityMode
 import EraSpec.Contracts.AdminFacet.Proofs.Upgrade
-import EraSpec.Contracts.AdminFacet.Proofs.NatSpec
+import EraSpec.Contracts.AdminFacet.Proofs.Fees
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop

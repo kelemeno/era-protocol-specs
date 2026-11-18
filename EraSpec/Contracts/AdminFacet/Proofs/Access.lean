@@ -273,7 +273,7 @@ theorem freezable_unfreeze_strands_the_chain : Properties.FreezableUnfreezeStran
     exact ih h1 (by rw [h2]; exact hu) (by rw [h2]; exact hup) (by rw [h2]; exact hex)
       (by rw [h2]; exact hgen)
 
-/-! ## Witness -/
+/-! ## Witnesses -/
 
 /-- A fresh chain: admin `1`, CTM `9`, everything else zero. -/
 def freshState : State where
@@ -323,19 +323,153 @@ def nullEnv : Env where
   bridgehubOwner := 0
   isPairAllowed := fun _ _ => false
   getProofMode := fun _ _ => 0
+  cutContext := 0
 
 /-- An L1 deployment whose cuts all revert. -/
 def nullConfig : Config where
   onL1 := true
-  runCut := fun _ _ _ => none
+  runCut := fun _ _ _ _ => none
+
+/-- An L1 deployment whose every cut raises the protocol version by one. -/
+def raiseConfig : Config where
+  onL1 := true
+  runCut := fun _ _ _ s => some { s with protocolVersion := s.protocolVersion + 1 }
+
+/-- The CTM has a cut committed for every version, the notifier's time is `10`, every DA pair is
+allowed and every verifier reports multi-proof mode. -/
+def openEnv : Env :=
+  { nullEnv with
+    upgradeCutForVersion := fun _ _ => some ⟨[], 43, 0⟩
+    upgradeTimestamp := fun _ _ => 10
+    isPairAllowed := fun _ _ => true
+    getProofMode := fun _ _ => ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE }
+
+/-- `freshState` after the Mailbox enqueued one priority transaction at time `100`. -/
+def queuedState : State :=
+  { freshState with ptNextLeafIndex := 1, requestTimestamp := fun i => if i = 0 then 100 else 0 }
+
+theorem every_entry_succeeds_somewhere : Properties.EveryEntrySucceedsSomewhere := by
+  intro en
+  cases en with
+  | setPendingAdmin _ => exact ⟨.setPendingAdmin 5, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | acceptAdmin =>
+    exact ⟨.acceptAdmin, raiseConfig, openEnv, { freshState with pendingAdmin := 2 }, _, 2, 0,
+      rfl, rfl⟩
+  | setValidator _ _ => exact ⟨.setValidator 7 true, raiseConfig, openEnv, freshState, _, 9, 0, rfl, rfl⟩
+  | setPriorityTxMaxGasLimit _ =>
+    exact ⟨.setPriorityTxMaxGasLimit 1000, raiseConfig, openEnv, freshState, _, 9, 0, rfl, rfl⟩
+  | setZKsyncOSMaxTxGasLimit _ =>
+    exact ⟨.setZKsyncOSMaxTxGasLimit (2 ^ 24), raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | setZKsyncOSL1TxFiltering _ =>
+    exact ⟨.setZKsyncOSL1TxFiltering true, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | setZKsyncOSLargeContractsEnabled _ =>
+    exact ⟨.setZKsyncOSLargeContractsEnabled true, raiseConfig, openEnv, freshState, _, 1, 0,
+      rfl, rfl⟩
+  | changeFeeParams _ =>
+    exact ⟨.changeFeeParams ⟨0, 0, 0, 0, 0, 5⟩, raiseConfig, openEnv, freshState, _, 1, 1000,
+      rfl, rfl⟩
+  | setTokenMultiplier _ _ =>
+    exact ⟨.setTokenMultiplier 2 1, raiseConfig, openEnv, freshState, _, 1, 1000, rfl, rfl⟩
+  | setPubdataPricingMode _ =>
+    exact ⟨.setPubdataPricingMode 1, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | setTransactionFilterer _ =>
+    exact ⟨.setTransactionFilterer 5, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | setDAValidatorPair _ _ =>
+    exact ⟨.setDAValidatorPair 3 2, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | setPubdataContent _ =>
+    exact ⟨.setPubdataContent .logsOnly, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | setProofSystemStatus _ _ =>
+    exact ⟨.setProofSystemStatus PROOF_SYSTEM_ZISK false, raiseConfig, openEnv, freshState, _, 1,
+      0, rfl, rfl⟩
+  | makePermanentRollup =>
+    exact ⟨.makePermanentRollup, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | permanentlyRequireSecondProofSystem =>
+    exact ⟨.permanentlyRequireSecondProofSystem, raiseConfig, openEnv, freshState, _, 1, 0,
+      rfl, rfl⟩
+  | setPriorityModeTransactionFilterer _ =>
+    exact ⟨.setPriorityModeTransactionFilterer 5, raiseConfig, openEnv, freshState, _, 9, 0,
+      rfl, rfl⟩
+  | permanentlyAllowPriorityMode =>
+    exact ⟨.permanentlyAllowPriorityMode, raiseConfig, openEnv, queuedState, _, 1, 0, rfl, rfl⟩
+  | deactivatePriorityMode =>
+    exact ⟨.deactivatePriorityMode, raiseConfig, openEnv,
+      { queuedState with isPermanentRollup := true, priorityMode := ⟨true, true, 0, 0⟩ }, _, 9, 0,
+      rfl, rfl⟩
+  | activatePriorityMode =>
+    refine ⟨.activatePriorityMode, raiseConfig, openEnv,
+      { queuedState with isPermanentRollup := true, priorityMode := ⟨true, false, 0, 0⟩ },
+      { queuedState with isPermanentRollup := true, priorityMode := ⟨true, true, 0, 0⟩ }, 7,
+      100 + PRIORITY_EXPIRATION, rfl, ?_⟩
+    simp [call, exec, req, onlySettlementLayer, onlyL1, revertBatches, queuedState, freshState,
+      State.firstUnprocessed, raiseConfig]
+  | upgradeChainFromVersion _ _ =>
+    exact ⟨.upgradeChainFromVersion 0 0, raiseConfig, openEnv, freshState, _, 1, 0, rfl, rfl⟩
+  | executeUpgrade _ =>
+    exact ⟨.executeUpgrade ⟨[], 43, 0⟩, raiseConfig, openEnv, freshState, _, 9, 0, rfl, rfl⟩
+  | genesisUpgrade => exact ⟨.genesisUpgrade, raiseConfig, openEnv, freshState, _, 9, 0, rfl, rfl⟩
+  | freezeDiamond => exact ⟨.freezeDiamond, raiseConfig, openEnv, freshState, _, 9, 0, rfl, rfl⟩
+  | unfreezeDiamond =>
+    exact ⟨.unfreezeDiamond, raiseConfig, openEnv, { freshState with frozen := true }, _, 9, 0,
+      rfl, rfl⟩
+
+/-- `freshState` with address `7` a validator. -/
+def validatorState : State :=
+  { freshState with validators := fun x => if x = 7 then true else false }
+
+theorem validator_upgrade_witness : Properties.ValidatorUpgradeWitness :=
+  ⟨raiseConfig, openEnv, validatorState, { validatorState with protocolVersion := 1 }, 7, 10, 0, 0,
+    rfl, by decide, by decide, by decide, Or.inl rfl, rfl⟩
 
 theorem admin_handover_witness : Properties.AdminHandoverWitness := by
-  refine ⟨nullConfig, ⟨freshState, nullEnv⟩,
-    ⟨{ freshState with admin := 2, pendingAdmin := 0 }, nullEnv⟩,
-    [.call ⟨1, 0, .setPendingAdmin 2⟩, .call ⟨2, 0, .acceptAdmin⟩], ?_, rfl, rfl, rfl, ?_⟩
-  · refine Run.cons (w₁ := ⟨{ freshState with pendingAdmin := 2 }, nullEnv⟩)
+  refine ⟨nullConfig, ⟨{ freshState with frozen := true }, nullEnv⟩,
+    ⟨{ freshState with frozen := true, admin := 2, pendingAdmin := 0 }, nullEnv⟩,
+    [.call ⟨1, 0, .setPendingAdmin 2⟩, .call ⟨2, 0, .acceptAdmin⟩], ?_, ?_, ?_, rfl, rfl, rfl,
+    rfl, rfl, rfl⟩
+  · refine Run.cons (w₁ := ⟨{ freshState with frozen := true, pendingAdmin := 2 }, nullEnv⟩)
       (Step.call rfl) (Run.cons (Step.call rfl) (Run.nil _))
   · intro l hl; simp at hl; rcases hl with rfl | rfl <;> rfl
+  · intro c hc; simp at hc; rcases hc with rfl | rfl <;> decide
+
+/-- `freshState` after another facet committed a batch. -/
+def committedState : State := { freshState with totalBatchesCommitted := 1 }
+
+/-- `nullEnv` after the Bridgehub's ownership moved to `5`. -/
+def ownerEnv : Env := { nullEnv with bridgehubOwner := 5 }
+
+theorem validator_change_witness : Properties.ValidatorChangeWitness := by
+  refine ⟨nullConfig, ⟨freshState, nullEnv⟩,
+    ⟨{ committedState with validators := fun x => if x = 7 then true else freshState.validators x },
+      ownerEnv⟩,
+    [.env ownerEnv, .foreign committedState, .call ⟨9, 0, .setValidator 7 true⟩], 7, ?_, ?_,
+    ⟨ownerEnv, by simp⟩, ⟨committedState, by simp⟩, rfl, rfl⟩
+  · refine Run.cons (Step.env _) ?_
+    refine Run.cons (Step.foreign ⟨rfl, fun h => h⟩) ?_
+    exact Run.cons (Step.call rfl) (Run.nil _)
+  · intro l hl; simp at hl; rcases hl with rfl | rfl | rfl <;> rfl
+
+theorem freeze_witness : Properties.FreezeWitness := by
+  refine ⟨nullConfig, ⟨freshState, nullEnv⟩, ⟨{ freshState with frozen := true }, nullEnv⟩,
+    ⟨{ freshState with pendingAdmin := 2 }, nullEnv⟩,
+    [.call ⟨9, 0, .freezeDiamond⟩],
+    [.call ⟨1, 0, .setPendingAdmin 2⟩, .call ⟨9, 0, .unfreezeDiamond⟩],
+    Run.cons (Step.call rfl) (Run.nil _), ?_, ?_, by decide, rfl, rfl, rfl⟩
+  · refine Run.cons (w₁ := ⟨{ freshState with frozen := true, pendingAdmin := 2 }, nullEnv⟩)
+      (Step.call rfl) ?_
+    exact Run.cons (Step.call rfl) (Run.nil _)
+  · intro l hl; simp at hl; rcases hl with rfl | rfl | rfl <;> rfl
+
+/-- A frozen diamond whose selectors are all freezable. -/
+def strandedState : State := { freshState with frozen := true, freezable := fun _ => true }
+
+/-- `strandedState` after the Migrator paused deposits at time `1000`. -/
+def strandedPausedState : State := { strandedState with pausedDepositsTimestamp := 1000 }
+
+theorem stranded_chain_witness : Properties.StrandedChainWitness := by
+  refine ⟨nullConfig, ⟨strandedState, nullEnv⟩, ⟨strandedPausedState, ownerEnv⟩,
+    [.env ownerEnv, .foreign strandedPausedState], ?_, rfl, rfl, rfl, rfl, rfl,
+    ⟨ownerEnv, by simp⟩, ⟨strandedPausedState, by simp⟩, by decide⟩
+  refine Run.cons (Step.env _) ?_
+  exact Run.cons (Step.foreign ⟨rfl, fun h => h⟩) (Run.nil _)
 
 /-! ## Certificates -/
 
@@ -357,7 +491,17 @@ theorem FreezeUnfreezeExact : Properties.FreezeUnfreezeExact :=
   freeze_unfreeze_exact
 theorem FreezableUnfreezeStrandsTheChain : Properties.FreezableUnfreezeStrandsTheChain :=
   freezable_unfreeze_strands_the_chain
+theorem EveryEntrySucceedsSomewhere : Properties.EveryEntrySucceedsSomewhere :=
+  every_entry_succeeds_somewhere
+theorem ValidatorUpgradeWitness : Properties.ValidatorUpgradeWitness :=
+  validator_upgrade_witness
 theorem AdminHandoverWitness : Properties.AdminHandoverWitness :=
   admin_handover_witness
+theorem ValidatorChangeWitness : Properties.ValidatorChangeWitness :=
+  validator_change_witness
+theorem FreezeWitness : Properties.FreezeWitness :=
+  freeze_witness
+theorem StrandedChainWitness : Properties.StrandedChainWitness :=
+  stranded_chain_witness
 
 end Contracts.AdminFacet

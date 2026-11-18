@@ -122,14 +122,126 @@ theorem priority_mode_toggles_only_by_its_entries :
       · obtain ⟨τ, hm⟩ := ihd h1 h2
         exact ⟨τ, by rw [← hctm1]; exact List.mem_cons_of_mem _ hm⟩
 
-/-! ## Witness -/
+/-! ## No facet call blocks a due activation -/
 
-/-- The environment of the witness: the `RollupDAManager` allows every pair. -/
+/-- Every condition of `activatePriorityMode` at time `τ` except that priority mode is inactive. -/
+def ActivationReady (K : Config) (s : State) (τ : ℕ) : Prop :=
+  ¬ (s.frozen = true ∧ s.freezable Entry.activatePriorityMode.sel = true) ∧
+  K.onL1 = true ∧ s.priorityMode.canBeActivated = true ∧ s.isPermanentRollup = true ∧
+  ActivationQueueReady s τ
+
+theorem activate_ok_iff {K : Config} {e : Env} {s : State} {a : Address} {τ : ℕ} :
+    (∃ s', call K e s ⟨a, τ, .activatePriorityMode⟩ = some s') ↔
+      ActivationReady K s τ ∧ s.priorityMode.activated = false := by
+  constructor
+  · rintro ⟨s', h⟩
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, _⟩ :=
+      (activate_priority_mode_exact K e s s' a τ).1 h
+    exact ⟨⟨h1, h3, h5, h6, h2, h7, h8, h9⟩, h4⟩
+  · rintro ⟨⟨h1, h3, h5, h6, h2, h7, h8, h9⟩, h4⟩
+    exact ⟨_, (activate_priority_mode_exact K e s _ a τ).2
+      ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, rfl⟩⟩
+
+theorem ActivationReady.mono {K : Config} {s : State} {τ τ' : ℕ} (h : ActivationReady K s τ)
+    (hτ : τ ≤ τ') : ActivationReady K s τ' := by
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩ := h
+  exact ⟨h1, h2, h3, h4, h5, h6, le_trans h7 hτ, h8⟩
+
+section StepLemmas
+
+variable {K : Config} {w w' : World} {l : Label}
+
+theorem step_freezable (h : Step K w l w') (hc : l.runsCut = false) :
+    w'.st.freezable = w.st.freezable := by
+  cases h with
+  | call hs => exact (exec_fixed (call_exec hs) hc).2.2.2.1
+  | env => rfl
+  | foreign hf => exact hf.freezable
+
+/-- One step without a cut keeps `ActivationReady`, if a foreign write keeps the queue ready and
+the step is not a CTM call that could freeze a freezable activation selector. -/
+theorem step_activationReady {τ : ℕ} (h : Step K w l w') (hc : l.runsCut = false)
+    (hf : ∀ s', l = .foreign s' → ActivationQueueReady s' τ)
+    (hz : w.st.freezable Entry.activatePriorityMode.sel = false ∨
+      ∀ c, l = .call c → c.sender ≠ w.st.chainTypeManager)
+    (hr : ActivationReady K w.st τ) : ActivationReady K w'.st τ := by
+  obtain ⟨h1, h2, h3, h4, hq⟩ := hr
+  cases h with
+  | @call c s' hs =>
+    have he := call_exec hs
+    obtain ⟨hp, _, hcb⟩ := exec_oneWay he hc
+    obtain ⟨_, _, _, hfz, _⟩ := exec_fixed he hc
+    obtain ⟨hsl, hrt, hst, hun, hex, hcm⟩ := exec_queue he hc
+    obtain ⟨q1, q2, q3, q4⟩ := hq
+    refine ⟨?_, h2, (hcb h3).1, hp h4, ?_⟩
+    · show ¬ (s'.frozen = true ∧ s'.freezable Entry.activatePriorityMode.sel = true)
+      rw [hfz]
+      rcases exec_frozen he hc with hfr | ⟨_, hsnd, _, _⟩ | ⟨_, _, _, hfr⟩
+      · rw [hfr]; exact h1
+      · rcases hz with hz | hz
+        · simp [hz]
+        · exact absurd hsnd (hz c rfl)
+      · simp [hfr]
+    · show ActivationQueueReady s' τ
+      have hfu : s'.firstUnprocessed = w.st.firstUnprocessed := by
+        simp only [State.firstUnprocessed, hst, hun]
+      refine ⟨hsl ▸ q1, ?_, ?_, ?_⟩
+      · rw [hfu, hrt]; exact q2
+      · rw [hfu, hrt]; exact q3
+      · rcases hcm with hcm | ⟨_, hcm⟩
+        · rw [hcm, hex]; exact q4
+        · rw [hcm, hex]
+  | env => exact ⟨h1, h2, h3, h4, hq⟩
+  | @foreign s' hfo =>
+    refine ⟨?_, h2, ?_, hfo.2 h4, hf s' rfl⟩
+    · show ¬ (s'.frozen = true ∧ s'.freezable Entry.activatePriorityMode.sel = true)
+      rw [hfo.frozen, hfo.freezable]; exact h1
+    · show s'.priorityMode.canBeActivated = true
+      rw [hfo.priorityMode]; exact h3
+
+end StepLemmas
+
+/-- Along a run without cuts whose foreign writes keep the queue ready, `ActivationReady` holds
+throughout, if the activation selector is not freezable or the CTM sends none of the calls. -/
+theorem run_activationReady {K : Config} {τ : ℕ} {w w' : World} {ls : List Label}
+    (hr : Run K w ls w') (hnc : ∀ l ∈ ls, l.runsCut = false)
+    (hf : ∀ s', Label.foreign s' ∈ ls → ActivationQueueReady s' τ)
+    (hz : w.st.freezable Entry.activatePriorityMode.sel = false ∨
+      ∀ c, Label.call c ∈ ls → c.sender ≠ w.st.chainTypeManager)
+    (h0 : ActivationReady K w.st τ) : ActivationReady K w'.st τ := by
+  induction hr with
+  | nil => exact h0
+  | @cons w w₁ w₂ l ls hs _ ih =>
+    have hl : l.runsCut = false := hnc l List.mem_cons_self
+    have h1 : ActivationReady K w₁.st τ := by
+      refine step_activationReady hs hl (fun s' hs' => hf s' (hs' ▸ List.mem_cons_self)) ?_ h0
+      rcases hz with hz | hz
+      · exact Or.inl hz
+      · exact Or.inr (fun c hc => hz c (hc ▸ List.mem_cons_self))
+    refine ih (fun l' hl' => hnc l' (List.mem_cons_of_mem _ hl'))
+      (fun s' hs' => hf s' (List.mem_cons_of_mem _ hs')) ?_ h1
+    rw [step_freezable hs hl, step_ctm hs hl]
+    rcases hz with hz | hz
+    · exact Or.inl hz
+    · exact Or.inr (fun c hc => hz c (List.mem_cons_of_mem _ hc))
+
+theorem no_facet_call_blocks_due_activation : Properties.NoFacetCallBlocksDueActivation := by
+  intro K w w' ls a τ h0 hr hnc hf hz
+  obtain ⟨hready, _⟩ := activate_ok_iff.1 h0
+  have hend := run_activationReady hr hnc hf hz hready
+  cases hact : w'.st.priorityMode.activated
+  · right
+    intro b τ' hτ
+    exact activate_ok_iff.2 ⟨hend.mono hτ, hact⟩
+  · exact Or.inl rfl
+
+/-! ## Witnesses -/
+
+/-- The environment of the witnesses: the `RollupDAManager` allows every pair. -/
 def pmEnv : Env := { nullEnv with isPairAllowed := fun _ _ => true }
 
 /-- After the Mailbox enqueued one priority transaction at time `100`. -/
-def pm1 : State :=
-  { freshState with ptNextLeafIndex := 1, requestTimestamp := fun i => if i = 0 then 100 else 0 }
+def pm1 : State := queuedState
 /-- After `makePermanentRollup`. -/
 def pm2 : State := { pm1 with isPermanentRollup := true }
 /-- After `permanentlyAllowPriorityMode`. -/
@@ -138,22 +250,135 @@ def pm3 : State :=
 /-- After `activatePriorityMode`. -/
 def pm4 : State := { pm3 with priorityMode := ⟨true, true, 0, 0⟩ }
 
+/-- The time at which the priority transaction of `pm1` has been pending for `PRIORITY_EXPIRATION`. -/
+abbrev pmDue : ℕ := 100 + PRIORITY_EXPIRATION
+
+theorem pm3_activates : call nullConfig pmEnv pm3 ⟨7, pmDue, .activatePriorityMode⟩ = some pm4 := by
+  simp [call, exec, req, onlySettlementLayer, onlyL1, revertBatches, pm4, pm3, pm2, pm1,
+    queuedState, freshState, State.firstUnprocessed, nullConfig]
+
 theorem priority_mode_witness : Properties.PriorityModeWitness := by
   refine ⟨nullConfig, ⟨freshState, pmEnv⟩, ⟨pm4, pmEnv⟩,
     [.foreign pm1, .call ⟨1, 0, .makePermanentRollup⟩, .call ⟨1, 0, .permanentlyAllowPriorityMode⟩,
-     .call ⟨7, 100 + PRIORITY_EXPIRATION, .activatePriorityMode⟩], ?_, ?_, rfl, rfl, rfl, rfl, ?_⟩
+     .call ⟨7, pmDue, .activatePriorityMode⟩], ?_, ?_, ?_, rfl, rfl, rfl, rfl, ?_, 7, pmDue,
+    List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self)),
+    by decide, by decide⟩
   · refine Run.cons (w₁ := ⟨pm1, pmEnv⟩) (Step.foreign ⟨rfl, fun h => h⟩) ?_
     refine Run.cons (w₁ := ⟨pm2, pmEnv⟩) (Step.call rfl) ?_
     refine Run.cons (w₁ := ⟨pm3, pmEnv⟩) (Step.call rfl) ?_
-    refine Run.cons (Step.call ?_) (Run.nil _)
-    simp [call, exec, req, onlySettlementLayer, onlyL1, revertBatches, pm4, pm3, pm2, pm1,
-      freshState, State.firstUnprocessed, nullConfig]
+    exact Run.cons (Step.call pm3_activates) (Run.nil _)
   · intro l hl
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
     rcases hl with rfl | rfl | rfl | rfl <;> rfl
-  · simp [Stage1Inv, pm4, pm3, pm2, pm1, freshState]
+  · simp [Stage1Inv, freshState]
+  · simp [Stage1Inv, pm4, pm3, pm2, pm1, queuedState, freshState]
+
+/-- `pm4` after the CTM's `deactivatePriorityMode`. -/
+def pm5 : State := { pm4 with priorityMode := ⟨true, false, 0, 0⟩ }
+
+theorem priority_mode_deactivation_witness : Properties.PriorityModeDeactivationWitness := by
+  refine ⟨nullConfig, ⟨pm4, pmEnv⟩, ⟨pm5, pmEnv⟩, [.call ⟨9, 0, .deactivatePriorityMode⟩],
+    Run.cons (Step.call rfl) (Run.nil _), ?_, ?_, rfl, rfl, ?_⟩
+  · intro l hl; simp at hl; subst hl; rfl
+  · simp [Stage1Inv, pm4, pm3, pm2, pm1, queuedState, freshState]
+  · simp [Stage1Inv, pm5, pm4, pm3, pm2, pm1, queuedState, freshState]
+
+/-- A stage-1 chain: permanent rollup, second proof system required, priority mode allowed; its
+fee parameters price L2 gas at `100` (validium pricing, unit capacities, unit multiplier). -/
+def feeStage1State : State :=
+  { freshState with
+    isPermanentRollup := true
+    secondProofSystemRequired := true
+    priorityMode := ⟨true, false, 0, 0⟩
+    feeParams := ⟨1, 0, 1, 1, 1, 100⟩
+    multNominator := 1
+    multDenominator := 1 }
+
+/-- `feeStage1State` after the admin raised `minimalL2GasPrice` to `120` at time `1000`. -/
+def feeStage1State' : State :=
+  { feeStage1State with feeParams := ⟨1, 0, 1, 1, 1, 120⟩, lastFeeParamsUpdate := 1000 }
+
+theorem one_way_flags_witness : Properties.OneWayFlagsWitness := by
+  refine ⟨nullConfig, ⟨feeStage1State, nullEnv⟩, ⟨feeStage1State', nullEnv⟩,
+    [.call ⟨1, 1000, .changeFeeParams ⟨1, 0, 1, 1, 1, 120⟩⟩], ?_, ?_, rfl, rfl, rfl, ?_⟩
+  · refine Run.cons (Step.call ?_) (Run.nil _)
+    simp [call, exec, req, onlyL1, nullConfig, minUpdateIntervalPassed, priceChangeWithinBound,
+      safeDerivedL2GasPrice, deriveL2GasPriceFromParams, feeStage1State', feeStage1State,
+      freshState, REQUIRED_L2_GAS_PRICE_PER_PUBDATA, MAX_PRICE_CHANGE_NUMERATOR,
+      MAX_PRICE_CHANGE_DENOMINATOR]
+  · intro l hl; simp at hl; subst hl; rfl
+  · simp [feeStage1State', feeStage1State]
+
+/-- `pm3` after the admin set an allowed DA pair. -/
+def dueS1 : State := { pm3 with l1DAValidator := 3, l2DAScheme := 2 }
+/-- `dueS1` after another facet committed a batch. -/
+def dueS2 : State := { dueS1 with totalBatchesCommitted := 1 }
+/-- `dueS2` after the admin nominated `2`. -/
+def dueS3 : State := { dueS2 with pendingAdmin := 2 }
+/-- `pmEnv` after the Bridgehub's ownership moved to `5`. -/
+def dueEnv : Env := { pmEnv with bridgehubOwner := 5 }
+
+theorem due_activation_survives_witness : Properties.DueActivationSurvivesWitness := by
+  refine ⟨nullConfig, ⟨pm3, pmEnv⟩, ⟨dueS3, dueEnv⟩,
+    [.call ⟨1, 0, .setDAValidatorPair 3 2⟩, .env dueEnv, .foreign dueS2,
+     .call ⟨1, 0, .setPendingAdmin 2⟩], 7, pmDue, pm4,
+    { dueS3 with priorityMode := ⟨true, true, 0, 0⟩, totalBatchesCommitted := 0 }, pm3_activates,
+    ?_, ?_, ?_, rfl, ?_,
+    ⟨_, List.mem_cons_self⟩, ⟨dueEnv, by simp⟩, ⟨dueS2, by simp⟩, by decide, rfl, ?_⟩
+  · refine Run.cons (w₁ := ⟨dueS1, pmEnv⟩) (Step.call rfl) ?_
+    refine Run.cons (Step.env _) ?_
+    refine Run.cons (Step.foreign ⟨rfl, fun h => h⟩) ?_
+    exact Run.cons (Step.call rfl) (Run.nil _)
+  · intro l hl
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl | rfl | rfl <;> rfl
+  · intro s' hs'
+    simp only [List.mem_cons, List.not_mem_nil, or_false, reduceCtorEq, Label.foreign.injEq,
+      false_or] at hs'
+    subst hs'
+    simp [ActivationQueueReady, dueS2, dueS1, pm3, pm2, pm1, queuedState, freshState,
+      State.firstUnprocessed]
+  · intro c hc
+    simp only [List.mem_cons, List.not_mem_nil, or_false, Label.call.injEq, reduceCtorEq,
+      false_or] at hc
+    rcases hc with rfl | rfl <;> decide
+  · simp [call, exec, req, onlySettlementLayer, onlyL1, revertBatches, dueS3, dueS2, dueS1, pm3,
+      pm2, pm1, queuedState, freshState, State.firstUnprocessed, nullConfig]
 
 /-! ## Countermodels -/
+
+/-- `pm3` with every selector of the diamond marked freezable. -/
+def freezablePm3 : State := { pm3 with freezable := fun _ => true }
+
+theorem ctm_freeze_blocks_activation : Properties.CTMFreezeBlocksActivation := by
+  refine ⟨nullConfig, ⟨freezablePm3, pmEnv⟩, ⟨{ freezablePm3 with frozen := true }, pmEnv⟩,
+    [.call ⟨9, 0, .freezeDiamond⟩], 7, pmDue,
+    { freezablePm3 with priorityMode := ⟨true, true, 0, 0⟩ }, ?_, rfl,
+    Run.cons (Step.call rfl) (Run.nil _), ?_, ?_, ?_, rfl, ?_⟩
+  · simp [call, exec, req, onlySettlementLayer, onlyL1, revertBatches, freezablePm3, pm3, pm2,
+      pm1, queuedState, freshState, State.firstUnprocessed, nullConfig]
+  · intro l hl; simp at hl; subst hl; rfl
+  · intro s' hs'; simp at hs'
+  · intro c hc; simp at hc; subst hc; rfl
+  · simp [call, req, freezablePm3]
+
+/-- After `permanentlyAllowPriorityMode` on `pm1`, without `makePermanentRollup`. -/
+def allowedNotPermanent : State :=
+  { pm1 with transactionFilterer := 0, priorityMode := ⟨true, false, 0, 0⟩ }
+
+theorem activation_needs_permanent_rollup : Properties.ActivationNeedsPermanentRollup := by
+  refine ⟨nullConfig, ⟨freshState, pmEnv⟩, ⟨allowedNotPermanent, pmEnv⟩,
+    [.foreign pm1, .call ⟨1, 0, .permanentlyAllowPriorityMode⟩], 7, pmDue,
+    ?_, ?_, rfl, rfl, rfl, rfl, ?_, rfl, rfl, rfl, ?_⟩
+  · refine Run.cons (w₁ := ⟨pm1, pmEnv⟩) (Step.foreign ⟨rfl, fun h => h⟩) ?_
+    exact Run.cons (Step.call rfl) (Run.nil _)
+  · intro l hl
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl <;> rfl
+  · simp [ActivationQueueReady, allowedNotPermanent, pm1, queuedState, freshState,
+      State.firstUnprocessed]
+  · simp [call, exec, req, onlySettlementLayer, onlyL1, allowedNotPermanent, pm1, queuedState,
+      freshState, nullConfig]
 
 /-- A chain with priority mode allowed, governance's filterer `0` installed, filtering off. -/
 def stage1State : State :=
@@ -174,6 +399,8 @@ theorem unguarded_l1_filtering_breaks_stage1 : Properties.UnguardedL1FilteringBr
 
 theorem Stage1InvHoldsAlongRuns : Properties.Stage1InvHoldsAlongRuns :=
   stage1_inv_holds_along_runs
+theorem NoFacetCallBlocksDueActivation : Properties.NoFacetCallBlocksDueActivation :=
+  no_facet_call_blocks_due_activation
 theorem OneWayFlagsAlongRuns : Properties.OneWayFlagsAlongRuns :=
   one_way_flags_along_runs
 theorem ActivatePriorityModeExact : Properties.ActivatePriorityModeExact :=
@@ -182,6 +409,16 @@ theorem PriorityModeTogglesOnlyByItsEntries : Properties.PriorityModeTogglesOnly
   priority_mode_toggles_only_by_its_entries
 theorem PriorityModeWitness : Properties.PriorityModeWitness :=
   priority_mode_witness
+theorem PriorityModeDeactivationWitness : Properties.PriorityModeDeactivationWitness :=
+  priority_mode_deactivation_witness
+theorem OneWayFlagsWitness : Properties.OneWayFlagsWitness :=
+  one_way_flags_witness
+theorem DueActivationSurvivesWitness : Properties.DueActivationSurvivesWitness :=
+  due_activation_survives_witness
+theorem CTMFreezeBlocksActivation : Properties.CTMFreezeBlocksActivation :=
+  ctm_freeze_blocks_activation
+theorem ActivationNeedsPermanentRollup : Properties.ActivationNeedsPermanentRollup :=
+  activation_needs_permanent_rollup
 theorem UnguardedFiltererBreaksStage1 : Properties.UnguardedFiltererBreaksStage1 :=
   unguarded_filterer_breaks_stage1
 theorem UnguardedL1FilteringBreaksStage1 : Properties.UnguardedL1FilteringBreaksStage1 :=
