@@ -19,6 +19,8 @@ for those exact named propositions, plus auxiliary lemmas.
 | SendAtHead (main `3605e82` = `70096e2ea`; `draft/v0.35.0` `b17415d20`) | [Specs/SendAtHead.lean](Specs/SendAtHead.lean) | [Properties/SendAtHead.lean](Properties/SendAtHead.lean) | [Proofs/SendAtHead.lean](Proofs/SendAtHead.lean) |
 | AtomicRouting | [Specs/AtomicRouting.lean](Specs/AtomicRouting.lean) | [Properties/AtomicRouting.lean](Properties/AtomicRouting.lean) | [Proofs/AtomicRouting.lean](Proofs/AtomicRouting.lean) |
 | ClaimBinding | [Specs/ClaimBinding.lean](Specs/ClaimBinding.lean) | [Properties/ClaimBinding.lean](Properties/ClaimBinding.lean) | [Proofs/ClaimBinding.lean](Proofs/ClaimBinding.lean) |
+| FeeState (`b17415d20`) | [Specs/FeeState.lean](Specs/FeeState.lean) | [Properties/FeeState.lean](Properties/FeeState.lean) | [Proofs/FeeState.lean](Proofs/FeeState.lean) |
+| FeeReentry (`b17415d20`) | [Specs/FeeReentry.lean](Specs/FeeReentry.lean) | [Properties/FeeReentry.lean](Properties/FeeReentry.lean) | [Proofs/FeeReentry.lean](Proofs/FeeReentry.lean) |
 
 Namespace `Contracts.InteropCenter`. Statements are `Contracts.InteropCenter.Properties.*`;
 each certificate has the same name without the `Properties` segment.
@@ -250,3 +252,55 @@ in `../../../ASSUMPTIONS.md`. In particular one `L1_CHAIN_ID` serves the center 
 router, `authorize` abstracts the absence proof and is read only by the witnesses, token
 balances are not modelled, and that L1 credits a withdrawal only by executing or unbundling
 its bundle is argued from source in the Specs header.
+
+## Fee state at draft/v0.35.0 (`b17415d20`)
+
+Topics `FeeState` (namespace `Contracts.InteropCenter.FeeState`) and `FeeReentry` (namespace
+`Contracts.InteropCenter.FeeState.Reentry`) model the center's balances, fee ledgers, fee
+parameters and the `INTEROP_FEE_UNITS_SLOT` counter at the draft/v0.35.0 head, with every entry
+point, a direct `AtomicFlowManager.append` attempt and forced inflows (`MODEL-FEE-STATE`,
+`MODEL-FEE-REENTRY`).
+
+- **Backing.** With the `msg.value` equalities (:433-434, :442-443) the native balance is exactly
+  the accrued protocol fees plus the forced value (`NativeBalanceIsFeesPlusForced`,
+  `ProtocolFeesBacked`); under the standard-token premise the ZK fees are backed by the cached ZK
+  token's balance (`ZkFeesBacked`); no transaction shrinks either excess (`BackingNeverShrinks`).
+  Without the equalities a withdrawal's forwarded value comes out of a coinbase's accrued fees
+  (`WithoutValueCheckFeesFundAWithdrawal`); a token that credits less breaks the ZK backing
+  (`NonStandardZkTokenUnbacked`).
+- **Nested calls.** With the equalities, the backing survives arbitrary calls nested in the
+  forwards, deposits and claim receivers, provided either `claimProtocolFees` writes before it pays
+  (the deployed order) or the claims hold the lock (`NestedBackingNeverShrinks`,
+  `NestedProtocolFeesBacked`, `NestedZkFeesBacked`); so the claims' `nonReentrant` is not what keeps
+  the fees backed. With neither, a re-entering receiver is paid twice
+  (`NoLockNoWriteFirstDrainsFees`). A `FeeState` transaction is exactly the corresponding call with
+  no nested calls (`FlatIsNestedWithoutCalls`).
+- **One send, one claim.** A send adds exactly its protocol fee, credited to the coinbase alone,
+  and on the fixed-fee path exactly `ZK_INTEROP_FEE * calls` to the ZK balance and the coinbase's
+  ZK entry (`SendAccruesExactProtocolFee`, `SendAccruesExactZkFee`); its payments are the forwards
+  to the asset router (`Σ indirectCallMessageValue`) and one burn through the holder (same base
+  token) or one value-free deposit request (different base token) of exactly the direct calls'
+  value (`SendPaymentsExact`). A claim pays exactly the claimant's entry and zeroes it
+  (`ClaimProtocolFeesExact`, `ClaimZkFeesExact`).
+- **Writers.** `interopProtocolFee` only by the bootloader; the `initL2` fields only by the
+  upgrader's single `initL2`, which precedes every send and claim; `zkToken` only from unset;
+  `_paused` never; the owner has no power over the fee state (`ProtocolFeeSetOnlyByBootloader`,
+  `InitFieldsOnlyByInitL2`, `InitL2AtMostOnceAndFirst`, `ZkTokenSetOnce`, `PausedNeverWritten`,
+  `OwnerHasNoFeePower`).
+- **Fee units.** Each transaction moves the counter by exactly its L2→L2 call count
+  (`FeeUnitsDeltaExact`); with `onlyInteropCenter` every IMT leaf is appended in a step that adds
+  its bundle's call count, and along any run the counter grows by the L2→L2 sends' call count
+  (`EveryLeafCounted`, `FeeUnitsAreL2Calls`). A zero-call bundle appends a leaf and adds nothing
+  (`ZeroCallBundleAddsLeafNoUnits`, as `protocol-docs/interop-fee.md:9-10` says); without the
+  `append` gate a leaf with calls is uncounted (`WithoutOnlyInteropCenterUncountedLeaf`). The slot
+  is separate from the fixed slots (`FeeUnitsSlotSeparate`).
+
+Witnesses: `FeeStateWitness`, `SendWitness`, `ClaimWitness`, `WriterWitness`, `OwnershipWitness`,
+`NestedClaimInsideSendWitness` (write-first disjunct), `PayFirstClaimLockNestedWitness` (claims'
+lock disjunct).
+
+Model boundaries: one chain; ERC-7930 and attribute parsing, destination and peer checks, the salt
+check, `append`'s own checks, the token side of deposits and the ZK allowance, and overflow of the
+fee products are omitted (reject-only). The counter is its own field; that no mapping slot equals
+`INTEROP_FEE_UNITS_SLOT` is a keccak premise not stated. main `70096e2ea` differs: it has
+`pause()`/`unpause()` (`onlyOwner`), `whenNotPaused` on the sends, and no fee-unit counter.

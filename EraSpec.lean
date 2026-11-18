@@ -177,6 +177,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTxNonces
 import EraSpec.Contracts.ChainTypeManager.Proofs.PendingL2UpgradeAtV35
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.Proofs.FeeState
+import EraSpec.Contracts.InteropCenter.Proofs.FeeReentry
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashAtV35
 import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
