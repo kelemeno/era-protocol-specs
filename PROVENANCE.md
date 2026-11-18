@@ -252,6 +252,13 @@ supplying that correspondence.
   `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`), not `e561b9cc2`. It
   reuses the folder's routing and timed models at `e561b9cc2` and re-reads their timed gates at
   `b17415d`; its header lists the lines.
+* `EraSpec/Contracts/SecondProofSystem/` topic `UpgradeGateV35` (the second-proof-system gate
+  on chain upgrades) is pinned at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch
+  `draft/v0.35.0`, 2026-11-16). It was first written at `d9f678900` and re-read against the
+  newer commit; its Specs header records what changed between the two. It also cites
+  `protocol-docs/` and `protocol-ops/` at that commit, and reuses `ChainTypeManager`'s
+  `UpgradeTiming` model (written at `e561b9cc2`), listing where each reused check sits at
+  `b17415d20`.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.

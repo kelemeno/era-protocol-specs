@@ -328,6 +328,9 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyAtV35
 -- draft/v0.35.0 re-pins (b17415d20): the L1 asset router's handler gate
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerGateAtV35
 
+-- draft/v0.35.0 (b17415d20): the second-proof-system gate on every chain upgrade
+import EraSpec.Contracts.SecondProofSystem.Proofs.UpgradeGateV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
