@@ -12,6 +12,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | Atomicity | [Specs/Atomicity.lean](Specs/Atomicity.lean) | [Properties/Atomicity.lean](Properties/Atomicity.lean) | [Proofs/Atomicity.lean](Proofs/Atomicity.lean) |
 | Timeout | [Specs/Timeout.lean](Specs/Timeout.lean) | [Properties/Timeout.lean](Properties/Timeout.lean) | [Proofs/Timeout.lean](Proofs/Timeout.lean) |
 | Refund | [Specs/Refund.lean](Specs/Refund.lean) | [Properties/Refund.lean](Properties/Refund.lean) | [Proofs/Refund.lean](Proofs/Refund.lean) |
+| RefundStrong | [Specs/RefundStrong.lean](Specs/RefundStrong.lean) | [Properties/RefundStrong.lean](Properties/RefundStrong.lean) | [Proofs/RefundStrong.lean](Proofs/RefundStrong.lean) |
 | SourceHeight | [Specs/SourceHeight.lean](Specs/SourceHeight.lean) | [Properties/SourceHeight.lean](Properties/SourceHeight.lean) | [Proofs/SourceHeight.lean](Proofs/SourceHeight.lean) |
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
@@ -24,6 +25,8 @@ Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePer
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
 `Pause` on `FlowBinding` and `OncePerLeg`, `SharedCommitment` on `OncePerLeg`, and
 `Operational` on `OncePerLeg`, `FlowBinding` and `SourceHeight`).
+The exception is `RefundStrong`, which also takes `AggregatesBefore` from the later
+`Operational` topic ([Specs/Operational.lean](Specs/Operational.lean)).
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -88,6 +91,58 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   manager calls (`ExecutedObligationNeverRefunded`). A cross-flow refund yields a
   collision of the flow-id hash on the two flows' own preimages
   (`CrossFlowIdClashIsPinnedCollision`).
+- **RefundStrong** (namespace `Contracts.Refund`). Completeness of the refund side, with
+  no hash premise. It builds on `Refund` and `Timeout`, and takes one definition,
+  `AggregatesBefore`, from [Specs/Operational.lean](Specs/Operational.lean), which itself
+  builds on `SourceHeight`, `FlowBinding` and `OncePerLeg`. Two gates are in play, and
+  each result names its own.
+  - *The loose gate* `LegRefundableBy` resolves against no root and may cite any batch of
+    the fixed history; `ReachLog` uses it. On a well-formed history it accepts a break-free
+    proof for a leg with nonzero commit value exactly when the leg missed its deadline and
+    the history has a batch of its chain after the deadline
+    (`RefundableIffMissedDeadline`); the honest low-leaf proof at the first late batch does
+    it and is presentable under data availability
+    (`MissedDeadlineRefundableByHonestProof`). Neither result is about
+    `verifyTimeoutAbsence`, which can cite only a batch inside an imported root.
+  - *The gate as the contract runs it* is `LegRefundableAcceptedBy` with the submitted
+    batch inside the imported root (`N ≤ R.upTo`; `_authenticateRoot` requires it on both
+    branches). From any imported root created after the deadline, a leg that missed its
+    deadline has an accepted, break-free submission inside that root, with no aggregation
+    premise (`AcceptedGateCompleteFromAnyPostDeadlineRoot`). The source's case split is in
+    the statement of `AcceptedGateCompleteByHonestProofs`: if the root's last batch of the
+    chain is late, the honest BEGIN proof at the first late batch, which lies inside the
+    root; otherwise the honest END proofs at the root's last batch (alone:
+    `EndBranchAcceptsHonestProofs`). There both IMT proofs are presentable under data
+    availability. With the strict `AggregatesBefore` a break-free submission inside the root
+    exists exactly when the leg missed its deadline (`AcceptedGateIffMissedDeadline`). As in
+    `Timeout`, the END branch's last-batch check is `LastBatchAccepted`, stronger than the
+    deployed one (`LastLeafFaithful`), "inside the root" reads leaf position as batch number
+    (`PROTO-CONTIGUOUS-PUSH`), and the BEGIN tree of batch `n + 1` is the END tree of batch
+    `n` by definition (`PROTO-BATCH-SNAPSHOT`). The witnesses of these gate-as-run results
+    use a chain that has committed a value, so the tree the absence proof is checked against
+    is not the empty `setup`.
+  - *In the fixed-history model*, at every manager state, each still `Committed` leg of a
+    checked flow with a stranded leg can be authorized by a verified call on a break-free
+    proof and then claimed (`StrandedFlowCommittedLegRefundable`). This is enabledness in a
+    model that admits more refunds than the contract (the loose gate with no root, no
+    pause, `claimRefund` as its leg-state guard, no prover access), so it is not a liveness
+    claim about the contracts. The statement against a recorded root is
+    `OpTimedOutLegIsRefundable` (`Operational`); `PausedVaultKeepsLegRevertable` (`Pause`)
+    and `LegNeverRefunded` (`AssetRouterBase`, topic `AtomicRecovery`) show claims that do
+    not go through.
+  - *At run level*, an obligation is past `Committed` exactly when a logged call marked it
+    (`RefundedIffLoggedMark`), and a `RefundBreak` implies a refund
+    (`RefundBreakImpliesRefunded`). `CrossFlowRefundYieldsLoggedPinnedClash` is a corollary
+    of `RefundNeedsLoggedAuthorize` and `CrossFlowIdClashIsPinnedCollision`: a refund under
+    a checked flow's id that no logged call made for that flow was made by a logged call
+    whose flow clashes with it. The flow itself need not occur in the run. Its witness is a
+    refund that does cross flows: under a constant flow hash, a leg delivered through a
+    truncated flow is refunded on the full flow's timeout.
+  - `ExecutedObligationLiveAndUnmarkableUnderSealedHash` exhibits, under a toy hash pair
+    (`sealedNodeHash`, `sealedLeafHash`, not a model of keccak), an executed obligation
+    that is appended and `Committed`, with a logged flow-id clash in the run, that no
+    verified `authorizeRefund` call can mark. The flow-id check and the timeout gate do
+    that together; the cross-flow witness shows the timeout gate alone does not.
 - **FlowBinding** (namespace `Contracts.FlowBinding`). `RunLog` is `ReachLog` plus a
   logged `requireFlowFinalized` step, so the log holds every call that runs
   `_checkFlowId`. With no hash premise, every logged flow claiming an executed flow's id
@@ -311,12 +366,21 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
 
 The other topics' tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an
-operational model, so excluding both is the stronger claim. `Operational` is such an
-operational model, and its runs project to fixed histories over which the `…OrBreak`
-results hold; `OncePerLeg`'s `SysSteps`, `Pause` and the `SharedCommitment` gate results
-are still stated over a fixed history. Also open: liveness as eventual delivery (every
-committed obligation eventually executes or refunds); `Operational` proves enabledness
-only. Source-side obligations are O7–O9 in `../../Refinement.lean`.
+operational model, so excluding both is the stronger claim, and a result that says a
+refund or an execution can happen is the weaker one (`RefundStrong`'s
+`StrandedFlowCommittedLegRefundable` is of that kind). The operational model is the
+`Operational` topic ([Specs/Operational.lean](Specs/Operational.lean), namespace
+`Contracts.InteropOperational`): the run produces the history, a call cites only settled
+batches, `authorizeRefund` resolves against a recorded root, and every run projects to
+a fixed history over which the `…OrBreak` headlines hold. `OncePerLeg`'s `SysSteps`,
+`Pause` and the `SharedCommitment` gate results are still stated over a fixed history.
+Liveness is proved there as
+enabledness only (`OpFinalizedFlowIsExecutable`, `OpTimedOutLegIsRefundable`,
+`OpFlowFateDecidedAfterRoot`): nobody is assumed to send the call, and checks the model
+omits can still reject it (for an execution, among others, that the destination has
+imported a root holding the cited batches: `RootImport`). Still open: eventual liveness
+(every committed obligation eventually executes or refunds). Source-side obligations are
+O7–O9 in `../../Refinement.lean`.
 
 These modules keep the namespaces they had on the `claude/proof-attempt-4f3778`
 line (`Contracts.Atomicity`, `Contracts.Timeout`, `Contracts.Refund`).
