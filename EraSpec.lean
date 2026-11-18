@@ -280,6 +280,9 @@ import EraSpec.Contracts.InteropCenter.Proofs.SendAtHead
 import EraSpec.Contracts.MailboxFacet.Proofs.RequestPaths
 import EraSpec.Protocol.PriorityRequests.Proofs.PrivilegedSenders
 
+-- Proxy-upgrade executor legs at draft/v0.35.0 (ProxyUpgradeExecutorBase)
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.CoreLegV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
