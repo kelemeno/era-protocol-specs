@@ -20,6 +20,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | Pause | [Specs/Pause.lean](Specs/Pause.lean) | [Properties/Pause.lean](Properties/Pause.lean) | [Proofs/Pause.lean](Proofs/Pause.lean) |
 | SharedCommitment | [Specs/SharedCommitment.lean](Specs/SharedCommitment.lean) | [Properties/SharedCommitment.lean](Properties/SharedCommitment.lean) | [Proofs/SharedCommitment.lean](Proofs/SharedCommitment.lean) |
 | Operational | [Specs/Operational.lean](Specs/Operational.lean) | [Properties/Operational.lean](Properties/Operational.lean) | [Proofs/Operational.lean](Proofs/Operational.lean) |
+| RefundFaithful | [Specs/RefundFaithful.lean](Specs/RefundFaithful.lean) | [Properties/RefundFaithful.lean](Properties/RefundFaithful.lean) | [Proofs/RefundFaithful.lean](Proofs/RefundFaithful.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
@@ -363,6 +364,28 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   pin's padding constant an executed, appended leg is refunded on a forged END-branch
   absence proof; the located break is that proof's `paddingHit`), `OpLivenessWitness`, and
   the countermodels `OpRootMayMissSameTimeBatch` and `FixedHistoryAdmitsUnescrowedExecution`.
+
+- **RefundFaithful** (namespace `Contracts.RefundFaithful`, `c67894b9`; builds on `Refund`
+  and `Timeout`). `authorizeRefund` as it runs: each writing iteration of its loop writes the
+  CALLING chain's slot (`AtomicFlowManager.sol:155-161`), whatever chain the flow declares
+  for that bundle, and the END branch is `_verifyLastBatchInRoot` with the batch-leaf path's
+  length and position the prover's (`DeployedEndBranch`, over `LastLeafFaithful`'s
+  `LastBatchPathAccepted`) instead of `IsLastOnTime`. `DeployedRun` is `Refund.ReachLog`
+  with that step. With no hash premise and no premise on the roots, every slot carrying an
+  executed flow's id, on every chain, stays at `Committed` or below, or a logged iteration
+  that wrote it carries a `DeployedRefundBreak`: a flow-id clash, a break on the gate's or
+  the timeout's IMT proof, a `LastLeafAnyLengthBreak` on the batch-leaf path, or a root
+  stale for the missing leg's chain (`DeployedExecutedFlowFrozenOrBreak` and its per-leg
+  forms; `DeployedExecutedFlowFrozenOrBreakUnderHonestRoots` drops the stale case under
+  `Aggregates`). `MisdeclaredLegRefundedOnlyInDeployedModel` (a leg committed off its
+  declared chain reaches `Revertable` there) and `StaleRootEndRefundOfDeliveredLegIsDeployed`
+  are deployed runs that no `ReachLog` run matches. These forms locate a refund of an
+  executed flow's slot and do not exclude it at `c67894b9`: the pinned padding gives the
+  `AbsenceBreak` case with a `paddingHit` and no collision, also under aggregating roots
+  (`DeployedPaddingRefundLocatesAbsenceBreak`). Witnesses:
+  `DeployedExecutedFlowFrozenOrBreakWitness`, `DeployedRefundOwnTimeoutWitness`. At the
+  current heads `append` binds the committed bundle to the committing chain; that is argued
+  from source in the Specs docstring, not modelled.
 
 The other topics' tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

@@ -229,6 +229,12 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.L2Convergence
 import EraSpec.Contracts.BlobsL1DAValidatorZKsyncOS.Proofs.Model
 import EraSpec.Protocol.ZKsyncOSDA.Proofs.CommitterDA
 
+-- Faithfulness repairs (protocol): `authorizeRefund` on the calling chain with its END branch as
+-- run, the source-bound refund gate over the deployed absence verifier, per-chain flow histories
+import EraSpec.Protocol.InteropAtomicity.Proofs.RefundFaithful
+import EraSpec.Protocol.MultichainGate.Proofs.DeployedGate
+import EraSpec.Protocol.FlowAtomicityPerChain.Proofs.Model
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
