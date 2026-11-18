@@ -27,8 +27,9 @@ byte level both become statements about keccak alone:
 So each result can be restated in reduction form: the conclusion holds, or keccak has a
 collision (or a zero preimage) among byte strings the run itself names. For a run, the named
 set is the triples or pairs its logged calls hashed (`loggedTriples`, `registeredPairs`),
-plus the one triple the statement watches. That is R3's missing reduction-style form, and the
-byte-level discharge of `CRYPTO-ID` for these results.
+plus the one triple the statement watches. This is a reduction-style (collision-finding) form
+of the `CRYPTO-ID` results restated here (`ASSUMPTIONS.md`). It replaces the bounded premise by a
+disjunct; it does not show that keccak avoids the named collisions.
 
 ## Model boundaries
 

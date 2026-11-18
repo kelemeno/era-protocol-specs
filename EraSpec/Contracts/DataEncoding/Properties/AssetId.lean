@@ -133,9 +133,10 @@ def Properties.VaultModelIsLibrary : Prop :=
 /-- **THE `ntvId` IDENTITY HOLDS AT BYTE LEVEL.** `AssetRouterBase/Specs/AtomicRecovery.lean`
 defines the vault's id from the router's encoding, `ntvId enc cfg c t = enc c cfg.ntv t`, as a
 model choice. At byte level it is a theorem: with the vault's configured address the
-normalised `L2_NATIVE_TOKEN_VAULT_ADDR` (`L2AssetRouter.sol:72-74` on an L2),
-`ntvId (routerEnc keccak) cfg` is the vault model's instance `vaultEnc keccak`, on every pair of
-words. -/
+normalised `L2_NATIVE_TOKEN_VAULT_ADDR` (what `_nativeTokenVaultAddr()` returns,
+`L2AssetRouter.sol:72-74`; the getter is `virtual`, and nothing in the pinned tree overrides
+it), `ntvId (routerEnc keccak) cfg` is the vault model's instance `vaultEnc keccak`,
+on every pair of words. -/
 def Properties.VaultModelIsRouterModelAtNtv : Prop :=
   ∀ (keccak : Keccak) (cfg : AssetRouter.AtomicRecovery.Config),
     cfg.ntv = addrAsBytes32 l2NtvAddr →
@@ -161,7 +162,8 @@ def Properties.RouterIdInjOnIffNoCollision : Prop :=
 
 /-- **(b) NO NAMED COLLISION GIVES `IdInjOn`.** The direction a caller of the router's bounded
 results needs: to discharge `IdInjOn (routerEnc keccak) S` it suffices that keccak does not
-collide on the preimages of `S`. -/
+collide on the preimages of `S`. For every finite `S` of at most `2^256` triples some keccak
+meets the premise (`RouterNoBreakSatisfiable`). -/
 def Properties.IdInjOnOfNoCollision : Prop :=
   ∀ (keccak : Keccak) (S : Set (AssetRouter.Chain × AssetRouter.Address × AssetRouter.AssetData)),
     ¬ RouterIdBreakOn keccak S → AssetRouter.IdInjOn (routerEnc keccak) S
@@ -232,8 +234,8 @@ def Properties.AssetIdCheckPassesIff : Prop :=
 
 /-- **(e) `assetIdCheck` IS THE REGISTRY MODEL'S `idChecked` GUARD.** With the byte-level vault
 encoding, the check passes iff `a = vaultEnc keccak c (widen t)`, which is
-`RegisterBridgedGuard.idChecked` (`Specs/RegistryAndEscrow.lean`) for origin chain `c` and
-origin token `widen t`. -/
+`RegisterBridgedGuard.idChecked` (`NativeTokenVaultBase/Specs/RegistryAndEscrow.lean`) with
+`e := vaultEnc keccak`, for origin chain `c` and origin token `widen t`. -/
 def Properties.AssetIdCheckIsRegistryIdCheck : Prop :=
   ∀ (keccak : Keccak) (c a : UInt256) (t : Addr),
     assetIdCheck keccak c a t = some () ↔ a = vaultEnc keccak c (addrAsBytes32 t)
@@ -257,21 +259,23 @@ def Properties.AssetIdCheckPinsOriginOrCollision : Prop :=
       ∨ HashCollision keccak (assetIdPreimageOfToken c l2NtvAddr t)
           (assetIdPreimageOfToken c' l2NtvAddr t')
 
-/-- **(e) THE PIN IS NOT A TAUTOLOGY, AND THE COLLISION DISJUNCT CANNOT BE DROPPED.**
+/-- **(e) THE PIN IS NOT A TAUTOLOGY, AND THE COLLISION DISJUNCT CANNOT BE DROPPED.** Both
+parts use nonzero origin chains and nonzero origin tokens.
 * There is a keccak and two distinct origin pairs on whose preimages keccak does not collide,
   and `assetIdCheck` accepts the first pair's id for the first pair and rejects it for the
   second.
-* There is a keccak and two distinct origin pairs for which `assetIdCheck` accepts one id for
-  both; keccak then collides on the two named preimages. -/
+* There is a keccak and two distinct origin pairs for which `assetIdCheck` accepts one nonzero
+  id for both (so both premises of `AssetIdCheckPinsOriginOrCollision` hold with its first
+  disjunct false); keccak then collides on the two named preimages. -/
 def Properties.AssetIdCheckPinWitness : Prop :=
   (∃ (keccak : Keccak) (c c' : UInt256) (t t' : Addr),
-      ¬ (c = c' ∧ t = t')
+      c ≠ 0 ∧ c' ≠ 0 ∧ t ≠ 0 ∧ t' ≠ 0 ∧ ¬ (c = c' ∧ t = t')
       ∧ ¬ HashCollision keccak (assetIdPreimageOfToken c l2NtvAddr t)
             (assetIdPreimageOfToken c' l2NtvAddr t')
       ∧ assetIdCheck keccak c (encodeNTVAssetIdOfToken keccak c t) t = some ()
       ∧ assetIdCheck keccak c' (encodeNTVAssetIdOfToken keccak c t) t' = none)
   ∧ (∃ (keccak : Keccak) (a c c' : UInt256) (t t' : Addr),
-      ¬ (c = c' ∧ t = t')
+      a ≠ 0 ∧ c ≠ 0 ∧ c' ≠ 0 ∧ t ≠ 0 ∧ t' ≠ 0 ∧ ¬ (c = c' ∧ t = t')
       ∧ assetIdCheck keccak c a t = some () ∧ assetIdCheck keccak c' a t' = some ()
       ∧ HashCollision keccak (assetIdPreimageOfToken c l2NtvAddr t)
           (assetIdPreimageOfToken c' l2NtvAddr t'))

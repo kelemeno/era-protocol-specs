@@ -14,7 +14,8 @@ keccak event on byte strings the instance names":
   compares;
 * for a logged run (`LoggedRunNoHijackOrKeccakCollision`,
   `LoggedRunKeepsVaultRoutesOrKeccakCollision`, `LoggedRunSoundOrKeccakEvent`), it is among
-  the preimages of the triples or pairs the run's own calls hashed (plus the watched triple).
+  the preimages of the triples or pairs the run's own calls hashed (for
+  `LoggedRunNoHijackOrKeccakCollision`, plus the watched triple).
 
 So a failure of the conclusion hands over a keccak collision (or a zero preimage) on inputs the
 run names: a reduction, not an assumption.
@@ -205,10 +206,10 @@ def Properties.KeccakCollisionOnLogTakesOverLiveRoute : Prop :=
 
 /-- **THE DERIVED ID IS FREE, OR A KECCAK EVENT ON NAMED PREIMAGES.**
 `Contracts.NativeTokenVault.Properties.RegisterNativeIdFreshOrCollision` at byte level. Either
-the id `_registerToken` computes for `t`, `encodeNTVAssetId(thisChain, t)`, is unregistered;
-or keccak sends its preimage to zero; or the id is already registered and keccak collides on
-the preimage of that asset's recorded (origin chain, origin token) pair and the preimage of
-`(thisChain, t)`. -/
+the id `_registerToken` computes for `t`, `vaultEnc keccak thisChain t` (for a real address `t`,
+`encodeNTVAssetId(thisChain, t)`, `VaultModelIsLibrary`), is unregistered; or keccak sends its
+preimage to zero; or the id is already registered and keccak collides on the preimage of that
+asset's recorded (origin chain, origin token) pair and the preimage of `(thisChain, t)`. -/
 def Properties.RegisterNativeIdFreshOrKeccakEvent : Prop :=
   ∀ (keccak : Keccak) (thisChain : NativeTokenVault.Chain) (V : NativeTokenVault.Vault),
     NativeTokenVault.Valid (vaultEnc keccak) thisChain V →

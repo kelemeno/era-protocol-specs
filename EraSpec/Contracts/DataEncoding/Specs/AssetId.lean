@@ -64,17 +64,25 @@ The call sites that make the overloads matter:
 ## Later trees
 
 Re-read at `e561b9cc2`, draft/v0.35.0 (`d9f6789`, `b17415d20`) and main (`3605e82`,
-`70096e2ea`). The five functions, the two constants and the call sites above are unchanged
-in code; only line numbers move:
+`70096e2ea`). The five functions, the two constants and the hashing at the call sites above are
+unchanged. On v0.35.0 and `e561b9cc2` two internal getters are renamed:
+`_unsafeRegisterNativeToken` reaches the router through `_getAssetRouter()`, and
+`BridgehubBase` hashes `_getL1ChainId()` (`_assetRouter()` and `_l1ChainId()` at the pin and on
+main). Line numbers move:
 
-* `DataEncoding.sol`: the same lines on main; one line lower on v0.35.0 and `e561b9cc2`
+* `DataEncoding.sol`: the same lines on main; one line earlier on v0.35.0 and `e561b9cc2`
   (`encodeAssetId` `:125-127` and `:134-136`, `encodeNTVAssetId` `:142-144` and `:150-152`,
   `assetIdCheck` `:207-213`);
 * `L2ContractAddresses.sol:89` (v0.35.0, `e561b9cc2`) and `:104` (main) for
   `L2_NATIVE_TOKEN_VAULT_ADDR`; `BUILT_IN_CONTRACTS_OFFSET` stays at `:12`;
 * `AssetRouterBase.sol:70-72` and `NativeTokenVaultBase.sol:492-499` and `:557` on every
   later tree; `L1AssetRouter.sol:139` (v0.35.0; `:138` at `e561b9cc2`) and `:162` (main);
-  `BridgehubBase.sol:289` (v0.35.0, `e561b9cc2`) and `:290` (main).
+  `BridgehubBase.sol:289` (v0.35.0, `e561b9cc2`) and `:290` (main);
+* the L2 router's vault getter (`L2AssetRouter.sol:72-74` at the pin, cited by
+  `Properties.VaultModelIsRouterModelAtNtv`) is at `:79-81` on every later tree, named
+  `_getNativeTokenVaultAddr()` on v0.35.0 and `e561b9cc2`; it still returns
+  `L2_NATIVE_TOKEN_VAULT_ADDR`, and only a test harness overrides it
+  (`test/foundry/l1/unit/concrete/atomic-interop/AtomicRecoveryForgery.t.sol`).
 
 ## The ABI layout
 

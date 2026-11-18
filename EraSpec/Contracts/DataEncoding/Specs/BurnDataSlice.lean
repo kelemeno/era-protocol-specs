@@ -10,7 +10,7 @@ same two library functions (`common/libraries/DataEncoding.sol:35-60`):
 * here (`Specs/TxDataHash.lean`): `encodeNtvBurnData`, built from the type-directed ABI heads
   `encWord` / `encAddr`, and `decodeNtvBurnData`, the length check plus the address range
   checks of `abi.decode`;
-* in the vault's codegen slice (backlog item O4, `Codegen/VaultPreparationSlice`):
+* in the vault's codegen slice (`Codegen/VaultPreparationSlice`):
   `encodeBurnData`, built from the generic `Codegen.Calls.abiEncode` with `addrWord`, and the
   program's `requireLength "_data" 96` followed by `decode "_data" [uint256, address, address]`,
   interpreted by `Codegen.Calls.decodeInto` with its `fits` range checks.

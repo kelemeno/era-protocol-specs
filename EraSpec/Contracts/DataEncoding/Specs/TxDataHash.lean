@@ -49,6 +49,16 @@ the byte-level half of that statement (the preimages differ), and
 and `encodeBridgeBurnData` (`:35-41`) is `abi.encode(_amount, _remoteReceiver, _maybeTokenAddress)`.
 They are `decodeNtvBurnData` and `encodeNtvBurnData` here, on the vault model's `BurnData`.
 
+The two meet at the claim. After `_verifyAndClearTransfer`, the nullifier passes the claim's
+`(depositSender, assetId, assetData)` to the router, which forwards `assetData` as `_data` to
+the asset's handler (`L1AssetRouter.bridgeConfirmTransferResult`,
+`bridge/asset-router/L1AssetRouter.sol:302-315`). For a vault asset the handler is
+`L1NativeTokenVault.bridgeConfirmTransferResult` (`bridge/ntv/L1NativeTokenVault.sol:182-214`),
+which accepts only the failure status, decodes `_data` with `decodeBridgeBurnData`, requires a
+nonzero amount, and pays that amount to `depositSender` (`_disburseFailedTransfer`). So for a
+vault asset the hashed transfer data is burn data, and its amount and the claimed sender are
+what the refund pays.
+
 ## Later trees
 
 Re-read at `e561b9cc2`, draft/v0.35.0 (`d9f6789`, `b17415d20`) and main (`3605e82`,
@@ -59,6 +69,12 @@ Re-read at `e561b9cc2`, draft/v0.35.0 (`d9f6789`, `b17415d20`) and main (`3605e8
 * the record: `AssetRouterBase.sol:162-166` and `L1Nullifier.sol:155-163` on every later tree,
   `L1AssetRouter.sol:244-250` (v0.35.0), `:237-243` (`e561b9cc2`), `:261-267` (main);
 * the claim: `L1Nullifier.sol:234-247` on every later tree;
+* `NEW_ENCODING_VERSION` stays at `IAssetRouterBase.sol:6`, and the vault's two calls of
+  `decodeBridgeBurnData` are at `NativeTokenVaultBase.sol:323` and `:341` on every later tree;
+* the claim's forwarding: `L1AssetRouter.sol:279-291` (`e561b9cc2`), `:306-319` (v0.35.0, which
+  adds a reject-only `_checkAssetHandlerAllowed(_chainId, _assetId)` before forwarding),
+  `:303-316` (main); the L1 vault's refund at `L1NativeTokenVault.sol:261-290` (`e561b9cc2`,
+  main) and `:351-380` (v0.35.0), with the same code (only its comments are reworded);
 * the storage comment (`L1Nullifier.sol:64-66` from `e561b9cc2` on) names only the record
   format, `keccak256(0x01 || abi.encode(originalCaller, assetId, transferData))`.
 

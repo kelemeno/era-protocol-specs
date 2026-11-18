@@ -22,9 +22,9 @@ def Properties.EncodeBurnDataAgreesWithSlice : Prop :=
 /-- **THE TWO DECODERS AGREE ON 96 BYTES.** For data of the length both accept, the slice's
 `decode "_data" [amount : uint256, receiver : address, parsedTokenAddress : address]` fails iff
 `decodeNtvBurnData` reverts; when the latter returns `b`, the slice binds `amount`, `receiver`
-and `parsedTokenAddress` to `b`'s three fields (addresses as zero-extended words). (For any
-other length the slice's preceding `requireLength "_data" 96` reverts, as `decodeNtvBurnData`
-does.) -/
+and `parsedTokenAddress` to `b`'s three fields (addresses as zero-extended words). (This covers
+96-byte data only. In the slice's program the decode follows `requireLength "_data" 96`, and
+`decodeNtvBurnData` rejects every other length, `BurnDataLength`.) -/
 def Properties.DecodeBurnDataAgreesWithSlice : Prop :=
   ∀ (data : List UInt8) (env : String → Codegen.Word), data.length = 96 →
     (Codegen.Calls.decodeInto data env

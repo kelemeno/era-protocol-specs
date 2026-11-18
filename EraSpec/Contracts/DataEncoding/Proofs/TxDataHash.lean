@@ -216,38 +216,43 @@ theorem decodeNtvBurnData_ne_none_iff (data : List UInt8) :
   · exact ⟨fun h => absurd rfl h, fun h => absurd h.2.1 hr⟩
   · exact ⟨fun h => absurd rfl h, fun h => absurd h.1 hl⟩
 
-/-! ## Witnesses -/
+/-! ## Witnesses
 
-/-- A stand-in for keccak that reads only the length of its input. It is not a hash. -/
-def txDataLengthKeccak : Keccak := fun x => Nat.toUInt256 x.length
+The recorded deposit of the two hash-level witnesses: sender `1`, asset id `1`, and NTV burn
+data of amount `5` to receiver `2` with no token hint. The claim changes only the amount, to
+`6`. The legacy record names the same sender, token `3` and the recorded amount. -/
 
-theorem txData_witness :
-    ∃ (keccak : Keccak) (s s' : Addr) (a a' : UInt256) (d d' : List UInt8) (account token : Addr)
-      (amount : UInt256),
-      d.length < 2 ^ 256 ∧ d'.length < 2 ^ 256
-      ∧ ¬ (s = s' ∧ a = a' ∧ d = d')
-      ∧ encodeTxDataHash keccak s a d ≠ encodeTxDataHash keccak s' a' d'
-      ∧ ¬ HashCollision keccak (txDataPreimage s a d) (txDataPreimage s' a' d')
-      ∧ encodeTxDataHash keccak s a d ≠ legacyTxDataHash keccak account token amount
-      ∧ ¬ HashCollision keccak (txDataPreimage s a d) (legacyTxDataPreimage account token amount)
-      ∧ ¬ ZeroPreimage keccak (txDataPreimage s a d)
-      ∧ ¬ ZeroPreimage keccak (txDataPreimage s' a' d') := by
-  have e1 : txDataLengthKeccak (txDataPreimage 0 0 []) = Nat.toUInt256 129 := by
-    rw [txDataLengthKeccak, txDataPreimage_length]; rfl
-  have e2 : txDataLengthKeccak (txDataPreimage 0 0 [0]) = Nat.toUInt256 161 := by
-    rw [txDataLengthKeccak, txDataPreimage_length]; rfl
-  have e3 : txDataLengthKeccak (legacyTxDataPreimage 0 0 0) = Nat.toUInt256 96 := by
-    rw [txDataLengthKeccak, legacyTxDataPreimage_length]
-  have n12 : encodeTxDataHash txDataLengthKeccak 0 0 [] ≠ encodeTxDataHash txDataLengthKeccak 0 0 [0] := by
-    rw [encodeTxDataHash, encodeTxDataHash, e1, e2]; decide
-  have n13 : encodeTxDataHash txDataLengthKeccak 0 0 [] ≠ legacyTxDataHash txDataLengthKeccak 0 0 0 := by
-    rw [encodeTxDataHash, legacyTxDataHash, e1, e3]; decide
-  refine ⟨txDataLengthKeccak, 0, 0, 0, 0, [], [0], 0, 0, 0, by norm_num, by norm_num, by simp, n12,
-    fun h => n12 h.2, n13, fun h => n13 h.2, ?_, ?_⟩
-  · show ¬ txDataLengthKeccak (txDataPreimage 0 0 []) = 0
-    rw [e1]; decide
-  · show ¬ txDataLengthKeccak (txDataPreimage 0 0 [0]) = 0
-    rw [e2]; decide
+/-- The burn data of the recorded deposit. -/
+def txDataRecordedBurn : NativeTokenVaultBase.BurnData := ⟨5, 2, 0⟩
+
+/-- The burn data of a claim that changes only the amount. -/
+def txDataClaimedBurn : NativeTokenVaultBase.BurnData := ⟨6, 2, 0⟩
+
+/-- The stand-in keccak of `TxDataHashWitness`: the recorded deposit's preimage goes to `1`, every
+other byte string to `2`. It is not a hash. -/
+def txDataSeparatingKeccak : Keccak := fun x =>
+  if x = txDataPreimage 1 1 (encodeNtvBurnData txDataRecordedBurn) then 1 else 2
+
+/-- Different burn data encode to different bytes (the decoder inverts the encoder). -/
+theorem txData_encode_ne {b b' : NativeTokenVaultBase.BurnData} (h : b.amount ≠ b'.amount) :
+    encodeNtvBurnData b ≠ encodeNtvBurnData b' := by
+  intro he
+  have hd := congrArg decodeNtvBurnData he
+  rw [decodeNtvBurnData_encode, decodeNtvBurnData_encode] at hd
+  exact h (congrArg NativeTokenVaultBase.BurnData.amount (Option.some.inj hd))
+
+theorem txData_claimed_ne_recorded :
+    encodeNtvBurnData txDataClaimedBurn ≠ encodeNtvBurnData txDataRecordedBurn :=
+  txData_encode_ne (by decide)
+
+/-- The claim's record preimage is not the recorded one. -/
+theorem txData_claim_preimage_ne :
+    txDataPreimage 1 1 (encodeNtvBurnData txDataClaimedBurn)
+      ≠ txDataPreimage 1 1 (encodeNtvBurnData txDataRecordedBurn) := by
+  intro h
+  have hlen : ∀ b : NativeTokenVaultBase.BurnData, (encodeNtvBurnData b).length < 2 ^ 256 := by
+    intro b; rw [encodeNtvBurnData_length]; norm_num
+  exact txData_claimed_ne_recorded (txDataPreimage_inj (hlen _) (hlen _) h).2.2
 
 /-! ## Certificates -/
 
@@ -293,10 +298,37 @@ theorem NewHashMatchesLegacyOnlyByCollision : Properties.NewHashMatchesLegacyOnl
 theorem TxDataHashZeroIsPreimageEvent : Properties.TxDataHashZeroIsPreimageEvent :=
   fun _ _ _ _ => Iff.rfl
 
-theorem TxDataHashWitness : Properties.TxDataHashWitness := txData_witness
+theorem TxDataHashWitness : Properties.TxDataHashWitness := by
+  have hrec : txDataSeparatingKeccak (txDataPreimage 1 1 (encodeNtvBurnData txDataRecordedBurn))
+      = 1 := ite_eq_left rfl
+  have hclaim : txDataSeparatingKeccak (txDataPreimage 1 1 (encodeNtvBurnData txDataClaimedBurn))
+      = 2 := ite_eq_right txData_claim_preimage_ne
+  have hleg : txDataSeparatingKeccak (legacyTxDataPreimage 1 3 txDataRecordedBurn.amount) = 2 :=
+    ite_eq_right fun h => (txData_new_ne_legacy 1 1 _ 1 3 _).2.2 h.symm
+  have h12 : (1 : UInt256) ≠ 2 := by decide
+  have h21 : (2 : UInt256) ≠ 1 := by decide
+  refine ⟨txDataSeparatingKeccak, 1, 1, txDataRecordedBurn, txDataClaimedBurn, 3,
+    by decide, by decide, by decide, by decide, by decide, by decide, rfl, rfl,
+    ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · show txDataSeparatingKeccak _ ≠ txDataSeparatingKeccak _
+    rw [hclaim, hrec]; exact h21
+  · rintro ⟨-, h⟩
+    rw [hclaim, hrec] at h; exact h21 h
+  · show txDataSeparatingKeccak _ ≠ txDataSeparatingKeccak _
+    rw [hrec, hleg]; exact h12
+  · rintro ⟨-, h⟩
+    rw [hrec, hleg] at h; exact h12 h
+  · show ¬ txDataSeparatingKeccak _ = 0
+    rw [hrec]; decide
+  · show ¬ txDataSeparatingKeccak _ = 0
+    rw [hclaim]; decide
 
-theorem TxDataHashCollisionDisjunctNeeded : Properties.TxDataHashCollisionDisjunctNeeded :=
-  ⟨fun _ => 0, 0, 0, 0, 0, [], [0], 0, 0, 0, by norm_num, by norm_num, by simp, rfl, rfl⟩
+theorem TxDataHashCollisionDisjunctNeeded : Properties.TxDataHashCollisionDisjunctNeeded := by
+  have hlen : ∀ b : NativeTokenVaultBase.BurnData, (encodeNtvBurnData b).length < 2 ^ 256 := by
+    intro b; rw [encodeNtvBurnData_length]; norm_num
+  exact ⟨fun _ => 1, 1, 1, txDataRecordedBurn, txDataClaimedBurn, 3, by decide, by decide,
+    by decide, by decide, by decide, by decide, rfl, rfl, hlen _, hlen _,
+    txData_claimed_ne_recorded, rfl, rfl, by decide⟩
 
 theorem BurnDataDecodeIffEncode : Properties.BurnDataDecodeIffEncode :=
   decodeNtvBurnData_eq_some_iff
@@ -315,13 +347,41 @@ theorem TwoFieldBurnDataRejected : Properties.TwoFieldBurnDataRejected := by
   simp [encWord_length, encAddr_length] at this
 
 theorem BurnDataLengthNotSufficient : Properties.BurnDataLengthNotSufficient := by
-  refine ⟨encWord 0 ++ word (2 ^ 160) ++ encWord 0, ?_, ?_⟩
+  have hw : ((encWord 0 ++ word (2 ^ 160) ++ encWord 0).drop 32).take 32 = word (2 ^ 160) := by
+    rw [List.append_assoc, List.drop_left' (encWord_length _), List.take_left' (word_length _)]
+  have hv : fromBytesBE (word (2 ^ 160)) = 2 ^ 160 := fromBytesBE_toBytesBE (by norm_num)
+  refine ⟨encWord 0 ++ word (2 ^ 160) ++ encWord 0, ?_, ?_, ?_⟩
   · rw [List.length_append, List.length_append, encWord_length, word_length]
+  · rw [hw, hv]
   · by_contra hne
     have h := ((decodeNtvBurnData_ne_none_iff _).mp hne).2.1
-    rw [List.append_assoc, List.drop_left' (encWord_length _), List.take_left' (word_length _),
-      fromBytesBE_toBytesBE (by norm_num)] at h
+    rw [hw, hv] at h
     exact lt_irrefl _ h
+
+theorem NtvClaimNamesRecordedDepositOrCollision :
+    Properties.NtvClaimNamesRecordedDepositOrCollision := by
+  intro keccak s s' a a' b b' d' hdec heq
+  have hd' : d'.length < 2 ^ 256 := by
+    rw [encode_of_decodeNtvBurnData hdec, encodeNtvBurnData_length]; norm_num
+  have hb : (encodeNtvBurnData b).length < 2 ^ 256 := by
+    rw [encodeNtvBurnData_length]; norm_num
+  rcases TxDataHashBindsOrCollision keccak s' s a' a d' (encodeNtvBurnData b) hd' hb heq with
+    ⟨h1, h2, h3⟩ | hc
+  · refine Or.inl ⟨h1, h2, ?_⟩
+    have hdb : decodeNtvBurnData d' = some b := by rw [h3]; exact decodeNtvBurnData_encode b
+    rw [hdec] at hdb
+    exact Option.some.inj hdb
+  · exact Or.inr hc
+
+theorem NtvClaimNamesRecordedDepositOrCollisionWitness :
+    Properties.NtvClaimNamesRecordedDepositOrCollisionWitness := by
+  have hrec : txDataSeparatingKeccak (txDataPreimage 1 1 (encodeNtvBurnData txDataRecordedBurn))
+      = 1 := ite_eq_left rfl
+  refine ⟨1, 1, txDataRecordedBurn, txDataClaimedBurn, by decide, by decide, by decide, by decide,
+    by decide, rfl, rfl, ⟨txDataSeparatingKeccak, ?_, decodeNtvBurnData_encode _, rfl⟩,
+    ⟨fun _ => 1, by decide, decodeNtvBurnData_encode _, rfl, txData_claim_preimage_ne, rfl⟩⟩
+  show txDataSeparatingKeccak _ ≠ 0
+  rw [hrec]; decide
 
 /-! ## Model validation
 

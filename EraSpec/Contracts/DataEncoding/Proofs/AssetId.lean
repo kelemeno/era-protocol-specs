@@ -297,9 +297,9 @@ theorem vaultBreak_contingent (p : NativeTokenVault.Chain × NativeTokenVault.Ad
     exact hcoll.1 rfl
   · exact h10 hz
 
-/-- The two-pair set of `ZeroPreimageIndependentOfCollisions`: two tokens on chain `0`. -/
+/-- The two-pair set of `ZeroPreimageIndependentOfCollisions`: tokens `1` and `2` on chain `1`. -/
 def assetIdZeroWitnessSet : Set (NativeTokenVault.Chain × NativeTokenVault.Address) :=
-  {((0 : UInt256), (0 : UInt256)), ((0 : UInt256), (1 : UInt256))}
+  {((1 : UInt256), (1 : UInt256)), ((1 : UInt256), (2 : UInt256))}
 
 theorem zero_preimage_independent :
     ∃ (keccak : Keccak) (S : Set (NativeTokenVault.Chain × NativeTokenVault.Address)),
@@ -307,8 +307,7 @@ theorem zero_preimage_independent :
       ∧ (∀ p ∈ S, ∀ q ∈ S, vaultEnc keccak p.1 p.2 = vaultEnc keccak q.1 q.2 → p = q)
       ∧ (∃ p ∈ S, ZeroPreimage keccak (vaultPreimage p.1 p.2))
       ∧ ¬ NativeTokenVault.IdAssumptionsOn (vaultEnc keccak) S := by
-  have h01 : ((0 : UInt256), (0 : UInt256)) ≠ ((0 : UInt256), (1 : UInt256)) := by decide
-  set keccak := assetIdSeparatingKeccak (vaultPreimage 0 0) with hk
+  set keccak := assetIdSeparatingKeccak (vaultPreimage 1 1) with hk
   have hnocoll : ¬ ∃ p ∈ assetIdZeroWitnessSet, ∃ q ∈ assetIdZeroWitnessSet,
       HashCollision keccak (vaultPreimage p.1 p.2) (vaultPreimage q.1 q.2) := by
     rintro ⟨x, hx, y, hy, hcoll⟩
@@ -318,13 +317,13 @@ theorem zero_preimage_independent :
     · exact (assetIdSeparating_no_collision _ _).1 hcoll
     · exact (assetIdSeparating_no_collision _ _).2 hcoll
     · exact hcoll.1 rfl
-  refine ⟨keccak, assetIdZeroWitnessSet, hnocoll, ?_, ⟨(0, 0), Set.mem_insert _ _, ?_⟩, ?_⟩
+  refine ⟨keccak, assetIdZeroWitnessSet, hnocoll, ?_, ⟨(1, 1), Set.mem_insert _ _, ?_⟩, ?_⟩
   · intro p hp q hq heq
     by_contra hpq
     exact hnocoll ⟨p, hp, q, hq, vaultId_clash hpq heq⟩
   · simp [ZeroPreimage, keccak, assetIdSeparatingKeccak]
   · rintro ⟨-, hnz⟩
-    exact hnz (0, 0) (Set.mem_insert _ _) (by simp [vaultEnc, keccak, assetIdSeparatingKeccak])
+    exact hnz (1, 1) (Set.mem_insert _ _) (by simp [vaultEnc, keccak, assetIdSeparatingKeccak])
 
 /-! ## Certificates -/
 
@@ -425,13 +424,21 @@ theorem AssetIdCheckPassesIffRouterId : Properties.AssetIdCheckPassesIffRouterId
 theorem AssetIdCheckPinsOriginOrCollision : Properties.AssetIdCheckPinsOriginOrCollision :=
   fun keccak _ _ _ _ _ h h' => assetIdCheck_pins keccak h h'
 
+/-- The origin token of `AssetIdCheckPinWitness`: one nonzero token address, checked against
+two origin chains. -/
+def assetIdPinToken : Addr := 0x1234
+
 theorem AssetIdCheckPinWitness : Properties.AssetIdCheckPinWitness := by
-  have hne : ¬ ((0 : UInt256) = 1 ∧ (0 : Addr) = 0) := by decide
-  have hpre : assetIdPreimageOfToken 0 l2NtvAddr 0 ≠ assetIdPreimageOfToken 1 l2NtvAddr 0 :=
+  have hne : ¬ ((1 : UInt256) = 324 ∧ assetIdPinToken = assetIdPinToken) := by decide
+  have hpre : assetIdPreimageOfToken 1 l2NtvAddr assetIdPinToken
+      ≠ assetIdPreimageOfToken 324 l2NtvAddr assetIdPinToken :=
     fun h => hne ⟨(assetIdPreimageOfToken_inj h).1, rfl⟩
-  refine ⟨⟨assetIdSeparatingKeccak (assetIdPreimageOfToken 0 l2NtvAddr 0), 0, 1, 0, 0, hne,
+  have ht : assetIdPinToken ≠ 0 := by decide
+  refine ⟨⟨assetIdSeparatingKeccak (assetIdPreimageOfToken 1 l2NtvAddr assetIdPinToken), 1, 324,
+    assetIdPinToken, assetIdPinToken, by decide, by decide, ht, ht, hne,
     (assetIdSeparating_no_collision _ _).1, ?_, ?_⟩,
-    ⟨fun _ => 0, 0, 0, 1, 0, 0, hne, ?_, ?_, hpre, rfl⟩⟩
+    ⟨fun _ => 1, 1, 1, 324, assetIdPinToken, assetIdPinToken, by decide, by decide, by decide, ht,
+      ht, hne, ?_, ?_, hpre, rfl⟩⟩
   · rw [assetIdCheck_some_iff]
   · rw [assetIdCheck_none_iff]
     simp only [encodeNTVAssetIdOfToken, assetIdSeparatingKeccak, ite_true, hpre.symm, ite_false]
