@@ -24,6 +24,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | BatchPosition | [Specs/BatchPosition.lean](Specs/BatchPosition.lean) | [Properties/BatchPosition.lean](Properties/BatchPosition.lean) | [Proofs/BatchPosition.lean](Proofs/BatchPosition.lean) |
 | LegSourceFilterAtV35 | [Specs/LegSourceFilterAtV35.lean](Specs/LegSourceFilterAtV35.lean) | [Properties/LegSourceFilterAtV35.lean](Properties/LegSourceFilterAtV35.lean) | [Proofs/LegSourceFilterAtV35.lean](Proofs/LegSourceFilterAtV35.lean) |
 | FlowBindingAtHead (`3605e82`) | [Specs/FlowBindingAtHead.lean](Specs/FlowBindingAtHead.lean) | [Properties/FlowBindingAtHead.lean](Properties/FlowBindingAtHead.lean) | [Proofs/FlowBindingAtHead.lean](Proofs/FlowBindingAtHead.lean) |
+| OncePerLegAtHead (`main` `70096e2`, `draft/v0.35.0` `b17415d`) | [Specs/OncePerLegAtHead.lean](Specs/OncePerLegAtHead.lean) | [Properties/OncePerLegAtHead.lean](Properties/OncePerLegAtHead.lean) | [Proofs/OncePerLegAtHead.lean](Proofs/OncePerLegAtHead.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
@@ -299,6 +300,21 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
     manager's `initL2` (every chain's `L1_CHAIN_ID` is the one parameter `l1`). The gate
     and timeout evidence is still checked against the fixed history `S`, through the pin's
     `LegFinalizedBy`/`LegRefundableBy`, not against the live trees.
+- **OncePerLegAtHead** (namespace `Contracts.AppendPath`, `main` `70096e2` and
+  `draft/v0.35.0` `b17415d`). `StepsAtHead` and `SysStepsAtHead` are `Steps` and `SysSteps`
+  with the tree's unbounded walk (`L2InteropCommitmentTree` topic `HintSearchAtHead`). The
+  checks the head adds to `append` and `authorizeRefund` (on `draft/v0.35.0` also
+  `_checkLegSourceAllowed`) only revert and are not modelled (`MODEL-APPEND-PATH-HEAD`).
+  From genesis the head's runs reach exactly the pin's states and logs
+  (`StepsAtHeadIffSteps`, `SysStepsAtHeadIffSysSteps`), so the headlines hold at head
+  (`OncePerLegAtHead`, `NoSecondAppendAtHead`, `SystemOncePerLegAtHead`,
+  `SystemExecutedObligationNeverRefundedOrBreakAtHead` and the rest). New: on every reachable
+  state an `append` passes the guard and the tree's checks exactly when its commit value is
+  nonzero and not a key and the hint is an occupied index below it (`AppendAtHeadEnabledIff`),
+  and the pin's stale-hint revert passes at head
+  (`StaleHintAppendRevertsAtPinSucceedsAtHead`). Witnesses: `OncePerLegAtHeadWitness`,
+  `RefundedLegAtHeadWitness`, `NoSecondAppendAtHeadWitness` (stale-hint appends),
+  `ClashBlocksFreshLegAtHead`, `SystemWitnessAtHead`.
 
 - **RootImport** (namespace `Contracts.RootImport`). The gate as a destination runs it:
   `_authenticateRoot` must authenticate the IMT root through a multi-hop settlement

@@ -47,6 +47,9 @@ discharge these concrete obligations.
 | The owner's `pause`/`unpause` and attempted entry-point calls during a pause | [Specs/Pause.lean](Specs/Pause.lean) |
 | A paused vault commits nothing; delivery and recovery after unpausing are as before | [Properties/Pause.lean](Properties/Pause.lean) |
 | Checked pause derivations and witness | [Proofs/Pause.lean](Proofs/Pause.lean) |
+| The registry-and-escrow model at the current heads (`main` `70096e2`, `draft/v0.35.0` `b17415d`): `populateBridgedOut`, legacy amounts, the in-place-upgrade start | [Specs/EscrowLedgerAtHead.lean](Specs/EscrowLedgerAtHead.lean) |
+| Solvency under the legacy backing, its countermodel, population effect, run-local net flow, enabledness after an in-place upgrade | [Properties/EscrowLedgerAtHead.lean](Properties/EscrowLedgerAtHead.lean) |
+| Checked derivations and witnesses | [Proofs/EscrowLedgerAtHead.lean](Proofs/EscrowLedgerAtHead.lean) |
 
 ## Two overlapping models
 
@@ -76,6 +79,37 @@ registrations hash, at most one per step), and concludes `Valid`, `Audited`,
 solvency and no-inflation at the end. `LoggedRunSoundSatisfiable` and
 `LogAssumptionWeakerThanGlobal` show that the premise holds on a nontrivial run,
 including for an encoding that collides off the log.
+
+### At the current heads: `populateBridgedOut`
+
+`EscrowLedgerAtHead` extends the registry-and-escrow model to `main` `70096e2` and
+`draft/v0.35.0` `b17415d` (`L1NativeTokenVault.sol` and `NativeTokenVaultBase.sol` unchanged
+since `3605e82` and `d9f6789`). There `bridgedOut` has a third writer, the permissionless
+`populateBridgedOut` (`L1NativeTokenVault.sol:157-181` on `main`), which adds each L1-native
+asset's legacy amount once. It exists for vaults upgraded in place, which start with
+`bridgedOut == 0` (`protocol-docs/bridging.md:183-214`). The legacy amount is a parameter
+fixed for a run and assumed to be returned (`MODEL-ESCROW-HEAD`). Runs start from any state.
+- No hash premise: if `bridgedOut` plus the legacy amounts still to be populated is at most
+  the escrow at the start, it stays so along every run (`SolvencyAtHead`,
+  `StepAtHeadPreservesLedgerBacked`), so a native inflow that passes
+  `InsufficientChainBalance` asks for no more than the vault holds
+  (`GuardedInflowIsBackedAtHead`). The in-place-upgrade start `UpgradeStartAtHead` includes the
+  backing as a field (`UpgradeStartIsLedgerBacked`); `populateBridgedOut` does not check it, and
+  without it one population breaks the model's solvency (`UnbackedLegacyBreaksSolvencyAtHead`).
+- Each asset's legacy amount is added at most once (`PopulateEffectAtHead`,
+  `PopulatedFlagsPersistAtHead`); pin runs are head runs (`PinStepOpIsStepOpAtHead`,
+  `PinReachLogIsReachLogAtHead`).
+- `LoggedRunSoundAtHead`: on a logged run from an upgrade start, under `IdAssumptionsOn` on
+  the start's recorded pairs and the run's own, `Valid` is kept and for a native asset
+  `bridgedOut` plus inflow equals outflow plus the populated legacy amount.
+- Enabledness, for the modelled checks, on an upgraded vault whose escrow is all legacy: an
+  inflow of that escrow fails `InsufficientChainBalance` before the asset's population and
+  passes after it (`PopulateRestoresLegacyWithdrawalAtHead`); before population, inflows from
+  every chain are checked against one per-asset entry (`PrePopulationHeadroomIsSharedAtHead`).
+- Witnesses: `EscrowLedgerAtHeadWitness`, `LoggedRunSoundAtHeadSatisfiable`.
+- `draft/v0.35.0` adds per-chain deposit and withdrawal totals with a cap on withdrawals; their
+  writers never touch `bridgedOut` or the escrow and the cap only reverts, which is argued
+  from source in the spec, not proved. The per-chain maps are not modelled.
 
 ## Invariants and initialization
 

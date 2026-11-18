@@ -283,6 +283,12 @@ import EraSpec.Protocol.PriorityRequests.Proofs.PrivilegedSenders
 -- Proxy-upgrade executor legs at draft/v0.35.0 (ProxyUpgradeExecutorBase)
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.CoreLegV35
 
+-- Head re-models of pin topics (main 70096e2, draft/v0.35.0 b17415d): the unbounded IMT walk,
+-- once per leg over it, and the vault escrow ledger with populateBridgedOut
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearchAtHead
+import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLegAtHead
+import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

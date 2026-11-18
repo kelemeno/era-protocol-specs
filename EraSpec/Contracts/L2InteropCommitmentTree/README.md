@@ -19,6 +19,7 @@ only import a shared specification when the topic needs no additional definition
 | PublishedRootCommits | [Specs/PublishedRootCommits.lean](Specs/PublishedRootCommits.lean) | [Properties/PublishedRootCommits.lean](Properties/PublishedRootCommits.lean) | [Proofs/PublishedRootCommits.lean](Proofs/PublishedRootCommits.lean) |
 | InitOnce | [Specs/InitOnce.lean](Specs/InitOnce.lean) | [Properties/InitOnce.lean](Properties/InitOnce.lean) | [Proofs/InitOnce.lean](Proofs/InitOnce.lean) |
 | PaddingAtHead (`main` `3605e82`) | [Specs/PaddingAtHead.lean](Specs/PaddingAtHead.lean) | [Properties/PaddingAtHead.lean](Properties/PaddingAtHead.lean) | [Proofs/PaddingAtHead.lean](Proofs/PaddingAtHead.lean) |
+| HintSearchAtHead (`main` `70096e2`, `draft/v0.35.0` `b17415d`) | [Specs/HintSearchAtHead.lean](Specs/HintSearchAtHead.lean) | [Properties/HintSearchAtHead.lean](Properties/HintSearchAtHead.lean) | [Proofs/HintSearchAtHead.lean](Proofs/HintSearchAtHead.lean) |
 
 The library's abstract list/order theory, insertion-guard countermodels, and
 reset/sentinel properties live under `../IndexedMerkleTree/`. The wrapper model
@@ -188,6 +189,33 @@ error imports. No property takes a hash premise; `keccak` is an arbitrary functi
   `c67894b9`; only the break disjunct of their results is translated to `main`'s hashes,
   and how `main`'s `AtomicFlowManager` obtains the root it verifies against is not
   modelled.
+
+`HintSearchAtHead` re-models `InitOnce` at the current heads (`main` `70096e2`,
+`draft/v0.35.0` `b17415d`; the two cited files are unchanged since `3605e82` and `d9f6789`).
+There `insert`'s low-leaf walk has no hop bound (`b8cc61203`, `IndexedMerkleTree.sol:90-93`),
+read as "some finite number of hops" (`WalkSucceedsAtHead`); gas is not modelled. No hash
+premise.
+- On a valid tree the walk is the search with `leafCount` hops, exits, and is deterministic
+  (`WalkAtHeadIsLeafCountSearch`, `WalkAtHeadTerminates`, `WalkAtHeadDeterministic`); a head
+  insert is the guarded insert at the landing index, which no hint changes
+  (`InsertChecksAtHeadYieldGuard`, `InsertAtHeadLandingHintIndependent`).
+- On a valid tree, for a nonzero unregistered `v`, the engine's checks pass from every
+  occupied hint whose value is below `v` (`InsertAtHeadEnabledIff`), so
+  `HonestInsertRevertsAtDeployedFuel` has no counterpart: `HonestInsertSucceedsAtHead`. Pin
+  inserts are head inserts, and a head insert passes the pin's checks from its own landing
+  index (`InsertChecksAtHeadVsPin`).
+- Every pin run is a head run (`PinTxRunIsTxRunAtHead`), and a head run from the predeploy with
+  each hint replaced by its landing index is a pin run with the same states
+  (`TxRunAtHeadIsRelabelledTxRun`, `RelabelAtHeadKeepsShape`). So `PredeployRunStates`,
+  `PredeployRunReclaimableIffAbsent`, `StoredLeavesAreLeafHashes` and
+  `PredeployStoredRootExclusiveOrBreak` hold at head (the `…AtHead` forms), the last for
+  every padding `z0`, so for `IMT_EMPTY_LEAF_HASH`. The results from any start are re-proved
+  (`InitL2AtMostOnceAtHead`, `TxRunAtHeadAppendOnly`, `TxRunAtHeadKeysMono`,
+  `TxRunAtHeadFromValidIsRun`).
+- Witnesses on runs the pin does not have: `StaleHintRunWitnessAtHead` (an `insert(7, 0)` six
+  hops from its landing index), `StaleHintRunFromValidWitnessAtHead`, and
+  `StaleHintStoredRootWitnessAtHead` (the `_nodes[0]` results, with the pin's padding
+  `hl {0,0,0}`; `LevelRunAtHeadExists`); `InsertAtHeadWitness` for the insert results.
 
 Source finding at the pin `c67894b9`, since fixed upstream (see `PaddingAtHead` above): the
 tree pads empty slots with `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`), against
