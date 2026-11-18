@@ -321,6 +321,9 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.UnboundedSearchAtV35
 -- draft/v0.35.0 (b17415d20) re-model: the commitment tree's transactions on its whole storage
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CommitmentTreeAtV35
 
+-- Re-pinned to draft/v0.35.0 (b17415d20)
+import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
