@@ -17,25 +17,34 @@ have nonzero, distinct ones.
   `CtmRecordInvStep`, `CtmRecordInvReachable`). A chain's diamond on a settlement layer
   belongs to the CTM that layer registered under the asset id of the chain's L1 CTM
   (`CtmRecordSettlementDiamondFollowsL1Ctm`).
-* **Corollary.** On those runs the CTM whose version a burn or a mint checks, and the CTM whose
-  migration pause gates it (for a burn: whenever the asset id it must carry is nonzero, which
-  off L1 always holds), are the CTM the diamond admits as its chain type manager
-  (`CtmRecordBurnGatesAreDiamondCtm`, `CtmRecordMintGatesAreDiamondCtm`).
+* **Corollaries.** On those runs the CTM whose version a burn or a mint checks, and the CTM
+  whose migration pause gates it (for a burn: whenever the asset id it must carry is nonzero,
+  which off L1 always holds), are the CTM the diamond admits as its chain type manager
+  (`CtmRecordBurnGatesAreDiamondCtm`, `CtmRecordMintGatesAreDiamondCtm`), and the diamond's
+  `onlyChainTypeManager` gate admits exactly the recorded CTM (`CtmRecordNamesAdmittedCtm`).
+  In every state whose records all agree with their diamonds, a chain burned on L1 towards a
+  layer that has a diamond on L1 goes to a layer whose L1 diamond is under the chain's own CTM
+  (`CtmRecordBurnTargetsSameCtmLayer`, `CtmRecordBurnTargetsSameCtmLayerWitness`).
 * **Witness.** A disciplined round trip L1 → settlement layer → L1 with two CTM families
-  satisfies every premise (`CtmRecordDisciplinedRoundTripWitness`).
+  satisfies every premise of the invariant and of the gate corollaries
+  (`CtmRecordDisciplinedRoundTripWitness`).
 * **Countermodels.** One registration that gives a settlement-layer CTM a second asset id makes
   the round trip end with L1's record naming a different CTM than the returning diamond obeys
-  (`CtmRecordUndisciplinedRoundTripDrifts`). One that re-points an asset id leaves the record
-  and the diamond in agreement but makes another CTM's pause gate the chain's burn
+  (`CtmRecordUndisciplinedRoundTripDrifts`); a chain created on L1 under the recorded CTM can
+  then be burned towards the returned chain, whose diamond is under the other CTM
+  (`CtmRecordDriftAdmitsForeignLayer`). One registration that re-points an asset id leaves the
+  record and the diamond in agreement but makes another CTM's pause gate the chain's burn
   (`CtmRecordStaleReverseEntryMisgatesPause`).
 * **Repaired mint.** A mint that compared the existing diamond's CTM with the asset's CTM would
   keep the record and the diamond in agreement on every run, disciplined or not
   (`CtmRecordRepairedMintAgrees`), and would reject no mint of a disciplined run
   (`CtmRecordRepairAdmitsDisciplinedRuns`, `CtmRecordRepairedRoundTripWitness`). It does not
   fix the burn's pause gate (`CtmRecordRepairedMintKeepsStalePauseGate`).
-* **The premise is the weakest per call.** A registration keeps the asset maps mutually
+* **Both conditions are the weakest per call.** A registration keeps the asset maps mutually
   inverse exactly when it is `NoRebind` (`CtmRecordNoRebindIffKeepsBijection`,
-  `CtmRecordNoRebindIffKeepsBijectionWitness`).
+  `CtmRecordNoRebindIffKeepsBijectionWitness`). A mint keeps every record in agreement with its
+  diamond exactly when it passes the repaired mint's check (`CtmRecordMintKeepsAgreementIff`,
+  `CtmRecordMintKeepsAgreementIffWitness`).
 * **Only a mint can break the agreement.** Along every run with no `bridgeMint`, disciplined or
   not, the record agrees with the diamond (`CtmRecordAgreesWithoutMints`,
   `CtmRecordAgreesWithoutMintsWitness`); at `b17415d20` and `70096e2ea` every `bridgeMint`
@@ -100,27 +109,56 @@ def Properties.CtmRecordMintGatesAreDiamondCtm : Prop :=
       s'.diamond m.dst m.chain = some (mintPauseCtm s m) ∧
       s'.bhCtm m.dst m.chain = mintPauseCtm s m
 
+/-- In every state a disciplined run reaches, on every layer `h`, for every chain `c` that
+layer's `zkChainMap` holds, a CTM `X` passes the diamond's `onlyChainTypeManager` gate exactly
+when `X` is the Bridgehub's record `chainTypeManager[c]`. -/
+def Properties.CtmRecordNamesAdmittedCtm : Prop :=
+  ∀ (W : World) (s : Sys), DReach W s → ∀ h c, s.diamond h c ≠ none →
+    ∀ X, diamondAdmits s h c X ↔ X = s.bhCtm h c
+
+/-- **THE SETTLEMENT LAYER'S CTM.** From every state in which every record agrees with its
+diamond (`RecordAgrees`; by `CtmRecordAgreesWithDiamond`, every state a disciplined run
+reaches), a successful `bridgeBurn` of chain `c` on L1 towards `dst` goes to a layer whose own
+diamond on L1, if L1's `zkChainMap` holds one, is under the migrating diamond's CTM. The burn's
+two CTM checks (`CAH:232-237`, `MIG:181-189`) compare against L1's record of `dst`. -/
+def Properties.CtmRecordBurnTargetsSameCtmLayer : Prop :=
+  ∀ (W : World) (s s' : Sys) (c dst : ChainId), RecordAgrees s →
+    Step W s (.bridgeBurn W.l1 c dst) s' →
+    ∀ D E, s.diamond W.l1 c = some D → s.diamond W.l1 dst = some E → E = D
+
 /-! ## Witness -/
 
-/-- **WITNESS (every premise above).** For every asset-id function `e` with `e 10`, `e 11`
-nonzero and distinct, on `wWorld e`: a disciplined run from fresh storage creates chains `2`
+/-- **WITNESS (the premises above, except `CtmRecordBurnTargetsSameCtmLayer`'s, witnessed
+next).** For every asset-id function `e` with `e 10`, `e 11` nonzero and distinct, on
+`wWorld e`: a disciplined run from fresh storage creates chains `2`
 and `3` under CTM `10` on L1, registers `10 ↦ 10` and `11 ↦ 11` on L1 and `10 ↦ 20`,
 `11 ↦ 21` and again `10 ↦ 20` on layer `2`, sends chain `3` to layer `2` and burns it back.
 In the state `s₁` it reaches, chain `3` is away from L1 with its L1 diamond still under `10`,
 its layer-`2` diamond is under `20`, and the returning mint's pause and version CTM are both
-`10`. That mint succeeds; in the state `s₂` after it, chain `3` settles on L1 again, its
-record and diamond are `10` on L1 and `20` on layer `2`, and on both layers the asset id a burn
-of chain `3` must carry is `e 10` and its pause CTM is that layer's diamond CTM. -/
+`10`. That mint succeeds and `s₂`, the state after it, is reachable by a disciplined run. In
+`s₂` chain `3` settles on L1 again, its record and diamond are `10` on L1 and `20` on layer
+`2`, and on both layers the asset id a burn of chain `3` must carry is `e 10` and its pause
+CTM is that layer's diamond CTM. -/
 def Properties.CtmRecordDisciplinedRoundTripWitness : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
     ∃ s₁ s₂, Run (wWorld e) (Disciplined (wWorld e)) Sys.init (wSetup ++ wRegs ++ wOut e) s₁ ∧
-      Step (wWorld e) s₁ (.bridgeMint (wReturnMsg e)) s₂ ∧
+      Step (wWorld e) s₁ (.bridgeMint (wReturnMsg e)) s₂ ∧ DReach (wWorld e) s₂ ∧
       s₁.diamond 1 3 = some 10 ∧ s₁.settlement 1 3 = 2 ∧ s₁.diamond 2 3 = some 20 ∧
       mintPauseCtm s₁ (wReturnMsg e) = 10 ∧ mintVersionCtm s₁ (wReturnMsg e) = 10 ∧
       s₂.diamond 1 3 = some 10 ∧ s₂.bhCtm 1 3 = 10 ∧ s₂.settlement 1 3 = 1 ∧
       s₂.diamond 2 3 = some 20 ∧ s₂.bhCtm 2 3 = 20 ∧
       burnAsset s₂ 1 3 = e 10 ∧ burnPauseCtm s₂ 1 3 = 10 ∧
       burnAsset s₂ 2 3 = e 10 ∧ burnPauseCtm s₂ 2 3 = 20
+
+/-- **WITNESS (`CtmRecordBurnTargetsSameCtmLayer`).** For every asset-id function `e` with
+`e 10`, `e 11` nonzero and distinct, on `wWorld e`: the state `s` after the disciplined
+`wSetup ++ wRegs` satisfies `RecordAgrees`; L1 holds diamonds under CTM `10` for chain `3` and
+for the settlement layer `2`, and the burn of chain `3` on L1 towards `2` succeeds. -/
+def Properties.CtmRecordBurnTargetsSameCtmLayerWitness : Prop :=
+  ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
+    ∃ s s', Run (wWorld e) (Disciplined (wWorld e)) Sys.init (wSetup ++ wRegs) s ∧
+      RecordAgrees s ∧ Step (wWorld e) s (.bridgeBurn 1 3 2) s' ∧
+      s.diamond 1 3 = some 10 ∧ s.diamond 1 2 = some 10
 
 /-! ## Countermodels -/
 
@@ -143,6 +181,23 @@ def Properties.CtmRecordUndisciplinedRoundTripDrifts : Prop :=
       mintPauseCtm s₂ (cmReturnMsg e) = 11 ∧ mintVersionCtm s₂ (cmReturnMsg e) = 10 ∧
       ¬ RepairGuard s₂ (.bridgeMint (cmReturnMsg e)) ∧
       s₃.diamond 1 3 = some 10 ∧ s₃.bhCtm 1 3 = 11
+
+/-- **COUNTERMODEL: A DRIFTED RECORD ADMITS A SETTLEMENT LAYER UNDER ANOTHER CTM.** For every
+asset-id function `e` with `e 10`, `e 11` nonzero and distinct, on `wWorld e`: after the
+disciplined `wSetup` and the one registration `cmRebind`, which violates `NoRebind`, the
+disciplined calls `wOut e`, the mint of `cmReturnMsg e` and `createNewChain(4, 11)` reach a
+state `s₄` that fails `RecordAgrees`: L1 records chain `3` under `11`, while its diamond there
+admits `10` and not `11`. Chain `4`'s L1 diamond admits `11`, and the burn of chain `4` on L1
+towards `3` succeeds, so `CtmRecordBurnTargetsSameCtmLayer`'s conclusion fails at `s₄`. -/
+def Properties.CtmRecordDriftAdmitsForeignLayer : Prop :=
+  ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
+    ∃ s₀ s₁ s₄ s₅, Run (wWorld e) (Disciplined (wWorld e)) Sys.init wSetup s₀ ∧
+      ¬ Disciplined (wWorld e) s₀ cmRebind ∧ Step (wWorld e) s₀ cmRebind s₁ ∧
+      Run (wWorld e) (Disciplined (wWorld e)) s₁
+        (wOut e ++ [.bridgeMint (cmReturnMsg e), .createNewChain 4 11]) s₄ ∧
+      ¬ RecordAgrees s₄ ∧ s₄.bhCtm 1 3 = 11 ∧
+      diamondAdmits s₄ 1 3 10 ∧ ¬ diamondAdmits s₄ 1 3 11 ∧ diamondAdmits s₄ 1 4 11 ∧
+      Step (wWorld e) s₄ (.bridgeBurn 1 4 3) s₅
 
 /-- **COUNTERMODEL: A STALE REVERSE ENTRY.** For every asset-id function `e` with `e 10 ≠ 0`,
 on `wWorld e`: a disciplined run `staleSetup e` brings chain `3` to layer `2`; then the one
@@ -197,6 +252,32 @@ def Properties.CtmRecordRepairedMintKeepsStalePauseGate : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 →
     ∃ s, Run (wWorld e) RepairGuard Sys.init (staleSetup e ++ [staleRebind]) s ∧
       s.diamond 2 3 = some 20 ∧ s.bhCtm 2 3 = 20 ∧ burnPauseCtm s 2 3 = 21
+
+/-- **WEAKEST PER-MINT CONDITION.** From a state satisfying `RecordAgrees`, a successful
+`bridgeMint` of `m` ends in a state satisfying `RecordAgrees` exactly when it passes
+`RepairGuard`: a diamond the destination already holds for `m.chain` is under the CTM
+`ctmAssetIdToAddress[m.asset]`. -/
+def Properties.CtmRecordMintKeepsAgreementIff : Prop :=
+  ∀ (W : World) (s s' : Sys) (m : Msg), RecordAgrees s → Step W s (.bridgeMint m) s' →
+    (RepairGuard s (.bridgeMint m) ↔ RecordAgrees s')
+
+/-- **WITNESS (`CtmRecordMintKeepsAgreementIff`, both sides, with an existing diamond).** For
+every asset-id function `e` with `e 10`, `e 11` nonzero and distinct, on `wWorld e`, L1 holds
+chain `3`'s diamond under `10` before each of two return mints. After the disciplined round trip
+the mint of `wReturnMsg e` starts and ends in states satisfying `RecordAgrees` and passes
+`RepairGuard`. After `wSetup`, `cmRebind` and `wOut e`, a run of the repaired mint, the mint of
+`cmReturnMsg e` starts in a state satisfying `RecordAgrees`, fails `RepairGuard`, succeeds, and
+ends in a state that does not satisfy it. -/
+def Properties.CtmRecordMintKeepsAgreementIffWitness : Prop :=
+  ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
+    (∃ s₁ s₂, Run (wWorld e) (Disciplined (wWorld e)) Sys.init (wSetup ++ wRegs ++ wOut e) s₁ ∧
+      RecordAgrees s₁ ∧ s₁.diamond 1 3 = some 10 ∧
+      Step (wWorld e) s₁ (.bridgeMint (wReturnMsg e)) s₂ ∧
+      RepairGuard s₁ (.bridgeMint (wReturnMsg e)) ∧ RecordAgrees s₂) ∧
+    (∃ s₂ s₃, Run (wWorld e) RepairGuard Sys.init (wSetup ++ cmRebind :: wOut e) s₂ ∧
+      RecordAgrees s₂ ∧ s₂.diamond 1 3 = some 10 ∧
+      Step (wWorld e) s₂ (.bridgeMint (cmReturnMsg e)) s₃ ∧
+      ¬ RepairGuard s₂ (.bridgeMint (cmReturnMsg e)) ∧ ¬ RecordAgrees s₃)
 
 /-! ## The discipline is exactly what keeps the asset maps a partial bijection -/
 

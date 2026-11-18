@@ -46,8 +46,10 @@ and properties remain under `../Contracts/<SolidityName>/`.
   run whose CTM asset registrations keep each layer's asset maps a partial bijection
   (`CtmRecordAgreesWithDiamond`). On those runs the CTM whose version check a migration step
   runs, and the CTM whose pause gates it (for a burn, whenever its asset id is nonzero), is the
-  CTM that can upgrade or freeze the chain. Countermodels without that premise; a repaired
-  mint; the premise at the tracker's level.
+  CTM that can upgrade or freeze the chain, and a chain burned on L1 towards a settlement layer
+  with an L1 diamond goes to one whose L1 diamond is under the chain's own CTM. Countermodels
+  without that premise; a repaired mint, and the exact per-mint condition for keeping the
+  agreement; the premise at the tracker's level.
 
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.

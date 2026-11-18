@@ -53,9 +53,11 @@ the diamond (`BB:437`, `:446`):
     chainTypeManager[_chainId] = ctm;                         // BB:446
 
 The two asset maps are written together, and only, by `setCTMAssetAddress` (`BB:268-293`),
-which overwrites both entries and clears neither stale reverse entry:
+which overwrites the two entries it names and clears neither the forward entry of the CTM's
+previous asset id nor the reverse entry of the asset id's previous CTM:
 
-    bytes32 ctmAssetId = DataEncoding.encodeAssetId(_getL1ChainId(), _additionalData, sender); // BB:289
+    // BB:289
+    bytes32 ctmAssetId = DataEncoding.encodeAssetId(_getL1ChainId(), _additionalData, sender);
     ctmAssetIdToAddress[ctmAssetId] = _assetAddress;          // BB:290
     ctmAssetIdFromAddress[_assetAddress] = ctmAssetId;        // BB:291
 
@@ -92,13 +94,15 @@ and `zkChainMap` at `BB:303` only (in `_registerNewZKChain`, called at `L1BH:133
 
 * **A revert is the absence of a step.** Each kept guard cites its line. Reject-only checks
   are omitted, which only adds runs: callers (`onlyChainAssetHandler`, `onlyAssetRouter`,
-  owners, admins), pauses and `whenMigrationsEnabled` (`CAH:198-201`; `CFG:320` sets
-  `CHAIN_MIGRATIONS_ENABLED = false`, so at `b17415d20` no migration step can run at all),
-  the settlement-layer whitelist (`BB:407-409`, `:416-418`), protocol versions
-  (`CTM:729-738`, `:750-756`, `MIG:192-198`, `:223-229`), migration numbers
-  (`CAH:274-279`, `:372-384`, `L1CAH:286-289`, `:309-314`), priority queues, deposit pauses,
-  batches, base tokens, the message root, chain-count limits, `_validateChainParams`'
-  asset-id and registration checks, and `isReadyForMigration`.
+  owners, admins), pauses and `whenMigrationsEnabled` (`CAH:198-201`, `:365`; `CFG:320` sets
+  `CHAIN_MIGRATIONS_ENABLED = false`, so at `b17415d20` every `bridgeBurn` and `bridgeMint`
+  reverts, while `bridgeConfirmTransferResult` is deliberately ungated, `L1CAH:119-120`),
+  the settlement-layer whitelist (`BB:407-409`, `:416-418`), the new admin (`CTM:728-731`),
+  protocol versions (`CTM:735-738`, `:754-756`, `MIG:192-198`, `:223-229`), migration numbers
+  (`CAH:274-279`, `:372-384`, `L1CAH:286-289`, `:309-314`), the settlement layer's own
+  identity (`MIG:182-185`), priority queues, deposit pauses, batches, base tokens, the
+  message root, chain-count limits, `_validateChainParams`' asset-id and registration
+  checks, and `isReadyForMigration`.
 * **Messages persist.** A burn appends its message; a mint needs the message to be among
   those sent and does not consume it. Replays and the mint of a failed transfer are therefore
   steps, a superset of the source's runs.
@@ -322,6 +326,20 @@ CTM whose `forwardedBridgeMint` deploys one (`CAH:399`, `CTM:754-756`). -/
 def mintVersionCtm (s : Sys) (m : Msg) : Address :=
   (s.diamond m.dst m.chain).getD (s.assetCtm m.dst m.asset)
 
+/-! ## The CTM a diamond admits, and the agreement -/
+
+/-- The diamond's `onlyChainTypeManager` gate (`ZCB:85-90`) on layer `h`: a call from `X` into
+chain `c`'s diamond passes it exactly when the layer's `zkChainMap` holds a diamond for `c`
+whose `s.chainTypeManager` is `X`. The gate guards `executeUpgrade` (`ADM:593`),
+`freezeDiamond` (`ADM:616`) and `unfreezeDiamond` (`ADM:629`), which a CTM reaches through
+`CTM:626-628`, `:577-579` and `:584-586`, each finding the diamond through the Bridgehub's
+`getZKChain` (`CTM:253-255`). -/
+def diamondAdmits (s : Sys) (h c : ChainId) (X : Address) : Prop := s.diamond h c = some X
+
+/-- On every layer, every chain the layer's `zkChainMap` holds has the Bridgehub's record
+`chainTypeManager[c]` equal to its diamond's `s.chainTypeManager`. -/
+def RecordAgrees (s : Sys) : Prop := ∀ h c D, s.diamond h c = some D → s.bhCtm h c = D
+
 /-! ## The invariant -/
 
 /-- On every layer, `ctmAssetIdToAddress[a] = y ≠ 0` exactly when
@@ -377,7 +395,9 @@ def PairDiscipline (W : World) (ops : List Op) : Prop :=
 /-! ## Witness data
 
 Layer `1` is L1 and layer `2` a settlement layer, which is also chain `2` on L1. L1 CTMs `10`
-and `11`; settlement-layer CTMs `20` and `21`; the migrating chain is `3`. -/
+and `11`; settlement-layer CTMs `20` and `21`; the migrating chain is `3`. In
+`CtmRecordDriftAdmitsForeignLayer` chain `4`, created on L1 under `11`, burns towards chain `3`
+as its settlement layer. -/
 
 /-- One asset-id function on both layers, as in the source. -/
 def wWorld (e : Word → AssetId) : World := ⟨1, fun _ d => e d⟩

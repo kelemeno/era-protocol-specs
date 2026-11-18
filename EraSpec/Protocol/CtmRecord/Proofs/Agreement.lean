@@ -4,7 +4,8 @@ import EraSpec.Protocol.CtmRecord.Properties.Agreement
 # Proofs: the Bridgehub's CTM record agrees with the CTM the chain's diamond obeys
 
 `CtmInv` is inductive over every call (one lemma per kind of step). The corollaries read it
-off; the repaired mint keeps the agreement half alone; the tracker-level discipline is turned
+off; the settlement layer's CTM and the per-mint condition need only its agreement half
+`RecordAgrees`, which the repaired mint keeps alone; the tracker-level discipline is turned
 into `NoRebind` by a second invariant tying the asset maps to the registrations seen so far.
 The witnesses and countermodels are explicit runs.
 -/
@@ -312,6 +313,25 @@ theorem CtmRecordMintGatesAreDiamondCtm : Properties.CtmRecordMintGatesAreDiamon
     · show upd2 s.bhCtm m.dst m.chain _ m.dst m.chain = _
       rw [upd2_apply, ite_eq_left ⟨rfl, rfl⟩]; rfl
 
+theorem CtmRecordNamesAdmittedCtm : Properties.CtmRecordNamesAdmittedCtm := by
+  intro W s hs h c hc X
+  cases hd : s.diamond h c with
+  | none => exact absurd hd hc
+  | some D =>
+    have hrec := (CtmRecordInvReachable W s hs).agree h c D hd
+    show s.diamond h c = some X ↔ X = s.bhCtm h c
+    rw [hd, hrec, Option.some_inj]
+    exact eq_comm
+
+theorem CtmRecordBurnTargetsSameCtmLayer : Properties.CtmRecordBurnTargetsSameCtmLayer := by
+  intro W s s' c dst hA hs D E hD hE
+  cases hs with
+  | @bridgeBurn _ _ _ D' _ _ hD' _ _ hnotL1 hmis =>
+    -- the burn's own diamond is `D`
+    obtain rfl : D' = D := Option.some_inj.1 (hD'.symm.trans hD)
+    -- `SettlementLayerCTMMismatch` against L1's record of `dst`, which is `dst`'s diamond CTM
+    rw [hmis (hnotL1 rfl), hA _ _ _ hE]
+
 /-! ## The discipline is exactly what keeps the bijection -/
 
 theorem CtmRecordNoRebindIffKeepsBijection :
@@ -434,6 +454,33 @@ theorem CtmRecordRepairAdmitsDisciplinedRuns :
     Properties.CtmRecordRepairAdmitsDisciplinedRuns := by
   intro W ops s hr
   exact admits_run hr (CtmRecordInvInit W)
+
+theorem CtmRecordMintKeepsAgreementIff : Properties.CtmRecordMintKeepsAgreementIff := by
+  intro W s s' m hA hs
+  cases hs with
+  | bridgeMint _ _ _ _ =>
+    constructor
+    · -- the repaired mint writes the record and keeps or deploys a diamond under one CTM
+      intro hok h c D hD
+      have hgetD : (s.diamond m.dst m.chain).getD (s.assetCtm m.dst m.asset) =
+          s.assetCtm m.dst m.asset := by
+        cases hd : s.diamond m.dst m.chain with
+        | none => rfl
+        | some D => exact hok D hd
+      simp only [upd2_apply] at hD ⊢
+      split_ifs at hD ⊢ with hk
+      · rw [hgetD] at hD; cases hD; rfl
+      · exact hA _ _ _ hD
+    · -- an existing diamond is kept, so agreement afterwards forces its CTM to be the asset's
+      intro hA'
+      show ∀ D, s.diamond m.dst m.chain = some D → D = s.assetCtm m.dst m.asset
+      intro D hD
+      have hkept := hA' m.dst m.chain D (by
+        show upd2 s.diamond m.dst m.chain _ m.dst m.chain = some D
+        rw [upd2_apply, ite_eq_left ⟨rfl, rfl⟩, hD]; rfl)
+      change upd2 s.bhCtm m.dst m.chain (s.assetCtm m.dst m.asset) m.dst m.chain = D at hkept
+      rw [upd2_apply, ite_eq_left ⟨rfl, rfl⟩] at hkept
+      exact hkept.symm
 
 /-- With no mint among the calls, the repaired mint's check never applies. -/
 private lemma run_repair_of_no_mint {W : World} :
@@ -582,6 +629,7 @@ section Runs
 
 attribute [local simp] Sys.addChain Sys.init wWorld wReturnMsg cmReturnMsg mintPauseCtm
   mintVersionCtm burnAsset burnPauseCtm burnVersionCtm NoRebind Disciplined RepairGuard
+  diamondAdmits
 
 /-- The calls of the disciplined round trip, as a literal list. -/
 private lemma wTrip_eq (e : Word → AssetId) :
@@ -591,9 +639,16 @@ private lemma wTrip_eq (e : Word → AssetId) :
         .setCTMAssetAddress 2 11 21, .setCTMAssetAddress 2 10 20,
         .bridgeBurn 1 3 2, .bridgeMint ⟨3, e 10, 1, 2⟩, .bridgeBurn 2 3 1] := rfl
 
-theorem CtmRecordDisciplinedRoundTripWitness :
-    Properties.CtmRecordDisciplinedRoundTripWitness := by
-  intro e h10 h11 hne
+/-- The disciplined round trip and the return mint, with the facts the witnesses read off. -/
+private lemma trip (e : Word → AssetId) (h10 : e 10 ≠ 0) (h11 : e 11 ≠ 0) (hne : e 10 ≠ e 11) :
+    ∃ s₁ s₂, Run (wWorld e) (Disciplined (wWorld e)) Sys.init (wSetup ++ wRegs ++ wOut e) s₁ ∧
+      Step (wWorld e) s₁ (.bridgeMint (wReturnMsg e)) s₂ ∧
+      s₁.diamond 1 3 = some 10 ∧ s₁.settlement 1 3 = 2 ∧ s₁.diamond 2 3 = some 20 ∧
+      mintPauseCtm s₁ (wReturnMsg e) = 10 ∧ mintVersionCtm s₁ (wReturnMsg e) = 10 ∧
+      s₂.diamond 1 3 = some 10 ∧ s₂.bhCtm 1 3 = 10 ∧ s₂.settlement 1 3 = 1 ∧
+      s₂.diamond 2 3 = some 20 ∧ s₂.bhCtm 2 3 = 20 ∧
+      burnAsset s₂ 1 3 = e 10 ∧ burnPauseCtm s₂ 1 3 = 10 ∧
+      burnAsset s₂ 2 3 = e 10 ∧ burnPauseCtm s₂ 2 3 = 20 := by
   have hne' : e 11 ≠ e 10 := fun h => hne h.symm
   rw [wTrip_eq]
   exact ⟨_, _,
@@ -612,6 +667,38 @@ theorem CtmRecordDisciplinedRoundTripWitness :
     Run.nil _,
     Step.bridgeMint (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*]),
     by simp [*]⟩
+
+theorem CtmRecordDisciplinedRoundTripWitness :
+    Properties.CtmRecordDisciplinedRoundTripWitness := by
+  intro e h10 h11 hne
+  obtain ⟨s₁, s₂, hr, hs, hf⟩ := trip e h10 h11 hne
+  exact ⟨s₁, s₂, hr, hs, ⟨_, run_snoc hr (by exact trivial) hs⟩, hf⟩
+
+theorem CtmRecordBurnTargetsSameCtmLayerWitness :
+    Properties.CtmRecordBurnTargetsSameCtmLayerWitness := by
+  intro e h10 h11 hne
+  have hne' : e 11 ≠ e 10 := fun h => hne h.symm
+  have key : ∃ s s', Run (wWorld e) (Disciplined (wWorld e)) Sys.init (wSetup ++ wRegs) s ∧
+      Step (wWorld e) s (.bridgeBurn 1 3 2) s' ∧
+      s.diamond 1 3 = some 10 ∧ s.diamond 1 2 = some 10 := by
+    have hl : wSetup ++ wRegs = [.createNewChain 2 10, .createNewChain 3 10,
+        .setCTMAssetAddress 1 10 10, .setCTMAssetAddress 1 11 11, .setCTMAssetAddress 2 10 20,
+        .setCTMAssetAddress 2 11 21, .setCTMAssetAddress 2 10 20] := rfl
+    rw [hl]
+    exact ⟨_, _,
+      Run.cons trivial (Step.createNewChain (by simp) (by simp) (by simp) rfl rfl) <|
+      Run.cons trivial (Step.createNewChain (by simp) (by simp) (by simp) (by simp) (by simp)) <|
+      Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+      Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+      Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+      Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+      Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+      Run.nil _,
+      Step.bridgeBurn (D := 10) (by simp [*]) (by simp [*]) (by simp [*])
+        (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*]),
+      by simp [*], by simp [*]⟩
+  obtain ⟨s, s', hr, hs, h3, h2⟩ := key
+  exact ⟨s, s', hr, (CtmRecordInvReachable _ _ ⟨_, hr⟩).agree, hs, h3, h2⟩
 
 theorem CtmRecordUndisciplinedRoundTripDrifts :
     Properties.CtmRecordUndisciplinedRoundTripDrifts := by
@@ -640,6 +727,39 @@ theorem CtmRecordUndisciplinedRoundTripDrifts :
     Step.bridgeMint (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*]),
     by simp [*]⟩
 
+theorem CtmRecordDriftAdmitsForeignLayer : Properties.CtmRecordDriftAdmitsForeignLayer := by
+  intro e h10 h11 hne
+  have hne' : e 11 ≠ e 10 := fun h => hne h.symm
+  have hs : wSetup = [.createNewChain 2 10, .createNewChain 3 10, .setCTMAssetAddress 1 10 10,
+      .setCTMAssetAddress 1 11 11, .setCTMAssetAddress 2 10 20] := rfl
+  have ho : wOut e ++ [.bridgeMint (cmReturnMsg e), .createNewChain 4 11] =
+      [.bridgeBurn 1 3 2, .bridgeMint ⟨3, e 10, 1, 2⟩, .bridgeBurn 2 3 1,
+        .bridgeMint ⟨3, e 11, 2, 1⟩, .createNewChain 4 11] := rfl
+  rw [hs, ho]; clear hs ho
+  exact ⟨_, _, _, _,
+    Run.cons trivial (Step.createNewChain (by simp) (by simp) (by simp) rfl rfl) <|
+    Run.cons trivial (Step.createNewChain (by simp) (by simp) (by simp) (by simp) (by simp)) <|
+    Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+    Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+    Run.cons (by simp [*]) (Step.setCTMAssetAddress (by simp)) <|
+    Run.nil _,
+    by simp [cmRebind, *],
+    Step.setCTMAssetAddress (by simp),
+    Run.cons trivial (Step.bridgeBurn (D := 10) (by simp [*]) (by simp [*]) (by simp [*])
+      (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*])) <|
+    Run.cons trivial (Step.bridgeMint (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*])) <|
+    Run.cons trivial (Step.bridgeBurn (D := 20) (by simp [*]) (by simp [*]) (by simp [*])
+      (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*])) <|
+    Run.cons trivial (Step.bridgeMint (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*])) <|
+    Run.cons trivial (Step.createNewChain (by simp) (by simp) (by simp) (by simp [*])
+      (by simp [*])) <|
+    Run.nil _,
+    -- L1's record of chain `3` is `11`, its diamond's CTM `10`
+    fun hA => absurd (hA 1 3 10 (by simp [*])) (by simp [*]),
+    by simp [*], by simp [*], by simp [*], by simp [*],
+    Step.bridgeBurn (D := 11) (by simp [*]) (by simp [*]) (by simp [*])
+      (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*])⟩
+
 theorem CtmRecordStaleReverseEntryMisgatesPause :
     Properties.CtmRecordStaleReverseEntryMisgatesPause := by
   intro e h10
@@ -667,8 +787,7 @@ theorem CtmRecordStaleReverseEntryMisgatesPause :
 
 theorem CtmRecordRepairedRoundTripWitness : Properties.CtmRecordRepairedRoundTripWitness := by
   intro e h10 h11 hne
-  obtain ⟨s₁, s₂, hr, hs, -, -, -, -, -, h1, h2, -, h3, -⟩ :=
-    CtmRecordDisciplinedRoundTripWitness e h10 h11 hne
+  obtain ⟨s₁, s₂, hr, hs, -, -, -, -, -, h1, h2, -, h3, -⟩ := trip e h10 h11 hne
   exact ⟨s₂, CtmRecordRepairAdmitsDisciplinedRuns _ _ _ (run_snoc hr trivial hs), h1, h2, h3⟩
 
 theorem CtmRecordRepairedMintKeepsStalePauseGate :
@@ -690,6 +809,51 @@ theorem CtmRecordRepairedMintKeepsStalePauseGate :
     Run.cons trivial (Step.setCTMAssetAddress (by simp)) <|
     Run.nil _,
     by simp [*]⟩
+
+theorem CtmRecordMintKeepsAgreementIffWitness :
+    Properties.CtmRecordMintKeepsAgreementIffWitness := by
+  intro e h10 h11 hne
+  have hne' : e 11 ≠ e 10 := fun h => hne h.symm
+  refine ⟨?_, ?_⟩
+  · -- the disciplined return mint keeps the agreement, so it passes the repaired check
+    obtain ⟨s₁, s₂, hr, hs, hd, -⟩ := trip e h10 h11 hne
+    have hA₁ : RecordAgrees s₁ := (CtmRecordInvReachable _ _ ⟨_, hr⟩).agree
+    have hA₂ : RecordAgrees s₂ :=
+      (CtmRecordInvReachable _ _ ⟨_, run_snoc hr (by exact trivial) hs⟩).agree
+    exact ⟨s₁, s₂, hr, hA₁, hd, hs, (CtmRecordMintKeepsAgreementIff _ _ _ _ hA₁ hs).2 hA₂, hA₂⟩
+  · -- the drifting return mint, after a run of the repaired mint
+    have key : ∃ s₂ s₃, Run (wWorld e) RepairGuard Sys.init (wSetup ++ cmRebind :: wOut e) s₂ ∧
+        s₂.diamond 1 3 = some 10 ∧ Step (wWorld e) s₂ (.bridgeMint (cmReturnMsg e)) s₃ ∧
+        ¬ RepairGuard s₂ (.bridgeMint (cmReturnMsg e)) ∧
+        s₃.diamond 1 3 = some 10 ∧ s₃.bhCtm 1 3 = 11 := by
+      have hl : wSetup ++ cmRebind :: wOut e = [.createNewChain 2 10, .createNewChain 3 10,
+          .setCTMAssetAddress 1 10 10, .setCTMAssetAddress 1 11 11, .setCTMAssetAddress 2 10 20,
+          .setCTMAssetAddress 2 11 20, .bridgeBurn 1 3 2, .bridgeMint ⟨3, e 10, 1, 2⟩,
+          .bridgeBurn 2 3 1] := rfl
+      rw [hl]
+      exact ⟨_, _,
+        Run.cons trivial (Step.createNewChain (by simp) (by simp) (by simp) rfl rfl) <|
+        Run.cons trivial (Step.createNewChain (by simp) (by simp) (by simp) (by simp)
+          (by simp)) <|
+        Run.cons trivial (Step.setCTMAssetAddress (by simp)) <|
+        Run.cons trivial (Step.setCTMAssetAddress (by simp)) <|
+        Run.cons trivial (Step.setCTMAssetAddress (by simp)) <|
+        Run.cons trivial (Step.setCTMAssetAddress (by simp)) <|
+        Run.cons trivial (Step.bridgeBurn (D := 10) (by simp [*]) (by simp [*]) (by simp [*])
+          (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*])) <|
+        Run.cons (by simp [*]) (Step.bridgeMint (by simp [*]) (by simp [*]) (by simp [*])
+          (by simp [*])) <|
+        Run.cons trivial (Step.bridgeBurn (D := 20) (by simp [*]) (by simp [*]) (by simp [*])
+          (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*])) <|
+        Run.nil _,
+        by simp [*],
+        Step.bridgeMint (by simp [*]) (by simp [*]) (by simp [*]) (by simp [*]),
+        by simp [*], by simp [*], by simp [*]⟩
+    obtain ⟨s₂, s₃, hr, hd, hst, hng, hd3, hb3⟩ := key
+    refine ⟨s₂, s₃, hr, CtmRecordRepairedMintAgrees _ _ _ hr, hd, hst, hng, fun hA => ?_⟩
+    have h3 := hA 1 3 10 hd3
+    rw [hb3] at h3
+    exact absurd h3 (by decide)
 
 /-- The disciplined `wSetup` run, with the three entries of its final state that the
 registrations `11 ↦ 21` and `11 ↦ 20` on layer `2` read. -/
