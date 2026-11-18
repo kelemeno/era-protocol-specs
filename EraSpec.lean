@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- L1ChainAssetHandler at draft/v0.35.0 (b17415d20): isValidSettlementLayer against the layer that
+-- executed each batch, over a run of executions and one migration round trip (N-22)
+import EraSpec.Contracts.L1ChainAssetHandler.Proofs.SettlementLayerValidation
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

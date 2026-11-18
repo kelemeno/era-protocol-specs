@@ -51,8 +51,19 @@ caller, at `L1MR:103-109`). The direct branch (`MRB:343-348`) does not call it. 
 `MAX_ALLOWED_NUMBER_OF_MIGRATIONS = 2`, `MIGRATION_NUMBER_L1_TO_SETTLEMENT_LAYER = 1`,
 `MIGRATION_NUMBER_SETTLEMENT_LAYER_TO_L1 = 2` (`CFG:323-329`). At `main` `70096e2ea` the loop
 starts at index 0 (`L1ChainAssetHandler.sol:256` there), where `setHistoricalMigrationInterval`
-(`:219-237` there) records legacy Era Gateway intervals; `isValidSettlementLayerMain` is that
-loop. Everything else in this file is the v35 head.
+(`:219-237` there, owner-only) records legacy Era Gateway intervals; `isValidSettlementLayerMain`
+is that loop. Everything else in this file is the v35 head.
+
+**`main` on this path (argued from source, not modelled).** Besides the loop and that writer,
+`main` differs on the cited paths in reject-only checks (`isPreV31` in `isReadyForMigration`, the
+pause modifier, `NotEraChain`), in `bridgeMint` skipping the L1 migration-number checks when
+`migrationNumber` is 0 (`ChainAssetHandlerBase.sol:379` there; an L1 mint also needs the chain
+away, `BridgehubBase.sol:442-443` there), and in one more writer of L1's counter,
+`saveV31UpgradeChainBatchNumber` (`L1MessageRoot.sol:89-107` there), which needs that counter to
+be 0 and the diamond's executed count to be positive. On the model's reachable states the two
+counters are equal and an away chain has `migrationNumber` 1
+(`Properties.CountersEqualAndAwayMeansMigrationOne`), so neither difference fires; with no legacy
+interval written, `Properties.MainAgreesWithoutLegacyInterval` gives `main`'s answer.
 
 ## Every writer of the classification state (checked against `b17415d20`)
 
@@ -83,9 +94,9 @@ not (`L1CAH:118-128`).
   logs root to the local message root (`EXE:192-194` → `EXE:163-166` → `MRB:173-180`), whose
   `_recordChainBatchRoot` requires `_batchNumber == currentChainBatchNumber[c] + 1` and sets the
   counter to it (`MRB:192-196`), then requires the same number to be
-  `totalBatchesExecuted + i + 1` (`EXE:66-68`) and adds the count (`EXE:201-202`). A call of
-  several batches succeeds iff the same batches one at a time do; the model executes one batch
-  per step.
+  `totalBatchesExecuted + i + 1` (`EXE:66-68`) and adds the count (`EXE:201-202`). For these two
+  counter checks, a call of several batches passes iff the same batches one at a time do; the
+  model executes one batch per step.
 * **Registration.** `createNewChain` calls `addNewChain(c, 0)` (`L1BH:134`) on a diamond whose
   `DiamondInit` starts at batch 0; `registerAlreadyDeployedZKChain` calls
   `addNewChain(c, totalBatchesExecuted)` (`L1BH:316`). Both start the two counters equal.
@@ -95,6 +106,11 @@ not (`L1CAH:118-128`).
   which reverts `ChainExists` for a registered chain; or `setMigratingChainBatchNumber`,
   `CAH:414`, `MRB:153-157`, which requires the counter `<= batchNumber`), and the diamond's
   counter to the commitment's (`MIG:230-240`).
+* **No other writer.** `totalBatchesExecuted` is written only at `EXE:202` and `MIG:240`, and
+  `currentChainBatchNumber` only at `MRB:156`, `:196` and `:282` (`_addNewChain`). Committing,
+  proving and reverting batches write neither (`_revertBatches` refuses to go below the executed
+  count, `ZKB:321-323`), and `bridgeConfirmTransferResult` with `TxStatus.Success` writes none of
+  the state above (`L1CAH:151`, `MIG:318-320`); none of these is a step.
 
 ## What is modelled
 
@@ -110,10 +126,11 @@ failure; the layer's `bridgeBurn` back to L1; L1's `bridgeMint` of the return. A
 `none`. `valRun` runs a list of steps.
 
 **Ghost state.** `hist b` records, when batch `b` of `c` is executed, the chain id of the layer
-whose diamond executed it and, on a settlement layer, that layer's batch open at the time (the
-first layer batch whose message root contains `b`'s root: each layer batch commits the layer's
-message root as of its end, `MRB:199-220`). `total` counts executed batches. Neither is read by
-any guard.
+whose diamond executed it and, on a settlement layer, that layer's batch open at the time. The
+execution appends `b`'s root to the layer's message root (`EXE:192-194`, `MRB:199-220`); reading
+that open batch as the first layer batch whose root contains `b`'s root assumes that each layer
+batch commits the layer's message root as of the batch's end (the layer's system contracts, not
+modelled). `total` counts executed batches. Neither is read by any guard.
 
 ## Modelling choices
 
@@ -123,7 +140,8 @@ any guard.
   protocol version, all batches executed, batch counts and hashes, priority tree:
   `MIG:159-205`, `:217-259`, `:270-279`), the message root's nonzero-root and write-once checks
   (`MRB:187-191`), and the executor's proof, priority and hash checks. Omitting a check that can
-  only reject adds runs, so every universal result covers the source.
+  only reject only adds runs, so a statement about every run of the model also covers the runs in
+  which those checks pass.
 * **Kept guards**, in each step's docstring with `file:line`: `whenMigrationsEnabled`, the
   bridgehub's whitelist checks (`BH:407-418`), `onlySettlementLayer` and the diamond's
   `settlementLayer` checks, the migration-number checks, both counters' consecutiveness, the
@@ -144,8 +162,8 @@ any guard.
   (`BH:416-418`), and the whitelist (`L1BH:94-100`) is fixed for the run (`ValWorld.wl`). Its own
   batches are executed on L1 in order (`slExecL1`).
 * **One chain.** The handler's mappings are keyed by chain id and every writer writes the entry of
-  the chain it migrates; another chain's migration reaches this model only through L1's counter
-  of a settlement layer, which `slExecL1` covers.
+  the chain it migrates; other chains reach this model only through a settlement layer's batches
+  and L1's counter of them, which `slSeal` and `slExecL1` cover.
 * **`CHAIN_MIGRATIONS_ENABLED` is `ValWorld.enabled`** (`false` at this commit). The positive
   results hold for both values; the round-trip witness uses `true`.
 -/
@@ -235,8 +253,8 @@ structure ValWorld where
   enabled : Bool
 
 /-- The configuration premise: chain id 0 is not a whitelisted settlement layer. `L1BH:94-100`
-whitelists only a chain whose `settlementLayer` is L1, which a registered chain has, and no chain
-with id 0 is registered (`BH:491-494`). -/
+whitelists only a chain whose `settlementLayer` entry is L1, which only a registered chain has,
+and no chain with id 0 is registered (`BH:491-494`). -/
 def ValWorld.Ok (W : ValWorld) : Prop := W.wl 0 = false
 
 /-- The environment guarantees, as switches (see the module docstring). -/
@@ -478,8 +496,8 @@ def valRun (K : ValEnv) (W : ValWorld) : ValState → List ValLabel → Option V
 
 /-- A start state: `c` is registered on L1 and has never left it. It settles on L1 with both L1
 counters at `total` (as `L1BH:134` and `L1BH:316` leave them), it has never migrated
-(`migrationNumber` 0) and interval 2 is empty, no message is in flight and no diamond of `c` on
-a settlement layer settles there; every batch executed so far was executed on L1; and every
+(`migrationNumber` 0) and interval 2 is uninitialized, no message is in flight and no diamond of
+`c` on a settlement layer settles there; every batch executed so far was executed on L1; and every
 other chain's open batch is past the batches of it L1 has executed. Interval 1 and the layers'
 handler numbers are arbitrary (each is written before it is read). -/
 def ValInit (W : ValWorld) (s : ValState) : Prop :=
