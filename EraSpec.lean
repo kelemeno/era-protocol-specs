@@ -423,6 +423,10 @@ import EraSpec.Protocol.PriorityMirror.Proofs.Mirror
 -- executed each batch, over a run of executions and one migration round trip
 import EraSpec.Contracts.L1ChainAssetHandler.Proofs.SettlementLayerValidation
 
+-- The second-proof-system requirement of one chain, its two diamonds, interop enabling and
+-- settlement-layer migration (draft/v0.35.0 at b17415d2; see the folder README)
+import EraSpec.Contracts.SecondProofSystem.Proofs.MigrationV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
