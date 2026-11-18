@@ -256,6 +256,11 @@ import EraSpec.Protocol.L2BridgeConfig.Proofs.Consistency
 -- cited Solidity is unchanged since d9f678900), on the pin's interop model
 import EraSpec.Protocol.InteropAtomicity.Proofs.LegSourceFilterAtV35
 
+-- ChainAdminOwnable at b17415d20: who drives its calls, what a renounce leaves, and the diamond
+-- and Bridgehub admin roles it holds (backlog N-14)
+import EraSpec.Contracts.ChainAdminOwnable.Proofs.Authority
+import EraSpec.Contracts.ChainAdminOwnable.Proofs.AdminRoles
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
