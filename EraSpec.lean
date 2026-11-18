@@ -356,6 +356,14 @@ import EraSpec.Contracts.L2AssetTracker.Proofs.LaterHeads
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.TrackerHooks
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.L1TrackerHooks
 
+-- DataEncoding (c67894b9): asset ids, the deposit record hash and the burn data at byte level,
+-- with the router and vault id results restated in keccak-collision form
+import EraSpec.Contracts.DataEncoding.Proofs.AssetId
+import EraSpec.Contracts.DataEncoding.Proofs.AssetIdRuns
+import EraSpec.Contracts.DataEncoding.Proofs.AssetIdRecovery
+import EraSpec.Contracts.DataEncoding.Proofs.TxDataHash
+import EraSpec.Contracts.DataEncoding.Proofs.BurnDataSlice
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
