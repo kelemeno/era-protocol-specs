@@ -466,6 +466,16 @@ import EraSpec.Contracts.L1Nullifier.Proofs.Reentrancy
 import EraSpec.Contracts.MessageRoot.Proofs.Model
 import EraSpec.Contracts.MessageRoot.Proofs.Countermodels
 
+-- Settlement: the ValidatorTimelock between validators and chain diamonds (draft/v0.35.0 at
+-- b17415d20): each entry point exactly, the execution delay, the per-chain roles, chain
+-- isolation, the owner, and the packed commit-timestamp map
+import EraSpec.Contracts.ValidatorTimelock.Proofs.Model
+import EraSpec.Contracts.ValidatorTimelock.Proofs.Delay
+import EraSpec.Contracts.ValidatorTimelock.Proofs.Roles
+import EraSpec.Contracts.ValidatorTimelock.Proofs.Isolation
+import EraSpec.Contracts.ValidatorTimelock.Proofs.Ownership
+import EraSpec.Contracts.ValidatorTimelock.Proofs.LibMap
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
