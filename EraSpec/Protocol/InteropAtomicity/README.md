@@ -25,6 +25,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | LegSourceFilterAtV35 | [Specs/LegSourceFilterAtV35.lean](Specs/LegSourceFilterAtV35.lean) | [Properties/LegSourceFilterAtV35.lean](Properties/LegSourceFilterAtV35.lean) | [Proofs/LegSourceFilterAtV35.lean](Proofs/LegSourceFilterAtV35.lean) |
 | FlowBindingAtHead (`3605e82`) | [Specs/FlowBindingAtHead.lean](Specs/FlowBindingAtHead.lean) | [Properties/FlowBindingAtHead.lean](Properties/FlowBindingAtHead.lean) | [Proofs/FlowBindingAtHead.lean](Proofs/FlowBindingAtHead.lean) |
 | OncePerLegAtHead (`main` `70096e2`, `draft/v0.35.0` `b17415d`) | [Specs/OncePerLegAtHead.lean](Specs/OncePerLegAtHead.lean) | [Properties/OncePerLegAtHead.lean](Properties/OncePerLegAtHead.lean) | [Proofs/OncePerLegAtHead.lean](Proofs/OncePerLegAtHead.lean) |
+| SettlementRoots | [Specs/SettlementRoots.lean](Specs/SettlementRoots.lean) | [Properties/SettlementRoots.lean](Properties/SettlementRoots.lean) | [Proofs/SettlementRoots.lean](Proofs/SettlementRoots.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
@@ -32,8 +33,9 @@ Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePer
 `Operational` on `OncePerLeg`, `FlowBinding` and `SourceHeight`, `RefundFaithful` on
 `Refund` and `Timeout`, `BatchPosition` on `Timeout`, `LegSourceFilterAtV35` on
 `FlowBinding` and `OncePerLeg`, `FlowBindingAtHead` on `FlowBinding`, `OncePerLeg` and
-`AtomicFlowManager` `FlowCanonicalAtHead`, and `OncePerLegAtHead` on `OncePerLeg` and
-`L2InteropCommitmentTree` `HintSearchAtHead`).
+`AtomicFlowManager` `FlowCanonicalAtHead`, `OncePerLegAtHead` on `OncePerLeg` and
+`L2InteropCommitmentTree` `HintSearchAtHead`, and `SettlementRoots` on `Refund`, `Operational`
+and the `MessageRoot` and `L2InteropRootStorage` contract models).
 The exception is `RefundStrong`, which also takes `AggregatesBefore` from the later
 `Operational` topic ([Specs/Operational.lean](Specs/Operational.lean)).
 Every topic models the pinned tree except `LegSourceFilterAtV35`, which adds the receive
@@ -589,6 +591,26 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   - Open: the filter on the operational model (`Operational`) and together with the
     settlement-layer import (`RootImport`), the handler's `Verified` status as state,
     `append`'s registration check, and the L1 side (`ChainRegistrationSender`).
+
+- **SettlementRoots** (namespace `Contracts.SettlementRoots`). The roots the timeout gate
+  resolves against, from the settlement layer's `MessageRootBase` (`../../Contracts/MessageRoot/`)
+  and the destination's `L2InteropRootStorage` (`../../Contracts/L2InteropRootStorage/`). Every
+  fixed-history timeout and refund headline holds with `Aggregates` weakened to the strict
+  `Contracts.InteropOperational.AggregatesBefore` (the `…Before` forms; run level
+  `ExecutedObligationNeverRefundedOrBreakAt`, over `ReachLogAt`, whose refunds are verified
+  against roots). For a system whose batches are a MessageRoot run's pushed positions, clocked by
+  their `l1Timestamp` (`ClockedBy`), every historical root of the run, as it stood at any point,
+  satisfies the strict form (`HistoricalRootAggregatesBefore`), the clock gives `Wf.timeOrdered`
+  (`WfFromMessageRoot`), and the headlines hold with no aggregation and no `timeOrdered` premise
+  (the `…FromMessageRoot` forms). An L2 whose imports all passed the Executor's dependency-root
+  check holds only historical roots, so the root the timeout read accepts is one of them
+  (`ImportedRootsAreHistorical`, `ImportedTimeoutRootAggregatesBefore`). What remains: the trees
+  (`WfTrees`) read as the commitment trees at the end of each pushed batch, with the BEGIN branch
+  across a record-only or migration gap still needing `PROTO-BATCH-SNAPSHOT` and contiguous
+  pushes; the root's content is a ghost count, not tied to what a Merkle proof against the root
+  value shows. Witnesses: `SettlementRootsEndBranchWitness` (an END-branch timeout against a root
+  read mid-block, where `Aggregates` fails), `SettlementRootsAcceptedWitness`,
+  `SettlementRootsRefundRunWitness`, `SettlementRootsImportWitness`.
 
 The other topics' tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

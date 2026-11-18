@@ -340,6 +340,12 @@ import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
 -- balance cap's accounting hook, and the cap's own run model
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.L1PerChainCapAtV35
 
+-- Settlement-layer roots (c67894b9): MessageRootBase's historical roots, L2InteropRootStorage's
+-- imports, and the timeout and refund headlines against those roots
+import EraSpec.Contracts.MessageRoot.Proofs.Aggregation
+import EraSpec.Contracts.L2InteropRootStorage.Proofs.Model
+import EraSpec.Protocol.InteropAtomicity.Proofs.SettlementRoots
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
