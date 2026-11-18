@@ -391,6 +391,13 @@ import EraSpec.Protocol.InteropPeerRegistry.Proofs.PeerMirror
 import EraSpec.Protocol.InteropAtomicity.Proofs.DispatchLiveness
 import EraSpec.Protocol.InteropAtomicity.Proofs.ExecutionLiveness
 
+-- Admin facet (draft/v0.35.0 at b17415d20): access control, admin handover, freezing, priority
+-- mode, chain upgrades, fee inputs
+import EraSpec.Contracts.AdminFacet.Proofs.Access
+import EraSpec.Contracts.AdminFacet.Proofs.PriorityMode
+import EraSpec.Contracts.AdminFacet.Proofs.Upgrade
+import EraSpec.Contracts.AdminFacet.Proofs.Fees
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
