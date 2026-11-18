@@ -152,6 +152,13 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
     `FlowCanonicalAtHead` cite `draft/v0.35.0` at `b17415d20` (`AtomicFlowManager.sol`,
     `L2InteropHandler.sol`, `InteropCenter.sol`, `core/bridgehub/L2Bridgehub.sol`);
     `d9f6789` has the same text in the `atomic-interop/` and `interop/` files.
+* At `draft/v0.35.0` commit `b17415d20` (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`,
+  2026-11-16; contains #2654, `95b5c469d`, and #2669, `9775be946`):
+  - `ChainTypeManager` `ExecutorEngineAtV35`: `applyInfrastructureUpgrade` through
+    `ProxyUpgradeExecutorBase` and `DefaultProxyUpgradeEngine`. First written at `d9f6789`
+    (2026-11-06) and re-read at `b17415d20`; its Specs header lists what changed between the
+    two. It reuses the `e561b9cc2` models `ExecutorForward` and `RowsCurrent`; of those, only
+    the function bodies its header names were re-read at `b17415d20`.
 
 Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
 to the maintainer of this repo, not yet confirmed upstream.
