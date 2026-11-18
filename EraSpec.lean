@@ -40,6 +40,7 @@ import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonical
+import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonicalAtHead
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.ModelStrong
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimitsStrong
@@ -190,6 +191,7 @@ import EraSpec.Examples.BurnMintBridge.Proofs.EndBranchStrong
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.RegistryCorrespondence
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Reinitialization
 import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBinding
+import EraSpec.Protocol.InteropAtomicity.Proofs.FlowBindingAtHead
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
 import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
