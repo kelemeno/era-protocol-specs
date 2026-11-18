@@ -64,6 +64,7 @@ EraSpec/
     Bridgehub/                Specs/, Properties/, Proofs/
     ChainTypeManager/         Specs/, Properties/, Proofs/
     DataEncoding/             Specs/, Properties/, Proofs/
+    Diamond/                  Specs/, Properties/, Proofs/
     DynamicIncrementalMerkle/ Specs/, Properties/, Proofs/
     EcosystemUpgradeExecutor/ Specs/, Properties/, Proofs/
     FullMerkle/               Specs/, Properties/, Proofs/

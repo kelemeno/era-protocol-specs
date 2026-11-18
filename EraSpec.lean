@@ -223,7 +223,6 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.Operational
 import EraSpec.Protocol.InteropAtomicity.Proofs.Pause
 import EraSpec.Protocol.InteropAtomicity.Proofs.SharedCommitment
 import EraSpec.Protocol.InteropAtomicity.Proofs.RefundStrong
-import EraSpec.Protocol.CtmRecord.Proofs.Agreement
 
 -- Strengthened padding-ambiguity and zero-sentinel statements (FullMerkle, Merkle, IndexedMerkleTree)
 import EraSpec.Contracts.FullMerkle.Proofs.TreeShapeStrong
@@ -438,6 +437,9 @@ import EraSpec.Protocol.BatchCounters.Proofs.MigrationContinuity
 
 -- Diamond proxy (b17415d20): dispatch, freezing, cut enabledness, the init call, and runs over every entry point
 import EraSpec.Contracts.Diamond.Proofs.DiamondProxy
+
+-- The Bridgehub's CTM record and the CTM each diamond obeys, across L1 and settlement layers (b17415d20)
+import EraSpec.Protocol.CtmRecord.Proofs.Agreement
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
