@@ -132,6 +132,13 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
     files are byte-identical, the constant is the same declaration (`Config.sol:138-141`),
     and the contract differs only in its error imports. `Merkle.sol` and `FullMerkle.sol`
     are byte-identical to `c67894b9`.
+* At `draft/v0.35.0` commit `b17415d20` (first written against `d9f678900`; every Solidity
+  file it cites is the same at both commits, and the cited lines of
+  `protocol-docs/interop-gating.md` are `b17415d20`'s):
+  - `Protocol/InteropAtomicity` `LegSourceFilterAtV35`: the receive filter
+    `_checkLegSourceAllowed` and the `L2Bridgehub.isPeerAllowed` writers, added to the
+    pin's `FlowBinding` and `OncePerLeg` models. Only the filter is taken from that
+    commit; the tree, proof checks and manager stay the pin's models.
 
 Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
 to the maintainer of this repo, not yet confirmed upstream.
