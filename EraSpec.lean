@@ -217,6 +217,10 @@ import EraSpec.Contracts.L1NativeTokenVault.Proofs.InteropPool
 import EraSpec.Contracts.Merkle.Proofs.RootPaths
 import EraSpec.Contracts.PriorityTree.Proofs.SegmentBinding
 
+-- N-10: L2 implementation tables of registry transitions (ChainTypeManager, pin b17415d20)
+import EraSpec.Contracts.ChainTypeManager.Proofs.L2Derivation
+import EraSpec.Contracts.ChainTypeManager.Proofs.L2Convergence
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
