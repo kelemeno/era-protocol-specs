@@ -107,6 +107,12 @@ the code it models differs:
 * `append` takes the flow's preimage and checks the committing leg against it
   (`AtomicFlowManager.sol:104-173` at `b17415d20`, :103-172 at `70096e2ea`), which O1's
   `Step.send` does not model.
+* `_validateAtomicBundle` is gone. `_dispatchBundle` branches on the destination, not on
+  `isAtomic` (`InteropCenter.sol:733` at `b17415d20`, :727 at `70096e2ea`), and its NatSpec allows
+  native-value legs, to be refunded by `_recoverBundle` (:713-715 at `b17415d20`, :707-709 at
+  `70096e2ea`). So the `Validated` conclusions of `RecoveredCallsAreDispatchedCalls` and
+  `ClaimedBundleIsDispatchedImpliesValidated` describe the pin only. The binding itself, on the
+  pin's hash and recovery, does not use that check (`ClaimBindingIndependentOfSaltAndValueChecks`).
 -/
 
 namespace Contracts.InteropCenter
@@ -143,16 +149,17 @@ def DecodesDispatchedBundles (P : Params) (dec : List UInt8 → Bundle) (log : L
 
 /-- **THE CLAIMED BYTES ARE A DISPATCHED BUNDLE'S.** Some atomic dispatch of flow `f` in the log has
 canonical bytes `abi.encode(bundle)` equal to `x`, and `x` decodes to that dispatch's bundle. These
-are the bytes the center hashed (`InteropCenter.sol:643`), for the bundle it emitted
-(`InteropCenter.sol:585`). -/
+are the bytes the center encoded (`InteropCenter.sol:643`) and hashed together with `block.chainid`
+(:644), for the bundle it emitted (`InteropCenter.sol:585`). -/
 def ClaimRecoversDispatch (P : Params) (dec : List UInt8 → Bundle) (log : List Dispatch)
     (f : Word) (x : List UInt8) : Prop :=
   ∃ d ∈ log, d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle ∧ dec x = d.bundle
 
 /-- **A PINNED CLAIM COLLISION.** keccak collides on exactly two named, different preimages: the
 bytes `claimRefund(f, x)` hashed (:167), and the bytes the center hashed (`InteropCenter.sol:644`)
-for an atomic dispatch of flow `f` in the log. That dispatch committed the leg the claim reads, and
-it is the only logged atomic dispatch that did (`EachLegAppendedOnce`). -/
+for an atomic dispatch of flow `f` in the log. The two hashes are equal, so the dispatch's leg is
+the leg the claim reads. On a run that dispatch committed that leg, and by `EachLegAppendedOnce` it
+is the only logged atomic dispatch that did. -/
 def ClaimHashCollision (P : Params) (dec : List UInt8 → Bundle) (log : List Dispatch) (f : Word)
     (x : List UInt8) : Prop :=
   ∃ d ∈ log, d.isAtomic = true ∧ d.atomicSend.flowId = f ∧

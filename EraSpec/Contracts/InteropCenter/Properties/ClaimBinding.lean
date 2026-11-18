@@ -58,24 +58,30 @@ are a dispatched bundle's (`ClaimedBundleIsDispatchedOn`).
 * **One dispatch.** At most one log position holds an atomic dispatch of a given flow with given
   canonical bytes (`ClaimIdentifiesOneDispatch`), so the dispatch the headline names is unique.
   Neither match alone suffices (`ClaimIdentifiesOneDispatchNeedsBothMatches`).
-* **Recovered at most once.** Two successful claims along one run (each passing its state check,
-  the second after the first one's write) recover two different bundles, whatever bytes and flow
-  the second one uses. The exceptions are that one of the claims is a
-  pinned claim collision, or that the two recovered dispatches share one bundle through O1 (c)'s
-  cross-sender salt clash (`EachBundleRecoveredAtMostOnce`). With keccak injective on the claims'
-  preimages and the run's own bundle-hash and salt preimages, there is no exception
-  (`EachBundleRecoveredAtMostOnceOn`).
+* **Recovered at most once.** Along one run of the deployed code whose decoder inverts the encoder
+  on the run's bundles, two successful claims (each passing its state check, the second after the
+  first one's write) recover two different bundles, whatever bytes and flow the second one uses.
+  The exceptions are that one of the claims is a pinned claim collision, or that the two recovered
+  dispatches share one bundle through O1 (c)'s cross-sender salt clash
+  (`EachBundleRecoveredAtMostOnce`). With keccak injective on the claims' preimages and the run's
+  own bundle-hash and salt preimages, there is no exception (`EachBundleRecoveredAtMostOnceOn`).
 * **Liveness note.** Under the round trip, the canonical bytes always reach the committed leg, for
   any keccak and with or without the checks (`CanonicalBytesReadTheirLeg`). So
   `claimRefund(d.flowId, abi.encode(d.bundle))` passes its state check exactly when the leg is
   `Revertable`; the bundle to encode is in the `InteropBundleSent` event
-  (`InteropCenter.sol:585`). Bytes that are not the
-  canonical encoding of any atomic dispatch of the flow read an `Unset` leg, so `claimRefund`
-  reverts with `ManagerLegNotRevertable` (AtomicFlowManager.sol:170), or the pinned collision holds
-  (`NonCanonicalBytesNeverClaim`). That covers every other encoding that the decoder maps to a
-  dispatched bundle, such as one with a trailing byte (`ReencodedBundleNeverClaims`).
+  (`InteropCenter.sol:585`). On a run of the deployed code, under the round trip, bytes that are
+  not the canonical encoding of any atomic dispatch of the flow read an `Unset` leg, so
+  `claimRefund` reverts with `ManagerLegNotRevertable` (AtomicFlowManager.sol:170), or the pinned
+  collision holds (`NonCanonicalBytesNeverClaim`). That covers every other encoding that the
+  decoder maps to a dispatched bundle, such as one with a trailing byte
+  (`ReencodedBundleNeverClaims`).
 
-## Each premise and disjunct is needed
+## Each premise and disjunct of the headline and of at-most-once is needed
+
+The countermodels below show that the headline needs `onlyInteropCenter`, the round trip and its
+collision disjunct; and that `EachBundleRecoveredAtMostOnce` needs the salt check,
+`onlyInteropCenter`, the round trip, and each of its three break disjuncts. The headline does not
+need the salt check or the value check (`ClaimBindingIndependentOfSaltAndValueChecks`).
 
 * `CollisionLetsAClaimRecoverUndispatchedCalls`: under a colliding keccak, the canonical bytes of a
   bundle that no dispatch of the run carries find a `Revertable` leg. The claim would make calls no
@@ -97,6 +103,20 @@ are a dispatched bundle's (`ClaimedBundleIsDispatchedOn`).
   bundle on two flows, and two successful claims with the same canonical bytes recover it twice.
   Every disjunct of `EachBundleRecoveredAtMostOnce` fails there. So at-most-once rests on the salt
   check.
+* `ClaimCollisionLetsOneBundleBeRecoveredTwice`: under a colliding keccak, two successful claims
+  on two flows with the same bytes, the canonical bytes of a dispatch of one of the flows, recover
+  that dispatch's bundle twice. One claim reads that dispatch's leg; the other reads a leg of the
+  other flow through a claim collision, in either order. The colliding claim's disjunct is the only
+  disjunct of `EachBundleRecoveredAtMostOnce` that holds.
+* `WithoutRoundTripOneBundleRecoveredTwice`: on a run of the deployed code with no collision, two
+  successful claims read two different legs of one flow, with the canonical bytes of two
+  dispatches of that flow. A decoder that does not invert the encoder reads the second claim's
+  bytes as the first claim's bundle, which is then recovered twice. Every disjunct of
+  `EachBundleRecoveredAtMostOnce` fails there.
+* `WithoutOnlyInteropCenterOneBundleRecoveredTwice`: without `onlyInteropCenter`, a leg of a
+  second flow that no dispatch backs is `Revertable`, and two successful claims with one
+  dispatch's canonical bytes recover its bundle twice, once per flow. Every disjunct of
+  `EachBundleRecoveredAtMostOnce` fails there.
 
 ## Non-vacuity
 
@@ -419,6 +439,103 @@ def Properties.SaltClashLetsOneBundleBeRecoveredTwice : Prop :=
     S₂.manager.legState f' (claimRefundHash P dec x) = .Revertable ∧
     f ≠ f' ∧ ¬ ClaimHashCollision P dec S₀.log f x ∧ ¬ ClaimHashCollision P dec S₂.log f' x ∧
     ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log,
+      d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle ∧
+      d'.isAtomic = true ∧ d'.atomicSend.flowId = f' ∧ x = P.enc d'.bundle ∧
+      d.bundle = d'.bundle ∧ CrossSenderSaltClash P d d'
+
+/-- **THE CLAIM-COLLISION DISJUNCTS ARE NEEDED: ONE BUNDLE RECOVERED TWICE.** Under a colliding
+keccak, there are two runs of the deployed code, each meeting every premise of
+`EachBundleRecoveredAtMostOnce` with both claims on the same bytes `x`, on two flows `f ≠ f'`, so
+that the two recovered bundles are both `dec x`:
+- in the first run, the first claim recovers a dispatch of flow `f` and is not a claim collision,
+  and the second claim is a claim collision;
+- in the second run, the first claim is a claim collision, and the second claim recovers a dispatch
+  of flow `f'` and is not a claim collision;
+- in both runs the salt-clash disjunct fails.
+
+So in each run exactly one disjunct of the conclusion of `EachBundleRecoveredAtMostOnce` holds: the
+second claim's collision in the first run, the first claim's in the second. -/
+def Properties.ClaimCollisionLetsOneBundleBeRecoveredTwice : Prop :=
+  (∃ (P : Params) (dec : List UInt8 → Bundle) (S₀ S₂ : State) (f f' : Word) (x : List UInt8),
+    Reach deployed P init S₀ ∧
+    S₀.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
+    Reach deployed P
+      { S₀ with manager := S₀.manager.set f (claimRefundHash P dec x) .Reverted } S₂ ∧
+    DecodesDispatchedBundles P dec S₂.log ∧
+    S₂.manager.legState f' (claimRefundHash P dec x) = .Revertable ∧
+    f ≠ f' ∧ ClaimRecoversDispatch P dec S₀.log f x ∧ ¬ ClaimHashCollision P dec S₀.log f x ∧
+    ClaimHashCollision P dec S₂.log f' x ∧
+    ¬ ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log,
+      d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle ∧
+      d'.isAtomic = true ∧ d'.atomicSend.flowId = f' ∧ x = P.enc d'.bundle ∧
+      d.bundle = d'.bundle ∧ CrossSenderSaltClash P d d') ∧
+  (∃ (P : Params) (dec : List UInt8 → Bundle) (S₀ S₂ : State) (f f' : Word) (x : List UInt8),
+    Reach deployed P init S₀ ∧
+    S₀.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
+    Reach deployed P
+      { S₀ with manager := S₀.manager.set f (claimRefundHash P dec x) .Reverted } S₂ ∧
+    DecodesDispatchedBundles P dec S₂.log ∧
+    S₂.manager.legState f' (claimRefundHash P dec x) = .Revertable ∧
+    f ≠ f' ∧ ClaimHashCollision P dec S₀.log f x ∧ ClaimRecoversDispatch P dec S₂.log f' x ∧
+    ¬ ClaimHashCollision P dec S₂.log f' x ∧
+    ¬ ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log,
+      d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle ∧
+      d'.isAtomic = true ∧ d'.atomicSend.flowId = f' ∧ x = P.enc d'.bundle ∧
+      d.bundle = d'.bundle ∧ CrossSenderSaltClash P d d')
+
+/-- **THE ROUND TRIP IS NEEDED FOR AT-MOST-ONCE.** There is a run of the deployed code meeting every
+premise of `EachBundleRecoveredAtMostOnce` except the decoder round trip, with two successful
+claims on two different legs of one flow, such that:
+- the first claim's bytes are the canonical bytes of a dispatch of that flow, and decode to its
+  bundle;
+- the second claim's bytes are the canonical bytes of a dispatch of that flow, and decode not to
+  its bundle but to the bundle the first claim decodes;
+- neither claim is a claim collision, and the salt-clash disjunct fails.
+
+So every disjunct of the conclusion of `EachBundleRecoveredAtMostOnce` fails. -/
+def Properties.WithoutRoundTripOneBundleRecoveredTwice : Prop :=
+  ∃ (P : Params) (dec : List UInt8 → Bundle) (S₀ S₂ : State) (f f' : Word)
+    (x x' : List UInt8),
+    Reach deployed P init S₀ ∧
+    S₀.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
+    Reach deployed P
+      { S₀ with manager := S₀.manager.set f (claimRefundHash P dec x) .Reverted } S₂ ∧
+    ¬ DecodesDispatchedBundles P dec S₂.log ∧
+    S₂.manager.legState f' (claimRefundHash P dec x') = .Revertable ∧
+    f = f' ∧ claimRefundHash P dec x ≠ claimRefundHash P dec x' ∧
+    ClaimRecoversDispatch P dec S₀.log f x ∧
+    (∃ d' ∈ S₂.log, d'.isAtomic = true ∧ d'.atomicSend.flowId = f' ∧ x' = P.enc d'.bundle ∧
+      dec x' ≠ d'.bundle) ∧
+    dec x' = dec x ∧
+    ¬ ClaimHashCollision P dec S₀.log f x ∧ ¬ ClaimHashCollision P dec S₂.log f' x' ∧
+    ¬ ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log,
+      d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle ∧
+      d'.isAtomic = true ∧ d'.atomicSend.flowId = f' ∧ x' = P.enc d'.bundle ∧
+      d.bundle = d'.bundle ∧ CrossSenderSaltClash P d d'
+
+/-- **`onlyInteropCenter` IS NEEDED FOR AT-MOST-ONCE.** There is a run of the code without
+`onlyInteropCenter` on `append` (AtomicFlowManager.sol:76-79) meeting every other premise of
+`EachBundleRecoveredAtMostOnce`, with both claims on the same bytes `x`, on two flows `f ≠ f'`,
+such that:
+- the first claim recovers a dispatch of flow `f` and is not a claim collision;
+- no logged atomic dispatch has flow `f'`, so the leg the second claim reads is backed by no
+  dispatch, and that claim is not a claim collision;
+- the salt-clash disjunct fails.
+
+So every disjunct of the conclusion of `EachBundleRecoveredAtMostOnce` fails: the two recovered
+bundles are both `dec x`. -/
+def Properties.WithoutOnlyInteropCenterOneBundleRecoveredTwice : Prop :=
+  ∃ (P : Params) (dec : List UInt8 → Bundle) (S₀ S₂ : State) (f f' : Word) (x : List UInt8),
+    Reach withoutOnlyInteropCenter P init S₀ ∧
+    S₀.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
+    Reach withoutOnlyInteropCenter P
+      { S₀ with manager := S₀.manager.set f (claimRefundHash P dec x) .Reverted } S₂ ∧
+    DecodesDispatchedBundles P dec S₂.log ∧
+    S₂.manager.legState f' (claimRefundHash P dec x) = .Revertable ∧
+    f ≠ f' ∧ ClaimRecoversDispatch P dec S₀.log f x ∧ ¬ ClaimHashCollision P dec S₀.log f x ∧
+    (¬ ∃ d ∈ S₂.log, d.isAtomic = true ∧ d.atomicSend.flowId = f') ∧
+    ¬ ClaimHashCollision P dec S₂.log f' x ∧
+    ¬ ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log,
       d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle ∧
       d'.isAtomic = true ∧ d'.atomicSend.flowId = f' ∧ x = P.enc d'.bundle ∧
       d.bundle = d'.bundle ∧ CrossSenderSaltClash P d d'

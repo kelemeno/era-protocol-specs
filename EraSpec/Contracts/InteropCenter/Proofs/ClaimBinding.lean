@@ -8,18 +8,19 @@ The headline is O1's argument carried one step further. O1's run invariant (`inv
 field, which needs only `onlyInteropCenter`; it is the fact behind
 `CommittedLegsAreValidatedDispatches`) names the logged atomic dispatch `d` behind the leg the claim
 reads. If the claim hashed the very bytes the center hashed for `d`, then `abiEncode_right_inj` (O1)
-turns that equality of
-`abi.encode(uint256, bytes)` preimages into `x = abi.encode(d.bundle)`, and the decoder round trip
-gives `abi.decode(x) = d.bundle`. Otherwise the two preimages differ and hash equal: the pinned
-collision. The corollaries add O1's run invariant (`inv_reach`: the dispatch was formed by
-`_sendBundle` and validated) and its leg invariant (`legInv_reach`: each leg is appended once and
-never returns to `Unset`). The two-claim result also needs three run facts proved here: runs
-compose, the log only grows, and no step leaves `Reverted`.
+turns that equality of `abi.encode(uint256, bytes)` preimages into `x = abi.encode(d.bundle)`, and
+the decoder round trip gives `abi.decode(x) = d.bundle`. Otherwise the two preimages differ and
+hash equal: the pinned collision. The corollaries add O1's run invariant (`inv_reach`: the dispatch
+was formed by `_sendBundle` and validated) and its leg invariant (`legInv_reach`: each leg is
+appended once and never returns to `Unset`). The two-claim result also needs O1 (c)
+(`DistinctDispatchesDistinctBundles`) and three run facts proved here: runs compose, the log only
+grows, and no step leaves `Reverted`.
 
 The witnesses and countermodels are concrete runs on O1's two witness chains: the honest one
 (`wParams`, whose toy keccak reads a bundle hash off the user salt) and the colliding one
 (`collidingParams`, constant keccak). The run without `_validateAtomicBundle` reuses O1's
-`valueLeg`. Their data lives in the `ClaimBinding` namespace.
+`valueLeg`; the run without `onlyInteropCenter` for at-most-once adds a direct `append` to O1's
+first honest step. Their data lives in the `ClaimBinding` namespace.
 -/
 
 namespace Contracts.InteropCenter
@@ -659,6 +660,179 @@ theorem clashStep4 : Step deployed collidingParams clashS3 clashS4 := by
 theorem clashReach : Reach deployed collidingParams init clashS4 :=
   .tail (.tail (.tail (.tail .refl clashStep1) clashStep2) clashStep3) clashStep4
 
+/-! ### The colliding chain: two different bundles on flows `7` and `8`, claimed with one byte
+string -/
+
+/-- Under the constant keccak, sender `2`, salt `2`: an atomic leg of flow `8` with one direct
+zero-value call. Its bundle is not `collidingLeg`'s: the user salts differ. -/
+def collidingLeg8 : Dispatch :=
+  ⟨2, [wDirect 0], wBundle collidingParams 2 2 [⟨5, 2, 0, []⟩], ⟨8, 0, 100, true⟩⟩
+
+/-- A decoder that inverts the encoder on `collidingLeg`'s and `collidingLeg8`'s bundles. -/
+def ccDec (x : List UInt8) : Bundle :=
+  if x = collidingParams.enc collidingLeg8.bundle then collidingLeg8.bundle
+  else collidingLeg.bundle
+
+/-- After `collidingS1`: dispatch `collidingLeg8`, then authorize both legs, `(7, 0)` and
+`(8, 0)`. -/
+def ccS2 : State := collidingS1.afterSend collidingParams collidingLeg8
+def ccS3 : State := { ccS2 with manager := ccS2.manager.set 7 0 .Revertable }
+def ccS4 : State := { ccS3 with manager := ccS3.manager.set 8 0 .Revertable }
+
+theorem ccEnc_ne :
+    collidingParams.enc collidingLeg.bundle ≠ collidingParams.enc collidingLeg8.bundle := by
+  intro he
+  have := congrArg (List.drop 32) he
+  simp only [collidingParams, saltWordsEncoder, List.drop_left' (length_toBytesBE 32 _)] at this
+  have hm := toBytesBE_eq_mod this
+  simp [collidingLeg, collidingLeg8, wBundle, wAttrs] at hm
+
+theorem ccDec_leg : ccDec (collidingParams.enc collidingLeg.bundle) = collidingLeg.bundle := by
+  unfold ccDec
+  rw [ite_eq_right ccEnc_ne]
+
+theorem ccDec_leg8 : ccDec (collidingParams.enc collidingLeg8.bundle) = collidingLeg8.bundle := by
+  unfold ccDec
+  rw [ite_eq_left rfl]
+
+/-- The claim with `collidingLeg`'s canonical bytes hashes the center's preimage for it. -/
+theorem ccClaimPreimage : claimPreimage ccDec (collidingParams.enc collidingLeg.bundle) =
+    bundlePreimage collidingParams collidingLeg.bundle :=
+  claimPreimage_canonical ccDec_leg rfl
+
+/-- That preimage is not the center's preimage for `collidingLeg8`. -/
+theorem ccClaimPreimage_ne8 : claimPreimage ccDec (collidingParams.enc collidingLeg.bundle) ≠
+    bundlePreimage collidingParams collidingLeg8.bundle := by
+  rw [ccClaimPreimage]
+  intro h
+  exact ccEnc_ne (abiEncode_right_inj h)
+
+theorem ccS1_leg (f h : Word) :
+    collidingS1.manager.legState f h = if f = 7 ∧ h = 0 then .Committed else .Unset := by
+  rw [collidingS1, afterSend_legState]
+  simp [collidingLeg, init, bundleHash, collidingParams]
+
+theorem ccStep2 : Step deployed collidingParams collidingS1 ccS2 := by
+  refine Step.send collidingLeg8 (fun _ => ?_)
+    ⟨rfl, rfl, List.Forall₂.cons (formsCall_direct 2 0) List.Forall₂.nil⟩ ?_ (fun _ => ?_)
+  · simp [collidingS1, State.afterSend, markSalt, init, collidingLeg, collidingLeg8, Dispatch.salt,
+      wBundle, wAttrs]
+  · intro _ _ c hc
+    simp only [collidingLeg8, wBundle, List.mem_singleton] at hc
+    subst hc; rfl
+  · show collidingS1.manager.legState 8 (bundleHash collidingParams collidingLeg8.bundle) = .Unset
+    rw [ccS1_leg]
+    simp
+
+theorem ccS2_leg (f h : Word) :
+    ccS2.manager.legState f h =
+      if f = 8 ∧ h = 0 then .Committed else if f = 7 ∧ h = 0 then .Committed else .Unset := by
+  rw [ccS2, afterSend_legState, ccS1_leg]
+  simp [collidingLeg8, bundleHash, collidingParams]
+
+theorem ccStep3 : Step deployed collidingParams ccS2 ccS3 := by
+  refine Step.authorize 7 0 ?_
+  show ccS2.manager.legState 7 0 = .Committed
+  rw [ccS2_leg]
+  simp
+
+theorem ccStep4 : Step deployed collidingParams ccS3 ccS4 := by
+  refine Step.authorize 8 0 ?_
+  show (ccS2.manager.set 7 0 .Revertable).legState 8 0 = .Committed
+  rw [legState_set, ccS2_leg]
+  simp
+
+theorem ccReach : Reach deployed collidingParams init ccS4 :=
+  .tail (.tail (.tail (.tail .refl collidingStep1) ccStep2) ccStep3) ccStep4
+
+theorem ccS4_log : ccS4.log = [collidingLeg, collidingLeg8] := rfl
+
+theorem ccDecodes : DecodesDispatchedBundles collidingParams ccDec ccS4.log := by
+  intro d hd
+  rw [ccS4_log] at hd
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hd
+  rcases hd with rfl | rfl
+  · exact ccDec_leg
+  · exact ccDec_leg8
+
+/-- A claim with `collidingLeg`'s canonical bytes is no claim collision on flow `7`. -/
+theorem ccNoCollision7 :
+    ¬ ClaimHashCollision collidingParams ccDec ccS4.log 7
+      (collidingParams.enc collidingLeg.bundle) := by
+  rintro ⟨d, hd, -, hf, hpre, -⟩
+  rw [ccS4_log] at hd
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hd
+  rcases hd with rfl | rfl
+  · exact hpre ccClaimPreimage
+  · exact absurd hf (by decide)
+
+/-- On flow `8` the same claim is a claim collision, with `collidingLeg8`. -/
+theorem ccCollision8 :
+    ClaimHashCollision collidingParams ccDec ccS4.log 8
+      (collidingParams.enc collidingLeg.bundle) :=
+  ⟨collidingLeg8, by rw [ccS4_log]; simp, rfl, rfl, ccClaimPreimage_ne8, rfl⟩
+
+/-- No dispatch of the run is of flow `8` with `collidingLeg`'s canonical bytes. -/
+theorem ccNoFlow8Bytes : ∀ d ∈ ccS4.log, d.atomicSend.flowId = 8 →
+    collidingParams.enc collidingLeg.bundle ≠ collidingParams.enc d.bundle := by
+  intro d hd hf
+  rw [ccS4_log] at hd
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hd
+  rcases hd with rfl | rfl
+  · exact absurd hf (by decide)
+  · exact ccEnc_ne
+
+/-! ### Two legs of flow `7` read through a decoder that is not a round trip -/
+
+/-- `replayDec` reads `twoD3`'s canonical bytes as `wD1`'s bundle; the chain id it decodes is the
+same, so the claim still hashes the center's preimage for `twoD3`. -/
+theorem replayClaimPreimage3 :
+    claimPreimage replayDec (wParams.enc twoD3.bundle) = bundlePreimage wParams twoD3.bundle := by
+  unfold claimPreimage bundlePreimage
+  rfl
+
+theorem replayClaimHash3 : claimRefundHash wParams replayDec (wParams.enc twoD3.bundle) = 3 := by
+  unfold claimRefundHash
+  rw [replayClaimPreimage3]
+  exact twoHash3
+
+theorem wD1_bundle_ne_twoD3 : wD1.bundle ≠ twoD3.bundle := by
+  intro h
+  exact twoEnc_ne (by rw [h])
+
+/-! ### Without `onlyInteropCenter`: `wD1`'s leg on flow `7`, and a direct `append` on flow `8` -/
+
+/-- After `wS1`: a direct `append` of the leg `(8, 1)` by account `1`, then both legs authorized. -/
+def foreign8S2 : State := { wS1 with manager := wS1.manager.set 8 1 .Committed }
+def foreign8S3 : State := { foreign8S2 with manager := foreign8S2.manager.set 7 1 .Revertable }
+def foreign8S4 : State := { foreign8S3 with manager := foreign8S3.manager.set 8 1 .Revertable }
+
+theorem wS1_legState (f h : Word) :
+    wS1.manager.legState f h = if f = 7 ∧ h = 1 then .Committed else .Unset := by
+  rw [wS1, afterSend_legState, wHash1]
+  simp [wD1, init]
+
+theorem foreign8Reach : Reach withoutOnlyInteropCenter wParams init foreign8S4 := by
+  have h1 : Step withoutOnlyInteropCenter wParams init wS1 :=
+    Step.send wD1 (fun _ => rfl) wD1_formed (fun _ _ => wD1_validated) (fun _ => rfl)
+  have h2 : Step withoutOnlyInteropCenter wParams wS1 foreign8S2 := by
+    refine Step.foreignAppend 1 8 1 (by decide) (fun h => absurd h (by decide)) ?_
+    show wS1.manager.legState 8 1 = .Unset
+    rw [wS1_legState]
+    simp
+  have h3 : Step withoutOnlyInteropCenter wParams foreign8S2 foreign8S3 := by
+    refine Step.authorize 7 1 ?_
+    show (wS1.manager.set 8 1 .Committed).legState 7 1 = .Committed
+    rw [legState_set, wS1_legState]
+    simp
+  have h4 : Step withoutOnlyInteropCenter wParams foreign8S3 foreign8S4 := by
+    refine Step.authorize 8 1 ?_
+    show ((wS1.manager.set 8 1 .Committed).set 7 1 .Revertable).legState 8 1 = .Committed
+    simp
+  exact .tail (.tail (.tail (.tail .refl h1) h2) h3) h4
+
+theorem foreign8S4_log : foreign8S4.log = [wD1] := rfl
+
 end ClaimBinding
 
 /-! ## Countermodels -/
@@ -840,6 +1014,107 @@ theorem SaltClashLetsOneBundleBeRecoveredTwice :
     rcases hd' with rfl | rfl
     · exact absurd hf (by decide)
     · exact hpre' hpre
+
+theorem ClaimCollisionLetsOneBundleBeRecoveredTwice :
+    Properties.ClaimCollisionLetsOneBundleBeRecoveredTwice := by
+  have hmem : ∀ d ∈ [collidingLeg, collidingLeg8], d ∈ ccS4.log := fun _ hd => hd
+  have hrec7 : ClaimRecoversDispatch collidingParams ccDec ccS4.log 7
+      (collidingParams.enc collidingLeg.bundle) :=
+    ⟨collidingLeg, hmem _ (by simp), rfl, rfl, rfl, ccDec_leg⟩
+  refine ⟨⟨collidingParams, ccDec, ccS4, _, 7, 8, collidingParams.enc collidingLeg.bundle,
+    ccReach, ?_, .refl, ccDecodes, ?_, by decide, hrec7, ccNoCollision7, ccCollision8, ?_⟩,
+    ⟨collidingParams, ccDec, ccS4, _, 8, 7, collidingParams.enc collidingLeg.bundle,
+    ccReach, ?_, .refl, ccDecodes, ?_, by decide, ccCollision8, hrec7, ccNoCollision7, ?_⟩⟩
+  · show ((ccS2.manager.set 7 0 .Revertable).set 8 0 .Revertable).legState 7 0 = .Revertable
+    simp
+  · show (((ccS2.manager.set 7 0 .Revertable).set 8 0 .Revertable).set 7 0 .Reverted).legState
+      8 0 = .Revertable
+    simp
+  · rintro ⟨-, -, d', hd', -, -, -, -, hf', hx', -⟩
+    exact ccNoFlow8Bytes d' hd' hf' hx'
+  · show ((ccS2.manager.set 7 0 .Revertable).set 8 0 .Revertable).legState 8 0 = .Revertable
+    simp
+  · show (((ccS2.manager.set 7 0 .Revertable).set 8 0 .Revertable).set 8 0 .Reverted).legState
+      7 0 = .Revertable
+    simp
+  · rintro ⟨d, hd, -, -, -, hf, hx, -⟩
+    exact ccNoFlow8Bytes d hd hf hx
+
+theorem WithoutRoundTripOneBundleRecoveredTwice :
+    Properties.WithoutRoundTripOneBundleRecoveredTwice := by
+  have hlog : twoS4.log = [wD1, twoD3] := rfl
+  refine ⟨wParams, replayDec, twoS4, _, 7, 7, wParams.enc wD1.bundle, wParams.enc twoD3.bundle,
+    twoReach, ?_, .refl, ?_, ?_, rfl, ?_, ⟨wD1, by rw [hlog]; simp, rfl, rfl, rfl, rfl⟩,
+    ⟨twoD3, by rw [hlog]; simp, rfl, rfl, rfl, wD1_bundle_ne_twoD3⟩, rfl, ?_, ?_, ?_⟩
+  · rw [replayClaimHash]
+    show ((twoS2.manager.set 7 1 .Revertable).set 7 3 .Revertable).legState 7 1 = .Revertable
+    simp
+  · intro h
+    exact wD1_bundle_ne_twoD3 (h twoD3 (by rw [hlog]; simp))
+  · rw [replayClaimHash, replayClaimHash3]
+    show ((twoS3.manager.set 7 3 .Revertable).set 7 1 .Reverted).legState 7 3 = .Revertable
+    simp
+  · rw [replayClaimHash, replayClaimHash3]
+    decide
+  · rintro ⟨d, hd, -, -, hpre, hh⟩
+    have hd' : d ∈ [wD1, twoD3] := hd
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hd'
+    rcases hd' with rfl | rfl
+    · exact hpre replayClaimPreimage
+    · rw [replayClaimHash, twoHash3] at hh
+      exact absurd hh (by decide)
+  · rintro ⟨d, hd, -, -, hpre, hh⟩
+    have hd' : d ∈ [wD1, twoD3] := hd
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hd'
+    rcases hd' with rfl | rfl
+    · rw [replayClaimHash3, wHash1] at hh
+      exact absurd hh (by decide)
+    · exact hpre replayClaimPreimage3
+  · rintro ⟨d, hd, d', hd', -, -, hx, -, -, hx', hb, -⟩
+    have hdl : d ∈ [wD1, twoD3] := hd
+    have hdl' : d' ∈ [wD1, twoD3] := hd'
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hdl hdl'
+    rcases hdl with rfl | rfl
+    · rcases hdl' with rfl | rfl
+      · exact twoEnc_ne hx'.symm
+      · exact wD1_bundle_ne_twoD3 hb
+    · exact twoEnc_ne hx
+
+theorem WithoutOnlyInteropCenterOneBundleRecoveredTwice :
+    Properties.WithoutOnlyInteropCenterOneBundleRecoveredTwice := by
+  have hlog : foreign8S4.log = [wD1] := foreign8S4_log
+  have hnone : ∀ d ∈ foreign8S4.log, d.atomicSend.flowId ≠ 8 := by
+    intro d hd
+    rw [hlog] at hd
+    simp only [List.mem_singleton] at hd
+    subst hd
+    decide
+  refine ⟨wParams, replayDec, foreign8S4, _, 7, 8, wParams.enc wD1.bundle, foreign8Reach, ?_,
+    .refl, ?_, ?_, by decide, ⟨wD1, by rw [hlog]; simp, rfl, rfl, rfl, rfl⟩, ?_, ?_, ?_, ?_⟩
+  · rw [replayClaimHash]
+    show (((wS1.manager.set 8 1 .Committed).set 7 1 .Revertable).set 8 1 .Revertable).legState 7 1
+      = .Revertable
+    simp
+  · intro d hd
+    rw [hlog] at hd
+    simp only [List.mem_singleton] at hd
+    subst hd
+    rfl
+  · rw [replayClaimHash]
+    show ((((wS1.manager.set 8 1 .Committed).set 7 1 .Revertable).set 8 1 .Revertable).set 7 1
+      .Reverted).legState 8 1 = .Revertable
+    simp
+  · rintro ⟨d, hd, -, -, hpre, -⟩
+    rw [hlog] at hd
+    simp only [List.mem_singleton] at hd
+    subst hd
+    exact hpre replayClaimPreimage
+  · rintro ⟨d, hd, -, hf⟩
+    exact hnone d hd hf
+  · rintro ⟨d, hd, -, hf, -⟩
+    exact hnone d hd hf
+  · rintro ⟨-, -, d', hd', -, -, -, -, hf', -⟩
+    exact hnone d' hd' hf'
 
 theorem ClaimIdentifiesOneDispatchNeedsBothMatches :
     Properties.ClaimIdentifiesOneDispatchNeedsBothMatches := by

@@ -93,17 +93,22 @@ topic `OncePerLeg`.
   - The canonical bytes always reach the committed leg (`CanonicalBytesReadTheirLeg`);
     any other bytes, such as a re-encoding with a trailing byte, read an `Unset` leg, or
     the collision holds (`NonCanonicalBytesNeverClaim`, `ReencodedBundleNeverClaims`).
-  - Each premise and disjunct is needed: `CollisionLetsAClaimRecoverUndispatchedCalls`,
+  - The headline needs its collision disjunct, the round trip and `onlyInteropCenter`
+    (`CollisionLetsAClaimRecoverUndispatchedCalls`,
     `WithoutRoundTripClaimRecoversUndispatchedCalls`,
-    `WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls`,
-    `SaltClashLetsOneBundleBeRecoveredTwice`, `WithoutSaltCheckOneBundleRecoveredTwice`,
-    `ClaimIdentifiesOneDispatchNeedsBothMatches`.
+    `WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls`).
+    `EachBundleRecoveredAtMostOnce` needs each of its three break disjuncts
+    (`SaltClashLetsOneBundleBeRecoveredTwice`, `ClaimCollisionLetsOneBundleBeRecoveredTwice`),
+    the salt check, the round trip and `onlyInteropCenter`
+    (`WithoutSaltCheckOneBundleRecoveredTwice`, `WithoutRoundTripOneBundleRecoveredTwice`,
+    `WithoutOnlyInteropCenterOneBundleRecoveredTwice`). Both matches of
+    `ClaimIdentifiesOneDispatch` are needed (`ClaimIdentifiesOneDispatchNeedsBothMatches`).
   - Witnesses: `ClaimBindingWitness`, `ClaimBindingWithoutValueCheckWitness`,
     `ClaimBindingWithoutSaltCheckWitness`, `ClaimBindingNonCanonicalWitness`,
     `ClaimBindingTwoClaimsWitness`.
   - Pinned at `c67894b9`, like `Dispatch`. At the current heads `claimRefund` hashes
-    `keccak256(_bundle)` and `_recoverBundle` dispatches differently; `Specs/ClaimBinding.lean`
-    lists the differences.
+    `keccak256(_bundle)`, `_recoverBundle` dispatches differently, and `_validateAtomicBundle`
+    is gone; `Specs/ClaimBinding.lean` lists the differences.
 
 Source findings, reported to the maintainer of this repo, not yet confirmed upstream:
 - `sendMessage` parses its attributes with `CallAndBundleAttributes` (:222-225), under
