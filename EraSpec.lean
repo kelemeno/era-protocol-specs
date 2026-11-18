@@ -441,6 +441,11 @@ import EraSpec.Contracts.Diamond.Proofs.DiamondProxy
 -- The Bridgehub's CTM record and the CTM each diamond obeys, across L1 and settlement layers (b17415d20)
 import EraSpec.Protocol.CtmRecord.Proofs.Agreement
 
+-- ChainAssetHandler at draft/v0.35.0 (b17415d20; cited files identical at d9f6789): chains
+-- migrating between settlement layers, over every hub at once, and the migration pauses
+import EraSpec.Contracts.ChainAssetHandler.Proofs.Migration
+import EraSpec.Contracts.ChainAssetHandler.Proofs.Pause
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
