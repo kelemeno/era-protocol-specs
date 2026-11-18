@@ -166,7 +166,9 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.GenesisWriters
 import EraSpec.Contracts.ChainTypeManager.Proofs.LegacyCrossingFaithful
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
 import EraSpec.Contracts.ChainTypeManager.Proofs.MutableSelectors
+import EraSpec.Contracts.ChainTypeManager.Proofs.ProofGateAtV35
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
+import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingAtV35
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTxNonces
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes

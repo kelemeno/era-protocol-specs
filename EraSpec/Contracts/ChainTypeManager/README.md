@@ -26,6 +26,11 @@ point it uses is `ExecutorForward`'s; their bodies at `b17415d20` do what `Execu
 models (`forward` gained a code check that never rejects a modelled call). Nothing else in
 this folder has been re-read there.
 
+Two topics, `ProofGateAtV35` and `UpgradeTimingAtV35`, describe branch `draft/v0.35.0` of
+`matter-labs/era-contracts` at commit **`b17415d20`** instead (first written against `d9f6789`,
+re-read at `b17415d20`). That branch took this registry code by the squash-merge `ccf00623c`;
+their specs list what changed on the modelled paths since then.
+
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those
 exact named propositions, plus auxiliary lemmas.
@@ -56,6 +61,8 @@ exact named propositions, plus auxiliary lemmas.
 | MutableSelectors | [Specs/MutableSelectors.lean](Specs/MutableSelectors.lean) | [Properties/MutableSelectors.lean](Properties/MutableSelectors.lean) | [Proofs/MutableSelectors.lean](Proofs/MutableSelectors.lean) |
 | CommittedEdgeExecutable | [Specs/CommittedEdgeExecutable.lean](Specs/CommittedEdgeExecutable.lean) | [Properties/CommittedEdgeExecutable.lean](Properties/CommittedEdgeExecutable.lean) | [Proofs/CommittedEdgeExecutable.lean](Proofs/CommittedEdgeExecutable.lean) |
 | UpgradeTxNonces | [Specs/UpgradeTxNonces.lean](Specs/UpgradeTxNonces.lean) | [Properties/UpgradeTxNonces.lean](Properties/UpgradeTxNonces.lean) | [Proofs/UpgradeTxNonces.lean](Proofs/UpgradeTxNonces.lean) |
+| ProofGateAtV35 | [Specs/ProofGateAtV35.lean](Specs/ProofGateAtV35.lean) | [Properties/ProofGateAtV35.lean](Properties/ProofGateAtV35.lean) | [Proofs/ProofGateAtV35.lean](Proofs/ProofGateAtV35.lean) |
+| UpgradeTimingAtV35 | [Specs/UpgradeTimingAtV35.lean](Specs/UpgradeTimingAtV35.lean) | [Properties/UpgradeTimingAtV35.lean](Properties/UpgradeTimingAtV35.lean) | [Proofs/UpgradeTimingAtV35.lean](Proofs/UpgradeTimingAtV35.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
@@ -69,7 +76,9 @@ uses `Contracts.ChainTypeManager.EngineGetters`, `LegacyCrossingFaithful` uses
 `L2Derivation` and `L2Convergence` share the sub-namespace `Contracts.ChainTypeManager.L2Tables`.
 `CommittedEdgeExecutable` and `UpgradeTxNonces`
 share `Contracts.ChainTypeManager.EdgeChecks`; unlike the rest of this folder they are written
-against `draft/v0.35.0` commit `b17415d20`.
+against `draft/v0.35.0` commit `b17415d20`. `ProofGateAtV35` and `UpgradeTimingAtV35` use
+`Contracts.ChainTypeManager.ProofGateAtV35` and `Contracts.ChainTypeManager.UpgradeTimingAtV35`;
+a statement there named like an `e561b9cc2` one is that statement over the v35 system.
 
 The topics after `ChainMigration` extend the first four:
 
@@ -87,6 +96,8 @@ The topics after `ChainMigration` extend the first four:
 - the chain-side checks a committed edge must pass, and the L2 upgrade transaction's nonce, at
   `b17415d20`: `CommittedEdgeExecutable` (composed with `VersionRegistry`'s CTM runs),
   `UpgradeTxNonces`.
+- the second-proof-system gate at `draft/v0.35.0` (`b17415d20`): `ProofGateAtV35` (over
+  `ChainRouting`) and `UpgradeTimingAtV35` (over `UpgradeTiming`).
 
 Each section below says how its model relates to the one it extends. None is composed
 with another unless its section says so.
@@ -702,6 +713,66 @@ transactions written to the hash):
 - Witnesses: `UpgradeTxNoncesWitness` (every kind of step; nonces 29, 30, 31),
   `ExactLandingWitness`.
 
+**ProofGateAtV35** (`ChainRouting` with each diamond's `secondProofSystemRequired`, `verifier` and
+`disabledProofSystems`, at `b17415d20`; the checks #2628 added to `Admin._executeDiamondCut` and
+`BaseZkSyncUpgrade._setVerifier`, `state-transition/chain-deps/facets/Admin.sol:117-128`,
+`upgrades/BaseZkSyncUpgrade.sol:133-153`, and the two writers `permanentlyRequireSecondProofSystem`
+and `setProofSystemStatus`):
+
+- A v35 step is the `e561b9cc2` step plus one condition: a transition or bootstrap crossing of a
+  chain that requires its second proof system needs the arriving release's verifier to report
+  multi-proof mode for mask `0` (`StepIsTheE561StepPlusTheGate`). The routing image of a v35 run
+  is a `ChainRouting` run (`RunIsARun`), so the routing headline holds at v35
+  (`ChainsRunTheirVersionsRelease`, `FreshChainsRunTheirVersionsRelease`,
+  `ChainRunsItsVersionsRelease`). From fields with the requirement off everywhere, every
+  `ChainRouting` run is the image of a v35 run in which no chain requires it
+  (`E561RunsAreRunsWithoutTheRequirement`).
+- Liveness gets that one premise (`TransitionEnabledIff`, `UpgradesStayEnabled`,
+  `ValidatedRunsKeepEverythingEnabled`), and it cannot be dropped: in `GateStrandsRequiringChain`
+  the CTM commits an edge to a release with a PLONK-only verifier, and a chain that requires its
+  second proof system has no transition while a chain that does not crosses.
+  `protocol-docs/interop-gating.md:43-48` at `b17415d20` describes such an edge and leaves its
+  prevention to off-chain package verification. A break-glass cut that clears the requirement
+  lets the chain cross (`BreakGlassClearsTheRequirement`).
+- From `ProofInv`, along every v35 run, break-glass cuts included, a registered chain that
+  requires its second proof system has a verifier in multi-proof mode for mask `0`
+  (`RequiringChainsKeepAMultiProofVerifier`), given `DisablingNeverEnablesMultiProof`, which
+  `MultiProofVerifier` and `ZKsyncOSVerifier` meet and which is needed (`MaskPremiseNeeded`).
+  That is not the chain's current mode: with ZiSK switched off (in the source, by the Bridgehub
+  owner) the chain is not in multi-proof mode (`RequirementDoesNotPinTheCurrentProofMode`).
+- The requirement is changed only by the chain's `permanentlyRequireSecondProofSystem`, which
+  sets it, and by a break-glass cut of the chain, which may set or clear it
+  (`RequirementWriters`); without such a cut it stays set
+  (`RequirementIsPermanentWithoutBreakGlass`). Both are about the in-tree engines.
+- Witnesses: `ProofGateWitness`, `RequiringChainCanCrossWitness` (the enabledness premises with the
+  gate in force), `RequirementLifecycleWitness`, `PerChainHeadlineAtV35Witness` (a run with
+  break-glass cuts), `E561RunLiftWitness`.
+
+**UpgradeTimingAtV35** (`UpgradeTiming` with the same fields and writers, and the caller of
+`permanentlyRequireSecondProofSystem`: the chain's admin, on its settlement layer):
+
+- A v35 timed step is the `e561b9cc2` timed step plus the gate of its routing step
+  (`TimedStepIsTheE561StepPlusTheGate`). For a chain that does not require its second proof system
+  an upgrade succeeds at v35 exactly when it does in `UpgradeTiming`
+  (`UnflaggedChainsUpgradeAsAtE561`). Every `UpgradeTiming` run is the image of a v35 run
+  (`E561TimedRunsAreRunsWithoutTheRequirement`), and the timed image of every v35 run is an
+  `UpgradeTiming` run (`TimedRunIsATimedRun`), so `UpgradeTiming`'s necessary conditions still
+  bind and its routing headline holds (`TimedRunKeepsChainsOnTheirRelease`).
+- The `upgradeChain` NatSpec is unchanged at `b17415d20`. `ICTMUpgradeExecutor.sol:53-54` still
+  holds (`ExecutorPathIgnoresNotifier`). `:48-49` is still false (`NotAtAnyTime`, for every proof
+  world), and fails through the gate too, which binds every path, caller and time
+  (`ProofGateBindsEveryPath`; `OwnerCannotUpgradeARequiringChainToAPlonkRelease`: every condition
+  of `UpgradeTiming`'s repaired statement holds for the owner, and no upgrade exists). The
+  repaired statement is `UpgradeChainEnabledIffTimed`, `UpgradeTiming`'s eight conditions plus the
+  gate; exact for the model, necessary but not sufficient in the source.
+- Along timed runs: `TimedRunIsAProofGateRun`, `TimedRunsKeepAMultiProofVerifier`; the
+  requirement is set by the chain's admin on its settlement layer, and otherwise changed only by a
+  break-glass cut of the chain (`TimedRequirementWriters`), and stays set without one
+  (`TimedRequirementIsPermanentWithoutBreakGlass`).
+- Witnesses: `UpgradeTimingAtV35Witness` (a chain that requires its second proof system upgraded
+  through `upgradeChain` by its admin), `TimedRequirementWritersWitness` (the admin sets the
+  requirement, the chain's validator cannot), `UnflaggedUpgradeWitness`.
+
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises. Each later topic lists
 its own above.
@@ -817,6 +888,19 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
   - a transition's construction is not a step: the answers it was built under are a parameter
     (`MutWorld.FrozenUnder`, `MutWorld.GenuineUnder`);
   - everything else is as in `LiveRouting`.
+- In `ProofGateAtV35` and `UpgradeTimingAtV35` (`b17415d20`):
+  - `getProofMode(m)` is a fixed function of the verifier and the mask, and a release's
+    `verifier()` a fixed function of the release;
+  - `setProofSystemStatus` is an arbitrary write of the mask; its caller rule
+    (`Admin.sol:417-420`) and the zero check on a release's verifier are omitted. Callers of
+    `permanentlyRequireSecondProofSystem` are modelled only in `UpgradeTimingAtV35`;
+  - every break-glass cut makes the final check of the v35 `Admin` facet. A chain's own
+    crossing of an opaque legacy edge runs its pre-v35 facet, which makes none; the two differ
+    only for a diamond that requires its second proof system and routes a pre-v35 `Admin`
+    facet;
+  - the fields belong to a diamond: migration in deploys a diamond with fresh fields, and the
+    results are about the diamonds registered on the one modelled CTM. `ChainMigration` and
+    `ExecutorForward` steps are not lifted to v35.
 
 ## Source findings
 
