@@ -58,8 +58,9 @@ queued after it (`PendingArrivalCarriesL1Value`), but `c`'s entry itself may sti
 does not, through any step, the re-submission included, and a `true` `isPeerAllowed[p]` stays
 `true` (`SettledEntryNeverChanges`). A `false` one can turn on: after a failed service entry, a
 re-submission, which skips `_checkPeerPair`, sets it while `p` settles on `c`
-(`SettledPeerFlagCanTurnOn`). Both mechanisms are load-bearing. Without the settlement clause in
-`deregisterInteropPairs`, a settled chain's entry is cleared
+(`SettledPeerFlagCanTurnOn`; with the re-submission and the failed entry stated,
+`SettledPeerFlagTurnsOnByResubmission`). Both mechanisms are load-bearing. Without the
+settlement clause in `deregisterInteropPairs`, a settled chain's entry is cleared
 (`WithoutDeregSettlementCheckSettledEntryCleared`) and its return then writes `0` into L1
 (`WithoutDeregSettlementCheckL1BaseTokenRewritten`). Without FIFO execution, a settled chain's
 entry is cleared too (`WithoutFifoSettledEntryCleared`).
@@ -120,6 +121,14 @@ the service transaction of `allowInteropPeer(c, p)` failed. -/
 def Properties.FailedServiceEntryLeavesPeerFlagBehind : Prop :=
   ∃ (P : Params) (S : State) (c p : ChainId), Reach deployed P S ∧ S.queue c = [] ∧
     S.l1.allowed c p = true ∧ (S.hub c).peer p = false
+
+/-- **… WITH THE FAILED SERVICE ENTRY ON THE LOG.** `FailedServiceEntryLeavesPeerFlagBehind`, with
+the failure stated: `c`'s executed entries include a failed service entry `allowInteropPeer(p, a)`
+for some `a`. -/
+def Properties.FailedServiceEntryLeavesPeerFlagBehindLogged : Prop :=
+  ∃ (P : Params) (S : State) (c p : ChainId), Reach deployed P S ∧ S.queue c = [] ∧
+    S.l1.allowed c p = true ∧ (S.hub c).peer p = false ∧
+    ∃ a, (Msg.allow p a true, false) ∈ S.done c
 
 /-- **THE RE-SUBMISSION REPAIRS IT.** On every reachable state where `c`'s queue is empty and the
 sender allows `(c, p)`, the re-submission is enabled, its entry can execute successfully, and
@@ -270,6 +279,16 @@ def Properties.SettledPeerFlagCanTurnOn : Prop :=
     Step deployed P S a S' ∧ S.l1.registered c = true ∧ (S.hub c).sl p = c ∧ (S'.hub c).sl p = c ∧
     (S.hub c).peer p = false ∧ (S'.hub c).peer p = true
 
+/-- **… AND THAT STEP EXECUTES A RE-SUBMISSION.** `SettledPeerFlagCanTurnOn`, with the step stated:
+it is the successful execution of the head of `c`'s queue, and that queue holds exactly one entry,
+a re-submission (a non-service `allowInteropPeer(p, a)`), after a failed service entry for `p` on
+`c`'s log. -/
+def Properties.SettledPeerFlagTurnsOnByResubmission : Prop :=
+  ∃ (P : Params) (S S' : State) (c p : ChainId), Reach deployed P S ∧
+    Step deployed P S (.execute c 0 true) S' ∧ S.l1.registered c = true ∧ (S.hub c).sl p = c ∧
+    (S'.hub c).sl p = c ∧ (S.hub c).peer p = false ∧ (S'.hub c).peer p = true ∧
+    (∃ a, S.queue c = [.allow p a false]) ∧ ∃ a, (Msg.allow p a true, false) ∈ S.done c
+
 /-- **WITHOUT THE SETTLEMENT CLAUSE, A SETTLED CHAIN'S ENTRY IS CLEARED.** With
 `deregisterInteropPairs` not checking `settlementLayer(p) == c`, a reachable state in which `c`
 records `p` as settling on `c` and `c`'s `baseTokenAssetId[p]` is `0`. -/
@@ -352,7 +371,8 @@ def Properties.BaseTokenEntryWitness : Prop :=
     (S.hub c).bta p ≠ 0 ∧ (S.hub c).bta p = S.l1.bt p
 
 /-- **WITNESS FOR (b) ALONG RUNS.** Reachable `S` with L1's `baseTokenAssetId[p]` nonzero and
-`c`'s entry `0`, and a later `S'`, after a round trip of `p` to `c`, with `c`'s entry nonzero. -/
+`c`'s entry `0`, and a later `S'`, after `p` arrives on `c` and starts back (its return is not
+finalized; `L1BaseTokenRewriteWitness` finalizes it), with `c`'s entry nonzero. -/
 def Properties.CreationValueWitness : Prop :=
   ∃ (P : Params) (S S' : State) (c p : ChainId), Reach deployed P S ∧ Steps deployed P S S' ∧
     S.l1.bt p ≠ 0 ∧ (S.hub c).bta p = 0 ∧ (S'.hub c).bta p ≠ 0 ∧ (S'.hub c).sl p = P.l1

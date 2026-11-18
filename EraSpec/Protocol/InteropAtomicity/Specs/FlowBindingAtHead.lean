@@ -374,7 +374,10 @@ under `atomic-interop/`, `interop/` or `IndexedMerkleTree.sol`), against `3605e8
 * The callers are unchanged in what this file models: `L2InteropHandler.executeAtomicBundle`
   calls `requireFlowFinalized` at `:73-75` and `verifyAtomicBundle` at `:89`;
   `InteropCenter._dispatchBundle` (`interop/InteropCenter.sol:727-750`) calls `append` at
-  `:742-746` and then only increments a fee-unit counter (`:749`).
+  `:742-746` and then only increments a fee-unit counter (`:749`). The send side also gains a
+  reject-only check that is omitted here, like the other caller checks:
+  `_getDestinationBaseTokenAssetId` requires `isPeerAllowed(destination)`
+  (`interop/InteropCenter.sol:699-702`, `DestinationChainNotAllowed`).
 
 `RunAtV35` is `RunAtHead` with that check: each logged execution also names the chain that
 ran it and what `isPeerAllowed` returned there, and each logged refund authorization what

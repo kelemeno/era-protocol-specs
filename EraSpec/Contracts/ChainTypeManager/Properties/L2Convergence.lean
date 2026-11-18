@@ -97,7 +97,8 @@ transition L2-genuine, and a genesis image holding its table for every release t
 recorded at the end: every chain at a version `v` for which the CTM has a release `R_v` has, at
 every member with a fixed address and a nonempty row in `R_v`'s table, a system proxy pointing at
 that row; or the run crosses a transition whose two releases have a member whose rows clash under
-`kec`. -/
+`kec`. A pre-registry chain's crossing of an opaque legacy cut is a break-glass step in this
+model, so the premise excludes it too. -/
 def Properties.ChainsRunTheirVersionsL2Rows : Prop :=
   ∀ {H : Type} [DecidableEq H] (kec : Bytes → H) (rnd : Bytes → L2Addr) (W : L2World)
     (s s' : L2Sys) (ls : List L2Label),

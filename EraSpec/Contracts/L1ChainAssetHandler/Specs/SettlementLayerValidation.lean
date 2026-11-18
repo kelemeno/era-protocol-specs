@@ -254,7 +254,11 @@ structure ValWorld where
 
 /-- The configuration premise: chain id 0 is not a whitelisted settlement layer. `L1BH:94-100`
 whitelists only a chain whose `settlementLayer` entry is L1, which only a registered chain has,
-and no chain with id 0 is registered (`BH:491-494`). -/
+and no chain with id 0 is registered (`BH:491-494`). The other writers of `settlementLayer` on
+L1, `BH:445` (`forwardedBridgeMint`) and `BH:466` (`forwardedBridgeConfirmTransferResult` on
+failure), succeed only for a registered chain (or a migrated one, which needs the burn gated by
+`BH:411`; the failure write is undone by the `ZKChainNotRegistered` revert at `L1CAH:140`), so
+none sets `settlementLayer[0]`. -/
 def ValWorld.Ok (W : ValWorld) : Prop := W.wl 0 = false
 
 /-- The environment guarantees, as switches (see the module docstring). -/

@@ -263,7 +263,10 @@ string's source slot holds its chain id (as for every bundle the center builds),
 preimages `abi.encode(c, B)`, `abi.encode(c', B')` are equal exactly when `B = B'`. So on such bytes
 the pin's outer chain-id word separates no two bundles that the bytes do not already separate, and
 the preimage-collision disjuncts of the pin and of v35 both require `B ≠ B'` (they are collisions of
-keccak on different inputs). `PinSeparatesUnsourcedBytesV35` shows the source-slot premise is needed. -/
+keccak on different inputs). The forward direction (equal pin preimages give `B = B'`) holds for
+all bytes; only the reverse one (from `B = B'` to equal pin preimages, which needs `c = c'`) uses
+the source-slot premise.
+`PinSeparatesUnsourcedBytesV35` shows the source-slot premise is needed. -/
 def Properties.PinAndV35PreimagesCoincideOnSourcedBytesV35 : Prop :=
   ∀ (c c' : ℕ) (B B' : List UInt8), c < 256 ^ 32 → c' < 256 ^ 32 →
     bundleSourceSlotV35 B = word c → bundleSourceSlotV35 B' = word c' →

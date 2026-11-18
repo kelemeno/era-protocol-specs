@@ -45,7 +45,7 @@ Two constant `from` addresses are written by the Mailbox itself:
     bridgehubRequestL2TransactionOnGateway ‚Üê only interop/InteropCenter.sol:849, an L2 contract
 
 `CAH.requestPauseDepositsForChainOnGateway` is called by a chain's diamond from
-`pauseDepositsBeforeInitiatingMigration` (`MIG:105-130`). The `L2Bridgehub` has no request entry
+`pauseDepositsBeforeInitiatingMigration` (`MIG:105-129`). The `L2Bridgehub` has no request entry
 (`grep -rn '_sendRequest' contracts/`), so on L1 the only Bridgehub is `L1Bridgehub`.
 
 ## Modelling choices (`MODEL-PRIORITY-SENDERS` in `ASSUMPTIONS.md`)
@@ -376,7 +376,7 @@ def cahPause (P : SysParams) (S : System) (env : Env) (caller : Address) (c : ‚Ñ
   serviceCall P S env (S.zkChain (S.settlementLayerOf c)) P.cah l2ChainAssetHandlerAddr
     (P.encPause c)
 
-/-- `D.pauseDepositsBeforeInitiatingMigration()` (`MIG:105-130`), by `D`'s admin or chain type
+/-- `D.pauseDepositsBeforeInitiatingMigration()` (`MIG:105-129`), by `D`'s admin or chain type
 manager: write `pausedDepositsTimestamp = block.timestamp` (`PAUSE_DEPOSITS_TIME_WINDOW_START = 0`,
 so both branches of `MIG:113-120`), then, if the chain settles elsewhere and has operations, call
 the chain asset handler the Bridgehub names (`MIG:122-127`). -/

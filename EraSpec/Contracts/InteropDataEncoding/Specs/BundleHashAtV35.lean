@@ -72,7 +72,7 @@ preimages that make it precise: the two bundle byte strings and the two packed s
 (`:221-226`). For a direct call, `_processCallStarter` (`:823-830`) fills it as
 `InteropCall({version: 0x01, shadowAccount: false, to: recipient, data: payload, value, from:
 msg.sender})`. The bundle's attributes are the parsed `BundleAttributes`
-(`InteropAttributeParser.sol:61-76`), and an empty unbundler is replaced by
+(`InteropAttributeParser.sol:60-76`), and an empty unbundler is replaced by
 `formatEvmV1(block.chainid, msg.sender)` (`:217-219`; `_parseBundleInputs` does the same for
 `sendBundle`, `:520-522`). `sendMessageBytesV35` is `abi.encode(bundle)` for such a send, in the
 canonical layout, following the ABI specification:
@@ -161,7 +161,9 @@ def bundleAttributesEncodingV35 (u s : List UInt8) : List UInt8 :=
 /-- **THE BYTES OF A `sendMessage` BUNDLE.** `abi.encode(bundle)` for the bundle that sender `a` on
 chain `c` builds with `sendMessage` (`InteropCenter.sol:197-244`): one direct call to `recipient` with
 call value `value` and `payload`, destination `d` with base-token asset id `base`, user salt `s`, and
-no other bundle attribute, so the unbundler is `formatEvmV1(c, a)` (`:217-219`). The salt word is
+no executionAddress, useFixedFee or unbundler attribute (the required `atomicBundle` attribute is
+parsed out of band and does not enter the bytes), so the unbundler is `formatEvmV1(c, a)`
+(`:217-219`). The salt word is
 `keccak(abi.encodePacked(a, s))` (`:638`). `calls` sits at offset `224`, right after the seven head
 words, and consists of its length word `1`, one offset word and the element. The attributes follow
 at offset `288` plus the element's length. -/

@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Properties.MutableSelectors
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
+import EraSpec.Contracts.ChainTypeManager.Proofs.GenesisWriters
 
 /-!
 # Proofs: the routing headline needs stable `selectors()` answers
@@ -17,7 +18,7 @@ chains at one version with a release, routing differently, are out of reach of e
 `ChainRouting` world, by `ChainsRunTheirVersionsRelease` itself (`split_unreachable`). A diamond
 routing a selector to a facet no row of its version's release names is out of reach of every
 `LiveRouting` run of those objects, by `ChainsRunTheirVersionsReleaseCounted`
-(`rowsRouting_mem`). The countermodels compute the rest on concrete diamonds.
+(`GenesisWriters.rowsRouting_mem`). The countermodels compute the rest on concrete diamonds.
 -/
 
 namespace Contracts.ChainTypeManager.MutableSelectors
@@ -203,16 +204,6 @@ lemma frozen_cuts_route {M : MutWorld} {σ : Address → List Selector} {t : Add
   have := transitionCuts_routing hguard h
   rw [hguard] at this
   exact applyDerived_rows this
-
-/-- A routing built from rows routes a selector only as some row does. -/
-lemma rowsRouting_mem : ∀ {B : ReleaseRows} {y : Selector} {r : Route},
-    rowsRouting B y = some r → (y, r) ∈ B
-  | [], _, _, h => by simp [rowsRouting] at h
-  | (x, r') :: B, y, r, h => by
-    simp only [rowsRouting] at h
-    split_ifs at h with hy
-    · cases h; subst hy; exact List.mem_cons_self
-    · exact List.mem_cons_of_mem _ (rowsRouting_mem h)
 
 /-! ## Split states are out of reach of the base models -/
 
@@ -479,7 +470,7 @@ lemma mut_leftover_not_release (σ : Address → List Selector) :
   intro h
   have h5 := congrFun h 5
   rw [mut_leftover_routes5] at h5
-  have hm := rowsRouting_mem h5.symm
+  have hm := GenesisWriters.rowsRouting_mem h5.symm
   have hrows : mutWorld.genesisFacets 200 = [(21, false)] := by decide
   rw [hrows] at hm
   simp only [flattenRows, List.flatMap_cons, List.flatMap_nil, List.append_nil, List.mem_map,
@@ -595,6 +586,21 @@ theorem MutableSelectorsSplitRouting : Properties.MutableSelectorsSplitRouting :
       mut_split,
     split_unreachable_counted (v := 2) (d₀ := mutCrossedStore) (d₁ := mutFreshStore) rfl rfl
       (by decide) mut_split⟩
+
+/-- **OF `StableSelectors`, ONLY THE `constant` FIELD FAILS** on the run of
+`MutableSelectorsSplitRouting`: the run starts at `mutSelA`, every transition was built under
+`mutSelA`, and the run's third step changes facet `21`'s answer, so `StableSelectors` fails. -/
+theorem MutableSelectorsSplitRoutingOnlyConstantFails :
+    mutSys0.sel = mutSelA ∧ (∀ t, mutWorld.FrozenUnder mutSelA t) ∧
+      (∃ l ∈ [MutLabel.sys (.genesis 0), .sys (.ctm (.commit 300)), .setSelectors 21 [1, 3],
+          .sys (.transition 0), .sys (.genesis 1)], l.isSelectorChange) ∧
+      ¬ StableSelectors mutWorld mutSelA mutSys0
+          [.sys (.genesis 0), .sys (.ctm (.commit 300)), .setSelectors 21 [1, 3],
+            .sys (.transition 0), .sys (.genesis 1)] := by
+  have h := MutableSelectorsSplitRouting
+  have hch : MutLabel.isSelectorChange (.setSelectors 21 [1, 3]) := trivial
+  exact ⟨h.2.2.2.2.2.2.2.2.1, h.1, ⟨_, by simp, hch⟩,
+    fun hs => hs.constant _ (by simp) hch⟩
 
 theorem MutableSelectorsBlockNextEdge : Properties.MutableSelectorsBlockNextEdge := by
   have hrun := MutRun.cons (M := mutLateWorld)

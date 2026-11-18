@@ -255,7 +255,7 @@ import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadPoolSimulation
 import EraSpec.Contracts.Merkle.Proofs.RootPaths
 import EraSpec.Contracts.PriorityTree.Proofs.SegmentBinding
 
--- N-10: L2 implementation tables of registry transitions (ChainTypeManager, pin b17415d20)
+-- L2 implementation tables of registry transitions (ChainTypeManager, pin b17415d20)
 import EraSpec.Contracts.ChainTypeManager.Proofs.L2Derivation
 import EraSpec.Contracts.ChainTypeManager.Proofs.L2Convergence
 
@@ -389,7 +389,7 @@ import EraSpec.Contracts.L1InteropHandler.Proofs.WithdrawalGate
 import EraSpec.Contracts.L1Messenger.Proofs.SenderKeying
 import EraSpec.Protocol.L1WithdrawalProvenance.Proofs.Provenance
 
--- Interop-peer whitelist mirror and the L2 Bridgehub's baseTokenAssetId entries (b17415d20; N-15)
+-- Interop-peer whitelist mirror and the L2 Bridgehub's baseTokenAssetId entries (b17415d20)
 import EraSpec.Protocol.InteropPeerRegistry.Proofs.PeerMirror
 
 -- Liveness of the atomic send path and of an atomic leg's routes on its destination (InteropAtomicity)
@@ -407,12 +407,12 @@ import EraSpec.Contracts.AdminFacet.Proofs.Fees
 -- registry, settlement-layer bookkeeping and the two request paths
 import EraSpec.Contracts.Bridgehub.Proofs.Registry
 
--- Native-value atomic legs at head b17415d20 (backlog N-5): collection and refund, and runs
+-- Native-value atomic legs at head b17415d20: collection and refund, and runs
 import EraSpec.Protocol.NativeValueLegs.Proofs.LegConservation
 import EraSpec.Protocol.NativeValueLegs.Proofs.LegConservationRuns
 import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
 
--- Round 8, N-19: atomic recovery on the L2 asset tracker at v35 (b17415d20)
+-- Atomic recovery on the L2 asset tracker at v35 (b17415d20)
 import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
 
 -- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
@@ -420,7 +420,7 @@ import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
 import EraSpec.Protocol.PriorityMirror.Proofs.Mirror
 
 -- L1ChainAssetHandler at draft/v0.35.0 (b17415d20): isValidSettlementLayer against the layer that
--- executed each batch, over a run of executions and one migration round trip (N-22)
+-- executed each batch, over a run of executions and one migration round trip
 import EraSpec.Contracts.L1ChainAssetHandler.Proofs.SettlementLayerValidation
 
 /-!

@@ -26,7 +26,8 @@ allowed) a write of the two Bridgehub roles. A ghost log records every push with
   settling elsewhere it appends that push and one relay push into the settlement layer's diamond
   (a different diamond, whose total grows by one) calling `forwardTransactionOnGateway(c, h, 0)`
   for the pushed leaf `h`; no other diamond changes (`UserCallRelaysIffSettled`). Service requests
-  do the same (`ServiceCallRelaysIffSettled`).
+  do the same, except that the settlement layer may be the requesting diamond and the statement
+  does not state how its total grows (`ServiceCallRelaysIffSettled`).
 - **Privileged senders (B).** From an `Init` state (genuine roles), without role writes, and under
   the account premises (no key for either constant, no contract at their alias preimages, no
   account at `L2_INTEROP_CENTER_ADDR` on L1, the registration sender is a contract whose alias has

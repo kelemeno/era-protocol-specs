@@ -92,7 +92,9 @@ instead of rejecting them, `_requestL2Transaction` bounds their number by `MAX_N
 the two free paths use `l2GasLimit: 72_000_000`, `TransactionValidator` takes the encoding and
 `s.zksyncOS`, and `bridgehubRequestL2TransactionOnGateway` is `onlyBridgehubOrInteropCenter`. The
 lines for the index and nonce, the push and its timestamp, the fee floor and the aliasing read the
-same at both commits (`git diff` of `Mailbox.sol` touches only the lines listed here), so the
+same at both commits (`git diff` of `Mailbox.sol` changes, besides the lines listed here, only
+imports, comments, an unused `onlyGateway` modifier, and the removal of `ISelfDescribingFacet`
+and its `selectors()`), so the
 statements about them would carry over; the statements about `factoryDeps` and the free paths'
 gas limit would not.
 -/

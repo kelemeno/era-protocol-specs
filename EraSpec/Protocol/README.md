@@ -86,8 +86,8 @@ and properties remain under `../Contracts/<SolidityName>/`.
   redirected role breaks the service purposes.
 - [InteropPeerRegistry](InteropPeerRegistry/README.md) (`b17415d20`): each chain's
   `L2Bridgehub.isPeerAllowed` equals `ChainRegistrationSender.interopPeerAllowed` once the
-  pair's last executed queue entry succeeded (or every service entry did), with countermodels for
-  a failed service entry and out-of-order execution; every chain's `baseTokenAssetId[p]` is `0` or
+  pair's last executed queue entry succeeded (or every service entry did), with a deployed-model
+  desync after a failed service entry, and a countermodel for out-of-order execution; every chain's `baseTokenAssetId[p]` is `0` or
   L1's, and L1's never changes once set, across the (disabled) migration path, where a settled
   chain's entry stays L1's. No hash premise.
 - [L1WithdrawalProvenance](L1WithdrawalProvenance/README.md) (`b17415d20`): composition of

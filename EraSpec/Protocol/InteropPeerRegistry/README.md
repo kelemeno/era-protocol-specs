@@ -47,7 +47,8 @@ of `_checkPeerPair` in `deregisterInteropPairs`. Boundary: `MODEL-PEER-MIRROR` i
   agree whenever none is pending, however many re-submissions failed
   (`PeerFlagMirrorsWhenServiceEntriesSucceed`).
 - The success premise is needed: after a failed `allowInteropPeer` service transaction the queue
-  can be empty with the flags disagreeing (`FailedServiceEntryLeavesPeerFlagBehind`). The
+  can be empty with the flags disagreeing (`FailedServiceEntryLeavesPeerFlagBehind`;
+  `FailedServiceEntryLeavesPeerFlagBehindLogged` also states the failed entry on the log). The
   re-submission is then enabled and repairs it (`ResubmissionRestoresPeerFlag`). FIFO execution is
   needed too (`WithoutFifoPeerFlagDesyncs`).
 - A failed `deregisterChainForInterop` service transaction leaves the flags disagreeing the other
@@ -61,8 +62,9 @@ of `_checkPeerPair` in `deregisterInteropPairs`. Boundary: `MODEL-PEER-MIRROR` i
   (`FailedDeregRepairBlockedWhileSettled`). From a state where L1 records `p` on `c`, the sender's
   flag is `false` and no entry writing `c`'s flag is pending, no step changes `c`'s flag, and the
   last two conditions persist (`DisallowedPeerFlagFrozenWhileOnLayer`). Applied step by step, the
-  chain's flag keeps its value for as long as L1 records `p` on `c`. That window needs a
-  migration, which is disabled at `b17415d20`.
+  chain's flag keeps its value for as long as L1 records `p` on `c` (an informal consequence:
+  only the one-step result is proved). That window needs a migration, which is disabled at
+  `b17415d20`.
 - The model lets any queued execution fail. For a deregistration entry, the failure cause the
   protocol docs name is an L2 that is not yet upgraded (`protocol-docs/interop-gating.md:172-173`);
   an earlier successful allow on the same chain shows that its L2 was upgraded (source note, not
@@ -93,7 +95,8 @@ of `_checkPeerPair` in `deregisterInteropPairs`. Boundary: `MODEL-PEER-MIRROR` i
   `baseTokenAssetId` does not change in any step, the re-submission included, and a `true`
   `isPeerAllowed` stays `true` (`SettledEntryNeverChanges`). A `false` `isPeerAllowed` can turn on:
   after a failed service entry, the re-submission sets it while `p` settles on `c`
-  (`SettledPeerFlagCanTurnOn`).
+  (`SettledPeerFlagCanTurnOn`; `SettledPeerFlagTurnsOnByResubmission` also states that the step
+  executes a queued re-submission after a failed service entry).
 - Both mechanisms are load-bearing. Without the settlement clause in `deregisterInteropPairs`, a
   settled chain's entry is cleared (`WithoutDeregSettlementCheckSettledEntryCleared`) and its
   return then writes `0` into L1's `baseTokenAssetId[p]`

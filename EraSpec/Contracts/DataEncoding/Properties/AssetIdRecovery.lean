@@ -66,7 +66,12 @@ def Properties.FailsAssetIdCheckIsLibraryRevertWitness : Prop :=
 here). Then the router's `recoverAtomicCall`, called by the flow manager, of a `finalizeDeposit`
 call on `a` reverts, unless the call's mint data decodes to an origin pair `(c, originToken)` and
 keccak collides on the two preimages `routerPreimage c₀ s d` and
-`routerPreimage c vault originToken`. -/
+`routerPreimage c vault originToken`.
+
+The NTV preimage `routerPreimage c cfg.ntv …` is the byte string `assetIdCheck` hashes
+(`abi.encode(c, L2_NATIVE_TOKEN_VAULT_ADDR, originToken)`) only when `cfg.ntv` is the widened
+`L2_NATIVE_TOKEN_VAULT_ADDR`; the statement quantifies over every `cfg`
+(`Specs/AssetIdRecovery.lean`). -/
 def Properties.CustomAssetRecoveryRevertsOrKeccakCollision : Prop :=
   ∀ (X : Type) (keccak : Keccak) (cfg : Config) (hk : Hooks X) (w : World X)
     (dest src c₀ : AssetRouter.Chain) (s : AssetRouter.Address) (d : AssetRouter.AssetData)
@@ -82,7 +87,9 @@ def Properties.CustomAssetRecoveryRevertsOrKeccakCollision : Prop :=
 triple (`s` not the vault) whose id the vault does not know, decodable mint data whose origin
 pair's NTV preimage keccak does not collide with the custom preimage, an unpaused vault and
 hooks that all succeed; the refund of the `finalizeDeposit` call on the custom id reverts. (In
-the proof the custom asset is registered on the configuration's own chain.) -/
+the proof the custom asset is registered on the configuration's own chain. The proof reuses
+`AtomicRecovery`'s `wCfg`, whose vault is at address `4`, not `L2_NATIVE_TOKEN_VAULT_ADDR`; so it
+does not show the premises jointly satisfiable at an L2's own configuration.) -/
 def Properties.CustomAssetRecoveryRevertsOrKeccakCollisionWitness : Prop :=
   ∃ (X : Type) (keccak : Keccak) (cfg : Config) (hk : Hooks X) (w : World X)
     (dest src c₀ : AssetRouter.Chain) (s : AssetRouter.Address) (d : AssetRouter.AssetData)
@@ -130,7 +137,12 @@ logged registry run from fresh storage. Then the handler `_burn` picks at the so
 * the NTV preimage of the origin pair decoded from the call's mint data.
 
 (The custom preimage is `routerPreimage c₀ s d`; for a real address `s` it is
-`abi.encode(c₀, s, d)`.) -/
+`abi.encode(c₀, s, d)`.)
+
+The NTV preimage `routerPreimage c cfg.ntv …` is the byte string `assetIdCheck` hashes
+(`abi.encode(c, L2_NATIVE_TOKEN_VAULT_ADDR, originToken)`) only when `cfg.ntv` is the widened
+`L2_NATIVE_TOKEN_VAULT_ADDR`; the statement quantifies over every `cfg`
+(`Specs/AssetIdRecovery.lean`). -/
 def Properties.CustomHandlerDepositRefundRevertsOrKeccakCollision : Prop :=
   ∀ (X : Type) (keccak : Keccak) (cfg : Config) (hk : Hooks X) (w : World X)
     (log : List NativeTokenVault.Op) (audit : NativeTokenVault.Audit)
@@ -154,7 +166,8 @@ def Properties.CustomHandlerDepositRefundRevertsOrKeccakCollision : Prop :=
 registry run with at least one hashed pair, a custom asset routed to a custom handler, decodable
 mint data, an unpaused vault, every hook succeeding, and keccak colliding on none of the named
 preimage pairs. (In the proof: `AtomicRecovery`'s witness world, with the custom asset registered
-on the configuration's own chain.) -/
+on the configuration's own chain. Its vault is at address `4`, not `L2_NATIVE_TOKEN_VAULT_ADDR`,
+so the witness does not cover an L2's own configuration.) -/
 def Properties.CustomHandlerDepositRefundRevertsOrKeccakCollisionWitness : Prop :=
   ∃ (X : Type) (keccak : Keccak) (cfg : Config) (hk : Hooks X) (w : World X)
     (log : List NativeTokenVault.Op) (audit : NativeTokenVault.Audit)

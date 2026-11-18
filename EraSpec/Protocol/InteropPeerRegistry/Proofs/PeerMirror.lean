@@ -2460,6 +2460,22 @@ theorem FailedServiceEntryLeavesPeerFlagBehind :
     reach_of_runFrom (rfl : runFrom deployed wP init runDesync = some (runState deployed runDesync)),
     by decide, by decide, by decide⟩
 
+theorem SettledPeerFlagTurnsOnByResubmission : Properties.SettledPeerFlagTurnsOnByResubmission :=
+  ⟨wP, runState deployed runLateResub, runState deployed runLateResubExecuted, 2, 3,
+    reach_of_runFrom
+      (rfl : runFrom deployed wP init runLateResub = some (runState deployed runLateResub)),
+    step_of_stepFn (rfl : stepFn deployed wP (runState deployed runLateResub) (.execute 2 0 true) =
+      some (runState deployed runLateResubExecuted)),
+    by decide, by decide, by decide, by decide, by decide,
+    ⟨(runState deployed runLateResub).l1.bt 3, by decide⟩,
+    ⟨(runState deployed runLateResub).l1.bt 3, by decide⟩⟩
+
+theorem FailedServiceEntryLeavesPeerFlagBehindLogged :
+    Properties.FailedServiceEntryLeavesPeerFlagBehindLogged :=
+  ⟨wP, runState deployed runDesync, 2, 3,
+    reach_of_runFrom (rfl : runFrom deployed wP init runDesync = some (runState deployed runDesync)),
+    by decide, by decide, by decide, ⟨(runState deployed runDesync).l1.bt 3, by decide⟩⟩
+
 theorem FailedDeregLeavesPeerFlagOn : Properties.FailedDeregLeavesPeerFlagOn :=
   ⟨wP, runState deployed runFailedDereg, 2, 3,
     reach_of_runFrom

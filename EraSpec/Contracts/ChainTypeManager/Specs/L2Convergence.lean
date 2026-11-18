@@ -48,7 +48,11 @@ shell only when the address had no code (`applyProxy`).
    the migration's plan installs every nonempty row of its genesis release
    (`RegistryBootstrapMigration.sol:229-241`).
 4. **Break-glass**: the CTM owner's `executeUpgrade` (`ChainTypeManager.sol:626-628`) with any cut
-   and init, which can set any version and any L2 transaction. Any version, any L2 state.
+   and init, which can set any version and any L2 transaction; or a pre-registry chain crossing
+   an opaque legacy cut (`LegacyCut.opaque`, through the old Admin facet's `upgradeCutHash`
+   check), which includes a bootstrap version re-cut by `setUpgradeDiamondCut`
+   (`Op.legacyRecut`). `L2Step` has no other step for such a crossing. Any version, any L2
+   state. So "no break-glass step" in the headline also excludes opaque legacy crossings.
 
 ## Modelling choices
 
@@ -77,6 +81,12 @@ shell only when the address had no code (`applyProxy`).
   writes to the L2 state. The diamond modelled for each chain is the one on its settlement layer
   (`BaseZkSyncUpgrade.sol:86-105`); another instance's crossing sets no L2 transaction and is
   not modelled.
+* **The bootstrap crossing's plan is the genuine migration's.** `L2Step.bootstrapCross` installs
+  `deriveL2DeploymentsFromTable` of the genesis release, which is the genuine
+  `RegistryBootstrapMigration`'s `_buildL2Plan`. It inherits `VersionRegistry`'s
+  `LegacyCut.bootstrap` abstraction: a legacy commit with `bootstrapForm = true` is taken to be
+  that migration's cut. So the bootstrap crossing has no `L2Genuine`-style premise; the
+  genuineness of the migration object is an assumption of the model.
 * **Not modelled**: the facet routing (topic `ChainRouting`; the guard
   `requireReleaseRouting` is omitted, which only adds runs), callers and timing (topic
   `UpgradeTiming`), migration between settlement layers, the verifier, and the `Unsafe`
@@ -146,7 +156,8 @@ inductive L2Label
   | cross (id : ChainId) (t : Address) (exec : Bool)
   /-- Crossing the bootstrap edge committed at the chain's version. -/
   | bootstrapCross (id : ChainId) (exec : Bool)
-  /-- `executeUpgrade` with any cut: any version, any L2 state. -/
+  /-- `executeUpgrade` with any cut, or crossing an opaque legacy cut: any version, any L2
+  state. -/
   | breakGlass (id : ChainId) (v : ℕ) (σ : L2State)
 
 /-- Put chain `id` in state `c`. -/

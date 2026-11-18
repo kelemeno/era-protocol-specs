@@ -27,7 +27,8 @@ Proofs are in `EraSpec.Contracts.ChainTypeManager.Proofs.PendingL2UpgradeAtV35`.
   `ExpiredPendingChainWitness` meets every premise with a run that touches other chains.
 * **A concrete instance** (`LateUpgradeLandsInDeadTime`). Transitions `0.1.0 → 0.2.0` and
   `0.2.0 → 0.3.0` pass the checks `ValidEdge` states, change the minor component and carry an L2
-  side. A chain at `0.1.0` with nothing pending and every batch executed is not in dead time at
+  side. A chain at `0.1.0` with nothing pending and every batch executed (no batch committed
+  yet) is not in dead time at
   `25`, though `0.1.0`'s deadline `20` has passed: the CTM's owner can upgrade it. After that
   upgrade it is at `0.2.0` with a transaction pending and `0.2.0`'s deadline `20` passed, and the
   previous result applies from `25` on.
@@ -126,8 +127,8 @@ def Properties.ExpiredPendingChainWitness : Prop :=
 * transitions `300` (`0.1.0 → 0.2.0`) and `600` (`0.2.0 → 0.3.0`) satisfy `ValidEdge`, change
   the minor component, and carry an L2 side;
 * the run `pwSetup` from the fresh system leaves chain `0` at `0.1.0` routing release `100`,
-  with `300` and `600` committed, the CTM at `0.3.0`, every batch executed, on L1, nothing
-  pending, and no override;
+  with `300` and `600` committed, the CTM at `0.3.0`, every batch executed (no batch committed
+  yet), on L1, nothing pending, and no override;
 * at time `25` version `0.1.0` is not active, and chain `0` is not in dead time;
 * at `25` the CTM's owner upgrades chain `0` through the CTM. It lands at `0.2.0` routing
   release `200` with transaction `7` pending, and `0.2.0`'s deadline is `20`;
@@ -198,10 +199,10 @@ def Properties.NoDeadTimeWithoutPendingTx : Prop :=
 
 /-- **THE PREMISES OF `NoDeadTimeWithoutPendingTx` ARE MET, NOTHING PENDING.** The fresh witness
 system satisfies the start premises; every label of `pwSetup` meets the run premises. At the end
-of `pwSetup` chain `0` is at `0.1.0` with `300` committed, no override, every batch executed, on
-L1, and nothing pending; the edge `300` is not a patch. At `25`, `0.1.0` is not active and the
-chain's admin `3` upgrades it directly, landing on `PendingSys.crossed`. The chain is in dead
-time at no block time. -/
+of `pwSetup` chain `0` is at `0.1.0` with `300` committed, no override, every batch executed (no
+batch committed yet: `committed = executed = 0`), on L1, and nothing pending; the edge `300` is
+not a patch. At `25`, `0.1.0` is not active and the chain's admin `3` upgrades it directly,
+landing on `PendingSys.crossed`. The chain is in dead time at no block time. -/
 def Properties.NoDeadTimeWithoutPendingTxWitness : Prop :=
   SysInv pwTimed.X.W pwSys0.ts.sys ∧ RecordedReleasesWf pwTimed.X.W pwSys0.ts.sys.ctm ∧
     SlotSchedulesValid pwTimed pwSys0.ts.sys.ctm ∧ PendingInv pwSys0 ∧
@@ -220,7 +221,8 @@ def Properties.NoDeadTimeWithoutPendingTxWitness : Prop :=
 PENDING.** From the fresh witness system (start premises: `NoDeadTimeWithoutPendingTxWitness`),
 the run `pwPatchSetup` (with the patch `700` committed at `0.2.0`) followed by the late upgrade
 `pwLateUpgrade` meets the run premises. At its end chain `0` is at `0.2.0` with `700` committed,
-no override, every batch executed, on L1, and transaction `7` pending. The edge `700` is a patch
+no override, every batch executed (no batch committed yet), on L1, and transaction `7` pending.
+The edge `700` is a patch
 and carries no L2 side. At `25`, `0.2.0` is not active and the chain's admin `3` upgrades it
 directly across the patch; the transaction stays pending. The chain is in dead time at no block
 time. -/

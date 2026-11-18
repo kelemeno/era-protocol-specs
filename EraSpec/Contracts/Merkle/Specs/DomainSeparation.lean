@@ -179,7 +179,8 @@ def pairPre (p : UInt256 × UInt256) : List UInt8 := nodePre p.1 p.2
 
 /-- `struct L2Log` (`common/Messaging.sol:27-34`). `txNumberInBatch` is a `uint16` and `sender` an
 `address`; the model keeps them as naturals, and the packed encoding takes their low 2 and 20
-bytes. -/
+bytes. The same model, with its own `logPre`, is `Contracts.ChainBatchRootTree.L2Log`
+(`ChainBatchRootTree/Specs/LogConfinement.lean`); the two copies are separate declarations. -/
 structure L2Log where
   l2ShardId : UInt8
   isService : Bool

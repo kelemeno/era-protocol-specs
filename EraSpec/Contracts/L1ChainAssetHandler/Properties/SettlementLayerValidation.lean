@@ -220,7 +220,10 @@ def Properties.ExecutedBatchComplete : Prop :=
 
 /-- **A CONFIRMED FAILURE CLASSIFIES EVERY BATCH AS L1.** In every environment and world, from
 any state, after a `confirmFailure` step that succeeds, `isValidSettlementLayer(c, b, X, k)`
-returns whether `X` is L1, for every `b`, `X` and `k`. -/
+returns whether `X` is L1, for every `b`, `X` and `k`. This follows from the step setting
+`migrationNumber` to `0`, so the call's loop visits no interval. That every batch executed while
+the migration was pending ran on L1 is a separate fact (`MigrationsDisabledEveryBatchOnL1`, and
+`SLVPending.allL1` in the Proofs). -/
 def Properties.FailureClassifiesAllOnL1 : Prop :=
   ∀ (K : ValEnv) (W : ValWorld) (s s' : ValState), valStep K W s .confirmFailure = some s' →
     ∀ b X k, isValidAt W s' b X k = some (decide (X = W.l1))

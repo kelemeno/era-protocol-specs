@@ -233,7 +233,9 @@ def Properties.NtvClaimNamesRecordedDepositOrCollision : Prop :=
 `a ≠ 0`, burn data `b` of a nonzero amount to a nonzero receiver) and:
 
 * a keccak under which the record's hash is nonzero and the claim naming that deposit meets
-  both premises (its data decodes to `b`, and it recomputes the record's hash);
+  both premises (its data decodes to `b`, and it recomputes the record's hash; that claim has
+  the record's own fields, so the hash equality holds by reflexivity and this half only shows
+  the first disjunct is reachable);
 * a keccak under which a claim whose burn data `b'` differs from `b` only in the amount meets
   both premises, so the first disjunct is false and keccak collides on the two preimages. -/
 def Properties.NtvClaimNamesRecordedDepositOrCollisionWitness : Prop :=

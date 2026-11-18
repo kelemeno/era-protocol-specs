@@ -189,7 +189,10 @@ one-step logged run), and a nonempty logged continuation to a state `W`, still b
 native inflow of `a` passes `InsufficientChainBalance`.  So the premises of `SolvencyAtHead`,
 `StepAtHeadPreservesLedgerBacked`, `PopulateEffectAtHead` (the population step),
 `PopulatedFlagsPersistAtHead` (the continuation, from a state where `a` is populated) and
-`GuardedInflowIsBackedAtHead` (at `W`) are met together. -/
+`GuardedInflowIsBackedAtHead` (at `W`) are met together.  The final inflow of `1` would pass
+the guard with or without the population; the case where the population matters for the
+guard (an inflow larger than the post-upgrade outflow) is carried by
+`LoggedRunSoundAtHeadSatisfiable` and `PopulateRestoresLegacyWithdrawalAtHead`. -/
 def Properties.EscrowLedgerAtHeadWitness : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (legacy : LegacyAmounts) (W₀ X W : WorldAtHead)
     (log : List OpAtHead) (a : AssetId),
