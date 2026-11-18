@@ -194,7 +194,10 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
     (`PROTO-CONTIGUOUS-PUSH`), and the BEGIN tree of batch `n + 1` is the END tree of batch
     `n` by definition (`PROTO-BATCH-SNAPSHOT`). The witnesses of these gate-as-run results
     use a chain that has committed a value, so the tree the absence proof is checked against
-    is not the empty `setup`.
+    is not the empty `setup`. For the loose gate,
+    `MissedDeadlineRefundableByHonestProofCommittedWitness` meets the premises of `MissedDeadlineRefundableByHonestProof` on the same chain, whose
+    BEGIN tree at the first late batch holds the committed value; the other loose-gate
+    witnesses use a chain that never commits.
   - *In the fixed-history model*, at every manager state, each still `Committed` leg of a
     checked flow with a stranded leg can be authorized by a verified call on a break-free
     proof and then claimed (`StrandedFlowCommittedLegRefundable`). This is enabledness in a

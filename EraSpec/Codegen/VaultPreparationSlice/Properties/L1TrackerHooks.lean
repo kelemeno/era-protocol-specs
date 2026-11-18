@@ -16,6 +16,11 @@ Statements about `Specs/L1TrackerHooks.lean`.  Proofs: `../Proofs/L1TrackerHooks
   preparation trace run with the L1 hooks (`SimulationAtMostOneTraceStep`, instantiated).
 * `L1HooksAgreeSatisfiable`: for every model metadata hook there is a concrete one agreeing with
   it, so the metadata premise of both results is satisfiable whatever the model's metadata hook.
+
+These three are instantiations: `L1HooksAgree` holds by unfolding both hooks, `L1VaultSimulation`
+is the slice's existing `SimulationAtMostOneTraceStep` at the L1 hook, and on the transcribed
+bridged branch the L1 hook is the identity. They add the L1 instance, not new content beyond the
+slice's own results.
 -/
 
 namespace Codegen.VaultPreparationSlice

@@ -18,8 +18,8 @@ inputs that pass both, and the publication evidence an acceptance implies.
 Namespace: `Contracts.ZKsyncOSCommitterDA`. Statements are
 `Contracts.ZKsyncOSCommitterDA.Properties.*`; each certificate has the same name without the
 `Properties` segment. `Specs/Validators.lean` transcribes `RollupL1DAValidator`,
-`RelayedSLDAValidator`, `ValidiumL1DAValidator` and their `CalldataDA` helpers, adapted from the
-unmerged `origin/cov2/da` (`7dd67bf`) and re-cited at `b17415d20`; the ZKsync OS blobs validator is
+`RelayedSLDAValidator`, `ValidiumL1DAValidator` and their `CalldataDA` helpers, adapted from an
+earlier draft DA model and re-checked line by line against `b17415d20`; the ZKsync OS blobs validator is
 `../../Contracts/BlobsL1DAValidatorZKsyncOS/`.
 
 ## What to check

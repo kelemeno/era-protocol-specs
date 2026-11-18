@@ -347,7 +347,9 @@ successful leg, a row whose proxy is not administered by the `ProxyAdmin` has a 
 implementation whose code, asked `implementation()` for that proxy in the final world, answers the
 row's `implNew`: `requireRowsApplied` reads through the proxy's non-admin path
 (`TransparentUpgradeableProxy.sol:104-105`). Nothing is said about that proxy's implementation
-slot. No premise about the admin before the leg. -/
+slot. No premise about the admin before the leg. The name is historical: the statement describes
+how a moved row proxy passes the check, not that the move is caught;
+`CoreRowAdminMoveUncaughtWhenAnswerMatches` shows such a move need not be caught. -/
 def Properties.CoreRowAdminMoveCaught : Prop :=
   ∀ (X : Exec) (E : Engines) (caller : Address) (T : TransitionObj) (W W' : World),
     applyL1Upgrade X E caller T W = some W' →
@@ -547,9 +549,13 @@ premise bundles of `DefaultCoreLegIsTheEngineRun`, `DefaultCoreLegReplayIsNoop`,
 `DefaultCoreLegIsApplyRows` and `DefaultCoreLegOnlyNamedEdges` hold together on one run: a
 genuine Core transition pinning the default engine, whose one row (proxy `5`, `10 → 11`) calls its
 reinitializer; an executor that owns the `ProxyAdmin`, which administers the row's proxy; and a
-reinitializer that writes no admin slot and only its own proxy's implementation slot, which is
-not the identity on implementation mappings. Governance's call succeeds, moves proxy `5` from
-`10` to `11`, and leaves the unnamed singletons `6` and `7` and every admin slot alone. -/
+reinitializer that writes no admin slot and only its own proxy's implementation slot. Governance's
+call succeeds through the `upgradeAndCall` branch, moves proxy `5` from `10` to `11`, and leaves
+the unnamed singletons `6` and `7` and every admin slot alone. The reinitializer's non-identity
+conjunct is evaluated at the pre-swap `coreWorld.impl`; in the run it writes `implNew` into its
+own proxy, which the swap already did, so it changes nothing there. Under `ReinitFrames`,
+`ReinitKeepsAdmins` and a successful leg every reinitializer is inert on the run;
+`DefaultLegReinitMovesRowAdmin` is the run where a reinitializer does act. -/
 def Properties.CoreLegWitness : Prop :=
   ∃ W', Genuine coreTransitionInit ∧ coreTransitionInit.manifest.domain = .core ∧
     coreDefaultEngines coreExec coreTransitionInit.manifest.engine = defaultEngine coreExec ∧

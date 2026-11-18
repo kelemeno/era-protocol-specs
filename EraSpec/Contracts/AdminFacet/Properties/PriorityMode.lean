@@ -24,7 +24,8 @@ Statements about `EraSpec.Contracts.AdminFacet.Specs.AdminFacet`; proofs in
 * `PriorityModeTogglesOnlyByItsEntries` (run): without cuts, priority mode turns on only by
   `activatePriorityMode` and off only by the CTM's `deactivatePriorityMode`.
 * Witnesses: `PriorityModeWitness`, `PriorityModeDeactivationWitness`, `OneWayFlagsWitness`,
-  `DueActivationSurvivesWitness`.
+  `DueActivationSurvivesWitness`, and `PriorityModeActivationRevertsBatchesWitness` (a nonzero
+  filterer installed, batches reverted and the upgrade batch number cleared).
 * Countermodels: `CTMFreezeBlocksActivation` (the last premise of
   `NoFacetCallBlocksDueActivation` is needed), `ActivationNeedsPermanentRollup` (the
   permanent-rollup condition of `ActivatePriorityModeExact` is the only failing one in a reachable
@@ -52,9 +53,13 @@ unprocessed priority transaction was requested at a recorded time `t ≠ 0` with
 `t + PRIORITY_EXPIRATION ≤ τ`, and no more batches are executed than committed. Environment
 changes are unrestricted. If the selector of `activatePriorityMode` is not marked freezable, or no
 call in the run is sent by the CTM, then at the end priority mode is active or
-`activatePriorityMode` succeeds for every caller at every time `τ' ≥ τ`. So calls by the chain
-admin, validators and everybody else cannot undo a due activation; with the selector freezable,
-calls by the CTM can (`CTMFreezeBlocksActivation`). Runs with cuts are outside the statement. -/
+`activatePriorityMode` succeeds for every caller at every time `τ' ≥ τ`. So no call to this facet
+by anyone (other than the CTM when the selector is freezable) undoes a due activation; with the
+selector freezable, calls by the CTM can (`CTMFreezeBlocksActivation`). The other facets'
+effects (Executor, Mailbox, Migrator: executing or reverting batches, processing the overdue
+priority transaction, migrating) enter only as foreign writes, which the `ActivationQueueReady`
+premise restricts. Beyond the entries anyone may call, a validator's only entry of this facet
+is `upgradeChainFromVersion`, which runs a cut. Runs with cuts are outside the statement. -/
 def Properties.NoFacetCallBlocksDueActivation : Prop :=
   ∀ (K : Config) (w w' : World) (ls : List Label) (a : Address) (τ : ℕ),
     (∃ s₁, call K w.env w.st ⟨a, τ, .activatePriorityMode⟩ = some s₁) →
@@ -136,6 +141,30 @@ def Properties.PriorityModeWitness : Prop :=
     w'.st.priorityMode.activated = true ∧ Stage1Inv w'.st ∧
     ∃ a τ, Label.call ⟨a, τ, .activatePriorityMode⟩ ∈ ls ∧
       a ≠ w.st.admin ∧ a ≠ w.st.chainTypeManager
+
+/-- **WITNESS: ALLOWING INSTALLS THE CTM'S FILTERER, AND ACTIVATION REVERTS BATCHES.** From a
+state satisfying `Stage1Inv` with priority mode neither allowed nor active, with
+`totalBatchesExecuted < totalBatchesVerified < totalBatchesCommitted` and an L2 upgrade batch
+number above the executed count, a run without cuts in which the CTM sets a nonzero priority-mode
+filterer `f` that differs from the current filterer, the admin allows priority mode and anyone
+activates it, ends with `f` installed as the transaction filterer, priority mode active, the
+committed and verified counts lowered to the executed count, the upgrade batch number cleared, and
+`Stage1Inv` holding. Every effect `ActivatePriorityModeExact` and `permanentlyAllowPriorityMode`
+spell out is visible here. -/
+def Properties.PriorityModeActivationRevertsBatchesWitness : Prop :=
+  ∃ (K : Config) (w w' : World) (ls : List Label) (f : Address),
+    Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧ Stage1Inv w.st ∧
+    w.st.priorityMode.canBeActivated = false ∧ w.st.priorityMode.activated = false ∧
+    Label.call ⟨w.st.chainTypeManager, 0, .setPriorityModeTransactionFilterer f⟩ ∈ ls ∧
+    f ≠ 0 ∧ w.st.transactionFilterer ≠ f ∧
+    w.st.totalBatchesExecuted < w.st.totalBatchesVerified ∧
+    w.st.totalBatchesVerified < w.st.totalBatchesCommitted ∧
+    w.st.totalBatchesExecuted < w.st.upgradeBatchNumber ∧
+    w'.st.priorityMode.activated = true ∧ w'.st.transactionFilterer = f ∧
+    w'.st.priorityMode.transactionFilterer = f ∧
+    w'.st.totalBatchesCommitted = w.st.totalBatchesExecuted ∧
+    w'.st.totalBatchesVerified = w.st.totalBatchesExecuted ∧
+    w'.st.upgradeBatchNumber = 0 ∧ Stage1Inv w'.st
 
 /-- **WITNESS: PRIORITY MODE TURNED OFF.** From a state satisfying `Stage1Inv` with priority mode
 active, a run without cuts ends with priority mode inactive and `Stage1Inv` holding (the

@@ -58,8 +58,8 @@ establishes), and every BEGIN-branch completeness statement below rests on it.
 `verifyTimeoutAbsence` is unchanged apart from comments, `_authenticateRoot` (taken by its
 meaning here) reads the settlement-layer metadata through
 `MessageHashing.readSettlementLayerReference`, and the COMPLETENESS paragraph cited below
-(`:89-94`) is in `protocol-docs/atomicity/proofs.md` ("Completeness").  `AtomicFlowManager`
-changed there: `append` takes the flow's preimage and checks it, and `claimRefund` no longer
+(`:89-94`) is the "## Completeness" section of `protocol-docs/atomicity/proofs.md`,
+`:117-128` at both heads.  `AtomicFlowManager` changed there: `append` takes the flow's preimage and checks it, and `claimRefund` no longer
 needs a call that reports a recovery.  The manager model `ReachLog`, and so the last
 statement of section 1 and sections 2 and 3, are of `c67894b9`.
 
@@ -232,6 +232,23 @@ def Properties.MissedDeadlineRefundableByHonestProofWitness : Prop :=
       ∧ LegMissedDeadline (fun _ b => b) (mixedSystem 1) (mixedFlow 0 1 2) ⟨1, 2⟩
       ∧ (mixedFlow 0 1 2).deadline < (mixedSystem 1).time 1 1
       ∧ (∀ M < 1, (mixedSystem 1).time 1 M ≤ (mixedFlow 0 1 2).deadline)
+
+/-- **ITS PREMISES ARE SATISFIABLE ON A CHAIN THAT HAS COMMITTED A VALUE.**  For every hash:
+`mixedSystem 1` is well formed, honest access is data available, and the never-committed leg
+`⟨0, 2⟩` of `chainZeroTwoLegFlow` (commit value `fun _ b => b`, deadline `0`) missed its
+deadline, with batch `1` the first late batch of chain `0`.  Chain `0` committed `1` in batch
+`0`, so the BEGIN tree of batch `1` is nonempty: the absence proof the conclusion names is
+checked against a tree holding a value.  Since `1 ≠ 0`, the conclusion must supply the proof
+through the prover access. -/
+def Properties.MissedDeadlineRefundableByHonestProofCommittedWitness : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
+    Wf (mixedSystem 1)
+      ∧ DataAvailable h z0 hl (mixedSystem 1) (honestAccess h z0 hl (mixedSystem 1))
+      ∧ legValue (fun _ b => b) chainZeroTwoLegFlow ⟨0, 2⟩ ≠ 0
+      ∧ LegMissedDeadline (fun _ b => b) (mixedSystem 1) chainZeroTwoLegFlow ⟨0, 2⟩
+      ∧ chainZeroTwoLegFlow.deadline < (mixedSystem 1).time 0 1
+      ∧ (∀ M < 1, (mixedSystem 1).time 0 M ≤ chainZeroTwoLegFlow.deadline)
+      ∧ (1 : UInt256) ∈ keys (toAbs (beginTree (mixedSystem 1) 0 1))
 
 /-- **THE GATE AS RUN IS COMPLETE FROM ANY ROOT CREATED AFTER THE DEADLINE.**  On a
 well-formed history, take any imported settlement-layer root `R` created after the

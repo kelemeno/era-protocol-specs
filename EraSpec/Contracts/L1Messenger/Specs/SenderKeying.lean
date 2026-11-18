@@ -9,8 +9,9 @@ Source: era-contracts branch `draft/v0.35.0` at head `b17415d20`. Paths are rela
 `l2-system/zksync-os/L1Messenger.sol`, `IC` is `interop/InteropCenter.sol`, `ADDR` is
 `common/l2-helpers/L2ContractAddresses.sol` and `HOOKS` is `protocol-docs/system/system-hooks.md`; every
 line number is at `b17415d20`. At main `70096e2ea` the messenger is `L1MessengerZKOS.sol` with the same
-body, `HOOKS` and the cited `ADDR` lines are unchanged, and the center's L1 branch is the same; its send
-entry points gain `whenNotPaused`, which only rejects.
+body, `HOOKS`, `ADDR:18-31` and `ADDR:41` are unchanged, the other cited `ADDR` constants keep their
+values but move (`:56` to `:62`, `:84` to `:99`, `:136` to `:151`), and the center's L1 branch is the
+same; its send entry points gain `whenNotPaused`, which only rejects.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.L1Messenger.Properties.SenderKeying` and are proved in

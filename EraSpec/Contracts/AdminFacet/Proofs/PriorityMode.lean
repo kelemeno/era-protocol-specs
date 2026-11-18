@@ -273,6 +273,59 @@ theorem priority_mode_witness : Properties.PriorityModeWitness := by
   · simp [Stage1Inv, freshState]
   · simp [Stage1Inv, pm4, pm3, pm2, pm1, queuedState, freshState]
 
+/-- A permanent rollup with one queued priority transaction, filterer `5`, batches executed `1`,
+verified `2`, committed `3`, and the L2 upgrade in batch `3`. -/
+def pmB0 : State :=
+  { queuedState with
+    isPermanentRollup := true
+    transactionFilterer := 5
+    totalBatchesExecuted := 1
+    totalBatchesVerified := 2
+    totalBatchesCommitted := 3
+    upgradeBatchNumber := 3 }
+/-- After the CTM's `setPriorityModeTransactionFilterer(42)`. -/
+def pmB1 : State := { pmB0 with priorityMode := ⟨false, false, 0, 42⟩ }
+/-- After `permanentlyAllowPriorityMode`. -/
+def pmB2 : State := { pmB1 with transactionFilterer := 42, priorityMode := ⟨true, false, 0, 42⟩ }
+/-- After `activatePriorityMode`. -/
+def pmB3 : State :=
+  { pmB2 with
+    priorityMode := ⟨true, true, 0, 42⟩
+    totalBatchesCommitted := 1
+    totalBatchesVerified := 1
+    upgradeBatchNumber := 0 }
+
+theorem pmB0_setFilterer :
+    call nullConfig pmEnv pmB0 ⟨9, 0, .setPriorityModeTransactionFilterer 42⟩ = some pmB1 := by
+  simp [call, exec, req, onlySettlementLayer, onlyL1, pmB1, pmB0, queuedState, freshState,
+    nullConfig]
+
+theorem pmB1_allow :
+    call nullConfig pmEnv pmB1 ⟨1, 0, .permanentlyAllowPriorityMode⟩ = some pmB2 := by
+  simp [call, exec, req, onlySettlementLayer, onlyL1, pmB2, pmB1, pmB0, queuedState, freshState,
+    State.firstUnprocessed, State.priorityTreeSize, nullConfig]
+
+theorem pmB2_activates :
+    call nullConfig pmEnv pmB2 ⟨7, pmDue, .activatePriorityMode⟩ = some pmB3 := by
+  simp [call, exec, req, onlySettlementLayer, onlyL1, revertBatches, pmB3, pmB2, pmB1, pmB0,
+    queuedState, freshState, State.firstUnprocessed, nullConfig]
+
+theorem priority_mode_activation_reverts_batches_witness :
+    Properties.PriorityModeActivationRevertsBatchesWitness := by
+  refine ⟨nullConfig, ⟨pmB0, pmEnv⟩, ⟨pmB3, pmEnv⟩,
+    [.call ⟨9, 0, .setPriorityModeTransactionFilterer 42⟩,
+     .call ⟨1, 0, .permanentlyAllowPriorityMode⟩, .call ⟨7, pmDue, .activatePriorityMode⟩], 42,
+    ?_, ?_, ?_, rfl, rfl, List.mem_cons_self, by decide, by decide, by decide, by decide,
+    by decide, rfl, rfl, rfl, rfl, rfl, rfl, ?_⟩
+  · refine Run.cons (w₁ := ⟨pmB1, pmEnv⟩) (Step.call pmB0_setFilterer) ?_
+    refine Run.cons (w₁ := ⟨pmB2, pmEnv⟩) (Step.call pmB1_allow) ?_
+    exact Run.cons (Step.call pmB2_activates) (Run.nil _)
+  · intro l hl
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+    rcases hl with rfl | rfl | rfl <;> rfl
+  · simp [Stage1Inv, pmB0, queuedState, freshState]
+  · simp [Stage1Inv, pmB3, pmB2, pmB1, pmB0, queuedState, freshState]
+
 /-- `pm4` after the CTM's `deactivatePriorityMode`. -/
 def pm5 : State := { pm4 with priorityMode := ⟨true, false, 0, 0⟩ }
 
@@ -411,6 +464,9 @@ theorem PriorityModeWitness : Properties.PriorityModeWitness :=
   priority_mode_witness
 theorem PriorityModeDeactivationWitness : Properties.PriorityModeDeactivationWitness :=
   priority_mode_deactivation_witness
+theorem PriorityModeActivationRevertsBatchesWitness :
+    Properties.PriorityModeActivationRevertsBatchesWitness :=
+  priority_mode_activation_reverts_batches_witness
 theorem OneWayFlagsWitness : Properties.OneWayFlagsWitness :=
   one_way_flags_witness
 theorem DueActivationSurvivesWitness : Properties.DueActivationSurvivesWitness :=

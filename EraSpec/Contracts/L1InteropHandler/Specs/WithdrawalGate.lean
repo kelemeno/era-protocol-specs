@@ -8,8 +8,9 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy
 Source: era-contracts branch `draft/v0.35.0` at head `b17415d20`. Paths are relative to
 `l1-contracts/contracts/`. In this header `L1` is `interop/interop-handler/L1InteropHandler.sol`
 and `IHB` is `interop/interop-handler/InteropHandlerBase.sol`; every line number is at `b17415d20`.
-At main `70096e2ea` both files differ only by three getter names (`_executeBundleSelector`,
-`_verifyBundleSelector`, `_expectedDestinationBaseTokenAssetId`), so the model also describes main.
+At main `70096e2ea` both files differ only in three getter names (`_executeBundleSelector`,
+`_verifyBundleSelector`, `_expectedDestinationBaseTokenAssetId`) and, for the two selector getters,
+their mutability (`pure` to `view`, `L1:117`, `:122` at main), so the model also describes main.
 The pin model of the shared status machine is `InteropHandlerBase/Specs/Reentrancy.lean`
 (`c67894b9`); this file reuses its replay state and its unbundle loop, and is a new model beside it.
 

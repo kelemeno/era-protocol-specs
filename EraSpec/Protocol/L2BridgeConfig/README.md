@@ -39,12 +39,24 @@ It does not constrain the base token's origin data (`BaseOriginIs`).
 | `BaseRouteMovesOnlyByCounterpart` | The base id stays routed to the vault under every call except the counterpart's `setAssetHandlerAddress` at that id. Any sender, no run premise. |
 | `OnlyUpgraderWritesScalarConfig` | From any state, the scalar words change only in an upgrade transaction sent by `L2_FORCE_DEPLOYER_ADDR` or in a direct call by `L2_COMPLEX_UPGRADER_ADDR`. |
 | `BaseEntriesWritersFromConsistent` | From a consistent state, `tokenAddress[a]`, `assetId[L2_BASE_TOKEN_SYSTEM_CONTRACT_ADDR]`, `originChainId[a]` and the route of `a` change only by a default upgrade, a direct vault `updateL2` by the upgrader, a vault registration whose vault id is `a`, or the counterpart's write at `a`. |
-| `ConfigConsistentAlongRuns` | After genesis, along every admissible run: consistent with the genesis ids and WETH, every logged default upgrade carries those ids, and without a counterpart write at `a` the base id stays routed to the vault. Witness: `ConfigRunWitness` (a default upgrade that changes the L1 asset router, a vault registration, a bridged-token deployment, a counterpart write, a fallback write). |
+| `ConfigConsistentAlongRuns` | After genesis, along every admissible run: consistent with the genesis ids and WETH, every logged default upgrade carries those ids, and without a counterpart write at `a` the base id stays routed to the vault. Witness: `ConfigRunWitness` (a default upgrade that changes the L1 asset router, a vault registration, a bridged-token deployment, a counterpart write, a fallback write: every kind of writer that can succeed admissibly from a consistent state; `routerRegister` cannot). |
 | `BaseOriginPinnedAlongRuns` | Repaired form for the origin data: if also every logged default upgrade carries the genesis origin chain and origin token, the vault keeps them and its native test for the base token gives the genesis answer. |
 
 The run premises are model boundaries, not checks in the code. The first is `MODEL-L2-CONFIG`
 (the complex upgrader's delegate targets are the genesis and default upgrades). The second is
-a premise on each logged registration's own input, not on the hash function.
+a premise on each logged registration's own input, not on the hash function. With a
+collision-free encoding it binds only when the base token's origin chain is this L2 and the
+registered token is the base token's origin token (`NativeTokenVaultBase.sol:131-140, 492-499`);
+the registration would then overwrite `tokenAddress[a]` and the route of `a`. The L2 code takes
+the base token never to be native on L2 (`NativeTokenVaultBase.sol:442`,
+`L2AssetTracker.sol:180`). No countermodel here shows the premise is load-bearing.
+
+The model also has the router's non-vault `setAssetHandlerAddressThisChain` (`routerRegister`).
+From a consistent state it never succeeds: `ConfigConsistent` keeps the router's recorded
+deployment trackers at zero or the vault, so the tracker check fails (`routerRegister_none` in
+the Proofs file), and its case of `StepPreservesConfigConsistent` holds vacuously. The direct
+calls left in the model either revert (sender not the upgrader) or are excluded by the first
+run premise (sender the upgrader).
 
 ## Countermodels
 
@@ -69,6 +81,8 @@ Which data a default upgrade carries is decided on L1: at the pin,
 `upgrades/ZKChainSpecificForceDeploymentsLib.sol:28-56` reads the base id from the Bridgehub
 and the origin chain and origin token from the L1 vault, for genesis and upgrades alike. That
 L1 side is not modelled here; `BaseOriginPinnedAlongRuns` states what the L2 side needs from it.
-Chains created before `v0.35` enter this model at any `ConfigConsistent` state
-(`StepPreservesConfigConsistent` does not assume genesis). The `main` branch (`70096e2ea`) is
+For chains created before `v0.35`, entering this model at a `ConfigConsistent` state is an
+assumption (`StepPreservesConfigConsistent` does not assume genesis; the results stated from a
+consistent state need it). Besides the configuration-word equalities it includes the built-ins' initialized flags and
+`trackersVaultOnly`, the router's recorded deployment trackers being zero or the vault. The `main` branch (`70096e2ea`) is
 not modelled; its helper also initializes the tree and flow manager on the upgrade path.

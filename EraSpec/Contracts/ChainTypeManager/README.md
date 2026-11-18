@@ -943,7 +943,9 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
     facet;
   - the fields belong to a diamond: migration in deploys a diamond with fresh fields, and the
     results are about the diamonds registered on the one modelled CTM. `ChainMigration` and
-    `ExecutorForward` steps are not lifted to v35.
+    `ExecutorForward` steps are not lifted to v35. Migration is disabled at `b17415d20`
+    (`CHAIN_MIGRATIONS_ENABLED = false`, `common/Config.sol:320`), so the migration-in steps only
+    add runs and this boundary only matters if a later commit enables migration.
 - In `PendingL2UpgradeAtV35` (at `b17415d`, `MODEL-CTM-PENDING-L2`):
   - the L2 upgrade transaction's gates that `UpgradeTiming` omits are added: the
     previous-upgrade-finalized check and the refusal of a transaction on a patch; the

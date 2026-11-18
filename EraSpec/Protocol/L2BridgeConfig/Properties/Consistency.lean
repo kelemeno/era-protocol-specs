@@ -214,7 +214,11 @@ def Properties.BaseOriginPinnedAlongRuns : Prop :=
     BaseOriginIs u.base.originChainId u.base.originToken u.base.assetId w ∧
     (BaseNativeHere E w ↔ u.base.originChainId = E.thisChain)
 
-/-- **THE RUN PREMISES HOLD ON A RUN THAT USES EVERY KIND OF WRITER.**  A successful genesis,
+/-- **THE RUN PREMISES HOLD ON A RUN THAT USES EVERY KIND OF WRITER THAT CAN SUCCEED
+ADMISSIBLY FROM A CONSISTENT STATE.**  The router's non-vault `setAssetHandlerAddressThisChain`
+(`routerRegister`) is not among them: from a consistent state it always reverts, since the
+router's recorded deployment trackers are zero or the vault (`routerRegister_none` in the Proofs
+file).  A successful genesis,
 then a run of five calls, all admissible, none the counterpart's write at the base id, every
 default upgrade carrying the genesis origin data: a default upgrade sent by the force deployer
 that changes the router's L1 asset router; a vault registration; a bridged-token deployment; a

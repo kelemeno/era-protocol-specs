@@ -59,7 +59,11 @@ Nothing about the native-token and base-token branches of `bridgeBurn` beyond th
 about `bridgeMint` or the recovery paths beyond their hook step, or about the routing that
 decides which hook runs. Nothing that needs interop to be one-way: `CapStepV35` lets every
 step choose its interop flags, so no statement here relates a chain's own counters to the
-pool's after a move. `_trackedBalance`'s view calls are assumed to return (`DEP-RESULTS`).
+pool's after a move. Those results, over a run model with one-way flags, are in
+`Contracts.L1NativeTokenVault.InteropPool` (`FlagsMonotone`, `PoolDepositIdentity`,
+`PoolWithdrawalsCovered`, `TotalsOnlyGrow`); `CapCountersMonotoneV35` and
+`PoolNeverOverdrawnV35` are close to the last two. `_trackedBalance`'s view calls are assumed
+to return (`DEP-RESULTS`).
 -/
 
 namespace Codegen.VaultPreparationSlice
@@ -90,7 +94,9 @@ L1 hooks: under agreeing metadata, a well-formed model state and a storage repre
 the model (with the cap's deposit credit) rejects iff the program reverts; on acceptance the
 program succeeds without writing the vault's storage, reaches a related state (its cap storage
 is the model's accounting state), returns exactly the encoded mint tuple, and emits exactly
-`prepareLogs`. -/
+`prepareLogs`. The same `env` drives the concrete and the model hook, so the statement does not
+take `EnvMatchesV35`; the hook stands for the deployed one when it holds (the env's chain id and
+origin map are the deployment's and the vault's), as in the witnesses. -/
 def Properties.L1BridgeBurnRefinesAtV35 : Prop :=
   ∀ (d : Deployment) (env : CapEnvV35) (md : Storage → Word → Except XFailure Bytes)
     (mdm : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes) (st : Storage)

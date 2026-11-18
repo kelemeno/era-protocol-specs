@@ -28,8 +28,10 @@ Statements about `EraSpec.Contracts.AdminFacet.Specs.AdminFacet`; proofs in
 
 namespace Contracts.AdminFacet
 
-/-- **AN UPGRADE RUNS EXACTLY THE CUT THE CTM COMMITTED.** For any caller `a`, time `τ`, version
-`v`: `upgradeChainFromVersion(_, v)` succeeds with result `s'` iff
+/-- **AN UPGRADE RUNS EXACTLY THE CUT THE CTM COMMITTED.** "The committed cut" is the cut the CTM's
+`upgradeCutForVersion` returns, an oracle here (`Env.upgradeCutForVersion`); that the CTM derives
+it from the committed transition is not modelled (README, *Open*). For any caller `a`, time `τ`,
+version `v`: `upgradeChainFromVersion(_, v)` succeeds with result `s'` iff
 
 * the diamond does not block the selector;
 * `a` is the admin, the CTM, or a validator;

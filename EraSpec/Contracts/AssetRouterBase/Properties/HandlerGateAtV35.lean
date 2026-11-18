@@ -54,7 +54,8 @@ different: the model logs the vault's on-the-fly registration as its own `regist
   `setNativeTokenVault` when `a` is the seeded id.  Along a run with none of them, a stranded
   `(c, a)` stays stranded and no event of the run moves `a` at `c`.  With
   `MovementEnabledIff`, applied to each prefix of the run: in every state along it, deposits of
-  `a` to `c`, their confirmations and refunds, and withdrawals of `a` from `c` have no step.
+  `a` to `c`, their confirmations and refunds, and withdrawals of `a` from `c` have no step
+  (`StrandedAlongRun`).
 * **One step** (`UnstrandingCallIsListed`; witness `UnstrandingCallIsListedWitness`).  A step
   that ends a stranding is `enableInterop(c)`, `setAddresses`, `setNativeTokenVault` with `a`
   the seeded id, or a registration of `a` by the vault or by `a`'s recorded tracker.
@@ -211,6 +212,19 @@ def Properties.StrandedUntilListedCall : Prop :=
     Stranded K S c a → RunV35 K S evs T → (∀ e ∈ evs, ¬ e.MayUnstrand K c a) →
       Stranded K T c a ∧ ∀ e ∈ evs, e.gatedAt ≠ some (c, a)
 
+/-- **A STRANDED ASSET HAS NO MOVEMENT STEP ANYWHERE ALONG SUCH A RUN.**  Under the premises of
+`StrandedUntilListedCall`, for every split of the log into `evs₁ ++ evs₂` there is a state `U`
+between the two parts, reached by `evs₁` and leading to `T` by `evs₂`, in which `(c, a)` is
+stranded and no gated entry point at `(c, a)` has a step: deposits of `a` to `c`, their
+confirmations and refunds, and withdrawals of `a` from `c` are all blocked there.  This is
+`StrandedUntilListedCall` on the prefix, with `MovementEnabledIff`. -/
+def Properties.StrandedAlongRun : Prop :=
+  ∀ (K : Cfg) (S T : St) (evs₁ evs₂ : List Ev) (c : Chain) (a : AssetId),
+    Stranded K S c a → RunV35 K S (evs₁ ++ evs₂) T →
+    (∀ e ∈ evs₁ ++ evs₂, ¬ e.MayUnstrand K c a) →
+      ∃ U, RunV35 K S evs₁ U ∧ RunV35 K U evs₂ T ∧ Stranded K U c a ∧
+        ∀ g : Gated, ¬ ∃ U', StepV35 K (.gated g c a) U U'
+
 /-- **`StrandedUntilListedCall`'s PREMISES HOLD ON A BUSY RUN.**  An L1 router reaches, from
 fresh storage, a state where an asset is stranded at a chain.  A further run with no listed call
 moves another asset at that chain, takes a fallback there, enables a second chain, and moves the
@@ -272,7 +286,9 @@ def Properties.OpenGateStaysOpenWitness : Prop :=
 `InteropFlagsOneWayWithoutSetAddresses` must exclude it.  From a state reachable from fresh
 storage in which a custom-handler deposit to an interop-enabled chain has a step, a
 `setAddresses` installing a message root whose table does not enable that chain clears the
-chain's flag, and the confirmation of that deposit then has no step. -/
+chain's flag, and the confirmation of that deposit then has no step.  `setAddresses` is
+`onlyOwnerOrUpgrader` (`core/bridgehub/L1Bridgehub.sol:274`, `BridgehubBase.sol:146-151`): this is
+a reconfiguration by the owner or the upgrader only (`OPS-CONFIG`). -/
 def Properties.SetAddressesClosesOpenGate : Prop :=
   ∃ (K : Cfg) (E : Env) (evs₀ : List Ev) (S T : St) (c : Chain) (a : AssetId) (cah : Address)
     (ie : Chain → Bool),

@@ -4,8 +4,10 @@ import EraSpec.Protocol.ZKsyncOSDA.Specs.CommitterDA
 # Properties: the DA guarantee each validator leaves once the committer discards its output
 
 Statements about `../Specs/CommitterDA.lean` and `../Specs/Validators.lean` (source `b17415d20`).
-Proofs: `../Proofs/CommitterDA.lean`. No statement takes a hash premise; the binding results end
-in a collision on two named inputs, or in keccak mapping one named input to zero.
+Proofs: `../Proofs/CommitterDA.lean`. No statement takes a global hash premise;
+`RollupAcceptedIff` takes the pinned premise that keccak does not map the named first-blob
+preimage to zero, and the binding results end in a collision on two named inputs, or in keccak
+mapping one named input to zero.
 
 `CommitterFacet` keeps nothing of the validator's output: it only requires both arrays to be
 empty or both to be sixteen zeros (`CommitterDACheckIff`). So on ZKsync OS the on-L1 DA guarantee

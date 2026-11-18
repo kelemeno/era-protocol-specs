@@ -68,7 +68,8 @@ unchanged (the zero-CTM branch of `_domainHolders`, `:119-121`), and every row's
 - Row proxies after the leg: `CoreRowAdministeredIsAtImplNew` (a row proxy the `ProxyAdmin`
   administers after the leg is at `implNew`); `CoreRowAdminMoveCaught` and `CoreRowAdminMoveReverts`
   (for a row proxy the `ProxyAdmin` does not administer, the check reads the answer of the
-  implementation's code to `implementation()`), with `CoreRowAdminMoveRevertsWitness`;
+  implementation's code to `implementation()`; despite its name, `CoreRowAdminMoveCaught` says
+  how such a proxy passes, not that the move is caught), with `CoreRowAdminMoveRevertsWitness`;
   `CoreRowAdminMoveUncaughtWhenAnswerMatches` shows the answer premise is needed.
 - The default engine: `DefaultCoreLegIsTheEngineRun` (the post-checks never reject a run of
   `DefaultProxyUpgradeEngine`), `DefaultCoreLegReplayIsNoop` (applying a transition again
@@ -79,7 +80,10 @@ unchanged (the zero-CTM branch of `_domainHolders`, `:119-121`), and every row's
   (`OnlyNamedEdgesAcrossCall` carried over). Both premises are needed
   (`DefaultLegNeedsAdministeredRows`, `DefaultLegReinitMovesRowAdmin`); the ownership conjunct
   is new at this pin (`UnownedReplayRevertsAtV35`). `CoreLegWitness` instantiates every premise
-  of the default-engine results on one run whose row calls a reinitializer.
+  of the default-engine results on one run that takes the `upgradeAndCall` branch. Under those
+  premises a reinitializer has no effect on the mappings in a successful run (its one write is
+  the `implNew` the swap already made), so the witness's reinitializer is inert on the run;
+  `DefaultLegReinitMovesRowAdmin` is the run where a reinitializer does act.
 
 ### Model boundaries
 

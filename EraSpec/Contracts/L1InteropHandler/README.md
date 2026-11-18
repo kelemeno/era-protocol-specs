@@ -2,8 +2,10 @@
 
 Source: `contracts/interop/interop-handler/L1InteropHandler.sol` and its base
 `InteropHandlerBase.sol` at era-contracts `draft/v0.35.0` head `b17415d20` (the same bodies at main
-`70096e2ea`, up to three getter names). The handler is new in v0.35; `L1AssetRouter` accepts withdrawal
-finalization only from it.
+`70096e2ea`, up to three getter names and the mutability of two of them). The handler is new in v0.35;
+`L1AssetRouter` accepts withdrawal finalization only from its configured `l1InteropHandler`
+(`bridge/asset-router/AssetRouterBase.sol:218`, `L1AssetRouter.sol:258-260`), which is this proxy
+by configuration: a one-shot owner setter writes it (`L1AssetRouter.sol:126-130`, `OPS-CONFIG`).
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence

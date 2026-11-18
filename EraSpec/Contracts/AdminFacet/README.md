@@ -101,6 +101,9 @@ certificate has the same name without the `Properties` segment.
   caller.
 - `ValidatorUpgradeWaitsForSchedule`: a caller of `upgradeChainFromVersion` that is neither
   admin nor CTM is a validator, and the notifier's timestamp for that version is set and reached.
+  `../ChainTypeManager/` topic `UpgradeTiming` states the same notifier gate at `e561b9cc2`
+  (`AdminAndCtmSkipTheNotifier`, `OtherCallersNeedTheNotifier`); this topic states it at
+  `b17415d20`.
 - `AdminHandoverIsTwoStep`: `setPendingAdmin` and `acceptAdmin` as exact functions of the state.
 - `AdminChangesOnlyByAcceptance` (run, no cuts): if the admin changed, the final admin sent
   `acceptAdmin`, and it was pending at the start or named by a `setPendingAdmin` in the run.
@@ -198,7 +201,10 @@ certificate has the same name without the `Properties` segment.
 - Priority mode: `PriorityModeWitness` (from a chain with priority mode not allowed and no
   permanent rollup to active priority mode, activated by an address that is neither the admin
   nor the CTM),
-  `PriorityModeDeactivationWitness`, `OneWayFlagsWitness`, `DueActivationSurvivesWitness`.
+  `PriorityModeDeactivationWitness`, `OneWayFlagsWitness`, `DueActivationSurvivesWitness`,
+  `PriorityModeActivationRevertsBatchesWitness` (the CTM sets a nonzero priority-mode filterer
+  that allowing installs, and activation lowers the committed and verified counts to the
+  executed one and clears the upgrade batch number).
 - Upgrades: `UpgradeWitness` (a genesis upgrade and a scheduled upgrade, by a caller that is
   initially neither the admin, the CTM nor a validator, in one run; the config satisfies
   `GenuineGenesis`), `GenesisRunsOnceWitness`.

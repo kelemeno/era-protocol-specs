@@ -55,7 +55,7 @@ that chain's `L2Bridgehub.isPeerAllowed` holds for it (`protocol-docs/interop-ga
 upgrader sets the slot, `:126-139`) and `SERVICE_TRANSACTION_SENDER`.  On L1,
 `ChainRegistrationSender` sends both calls: `allowInteropPeer` (chain admin only,
 `core/chain-registration/ChainRegistrationSender.sol:77-93`) and `bridgehubDeposit` (which
-re-sends the registration of an allowed pair, `:124-157`) set the flag, and
+re-sends the registration of an allowed pair, `:124-153`) set the flag, and
 `deregisterInteropPairs` (owner or chain admin, `:98-118`) clears it.
 
 `append` does not apply the filter.  It requires every other leg's source chain to be

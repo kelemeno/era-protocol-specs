@@ -173,7 +173,10 @@ bundle that `verifyAtomicBundle` has marked `Verified` after running the same ga
 (`interop/interop-handler/L2InteropHandler.sol:73-75`, `:83-92`). As at the pin, the destination
 never compares the bundle's `sourceChainId` with the vouching chain: the validator is called with
 the field itself (`L2InteropHandler.sol:70`), and the gate compares each proof's chain only with
-the leg's declared chain (`AtomicFlowManager.sol:198-200`).
+the leg's declared chain (`AtomicFlowManager.sol:198-200`). That head also restructures the flow
+(`AtomicFlow` nests an `AtomicFlowPreimage`, `atomic-interop/IAtomicInterop.sol:50`, `:64`) and adds
+a leg-source registration revert to the gate loop (`_checkLegSourceAllowed`,
+`AtomicFlowManager.sol:201`); neither is modelled, and neither weakens the binding.
 -/
 
 namespace Contracts.L2InteropHandler.AtomicSourceFaithful

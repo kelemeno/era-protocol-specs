@@ -21,7 +21,9 @@ prefix).
     common/libraries/MessageHashing.sol:101-143  logLeafProofLen: a metadata byte, or the whole
         proof's length in the old format; nothing compares it with a tree height
     core/message-root/MessageRootBase.sol:343-348, :364-373  on the settlement layer a final-node
-        proof is accepted iff batchSettlementRoot == chainBatchRoots[c][n] != 0 (n > 0)
+        proof is accepted iff batchSettlementRoot == chainBatchRoots[c][n] != 0 (n > 0), or, on L1
+        for n < v31UpgradeChainBatchNumber[c] with no stored root, the chain's l2LogsRootHash(n)
+        (`_noBatchFallback`, core/message-root/L1MessageRoot.sol:123-128)
 
 So on L1 the walk's length `k` and its mask `j < 2^k` are the prover's. For a ZKsync OS chain the
 recorded root is `ChainBatchRootTree.compute(logsRoot, multichainRoot, imtBegin, imtEnd)`

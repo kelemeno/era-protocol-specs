@@ -68,8 +68,10 @@ proof system. For those it asks the arriving release's verifier to report multi-
 ## Scope
 
 The proof-system fields are a diamond's, and the model has the diamonds of one CTM. A diamond
-that migration in deploys starts with fresh fields (`ProofEffect.migrateIn`). Every result here
-is about the diamonds registered on the modelled CTM. Callers are not modelled here;
+that migration in deploys starts with fresh fields (`ProofEffect.migrateIn`). Chain migration is
+disabled at `b17415d20` (`CHAIN_MIGRATIONS_ENABLED = false`, `common/Config.sol:320`), so the
+migration-in steps only add runs; this boundary only matters if a later commit enables
+migration. Every result here is about the diamonds registered on the modelled CTM. Callers are not modelled here;
 `UpgradeTimingAtV35` has them for `permanentlyRequireSecondProofSystem`.
 
 ## Witnesses
@@ -189,7 +191,8 @@ well-formed, with every install validated,
 * every chain whose version has a committed edge can cross it, if it does not require its
   second proof system or the arriving release's verifier reports multi-proof mode;
 * every free id can be deployed by genesis or by migration in, with no further condition.
-"Can" is relative to the checks the model keeps. -/
+"Can" is relative to the checks the model keeps; migration in is disabled at `b17415d20`
+(*Scope*), so its conjunct describes a step the production source does not take. -/
 def Properties.ValidatedRunsKeepEverythingEnabled : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35), SysInv W s.sys →
     RecordedReleasesWf W s.sys.ctm → Run35 W P s ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →

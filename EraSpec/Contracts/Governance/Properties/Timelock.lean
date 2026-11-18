@@ -5,7 +5,7 @@ import EraSpec.Contracts.Governance.Specs.Timelock
 
 Statements about `EraSpec.Contracts.Governance.Specs.Timelock` (source `Governance.sol` at
 `draft/v0.35.0` `b17415d2`, byte-identical at `c67894b9`, `e561b9cc2`, `d9f67890` and `main`
-`70096e2ea`; OpenZeppelin v4.9.6 `Ownable2Step`). Proofs are in
+`3605e82` and `70096e2ea`; OpenZeppelin v4.9.6 `Ownable2Step`). Proofs are in
 `EraSpec.Contracts.Governance.Proofs.Timelock`.
 
 Every general result quantifies over every target behaviour (`Callee` trees: re-entrant calls
@@ -447,7 +447,8 @@ def Properties.WithoutRecheckAnyOpRunsTwiceWitness : Prop :=
 constructor's state is one), along any sequence of transactions: every committed `execute`
 of an id `x` at time `τ` has a schedule of `x` earlier in the log. The last one has
 `delay ≥` the `minDelay` in force when it was made, and was made at least `delay` before
-`τ`. -/
+`τ`. "Earlier in the log" is before the `executed` entry, which follows the execution's own
+calls: the schedule reported may be a re-entrant reschedule made during the execution. -/
 def Properties.OwnerPathWaited : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx), NoPending s →
     ∀ (l₁ l₂ : List Effect) (x : OpId) (op : Operation) (τ : ℕ),
@@ -480,7 +481,10 @@ Governance commits (`delivered x i`) is followed in the log by an execution of `
 operation `op` at some time `τ`, where `x = H op`. That execution is `executeInstant` (which
 only the security council may call, `EntryGuards`), or the last schedule of `x` before it had a
 delay at least the `minDelay` in force when it was made, and was made at least that delay
-before `τ`. -/
+before `τ`. The schedule reported is the last one before the execution's end, which may be a
+re-entrant reschedule made inside the execution after the call was delivered (as in
+`timelockCancelRescheduleRun`), possibly after a self-call `updateDelay(0)`; it need not be the
+schedule that gated the execution at entry. -/
 def Properties.OutgoingCallsWaitedOrInstant : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx), NoPending s →
     ∀ (l₁ l₂ : List Effect) (x : OpId) (i : ℕ),
@@ -548,7 +552,10 @@ def Properties.OwnerPathWaitedWitness : Prop :=
 COLLIDE.** From any state with nothing pending, along any sequence of transactions: every
 committed execution of `op` (either path) has id `H op` and a schedule of that id earlier in
 the log; the last one had `delay ≥ minDelay` then; and if it was transparent with payload
-`op₀`, then `op₀ = op`, or `op₀ ≠ op` and `H op₀ = H op`. -/
+`op₀`, then `op₀ = op`, or `op₀ ≠ op` and `H op₀ = H op`. That disjunction is equivalent to
+`H op₀ = H op`: the published payload hashes to the executed id, so the schedule binds its
+payload only up to a keccak collision. The content beyond it is that `x = H op`, that a last
+schedule exists on either path, and that its delay is at least the `minDelay` recorded with it. -/
 def Properties.TransparentBinding : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx), NoPending s →
     ∀ (l₁ l₂ : List Effect) (x : OpId) (op : Operation) (τ : ℕ) (b : Bool),
