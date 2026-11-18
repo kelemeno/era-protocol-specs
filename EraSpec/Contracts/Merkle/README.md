@@ -20,6 +20,7 @@ only import a shared specification when the topic needs no additional definition
 | PathCollision | [Specs/PathCollision.lean](Specs/PathCollision.lean) | [Properties/PathCollision.lean](Properties/PathCollision.lean) | [Proofs/PathCollision.lean](Proofs/PathCollision.lean) |
 | RootForgeryPinned | [Specs/RootForgeryPinned.lean](Specs/RootForgeryPinned.lean) | [Properties/RootForgeryPinned.lean](Properties/RootForgeryPinned.lean) | [Proofs/RootForgeryPinned.lean](Proofs/RootForgeryPinned.lean) |
 | RootPaths | [Specs/RootPaths.lean](Specs/RootPaths.lean) | [Properties/RootPaths.lean](Properties/RootPaths.lean) | [Proofs/RootPaths.lean](Proofs/RootPaths.lean) |
+| DomainSeparation | [Specs/DomainSeparation.lean](Specs/DomainSeparation.lean) | [Properties/DomainSeparation.lean](Properties/DomainSeparation.lean) | [Proofs/DomainSeparation.lean](Proofs/DomainSeparation.lean) |
 
 `Verifier` drops `ProofSound`'s two hypotheses (occupied index, path length equal to
 the tree height), which `Merkle.calculateRootMemory` does not check: an accepted
@@ -59,6 +60,41 @@ collision", a collision-free witness must have equal sides. `PinnedFormsFire`,
 `RootCommitsListCollisionFires` and `PaddingHitFires` give each replacement an instance
 where its original conclusion fails and the collision holds. `EqualInstancesNeverCollide`
 and `RootPinsEntryPinnedToPath` show the collisions are pinned to the instance.
+
+`DomainSeparation` (namespace `MerkleSpec.DomainSeparation`; pins `c67894b9` and, for the IMT
+padding, the upgrade-system pin `e561b9cc2`) instantiates the abstract node hash, leaf hash and
+padding with an arbitrary `keccak : List UInt8 → UInt256` over the source's byte preimages, whose
+lengths it proves (`PreimageLengths`: node 64; log leaf 88; chain-id leaf, IMT leaf, empty entry and
+commit value 96; batch leaf 128; UPG's IMT padding 34). Each domain premise, and each located
+break, becomes a keccak collision on two byte strings the instance names (`HashCollision keccak x
+y`). No premise on keccak except `KeccakOfEmptyIsDocumented` (one conjunct of
+`EmptyConstantsCoincide`); the keccak-derived tags are parameters with nonzero premises.
+- IMT: a located break of the root check is an `ImtKeccakBreak`, or, at the pin, the zero leaf
+  presented at an empty slot, the padding forgery (`TreeRootBreakIsKeccakCollisionAtPin`,
+  `ProofsExclusiveOrKeccakBreakAtPin`). With a padding preimage of any length other than 64 and 96,
+  as UPG's, the forgery disjunct is gone (`ProofsExclusiveOrKeccakBreak`, and the single-proof
+  `InclusionSoundOrKeccakBreak`, `NonInclusionSoundOrKeccakBreak`).
+- Chain and shared trees: an accepted path (any length `k`, any index below `2^k`) opens an
+  occupied entry with exactly the presented batch (chain-id) fields, or keccak collides on named
+  strings (`ChainTreeProofOpensBatchOrKeccakBreak`, `SharedTreeProofOpensChainOrKeccakBreak`).
+  The batch-leaf hop with `_verifyLastBatchInRoot`, taking the path length and mask from the prover
+  as deployed, pins the last pushed batch and its three fields up to a `LastBatchKeccakBreak`
+  (`DeployedLastBatchCheckOrKeccakBreak`, the keccak form of `AtomicInteropProof`
+  `AcceptedLastLeafAnyLengthOrBreak`); `AcceptedLastBatchOrKeccakBreak` is the form for a path of
+  the tree's height from an occupied index. The chain-id-leaf hop and the batch hop are not
+  composed.
+- The located node collisions of `PathCollision`, `LastLeaf` and `RootForgeryPinned` are
+  equivalent to 64-byte keccak collisions (`NodeCollisionLift`, `TreeAndWalkCollisionLift`).
+
+The witnesses meet each collision-forcing premise under a keccak model changed at one string
+(`plantKeccak`), and show the collision located is that one (`ImtKeccakBreakFires`,
+`ProofsExclusiveOrKeccakBreakSatisfiable`, `HeightKeccakBreakFires`, `PinnedKeccakBreakFires`,
+`DeployedLastBatchPaddedEntryFires`); honest proofs carry no break for every keccak
+(`HonestProofNoKeccakBreak`, `ImtKeccakBreakNotTautology`, `DeployedLastBatchCheckWitness`, the
+last on three batches at height 2 with the zero check exercised). The trees are the `rootOf` fold;
+the chain trees' `DynamicIncrementalMerkle` storage has no transcription here (O7). Re-read at
+`main` `70096e2ea` and `draft/v0.35.0` `b17415d20`: the cited preimages, constants, tree writes and
+last-batch check are unchanged there, and the IMT padding is UPG's (Specs, "Current heads").
 
 The tree levels and walk definitions are in `../FullMerkle/Specs/Model.lean`; capacity,
 padding, and cached-hash properties are alongside that model. A pure root theorem

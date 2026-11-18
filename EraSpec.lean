@@ -98,6 +98,7 @@ import EraSpec.Contracts.Merkle.Proofs.RootBinding
 import EraSpec.Contracts.Merkle.Proofs.RootForgery
 import EraSpec.Contracts.Merkle.Proofs.Verifier
 import EraSpec.Contracts.Merkle.Proofs.PathCollision
+import EraSpec.Contracts.Merkle.Proofs.DomainSeparation
 
 -- L2 log leaves and the L1 status proof (MessageHashing, MessageVerification; v0.35.0 b17415d20)
 import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
