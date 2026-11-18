@@ -1,114 +1,144 @@
-# Current handoff — 2026-11-16
+# Current handoff — 2026-11-18
 
-Continue from **`claude/proof-round-7`**. The [continuation note](handoff/2026-11-16/README.md)
-records what was merged, reviewed and fixed since round 6, the checks at the round-7
-checkpoint, and what is still open. Its [branch inventory](handoff/2026-11-16/branches.json)
-lists the branches handed back and whether each other `origin` branch merges into round 7.
+Continue from **`claude/proof-round-8`**. This note covers the code up to `ad42117`; the only later commit adds
+this note.
+Nothing was pushed to `master` and no PR was opened. Ask Kalman before pushing to `master`, opening or merging
+PRs, or publishing anything about a possible upstream (era-contracts) issue.
 
-## Previous handoff — 2026-11-13
+**Do consolidation first.** Round 8 roughly doubled the spec, so the next job is to make what exists coherent:
+one target commit, shared models, and a short list of real guarantees. Only after that should anyone add new
+statements. The plan is below.
 
-Round 6 was the continuation point. The [2026-11-13 continuation note](handoff/2026-11-13/README.md)
-records the saved work, review queue, validation limits, and next steps. Its
-[branch inventory](handoff/2026-11-13/branches.json) lists all 98 local branch heads
-preserved on `origin`, including three recovered detached worktrees.
+## State of `claude/proof-round-8`
 
-The November 11 note below is historical context. Use the current continuation
-note for branch locations and backup status; historical review and audit results
-are not validation of the newly saved WIP work.
+- **Toolchain:** Lean v4.35.0 + Mathlib v4.35.0, unchanged since round 5.
+- **Audit at `ad42117`** (`./scripts/audit-axioms.sh`): 28198 theorems, 4447 properties each with its full
+  named theorem, 0 axioms, 0 NOT clean. `lake build EraSpec` builds 3963 jobs.
+- **Round 8 merged about 90 work units on top of round 7.** Every unit had an independent adversarial review
+  covering faithfulness to the cited Solidity, non-vacuity of witnesses, and docstring precision. Units sent
+  back for fixes were repaired and re-reviewed before merging, and a later pass applied the reviewers' minor
+  issues. The units fall into these families:
+  - **Salvage of the earlier unmerged branches:** `strengthen-12`; the `codex-findings` 12 and 14 fixes;
+    `faithfulness-repair` 5–10; `head-fixes` 1–8; the `up/*` v35 upgrade-system topics; the `repin-v35` 13–21
+    re-pins; `wave3a` 1 and 3–10; and the `cov/*` coverage topics AdminFacet, Bridgehub, ChainAssetHandler,
+    Diamond, ExecutorFacet, InteropRoot, L1Nullifier, MessageRoot and ValidatorTimelock.
+  - **New v35 targets:** about 20 new topics proved against `draft/v0.35.0` head `b17415d20`, covering the
+    InteropPool ledger, Merkle root paths, the ZKsync OS DA validators, L2 tables, the leg-source filter,
+    ChainBatchRootTree, the peer mirror, Stage-1, the priority-tree mirror, recovery neutrality and others.
+- **Held back locally:** a few finished units pending Kalman's sign-off, plus the local-only branches named in
+  the 2026-11-11 note. Do not recreate or publish them.
 
-## Historical handoff — 2026-11-11
+## Priority 1: consolidation (before any new statements)
 
-### End of the round-5 session
+### Why
 
-Branch **`claude/proof-round-5`** on GitHub (`kelemeno/era-protocol-specs`) is the single line of work.
-GitHub has: `master` (3a1c799, untouched), `claude/proof-round-5`, and 72 `wip/*` branches (below).
-Every older branch (proof-attempt, codegen-token-slice, codex/prepared-application-guarantees,
-port-bridge-upgrade, worktree-wf_137a7bf5-*) was verified contained and deleted.
+- **Too many targets.** The models are spread over six era-contracts commits. 125 Specs files cite the
+  abandoned interop pin `c67894b9` and 113 cite the v35 head `b17415d20`; others cite `e561b9cc2`, `d9f6789`,
+  `70096e2ea` and `3605e82`.
+- **Re-models next to originals.** 32 topics are `…AtHead` / `…AtV35` / `…V35` re-models that sit next to
+  their pin original. IndexedMerkleTree, for example, has the pin model, `UnboundedSearchAtV35` and
+  `HintSearchAtHead`.
+- **Duplicated models.** Several contracts have more than one independent model. Some topic READMEs say so
+  explicitly ("does not reuse another topic's tracker model"). Results over different models don't compose.
+- **A misleading count.** The 4447 "properties" include witnesses, countermodels and supporting lemmas, and
+  no single place lists the headline guarantees.
+- **Docs past usefulness.** `ASSUMPTIONS.md` has about 314 rows. Many READMEs carry several pin sentences
+  that were patched merge after merge, and the namespaces reuse parent names (`State`, `Step`, `Inv`, ...).
 
-Rules that still hold: ask Kalman before pushing to `master` or opening/merging PRs. Never claim a
-source finding upstream without telling him first.
+### Plan, in order
 
-## State of `claude/proof-round-5`
+1. **One target commit: v35 `b17415d20`.** Kalman chose v35; v36 is unfinished.
+   - Where a topic has both a pin model and a v35 or head re-model, keep the v35 one as the topic and move the
+     pin one into a `History` namespace and folder, or delete it if it adds nothing.
+   - Keep the countermodels that document the fixed pin findings (H1 forged refund, H2 IMT padding, M1 custom
+     handlers; see the 2026-11-11 note). They are the record of those fixes.
+   - Re-pin the topics that exist only at `c67894b9`, `d9f6789` or `e561b9cc2` to `b17415d20`, or state
+     exactly what differs. This replaces the old "re-pin wave".
+2. **One shared model per contract.** Pick the most complete Specs model of each contract and restate the
+   other topics' properties over it, or prove a refinement or simulation lemma between the models (several
+   such bridges already exist). Delete the redundant models once their properties move.
+   - Start with the most duplicated: the interop and atomic stack (InteropCenter, InteropHandlerBase,
+     AtomicFlowManager, Protocol/InteropAtomicity); L2AssetTracker together with NativeTokenVaultBase and
+     L1NativeTokenVault; IndexedMerkleTree with L2InteropCommitmentTree; MessageRoot with
+     L2InteropRootStorage and ChainBatchRootTree; and ProxyUpgradeExecutorBase with SecondProofSystem and
+     ChainTypeManager.
+3. **A headline index.** For each contract and protocol area, write a short list in its README of the real
+   guarantees, each with every premise in plain words. Make the audit report headlines separately from
+   witnesses and lemmas, for example by a naming or attribute convention plus a check in `scripts/Audit.lean`,
+   so the property count means something.
+4. **Split `ASSUMPTIONS.md` by area.** Drop rows that only restate model boundaries already in a Specs header,
+   and keep the ids stable, since docstrings cite them.
 
-- **Toolchain: Lean v4.35.0 + Mathlib v4.35.0** (ported from 4.9.1, which does not run on this
-  macOS). `Core/Word.lean` re-registers `Fin.instCommRing` for `UInt256` (Mathlib scoped it);
-  `rfl` checks show numerals/casts/ring ops compute as on 4.9.1. `scripts/Audit.lean` ported.
-- **Audit (`./scripts/audit-axioms.sh`): 7836 theorems, 1588 properties each with its full named
-  theorem, 0 axioms, 0 unclean.** `./scripts/emit-solidity.sh --check` passes (generated Solidity
-  byte-identical after the port).
-- **Pending your sign-off:** `scripts/check-word-fidelity.sh` flags the Word.lean port edits against
-  `scripts/word-baseline.json` (the baseline is a human review gate; not updated).
-- Round 5 merged: backlog items B1–B7, A1–A5, U1–U8, R1–R3, S1–S4, O1–O4 (31 items), each proved
-  in its own worktree, adversarially reviewed, repaired where needed. Round-5 docs are in
-  ASSUMPTIONS.md / READMEs (wave-1 items; wave-2 docs B3–B5, S2, S4, A5 not yet written — their
-  doc text is in `handoff/2026-11-11/reports/wave2.json`, `results[].prove.docUpdates`).
+### Rules for consolidation
 
-## Source findings (era-contracts)
+- **Never weaken a statement.** Moving a property to a shared model must keep it at least as strong. If it
+  cannot, say so and keep the old one.
+- **Every step must pass the checks.** Each step keeps `lake build EraSpec` and the audit passing.
+- **Review each step.** One folder or contract per step, each independently reviewed for no lost guarantee,
+  no vacuous witness and docs that match the Lean.
+- **Track every removal.** Keep a mapping from every removed or renamed property to its replacement, for
+  example `handoff/<date>/renames.json`. External references and the audit history depend on the names.
 
-Spec-side reports: `handoff/2026-11-11/`. Source-finding reports and PoCs: local-only (see below).
+### Done when
 
-**Real at the interop pin c67894b9, fixed on every current head** (pin is an abandoned
-`ad-atomic-interop` lineage; Foundry PoCs pass against real pinned bytecode, judged independently):
-- H1 forged atomic refund — direct call in an atomic bundle mints unbacked tokens (500,000e18 in
-  the PoC). Upstream knew: PR #2282 (closed), fixed by #2315/#2348.
-- H2 IMT padding forgery — absence proof for a delivered leg. Fixed by 78e14b3bc ("F-04").
-- M1 custom-handler legs unrefundable and lock the bundle refund. Fixed by #2339.
+- Every model cites one commit (`b17415d20`, or `History/` for pin records).
+- Each contract has one Specs model.
+- Every README starts with its headline guarantees.
+- The audit reports headlines and witnesses separately.
 
-**Live on current branches (low severity, already listed in ASSUMPTIONS.md):**
-- `replaceUpgradeTransition` never checks the replacement's `oldProtocolVersion` (needs governance
-  to approve a non-genuine transition).
-- CTM `renounceOwnership` not disabled; zero receiver accepted at burn.
-- `ICTMUpgradeExecutor.upgradeChain` NatSpec "upgrade at any time" is false (timestamp, batches
-  executed, settlement-layer checks apply) — unchanged on every head.
+## Priority 2, only after consolidation
 
-**Not in this public repo:** this repository is PUBLIC. Further findings on current heads — one of
-them potentially high severity — together with the Foundry PoCs, the Codex reviews and the
-source-finding reports, are kept in the local-only branch `local/handoff-full` (commit ddcb709) on
-Kalman's Mac mini. Ask Kalman before publishing any of them.
+- **Unfinished coverage units.** They are on these `origin` branches: `cov/mailbox`; `cov2/da`, `e2e-deposit`,
+  `e2e-migration`, `encodings`, `l2-bridge`, `l2-system`, `l2-upgrades`, `merkle-libs`, `misc-core` and
+  `verifier-routing`; and `cov/chain-admin`, which is held. Round 8 progressed several of them in local
+  worktrees, unreviewed.
+- **The Codex review fixes** from the round-6/7 review: claim and witness gaps in the root-import, refund and
+  timeout topics. Partly done locally, unchecked. Several will be resolved by consolidation.
+- **A final citation re-check** of every Solidity file:line against `b17415d20`, after step 1.
+- **New statements**, only on the consolidated models.
 
-## Spec problems found (not yet fixed on the branch)
+## Branches on `origin`
 
-- Codex review: 3 `Audit.lean` loopholes (universe-specialized proofs pass; unused `sorry` defs
-  escape; `opaque` properties skip coverage); emitter prints Bool literal 2 as `true` (GEN-EMIT
-  counterexample, current program unaffected); timeout composition conflates batch number with leaf
-  position; "finalizable" ignores destination root import. Full reviews: local-only.
-- Faithfulness audit: 29 confirmed model-vs-Solidity mismatches (12 major) — report local-only.
-- Property-strength hunt: 46 confirmed weak properties — report local-only.
-- Upstream drift: 23 models stale vs heads, 9 findings fixed upstream (report local-only).
+- **`master`** is untouched.
+- **`claude/proof-round-5` to `-8`** are the continuation line; round 8 contains round 7.
+- **124 branches fully contained in round 8 were deleted on 2026-11-18.** Containment was checked twice:
+  ancestry, and GitHub's compare API.
+- **8 more branches are now contained:** the `cov/*` units merged this afternoon and `wip/repin-v35/20`.
+  They can be deleted the same way.
+- **37 hold work not in round 8:**
+  - the unfinished `cov` and `cov2` units above;
+  - `wip/modernize/1-15`, which modernizes proof bodies for the 4.35 tactics with statements untouched.
+    They were never reviewed, so redo them after consolidation instead of merging them;
+  - `wip/wave3a/2` and `wip/wave3a/7`, `up/second-proof-across-migration-v35` and
+    `up/second-proof-upgrade-gate-v35`. Round 8 used their content, but not their commits, so git doesn't
+    count them as contained;
+  - `salvage/codex-findings-11` and `wip/codex-findings/11`, which are held;
+  - three `codex/handoff-2026-11-13-*` branches and `claude/proof-attempt-handoff-caa64d`, which are earlier
+    saves of the same coverage work.
 
-## `wip/*` branches (unreviewed — do not merge blindly)
+## Environment
 
-Seven workflows were stopped mid-run for budget. Each agent's work was committed as-is and pushed as
-`wip/<workflow>/<n>` (base 427ba4a or a1e1a41). Some are finished and committed by the agent; others
-are a "WIP, unreviewed" commit of a half-done worktree. None passed review. List with last commit
-subject: `handoff/2026-11-11/wip-branches.txt`.
+- **Machine:** Kalman's Mac mini (`samsara` account). elan is at `~/.elan`; the Mathlib cache is in
+  `.lake/packages`.
+- **era-contracts sources.** Make a `--filter=blob:none` clone of matter-labs/era-contracts, then fetch
+  `e561b9cc2b946672d1f5f61dd0c993f27bd7acab` by full SHA (its branch was deleted). Add a detached
+  `git worktree add` for each commit: `b17415d20` (draft/v0.35.0 head; the target), `70096e2ea` (main head),
+  `d9f6789`, `c67894b9`, `e561b9cc2` and `3605e82`. `git archive` produces nothing on a blob-less clone. The
+  macOS cleaner deletes `/tmp` files left untouched for 3 days, so keep the trees outside `/tmp` or recreate them.
+- **Local notes.** Round-8 notes, backlogs, review journals and the held units' details are local only, in
+  `~/code/era-round8-local/` on the Mac mini (`STATUS.md`). Ask Kalman before using anything from there in a
+  public file.
+- **`scripts/check-word-fidelity.sh`** still lists the `Core/Word.lean` port entries pending Kalman's sign-off.
 
-| workflow | what it was doing | backlog |
-|---|---|---|
-| `wip/wave3a/*` | 19 discovery items (W-INT, W-UP, W-X, W-MER, W-BR) | local-only |
-| `wip/head-fixes/*` | H-1..H-8: prove the upstream fixes at main, model v35 changes | local-only |
-| `wip/strengthen/*` | strengthened forms of the 46 weak properties | local-only |
-| `wip/faithfulness-repair/*` | refined models for the 29 mismatches (new files only) | local-only |
-| `wip/codex-findings/*` | CF-1..CF-9 (Audit fix, timeout fields, …) | local-only |
-| `wip/repin-v35/*` | re-pin interop/bridge models to draft/v0.35.0 d9f6789 | — |
-| `wip/modernize/*` | proof bodies with 4.35 tactics, statements untouched | — |
+## Previous handoffs
 
-To resume one: check it out, `lake build EraSpec` + its new modules, run the audit with its modules
-imported, review against the Solidity, then merge into `claude/proof-round-5` (watch for
-declaration-name clashes across items: `handoff/2026-11-11/scripts/declash.py`).
+- [2026-11-16](handoff/2026-11-16/README.md): round 7, merged and reviewed salvage, the padding-forgery
+  correction notes, and a [branch inventory](handoff/2026-11-16/branches.json).
+- [2026-11-13](handoff/2026-11-13/README.md): round 6 and the 98-branch inventory.
+- 2026-11-11: round 5, the Lean 4.35 port, the source findings at the interop pin (H1, H2, M1, fixed on every
+  current head) and the low-severity items already in `ASSUMPTIONS.md`. Its text, together with the 2026-11-13
+  and 2026-11-16 pointers, is the previous `HANDOFF.md`, kept verbatim in
+  [handoff/2026-11-16/HANDOFF-previous.md](handoff/2026-11-16/HANDOFF-previous.md). Its reports are in
+  [handoff/2026-11-11/](handoff/2026-11-11/).
 
-## Suggested next steps
-
-1. Ask Kalman for the local-only findings branch; triage the open finding there first.
-2. Fix the three `Audit.lean` loopholes (small, and it protects everything else).
-3. Salvage the finished `wip/*` branches that build and pass audit (review each).
-4. Re-pin to **draft/v0.35.0 (d9f6789)** — Kalman's chosen target (v36 unfinished).
-5. Write the wave-2 docs; apply docstring corrections from faithful/strength reports.
-
-## Environment notes
-
-- Mac mini (`samsara` account): elan at `~/.elan`, Mathlib cache in `.lake/packages`.
-- era-contracts sources for the pins/heads were checked out in a session scratchpad (now gone):
-  re-create with `git worktree add` from a `--filter=blob:none` clone of matter-labs/era-contracts
-  at c67894b9, e561b9cc2, 3605e82 (main), d9f6789 (draft/v0.35.0).
-- Forge: `/Users/kalman/.foundry/bin/forge` (1.7.1). Codex: `~/.local/bin/codex exec -s read-only`.
+These are historical. Their branch lists and review results do not describe round 8.
