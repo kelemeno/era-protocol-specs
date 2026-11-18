@@ -324,6 +324,9 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CommitmentTreeAtV35
 -- Re-pinned to draft/v0.35.0 (b17415d20)
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyAtV35
 
+-- draft/v0.35.0 re-pins (b17415d20): the L1 asset router's handler gate
+import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerGateAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
