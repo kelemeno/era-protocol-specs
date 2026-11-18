@@ -84,6 +84,12 @@ and properties remain under `../Contracts/<SolidityName>/`.
   in the same transaction, service leaves carry one of three fixed calls, and no user request
   yields either privileged sender, under stated account premises and genuine Bridgehub roles; a
   redirected role breaks the service purposes.
+- [InteropPeerRegistry](InteropPeerRegistry/README.md) (`b17415d20`): each chain's
+  `L2Bridgehub.isPeerAllowed` equals `ChainRegistrationSender.interopPeerAllowed` once the
+  pair's last executed queue entry succeeded (or every service entry did), with countermodels for
+  a failed service entry and out-of-order execution; every chain's `baseTokenAssetId[p]` is `0` or
+  L1's, and L1's never changes once set, across the (disabled) migration path, where a settled
+  chain's entry stays L1's. No hash premise.
 
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.
