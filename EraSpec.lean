@@ -22,6 +22,7 @@ import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 -- e561b9cc2
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrent
+import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsAdminSlot
 
 -- Registry-driven upgrades: the CTM's version state, its transition registry, and the facet
 -- routing of its chains (a snapshot of a moving branch at e561b9cc2; see the folder README)
