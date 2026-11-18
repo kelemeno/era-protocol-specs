@@ -263,6 +263,12 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.LegSourceFilterAtV35
 import EraSpec.Contracts.ChainAdminOwnable.Proofs.Authority
 import EraSpec.Contracts.ChainAdminOwnable.Proofs.AdminRoles
 
+-- ChainBatchRootTree (pin b17415d20): the height-3 chain batch root, genesis seeding, and
+-- confinement of L2-log proofs to leaf 0
+import EraSpec.Contracts.ChainBatchRootTree.Proofs.Layout
+import EraSpec.Contracts.ChainBatchRootTree.Proofs.GenesisSeed
+import EraSpec.Contracts.ChainBatchRootTree.Proofs.LogConfinement
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
