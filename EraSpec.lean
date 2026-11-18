@@ -436,6 +436,9 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.SystemAtV35
 import EraSpec.Protocol.BatchCounters.Proofs.MessageRootSync
 import EraSpec.Protocol.BatchCounters.Proofs.MigrationContinuity
 
+-- Diamond proxy (b17415d20): dispatch, freezing, cut enabledness, the init call, and runs over every entry point
+import EraSpec.Contracts.Diamond.Proofs.DiamondProxy
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
