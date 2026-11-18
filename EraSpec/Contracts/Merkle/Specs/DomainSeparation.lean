@@ -1,6 +1,7 @@
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 import EraSpec.Contracts.Merkle.Specs.RootForgeryPinned
 import EraSpec.Contracts.AtomicInteropProof.Specs.LastLeaf
+import EraSpec.Contracts.AtomicInteropProof.Specs.LastLeafFaithful
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.TreeRoot
 
 /-!
@@ -40,9 +41,11 @@ UPG are the upgrade-system pin `e561b9cc2`.
 So two hashes of different-length inputs can be equal only through a keccak collision on two
 **named** byte strings: `HashCollision keccak x y` (`InteropDataEncoding/Specs/BundleHashPinned.lean`),
 with `x` and `y` read off the instance. Within the 96-byte family the inputs are told apart by
-their first word (a padding tag, a leaf value, or zero). Three source constants are one literal,
-documented as `keccak256` of 96 zero bytes: `EMPTY_IMT_ROOT = CHAIN_TREE_EMPTY_ENTRY_HASH =
-SHARED_ROOT_TREE_EMPTY_HASH`; and the pin's padding `hashLeaf({0,0,0})` hashes those same 96 bytes.
+their first word (a padding tag, a leaf value, or zero), except for an IMT leaf whose value is one
+of the other first words (group (b) of `../Properties/DomainSeparation.lean`). Three source
+constants are one literal, documented as `keccak256` of 96 zero bytes: `EMPTY_IMT_ROOT =
+CHAIN_TREE_EMPTY_ENTRY_HASH = SHARED_ROOT_TREE_EMPTY_HASH`; and the pin's padding
+`hashLeaf({0,0,0})` hashes those same 96 bytes.
 
 This file defines the byte encoders, the keccak instantiation of the abstract hashes, and the
 keccak-level forms of the located breaks. `../Properties/DomainSeparation.lean` states the
@@ -67,20 +70,42 @@ reductions; `../Proofs/DomainSeparation.lean` proves them.
   all-zero log's preimage (`Properties.LogDefaultIsZeroLog`); `_getProofData` rejects that leaf hash
   outright (`MessageHashing.sol:165-169`).
 * **Chain batch root tree** (`ChainBatchRootTree`, height 3): its leaves are used directly
-  (`ChainBatchRootTree.sol:17`), so it has no leaf/node separation at all; the fixed depth carries
-  that role. Not modelled here.
+  (`ChainBatchRootTree.sol:17`), so it has no leaf/node separation at all; the fixed depth, which
+  `_authenticateRoot` checks (`AtomicInteropProof.sol:261-262`), carries that role. Not modelled
+  here.
 * **Priority tree**: zero `keccak256("")` (0 bytes) versus nodes (64). Its leaves are canonical
   transaction hashes, whose preimages are not modelled.
 
 ## Current heads
 
-At era-contracts `main` `70096e2ea` and `draft/v0.35.0` `b17415d20`, `common/libraries/Merkle.sol` is
-unchanged from `c67894b9`, `common/libraries/IndexedMerkleTree.sol` is identical to UPG's (padding
-`IMT_EMPTY_LEAF_HASH`, `common/Config.sol:90` on `main`, `:141` on `draft/v0.35.0`), and the three
-`MessageHashing` preimages are unchanged (`getLeafHashFromLog` `:64-69` / `:64-68`, `batchLeafHash`
-`:77-83` / `:76-82`, `chainIdLeafHash` `:88-90` / `:87-89`). So the statements below for a padding
-preimage of any length other than 64 and 96 cover those heads' padding too. This file is not
-re-pinned to them.
+Re-read at era-contracts `main` `70096e2ea` and `draft/v0.35.0` `b17415d20` (line numbers are given
+as `main` / `draft/v0.35.0`; the lines cited elsewhere in this file are the pins'):
+
+* `common/libraries/Merkle.sol`, `common/MessageVerification.sol` and
+  `state-transition/libraries/PriorityTree.sol` are unchanged from `c67894b9`;
+  `DynamicIncrementalMerkle.sol` is unchanged on `main` and, on `draft/v0.35.0`, differs only in
+  `reset` returning `setup`'s root (`:68`);
+* `common/libraries/IndexedMerkleTree.sol` is identical to UPG's (padding `IMT_EMPTY_LEAF_HASH`,
+  `common/Config.sol:90` / `:141`);
+* the three `MessageHashing` preimages are unchanged (`getLeafHashFromLog` `:64-69` / `:64-68`,
+  `batchLeafHash` `:77-83` / `:76-82`, `chainIdLeafHash` `:88-90` / `:87-89`), and so is
+  `struct L2Log` (`common/Messaging.sol:27-34`);
+* the three empty-entry literals (`IMessageRoot.sol:8-16`, `ChainBatchRootTree.sol:35`),
+  `ATOMIC_COMMIT_LEAF_TAG` (`IAtomicInterop.sol:82`) and `commitValue`
+  (`AtomicInteropProof.sol:34-36`) are unchanged in content, and `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH`
+  is the same literal (system-contracts `Constants.sol:106` / l1-contracts `common/Config.sol:26-27`,
+  documented there as `keccak256(new bytes(L2_TO_L1_LOG_SERIALIZE_SIZE))`);
+* `MessageRootBase` writes its two trees as at the pin (shared-tree setup `:149` / `:140`, batch-leaf
+  push `:216-218` / `:207-209`, chain-id leaf update `:222-223` / `:213-214`, chain-tree setup and
+  first chain-id leaf `:294-296` / `:285-287`); `_verifyLastBatchInRoot` is unchanged
+  (`AtomicInteropProof.sol:130-143` at both); and the commitment tree's one inserted value is still
+  `commitValue` (`AtomicFlowManager.sol:167-169` / `:168-170`).
+
+So the statements below that do not mention the IMT padding describe those heads as they describe
+the pin, line numbers aside. The `…AtPin` forms describe the pin's IMT padding, which those heads
+replaced by UPG's; the IMT statements that take a padding preimage of any length other than 64 and
+96 apply to those heads' 34-byte padding preimage as they apply to UPG's, over the pin's list-state
+model (see "Model boundaries"). This file is not re-pinned to them.
 
 ## Model boundaries
 
@@ -94,7 +119,8 @@ re-pinned to them.
   nothing in Lean ties them to the strings. No result here needs a premise on `padB`: the 128-byte
   batch preimage is the only one of its length.
 * The logs-tree padding is the hex literal `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH`; the model reads it
-  as `keccak logDefaultPre`, as its comment documents. Lean cannot check the literal.
+  as `keccak logDefaultPre`, as its comment documents (Foundry's `cast keccak` of 88 zero bytes
+  agrees, outside Lean). Lean cannot check the literal.
 * The 32-byte words are `word` (`InteropDataEncoding/Specs/BundleHashEncoding.lean`), big-endian.
   `abi.encodePacked` of a `bytes32`/`uint256` and `abi.encode` of a `uint256` both produce that word;
   a `bytes4` is left-aligned in its `abi.encode` slot. These are the ABI specification, not a
@@ -106,13 +132,20 @@ re-pinned to them.
   as everywhere in `Merkle`, at any height and over any entry list. That the contracts' stored
   roots are that fold is obligation O7 (`Refinement.lean`). For `FullMerkle` storage (the IMT, the
   shared tree) a statement-by-statement transcription is proved to compute it (`FullMerkle` topic
-  `CachedNodes`); the chain trees' `DynamicIncrementalMerkle` has no transcription here. The logs
-  tree is built on L2 and is not modelled beyond its leaf and padding preimages.
+  `CachedNodes`); the chain trees' `DynamicIncrementalMerkle` has no transcription here. One
+  difference is visible in the source: with no batch pushed, its `root()` is `bytes32(0)`
+  (`setup`, `DynamicIncrementalMerkle.sol:53-57`), not the fold, and `_addNewChain` pushes the new
+  chain's chain-id leaf with `chainIdRoot = bytes32(0)` (`MessageRootBase.sol:350-352`); the
+  chain-tree statements here are about the fold. The logs tree is built on L2 and is not modelled
+  beyond its leaf and padding preimages.
 * The IMT statements use the pin's list-state model (`Contracts.InteropCommitmentTree.Tree`,
-  `Valid`) and quantify over every `Valid` state. At UPG `insert`'s low-leaf search is unbounded
-  instead of bounded by `MAX_LOW_INDEX_SEARCH_ATTEMPTS` (`IndexedMerkleTree.sol:85-89` at the pin).
-  Only the witnesses use `insert`, to build `threeLeafTree` by two inserts given their correct low
-  leaf, where the two searches do not iterate.
+  `Valid`) and quantify over every `Valid` state (some take no `Valid` premise at all). At UPG
+  `insert`'s low-leaf search is unbounded instead of bounded by `MAX_LOW_INDEX_SEARCH_ATTEMPTS`
+  (`IndexedMerkleTree.sol:85-89` at the pin). The model's `Run` admits any low leaf meeting
+  `InsertGuard`, and `run_valid` keeps `Valid` along it; that UPG's search, when it does not revert,
+  returns such a low leaf is a reading of the source, not proved here. Only the witnesses use
+  `insert`, to build `threeLeafTree` by two inserts given their correct low leaf, where the two
+  searches do not iterate.
 -/
 
 namespace MerkleSpec.DomainSeparation
@@ -346,8 +379,10 @@ def imtLeafPre (T : Tree) : ℕ → List UInt8 := fun m => imtPre (T.leaf m)
 abbrev imtRoot (keccak : Keccak) (zPre : List UInt8) (T : Tree) (height : ℕ) : UInt256 :=
   Contracts.InteropCommitmentTree.root (efficientHash keccak) (keccak zPre) (hashLeaf keccak) T height
 
-/-- The siblings of index `i` in that tree, as `FullMerkle.merklePath(i)` returns them
-(`Verifier.honestSibs`): the honest path of `i`. -/
+/-- The honest siblings of index `i` in that tree (`Verifier.honestSibs`). For an occupied `i` they
+are what `FullMerkle.merklePath(i)` returns (`FullMerkle` topic `CachedNodes`,
+`MerklePathIsHonest`); for an empty `i`, which `merklePath` refuses (`FullMerkle.sol:111-114`), they
+are the tree's own siblings, computable from the published leaves. -/
 abbrev imtSibs (keccak : Keccak) (zPre : List UInt8) (T : Tree) (i : ℕ) : ℕ → UInt256 :=
   honestSibs (efficientHash keccak) (keccak zPre) (leafHashes (hashLeaf keccak) T) i
 
@@ -417,6 +452,39 @@ inductive PinnedKeccakBreak (keccak : Keccak) (pre : ℕ → List UInt8) (n : �
       PinnedKeccakBreak keccak pre n zPre j
   | entryIsEmpty : j + 1 < n → HashCollision keccak (pre (j + 1)) zPre →
       PinnedKeccakBreak keccak pre n zPre j
+
+/-- **THE DEPLOYED LAST-BATCH CHECK'S BREAK, LOCATED AS A KECCAK COLLISION.**
+`LastLeafFaithful.LastLeafAnyLengthBreak` for the chain tree over the pushed batch leaves
+(`leafList keccak (chainTreePre padB B) n`, empty entry `keccak emptyPre`) and a submission of
+length `k` at index `j` presenting the batch leaf of `b`, each case turned into a collision on named
+byte strings, plus the one case the batch-leaf claim adds:
+
+* `wrongLength`: `k` is not the tree's height, located by a `HeightKeccakBreak`;
+* `paddedEntry`: the right length, an index past the `n` pushed batches, and `b`'s 128-byte preimage
+  and the 96 zero bytes hash equal;
+* `lastLeafCollision`: the right length, `j` is the last pushed batch, and its 128-byte preimage
+  and `b`'s differ and hash equal;
+* `pinned`: the right length, and a `PinnedKeccakBreak` on the subtree that starts at `j + 1`;
+* `pathCollision`: the right length, and a 64-byte collision on the submitted path. -/
+inductive LastBatchKeccakBreak (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ)
+    (sibs : ℕ → UInt256) (k height j : ℕ) (b : BatchLeaf) : Prop
+  | wrongLength :
+      HeightKeccakBreak keccak (chainTreePre padB B) n emptyPre sibs k height j
+        (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) →
+      LastBatchKeccakBreak keccak padB B n sibs k height j b
+  | paddedEntry : k = height → n ≤ j →
+      HashCollision keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) emptyPre →
+      LastBatchKeccakBreak keccak padB B n sibs k height j b
+  | lastLeafCollision : k = height → j + 1 = n →
+      HashCollision keccak (chainTreePre padB B j)
+        (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) →
+      LastBatchKeccakBreak keccak padB B n sibs k height j b
+  | pinned : k = height → PinnedKeccakBreak keccak (chainTreePre padB B) n emptyPre j →
+      LastBatchKeccakBreak keccak padB B n sibs k height j b
+  | pathCollision : k = height →
+      PathKeccakCollision keccak (emptyEntryHash keccak) (leafList keccak (chainTreePre padB B) n)
+        sibs 0 k j (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp) →
+      LastBatchKeccakBreak keccak padB B n sibs k height j b
 
 /-- **A BREAK OF THE IMT ROOT CHECK, LOCATED AS A KECCAK COLLISION.** `TreeRootBreak` for the tree
 `T` with node hash `efficientHash keccak`, leaf hash `hashLeaf keccak` and padding `keccak zPre`,

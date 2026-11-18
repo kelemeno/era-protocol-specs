@@ -3,6 +3,7 @@ import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
 import EraSpec.Contracts.Merkle.Proofs.PathCollision
 import EraSpec.Contracts.Merkle.Proofs.RootForgeryPinned
 import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeaf
+import EraSpec.Contracts.AtomicInteropProof.Proofs.LastLeafFaithful
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRoot
 
 /-!
@@ -16,8 +17,13 @@ their words are (`List.append_inj`), and a word below `2^256` is recovered from 
 (`fromBytesBE_toBytesBE`). Every reduction to keccak is then the same two steps: unfold the
 abstract hash into keccak of a named preimage, and show the two named preimages differ (by length,
 or by a word) so that equal hashes are a `HashCollision`. The composed results reuse the
-abstract-hash theorems of `PathCollision`, `LastLeaf` and `TreeRoot` and translate their located
-breaks.
+abstract-hash theorems of `PathCollision`, `LastLeaf`, `LastLeafFaithful` and `TreeRoot` and
+translate their located breaks.
+
+The planted-collision witnesses are proved for an abstract keccak that satisfies the one hash
+equality the planted model provides (`height_keccak_break_fires_of`,
+`pinned_keccak_break_fires_of`, `deployed_last_batch_padded_entry_fires_of`), then instantiated
+with `plantKeccak`: letting Lean unfold `plantKeccak`'s `if` on symbolic byte strings is expensive.
 -/
 
 namespace MerkleSpec.DomainSeparation
@@ -25,8 +31,9 @@ namespace MerkleSpec.DomainSeparation
 open AttackVectors.BundleHashEncoding (HashCollision toBytesBE word fromBytesBE length_toBytesBE
   fromBytesBE_toBytesBE word_length uint256_val_lt word_val_inj toUInt256_val)
 open MerkleSpec MerkleSpec.Verifier MerkleSpec.LastLeaf MerkleSpec.Pinned
+open MerkleSpec.LastLeafFaithful (LastBatchPathAccepted)
 open Contracts.InteropCommitmentTree (Leaf Tree LeafHash leafHashes TreeRootBreak InclusionAccepted
-  NonInclusionAccepted Valid root setup threeLeafTree)
+  NonInclusionAccepted Valid root setup threeLeafTree toAbs)
 
 /-! ## Byte toolkit -/
 
@@ -96,6 +103,33 @@ theorem zero_leafBounded : LeafBounded ⟨0, 0, 0⟩ := by
   show (0 : ℕ) < 256 ^ 32
   norm_num
 
+/-! ## The planted keccak model -/
+
+/-- At the planted string, the planted model returns `κ` at the target. -/
+theorem plantKeccak_at (κ : Keccak) (x y : List UInt8) : plantKeccak κ x y x = κ y := by
+  simp [plantKeccak]
+
+/-- At the target, the planted model agrees with `κ` (whether or not the target is the planted
+string). -/
+theorem plantKeccak_target (κ : Keccak) (x y : List UInt8) : plantKeccak κ x y y = κ y := by
+  unfold plantKeccak
+  split_ifs <;> rfl
+
+/-- Away from the planted string, the planted model is `κ`. -/
+theorem plantKeccak_of_ne (κ : Keccak) {x s : List UInt8} (y : List UInt8) (h : s ≠ x) :
+    plantKeccak κ x y s = κ s := by
+  simp [plantKeccak, h]
+
+/-- The planted model maps the planted string and the target to the same word. -/
+theorem plantKeccak_eq (κ : Keccak) (x y : List UInt8) :
+    plantKeccak κ x y x = plantKeccak κ x y y := by
+  rw [plantKeccak_at, plantKeccak_target]
+
+/-- So, when the two strings differ, the planted model collides on exactly them. -/
+theorem plantKeccak_collision (κ : Keccak) {x y : List UInt8} (hne : x ≠ y) :
+    HashCollision (plantKeccak κ x y) x y :=
+  ⟨hne, plantKeccak_eq κ x y⟩
+
 /-! ## (a) Lengths -/
 
 theorem nodePre_length (a b : UInt256) : (nodePre a b).length = 64 := by
@@ -155,7 +189,7 @@ theorem lengthKeccak_eq_iff {x y : List UInt8} (hx : x.length < 256 ^ 32) (hy : 
     rw [h]
 
 theorem cross_length_eq_is_collision_witness : Properties.CrossLengthEqIsCollisionWitness := by
-  refine ⟨⟨constKeccak, [], [0], by simp, rfl⟩, ?_⟩
+  refine ⟨fun κ ℓ a b => ⟨by rw [imtPre_length, nodePre_length]; decide, plantKeccak_eq κ _ _⟩, ?_⟩
   rintro x y hx hy hne ⟨-, heq⟩
   exact hne ((lengthKeccak_eq_iff hx hy).mp heq)
 
@@ -277,14 +311,13 @@ theorem firstWordKeccak_commitPre {tag : ℕ} (ht : tag < 256 ^ 4) (f s : UInt25
   rw [commitPre_eq_words, List.append_assoc, firstWordKeccak_word (tagWord_lt ht)]
 
 theorem ninety_six_byte_family_witness : Properties.NinetySixByteFamilyWitness := by
-  refine ⟨1, 1, ⟨2, 0, 0⟩, by decide, by norm_num, by norm_num, by
-    show (0 : ℕ) < 256 ^ 32; norm_num, by decide, ?_, ?_, ?_⟩
-  · show (2 : ℕ) ≠ 1 * 256 ^ 28
-    norm_num
-  · show (1 : ℕ) ≠ 1 * 256 ^ 28
-    norm_num
+  refine ⟨by decide, by norm_num [atomicCommitLeafTagValue], by norm_num [atomicCommitLeafTagValue],
+    by show (0 : ℕ) < 256 ^ 32; norm_num, by decide, ?_, ?_, ?_⟩
+  · show (2 : ℕ) ≠ atomicCommitLeafTagValue * 256 ^ 28
+    norm_num [atomicCommitLeafTagValue]
+  · decide
   intro r c f s
-  have ht : (1 : ℕ) < 256 ^ 4 := by norm_num
+  have ht : atomicCommitLeafTagValue < 256 ^ 4 := by norm_num [atomicCommitLeafTagValue]
   refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> rintro ⟨-, h⟩
   · rw [firstWordKeccak_chainIdPre, firstWordKeccak_emptyPre] at h
     exact absurd h (by decide)
@@ -314,8 +347,8 @@ theorem empty_constants_coincide : Properties.EmptyConstantsCoincide := by
   exact ⟨he, (imtPadding_eq keccak).trans he, (setup_root_zero keccak).trans he⟩
 
 theorem keccak_of_empty_is_documented_satisfiable :
-    Properties.KeccakOfEmptyIsDocumentedSatisfiable :=
-  ⟨fun _ => 0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21, rfl⟩
+    Properties.KeccakOfEmptyIsDocumentedSatisfiable := fun κ => by
+  simp [KeccakOfEmptyIsDocumented]
 
 theorem log_default_is_zero_log : Properties.LogDefaultIsZeroLog := by
   unfold Properties.LogDefaultIsZeroLog
@@ -461,7 +494,7 @@ theorem tree_leaf_domains : Properties.TreeLeafDomains := by
     · rw [imtPre_length]; decide
 
 theorem tree_entry_domains : Properties.TreeEntryDomains := by
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, ?_, ?_, fun h => h 0 (by decide) rfl⟩
   · intro padB B n m _
     exact ne_of_length_ne (by
       show (batchPre padB _ _ _).length ≠ emptyPre.length
@@ -499,7 +532,20 @@ theorem lengthKeccak_node (a b : UInt256) :
     efficientHash lengthKeccak a b = Nat.toUInt256 64 :=
   lengthKeccak_of_length (nodePre_length a b)
 
-theorem tree_domains_witness : Properties.TreeDomainsWitness := by
+theorem chainTreePre_ne_emptyPre (padB : UInt256) (B : ℕ → BatchLeaf) (m : ℕ) :
+    chainTreePre padB B m ≠ emptyPre :=
+  ne_of_length_ne (by
+    show (batchPre padB _ _ _).length ≠ emptyPre.length
+    rw [batchPre_length, emptyPre_length]; decide)
+
+theorem tree_domains_length_witness :
+    ∀ (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ) (b : BatchLeaf),
+    (∀ y ∈ leafList lengthKeccak (chainTreePre padB B) n, ∀ a c : UInt256,
+        y ≠ efficientHash lengthKeccak a c)
+      ∧ (∀ a c : UInt256, lengthKeccak emptyPre ≠ efficientHash lengthKeccak a c)
+      ∧ (∀ a c : UInt256, lengthKeccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
+          ≠ efficientHash lengthKeccak a c)
+      ∧ EntriesNotEmpty (lengthKeccak emptyPre) (leafList lengthKeccak (chainTreePre padB B) n) := by
   intro padB B n b
   refine ⟨?_, ?_, ?_, ?_⟩
   · intro y hy a c
@@ -520,6 +566,17 @@ theorem tree_domains_witness : Properties.TreeDomainsWitness := by
     rw [lengthKeccak_of_length (batchPre_length _ _ _ _),
       lengthKeccak_of_length emptyPre_length] at heq
     exact absurd heq (by decide)
+
+theorem tree_domains_witness : Properties.TreeDomainsWitness := by
+  refine ⟨tree_domains_length_witness, ?_, fun κ a c => plantKeccak_eq κ _ _,
+    fun κ padB b a c => plantKeccak_eq κ _ _, ?_⟩
+  · intro κ padB B n m a c hm
+    exact ⟨mem_leafList.mpr ⟨m, hm, rfl⟩, plantKeccak_eq κ _ _⟩
+  · intro κ padB B n m hm
+    refine ⟨fun hE => ?_, plantKeccak_collision κ (chainTreePre_ne_emptyPre padB B m)⟩
+    apply hE m (by rw [leafList_length]; exact hm)
+    rw [leafList_getD, entryPre, ite_eq_left hm]
+    exact plantKeccak_eq κ _ _
 
 theorem heightBreak_keccak {keccak : Keccak} {pre : ℕ → List UInt8} {n : ℕ}
     {zPre xPre : List UInt8} {sibs : ℕ → UInt256} {k height j : ℕ}
@@ -659,11 +716,11 @@ theorem shared_tree_proof_opens_chain_or_keccak_break :
 
 theorem tree_proof_opens_witness : Properties.TreeProofOpensWitness := by
   intro keccak padB B C
-  obtain ⟨hacc₁, -, hnc₁, hnp₁, -⟩ := honest_proof_no_keccak_break keccak (chainTreePre padB B) 2
+  obtain ⟨hacc₁, -, hnc₁, hnp₁, hnh₁⟩ := honest_proof_no_keccak_break keccak (chainTreePre padB B) 2
     emptyPre 1 1 (by norm_num) (by norm_num)
-  obtain ⟨hacc₂, -, hnc₂, hnp₂, -⟩ := honest_proof_no_keccak_break keccak (sharedTreePre 1 C) 2
-    emptyPre 1 1 (by norm_num) (by norm_num)
-  exact ⟨⟨hacc₁, hnc₁, hnp₁⟩, ⟨by decide, hacc₂, hnc₂, hnp₂⟩⟩
+  obtain ⟨hacc₂, -, hnc₂, hnp₂, hnh₂⟩ := honest_proof_no_keccak_break keccak
+    (sharedTreePre chainIdLeafPaddingValue C) 2 emptyPre 1 1 (by norm_num) (by norm_num)
+  exact ⟨⟨by norm_num, hacc₁, hnc₁, hnp₁, hnh₁⟩, ⟨by decide, hacc₂, hnc₂, hnp₂, hnh₂⟩⟩
 
 theorem pinnedBreak_keccak {keccak : Keccak} {pre : ℕ → List UInt8} {n : ℕ} {zPre : List UInt8}
     {j : ℕ} (hE : EntryDomain pre n zPre)
@@ -698,14 +755,58 @@ theorem accepted_last_batch_or_keccak_break : Properties.AcceptedLastBatchOrKecc
     (tree_entry_domains.1 padB B n) hcap hj haccept hzero
 
 theorem accept_opens_preimage_witness : Properties.AcceptOpensPreimageWitness := by
-  intro keccak
-  let B : ℕ → BatchLeaf := fun _ => ⟨0, 0, 0⟩
+  intro keccak padB B
   obtain ⟨hacc, he, hnc, hnp, hnh⟩ :=
-    honest_proof_no_keccak_break keccak (chainTreePre 0 B) 2 emptyPre 1 1 (by norm_num)
+    honest_proof_no_keccak_break keccak (chainTreePre padB B) 2 emptyPre 1 1 (by norm_num)
       (by norm_num)
-  exact ⟨chainTreePre 0 B, 2, emptyPre, chainTreePre 0 B 1, _, 1, 1, 1,
-    (tree_leaf_domains.2.1 0 B 2 ⟨0, 0, 0⟩), by norm_num, by norm_num, hacc, ⟨rfl, he⟩, hnc,
-    hnp, hnh⟩
+  exact ⟨tree_leaf_domains.2.1 padB B 2 (B 1), chainTreePre_ne_emptyPre padB B 1, by norm_num,
+    hacc, he, hnc, hnp, hnh⟩
+
+/-- The level-0 list of a two-entry tree over named preimages. -/
+theorem leafList_two (keccak : Keccak) (pre : ℕ → List UInt8) :
+    leafList keccak pre 2 = [keccak (pre 0), keccak (pre 1)] := rfl
+
+/-- `HeightKeccakBreakFires` for any keccak model under which the claimed batch leaf IS the root
+of the two-batch tree: the zero-length path is accepted, too short, and located. -/
+theorem height_keccak_break_fires_of (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf)
+    (b : BatchLeaf)
+    (hx : keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
+      = keccak (nodePre (keccak (chainTreePre padB B 0)) (keccak (chainTreePre padB B 1)))) :
+    0 < 2 ^ 0
+      ∧ walkPure (efficientHash keccak) (fun _ => 0) 0 0 0
+          (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp)
+        = rootOf (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (chainTreePre padB B) 2) 1
+      ∧ HeightBreak (efficientHash keccak) (emptyEntryHash keccak)
+          (leafList keccak (chainTreePre padB B) 2) (fun _ => 0) 0 1 0
+          (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp)
+      ∧ HeightKeccakBreak keccak (chainTreePre padB B) 2 emptyPre (fun _ => 0) 0 1 0
+          (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
+      ∧ HashCollision keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
+          (pairPre (treePair (efficientHash keccak) (keccak emptyPre)
+            (leafList keccak (chainTreePre padB B) 2) 0 0)) := by
+  have hcoll : HashCollision keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
+      (pairPre (treePair (efficientHash keccak) (keccak emptyPre)
+        (leafList keccak (chainTreePre padB B) 2) 0 0)) :=
+    ⟨ne_pairPre_of_length_ne (by rw [batchPre_length]; decide) _, hx⟩
+  exact ⟨by norm_num, hx, .shortInteriorLeaf (by norm_num) hx, .leafIsNode (by norm_num) hcoll,
+    hcoll⟩
+
+theorem height_keccak_break_fires : Properties.HeightKeccakBreakFires := by
+  intro κ padB B b h0 h1
+  -- The two entries and the root's node preimage are not the planted string.
+  have hx0 : chainTreePre padB B 0 ≠ batchPre padB b.batchRoot b.batchNumber b.l1Timestamp :=
+    fun he => h0 (batchPre_fields_inj he).symm
+  have hx1 : chainTreePre padB B 1 ≠ batchPre padB b.batchRoot b.batchNumber b.l1Timestamp :=
+    fun he => h1 (batchPre_fields_inj he).symm
+  have hxn : nodePre (κ (chainTreePre padB B 0)) (κ (chainTreePre padB B 1))
+      ≠ batchPre padB b.batchRoot b.batchNumber b.l1Timestamp :=
+    ne_of_length_ne (by rw [nodePre_length, batchPre_length]; decide)
+  exact height_keccak_break_fires_of
+    (plantKeccak κ (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
+      (nodePre (κ (chainTreePre padB B 0)) (κ (chainTreePre padB B 1)))) padB B b
+    (by rw [plantKeccak_of_ne κ _ hx0, plantKeccak_of_ne κ _ hx1, plantKeccak_of_ne κ _ hxn,
+      plantKeccak_at])
 
 /-- `m · 2^(l+1)` is even, so it is never `1`. -/
 theorem mul_two_pow_succ_ne_one (l m : ℕ) : m * 2 ^ (l + 1) ≠ 1 := by
@@ -749,6 +850,150 @@ theorem accepted_last_batch_witness : Properties.AcceptedLastBatchWitness := by
         rw [hget]
         exact (pathCollision_iff ..).mpr h
 
+/-- `PinnedKeccakBreakFires` for any keccak model under which batch 1's leaf is the empty entry. -/
+theorem pinned_keccak_break_fires_of (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf)
+    (heq : keccak (chainTreePre padB B 1) = keccak emptyPre) :
+    2 ≤ 2 ^ 1 ∧ 0 < 2
+      ∧ walkPure (efficientHash keccak)
+          (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (chainTreePre padB B) 2) 0) 0 1 0 (keccak (chainTreePre padB B 0))
+        = rootOf (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (chainTreePre padB B) 2) 1
+      ∧ (∀ l < 1, (0 / 2 ^ l) % 2 = 0 →
+          honestSibs (efficientHash keccak) (emptyEntryHash keccak)
+              (leafList keccak (chainTreePre padB B) 2) 0 l
+            = zeros (efficientHash keccak) (emptyEntryHash keccak) l)
+      ∧ 0 + 1 ≠ 2
+      ∧ PinnedBreak (efficientHash keccak) (emptyEntryHash keccak)
+          (leafList keccak (chainTreePre padB B) 2) 0
+      ∧ ¬ PathKeccakCollision keccak (emptyEntryHash keccak)
+          (leafList keccak (chainTreePre padB B) 2)
+          (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (chainTreePre padB B) 2) 0) 0 1 0 (keccak (chainTreePre padB B 0))
+      ∧ PinnedKeccakBreak keccak (chainTreePre padB B) 2 emptyPre 0
+      ∧ HashCollision keccak (chainTreePre padB B 1) emptyPre := by
+  have hcoll : HashCollision keccak (chainTreePre padB B 1) emptyPre :=
+    ⟨chainTreePre_ne_emptyPre padB B 1, heq⟩
+  -- Batch 1's leaf is the empty entry's value; batch 0's leaf is its own.
+  have hget1 : (leafList keccak (chainTreePre padB B) 2).getD 1 (emptyEntryHash keccak)
+      = emptyEntryHash keccak := heq
+  have hget0 : (leafList keccak (chainTreePre padB B) 2).getD 0 (emptyEntryHash keccak)
+      = keccak (chainTreePre padB B 0) := rfl
+  refine ⟨by norm_num, by norm_num, ?_, ?_, by norm_num,
+    .entryIsEmpty (by rw [leafList_length]; norm_num) hget1, ?_,
+    .entryIsEmpty (by norm_num) hcoll, hcoll⟩
+  · have := honest_walk_root (efficientHash keccak) (emptyEntryHash keccak)
+      (leafList keccak (chainTreePre padB B) 2) 1 0 (by norm_num)
+    rw [hget0] at this
+    exact this
+  · intro l hl _
+    interval_cases l
+    exact hget1
+  · intro hc
+    apply honest_walk_no_collision (efficientHash keccak) (emptyEntryHash keccak)
+      (leafList keccak (chainTreePre padB B) 2) 1 0
+    rw [hget0]
+    exact (pathCollision_iff ..).mpr hc
+
+theorem pinned_keccak_break_fires : Properties.PinnedKeccakBreakFires := fun κ padB B =>
+  pinned_keccak_break_fires_of (plantKeccak κ (chainTreePre padB B 1) emptyPre) padB B
+    (plantKeccak_eq κ _ _)
+
+/-! ### The last-batch check as deployed: the prover's length and index -/
+
+theorem batchPre_ne_emptyPre (padB r m t : UInt256) : batchPre padB r m t ≠ emptyPre :=
+  ne_of_length_ne (by rw [batchPre_length, emptyPre_length]; decide)
+
+theorem deployed_last_batch_check_or_keccak_break :
+    Properties.DeployedLastBatchCheckOrKeccakBreak := by
+  intro keccak padB B n b sibs k height j hcap hacc
+  have hlen := leafList_length keccak (chainTreePre padB B) n
+  rcases MerkleSpec.LastLeafFaithful.accepted_last_leaf_any_length_or_break (efficientHash keccak)
+      (emptyEntryHash keccak) (leafList keccak (chainTreePre padB B) n) sibs k height j _
+      (by rw [hlen]; exact hcap) hacc with ⟨hk, hlast, hget⟩ | hb
+  · rw [hlen] at hlast
+    have hjn : j < n := by omega
+    have hget' : keccak (chainTreePre padB B j)
+        = keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) := by
+      have h := hget
+      rw [emptyEntryHash, leafList_getD, entryPre, ite_eq_left hjn] at h
+      exact h
+    by_cases he : chainTreePre padB B j = batchPre padB b.batchRoot b.batchNumber b.l1Timestamp
+    · exact Or.inl ⟨hk, hlast, batchPre_fields_inj (b := B j) (b' := b) he⟩
+    · exact Or.inr (.lastLeafCollision hk hlast ⟨he, hget'⟩)
+  · right
+    cases hb with
+    | wrongLength hh => exact .wrongLength (heightBreak_keccak (tree_leaf_domains.2.1 padB B n b) hh)
+    | paddedEntry hk hle hx =>
+      rw [hlen] at hle
+      exact .paddedEntry hk hle ⟨batchPre_ne_emptyPre _ _ _ _, hx⟩
+    | pinned hk hp => exact .pinned hk (pinnedBreak_keccak (tree_entry_domains.1 padB B n) hp)
+    | pathCollision hk hc => exact .pathCollision hk ((pathCollision_iff ..).mp hc)
+
+theorem deployed_last_batch_check_witness : Properties.DeployedLastBatchCheckWitness := by
+  intro keccak padB B
+  have hget : (leafList keccak (chainTreePre padB B) 3).getD 2 (emptyEntryHash keccak)
+      = keccak (chainTreePre padB B 2) := rfl
+  refine ⟨by norm_num, ⟨by norm_num, ?_, ?_⟩, by norm_num, ⟨rfl, rfl, rfl⟩, ?_⟩
+  · have := honest_walk_root (efficientHash keccak) (emptyEntryHash keccak)
+      (leafList keccak (chainTreePre padB B) 3) 2 2 (by norm_num)
+    rw [hget] at this
+    exact this
+  · intro l hl hpar
+    interval_cases l
+    · -- level 0: the path goes left, and its sibling is the empty slot 3
+      refine getD_default _ _ _ ?_
+      show (leafList keccak (chainTreePre padB B) 3).length ≤ sibIdx (2 / 2 ^ 0)
+      rw [leafList_length]
+      decide
+    · norm_num at hpar
+  · intro hb
+    cases hb with
+    | wrongLength hh => cases hh <;> omega
+    | paddedEntry _ hle _ => omega
+    | lastLeafCollision _ _ hc => exact hc.1 rfl
+    | pinned _ hp => cases hp <;> omega
+    | pathCollision _ hc =>
+      apply honest_walk_no_collision (efficientHash keccak) (emptyEntryHash keccak)
+        (leafList keccak (chainTreePre padB B) 3) 2 2
+      rw [hget]
+      exact (pathCollision_iff ..).mpr hc
+
+/-- `DeployedLastBatchPaddedEntryFires` for any keccak model under which `b`'s batch leaf is the empty
+entry. -/
+theorem deployed_last_batch_padded_entry_fires_of (keccak : Keccak) (padB : UInt256)
+    (B : ℕ → BatchLeaf) (b : BatchLeaf)
+    (hx : keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) = keccak emptyPre) :
+    3 ≤ 2 ^ 2
+      ∧ LastBatchPathAccepted (efficientHash keccak) (emptyEntryHash keccak)
+          (leafList keccak (chainTreePre padB B) 3) 2
+          (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (chainTreePre padB B) 3) 3) 2 3
+          (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp)
+      ∧ 3 + 1 ≠ 3
+      ∧ LastBatchKeccakBreak keccak padB B 3
+          (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (chainTreePre padB B) 3) 3) 2 2 3 b
+      ∧ HashCollision keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) emptyPre := by
+  have hcoll : HashCollision keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
+      emptyPre := ⟨batchPre_ne_emptyPre _ _ _ _, hx⟩
+  have hget : (leafList keccak (chainTreePre padB B) 3).getD 3 (emptyEntryHash keccak)
+      = emptyEntryHash keccak := getD_default _ _ _ (by rw [leafList_length])
+  refine ⟨by norm_num, ⟨by norm_num, ?_, ?_⟩, by norm_num, .paddedEntry rfl le_rfl hcoll, hcoll⟩
+  · have := honest_walk_root (efficientHash keccak) (emptyEntryHash keccak)
+      (leafList keccak (chainTreePre padB B) 3) 2 3 (by norm_num)
+    rw [hget] at this
+    show walkPure _ _ 0 2 3 (keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)) = _
+    rw [hx]
+    exact this
+  · intro l hl hpar
+    interval_cases l <;> norm_num at hpar
+
+theorem deployed_last_batch_padded_entry_fires : Properties.DeployedLastBatchPaddedEntryFires :=
+  fun κ padB B b => deployed_last_batch_padded_entry_fires_of
+    (plantKeccak κ (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) emptyPre) padB B b
+    (plantKeccak_eq κ _ _)
+
 /-! ## (c) The IMT: `HashAssumptions` at the pin, and the root check down to keccak -/
 
 theorem hash_assumptions_fields_up_to_collision : Properties.HashAssumptionsFieldsUpToCollision := by
@@ -782,11 +1027,10 @@ theorem hash_assumptions_fields_up_to_collision : Properties.HashAssumptionsFiel
     rw [← imtPre_zero]
     exact h
 
-theorem constKeccak_apply (x : List UInt8) : constKeccak x = 0 := rfl
-
 theorem commit_leaf_not_chain_id_leaf_witness : Properties.CommitLeafNotChainIdLeafWitness := by
-  refine ⟨⟨constKeccak, 0, 0, 0, 0, 0, 0, 0, ?_⟩, ?_⟩
-  · simp only [constKeccak_apply]
+  refine ⟨fun κ f b r c => ?_, ?_⟩
+  · show imtPre ⟨_, r.val, c⟩ = chainIdPre _ r c
+    rw [plantKeccak_eq]
     rfl
   · intro tag f b hc
     have := hc.2
@@ -795,9 +1039,29 @@ theorem commit_leaf_not_chain_id_leaf_witness : Properties.CommitLeafNotChainIdL
     exact absurd this (by decide)
 
 theorem hash_assumptions_fields_witness : Properties.HashAssumptionsFieldsWitness := by
-  refine ⟨fun _ _ _ => ⟨?_, ?_⟩, ?_, ?_, ?_⟩
-  · simp only [hashLeaf, efficientHash, constKeccak_apply]
-  · simp only [imtPadding, hashLeaf, efficientHash, constKeccak_apply]
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro κ a b c d hne
+    refine ⟨plantKeccak_eq κ _ _, plantKeccak_collision κ fun he => hne ?_⟩
+    obtain ⟨h1, h2⟩ := nodePre_inj he
+    rw [h1, h2]
+  · intro κ ℓ ℓ' hℓ hℓ' hne
+    exact ⟨plantKeccak_eq κ _ _, plantKeccak_collision κ fun he => hne (imtPre_inj hℓ hℓ' he)⟩
+  · intro κ ℓ a b
+    exact ⟨plantKeccak_eq κ _ _, plantKeccak_collision κ
+      (ne_pairPre_of_length_ne (by rw [imtPre_length]; decide) (a, b))⟩
+  · intro κ ℓ hℓ hne
+    refine ⟨?_, plantKeccak_collision κ fun he => hne ((imtPre_eq_emptyPre_iff hℓ).mp he)⟩
+    show plantKeccak κ (imtPre ℓ) emptyPre (imtPre ℓ)
+      = plantKeccak κ (imtPre ℓ) emptyPre (imtPre ⟨0, 0, 0⟩)
+    rw [imtPre_zero]
+    exact plantKeccak_eq κ _ _
+  · intro κ a b
+    refine ⟨?_, plantKeccak_collision κ
+      (ne_pairPre_of_length_ne (by rw [emptyPre_length]; decide) (a, b))⟩
+    show plantKeccak κ emptyPre (nodePre a b) (imtPre ⟨0, 0, 0⟩)
+      = plantKeccak κ emptyPre (nodePre a b) (nodePre a b)
+    rw [imtPre_zero]
+    exact plantKeccak_eq κ _ _
   · intro ℓ a b
     refine ⟨?_, ?_⟩
     · show lengthKeccak (imtPre ℓ) ≠ lengthKeccak (nodePre a b)
@@ -922,6 +1186,14 @@ theorem non_inclusion_sound_or_keccak_break : Properties.NonInclusionSoundOrKecc
     · exact absurd (by rw [← he, imtPre_length]) hz96
     · exact Or.inr hk
 
+theorem inclusion_sound_or_keccak_break : Properties.InclusionSoundOrKeccakBreak := by
+  intro keccak zPre hz64 hz96 T height v ℓ idx sibs k hT hℓ hI
+  rcases Contracts.InteropCommitmentTree.inclusion_sound_or_break hI with hmem | hb
+  · exact Or.inl hmem
+  · rcases treeRootBreak_keccak hz64 hT hℓ hb with ⟨_, he⟩ | hk
+    · exact absurd (by rw [← he, imtPre_length]) hz96
+    · exact Or.inr hk
+
 theorem upg_padding_length_ok : Properties.UpgPaddingLengthOk := by
   unfold Properties.UpgPaddingLengthOk
   rw [imtEmptyLeafPre_length]
@@ -939,20 +1211,61 @@ theorem imt_keccak_break_not_tautology : Properties.ImtKeccakBreakNotTautology :
   | leafCollision _ hc => exact hc.1 rfl
   | paddingCollision hle _ => omega
 
-theorem non_inclusion_sound_witness : Properties.NonInclusionSoundWitness := by
-  intro keccak zPre
-  have hset : TreeBounded setup := fun _ _ => zero_leafBounded
-  refine ⟨hset, zero_leafBounded, ⟨by decide, by decide, Or.inl rfl, ⟨by norm_num, rfl⟩⟩, ?_, ?_⟩
-  · exact imt_keccak_break_not_tautology keccak zPre setup 0 0 (by decide)
-  · exact ⟨⟨0, 0⟩, by simp, by decide, Or.inl rfl⟩
+/-! ### The three-leaf run `threeLeafTree a b` -/
+
+theorem threeLeafTree_leafCount (a b : UInt256) : (threeLeafTree a b).leafCount = 3 := rfl
+
+theorem threeLeafTree_leaf_zero (a b : UInt256) : (threeLeafTree a b).leaf 0 = ⟨0, 1, a⟩ := by
+  simp [threeLeafTree, Contracts.InteropCommitmentTree.insert, setup]
+
+theorem threeLeafTree_leaf_one (a b : UInt256) : (threeLeafTree a b).leaf 1 = ⟨a, 2, b⟩ := by
+  simp [threeLeafTree, Contracts.InteropCommitmentTree.insert, setup]
+
+theorem threeLeafTree_leaf_two (a b : UInt256) : (threeLeafTree a b).leaf 2 = ⟨b, 0, 0⟩ := by
+  simp [threeLeafTree, Contracts.InteropCommitmentTree.insert, setup]
 
 theorem threeLeafTree_bounded (a b : UInt256) : TreeBounded (threeLeafTree a b) := by
   intro i hi
-  have hcount : (threeLeafTree a b).leafCount = 3 := rfl
-  rw [hcount] at hi
+  rw [threeLeafTree_leafCount] at hi
   show ((threeLeafTree a b).leaf i).nextIndex < 256 ^ 32
-  interval_cases i <;>
-    simp [threeLeafTree, Contracts.InteropCommitmentTree.insert, setup]
+  interval_cases i
+  · rw [threeLeafTree_leaf_zero]; norm_num
+  · rw [threeLeafTree_leaf_one]; norm_num
+  · rw [threeLeafTree_leaf_two]; norm_num
+
+theorem threeLeafTree_valid {a b : UInt256} (ha : 0 < a) (hab : a < b) :
+    Valid (threeLeafTree a b) :=
+  (Contracts.InteropCommitmentTree.padding_collision_refunds_delivered_leg
+    (fun _ _ => 0) (fun _ => 0) ha hab).1
+
+/-- The values of `threeLeafTree a b` are `0`, `a` and `b`. -/
+theorem not_mem_keys_threeLeafTree {a b c : UInt256} (h0 : c ≠ 0) (ha : c ≠ a) (hb : c ≠ b) :
+    c ∉ IMTAbstract.keys (toAbs (threeLeafTree a b)) := by
+  intro hc
+  obtain ⟨W, hW, hk⟩ := Finset.mem_image.mp hc
+  obtain ⟨i, hi, hv, -⟩ := Contracts.InteropCommitmentTree.mem_toAbs.mp hW
+  rw [threeLeafTree_leafCount] at hi
+  rw [hk] at hv
+  interval_cases i
+  · rw [threeLeafTree_leaf_zero] at hv; exact h0 hv.symm
+  · rw [threeLeafTree_leaf_one] at hv; exact ha hv.symm
+  · rw [threeLeafTree_leaf_two] at hv; exact hb hv.symm
+
+theorem non_inclusion_sound_witness : Properties.NonInclusionSoundWitness := by
+  intro keccak zPre a b v ha hav hvb
+  have hT := threeLeafTree_bounded a b
+  have h1 : 1 < (threeLeafTree a b).leafCount := by rw [threeLeafTree_leafCount]; norm_num
+  have hI := Contracts.InteropCommitmentTree.inclusion_complete (h := efficientHash keccak)
+    (z0 := keccak zPre) (hl := hashLeaf keccak) (T := threeLeafTree a b) (height := 2)
+    (by rw [threeLeafTree_leafCount]; norm_num) h1
+  have hv0 : v ≠ 0 := (ne_of_lt (lt_trans ha hav)).symm
+  refine ⟨threeLeafTree_valid ha (lt_trans hav hvb), hT, hT 1 h1, ⟨hv0, ?_, ?_, hI.path⟩, ?_, ?_⟩
+  · rw [threeLeafTree_leaf_one]; exact hav
+  · rw [threeLeafTree_leaf_one]; exact Or.inr hvb
+  · exact imt_keccak_break_not_tautology keccak zPre (threeLeafTree a b) 2 1 h1
+  · refine ⟨⟨a, b⟩, Contracts.InteropCommitmentTree.mem_toAbs.mpr ⟨1, h1, ?_, ?_⟩, hav, Or.inr hvb⟩
+    · rw [threeLeafTree_leaf_one]
+    · rw [threeLeafTree_leaf_one]
 
 theorem padding_forgery_is_the_only_keccak_free_break :
     Properties.PaddingForgeryIsTheOnlyKeccakFreeBreak := by
@@ -981,28 +1294,66 @@ theorem padding_forgery_is_the_only_keccak_free_break :
 
 theorem proofs_exclusive_or_keccak_break_satisfiable :
     Properties.ProofsExclusiveOrKeccakBreakSatisfiable := by
-  obtain ⟨hV, -, -⟩ := Contracts.InteropCommitmentTree.proofs_exclusive_or_break_satisfiable
-    (efficientHash constKeccak) (hashLeaf constKeccak) 1 2 (by decide) (by decide)
-  refine ⟨constKeccak, imtEmptyLeafPre, threeLeafTree 1 2, 2, 1, (threeLeafTree 1 2).leaf 1,
-    ⟨0, 0, 0⟩, 1, 3, fun _ => 0, fun _ => 0, 2, 2, upg_padding_length_ok.1,
-    upg_padding_length_ok.2, hV, threeLeafTree_bounded 1 2, threeLeafTree_bounded 1 2 1 (by decide),
-    zero_leafBounded, ?_, ?_⟩
-  · exact ⟨Contracts.InteropCommitmentTree.threeLeafTree_leaf_one_value 1 2, ⟨by norm_num, rfl⟩⟩
-  · exact ⟨by decide, by decide, Or.inl rfl, ⟨by norm_num, rfl⟩⟩
+  intro κ a b ha hab keccak
+  -- Under the planted model, the zero leaf hashes to UPG's padding value.
+  have hpad : keccak imtEmptyLeafPre = hashLeaf keccak ⟨0, 0, 0⟩ := by
+    show plantKeccak κ emptyPre imtEmptyLeafPre imtEmptyLeafPre
+      = plantKeccak κ emptyPre imtEmptyLeafPre (imtPre ⟨0, 0, 0⟩)
+    rw [imtPre_zero, plantKeccak_eq]
+  have hne : imtPre ⟨0, 0, 0⟩ ≠ imtEmptyLeafPre :=
+    ne_of_length_ne (by rw [imtPre_length, imtEmptyLeafPre_length]; decide)
+  obtain ⟨hV, hI, hN⟩ := Contracts.InteropCommitmentTree.proofs_exclusive_or_break_satisfiable
+    (efficientHash keccak) (hashLeaf keccak) a b ha hab
+  have hT := threeLeafTree_bounded a b
+  have h1 : 1 < (threeLeafTree a b).leafCount := by rw [threeLeafTree_leafCount]; norm_num
+  have hcoll : HashCollision keccak (imtPre ⟨0, 0, 0⟩) imtEmptyLeafPre := ⟨hne, hpad.symm⟩
+  refine ⟨upg_padding_length_ok.1, upg_padding_length_ok.2, hV, hT, hT 1 h1, zero_leafBounded,
+    ?_, ?_, imt_keccak_break_not_tautology keccak imtEmptyLeafPre (threeLeafTree a b) 2 1 h1,
+    .paddingCollision (by rw [threeLeafTree_leafCount]) hcoll, hcoll⟩
+  · show InclusionAccepted (efficientHash keccak) (hashLeaf keccak)
+      (root (efficientHash keccak) (keccak imtEmptyLeafPre) (hashLeaf keccak) (threeLeafTree a b) 2)
+      a ((threeLeafTree a b).leaf 1) 1
+      (honestSibs (efficientHash keccak) (keccak imtEmptyLeafPre)
+        (leafHashes (hashLeaf keccak) (threeLeafTree a b)) 1) 2
+    rw [hpad]
+    exact hI
+  · show NonInclusionAccepted (efficientHash keccak) (hashLeaf keccak)
+      (root (efficientHash keccak) (keccak imtEmptyLeafPre) (hashLeaf keccak) (threeLeafTree a b) 2)
+      a ⟨0, 0, 0⟩ 3
+      (honestSibs (efficientHash keccak) (keccak imtEmptyLeafPre)
+        (leafHashes (hashLeaf keccak) (threeLeafTree a b)) 3) 2
+    rw [hpad]
+    exact hN
 
 theorem imt_keccak_break_fires : Properties.ImtKeccakBreakFires := by
-  have hb5 : LeafBounded ⟨5, 0, 0⟩ := by
+  intro κ zPre a b c ha hab hc0 hca hcb keccak
+  have hT := threeLeafTree_bounded a b
+  have h1 : 1 < (threeLeafTree a b).leafCount := by rw [threeLeafTree_leafCount]; norm_num
+  have hℓ : LeafBounded ⟨c, 0, 0⟩ := by
     show (0 : ℕ) < 256 ^ 32
     norm_num
-  have hne : (⟨0, 0, 0⟩ : Leaf) ≠ ⟨5, 0, 0⟩ := by decide
-  have hset : TreeBounded setup := fun _ _ => zero_leafBounded
-  refine ⟨constKeccak, imtEmptyLeafPre, 1, fun _ => 0, 1, 0, ⟨5, 0, 0⟩, upg_padding_length_ok.1,
-    hset, hb5, ⟨rfl, ⟨by norm_num, rfl⟩⟩, hne.symm, ?_, ?_, ?_⟩
-  · exact .leafCollision (by decide) hne rfl
+  -- The forged leaf hashes to leaf 1's hash under the planted model.
+  have hhash : hashLeaf keccak ⟨c, 0, 0⟩ = hashLeaf keccak ((threeLeafTree a b).leaf 1) :=
+    plantKeccak_eq κ _ _
+  have hne : (threeLeafTree a b).leaf 1 ≠ ⟨c, 0, 0⟩ := by
+    rw [threeLeafTree_leaf_one]
+    intro he
+    exact hca (congrArg Leaf.value he).symm
+  have hpre : imtPre ((threeLeafTree a b).leaf 1) ≠ imtPre ⟨c, 0, 0⟩ :=
+    fun he => hne (imtPre_inj (hT 1 h1) hℓ he)
+  have hcoll : HashCollision keccak (imtPre ((threeLeafTree a b).leaf 1)) (imtPre ⟨c, 0, 0⟩) :=
+    ⟨hpre, hhash.symm⟩
+  have hI := Contracts.InteropCommitmentTree.inclusion_complete (h := efficientHash keccak)
+    (z0 := keccak zPre) (hl := hashLeaf keccak) (T := threeLeafTree a b) (height := 2)
+    (by rw [threeLeafTree_leafCount]; norm_num) h1
+  refine ⟨threeLeafTree_valid ha hab, hT, hℓ, ⟨rfl, hI.path.inBounds, ?_⟩,
+    not_mem_keys_threeLeafTree hc0 hca hcb, .leafCollision h1 hne hhash.symm, ?_,
+    .leafCollision h1 hcoll, hcoll⟩
+  · rw [hhash]
+    exact hI.path.recompute
   · rintro ⟨hle, -⟩
-    exact absurd hle (by decide)
-  · exact .leafCollision (by decide)
-      ⟨fun he => hne (imtPre_inj zero_leafBounded hb5 he), rfl⟩
+    rw [threeLeafTree_leafCount] at hle
+    omega
 
 end MerkleSpec.DomainSeparation
 
@@ -1092,6 +1443,9 @@ theorem NonInclusionSoundOrKeccakBreakAtPin : Properties.NonInclusionSoundOrKecc
 theorem NonInclusionSoundOrKeccakBreak : Properties.NonInclusionSoundOrKeccakBreak :=
   non_inclusion_sound_or_keccak_break
 
+theorem InclusionSoundOrKeccakBreak : Properties.InclusionSoundOrKeccakBreak :=
+  inclusion_sound_or_keccak_break
+
 theorem NonInclusionSoundWitness : Properties.NonInclusionSoundWitness :=
   non_inclusion_sound_witness
 
@@ -1143,6 +1497,8 @@ theorem HonestProofNoKeccakBreak : Properties.HonestProofNoKeccakBreak :=
 theorem AcceptOpensPreimageWitness : Properties.AcceptOpensPreimageWitness :=
   accept_opens_preimage_witness
 
+theorem HeightKeccakBreakFires : Properties.HeightKeccakBreakFires := height_keccak_break_fires
+
 theorem AcceptOpensOccupiedPreimageOrKeccakBreak :
     Properties.AcceptOpensOccupiedPreimageOrKeccakBreak :=
   accept_opens_occupied_preimage_or_keccak_break
@@ -1170,6 +1526,17 @@ theorem AcceptedLastBatchOrKeccakBreak : Properties.AcceptedLastBatchOrKeccakBre
 
 theorem AcceptedLastBatchWitness : Properties.AcceptedLastBatchWitness :=
   accepted_last_batch_witness
+
+theorem PinnedKeccakBreakFires : Properties.PinnedKeccakBreakFires := pinned_keccak_break_fires
+
+theorem DeployedLastBatchCheckOrKeccakBreak : Properties.DeployedLastBatchCheckOrKeccakBreak :=
+  deployed_last_batch_check_or_keccak_break
+
+theorem DeployedLastBatchCheckWitness : Properties.DeployedLastBatchCheckWitness :=
+  deployed_last_batch_check_witness
+
+theorem DeployedLastBatchPaddedEntryFires : Properties.DeployedLastBatchPaddedEntryFires :=
+  deployed_last_batch_padded_entry_fires
 
 /-! ### (e) The node-collision lift -/
 

@@ -5,28 +5,35 @@ import EraSpec.Contracts.Merkle.Specs.DomainSeparation
 
 Statements about `../Specs/DomainSeparation.lean`. Proofs: `../Proofs/DomainSeparation.lean`.
 
-No property here assumes anything about `keccak`. Each one either is a byte-level fact about the
-preimages (lengths, first words, injectivity of the fixed-width encodings), or turns an abstract
-domain premise, or an abstract located break, into `HashCollision keccak x y` with `x` and `y`
-named by the instance. A collision conclusion that names its inputs can be false, unlike "some
-collision exists" (ASSUMPTIONS.md, "Results whose premises cannot hold"); the witnesses at the end
-of each group show it false on concrete instances.
+No property here assumes anything about `keccak`, except the last conjunct of
+`EmptyConstantsCoincide`, whose premise `KeccakOfEmptyIsDocumented` names one keccak value. Each
+property either is a byte-level fact about the preimages (lengths, first words, injectivity of the
+fixed-width encodings), or turns an abstract domain premise, or an abstract located break, into
+`HashCollision keccak x y` with `x` and `y` named by the instance. A collision conclusion that names
+its inputs can be false, unlike "some collision exists" (ASSUMPTIONS.md, "Results whose premises
+cannot hold").
+
+The witnesses do two things. They meet each premise that forces a hash equality under a keccak
+model changed at ONE string (`plantKeccak κ x y`, for every model `κ`), and show that the collision
+the theorem then names is exactly the planted one. And they show the collision conclusions false
+on honest instances, for every keccak, or under a stand-in (`lengthKeccak`, `firstWordKeccak`).
 
 Groups, in order:
 
 * (a) the length table, and equal hashes of different-length inputs;
-* (b) the 96-byte family (`hashLeaf`, `chainIdLeafHash`, the empty entry, `commitValue`) and the
-  four coinciding empty constants;
+* (b) the 96-byte family (`hashLeaf`, `chainIdLeafHash`, the empty entry, `commitValue`), the three
+  empty-entry literals and the pin's IMT padding;
 * (c) the fields of `TreeRoot.HashAssumptions` at the pin, and the IMT root check down to keccak:
   `TreeRootBreakIsKeccakCollision`, and the headlines `ProofsExclusiveOrKeccakBreakAtPin` (the
   forged-absence bug is the only keccak-free break) and `ProofsExclusiveOrKeccakBreak` (with a
-  padding preimage of any other length, as at UPG, there is none), with their single-proof forms
-  `InclusionSoundOrKeccakBreakAtPin`, `NonInclusionSoundOrKeccakBreakAtPin` and
-  `NonInclusionSoundOrKeccakBreak`;
+  padding preimage of any length other than 64 and 96, as at UPG, there is none), with their
+  single-proof forms `InclusionSoundOrKeccakBreakAtPin`, `NonInclusionSoundOrKeccakBreakAtPin`,
+  `InclusionSoundOrKeccakBreak` and `NonInclusionSoundOrKeccakBreak`;
 * (d) `Verifier.accept_forces_height`'s domain hypotheses and `LastLeaf.EntriesNotEmpty`, for the
   logs, chain, shared and IMT trees, with the headlines `AcceptOpensPreimageOrKeccakBreak` (any
-  tree), `ChainTreeProofOpensBatchOrKeccakBreak`, `SharedTreeProofOpensChainOrKeccakBreak` and
-  `AcceptedLastBatchOrKeccakBreak`;
+  tree), `ChainTreeProofOpensBatchOrKeccakBreak`, `SharedTreeProofOpensChainOrKeccakBreak`,
+  `AcceptedLastBatchOrKeccakBreak` (a path of the tree's height from an occupied index) and
+  `DeployedLastBatchCheckOrKeccakBreak` (the prover's length and index, as deployed);
 * (e) the node-collision lift: `PathCollision`, `PinnedBreak.nodeCollision`, `LevelCollision`,
   `TreeCollision` and `WalkCollision` each are 64-byte keccak collisions.
 
@@ -34,18 +41,23 @@ Where the content lies. For (a), (b) and the single-premise forms of (c) and (d)
 that the two named byte strings DIFFER; the collision form then follows from the definition of
 `HashCollision`. The composed results of (c) and (d) carry protocol content: an accepted proof opens
 the tree at the claimed preimage, or keccak collides on two strings the theorem names.
+
+The trees are the `rootOf` fold (Specs, "Model boundaries"): for the chain trees, whose
+`DynamicIncrementalMerkle` storage has no transcription here, that the stored root is the fold is
+obligation O7.
 -/
 
 namespace MerkleSpec.DomainSeparation
 
 open AttackVectors.BundleHashEncoding (HashCollision toBytesBE word)
 open MerkleSpec MerkleSpec.Verifier MerkleSpec.LastLeaf MerkleSpec.Pinned
+open MerkleSpec.LastLeafFaithful (LastBatchPathAccepted)
 open Contracts.InteropCommitmentTree (Leaf Tree LeafHash leafHashes TreeRootBreak InclusionAccepted
   NonInclusionAccepted Valid root setup threeLeafTree toAbs)
 
 /-! ## (a) Lengths -/
 
-/-- **THE LENGTH TABLE.** The keccak inputs of the corpus, with their lengths: node 64; L2 log
+/-- **THE LENGTH TABLE.** The keccak inputs modelled here, with their lengths: node 64; L2 log
 leaf and logs-tree padding 88; chain-id leaf, IMT leaf, empty entry and commit value 96; batch
 leaf 128; the priority tree's zero 0; UPG's IMT padding 34. None depends on the field values: every
 field is fixed-width. -/
@@ -64,17 +76,24 @@ def Properties.PreimageLengths : Prop :=
 
 /-- **(a) EQUAL HASHES OF DIFFERENT-LENGTH INPUTS ARE A COLLISION ON THOSE TWO INPUTS.** Byte strings
 of different lengths differ, so if keccak maps them to the same word, that is a `HashCollision` on
-exactly those two strings. With the length table, every leaf-versus-node, padding-versus-node and
-batch-leaf-versus-empty-entry confusion in the corpus is such a collision. -/
+exactly those two strings. With the length table, in the trees modelled here (the IMT, the logs,
+chain and shared trees) every leaf-versus-node and padding-versus-node confusion, and in the chain
+tree a batch-leaf-versus-empty-entry confusion, is such a collision. (The chain batch root tree
+hashes no leaf preimage at all, and the priority tree's leaves are not modelled.) -/
 def Properties.CrossLengthEqIsCollision : Prop :=
   ∀ (keccak : Keccak) (x y : List UInt8), x.length ≠ y.length → keccak x = keccak y →
     HashCollision keccak x y
 
-/-- **ITS PREMISES ARE SATISFIABLE, AND ITS CONCLUSION IS NOT FORCED.** Some keccak model maps two
-strings of different lengths to the same word (the constant one), and some keccak model has no
-cross-length collision among strings shorter than `2^256` bytes (the length function). -/
+/-- **ITS PREMISES ARE MET ON A LEAF-VERSUS-NODE INSTANCE, AND ITS CONCLUSION IS NOT FORCED.**
+For every keccak model `κ`, every IMT leaf `ℓ` and every node pair `(a, b)`: the leaf's 96-byte
+preimage and the node's 64-byte preimage differ in length, and `κ` changed at the one string
+`imtPre ℓ` (`plantKeccak`) maps the two to the same word. And the length stand-in has no
+cross-length collision among strings shorter than `2^256` bytes. -/
 def Properties.CrossLengthEqIsCollisionWitness : Prop :=
-  (∃ (keccak : Keccak) (x y : List UInt8), x.length ≠ y.length ∧ keccak x = keccak y)
+  (∀ (κ : Keccak) (ℓ : Leaf) (a b : UInt256),
+      (imtPre ℓ).length ≠ (nodePre a b).length
+        ∧ plantKeccak κ (imtPre ℓ) (nodePre a b) (imtPre ℓ)
+          = plantKeccak κ (imtPre ℓ) (nodePre a b) (nodePre a b))
     ∧ ∀ x y : List UInt8, x.length < 256 ^ 32 → y.length < 256 ^ 32 → x.length ≠ y.length →
         ¬ HashCollision lengthKeccak x y
 
@@ -128,13 +147,17 @@ def Properties.CommitLeafNotChainIdLeafOrCollision : Prop :=
         = chainIdPre (keccak chainIdLeafPaddingPre) chainIdRoot chainId →
       HashCollision keccak (commitPre tag flowId bundleHash) chainIdLeafPaddingPre
 
-/-- **ITS PREMISE IS SATISFIABLE, AND ITS COLLISION IS NOT FORCED.** Under the constant keccak the
-premise holds (every commit value and the tag are `0`); under the length stand-in the named
-collision is false for every commit preimage. -/
+/-- **ITS PREMISE IS MET BY ONE PLANTED COLLISION, AND ITS COLLISION IS NOT FORCED.** For every
+keccak model `κ`, every flow id and bundle hash, and every chain-id root and chain id: `κ` changed at
+the one commit preimage (with the deployed tag value `atomicCommitLeafTagValue`) to collide with
+`"zkSync:ChainIdLeaf"` meets the premise, on the leaf `⟨commitValue, chainIdRoot, chainId⟩`. Under
+the length stand-in the named collision is false for every commit preimage. -/
 def Properties.CommitLeafNotChainIdLeafWitness : Prop :=
-  (∃ (keccak : Keccak) (tag : ℕ) (flowId bundleHash : UInt256) (nextIndex : ℕ)
-      (nextValue chainIdRoot chainId : UInt256),
-      imtPre ⟨keccak (commitPre tag flowId bundleHash), nextIndex, nextValue⟩
+  (∀ (κ : Keccak) (flowId bundleHash chainIdRoot chainId : UInt256),
+      let keccak := plantKeccak κ (commitPre atomicCommitLeafTagValue flowId bundleHash)
+        chainIdLeafPaddingPre
+      imtPre
+          ⟨keccak (commitPre atomicCommitLeafTagValue flowId bundleHash), chainIdRoot.val, chainId⟩
         = chainIdPre (keccak chainIdLeafPaddingPre) chainIdRoot chainId)
     ∧ ∀ (tag : ℕ) (flowId bundleHash : UInt256),
         ¬ HashCollision lengthKeccak (commitPre tag flowId bundleHash) chainIdLeafPaddingPre
@@ -153,7 +176,8 @@ def Properties.CommitPreNeEmptyPre : Prop :=
   ∀ (tag : ℕ) (flowId specHash : UInt256), tag < 256 ^ 4 → tag ≠ 0 →
     commitPre tag flowId specHash ≠ emptyPre
 
-/-- **A COMMIT-VALUE PREIMAGE IS AN IMT LEAF PREIMAGE ONLY FOR A LEAF WHOSE VALUE IS THE TAG WORD.** -/
+/-- **A COMMIT-VALUE PREIMAGE IS AN IMT LEAF PREIMAGE ONLY FOR A LEAF WHOSE VALUE IS THE TAG
+WORD.** -/
 def Properties.CommitPreNeImtPreUnlessTag : Prop :=
   ∀ (tag : ℕ) (flowId specHash : UInt256) (ℓ : Leaf), tag < 256 ^ 4 →
     ℓ.value.val ≠ tag * 256 ^ 28 → commitPre tag flowId specHash ≠ imtPre ℓ
@@ -165,26 +189,31 @@ def Properties.CommitPreNeChainIdPreUnlessTag : Prop :=
   ∀ (tag : ℕ) (flowId specHash padC chainIdRoot chainId : UInt256), tag < 256 ^ 4 →
     padC.val ≠ tag * 256 ^ 28 → commitPre tag flowId specHash ≠ chainIdPre padC chainIdRoot chainId
 
-/-- **THE PREMISES OF THE 96-BYTE FAMILY ARE JOINTLY SATISFIABLE.** One choice of tags and leaf
-meets every premise above at once: `padC = 1`, `tag = 1`, and the leaf `⟨2, 0, 0⟩`. And under the
-first-word stand-in for keccak, none of the separated pairs collides there. -/
+/-- **THE DEPLOYED TAG VALUES MEET THE PREMISES OF THE 96-BYTE FAMILY.** With `padC` the value
+`chainIdLeafPaddingValue` and `tag` the value `atomicCommitLeafTagValue` (both computed outside Lean
+from the source strings, Specs "Model boundaries"), and the leaf `⟨2, 0, 0⟩`, every premise above
+holds at once. And under the first-word stand-in for keccak, none of the separated pairs collides
+there. -/
 def Properties.NinetySixByteFamilyWitness : Prop :=
-  ∃ (padC : UInt256) (tag : ℕ) (ℓ : Leaf),
-    padC ≠ 0 ∧ tag < 256 ^ 4 ∧ tag ≠ 0 ∧ LeafBounded ℓ ∧ ℓ.value ≠ padC
-      ∧ ℓ.value.val ≠ tag * 256 ^ 28 ∧ padC.val ≠ tag * 256 ^ 28
-      ∧ ∀ chainIdRoot chainId flowId specHash : UInt256,
-          ¬ HashCollision firstWordKeccak (chainIdPre padC chainIdRoot chainId) emptyPre
-          ∧ ¬ HashCollision firstWordKeccak (imtPre ℓ) (chainIdPre padC chainIdRoot chainId)
-          ∧ ¬ HashCollision firstWordKeccak (commitPre tag flowId specHash) emptyPre
-          ∧ ¬ HashCollision firstWordKeccak (commitPre tag flowId specHash) (imtPre ℓ)
-          ∧ ¬ HashCollision firstWordKeccak (commitPre tag flowId specHash)
-              (chainIdPre padC chainIdRoot chainId)
+  let padC := chainIdLeafPaddingValue
+  let tag := atomicCommitLeafTagValue
+  let ℓ : Leaf := ⟨2, 0, 0⟩
+  padC ≠ 0 ∧ tag < 256 ^ 4 ∧ tag ≠ 0 ∧ LeafBounded ℓ ∧ ℓ.value ≠ padC
+    ∧ ℓ.value.val ≠ tag * 256 ^ 28 ∧ padC.val ≠ tag * 256 ^ 28
+    ∧ ∀ chainIdRoot chainId flowId specHash : UInt256,
+        ¬ HashCollision firstWordKeccak (chainIdPre padC chainIdRoot chainId) emptyPre
+        ∧ ¬ HashCollision firstWordKeccak (imtPre ℓ) (chainIdPre padC chainIdRoot chainId)
+        ∧ ¬ HashCollision firstWordKeccak (commitPre tag flowId specHash) emptyPre
+        ∧ ¬ HashCollision firstWordKeccak (commitPre tag flowId specHash) (imtPre ℓ)
+        ∧ ¬ HashCollision firstWordKeccak (commitPre tag flowId specHash)
+            (chainIdPre padC chainIdRoot chainId)
 
-/-- **FOUR CONSTANTS, ONE VALUE.** `CHAIN_TREE_EMPTY_ENTRY_HASH`, `SHARED_ROOT_TREE_EMPTY_HASH` and
-`EMPTY_IMT_ROOT` are the same literal. The pin's IMT padding `hashLeaf({0,0,0})` is the empty
-entry's hash for EVERY keccak, and so is the root of the freshly set-up IMT at height 0 (the claim
-of `ChainBatchRootTree.sol:50-54`). Under the documented value of `keccak256(new bytes(96))`, all
-of them are that literal. -/
+/-- **THREE LITERALS AND THE PIN'S PADDING, ONE VALUE.** `CHAIN_TREE_EMPTY_ENTRY_HASH`,
+`SHARED_ROOT_TREE_EMPTY_HASH` and `EMPTY_IMT_ROOT` are the same literal. The pin's IMT padding
+`hashLeaf({0,0,0})` is the empty entry's hash `keccak(new bytes(96))` for EVERY keccak, and so is the
+root of the freshly set-up IMT at height 0 (the claim of `ChainBatchRootTree.sol:50-54`). Under the
+documented value of `keccak256(new bytes(96))` (`KeccakOfEmptyIsDocumented`), all of them are that
+literal. -/
 def Properties.EmptyConstantsCoincide : Prop :=
   CHAIN_TREE_EMPTY_ENTRY_HASH = SHARED_ROOT_TREE_EMPTY_HASH
     ∧ SHARED_ROOT_TREE_EMPTY_HASH = EMPTY_IMT_ROOT
@@ -197,10 +226,11 @@ def Properties.EmptyConstantsCoincide : Prop :=
           ∧ root (efficientHash keccak) (imtPadding keccak) (hashLeaf keccak) setup 0
               = EMPTY_IMT_ROOT)
 
-/-- **THE DOCUMENTED-VALUE PREMISE IS SATISFIABLE.** Some keccak model maps `new bytes(96)` to the
-documented literal. -/
+/-- **THE DOCUMENTED-VALUE PREMISE CONSTRAINS ONE STRING, AND IS SATISFIABLE.** Every keccak model,
+changed at the one string `new bytes(96)` to the documented literal, meets it. -/
 def Properties.KeccakOfEmptyIsDocumentedSatisfiable : Prop :=
-  ∃ keccak : Keccak, KeccakOfEmptyIsDocumented keccak
+  ∀ κ : Keccak, KeccakOfEmptyIsDocumented
+    (Function.update κ emptyPre 0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21)
 
 /-- **THE LOGS-TREE PADDING PREIMAGE IS THE ALL-ZERO LOG'S.** `new bytes(88)` is the packed encoding
 of the log with every field zero. So the logs-tree padding leaf is a log leaf hash, the analogue of
@@ -233,9 +263,14 @@ def Properties.HashAssumptionsFieldsUpToCollision : Prop :=
     ∧ (∀ a b : UInt256, imtPadding keccak = efficientHash keccak a b →
         HashCollision keccak emptyPre (nodePre a b))
 
-/-- **THOSE PREMISES ARE SATISFIABLE, AND THE COLLISION DISJUNCTS ARE NOT FORCED.**
+/-- **EACH FIELD'S HASH-EQUALITY PREMISE IS MET BY ONE PLANTED COLLISION, AND THE COLLISION DISJUNCTS
+ARE NOT FORCED.**
 
-* Under the constant keccak every hash equality in the premises holds, so each premise is met.
+* For every keccak model `κ`, `κ` changed at one string meets the hash equality of each field, on
+  instances where the field's non-collision disjunct, if it has one, is false: two distinct node
+  pairs, two distinct bounded leaves, a leaf and a node pair, a bounded leaf other than `⟨0, 0, 0⟩`
+  and the padding, the padding and a node pair. In each case the collision named is the planted
+  one.
 * Under the length stand-in, `leafNotNode` and `padNotNode` hold outright: no leaf and not the
   padding hashes to a node (96 versus 64).
 * For every keccak, the zero leaf hashes to the padding with no collision: the refutation of
@@ -243,8 +278,24 @@ def Properties.HashAssumptionsFieldsUpToCollision : Prop :=
 * Under the first-word stand-in, a bounded leaf with nonzero value neither hashes to the padding
   nor collides with the 96 zero bytes. -/
 def Properties.HashAssumptionsFieldsWitness : Prop :=
-  (∀ (ℓ : Leaf) (a b : UInt256), hashLeaf constKeccak ℓ = efficientHash constKeccak a b
-      ∧ imtPadding constKeccak = efficientHash constKeccak a b)
+  (∀ (κ : Keccak) (a b c d : UInt256), (a, b) ≠ (c, d) →
+      let keccak := plantKeccak κ (nodePre a b) (nodePre c d)
+      efficientHash keccak a b = efficientHash keccak c d
+        ∧ HashCollision keccak (nodePre a b) (nodePre c d))
+    ∧ (∀ (κ : Keccak) (ℓ ℓ' : Leaf), LeafBounded ℓ → LeafBounded ℓ' → ℓ ≠ ℓ' →
+        let keccak := plantKeccak κ (imtPre ℓ) (imtPre ℓ')
+        hashLeaf keccak ℓ = hashLeaf keccak ℓ' ∧ HashCollision keccak (imtPre ℓ) (imtPre ℓ'))
+    ∧ (∀ (κ : Keccak) (ℓ : Leaf) (a b : UInt256),
+        let keccak := plantKeccak κ (imtPre ℓ) (nodePre a b)
+        hashLeaf keccak ℓ = efficientHash keccak a b
+          ∧ HashCollision keccak (imtPre ℓ) (nodePre a b))
+    ∧ (∀ (κ : Keccak) (ℓ : Leaf), LeafBounded ℓ → ℓ ≠ ⟨0, 0, 0⟩ →
+        let keccak := plantKeccak κ (imtPre ℓ) emptyPre
+        hashLeaf keccak ℓ = imtPadding keccak ∧ HashCollision keccak (imtPre ℓ) emptyPre)
+    ∧ (∀ (κ : Keccak) (a b : UInt256),
+        let keccak := plantKeccak κ emptyPre (nodePre a b)
+        imtPadding keccak = efficientHash keccak a b
+          ∧ HashCollision keccak emptyPre (nodePre a b))
     ∧ (∀ (ℓ : Leaf) (a b : UInt256), hashLeaf lengthKeccak ℓ ≠ efficientHash lengthKeccak a b
         ∧ imtPadding lengthKeccak ≠ efficientHash lengthKeccak a b)
     ∧ (∀ keccak : Keccak, hashLeaf keccak ⟨0, 0, 0⟩ = imtPadding keccak
@@ -304,7 +355,8 @@ the padding forgery is gone: an accepted inclusion proof and an accepted non-inc
 value against a valid tree's root mean that one of the two carries an `ImtKeccakBreak`. UPG's
 `IMT_EMPTY_LEAF_HASH = keccak256("zkSync:IndexedMerkleTree:emptyLeaf")` has a 34-byte preimage
 (`imtEmptyLeafPre`); UPG's verifier (`verifyInclusion`, `verifyNonInclusion`, `hashLeaf`,
-`Merkle.sol`) is unchanged from the pin, and its `setup` differs only in that padding. -/
+`Merkle.sol`) is unchanged from the pin, and its `setup` differs only in that padding. The list
+state and `Valid` are the pin's model (Specs, "Model boundaries"). -/
 def Properties.ProofsExclusiveOrKeccakBreak : Prop :=
   ∀ (keccak : Keccak) (zPre : List UInt8), zPre.length ≠ 64 → zPre.length ≠ 96 →
     ∀ (T : Tree), Valid T → TreeBounded T →
@@ -332,7 +384,8 @@ def Properties.InclusionSoundOrKeccakBreakAtPin : Prop :=
 NAMED BYTES.** `NonInclusionSoundOrBreak` instantiated with keccak as at the pin: an accepted
 non-inclusion proof for `v` names a leaf of the tree whose window brackets `v`; or it presents the
 zero leaf at an unoccupied index (the forged-absence bug, which needs no keccak work); or it
-carries an `ImtKeccakBreak`. This is the form the timeout and refund gates consume. -/
+carries an `ImtKeccakBreak`. The atomic-interop timeout and refund paths rest on this check
+(`verifyNonInclusion`). -/
 def Properties.NonInclusionSoundOrKeccakBreakAtPin : Prop :=
   ∀ (keccak : Keccak) (T : Tree) (height : ℕ) (v : UInt256) (ℓ : Leaf) (idx : ℕ)
     (sibs : ℕ → UInt256) (k : ℕ),
@@ -354,22 +407,35 @@ def Properties.NonInclusionSoundOrKeccakBreak : Prop :=
         (∃ W ∈ toAbs T, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
           ∨ ImtKeccakBreak keccak zPre T height sibs k idx ℓ
 
-/-- **THE SINGLE-PROOF PREMISES ARE SATISFIABLE, WITH NO KECCAK BREAK.** For every keccak and every
-padding preimage, the honest absence proof of the value `5` in the freshly set-up tree (the sentinel
-as low leaf, at height 0) is accepted, carries no `ImtKeccakBreak`, and its low leaf is a reclaim
-witness. (For the pin's inclusion form, `PaddingForgeryIsTheOnlyKeccakFreeBreak`'s honest inclusion
-proof meets the premises with no keccak break; its padding forgery meets the absence form's premises
-with only the padding disjunct true.) -/
+/-- **ONE INCLUSION PROOF, WITH A PADDING PREIMAGE OF ANY OTHER LENGTH (as at UPG): THE VALUE IS IN
+THE TREE, OR KECCAK COLLIDES ON NAMED BYTES.** `InclusionSoundOrBreak` instantiated with keccak and a
+padding preimage that is neither 64 nor 96 bytes long. No `Valid` premise: the padding exception of
+`TreeRootBreakIsKeccakCollision` needs a 96-byte padding preimage, so it cannot occur. -/
+def Properties.InclusionSoundOrKeccakBreak : Prop :=
+  ∀ (keccak : Keccak) (zPre : List UInt8), zPre.length ≠ 64 → zPre.length ≠ 96 →
+    ∀ (T : Tree) (height : ℕ) (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
+      TreeBounded T → LeafBounded ℓ →
+      InclusionAccepted (efficientHash keccak) (hashLeaf keccak)
+        (root (efficientHash keccak) (keccak zPre) (hashLeaf keccak) T height) v ℓ idx sibs k →
+        v ∈ IMTAbstract.keys (toAbs T) ∨ ImtKeccakBreak keccak zPre T height sibs k idx ℓ
+
+/-- **THE SINGLE-PROOF ABSENCE PREMISES ARE MET ON A THREE-LEAF TREE, WITH NO KECCAK BREAK.** For
+every keccak, every padding preimage and every `0 < a < v < b`: on the valid run `threeLeafTree a b`
+(leaves `⟨0, 1, a⟩`, `⟨a, 2, b⟩`, `⟨b, 0, 0⟩`) at height 2, the honest absence proof of `v` (low
+leaf 1, that index's honest siblings) is accepted, carries no `ImtKeccakBreak`, and its low leaf is
+a reclaim witness. (`ProofsExclusiveOrKeccakBreakSatisfiable` and
+`PaddingForgeryIsTheOnlyKeccakFreeBreak` meet the absence forms' premises with another disjunct
+true: a planted collision, or the pin's padding forgery.) -/
 def Properties.NonInclusionSoundWitness : Prop :=
-  ∀ (keccak : Keccak) (zPre : List UInt8),
-    TreeBounded setup ∧ LeafBounded ⟨0, 0, 0⟩
+  ∀ (keccak : Keccak) (zPre : List UInt8) (a b v : UInt256), 0 < a → a < v → v < b →
+    Valid (threeLeafTree a b) ∧ TreeBounded (threeLeafTree a b)
+      ∧ LeafBounded ((threeLeafTree a b).leaf 1)
       ∧ NonInclusionAccepted (efficientHash keccak) (hashLeaf keccak)
-          (root (efficientHash keccak) (keccak zPre) (hashLeaf keccak) setup 0) 5 ⟨0, 0, 0⟩ 0
-          (honestSibs (efficientHash keccak) (keccak zPre) (leafHashes (hashLeaf keccak) setup) 0) 0
-      ∧ ¬ ImtKeccakBreak keccak zPre setup 0
-          (honestSibs (efficientHash keccak) (keccak zPre) (leafHashes (hashLeaf keccak) setup) 0)
-          0 0 ⟨0, 0, 0⟩
-      ∧ (∃ W ∈ toAbs setup, W.key < 5 ∧ (W.nextKey = 0 ∨ 5 < W.nextKey))
+          (imtRoot keccak zPre (threeLeafTree a b) 2) v ((threeLeafTree a b).leaf 1) 1
+          (imtSibs keccak zPre (threeLeafTree a b) 1) 2
+      ∧ ¬ ImtKeccakBreak keccak zPre (threeLeafTree a b) 2
+          (imtSibs keccak zPre (threeLeafTree a b) 1) 2 1 ((threeLeafTree a b).leaf 1)
+      ∧ (∃ W ∈ toAbs (threeLeafTree a b), W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
 
 /-- **UPG's PADDING PREIMAGE MEETS THE LENGTH CONDITIONS.** It is 34 bytes long. -/
 def Properties.UpgPaddingLengthOk : Prop :=
@@ -405,18 +471,32 @@ def Properties.PaddingForgeryIsTheOnlyKeccakFreeBreak : Prop :=
           (honestSibs (efficientHash keccak) (imtPadding keccak)
             (leafHashes (hashLeaf keccak) (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
 
-/-- **THE PREMISES OF `ProofsExclusiveOrKeccakBreak` ARE SATISFIABLE.** With UPG's padding preimage,
-under the constant keccak (every pair of distinct strings collides), `threeLeafTree 1 2` at height 2
-has an accepted inclusion proof and an accepted non-inclusion proof for the value `1`. The
-conclusion then holds by a located keccak collision. -/
+/-- **THE PREMISES OF `ProofsExclusiveOrKeccakBreak` ARE MET, BY ONE PLANTED COLLISION, AND THE BREAK
+IT LOCATES IS THAT COLLISION.** For every keccak model `κ` and every `0 < a < b`, with UPG's 34-byte
+padding preimage and `κ` changed at the one string `new bytes(96)` (the zero leaf's preimage) to
+send it to UPG's padding value: on the valid run `threeLeafTree a b` at height 2, the honest
+inclusion proof for `a` (leaf 1) and the padding forgery (the zero leaf at slot 3, with that slot's
+honest siblings) are both accepted, and every premise holds. The inclusion proof carries no
+`ImtKeccakBreak`; the forgery's is `paddingCollision`, on the zero leaf's 96-byte preimage and UPG's
+34-byte padding preimage: the planted collision. So with UPG's padding the pin's forgery is
+accepted once keccak collides on those two named strings, and that collision is the break located. -/
 def Properties.ProofsExclusiveOrKeccakBreakSatisfiable : Prop :=
-  ∃ (keccak : Keccak) (zPre : List UInt8) (T : Tree) (height : ℕ) (v : UInt256) (ℓ₁ ℓ₂ : Leaf)
-    (i₁ i₂ : ℕ) (s₁ s₂ : ℕ → UInt256) (k₁ k₂ : ℕ),
-    zPre.length ≠ 64 ∧ zPre.length ≠ 96 ∧ Valid T ∧ TreeBounded T ∧ LeafBounded ℓ₁ ∧ LeafBounded ℓ₂
+  ∀ (κ : Keccak) (a b : UInt256), 0 < a → a < b →
+    let keccak := plantKeccak κ emptyPre imtEmptyLeafPre
+    imtEmptyLeafPre.length ≠ 64 ∧ imtEmptyLeafPre.length ≠ 96 ∧ Valid (threeLeafTree a b)
+      ∧ TreeBounded (threeLeafTree a b) ∧ LeafBounded ((threeLeafTree a b).leaf 1)
+      ∧ LeafBounded ⟨0, 0, 0⟩
       ∧ InclusionAccepted (efficientHash keccak) (hashLeaf keccak)
-          (root (efficientHash keccak) (keccak zPre) (hashLeaf keccak) T height) v ℓ₁ i₁ s₁ k₁
+          (imtRoot keccak imtEmptyLeafPre (threeLeafTree a b) 2) a ((threeLeafTree a b).leaf 1) 1
+          (imtSibs keccak imtEmptyLeafPre (threeLeafTree a b) 1) 2
       ∧ NonInclusionAccepted (efficientHash keccak) (hashLeaf keccak)
-          (root (efficientHash keccak) (keccak zPre) (hashLeaf keccak) T height) v ℓ₂ i₂ s₂ k₂
+          (imtRoot keccak imtEmptyLeafPre (threeLeafTree a b) 2) a ⟨0, 0, 0⟩ 3
+          (imtSibs keccak imtEmptyLeafPre (threeLeafTree a b) 3) 2
+      ∧ ¬ ImtKeccakBreak keccak imtEmptyLeafPre (threeLeafTree a b) 2
+          (imtSibs keccak imtEmptyLeafPre (threeLeafTree a b) 1) 2 1 ((threeLeafTree a b).leaf 1)
+      ∧ ImtKeccakBreak keccak imtEmptyLeafPre (threeLeafTree a b) 2
+          (imtSibs keccak imtEmptyLeafPre (threeLeafTree a b) 3) 2 3 ⟨0, 0, 0⟩
+      ∧ HashCollision keccak (imtPre ⟨0, 0, 0⟩) imtEmptyLeafPre
 
 /-- **`ImtKeccakBreak` IS NOT A TAUTOLOGY.** On the honest proof of any occupied index (the tree's
 own siblings, at the tree's height, presenting the stored leaf) no keccak break is located, for
@@ -427,19 +507,30 @@ def Properties.ImtKeccakBreakNotTautology : Prop :=
         (honestSibs (efficientHash keccak) (keccak zPre) (leafList keccak (imtLeafPre T) T.leafCount) i)
         height i (T.leaf i)
 
-/-- **`ImtKeccakBreak` FIRES.** Under the constant keccak, with UPG's padding preimage, a forged
-inclusion proof for a value the `setup` tree does not hold is accepted; its `TreeRootBreak` holds,
-the padding exception does not, and the break located is an `ImtKeccakBreak`. So the premises of
-`TreeRootBreakIsKeccakCollision` are satisfiable away from the exception. -/
+/-- **`ImtKeccakBreak` FIRES, ON ONE PLANTED COLLISION: A FORGED INCLUSION PROOF.** For every
+keccak model `κ`, every padding preimage (UPG's and the pin's among them), every `0 < a < b` and
+every value `c` outside `{0, a, b}`: with `κ` changed at the one string `imtPre ⟨c, 0, 0⟩` to send it
+where `κ` sends the preimage of leaf 1 (`⟨a, 2, b⟩`), the inclusion proof for `c` that presents
+`⟨c, 0, 0⟩` at index 1 with that index's honest siblings is accepted against the root of the valid run
+`threeLeafTree a b` at height 2, yet `c` is not in the tree. Its `TreeRootBreak` holds, the padding
+exception does not, and the `ImtKeccakBreak` located is `leafCollision` on the two 96-byte leaf
+preimages: the planted collision. So the premises of `TreeRootBreakIsKeccakCollision` (and its pin
+form) and of the inclusion forms are met with their keccak disjunct the one that holds. -/
 def Properties.ImtKeccakBreakFires : Prop :=
-  ∃ (keccak : Keccak) (zPre : List UInt8) (height : ℕ) (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf),
-    zPre.length ≠ 64 ∧ TreeBounded setup ∧ LeafBounded ℓ
+  ∀ (κ : Keccak) (zPre : List UInt8) (a b c : UInt256),
+    0 < a → a < b → c ≠ 0 → c ≠ a → c ≠ b →
+    let keccak := plantKeccak κ (imtPre ⟨c, 0, 0⟩) (imtPre ((threeLeafTree a b).leaf 1))
+    Valid (threeLeafTree a b) ∧ TreeBounded (threeLeafTree a b) ∧ LeafBounded ⟨c, 0, 0⟩
       ∧ InclusionAccepted (efficientHash keccak) (hashLeaf keccak)
-          (root (efficientHash keccak) (keccak zPre) (hashLeaf keccak) setup height) ℓ.value ℓ idx sibs k
-      ∧ ℓ ≠ setup.leaf idx
-      ∧ TreeRootBreak (efficientHash keccak) (keccak zPre) (hashLeaf keccak) setup height sibs k idx ℓ
-      ∧ ¬ (setup.leafCount ≤ idx ∧ imtPre ℓ = zPre)
-      ∧ ImtKeccakBreak keccak zPre setup height sibs k idx ℓ
+          (imtRoot keccak zPre (threeLeafTree a b) 2) c ⟨c, 0, 0⟩ 1
+          (imtSibs keccak zPre (threeLeafTree a b) 1) 2
+      ∧ c ∉ IMTAbstract.keys (toAbs (threeLeafTree a b))
+      ∧ TreeRootBreak (efficientHash keccak) (keccak zPre) (hashLeaf keccak) (threeLeafTree a b) 2
+          (imtSibs keccak zPre (threeLeafTree a b) 1) 2 1 ⟨c, 0, 0⟩
+      ∧ ¬ ((threeLeafTree a b).leafCount ≤ 1 ∧ imtPre ⟨c, 0, 0⟩ = zPre)
+      ∧ ImtKeccakBreak keccak zPre (threeLeafTree a b) 2
+          (imtSibs keccak zPre (threeLeafTree a b) 1) 2 1 ⟨c, 0, 0⟩
+      ∧ HashCollision keccak (imtPre ((threeLeafTree a b).leaf 1)) (imtPre ⟨c, 0, 0⟩)
 
 /-! ## (d) The leaf/node and entry/empty premises of the other trees -/
 
@@ -475,12 +566,14 @@ def Properties.TreeLeafDomains : Prop :=
 /-- **THE CHAIN AND SHARED TREES MEET `EntryDomain`, AND SO DOES THE IMT WITH UPG's PADDING.** No
 chain-tree entry preimage is the 96 zero bytes (128 bytes long); no shared-tree entry preimage is
 (first word `CHAIN_ID_LEAF_PADDING ≠ 0`); no IMT leaf preimage is UPG's 34-byte padding preimage.
-(At the pin the IMT fails it: right after `setup`, entry 0 is the zero leaf.) -/
+At the pin the IMT fails it: right after `setup`, entry 0 is the zero leaf, whose preimage is the
+padding preimage (last conjunct). -/
 def Properties.TreeEntryDomains : Prop :=
   (∀ (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ), EntryDomain (chainTreePre padB B) n emptyPre)
     ∧ (∀ (padC : UInt256) (C : ℕ → ChainIdLeaf) (n : ℕ), padC ≠ 0 →
         EntryDomain (sharedTreePre padC C) n emptyPre)
     ∧ (∀ T : Tree, EntryDomain (imtLeafPre T) T.leafCount imtEmptyLeafPre)
+    ∧ ¬ EntryDomain (imtLeafPre setup) setup.leafCount pinPaddingPre
 
 /-- **`LastLeaf.EntriesNotEmpty` HOLDS UP TO A NAMED COLLISION.** For a tree over
 `leafList keccak pre n` with empty entry `keccak zPre`, under `EntryDomain`: either no occupied
@@ -500,18 +593,40 @@ def Properties.ChainTreeEntriesNotEmptyOrCollision : Prop :=
     EntriesNotEmpty (emptyEntryHash keccak) (leafList keccak (chainTreePre padB B) n)
       ∨ ∃ m < n, HashCollision keccak (chainTreePre padB B m) emptyPre
 
-/-- **THE PREMISES OF (d) ARE SATISFIABLE, AND ITS COLLISION DISJUNCTS ARE NOT FORCED.** Under the
-length stand-in, on any chain tree: the three hash equalities of
-`AcceptForcesHeightHypothesesUpToCollision` all fail (so `accept_forces_height`'s domain hypotheses
-hold outright), and `EntriesNotEmpty` holds outright. -/
+/-- **THE HYPOTHESES OF (d) ARE MET BY PLANTED COLLISIONS, AND ITS COLLISION DISJUNCTS ARE NOT
+FORCED.**
+
+* Under the length stand-in, on any chain tree: the three hash equalities of
+  `AcceptForcesHeightHypothesesUpToCollision` all fail (so `accept_forces_height`'s domain
+  hypotheses hold outright), and `EntriesNotEmpty` holds outright.
+* For every keccak model `κ`, on any chain tree, `κ` changed at one string meets each of those hash
+  equalities: an occupied entry, the empty entry, or a claimed batch leaf hashing to a given node
+  pair. And `κ` changed at one occupied entry's preimage to send it to the empty entry's value
+  makes `EntriesNotEmpty` fail, the collision named by `EntriesNotEmptyOrCollision` being the
+  planted one. -/
 def Properties.TreeDomainsWitness : Prop :=
-  ∀ (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ) (b : BatchLeaf),
+  (∀ (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ) (b : BatchLeaf),
     (∀ y ∈ leafList lengthKeccak (chainTreePre padB B) n, ∀ a c : UInt256,
         y ≠ efficientHash lengthKeccak a c)
       ∧ (∀ a c : UInt256, lengthKeccak emptyPre ≠ efficientHash lengthKeccak a c)
       ∧ (∀ a c : UInt256, lengthKeccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
           ≠ efficientHash lengthKeccak a c)
-      ∧ EntriesNotEmpty (lengthKeccak emptyPre) (leafList lengthKeccak (chainTreePre padB B) n)
+      ∧ EntriesNotEmpty (lengthKeccak emptyPre) (leafList lengthKeccak (chainTreePre padB B) n))
+    ∧ (∀ (κ : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (n m : ℕ) (a c : UInt256), m < n →
+        let keccak := plantKeccak κ (chainTreePre padB B m) (nodePre a c)
+        keccak (chainTreePre padB B m) ∈ leafList keccak (chainTreePre padB B) n
+          ∧ keccak (chainTreePre padB B m) = efficientHash keccak a c)
+    ∧ (∀ (κ : Keccak) (a c : UInt256),
+        let keccak := plantKeccak κ emptyPre (nodePre a c)
+        keccak emptyPre = efficientHash keccak a c)
+    ∧ (∀ (κ : Keccak) (padB : UInt256) (b : BatchLeaf) (a c : UInt256),
+        let keccak :=
+          plantKeccak κ (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) (nodePre a c)
+        keccak (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp) = efficientHash keccak a c)
+    ∧ (∀ (κ : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (n m : ℕ), m < n →
+        let keccak := plantKeccak κ (chainTreePre padB B m) emptyPre
+        ¬ EntriesNotEmpty (keccak emptyPre) (leafList keccak (chainTreePre padB B) n)
+          ∧ HashCollision keccak (chainTreePre padB B m) emptyPre)
 
 /-- **A WRONG-LENGTH BREAK IS A KECCAK COLLISION.** Under `LeafDomain`, every `HeightBreak` of the
 keccak-instantiated tree is a `HeightKeccakBreak`: each of its four cases is a collision on named
@@ -578,20 +693,49 @@ def Properties.HonestProofNoKeccakBreak : Prop :=
           (honestSibs (efficientHash keccak) (keccak zPre) (leafList keccak pre n) j) height height j
           (pre j)
 
-/-- **THE PREMISES OF `AcceptOpensPreimageOrKeccakBreak` ARE JOINTLY SATISFIABLE, WITH EVERY COLLISION
-DISJUNCT FALSE.** For every keccak there is an instance (a two-batch chain tree at height 1, the
-honest proof of batch 1) meeting every premise, at a positive height, on which the proof opens the
-claimed preimage and no collision disjunct holds. -/
+/-- **THE PREMISES OF `AcceptOpensPreimageOrKeccakBreak` AND ITS OCCUPIED FORM ARE MET, WITH EVERY
+COLLISION DISJUNCT FALSE.** For every keccak, every padding tag and every two-batch chain tree at
+height 1 (entries `B 0`, `B 1`, empty entry `new bytes(96)`), the honest proof of batch 1 meets every
+premise (`LeafDomain`, the claimed preimage is not the padding preimage, `1 < 2^1`, acceptance), opens
+the claimed preimage, and carries none of the three collision disjuncts. -/
 def Properties.AcceptOpensPreimageWitness : Prop :=
-  ∀ keccak : Keccak, ∃ (pre : ℕ → List UInt8) (n : ℕ) (zPre xPre : List UInt8)
-    (sibs : ℕ → UInt256) (k height j : ℕ),
-    LeafDomain pre n zPre xPre ∧ j < 2 ^ k ∧ 0 < height
-      ∧ walkPure (efficientHash keccak) sibs 0 k j (keccak xPre)
-          = rootOf (efficientHash keccak) (keccak zPre) (leafList keccak pre n) height
-      ∧ (k = height ∧ entryPre pre n zPre j = xPre)
-      ∧ ¬ HashCollision keccak (entryPre pre n zPre j) xPre
-      ∧ ¬ PathKeccakCollision keccak (keccak zPre) (leafList keccak pre n) sibs 0 k j (keccak xPre)
-      ∧ ¬ HeightKeccakBreak keccak pre n zPre sibs k height j xPre
+  ∀ (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf),
+    let pre := chainTreePre padB B
+    let sibs := honestSibs (efficientHash keccak) (keccak emptyPre) (leafList keccak pre 2) 1
+    LeafDomain pre 2 emptyPre (pre 1) ∧ pre 1 ≠ emptyPre ∧ 1 < 2 ^ 1
+      ∧ walkPure (efficientHash keccak) sibs 0 1 1 (keccak (pre 1))
+          = rootOf (efficientHash keccak) (keccak emptyPre) (leafList keccak pre 2) 1
+      ∧ entryPre pre 2 emptyPre 1 = pre 1
+      ∧ ¬ HashCollision keccak (entryPre pre 2 emptyPre 1) (pre 1)
+      ∧ ¬ PathKeccakCollision keccak (keccak emptyPre) (leafList keccak pre 2) sibs 0 1 1
+          (keccak (pre 1))
+      ∧ ¬ HeightKeccakBreak keccak pre 2 emptyPre sibs 1 1 1 (pre 1)
+
+/-- **`HeightKeccakBreak` FIRES, ON ONE PLANTED COLLISION: A ZERO-LENGTH PATH PRESENTING A BATCH
+LEAF AS THE ROOT.** `Merkle.calculateRootMemory` does not compare the path length with the tree's
+height (`ZeroLengthPathAcceptsRoot`). For every keccak model `κ`, every padding tag, every two-batch
+chain tree at height 1 (entries `B 0`, `B 1`) and every batch `b` other than those two: with `κ`
+changed at the one string `batchPre b` to send it to the root's value, the zero-length path at
+index 0 presenting `batchLeafHash(b)` is accepted against the chain root. Every premise of
+`ChainTreeProofOpensBatchOrKeccakBreak` holds, with `k = 0 ≠ height = 1`, so only its last disjunct
+can hold. The `HeightBreak` holds, so `HeightBreakIsKeccakCollision`'s premises are met (with
+`TreeLeafDomains`); and the `HeightKeccakBreak` located is `leafIsNode`, on the 128-byte batch
+preimage and the root's 64-byte node preimage: the planted collision. -/
+def Properties.HeightKeccakBreakFires : Prop :=
+  ∀ (κ : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (b : BatchLeaf), b ≠ B 0 → b ≠ B 1 →
+    let pre := chainTreePre padB B
+    let xPre := batchPre padB b.batchRoot b.batchNumber b.l1Timestamp
+    let keccak := plantKeccak κ xPre (nodePre (κ (pre 0)) (κ (pre 1)))
+    let sibs : ℕ → UInt256 := fun _ => 0
+    0 < 2 ^ 0
+      ∧ walkPure (efficientHash keccak) sibs 0 0 0
+          (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp)
+        = rootOf (efficientHash keccak) (emptyEntryHash keccak) (leafList keccak pre 2) 1
+      ∧ HeightBreak (efficientHash keccak) (emptyEntryHash keccak) (leafList keccak pre 2) sibs 0 1 0
+          (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp)
+      ∧ HeightKeccakBreak keccak pre 2 emptyPre sibs 0 1 0 xPre
+      ∧ HashCollision keccak xPre
+          (pairPre (treePair (efficientHash keccak) (keccak emptyPre) (leafList keccak pre 2) 0 0))
 
 /-- **AN ACCEPTED PATH OPENS AN OCCUPIED ENTRY WITH EXACTLY THE CLAIMED PREIMAGE, OR KECCAK COLLIDES.**
 `AcceptOpensPreimageOrKeccakBreak` when the claimed preimage is not the padding preimage: then the
@@ -612,12 +756,13 @@ def Properties.AcceptOpensOccupiedPreimageOrKeccakBreak : Prop :=
         ∨ HeightKeccakBreak keccak pre n zPre sibs k height j xPre
 
 /-- **HEADLINE (chain tree): AN ACCEPTED BATCH-LEAF PATH OPENS THAT BATCH, OR KECCAK COLLIDES ON NAMED
-BYTES.** A path accepted against a chain root (any length, any index), presenting the batch leaf
-`batchLeafHash(batchRoot, batchNumber, l1Timestamp)`, has the chain tree's height and opens an
-occupied position `j` whose pushed batch has exactly those three fields; or keccak collides on the
-opened 128-byte (or 96-byte padding) preimage and the claimed one, on a 64-byte node preimage of the
-path, or on a named pair for a wrong length. So "a batch leaf of another batch number or root" is a
-keccak collision. No premise on `BATCH_LEAF_PADDING`. -/
+BYTES.** A path accepted against a chain root (the `rootOf` fold of the pushed batch leaves with
+empty entry `keccak(new bytes(96))`; any path length `k`, any index below `2^k`), presenting the
+batch leaf `batchLeafHash(batchRoot, batchNumber, l1Timestamp)`, has the chain tree's height and
+opens an occupied position `j` whose pushed batch has exactly those three fields; or keccak collides
+on the opened 128-byte (or 96-byte padding) preimage and the claimed one, on a 64-byte node
+preimage of the path, or, for a wrong length, as `HeightKeccakBreak` names. So "a batch leaf of
+another batch number or root" is a keccak collision. No premise on `BATCH_LEAF_PADDING`. -/
 def Properties.ChainTreeProofOpensBatchOrKeccakBreak : Prop :=
   ∀ (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ) (b : BatchLeaf)
     (sibs : ℕ → UInt256) (k height j : ℕ),
@@ -637,9 +782,10 @@ def Properties.ChainTreeProofOpensBatchOrKeccakBreak : Prop :=
 
 /-- **HEADLINE (shared tree): AN ACCEPTED CHAIN-ID-LEAF PATH OPENS THAT CHAIN'S LEAF, OR KECCAK
 COLLIDES ON NAMED BYTES.** As for the chain tree, against a shared root with empty entry
-`SHARED_ROOT_TREE_EMPTY_HASH`: the opened position is occupied by exactly the presented
-`(chainIdRoot, chainId)`. So "a chain-id leaf equal to the padding or to another chain's leaf" is a
-keccak collision. Premise: `CHAIN_ID_LEAF_PADDING ≠ 0`. -/
+`SHARED_ROOT_TREE_EMPTY_HASH`, read as `keccak(new bytes(96))`: the path has the shared tree's
+height and the opened position is occupied by exactly the presented `(chainIdRoot, chainId)`, or
+keccak collides on named bytes as there. So "a chain-id leaf equal to the padding or to another
+chain's leaf" is a keccak collision. Premise: `CHAIN_ID_LEAF_PADDING ≠ 0`. -/
 def Properties.SharedTreeProofOpensChainOrKeccakBreak : Prop :=
   ∀ (keccak : Keccak) (padC : UInt256) (C : ℕ → ChainIdLeaf) (n : ℕ) (c : ChainIdLeaf)
     (sibs : ℕ → UInt256) (k height j : ℕ),
@@ -656,13 +802,15 @@ def Properties.SharedTreeProofOpensChainOrKeccakBreak : Prop :=
         ∨ HeightKeccakBreak keccak (sharedTreePre padC C) n emptyPre sibs k height j
             (chainIdPre padC c.chainIdRoot c.chainId)
 
-/-- **THE TWO TREE HEADLINES' PREMISES ARE SATISFIABLE, WITH THE FIRST DISJUNCT THE ONE THAT HOLDS.**
-For every keccak and every tags: the honest proof of entry 1 of a two-entry chain tree, and of a
-two-entry shared tree (with `padC = 1`), at height 1, is accepted, opens entry 1, and carries none
-of the collision disjuncts. -/
+/-- **THE TWO TREE HEADLINES' PREMISES ARE MET, WITH THE FIRST DISJUNCT THE ONE THAT HOLDS.** For
+every keccak, every batch padding tag, and the deployed `CHAIN_ID_LEAF_PADDING` value
+(`chainIdLeafPaddingValue`, computed outside Lean): the honest proof of entry 1 of a two-entry chain
+tree, and of a two-entry shared tree, at height 1, meets every premise (`1 < 2^1`, the tag nonzero,
+acceptance), opens entry 1, and carries none of the collision disjuncts. -/
 def Properties.TreeProofOpensWitness : Prop :=
   ∀ (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (C : ℕ → ChainIdLeaf),
-    (walkPure (efficientHash keccak)
+    (1 < 2 ^ 1
+      ∧ walkPure (efficientHash keccak)
           (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
             (leafList keccak (chainTreePre padB B) 2) 1) 0 1 1
           (batchLeafHash keccak padB (B 1).batchRoot (B 1).batchNumber (B 1).l1Timestamp)
@@ -674,21 +822,29 @@ def Properties.TreeProofOpensWitness : Prop :=
           (leafList keccak (chainTreePre padB B) 2)
           (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
             (leafList keccak (chainTreePre padB B) 2) 1) 0 1 1
-          (batchLeafHash keccak padB (B 1).batchRoot (B 1).batchNumber (B 1).l1Timestamp))
-    ∧ ((1 : UInt256) ≠ 0
+          (batchLeafHash keccak padB (B 1).batchRoot (B 1).batchNumber (B 1).l1Timestamp)
+      ∧ ¬ HeightKeccakBreak keccak (chainTreePre padB B) 2 emptyPre
+          (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (chainTreePre padB B) 2) 1) 1 1 1
+          (batchPre padB (B 1).batchRoot (B 1).batchNumber (B 1).l1Timestamp))
+    ∧ (chainIdLeafPaddingValue ≠ 0
       ∧ walkPure (efficientHash keccak)
           (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
-            (leafList keccak (sharedTreePre 1 C) 2) 1) 0 1 1
-          (chainIdLeafHash keccak 1 (C 1).chainIdRoot (C 1).chainId)
+            (leafList keccak (sharedTreePre chainIdLeafPaddingValue C) 2) 1) 0 1 1
+          (chainIdLeafHash keccak chainIdLeafPaddingValue (C 1).chainIdRoot (C 1).chainId)
         = rootOf (efficientHash keccak) (emptyEntryHash keccak)
-            (leafList keccak (sharedTreePre 1 C) 2) 1
-      ∧ ¬ HashCollision keccak (entryPre (sharedTreePre 1 C) 2 emptyPre 1)
-          (chainIdPre 1 (C 1).chainIdRoot (C 1).chainId)
+            (leafList keccak (sharedTreePre chainIdLeafPaddingValue C) 2) 1
+      ∧ ¬ HashCollision keccak (entryPre (sharedTreePre chainIdLeafPaddingValue C) 2 emptyPre 1)
+          (chainIdPre chainIdLeafPaddingValue (C 1).chainIdRoot (C 1).chainId)
       ∧ ¬ PathKeccakCollision keccak (emptyEntryHash keccak)
-          (leafList keccak (sharedTreePre 1 C) 2)
+          (leafList keccak (sharedTreePre chainIdLeafPaddingValue C) 2)
           (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
-            (leafList keccak (sharedTreePre 1 C) 2) 1) 0 1 1
-          (chainIdLeafHash keccak 1 (C 1).chainIdRoot (C 1).chainId))
+            (leafList keccak (sharedTreePre chainIdLeafPaddingValue C) 2) 1) 0 1 1
+          (chainIdLeafHash keccak chainIdLeafPaddingValue (C 1).chainIdRoot (C 1).chainId)
+      ∧ ¬ HeightKeccakBreak keccak (sharedTreePre chainIdLeafPaddingValue C) 2 emptyPre
+          (honestSibs (efficientHash keccak) (emptyEntryHash keccak)
+            (leafList keccak (sharedTreePre chainIdLeafPaddingValue C) 2) 1) 1 1 1
+          (chainIdPre chainIdLeafPaddingValue (C 1).chainIdRoot (C 1).chainId))
 
 /-- **THE BATCH AND CHAIN-ID PREIMAGES DETERMINE THEIR FIELDS.** Equal batch-leaf preimages (under
 one padding) have equal batch root, number and timestamp; equal chain-id preimages have equal root
@@ -726,13 +882,16 @@ def Properties.AcceptedLastLeafOrKeccakBreak : Prop :=
 
 /-- **HEADLINE (chain tree): `_verifyLastBatchInRoot` IDENTIFIES THE LAST BATCH, OR KECCAK COLLIDES ON
 NAMED BYTES.** The chain tree's entries are the batch leaves (`MessageRootBase.sol:257-259`), its
-empty entry `CHAIN_TREE_EMPTY_ENTRY_HASH = keccak(new bytes(96))`, its zero cascade the one
-`AtomicInteropProof.sol:219-229` checks against. An accepted batch-leaf path whose left-child
-siblings are all that cascade is at the last pushed batch, or keccak collides: on a 64-byte node
-preimage of the subtree starting at `j + 1` and the cascade's, on the 128-byte preimage of batch
-`j + 1` and the 96 zero bytes, or on the submitted path. No premise on `BATCH_LEAF_PADDING`. This
-makes the source comment "a populated right subtree ... whose hash cannot collide with the zero
-cascade" (`AtomicInteropProof.sol:213-214`) a theorem. -/
+empty entry `CHAIN_TREE_EMPTY_ENTRY_HASH`, read as `keccak(new bytes(96))` (equal to the literal under
+`KeccakOfEmptyIsDocumented`), its zero cascade the one `AtomicInteropProof.sol:219-229` checks
+against. An accepted path of the tree's height from an occupied index `j` (with at most `2^height`
+pushed batches), whose left-child siblings are all that cascade, is at the last pushed batch, or
+keccak collides: on a 64-byte node preimage of the subtree starting at `j + 1` and the cascade's, on
+the 128-byte preimage of batch `j + 1` and the 96 zero bytes, or on the submitted path. No premise
+on `BATCH_LEAF_PADDING`. This is the source comment "a populated right subtree ... whose hash cannot
+collide with the zero cascade" (`AtomicInteropProof.sol:213-214`) in collision form, with the
+collision named. The path length and the occupied index are premises here; the deployed check fixes
+neither (`DeployedLastBatchCheckOrKeccakBreak` takes both from the prover). -/
 def Properties.AcceptedLastBatchOrKeccakBreak : Prop :=
   ∀ (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ) (sibs : ℕ → UInt256)
     (height j : ℕ) (x : UInt256),
@@ -782,6 +941,97 @@ def Properties.AcceptedLastBatchWitness : Prop :=
                   (leafList lengthKeccak (chainTreePre padB B) 2) 0) 0 1 0
                 (lengthKeccak (chainTreePre padB B 0)))
 
+/-- **`PinnedKeccakBreak` FIRES, ON ONE PLANTED COLLISION: A NON-LAST BATCH PASSES THE ZERO CHECK.** For
+every keccak model `κ`, every padding tag and every two-batch chain tree at height 1: with `κ` changed
+at the one string `batchPre (B 1)` to send it to the empty entry's value, batch 1's leaf equals the
+empty entry. Then the honest path of batch 0 is accepted and passes the zero check (its level-0
+sibling is the cascade's level-0 value), so every premise of `AcceptedLastBatchOrKeccakBreak` holds,
+yet batch 0 is not the last batch. `PinnedBreak` holds (so `PinnedBreakIsKeccakCollision`'s premises
+are met, with `TreeEntryDomains`); no `PathKeccakCollision` is located on the honest path; and the
+`PinnedKeccakBreak` located is `entryIsEmpty`, on batch 1's 128-byte preimage and the 96 zero bytes:
+the planted collision. -/
+def Properties.PinnedKeccakBreakFires : Prop :=
+  ∀ (κ : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf),
+    let pre := chainTreePre padB B
+    let keccak := plantKeccak κ (pre 1) emptyPre
+    let sibs := honestSibs (efficientHash keccak) (emptyEntryHash keccak) (leafList keccak pre 2) 0
+    2 ≤ 2 ^ 1 ∧ 0 < 2
+      ∧ walkPure (efficientHash keccak) sibs 0 1 0 (keccak (pre 0))
+          = rootOf (efficientHash keccak) (emptyEntryHash keccak) (leafList keccak pre 2) 1
+      ∧ (∀ l < 1, (0 / 2 ^ l) % 2 = 0 →
+          sibs l = zeros (efficientHash keccak) (emptyEntryHash keccak) l)
+      ∧ 0 + 1 ≠ 2
+      ∧ PinnedBreak (efficientHash keccak) (emptyEntryHash keccak) (leafList keccak pre 2) 0
+      ∧ ¬ PathKeccakCollision keccak (emptyEntryHash keccak) (leafList keccak pre 2) sibs 0 1 0
+          (keccak (pre 0))
+      ∧ PinnedKeccakBreak keccak pre 2 emptyPre 0
+      ∧ HashCollision keccak (pre 1) emptyPre
+
+/-- **HEADLINE (chain tree, as deployed): THE BATCH-LEAF HOP AND `_verifyLastBatchInRoot` PIN THE LAST
+PUSHED BATCH, WITH EXACTLY THE PRESENTED FIELDS, OR KECCAK COLLIDES ON NAMED BYTES.** The deployed
+checks take the batch-leaf path length `k` and mask `j` from the prover
+(`LastLeafFaithful.LastBatchPathAccepted`: `j < 2^k`, the walk recomputes the chain root, and the
+zero check over the `k` submitted levels). For a chain tree over the `n ≤ 2^height` pushed batch
+leaves, with empty entry `keccak(new bytes(96))`, and a submission presenting
+`batchLeafHash(batchRoot, batchNumber, l1Timestamp)` that passes those checks: the path has the
+tree's height, `j` is the last pushed batch, and that batch has exactly the three presented fields;
+or a `LastBatchKeccakBreak` (a wrong length, located; a padded index with the presented 128-byte
+preimage colliding with the 96 zero bytes; the last batch's preimage colliding with the presented
+one; a `PinnedKeccakBreak`; or a `PathKeccakCollision`).
+
+This is `LastLeafFaithful.AcceptedLastLeafAnyLengthOrBreak` with the hashes instantiated: the
+wrong-length and padded-entry cases, which that topic leaves to hash domain separation, become
+collisions on named byte strings. No premise on `BATCH_LEAF_PADDING`. As there, the walk is taken to
+reach the chain's own root: the chain-id-leaf hop above it is `SharedTreeProofOpensChainOrKeccakBreak`,
+and the two are not composed here. -/
+def Properties.DeployedLastBatchCheckOrKeccakBreak : Prop :=
+  ∀ (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (n : ℕ) (b : BatchLeaf)
+    (sibs : ℕ → UInt256) (k height j : ℕ),
+    n ≤ 2 ^ height →
+    LastBatchPathAccepted (efficientHash keccak) (emptyEntryHash keccak)
+        (leafList keccak (chainTreePre padB B) n) height sibs k j
+        (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp) →
+      (k = height ∧ j + 1 = n ∧ B j = b) ∨ LastBatchKeccakBreak keccak padB B n sibs k height j b
+
+/-- **ITS PREMISES ARE MET ON A DEPLOYED SHAPE WITH THE ZERO CHECK EXERCISED, AND
+`LastBatchKeccakBreak` IS NOT A TAUTOLOGY.** For every keccak, every padding tag and every three
+pushed batches at height 2 (the height `DynamicIncrementalMerkle.push` reaches with three leaves):
+the honest path of batch 2 (that index's siblings in the tree) passes the deployed checks, the zero
+check comparing at level 0, where the path goes left, against the empty entry. No
+`LastBatchKeccakBreak` holds; the first disjunct does (batch 2 is the last, presented with its own
+fields). -/
+def Properties.DeployedLastBatchCheckWitness : Prop :=
+  ∀ (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf),
+    let L := leafList keccak (chainTreePre padB B) 3
+    let sibs := honestSibs (efficientHash keccak) (emptyEntryHash keccak) L 2
+    3 ≤ 2 ^ 2
+      ∧ LastBatchPathAccepted (efficientHash keccak) (emptyEntryHash keccak) L 2 sibs 2 2
+          (batchLeafHash keccak padB (B 2).batchRoot (B 2).batchNumber (B 2).l1Timestamp)
+      ∧ (2 / 2 ^ 0) % 2 = 0
+      ∧ (2 = 2 ∧ 2 + 1 = 3 ∧ B 2 = B 2)
+      ∧ ¬ LastBatchKeccakBreak keccak padB B 3 sibs 2 2 2 (B 2)
+
+/-- **THE PADDED-ENTRY CASE FIRES, ON ONE PLANTED COLLISION: AN EMPTY SLOT PASSES AS THE LAST
+BATCH.** For every keccak model `κ`, every padding tag, every three pushed batches at height 2 and
+every batch `b`: with `κ` changed at the one string `batchPre b` to send it where `κ` sends the 96
+zero bytes, the submission presenting `batchLeafHash(b)` at the empty slot 3, with that slot's
+honest siblings, passes the deployed checks (slot 3 is a right child at both levels, so the zero
+check compares nothing). Slot 3 is past the three pushed batches, so the first disjunct of
+`DeployedLastBatchCheckOrKeccakBreak` fails; the break located is `paddedEntry`, on `b`'s 128-byte
+preimage and the 96 zero bytes: the planted collision. -/
+def Properties.DeployedLastBatchPaddedEntryFires : Prop :=
+  ∀ (κ : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf) (b : BatchLeaf),
+    let xPre := batchPre padB b.batchRoot b.batchNumber b.l1Timestamp
+    let keccak := plantKeccak κ xPre emptyPre
+    let L := leafList keccak (chainTreePre padB B) 3
+    let sibs := honestSibs (efficientHash keccak) (emptyEntryHash keccak) L 3
+    3 ≤ 2 ^ 2
+      ∧ LastBatchPathAccepted (efficientHash keccak) (emptyEntryHash keccak) L 2 sibs 2 3
+          (batchLeafHash keccak padB b.batchRoot b.batchNumber b.l1Timestamp)
+      ∧ 3 + 1 ≠ 3
+      ∧ LastBatchKeccakBreak keccak padB B 3 sibs 2 2 3 b
+      ∧ HashCollision keccak xPre emptyPre
+
 /-! ## (e) The node-collision lift -/
 
 /-- **A NODE-HASH COLLISION ON TWO PAIRS IS A KECCAK COLLISION ON THEIR 64-BYTE PREIMAGES.** The node
@@ -798,8 +1048,9 @@ def Properties.PairCollisionIsKeccakCollision : Prop :=
   named 64-byte preimages (the node over the subtree at `j + 1`, and the zero cascade's);
 * `RootForgeryPinned.LevelCollision` is exactly a keccak collision on two named parent preimages.
 
-Each is an equivalence, so nothing is lost: every located node collision of the corpus is a
-`HashCollision keccak` on two 64-byte strings. -/
+Each is an equivalence, so nothing is lost: each of these located node collisions (and, by
+`TreeAndWalkCollisionLift`, `TreeCollision` and `WalkCollision`) is a `HashCollision keccak` on two
+64-byte strings. -/
 def Properties.NodeCollisionLift : Prop :=
   ∀ keccak : Keccak,
     (∀ (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (lvl k j : ℕ) (x : UInt256),
