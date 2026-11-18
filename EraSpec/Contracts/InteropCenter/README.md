@@ -13,6 +13,7 @@ for those exact named propositions, plus auxiliary lemmas.
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
 | Dispatch | [Specs/Dispatch.lean](Specs/Dispatch.lean) | [Properties/Dispatch.lean](Properties/Dispatch.lean) | [Proofs/Dispatch.lean](Proofs/Dispatch.lean) |
+| SendAtHead (main `3605e82` = `70096e2ea`; `draft/v0.35.0` `b17415d20`) | [Specs/SendAtHead.lean](Specs/SendAtHead.lean) | [Properties/SendAtHead.lean](Properties/SendAtHead.lean) | [Proofs/SendAtHead.lean](Proofs/SendAtHead.lean) |
 
 Namespace `Contracts.InteropCenter`. Statements are `Contracts.InteropCenter.Properties.*`;
 each certificate has the same name without the `Properties` segment.
@@ -80,3 +81,78 @@ Source findings, reported to the maintainer of this repo, not yet confirmed upst
 
 Neither is formalized at the attribute-parsing level; in the model such a bundle is a
 public dispatch.
+
+## SendAtHead: the send path at head
+
+Pinned at era-contracts main `3605e82`; nothing under `l1-contracts/contracts` changed up to
+the current main `70096e2ea`. The Specs header maps every cited line to the current
+`draft/v0.35.0` head `b17415d20`, where this path differs only by reject-only checks (no pause,
+`isPeerAllowed`) and an unmodelled fee-unit counter. Namespace
+`Contracts.InteropCenter.SendAtHead`; statements are `Contracts.InteropCenter.SendAtHead.Properties.*`.
+
+At head every L2→L2 send is atomic: `_sendBundle` sends an atomic bundle only to a chain other
+than L1 and a non-atomic one only to L1, `_dispatchBundle` publishes exactly the L1 sends and
+calls `append` for the others, `_validateAtomicBundle` is gone, and `append` takes the flow
+preimage and checks that the bundle is one of its legs. The model adds the ERC-7786 attribute
+parser (on decoded attributes), both entry points, the center's L1 messages, and `append`'s
+leg-membership and source-chain checks; six checks are switches.
+
+- **The pin's `sendMessage` finding, at the attribute level, and its fix.** The pin's parser
+  accepts `atomicBundle` under `sendMessage`'s restriction while the pin's `sendMessage` sends
+  non-atomically (`PinSendMessageDroppedAtomicBundle`, on a transcription of the pin's parser that
+  agrees with the head's on every decoded list: `PinParserIsHeadParser`). At head every successful
+  `sendMessage` carries `atomicBundle`, is atomic, commits its leg and sends nothing to L1
+  (`SendMessageAlwaysAtomic`, `PinFindingRejectedAtHead`, `SendMessagesAreAtomicAlongRuns`).
+  `_ensureL2ToL2` and `parseAtomicSend` are both load-bearing
+  (`WithoutL2ToL2CheckSendMessagePublishes`, `PinConstantMakesSendMessageUnusable`).
+- **The `atomicBundle` NatSpec holds in the model** for both entry points
+  (`AtomicBundleAttributeMeansAppended`): with the attribute, the leg
+  `(keccak(abi.encode(preimage)), bundleHash)` moves from `Unset` to `Committed`, the bundle hash
+  is one of the flow's legs declared from this chain, and nothing goes to L1; without it, the send
+  goes to L1. The commitment-tree insert is not modelled. The attribute is bundle-level
+  (`CallLevelAtomicBundleReverts`). Along runs, appended, atomic and attribute-carrying coincide,
+  so no atomic send goes to L1 (`EveryL2SendIsAtomic`), and the L1 messages are exactly the L1
+  sends, each a one-call router withdrawal with no call value (`PublishedMessagesAreL1Dispatches`,
+  `PublishedMessagesAreWithdrawals`). The gate's atomic half is load-bearing
+  (`WithoutAtomicityGateAttributeBundleIsPublished`); its non-atomic half is defense in depth
+  behind `append` (`NonAtomicL2SendRevertsInAppend`).
+- **Value legs.** The pin's "committed legs carry no value" is false at head
+  (`ValueLegCommitsAtHead`). What holds, with no hash premise: every committed leg comes from an
+  atomic dispatch of this chain whose value-carrying calls have the sender as `from` and whose
+  other calls are zero-value calls from the asset router (`CommittedLegsAreCheckedDispatches`,
+  `OnlyADispatchCommitsALeg`). So the base-token refunds `_recoverBundle` would make for a logged
+  bundle go to its sender and add up to its call value (`AtomicValueIsRefundedToPayer`), when the
+  sender is not the asset router (`RouterSenderValueIsNotRefunded`; the source comment at
+  `AtomicFlowManager.sol:301-305` assumes the router never itself initiates a direct send). The
+  indirect-call restriction is
+  load-bearing (`WithoutIndirectRestrictionRefundMissesPayer`). The bytes `claimRefund` hashes are a
+  logged atomic dispatch's encoding, or keccak collides on two named strings
+  (`ClaimedBundleIsDispatchedOrCollision`; for bundles `PresentedBundleIsDispatchedOrClash`; both
+  disjuncts fire).
+- **Salts, legs and distinct dispatches** as at the pin, with the head's bundle-hash preimage
+  `abi.encode(bundle)`: `EachSaltDispatchesOnce`, `EachLegAppendedOnce`,
+  `DistinctDispatchesDistinctBundles`, `DistinctDispatchesDistinctBundleHashes`,
+  `LoggedRunBundleHashesUnique`. An appended bundle is never published to L1, with no clash
+  disjunct and whatever the checks (`AtomicBytesNeverPublished`).
+- **One flow per bundle hash.** The flow preimage travels outside the bundle, so the bundle hash
+  does not name its flow. Two legs that are not `Unset` and share a bundle hash share the flow id,
+  or two logged dispatches clash (`BundleHashCommittedUnderOneFlowOrClash`; under run-local
+  injectivity `BundleHashCommittedUnderOneFlow`). The salt check is what ensures it: without it one
+  bundle is committed under two flows while the run-local hash premises hold
+  (`WithoutSaltCheckABundleJoinsTwoFlows`). The clash disjunct fires
+  (`BundleHashCollisionJoinsTwoFlows`).
+
+Witnesses: `SendAtHeadWitness`, `SendAtHeadStepWitness`, `SendAtHeadClaimWitness`. The clash and
+collision disjuncts fire in `SaltClashLetsTwoSendersShareABundle`, `BundleHashClashFiresAlone`,
+`CollisionLetsForeignBytesMatchACommittedLeg`, `CollisionLetsAForeignBundleMatchACommittedLeg` and
+`BundleHashCollisionJoinsTwoFlows`. Countermodels: `WithoutSaltCheckABundleRepeats`,
+`WithoutOnlyInteropCenterUnbackedLegCommits` and those above.
+
+Model boundaries: as for `Dispatch`, one chain with a ghost log, abstract `abi.encode` and keccak
+with run-local premises only, a revert as the absence of a step and a send as one step. Unlike
+`Dispatch`, attribute parsing and the destination checks are modelled; attributes are decoded
+values (malformed payloads and ERC-7930 addresses only reject). The manager's own `L1_CHAIN_ID` is
+read only by omitted checks. `authorizeRefund` moves one leg per step, without its proof checks,
+and `claimRefund` does not run `_recoverBundle`. `baseTokenRefunds` transcribes `_recoverBundle`'s
+base-token branch for a logged bundle; the router's `recoverAtomicCall` is not modelled, and neither
+is the payment of call value, fees, or the router's `indirectCallMessageValue`.
