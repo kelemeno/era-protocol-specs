@@ -18,7 +18,8 @@ compose, the log only grows, and no step leaves `Reverted`.
 
 The witnesses and countermodels are concrete runs on O1's two witness chains: the honest one
 (`wParams`, whose toy keccak reads a bundle hash off the user salt) and the colliding one
-(`collidingParams`, constant keccak). Their data lives in the `ClaimBinding` namespace.
+(`collidingParams`, constant keccak). The run without `_validateAtomicBundle` reuses O1's
+`valueLeg`. Their data lives in the `ClaimBinding` namespace.
 -/
 
 namespace Contracts.InteropCenter
@@ -480,6 +481,33 @@ theorem collidingS1_leg : collidingS1.manager.legState 7 0 = .Committed := by
 theorem collidingStep2 : Step deployed collidingParams collidingS1 collidingS2 :=
   Step.authorize 7 0 collidingS1_leg
 
+/-! ### Without `_validateAtomicBundle`: O1's `valueLeg` committed, authorized and claimed -/
+
+/-- Dispatch `valueLeg` (flow `7`, one direct call carrying value `5`), then authorize its leg. -/
+def valueS1 : State := init.afterSend wParams valueLeg
+def valueS2 : State :=
+  { valueS1 with manager := valueS1.manager.set 7 (bundleHash wParams valueLeg.bundle) .Revertable }
+
+/-- On this run every dispatched bundle is `valueLeg`'s. -/
+def valueDec (_ : List UInt8) : Bundle := valueLeg.bundle
+
+theorem valueStep1 : Step withoutValueCheck wParams init valueS1 :=
+  Step.send valueLeg (fun _ => rfl)
+    ⟨rfl, rfl, List.Forall₂.cons (formsCall_direct 1 5) List.Forall₂.nil⟩
+    (fun _ h => absurd h (by decide)) (fun _ => rfl)
+
+theorem valueStep2 : Step withoutValueCheck wParams valueS1 valueS2 := by
+  refine Step.authorize 7 (bundleHash wParams valueLeg.bundle) ?_
+  show valueS1.manager.legState 7 (bundleHash wParams valueLeg.bundle) = .Committed
+  rw [valueS1, afterSend_legState, ite_eq_left ⟨rfl, rfl, rfl⟩]
+
+theorem valueReach : Reach withoutValueCheck wParams init valueS2 :=
+  .tail (.tail .refl valueStep1) valueStep2
+
+theorem valueClaimPreimage :
+    claimPreimage valueDec (wParams.enc valueLeg.bundle) = bundlePreimage wParams valueLeg.bundle :=
+  claimPreimage_canonical rfl rfl
+
 /-! ### The honest run with a decoder that is not a round trip -/
 
 /-- `wD1`'s bundle, same source chain and salts, with its call redirected to contract `6` and given
@@ -563,6 +591,16 @@ theorem replayStep4 : Step withoutSaltCheck wParams replayS3 replayS4 := by
 theorem replayReach : Reach withoutSaltCheck wParams init replayS4 :=
   .tail (.tail (.tail (.tail .refl replayStep1) replayStep2) replayStep3) replayStep4
 
+theorem replayClaimPreimage :
+    claimPreimage replayDec (wParams.enc wD1.bundle) = bundlePreimage wParams wD1.bundle :=
+  claimPreimage_canonical rfl rfl
+
+/-- Both of `wD1`'s legs, `(7, 1)` and `(8, 1)`, have bundle hash `1`. -/
+theorem replayClaimHash : claimRefundHash wParams replayDec (wParams.enc wD1.bundle) = 1 := by
+  unfold claimRefundHash
+  rw [replayClaimPreimage]
+  exact wHash1
+
 /-! ### The colliding chain: two senders dispatch `sharedBundle` atomically on flows `7` and `8` -/
 
 def clashLeg7 : Dispatch := ⟨1, [wIndirect], sharedBundle, ⟨7, 0, 100, true⟩⟩
@@ -632,7 +670,7 @@ theorem CollisionLetsAClaimRecoverUndispatchedCalls :
     unfold collidingDec
     rw [ite_eq_left rfl]
   refine ⟨collidingParams, collidingDec, collidingS2, 7, collidingParams.enc foreignBundle,
-    .tail (.tail .refl collidingStep1) collidingStep2, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    .tail (.tail .refl collidingStep1) collidingStep2, ?_, by rw [hdecx], ?_, ?_, ?_, ?_, ?_⟩
   · intro d hd
     rw [hlog] at hd
     simp only [List.mem_singleton] at hd
@@ -677,7 +715,8 @@ theorem WithoutRoundTripClaimRecoversUndispatchedCalls :
     unfold claimRefundHash
     rw [hpre]
     exact wHash1
-  refine ⟨wParams, tamperedDec, wS3, 7, wParams.enc wD1.bundle, wReach, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨wParams, tamperedDec, wS3, 7, wParams.enc wD1.bundle, wReach, ?_,
+    ⟨wD1, by rw [hlog]; simp, rfl, rfl, rfl⟩, ?_, ?_, ?_, ?_, ?_⟩
   · intro h
     have := h wD1 (by rw [hlog]; simp)
     rw [hdecx] at this
@@ -711,8 +750,8 @@ theorem WithoutRoundTripClaimRecoversUndispatchedCalls :
 theorem WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls :
     Properties.WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls := by
   have hlog : unbackedS2.log = [] := rfl
-  refine ⟨wParams, unbackedDec, unbackedS2, 7, wParams.enc foreignBundle, unbackedReach, ?_, rfl,
-    ?_, ?_, ?_, foreignBundle_not_validated⟩
+  refine ⟨wParams, unbackedDec, unbackedS2, 7, wParams.enc foreignBundle, unbackedReach, hlog, ?_,
+    rfl, ?_, ?_, ?_, foreignBundle_not_validated⟩
   · intro d hd
     rw [hlog] at hd
     exact absurd hd List.not_mem_nil
@@ -728,15 +767,13 @@ theorem WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls :
 
 theorem WithoutSaltCheckOneBundleRecoveredTwice :
     Properties.WithoutSaltCheckOneBundleRecoveredTwice := by
-  have hpre : claimPreimage replayDec (wParams.enc wD1.bundle) =
-      bundlePreimage wParams wD1.bundle :=
-    claimPreimage_canonical rfl rfl
-  have hh : claimRefundHash wParams replayDec (wParams.enc wD1.bundle) = 1 := by
-    unfold claimRefundHash
-    rw [hpre]
-    exact wHash1
+  have hpre := replayClaimPreimage
+  have hh := replayClaimHash
+  have hmem : ∀ d ∈ [wD1, replayD8], d ∈ replayS4.log := fun _ hd => hd
   refine ⟨wParams, replayDec, replayS4, _, 7, 8, wParams.enc wD1.bundle, replayReach, ?_, .refl,
-    ?_, ?_, ?_, ?_, ?_⟩
+    ?_, ?_, by decide,
+    ⟨wD1, hmem _ (by simp), replayD8, hmem _ (by simp), rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩,
+    ?_, ?_, ?_⟩
   · rw [hh]
     show ((replayS2.manager.set 7 1 .Revertable).set 8 1 .Revertable).legState 7 1 = .Revertable
     simp
@@ -771,8 +808,15 @@ theorem SaltClashLetsOneBundleBeRecoveredTwice :
   have hh : claimRefundHash collidingParams clashDec (collidingParams.enc sharedBundle) = 0 := rfl
   have hpre : claimPreimage clashDec (collidingParams.enc sharedBundle) =
       bundlePreimage collidingParams sharedBundle := rfl
+  have hmem : ∀ d ∈ [clashLeg7, clashLeg8], d ∈ clashS4.log := fun _ hd => hd
+  have hclash : CrossSenderSaltClash collidingParams clashLeg7 clashLeg8 := by
+    refine ⟨rfl, by decide, ?_, (collidingParams_keccak _).trans (collidingParams_keccak _).symm⟩
+    intro hpre
+    exact absurd (saltPreimage_inj hpre).1 (by decide)
   refine ⟨collidingParams, clashDec, clashS4, _, 7, 8, collidingParams.enc sharedBundle,
-    clashReach, ?_, .refl, ?_, ?_, ?_, ?_⟩
+    clashReach, ?_, .refl, ?_, ?_, by decide, ?_, ?_,
+    clashLeg7, hmem _ (by simp), clashLeg8, hmem _ (by simp), rfl, rfl, rfl, rfl, rfl, rfl, rfl,
+    hclash⟩
   · rw [hh]
     show ((clashS2.manager.set 7 0 .Revertable).set 8 0 .Revertable).legState 7 0 = .Revertable
     simp
@@ -797,7 +841,60 @@ theorem SaltClashLetsOneBundleBeRecoveredTwice :
     · exact absurd hf (by decide)
     · exact hpre' hpre
 
+theorem ClaimIdentifiesOneDispatchNeedsBothMatches :
+    Properties.ClaimIdentifiesOneDispatchNeedsBothMatches := by
+  have htwo : twoS4.log = [wD1, twoD3] := rfl
+  have hclash : clashS4.log = [clashLeg7, clashLeg8] := rfl
+  refine ⟨⟨wParams, twoS4, twoReach, 0, 1, by rw [htwo]; decide, by rw [htwo]; decide, by decide,
+    rfl, rfl, rfl, twoEnc_ne⟩, ⟨collidingParams, clashS4, clashReach, 0, 1,
+    by rw [hclash]; decide, by rw [hclash]; decide, by decide, rfl, rfl,
+    show (7 : Word) ≠ 8 by decide, rfl⟩⟩
+
 /-! ## Non-vacuity -/
+
+theorem ClaimBindingWithoutValueCheckWitness : Properties.ClaimBindingWithoutValueCheckWitness := by
+  have hlog : valueS2.log = [valueLeg] := rfl
+  have hh : claimRefundHash wParams valueDec (wParams.enc valueLeg.bundle) =
+      bundleHash wParams valueLeg.bundle := by
+    unfold claimRefundHash bundleHash
+    rw [valueClaimPreimage]
+  refine ⟨wParams, valueDec, valueS2, 7, wParams.enc valueLeg.bundle, rfl, valueReach, ?_, ?_,
+    ⟨valueLeg, by rw [hlog]; simp, rfl, rfl, rfl, rfl⟩, ?_, ?_⟩
+  · intro d hd
+    rw [hlog] at hd
+    simp only [List.mem_singleton] at hd
+    subst hd
+    rfl
+  · rw [hh]
+    show (valueS1.manager.set 7 (bundleHash wParams valueLeg.bundle) .Revertable).legState 7
+      (bundleHash wParams valueLeg.bundle) = .Revertable
+    simp
+  · rintro ⟨d, hd, -, -, hpre, -⟩
+    rw [hlog] at hd
+    simp only [List.mem_singleton] at hd
+    subst hd
+    exact hpre valueClaimPreimage
+  · intro h
+    exact absurd (h _ (List.mem_singleton_self _)) (by decide)
+
+theorem ClaimBindingWithoutSaltCheckWitness : Properties.ClaimBindingWithoutSaltCheckWitness := by
+  have hmem : ∀ d ∈ [wD1, replayD8], d ∈ replayS4.log := fun _ hd => hd
+  refine ⟨wParams, replayDec, replayS4, 7, wParams.enc wD1.bundle, rfl, replayReach, ?_,
+    ⟨wD1, hmem _ (by simp), replayD8, hmem _ (by simp), rfl, rfl, rfl, rfl,
+      show (7 : Word) ≠ 8 by decide⟩, ?_, ⟨wD1, hmem _ (by simp), rfl, rfl, rfl, rfl⟩, ?_⟩
+  · intro d hd
+    have hd' : d ∈ [wD1, replayD8] := hd
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hd'
+    rcases hd' with rfl | rfl <;> rfl
+  · rw [replayClaimHash]
+    show ((replayS2.manager.set 7 1 .Revertable).set 8 1 .Revertable).legState 7 1 = .Revertable
+    simp
+  · rintro ⟨d, hd, -, hf, hpre, -⟩
+    have hd' : d ∈ [wD1, replayD8] := hd
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hd'
+    rcases hd' with rfl | rfl
+    · exact hpre replayClaimPreimage
+    · exact absurd hf (by decide)
 
 theorem ClaimBindingWitness : Properties.ClaimBindingWitness := by
   have hlog : wS3.log = [wD1, wD2] := rfl

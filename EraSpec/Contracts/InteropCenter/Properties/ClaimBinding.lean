@@ -8,9 +8,14 @@ Statements about what `claimRefund(f, x)` (AtomicFlowManager.sol:165-180) recove
 model of `EraSpec.Contracts.InteropCenter.Specs.Dispatch`, with the claim-side names of
 `EraSpec.Contracts.InteropCenter.Specs.ClaimBinding`. Proofs are in
 `EraSpec.Contracts.InteropCenter.Proofs.ClaimBinding`. Every run starts from fresh storage
-(`init`) on one chain; `deployed` is the code with all three of its checks. No result assumes
-anything about keccak. The only collisions a conclusion allows are pinned to named preimages of
-the instance.
+(`init`) on one chain; `deployed` is the code with all three of its checks. The source is the pin
+`c67894b9`; `Specs/ClaimBinding.lean` lists what differs at the current heads.
+
+Hash premises: the headline, its corollaries and the liveness results assume nothing about keccak,
+and the collisions their conclusions allow are pinned to named preimages of the instance. The two
+bounded forms, `ClaimedBundleIsDispatchedOn` and `EachBundleRecoveredAtMostOnceOn`, assume keccak
+injective on explicit finite lists of the instance's own preimages. The decoder premise is the
+`SOL-ABI` round trip on the run's own bundles (`DecodesDispatchedBundles`), never global.
 
 ## The headline
 
@@ -27,73 +32,94 @@ O1's form follows from it (`ClaimedBundleIsDispatchedImpliesValidated`). Of the 
 three checks, it uses only `onlyInteropCenter` on `append`
 (`ClaimBindingIndependentOfSaltAndValueChecks`).
 
-Once the two hashes are equal, the collision disjunct says only that the two preimages differ. So
-the content is elsewhere: every leg that is not `Unset` belongs to a logged atomic dispatch;
-`abi.encode(uint256, bytes)` adds no collision of its own (an equal preimage forces equal bytes,
-whatever source chain was decoded); and the decoder round trip. The bounded form states this
-without a disjunct. If keccak is injective on the claim's preimage and the run's own bundle-hash
-preimages, an explicit finite list, then the claimed bytes are a dispatched bundle's
-(`ClaimedBundleIsDispatchedOn`).
+How much the collision disjunct leaves: when the leg is not `Unset`, a logged atomic dispatch of
+flow `f` stands behind it (O1's `CommittedLegsAreValidatedDispatches`), and for that dispatch the
+two hashes in the disjunct are equal. So for it the disjunct says only that the claim's preimage
+differs from the center's preimage. The headline is therefore the statement that equal preimages
+force the canonical bytes, plus the round trip. `abi.encode(uint256, bytes)` adds no collision of
+its own: an equal preimage forces equal bytes, whatever source chain was decoded.
+The bounded form states the result without a disjunct. If keccak is injective on the claim's
+preimage and the run's own bundle-hash preimages, an explicit finite list, then the claimed bytes
+are a dispatched bundle's (`ClaimedBundleIsDispatchedOn`).
 
 ## Corollaries
 
-* **This chain's bundle.** The source chain `claimRefund` decodes and hashes is `block.chainid`.
-  So its recomputation `abi.encode(bundle.sourceChainId, x)` is byte for byte the center's
-  `abi.encode(block.chainid, abi.encode(bundle))` (`ClaimSourceChainIsThisChainOrCollision`).
-* **The user's calls.** The external calls `_recoverBundle` makes are the dispatched bundle's:
-  each call's target and data, and the bundle's destination chain. Those calls are the ones
-  `_processCallStarter` formed from the dispatch's own call starters for its own sender, and none
+* **This chain's bundle.** Under the headline's premises, the source chain `claimRefund` decodes
+  and hashes is `block.chainid`, so its recomputation `abi.encode(bundle.sourceChainId, x)` is byte
+  for byte the center's `abi.encode(block.chainid, abi.encode(bundle))`; or the pinned collision
+  holds (`ClaimSourceChainIsThisChainOrCollision`).
+* **The user's calls.** Under the same premises, or else the pinned collision: the external calls
+  `_recoverBundle` makes are the dispatched bundle's (each call's target and data, and the
+  bundle's destination chain); the decoded calls are related to the dispatch's own call starters
+  by O1's `FormsCall` for its own sender (the fields `_processCallStarter` itself writes); and none
   carries value (`RecoveredCallsAreDispatchedCalls`). This is `IAtomicRecoverable.sol:15-16`
   ("`_callData` is the original `InteropCall.data`"; the destination chain is the one "the
   original call targeted") as a theorem, up to the pinned collision.
 * **One dispatch.** At most one log position holds an atomic dispatch of a given flow with given
-  canonical bytes (`ClaimIdentifiesOneDispatch`). So the dispatch a claim recovers is unique.
-* **Recovered at most once.** Two successful claims along one run recover two different bundles,
-  whatever bytes and flow the second one uses. The exceptions are that one of the claims is a
+  canonical bytes (`ClaimIdentifiesOneDispatch`), so the dispatch the headline names is unique.
+  Neither match alone suffices (`ClaimIdentifiesOneDispatchNeedsBothMatches`).
+* **Recovered at most once.** Two successful claims along one run (each passing its state check,
+  the second after the first one's write) recover two different bundles, whatever bytes and flow
+  the second one uses. The exceptions are that one of the claims is a
   pinned claim collision, or that the two recovered dispatches share one bundle through O1 (c)'s
   cross-sender salt clash (`EachBundleRecoveredAtMostOnce`). With keccak injective on the claims'
   preimages and the run's own bundle-hash and salt preimages, there is no exception
   (`EachBundleRecoveredAtMostOnceOn`).
-* **Liveness note.** The canonical bytes always reach the committed leg, for any keccak
-  (`CanonicalBytesReadTheirLeg`). So `claimRefund(d.flowId, abi.encode(d.bundle))` passes its
-  state check exactly when the leg is `Revertable`, and the bundle to encode is in the
-  `InteropBundleSent` event (`InteropCenter.sol:585`). Bytes that are not the canonical encoding
-  of any atomic dispatch of the flow read an `Unset` leg, so `claimRefund`
+* **Liveness note.** Under the round trip, the canonical bytes always reach the committed leg, for
+  any keccak and with or without the checks (`CanonicalBytesReadTheirLeg`). So
+  `claimRefund(d.flowId, abi.encode(d.bundle))` passes its state check exactly when the leg is
+  `Revertable`; the bundle to encode is in the `InteropBundleSent` event
+  (`InteropCenter.sol:585`). Bytes that are not the
+  canonical encoding of any atomic dispatch of the flow read an `Unset` leg, so `claimRefund`
   reverts with `ManagerLegNotRevertable` (AtomicFlowManager.sol:170), or the pinned collision holds
-  (`NonCanonicalBytesNeverClaim`). That covers every other encoding that `abi.decode` maps to a
-  dispatched bundle, such as one with trailing bytes (`ReencodedBundleNeverClaims`).
+  (`NonCanonicalBytesNeverClaim`). That covers every other encoding that the decoder maps to a
+  dispatched bundle, such as one with a trailing byte (`ReencodedBundleNeverClaims`).
 
 ## Each premise and disjunct is needed
 
 * `CollisionLetsAClaimRecoverUndispatchedCalls`: under a colliding keccak, the canonical bytes of a
-  bundle that was never dispatched find a `Revertable` leg. The claim would execute calls no
-  dispatch made, one of them carrying value. The collision disjunct is what fires.
-* `WithoutRoundTripClaimRecoversUndispatchedCalls`: with the honest witness keccak and no
-  collision at all, a decoder that does not invert the encoder on a dispatched bundle makes that
-  bundle's own canonical bytes recover other calls. So the `SOL-ABI` premise is load-bearing here,
-  and also in O1's `ClaimedBundleValidatedOrCollision`, whose conclusion fails on the same run.
+  bundle that no dispatch of the run carries find a `Revertable` leg. The claim would make calls no
+  dispatch of the run made, and one decoded call carries value. The collision disjunct is what
+  holds.
+* `WithoutRoundTripClaimRecoversUndispatchedCalls`: on a run of the deployed code with no claim
+  collision, a decoder that does not invert the encoder on a dispatched bundle makes that bundle's
+  own canonical bytes recover other calls. So the `SOL-ABI` premise is load-bearing here, and also
+  in O1's `ClaimedBundleValidatedOrCollision`, whose conclusion fails on the same run.
 * `WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls`: without `onlyInteropCenter` on
-  `append`, a claim with honest keccak and canonical bytes recovers a bundle on a run that
-  dispatched nothing. So the headline rests on the deployed code's caller check, through O1's
+  `append`, on a run that dispatched nothing, a claim with canonical bytes finds a `Revertable` leg.
+  So the headline rests on the deployed code's caller check, through O1's
   `CommittedLegsAreValidatedDispatches`.
 * `SaltClashLetsOneBundleBeRecoveredTwice`: under a colliding keccak, two senders dispatch one
   bundle on two flows. Two successful claims with the same canonical bytes then recover it twice,
-  and neither claim is a claim collision.
+  neither claim is a claim collision, and the salt-clash disjunct of
+  `EachBundleRecoveredAtMostOnce` holds.
 * `WithoutSaltCheckOneBundleRecoveredTwice`: without the salt check, one sender dispatches one
-  bundle on two flows, and with honest keccak two successful claims recover it twice. Every
-  disjunct of `EachBundleRecoveredAtMostOnce` fails there. So at-most-once rests on the salt check.
+  bundle on two flows, and two successful claims with the same canonical bytes recover it twice.
+  Every disjunct of `EachBundleRecoveredAtMostOnce` fails there. So at-most-once rests on the salt
+  check.
 
 ## Non-vacuity
 
-* `ClaimBindingWitness` (built from O1's `ClaimWitness`) meets every premise of the headline, of
-  its bounded form and of the corollaries on the honest run. The leg is `Revertable`, the first
-  disjunct is true and the collision false, and it names the one recovery call.
+* `ClaimBindingWitness` (built from O1's `ClaimWitness`) meets, on the honest run, every premise of
+  the headline, of its bounded form, of `ClaimSourceChainIsThisChainOrCollision`,
+  `RecoveredCallsAreDispatchedCalls` and `CanonicalBytesReadTheirLeg`. The leg is `Revertable`, the
+  first disjunct is true and the collision false, and it names the one recovery call. Its log
+  `[wD1, wD2]` with `wD1` atomic also meets the premises of `ClaimIdentifiesOneDispatch`, which can
+  hold only with `i = j`.
+* `ClaimBindingWithoutValueCheckWitness` and `ClaimBindingWithoutSaltCheckWitness` meet the
+  premises of `ClaimBindingIndependentOfSaltAndValueChecks` with the two other variants of the
+  code that keep `onlyInteropCenter`. Without `_validateAtomicBundle`, the claim recovers a
+  dispatched bundle that carries value. Without the salt check, it recovers a dispatch on a run
+  in which one sender dispatched one bundle on two flows.
 * `ClaimBindingNonCanonicalWitness` meets the premises of the two negative liveness results, with
   bytes that decode to the dispatched bundle but carry a trailing zero byte. The leg they read is
   `Unset`, and the collision is false.
 * `ClaimBindingTwoClaimsWitness` meets every premise of `EachBundleRecoveredAtMostOnce` and of its
   bounded form with two successful claims. The two bundles differ, and every break disjunct is
   false.
+* `ClaimedBundleIsDispatchedImpliesValidated` takes the headline's conclusion as its premise: its
+  first disjunct holds in `ClaimBindingWitness`, its second in
+  `CollisionLetsAClaimRecoverUndispatchedCalls`.
 -/
 
 namespace Contracts.InteropCenter
@@ -176,8 +202,10 @@ of flow `f` in the log such that:
 - the leg the claim reads is `d`'s, `(f, bundleHash d.bundle)`;
 - the external calls `_recoverBundle` makes (AtomicFlowManager.sol:220-228) are those of `d`'s
   bundle: the same targets, data and destination chain;
-- the decoded calls are the calls `_processCallStarter` formed from `d`'s own call starters for
-  `d`'s own sender (InteropCenter.sol:539-540, :701-751);
+- the decoded calls are related to `d`'s own call starters by `FormsCall` for `d`'s own sender
+  (InteropCenter.sol:539-540, :701-751): each call's value is its starter's `interopCallValue`, a
+  direct call's target, data and `from` are its starter's recipient and data and `d`'s sender, and
+  an indirect call's `from` is its starter's recipient;
 - no decoded call carries native value. -/
 def Properties.RecoveredCallsAreDispatchedCalls : Prop :=
   ∀ (P : Params) (dec : List UInt8 → Bundle) (S : State), Reach deployed P init S →
@@ -284,9 +312,9 @@ def Properties.NonCanonicalBytesNeverClaim : Prop :=
 
 /-- **A RE-ENCODED BUNDLE NEVER CLAIMS.** Take any run of the deployed code whose decoder inverts
 the encoder on the run's bundles, and any dispatch `d` of the run. Suppose the bytes `x` decode to
-`d`'s bundle but are not its canonical encoding: for example, they carry trailing bytes, or other
-offsets that `abi.decode` accepts. Then for every flow `f`, the leg `claimRefund(f, x)` reads is
-`Unset`, or the pinned claim collision holds. -/
+`d`'s bundle but are not its canonical encoding: for example, they carry trailing bytes, or another
+`version`, or any other encoding the decoder accepts. Then for every flow `f`, the leg
+`claimRefund(f, x)` reads is `Unset`, or the pinned claim collision holds. -/
 def Properties.ReencodedBundleNeverClaims : Prop :=
   ∀ (P : Params) (dec : List UInt8 → Bundle) (S : State), Reach deployed P init S →
     DecodesDispatchedBundles P dec S.log →
@@ -298,20 +326,23 @@ def Properties.ReencodedBundleNeverClaims : Prop :=
 /-- **THE COLLISION DISJUNCT IS NEEDED: A COLLISION LETS A CLAIM RECOVER UNDISPATCHED CALLS.** There
 is a run of the deployed code, with a colliding keccak and a decoder that inverts the encoder on the
 run's bundles, and bytes `x` such that:
-- `claimRefund(f, x)` finds its leg `Revertable`, so the claim succeeds;
+- `x` is the canonical encoding of the bundle it decodes to;
+- `claimRefund(f, x)` finds its leg `Revertable`, so the claim passes its state check;
 - `x` is not a dispatched bundle's (the headline's first disjunct fails), and the claim collision
   holds;
-- the calls `_recoverBundle` would make are those of no dispatch of the run;
+- the calls `_recoverBundle` would make are those of no dispatch of the run, so the decoded bundle
+  is no dispatch's;
 - one of the decoded calls carries native value. -/
 def Properties.CollisionLetsAClaimRecoverUndispatchedCalls : Prop :=
   ∃ (P : Params) (dec : List UInt8 → Bundle) (S : State) (f : Word) (x : List UInt8),
-    Reach deployed P init S ∧ DecodesDispatchedBundles P dec S.log ∧
+    Reach deployed P init S ∧ DecodesDispatchedBundles P dec S.log ∧ x = P.enc (dec x) ∧
     S.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
     ¬ ClaimRecoversDispatch P dec S.log f x ∧ ClaimHashCollision P dec S.log f x ∧
     (∀ d ∈ S.log, recoverBundleCalls (dec x) ≠ recoverBundleCalls d.bundle) ∧ ¬ Validated (dec x)
 
 /-- **THE ROUND-TRIP PREMISE IS NEEDED.** There is a run of the deployed code whose decoder does not
 invert the encoder on the run's bundles, and bytes `x` such that:
+- `x` is the canonical encoding of the bundle of an atomic dispatch of flow `f` in the log;
 - `claimRefund(f, x)` finds its leg `Revertable`;
 - neither disjunct of the headline holds, and in particular there is no claim collision;
 - the calls `_recoverBundle` would make are those of no dispatch of the run;
@@ -320,31 +351,37 @@ invert the encoder on the run's bundles, and bytes `x` such that:
 def Properties.WithoutRoundTripClaimRecoversUndispatchedCalls : Prop :=
   ∃ (P : Params) (dec : List UInt8 → Bundle) (S : State) (f : Word) (x : List UInt8),
     Reach deployed P init S ∧ ¬ DecodesDispatchedBundles P dec S.log ∧
+    (∃ d ∈ S.log, d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle) ∧
     S.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
     ¬ ClaimRecoversDispatch P dec S.log f x ∧ ¬ ClaimHashCollision P dec S.log f x ∧
     (∀ d ∈ S.log, recoverBundleCalls (dec x) ≠ recoverBundleCalls d.bundle) ∧ ¬ Validated (dec x)
 
-/-- **`onlyInteropCenter` IS NEEDED: WITHOUT IT, A CLAIM RECOVERS A BUNDLE NO ONE DISPATCHED.** With
-the honest witness keccak, there is a run of the code without `onlyInteropCenter` on `append`
-(AtomicFlowManager.sol:76-79) and bytes `x` such that:
+/-- **`onlyInteropCenter` IS NEEDED: WITHOUT IT, A CLAIM RECOVERS A BUNDLE NO ONE DISPATCHED.** There
+is a run of the code without `onlyInteropCenter` on `append` (AtomicFlowManager.sol:76-79) that
+dispatches nothing, and bytes `x` such that:
 - `x` is the canonical encoding of the bundle it decodes to;
-- `claimRefund(f, x)` finds its leg `Revertable`, although the run dispatched nothing;
+- `claimRefund(f, x)` finds its leg `Revertable`;
 - neither disjunct of the headline holds;
 - a decoded call carries native value. -/
 def Properties.WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls : Prop :=
   ∃ (P : Params) (dec : List UInt8 → Bundle) (S : State) (f : Word) (x : List UInt8),
-    Reach withoutOnlyInteropCenter P init S ∧ DecodesDispatchedBundles P dec S.log ∧
+    Reach withoutOnlyInteropCenter P init S ∧ S.log = [] ∧ DecodesDispatchedBundles P dec S.log ∧
     x = P.enc (dec x) ∧ S.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
     ¬ ClaimRecoversDispatch P dec S.log f x ∧ ¬ ClaimHashCollision P dec S.log f x ∧
     ¬ Validated (dec x)
 
-/-- **THE SALT CHECK IS NEEDED FOR AT-MOST-ONCE: WITHOUT IT, ONE BUNDLE IS RECOVERED TWICE.** With
-the honest witness keccak, there is a run of the code without the salt check
-(InteropCenter.sol:479-482) meeting every other premise of `EachBundleRecoveredAtMostOnce`. In
-it, one sender dispatches one bundle on two flows `f` and `f'`, and two successful claims with the
-same canonical bytes `x` recover that bundle twice. Every disjunct of the conclusion fails: the
-two recovered bundles are equal, neither claim is a claim collision, and no two dispatches of the
-run have the cross-sender salt clash. -/
+/-- **THE SALT CHECK IS NEEDED FOR AT-MOST-ONCE: WITHOUT IT, ONE BUNDLE IS RECOVERED TWICE.** There
+is a run of the code without the salt check (InteropCenter.sol:479-482) meeting every other premise
+of `EachBundleRecoveredAtMostOnce`, with both claims on the same bytes `x`, such that:
+- one sender dispatches one bundle atomically on two flows `f ≠ f'`, and `x` is its canonical
+  encoding;
+- the claim `claimRefund(f, x)` passes its state check, and after its write the claim
+  `claimRefund(f', x)` passes its state check too;
+- neither claim is a claim collision, and no two dispatches of the run have the cross-sender salt
+  clash.
+
+Every disjunct of the conclusion of `EachBundleRecoveredAtMostOnce` fails: the two recovered
+bundles are both `dec x`. -/
 def Properties.WithoutSaltCheckOneBundleRecoveredTwice : Prop :=
   ∃ (P : Params) (dec : List UInt8 → Bundle) (S₀ S₂ : State) (f f' : Word) (x : List UInt8),
     Reach withoutSaltCheck P init S₀ ∧
@@ -353,17 +390,25 @@ def Properties.WithoutSaltCheckOneBundleRecoveredTwice : Prop :=
       { S₀ with manager := S₀.manager.set f (claimRefundHash P dec x) .Reverted } S₂ ∧
     DecodesDispatchedBundles P dec S₂.log ∧
     S₂.manager.legState f' (claimRefundHash P dec x) = .Revertable ∧
+    f ≠ f' ∧
+    (∃ d ∈ S₂.log, ∃ d' ∈ S₂.log, d.sender = d'.sender ∧ d.bundle = d'.bundle ∧
+      d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ d'.isAtomic = true ∧
+      d'.atomicSend.flowId = f' ∧ x = P.enc d.bundle) ∧
     ¬ ClaimHashCollision P dec S₀.log f x ∧ ¬ ClaimHashCollision P dec S₂.log f' x ∧
     ¬ ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log, CrossSenderSaltClash P d d'
 
 /-- **THE SALT-CLASH DISJUNCT IS NEEDED: ONE BUNDLE RECOVERED TWICE.** Under a colliding keccak,
-there is a run of the deployed code meeting every premise of `EachBundleRecoveredAtMostOnce`, in
-which both claims use the same bytes `x`, on two flows `f` and `f'`:
-- the claim `claimRefund(f, x)` succeeds;
-- after it, the claim `claimRefund(f', x)` succeeds too;
-- neither claim is a claim collision.
+there is a run of the deployed code meeting every premise of `EachBundleRecoveredAtMostOnce`, with
+both claims on the same bytes `x`, on two flows `f ≠ f'`:
+- the claim `claimRefund(f, x)` passes its state check;
+- after its write, the claim `claimRefund(f', x)` passes its state check too;
+- neither claim is a claim collision;
+- the salt-clash disjunct holds: `x` is the canonical encoding of the one bundle that two dispatches
+  of the run carry, one atomic on `f` and one on `f'`, with the cross-sender salt clash between
+  them.
 
-So the same bundle's recovery calls run twice, and only the salt-clash disjunct can hold. -/
+So the same bundle's recovery calls run twice, and the salt-clash disjunct is the only one that
+holds. -/
 def Properties.SaltClashLetsOneBundleBeRecoveredTwice : Prop :=
   ∃ (P : Params) (dec : List UInt8 → Bundle) (S₀ S₂ : State) (f f' : Word) (x : List UInt8),
     Reach deployed P init S₀ ∧
@@ -372,14 +417,35 @@ def Properties.SaltClashLetsOneBundleBeRecoveredTwice : Prop :=
       { S₀ with manager := S₀.manager.set f (claimRefundHash P dec x) .Reverted } S₂ ∧
     DecodesDispatchedBundles P dec S₂.log ∧
     S₂.manager.legState f' (claimRefundHash P dec x) = .Revertable ∧
-    ¬ ClaimHashCollision P dec S₀.log f x ∧ ¬ ClaimHashCollision P dec S₂.log f' x
+    f ≠ f' ∧ ¬ ClaimHashCollision P dec S₀.log f x ∧ ¬ ClaimHashCollision P dec S₂.log f' x ∧
+    ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log,
+      d.isAtomic = true ∧ d.atomicSend.flowId = f ∧ x = P.enc d.bundle ∧
+      d'.isAtomic = true ∧ d'.atomicSend.flowId = f' ∧ x = P.enc d'.bundle ∧
+      d.bundle = d'.bundle ∧ CrossSenderSaltClash P d d'
+
+/-- **BOTH MATCHES OF `ClaimIdentifiesOneDispatch` ARE NEEDED.** There are two runs of the deployed
+code, each with two atomic dispatches at different log positions:
+- in the first, the two dispatches are of one flow, and their canonical bytes differ;
+- in the second, they have the same canonical bytes, and their flows differ. -/
+def Properties.ClaimIdentifiesOneDispatchNeedsBothMatches : Prop :=
+  (∃ (P : Params) (S : State), Reach deployed P init S ∧
+    ∃ (i j : ℕ) (hi : i < S.log.length) (hj : j < S.log.length), i ≠ j ∧
+      S.log[i].isAtomic = true ∧ S.log[j].isAtomic = true ∧
+      S.log[i].atomicSend.flowId = S.log[j].atomicSend.flowId ∧
+      P.enc S.log[i].bundle ≠ P.enc S.log[j].bundle) ∧
+  (∃ (P : Params) (S : State), Reach deployed P init S ∧
+    ∃ (i j : ℕ) (hi : i < S.log.length) (hj : j < S.log.length), i ≠ j ∧
+      S.log[i].isAtomic = true ∧ S.log[j].isAtomic = true ∧
+      S.log[i].atomicSend.flowId ≠ S.log[j].atomicSend.flowId ∧
+      P.enc S.log[i].bundle = P.enc S.log[j].bundle)
 
 /-! ## Non-vacuity -/
 
 /-- **THE HEADLINE'S PREMISES HOLD, AND ITS COLLISION IS FALSE.** On O1's honest run `wS3`, the
 following hold for `x`, the canonical bytes of `wD1`'s bundle:
 - the decoder `wDec` inverts the encoder on the run's bundles;
-- `claimRefund(7, x)` finds its leg `Revertable`, so not `Unset`, and the claim succeeds;
+- `claimRefund(7, x)` finds its leg `Revertable`, so not `Unset`, and the claim passes its state
+  check;
 - the witness keccak is injective on the claim's preimage and the run's bundle-hash preimages
   (the premise of `ClaimedBundleIsDispatchedOn`);
 - the claim recovers the dispatch `wD1`, and the claim collision is false;
@@ -396,6 +462,41 @@ def Properties.ClaimBindingWitness : Prop :=
     ClaimRecoversDispatch wParams wDec wS3.log 7 (wParams.enc wD1.bundle) ∧
     ¬ ClaimHashCollision wParams wDec wS3.log 7 (wParams.enc wD1.bundle) ∧
     recoverBundleCalls (wDec (wParams.enc wD1.bundle)) = [⟨5, 325, []⟩]
+
+/-- **THE BINDING WITHOUT THE VALUE CHECK.** The premises of
+`ClaimBindingIndependentOfSaltAndValueChecks` hold for a variant of the code other than `deployed`:
+there is a run of the code without `_validateAtomicBundle` (InteropCenter.sol:649), which keeps
+`onlyInteropCenter`, and bytes `x` such that:
+- the decoder inverts the encoder on the run's bundles;
+- `claimRefund(f, x)` finds its leg `Revertable`;
+- the claim recovers a dispatch of the run (the headline's first disjunct), and the claim
+  collision is false;
+- the recovered bundle carries native value, so O1's `Validated` conclusion fails on this run
+  while the binding holds. -/
+def Properties.ClaimBindingWithoutValueCheckWitness : Prop :=
+  ∃ (P : Params) (dec : List UInt8 → Bundle) (S : State) (f : Word) (x : List UInt8),
+    withoutValueCheck.onlyInteropCenter = true ∧
+    Reach withoutValueCheck P init S ∧ DecodesDispatchedBundles P dec S.log ∧
+    S.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
+    ClaimRecoversDispatch P dec S.log f x ∧ ¬ ClaimHashCollision P dec S.log f x ∧
+    ¬ Validated (dec x)
+
+/-- **THE BINDING WITHOUT THE SALT CHECK.** The premises of
+`ClaimBindingIndependentOfSaltAndValueChecks` hold for the code without the salt check
+(InteropCenter.sol:479-482), which keeps `onlyInteropCenter`, on a run in which one sender has
+dispatched one bundle atomically on two different flows. There are bytes `x` such that:
+- the decoder inverts the encoder on the run's bundles;
+- `claimRefund(f, x)` finds its leg `Revertable`;
+- the claim recovers a dispatch of the run (the headline's first disjunct), and the claim
+  collision is false. -/
+def Properties.ClaimBindingWithoutSaltCheckWitness : Prop :=
+  ∃ (P : Params) (dec : List UInt8 → Bundle) (S : State) (f : Word) (x : List UInt8),
+    withoutSaltCheck.onlyInteropCenter = true ∧
+    Reach withoutSaltCheck P init S ∧ DecodesDispatchedBundles P dec S.log ∧
+    (∃ d ∈ S.log, ∃ d' ∈ S.log, d.sender = d'.sender ∧ d.bundle = d'.bundle ∧
+      d.isAtomic = true ∧ d'.isAtomic = true ∧ d.atomicSend.flowId ≠ d'.atomicSend.flowId) ∧
+    S.manager.legState f (claimRefundHash P dec x) = .Revertable ∧
+    ClaimRecoversDispatch P dec S.log f x ∧ ¬ ClaimHashCollision P dec S.log f x
 
 /-- **THE NEGATIVE LIVENESS PREMISES HOLD, ON A RE-ENCODING WITH A TRAILING BYTE.** On the honest
 run `wS3`, take the bytes `x`: the canonical bytes of `wD1`'s bundle followed by one zero byte.

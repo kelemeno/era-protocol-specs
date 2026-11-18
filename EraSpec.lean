@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- What `claimRefund` recovers: a claimed bundle is a dispatched bundle (InteropCenter, on O1's model)
+import EraSpec.Contracts.InteropCenter.Proofs.ClaimBinding
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

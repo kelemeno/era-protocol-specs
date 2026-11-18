@@ -74,11 +74,39 @@ caller's choice: all that ties them to a dispatch is that their hash must find a
   for every total `dec`. A result that needs the decoder to invert the encoder says so, on the
   run's own bundles only (`DecodesDispatchedBundles`, a `SOL-ABI` premise).
 * **Which calls, not their outcomes.** `recoverBundleCalls` lists the external calls
-  `_recoverBundle` makes. Whether each returns `true`, returns `false` or reverts is the subject of
-  `AttackVectors.RecoveryLimits` and `Contracts.AssetRouter.AtomicRecovery`.
-* **Collisions are pinned.** The only collision a conclusion allows is `ClaimHashCollision`: keccak
-  equal on two named, different preimages, namely the bytes this claim hashed and the bytes the
-  center hashed for a logged atomic dispatch of the same flow.
+  `_recoverBundle` makes when each of them returns. A call that reverts reverts the whole claim,
+  and so does :229 when no call returns `true`; whether each returns `true`, returns `false` or
+  reverts is the subject of `AttackVectors.RecoveryLimits` and
+  `Contracts.AssetRouter.AtomicRecovery`.
+* **The constant `version` fields.** O1's `Bundle` and `InteropCall` omit them, and `Params.enc`
+  writes the constants. Bytes that carry another `version`, or any other encoding the decoder
+  accepts, may decode to a dispatched bundle without being its canonical bytes; the results
+  treat them as non-canonical bytes (`NonCanonicalBytesNeverClaim`, `ReencodedBundleNeverClaims`).
+* **Collisions are pinned.** Every collision a conclusion allows names its preimages. The claim
+  results allow `ClaimHashCollision`: keccak equal on two different preimages, the bytes this claim
+  hashed and the bytes the center hashed for a logged atomic dispatch of the same flow. The
+  at-most-once result also allows O1's `CrossSenderSaltClash` between two logged dispatches.
+
+## At the current heads
+
+This topic, like O1, is pinned at `c67894b9`. At draft/v0.35.0 `b17415d20` and main `70096e2ea`
+the code it models differs:
+
+* `encodeInteropBundleHash` takes only the bytes and returns `keccak256(_bundle)`
+  (`InteropDataEncoding.sol:14-16` at both heads). The center hashes `abi.encode(_bundle)`
+  (`_hashBundle`, `InteropCenter.sol:690-692` at `b17415d20`, :689-691 at `70096e2ea`), and
+  `claimRefund` hashes the bytes it is given (`AtomicFlowManager.sol:252` at `b17415d20`, :249 at
+  `70096e2ea`). No source chain is mixed in beside the bytes (the bundle carries its own
+  `sourceChainId` field), so `claimPreimage`, which prefixes the decoded source chain, has no
+  counterpart there.
+* `_recoverBundle(bundle)` (`AtomicFlowManager.sol:292-325` at `b17415d20`, :289-322 at
+  `70096e2ea`) requires `destinationChainId != L1_CHAIN_ID`; calls `recoverAtomicCall` on
+  `c.from`, and only when `c.from == L2_ASSET_ROUTER_ADDR`; calls the asset router's
+  `bridgehubRecoverBaseToken` for every other call with nonzero `value`; and no longer reverts when
+  nothing was recovered. `recoverBundleCalls` describes the pin only.
+* `append` takes the flow's preimage and checks the committing leg against it
+  (`AtomicFlowManager.sol:104-173` at `b17415d20`, :103-172 at `70096e2ea`), which O1's
+  `Step.send` does not model.
 -/
 
 namespace Contracts.InteropCenter
@@ -100,8 +128,9 @@ structure ClaimRecoveryCall where
   data : List UInt8
 deriving DecidableEq
 
-/-- The external calls `_recoverBundle(_, _, b)` makes, in order (:220-228). It reads nothing else
-of the bundle: not the calls' `from` or `value`, not the salts, not the attributes. -/
+/-- The external calls `_recoverBundle(_, _, b)` makes, in order, when each of them returns
+(:220-228); a call that reverts ends the loop and reverts the claim. It reads nothing else of the
+bundle: not the calls' `from` or `value`, not the salts, not the attributes. -/
 def recoverBundleCalls (b : Bundle) : List ClaimRecoveryCall :=
   b.calls.map fun c => ⟨c.target, b.destinationChainId, c.data⟩
 
