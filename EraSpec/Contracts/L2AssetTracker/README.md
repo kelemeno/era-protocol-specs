@@ -28,30 +28,43 @@ can be switched off (`Guards`) for the countermodels; `Guards.v35` is the source
 - **L1 destinations.** At v35 every recovery entry point rejects an L1 destination
   (`RecoveryToL1RevertsAtV35`). Each of the four L1 checks (flow manager, router, the vault's and the
   holder's calls of the tracker check) rejects every recovery that reaches it on its own
-  (`EachL1CheckSufficesOnItsPath`, `L1RecoveryRejectionWitness`). With no checks, an L1 withdrawal
-  made while settling on L1 is refunded, still counted in `totalWithdrawalsToL1`, and the refund is
-  also counted in `totalSuccessfulDepositsFromL1` (`L1ChecksLoadBearing`).
+  (`EachL1CheckSufficesOnItsPath`, `L1RecoveryRejectionWitness`). With the four checks removed, a run
+  that bridges out toward L1 while settling on L1 and then claims a bundle toward L1 recovering the
+  same amount succeeds: `totalWithdrawalsToL1` still counts the bridge-out and the recovery is also
+  counted in `totalSuccessfulDepositsFromL1` (`L1ChecksLoadBearing`). The model lets a claim name any
+  bundle; in the source the interop center never appends a bundle toward L1 (`IC:552-553`,
+  `:733-742`), a further check outside the model, so this countermodel is about the recovery-side
+  checks alone.
 - **Round trip.** A bridge-out of `x` of `a` toward `d`, any run of steps not on `a`, and recoveries
   of `a` totalling `x`: `a`'s tracker entries end as its first-touch registration left them, and the
   holder's balance is restored for the base asset (`BurnThenRecoveriesRestoreAsset`,
   `InteropValueBurnThenRecoveriesRestoreBase`). The recoveries succeed when the destination is not L1
   and the base asset is not recorded as native here (`RecoveriesAfterBurnSucceed`), and a claim is
-  exactly those vault recoveries (`ClaimRefundIsVaultRecoveries`).
+  exactly those vault recoveries (`ClaimRefundIsVaultRecoveries`, `BurnThenClaimRestores`). Other
+  steps may also fall between the recoveries (`BurnThenInterleavedRecoveriesRestoreAsset`).
+- **Balanced flows.** For an asset the tracker has registered and the vault has a token for (with the
+  vault as its handler when a router call names it, and for the base asset a non-native origin): in
+  a nested run, where other steps and other claims' calls may fall between the calls of a claim,
+  whose steps on the asset are bridge-outs toward chains other than L1 and calls of claims, with
+  equal bridged-out and recovered totals, the asset's view ends as it started, in any order and with
+  any number of bridge-outs and claims (`BalancedFlowsRestoreAsset`, `BalancedFlowsWitness`).
 - **One recovery.** It never writes `interopInfo`; for an asset other than the base asset it adds
   exactly the amount to `chainBalance[block.chainid][a]` if native here; for the base asset it writes
   no tracker entry and needs the base asset to be recorded as not native here
   (`VaultRecoveryEffectAtV35`, `ClaimRefundNeverWritesInteropInfo`).
 - **Ledger.** `totalWithdrawalsToL1[a]` grows by exactly the logged bridge-outs of `a` toward L1 made
   while settling on L1, under any checks; with the flow manager's check no recovery has an L1
-  destination (`WithdrawalsToL1Ledger`).
+  destination (`WithdrawalsToL1Ledger`). The same holds for nested runs, and every run is one
+  (`WithdrawalsToL1LedgerNested`, `NestedLedgerWitness`).
 - **Boundary.** A native re-credit succeeds exactly when it fits in a word (`RecoveryCreditFitsIff`):
   an inbound transfer between a bridge-out and its claim can make the whole claim revert
   (`InflowBeforeRecoveryBlocksClaim`). Without the base-token origin checks, a base token recorded as
-  native here is refunded from the holder while its chain balance stays lowered
-  (`BaseOriginCheckLoadBearing`).
+  native here (which the source's comments say does not occur) is refunded from the holder while its
+  chain balance stays lowered (`BaseOriginCheckLoadBearing`).
 
 Model boundary: `MODEL-RECOVERY-NEUTRALITY` in `../../../ASSUMPTIONS.md`. Token contracts, the release
-of funds and its possible revert, code reached through foreign handlers, and the leg state of
-`claimRefund` are not modelled; the router's burn-side handler dispatch is not modelled (bridge-outs
-are taken at the vault); the copies of `L1_CHAIN_ID` and `BASE_TOKEN_ASSET_ID` are one value each.
-This folder does not certify the compiled contracts.
+of funds and its possible revert, code reached through foreign handlers, the leg state of
+`claimRefund` and which bundles were sent are not modelled (a claim may name any bundle); the router's
+burn-side handler dispatch is not modelled (bridge-outs are taken at the vault); the copies of
+`L1_CHAIN_ID` and `BASE_TOKEN_ASSET_ID` are one value each. This topic's model is self-contained: it
+does not reuse another topic's tracker model. This folder does not certify the compiled contracts.

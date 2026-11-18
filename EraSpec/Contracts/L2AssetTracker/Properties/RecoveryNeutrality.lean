@@ -26,9 +26,12 @@ handler for `a`, and, when `a` is the base asset, the holder's balance.
   base-token recovery.  `L1RecoveryRejectionWitness` exhibits a valued bundle call whose recovery
   passes all four checks, so that each single-check configuration rejects it toward L1, while it
   succeeds toward another chain, and with no checks at all toward L1.
-* `L1ChecksLoadBearing` (countermodel): with every check removed, a bridge-out toward L1 made while
-  settling on L1 is refunded on L2.  `totalWithdrawalsToL1` keeps counting it, and the refund also
-  raises `totalSuccessfulDepositsFromL1`.
+* `L1ChecksLoadBearing` (countermodel): with the four checks removed, a model run bridges `x` out
+  toward L1 while settling on L1 and then claims a bundle toward L1 that recovers `x`; the claim
+  succeeds, `totalWithdrawalsToL1` keeps counting the bridge-out, and the recovery raises
+  `totalSuccessfulDepositsFromL1`.  The model lets a claim name any bundle; the source's interop
+  center never appends a bundle toward L1 (`IC:552-553`, `:733-742`), which the model leaves out, so
+  this run shows what the recovery-side checks do on their own.
 
 ## (ii) A bridge-out followed by its recovery
 
@@ -49,6 +52,11 @@ handler for `a`, and, when `a` is the base asset, the holder's balance.
 * `BurnThenInterleavedRecoveriesRestoreAsset`: the same restoration of the asset when the recoveries
   are interleaved in any order with operations not on the asset, as when a refund's release runs code
   between the calls of a claim (`InterleavedRecoveryWitness`).
+* `BalancedFlowsRestoreAsset`: the general form for an asset the tracker has already registered.  In
+  a nested run (other steps, and the calls of other claims, may fall between the calls of a claim)
+  whose steps on the asset are bridge-outs toward chains other than L1 and calls of claims, with
+  bridged-out and recovered totals equal, the asset's view ends as it started, whatever the order
+  and however many bridge-outs and claims there are (`BalancedFlowsWitness`).
 * `StepNotOnAssetLeavesItAlone`: a step that is not on asset `a` leaves the asset view at `a`
   unchanged (any checks).
 * Witnesses: `RecoveryRoundTripWitness`, `BaseRecoveryRoundTripWitness`, `StepNotOnAssetWitness`.
@@ -59,7 +67,8 @@ handler for `a`, and, when `a` is the base asset, the holder's balance.
   `interopInfo` unchanged, and: for the base asset, writes no tracker entry at all, needs the vault to
   record the base asset as not native here, and lowers the holder's balance by the amount; for any
   other asset, makes the first-touch registration and then adds exactly the amount to
-  `chainBalance[block.chainid][a]` if the vault records `a` as native here, and nothing else.
+  `chainBalance[block.chainid][a]` if the vault records `a` as native here, writes no other tracker
+  entry, and changes `a`'s registry entries only when it deploys a bridged token for `a`.
 * `ClaimRefundNeverWritesInteropInfo`: a successful v35 `claimRefund` has a destination other than L1,
   leaves `interopInfo` unchanged, never lowers a chain balance, changes none on another chain, and
   never raises the holder's balance.  `RecoveryEffectWitness` makes both effects nonzero.
@@ -69,8 +78,12 @@ handler for `a`, and, when `a` is the base asset, the holder's balance.
 * `WithdrawalsToL1Ledger`: along any run, under any checks, `totalWithdrawalsToL1[a]` grows by exactly
   the amounts of the logged bridge-outs of `a` toward L1 made while the chain settled on L1; with the
   flow manager's check (so at v35), no logged recovery has L1 as its destination.  So the counter
-  never decreases, and none of the bridge-outs it counts is refunded on L2.
-  `WithdrawalsLedgerWitness` is a run with counted and uncounted bridge-outs and a recovery.
+  never decreases, and no recovery names L1 as the original destination, as a refund of a bridge-out
+  the counter counts would have to.  `WithdrawalsLedgerWitness` is a run with counted and uncounted
+  bridge-outs and a recovery.
+* `WithdrawalsToL1LedgerNested`: the same ledger for nested runs, in which other steps fall between
+  the calls of a claim, as a release inside the claim can make them; every run is a nested run.
+  `NestedLedgerWitness` has a counted bridge-out between the two calls of one claim.
 
 ## Boundary: the checked re-credit (`TRK:220`)
 
@@ -78,16 +91,18 @@ handler for `a`, and, when `a` is the base asset, the holder's balance.
   native here, a v35 recovery toward a non-L1 chain succeeds (as modelled) exactly when
   `chainBalance + amount` fits in a word.  For the base asset it succeeds exactly when the amount is
   zero or the holder can pay, if the vault records it as not native here, and never if native here.
-* `InflowBeforeRecoveryBlocksClaim`: a bridge-out, then an inbound transfer of the same amount of the
-  same native asset, then the claim of the bridge-out: the claim reverts as a whole.  Without the
-  inbound transfer the same claim succeeds and restores the chain balance.
+* `InflowBeforeRecoveryBlocksClaim`: for an asset native here whose chain balance is
+  `MAX_TOKEN_BALANCE`, a bridge-out, then an inbound transfer of the same amount of it, then the claim
+  of the bridge-out: the claim reverts as a whole.  Without the inbound transfer the same claim
+  succeeds and restores the chain balance.
 
 ## The base-token origin check (`TRK:182-184`)
 
-* `BaseOriginCheckLoadBearing` (countermodel): with the base asset recorded as native here, the vault's
-  bridge-out of it lowers its chain balance and leaves the holder alone.  With both origin checks
-  removed, its recovery succeeds, pays out of the holder, and leaves the chain balance lowered.  With
-  the v35 checks the same recovery reverts.
+* `BaseOriginCheckLoadBearing` (countermodel): with the base asset recorded as native here (a
+  configuration the source's comments say does not occur, `TRK:180-181`), the vault's bridge-out of it
+  lowers its chain balance and leaves the holder alone.  With both origin checks removed, its
+  recovery succeeds, pays out of the holder, and leaves the chain balance lowered.  With the v35
+  checks the same recovery reverts.
 -/
 
 namespace Contracts.L2AssetTracker.RecoveryNeutrality
@@ -153,12 +168,14 @@ def Properties.L1RecoveryRejectionWitness : Prop :=
     (∃ s, exec cfg Guards.v35 sys (.claimRefund reads ⟨d, cfg.base, [c]⟩) = some s ∧
       s.holder < sys.holder)
 
-/-- **COUNTERMODEL: WITHOUT THE CHECKS, AN L1 WITHDRAWAL IS REFUNDED ON L2.**  With every check removed,
-a run (from a state where both of asset `a`'s counters are zero) whose log has a bridge-out of `x ≠ 0`
-of `a` toward L1 made while settling on L1 and a recovery of `x` of `a` toward L1.  At its end
-`totalWithdrawalsToL1[a]` is `x` (it still counts the refunded bridge-out) and
-`totalSuccessfulDepositsFromL1[a]` is also `x` (the refund is counted as a deposit from L1).  With the
-v35 checks the same operations revert. -/
+/-- **COUNTERMODEL: WITHOUT THE RECOVERY CHECKS, A RECOVERY TOWARD L1 GOES THROUGH.**  With the four
+recovery checks removed (`Guards.none`), a run (from a state where both of asset `a`'s counters are
+zero) whose log has a bridge-out of `x ≠ 0` of `a` toward L1 made while settling on L1 and a recovery
+of `x` of `a` whose original destination is L1.  At its end `totalWithdrawalsToL1[a]` is `x` (it
+still counts the bridge-out) and `totalSuccessfulDepositsFromL1[a]` is also `x` (the recovery is
+counted as a deposit from L1).  With the v35 checks the same operations revert.  The run's claim
+names a bundle toward L1, which the model admits and the source's interop center never appends (see
+the specification's header): the statement is about the recovery-side checks alone. -/
 def Properties.L1ChecksLoadBearing : Prop :=
   ∃ (cfg : Config) (sys₀ sys : Sys) (ops : List Op) (a : AssetId) (x : UInt256),
     x ≠ 0 ∧ (sys₀.trk.interopInfo a) = ⟨0, 0⟩ ∧
@@ -352,6 +369,67 @@ def Properties.InterleavedRecoveryWitness : Prop :=
     ((scheduleRecoveries sched').map fun m => m.amount.val).sum = v.val ∧
     runSchedule cfg Guards.v35 reads d cfg.base s₁ sched' = some s₃ ∧ s₃.holder = sys₀.holder
 
+/-- **BALANCED FLOWS LEAVE A REGISTERED ASSET AS IT WAS ((ii), general form).**  At v35, a nested run
+(`runNested`) from `sys₀` to `sys` in which:
+* every step on asset `a` (`NestedItem.Touches`) is a bridge-out of `a` toward a chain other than L1
+  (the vault's, or for the base asset the interop center's value burn) or a call of a claim;
+* the bridged-out total of `a` equals the total that the calls ask the vault to recover
+  (`NestedItem.burnedOf`, `NestedItem.recoveredOf`);
+* if some call is a router call naming `a`, the router's handler for `a` on `sys₀` is the vault.
+Premises on `sys₀`: the tracker has registered `a`, the vault has a nonzero token address for `a`,
+and if `a` is the base asset the vault does not record it as native here.  Then the asset view at `a`
+on `sys` is the one on `sys₀` (`Sys.AgreeAt`): every tracker entry of `a`, its registry and handler
+entries, and for the base asset the holder's balance.  Bridge-outs, calls of any number of claims
+(of bundles that may also name other assets), and other steps may come in any order. -/
+def Properties.BalancedFlowsRestoreAsset : Prop :=
+  ∀ (cfg : Config) (sys₀ sys : Sys) (items : List NestedItem) (a : AssetId),
+    runNested cfg Guards.v35 sys₀ items = some sys →
+    sys₀.trk.isAssetRegistered a = true → sys₀.token a ≠ 0 →
+    (a = cfg.base → sys₀.origin a ≠ cfg.thisChain) →
+    (∀ it ∈ items, it.Touches cfg a → it.IsFlowOf cfg a) →
+    (∀ it ∈ items, it.IsRouterCallOn cfg a → sys₀.handler a = cfg.ntv) →
+    (items.map (NestedItem.burnedOf cfg a)).sum = (items.map (NestedItem.recoveredOf cfg a)).sum →
+    sys.AgreeAt cfg sys₀ a
+
+/-- **BALANCED FLOWS, NONTRIVIALLY.**  (1) An asset `a` other than the base asset, native here and
+registered, with a token and with the vault as its handler, and a v35 nested run from that state
+that succeeds and contains the vault's bridge-outs of `x₁ ≠ 0` and `x₂ ≠ 0` of `a` toward two
+different chains other than L1, a router call naming `a`, and a step on another asset `b`.  Its steps
+on `a` are bridge-outs toward chains other than L1 or calls of claims, and its bridged-out and
+recovered totals of `a` are both `x₁ + x₂`.  A prefix of it moves `a`'s chain balance here off its
+start value.  (2) The base asset, registered, with a token and recorded as not native here, and a
+v35 nested run from that state that succeeds and contains the interop center's value burn of
+`v₁ ≠ 0`, the vault's bridge-out of `v₂ ≠ 0` of the base asset, and a settlement-layer change, and
+no router call naming the base asset.  Its steps on the base asset are bridge-outs toward chains
+other than L1 or calls of claims, and its bridged-out and recovered totals are both `v₁ + v₂`.  A
+prefix of it moves the holder's balance off its start value. -/
+def Properties.BalancedFlowsWitness : Prop :=
+  ∃ (cfg : Config) (sys₀ sys s₀ s : Sys) (items items' pre pre' : List NestedItem) (a b : AssetId)
+    (d₁ d₂ e₁ e₂ c : ChainId) (x₁ x₂ v₁ v₂ : UInt256) (r₁ r₂ r₃ r₄ : TokenReads),
+    a ≠ cfg.base ∧ b ≠ a ∧ d₁ ≠ d₂ ∧ d₁ ≠ cfg.l1 ∧ d₂ ≠ cfg.l1 ∧
+    x₁ ≠ 0 ∧ x₂ ≠ 0 ∧ v₁ ≠ 0 ∧ v₂ ≠ 0 ∧
+    sys₀.origin a = cfg.thisChain ∧ sys₀.trk.isAssetRegistered a = true ∧ sys₀.token a ≠ 0 ∧
+    sys₀.handler a = cfg.ntv ∧
+    runNested cfg Guards.v35 sys₀ items = some sys ∧
+    NestedItem.op (.vaultBurn r₁ d₁ a x₁) ∈ items ∧ NestedItem.op (.vaultBurn r₂ d₂ a x₂) ∈ items ∧
+    (∃ it ∈ items, it.IsRouterCallOn cfg a) ∧ (∃ it ∈ items, it.Touches cfg b) ∧
+    (∀ it ∈ items, it.Touches cfg a → it.IsFlowOf cfg a) ∧
+    (items.map (NestedItem.burnedOf cfg a)).sum = x₁.val + x₂.val ∧
+    (items.map (NestedItem.recoveredOf cfg a)).sum = x₁.val + x₂.val ∧
+    pre <+: items ∧ (∃ sp, runNested cfg Guards.v35 sys₀ pre = some sp ∧
+      sp.trk.chainBalance cfg.thisChain a ≠ sys₀.trk.chainBalance cfg.thisChain a) ∧
+    s₀.origin cfg.base ≠ cfg.thisChain ∧ s₀.trk.isAssetRegistered cfg.base = true ∧
+    s₀.token cfg.base ≠ 0 ∧
+    runNested cfg Guards.v35 s₀ items' = some s ∧
+    NestedItem.op (.icBurnBase r₃ e₁ v₁) ∈ items' ∧
+    NestedItem.op (.vaultBurn r₄ e₂ cfg.base v₂) ∈ items' ∧
+    NestedItem.op (.setSettlementLayer c) ∈ items' ∧
+    (∀ it ∈ items', ¬ it.IsRouterCallOn cfg cfg.base) ∧
+    (∀ it ∈ items', it.Touches cfg cfg.base → it.IsFlowOf cfg cfg.base) ∧
+    (items'.map (NestedItem.burnedOf cfg cfg.base)).sum = v₁.val + v₂.val ∧
+    (items'.map (NestedItem.recoveredOf cfg cfg.base)).sum = v₁.val + v₂.val ∧
+    pre' <+: items' ∧ (∃ sp, runNested cfg Guards.v35 s₀ pre' = some sp ∧ sp.holder ≠ s₀.holder)
+
 /-- **THE ROUND-TRIP PREMISES, NONTRIVIALLY.**  An asset `a` other than the base asset, native here and
 not yet registered, and a nonempty run `mid` of steps none of which is on `a` (one of them changes
 another asset's chain balance).  The vault's bridge-out of `x ≠ 0` of `a` toward `d ≠ L1` succeeds;
@@ -492,6 +570,43 @@ def Properties.WithdrawalsLedgerWitness : Prop :=
     Event.burned a d x₃ cfg.l1 ∈ sys.log ∧ Event.recovered a d x₃ ∈ sys.log ∧
     (sys.trk.interopInfo a).totalWithdrawalsToL1 = x₁
 
+/-- **THE LEDGER WITH STEPS BETWEEN THE CALLS OF A CLAIM.**  `WithdrawalsToL1Ledger` for nested runs
+(`runNested`), in which other operations, and the calls of other claims, may fall between the calls
+of a claim: along any nested run under any checks, the log grows by some events `new`, and for every
+asset `a`, `totalWithdrawalsToL1[a]` grows by exactly `l1BurnTotal cfg a new` and so never decreases;
+if the flow manager's check is present, no `recovered` event in `new` has L1 as its destination.  And
+every run is a nested run with the same result, each claim taken as its calls in order
+(`NestedItem.ofOp`). -/
+def Properties.WithdrawalsToL1LedgerNested : Prop :=
+  (∀ (cfg : Config) (g : Guards) (sys₀ sys : Sys) (items : List NestedItem),
+    runNested cfg g sys₀ items = some sys →
+    ∃ new, sys.log = sys₀.log ++ new ∧
+      (∀ a, (sys.trk.interopInfo a).totalWithdrawalsToL1.val =
+        (sys₀.trk.interopInfo a).totalWithdrawalsToL1.val + l1BurnTotal cfg a new) ∧
+      (∀ a, (sys₀.trk.interopInfo a).totalWithdrawalsToL1.val ≤
+        (sys.trk.interopInfo a).totalWithdrawalsToL1.val) ∧
+      (g.managerL1 = true → ∀ A d x, Event.recovered A d x ∈ new → d ≠ cfg.l1)) ∧
+  (∀ (cfg : Config) (g : Guards) (sys₀ sys : Sys) (ops : List Op),
+    run cfg g sys₀ ops = some sys → runNested cfg g sys₀ (ops.flatMap NestedItem.ofOp) = some sys)
+
+/-- **THE NESTED LEDGER, NONTRIVIALLY.**  A v35 nested run, from a state settling on L1 where
+`totalWithdrawalsToL1[a]` is zero: a bridge-out of `x ≠ 0` of `a` toward `d ≠ L1`; the first call of
+a claim of a two-call bundle toward `d`; a bridge-out of `y ≠ 0` of `a` toward L1 (counted); the
+bundle's second call.  The two calls recover nonzero amounts of `a` totalling `x`.  The nested run
+succeeds, its log is exactly these four events in this order, and `totalWithdrawalsToL1[a]` ends at
+`y`. -/
+def Properties.NestedLedgerWitness : Prop :=
+  ∃ (cfg : Config) (sys₀ sys : Sys) (reads₀ : TokenReads) (reads : AssetId → TokenReads)
+    (d : ChainId) (a : AssetId) (x y x₁ x₂ : UInt256) (c₁ c₂ : Call),
+    x ≠ 0 ∧ y ≠ 0 ∧ x₁ ≠ 0 ∧ x₂ ≠ 0 ∧ x₁.val + x₂.val = x.val ∧ d ≠ cfg.l1 ∧
+    sys₀.sl = cfg.l1 ∧ (sys₀.trk.interopInfo a).totalWithdrawalsToL1 = 0 ∧
+    runNested cfg Guards.v35 sys₀
+      [.op (.vaultBurn reads₀ d a x), .call reads ⟨d, cfg.base, [c₁, c₂]⟩ c₁,
+        .op (.vaultBurn reads₀ cfg.l1 a y), .call reads ⟨d, cfg.base, [c₁, c₂]⟩ c₂] = some sys ∧
+    sys.log = sys₀.log ++
+      [.burned a d x cfg.l1, .recovered a d x₁, .burned a cfg.l1 y cfg.l1, .recovered a d x₂] ∧
+    (sys.trk.interopInfo a).totalWithdrawalsToL1 = y
+
 /-! ## Boundary: the checked re-credit -/
 
 /-- **WHEN A RECOVERY SUCCEEDS AT V35 (AS MODELLED).**  For a destination other than L1, with the release
@@ -540,7 +655,9 @@ asset recorded as native here and registered with chain balance `MAX_TOKEN_BALAN
 bridge-out of `x ≠ 0` of it toward `d ≠ L1` lowers its chain balance by `x` and leaves the holder's
 balance alone (the native branch, `NTV:442-445`).  With the vault's and the holder's origin checks
 removed (all L1 checks kept) its recovery succeeds: the holder pays `x`, and the chain balance stays
-lowered by `x`.  With the v35 checks the same recovery reverts. -/
+lowered by `x`.  With the v35 checks the same recovery reverts.  The source's comments say the base
+token never originates on this chain (`TRK:180-181`, `NTV:443`); the model's registry can record it so
+(`vaultUpdateBase` writes any origin), and this is the configuration the origin checks reject. -/
 def Properties.BaseOriginCheckLoadBearing : Prop :=
   ∃ (cfg : Config) (sys₀ sys₁ sys₂ : Sys) (reads₀ : TokenReads) (reads : AssetId → TokenReads)
     (d : ChainId) (x : UInt256) (md : MintData),

@@ -1045,6 +1045,104 @@ theorem run_W {cfg : Config} {g : Guards} :
       · exact hr₁ A d x hx
       · exact hr₂ A d x hx
 
+/-! ## The withdrawal counter along nested runs -/
+
+/-- One call of a bundle's loop logs only recoveries toward the bundle's destination and leaves
+`totalWithdrawalsToL1` alone. -/
+theorem recoverCall_W {cfg : Config} {g : Guards} {reads : AssetId → TokenReads} {d : ChainId}
+    {destBase : AssetId} {sys s' : Sys} {c : Call}
+    (h : recoverCall cfg g reads d destBase sys c = some s') :
+    ∃ new, s'.log = sys.log ++ new ∧ (∀ e ∈ new, ∃ A x, e = .recovered A d x) ∧
+      ∀ b, (s'.trk.interopInfo b).totalWithdrawalsToL1 =
+        (sys.trk.interopInfo b).totalWithdrawalsToL1 := by
+  have h' : recoverCalls cfg g reads d destBase sys [c] = some s' := by simp [recoverCalls, h]
+  exact recoverCalls_W [c] sys s' h'
+
+/-- One item of a nested run: as `exec_W`, for an operation or for one call of a claim. -/
+theorem execNested_W {cfg : Config} {g : Guards} {sys s' : Sys} {it : NestedItem}
+    (h : execNested cfg g sys it = some s') :
+    ∃ new, s'.log = sys.log ++ new ∧
+      (∀ a, (s'.trk.interopInfo a).totalWithdrawalsToL1.val =
+        (sys.trk.interopInfo a).totalWithdrawalsToL1.val + l1BurnTotal cfg a new) ∧
+      (∀ A d x, Event.recovered A d x ∈ new → ¬ (g.managerL1 = true ∧ d = cfg.l1)) := by
+  cases it with
+  | op op => exact exec_W h
+  | call reads bd c =>
+    simp only [execNested] at h
+    split_ifs at h with hm
+    obtain ⟨new, hl, he, hW⟩ := recoverCall_W h
+    refine ⟨new, hl, fun b => by rw [hW b, l1BurnTotal_of_recovered cfg b new
+      (fun e he' => by obtain ⟨A, x, rfl⟩ := he e he'; exact ⟨A, bd.dest, x, rfl⟩)]; rfl, ?_⟩
+    intro A d x hx
+    obtain ⟨A', x', he'⟩ := he _ hx
+    cases he'
+    exact hm
+
+/-- **(iv), along any nested run.** -/
+theorem runNested_W {cfg : Config} {g : Guards} :
+    ∀ (items : List NestedItem) (sys s' : Sys), runNested cfg g sys items = some s' →
+      ∃ new, s'.log = sys.log ++ new ∧
+        (∀ a, (s'.trk.interopInfo a).totalWithdrawalsToL1.val =
+          (sys.trk.interopInfo a).totalWithdrawalsToL1.val + l1BurnTotal cfg a new) ∧
+        (∀ A d x, Event.recovered A d x ∈ new → ¬ (g.managerL1 = true ∧ d = cfg.l1))
+  | [], sys, s', h => by
+    cases h; exact ⟨[], by simp, fun a => by simp [l1BurnTotal], by simp⟩
+  | it :: items, sys, s', h => by
+    unfold runNested at h
+    simp only [Option.bind_eq_some_iff] at h
+    obtain ⟨s, hs, hrest⟩ := h
+    obtain ⟨n₁, hl₁, hW₁, hr₁⟩ := execNested_W hs
+    obtain ⟨n₂, hl₂, hW₂, hr₂⟩ := runNested_W items s s' hrest
+    refine ⟨n₁ ++ n₂, by rw [hl₂, hl₁, List.append_assoc], fun a => ?_, ?_⟩
+    · rw [hW₂ a, hW₁ a, l1BurnTotal_append]; omega
+    · intro A d x hx
+      rcases List.mem_append.mp hx with hx | hx
+      · exact hr₁ A d x hx
+      · exact hr₂ A d x hx
+
+theorem runNested_append {cfg : Config} {g : Guards} :
+    ∀ (l₁ l₂ : List NestedItem) (sys : Sys),
+      runNested cfg g sys (l₁ ++ l₂) = (runNested cfg g sys l₁).bind fun s => runNested cfg g s l₂
+  | [], l₂, sys => by simp [runNested]
+  | it :: l₁, l₂, sys => by
+    simp only [List.cons_append, runNested]
+    rcases execNested cfg g sys it with _ | s
+    · rfl
+    · exact runNested_append l₁ l₂ s
+
+/-- A claim's calls as nested items run as the claim's loop, once the flow manager's check passes. -/
+theorem runNested_calls {cfg : Config} {g : Guards} {reads : AssetId → TokenReads} {bd : Bundle}
+    (hm : ¬ (g.managerL1 = true ∧ bd.dest = cfg.l1)) :
+    ∀ (calls : List Call) (sys : Sys),
+      runNested cfg g sys (calls.map (NestedItem.call reads bd)) =
+        recoverCalls cfg g reads bd.dest bd.destBase sys calls
+  | [], _ => rfl
+  | c :: cs, sys => by
+    simp only [List.map_cons, runNested, execNested, recoverCalls]
+    rw [ite_eq_right hm]
+    exact congrArg (Option.bind _) (funext fun s => runNested_calls hm cs s)
+
+/-- Every run is a nested run with the same result. -/
+theorem run_nested {cfg : Config} {g : Guards} :
+    ∀ (ops : List Op) (sys s' : Sys), run cfg g sys ops = some s' →
+      runNested cfg g sys (ops.flatMap NestedItem.ofOp) = some s'
+  | [], _, _, h => h
+  | op :: ops, sys, s', h => by
+    unfold run at h
+    simp only [Option.bind_eq_some_iff] at h
+    obtain ⟨s, hs, hrest⟩ := h
+    have hop : runNested cfg g sys (NestedItem.ofOp op) = some s := by
+      cases op
+      case claimRefund reads bd =>
+        simp only [exec, recoverBundle] at hs
+        split_ifs at hs with hm
+        simp only [NestedItem.ofOp]
+        rw [runNested_calls hm]
+        exact hs
+      all_goals simp [NestedItem.ofOp, runNested, execNested, hs]
+    rw [List.flatMap_cons, runNested_append, hop]
+    exact run_nested ops s s' hrest
+
 /-! ## A bundle's recoveries of one asset -/
 
 /-- One v35 recovery of a registered asset other than the base asset, with a token. -/
@@ -1782,6 +1880,284 @@ theorem icBurnBase_then_schedule {cfg : Config} {sys₀ sys₁ sys₃ : Sys} {re
   rw [hsum] at hhold
   omega
 
+/-! ## Balanced flows on a registered asset, along nested runs -/
+
+/-- A nested item that is not on asset `a` leaves the asset view at `a` alone. -/
+theorem execNested_frame {cfg : Config} {g : Guards} {sys s' : Sys} {it : NestedItem}
+    (h : execNested cfg g sys it = some s') (a : AssetId) (hn : ¬ it.Touches cfg a) :
+    s'.AgreeAt cfg sys a := by
+  cases it with
+  | op o => exact exec_frame h a hn
+  | call reads bd c =>
+    simp only [execNested] at h
+    split_ifs at h with hm
+    simp only [NestedItem.Touches] at hn
+    exact recoverCall_frame h a (fun h' => hn (Or.inl h')) (fun h' => hn (Or.inr h'))
+
+theorem NestedItem.burnedOf_of_not_touches {cfg : Config} {a : AssetId} {it : NestedItem}
+    (hn : ¬ it.Touches cfg a) : it.burnedOf cfg a = 0 := by
+  cases it with
+  | op o =>
+    cases o <;> simp_all [NestedItem.burnedOf, NestedItem.Touches, Op.Touches]
+  | call reads bd c => rfl
+
+theorem NestedItem.recoveredOf_of_not_touches {cfg : Config} {a : AssetId} {it : NestedItem}
+    (hn : ¬ it.Touches cfg a) : it.recoveredOf cfg a = 0 := by
+  cases it with
+  | op o => rfl
+  | call reads bd c =>
+    simp only [NestedItem.Touches, not_or] at hn
+    obtain ⟨h₁, h₂⟩ := hn
+    simp only [NestedItem.recoveredOf]
+    by_cases hr : c.sender = cfg.router
+    · rw [ite_eq_left hr]
+      have h₁' : c.data.asset? ≠ some a := fun h' => h₁ ⟨hr, h'⟩
+      cases hd : c.data with
+      | finalizeDeposit a' m =>
+        rw [hd] at h₁'
+        simp only [CallData.asset?, ne_eq, Option.some.injEq] at h₁'
+        cases m with
+        | none => rfl
+        | some md => simp [h₁']
+      | badPayload => rfl
+      | other => rfl
+    · rw [ite_eq_right hr]
+      have h₂' : ¬ (c.value ≠ 0 ∧ bd.destBase = a) := fun h' => h₂ ⟨hr, h'.1, h'.2⟩
+      rw [ite_eq_right h₂']
+
+/-- The outbound hook on a registered asset toward a chain other than L1: the chain balance here
+drops by the amount if the passed origin is this chain, and nothing else changes. -/
+theorem initiateInner_registered_not_l1 {cfg : Config} {sys : Sys} {reads : TokenReads}
+    {d : ChainId} {a : AssetId} {x : UInt256} {o : ChainId} {t : Tracker}
+    (h : initiateInner cfg sys reads d a x o = some t) (hd : d ≠ cfg.l1)
+    (hreg : sys.trk.isAssetRegistered a = true) :
+    (o = cfg.thisChain → ∃ hx : x.val ≤ (sys.trk.chainBalance cfg.thisChain a).val,
+      t = sys.trk.setChainBalance cfg.thisChain a
+        ⟨(sys.trk.chainBalance cfg.thisChain a).val - x.val,
+          by have := (sys.trk.chainBalance cfg.thisChain a).isLt; omega⟩) ∧
+    (o ≠ cfg.thisChain → t = sys.trk) := by
+  obtain ⟨-, t₁, h₁, t₂, h₂, h₃⟩ := initiateInner_unfold h
+  rw [registerIfNeeded_of_registered hreg] at h₁
+  cases h₁
+  have hl : ¬ (d = cfg.l1 ∧ sys.sl = cfg.l1) := fun h' => hd h'.1
+  rw [ite_eq_right hl] at h₃
+  cases h₃
+  refine ⟨fun ho => ?_, fun ho => ?_⟩
+  · rw [ite_eq_left ho] at h₂
+    exact decreaseChainBalance_eq h₂
+  · rw [ite_eq_right ho] at h₂
+    exact (Option.some.inj h₂).symm
+
+/-- A call of a claim that is a step on asset `a`, made through the vault, is one vault recovery of
+`a`, of the amount `NestedItem.recoveredOf` reads off the call. -/
+theorem recoverCall_on_asset {cfg : Config} {reads : AssetId → TokenReads} {bd : Bundle}
+    {s s' : Sys} {c : Call} {a : AssetId} (hdest : bd.dest ≠ cfg.l1)
+    (h : recoverCall cfg Guards.v35 reads bd.dest bd.destBase s c = some s')
+    (ht : NestedItem.Touches cfg (.call reads bd c) a)
+    (hh : NestedItem.IsRouterCallOn cfg a (.call reads bd c) → s.handler a = cfg.ntv) :
+    ∃ md : MintData, md.amount.val = NestedItem.recoveredOf cfg a (.call reads bd c) ∧
+      vaultRecover cfg Guards.v35 s reads bd.dest a (some md) = some s' := by
+  obtain ⟨s₁, hs₁, hs₂⟩ := recoverCall_eq h
+  simp only [NestedItem.Touches] at ht
+  rcases ht with ⟨hr, hasset⟩ | ⟨hr, hv, hdb⟩
+  · have hha : s.handler a = cfg.ntv := hh ⟨hr, hasset⟩
+    rw [ite_eq_left hr] at hs₁
+    rw [ite_eq_right (fun h' : c.sender ≠ cfg.router ∧ c.value ≠ 0 => h'.1 hr)] at hs₂
+    cases hs₂
+    cases hd : c.data with
+    | finalizeDeposit a' m =>
+      rw [hd] at hasset hs₁
+      simp only [CallData.asset?, Option.some.injEq] at hasset
+      subst hasset
+      simp only [routerRecoverAtomicCall] at hs₁
+      rw [ite_eq_right (by simp [Guards.v35, hdest])] at hs₁
+      by_cases h0 : s.handler a' = 0
+      · rw [ite_eq_left h0] at hs₁; cases hs₁
+      rw [ite_eq_right h0, ite_eq_left hha] at hs₁
+      cases m with
+      | none => cases hs₁
+      | some md =>
+        refine ⟨md, ?_, hs₁⟩
+        simp [NestedItem.recoveredOf, hr, hd]
+    | badPayload => rw [hd] at hasset; simp [CallData.asset?] at hasset
+    | other => rw [hd] at hasset; simp [CallData.asset?] at hasset
+  · rw [ite_eq_right hr] at hs₁
+    cases hs₁
+    rw [ite_eq_left ⟨hr, hv⟩] at hs₂
+    obtain ⟨-, hv'⟩ := routerRecoverBase_eq hs₂
+    subst hdb
+    refine ⟨⟨c.sender, c.sender, 0, c.value, []⟩, ?_, hv'⟩
+    simp [NestedItem.recoveredOf, hr, hv]
+
+/-- The asset view at `a` on `s`, against `sys₀`, after bridge-outs of `a` totalling `B` and
+recoveries totalling `R`: unchanged, except that the chain balance here of an asset native here has
+moved by `R - B` and, for the base asset, the holder's balance by `B - R`. -/
+def FlowInv (cfg : Config) (sys₀ s : Sys) (a : AssetId) (B R : ℕ) : Prop :=
+  s.trk.isAssetRegistered a = sys₀.trk.isAssetRegistered a ∧
+  s.trk.interopInfo a = sys₀.trk.interopInfo a ∧
+  s.trk.totalPreV31TotalSupply a = sys₀.trk.totalPreV31TotalSupply a ∧
+  (∀ c, c ≠ cfg.thisChain → s.trk.chainBalance c a = sys₀.trk.chainBalance c a) ∧
+  (sys₀.origin a = cfg.thisChain → (s.trk.chainBalance cfg.thisChain a).val + B =
+    (sys₀.trk.chainBalance cfg.thisChain a).val + R) ∧
+  (sys₀.origin a ≠ cfg.thisChain →
+    s.trk.chainBalance cfg.thisChain a = sys₀.trk.chainBalance cfg.thisChain a) ∧
+  s.origin a = sys₀.origin a ∧ s.token a = sys₀.token a ∧ s.handler a = sys₀.handler a ∧
+  (a = cfg.base → s.holder + R = sys₀.holder + B)
+
+theorem FlowInv.frame {cfg : Config} {sys₀ s s' : Sys} {a : AssetId} {B R : ℕ}
+    (hI : FlowInv cfg sys₀ s a B R) (hA : s'.AgreeAt cfg s a) : FlowInv cfg sys₀ s' a B R := by
+  obtain ⟨iReg, iInfo, iPre, iOther, iNat, iNon, iOrig, iTok, iHand, iHold⟩ := hI
+  obtain ⟨⟨hcb, hreg, hinfo, hpre⟩, ho, ht, hh, hhold⟩ := hA
+  exact ⟨hreg.trans iReg, hinfo.trans iInfo, hpre.trans iPre,
+    fun c hc => (hcb c).trans (iOther c hc), fun hn => by rw [hcb]; exact iNat hn,
+    fun hn => (hcb _).trans (iNon hn), ho.trans iOrig, ht.trans iTok, hh.trans iHand,
+    fun hb => by rw [hhold hb]; exact iHold hb⟩
+
+theorem FlowInv.vaultBurn {cfg : Config} {sys₀ s s' : Sys} {r : TokenReads} {d : ChainId}
+    {a : AssetId} {x : UInt256} {B R : ℕ}
+    (hI : FlowInv cfg sys₀ s a B R) (hreg : sys₀.trk.isAssetRegistered a = true)
+    (hbase : a = cfg.base → sys₀.origin a ≠ cfg.thisChain) (hd : d ≠ cfg.l1)
+    (h : exec cfg Guards.v35 s (.vaultBurn r d a x) = some s') :
+    FlowInv cfg sys₀ s' a (B + x.val) R := by
+  obtain ⟨iReg, iInfo, iPre, iOther, iNat, iNon, iOrig, iTok, iHand, iHold⟩ := hI
+  obtain ⟨-, t, ht, htrk, ho, htk, hh, -, -, hhb, hht⟩ := exec_vaultBurn_eq h
+  have hreg_s : s.trk.isAssetRegistered a = true := iReg.trans hreg
+  obtain ⟨hnat, hnon⟩ := initiateInner_registered_not_l1 ht hd hreg_s
+  by_cases hn : sys₀.origin a = cfg.thisChain
+  · have hb : a ≠ cfg.base := fun hb => hbase hb hn
+    obtain ⟨hx, he⟩ := hnat (iOrig.trans hn)
+    have he' := htrk.trans he
+    refine ⟨by rw [he']; exact iReg, by rw [he']; exact iInfo, by rw [he']; exact iPre,
+      fun c hc => ?_, fun _ => ?_, fun hn' => absurd hn hn', by rw [ho]; exact iOrig,
+      by rw [htk]; exact iTok, by rw [hh]; exact iHand, fun hb' => absurd hb' hb⟩
+    · rw [he', Tracker.setChainBalance_chainBalance]
+      simp only [hc, false_and, ite_false]
+      exact iOther c hc
+    · rw [he', Tracker.setChainBalance_chainBalance]
+      simp only [and_self, ite_true]
+      have := iNat hn
+      omega
+  · have he' : s'.trk = s.trk := htrk.trans (hnon (fun h' => hn (iOrig.symm.trans h')))
+    refine ⟨by rw [he']; exact iReg, by rw [he']; exact iInfo, by rw [he']; exact iPre,
+      fun c hc => by rw [he']; exact iOther c hc, fun hn' => absurd hn' hn,
+      fun _ => by rw [he']; exact iNon hn, by rw [ho]; exact iOrig, by rw [htk]; exact iTok,
+      by rw [hh]; exact iHand, fun hb => ?_⟩
+    have hhold : s'.holder = s.holder + x.val :=
+      hhb ⟨hb, fun h' => hn (iOrig.symm.trans h')⟩
+    have := iHold hb
+    omega
+
+theorem FlowInv.icBurnBase {cfg : Config} {sys₀ s s' : Sys} {r : TokenReads} {d : ChainId}
+    {v : UInt256} {B R : ℕ}
+    (hI : FlowInv cfg sys₀ s cfg.base B R) (hreg : sys₀.trk.isAssetRegistered cfg.base = true)
+    (hbase : sys₀.origin cfg.base ≠ cfg.thisChain) (hd : d ≠ cfg.l1)
+    (h : exec cfg Guards.v35 s (.icBurnBase r d v) = some s') :
+    FlowInv cfg sys₀ s' cfg.base (B + v.val) R := by
+  obtain ⟨iReg, iInfo, iPre, iOther, iNat, iNon, iOrig, iTok, iHand, iHold⟩ := hI
+  obtain ⟨-, t, ht, htrk, ho, htk, hh, -, -, hhold⟩ := exec_icBurnBase_eq h
+  have hreg_s : s.trk.isAssetRegistered cfg.base = true := iReg.trans hreg
+  have he' : s'.trk = s.trk := htrk.trans
+    ((initiateInner_registered_not_l1 ht hd hreg_s).2 (fun h' => hbase (iOrig.symm.trans h')))
+  refine ⟨by rw [he']; exact iReg, by rw [he']; exact iInfo, by rw [he']; exact iPre,
+    fun c hc => by rw [he']; exact iOther c hc, fun hn' => absurd hn' hbase,
+    fun _ => by rw [he']; exact iNon hbase, by rw [ho]; exact iOrig, by rw [htk]; exact iTok,
+    by rw [hh]; exact iHand, fun _ => ?_⟩
+  have := iHold rfl
+  omega
+
+theorem FlowInv.vaultRecover {cfg : Config} {sys₀ s s' : Sys} {reads : AssetId → TokenReads}
+    {d : ChainId} {a : AssetId} {md : MintData} {B R : ℕ}
+    (hI : FlowInv cfg sys₀ s a B R) (hreg : sys₀.trk.isAssetRegistered a = true)
+    (htok : sys₀.token a ≠ 0)
+    (h : vaultRecover cfg Guards.v35 s reads d a (some md) = some s') :
+    FlowInv cfg sys₀ s' a B (R + md.amount.val) := by
+  obtain ⟨iReg, iInfo, iPre, iOther, iNat, iNon, iOrig, iTok, iHand, iHold⟩ := hI
+  by_cases hb : a = cfg.base
+  · obtain ⟨-, -, hh, -, -, hbase, -⟩ := vaultRecover_v35_effect h
+    obtain ⟨ho, htrk, hhold, horig, htok'⟩ := hbase hb
+    refine ⟨by rw [htrk]; exact iReg, by rw [htrk]; exact iInfo, by rw [htrk]; exact iPre,
+      fun c hc => by rw [htrk]; exact iOther c hc, fun hn => absurd (iOrig.trans hn) ho,
+      fun hn => by rw [htrk]; exact iNon hn, by rw [horig]; exact iOrig,
+      by rw [htok']; exact iTok, by rw [hh]; exact iHand, fun _ => ?_⟩
+    have := iHold hb
+    omega
+  · have hreg_s : s.trk.isAssetRegistered a = true := iReg.trans hreg
+    have htok_s : s.token a ≠ 0 := by rw [iTok]; exact htok
+    obtain ⟨-, -, ho, ht, hh, hnat, hnn⟩ := vaultRecover_v35_nonbase_step hb hreg_s htok_s h
+    by_cases hn : sys₀.origin a = cfg.thisChain
+    · obtain ⟨hx, he⟩ := hnat (iOrig.trans hn)
+      refine ⟨by rw [he]; exact iReg, by rw [he]; exact iInfo, by rw [he]; exact iPre,
+        fun c hc => ?_, fun _ => ?_, fun hn' => absurd hn hn', by rw [ho]; exact iOrig,
+        by rw [ht]; exact iTok, by rw [hh]; exact iHand, fun hb' => absurd hb' hb⟩
+      · rw [he, Tracker.setChainBalance_chainBalance]
+        simp only [hc, false_and, ite_false]
+        exact iOther c hc
+      · rw [he, Tracker.setChainBalance_chainBalance]
+        simp only [and_self, ite_true]
+        have := iNat hn
+        omega
+    · have he := hnn (fun h' => hn (iOrig.symm.trans h'))
+      refine ⟨by rw [he]; exact iReg, by rw [he]; exact iInfo, by rw [he]; exact iPre,
+        fun c hc => by rw [he]; exact iOther c hc, fun hn' => absurd hn' hn,
+        fun _ => by rw [he]; exact iNon hn, by rw [ho]; exact iOrig, by rw [ht]; exact iTok,
+        by rw [hh]; exact iHand, fun hb' => absurd hb' hb⟩
+
+/-- Along a v35 nested run whose steps on `a` are bridge-outs toward chains other than L1 or calls of
+claims, the invariant moves by the run's bridged-out and recovered totals of `a`. -/
+theorem runNested_flows {cfg : Config} {sys₀ : Sys} {a : AssetId}
+    (hreg : sys₀.trk.isAssetRegistered a = true) (htok : sys₀.token a ≠ 0)
+    (hbase : a = cfg.base → sys₀.origin a ≠ cfg.thisChain) :
+    ∀ (items : List NestedItem) (s s' : Sys) (B R : ℕ),
+      runNested cfg Guards.v35 s items = some s' → FlowInv cfg sys₀ s a B R →
+      (∀ it ∈ items, it.Touches cfg a → it.IsFlowOf cfg a) →
+      (∀ it ∈ items, it.IsRouterCallOn cfg a → sys₀.handler a = cfg.ntv) →
+      FlowInv cfg sys₀ s' a (B + (items.map (NestedItem.burnedOf cfg a)).sum)
+        (R + (items.map (NestedItem.recoveredOf cfg a)).sum)
+  | [], s, s', B, R, h, hI, _, _ => by cases h; simpa using hI
+  | it :: items, s, s', B, R, h, hI, hf, hrc => by
+    unfold runNested at h
+    simp only [Option.bind_eq_some_iff] at h
+    obtain ⟨s₁, hs₁, hrest⟩ := h
+    have hI₁ : FlowInv cfg sys₀ s₁ a (B + it.burnedOf cfg a) (R + it.recoveredOf cfg a) := by
+      by_cases ht : it.Touches cfg a
+      · have hfl := hf it (List.mem_cons_self ..) ht
+        cases it with
+        | op o =>
+          cases o
+          case vaultBurn r d a' x =>
+            obtain ⟨rfl, hd⟩ := hfl
+            have e₁ : NestedItem.burnedOf cfg a' (.op (.vaultBurn r d a' x)) = x.val := by
+              simp [NestedItem.burnedOf]
+            have e₂ : NestedItem.recoveredOf cfg a' (.op (.vaultBurn r d a' x)) = 0 := rfl
+            rw [e₁, e₂, Nat.add_zero]
+            exact FlowInv.vaultBurn hI hreg hbase hd hs₁
+          case icBurnBase r d v =>
+            obtain ⟨rfl, hd⟩ := hfl
+            have e₁ : NestedItem.burnedOf cfg cfg.base (.op (.icBurnBase r d v)) = v.val := by
+              simp [NestedItem.burnedOf]
+            have e₂ : NestedItem.recoveredOf cfg cfg.base (.op (.icBurnBase r d v)) = 0 := rfl
+            rw [e₁, e₂, Nat.add_zero]
+            exact FlowInv.icBurnBase hI hreg (hbase rfl) hd hs₁
+          all_goals simp [NestedItem.IsFlowOf] at hfl
+        | call reads bd c =>
+          simp only [execNested] at hs₁
+          split_ifs at hs₁ with hm
+          have hdest : bd.dest ≠ cfg.l1 := fun h' => hm ⟨rfl, h'⟩
+          obtain ⟨md, hamt, hv⟩ := recoverCall_on_asset hdest hs₁ ht
+            (fun hr => hI.2.2.2.2.2.2.2.2.1.trans (hrc _ (List.mem_cons_self ..) hr))
+          have e₁ : NestedItem.burnedOf cfg a (.call reads bd c) = 0 := rfl
+          rw [e₁, Nat.add_zero, ← hamt]
+          exact FlowInv.vaultRecover hI hreg htok hv
+      · rw [NestedItem.burnedOf_of_not_touches ht, NestedItem.recoveredOf_of_not_touches ht,
+          Nat.add_zero, Nat.add_zero]
+        exact FlowInv.frame hI (execNested_frame hs₁ a ht)
+    have hn := runNested_flows hreg htok hbase items s₁ s' _ _ hrest hI₁
+      (fun it' h' => hf it' (List.mem_cons_of_mem _ h'))
+      (fun it' h' => hrc it' (List.mem_cons_of_mem _ h'))
+    rw [List.map_cons, List.sum_cons, List.map_cons, List.sum_cons, ← Nat.add_assoc,
+      ← Nat.add_assoc]
+    exact hn
+
 /-! ## The property theorems -/
 
 /-- **NO RECOVERY TOWARD L1 AT V35.** -/
@@ -1867,6 +2243,24 @@ theorem BurnThenInterleavedRecoveriesRestoreAsset :
   ⟨fun _ _ _ _ _ _ _ _ _ _ hb hn hsum hr => vaultBurn_then_schedule hb hn hsum hr,
     fun _ _ _ _ _ _ _ _ _ hb hn hsum hr => icBurnBase_then_schedule hb hn hsum hr⟩
 
+/-- **BALANCED FLOWS LEAVE A REGISTERED ASSET AS IT WAS.** -/
+theorem BalancedFlowsRestoreAsset : Properties.BalancedFlowsRestoreAsset := by
+  intro cfg sys₀ sys items a h hreg htok hbase hf hrc hsum
+  have hI₀ : FlowInv cfg sys₀ sys₀ a 0 0 :=
+    ⟨rfl, rfl, rfl, fun _ _ => rfl, fun _ => rfl, fun _ => rfl, rfl, rfl, rfl, fun _ => rfl⟩
+  have hI := runNested_flows hreg htok hbase items sys₀ sys 0 0 h hI₀ hf hrc
+  rw [Nat.zero_add, Nat.zero_add, hsum] at hI
+  obtain ⟨iReg, iInfo, iPre, iOther, iNat, iNon, iOrig, iTok, iHand, iHold⟩ := hI
+  refine ⟨⟨fun c => ?_, iReg, iInfo, iPre⟩, iOrig, iTok, iHand, fun hb => ?_⟩
+  · by_cases hc : c = cfg.thisChain
+    · subst hc
+      by_cases hn : sys₀.origin a = cfg.thisChain
+      · exact Fin.ext (by have := iNat hn; omega)
+      · exact iNon hn
+    · exact iOther c hc
+  · have := iHold hb
+    omega
+
 /-- **WHAT A VAULT RECOVERY WRITES AT V35.** -/
 theorem VaultRecoveryEffectAtV35 : Properties.VaultRecoveryEffectAtV35 :=
   fun _ _ _ _ _ _ _ h => vaultRecover_v35_effect h
@@ -1885,6 +2279,13 @@ theorem ClaimRefundNeverWritesInteropInfo : Properties.ClaimRefundNeverWritesInt
 theorem WithdrawalsToL1Ledger : Properties.WithdrawalsToL1Ledger := by
   intro cfg g sys₀ sys ops h
   obtain ⟨new, hl, hW, hr⟩ := run_W ops sys₀ sys h
+  exact ⟨new, hl, hW, fun a => by rw [hW a]; omega,
+    fun hg A d x hx hd => hr A d x hx ⟨hg, hd⟩⟩
+
+/-- **THE LEDGER WITH STEPS BETWEEN THE CALLS OF A CLAIM.** -/
+theorem WithdrawalsToL1LedgerNested : Properties.WithdrawalsToL1LedgerNested := by
+  refine ⟨fun cfg g sys₀ sys items h => ?_, fun _ _ sys₀ sys ops h => run_nested ops sys₀ sys h⟩
+  obtain ⟨new, hl, hW, hr⟩ := runNested_W items sys₀ sys h
   exact ⟨new, hl, hW, fun a => by rw [hW a]; omega,
     fun hg A d x hx hd => hr A d x hx ⟨hg, hd⟩⟩
 
@@ -1956,7 +2357,7 @@ theorem L1RecoveryRejectionWitness : Properties.L1RecoveryRejectionWitness := by
     by decide, by decide, by decide, by decide, by decide, ⟨_, rfl, by decide⟩,
     ⟨_, rfl, by decide⟩⟩
 
-/-- **COUNTERMODEL: WITHOUT THE CHECKS, AN L1 WITHDRAWAL IS REFUNDED ON L2.** -/
+/-- **COUNTERMODEL: WITHOUT THE RECOVERY CHECKS, A RECOVERY TOWARD L1 GOES THROUGH.** -/
 theorem L1ChecksLoadBearing : Properties.L1ChecksLoadBearing := by
   refine ⟨rnCfg, rnSys, _,
     [.vaultBurn rnReads 1 300 5,
@@ -2027,6 +2428,61 @@ theorem InterleavedRecoveryWitness : Properties.InterleavedRecoveryWitness := by
     ⟨_, List.mem_cons_of_mem _ (List.mem_cons_self ..)⟩, rfl, by decide, rfl, by decide, rfl, h₂,
     ⟨_, List.mem_cons_self ..⟩, rfl, by decide, rfl, by decide⟩
 
+/-- The first claim of `BalancedFlowsWitness`: toward `9`, recovering `5` of asset `400` and `7` of
+asset `200`. -/
+def rnFlowBundle₁ : Bundle := ⟨9, 100, [rnRouterCall 400 5, rnRouterCall 200 7]⟩
+
+/-- The second claim of `BalancedFlowsWitness`: toward `8`, recovering `3` of asset `400`. -/
+def rnFlowBundle₂ : Bundle := ⟨8, 100, [rnRouterCall 400 3]⟩
+
+/-- The nested run of `BalancedFlowsWitness` (1), on asset `400`. -/
+def rnFlowItems : List NestedItem :=
+  [.op (.vaultBurn rnReads 9 400 5), .op (.vaultBurn rnReads 9 200 7),
+    .call (fun _ => rnReads) rnFlowBundle₁ (rnRouterCall 400 5), .op (.vaultBurn rnReads 8 400 3),
+    .call (fun _ => rnReads) rnFlowBundle₁ (rnRouterCall 200 7),
+    .call (fun _ => rnReads) rnFlowBundle₂ (rnRouterCall 400 3)]
+
+/-- The nested run of `BalancedFlowsWitness` (2), on the base asset. -/
+def rnBaseFlowItems : List NestedItem :=
+  [.op (.icBurnBase rnReads 9 4), .op (.vaultBurn rnReads 8 100 2),
+    .call (fun _ => rnReads) ⟨9, 100, [rnValueCall 4]⟩ (rnValueCall 4), .op (.setSettlementLayer 9),
+    .call (fun _ => rnReads) ⟨8, 100, [rnValueCall 2]⟩ (rnValueCall 2)]
+
+/-- **BALANCED FLOWS, NONTRIVIALLY.** -/
+theorem BalancedFlowsWitness : Properties.BalancedFlowsWitness := by
+  have hf : ∀ it ∈ rnFlowItems, it.Touches rnCfg 400 → it.IsFlowOf rnCfg 400 := by
+    intro it hit
+    simp only [rnFlowItems, List.mem_cons, List.not_mem_nil, or_false] at hit
+    rcases hit with rfl | rfl | rfl | rfl | rfl | rfl <;>
+      simp only [NestedItem.Touches, NestedItem.IsFlowOf, Op.Touches] <;> decide
+  have hf' : ∀ it ∈ rnBaseFlowItems, it.Touches rnCfg rnCfg.base →
+      it.IsFlowOf rnCfg rnCfg.base := by
+    intro it hit
+    simp only [rnBaseFlowItems, List.mem_cons, List.not_mem_nil, or_false] at hit
+    rcases hit with rfl | rfl | rfl | rfl | rfl <;>
+      simp only [NestedItem.Touches, NestedItem.IsFlowOf, Op.Touches] <;> decide
+  have hrc' : ∀ it ∈ rnBaseFlowItems, ¬ it.IsRouterCallOn rnCfg rnCfg.base := by
+    intro it hit
+    simp only [rnBaseFlowItems, List.mem_cons, List.not_mem_nil, or_false] at hit
+    rcases hit with rfl | rfl | rfl | rfl | rfl <;>
+      simp only [NestedItem.IsRouterCallOn, not_false_eq_true] <;> decide
+  refine ⟨rnCfg, rnAfter rnSys [.vaultRegister 400 5 40], _, rnAfter rnSys [.registerBaseIfNeeded],
+    _, rnFlowItems, rnBaseFlowItems, [.op (.vaultBurn rnReads 9 400 5)],
+    [.op (.icBurnBase rnReads 9 4)], 400, 200, 9, 8, 9, 8, 9, 5, 3, 4, 2, rnReads, rnReads, rnReads,
+    rnReads, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide, by decide, by decide, by decide, rfl, ?_, ?_, ?_, ?_, hf,
+    by decide, by decide, ⟨_, rfl⟩, ⟨_, rfl, by decide⟩, by decide, by decide, by decide, rfl, ?_,
+    ?_, ?_, hrc', hf', by decide, by decide, ⟨_, rfl⟩, ⟨_, rfl, by decide⟩⟩
+  · simp [rnFlowItems]
+  · simp [rnFlowItems]
+  · exact ⟨_, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ (List.mem_cons_self ..)),
+      by simp only [NestedItem.IsRouterCallOn]; decide⟩
+  · exact ⟨_, List.mem_cons_of_mem _ (List.mem_cons_self ..),
+      by simp only [NestedItem.Touches, Op.Touches]⟩
+  · simp [rnBaseFlowItems]
+  · simp [rnBaseFlowItems, rnCfg]
+  · simp [rnBaseFlowItems]
+
 /-- **THE RECOVERY EFFECTS, NONZERO.** -/
 theorem RecoveryEffectWitness : Properties.RecoveryEffectWitness :=
   ⟨rnCfg, rnAfter rnSys [.vaultRegister 400 5 40, .vaultBurn rnReads 9 400 7], _, _, _,
@@ -2041,6 +2497,12 @@ theorem WithdrawalsLedgerWitness : Properties.WithdrawalsLedgerWitness :=
       .vaultBurn rnReads 1 300 6, .claimRefund (fun _ => rnReads) ⟨9, 100, [rnRouterCall 300 4]⟩],
     300, 5, 6, 4, 9, 9, by decide, by decide, by decide, by decide, by decide, by decide, rfl,
     by decide, by decide, by decide, by decide, by decide⟩
+
+/-- **THE NESTED LEDGER, NONTRIVIALLY.** -/
+theorem NestedLedgerWitness : Properties.NestedLedgerWitness :=
+  ⟨rnCfg, rnSys, _, rnReads, fun _ => rnReads, 9, 300, 5, 4, 2, 3, rnRouterCall 300 2,
+    rnRouterCall 300 3, by decide, by decide, by decide, by decide, by decide, by decide, rfl, rfl,
+    rfl, by decide, by decide⟩
 
 /-- **AN INBOUND TRANSFER BETWEEN A BRIDGE-OUT AND ITS CLAIM CAN BLOCK THE CLAIM.** -/
 theorem InflowBeforeRecoveryBlocksClaim : Properties.InflowBeforeRecoveryBlocksClaim :=

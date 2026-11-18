@@ -14,8 +14,9 @@ relative to `l1-contracts/contracts/` and cited as
 
 `main` at `70096e2ea6eeb5373992e178064c4b26dcf6436a` has the same code on every path modelled here.  The
 files differ from the v35 head in comments, renamed internal getters (`_assetRouter` and the like), the
-removed `ERA_CHAIN_ID` slot, the bridged-token deployment mechanism (abstracted here), and, outside the
-modelled paths, the interop center's pause modifiers and the peer-allowlist checks.
+`ERA_CHAIN_ID` slot (deprecated at the v35 head), the bridged-token deployment mechanism (abstracted
+here), and, outside the modelled paths, the interop center's pause modifiers and fee-unit counter and
+the peer-allowlist checks of the interop center and the flow manager.
 
 **This file is definitions only.**  The results are in
 `EraSpec.Contracts.L2AssetTracker.Properties.RecoveryNeutrality` and proved in
@@ -108,6 +109,8 @@ the source does; the others exist only to state what each check contributes.
   ERC-20 transfer, a bridged token's `bridgeMint`, `sendValue`) is not modelled beyond the holder's
   balance; it happens after every tracker write of the call (`NTV:273-276`, `BTH:84-85`), and code it
   reaches can act on the modelled state only through the entry points above, which are further steps.
+  In a `run` a claim is one step; `runNested` (and, for one asset, `runSchedule`) also lets further
+  steps fall between the calls of a claim, as a release inside the claim can make them.
   In the model the release does not fail.  In the source it can (a recipient that rejects the base
   token, `protocol-docs/atomicity/security.md` "Known issues and accepted limitations" 3), which
   reverts the call; so statements that a call succeeds are about the modelled checks only.
@@ -127,6 +130,14 @@ the source does; the others exist only to state what each check contributes.
 * Bundle call data is typed: `CallData.other` is a call `recoverAtomicCall` does not recognise,
   `badPayload` a `finalizeDeposit` whose `abi.decode` reverts, and in `finalizeDeposit a m` the mint
   data `m` is `none` when the vault's `decodeBridgeMintData` reverts.
+* Leg states and sends are not modelled: `claimRefund` may name any bundle, any number of times.  In
+  the source a claim needs its bundle's hash to have a `Revertable` leg (`AFM:251-257`); a leg is
+  created only by the interop center's `append` (`AFM:104-108`, `:166`), which it calls only for a
+  bundle toward a chain other than L1 (`IC:733-742`), and it refuses to send an atomic bundle toward
+  L1 at all (`IC:552-553`).  So in this respect the model admits more runs than the source: a
+  statement about every model run also covers the runs whose claims name appended bundles, and a
+  model run with a claim toward L1 shows what the recovery-side checks do on their own, not a run of
+  the source.
 -/
 
 namespace Contracts.L2AssetTracker.RecoveryNeutrality
@@ -461,8 +472,9 @@ def vaultMint (cfg : Config) (sys : Sys) (reads : TokenReads) (c : ChainId) (a :
 /-- `bridgeRecoverFailedTransfer(d, a, data)` (`NTV:195-214`) with the L2 `_disburseFailedTransfer`
 (`L2NTV:204-227`, `NTV:264-286`).  The mint data must decode.  The tracker check (`L2NTV:213`) is
 switched by `g.vaultL1` and `g.vaultBase`.  The base asset goes to the holder; any other asset gets the
-tracker hook, then the release, with the bridged token deployed first if the vault has no address for
-it.  A successful recovery appends a ghost `recovered` event. -/
+tracker hook, then the release, with the bridged token deployed first if the vault records `a` as not
+native here and has no address for it (`NTV:280-283`; the deployment reverts for an origin equal to
+this chain, `NTV:603`).  A successful recovery appends a ghost `recovered` event. -/
 def vaultRecover (cfg : Config) (g : Guards) (sys : Sys) (reads : AssetId → TokenReads)
     (d : ChainId) (a : AssetId) : Option MintData → Option Sys
   | none => none
@@ -560,7 +572,8 @@ inductive Op where
   | holderGive (reads : TokenReads) (c : ChainId) (x : UInt256)
   /-- The runtime's `handleFinalizeBaseTokenBridgingOnL2(c, x)` as `L2BaseToken`. -/
   | baseTokenFinalize (reads : TokenReads) (c : ChainId) (x : UInt256)
-  /-- `claimRefund` of a `Revertable` leg whose bundle is `b`. -/
+  /-- `claimRefund` of bundle `b`; the leg-state check is not modelled (see the header), so any
+  bundle may be claimed. -/
   | claimRefund (reads : AssetId → TokenReads) (b : Bundle)
 
 /-- The successor of one operation, or `none` if it reverts. -/
@@ -618,6 +631,31 @@ def scheduleRecoveries : List SchedItem → List MintData
   | .recover md :: items => md :: scheduleRecoveries items
   | .other _ :: items => scheduleRecoveries items
 
+/-- One item of a run in which other steps can fall between the calls of a claim, as the code that a
+refund's release reaches can make them (the header's abstractions): an operation, or one call of a
+claimed bundle's loop (`AFM:303-323`), after the flow manager's check of that bundle (`AFM:299`). -/
+inductive NestedItem where
+  | op (op : Op)
+  | call (reads : AssetId → TokenReads) (b : Bundle) (c : Call)
+
+/-- The successor of one item, or `none` if it reverts. -/
+def execNested (cfg : Config) (g : Guards) (sys : Sys) : NestedItem → Option Sys
+  | .op op => exec cfg g sys op
+  | .call reads b c =>
+    if g.managerL1 = true ∧ b.dest = cfg.l1 then none
+    else recoverCall cfg g reads b.dest b.destBase sys c
+
+/-- A sequence of items, all successful.  The calls of different claims may interleave in any order,
+which covers a claim made by code that another claim's release reaches. -/
+def runNested (cfg : Config) (g : Guards) : Sys → List NestedItem → Option Sys
+  | sys, [] => some sys
+  | sys, it :: its => (execNested cfg g sys it).bind fun s => runNested cfg g s its
+
+/-- An operation as items: a claim becomes one item per call of its bundle, in order. -/
+def NestedItem.ofOp : Op → List NestedItem
+  | .claimRefund reads b => b.calls.map (NestedItem.call reads b)
+  | o => [.op o]
+
 /-! ## Vocabulary for the statements -/
 
 /-- Two trackers agree on every entry indexed by asset `a`. -/
@@ -659,6 +697,45 @@ def Op.Touches (cfg : Config) : Op → AssetId → Prop
   | .holderGive _ _ _, a => a = cfg.base
   | .baseTokenFinalize _ _ _, a => a = cfg.base
   | .claimRefund _ b, a => b.Touches cfg a
+
+/-- The nested item is a step on asset `a`: an operation that is (`Op.Touches`), or a call of a claim
+that reaches the vault for `a` (a router call naming `a`, or a valued call of a bundle whose
+destination base token is `a`). -/
+def NestedItem.Touches (cfg : Config) : NestedItem → AssetId → Prop
+  | .op o, a => o.Touches cfg a
+  | .call _ b c, a => (c.sender = cfg.router ∧ c.data.asset? = some a) ∨
+      (c.sender ≠ cfg.router ∧ c.value ≠ 0 ∧ b.destBase = a)
+
+/-- The nested item is a bridge-out of `a` toward a chain other than L1 (the vault's, or for the base
+asset the interop center's value burn), or a call of a claim. -/
+def NestedItem.IsFlowOf (cfg : Config) (a : AssetId) : NestedItem → Prop
+  | .op (.vaultBurn _ d a' _) => a' = a ∧ d ≠ cfg.l1
+  | .op (.icBurnBase _ d _) => a = cfg.base ∧ d ≠ cfg.l1
+  | .call _ _ _ => True
+  | .op _ => False
+
+/-- The nested item is a router call naming `a`. -/
+def NestedItem.IsRouterCallOn (cfg : Config) (a : AssetId) : NestedItem → Prop
+  | .call _ _ c => c.sender = cfg.router ∧ c.data.asset? = some a
+  | .op _ => False
+
+/-- The amount of `a` a nested item bridges out. -/
+def NestedItem.burnedOf (cfg : Config) (a : AssetId) : NestedItem → ℕ
+  | .op (.vaultBurn _ _ a' x) => if a' = a then x.val else 0
+  | .op (.icBurnBase _ _ v) => if a = cfg.base then v.val else 0
+  | _ => 0
+
+/-- The amount of `a` a call of a claim asks the vault to recover: the mint data's amount of a router
+call `finalizeDeposit(a, md)`, or the value of a valued call of a bundle whose destination base token
+is `a` (`L2AR:326`). -/
+def NestedItem.recoveredOf (cfg : Config) (a : AssetId) : NestedItem → ℕ
+  | .call _ b c =>
+    if c.sender = cfg.router then
+      match c.data with
+      | .finalizeDeposit a' (some md) => if a' = a then md.amount.val else 0
+      | _ => 0
+    else if c.value ≠ 0 ∧ b.destBase = a then c.value.val else 0
+  | .op _ => 0
 
 /-- The total of the logged bridge-outs of `a` toward L1 made while the chain settled on L1. -/
 def l1BurnTotal (cfg : Config) (a : AssetId) : List Event → ℕ
