@@ -364,6 +364,9 @@ import EraSpec.Contracts.DataEncoding.Proofs.AssetIdRecovery
 import EraSpec.Contracts.DataEncoding.Proofs.TxDataHash
 import EraSpec.Contracts.DataEncoding.Proofs.BurnDataSlice
 
+-- Governance: the owner/security-council timelock, with re-entrant execution (draft/v0.35.0, b17415d2)
+import EraSpec.Contracts.Governance.Proofs.Timelock
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
