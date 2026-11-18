@@ -3,16 +3,21 @@ import EraSpec.Core.Word
 /-!
 # Model: the `PriorityTree` library and the tree it wraps
 
-Source: era-contracts `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`. Paths are
-relative to `l1-contracts/contracts/`.
+Source: era-contracts `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`. Both files
+below are byte-identical at `b17415d20`, and `PriorityTree.sol` also at `main` `70096e2ea`. Paths
+are relative to `l1-contracts/contracts/`.
 
 * `state-transition/libraries/PriorityTree.sol`, cited as `PT`.
 * `common/libraries/DynamicIncrementalMerkle.sol`, cited as `DIM`: only the struct and the three
   functions `PriorityTree` calls (`setup`, `push`, `root`).
 
-**This file is definitions only.** Statements are in
-`EraSpec.Contracts.MailboxFacet.Properties.PriorityTree`, proofs in
-`EraSpec.Contracts.MailboxFacet.Proofs.PriorityTree`.
+**This file is definitions only.** It is copied from branch `origin/cov/mailbox` (commit
+`212f846`) with only this header paragraph and the one above changed. On that branch the
+statements about it are `EraSpec.Contracts.MailboxFacet.Properties.PriorityTree` and the proofs
+`EraSpec.Contracts.MailboxFacet.Proofs.PriorityTree`; neither module is copied here, so the
+`Properties.*` names below refer to that branch. Here the definitions are used by the topic
+`EraSpec.Protocol.PriorityMirror` (`Mirror`), whose proofs show the shape these accesses need for
+every tree pushed from the setup state (`pm_pushAll_shape`).
 
 ## Conventions
 

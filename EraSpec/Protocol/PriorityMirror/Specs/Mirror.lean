@@ -5,8 +5,9 @@ import EraSpec.Contracts.MailboxFacet.Specs.PriorityTree
 
 Source: era-contracts `draft/v0.35.0` at `b17415d20`. Paths are relative to
 `l1-contracts/contracts/`. The `PriorityTree` and `DynamicIncrementalMerkle` model this file
-builds on (`EraSpec.Contracts.MailboxFacet.Specs.PriorityTree`) is copied verbatim from branch
-`origin/cov/mailbox`, which pinned `d9f678900`; both libraries are byte-identical at `b17415d20`.
+builds on (`EraSpec.Contracts.MailboxFacet.Specs.PriorityTree`) is copied, header aside, from
+branch `origin/cov/mailbox` (commit `212f846`), which pinned `d9f678900`; both libraries are
+byte-identical at `b17415d20`.
 
 **This file is definitions only.** Statements are in
 `EraSpec.Protocol.PriorityMirror.Properties.Mirror`, proofs in
@@ -63,7 +64,10 @@ timestamp, the diamond's `isFrozen` flag, and its batch counters and stored batc
   (`Migrator.sol:105-139`) on L1; `pauseDepositsOnGateway` (`:147-150`) on the gateway;
   `freezeDiamond`/`unfreezeDiamond` (`Admin.sol:616-639`, reached from
   `ChainTypeManager.freezeChain`/`unfreezeChain`, `ChainTypeManager.sol:577-586`) on either copy.
-  Each acts on its own copy only.
+  Each acts on its own copy only. In the source the gateway pause runs when `G` executes the
+  request an L1 pause sends while `C` is away (`Migrator.sol:122-127`,
+  `L1ChainAssetHandler.sol:193-202`, `core/chain-asset-handler/L2ChainAssetHandler.sol:130-134`);
+  the model makes it a free step with any timestamp.
 
 ## Ghost state
 
@@ -90,19 +94,42 @@ failed. The model's guards never read them.
   `forwardTransactionOnGateway` requires the virtual sender `SETTLEMENT_LAYER_RELAY_SENDER`
   (`InteropCenter.sol:130-133`, `common/Config.sol:219`), which only `_wrapRequest`
   (`Mailbox.sol:142-166`) produces. `C` is never a whitelisted settlement layer while away
-  (`core/bridgehub/L1Bridgehub.sol:93-99`, `core/bridgehub/BridgehubBase.sol:416-418`), so its own
+  (`core/bridgehub/L1Bridgehub.sol:94-100`, `core/bridgehub/BridgehubBase.sol:416-418`), so its own
   `requestL2TransactionToGatewayMailbox` reverts (`Mailbox.sol:115-117`).
+* **Who pushes into each tree.** `PriorityTree.push` has one caller, `_writePriorityOpHash`
+  (`Mailbox.sol:373-378`). On the gateway copy only `bridgehubRequestL2TransactionOnGateway`
+  reaches it: `requestL2ServiceTransaction` and `requestL2TransactionToGatewayMailbox` are
+  `onlyL1` (`Mailbox.sol:69-74`), and `bridgehubRequestL2Transaction` is `onlyBridgehub`, which a
+  diamond is sent only from `BridgehubBase._sendRequest`
+  (`core/bridgehub/BridgehubBase.sol:366-381`), called only by `L1Bridgehub`
+  (`core/bridgehub/L1Bridgehub.sol:172`, `:244`). On L1,
+  `bridgehubRequestL2TransactionOnGateway` is `onlyInteropCenter`, `msg.sender ==
+  L2_INTEROP_CENTER_ADDR` (`state-transition/chain-deps/facets/ZKChainBase.sol:99-104`); the model
+  takes it that no L1 account has that address (no contract there and no key for it, an account
+  premise also made by the topic `Protocol/PriorityRequests`), so every push into the L1 tree is a
+  `request` step, relayed exactly when `C` is away.
 * **Upgrades, diamond cuts and other chains are not steps.** Other chains' leaves in `G`'s L1
   tree do not touch `C`'s copies; the order of `G`'s other transactions relative to `C`'s relays
   is left free.
 * **One clock.** `now` is the `block.timestamp` both layers read.
+* **Freezable facets.** `MailboxFacet`, `ExecutorFacet` and `CommitterFacet` are freezable,
+  `AdminFacet` and `MigratorFacet` are not, on L1
+  (`deploy-scripts/ctm/DeployCTMUtils.s.sol:103-108`) and on the gateway
+  (`deploy-scripts/gateway/GatewayCTMDeployerHelper.sol:358-411`). So a frozen
+  copy refuses requests, relays and pipeline steps, and still runs the pause, burn, mint and
+  confirmation steps.
 * **Pipeline.** `processBatch` is the library's: with `calculateRootPaths` a parameter, nothing
   bounds the processed count by the pushed count. That bound is a run premise
   (`ConsistentProcessing`), as the library's own documentation relies on (`PriorityTree.sol:
   77-82`).
-* **Storage before deployment.** The L1 diamond starts as `DiamondInit` leaves it on fresh
-  storage, with batch counters and hashes zero. The gateway diamond's batch storage before the
-  mint is zero too; `DiamondInit`'s genesis batch hash is not modelled.
+* **Storage before deployment.** The L1 diamond starts with the priority tree `DiamondInit`
+  sets up (`DiamondInit.sol:137`) and zero batch storage. The gateway diamond's batch storage
+  before the mint is zero too. `DiamondInit`'s genesis batch hash (`DiamondInit.sol:126`) is not
+  modelled on either copy; batch storage enters the statements only through the burn and mint
+  checks.
+* **L2 execution is not modelled.** "Processed" means that a `processBatch` of a copy advanced
+  that copy's `unprocessedIndex` over the leaf. Whether the chain's L2 can execute the operation
+  at that position, and the binding of a batch's `itemHashes` to the tree, are outside the model.
 -/
 
 namespace Protocol.PriorityMirror
@@ -115,7 +142,8 @@ open Contracts.MailboxFacet
 structure Params where
   /-- `Merkle.efficientHash`, `ZERO_LEAF_HASH` and `Merkle.calculateRootPaths`. -/
   tree : TreeParams
-  /-- The `startIndex` that `DiamondInit` gives `C`'s L1 tree (`DiamondInit.sol:137`). -/
+  /-- The `startIndex` of `C`'s L1 tree. `DiamondInit` sets it to the legacy queue's total
+  (`DiamondInit.sol:137`), `0` on fresh storage; any value is allowed here. -/
   startIndex : ℕ
   /-- `PAUSE_DEPOSITS_TIME_WINDOW_START` (`common/Config.sol:271`, `:277`; `0` at this commit). -/
   pauseWindow : ℕ
@@ -464,7 +492,7 @@ def stepConfirm (s : St) (success : Bool) : Option St :=
   | _, _ => none
 
 /-- The gateway executes the next relay leaf (`InteropCenter.sol:839-850`, `Mailbox.sol:133-140`).
-It pushes into the gateway tree unless the gateway diamond is absent (`InteropCenter.sol:846-848`),
+It pushes into the gateway tree unless the gateway diamond is absent (`InteropCenter.sol:845-847`),
 frozen (`DiamondProxy.sol:36`) or the push reverts; then the relay is consumed and dropped. -/
 def stepRelay (P : Params) (s : St) : Option St :=
   match s.relays with
@@ -591,15 +619,19 @@ def ConsistentProcessing (s : St) : Op → Prop
         d.tree.unprocessedIndex + info.itemHashes.length ≤ d.tree.tree.nextLeafIndex
   | _ => True
 
-/-- FREEZE-ORDER: no relay for `C` executes on the gateway while the gateway copy is frozen. -/
+/-- FREEZE-ORDER: until the L1 mint, no relay for `C` executes on the gateway while the gateway
+copy is frozen. After the L1 mint a relay may execute on a frozen gateway copy. -/
 def FreezeOrder (s : St) : Op → Prop
-  | .relay => ∀ d, s.d2 = some d → d.frozen = false
+  | .relay => s.phase = .back ∨ ∀ d, s.d2 = some d → d.frozen = false
   | _ => True
 
 /-- Both premises. -/
 def Honest (s : St) (op : Op) : Prop := ConsistentProcessing s op ∧ FreezeOrder s op
 
-/-! ## Witness data -/
+/-! ## Witness data
+
+Inside this namespace `wNode` and `wParams` are the definitions below; the library model's own
+witness data (`Contracts.MailboxFacet.wNode`, `Contracts.MailboxFacet.wParams`) is not used here. -/
 
 /-- Witness node hash: `2a + 3b + 1` in `uint256`. -/
 def wNode : NodeHash := fun a b => 2 * a + 3 * b + 1
@@ -642,23 +674,26 @@ def wParamsDisabled : Params := { wParams with migrationsEnabled := false }
 `calculateRootPaths` reads them). -/
 def wBatch (left items : List UInt256) : BatchInfo := { leftPath := left, rightPath := [], itemHashes := items }
 
-/-- An honest round trip. Before migrating, op `11` is pushed and processed on L1. The gateway copy
-is frozen while relay `1` is pending and unfrozen before it executes. Ops `1`, `2` are relayed and
-processed on the gateway; op `3` is still a pending relay at the gateway burn and executes on the
-gateway afterwards. During the return window L1 deposits are unpaused, op `4` is requested and
-relayed, deposits are paused again, and the L1 mint goes through. L1 then processes ops `3`, `4`,
-and relay `4` executes on the now idle gateway copy. -/
+/-- The first part of an honest round trip. Before migrating, op `11` is pushed and processed on
+L1. The gateway copy is frozen while relay `1` is pending and unfrozen before it executes. Ops `1`,
+`2` are relayed and processed on the gateway. L1 deposits are paused (in the source this queues the
+gateway pause request in the gateway's L1 tree) and unpaused again; op `3` is requested, so relay
+`3` is queued behind that request; the gateway pause executes, and the gateway burn goes through
+with relay `3` still pending. -/
 def honestRun : List Op :=
   [ .tick 1, .request 11, .l1Pipeline (wBatch [] [11]) Batches.zero, .pauseL1, .l1Burn,
     .gwMint, .confirm true,
     .freezeGW, .request 1, .unfreezeGW, .relay,
     .request 2, .relay, .gwPipeline (wBatch [11] [1, 2]) Batches.zero,
-    .request 3, .pauseL1, .gwPause 1, .gwBurn ]
+    .pauseL1, .unpauseL1, .request 3, .gwPause 1, .gwBurn ]
 
-/-- The return part of the honest round trip, after `honestRun`. -/
+/-- The return, after `honestRun`. Relay `3` executes on the gateway copy, which no longer settles;
+op `4` is requested and relayed while L1 deposits are open; deposits are paused and the L1 mint goes
+through. L1 then processes ops `3` and `4`. The idle gateway copy is frozen, and relay `4` executes
+on it and is dropped. -/
 def honestReturn : List Op :=
-  [ .relay, .unpauseL1, .request 4, .pauseL1, .l1Mint,
-    .l1Pipeline (wBatch [11, 1, 2] [3, 4]) Batches.zero, .relay ]
+  [ .relay, .request 4, .pauseL1, .l1Mint,
+    .l1Pipeline (wBatch [11, 1, 2] [3, 4]) Batches.zero, .freezeGW, .relay ]
 
 /-- A failed move to the gateway: op `11` is pushed and processed, the L1 burn happens, the
 L1 copy is frozen during the window, the gateway transaction fails. -/
@@ -666,7 +701,20 @@ def failedRun : List Op :=
   [ .tick 1, .request 11, .l1Pipeline (wBatch [] [11]) Batches.zero, .pauseL1, .l1Burn,
     .freezeL1, .gwMintFails ]
 
-/-- A run breaking FREEZE-ORDER once: relay `2` executes while the gateway copy is frozen. -/
+/-- A run breaking FREEZE-ORDER in which nothing is lost. Op `1` is relayed and processed on the
+gateway; the gateway copy is frozen, op `2` is requested and its relay is dropped; L1 deposits are
+paused, the gateway pause executes and the frozen gateway copy burns. The L1 mint goes through, and
+L1 processes op `2`. -/
+def recoveredRun : List Op :=
+  [ .tick 1, .request 11, .l1Pipeline (wBatch [] [11]) Batches.zero, .pauseL1, .l1Burn,
+    .gwMint, .confirm true,
+    .request 1, .relay, .gwPipeline (wBatch [11] [1]) Batches.zero,
+    .freezeGW, .request 2, .relay, .pauseL1, .gwPause 1, .gwBurn,
+    .l1Mint, .l1Pipeline (wBatch [11, 1] [2]) Batches.zero ]
+
+/-- A run breaking FREEZE-ORDER once. The gateway copy is frozen while relay `2` is pending, relay
+`2` executes and is dropped, the copy is unfrozen, and op `3` is relayed; the gateway processes ops
+`1` and `3`, L1 deposits are paused, the gateway pause executes and the gateway burns. -/
 def droppedRun : List Op :=
   [ .tick 1, .request 11, .l1Pipeline (wBatch [] [11]) Batches.zero, .pauseL1, .l1Burn,
     .gwMint, .confirm true,

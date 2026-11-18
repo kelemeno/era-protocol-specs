@@ -9,8 +9,9 @@ Proofs of `EraSpec.Protocol.PriorityMirror.Properties.Mirror`.
 * Library facts: `pushAll` from the setup state keeps the incremental tree's shape
   (`_sides` and `_zeros` of equal nonzero length, `_zeros` the padding cascade), so
   `initFromCommitment` of a commitment taken from such a tree rebuilds exactly that tree.
-* `SnapInv` holds in every reachable state; `GInv` in every consistent one; `MInv` in every
-  honest one. Each is an induction over `Steps`, one case per step.
+* `SnapInv` and `DInv` (the bookkeeping of dropped relays) hold in every reachable state; `GInv`
+  in every consistent one; `MInv` in every honest one. Each is an induction over `Steps`, one
+  case per step.
 * Witnesses and the countermodel evaluate concrete runs (`runChecked`) with `decide`.
 -/
 
@@ -1491,17 +1492,24 @@ theorem pm_minv_step {P : Params} {s s' : St} {op : Op} (hG : GInv P s) (hM : MI
       | onGW => exact Or.inl rfl
       | toL1 c => exact Or.inr (Or.inl ⟨c, rfl⟩)
       | back => exact Or.inr (Or.inr rfl)
+    -- FREEZE-ORDER, before the return.
+    have hfo : s.phase ≠ .back → ∀ d, s.d2 = some d → d.frozen = false := by
+      intro hnb
+      have h2 : s.phase = .back ∨ ∀ d, s.d2 = some d → d.frozen = false := hok.2
+      rcases h2 with hb | hf
+      · exact absurd hb hnb
+      · exact hf
     -- Before the return, the relay's push on the gateway copy succeeds.
-    have hnodrop : ∀ (d : ChainDiamond), s.d2 = some d → Copy2 P s d →
+    have hnodrop : ∀ (d : ChainDiamond), s.phase ≠ .back → s.d2 = some d → Copy2 P s d →
         s.leaves2 ++ s.relays = s.log1 →
         (s.d2 = none ∨ ∃ d, s.d2 = some d
           ∧ (d.frozen = true ∨ (d.frozen = false ∧ mailboxWrite P.tree d.tree h = none))) → False := by
-      intro d0 hd0 hc hmir hdrop
+      intro d0 hnb hd0 hc hmir hdrop
       have hpre : s.leaves2 ++ [h] <+: s.log1 := by
         rw [← hmir, hr]; exact ⟨rest, by simp⟩
       rcases hdrop with hn | ⟨d, hd, hf | ⟨_, hw⟩⟩
       · rw [hd0] at hn; cases hn
-      · have := hok.2 d hd; rw [this] at hf; cases hf
+      · have := hfo hnb d hd; rw [this] at hf; cases hf
       · rw [hd0] at hd; cases hd
         obtain ⟨t, ht⟩ := pm_gw_push_succeeds hG hc hpre
         rw [ht] at hw; cases hw
@@ -1510,10 +1518,10 @@ theorem pm_minv_step {P : Params} {s s' : St} {op : Op} (hG : GInv P s) (hM : MI
       rcases hrel with hp | ⟨c, hp⟩ | hp
       · rw [hp] at hM hph
         obtain ⟨d0, hd0, _, hc, _⟩ := hph
-        exact (hnodrop d0 hd0 hc hM hdrop).elim
+        exact (hnodrop d0 (by rw [hp]; nofun) hd0 hc hM hdrop).elim
       · rw [hp] at hM hph
         obtain ⟨d0, hd0, _, ⟨hc, _⟩, _⟩ := hph
-        exact (hnodrop d0 hd0 hc hM hdrop).elim
+        exact (hnodrop d0 (by rw [hp]; nofun) hd0 hc hM hdrop).elim
       · rw [hp] at hM
         rw [hp]
         exact hM
@@ -1576,6 +1584,232 @@ theorem pm_minv_reach {P : Params} {s : St} (h : Reach P Honest s) : GInv P s �
   pm_steps_induct (I := fun s => GInv P s ∧ MInv s)
     (fun _ _ _ hI hok hst => ⟨pm_ginv_step hI.1 hok.1 hst, pm_minv_step hI.1 hI.2 hok hst⟩) h
     ⟨pm_ginv_initial P, trivial⟩
+
+/-! ## The dropped relays in every reachable state -/
+
+/-- The gateway leaves, the pending relays and the dropped relays account for the L1 leaves, and
+with nothing dropped the gateway leaves followed by the pending relays are the L1 leaves. -/
+def MirrorBook (s : St) : Prop :=
+  s.leaves2.length + s.relays.length + s.dropped.length = s.log1.length
+  ∧ (s.dropped = [] → s.leaves2 ++ s.relays = s.log1)
+
+/-- Nothing is dropped before the gateway copy exists; `MirrorBook` from its creation until the
+L1 mint. -/
+def DInv (s : St) : Prop :=
+  match s.phase with
+  | .onL1 => s.dropped = []
+  | .toGW _ _ => s.dropped = []
+  | .gwFailed _ => s.dropped = []
+  | .gwMinted _ => MirrorBook s
+  | .onGW => MirrorBook s
+  | .toL1 _ => MirrorBook s
+  | .back => True
+
+/-- A step that keeps the phase and the four lists keeps `DInv`. -/
+theorem pm_dinv_frame {s s' : St} (hp : s'.phase = s.phase) (hl : s'.leaves2 = s.leaves2)
+    (hr : s'.relays = s.relays) (hd : s'.dropped = s.dropped) (hlog : s'.log1 = s.log1)
+    (h : DInv s) : DInv s' := by
+  unfold DInv MirrorBook at h ⊢
+  rw [hp, hl, hr, hd, hlog]
+  exact h
+
+/-- A relay step from a state with `MirrorBook` keeps it, whether it drops or pushes. -/
+theorem pm_mirrorBook_relay {s : St} {h : UInt256} {rest : List UInt256} (hr : s.relays = h :: rest)
+    (hB : MirrorBook s) :
+    MirrorBook { s with relays := rest, dropped := s.dropped ++ [h] }
+    ∧ ∀ d', MirrorBook { s with relays := rest, d2 := d', leaves2 := s.leaves2 ++ [h] } := by
+  obtain ⟨hlen, hmir⟩ := hB
+  rw [hr, List.length_cons] at hlen
+  refine ⟨⟨?_, fun h0 => ?_⟩, fun d' => ⟨?_, fun h0 => ?_⟩⟩
+  · show s.leaves2.length + rest.length + (s.dropped ++ [h]).length = s.log1.length
+    rw [List.length_append, List.length_singleton]; omega
+  · simp at h0
+  · show (s.leaves2 ++ [h]).length + rest.length + s.dropped.length = s.log1.length
+    rw [List.length_append, List.length_singleton]; omega
+  · show (s.leaves2 ++ [h]) ++ rest = s.log1
+    rw [← hmir h0, hr]; simp
+
+theorem pm_dinv_step {P : Params} {s s' : St} {op : Op} (hS : SnapInv s) (hD : DInv s)
+    (hs : step P s op = some s') : DInv s' := by
+  have hsn := hS
+  unfold SnapInv at hsn
+  cases op with
+  | request h =>
+    obtain ⟨_, hpd, t, _, rfl⟩ := pm_stepRequest hs
+    unfold DInv at hD ⊢
+    cases hp : s.phase with
+    | onL1 => rw [hp] at hD; exact hD
+    | toGW pre c =>
+      rw [hp] at hsn
+      rw [pm_depositsPaused_of_inProgress hsn.1.1] at hpd; cases hpd
+    | gwMinted pre =>
+      rw [hp] at hsn
+      rw [pm_depositsPaused_of_inProgress hsn.1.1] at hpd; cases hpd
+    | gwFailed pre =>
+      rw [hp] at hsn
+      rw [pm_depositsPaused_of_inProgress hsn.1.1] at hpd; cases hpd
+    | onGW =>
+      rw [hp] at hD hsn
+      obtain ⟨hlen, hmir⟩ := hD
+      refine ⟨?_, fun h0 => ?_⟩
+      · show s.leaves2.length + (if s.d1.settling then s.relays else s.relays ++ [h]).length
+          + s.dropped.length = (s.log1 ++ [h]).length
+        rw [hsn.1]
+        simp only [Bool.false_eq_true, ↓reduceIte, List.length_append, List.length_singleton]
+        omega
+      · show s.leaves2 ++ (if s.d1.settling then s.relays else s.relays ++ [h]) = s.log1 ++ [h]
+        rw [hsn.1, ← hmir h0]
+        simp
+    | toL1 c =>
+      rw [hp] at hD hsn
+      obtain ⟨hlen, hmir⟩ := hD
+      refine ⟨?_, fun h0 => ?_⟩
+      · show s.leaves2.length + (if s.d1.settling then s.relays else s.relays ++ [h]).length
+          + s.dropped.length = (s.log1 ++ [h]).length
+        rw [hsn.1]
+        simp only [Bool.false_eq_true, ↓reduceIte, List.length_append, List.length_singleton]
+        omega
+      · show s.leaves2 ++ (if s.d1.settling then s.relays else s.relays ++ [h]) = s.log1 ++ [h]
+        rw [hsn.1, ← hmir h0]
+        simp
+    | back => trivial
+  | l1Pipeline info b =>
+    obtain ⟨_, _, _, _, rfl⟩ := pm_stepL1Pipeline hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | pauseL1 =>
+    obtain ⟨_, _, rfl⟩ := pm_stepPauseL1 hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | unpauseL1 =>
+    obtain ⟨_, _, rfl⟩ := pm_stepUnpauseL1 hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | freezeL1 =>
+    obtain rfl := pm_stepFreezeL1 hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | unfreezeL1 =>
+    obtain rfl := pm_stepUnfreezeL1 hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | l1Burn =>
+    obtain ⟨hp, _, _, _, _, c, _, rfl⟩ := pm_stepL1Burn hs
+    unfold DInv at hD
+    rw [hp] at hD
+    exact hD
+  | gwMint =>
+    obtain ⟨pre, c, t, b, hp, _, _, _, _, rfl⟩ := pm_stepGwMint hs
+    unfold DInv at hD
+    rw [hp] at hD hsn
+    have hd0 : s.dropped = [] := hD
+    have hr0 : s.relays = [] := hsn.1.2.2.2.2.2.2.2
+    refine ⟨?_, fun _ => ?_⟩
+    · show s.log1.length + s.relays.length + s.dropped.length = s.log1.length
+      rw [hr0, hd0]; rfl
+    · show s.log1 ++ s.relays = s.log1
+      rw [hr0, List.append_nil]
+  | gwMintFails =>
+    obtain ⟨pre, c, hp, rfl⟩ := pm_stepGwMintFails hs
+    unfold DInv at hD
+    rw [hp] at hD
+    exact hD
+  | confirm success =>
+    rcases pm_stepConfirm hs with ⟨pre, hp, _, rfl⟩ | ⟨pre, hp, _, _, rfl⟩
+    · unfold DInv at hD
+      rw [hp] at hD
+      exact hD
+    · unfold DInv at hD
+      rw [hp] at hD
+      exact hD
+  | relay =>
+    obtain ⟨h, rest, hr, hcase⟩ := pm_stepRelay hs
+    unfold DInv at hD
+    rcases hcase with ⟨rfl, _⟩ | ⟨d, t, _, _, _, rfl⟩
+    · unfold DInv
+      cases hp : s.phase with
+      | onL1 => rw [hp] at hsn; rw [hsn.2.2.2] at hr; cases hr
+      | toGW pre c => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+      | gwMinted pre => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+      | gwFailed pre => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+      | onGW => rw [hp] at hD; exact (pm_mirrorBook_relay hr hD).1
+      | toL1 c => rw [hp] at hD; exact (pm_mirrorBook_relay hr hD).1
+      | back => trivial
+    · unfold DInv
+      cases hp : s.phase with
+      | onL1 => rw [hp] at hsn; rw [hsn.2.2.2] at hr; cases hr
+      | toGW pre c => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+      | gwMinted pre => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+      | gwFailed pre => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+      | onGW => rw [hp] at hD; exact (pm_mirrorBook_relay hr hD).2 (some { d with tree := t })
+      | toL1 c => rw [hp] at hD; exact (pm_mirrorBook_relay hr hD).2 (some { d with tree := t })
+      | back => trivial
+  | gwPipeline info b =>
+    obtain ⟨_, _, _, _, _, _, rfl⟩ := pm_stepGwPipeline hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | gwPause ts =>
+    obtain ⟨_, _, rfl⟩ := pm_stepGwPause hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | freezeGW =>
+    obtain ⟨_, _, rfl⟩ := pm_stepFreezeGW hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | unfreezeGW =>
+    obtain ⟨_, _, rfl⟩ := pm_stepUnfreezeGW hs
+    exact pm_dinv_frame rfl rfl rfl rfl rfl hD
+  | gwBurn =>
+    obtain ⟨d, c, hp, _, _, _, _, _, rfl⟩ := pm_stepGwBurn hs
+    unfold DInv at hD
+    rw [hp] at hD
+    exact hD
+  | l1Mint =>
+    obtain ⟨c, b, t, hp, _, _, _, _, _, _, _, rfl⟩ := pm_stepL1Mint hs
+    trivial
+  | tick dt =>
+    cases hs
+    exact hD
+
+theorem pm_dinv_reach {P : Params} {ok : St → Op → Prop} {s : St} (h : Reach P ok s) :
+    SnapInv s ∧ DInv s :=
+  pm_steps_induct (I := fun s => SnapInv s ∧ DInv s)
+    (fun _ _ _ hI _ hst => ⟨pm_snapInv_step hI.1 hst, pm_dinv_step hI.1 hI.2 hst⟩) h
+    ⟨pm_snapInv_initial P, rfl⟩
+
+/-- `MirrorBook` turns the mirror equation into the absence of drops. -/
+theorem pm_mirrorBook_iff {s : St} (hB : MirrorBook s) :
+    s.leaves2 ++ s.relays = s.log1 ↔ s.dropped = [] := by
+  refine ⟨fun hm => ?_, hB.2⟩
+  have hlen := hB.1
+  have hl : (s.leaves2 ++ s.relays).length = s.log1.length := by rw [hm]
+  rw [List.length_append] at hl
+  exact List.eq_nil_of_length_eq_zero (by omega)
+
+/-- From the gateway copy's creation until the L1 mint, `MirrorBook` holds. -/
+theorem pm_dinv_mirrored {s : St} (hD : DInv s) (hm : s.phase.Mirrored) : MirrorBook s := by
+  unfold DInv at hD
+  unfold Phase.Mirrored at hm
+  cases hp : s.phase with
+  | gwMinted pre => rw [hp] at hD; exact hD
+  | onGW => rw [hp] at hD; exact hD
+  | toL1 c => rw [hp] at hD; exact hD
+  | onL1 => rw [hp] at hm; exact hm.elim
+  | toGW pre c => rw [hp] at hm; exact hm.elim
+  | gwFailed pre => rw [hp] at hm; exact hm.elim
+  | back => rw [hp] at hm; exact hm.elim
+
+/-- A push of the next relay into a gateway copy that holds its leaves succeeds, if the L1 tree
+holds at least one more leaf. -/
+theorem pm_gw_write_succeeds {P : Params} {s : St} {d : ChainDiamond} {h : UInt256}
+    (hI : GInv P s) (hc : Copy2 P s d) (hlen : s.leaves2.length + 1 ≤ s.log1.length) :
+    ∃ t, mailboxWrite P.tree d.tree h = some t := by
+  obtain ⟨⟨_, hpos, _⟩, hn⟩ := pm_pushAll_setup hc.2
+  have hne : s.log1 ≠ [] := by
+    intro hnil; rw [hnil, List.length_nil] at hlen; omega
+  have hb := hI.bound1 hne
+  have hpush : ∃ tree r, d.tree.tree.push P.tree.node h = some (tree, r) := by
+    unfold PushTree.push
+    split
+    · omega
+    · split
+      · omega
+      · exact ⟨_, _, rfl⟩
+  obtain ⟨tree, r, hp⟩ := hpush
+  have htn := (pm_push_shape (pm_pushAll_setup hc.2).1 hp).2.2
+  exact ⟨_, pm_mailboxWrite_of_push hp (by rw [hc.1, htn, hn]; omega)⟩
 
 /-! ## Each step only extends the two logs -/
 
@@ -1647,6 +1881,44 @@ theorem pm_steps_logs {P : Params} {ok : St → Op → Prop} {s t : St} (h : Ste
   | tail op _ _ hst ih =>
     obtain ⟨h1, h2⟩ := pm_step_logs hst
     exact ⟨ih.1.trans h1, ih.2.trans h2⟩
+
+/-- Each step only extends the list of dropped relays. -/
+theorem pm_step_dropped {P : Params} {s s' : St} {op : Op} (hs : step P s op = some s') :
+    s.dropped <+: s'.dropped := by
+  cases op with
+  | request h => obtain ⟨_, _, _, _, rfl⟩ := pm_stepRequest hs; exact List.prefix_refl _
+  | l1Pipeline info b => obtain ⟨_, _, _, _, rfl⟩ := pm_stepL1Pipeline hs; exact List.prefix_refl _
+  | pauseL1 => obtain ⟨_, _, rfl⟩ := pm_stepPauseL1 hs; exact List.prefix_refl _
+  | unpauseL1 => obtain ⟨_, _, rfl⟩ := pm_stepUnpauseL1 hs; exact List.prefix_refl _
+  | freezeL1 => obtain rfl := pm_stepFreezeL1 hs; exact List.prefix_refl _
+  | unfreezeL1 => obtain rfl := pm_stepUnfreezeL1 hs; exact List.prefix_refl _
+  | l1Burn => obtain ⟨_, _, _, _, _, _, _, rfl⟩ := pm_stepL1Burn hs; exact List.prefix_refl _
+  | gwMint => obtain ⟨_, _, _, _, _, _, _, _, _, rfl⟩ := pm_stepGwMint hs; exact List.prefix_refl _
+  | gwMintFails => obtain ⟨_, _, _, rfl⟩ := pm_stepGwMintFails hs; exact List.prefix_refl _
+  | confirm success =>
+    rcases pm_stepConfirm hs with ⟨_, _, _, rfl⟩ | ⟨_, _, _, _, rfl⟩
+    · exact List.prefix_refl _
+    · exact List.prefix_refl _
+  | relay =>
+    obtain ⟨_, _, _, hc⟩ := pm_stepRelay hs
+    rcases hc with ⟨rfl, _⟩ | ⟨_, _, _, _, _, rfl⟩
+    · exact List.prefix_append _ _
+    · exact List.prefix_refl _
+  | gwPipeline info b =>
+    obtain ⟨_, _, _, _, _, _, rfl⟩ := pm_stepGwPipeline hs; exact List.prefix_refl _
+  | gwPause ts => obtain ⟨_, _, rfl⟩ := pm_stepGwPause hs; exact List.prefix_refl _
+  | freezeGW => obtain ⟨_, _, rfl⟩ := pm_stepFreezeGW hs; exact List.prefix_refl _
+  | unfreezeGW => obtain ⟨_, _, rfl⟩ := pm_stepUnfreezeGW hs; exact List.prefix_refl _
+  | gwBurn => obtain ⟨_, _, _, _, _, _, _, _, rfl⟩ := pm_stepGwBurn hs; exact List.prefix_refl _
+  | l1Mint =>
+    obtain ⟨_, _, _, _, _, _, _, _, _, _, _, rfl⟩ := pm_stepL1Mint hs; exact List.prefix_refl _
+  | tick dt => cases hs; exact List.prefix_refl _
+
+theorem pm_steps_dropped {P : Params} {ok : St → Op → Prop} {s t : St} (h : Steps P ok s t) :
+    s.dropped <+: t.dropped := by
+  induction h with
+  | refl => exact List.prefix_refl _
+  | tail op _ _ hst ih => exact ih.trans (pm_step_dropped hst)
 
 /-- With migrations disabled, the phase stays `onL1`. -/
 theorem pm_onL1_step {P : Params} {s s' : St} {op : Op} (hdis : P.migrationsEnabled = false)
@@ -1748,6 +2020,76 @@ theorem MirrorPrefix : Properties.MirrorPrefix := by
   | gwFailed pre => rw [hp] at hm; exact hm.elim
   | back => rw [hp] at hm; exact hm.elim
 
+theorem NoRelayDroppedBeforeReturn : Properties.NoRelayDroppedBeforeReturn := by
+  intro P s h hnb
+  obtain ⟨_, hM⟩ := pm_minv_reach h
+  obtain ⟨_, hD⟩ := pm_dinv_reach h
+  have hD' := hD
+  unfold DInv at hD
+  unfold MInv at hM
+  cases hp : s.phase with
+  | onL1 => rw [hp] at hD; exact hD
+  | toGW pre c => rw [hp] at hD; exact hD
+  | gwFailed pre => rw [hp] at hD; exact hD
+  | gwMinted pre =>
+    rw [hp] at hM
+    exact (pm_mirrorBook_iff (pm_dinv_mirrored hD' (by rw [hp]; trivial))).mp hM
+  | onGW =>
+    rw [hp] at hM
+    exact (pm_mirrorBook_iff (pm_dinv_mirrored hD' (by rw [hp]; trivial))).mp hM
+  | toL1 c =>
+    rw [hp] at hM
+    exact (pm_mirrorBook_iff (pm_dinv_mirrored hD' (by rw [hp]; trivial))).mp hM
+  | back => exact absurd hp hnb
+
+/-! ## Relays, without FREEZE-ORDER -/
+
+theorem RelayDropsIffFrozen : Properties.RelayDropsIffFrozen := by
+  intro P s h rest hreach hnb hr
+  have hG := pm_ginv_reach hreach
+  have hsn := hG.snap
+  have hph := hG.phase
+  unfold SnapInv at hsn
+  unfold GPhase at hph
+  have key : ∃ d, s.d2 = some d ∧ Copy2 P s d
+      ∧ s.leaves2.length + s.relays.length ≤ s.log1.length := by
+    cases hp : s.phase with
+    | onL1 => rw [hp] at hsn; rw [hsn.2.2.2] at hr; cases hr
+    | toGW pre c => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+    | gwMinted pre => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+    | gwFailed pre => rw [hp] at hsn; rw [hsn.1.2.2.2.2.2.2.2] at hr; cases hr
+    | onGW =>
+      rw [hp] at hph
+      obtain ⟨d, hd, _, hc, _, _, _, _, hrl⟩ := hph
+      exact ⟨d, hd, hc, hrl⟩
+    | toL1 c =>
+      rw [hp] at hph
+      obtain ⟨d, hd, _, ⟨hc, _, _, _, _, hrl⟩, _⟩ := hph
+      exact ⟨d, hd, hc, hrl⟩
+    | back => exact absurd hp hnb
+  obtain ⟨d, hd, hc, hrl⟩ := key
+  refine ⟨d, hd, fun hf => ?_, fun hf => ?_⟩
+  · show stepRelay P s = some _
+    simp [stepRelay, hr, hd, hf]
+  · rw [hr, List.length_cons] at hrl
+    obtain ⟨t, ht⟩ := pm_gw_write_succeeds hG hc (h := h) (by omega)
+    refine ⟨t, ht, ?_⟩
+    show stepRelay P s = some _
+    simp [stepRelay, hr, hd, hf, ht]
+
+theorem MirrorIffNoDrop : Properties.MirrorIffNoDrop := by
+  intro P s h hm
+  have hB := pm_dinv_mirrored (pm_dinv_reach h).2 hm
+  exact ⟨hB.1, pm_mirrorBook_iff hB⟩
+
+theorem MirrorBreakPermanent : Properties.MirrorBreakPermanent := by
+  intro P s s' h hst hne hm' hmir
+  have hreach' : Reach P Unrestricted s' := pm_steps_trans h hst
+  have hd' : s'.dropped = [] := (MirrorIffNoDrop P s' hreach' hm').2.mp hmir
+  obtain ⟨u, hu⟩ := pm_steps_dropped hst
+  rw [hd'] at hu
+  exact hne (List.append_eq_nil_iff.mp hu).1
+
 /-! ## No operation lost or repeated -/
 
 theorem ExecutedIsL1Prefix : Properties.ExecutedIsL1Prefix := by
@@ -1792,19 +2134,16 @@ theorem ExecutedIsL1Prefix : Properties.ExecutedIsL1Prefix := by
     rw [hp] at hM
     exact ⟨by rw [hM]; exact List.take_prefix _ _, fun _ => ⟨hM, hG.u1⟩⟩
 
-theorem ReturnMintChecksPass : Properties.ReturnMintChecksPass := by
-  intro P s c h hp hen hpause
-  obtain ⟨hG, hM⟩ := pm_minv_reach h
+theorem ReturnMintPassesOnPrefix : Properties.ReturnMintPassesOnPrefix := by
+  intro P s c h hp hen hpause hpre
+  have hG := pm_ginv_reach h
   have hph := hG.phase
   have hsn := hG.snap
   unfold GPhase at hph
-  unfold MInv at hM
   unfold SnapInv at hsn
-  rw [hp] at hph hM hsn
+  rw [hp] at hph hsn
   obtain ⟨d, _, _, ⟨_, he, hdu, h1u, _, _⟩, hco⟩ := hph
   obtain ⟨hcs, hcn, hcu, ⟨zs, hzs⟩, hb1, hb2, hb3⟩ := hco
-  have hpre : s.executed <+: s.log1 := by
-    rw [he]; exact (List.take_prefix _ _).trans (by rw [← hM]; exact List.prefix_append _ _)
   have hexl : s.executed.length = d.tree.unprocessedIndex := by
     rw [he, List.length_take]; omega
   obtain ⟨⟨hsl, hzpos, _⟩, _⟩ := pm_pushAll_setup hzs
@@ -1853,6 +2192,11 @@ theorem ReturnMintChecksPass : Properties.ReturnMintChecksPass := by
   · show s.executed = s.log1.take c.priorityTree.unprocessedIndex
     rw [hcu]
     exact List.prefix_iff_eq_take.mp hpre
+
+theorem ReturnMintChecksPass : Properties.ReturnMintChecksPass :=
+  fun P s c h hp hen hpause =>
+    ReturnMintPassesOnPrefix P s c (pm_steps_mono (fun _ _ hok => hok.1) h) hp hen hpause
+      (ExecutedIsL1Prefix P s h).1
 
 /-! ## Without FREEZE-ORDER -/
 
@@ -1910,9 +2254,12 @@ def consistentB (s : St) : Op → Bool
 /-- `FreezeOrder`, decided. -/
 def freezeOrderB (s : St) : Op → Bool
   | .relay =>
-      match s.d2 with
-      | none => true
-      | some d => !d.frozen
+      match s.phase with
+      | .back => true
+      | _ =>
+          match s.d2 with
+          | none => true
+          | some d => !d.frozen
   | _ => true
 
 /-- `Honest`, decided. -/
@@ -1931,9 +2278,13 @@ theorem pm_consistentB {s : St} {op : Op} (h : consistentB s op = true) :
 theorem pm_freezeOrderB {s : St} {op : Op} (h : freezeOrderB s op = true) : FreezeOrder s op := by
   cases op
   case relay =>
-    intro d hd
-    simp only [freezeOrderB, hd, Bool.not_eq_true'] at h
-    exact h
+    show s.phase = .back ∨ ∀ d, s.d2 = some d → d.frozen = false
+    cases hp : s.phase with
+    | back => exact Or.inl rfl
+    | onL1 | toGW _ _ | gwMinted _ | gwFailed _ | onGW | toL1 _ =>
+      refine Or.inr fun d hd => ?_
+      simp only [freezeOrderB, hp, hd, Bool.not_eq_true'] at h
+      exact h
   all_goals trivial
 
 theorem pm_honestB {s : St} {op : Op} (h : honestB s op = true) : Honest s op := by
@@ -2121,17 +2472,18 @@ theorem ExecutedIsL1PrefixWitness : Properties.ExecutedIsL1PrefixWitness := by
   have e4 : s.log1 = [11, 1, 2, 3, 4] := pm_run_proj St.log1 h (by decide)
   have e5 : s.d1.tree.unprocessedIndex = 5 :=
     pm_run_proj (fun s => s.d1.tree.unprocessedIndex) h (by decide)
+  have e6 : s.dropped = [4] := pm_run_proj St.dropped h (by decide)
   cases hd : s.d2 with
   | none => rw [hd] at e2; cases e2
   | some d =>
     rw [hd] at e2
     exact ⟨s, d, pm_runChecked_steps (fun _ _ h => pm_honestB h) h, pm_phaseTag_back e0, e1, hd,
-      Option.some.inj e2, e3, e4, e5⟩
+      Option.some.inj e2, e3, e4, e5, e6⟩
 
 theorem ReturnMintChecksPassWitness : Properties.ReturnMintChecksPassWitness := by
   obtain ⟨s, h⟩ := Option.isSome_iff_exists.mp
     (show (runChecked wParams honestB (initial wParams)
-      (honestRun ++ honestReturn.take 4)).isSome = true by decide)
+      (honestRun ++ honestReturn.take 3)).isSome = true by decide)
   obtain ⟨c, hp, hc⟩ := pm_run_toL1 h (by decide)
   have e1 : (s.d1.pausedTs != 0) = true := pm_run_proj (fun s => s.d1.pausedTs != 0) h (by decide)
   have e2 : c.priorityTree.unprocessedIndex = 3 :=
@@ -2226,6 +2578,143 @@ theorem MigrationsDisabledKeepL1SettlingWitness :
     pm_run_proj (fun s => (step wParamsDisabled s .l1Burn).isNone) h (by decide)
   exact ⟨s, pm_runChecked_steps (fun _ _ _ => trivial) h, rfl, e1, e2, e3, e4,
     of_decide_eq_true e5, e6, Option.isNone_iff_eq_none.mp e7⟩
+
+theorem NoRelayDroppedBeforeReturnWitness : Properties.NoRelayDroppedBeforeReturnWitness := by
+  obtain ⟨s₀, h₀⟩ := Option.isSome_iff_exists.mp
+    (show (runChecked wParams honestB (initial wParams) (honestRun.take 9)).isSome = true by decide)
+  have hall : (runChecked wParams honestB (initial wParams)
+      (honestRun.take 9 ++ honestRun.drop 9)).isSome = true := by
+    rw [List.take_append_drop]; decide
+  rw [pm_run_split h₀] at hall
+  obtain ⟨s, h₁⟩ := Option.isSome_iff_exists.mp hall
+  have hfull : runChecked wParams honestB (initial wParams) honestRun = some s := by
+    rw [← List.take_append_drop 9 honestRun, pm_run_split h₀]; exact h₁
+  have hall2 : (runChecked wParams honestB (initial wParams)
+      (honestRun ++ honestReturn)).isSome = true := by decide
+  rw [pm_run_split hfull] at hall2
+  obtain ⟨s', h₂⟩ := Option.isSome_iff_exists.mp hall2
+  have hfull2 : runChecked wParams honestB (initial wParams) (honestRun ++ honestReturn) = some s' := by
+    rw [pm_run_split hfull]; exact h₂
+  have hd2 : s₀.d2.map ChainDiamond.frozen = some true :=
+    pm_run_proj (fun s => s.d2.map ChainDiamond.frozen) h₀ (by decide)
+  have hrel₀ : s₀.relays = [1] := pm_run_proj St.relays h₀ (by decide)
+  obtain ⟨c, hp, _⟩ := pm_run_toL1 hfull (by decide)
+  have e1 : s.leaves2 = [11, 1, 2] := pm_run_proj St.leaves2 hfull (by decide)
+  have e2 : phaseTag s'.phase = 6 := pm_run_proj (fun s => phaseTag s.phase) hfull2 (by decide)
+  have e3 : s'.dropped = [4] := pm_run_proj St.dropped hfull2 (by decide)
+  cases hd : s₀.d2 with
+  | none => rw [hd] at hd2; cases hd2
+  | some d =>
+    rw [hd] at hd2
+    exact ⟨s₀, s, s', d, c, pm_runChecked_steps (fun _ _ h => pm_honestB h) h₀, hd,
+      Option.some.inj hd2, hrel₀, pm_runChecked_steps (fun _ _ h => pm_honestB h) h₁, hp, e1,
+      pm_runChecked_steps (fun _ _ h => pm_honestB h) h₂, pm_phaseTag_back e2, e3⟩
+
+theorem RelayDropsIffFrozenWitness : Properties.RelayDropsIffFrozenWitness := by
+  obtain ⟨s₀, h₀⟩ := Option.isSome_iff_exists.mp
+    (show (runChecked wParams consistentB (initial wParams) (droppedRun.take 8)).isSome = true by
+      decide)
+  obtain ⟨s₁, h₁⟩ := Option.isSome_iff_exists.mp
+    (show (runChecked wParams consistentB (initial wParams) (droppedRun.take 11)).isSome = true by
+      decide)
+  have a1 : phaseTag s₀.phase = 4 := pm_run_proj (fun s => phaseTag s.phase) h₀ (by decide)
+  have a2 : s₀.relays = [1] := pm_run_proj St.relays h₀ (by decide)
+  have a3 : s₀.d2.map ChainDiamond.frozen = some false :=
+    pm_run_proj (fun s => s.d2.map ChainDiamond.frozen) h₀ (by decide)
+  have a4 : (step wParams s₀ .relay).map (fun t => (t.leaves2, t.dropped)) = some ([11, 1], []) :=
+    pm_run_proj (fun s => (step wParams s .relay).map (fun t => (t.leaves2, t.dropped))) h₀
+      (by decide)
+  have b1 : phaseTag s₁.phase = 4 := pm_run_proj (fun s => phaseTag s.phase) h₁ (by decide)
+  have b2 : s₁.relays = [2] := pm_run_proj St.relays h₁ (by decide)
+  have b3 : s₁.d2.map ChainDiamond.frozen = some true :=
+    pm_run_proj (fun s => s.d2.map ChainDiamond.frozen) h₁ (by decide)
+  have b4 : (step wParams s₁ .relay).map (fun t => (t.leaves2, t.dropped)) = some ([11, 1], [2]) :=
+    pm_run_proj (fun s => (step wParams s .relay).map (fun t => (t.leaves2, t.dropped))) h₁
+      (by decide)
+  cases hd₀ : s₀.d2 with
+  | none => rw [hd₀] at a3; cases a3
+  | some d₀ =>
+  cases hd₁ : s₁.d2 with
+  | none => rw [hd₁] at b3; cases b3
+  | some d₁ =>
+  cases ht₀ : step wParams s₀ .relay with
+  | none => rw [ht₀] at a4; cases a4
+  | some t₀ =>
+  cases ht₁ : step wParams s₁ .relay with
+  | none => rw [ht₁] at b4; cases b4
+  | some t₁ =>
+    rw [hd₀] at a3
+    rw [hd₁] at b3
+    rw [ht₀] at a4
+    rw [ht₁] at b4
+    simp only [Option.map_some, Option.some.injEq, Prod.mk.injEq] at a3 b3 a4 b4
+    exact ⟨s₀, s₁, t₀, t₁, d₀, d₁, pm_runChecked_steps (fun _ _ h => pm_consistentB h) h₀,
+      pm_phaseTag_onGW a1, a2, hd₀, a3, ht₀, a4.1, a4.2,
+      pm_runChecked_steps (fun _ _ h => pm_consistentB h) h₁, pm_phaseTag_onGW b1, b2, hd₁, b3,
+      ht₁, b4.1, b4.2⟩
+
+theorem MirrorIffNoDropWitness : Properties.MirrorIffNoDropWitness := by
+  obtain ⟨s₀, h₀⟩ := Option.isSome_iff_exists.mp
+    (show (runChecked wParams (fun _ _ => true) (initial wParams) (droppedRun.take 8)).isSome = true by
+      decide)
+  obtain ⟨s₁, h₁⟩ := Option.isSome_iff_exists.mp
+    (show (runChecked wParams (fun _ _ => true) (initial wParams)
+      (droppedRun.take 15)).isSome = true by decide)
+  have a1 : phaseTag s₀.phase = 4 := pm_run_proj (fun s => phaseTag s.phase) h₀ (by decide)
+  have a2 : s₀.dropped = [] := pm_run_proj St.dropped h₀ (by decide)
+  have a3 : s₀.leaves2 = [11] := pm_run_proj St.leaves2 h₀ (by decide)
+  have a4 : s₀.relays = [1] := pm_run_proj St.relays h₀ (by decide)
+  have a5 : s₀.log1 = [11, 1] := pm_run_proj St.log1 h₀ (by decide)
+  have b1 : phaseTag s₁.phase = 4 := pm_run_proj (fun s => phaseTag s.phase) h₁ (by decide)
+  have b2 : s₁.dropped = [2] := pm_run_proj St.dropped h₁ (by decide)
+  have b3 : s₁.leaves2 = [11, 1, 3] := pm_run_proj St.leaves2 h₁ (by decide)
+  have b4 : s₁.relays = [] := pm_run_proj St.relays h₁ (by decide)
+  have b5 : s₁.log1 = [11, 1, 2, 3] := pm_run_proj St.log1 h₁ (by decide)
+  exact ⟨s₀, s₁, pm_runChecked_steps (fun _ _ _ => trivial) h₀, pm_phaseTag_onGW a1, a2, a3, a4, a5,
+    pm_runChecked_steps (fun _ _ _ => trivial) h₁, pm_phaseTag_onGW b1, b2, b3, b4, b5⟩
+
+theorem MirrorBreakPermanentWitness : Properties.MirrorBreakPermanentWitness := by
+  obtain ⟨s, h₀⟩ := Option.isSome_iff_exists.mp
+    (show (runChecked wParams (fun _ _ => true) (initial wParams)
+      (droppedRun.take 12)).isSome = true by decide)
+  have hall : (runChecked wParams (fun _ _ => true) (initial wParams)
+      (droppedRun.take 12 ++ droppedRun.drop 12)).isSome = true := by
+    rw [List.take_append_drop]; decide
+  rw [pm_run_split h₀] at hall
+  obtain ⟨s', h₁⟩ := Option.isSome_iff_exists.mp hall
+  have hfull : runChecked wParams (fun _ _ => true) (initial wParams) droppedRun = some s' := by
+    rw [← List.take_append_drop 12 droppedRun, pm_run_split h₀]; exact h₁
+  have e1 : s.dropped = [2] := pm_run_proj St.dropped h₀ (by decide)
+  have e2 : s.relays = [] := pm_run_proj St.relays h₀ (by decide)
+  obtain ⟨c, hp, _⟩ := pm_run_toL1 hfull (by decide)
+  have e3 : s'.log1 = [11, 1, 2, 3] := pm_run_proj St.log1 hfull (by decide)
+  have e4 : s'.leaves2 = [11, 1, 3] := pm_run_proj St.leaves2 hfull (by decide)
+  exact ⟨s, s', c, pm_runChecked_steps (fun _ _ _ => trivial) h₀,
+    pm_runChecked_steps (fun _ _ _ => trivial) h₁, e1, e2, hp, e3, e4⟩
+
+theorem ReturnMintPassesOnPrefixWitness : Properties.ReturnMintPassesOnPrefixWitness := by
+  obtain ⟨s, h₀⟩ := Option.isSome_iff_exists.mp
+    (show (runChecked wParams consistentB (initial wParams) (recoveredRun.take 16)).isSome = true by
+      decide)
+  have hall : (runChecked wParams consistentB (initial wParams)
+      (recoveredRun.take 16 ++ recoveredRun.drop 16)).isSome = true := by
+    rw [List.take_append_drop]; decide
+  rw [pm_run_split h₀] at hall
+  obtain ⟨s', h₁⟩ := Option.isSome_iff_exists.mp hall
+  have hfull : runChecked wParams consistentB (initial wParams) recoveredRun = some s' := by
+    rw [← List.take_append_drop 16 recoveredRun, pm_run_split h₀]; exact h₁
+  obtain ⟨c, hp, _⟩ := pm_run_toL1 h₀ (by decide)
+  have e1 : (s.d1.pausedTs != 0) = true := pm_run_proj (fun s => s.d1.pausedTs != 0) h₀ (by decide)
+  have e2 : s.dropped = [2] := pm_run_proj St.dropped h₀ (by decide)
+  have e3 : s.executed = [11, 1] := pm_run_proj St.executed h₀ (by decide)
+  have e4 : s.log1 = [11, 1, 2] := pm_run_proj St.log1 h₀ (by decide)
+  have e5 : phaseTag s'.phase = 6 := pm_run_proj (fun s => phaseTag s.phase) hfull (by decide)
+  have e6 : s'.executed = [11, 1, 2] := pm_run_proj St.executed hfull (by decide)
+  refine ⟨s, s', c, pm_runChecked_steps (fun _ _ h => pm_consistentB h) h₀, hp, rfl,
+    by simpa using e1, e2, e3, e4, ?_, pm_runChecked_steps (fun _ _ h => pm_consistentB h) h₁,
+    pm_phaseTag_back e5, e6⟩
+  rw [e3, e4]
+  decide
 
 /-! ## The countermodel -/
 

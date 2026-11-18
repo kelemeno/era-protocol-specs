@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
+-- on the PriorityTree model copied from origin/cov/mailbox
+import EraSpec.Protocol.PriorityMirror.Proofs.Mirror
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
