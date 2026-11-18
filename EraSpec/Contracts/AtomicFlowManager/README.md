@@ -18,6 +18,7 @@ only import a shared specification when the topic needs no additional definition
 | RecoveryLimitsFaithful | [Specs/RecoveryLimitsFaithful.lean](Specs/RecoveryLimitsFaithful.lean) | [Properties/RecoveryLimitsFaithful.lean](Properties/RecoveryLimitsFaithful.lean) | [Proofs/RecoveryLimitsFaithful.lean](Proofs/RecoveryLimitsFaithful.lean) |
 | RefundClosesAppend | [Specs/RefundClosesAppend.lean](Specs/RefundClosesAppend.lean) | [Properties/RefundClosesAppend.lean](Properties/RefundClosesAppend.lean) | [Proofs/RefundClosesAppend.lean](Proofs/RefundClosesAppend.lean) |
 | FlowCanonicalAtV35 | [Specs/FlowCanonicalAtV35.lean](Specs/FlowCanonicalAtV35.lean) | [Properties/FlowCanonicalAtV35.lean](Properties/FlowCanonicalAtV35.lean) | [Proofs/FlowCanonicalAtV35.lean](Proofs/FlowCanonicalAtV35.lean) |
+| RecoveryTargets | [Specs/RecoveryTargets.lean](Specs/RecoveryTargets.lean) | [Properties/RecoveryTargets.lean](Properties/RecoveryTargets.lean) | [Proofs/RecoveryTargets.lean](Proofs/RecoveryTargets.lean) |
 
 Several `Model` and `RecoveryLimits` properties are one-state facts whose docstrings
 used to make run-level claims; the docstrings now say so, and the run-level claims
@@ -139,6 +140,35 @@ flow id of a rejected (for instance oversized) preimage unless it appended under
 preimage that clashes with it; and a refunded leg was marked by an `authorizeRefund`
 presenting the preimage it was committed under, or one that clashes with it. No hash
 premise; each clash disjunct is reached by a witness.
+
+**RecoveryTargets** (`c67894b9`) models `claimRefund`'s loop over a code map: what is
+deployed at each call's `to` on the chain running the refund (the leg's source chain) is
+nothing, a recoverer, or code without `recoverAtomicCall`. Under the call-semantics
+premise `VmCall`:
+
+- a claim of a `Revertable` leg succeeds exactly when every target is a recoverer that
+  returns and one of them returns `true` (`ClaimSucceedsIff`);
+- a target with no recoverer makes every claim revert, in every world and leg state
+  (`NonRecovererTargetBlocksClaim`). On the router model, a bundle of a router call and a
+  direct call to an address with nothing deployed on the refunding chain is not claimable,
+  while the router call alone is (`CodelessCallTargetBlocksBundleClaim`);
+- a returned `true` is counted whatever the code did: targets that return `true` and change
+  nothing close the leg with the world unchanged (`ForeignTrueCountsAsRecovered`);
+- the manager reads only `to` and `data` (`RecoveryReadsOnlyTargetAndData`, by definition).
+
+`AssetRouterBase`'s `AtomicRecovery` loop is the case with a recoverer at every address
+(`RouterModelIsACodeMap`). A router call to another L2 targets `L2_ASSET_ROUTER_ADDR`, the
+source chain's own router; with the router's `recoverAtomicCall` deployed there, the
+manager's call of a prepared burn's router call is the vault's mint of the burned amount to
+the depositor (`SourceRouterTargetRefundsDepositor`). Witnesses:
+`VmCallHolds`, `ClaimSucceedsIffWitness`, `NonRecovererTargetBlocksClaimWitness`,
+`ForeignTrueCountsAsRecoveredWitness`, `RecoveryReadsOnlyTargetAndDataWitness`,
+`SourceRouterTargetRefundsDepositorWitness`; `VmCall` is load-bearing
+(`NonRecovererTargetBlocksClaimNeedsVmCall`). No hash premise. The code map is fixed (a
+later deployment at an address is outside the model), and `_recoverBundle` at `e561b9cc2`
+and the current heads, which calls `c.from`, is not modelled. Model boundary:
+`MODEL-RECOVERY-TARGETS`. The run-level use, with the center and the destinations, is
+`../InteropCenter/` topic `AtomicRouting`.
 
 The full flow gate spans `AtomicInteropProof`, the commitment tree, and the
 handler. Its multi-chain composition lives in `../../Protocol/`. Implementation

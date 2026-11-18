@@ -332,6 +332,10 @@ import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerGateAtV35
 -- draft/v0.35.0 (b17415d20): the second-proof-system gate on every chain upgrade
 import EraSpec.Contracts.SecondProofSystem.Proofs.UpgradeGateV35
 
+-- Recovery targets on the source chain and atomic-attribute routing (AtomicFlowManager, InteropCenter)
+import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
+import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
