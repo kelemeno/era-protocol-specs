@@ -302,7 +302,11 @@ def callingEngine (X : XConfig) (calls : List FCall) : EngineCode := fun _ s s' 
 
 /-- A hook call a release review can admit: a CTM call that is not a break-glass cut. Not
 `ProxyAdmin.upgrade`/`upgradeAndCall` on any proxy (the CTM's included), and not the CTM's
-`executeUpgrade`. Calls that touch no modelled state are not represented at all. -/
+`executeUpgrade`. Calls that touch no modelled state are not represented at all. The label set
+is `ExecutorForward`'s `FCall.sys`, an over-approximation of the CTM calls the executor can
+make: it admits every `ChainRouting` label that is not an `arbitraryCut`, including steps the
+executor does not make (for example `genesis` and `migrateIn`). A larger set makes
+`EngineReviewed` a weaker premise, so the results that assume it only get stronger. -/
 def ReviewedHookCall : FCall → Prop
   | .sys l => ¬ l.isArbitrary
   | _ => False
@@ -430,8 +434,10 @@ def V35Label.Tame (X : V35Config) : V35Label → Prop
 transactions (`XLabel.Tame`): something the owner could have done by `forward`s of CTM calls that
 are not break-glass cuts and of `ProxyAdmin.upgrade` on proxies other than the CTM's, and by
 `applyInfrastructureUpgrade`s of rows that do not name the CTM proxy. Read in source terms, the
-engine makes no break-glass cut and does not move the CTM proxy, and the rest of what it does to
-the modelled state is something such transactions could do. The executor checks none of this.
+engine's net effect on the modelled state is that of transactions that make no break-glass cut
+and do not move the CTM proxy; this is a net-effect condition, so an engine that swaps the CTM
+proxy and swaps it back to the same modelled state also counts as tame. The executor checks
+none of this.
 Only the engine's code varies between the legs of `T`, so this is a condition on the engine. -/
 def EngineIsTame (X : V35Config) (T : V35Transition) : Prop :=
   ∀ s s', V35Step X s (.infra T) s' →

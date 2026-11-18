@@ -42,7 +42,7 @@ open Contracts.Refund (Obligation CommitClash)
 /-! ## (a) The counted search -/
 
 /-- The set `hopsNeeded` counts. -/
-def aboveSet (T : Tree) (v : UInt256) (i : ℕ) : Finset ℕ :=
+private def aboveSet (T : Tree) (v : UInt256) (i : ℕ) : Finset ℕ :=
   (Finset.range T.leafCount).filter
     (fun k => (T.leaf i).value < (T.leaf k).value ∧ (T.leaf k).value < v)
 
@@ -309,15 +309,15 @@ theorem StaleExactHintSurvivesFiveInserts : Properties.StaleExactHintSurvivesFiv
 
 /-! ## (b) The honest chain of leaves -/
 
-lemma natCast_val {a : ℕ} (ha : a < UInt256.size) : ((a : ℕ) : UInt256).val = a := by
+private lemma natCast_val {a : ℕ} (ha : a < UInt256.size) : ((a : ℕ) : UInt256).val = a := by
   show (Fin.ofNat UInt256.size a).val = a
   rw [Fin.val_ofNat, Nat.mod_eq_of_lt ha]
 
-lemma natCast_lt {a b : ℕ} (ha : a < UInt256.size) (hb : b < UInt256.size) :
+private lemma natCast_lt {a b : ℕ} (ha : a < UInt256.size) (hb : b < UInt256.size) :
     ((a : ℕ) : UInt256) < ((b : ℕ) : UInt256) ↔ a < b := by
   rw [Fin.lt_def, natCast_val ha, natCast_val hb]
 
-lemma natCast_inj {a b : ℕ} (ha : a < UInt256.size) (hb : b < UInt256.size) :
+private lemma natCast_inj {a b : ℕ} (ha : a < UInt256.size) (hb : b < UInt256.size) :
     ((a : ℕ) : UInt256) = ((b : ℕ) : UInt256) ↔ a = b := by
   rw [Fin.ext_iff, natCast_val ha, natCast_val hb]
 
@@ -622,13 +622,13 @@ theorem DispatchWithinFiveHopsEnabledOrClash :
       (HintWithinFiveHopsSucceeds _ hV _ _ hv0 hreg hb hlow).mpr hhops
     exact ⟨low, Step.sendAtomic d low hat hsalt hform hval ⟨hguard, hins⟩⟩
 
-lemma reach_trans {P : Params} {cv : CommitValue} {X Y Z : State} (h1 : Reach P cv X Y)
+private lemma reach_trans {P : Params} {cv : CommitValue} {X Y Z : State} (h1 : Reach P cv X Y)
     (h2 : Reach P cv Y Z) : Reach P cv X Z := by
   induction h2 with
   | refl => exact h1
   | tail _ hs ih => exact .tail ih hs
 
-lemma reach_valid {P : Params} {cv : CommitValue} {X : State} (h : Reach P cv genesis X) :
+private lemma reach_valid {P : Params} {cv : CommitValue} {X : State} (h : Reach P cv genesis X) :
     Valid X.chain.tree :=
   (Contracts.AppendPath.inv_of_steps (reach_chain h)).valid
 
@@ -700,7 +700,7 @@ theorem AtomicDispatchBlockedIffClash : Properties.AtomicDispatchBlockedIffClash
 /-! ## Witnesses -/
 
 /-- The tree after one append of the value `1` through the sentinel. -/
-abbrev oneTree : Tree := Contracts.InteropCommitmentTree.insert setup 1 0
+private abbrev oneTree : Tree := Contracts.InteropCommitmentTree.insert setup 1 0
 
 lemma atomicDispatch_formed (P : Params) (s : Address) (salt : Word) (hint : ℕ) :
     FormedBy P (atomicDispatch P s salt hint) :=

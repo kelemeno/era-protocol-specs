@@ -255,7 +255,11 @@ and then runs `aliasCtmProxyAdmin X` for any `X` other than zero, the executor a
   CTM's implementation;
 * the executor's `ProxyAdmin` does not: its `changeProxyAdmin` to any address reverts, and so
   does an `upgradeTo` from it;
-* `leg` (`b17415d`) with the same engine reverts, or its compared pair collides. -/
+* `leg` (`b17415d`) with the same engine reverts, or its compared pair collides.
+The last conjunct has no `CtmAdminOk` premise, so it also covers starts where the CTM's
+`admin()` already is the `ProxyAdmin`; there `leg` reverts at the pre-check (`:75-77`), not at
+the hash comparison. `MovedCtmCaughtNotVacuous` is the instance with `CtmAdminOk`, a hash that
+separates the pair, and a revert at the comparison. -/
 def Properties.AliasingPassesAtD9CaughtAtB17 : Prop :=
   ∀ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (pre : Engine) (w₀ w₁ : World)
     (X : Address),

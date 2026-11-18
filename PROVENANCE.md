@@ -245,6 +245,13 @@ supplying that correspondence.
   Solidity file they cite is unchanged between those commits and the heads above, on each
   branch. Line numbers are `main`'s unless a spec marks them as `draft/v0.35.0`'s, and
   `protocol-docs/bridging.md` is cited at `main`.
+* `EraSpec/Contracts/ProxyUpgradeExecutorBase/` topics `EngineLegV35`, `DomainHoldersV35` and
+  `ExecutorOwnerCallsV35` are pinned at era-contracts `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+  (branch `draft/v0.35.0`, label `head-v35-b17415d`). Each was first written at `d9f6789`, and
+  its Specs header lists what changed between the two commits. `EngineLegV35` reuses the
+  `e561b9cc2` row model (`ProxyUpgradeRowLib` `RowsCurrent`); between `e561b9cc2` and
+  `b17415d20`, `libraries/ProxyUpgradeRowLib.sol` drops `applyTransition`, moves `applyRows`'s
+  verification loop into `requireRowsApplied` unchanged, and adds a `@dev` comment.
 * `EraSpec/Contracts/ProxyUpgradeExecutorBase/` topic `NotifierBindingV35` models the CTM
   executor's check around an engine leg and the ServerNotifier binding at era-contracts
   `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label

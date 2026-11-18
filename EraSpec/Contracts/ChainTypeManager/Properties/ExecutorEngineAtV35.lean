@@ -102,7 +102,12 @@ and every row's proxy is at its `implNew` in `x'`. The modelled calls go to the 
 `ProxyAdmin`, so the code check `forward` makes at `b17415d20` does not separate the two. The
 forwards of `ExecutorForward`'s countermodels (`ForwardDowngradesAProxy`,
 `ForwardCtmSwapBreaksInvariants`) therefore run inside the fixed entry point once its rows are
-applied. Unlike a `forward`, the leg emits no `CallForwarded`. -/
+applied. Unlike a `forward`, the leg emits no `CallForwarded`. The equivalence is in the model:
+the one omitted reject-only check that separates the two sides is `_domainHolders` reverting for a
+ServerNotifier the `ProxyAdmin` no longer administers (`ProxyUpgradeExecutorBase.sol:112-114`;
+`MODEL-CTM-ENGINE-V35`), which can make the real leg revert where the modelled `forward` succeeds.
+(`onlyOwner` guards `forward` too, and `_checkPostconditions` belongs to the default engine, not
+the `callingEngine` quantified here.) -/
 def Properties.EveryForwardIsAnEngineLeg : Prop :=
   ∀ (X : V35Config) (T : V35Transition) (s : V35State) (calls : List FCall) (x' : XState),
     X.code T.engine = callingEngine X.base calls → X.base.rc.hasCode T.addr → T.domain = .ctm →
@@ -218,7 +223,10 @@ leg makes that `ExecutorForward`'s infrastructure step does not include: the exe
 the inventory has the CTM domain's length (`:99-102`). The leg can leave the executor's ownership
 and the domain holders as they were. With `DefaultEngineLegIsAnInfraStep`: on the executor-model
 state, a leg pinning the genuine row engine is the `e561b9cc2` infrastructure step restricted by
-these checks, so `ExecutorForward`'s results about that step describe it. -/
+these checks, so `ExecutorForward`'s results about that step describe it. This holds in the
+model: the reject-only checks it omits (`onlyOwner`, `_checkPostconditions`, and
+`_domainHolders` reverting for a ServerNotifier the `ProxyAdmin` no longer administers,
+`ProxyUpgradeExecutorBase.sol:112-114`; `MODEL-CTM-ENGINE-V35`) can make the real leg revert. -/
 def Properties.InfraStepIsADefaultEngineLeg : Prop :=
   ∀ (X : V35Config) (T : V35Transition) (s : V35State) (x' : XState), EngineIsDefault X T →
     XStep X.base s.x (.infra T.toCurrent) x' → X.base.rc.adminOwner = X.base.rc.self →

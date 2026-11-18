@@ -40,7 +40,8 @@ Executor's count check, rolling hash and call. No hash premise anywhere.
   a `BatchBreak` at the index it started from (`ProcessedRunIsQueueSegmentOrBreak`). A run
   whose roots grow is covered by its final roots (`ProcessBatchMonotoneInRoots`). Only
   `processBatch` moves the index in a run: `l1Reinit` and `initFromCommitment`, which set it on
-  migration, are not steps.
+  migration, are not steps; `skipUntil` (`PriorityTree.sol:101-113`) also writes it and has no
+  caller at `b17415d20`.
 - The breaks: a `bytes32(0)` root needs a single item `bytes32(0)` at index 0 with empty paths,
   or a pair the loop hashed that hashes to 0 (`SetupRootHitCases`); an honest batch has no
   `TreeBreak` for any hash (`HonestBatchNoTreeBreak`); `SegmentBindingWitness` meets every

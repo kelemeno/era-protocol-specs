@@ -70,7 +70,9 @@ reverting target, is undone with it; its destination run also meets the premises
 `AtomicLegWithRevertingCallNeverExecutesOrClash` on the `InteropCenter` witness run, with a valid
 proof in the destination run and both clashes false. `EscapeWitness` instantiates
 `PublicBundleEscapesViaUnbundle` on a two-call bundle. `EnablednessWitness` meets the premises of
-both results of (h), and `ExecutorGateWitness` those of both results of (f), with one call passing
+both results of (h), `AtomicRouteBothBranchesWitness` shows both branches of
+`AtomicRouteStaysEnabled` on one run (`Unreceived` after a reverted attempt, then
+`FullyExecuted`), and `ExecutorGateWitness` those of both results of (f), with one call passing
 the gate and one failing it.
 -/
 
@@ -151,7 +153,10 @@ reverts, `other` stays `Unreceived` and none of its calls is delivered; and in e
 the source managers its obligation is not refunded, or a call of the run's log that marked it
 carries a located `RefundBreak`. The destination run and the source history are separate models,
 linked by the leg's bundle hash; the second half is
-`Contracts.Refund.Properties.OneExecutionFreezesTheFlowOrBreak` for `other`. -/
+`Contracts.Refund.Properties.OneExecutionFreezesTheFlowOrBreak` for `other`. Because the models
+share no state and are not composed into one run, the statement does not require `other ≠ leg`: its destination half also holds
+for the leg the history says executed, so it is a conjunction of two results, not one composed
+run. -/
 def Properties.FinalizedRevertingLegNeitherDeliveredNorRefunded : Prop :=
   ∀ (hh : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (fh : FlowHash) (S : System),
     Wf S → ∀ (F : Flow) (ev : GateEvidence) (leg : FlowLeg),
@@ -338,6 +343,19 @@ def Properties.EnablednessWitness : Prop :=
     toExecute 0 [.Executed, .Cancelled] = [0]) ∧
   (NoProofRun 1 [wVerify 3 2] ∧ ¬ NoProofRun 3 [wVerify 3 2] ∧
     (submitAll .deployed Contracts.InteropHandler.init [wVerify 3 2]).1.bundle 1 = .Unreceived)
+
+/-- **BOTH BRANCHES OF `AtomicRouteStaysEnabled` OCCUR ON ONE RUN.** The run of
+`wRevertingAttempt 1` and then a committing `executeAtomicBundle` of `⟨1, 1⟩` (gate passing, its
+target returning) presents no valid proof for hash `1`. After the reverted attempt, bundle `1` is
+still `Unreceived` (the second branch, after an attempt on `b`), and the committing attempt
+leaves it `FullyExecuted` (the first branch, after an earlier transaction on `b` committed). -/
+def Properties.AtomicRouteBothBranchesWitness : Prop :=
+  NoProofRun 1 [wRevertingAttempt 1, (⟨5, .executeAtomicBundle ⟨1, 1⟩ true, [.returns]⟩ : Tx)] ∧
+    (submitAll .deployed Contracts.InteropHandler.init [wRevertingAttempt 1]).1.bundle 1
+      = .Unreceived ∧
+    (submitAll .deployed Contracts.InteropHandler.init
+        [wRevertingAttempt 1, (⟨5, .executeAtomicBundle ⟨1, 1⟩ true, [.returns]⟩ : Tx)]).1.bundle 1
+      = .FullyExecuted
 
 /-- **(f)'S PREMISES HOLD, AND THE GATE DECIDES.** For the handler at `0` on chain `324`: a direct
 call from `7` into `executeAtomicBundle` for attributes naming `(324, 7)` reaches the gate and passes

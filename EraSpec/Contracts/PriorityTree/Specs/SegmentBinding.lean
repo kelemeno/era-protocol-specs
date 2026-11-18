@@ -166,7 +166,10 @@ def TreeBreak (h : Hash) (z : UInt256) (L : List UInt256) (H u : ℕ) (info : Ba
 
 /-- **A located break on one batch.** The batch's recomputed root is `bytes32(0)`, the root
 `setup` records; or it is the root of a logged tree `(m, H)` (the first `m` queued hashes at
-height `H`), and there is a `TreeBreak` against that tree. -/
+height `H`), and there is a `TreeBreak` against that tree. The `bytes32(0)` case is not always a
+hash event: it includes the reachable acceptance of the single item `bytes32(0)` at index 0 with
+empty paths (`Properties.SetupRootAcceptsZeroItem`); its other case is a pair the loop hashed
+that hashes to 0 (`Properties.SetupRootHitCases`). -/
 def BatchBreak (h : Hash) (z : UInt256) (Q : List UInt256) (log : List (ℕ × ℕ)) (u : ℕ)
     (info : BatchInfo) : Prop :=
   rootPaths h info.leftPath info.rightPath u info.itemHashes = some 0
@@ -180,7 +183,8 @@ started from: `ProcessRun h roots u₀ steps u₁` runs `steps` from `u₀` and 
 `roots` is fixed; a run whose roots grow is covered by taking the final set
 (`Properties.ProcessBatchMonotoneInRoots`). Only `processBatch` moves the index here: the
 migration paths that set `unprocessedIndex` directly (`l1Reinit`, `PT:135-147`;
-`initFromCommitment`, `PT:116-132`) are not steps of a run. -/
+`initFromCommitment`, `PT:116-132`) are not steps of a run. `skipUntil` (`PT:101-113`) also
+writes `unprocessedIndex`; it has no caller under `l1-contracts/contracts/` at `b17415d20`. -/
 inductive ProcessRun (h : Hash) (roots : UInt256 → Bool) : ℕ → List (ℕ × BatchInfo) → ℕ → Prop
   | nil (u : ℕ) : ProcessRun h roots u [] u
   | cons {u u' u'' : ℕ} {info : BatchInfo} {mem : List UInt256} {rest : List (ℕ × BatchInfo)} :

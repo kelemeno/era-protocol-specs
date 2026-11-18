@@ -123,10 +123,9 @@ it is the step sequence "claim, then that call" (the same argument as `InteropCe
 
 * **One chain's state** (`ChainState`): the manager's `_state` (reusing
   `Contracts.AtomicFlowManager.Manager`) and `L1_CHAIN_ID`, the commitment tree as an abstract
-  state of type `τ`, and the root storage's two mappings (`RootStore`, transcribed from the
-  unmerged `origin/cov/interop-root` model `Contracts.InteropRootStorage`, written against
-  `d9f6789`, whose `L2InteropRootStorage.sol` is identical to `b17415d20`; here with `ℕ` numbers
-  and the maximum as a switch).
+  state of type `τ`, and the root storage's two mappings (`RootStore`, transcribed from
+  `L2InteropRootStorage.sol` R:32-103 at `b17415d20`, which is identical at `d9f6789`; here
+  with `ℕ` numbers and the maximum as a switch).
 * **Every entry point that writes it**, with its guards in source order (`ChainCall`, `execCall`):
   `initL2`, `append`, `authorizeRefund`, `claimRefund`, `addSingleInteropRoot`,
   `addInteropRootsInBatch`, plus the view `requireFlowFinalized` as a call that changes nothing.
@@ -179,7 +178,8 @@ the tree's internals and its `initL2`; who the bootloader is and what it imports
 sequence is a run); other chains (their managers, trees and views of the clock); upgrades of
 either contract by the complex upgrader (`OPS-CONFIG`).
 
-At `main` (`70096e2ea`) `AtomicFlowManager.sol` differs only by not having `_checkLegSourceAllowed`
+At `main` (`70096e2ea`) `AtomicFlowManager.sol` differs, apart from its imports (`main` imports
+`Unauthorized` from `ZKOSContractErrors.sol`), only by not having `_checkLegSourceAllowed`
 (here `LegSourceAllowed`, an extra rejecting check) and `L2InteropRootStorage.sol` only by an
 import and a comment; `AtomicInteropProof.sol` is identical.  The positive results hold for every
 `peerAllowed` answer, so they cover `main`'s `authorizeRefund` with `peerAllowed` constantly

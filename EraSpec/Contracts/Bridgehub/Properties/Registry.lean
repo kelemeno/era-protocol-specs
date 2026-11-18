@@ -634,6 +634,22 @@ def Properties.RegistryRunWitness : Prop :=
     s.whitelistedSL 10 = true ∧ (10 : ChainId) ≠ wRegistryCfg.thisChain ∧
     s.settlementLayer 11 = 10
 
+/-- **THE CHAIN-COUNT LIMIT BINDS.** With `wRegistryCfg`'s limit lowered to `3`, the run
+`wRegistryRun` followed by the handler's checked `registerNewZKChain(12, 82, true)` (a key
+already present) succeeds and meets `ChainCountBounded`'s premise; at its end `zkChainMap`
+has exactly `3` keys, and both a checked `registerNewZKChain(13, 73, true)` for a fourth chain
+and `createNewChain(14, 60, 7, 0)` (which succeeds at the limit `10`, `RegistryStepWitness`)
+revert (`ZKChainLimitReached`, `BB:301-307`). So the bound of `ChainCountBounded` is reached
+and the next checked registration is refused. -/
+def Properties.ChainCountLimitWitness : Prop :=
+  ∃ s, Run { wRegistryCfg with maxChains := 3 } (init { wRegistryCfg with maxChains := 3 } 1)
+      (wRegistryRun ++ [(53, .registerNewZKChain 12 82 true)]) s ∧
+    (∀ k ∈ wRegistryRun ++ [(53, .registerNewZKChain 12 82 true)],
+      k.2.uncheckedRegistration = false) ∧
+    s.zkKeys.card = 3 ∧
+    exec { wRegistryCfg with maxChains := 3 } 53 (.registerNewZKChain 13 73 true) s = none ∧
+    exec { wRegistryCfg with maxChains := 3 } 1 (.createNewChain 14 60 7 0 74) s = none
+
 /-- **RUN-LEVEL PREMISES WITH THE HANDLER'S WRITERS.** From the end of `wRegistryRun`, the
 handler run `wRegistryHandlerRun` succeeds. At its start chains `10`, `11` and `12` have
 CTMs and chain `10` settles here. The run contains a burn for chain `12` but none for `10`;
@@ -681,7 +697,11 @@ reaches, and succeeds:
   `72` (the other disjunct of `DiamondChangesOnlyByRegistration`);
 * the owner's `pause` at the end of `wRegistryRun`, from a state in which
   `createNewChain(14, 60, 7, 0)` with the CTM returning `74` succeeds (premise of
-  `PauseBlocksCreationAndRequests`). -/
+  `PauseBlocksCreationAndRequests`).
+Of `RegistryWritesAuthorized`'s implications, the stated facts instantiate the antecedents
+on `chainTypeManager` and `settlementLayer` (the `createNewChain` step) and the diamond write;
+no step here is stated to change the CTM registry, the whitelist, the address slots, the owner
+or admin slots or the CTM asset maps, so those antecedents are not exhibited. -/
 def Properties.RegistryStepWitness : Prop :=
   (∃ s s', Run wRegistryCfg (init wRegistryCfg 1) wRegistryPrelude s ∧
     exec wRegistryCfg 1 (.createNewChain 10 60 7 0 70) s = some s' ∧

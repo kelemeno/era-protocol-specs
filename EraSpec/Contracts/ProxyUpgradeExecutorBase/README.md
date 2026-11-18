@@ -249,7 +249,8 @@ What to check:
   `CTMInfrastructureUpgradeApplied`.
 - `OwnerCallOrigins`: every owner call comes from `applyCTMUpgrade`, `upgradeChain` (the
   executor's owner or that chain's admin), a `forward`, or the pinned engine of an
-  infrastructure leg. `OwnerCallOriginsEachOccur` realizes all four.
+  infrastructure leg. This is a structural restatement of the frame constructors;
+  `OwnerCallOriginsEachOccur` realizes all four.
 - `OwnerCallsOutsideEngineLegsAreLogged`: outside legs whose engine calls the CTM, the
   executor's log names every owner call. `EngineOwnerCallsNotLoggedByExecutor` and
   `EngineLegReplacesAndMovesDeadlineWithoutForward`: a leg whose engine replaces a committed

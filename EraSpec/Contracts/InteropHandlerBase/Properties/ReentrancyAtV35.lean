@@ -238,7 +238,11 @@ deployed order: if bundle `b` is `Unreceived` and one of its first `b.calls` tar
 as it was and commits nothing, including whatever that target and the targets before it committed
 in their own frames. From that same state, a retry with a passing verdict whose targets return
 delivers each of `b`'s calls once, in order, executes `b`, and leaves it `FullyExecuted` with its
-calls `Executed`. -/
+calls `Executed`. On L1 the run exists only for a single-call bundle whose target is `L1_ASSET_ROUTER`: the model
+omits `executeBundle`'s `calls.length == 1` check (`L1InteropHandler.sol:85`) and
+`_interopCallTarget`'s target check (`L1InteropHandler.sol:189-192`), and on both layers the
+permission and destination-context checks (`MODEL-HANDLER-REENTRY-V35`), all of which only
+reject. -/
 def Properties.FailedAttemptCanBeRetriedAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (b : Bundle) (fuel : ℕ) (cs : List (CalleeAtV35 ℓ)),
     s.bundle b.hash = .Unreceived → (∃ c ∈ cs.take b.calls, AlwaysRevertsAtV35 ℓ .deployed c) →
@@ -299,7 +303,11 @@ for every bundle `b` and every state in which it is `Verified`: `verify` of `b` 
 whatever its verdict, fuel and targets (`IHB:313`); and `execute` of `b` with a failing verdict,
 whose targets return, delivers each of `b`'s calls once, in order, and completes `b`. On L2 that is
 `executeAtomicBundle` skipping `requireFlowFinalized` (`L2InteropHandler.sol:73-75`), new at v35:
-at the pin `executeAtomicBundle` refused a `Verified` bundle. -/
+at the pin `executeAtomicBundle` refused a `Verified` bundle. On L1 the run exists only for a single-call bundle whose target is `L1_ASSET_ROUTER`: the model
+omits `executeBundle`'s `calls.length == 1` check (`L1InteropHandler.sol:85`) and
+`_interopCallTarget`'s target check (`L1InteropHandler.sol:189-192`), and on both layers the
+permission and destination-context checks (`MODEL-HANDLER-REENTRY-V35`), all of which only
+reject. -/
 def Properties.VerifiedBundleExecutesWithoutTheGateAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (b : Bundle), s.bundle b.hash = .Verified →
     (∀ (fuel : ℕ) (ok : Bool) (cs : List (CalleeAtV35 ℓ)),
@@ -369,7 +377,10 @@ For chain `self`, a whitelist `p` and the source chains `legs` of a flow's legs,
   each call and completes `b`; and if `b` was verified while `c` was allowed, it executes after the
   removal, every target returning, delivering each call and completing `b`.
 Here the verdict is `gateVerdictAtV35`, the model's reading of `requireFlowFinalized`
-(`AtomicFlowManager.sol:176-213`), with the other checks a single input bit. -/
+(`AtomicFlowManager.sol:176-213`), with the other checks a single input bit. This is a model-level
+illustration: that the filter is read only at the gate (`unbundleBundle` and the `Verified` path
+never call `requireFlowFinalized`) is established by the call-site inventory in the Specs header,
+not by this statement. -/
 def Properties.ReceiveFilterIsReadAtTheGateAtV35 : Prop :=
   ∀ (self : ℕ) (p : ℕ → Bool) (legs : List ℕ) (c : ℕ),
     legs.all (legSourceAllowedAtV35 self p) = true → c ∈ legs → c ≠ self →

@@ -41,6 +41,13 @@ only premise of `RouterModelIsACodeMap`), `ClaimSucceedsIffWitness`,
 `CodelessCallTargetBlocksBundleClaim` is itself an instance. `VmCall` is load-bearing: under
 semantics in which a call to an address without code returns `true`, such a target's bundle is
 claimable (`NonRecovererTargetBlocksClaimNeedsVmCall`).
+
+Two of these restate known results in the code-map form, and are close to definitional under
+`VmCall`, whose modelling premise is their content: `NonRecovererTargetBlocksClaim` is
+`AttackVectors.RecoveryLimits.revert_anywhere_blocks` with the revert located at a target with
+no recoverer, and `ForeignTrueCountsAsRecovered` generalizes `AssetRouterBase`'s
+`Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.L1LegForeignTrueClosesWithoutRefund`
+and `L1LegClaimOnlyByForeignCode` from the L1 leg to any nonempty bundle.
 -/
 
 namespace Contracts.AtomicFlowManager.RecoveryTargets

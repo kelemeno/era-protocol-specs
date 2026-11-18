@@ -25,7 +25,8 @@ changed in one commit, `9775be946` (#2669). `b17415d` itself (#2673) changes no 
 submodule; `RegistryTypes.sol` and `ProxyUpgradeRowLib.sol` changed only in comments (the
 lines cited moved, by 2 and by 5); `UpgradeExecutorBase.sol` changed only in `forward`, which
 is not modelled; `IChainTypeManager.sol` and `IServerNotifier.sol` gained the getters
-`admin()` (`:93`) and `chainTypeManager()` (`:42`).
+`admin()` (`:93`) and `chainTypeManager()` (`:42`), and `IChainTypeManager.sol` also gained an
+`@dev` comment on another declaration.
 
 What `b17415d` changes is the deployment procedure: a CTM whose proxies still sit behind the
 ecosystem `ProxyAdmin` gets its own CTM-domain `ProxyAdmin` before the bootstrap, so that the

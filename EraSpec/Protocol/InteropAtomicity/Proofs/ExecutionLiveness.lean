@@ -61,18 +61,18 @@ def FrameEvery (Q : Entry → List Callee → Prop) : Frame → Prop
   | .calls _ _ cs => ∀ c ∈ cs, EveryEntry Q c
   | .target c => EveryEntry Q c
 
-lemma headD_every {Q : Entry → List Callee → Prop} {cs : List Callee}
+private lemma headD_every {Q : Entry → List Callee → Prop} {cs : List Callee}
     (h : ∀ c ∈ cs, EveryEntry Q c) : EveryEntry Q (cs.headD .returns) := by
   cases cs with
   | nil => exact .returns
   | cons c cs => exact h c List.mem_cons_self
 
-lemma tail_every {Q : Entry → List Callee → Prop} {cs : List Callee}
+private lemma tail_every {Q : Entry → List Callee → Prop} {cs : List Callee}
     (h : ∀ c ∈ cs, EveryEntry Q c) : ∀ c ∈ cs.tail, EveryEntry Q c :=
   fun c hc => h c (List.mem_of_mem_tail hc)
 
 /-- The deployed first loop of `unbundleBundle` leaves the bundle statuses alone. -/
-lemma markCalls_bundle {h : BundleHash} {req : List CallStatus} {u s₁ : State}
+private lemma markCalls_bundle {h : BundleHash} {req : List CallStatus} {u s₁ : State}
     (hm : markCalls true h 0 req u = some s₁) : s₁.bundle = u.bundle :=
   (Contracts.InteropHandler.markCalls_spec req 0 u s₁ hm).1
 
@@ -703,6 +703,22 @@ theorem EnablednessWitness : Properties.EnablednessWitness := by
   · intro hnp
     have := hnp (wVerify 3 2) List.mem_cons_self (.verifyBundle ⟨3, 2⟩ true) (Or.inl rfl) rfl
     exact absurd this (by decide)
+
+theorem AtomicRouteBothBranchesWitness : Properties.AtomicRouteBothBranchesWitness := by
+  refine ⟨?_, by decide, by decide⟩
+  intro t ht e he
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
+  rcases ht with rfl | rfl
+  · rcases he with rfl | ⟨c, hc, hm⟩
+    · trivial
+    · simp only [wRevertingAttempt, List.mem_singleton] at hc
+      subst hc
+      cases hm
+  · rcases he with rfl | ⟨c, hc, hm⟩
+    · trivial
+    · simp only [List.mem_singleton] at hc
+      subst hc
+      cases hm
 
 theorem ExecutorGateWitness : Properties.ExecutorGateWitness :=
   ⟨Reaches.direct _ _ 7 (by decide), by simp [InnerGate], Reaches.direct _ _ 7 (by decide),

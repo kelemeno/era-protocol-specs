@@ -25,6 +25,11 @@ the single-history reading gets wrong on a two-chain flow.  It is pure order the
 a leg's evidence (data availability, root import) is not addressed here
 (`Contracts.Atomicity` `DataAvailable`; `Contracts.RootImport`).
 
+The namespace is `AttackVectors.FlowAtomicityPerChain`, the prefix many of the repo's analysis
+topics share; nothing here is an attack.  The topic corrects the `FlowAtomicity`
+header's one-key-set reading, and its results are the existing single-history lemmas applied
+per leg.
+
 **Definitions only.**  Statements: `EraSpec.Protocol.FlowAtomicityPerChain.Properties.Model`;
 proofs: `EraSpec.Protocol.FlowAtomicityPerChain.Proofs.Model`.
 -/

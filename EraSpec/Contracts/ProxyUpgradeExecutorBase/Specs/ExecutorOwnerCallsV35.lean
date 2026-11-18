@@ -49,7 +49,7 @@ the code modelled below three things changed:
 
 `governance/IServerNotifier.sol` and `state-transition/IChainTypeManager.sol` gained the getters
 the third change reads. The other cited files changed in comments only (`ProxyUpgradeRowLib.sol`,
-`RegistryTypes.sol`, `IProxyUpgradeEngine.sol`), or in code the model does not transcribe
+`RegistryTypes.sol`, `IProxyUpgradeEngine.sol`, `governance/IUpgradeExecutorBase.sol`), or in code the model does not transcribe
 (`DefaultProxyUpgradeEngine.sol`, whose acts are a list here); some of their line numbers
 moved, and the citations below are the new ones.
 
@@ -368,9 +368,11 @@ deriving DecidableEq
 inductive EngAct
   /-- A CTM owner call; `msg.sender` is the executor. -/
   | ctm (op : CtmOp)
-  /-- `CTM_PROXY_ADMIN.upgrade(p, x)` on a proxy the `ProxyAdmin` administers other than the
-  CTM and the ServerNotifier, or the swap of such an `upgradeAndCall`, whose call is a separate
-  `other` act. -/
+  /-- `CTM_PROXY_ADMIN.upgrade(p, x)` on a proxy other than the CTM and the ServerNotifier, or
+  the swap of such an `upgradeAndCall`, whose call is a separate `other` act. The real
+  `ProxyAdmin.upgrade` reverts on a proxy it does not administer; the model does not require
+  `s.adminOf p = cfg.paAddr` (`EngStep.upgradeProxy`), so it admits the act on any such proxy,
+  an over-approximation. -/
   | upgradeProxy (p x : Address)
   /-- A log. Delegatecalled code logs at the executor's address. -/
   | emit (e : ExEvent)
@@ -520,7 +522,8 @@ inductive EngStep (cfg : Config) : State → EngAct → State → List Obs → P
         (Obs.ctmCall op :: (op.events cfg.W).map Obs.ctmEvent)
   /-- `ProxyAdmin.upgrade` is `onlyOwner`; the new implementation must be code. A swap of the
   CTM proxy or of the ServerNotifier proxy is an `other` act instead (see the modelling choices
-  in the header). -/
+  in the header). The step does not require that the `ProxyAdmin` administers `p`; it admits
+  more steps than the contract makes (an over-approximation). -/
   | upgradeProxy {s : State} {p x : Address} :
       s.paOwner = cfg.self → cfg.hasCode x → p ≠ cfg.ctmAddr → p ≠ s.ctm.notifier →
       EngStep cfg s (.upgradeProxy p x) { s with impl := upd s.impl p x } []

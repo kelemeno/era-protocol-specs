@@ -10,8 +10,8 @@ below is the same at the earlier v35 pin `d9f678900e1bc8286412b78f56d4a9f443983c
 changed between the two).  The modelled functions are also the same at `main`
 `70096e2ea6eeb5373992e178064c4b26dcf6436a` (and at `3605e82db`, against which this topic was first
 written; no cited file changed between those two), up to line shifts and renames
-(`_nativeTokenVaultAddr` → `_getNativeTokenVaultAddr`, `_atomicFlowManagerAddr` →
-`_getAtomicFlowManagerAddr`); the vault's token deployment differs (system `ContractDeployer` at
+(`main` name → v35 name: `_nativeTokenVaultAddr` → `_getNativeTokenVaultAddr`,
+`_atomicFlowManagerAddr` → `_getAtomicFlowManagerAddr`); the vault's token deployment differs (system `ContractDeployer` at
 `main`, `CREATE2` at v35) but is the abstract `deploy` hook here.  Main lines of the central
 functions: `AtomicFlowManager.sol` `claimRefund` `:247-262`, `_recoverBundle` `:289-322`;
 `L2AssetRouter.sol` `recoverAtomicCall` `:275-309`, `bridgehubRecoverBaseToken` `:320-334`;
@@ -270,7 +270,11 @@ registered to be `a` (`:334`): handler and tracker of `a` become the vault.  (Th
 `encodeNTVAssetId(block.chainid, token)` and the router's `encodeAssetId(block.chainid,
 bytes32(token), L2_NATIVE_TOKEN_VAULT_ADDR)` hash the same words, `common/libraries/DataEncoding.sol:125-152`.)
 A set handler is left as it is.  So the handler at `a` afterwards is `AtomicRecovery.burnHandler`, the
-one `bridgeBurn` ran on. -/
+one `bridgeBurn` ran on.  Only the router's own write is modelled here: a custom handler's
+`bridgeBurn` (`AssetRouterBase.sol:324-330`) is arbitrary code, and a write it makes to the
+router's maps (for example `setAssetHandlerAddressThisChain`, if it is also the asset's deployment
+tracker) counts as an `AllWriters` step of the run between burn and claim, so the run's
+`NoRotation` premise (and, in the logged forms, its logged premise) covers it. -/
 def burnRouter (cfg : AtomicRecovery.Config) (R : Router) (a : AssetId) : Router :=
   if R.handler a = 0 then ⟨upd R.handler a cfg.ntv, upd R.tracker a cfg.ntv⟩ else R
 
