@@ -140,10 +140,11 @@ the current main `70096e2ea`. The Specs header maps every cited line to the curr
 `draft/v0.35.0` head `b17415d20`, where this path differs only by reject-only checks (no pause,
 `isPeerAllowed`) and an unmodelled fee-unit counter. Namespace
 `Contracts.InteropCenter.SendAtHead`; statements are `Contracts.InteropCenter.SendAtHead.Properties.*`.
-The namespace reuses the parent's names (`State`, `Dispatch`, `Params`, `AtomicSend`, `Step`,
-`Reach`, `init`, `Dispatch.key`, `legOf`) and some of its headline names (`EachSaltDispatchesOnce`,
-`SolePath`, `AtomicBytesNeverPublished`, `EachLegAppendedOnce`) for the head model, so refer to
-them by qualified name when comparing pin and head results.
+The namespace reuses many of the parent's names for the head model, among them `State`,
+`Dispatch`, `Params`, `AtomicSend`, `Step`, `Reach`, `init`, `Dispatch.key`, `bundleHash` and
+`Inv`, and eighteen of its headline names (for example `EachSaltDispatchesOnce`, `SolePath`,
+`AtomicBytesNeverPublished`, `EachLegAppendedOnce`), so refer to them by qualified name when
+comparing pin and head results.
 
 At head every L2→L2 send is atomic: `_sendBundle` sends an atomic bundle only to a chain other
 than L1 and a non-atomic one only to L1, `_dispatchBundle` publishes exactly the L1 sends and

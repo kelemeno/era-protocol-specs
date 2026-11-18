@@ -59,12 +59,13 @@ hash premise.
   hops as there are keys strictly between the hint's key and the value (`WalkLengthIsGapV35`), and
   for an absent value ends at the one straddling leaf whatever the hint (`WalkFindsLowLeafV35`,
   `WalkHintIndependentV35`).
-- A successful v35 insert is a `GuardedEvolution` step (`InsertV35IsGuardedStep`), so the
-  history capstones hold of v35 histories (`RunV35IsEvolution`, `ReclaimableIffAbsentV35`,
+- A successful v35 insert is a `GuardedEvolution` step (`InsertV35IsGuardedStep`), so the history
+  capstones hold of v35 histories (`RunV35IsEvolution`, `ReclaimableIffAbsentV35`,
   `DeliveredAvailableForeverV35`, `DeliveryExactlyOnceV35`; reclaim witnesses are leaves of the
   set). The deployed absence check is related to that member gate in `ReclaimGateFaithful`
   (`BreakFreeGateMatchesMemberGate`; the deployed check alone does not match it at the pin's
-  padding, `PinnedReclaimDichotomyReadingFails`). On a sound set its result does not depend on the hint (`InsertV35HintIndependent`).
+  padding, `PinnedReclaimDichotomyReadingFails`). On a sound set its result does not depend on the
+  hint (`InsertV35HintIndependent`).
 - Liveness: on a sound set an insert of a nonzero absent value succeeds from every member hint
   below it (`HonestInsertNeverSearchRevertsV35`); along a history the key-0 leaf always works
   and a hint key that passed the checks once still does (`SentinelHintAlwaysWorksV35`,

@@ -249,13 +249,13 @@ def Properties.UnbuiltPlanBreaksEmptinessAgreement : Prop :=
     upgradeStoragePart wEnv.txHash ⟨v30, 0, 0⟩ 99000 v30p1
       (buildL2UpgradeTxFromPlan wEnv wUnbuiltPlan v30p1 []) true = none
 
-/-- **A SUPPLIER IMPLEMENTATION SWAP CAN CLEAR A CHECKED PUBLICATION.** A supplier on which `wPlan`'s
-factory dependencies `[7, 8]` are published, followed by one implementation swap whose code reads
-every hash as unpublished, ends with `requirePublished` false for that list. This holds by the
-model's definition: `implementationSwap` is an arbitrary new reading of `evmPublishingBlock` (new
-code, or a different storage layout). The source fact behind it is that the supplier is a
-CTM-domain proxy that the registry can upgrade (`upgrades/registry/libraries/ContractIdentifiers.sol:56-58`
-at `b17415d20`). -/
+/-- **A SUPPLIER IMPLEMENTATION SWAP CAN CLEAR A CHECKED PUBLICATION.** A supplier on which
+`wPlan`'s factory dependencies `[7, 8]` are published, followed by one implementation swap whose
+code reads every hash as unpublished, ends with `requirePublished` false for that list. This holds
+by the model's definition: `implementationSwap` is an arbitrary new reading of `evmPublishingBlock`
+(new code, or a different storage layout). The source fact behind it is that the supplier is a
+CTM-domain proxy that the registry can upgrade
+(`upgrades/registry/libraries/ContractIdentifiers.sol:56-58` at `b17415d20`). -/
 def Properties.SupplierSwapClearsPublication : Prop :=
   ∃ s s', requirePublished s wPlan.factoryDepHashes ∧ wPlan.factoryDepHashes ≠ [] ∧
     SupplierRun s [.implementationSwap (fun _ => 0)] s' ∧

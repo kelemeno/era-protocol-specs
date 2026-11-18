@@ -127,14 +127,13 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   built-ins, and round 7 traces every source chain to `createNewChain`). On the identity
   numbering the old backing is the new one (`IdentityNumberedBackingIsOldBacking`, premises
   instantiated by `IdentityNumberedBackingWitness`; `IdentityNumberingNeedsGenesis`).
-  With no hash premise, an accepted last-batch proof makes the submitted preimage the tree's
-  last entry, so `N = R.upTo c` and the compared timestamp is the leaf's, or a
-  `PositionedEndBreak` is located on the submission: a `PinnedBreak`, a `PathCollision`, or a
-  `LeafPreimageClash` between the stored entry and the submitted preimage
-  (`PositionedLastBatchIdentifiesLastEntryPinned`, `PositionedEndBranchImpliesVerifiedPinned`).
-  Its `AggregatesBefore` premise has the same body as `Contracts.InteropOperational.AggregatesBefore`,
-  which `SettlementRoots` discharges for MessageRoot-clocked systems
-  (`HistoricalRootAggregatesBefore`).
+  With no hash premise, an accepted last-batch proof makes the submitted preimage the tree's last
+  entry, so `N = R.upTo c` and the compared timestamp is the leaf's, or a `PositionedEndBreak` is
+  located on the submission: a `PinnedBreak`, a `PathCollision`, or a `LeafPreimageClash` between
+  the stored entry and the submitted preimage (`PositionedLastBatchIdentifiesLastEntryPinned`,
+  `PositionedEndBranchImpliesVerifiedPinned`). Its `AggregatesBefore` premise has the same body as
+  `Contracts.InteropOperational.AggregatesBefore`, which `SettlementRoots` discharges for
+  MessageRoot-clocked systems (`HistoricalRootAggregatesBefore`).
   Headlines: `PositionedTimeoutMeansMissedDeadlineOrBreak`,
   `PositionedTimeoutExcludesFinalityOrBreak`, `PushLogTimeoutMeansMissedDeadlineOrBreak`
   (premises about the batches actually pushed), and the counterparts of `Refund`'s repaired
@@ -621,8 +620,8 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   `SettlementRootsRefundRunWitness`, `SettlementRootsImportWitness`. Related models: `BatchPosition`
   takes `AggregatesBefore` as a premise (by definition the same condition as
   `Contracts.InteropOperational.AggregatesBefore`), which `HistoricalRootAggregatesBefore`
-  discharges for MessageRoot-clocked systems; `../../Contracts/ChainBatchRootTree/` topic `GenesisSeed`
-  (`b17415d20`) models `MessageRootBase`'s per-chain numbering slice, and
+  discharges for MessageRoot-clocked systems; `../../Contracts/ChainBatchRootTree/` topic
+  `GenesisSeed` (`b17415d20`) models `MessageRootBase`'s per-chain numbering slice, and
   `../../Contracts/AtomicFlowManager/` topic `RefundClosesAppend` (`b17415d20`) models
   `L2InteropRootStorage` with `latestInteropRootTimestamp`.
 

@@ -22,11 +22,12 @@ and the current `draft/v0.35.0` head `b17415d20`. OpenZeppelin paths below are u
 `EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsAdminSlot`. It refines
 `Specs/RowsCurrent.lean`, which it imports and leaves unchanged, in the sub-namespace
 `Contracts.ProxyUpgradeCurrent.AdminSlot`. Names it does not redefine (`Row`, `upd`,
-`ValidRows`, `Transition`, `rowA`, ...) are the `RowsCurrent` ones. Names it does redefine
-(`Config`, `Slots`, `read`, `swap`, `ApplyRow`, `ApplyLoop`, `ApplyRows`, `RowCode`, `lift`, and
-the proof lemmas `applyLoop_append`, `applyRow_det`) shadow the parent ones inside the
+`ValidRows`, `Transition`, `rowA`, ...) are the `RowsCurrent` ones. Names it redefines
+(`Config`, `swap`, `ApplyRow`, `ApplyLoop`, `RowCode`, `ApplyRows`, `ApplyTransition`, and the
+proof lemmas `swap_frame`, `applyRow_frame`, `applyRow_det`, `applyLoop_det`,
+`applyLoop_append`, `applyLoop_first`, `applyLoop_frame`) shadow the parent ones inside the
 sub-namespace, so a file that uses both models should write them qualified rather than
-`open AdminSlot`.
+`open AdminSlot`. Its other names (`Slots`, `read`, `lift`, ...) are new.
 
 ## What `RowsCurrent` reads as one mapping
 

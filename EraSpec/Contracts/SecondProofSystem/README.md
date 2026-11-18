@@ -144,9 +144,11 @@ is checked as if the v35 Admin facet were routed (`MODEL-SECOND-PROOF-GATE` in
 
 - **The gate holds.** `FlaggedCutsKeepMultiProof`: after any cut of a flagged chain, its
   verifier answers MULTI to `getProofMode(0)`; it follows from the cut steps' guards
-  (`VerifierGate.postCut`, or the break-glass post-cut premise). `FlagSurvivesAllButBreakGlass`: only a break-glass
-  cut of a registered chain clears its flag. `FlaggedChainsStayMultiProof`: along every run, every
-  flagged chain's verifier passes the gate, if the verifiers are `MaskMonotone`; both deployed
+  (`VerifierGate.postCut`, or the break-glass post-cut premise), except at genesis and
+  migration in, which install an unflagged fresh gate, so it holds there because the flag is
+  unset. `FlagSurvivesAllButBreakGlass`: only a break-glass cut of a registered chain clears its
+  flag. `FlaggedChainsStayMultiProof`: along every run, every flagged chain's verifier passes
+  the gate, if the verifiers are `MaskMonotone`; both deployed
   verifiers are (`MaskMonotoneHoldsForDeployedVerifiers`), and without it a chain can be flagged
   on a verifier that fails the gate (`MaskMonotoneIsLoadBearing`).
 - **The emergency switch.** The gate reads mask `0`, so the chain's own mask never decides

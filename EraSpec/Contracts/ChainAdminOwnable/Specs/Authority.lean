@@ -90,11 +90,11 @@ reverts `setTokenMultiplier` with it.
 
 ## Modelling choices
 
-* **One inductive execution relation** `Sem cfg j S L S'` over a ghost log: judgement `j` takes
-  the world state `S` to `S'` and leaves the ghost log `L`. A revert is the absence of a derivation. A frame that reverts
-  leaves nothing in the log: its writes and its log are undone together. `callFails` is a call
-  that fails with no effect (a revert inside the callee, a failed value transfer, out of gas);
-  any call may fail.
+* **One inductive execution relation** `Sem cfg j S L S'` over a ghost log: judgement `j` takes the
+  world state `S` to `S'` and leaves the ghost log `L`. A revert is the absence of a derivation. A
+  frame that reverts leaves nothing in the log: its writes and its log are undone together.
+  `callFails` is a call that fails with no effect (a revert inside the callee, a failed value
+  transfer, out of gas); any call may fail.
 * **Three judgements.** `.call s c ok`: `s` makes call `c`, with low-level result `ok`. `.loop`:
   the remaining iterations of a `multicall`. `.acts`: code the model does not know, while it holds
   control. That code makes any sequence of calls, each by any sender other than the
