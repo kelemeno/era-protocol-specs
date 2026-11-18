@@ -62,11 +62,13 @@ EraSpec/
     AtomicInteropProof/       Specs/, Properties/, Proofs/
     BridgedStandardERC20/      Specs/, Properties/, Proofs/
     Bridgehub/                Specs/, Properties/, Proofs/
+    ChainAssetHandler/        Specs/, Properties/, Proofs/
     ChainTypeManager/         Specs/, Properties/, Proofs/
     DataEncoding/             Specs/, Properties/, Proofs/
     Diamond/                  Specs/, Properties/, Proofs/
     DynamicIncrementalMerkle/ Specs/, Properties/, Proofs/
     EcosystemUpgradeExecutor/ Specs/, Properties/, Proofs/
+    ExecutorFacet/            Specs/, Properties/, Proofs/
     FullMerkle/               Specs/, Properties/, Proofs/
     Governance/               Specs/, Properties/, Proofs/
     IndexedMerkleTree/        Specs/, Properties/, Proofs/
@@ -75,6 +77,7 @@ EraSpec/
     InteropHandlerBase/       Specs/, Properties/, Proofs/
     L1InteropHandler/         Specs/, Properties/, Proofs/
     L1Messenger/              Specs/, Properties/, Proofs/
+    L1Nullifier/              Specs/, Properties/, Proofs/
     L2AssetTracker/           Specs/, Properties/, Proofs/
     L2InteropCommitmentTree/   Specs/, Properties/, Proofs/
     L2InteropHandler/         Specs/, Properties/, Proofs/
