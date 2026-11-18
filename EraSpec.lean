@@ -205,6 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Diamond proxy (d9f6789): dispatch, freezing, the init call, and runs over every entry point
+import EraSpec.Contracts.Diamond.Proofs.DiamondProxy
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
