@@ -29,15 +29,17 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
 `Pause` on `FlowBinding` and `OncePerLeg`, `SharedCommitment` on `OncePerLeg`,
-`Operational` on `OncePerLeg`, `FlowBinding` and `SourceHeight`, `BatchPosition` on
-`Timeout`, `LegSourceFilterAtV35` on `FlowBinding` and `OncePerLeg`, and
-`FlowBindingAtHead` on `FlowBinding`, `OncePerLeg` and `AtomicFlowManager`
-`FlowCanonicalAtHead`).
+`Operational` on `OncePerLeg`, `FlowBinding` and `SourceHeight`, `RefundFaithful` on
+`Refund` and `Timeout`, `BatchPosition` on `Timeout`, `LegSourceFilterAtV35` on
+`FlowBinding` and `OncePerLeg`, `FlowBindingAtHead` on `FlowBinding`, `OncePerLeg` and
+`AtomicFlowManager` `FlowCanonicalAtHead`, and `OncePerLegAtHead` on `OncePerLeg` and
+`L2InteropCommitmentTree` `HintSearchAtHead`).
 The exception is `RefundStrong`, which also takes `AggregatesBefore` from the later
 `Operational` topic ([Specs/Operational.lean](Specs/Operational.lean)).
 Every topic models the pinned tree except `LegSourceFilterAtV35`, which adds the receive
 filter of `draft/v0.35.0` (`b17415d20`) to the `FlowBinding` and `OncePerLeg` models, and
-`FlowBindingAtHead`, which models a later era-contracts head (see its section below).
+`FlowBindingAtHead` and `OncePerLegAtHead`, which model later era-contracts heads (see their
+sections below).
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`

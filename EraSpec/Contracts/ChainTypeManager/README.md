@@ -9,22 +9,25 @@ That code is **not** in the pinned era-contracts tree. It lives on branch
 `feat/upgrade-simplification` of the zksync-era `contracts` repository, and this model
 was written against commit **`e561b9cc2`** (2026-10-19). **The branch moves**: every
 `file:line` quoted in the specs is at that commit, and the results describe that commit,
-not the current branch. Re-check the source before relying on them. One topic is the exception:
-`MutableSelectors` cites branch `draft/v0.35.0` of era-contracts at commit `b17415d20`, and its
-Specs header says where the code it reuses from the other topics sits there.
+not the current branch. Re-check the source before relying on them. Several topics are the
+exception and cite branch `draft/v0.35.0` of era-contracts at commit `b17415d20` instead:
+`MutableSelectors`, whose Specs header says where the code it reuses from the other topics sits
+there; `ExecutorEngineAtV35`, `ProofGateAtV35` and `UpgradeTimingAtV35` (below); and
+`L2Derivation`, `L2Convergence`, `CommittedEdgeExecutable` and `UpgradeTxNonces` (their
+sections say which of the shared models they re-read there).
 `../ProxyUpgradeRowLib/` models the row library at an older snapshot (`Rows`) and at this
 commit (`RowsCurrent`, and `RowsUnvalidated` for rows no `validateRows` has checked); the
 `ExecutorForward` topic below uses `RowsCurrent`, and `ExecutorRowsUnvalidated` uses
 `RowsUnvalidated`.
 
-One topic is at a different commit: `ExecutorEngineAtV35` models
+`ExecutorEngineAtV35` models
 `applyInfrastructureUpgrade` at branch `draft/v0.35.0`, commit **`b17415d20`** (2026-11-16),
 where #2654 (`95b5c469d`) replaced the executor's own `applyTransition` by a delegatecall
 into the engine the transition names. It was first written at `d9f6789` (2026-11-06) and
 re-read at `b17415d20`; its Specs header lists what changed in between. Every other entry
 point it uses is `ExecutorForward`'s; their bodies at `b17415d20` do what `ExecutorForward`
-models (`forward` gained a code check that never rejects a modelled call). Nothing else in
-this folder has been re-read there.
+models (`forward` gained a code check that never rejects a modelled call). No other part of
+the `e561b9cc2` models has been re-read there for this topic.
 
 Two topics, `ProofGateAtV35` and `UpgradeTimingAtV35`, describe branch `draft/v0.35.0` of
 `matter-labs/era-contracts` at commit **`b17415d20`** instead (first written against `d9f6789`,
@@ -75,8 +78,8 @@ uses `Contracts.ChainTypeManager.EngineGetters`, `LegacyCrossingFaithful` uses
 `Contracts.ChainTypeManager.ExecutorEngineAtV35`.
 `L2Derivation` and `L2Convergence` share the sub-namespace `Contracts.ChainTypeManager.L2Tables`.
 `CommittedEdgeExecutable` and `UpgradeTxNonces`
-share `Contracts.ChainTypeManager.EdgeChecks`; unlike the rest of this folder they are written
-against `draft/v0.35.0` commit `b17415d20`. `ProofGateAtV35` and `UpgradeTimingAtV35` use
+share `Contracts.ChainTypeManager.EdgeChecks` and are written against `draft/v0.35.0` commit
+`b17415d20`. `ProofGateAtV35` and `UpgradeTimingAtV35` use
 `Contracts.ChainTypeManager.ProofGateAtV35` and `Contracts.ChainTypeManager.UpgradeTimingAtV35`;
 a statement there named like an `e561b9cc2` one is that statement over the v35 system.
 
