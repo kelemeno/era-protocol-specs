@@ -231,7 +231,11 @@ is a key of chain `0`'s tree and of none of chain `1`'s.  A deployed run (append
 for the declared leg) moves it past `Committed`.  No `Contracts.Refund.ReachLog` run under
 the same flow hash does.
 
-What happens to the funds after `Revertable` (`claimRefund`) is not modelled here. -/
+What happens to the funds after `Revertable` (`claimRefund`) is not modelled here.  At
+`c67894b9` the bundle in such a slot cannot execute (the Specs header, section 1): its hash binds
+the sending chain and the finality check binds each proof to the declared chain, so, up to a
+hash collision, the flow never finalizes and the refund returns the funds of a bundle that
+does not execute. -/
 def Properties.MisdeclaredLegRefundedOnlyInDeployedModel : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ze : UInt256),
     ∃ (Ms : Managers) (plog : List Obligation) (alog : List (DeployedAuthCall h ze)),
@@ -337,7 +341,13 @@ deployed run from fresh managers, the executed leg's slot `⟨0, 1, 0⟩` and th
 flow `mixedFlow 1 1 2` (id `1`), writes `⟨1, 2, 1⟩`, and resolves against a root that
 satisfies `Aggregates`; that slot is past `Committed`.  The executed leg's slot on chain
 `0` is `Committed`, and for every chain `c` the executed leg's slot on `c` is not refunded
-and carries no located break. -/
+and carries no located break.  The iteration is on another flow id because it has to be: by
+`DeployedExecutedFlowFrozenOrBreak`, a refunded slot under the executed flow's id comes with
+a located break, so a break-free witness cannot refund under that id, and the "no break, not
+refunded" conjuncts for the executed flow's slots hold because no iteration writes under its
+id.  The `staleRoot` and `absence` break cases are exhibited at run level by
+`StaleRootEndRefundOfDeliveredLegIsDeployed` and `DeployedPaddingRefundLocatesAbsenceBreak`;
+the `flowIdClash` and `lastBatch` cases are not. -/
 def Properties.DeployedExecutedFlowFrozenOrBreakWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (ze : UInt256),
     ∃ (Ms : Managers) (plog : List Obligation) (alog : List (DeployedAuthCall h ze))

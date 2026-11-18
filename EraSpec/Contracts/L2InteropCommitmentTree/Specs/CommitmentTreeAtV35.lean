@@ -14,7 +14,12 @@ two commits.
 `common/libraries/Merkle.sol` are byte-identical to the files here.  `atomic-interop/L2InteropCommitmentTree.sol` differs only in where it imports its three error
 types from: `main` has one import line (12) where this branch has two (12-13), so line `n ≥ 14`
 here is line `n - 1` on `main`.  `IMT_EMPTY_LEAF_HASH` is `common/Config.sol:90` on `main` and
-`:141` here.  So the machine below describes the tree code of `main` as well.
+`:141` here.  So the machine below describes the tree code of `main` as well.  The other files
+cited below (`common/l2-helpers/L2ContractAddresses.sol`, the genesis helper,
+`AtomicFlowManager.sol`) have different line numbers on `main`: for example
+`L2_COMPLEX_UPGRADER_ADDR` is at `L2ContractAddresses.sol:80` and `L2_ATOMIC_FLOW_MANAGER_ADDR` at
+`:157`.  The address values are the same (`0x800f`, `0x10014`, `0x7004`); every citation below is
+`b17415d20`'s.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.CommitmentTreeAtV35`, proofs in

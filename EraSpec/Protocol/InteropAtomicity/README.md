@@ -671,8 +671,9 @@ enabledness only (`OpFinalizedFlowIsExecutable`, `OpTimedOutLegIsRefundable`,
 omits can still reject it (for an execution, among others, that the destination has
 imported a root holding the cited batches: `RootImport`). Still open: eventual liveness
 (every committed obligation eventually executes or refunds); `DispatchLiveness` and
-`ExecutionLiveness` state when the send and execution routes are enabled at the pin, and a
-case in which a leg of a finalized flow is neither delivered nor refunded. Source-side
+`ExecutionLiveness` state when the send and execution routes are enabled at the pin, and, in
+two separate models linked by the bundle hash, that a leg of a finalized flow with a call that
+always reverts is not delivered on its destination and not refunded at its source. Source-side
 obligations are O7–O9 in `../../Refinement.lean`.
 
 These modules keep the namespaces they had on the `claude/proof-attempt-4f3778`

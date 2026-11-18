@@ -110,7 +110,11 @@ topic `OncePerLeg`.
     the salt check, the round trip and `onlyInteropCenter`
     (`WithoutSaltCheckOneBundleRecoveredTwice`, `WithoutRoundTripOneBundleRecoveredTwice`,
     `WithoutOnlyInteropCenterOneBundleRecoveredTwice`). Both matches of
-    `ClaimIdentifiesOneDispatch` are needed (`ClaimIdentifiesOneDispatchNeedsBothMatches`).
+    `ClaimIdentifiesOneDispatch` are needed (`ClaimIdentifiesOneDispatchNeedsBothMatches`);
+    the flow match only because the statement takes no hash premise: that countermodel's
+    second run uses O1 (c)'s cross-sender salt clash under a constant keccak.
+  - The head form of the headline is `SendAtHead`'s
+    `ClaimedBundleIsDispatchedOrCollision` (namespace `Contracts.InteropCenter.SendAtHead`).
   - Witnesses: `ClaimBindingWitness`, `ClaimBindingWithoutValueCheckWitness`,
     `ClaimBindingWithoutSaltCheckWitness`, `ClaimBindingNonCanonicalWitness`,
     `ClaimBindingTwoClaimsWitness`.

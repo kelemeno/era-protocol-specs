@@ -122,7 +122,11 @@ def Properties.DeployedLegacyBranchBound : Prop :=
 AND NEVER OTHERWISE.** Along any labelled deployed run from a nonzero version, the number of calls
 that take `onlyNTV`'s legacy branch is 1 if the vault slot is zero at the start and nonzero at the
 end, and 0 otherwise. So at most one committed call of such a run reads `L1_CHAIN_ID()`. Both
-values occur (`DeployedCountingWitness`). -/
+values occur (`DeployedCountingWitness`). That the identity changes at most once, to the fallback
+configuration, is already `ReinitializationStrong`'s
+`Contracts.BridgedStandardERC20.Properties.DeployedInitializedIdentityAtMostFallback`; what is new
+here is the per-call label and the count over runs that include `bridgeInitialize` and
+`reinitializeToken` steps. -/
 def Properties.DeployedLegacyBranchCountExact : Prop :=
   ∀ (env : LegacyEnv) (s : TokenStorage) (calls : List DeployedStorageCall) (t : TokenStorage),
     s.version ≠ 0 → DeployedStorageRun env s calls t →

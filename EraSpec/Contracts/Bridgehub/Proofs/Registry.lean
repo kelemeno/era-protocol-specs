@@ -809,6 +809,19 @@ theorem RegistryRunWitness : Properties.RegistryRunWitness := by
   exact ⟨s, (run_iff_runF _ _ _ _).2 hs, hl, hf, h1, h2, h3, h4, h5, h6, by decide, h7, h8, h9,
     h10, h11, h12, wRegistry_no_collision _ _, wRegistry_no_collision _ _, h13, by decide, h14⟩
 
+/-- `Properties.ChainCountLimitWitness`, proved. -/
+theorem ChainCountLimitWitness : Properties.ChainCountLimitWitness := by
+  have hl : ∀ k ∈ wRegistryRun ++ [((53 : Address), Action.registerNewZKChain 12 82 true)],
+      k.2.uncheckedRegistration = false := by decide +kernel
+  obtain ⟨s, hs, hP⟩ := any_some (p := fun (s : State) => decide (s.zkKeys.card = 3) &&
+      (exec { wRegistryCfg with maxChains := 3 } 53 (.registerNewZKChain 13 73 true) s).isNone &&
+      (exec { wRegistryCfg with maxChains := 3 } 1 (.createNewChain 14 60 7 0 74) s).isNone)
+    (x := bridgehubRunF { wRegistryCfg with maxChains := 3 }
+      (init { wRegistryCfg with maxChains := 3 } 1)
+      (wRegistryRun ++ [(53, .registerNewZKChain 12 82 true)])) (by decide +kernel)
+  simp only [Bool.and_eq_true, decide_eq_true_eq, Option.isNone_iff_eq_none] at hP
+  exact ⟨s, (run_iff_runF _ _ _ _).2 hs, hl, hP.1.1, hP.1.2, hP.2⟩
+
 /-- `Properties.HandlerRunWitness`, proved. -/
 theorem HandlerRunWitness : Properties.HandlerRunWitness := by
   have hl : ∀ k ∈ wRegistryHandlerRun, k.2.burnFor 10 = false ∧ k.2.bridgeMintFor 10 = false ∧

@@ -12,6 +12,11 @@ obligation" becomes something one can quantify over.
 **This file is definitions only.**  The results are in `EraSpec.Protocol.InteropAtomicity.Properties.Refund`
 and proved in `EraSpec.Protocol.InteropAtomicity.Proofs.Refund`.
 
+**Correction (RefundFaithful).**  `ReachLog.authorize` writes the slot in the manager of the
+leg's declared chain and takes the END branch as `IsLastOnTime`; the contract writes the
+calling chain's slot and runs the deployed last-batch check.  The runs this leaves out, and
+the results restated over the deployed runs, are in `Specs/RefundFaithful.lean`.
+
 ## The obligation
 
 A leg's commitment is keyed three ways in three places, and the whole safety

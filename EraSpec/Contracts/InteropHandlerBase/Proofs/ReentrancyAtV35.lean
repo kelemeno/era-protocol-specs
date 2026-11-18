@@ -29,7 +29,7 @@ open Contracts.InteropHandler
 
 /-! ## The translation -/
 
-@[simp] lemma listToPin_eq_map {ℓ : LayerAtV35} :
+@[simp] private lemma listToPin_eq_map {ℓ : LayerAtV35} :
     ∀ cs : List (CalleeAtV35 ℓ), CalleeAtV35.listToPin cs = cs.map CalleeAtV35.toPin
   | [] => by simp [CalleeAtV35.listToPin]
   | c :: cs => by simp [CalleeAtV35.listToPin, listToPin_eq_map cs]
@@ -204,7 +204,7 @@ theorem NestedExecutionFollowsTheStatusMachineAtV35 :
   rw [submitAllAtV35_eq_submitAll (deployed_translatesAtV35 ℓ)]
   exact NestedExecutionFollowsTheStatusMachine.2 s _ hc
 
-lemma toPin_bundle {ℓ : LayerAtV35} (e : EntryAtV35 ℓ) : e.toPin.bundle = e.bundle := by
+private lemma toPin_bundle {ℓ : LayerAtV35} (e : EntryAtV35 ℓ) : e.toPin.bundle = e.bundle := by
   cases e <;> rfl
 
 theorem ReentryForAnExecutingBundleRevertsAtV35 :
@@ -413,7 +413,7 @@ theorem VerifiedBundleExecutesWithoutTheGateAtV35 :
 
 /-- A v35 target all of whose entry-point calls satisfy `P` translates to a pin target all of whose
 entry-point calls satisfy `Q`, when `P e` gives `Q e.toPin`. -/
-lemma calleeAll_toPin {ℓ : LayerAtV35} {P : EntryAtV35 ℓ → Prop} {Q : Entry → Prop}
+private lemma calleeAll_toPin {ℓ : LayerAtV35} {P : EntryAtV35 ℓ → Prop} {Q : Entry → Prop}
     (hPQ : ∀ e, P e → Q e.toPin) {c : CalleeAtV35 ℓ} (hc : CalleeAllAtV35 P c) :
     Faithful.CalleeAll Q c.toPin := by
   induction hc with
@@ -425,7 +425,7 @@ lemma calleeAll_toPin {ℓ : LayerAtV35} {P : EntryAtV35 ℓ → Prop} {Q : Entr
       obtain ⟨c₀, hc₀, rfl⟩ := List.mem_map.1 hc
       exact ihi c₀ hc₀) ihn
 
-lemma txAll_toPin {ℓ : LayerAtV35} {P : EntryAtV35 ℓ → Prop} {Q : Entry → Prop}
+private lemma txAll_toPin {ℓ : LayerAtV35} {P : EntryAtV35 ℓ → Prop} {Q : Entry → Prop}
     (hPQ : ∀ e, P e → Q e.toPin) {t : TxAtV35 ℓ} (ht : TxAllAtV35 P t) :
     Faithful.TxAll Q t.toPin := by
   refine ⟨hPQ _ ht.1, fun c hc => ?_⟩

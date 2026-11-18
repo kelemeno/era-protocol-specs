@@ -74,7 +74,8 @@ code at the direct call's target.
 writing entry point in any interleaving. The source comment at `AtomicFlowManager.sol:116-119`
 says that once a leg of a flow was reverted on a chain, no new leg of it can be committed
 there. With no hash premise, from root storage satisfying `LatestBoundsStored` (fresh storage
-and the v31 layout do, and every run keeps it: `LatestBoundsStoredInvariant`), after a
+and any storage whose stored timestamps are all zero do, and every run keeps it:
+`LatestBoundsStoredInvariant`; that the v31 layout is of this form is argued from source), after a
 successful `authorizeRefund` of preimage `p`:
 - every later `append` of `p` reverts (`AuthorizedPreimageNeverAppendedAgain`), with
   `ManagerFlowDeadlinePassed` for the interop center once `L1_CHAIN_ID` is set

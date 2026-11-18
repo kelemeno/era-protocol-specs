@@ -204,7 +204,9 @@ the root check that both verifiers make), then
 At the pin the padding constant was `hashLeaf({0,0,0})`, so the first case held for `ℓ = {0,0,0}`
 with no collision (`CThreeLeafWitness`); here `zE` is a parameter, and at v35 the first case is the
 keccak equation of the spec's model boundary.  `PaddingForgeryAtV35Witness` meets the premises on
-a run of this machine. -/
+a run of this machine; it exhibits only the first case, at the pin's padding.  That the
+`PathCollision` and `HeightBreak` cases can fire is shown on the base model by
+`Contracts.InteropCommitmentTree.Properties.TreeRootBreakEveryCaseFires`, not on this machine. -/
 def Properties.CTxRunAtV35EmptySlotLocatesPadding : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
     CTxRunAtV35 h hl zE K R tx → R 0 = cPredeployAtV35 →

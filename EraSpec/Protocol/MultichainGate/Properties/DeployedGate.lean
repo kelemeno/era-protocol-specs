@@ -44,6 +44,15 @@ hash collision is involved.  The single-tree form of this countermodel is
   break.  The `Model` Specs docstring describes `AbsenceWitnessAt` as what `verifyNonInclusion`
   accepts "modulo the Merkle path"; this is the precise relation.
 
+Most of these are the single-tree results of `Contracts.InteropCommitmentTree` read at the
+source chain's state, not independent results: `DeployedBoundGateExcludesDeliveredOrBreak`
+is `verified_absence_excludes_delivered_or_break`, `DeployedBoundGateLiveOnUndelivered` is
+`proofs_exclusive_or_break_at_own_height`, `DeployedBoundGateIffAbstractOrBreak` is
+`non_inclusion_sound_or_break`, the countermodels lift `padding_forgery_at_own_height`, and
+`DeployedBoundGateSeparatedPaddingNeedsCollision` is the `hl ℓ ≠ z0` case already in
+`AttackVectors.StaleSnapshotFaithful.Properties.StaleWitnessNotRedeemableOrCollision`.  The
+new content is `DeployedBoundGateFullTreeNeedsCollision` and `FullAtOwnHeightIffPowerOfTwo`.
+
 ## Witnesses
 
 `Properties.DeployedGateCollisionPremisesSatisfiable` meets every premise of the two

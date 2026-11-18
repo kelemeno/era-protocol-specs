@@ -121,7 +121,10 @@ of the named `abi.encode` preimages compared at `:80` and `:96` differs between 
 after while its hash does not (`HoldersBreak`). The holder tuple (`holderTuple`) is the
 `ProxyAdmin`'s owner in the `Core` domain; with a CTM, the six words of the CTM tuple
 (`:124-133`), followed by the four notifier words (`:137-147`) when the CTM names a nonzero
-ServerNotifier, read in each world for the ServerNotifier the CTM names in that world. -/
+ServerNotifier, read in each world for the ServerNotifier the CTM names in that world. The
+before-preimage is fixed before the engine runs, so `HoldersBreak` pairs that fixed preimage with
+one the engine's world produces: a second preimage of a value fixed in advance, not a free
+collision between two chosen inputs. -/
 def Properties.LegKeepsDomainHoldersOrCollides : Prop :=
   ∀ (σ κ : Type) (E : Env σ κ) (eng : Engine σ κ) (T : Address) (M : Manifest) (d : Domain)
     (st : Store) (s : σ) (st' : Store) (s' : σ),

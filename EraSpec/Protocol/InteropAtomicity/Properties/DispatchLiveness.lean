@@ -206,8 +206,8 @@ is nonzero, and whose hint is the exact hint for that commit value, has a step t
 hint. Otherwise a `DispatchClash` with the log holds.
 
 The commit value is `keccak256(abi.encode(ATOMIC_COMMIT_LEAF_TAG, flowId, bundleHash))`
-(`AtomicInteropProof.sol:100-102`), so "nonzero" is the pinned premise that keccak is not `0` on
-that one preimage (`IMTValueZero`, `IndexedMerkleTree.sol:69-71`, would revert otherwise). The
+(`atomic-interop/libraries/AtomicInteropProof.sol:100-102`), so "nonzero" is the pinned premise
+that keccak is not `0` on that one preimage (`IMTValueZero`, `IndexedMerkleTree.sol:69-71`, would revert otherwise). The
 checks and writes this model leaves out (pause, destinations, fees and `msg.value`, attribute
 parsing, an indirect call's sender contract, the `FullMerkle` writes, gas; Specs, "What 'enabled'
 means here") are not part of the statement. -/

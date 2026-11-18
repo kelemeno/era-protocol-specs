@@ -144,7 +144,10 @@ onto it) and the handler's run `wRegistryHandlerRun` after it (a burn, a
 `forwardedBridgeMint` that changes a chain's CTM and base token, and two
 `registerNewZKChain` calls). `RegistryRunWitness`, `HandlerRunWitness`,
 `RegistryStepWitness` and `RequestWitness` list which premises each instantiates; in
-`HandlerRunWitness` the calls a premise excludes occur in the run for other chains. The
+`HandlerRunWitness` the calls a premise excludes occur in the run for other chains.
+`ChainCountLimitWitness` lowers the limit to `3`: a run meeting `ChainCountBounded`'s premise,
+with a checked `registerNewZKChain`, reaches `3` keys, and the next checked registration and
+`createNewChain` revert. The
 collision disjunct of `CtmAssetIdRoundTrip` is false on `wRegistryRun`
 (`RegistryRunWitness`) and true on the run of `CtmAssetIdCollisionFires`.
 

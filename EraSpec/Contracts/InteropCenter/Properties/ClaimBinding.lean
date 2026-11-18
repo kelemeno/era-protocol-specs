@@ -57,7 +57,9 @@ are a dispatched bundle's (`ClaimedBundleIsDispatchedOn`).
   original call targeted") as a theorem, up to the pinned collision.
 * **One dispatch.** At most one log position holds an atomic dispatch of a given flow with given
   canonical bytes (`ClaimIdentifiesOneDispatch`), so the dispatch the headline names is unique.
-  Neither match alone suffices (`ClaimIdentifiesOneDispatchNeedsBothMatches`).
+  Neither match alone suffices (`ClaimIdentifiesOneDispatchNeedsBothMatches`); for the bytes
+  match this holds only up to a cross-sender salt clash, which that countermodel's second run
+  uses.
 * **Recovered at most once.** Along one run of the deployed code whose decoder inverts the encoder
   on the run's bundles, two successful claims (each passing its state check, the second after the
   first one's write) recover two different bundles, whatever bytes and flow the second one uses.
@@ -543,7 +545,12 @@ def Properties.WithoutOnlyInteropCenterOneBundleRecoveredTwice : Prop :=
 /-- **BOTH MATCHES OF `ClaimIdentifiesOneDispatch` ARE NEEDED.** There are two runs of the deployed
 code, each with two atomic dispatches at different log positions:
 - in the first, the two dispatches are of one flow, and their canonical bytes differ;
-- in the second, they have the same canonical bytes, and their flows differ. -/
+- in the second, they have the same canonical bytes, and their flows differ.
+The second run is on `collidingParams`, a constant keccak, and works through O1 (c)'s
+cross-sender salt clash (`clashLeg7`, `clashLeg8`). On a chain where keccak separates the salt
+preimages, equal canonical bytes already force equal positions
+(`Contracts.InteropCenter.Properties.DistinctDispatchesDistinctBundles` with the round trip), so
+the flow match is needed only because the statement takes no hash premise. -/
 def Properties.ClaimIdentifiesOneDispatchNeedsBothMatches : Prop :=
   (∃ (P : Params) (S : State), Reach deployed P init S ∧
     ∃ (i j : ℕ) (hi : i < S.log.length) (hj : j < S.log.length), i ≠ j ∧

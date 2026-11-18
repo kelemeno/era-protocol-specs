@@ -107,7 +107,10 @@ the run, L1's `bundleStatus` at `d`'s bundle hash is `Unreceived` (not verified,
 unbundled); or two different senders used the same salt and keccak collides on their packed
 preimages (`CrossSenderSaltClash` with a public dispatch of the run); or keccak collides on `d`'s
 bundle-hash preimage and the preimage of bytes L1's handler accepted. In the model L1's handler has
-no `executeAtomic` step (`atomicEntry`; `L1InteropHandler.sol:30-94`). -/
+no `executeAtomic` step (`atomicEntry`; `L1InteropHandler.sol:30-94`). The publication premise is
+stated on the final state, against an inclusion oracle that does not change over time, so the
+result is conditional on it (`PROTO-EVIDENCE`); its content is that premise composed with
+`Dispatch`'s `AtomicBytesNeverPublished` through L1's handler status machine. -/
 def Properties.AtomicToL1NeverExecuted : Prop :=
   ∀ (W : Type) (K : Guards) (E : Env W) (w₀ : W) (S : Sys W), SysReach K E (sysInit w₀) S →
     CenterPublishesOnlyPublicDispatches E S → DecodesRunBundles E S →
@@ -122,7 +125,10 @@ run, for any `Guards`, under `VmCall`, with no recoverer at the L1 router's addr
 with the decoder inverting the encoder on the run's bundles: for an atomic dispatch `d` to L1 and
 any bytes `x` that `claimRefund` hashes to `d`'s bundle hash, the claim of `x` reverts in every
 world and for every leg state, or `x`'s hash preimage differs from `d`'s (two named preimages with
-one keccak). -/
+one keccak). For the bundle the center forms, that no claim succeeds is already
+`AssetRouterBase`'s `Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.AdmittedAtomicL1LegNeverRefunded`
+(its last conjunct); what is new here is the statement over every run's logged dispatches, with
+the claim decoded from bytes. -/
 def Properties.AtomicToL1ClaimReverts : Prop :=
   ∀ (W : Type) (K : Guards) (E : Env W) (w₀ : W) (S : Sys W), SysReach K E (sysInit w₀) S →
     VmCall E.sem → NoRecovererAt E.code E.l1Router → DecodesRunBundles E S →
@@ -150,7 +156,9 @@ on this L2, the publication premise and the run-local decoding premise: for ever
 `d` to L1, (1) L1's `bundleStatus` at its bundle hash is `Unreceived`, or the cross-sender salt
 clash, or a keccak collision with bytes L1's handler accepted; and (2) its leg is not `Reverted`, or
 a keccak collision with the bytes of a logged successful claim. It holds in every reachable state
-that meets the premises. That L1 credits a withdrawal only by executing or unbundling its bundle is
+that meets the premises. Part (2) is the run-level form, with the ghost claim log, of what
+`Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.AdmittedAtomicL1LegNeverRefunded` states
+for the formed bundle; part (1), the L1 status, is new. That L1 credits a withdrawal only by executing or unbundling its bundle is
 argued from source in the Specs header. -/
 def Properties.AtomicToL1Stranded : Prop :=
   ∀ (W : Type) (K : Guards) (E : Env W) (w₀ : W) (S : Sys W), SysReach K E (sysInit w₀) S →
@@ -239,7 +247,9 @@ def Properties.IndirectL2RouterLegsReachSourceRouter : Prop :=
 /-- **(i) WITH BOTH CHECKS OF THE OTHER TREE, THE ATTRIBUTE IS HONOURED OR THE SEND IS REJECTED.**
 Along any run of `upgradeTree`, every logged send is atomic exactly when it carried the
 `atomicBundle` attribute, and every atomic one goes to a destination whose handler has
-`executeAtomicBundle` (in the model, a destination other than L1). -/
+`executeAtomicBundle` (in the model, a destination other than L1). This is about the pin with
+these two checks added, not about `e561b9cc2` as a whole, whose other changes are not
+modelled. -/
 def Properties.AttributeHonouredOrRejected : Prop :=
   ∀ (W : Type) (E : Env W) (w₀ : W) (S : Sys W), SysReach upgradeTree E (sysInit w₀) S →
     ∀ s ∈ S.sends, (s.dispatch.isAtomic = true ↔ s.attr.isSome = true) ∧

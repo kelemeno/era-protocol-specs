@@ -107,7 +107,10 @@ of these runs. Whether the written id is the vault's id is answered in the
 Source documentation (both verifiers classify it as a NatSpec error; reported to the
 maintainer of this repo, not yet confirmed upstream): the NatSpec at
 `BridgedStandardERC20.sol:50-51` says only that the modifier sets the vault to its
-default; it does not say that it also overwrites the asset-id slot.
+default; it does not say that it also overwrites the asset-id slot. This is the pin's
+(`c67894b9`) text. At `draft/v0.35.0` `b17415d20` and `main` `70096e2ea` the NatSpec
+(`BridgedStandardERC20.sol:47-48`) says that the modifier also derives the asset ID, so the
+entry does not apply to those heads.
 
 ## Reinitialization
 

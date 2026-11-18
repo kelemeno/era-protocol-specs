@@ -50,8 +50,9 @@ root's padding constant decides what an EMPTY position authenticates:
 
   The padding constant is a fixed value `z0` that is not defined through `hashLeaf`.
   `main` at 70096e2ea has the same `IndexedMerkleTree.sol` (the constant is at
-  `Config.sol:90`), and `Merkle.sol` and `FullMerkle.sol` are unchanged from c67894b9 at
-  both heads.  `DedicatedPadding hl z0` below is the one inequality between named constants
+  `Config.sol:90`), and so does e561b9cc2 (`IndexedMerkleTree.sol:51-52`, the constant at
+  `Config.sol:134`); `Merkle.sol` and `FullMerkle.sol` are unchanged from c67894b9 at all
+  three.  `DedicatedPadding hl z0` below is the one inequality between named constants
   this topic takes about the dedicated constant, and it holds for `keccak256`.  Computed
   off-line with Foundry's
   `cast keccak`: `keccak256(abi.encode(0,0,0))` (96 zero bytes) is

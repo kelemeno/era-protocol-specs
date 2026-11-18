@@ -39,6 +39,14 @@ chain `X` can commit `(flowId, h)` under a flow whose preimage declares `h` on c
 legs committed on other chains, not about legs committed here under another declared
 chain.
 
+Such a bundle cannot execute.  Its hash binds the chain it was sent from
+(`bundleHash = encodeInteropBundleHash(block.chainid, ...)`, `interop/InteropCenter.sol:644`),
+and `requireFlowFinalized` binds each leg's inclusion proof to the leg's declared source chain
+(`atomic-interop/AtomicFlowManager.sol:124-128`).  So the flow finalizes only if chain `Y`
+committed a hash that binds `X`, which, up to a hash collision, `Y`'s interop center does not
+do.  The refund on `X` then returns the funds of a bundle that cannot execute, which is what a
+refund is for; it is not a second payout.
+
 `DeployedAuthCall.chain` is the calling chain, and `DeployedAuthCall.bundle` the bundle
 hash whose slot one iteration of the loop writes.  Nothing ties either to a declared chain.
 
