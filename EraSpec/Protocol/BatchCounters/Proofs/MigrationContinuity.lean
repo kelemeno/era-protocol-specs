@@ -205,6 +205,32 @@ theorem StaleMintRewritesHistory : Properties.StaleMintRewritesHistory := by
     · simp [wAwayHub, upd, hx]
   · exact DriftBlocksExecute _ _ _ (mintApply wAwayDiamond wStaleCom) rfl (by decide) infos h'' hex
 
+/-- Chain `1`'s diamond after the colliding commit of `CollidingCommitBurnsUpgradeBatch`: two
+batches committed, one executed, upgrade batch `1`. -/
+def wColD6 : Diamond := commitEffect wHash wUpgD5 wInfoAfterCollision
+/-- The same diamond reverted to one batch: committed equals executed, upgrade batch still `1`. -/
+def wColD7 : Diamond := revertEffect wColD6 1
+
+theorem CollidingCommitBurnsUpgradeBatch : Properties.CollidingCommitBurnsUpgradeBatch := by
+  obtain ⟨_, _, _, h, hr₁, _, st₂, _, hr₃, _, st₄, hc, _, _⟩ := wUpg_l1Run true
+  have st₅ : HubStep latentL1 h (.commit 1 wInfoCollidingPrev wInfoAfterCollision)
+      { h with chains := upd h.chains 1 (some wColD6) } :=
+    HubStep.commit hc rfl (by decide) rfl
+  have st₆ : HubStep latentL1 { h with chains := upd h.chains 1 (some wColD6) } (.revert 1 1)
+      { h with chains := upd (upd h.chains 1 (some wColD6)) 1 (some wColD7) } :=
+    HubStep.revert (upd_same h.chains 1 (some wColD6)) rfl (by decide) (by decide)
+  have st₇ : HubStep latentL1
+      { h with chains := upd (upd h.chains 1 (some wColD6)) 1 (some wColD7) }
+      (.burn 1 (h.mr.cur 1) (prepare wColD7))
+      { h with chains := (upd (upd (upd h.chains 1 (some wColD6)) 1 (some wColD7)) 1
+          (some { wColD7 with away := true })) } :=
+    HubStep.burn rfl (upd_same (upd h.chains 1 (some wColD6)) 1 (some wColD7)) rfl (by decide)
+      (by decide) (by decide)
+  exact ⟨by decide, rfl, _, _, _, _,
+    hr₁.append (HubRun.cons st₂ (hr₃.append (HubRun.cons st₄
+      (HubRun.cons st₅ (HubRun.cons st₆ HubRun.nil))))),
+    st₇, by decide, by decide, by decide, by decide⟩
+
 /-! ## Two layers: phases and the chain's executed count -/
 
 lemma idle_of_away {h : Hub} {c : ChainId} {d : Diamond} (hd : h.chains c = some d)

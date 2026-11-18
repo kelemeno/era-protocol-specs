@@ -60,7 +60,10 @@ Latent at `b17415d20`: `bridgeBurn` and `bridgeMint` carry `whenMigrationsEnable
   rewrites a stored hash below it (`ConsistentMintNeverLowersExecuted`). Countermodel: a stale
   commitment whose batch number passes `setMigratingChainBatchNumber`'s `<=` lowers
   `totalBatchesExecuted` from 10 to 5, rewrites `storedBatchHashes[7]` and `[10]`, and leaves the
-  chain with no execute step (`StaleMintRewritesHistory`).
+  chain with no execute step (`StaleMintRewritesHistory`). The model does not force the upgrade
+  batch to `0` at a burn: after a commit whose previous info collides, under the stand-in hash,
+  with the stored info of the last committed batch, and a revert, a burn carries upgrade batch `1`
+  (`CollidingCommitBurnsUpgradeBatch`).
 - **Two copies.** `TwoInv` holds along every run from a state satisfying it (`TwoInvInit`,
   `TwoStepPreservesInv`, `TwoRunKeepsInv`): exactly one copy settles or a migration is in flight
   (`ExactlyOneCopySettles`), pipeline steps need the settling copy (`PipelineOnlyOnSettlingCopy`),
@@ -83,9 +86,11 @@ Witnesses: `HubSyncWitness`, `HubUpgradeRevertWitness`, `LegacySavedChainExecute
 `LegacyUnsavedChainIsWedged`, `ZeroLogsRootRefusedOnSyncedChain`, `RoundTripWitness`,
 `PendingUpgradeMigratesWitness`, `ReentryWitness`; each Properties module's table says which
 premises each meets. `RoundTripWitness` (one round trip) and `PendingUpgradeMigratesWitness` (a
-failed departure, then one round trip, carrying nonzero upgrade-transaction fields both ways) are
-runs the source's migration-number checks accept; `ReentryWitness` is a run of the model only from
-its second departure from L1 on.
+failed departure, then one round trip, carrying a nonzero upgrade transaction hash both ways; the
+upgrade batch is `0` at both burns, which its docstring argues is the only value a burn carries in
+the source, a fact the model does not prove: `CollidingCommitBurnsUpgradeBatch`) are runs the
+source's migration-number checks accept; `ReentryWitness` is a run of the model only from its
+second departure from L1 on.
 
 Out of scope: the chain and shared trees and the historical roots that `_pushChainBatchRoot`
 writes, `isValidSettlementLayer` and the migration interval bookkeeping, the priority tree, and the

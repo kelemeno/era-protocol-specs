@@ -62,7 +62,7 @@ Every other `HubStep` on either layer is a step (`l1`, `sl`), except the migrati
   `L1CAH:286-289`.
 * Everything `HubStep` omits stays omitted; the settlement layer's `MessageRoot` is
   `L2MessageRoot`, which inherits `MessageRootBase` and overrides none of the modelled functions
-  (`core/message-root/L2MessageRoot.sol:24`).
+  (`core/message-root/L2MessageRoot.sol:25`).
 -/
 
 namespace Contracts.BatchCounters
@@ -257,5 +257,12 @@ def wStaleCom : Commitment where
   upgradeTxHash := 0
   upgradeBatch := 0
   batchHashes := [1, 2, 3, 4, 5, 6]
+
+/-- A batch-0 info whose stand-in hash `wHash` equals that of `wInfo 1` (both are `1022`): logs
+root `1021`. -/
+def wInfoCollidingPrev : BatchInfo := { batchNumber := 0, logsRoot := 1021, rest := 0 }
+
+/-- A batch 1 committed after `wInfoCollidingPrev`: logs root `40`. -/
+def wInfoAfterCollision : BatchInfo := { batchNumber := 1, logsRoot := 40, rest := 0 }
 
 end Contracts.BatchCounters

@@ -16,7 +16,10 @@ latent there because migrations are disabled). Proofs are in
   `totalBatchesExecuted` from 10 to 5, rewrites `storedBatchHashes[7]` and `[10]`, and leaves
   the chain unable to execute). With consistent data and synced counters the message root's
   `<=` check is enough: the executed count never goes down and no stored hash below it is
-  rewritten (`ConsistentMintNeverLowersExecuted`).
+  rewritten (`ConsistentMintNeverLowersExecuted`). A burn carries the diamond's upgrade batch,
+  which the model does not force to `0`: after a commit whose previous info collides, under the
+  stand-in hash, with the stored info of the last committed batch, and a revert, a burn carries
+  upgrade batch `1` (`CollidingCommitBurnsUpgradeBatch`).
 * **Two copies.** Along every run of the two-layer system from a state satisfying `TwoInv`
   (`TwoInvInit` gives one), `TwoInv` holds (`TwoRunKeepsInv`): in particular exactly one copy
   of the chain settles or a migration is in flight (`ExactlyOneCopySettles`); pipeline steps
@@ -38,10 +41,11 @@ latent there because migrations are disabled). Proofs are in
 | Witness | Premises it meets |
 |---|---|
 | `RoundTripWitness` | `TwoInvInit` (an L1 copy with one batch executed, reached from the empty layer); runs of `TwoInv` states with departures from both layers, an arrival on a fresh settlement-layer diamond and an arrival back on L1, and pipeline steps of `C` on both layers (`TwoStepPreservesInv`, `TwoRunKeepsInv`, `ExactlyOneCopySettles`, `PipelineOnlyOnSettlingCopy`, `ExecutedLogContiguous`, `CopiesNeverGoBack`); an idle L1 copy while the settlement layer runs (`IdleCopyChangesOnlyByMint`); flights in both directions, towards a layer without a diamond (`HonestArrivalsAccepted`, `ArrivalOnL1CopiesSource` with the L1 copy behind the source, 1 < 3, `ArrivalOnSLCopiesSource` for a fresh diamond); a burn of a synced chain on each layer (`BurnDataConsistent`) and a consistent mint onto an existing diamond on L1 (`ConsistentMintNeverLowersExecuted`). One round trip, which the source's migration-number checks accept |
-| `PendingUpgradeMigratesWitness` | an L1 copy reached from the empty layer through a nonzero genesis upgrade transaction, a revert, an execution that clears the upgrade fields and an in-tree upgrade, so that an upgrade transaction is set and in no committed batch (`TwoInvInit`); a failure confirmation of a first departure (`IdleCopyChangesOnlyByMint` for the cleared flag); burns whose data carries a nonzero upgrade transaction hash, on each layer (`BurnDataConsistent`); an arrival on a fresh settlement-layer diamond, whose upgrade transaction hash was `0` and becomes the source's `88`, and an arrival back on L1, whose copy had `88` and gets the source's `99` (`ArrivalOnSLCopiesSource`, `ArrivalOnL1CopiesSource` and `HonestArrivalsAccepted` with nonzero upgrade fields that differ from the destination's previous ones); after the arrival on the settlement layer, a commit that records the upgrade batch, an execution that clears both fields and an in-tree upgrade. A failed departure, then one round trip, which the source's migration-number checks accept |
+| `PendingUpgradeMigratesWitness` | an L1 copy reached from the empty layer through a nonzero genesis upgrade transaction, a revert, an execution that clears the upgrade fields and an in-tree upgrade, so that an upgrade transaction is set and in no committed batch (`TwoInvInit`); a failure confirmation of a first departure (`IdleCopyChangesOnlyByMint` for the cleared flag); burns whose data carries a nonzero upgrade transaction hash, on each layer (`BurnDataConsistent`); an arrival on a fresh settlement-layer diamond, whose upgrade transaction hash was `0` and becomes the source's `88`, and an arrival back on L1, whose copy had `88` and gets the source's `99` (`ArrivalOnSLCopiesSource`, `ArrivalOnL1CopiesSource` and `HonestArrivalsAccepted` with a nonzero upgrade transaction hash that differs from the destination's previous one); after the arrival on the settlement layer, a commit that records the upgrade batch, an execution that clears both fields and an in-tree upgrade. The upgrade batch is `0` at both burns and on both destinations, so its carry-over is witnessed only as `0`; the docstring of `PendingUpgradeMigratesWitness` argues from the source that a burn carries no other value, which the model does not prove (`CollidingCommitBurnsUpgradeBatch`). A failed departure, then one round trip, which the source's migration-number checks accept |
 | `ReentryWitness` | `RoundTripWitness`'s run continued: a failure confirmation from a `TwoInv` state whose L1 copy is away with 4 batches executed (`IdleCopyChangesOnlyByMint` for the cleared flag); an arrival on an existing settlement-layer diamond that is behind the data in flight, 3 < 4 (`ArrivalOnSLCopiesSource` for an existing diamond, the existing-diamond case of `HonestArrivalsAccepted`, `ConsistentMintNeverLowersExecuted` on the settlement layer). A run of the model only: the source refuses a departure from L1 after a return (`ChainAssetHandlerBase.sol:277`, `L1ChainAssetHandler.sol:286-289`) and the failure confirmation of such a departure (`L1ChainAssetHandler.sol:152-156`). For a chain that starts on L1 with migration number `0` and no settlement-layer diamond, no source run meets the existing-diamond premises (the migration-number boundary in `Specs.MigrationContinuity`) |
 
-`StaleMintRewritesHistory` is a countermodel and needs no witness.
+`StaleMintRewritesHistory` and `CollidingCommitBurnsUpgradeBatch` are countermodels and need no
+witness.
 -/
 
 namespace Contracts.BatchCounters
@@ -81,6 +85,25 @@ def Properties.StaleMintRewritesHistory : Prop :=
       ∃ d', h'.chains 1 = some d' ∧ d'.executed = 5 ∧
         d'.batchHash 7 ≠ wAwayDiamond.batchHash 7 ∧ d'.batchHash 10 ≠ wAwayDiamond.batchHash 10 ∧
         h'.mr.cur 1 = 10 ∧ ∀ (infos : List BatchInfo) (h'' : Hub), ¬ HubStep latentL1 h' (.execute 1 infos) h''
+
+/-- **A COLLIDING COMMIT LETS A BURN CARRY AN UPGRADE BATCH (countermodel).** Under the stand-in
+hash `wHash`, the batch-0 info `wInfoCollidingPrev` has the hash of `wInfo 1`. On L1 with
+migrations enabled, the labels of `HubUpgradeRevertWitness` (which leave chain `1` with one batch
+committed and executed and upgrade fields `88` and `0`, as that witness shows with migrations
+disabled), then a commit of `wInfoAfterCollision` (batch 1) after `wInfoCollidingPrev`, then a
+revert to one batch, lead from the empty layer to a layer on which a burn of chain `1` exists
+whose commitment has one batch committed and executed, upgrade transaction hash `88` and upgrade
+batch `1`. The commit step checks the previous info only against the stored hash at
+`totalBatchesCommitted`, as `Committer.sol:103` does; in the source such a previous info would be
+a collision of `hashStoredBatchInfo` with batch 1's stored info. -/
+def Properties.CollidingCommitBurnsUpgradeBatch : Prop :=
+  wHash wInfoCollidingPrev = wHash (wInfo 1) ∧ wInfoCollidingPrev.batchNumber = 0 ∧
+    ∃ (h h' : Hub) (bn : ℕ) (com : Commitment),
+      HubRun latentL1 emptyHub [.createChain 1 13 12 77, .commit 1 wInfo0 wInfoReverted,
+        .revert 1 0, .commit 1 wInfo0 (wInfo 1), .prove 1 1, .execute 1 [wInfo 1], .upgrade 1 88,
+        .commit 1 wInfoCollidingPrev wInfoAfterCollision, .revert 1 1] h ∧
+      HubStep latentL1 h (.burn 1 bn com) h' ∧
+      com.committed = 1 ∧ com.executed = 1 ∧ com.upgradeTxHash = 88 ∧ com.upgradeBatch = 1
 
 /-! ## The two-layer invariant -/
 
@@ -268,7 +291,20 @@ leaves two batches executed and both fields `0`; an in-tree upgrade then gives `
 copy still settling. `C` departs from the settlement layer; in the resulting state, which
 satisfies `TwoInv`, L1's copy is away with upgrade fields `88` and `0`. `C` arrives back on L1
 (`arriveL1`), and in the resulting state, which satisfies `TwoInv`, L1's copy settles with two
-batches executed and upgrade fields `99` and `0`. -/
+batches executed and upgrade fields `99` and `0`.
+
+Only the upgrade transaction hash is carried over as a nonzero value that differs from the
+destination's previous one (`0` to `88`, `88` to `99`). The upgrade batch is `0` at both burns and
+on both destinations. In the source a burn carries no other upgrade batch. A commit made while an
+upgrade transaction is set and no upgrade batch is recorded records the new batch as the upgrade
+batch (`Committer.sol:105-108, 127`), and the new batch is numbered one after the batch whose hash
+is stored at `totalBatchesCommitted` (`Committer.sol:103, 165-167`). So, as long as that stored
+hash fixes its batch's number, the upgrade batch stays above `totalBatchesExecuted` and at most
+`totalBatchesCommitted` until the execution that reaches it clears it (`Executor.sol:207-211`) or
+a revert below it resets it (`ZKChainBase.sol:332-334`), and a burn needs the two counters equal
+(`Migrator.sol:203-205`). The model does not prove this: its commit step relates the previous
+batch's number to `totalBatchesCommitted` only through the uninterpreted hash, and with a collision
+of the stand-in hash a burn carries upgrade batch `1` (`CollidingCommitBurnsUpgradeBatch`). -/
 def Properties.PendingUpgradeMigratesWitness : Prop :=
   ∃ (h₀ : Hub) (s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ s : TwoHubs),
     HubRun latentL1 emptyHub [.createChain 1 13 12 77, .commit 1 wInfo0 wInfoReverted, .revert 1 0,

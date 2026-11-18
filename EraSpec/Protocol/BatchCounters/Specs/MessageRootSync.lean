@@ -64,7 +64,7 @@ layer's bridgehub registers (`BHB.getZKChain`) with that diamond's batch-pipelin
 | `prove` | `proveBatchesSharedBridge` (`Ex:215-251`) |
 | `execute` | `executeBatchesSharedBridge` (`Ex:170-212`), `_executeOneBatch` (`Ex:86-114`), `_checkBatchData` (`Ex:59-79`), and per batch `addChainBatchRootV32` (`MRB:173-180`) |
 | `revert` | `_revertBatches` (`Base:317-337`), reached by `revertBatchesSharedBridge` (`Ex:264-269`) and `activatePriorityMode` (`Admin.sol:550`) |
-| `upgrade` | `BaseZkSyncUpgrade._upgrade` (`upgrades/BaseZkSyncUpgrade.sol:72-107`): the upgrade transaction hash is written only on a diamond that settles here (`:86, :102-104, :199`) |
+| `upgrade` | `BaseZkSyncUpgrade._upgrade` (`upgrades/BaseZkSyncUpgrade.sol:72-107`): the upgrade transaction hash is written only on a diamond that settles here (`:86, :102-104, :199`); a no-op transaction (`txType == 0`, `:168-169`) writes nothing, which is the step whose `t` is the current hash; `upgradeEffect` says which other values of `t` only the model allows |
 | `burn` | `CAH.bridgeBurn` (`CAH:188-254`) → `Migrator.forwardedBridgeBurn` (`Mig:154-209`) and `prepareChainCommitment` (`Mig:339-375`); the mint data's batch number is `currentChainBatchNumber(c)` (`CAH:281`) |
 | `mintExisting` | `CAH.bridgeMint` (`CAH:361-420`) for a registered chain: `setMigratingChainBatchNumber` (`CAH:414`, `MRB:153-157`), then `Migrator.forwardedBridgeMint(data, true)` (`Mig:213-305`) |
 | `mintNew` | `CAH.bridgeMint` for an unregistered chain: the CTM deploys a fresh diamond (`ChainTypeManager.sol:746-758`, `_deployNewChain` `:674-692`), `addNewChain(c, batchNumber)` (`CAH:409`), then `forwardedBridgeMint(data, false)`; on L1 this reverts (`Mig:277-279`) |
@@ -221,7 +221,15 @@ def revertEffect (d : Diamond) (n : ℕ) : Diamond :=
     upgradeBatch := if n < d.upgradeBatch then 0 else d.upgradeBatch }
 
 /-- The upgrade transaction write of `BaseZkSyncUpgrade` (`upgrades/BaseZkSyncUpgrade.sol:86,
-102-104, 199`): only on a diamond that settles here. -/
+102-104, 199`): only on a diamond that settles here.
+
+The model writes `t` on every settling diamond. The source writes nothing for a no-op upgrade
+transaction (`txType == 0`, `:168-169`), which is the case `t = d.upgradeTxHash`. It writes a new
+hash only in an upgrade that changes the minor version (a patch-only upgrade cannot set one,
+`:175-177`), and such an upgrade first requires both upgrade fields to be `0` (`:259-268`). So a
+step with `t ≠ d.upgradeTxHash` on a diamond whose upgrade transaction hash or upgrade batch is
+nonzero is a run of the model only: omitting those checks adds runs, as for the other reject-only
+checks. -/
 def upgradeEffect (d : Diamond) (t : Word) : Diamond :=
   if d.away = true then d else { d with upgradeTxHash := t }
 
