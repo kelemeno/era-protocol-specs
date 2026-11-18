@@ -17,6 +17,9 @@ every entry is `0` or L1's (`queueVal`, `hubVal`, `retVal`). `inv_step` proves o
 `mintingQueue`), and the settlement clause of `deregisterInteropPairs` where a deregistration is
 queued for a chain whose migration message names that layer (`inv_deregisterInteropPairs`).
 
+`DeregistrationRepeatClearsPeerFlag`, `DisallowedPeerFlagFrozenWhileOnLayer` and the three
+`not_step_*` lemmas need no invariant: they read the guards and writes of `Step` directly.
+
 Witness runs, the countermodels included, are computed by `stepFn`, an executable version of
 `Step` proved sound (`step_of_stepFn`), and checked by `decide`.
 -/
@@ -1804,6 +1807,183 @@ theorem PeerFlagsOnlyForProperPeers : Properties.PeerFlagsOnlyForProperPeers := 
       List.mem_append_left _ (List.mem_map.mpr ⟨_, hm, rfl⟩)
     exact hI.properAllow c _ hm' p a s rfl
 
+/-! ### A failed deregistration -/
+
+theorem DeregistrationRepeatClearsPeerFlag : Properties.DeregistrationRepeatClearsPeerFlag := by
+  intro P S c p _ hc hq hpc hpl hsl
+  refine ⟨_, _, Step.deregisterInteropPairs (ps := [p]) hc ?_,
+    Step.executeOk (pre := []) (post := []) (m := .dereg p)
+      (h := { S.hub c with peer := Function.update (S.hub c).peer p false,
+                           bta := Function.update (S.hub c).bta p 0 })
+      ?_ (fun _ => rfl) rfl, ?_, ?_, ?_⟩
+  · intro q hq'
+    simp only [List.mem_singleton] at hq'
+    subst hq'
+    exact ⟨hpc, hpl, fun _ => hsl⟩
+  · simp [hq]
+  · simp
+  · simp
+  · simp [clearAllowed]
+
+/-- An entry that does not write `isPeerAllowed[p]` leaves it as it is. -/
+theorem run_peer_of_peerWrite_none {c p : ChainId} {m : Msg} {h h' : Hub}
+    (hrun : m.run c h = some h') (hw : m.peerWrite p = none) : h'.peer p = h.peer p := by
+  cases m with
+  | allow q a s =>
+    simp only [Msg.run] at hrun
+    split_ifs at hrun
+    simp only [Option.some.injEq] at hrun
+    subst hrun
+    have hqp : p ≠ q := by
+      rintro rfl; simp [Msg.peerWrite] at hw
+    simp [Function.update_of_ne hqp]
+  | dereg q =>
+    simp only [Msg.run, Option.some.injEq] at hrun
+    subst hrun
+    have hqp : p ≠ q := by
+      rintro rfl; simp [Msg.peerWrite] at hw
+    simp [Function.update_of_ne hqp]
+  | legacy q a =>
+    simp only [Msg.run, Option.some.injEq] at hrun
+    subst hrun; rfl
+  | mint q a =>
+    simp only [Msg.run] at hrun
+    split_ifs at hrun
+    simp only [Option.some.injEq] at hrun
+    subst hrun; rfl
+  | other =>
+    simp only [Msg.run, Option.some.injEq] at hrun
+    subst hrun; rfl
+
+/-- Appending entries that do not write `isPeerAllowed[p]` keeps a queue free of such entries. -/
+theorem noPending_enqueue {Q : ChainId → List Msg} {c c' p : ChainId} {ms : List Msg}
+    (h : NoPendingPeerEntry p (Q c)) (hms : c = c' → ∀ m ∈ ms, m.peerWrite p = none) :
+    NoPendingPeerEntry p (Function.update Q c' (Q c' ++ ms) c) := by
+  intro m hm
+  by_cases hcc : c = c'
+  · subst hcc
+    rw [Function.update_self] at hm
+    rcases List.mem_append.mp hm with hm | hm
+    · exact h m hm
+    · exact hms rfl m hm
+  · rw [Function.update_of_ne hcc] at hm
+    exact h m hm
+
+/-- Removing an entry keeps a queue free of entries writing `isPeerAllowed[p]`. -/
+theorem noPending_pop {Q : ChainId → List Msg} {c c' p : ChainId} {pre post : List Msg} {m : Msg}
+    (hq : Q c' = pre ++ m :: post) (h : NoPendingPeerEntry p (Q c)) :
+    NoPendingPeerEntry p (Function.update Q c' (pre ++ post) c) := by
+  intro m' hm'
+  by_cases hcc : c = c'
+  · subst hcc
+    rw [Function.update_self] at hm'
+    apply h m'
+    rw [hq]
+    rcases List.mem_append.mp hm' with h1 | h1
+    · exact List.mem_append_left _ h1
+    · exact List.mem_append_right _ (List.mem_cons_of_mem _ h1)
+  · rw [Function.update_of_ne hcc] at hm'
+    exact h m' hm'
+
+theorem DisallowedPeerFlagFrozenWhileOnLayer :
+    Properties.DisallowedPeerFlagFrozenWhileOnLayer := by
+  intro P S S' a c p hs hsl hal hnone
+  cases hs with
+  | createChain => exact ⟨rfl, hal, hnone⟩
+  | enableInterop => exact ⟨rfl, hal, hnone⟩
+  | pushBatch => exact ⟨rfl, hal, hnone⟩
+  | allowInteropPeer h1 h2 h3 h4 h5 h6 h7 h8 =>
+    rename_i c' q
+    have hne : ¬ (c = c' ∧ p = q) := by
+      rintro ⟨rfl, rfl⟩; exact h2.2.2 hsl
+    refine ⟨rfl, ?_, noPending_enqueue hnone ?_⟩
+    · show setAllowed S.l1.allowed c' q c p = false
+      simp [setAllowed, hne, hal]
+    · intro hcc m hm
+      simp only [List.mem_singleton] at hm
+      subst hm
+      have hqp : q ≠ p := fun h => hne ⟨hcc, h.symm⟩
+      simp [Msg.peerWrite, hqp]
+  | deregisterInteropPairs h1 h2 =>
+    rename_i c' ps
+    have hp : c = c' → p ∉ ps := by
+      intro hcc hp
+      exact (h2 p hp).2.2 rfl (hcc ▸ hsl)
+    refine ⟨rfl, ?_, noPending_enqueue hnone ?_⟩
+    · show clearAllowed S.l1.allowed c' ps c p = false
+      simp only [clearAllowed]; split_ifs <;> simp [hal]
+    · intro hcc m hm
+      obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hm
+      have hqp : q ≠ p := fun h => hp hcc (h ▸ hq)
+      simp [Msg.peerWrite, hqp]
+  | resubmit h1 h2 h3 h4 =>
+    rename_i c' q
+    refine ⟨rfl, hal, noPending_enqueue hnone ?_⟩
+    intro hcc m hm
+    simp only [List.mem_singleton] at hm
+    subst hm
+    have hqp : q ≠ p := by
+      rintro rfl; rw [← hcc, hal] at h2; cases h2
+    simp [Msg.peerWrite, hqp]
+  | legacyRegister =>
+    refine ⟨rfl, hal, noPending_enqueue hnone ?_⟩
+    intro _ m hm
+    simp only [List.mem_singleton] at hm
+    subst hm; rfl
+  | otherRequest =>
+    refine ⟨rfl, hal, noPending_enqueue hnone ?_⟩
+    intro _ m hm
+    simp only [List.mem_singleton] at hm
+    subst hm; rfl
+  | executeOk hq hfifo hrun =>
+    rename_i c' pre post m h
+    refine ⟨?_, hal, noPending_pop hq hnone⟩
+    show (Function.update S.hub c' h c).peer p = (S.hub c).peer p
+    by_cases hcc : c = c'
+    · subst hcc
+      rw [Function.update_self]
+      exact run_peer_of_peerWrite_none hrun (hnone m (by rw [hq]; simp))
+    · rw [Function.update_of_ne hcc]
+  | executeFail hq hfifo => exact ⟨rfl, hal, noPending_pop hq hnone⟩
+  | migrateToLayer =>
+    refine ⟨rfl, hal, noPending_enqueue hnone ?_⟩
+    intro _ m hm
+    simp only [List.mem_singleton] at hm
+    subst hm; rfl
+  | burnOnLayer hb1 hb2 =>
+    rename_i q c'
+    refine ⟨?_, hal, hnone⟩
+    show (Function.update S.hub c' _ c).peer p = (S.hub c).peer p
+    by_cases hcc : c = c'
+    · subst hcc; rw [Function.update_self]
+    · rw [Function.update_of_ne hcc]
+  | finalizeReturn => exact ⟨rfl, hal, hnone⟩
+  | confirmFailedMigration => exact ⟨rfl, hal, hnone⟩
+
+/-- While L1 records `p` on `c`, `deregisterInteropPairs(c, ps)` with `p ∈ ps` reverts
+(`_checkPeerPair`, `CRS:108`, `:178`). -/
+theorem not_step_deregisterInteropPairs_of_layer {P : Params} {S S' : State} {c p : ChainId}
+    {ps : List ChainId} (hsl : S.l1.sl p = c) (hp : p ∈ ps) :
+    ¬ Step deployed P S (.deregisterInteropPairs c ps) S' := by
+  intro hs
+  cases hs with
+  | deregisterInteropPairs _ hok => exact (hok p hp).2.2 rfl hsl
+
+/-- While L1 records `p` on `c`, `allowInteropPeer(c, p)` reverts (`_checkPeerPair`, `CRS:81`,
+`:178`). -/
+theorem not_step_allowInteropPeer_of_layer {K : Config} {P : Params} {S S' : State}
+    {c p : ChainId} (hsl : S.l1.sl p = c) : ¬ Step K P S (.allowInteropPeer c p) S' := by
+  intro hs
+  cases hs with
+  | allowInteropPeer _ hpp => exact hpp.2.2 hsl
+
+/-- Without the sender's flag, the re-submission reverts (`CRS:139-142`). -/
+theorem not_step_resubmit_of_disallowed {K : Config} {P : Params} {S S' : State}
+    {c p : ChainId} (ha : S.l1.allowed c p = false) : ¬ Step K P S (.resubmit c p) S' := by
+  intro hs
+  cases hs with
+  | resubmit _ h2 => rw [ha] at h2; cases h2
+
 /-! ## (b) The value of `baseTokenAssetId[p]` -/
 
 theorem L2BaseTokenEntryIsZeroOrL1Value : Properties.L2BaseTokenEntryIsZeroOrL1Value := by
@@ -2251,6 +2431,20 @@ def runLateResub : List Action :=
 /-- … and the re-submission executes. -/
 def runLateResubExecuted : List Action := runLateResub ++ [.execute 2 0 true]
 
+/-- `allowInteropPeer(2, 3)` succeeds on chain `2`; `deregisterInteropPairs(2, [3])` fails there. -/
+def runFailedDereg : List Action :=
+  runSetup ++ [.allowInteropPeer 2 3, .execute 2 0 true, .deregisterInteropPairs 2 [3],
+    .execute 2 0 false]
+
+/-- `allowInteropPeer(2, 3)` succeeds on chain `2`; `deregisterInteropPairs(2, [3])` is queued, `3`
+migrates onto `2`, and the deregistration fails; the arrival is still queued. -/
+def runFailedDeregArriving : List Action :=
+  runSetup ++ [.allowInteropPeer 2 3, .execute 2 0 true, .deregisterInteropPairs 2 [3],
+    .migrateToLayer 3 2, .execute 2 0 false]
+
+/-- … and `3` arrives on `2`. -/
+def runFailedDeregSettled : List Action := runFailedDeregArriving ++ [.execute 2 0 true]
+
 theorem SettledPeerFlagCanTurnOn : Properties.SettledPeerFlagCanTurnOn :=
   ⟨wP, runState deployed runLateResub, runState deployed runLateResubExecuted, .execute 2 0 true,
     2, 3,
@@ -2265,6 +2459,32 @@ theorem FailedServiceEntryLeavesPeerFlagBehind :
   ⟨wP, runState deployed runDesync, 2, 3,
     reach_of_runFrom (rfl : runFrom deployed wP init runDesync = some (runState deployed runDesync)),
     by decide, by decide, by decide⟩
+
+theorem FailedDeregLeavesPeerFlagOn : Properties.FailedDeregLeavesPeerFlagOn :=
+  ⟨wP, runState deployed runFailedDereg, 2, 3,
+    reach_of_runFrom
+      (rfl : runFrom deployed wP init runFailedDereg = some (runState deployed runFailedDereg)),
+    by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+theorem FailedDeregRepairBlockedWhileSettled : Properties.FailedDeregRepairBlockedWhileSettled :=
+  have hsl : (runState deployed runFailedDeregSettled).l1.sl 3 = 2 := by decide
+  have hal : (runState deployed runFailedDeregSettled).l1.allowed 2 3 = false := by decide
+  ⟨wP, runState deployed runFailedDeregSettled, 2, 3,
+    reach_of_runFrom (rfl : runFrom deployed wP init runFailedDeregSettled =
+      some (runState deployed runFailedDeregSettled)),
+    by decide, by decide, hal, by decide, by decide, by decide, hsl,
+    fun _ _ hp => not_step_deregisterInteropPairs_of_layer hsl hp,
+    fun _ => not_step_allowInteropPeer_of_layer hsl,
+    fun _ => not_step_resubmit_of_disallowed hal⟩
+
+theorem DisallowedPeerFlagFrozenWitness : Properties.DisallowedPeerFlagFrozenWitness :=
+  ⟨wP, runState deployed runFailedDeregArriving, runState deployed runFailedDeregSettled, 2, 3,
+    reach_of_runFrom (rfl : runFrom deployed wP init runFailedDeregArriving =
+      some (runState deployed runFailedDeregArriving)),
+    step_of_stepFn (rfl : stepFn deployed wP (runState deployed runFailedDeregArriving)
+      (.execute 2 0 true) = some (runState deployed runFailedDeregSettled)),
+    by decide, by decide, by unfold NoPendingPeerEntry; decide, by decide, by decide, by decide,
+    by decide⟩
 
 theorem WithoutFifoPeerFlagDesyncs : Properties.WithoutFifoPeerFlagDesyncs :=
   ⟨wP, runState withoutFifo runOutOfOrder, 2, 3,

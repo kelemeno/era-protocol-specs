@@ -65,8 +65,8 @@ behind `chainTypeManager[p] == 0` (`BB:534-536`). `isPeerAllowed` has no other w
 * A service transaction is written by `requestL2ServiceTransaction` (`MB:169-196`) into the
   priority tree of `c`'s diamond (`MB:291-303`, `:373-378`), with sender `SERVICE_TRANSACTION_SENDER`
   and gas limit `PRIORITY_TX_MAX_GAS_LIMIT`. Only the CRS and the L1 chain asset handler may call it
-  (`ZKChainBase.sol:155-167`), and the handler's only call targets `L2_CHAIN_ASSET_HANDLER_ADDR`
-  (`core/chain-asset-handler/L1ChainAssetHandler.sol:191-201`).
+  (`state-transition/chain-deps/facets/ZKChainBase.sol:155-167`), and the handler's only call
+  targets `L2_CHAIN_ASSET_HANDLER_ADDR` (`core/chain-asset-handler/L1ChainAssetHandler.sol:193-202`).
 * A re-submission is an ordinary request of `L1BH.requestL2TransactionTwoBridges` with sender
   `CRS` (`L1BH:247-248`), aliased by `MB:270-272`, into the same priority tree (`MB:276`).
 * A chain migrating onto a settlement layer `c` is an ordinary two-bridges request to `c` as well;
@@ -100,8 +100,8 @@ other results hold with the migration steps enabled.
 * **Finalization on L1**: `CAH.bridgeMint` → L1's `forwardedBridgeMint` writes `settlementLayer[p] =
   L1` and `baseTokenAssetId[p] = data.assetId` (`BB:441-447`), with nothing compared.
 * **A failed arrival**: `L1ChainAssetHandler.bridgeConfirmTransferResult` with a failure proof
-  (`L1ChainAssetHandler.sol:122-170`) → `forwardedBridgeConfirmTransferResult` writes
-  `settlementLayer[p] = L1` (`BB:459-468`).
+  (`core/chain-asset-handler/L1ChainAssetHandler.sol:122-172`) →
+  `forwardedBridgeConfirmTransferResult` writes `settlementLayer[p] = L1` (`BB:459-468`).
 
 ## Modelling choices
 

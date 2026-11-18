@@ -4,9 +4,12 @@ Source: era-contracts `draft/v0.35.0` at **`b17415d20`** (the v35 head), under
 `l1-contracts/contracts/`:
 
 - `core/chain-registration/ChainRegistrationSender.sol` (the sender)
-- `core/bridgehub/L2Bridgehub.sol`, `BridgehubBase.sol`, `L1Bridgehub.sol`
-- `core/chain-asset-handler/ChainAssetHandlerBase.sol`, `L1ChainAssetHandler.sol`
-- `state-transition/chain-deps/facets/Mailbox.sol`, `ZKChainBase.sol`
+- `core/bridgehub/L2Bridgehub.sol`, `core/bridgehub/BridgehubBase.sol`,
+  `core/bridgehub/L1Bridgehub.sol`
+- `core/chain-asset-handler/ChainAssetHandlerBase.sol`,
+  `core/chain-asset-handler/L1ChainAssetHandler.sol`
+- `state-transition/chain-deps/facets/Mailbox.sol`,
+  `state-transition/chain-deps/facets/ZKChainBase.sol`
 - `core/message-root/L1MessageRoot.sol` (`isInteropEnabled`)
 
 | Topic | Specification | Property statements | Checked proofs |
@@ -47,6 +50,23 @@ of `_checkPeerPair` in `deregisterInteropPairs`. Boundary: `MODEL-PEER-MIRROR` i
   can be empty with the flags disagreeing (`FailedServiceEntryLeavesPeerFlagBehind`). The
   re-submission is then enabled and repairs it (`ResubmissionRestoresPeerFlag`). FIFO execution is
   needed too (`WithoutFifoPeerFlagDesyncs`).
+- A failed `deregisterChainForInterop` service transaction leaves the flags disagreeing the other
+  way: the sender's flag is `false` and the chain's `isPeerAllowed[p]` is `true`
+  (`FailedDeregLeavesPeerFlagOn`). Nothing re-sends a deregistration. The repair is a repeated
+  `deregisterInteropPairs(c, [p])`, which has no `require(interopPeerAllowed)`: wherever
+  `_checkPeerPair` passes and `c`'s queue is empty, it is enabled and its successful execution
+  leaves both flags `false` (`DeregistrationRepeatClearsPeerFlag`).
+- While L1 records `p` as settling on `c`, that repair is not available: `_checkPeerPair` rejects
+  it and `allowInteropPeer(c, p)`, and the re-submission needs the sender's flag
+  (`FailedDeregRepairBlockedWhileSettled`). From a state where L1 records `p` on `c`, the sender's
+  flag is `false` and no entry writing `c`'s flag is pending, no step changes `c`'s flag, and the
+  last two conditions persist (`DisallowedPeerFlagFrozenWhileOnLayer`). Applied step by step, the
+  chain's flag keeps its value for as long as L1 records `p` on `c`. That window needs a
+  migration, which is disabled at `b17415d20`.
+- The model lets any queued execution fail. For a deregistration entry, the failure cause the
+  protocol docs name is an L2 that is not yet upgraded (`protocol-docs/interop-gating.md:172-173`);
+  an earlier successful allow on the same chain shows that its L2 was upgraded (source note, not
+  modelled).
 - Neither flag is ever set for the chain itself or for L1, although the re-submission skips
   `_checkPeerPair` (`PeerFlagsOnlyForProperPeers`).
 
@@ -110,7 +130,18 @@ After `p` returned from `c`, `c` records `settlementLayer[p] = L1`, so reader 5 
 on `c`, and reader 6 runs only in an arrival, which writes the entry first; a chain that has
 returned cannot migrate again (`MAX_ALLOWED_NUMBER_OF_MIGRATIONS = 2`,
 `ChainAssetHandlerBase.sol:274-279`). Readers 1 and 2 treat `0` as "not registered" and revert,
-and reader 3 is reached only after reader 1.
+and reader 3 is reached only after reader 1. Reader 7 reads the entry of the chain being upgraded
+(`_chainId = s.chainId`) from the Bridgehub of the layer that chain's diamond lives on
+(`s.bridgehub`, set from the deploying CTM's `BRIDGE_HUB` at
+`state-transition/chain-deps/DiamondInit.sol:54`, `:90`; read at
+`upgrades/L1GenesisUpgrade.sol:35-40` and `upgrades/DefaultUpgrade.sol:76-82`). Genesis runs only
+in chain creation on L1 (`state-transition/ChainTypeManager.sol:703-711`, called only from
+`core/bridgehub/L1Bridgehub.sol:124`), after L1's entry is written (`L1Bridgehub.sol:118`). In an
+upgrade of `p`'s diamond on a settlement layer `c`, the entry read is `c`'s, which is L1's nonzero
+value while `c` records `p` as settling on `c` (`SettledChainEntryIsL1Value`). Whether an upgrade
+can run on `p`'s diamond on `c` after `p` left `c` is not analysed. The view functions that compose
+the same transactions (`L1GenesisUpgrade.genesisUpgradeTx`, `DefaultUpgrade.l2UpgradeTx`,
+`RegistryBootstrapMigration.l2UpgradeTx`) write nothing.
 
 ## Boundaries
 

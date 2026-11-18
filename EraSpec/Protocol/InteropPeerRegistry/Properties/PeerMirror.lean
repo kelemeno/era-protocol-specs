@@ -18,10 +18,23 @@ flags agree whenever none is pending, however many re-submissions failed
 (`PeerFlagMirrorsWhenServiceEntriesSucceed`): a re-submission is only possible for an allowed pair,
 so a failed one never leaves the flag behind. A failed service entry does
 (`FailedServiceEntryLeavesPeerFlagBehind`); for a failed `allowInteropPeer` entry the re-submission
-is then enabled and restores the flag (`ResubmissionRestoresPeerFlag`). Executing the queue out of
-order breaks the mirror with every entry succeeding (`WithoutFifoPeerFlagDesyncs`). Neither flag
-is ever set for the chain itself or for L1, although the re-submission skips `_checkPeerPair`
-(`PeerFlagsOnlyForProperPeers`).
+is then enabled and restores the flag (`ResubmissionRestoresPeerFlag`).
+
+A failed `deregisterChainForInterop` entry leaves the flags disagreeing the other way: `c`'s flag
+`true`, the sender's `false` (`FailedDeregLeavesPeerFlagOn`). Nothing re-sends a deregistration. A
+repeated `deregisterInteropPairs(c, [p])`, which does not require the sender's flag, is enabled and
+restores agreement wherever `_checkPeerPair` passes and `c`'s queue is empty
+(`DeregistrationRepeatClearsPeerFlag`). While L1 records `p` as settling on `c`, `_checkPeerPair`
+rejects it and `allowInteropPeer(c, p)`, and the re-submission needs the sender's flag
+(`FailedDeregRepairBlockedWhileSettled`). From any state in which L1 records `p` on `c`, the
+sender's flag is `false` and no entry writing `c`'s flag is pending, no step changes `c`'s flag,
+and the last two conditions persist (`DisallowedPeerFlagFrozenWhileOnLayer`). For a created `p`,
+L1 records a settlement layer other than L1 only after a migration, which is disabled at
+`b17415d20`.
+
+Executing the queue out of order breaks the mirror with every entry succeeding
+(`WithoutFifoPeerFlagDesyncs`). Neither flag is ever set for the chain itself or for L1, although
+the re-submission skips `_checkPeerPair` (`PeerFlagsOnlyForProperPeers`).
 
 ## (b) A chain's `baseTokenAssetId[p]` is `0` or L1's
 
@@ -66,6 +79,10 @@ records `p` as settling on `c` (`BB:411-413`); there the entry is L1's
 premises of the two mirror statements with a failed entry in the log, and the first also the
 premise of `PeerFlagsOnlyForProperPeers` (both flags `true`). `FailedServiceEntryLeavesPeerFlagBehind`
 meets those of `ResubmissionRestoresPeerFlag`, with the chain's flag `false`.
+`FailedDeregLeavesPeerFlagOn` meets those of `DeregistrationRepeatClearsPeerFlag`, with the chain's
+flag `true` and the sender's `false`. `DisallowedPeerFlagFrozenWitness` meets those of
+`DisallowedPeerFlagFrozenWhileOnLayer` with a nonempty queue, the chain's flag `true` and the
+sender's `false`.
 `BaseTokenEntryWitness`, `CreationValueWitness` and `L1BaseTokenRewriteWitness` meet those of (b).
 `SettledEntryWitness` (the executed entry is a re-submission while `p` settles on `c`; it also meets
 the premises of `SettledChainEntryIsL1Value`), `ReturnWitness` (for `ReturnCarriesL1BaseToken` and
@@ -113,6 +130,55 @@ def Properties.ResubmissionRestoresPeerFlag : Prop :=
     ∃ S₁ S₂ : State, Step deployed P S (.resubmit c p) S₁ ∧
       Step deployed P S₁ (.execute c 0 true) S₂ ∧
       S₂.queue c = [] ∧ (S₂.hub c).peer p = true ∧ S₂.l1.allowed c p = true
+
+/-- **A FAILED DEREGISTRATION LEAVES THE FLAG ON.** A reachable state in which `c` is registered,
+`c`'s queue is empty, `p ≠ c`, `p` is not L1, L1 does not record `p` as settling on `c`, the sender
+does not allow `(c, p)`, `c`'s `isPeerAllowed[p]` is `true`, and `c`'s log holds a failed
+`deregisterChainForInterop(p)` entry. In the run behind it, the service transaction of
+`allowInteropPeer(c, p)` succeeded and that of `deregisterInteropPairs(c, [p])` failed. -/
+def Properties.FailedDeregLeavesPeerFlagOn : Prop :=
+  ∃ (P : Params) (S : State) (c p : ChainId), Reach deployed P S ∧ S.l1.registered c = true ∧
+    S.queue c = [] ∧ p ≠ c ∧ p ≠ P.l1 ∧ S.l1.sl p ≠ c ∧
+    S.l1.allowed c p = false ∧ (S.hub c).peer p = true ∧ (Msg.dereg p, false) ∈ S.done c
+
+/-- **A REPEATED DEREGISTRATION REPAIRS IT WHERE `_checkPeerPair` PASSES.** On every reachable
+state where `c` is registered, `c`'s queue is empty, `p ≠ c`, `p` is not L1, and L1 does not record
+`p` as settling on `c`: `deregisterInteropPairs(c, [p])` is enabled, whatever the sender's flag,
+its entry can execute successfully, and afterwards `c`'s queue is empty and both `c`'s
+`isPeerAllowed[p]` and the sender's `interopPeerAllowed[c][p]` are `false`. -/
+def Properties.DeregistrationRepeatClearsPeerFlag : Prop :=
+  ∀ (P : Params) (S : State) (c p : ChainId), Reach deployed P S → S.l1.registered c = true →
+    S.queue c = [] → p ≠ c → p ≠ P.l1 → S.l1.sl p ≠ c →
+    ∃ S₁ S₂ : State, Step deployed P S (.deregisterInteropPairs c [p]) S₁ ∧
+      Step deployed P S₁ (.execute c 0 true) S₂ ∧
+      S₂.queue c = [] ∧ (S₂.hub c).peer p = false ∧ S₂.l1.allowed c p = false
+
+/-- **… BUT NOT WHILE `p` SETTLES ON `c`.** A reachable state in which `c` is registered, `c`'s queue
+is empty, the sender does not allow `(c, p)`, `c`'s `isPeerAllowed[p]` is `true`, `c`'s log holds a
+failed `deregisterChainForInterop(p)` entry, and both `c`'s `L2Bridgehub` and L1 record `p` as
+settling on `c`. From it, no `deregisterInteropPairs(c, ps)` with `p ∈ ps` and no
+`allowInteropPeer(c, p)` succeeds (both run `_checkPeerPair`), and no re-submission for `(c, p)`
+succeeds (it requires the sender's flag). -/
+def Properties.FailedDeregRepairBlockedWhileSettled : Prop :=
+  ∃ (P : Params) (S : State) (c p : ChainId), Reach deployed P S ∧ S.l1.registered c = true ∧
+    S.queue c = [] ∧ S.l1.allowed c p = false ∧ (S.hub c).peer p = true ∧
+    (Msg.dereg p, false) ∈ S.done c ∧ (S.hub c).sl p = c ∧ S.l1.sl p = c ∧
+    (∀ (ps : List ChainId) (S' : State), p ∈ ps →
+      ¬ Step deployed P S (.deregisterInteropPairs c ps) S') ∧
+    (∀ S' : State, ¬ Step deployed P S (.allowInteropPeer c p) S') ∧
+    (∀ S' : State, ¬ Step deployed P S (.resubmit c p) S')
+
+/-- **WHILE L1 RECORDS `p` ON `c` AND THE SENDER DOES NOT ALLOW `(c, p)`, `c`'S FLAG KEEPS ITS
+VALUE.** For every step from any state in which L1's `settlementLayer[p]` is `c`, the sender does
+not allow `(c, p)`, and no entry in `c`'s queue writes `isPeerAllowed[p]`: `c`'s
+`isPeerAllowed[p]` is unchanged, the sender still does not allow `(c, p)`, and still no entry in
+`c`'s queue writes it. The conclusion re-establishes every premise except L1's
+`settlementLayer[p] = c`. -/
+def Properties.DisallowedPeerFlagFrozenWhileOnLayer : Prop :=
+  ∀ (P : Params) (S S' : State) (a : Action) (c p : ChainId), Step deployed P S a S' →
+    S.l1.sl p = c → S.l1.allowed c p = false → NoPendingPeerEntry p (S.queue c) →
+      (S'.hub c).peer p = (S.hub c).peer p ∧ S'.l1.allowed c p = false ∧
+      NoPendingPeerEntry p (S'.queue c)
 
 /-- **WITHOUT FIFO EXECUTION THE MIRROR BREAKS.** With the queue executed out of order, a reachable
 state in which `c`'s queue is empty, every executed entry succeeded, and `c`'s `isPeerAllowed[p]`
@@ -269,6 +335,16 @@ def Properties.MirrorAfterFailedResubmissionWitness : Prop :=
     (∀ e ∈ S.done c, e.1.isService = true → (e.1.peerWrite p).isSome = true → e.2 = true) ∧
     lastPeerEntryOk p (S.done c) = false ∧
     S.l1.allowed c p = true ∧ (S.hub c).peer p = true
+
+/-- **WITNESS FOR `DisallowedPeerFlagFrozenWhileOnLayer`.** A reachable state meeting its premises,
+in which `c`'s queue holds exactly `p`'s arrival, `c`'s `isPeerAllowed[p]` is `true` while the
+sender does not allow `(c, p)`, and `c`'s `L2Bridgehub` does not yet record `p` as settling on `c`;
+executing the arrival is a step after which it does. -/
+def Properties.DisallowedPeerFlagFrozenWitness : Prop :=
+  ∃ (P : Params) (S S' : State) (c p : ChainId), Reach deployed P S ∧
+    Step deployed P S (.execute c 0 true) S' ∧ S.l1.sl p = c ∧ S.l1.allowed c p = false ∧
+    NoPendingPeerEntry p (S.queue c) ∧ S.queue c = [.mint p (S.l1.bt p)] ∧
+    (S.hub c).peer p = true ∧ (S.hub c).sl p ≠ c ∧ (S'.hub c).sl p = c
 
 /-- **WITNESS FOR (b).** A reachable state with a nonzero entry on a chain other than `p`. -/
 def Properties.BaseTokenEntryWitness : Prop :=
