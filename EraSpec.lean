@@ -304,6 +304,10 @@ import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityEngineV35
 -- Engine-leg checks of the proxy upgrade executors at draft/v0.35.0 b17415d20 (ProxyUpgradeExecutorBase)
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.EngineLegV35
 
+-- Registry-driven upgrades at draft/v0.35.0 (b17415d20): which CTM executor frames make the
+-- CTM's owner calls and what the executor logs, infrastructure legs' engines included
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.ExecutorOwnerCallsV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
