@@ -457,6 +457,10 @@ import EraSpec.Contracts.L2InteropRootStorage.Proofs.Storage
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.RootImportLink
 import EraSpec.Contracts.L2MessageVerification.Proofs.Verification
 
+-- L1Nullifier: the deposit ledger and calls nested in a claim (draft/v0.35.0, b17415d20)
+import EraSpec.Contracts.L1Nullifier.Proofs.Model
+import EraSpec.Contracts.L1Nullifier.Proofs.Reentrancy
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
