@@ -415,6 +415,10 @@ import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
 -- Round 8, N-19: atomic recovery on the L2 asset tracker at v35 (b17415d20)
 import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
 
+-- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
+-- on the PriorityTree model copied from origin/cov/mailbox
+import EraSpec.Protocol.PriorityMirror.Proofs.Mirror
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
