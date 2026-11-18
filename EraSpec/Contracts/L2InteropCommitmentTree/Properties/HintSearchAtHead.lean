@@ -309,7 +309,7 @@ Step 7 is chosen because `chainTree 6` has an empty slot at height 3 for the abs
 is the state before the stale-hint insert (trace index 7), so it is one the pin also reaches;
 the ghost after that insert, where the relabelled write lands at the landing index, is
 `StaleHintStoredLeavesAfterInsertAtHead` in the Proofs file. The padding is the pin's
-`hl {0,0,0}`, not a head-like `z0`; the two results hold for every `z0`. -/
+`hl {0,0,0}`, not a head-like `z0`; `PredeployStoredRootExclusiveOrBreakAtHead` holds for every `z0`. -/
 def Properties.StaleHintStoredRootWitnessAtHead : Prop :=
   ∀ (K : Roles) (h : MerkleSpec.Hash) (hl : LeafHash),
     LevelRunAtHead hl staleHintRunAtHead (staleHintTxAtHead K) (staleHintLevelAtHead hl K)

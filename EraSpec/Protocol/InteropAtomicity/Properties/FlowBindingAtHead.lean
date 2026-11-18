@@ -284,8 +284,9 @@ def Properties.OncePerLegAtHead : Prop :=
    different chains and their keys clash under `cv`, or their preimages clash.
 
 Item 3 is `Contracts.AppendPath.Properties.SystemOncePerLeg` item 3 without its premise that
-the two obligations are on one chain. For two distinct `(flowId, bundleHash)` keys on
-different chains, the `CommitClash` disjunct holds by the definition of `CommitClash`; the
+the two obligations are on one chain. For two distinct `(flowId, bundleHash)` keys with one
+commit value (item 3's premise), the `CommitClash` disjunct holds by the definition of
+`CommitClash`; the
 content of item 3 is the same-key case on two chains, which lands in `PreimageClash` (via
 `SameKeyAppendedOnTwoChainsIsLoggedClash`). -/
 def Properties.SystemOncePerLegAtHead : Prop :=
