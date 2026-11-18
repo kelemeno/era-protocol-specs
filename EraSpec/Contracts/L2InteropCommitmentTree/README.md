@@ -2,6 +2,8 @@
 
 Source: `contracts/atomic-interop/L2InteropCommitmentTree.sol`, using
 `contracts/common/libraries/IndexedMerkleTree.sol` in the pinned era-contracts tree.
+Topics named `…AtHead` or `…AtV35` are pinned to a later era-contracts commit instead, as
+their sections say.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
