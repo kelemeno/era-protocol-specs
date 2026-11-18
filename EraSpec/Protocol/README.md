@@ -121,5 +121,15 @@ and properties remain under `../Contracts/<SolidityName>/`.
   refund at head, to handlers other than the vault (`HeadRouterRecoveryFramesOthers`,
   `HeadCodeFrames`).
 
+- [CtmRecord](CtmRecord/README.md) (`b17415d20`): across L1 and settlement layers, the
+  Bridgehub's `chainTypeManager[c]` agrees with the CTM the chain's diamond obeys along every
+  run whose CTM asset registrations keep each layer's asset maps a partial bijection
+  (`CtmRecordAgreesWithDiamond`). On those runs the CTM whose version check a migration step
+  runs, and the CTM whose pause gates it (for a burn, whenever its asset id is nonzero), is the
+  CTM that can upgrade or freeze the chain, and a chain burned on L1 towards a settlement layer
+  with an L1 diamond goes to one whose L1 diamond is under the chain's own CTM. Countermodels
+  without that premise; a repaired mint, and the exact per-mint condition for keeping the
+  agreement; the premise at the tracker's level.
+
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.
