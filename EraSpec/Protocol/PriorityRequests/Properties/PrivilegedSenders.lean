@@ -20,7 +20,8 @@ transaction, that push and then one relay push into the settlement layer's diamo
 and whose total grows by one; the relay transaction calls `forwardTransactionOnGateway(D.chainId, h,
 0)` with `h` the leaf `D` just pushed, and no third diamond changes (`UserCallRelaysIffSettled`). A
 service request does the same, except that the settlement layer may be the requesting diamond
-itself (`ServiceCallRelaysIffSettled`).
+itself, and the statement leaves out how the settlement layer's total grows (by one, or by two
+when it is the requesting diamond) (`ServiceCallRelaysIffSettled`).
 
 ## (B) The privileged senders
 

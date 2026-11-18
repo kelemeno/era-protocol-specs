@@ -153,7 +153,8 @@ can be switched off (`Guards`) for the countermodels; `Guards.v35` is the source
 - **L1 destinations.** At v35 every recovery entry point rejects an L1 destination
   (`RecoveryToL1RevertsAtV35`). Each of the four L1 checks (flow manager, router, the vault's and the
   holder's calls of the tracker check) rejects every recovery that reaches it on its own
-  (`EachL1CheckSufficesOnItsPath`, `L1RecoveryRejectionWitness`). With the four checks removed, a run
+  (`EachL1CheckSufficesOnItsPath`, `L1RecoveryRejectionWitness`). With every recovery check removed
+  (`Guards.none`; the two base-origin checks are off this path), a run
   that bridges out toward L1 while settling on L1 and then claims a bundle toward L1 recovering the
   same amount succeeds: `totalWithdrawalsToL1` still counts the bridge-out and the recovery is also
   counted in `totalSuccessfulDepositsFromL1` (`L1ChecksLoadBearing`). The model lets a claim name any
@@ -180,7 +181,9 @@ can be switched off (`Guards`) for the countermodels; `Guards.v35` is the source
 - **Ledger.** `totalWithdrawalsToL1[a]` grows by exactly the logged bridge-outs of `a` toward L1 made
   while settling on L1, under any checks; with the flow manager's check no recovery has an L1
   destination (`WithdrawalsToL1Ledger`). The same holds for nested runs, and every run is one
-  (`WithdrawalsToL1LedgerNested`, `NestedLedgerWitness`).
+  (`WithdrawalsToL1LedgerNested`, `NestedLedgerWitness`). That a counted L1 bridge-out is never
+  refunded through a claim toward another chain depends on the claim naming its own appended
+  bundle, which is not modelled.
 - **Boundary.** A native re-credit succeeds exactly when it fits in a word (`RecoveryCreditFitsIff`):
   an inbound transfer between a bridge-out and its claim can make the whole claim revert
   (`InflowBeforeRecoveryBlocksClaim`). Without the base-token origin checks, a base token recorded as

@@ -59,7 +59,7 @@ the change.
   created afterwards, routes `[1, 3]`. Both are at version 2, whose release is `200`. No
   `ChainRouting` world reaches that state along a run without break-glass cut from an invariant
   state, and no `LiveRouting` world does either. Of `StableSelectors`, only the `constant` field
-  fails.
+  fails (`MutableSelectorsSplitRoutingOnlyConstantFails`, in the Proofs file).
 * **The guard reads the answers now** (`CrossingNeedsTheAnswersNow`). A chain whose diamond fails
   the count check against its version's release, as the facets answer now, cannot cross. That
   holds whatever transition is committed at its version, whenever it was built.

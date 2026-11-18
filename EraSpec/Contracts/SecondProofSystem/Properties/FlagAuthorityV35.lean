@@ -332,7 +332,10 @@ def Properties.ZiskOffOnFlaggedIsOwners : Prop :=
 requirement "only takes the way back to a single proof system out of the chain admin's hands").
 Along every run with no break-glass cut and no `setProofSystemStatus` by the Bridgehub owner of
 that moment (every other call, by anyone, is allowed), a flagged diamond with ZiSK on stays
-flagged with ZiSK on. No premise on the verifier. -/
+flagged with ZiSK on. No premise on the verifier. The installed facets stay those at
+`b17415d20`; a genuine upgrade here changes only the verifier. The result is about the stored
+flag and the mask's ZiSK bit; for the verifier's proof mode see `InteropGatePersists` and
+`DiamondCutRecheck`. -/
 def Properties.AdminCannotDropSecondProof : Prop :=
   ∀ (E : Env) (s s' : St),
     Reach E AdminSide s s' →
@@ -353,7 +356,8 @@ def Properties.AdminNeverReachesFlaggedZiskOff : Prop :=
 of `enableInterop(_, true)` pass on a diamond whose mask is zero, they pass, with the mask still
 zero, in every state of every run with no break-glass cut and no `setProofSystemStatus` by the
 Bridgehub owner of that moment: across the admin's calls and across genuine upgrades that
-install new verifiers. About the checks' predicate on this diamond only. -/
+install new verifiers (the installed facets stay those at `b17415d20`; a genuine upgrade here
+changes only the verifier). About the checks' predicate on this diamond only. -/
 def Properties.InteropGatePersists : Prop :=
   ∀ (E : Env) (s s' : St),
     Reach E AdminSide s s' →

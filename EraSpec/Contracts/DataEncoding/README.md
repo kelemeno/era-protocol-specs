@@ -70,8 +70,11 @@ Solidity ABI specification, not solc's emitted code (`SOL-ABI`).
   premise on keccak: the refund of a custom asset's `finalizeDeposit` call reverts, or keccak
   collides on the custom preimage and a named NTV preimage
   (`CustomAssetRecoveryRevertsOrKeccakCollision`,
-  `CustomHandlerDepositRefundRevertsOrKeccakCollision`). The witnesses meet every premise with
-  the collision disjuncts false, on a custom asset registered on the witness world's own chain;
+  `CustomHandlerDepositRefundRevertsOrKeccakCollision`). The named NTV preimage is the bytes
+  `assetIdCheck` hashes only when the configuration's vault is `L2_NATIVE_TOKEN_VAULT_ADDR`; the
+  statements hold for every configuration. The witnesses meet every premise with the collision
+  disjuncts false, on a custom asset registered on the witness world's own chain (whose vault is
+  at address `4`, so they do not cover an L2's own configuration);
   under the collision the refund of a custom asset the vault does not know returns `true`
   instead of reverting (`KeccakCollisionLetsVaultMintCustomAsset`).
 - **TxDataHash.** `encodeTxDataHash`'s preimage `0x01 || abi.encode(address, bytes32, bytes)`,

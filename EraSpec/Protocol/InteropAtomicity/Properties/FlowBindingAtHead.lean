@@ -284,7 +284,11 @@ def Properties.OncePerLegAtHead : Prop :=
    different chains and their keys clash under `cv`, or their preimages clash.
 
 Item 3 is `Contracts.AppendPath.Properties.SystemOncePerLeg` item 3 without its premise that
-the two obligations are on one chain. -/
+the two obligations are on one chain. For two distinct `(flowId, bundleHash)` keys on different
+chains with one commit value (item 3's premise), the second disjunct holds by the definition of
+`CommitClash`; two distinct keys on one chain are the inherited `SystemOncePerLeg` case. The new
+content of item 3 is the same-key case on two chains, which lands in `PreimageClash` (via
+`SameKeyAppendedOnTwoChainsIsLoggedClash`). -/
 def Properties.SystemOncePerLegAtHead : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (Y : Chains) (log : List CallAtHead),
@@ -592,7 +596,12 @@ commit value is a nonzero key of chain `0`'s tree; that leg's flow has the execu
 all finalizable, with no pinned break; for the `append` with the other id, all three disjuncts
 of `Properties.ExecutedImpliesCommittedFlowFinalizableOrLoggedClash` fail, so its same-id
 premise is load-bearing; `r` marked a leg its flow declares on chain `2`; and that leg is past
-`Committed`. -/
+`Committed`.
+
+The evidence is checked against `S = pairSystem 1 2`, in which chain `2` never commits (its
+tree stays `setup` in every batch), while the run itself appends on chain `2`. So the run is
+honest about `S`'s evidence, but `S` is not the run's own history (`S` is not tied to the live
+trees, `MODEL-FLOW-HEAD`). -/
 def Properties.FlowBindingAtHeadWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∃ (cv : CommitValue) (enc : PreimageHash) (l1 : UInt256) (S : System) (A : Access)
@@ -670,7 +679,12 @@ def Properties.SameKeyOnTwoChainsWitness : Prop :=
 /-- **A `b17415d20` RUN IS A `3605e82` RUN.** Dropping the executing chain and the readings of
 `isPeerAllowed` from its log (`CallAtV35.toHead`) turns every `RunAtV35` run into a `RunAtHead`
 run between the same states. So every property above that holds for all `RunAtHead` runs (from
-any states, or from `genesisAll`) holds for the projected log of every `RunAtV35` run. -/
+any states, or from `genesisAll`) holds for the projected log of every `RunAtV35` run.
+
+This holds by construction: `RunAtV35` is `RunAtHead` with one more guard conjunct (`LegSourceAllowed`) on each execute and
+authorize call; `append`, `claim` and `initL2` are unchanged.
+The evidence that `RunAtV35` is faithful to `b17415d20` is the source comparison in the Specs
+file, not this theorem. -/
 def Properties.RunAtV35ProjectsToRunAtHead : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (cv : CommitValue) (enc : PreimageHash)
     (l1 : UInt256) (S : System) (X Y : Chains) (log : List CallAtV35),

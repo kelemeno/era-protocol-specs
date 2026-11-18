@@ -148,6 +148,8 @@ a CTM leg refuses a CTM whose `admin()` is the `ProxyAdmin` (:75-77). After it r
 compares the executor's owner and nominee with their start values (:93-95), and a hash of the
 domain's holders (`_domainHolders`, :118-148) with its start value (:96-98). The bootstrap
 bundle itself runs a core leg (`upgrades/registry/bootstrap/RegistryBootstrapSequence.sol:100-108`).
+The model summarises that leg: the bundle is `Authority`'s bundle step (`VLabel.tx`), which
+leaves the new fields alone, and is not run as a `VLabel.engineLeg`.
 The model reuses `Authority`'s `MigrateStep` and `Forward`'s `OpStep`; at `b17415d20`, `migrate()`
 (`upgrades/registry/bootstrap/RegistryBootstrapMigration.sol:265-307`) makes the calls those
 models quote.
@@ -182,7 +184,7 @@ models quote.
   `CtmBindingsCollisionNeeded` (each collision disjunct is load-bearing); `NoHolderCheckReparks`
   (without :96-98 a leg re-parks the CTM); `EngineCtmSwapReparks` (a CTM code swap whose new
   code answers the old holders re-parks unseen, the case the upstream docs place outside the
-  check, `docs/registry-driven-upgrades.md:286-290` from the repository root);
+  check, `docs/registry-driven-upgrades.md:287-290` from the repository root);
   `CoreLegMayRunMigrate` and
   `OtherDomainQuietNeeded` (both clauses of `OtherDomainQuiet` are needed);
   `UnnamedNotifierIsUnchecked`; `EngineCtmAdminNominationUnseen` (the CTM's `pendingAdmin` is
@@ -191,7 +193,9 @@ models quote.
   every hash: the checks see net effects only) and `EngineLegPremisesWitness` instantiate every
   premise.
 - Not modelled: `changeProxyAdmin` on the CTM proxy (its admin is fixed, so the case the
-  pre-check guards is not reached), nested legs of the other domain, the rows check, ETH and
+  pre-check guards is not reached; the per-leg results quantify over every start state, and for
+  a CTM leg they assume the CTM proxy sits under the `ProxyAdmin`, since another admin's code
+  swaps of the CTM have no step), nested legs of the other domain, the rows check, ETH and
   events. The earlier `d9f6789` version of this topic hashed fewer fields and read the notifier
   address once; the spec header lists the differences.
 

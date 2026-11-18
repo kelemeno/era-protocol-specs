@@ -34,7 +34,8 @@ certificate has the same name without the `Properties` segment.
   token; every other call is the sender's; and the base-token refunds the loop requests are
   `(sender, v)` pairs summing to `totalBurnedCallsValue` (`ValueCallsComeFromTheSender`; witness
   `ValueCallsWitness`). The sender premise stands for an inventory fact (the router's code makes no
-  call to the center), and it is load-bearing (`RouterSenderValueIsNotRefunded`).
+  call to the center), and it is load-bearing (`RouterSenderValueIsNotRefunded`). That inventory
+  is argued from the source, not mechanised: no theorem enumerates the router's external calls.
 - **The refund.** A successful `claimRefund` of such a bundle moves exactly `totalBurnedCallsValue`
   of the destination's base-token asset to the sender: out of the holder for the source chain's base
   token, out of the vault's escrow for a token native to the source chain (crediting the tracker's

@@ -74,7 +74,7 @@ from its `Ownable2Step` slots (`VState.ctmAnswers = none`), before and after the
 * `NoHolderCheckReparks`: without :96-98 a leg's nomination of the migration re-parks the CTM.
 * `EngineCtmSwapReparks`: a leg that swaps the CTM's code for code that rewrites the slots and
   keeps answering the old holders passes for every hash and parks the CTM. The upstream
-  documentation names such swaps as outside the check (`docs/registry-driven-upgrades.md:286-290`).
+  documentation names such swaps as outside the check (`docs/registry-driven-upgrades.md:287-290`).
 * `CoreLegMayRunMigrate`: a core leg may call the permissionless `migrate()`, which moves the
   CTM domain without any check of the core leg seeing it. So `OtherDomainQuiet`'s `migrate`
   clause is needed.
@@ -88,7 +88,8 @@ from its `Ownable2Step` slots (`VState.ctmAnswers = none`), before and after the
   states. The nominee then takes the role in a later transaction.
 * `EngineGatePremisesNeeded`: an executor that owns itself, or is a chain's admin, passes
   `forward` or `upgradeChain`. The :93-95 check does not see an engine that makes the executor
-  its own owner and restores the owner before returning.
+  its own owner and restores the owner before returning; this gives the engine nothing beyond
+  the executor's authority, which it already has during the delegatecall.
 * `EngineLegTransientWitness`: a leg that hands the CTM away and takes it back succeeds for
   every hash, so the guarantees are about the net effect only. With
   `EngineLegPremisesWitness` it instantiates the premises of every result above.
@@ -130,7 +131,11 @@ either:
   nominee, the CTM-domain `ProxyAdmin`'s owner and the CTM executor's owner and nominee are
   unchanged. For a core leg: the ecosystem `ProxyAdmin`'s owner and the core executor's owner
   and nominee are unchanged; or
-* `H` collides on the leg's own logged `(before, after)` pair. -/
+* `H` collides on the leg's own logged `(before, after)` pair.
+
+The start state is arbitrary. For a CTM leg this assumes the CTM proxy sits under the CTM-domain
+`ProxyAdmin`: in a state where another admin holds the CTM proxy, that admin's code swaps of the
+CTM have no step (Specs, model boundaries), so there the result rests on the missing step. -/
 def Properties.EngineLegOwnDomainFrameOrCollision : Prop :=
   ∀ (K : Config) (H : DomainHolders → UInt256) (d : LegDomain) (s s' : VState)
     (cs : List VCall),
@@ -145,7 +150,11 @@ domain's holders send no call (and, for a core leg, no call is `migrate()`). For
 suppose the CTM answers its ownership reads from its slots before and after. Then either:
 * all of `LegAuthFrame` holds (the CTM's owner and nominee, both `ProxyAdmin`s' owners, both
   executors' owner and nominee unchanged), and the logged holders are equal; or
-* `H` collides on the leg's own logged `(before, after)` pair. -/
+* `H` collides on the leg's own logged `(before, after)` pair.
+
+The start state is arbitrary. For a CTM leg this assumes the CTM proxy sits under the CTM-domain
+`ProxyAdmin`: in a state where another admin holds the CTM proxy, that admin's code swaps of the
+CTM have no step (Specs, model boundaries), so there the result rests on the missing step. -/
 def Properties.EngineLegFrameOrCollision : Prop :=
   ∀ (K : Config) (H : DomainHolders → UInt256) (d : LegDomain) (s s' : VState)
     (cs : List VCall),
@@ -161,7 +170,11 @@ any `holdersHash` `H`.
 * For a core leg, suppose the CTM domain's holders send no call and no call is `migrate()`.
 
 Then authority is parked on the migration after the leg if and only if it was before, or `H`
-collides on the leg's own logged pair. -/
+collides on the leg's own logged pair.
+
+The start state is arbitrary. For a CTM leg this assumes the CTM proxy sits under the CTM-domain
+`ProxyAdmin`: in a state where another admin holds the CTM proxy, that admin's code swaps of the
+CTM have no step (Specs, model boundaries), so there the result rests on the missing step. -/
 def Properties.EngineLegNeitherParksNorUnparks : Prop :=
   ∀ (K : Config) (H : DomainHolders → UInt256) (d : LegDomain) (s s' : VState)
     (cs : List VCall),
@@ -182,7 +195,11 @@ ownership reads in any way. Then either:
 The CTM's admin, the notifier address and the notifier's CTM are the entries `b17415d20`
 added to `_domainHolders` (:129, :131, :145); it also reads the notifier address again after
 the engine returns (:123). The CTM's `pendingAdmin` is not hashed
-(`EngineCtmAdminNominationUnseen`). -/
+(`EngineCtmAdminNominationUnseen`).
+
+The start state is arbitrary. For a CTM leg this assumes the CTM proxy sits under the CTM-domain
+`ProxyAdmin`: in a state where another admin holds the CTM proxy, that admin's code swaps of the
+CTM have no step (Specs, model boundaries), so there the result rests on the missing step. -/
 def Properties.EngineLegKeepsCtmBindingsOrCollision : Prop :=
   ∀ (K : Config) (H : DomainHolders → UInt256) (s s' : VState) (cs : List VCall),
     EngineLeg K H .ctm s cs s' →
@@ -324,7 +341,12 @@ is no chain's admin. Then:
   owns it. The caller checks of `forward`, the `apply*` entry points, `upgradeChain`,
   `transferOwnership`, `acceptOwnership` and `renounceOwnership` fail;
 * conversely `acceptCTMOwnership`'s caller check passes for the CTM executor whenever the CTM
-  answers that it owns it. -/
+  answers that it owns it.
+
+`ExecEntry.GatePasses` is a table of the caller checks, transcribed from
+`CTMUpgradeExecutor.sol:55-107`, `CoreUpgradeExecutor.sol:33` and `UpgradeExecutorBase.sol:35,
+60`. No `VOpStep` refers to it, so this result checks that transcription; it is not derived
+from the step relation. -/
 def Properties.EngineReachesOnlyAcceptCTMOwnership : Prop :=
   (∀ (K : Config) (d : LegDomain) (s : VState) (chainAdmin : ℕ → Address) (e : ExecEntry),
       d.Declares e → s.execOwner d ≠ d.executor K → s.execPending d ≠ d.executor K →
@@ -340,7 +362,10 @@ def Properties.EngineReachesOnlyAcceptCTMOwnership : Prop :=
 * Along any run of the model's transactions, call traces and engine legs, with any
   `holdersHash`, where no call is sent by the zero address, both executors' nonzero owners stay
   nonzero. This includes the two-step transfer and any writes an engine makes to its
-  executor's slots during a leg. -/
+  executor's slots during a leg.
+
+The first two clauses hold by the definition of `ExecConstructed`; the run clause is the one
+with content. -/
 def Properties.ExecutorOwnerNeverZero : Prop :=
   (∀ o own p : Address, ExecConstructed o own p → own ≠ 0) ∧
     (∀ own p : Address, ¬ ExecConstructed 0 own p) ∧
@@ -509,7 +534,9 @@ def Properties.EngineCtmAdminNominationUnseen : Prop :=
 * With the executor as a chain's admin, `upgradeChain`'s caller check passes for it.
 * After the witness bundle, a CTM leg whose engine writes the executor's owner slot to the
   executor and then back to governance succeeds for every `holdersHash`. So :93-95 does not see
-  a transient self-ownership, during which the first case applies. -/
+  a transient self-ownership, during which the first case applies. This gives the engine nothing
+  beyond the authority it already has: during the delegatecall it runs with the executor's
+  address and storage. -/
 def Properties.EngineGatePremisesNeeded : Prop :=
   (∀ (K : Config) (d : LegDomain) (s : VState) (chainAdmin : ℕ → Address),
       s.execOwner d = d.executor K →

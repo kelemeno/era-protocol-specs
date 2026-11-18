@@ -42,10 +42,12 @@ Statements about `EraSpec.Contracts.L2InteropCommitmentTree.Specs.PaddingAtHead`
   hash, the same proof against the same tree is accepted with the pin's padding and rejected with
   `main`'s.
 * **Which case fires.**  Each of the four cases of `KeccakBreakAtHead` is, alone, the located
-  break of an accepted forged proof on a reached state (`…Exactly`): `emptyLeaf`
-  (`PinForgeryAtHeadFiresOnCollision`), `node` (`NodeCollisionAtHeadFires`), `leaf`
-  (`LeafCollisionAtHeadFires`) and `length` (`OutOfRangeIndexAtHeadWitness`).  The first and
-  third hold for every keccak with the named collision; the other two use toy keccaks.
+  break on a reached state (`…Exactly`): `emptyLeaf` (`PinForgeryAtHeadFiresOnCollision`),
+  `node` (`NodeCollisionAtHeadFires`), `leaf` (`LeafCollisionAtHeadFires`) and `length`
+  (`OutOfRangeIndexAtHeadWitness`).  The first and third hold for every keccak with the named
+  collision; the other two use toy keccaks.  For the first three the proof is an accepted
+  forged non-inclusion or inclusion proof; for `length` only an accepted path (`PathAccepts`)
+  is shown, not an accepted non-inclusion proof.
 * **Out-of-range indices.**  `calculateRootMemory` still accepts the tree's own siblings of an
   empty slot, but what they authenticate there is `IMT_EMPTY_LEAF_HASH` itself.  An accepted
   path presenting any leaf at an index at or beyond the leaf count carries a keccak collision
@@ -609,7 +611,8 @@ def Properties.OutOfRangeIndexAtHeadWitness : Prop :=
 /-- **THE PREMISES OF THE TWO BRIDGES ARE SATISFIABLE.**  On the `setup` tree at height 1, for some
 keccak (in the proof, the constant one) and some siblings, the zero leaf presented at the padding
 slot 1 with a length-1 path carries a `KeccakBreakAtHead` and a `TreeRootBreak` at `main`'s
-hashes, and every `nextIndex` involved fits a `uint256`.  This meets the premises of `KeccakBreakAtHeadIsTreeRootBreak` and
+hashes, and every `nextIndex` involved fits a `uint256`.  The statement is about the tree and
+height alone, with no run, so it is not shown on a reached state.  This meets the premises of `KeccakBreakAtHeadIsTreeRootBreak` and
 `TreeRootBreakAtHeadIsKeccakCollision`. -/
 def Properties.PaddingAtHeadBreakPremisesSatisfiable : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (sibs : ℕ → UInt256),

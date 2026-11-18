@@ -77,10 +77,11 @@ handler for `a`, and, when `a` is the base asset, the holder's balance.
 
 * `WithdrawalsToL1Ledger`: along any run, under any checks, `totalWithdrawalsToL1[a]` grows by exactly
   the amounts of the logged bridge-outs of `a` toward L1 made while the chain settled on L1; with the
-  flow manager's check (so at v35), no logged recovery has L1 as its destination.  So the counter
-  never decreases, and no recovery names L1 as the original destination, as a refund of a bridge-out
-  the counter counts would have to.  `WithdrawalsLedgerWitness` is a run with counted and uncounted
-  bridge-outs and a recovery.
+  flow manager's check (so at v35), no logged recovery has L1 as its destination, so the counter
+  never decreases.  That a counted L1 bridge-out
+  is never refunded through a claim toward another chain depends on the claim naming its own
+  appended bundle, which is not modelled (see the specification's header).
+  `WithdrawalsLedgerWitness` is a run with counted and uncounted bridge-outs and a recovery.
 * `WithdrawalsToL1LedgerNested`: the same ledger for nested runs, in which other steps fall between
   the calls of a claim, as a release inside the claim can make them; every run is a nested run.
   `NestedLedgerWitness` has a counted bridge-out between the two calls of one claim.
@@ -168,8 +169,9 @@ def Properties.L1RecoveryRejectionWitness : Prop :=
     (∃ s, exec cfg Guards.v35 sys (.claimRefund reads ⟨d, cfg.base, [c]⟩) = some s ∧
       s.holder < sys.holder)
 
-/-- **COUNTERMODEL: WITHOUT THE RECOVERY CHECKS, A RECOVERY TOWARD L1 GOES THROUGH.**  With the four
-recovery checks removed (`Guards.none`), a run (from a state where both of asset `a`'s counters are
+/-- **COUNTERMODEL: WITHOUT THE RECOVERY CHECKS, A RECOVERY TOWARD L1 GOES THROUGH.**  With every
+recovery check removed (`Guards.none`: the four L1 checks, and the two base-origin checks, which are
+off this path), a run (from a state where both of asset `a`'s counters are
 zero) whose log has a bridge-out of `x ≠ 0` of `a` toward L1 made while settling on L1 and a recovery
 of `x` of `a` whose original destination is L1.  At its end `totalWithdrawalsToL1[a]` is `x` (it
 still counts the bridge-out) and `totalSuccessfulDepositsFromL1[a]` is also `x` (the recovery is

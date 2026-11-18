@@ -163,7 +163,8 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
     the function bodies its header names were re-read at `b17415d20`.
 
 Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
-to the maintainer of this repo, not yet confirmed upstream.
+to the maintainer of this repo and are not confirmed upstream, except where a row says
+otherwise (the padding forgery row records that `main` has fixed it).
 
 ## Implementation correspondence remains open
 

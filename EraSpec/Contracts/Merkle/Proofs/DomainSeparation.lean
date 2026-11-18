@@ -1527,6 +1527,20 @@ theorem AcceptedLastBatchOrKeccakBreak : Properties.AcceptedLastBatchOrKeccakBre
 theorem AcceptedLastBatchWitness : Properties.AcceptedLastBatchWitness :=
   accepted_last_batch_witness
 
+/-- **THE LENGTH-STAND-IN INSTANCE FAILS THE ZERO CHECK.** The second conjunct of
+`AcceptedLastBatchWitness`, stated outright: on that instance (two batches at height 1, the
+honest path for batch 0), the zero-sibling premise of `AcceptedLastBatchOrKeccakBreak` is false.
+It follows from that theorem, since the instance's conclusion fails. -/
+theorem AcceptedLastBatchWitnessFailsZeroCheck (padB : UInt256) (B : ℕ → BatchLeaf) :
+    ¬ (∀ l < 1, (0 / 2 ^ l) % 2 = 0 →
+        MerkleSpec.Verifier.honestSibs (efficientHash lengthKeccak) (emptyEntryHash lengthKeccak)
+          (leafList lengthKeccak (chainTreePre padB B) 2) 0 l
+          = MerkleSpec.zeros (efficientHash lengthKeccak) (emptyEntryHash lengthKeccak) l) := by
+  intro hz
+  obtain ⟨hwalk, hnot⟩ := AcceptedLastBatchWitness.2 padB B
+  exact hnot (AcceptedLastBatchOrKeccakBreak lengthKeccak padB B 2 _ 1 0 _ (by norm_num)
+    (by norm_num) hwalk hz)
+
 theorem PinnedKeccakBreakFires : Properties.PinnedKeccakBreakFires := pinned_keccak_break_fires
 
 theorem DeployedLastBatchCheckOrKeccakBreak : Properties.DeployedLastBatchCheckOrKeccakBreak :=

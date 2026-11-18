@@ -469,6 +469,25 @@ theorem staleHint_stored_root_witness (K : Roles) (h : Hash) (hl : LeafHash) :
     ⟨by decide, by decide, Or.inl rfl, stored_path_accepts _ (by norm_num) hget7⟩, hnb,
     TreeRootBreak.paddingHit (by rw [hc]) rfl⟩
 
+/-- **THE GHOST AFTER THE STALE-HINT INSERT.** The stale-hint `insert(7, 0)` is the trace's
+step 7, so the state after it is `staleHintRunAtHead 8 = chainTree 7`. There the stored leaf
+hashes are `chainTree 7`'s leaf hashes: the writes land at the walk's landing index `6`, not
+at the hint `0`. This exercises the head-specific part of `LevelRunAtHead`, which
+`staleHint_stored_root_witness` (taken at step 7, before that insert) does not. -/
+theorem StaleHintStoredLeavesAfterInsertAtHead (K : Roles) (hl : LeafHash) :
+    staleHintRunAtHead 8 = chainTree 7
+      ∧ storedLeaves (staleHintLevelAtHead hl K 8) 8 = leafHashes hl (chainTree 7) := by
+  have hlev := (levelRunAtHead_exists hl staleHintRunAtHead (staleHintTxAtHead K)
+    (fun _ => 0)).1
+  have hR8 : staleHintRunAtHead 8 = chainTree 7 := rfl
+  have hc : (chainTree 7).leafCount = 8 := rfl
+  refine ⟨hR8, ?_⟩
+  have := StoredLeavesAreLeafHashes K hl staleHintRunAtHead
+    (relabelAtHead staleHintRunAtHead (staleHintTxAtHead K)) (staleHintLevelAtHead hl K)
+    (txRunAtHead_relabel (staleHintRun_txRunAtHead K) rfl) hlev rfl 8
+  rw [hR8, hc] at this
+  exact this
+
 end StoredRoot
 
 /-! ## The named statements -/

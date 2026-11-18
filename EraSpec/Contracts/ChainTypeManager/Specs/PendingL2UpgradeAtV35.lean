@@ -136,7 +136,8 @@ version, else zero. This is `versionDeadline` (`Specs/UpgradeTiming.lean`).
 `protocolVersionIsActive(v)` is `block.timestamp <= protocolVersionDeadline(v)` (:570-572). The
 overrides `protocolVersionDeadlines` have two writers: `setProtocolVersionDeadline` (:563-566),
 any value, and the legacy commit `setNewVersionUpgrade`, which stores the departing version's
-deadline (:807). `_commitVersionEdge` (:523-537) makes the departing version the current one.
+deadline (:807). `_commitVersionEdge` (:523-537) requires the departing version to be the CTM's
+current version (:526-528) and moves `protocolVersion` to the new version (:535).
 A replacement must keep the replaced transition's deadline (`_requireSameDeadline`, called at
 :438, defined at :483-489).
 

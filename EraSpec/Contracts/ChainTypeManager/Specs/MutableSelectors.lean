@@ -25,7 +25,9 @@ The definitions reused from `LiveRouting` and `VersionRegistry` (`DStep`, `CStep
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.MutableSelectors` and are proved in
 `EraSpec.Contracts.ChainTypeManager.Proofs.MutableSelectors`. Everything here is in the
-sub-namespace `Contracts.ChainTypeManager.MutableSelectors`. It edits no existing definition.
+sub-namespace `Contracts.ChainTypeManager.MutableSelectors`. It edits no existing definition. It
+does add one instance on a shared base type: `DecidableEq` for `FacetCut`
+(`Specs/DiamondStorage.lean`), derived below, which every importer of this file sees.
 
 ## Why this is modelled
 

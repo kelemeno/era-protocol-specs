@@ -218,7 +218,9 @@ def Properties.SystemExecutedObligationNeverRefundedOrBreakAtHead : Prop :=
 /-- **A HEAD RUN WITH A STALE-HINT APPEND.**  With commit value `fun _ b => b` on chain `0`:
 six honest appends, then the append of `(0, 7)` from the sentinel, which the pin's search
 cannot reach.  The run's log has seven entries and its tree eight leaves, so the premise of
-the one-chain head results is met by a run that uses a call outside the pin's model. -/
+the one-chain head results is met.  The stale-hint append is in the proof term, not in the
+statement: since `StepsAtHeadIffSteps` holds, a pin run of seven appends satisfies the
+statement too. -/
 def Properties.OncePerLegAtHeadWitness : Prop :=
   ∃ (cv : CommitValue) (s : ChainState) (log : List Obligation),
     StepsAtHead cv 0 genesis s log ∧ log.length = 7 ∧ s.tree.leafCount = 8

@@ -304,7 +304,9 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
     `CommittedLegRefundableOnTimeoutAtV35` is the enabledness result with the extra
     premise that the timed-out leg's chain passes that check on the refunding chain.
   - Witnesses: `FlowBindingAtHeadWitness` (an honest run using every call, no clash, no
-    break, and the headline's same-id premise load-bearing),
+    break, and the headline's same-id premise load-bearing; the refund on chain `2` is
+    checked against an `S` in which chain `2` never commits, so the run is honest about
+    `S`'s evidence but `S` is not the run's own history),
     `SubsetFlowAttackAtHeadLandsInLoggedClash` (only the clash disjunct holds),
     `SameKeyOnTwoChainsWitness`, `PinUnboundLegWitness`, `PinUnboundLegRejectedAtHeadWitness`,
     `AppendRejectsUndeclaredLegWitness`, `CommittedLegRefundableOnTimeoutWitness`,

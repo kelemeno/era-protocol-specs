@@ -190,11 +190,14 @@ error imports. No property takes a hash premise; `keccak` is an arbitrary functi
   tag, or on a node pair at one of its two steps. `PinForgeryAcceptedAtPinRejectedAtHead`
   gives one toy hash for which the same proof against the same tree is accepted with the
   pin's padding and rejected with `main`'s.
-- Each of the four cases of `KeccakBreakAtHead` is, alone, the located break of an accepted
-  forged proof on a reached state (`KeccakBreakAtHeadExactly`, `KeccakBreakAtHeadIffSomeCase`):
-  `emptyLeaf` (`PinForgeryAtHeadFiresOnCollision`) and `leaf` (`LeafCollisionAtHeadFires`)
-  for every keccak with the named collision, `node` (`NodeCollisionAtHeadFires`) and
-  `length` (`OutOfRangeIndexAtHeadWitness`) on toy keccaks. So no case can be dropped.
+- Each of the four cases of `KeccakBreakAtHead` is, alone, the located break on a reached
+  state (`KeccakBreakAtHeadExactly`, `KeccakBreakAtHeadIffSomeCase`): `emptyLeaf`
+  (`PinForgeryAtHeadFiresOnCollision`) and `leaf` (`LeafCollisionAtHeadFires`) for every
+  keccak with the named collision, `node` (`NodeCollisionAtHeadFires`) and `length`
+  (`OutOfRangeIndexAtHeadWitness`) on toy keccaks. For the first three the proof is an
+  accepted forged non-inclusion or inclusion proof; for `length` the witness shows only an
+  accepted path (`PathAccepts`), not an accepted non-inclusion proof. So no case can be
+  dropped from the break.
 - `calculateRootMemory` still does not bound the index by the leaf count. At `main` the
   tree's own siblings of an empty slot authenticate `IMT_EMPTY_LEAF_HASH`, and presenting a
   leaf there takes a collision (`OutOfRangeIndexAtHead`,

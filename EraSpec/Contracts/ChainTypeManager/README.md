@@ -377,7 +377,9 @@ time, the `ServerNotifier` schedule, all-batches-executed and the settlement-lay
   validated installs and valid schedules, a chain at a version with a committed edge, no
   override, every batch executed and its settlement layer at the target is never in dead time:
   at every instant its version is active, or its admin and the CTM's owner can both upgrade it
-  (`ValidatedTimedRunsHaveNoDeadTime`). A valid schedule alone does not suffice: with the
+  (`ValidatedTimedRunsHaveNoDeadTime`; with the L2 upgrade gates modelled it needs a further
+  premise, see `PendingL2UpgradeAtV35`, `NoDeadTimeNeedsItsPendingTxPremise`). A valid schedule
+  alone does not suffice: with the
   settlement layer behind or a batch unexecuted, a reachable chain is in dead time
   (`ValidScheduleAloneLeavesDeadTime`); an override, an invalid schedule and a break-glass cut
   each open dead time too (`NoDeadTimeNeedsItsOtherPremises`). If replacements keep the
@@ -584,7 +586,8 @@ one version run the same L2 code.
   proxy's shell and implementation row. A crossing of an L2-genuine transition with its L2
   transaction executed writes exactly the new or changed rows (`CrossingWritesExactlyTheChangedRows`).
   Headline: along runs from `L2Inv` (fresh or bootstrap starting states,
-  `FreshL2SysSatisfiesInvariant`, `BootstrapL2SysSatisfiesInvariant`) with no break-glass step,
+  `FreshL2SysSatisfiesInvariant`, `BootstrapL2SysSatisfiesInvariant`) with no break-glass step
+  (which also excludes a crossing of an opaque legacy cut),
   every L2 upgrade transaction executed, every crossed transition L2-genuine and the genesis
   images of the releases the CTM records holding their tables, every chain at a version with a
   release runs that release's implementation at every member with a fixed address and a

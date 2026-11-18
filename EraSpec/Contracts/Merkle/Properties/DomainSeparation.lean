@@ -912,7 +912,8 @@ TAUTOLOGY.**
   zero check fires (and passes) at level 1.
 * Under the length stand-in, two batches at height 1: the honest path for batch 0 is accepted, yet
   batch 0 is not last, and no `PinnedKeccakBreak` and no `PathKeccakCollision` exists. The zero
-  check is the premise that instance fails. -/
+  check is the premise that instance fails; this follows from `AcceptedLastBatchOrKeccakBreak`
+  and is stated outright as `AcceptedLastBatchWitnessFailsZeroCheck` in the Proofs file. -/
 def Properties.AcceptedLastBatchWitness : Prop :=
   (∀ (keccak : Keccak) (padB : UInt256) (B : ℕ → BatchLeaf),
       2 ≤ 2 ^ 2 ∧ 1 < 2

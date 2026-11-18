@@ -54,7 +54,9 @@ bridged out after the upgrade, and an inflow larger than that fails
 `:276`, `:444`, `:447`), which the pin's `bridgeOut` and `bridgeIn` model.  On L1 the registry
 maps still have one writer, `_setNewTokenStorage` (`NativeTokenVaultBase.sol:565-575`), reached
 from the two registration paths the pin's `StepOp` models (`_registerToken`, `:131-137`, now
-with a WETH check that only reverts, and `_ensureAndSaveTokenDeployedInner`, `:550-563`).  The
+with a WETH check that only reverts, and `_ensureAndSaveTokenDeployedInner`, `:550-563`), and
+from `L1NativeTokenVault.registerEthToken` (`L1NativeTokenVault.sol:211-214`), which calls
+`_unsafeRegisterNativeToken` directly, as the pin's `registerNative` step models.  The
 pin's steps are reused unchanged, with their boundaries (`MODEL-ESCROW`).
 
 ## How the model reads it
@@ -99,7 +101,10 @@ proxy admin's `initializeUpgrade` (`:291-298` there), write only the per-chain m
 here, every successful operation of the v35 vault is a `StepOpAtHead` step (argued from the
 source, not proved), and the statements about all runs apply to it.  The enabledness
 statements additionally need the per-chain check to pass.  The per-chain maps are not
-modelled.
+modelled here; `Contracts.L1NativeTokenVault.InteropPool`
+(`L1NativeTokenVault/Specs/InteropPool.lean`, `MODEL-INTEROP-POOL`) models them at `b17415d20`,
+including a `populateBridgedOut` step.  The two models are separate and not linked by a
+theorem.
 -/
 
 namespace Contracts.NativeTokenVault

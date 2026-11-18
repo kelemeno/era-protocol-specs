@@ -388,8 +388,8 @@ has already happened to the sender's assets and the returned destination calldat
 
 Each finding below was checked by two independent verifiers; only findings both
 classified the same way are listed, with their classification and severity (two
-severities where they differed). All are reported to the maintainer of this repo,
-not yet confirmed upstream. Paths are relative to `l1-contracts/contracts/` at
+severities where they differed). All are reported to the maintainer of this repo
+and are not confirmed upstream, except where a row says it is fixed upstream. Paths are relative to `l1-contracts/contracts/` at
 `c67894b9` unless a pin is given.
 
 | Finding | Verifiers | Model result |

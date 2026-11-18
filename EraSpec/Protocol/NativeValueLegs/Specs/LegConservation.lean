@@ -448,8 +448,7 @@ def vaultRefund (cfg : Config) (w : World) (d : Chain) (a : AssetId) (u : Addres
     if cfg.originOf a = cfg.thisChain then
       (if cfg.tokenOf a = 0 then none
        else if w₁.bal a cfg.ntv < v then none else some (moveToken w₁ a cfg.ntv u v))
-    -- bridged, no registered token: `_ensureAndSaveTokenDeployed(a, address(0), "")` (:281-282)
-    -- with empty metadata (`DataEncoding.decodeTokenData`, DataEncoding.sol:176-178)
+    -- bridged, no registered token: `_ensureAndSaveTokenDeployed` (:281-282) reverts
     else if cfg.tokenOf a = 0 then none
     -- bridged: `IBridgedStandardToken(token).bridgeMint(u, v)` (:284)
     else some (mintToken w₁ a u v)
