@@ -4,10 +4,17 @@ import EraSpec.Core.Word
 # Model: `L2InteropRootStorage` — the interop roots an L2 has imported
 
 **This file is definitions only.**  Statements are in
-`EraSpec.Contracts.InteropRootStorage.Properties.Storage`, proofs in
-`EraSpec.Contracts.InteropRootStorage.Proofs.Storage`.
+`EraSpec.Contracts.L2InteropRootStorage.Properties.Storage`, proofs in
+`EraSpec.Contracts.L2InteropRootStorage.Proofs.Storage`.
 
-## Source (era-contracts `draft/v0.35.0`, `d9f678900e1bc8286412b78f56d4a9f443983c29`, `l1-contracts/contracts/`)
+## Source
+
+era-contracts `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, under
+`l1-contracts/contracts/`.  Every file cited below is byte-identical at `d9f678900e1b`, where this
+model was first written, and at `e561b9cc2`.  At `main` `70096e2ea6ee` the contract's code is the
+same: it imports `Unauthorized` from another file and has one more comment line (`:29`), so its
+source lines from `:29` on are one higher than those cited here.  At `c67894b9` the contract has no
+`latestInteropRootTimestamp`; the last section of this file transcribes that version.
 
 `interop/L2InteropRootStorage.sol` (104 lines, the whole contract):
 
@@ -44,32 +51,40 @@ import EraSpec.Core.Word
 
 `InteropRoot` and `StoredInteropRoot` are `common/Messaging.sol:147-154` and `:161-164`;
 `L2_BOOTLOADER_ADDRESS = address(SYSTEM_CONTRACTS_OFFSET + 0x01)` with
-`SYSTEM_CONTRACTS_OFFSET = 0x8000` (`common/l2-helpers/L2ContractAddresses.sol:6`, `:41`).
+`SYSTEM_CONTRACTS_OFFSET = 0x8000` (`common/l2-helpers/L2ContractAddresses.sol:6`, `:41`).  The
+interface's claims about the two views are `interop/IL2InteropRootStorage.sol:16-27`.
 
 ## What is modelled
 
-* The whole storage: both mappings, as total functions (unset slot = zero word).
+* The whole storage: both mappings, as total functions (an unset slot reads as zero).
 * Both writers, with every guard in source order.  A revert is `none`: no state.
   `addInteropRootsInBatch` is all-or-nothing, as one transaction is (`addRoots`).
-* The two views (`interopRoots`, the public getter `latestInteropRootTimestamp`).
-* Runs: `Step` is one successful external call by ANY caller; `Reach` is any finite
-  interleaving of them.  `ReachLog` is `Reach` with every successful call written down
+* The view `interopRoots`; the public getter `latestInteropRootTimestamp` is the field itself.
+* Runs: `Step` is one successful external call by any caller, with any arguments; `Reach` is any
+  finite sequence of them.  `ReachLog` is `Reach` with every successful call written down
   (caller and arguments), oldest first.
 * Four *mutants* (`addInteropRootNoExistsCheck`, `…NoZeroRootCheck`, `…NoZeroTimestampCheck`,
   `addSingleNoAuth`): the source with ONE check deleted.  They are not the contract; the
   countermodels in the Properties file use them to show each check is load-bearing.
 
-## What is not modelled (see also `../README.md`, `ASSUMPTIONS.md` rows `IRS-*`)
+## What is not modelled (`MODEL-ROOT-STORAGE` in `ASSUMPTIONS.md`)
 
 * The `InteropRootAdded` event.  The logged run (`ReachLog`) records the same data per call.
-* Who the bootloader is and what it imports: `msg.sender` is a model input.  That the
-  imported tuple is the settlement layer's `MessageRoot.historicalRoot` (the executor's
-  double check at batch execution) is a protocol fact outside this contract.
-* The storage this contract starts with.  The source comment at `:29-31` says the
-  mapping was empty at the v31 upgrade; `empty` is that state, and results that need it
-  say so.  `LegacyRootKeepsZeroTimestamp` shows what a non-empty start would break.
-* Calldata decoding (`SOL-ABI`), the array-length word of the batch (a `List` has no
-  `2^256` bound), gas, and `unchecked { ++i }` overflow (unreachable below `2^256` items).
+* Who the bootloader is and what it imports: `msg.sender` and the imported tuples are inputs.
+  That an imported tuple is the settlement layer's `MessageRoot.historicalRoot` (checked when the
+  importing batch executes, `ExecutorFacet._verifyDependencyInteropRoots`) is a protocol fact
+  outside this contract.
+* The storage the contract starts with.  The source comment at `:29-31` says the mapping was
+  empty at the v31 upgrade; `empty` is that state, and the results that need it say so.  At
+  `03634a64b` ("Set of patches for draft-v31") the mapping's value was a plain `bytes32`; a root
+  stored under that layout would read here as that root with timestamp zero, the struct's second
+  word being a slot that layout did not write.  `LegacyRootBreaksZeroTimestampClaim` shows what
+  such a start state breaks.
+* Replacement of the contract's code by a protocol upgrade (`OPS-CONFIG`): runs are runs of this
+  code.
+* Calldata decoding (`SOL-ABI`), the array-length word of the batch (a `List` has no `2^256`
+  bound), gas, and the `unchecked { ++i }` overflow (unreachable below `2^256` elements).
+* `msg.sender` is a word, not a 160-bit address: callers that cannot exist only add rejected calls.
 -/
 
 namespace Contracts.InteropRootStorage
@@ -182,7 +197,7 @@ def exec (S : State) (caller : Address) : Call → Option State
 inductive Step : State → State → Prop
   | call {S S' : State} (caller : Address) (c : Call) : exec S caller c = some S' → Step S S'
 
-/-- Any finite interleaving of successful calls. -/
+/-- Any finite sequence of successful calls. -/
 inductive Reach : State → State → Prop
   | refl {S : State} : Reach S S
   | tail {S T U : State} : Reach S T → Step T U → Reach S U
@@ -204,18 +219,18 @@ def InteropRoot.key (r : InteropRoot) : UInt256 × UInt256 := (r.chainId, r.bloc
 /-- The pair an accepted import stores: `(sides[0], timestamp)`. -/
 def InteropRoot.stored (r : InteropRoot) : StoredInteropRoot := ⟨r.sides.headD 0, r.timestamp⟩
 
-/-! ## Invariants -/
+/-! ## The interface's claims, as predicates on a state -/
 
-/-- The interface's claim (`IL2InteropRootStorage.sol:18-20`, `L2InteropRootStorage.sol:83-84`):
-"a zero stored timestamp only ever means nothing imported at this key".  At every key the
-root is zero exactly when the timestamp is. -/
+/-- The interface's claim about `interopRoots` (`IL2InteropRootStorage.sol:18-20`, restated at
+`L2InteropRootStorage.sol:83-84`): "a zero stored timestamp only ever means nothing imported at
+this key".  Read here as: at every key the root is zero exactly when the timestamp is. -/
 def ZeroTimestampIffUnset (S : State) : Prop :=
   ∀ c b, (S.storedInteropRoots c b).root = 0 ↔ (S.storedInteropRoots c b).timestamp = 0
 
 /-- The interface's claim about `latestInteropRootTimestamp` (`IL2InteropRootStorage.sol:23-26`):
 "the maximum creation timestamp over all roots imported for `chainId` (zero if none was
-imported yet)".  It bounds every stored timestamp of the chain, and if nonzero it is
-attained by a stored root. -/
+imported yet)".  Read here as: it bounds every stored timestamp of the chain, and if nonzero it
+is the timestamp stored at some key of the chain holding a nonzero root. -/
 def LatestIsMax (S : State) : Prop :=
   (∀ c b, (S.storedInteropRoots c b).timestamp ≤ S.latestInteropRootTimestamp c) ∧
   (∀ c, S.latestInteropRootTimestamp c ≠ 0 →
@@ -252,5 +267,47 @@ def addInteropRootNoZeroTimestampCheck (S : State) (chainId blockOrBatchNumber t
 the caller is not read. -/
 def addSingleNoAuth (S : State) (_caller : Address) (r : InteropRoot) : Option State :=
   addRoot S r
+
+/-! ## The contract at `c67894b9`
+
+`interop/L2InteropRootStorage.sol` at `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (107 lines): the
+storage is `storedInteropRoots` alone (`:40`); the modifier is `:20-25`, `addSingleInteropRoot`
+`:58-60`, `addInteropRootsInBatch` `:64-76`, and `_addInteropRoot` (`:78-106`) has the same four
+checks in the same order (`:85-87`, `:88-90`, `:93-95`, `:98-100`) and the same write (`:103`),
+with no `latestInteropRootTimestamp` update.  Apart from comments and the `Unauthorized` import,
+that is the only difference from the code above. -/
+
+/-- The storage at `c67894b9`: `storedInteropRoots` (`:40` there). -/
+abbrev RootsAtC67 := UInt256 → UInt256 → StoredInteropRoot
+
+/-- `_addInteropRoot` at `c67894b9` (`:78-106` there); `none` is a revert. -/
+def addInteropRootAtC67 (R : RootsAtC67) (chainId blockOrBatchNumber timestamp : UInt256)
+    (sides : List UInt256) : Option RootsAtC67 :=
+  if sides.length ≠ 1 then none                                                     -- :85 SidesLengthNotOne
+  else if sides.headD 0 = 0 then none                                               -- :88 MessageRootIsZero
+  else if timestamp = 0 then none                                                   -- :93 InteropRootTimestampIsZero
+  else if (R chainId blockOrBatchNumber).root ≠ 0 then none                         -- :98 InteropRootAlreadyExists
+  else some (fun c b =>                                                             -- :103
+    if c = chainId ∧ b = blockOrBatchNumber then ⟨sides.headD 0, timestamp⟩ else R c b)
+
+/-- The loop of `addInteropRootsInBatch` at `c67894b9` (`:67-74` there), all or nothing; a single
+import is the one-element case. -/
+def addRootsAtC67 (R : RootsAtC67) : List InteropRoot → Option RootsAtC67
+  | [] => some R
+  | r :: rs =>
+    match addInteropRootAtC67 R r.chainId r.blockOrBatchNumber r.timestamp r.sides with
+    | none => none
+    | some R' => addRootsAtC67 R' rs
+
+/-- Either writer at `c67894b9`, called by `caller`: the modifier (`:20-25`), then
+`_addInteropRoot` on the call's roots in order. -/
+def execAtC67 (R : RootsAtC67) (caller : Address) (c : Call) : Option RootsAtC67 :=
+  if caller ≠ L2_BOOTLOADER_ADDRESS then none else addRootsAtC67 R c.roots
+
+/-- Any finite sequence of successful calls of the `c67894b9` contract. -/
+inductive ReachAtC67 : RootsAtC67 → RootsAtC67 → Prop
+  | refl {R : RootsAtC67} : ReachAtC67 R R
+  | tail {R T U : RootsAtC67} (caller : Address) (c : Call) :
+      ReachAtC67 R T → execAtC67 T caller c = some U → ReachAtC67 R U
 
 end Contracts.InteropRootStorage

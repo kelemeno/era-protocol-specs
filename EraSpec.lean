@@ -205,6 +205,12 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Imported interop roots on an L2 and the verifier that reads them (L2InteropRootStorage,
+-- L2MessageVerification; draft/v0.35.0 b17415d20, with the c67894b9 storage contract)
+import EraSpec.Contracts.L2InteropRootStorage.Proofs.Storage
+import EraSpec.Contracts.L2InteropRootStorage.Proofs.RootImportLink
+import EraSpec.Contracts.L2MessageVerification.Proofs.Verification
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

@@ -1,4 +1,4 @@
-import EraSpec.Contracts.InteropRootStorage.Properties.Storage
+import EraSpec.Contracts.L2InteropRootStorage.Properties.Storage
 
 /-!
 # Proofs: `L2InteropRootStorage`
@@ -8,7 +8,9 @@ Every run-level result reduces to one fact about a single `_addInteropRoot`
 root there.  A successful external call is the bootloader's and is a sequence of such imports
 (`exec_eq_some`), so a logged run from `S₀` is `addRoots S₀ (imports log)` (`reachLog_addRoots`)
 and the log-level results are inductions on that list.  Relations that are reflexive,
-transitive and hold of one import hold of every run (`reach_of_addRoot_rel`).
+transitive and hold of one import hold of every run (`reach_of_addRoot_rel`).  The `c67894b9`
+contract is the projection of this one call by call (`execAtC67_eq`), and runs lift and project
+(`reachAtC67_lifts`, `reach_projects`); the two `c67894b9` results follow from this model's.
 -/
 
 namespace Contracts.InteropRootStorage
@@ -53,7 +55,7 @@ lemma writeRoot_stored_ne (S : State) {c b c' b' : UInt256} (ts root : UInt256)
     (h : (c', b') ≠ (c, b)) :
     (writeRoot S c b ts root).storedInteropRoots c' b' = S.storedInteropRoots c' b' := by
   simp only [writeRoot]
-  rw [if_neg]
+  rw [ite_eq_right]
   rintro ⟨rfl, rfl⟩
   exact h rfl
 
@@ -505,12 +507,12 @@ theorem without_auth_anyone_squats_a_key : Properties.WithoutAuthAnyoneSquatsAKe
   · have : addSingleInteropRoot empty L2_BOOTLOADER_ADDRESS ⟨1, 100, 50, [0xaa]⟩
         = some (writeRoot empty 1 100 50 0xaa) := by
       unfold addSingleInteropRoot
-      rw [if_neg (by simp)]
+      rw [ite_eq_right (by simp)]
       exact addRoot_mk (by decide) (by decide) rfl
     rw [this]
     exact Option.some_ne_none _
   · unfold addSingleInteropRoot
-    exact if_pos (by decide)
+    exact ite_eq_left (by decide)
   · exact addRoot_mk (by decide) (by decide) rfl
   · intro S' hreach
     have hset : ((writeRoot empty 1 100 5 0xbad).storedInteropRoots 1 100).root ≠ 0 := by
@@ -538,7 +540,7 @@ theorem without_exists_check_root_is_overwritten : Properties.WithoutExistsCheck
     rw [writeRoot_stored_self] at hunset
     exact absurd hunset (by decide)
   · unfold addInteropRootNoExistsCheck
-    rw [if_neg (by simp), if_neg (by decide), if_neg (by decide)]
+    rw [ite_eq_right (by simp), ite_eq_right (by decide), ite_eq_right (by decide)]
     rfl
 
 theorem without_zero_root_check_timestamp_is_rewritten :
@@ -547,7 +549,7 @@ theorem without_zero_root_check_timestamp_is_rewritten :
     ?_, ?_, ?_, ?_, ?_, ?_⟩
   · simp [addInteropRoot]
   · unfold addInteropRootNoZeroRootCheck
-    rw [if_neg (by simp), if_neg (by decide), if_neg (by simp [empty])]
+    rw [ite_eq_right (by simp), ite_eq_right (by decide), ite_eq_right (by simp [empty])]
     rfl
   · intro hinv
     have := (hinv 1 100).mp (by rw [writeRoot_stored_self])
@@ -562,7 +564,7 @@ theorem without_zero_timestamp_check_root_looks_unimported :
   refine ⟨writeRoot empty 1 100 0 1, 1, 100, ?_, ?_, ?_⟩
   · simp [addInteropRoot]
   · unfold addInteropRootNoZeroTimestampCheck
-    rw [if_neg (by simp), if_neg (by decide), if_neg (by simp [empty])]
+    rw [ite_eq_right (by simp), ite_eq_right (by decide), ite_eq_right (by simp [empty])]
     rfl
   · intro S' hreach
     have hset : ((writeRoot empty 1 100 0 1).storedInteropRoots 1 100).root ≠ 0 := by
@@ -570,17 +572,104 @@ theorem without_zero_timestamp_check_root_looks_unimported :
     rw [no_overwrite hreach hset, writeRoot_stored_self]
     exact ⟨by decide, rfl⟩
 
-theorem legacy_root_breaks_zero_timestamp_claim : Properties.LegacyRootBreaksZeroTimestampClaim := by
-  refine ⟨⟨fun c b => if c = 1 ∧ b = 100 then ⟨0xaa, 0⟩ else ⟨0, 0⟩, fun _ => 0⟩, ?_⟩
-  intro S' hreach hinv
-  have hkeep := no_overwrite hreach (c := 1) (b := 100) (by simp)
-  have h0 := (hinv 1 100).mpr (by rw [hkeep]; simp)
+
+theorem legacy_root_breaks_zero_timestamp_claim {S : State} {c b : UInt256}
+    (hroot : (S.storedInteropRoots c b).root ≠ 0) (hts : (S.storedInteropRoots c b).timestamp = 0)
+    {S' : State} (hreach : Reach S S') : ¬ ZeroTimestampIffUnset S' := by
+  intro hinv
+  have hkeep := no_overwrite hreach hroot
+  have h0 := (hinv c b).mpr (by rw [hkeep]; exact hts)
   rw [hkeep] at h0
-  simp at h0
+  exact hroot h0
 
-/-! ### Non-vacuity -/
+/-! ### A stored timestamp and the tracked one -/
 
-theorem concrete_run : Properties.ConcreteRun := by
+theorem stored_timestamp_stays_below_latest {S S' : State} (h0 : Reach empty S) (h : Reach S S')
+    (c b : UInt256) : (S.storedInteropRoots c b).timestamp ≤ S'.latestInteropRootTimestamp c :=
+  le_trans ((latest_is_max_invariant.2 _ _ h0 latest_is_max_invariant.1).1 c b)
+    (latest_never_decreases h c)
+
+/-! ### The contract at `c67894b9` -/
+
+lemma addInteropRootAtC67_eq (S : State) (chainId blockOrBatchNumber timestamp : UInt256)
+    (sides : List UInt256) :
+    addInteropRootAtC67 S.storedInteropRoots chainId blockOrBatchNumber timestamp sides =
+      (addInteropRoot S chainId blockOrBatchNumber timestamp sides).map State.storedInteropRoots := by
+  unfold addInteropRootAtC67 addInteropRoot
+  split_ifs <;> rfl
+
+lemma addRootsAtC67_eq (rs : List InteropRoot) (S : State) :
+    addRootsAtC67 S.storedInteropRoots rs = (addRoots S rs).map State.storedInteropRoots := by
+  induction rs generalizing S with
+  | nil => rfl
+  | cons r rs ih =>
+    have h := addInteropRootAtC67_eq S r.chainId r.blockOrBatchNumber r.timestamp r.sides
+    simp only [addRootsAtC67, addRoots, addRoot]
+    rw [h]
+    cases addInteropRoot S r.chainId r.blockOrBatchNumber r.timestamp r.sides with
+    | none => rfl
+    | some S₁ => exact ih S₁
+
+lemma execAtC67_eq (S : State) (caller : Address) (c : Call) :
+    execAtC67 S.storedInteropRoots caller c = (exec S caller c).map State.storedInteropRoots := by
+  cases c with
+  | single r =>
+    simp only [execAtC67, exec, addSingleInteropRoot, Call.roots]
+    split_ifs
+    · rfl
+    · rw [addRootsAtC67_eq, addRoots_singleton]
+  | batch rs =>
+    simp only [execAtC67, exec, addInteropRootsInBatch, Call.roots]
+    split_ifs
+    · rfl
+    · exact addRootsAtC67_eq rs S
+
+lemma reach_projects {S S' : State} (h : Reach S S') :
+    ReachAtC67 S.storedInteropRoots S'.storedInteropRoots := by
+  induction h with
+  | refl => exact ReachAtC67.refl
+  | tail _ hstep ih =>
+    obtain ⟨caller, c, hexec⟩ := hstep
+    exact ReachAtC67.tail caller c ih (by rw [execAtC67_eq, hexec]; rfl)
+
+lemma reachAtC67_lifts {R R' : RootsAtC67} (h : ReachAtC67 R R') (L : UInt256 → UInt256) :
+    ∃ L', Reach ⟨R, L⟩ ⟨R', L'⟩ := by
+  induction h with
+  | refl => exact ⟨L, Reach.refl⟩
+  | @tail T U caller c _ hexec ih =>
+    obtain ⟨L', hreach⟩ := ih
+    have hproj := execAtC67_eq ⟨T, L'⟩ caller c
+    rw [hexec] at hproj
+    cases hS : exec ⟨T, L'⟩ caller c with
+    | none => rw [hS] at hproj; exact absurd hproj (by simp)
+    | some S'' =>
+      rw [hS] at hproj
+      obtain rfl : _ = S''.storedInteropRoots := Option.some.inj hproj
+      exact ⟨S''.latestInteropRootTimestamp, Reach.tail hreach (Step.call caller c hS)⟩
+
+theorem c67894b9_runs_are_projected_runs (R R' : RootsAtC67) :
+    ReachAtC67 R R' ↔ ∀ L : UInt256 → UInt256, ∃ L', Reach ⟨R, L⟩ ⟨R', L'⟩ := by
+  constructor
+  · intro h L
+    exact reachAtC67_lifts h L
+  · intro h
+    obtain ⟨_, hreach⟩ := h (fun _ => 0)
+    exact reach_projects hreach
+
+theorem no_overwrite_at_c67894b9 {R R' : RootsAtC67} (h : ReachAtC67 R R') {c b : UInt256}
+    (hset : (R c b).root ≠ 0) : R' c b = R c b := by
+  obtain ⟨_, hreach⟩ := reachAtC67_lifts h (fun _ => 0)
+  exact no_overwrite hreach hset
+
+theorem zero_timestamp_iff_unset_at_c67894b9 {R : RootsAtC67}
+    (h : ReachAtC67 empty.storedInteropRoots R) (c b : UInt256) :
+    (R c b).root = 0 ↔ (R c b).timestamp = 0 := by
+  obtain ⟨_, hreach⟩ := reachAtC67_lifts h (fun _ => 0)
+  exact zero_timestamp_iff_unset_invariant.2 _ _ hreach (fun _ _ => Iff.rfl) c b
+
+/-! ### Witnesses -/
+
+theorem root_import_run_witness : Properties.RootImportRunWitness := by
   let S₁ := writeRoot empty 9 7 5 0xdd
   let S₂ := writeRoot (writeRoot (writeRoot S₁ 1 100 50 0xaa) 1 101 70 0xbb) 1 99 60 0xcc
   have h1 : exec empty L2_BOOTLOADER_ADDRESS (.single ⟨9, 7, 5, [0xdd]⟩) = some S₁ := by
@@ -595,6 +684,53 @@ theorem concrete_run : Properties.ConcreteRun := by
     refine addRoots_cons_eq_some.mpr ⟨_, addRoot_mk (by decide) (by decide) (by decide), rfl⟩
   refine ⟨S₂, _, ReachLog.tail _ _ (ReachLog.tail _ _ ReachLog.refl h1) h2, rfl, rfl,
     by decide, by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+theorem single_import_effect_witness : Properties.SingleImportEffectWitness := by
+  let S₁ := writeRoot empty 1 100 50 0xaa
+  let S₂ := writeRoot S₁ 1 101 70 0xbb
+  have h1 : Reach empty S₁ := reach_of_addRoot (addRoot_mk (by decide) (by decide) rfl)
+  have h2 : Reach S₁ S₂ := reach_of_addRoot (addRoot_mk (by decide) (by decide) (by decide))
+  exact ⟨S₂, writeRoot S₂ 1 99 60 0xcc, reach_trans h1 h2, by decide,
+    addInteropRoot_iff.mpr ⟨0xcc, rfl, by decide, by decide, by decide, rfl⟩, by decide⟩
+
+theorem stored_root_survives_run_witness : Properties.StoredRootSurvivesRunWitness := by
+  let S₁ := writeRoot empty 9 7 5 0xdd
+  have h1 : Reach empty S₁ := reach_of_addRoot (addRoot_mk (by decide) (by decide) rfl)
+  have h2 : Reach S₁ (writeRoot S₁ 9 8 6 0xee) :=
+    reach_of_addRoot (addRoot_mk (by decide) (by decide) (by decide))
+  exact ⟨S₁, writeRoot S₁ 9 8 6 0xee, h1, h2, by decide, by decide, by decide, by decide,
+    by decide, by decide⟩
+
+lemma addSingle_bootloader (S : State) (r : InteropRoot) :
+    addSingleInteropRoot S L2_BOOTLOADER_ADDRESS r = addRoot S r := by
+  simp [addSingleInteropRoot]
+
+theorem duplicate_key_batch_witness : Properties.DuplicateKeyBatchWitness := by
+  refine ⟨⟨1, 100, 50, [0xaa]⟩, ⟨1, 100, 60, [0xbb]⟩, rfl, by decide, ?_, ?_, by decide,
+    batch_rejects_duplicate_key _ _ _ (by decide)⟩
+  · rw [addSingle_bootloader, addRoot_mk (by decide) (by decide) rfl]
+    exact Option.some_ne_none _
+  · rw [addSingle_bootloader, addRoot_mk (by decide) (by decide) rfl]
+    exact Option.some_ne_none _
+
+theorem legacy_root_state_witness : Properties.LegacyRootStateWitness := by
+  let S : State := ⟨fun c b => if c = 1 ∧ b = 100 then ⟨0xaa, 0⟩ else ⟨0, 0⟩, fun _ => 0⟩
+  have hreach : Reach S (writeRoot S 1 101 5 0xbb) :=
+    reach_of_addRoot (addRoot_mk (by decide) (by decide) (by decide))
+  refine ⟨S, writeRoot S 1 101 5 0xbb, by decide, rfl, ?_, hreach, by decide, by decide⟩
+  intro c b hcb
+  show (if c = 1 ∧ b = 100 then _ else _) = _
+  rw [ite_eq_right]
+  rintro ⟨rfl, rfl⟩
+  exact hcb rfl
+
+theorem c67894b9_run_witness : Properties.C67894b9RunWitness := by
+  let S₁ := writeRoot empty 9 7 5 0xdd
+  have h1 : Reach empty S₁ := reach_of_addRoot (addRoot_mk (by decide) (by decide) rfl)
+  have h2 : Reach S₁ (writeRoot S₁ 9 8 6 0xee) :=
+    reach_of_addRoot (addRoot_mk (by decide) (by decide) (by decide))
+  exact ⟨S₁.storedInteropRoots, (writeRoot S₁ 9 8 6 0xee).storedInteropRoots, reach_projects h1,
+    reach_projects h2, by decide, by decide, by decide, by decide⟩
 
 /-! ### The named properties -/
 
@@ -621,10 +757,19 @@ theorem LatestNeverDecreases : Properties.LatestNeverDecreases :=
   fun _ _ c h => latest_never_decreases h c
 theorem LatestBoundsEveryImport : Properties.LatestBoundsEveryImport :=
   fun _ _ _ h => latest_bounds_every_import h
+theorem StoredTimestampStaysBelowLatest : Properties.StoredTimestampStaysBelowLatest :=
+  fun _ _ c b h0 h => stored_timestamp_stays_below_latest h0 h c b
 theorem LatestZeroIffNothingImported : Properties.LatestZeroIffNothingImported :=
   fun _ h c => latest_zero_iff_nothing_imported h c
 theorem BatchUnfoldsToSingles : Properties.BatchUnfoldsToSingles := batch_unfolds_to_singles
 theorem BatchRejectsDuplicateKey : Properties.BatchRejectsDuplicateKey := batch_rejects_duplicate_key
+theorem C67894b9CallIsTheProjection : Properties.C67894b9CallIsTheProjection := execAtC67_eq
+theorem C67894b9RunsAreProjectedRuns : Properties.C67894b9RunsAreProjectedRuns :=
+  c67894b9_runs_are_projected_runs
+theorem NoOverwriteAtC67894b9 : Properties.NoOverwriteAtC67894b9 :=
+  fun _ _ _ _ h hset => no_overwrite_at_c67894b9 h hset
+theorem ZeroTimestampIffUnsetAtC67894b9 : Properties.ZeroTimestampIffUnsetAtC67894b9 :=
+  fun _ h c b => zero_timestamp_iff_unset_at_c67894b9 h c b
 theorem WithoutAuthAnyoneSquatsAKey : Properties.WithoutAuthAnyoneSquatsAKey :=
   without_auth_anyone_squats_a_key
 theorem WithoutExistsCheckRootIsOverwritten : Properties.WithoutExistsCheckRootIsOverwritten :=
@@ -636,7 +781,14 @@ theorem WithoutZeroTimestampCheckRootLooksUnimported :
     Properties.WithoutZeroTimestampCheckRootLooksUnimported :=
   without_zero_timestamp_check_root_looks_unimported
 theorem LegacyRootBreaksZeroTimestampClaim : Properties.LegacyRootBreaksZeroTimestampClaim :=
-  legacy_root_breaks_zero_timestamp_claim
-theorem ConcreteRun : Properties.ConcreteRun := concrete_run
+  fun _ _ _ hroot hts _ hreach => legacy_root_breaks_zero_timestamp_claim hroot hts hreach
+theorem RootImportRunWitness : Properties.RootImportRunWitness := root_import_run_witness
+theorem SingleImportEffectWitness : Properties.SingleImportEffectWitness :=
+  single_import_effect_witness
+theorem StoredRootSurvivesRunWitness : Properties.StoredRootSurvivesRunWitness :=
+  stored_root_survives_run_witness
+theorem DuplicateKeyBatchWitness : Properties.DuplicateKeyBatchWitness := duplicate_key_batch_witness
+theorem LegacyRootStateWitness : Properties.LegacyRootStateWitness := legacy_root_state_witness
+theorem C67894b9RunWitness : Properties.C67894b9RunWitness := c67894b9_run_witness
 
 end Contracts.InteropRootStorage

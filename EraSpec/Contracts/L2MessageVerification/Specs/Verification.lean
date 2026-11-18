@@ -1,13 +1,24 @@
-import EraSpec.Contracts.InteropRootStorage.Specs.Storage
+import EraSpec.Contracts.L2InteropRootStorage.Specs.Storage
 
 /-!
 # Model: `L2MessageVerification` — proving inclusion against the imported roots
 
 **This file is definitions only.**  Statements are in
-`EraSpec.Contracts.InteropRootStorage.Properties.Verification`, proofs in
-`EraSpec.Contracts.InteropRootStorage.Proofs.Verification`.
+`EraSpec.Contracts.L2MessageVerification.Properties.Verification`, proofs in
+`EraSpec.Contracts.L2MessageVerification.Proofs.Verification`.  The storage read at the end of
+a proof is `L2InteropRootStorage`, modelled in `../../L2InteropRootStorage/Specs/Storage.lean`.
 
-## Source (era-contracts `d9f678900e1bc8286412b78f56d4a9f443983c29`, `l1-contracts/contracts/`)
+## Source
+
+era-contracts `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, under
+`l1-contracts/contracts/`.  Every file cited below is byte-identical at `d9f678900e1b`, where this
+model was first written, and at `e561b9cc2` (except `common/Config.sol`, whose two constants are
+the same).  At `main` `70096e2ea6ee` and at `c67894b9` the code of
+`interop/L2MessageVerification.sol`, `common/MessageVerification.sol` and
+`common/libraries/Merkle.sol`, and of the `MessageHashing` functions modelled here, is the same up
+to comments and line numbers, except that `readSettlementLayerReference` and its struct do not
+exist at `c67894b9`; the two constants have the same values there
+(`system-contracts/contracts/Constants.sol`).
 
 `interop/L2MessageVerification.sol:18-56`, the one function the contract adds:
 
@@ -40,10 +51,11 @@ and `_leaf = MessageHashing.getLeafHashFromLog(log)` for a log they build (`:85-
 
 `common/libraries/MessageHashing.sol`: `parseProofMetadata` (`:101-143`), `_getProofData`
 (`:152-236`), `extractSlice` (`:306-315`), `extractSliceUntilEnd` (`:319-324`), `batchLeafHash`
-(`:76-82`), `chainIdLeafHash` (`:87-89`).  `common/libraries/Merkle.sol`: `calculateRootMemory`
+(`:76-82`), `chainIdLeafHash` (`:87-89`), and `readSettlementLayerReference` (`:285-299`, which
+the verifier does not call; its consumer does, after it).  `common/libraries/Merkle.sol`: `calculateRootMemory`
 (`:53-70`), `_validatePathLengthForSingleProof` (`:133-140`), `efficientHash` (`:125-131`).
 `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH` and `SUPPORTED_PROOF_METADATA_VERSION = 1` are
-`common/Config.sol:27`, `:30`.
+`common/Config.sol:27`, `:30`; `ProofData` is `common/Messaging.sol:332-345`.
 
 ## What is modelled
 
@@ -52,33 +64,44 @@ and `_leaf = MessageHashing.getLeafHashFromLog(log)` for a log they build (`:85-
   check), both Merkle walks with their length and index checks, every bounds-checked read of
   `_proof`, and the unpacking of the settlement-layer words.  A revert or panic is `none`.
 * The recursion, the depth check, the checked `_depth + 1`, and the terminal read of
-  `L2_INTEROP_ROOT_STORAGE.interopRoots(…).root` — the `State` of `Specs/Storage.lean`.
+  `L2_INTEROP_ROOT_STORAGE.interopRoots(…).root`, in the `State` of `L2InteropRootStorage`.
 * `Anchor`/`anchorRec`: the same recursion with the storage read left out, returning the key
   the terminal step would read and the root it would compare with.  It is a specification
   device; `Properties.ProveIsOneStorageRead` proves the contract is exactly "compute the
   anchor, then one comparison".
+* `readSettlementLayerReference`, the positional read `AtomicInteropProof._authenticateRoot`
+  makes after the verifier accepted (`atomic-interop/libraries/AtomicInteropProof.sol:183-188`),
+  so that its words can be compared with the verifier's anchor.
+* One mutant (`proveRecursiveNoZeroCheck`): the source with the `!= bytes32(0)` conjunct of
+  `:38` deleted, for a countermodel only.
+* Words for the witnesses: `metadataWord` and `packedBatchInfo` build the proof words the source
+  parses (`MessageHashing.sol:106-111`, `:216-219`); `oneHopExampleProof` and
+  `zeroLeafDirectProof` are two proofs built from them.
 
-## What is not modelled
+## What is not modelled (`MODEL-MESSAGE-VERIFICATION` in `ASSUMPTIONS.md`)
 
 * The three hashes.  `Hashes` is a parameter: `node` for `Merkle.efficientHash`
   (`keccak256` of 64 bytes), `batchLeaf` for `MessageHashing.batchLeafHash`, `chainIdLeaf` for
-  `MessageHashing.chainIdLeafHash`.  No result here assumes anything about them; in particular
-  none assumes injectivity.  That an accepted walk opens a tree is the `Merkle` folder's
-  subject (`../Merkle/`), not this one's.
+  `MessageHashing.chainIdLeafHash`.  No result here assumes injectivity of any of them.  That an
+  accepted walk opens a tree is the `Merkle` folder's subject (`../../Merkle/`), not this one's;
+  `Properties.CalculateRootMemoryIsMerkleSpecWalk` identifies the walk with that folder's.
 * The log-shaped entry points' leaf: `getLeafHashFromLog` is `keccak256` of a packed log, a
-  `SOL-ABI` matter.  They are `proveL2LeafInclusionShared` at `leaf :=` that hash,
+  `SOL-ABI` matter.  They are `proveL2LeafInclusionShared` at `leaf :=` that hash and
   `leafProofMask := _index`, and are covered through it.
 * The self-call `this.proveL2LeafInclusionSharedRecursive` is modelled as a direct recursive
   call whose revert propagates (`SOL-CONTROL`); gas is not modelled.  Recursion is by `fuel`,
-  with `proof.length` supplied by the entry points — every hop consumes at least five proof
+  and the entry points supply `proof.length`: every non-final step consumes at least five proof
   words, so that is always enough (`Properties.FuelIrrelevant`).
-* Proof pointers (`ptr`, slice bounds) are natural numbers: they never exceed the proof's
-  length plus 510, far below `2^256`, so the checked additions cannot overflow.
-* That `L2_INTEROP_ROOT_STORAGE` is the contract of `Specs/Storage.lean` (deployment,
-  `BUILD-IDENTITY`).
+* Proof pointers and slice bounds are natural numbers.  In the old format they are at most the
+  proof's length; in the new one at most `1 + 255 + 4 + 255`.  Both are far below `2^256`, so the
+  source's checked additions on them cannot overflow.
+* That `L2_INTEROP_ROOT_STORAGE` is the contract of `../../L2InteropRootStorage/` (deployment,
+  `BUILD-IDENTITY`), and that the storage a call reads is the state of a run of that contract.
 -/
 
-namespace Contracts.InteropRootStorage
+namespace Contracts.MessageVerification
+
+open Contracts.InteropRootStorage
 
 /-- The three hash functions the proof format uses, uninterpreted. -/
 structure Hashes where
@@ -203,11 +226,36 @@ def getProofData (H : Hashes) (chainId batchNumber leafProofMask leaf : UInt256)
           ptr := ptr + 4 + md.batchLeafProofLen                          -- :222
           finalProofNode := false }
 
+/-- `MessageHashing.SettlementLayerReference` (`:268-275`). -/
+structure SettlementLayerReference where
+  settlementLayerBatchNumber : UInt256
+  settlementLayerChainId : UInt256
+  l1BatchTimestamp : UInt256
+  deriving DecidableEq
+
+/-- `MessageHashing.readSettlementLayerReference(_proof)` (`:285-299`): the positional read of a
+multi-hop proof's settlement-layer words that `AtomicInteropProof._authenticateRoot` makes after
+the verifier accepted the proof (`atomic-interop/libraries/AtomicInteropProof.sol:183-188`).  It
+does not exist at `c67894b9`. -/
+def readSettlementLayerReference (proof : List UInt256) : Option SettlementLayerReference :=
+  (parseProofMetadata proof).bind fun md =>                              -- :288
+  if md.finalProofNode then none                                         -- :289-291 InvalidProofLengthForFinalNode
+  else
+    let ptr := md.proofStartIndex + md.logLeafProofLen                   -- :294
+    proof[ptr]?.bind fun l1BatchTimestamp =>                             -- :295
+    proof[ptr + 2 + md.batchLeafProofLen]?.bind fun packedBatchInfo =>   -- :296
+    proof[ptr + 3 + md.batchLeafProofLen]?.bind fun settlementLayerChainId =>   -- :298
+    some
+      { settlementLayerBatchNumber := Nat.toUInt256 (packedBatchInfo.val / 2 ^ 128)   -- :297
+        settlementLayerChainId := settlementLayerChainId
+        l1BatchTimestamp := l1BatchTimestamp }
+
 /-! ## `L2MessageVerification` -/
 
 /-- `_proveL2LeafInclusionRecursive` (`L2MessageVerification.sol:18-56`) reading the roots of
 storage `S`, with `fuel` bounding the number of nested self-calls.  `none` is a revert (or, at
-`fuel = 0`, the model running out — impossible from the entry points below). -/
+`fuel = 0`, the model running out, which the entry points below never reach:
+`Properties.FuelIrrelevant`). -/
 def proveRecursive (H : Hashes) (S : State) :
     ℕ → UInt256 → UInt256 → UInt256 → UInt256 → List UInt256 → UInt256 → Option Bool
   | 0, _, _, _, _, _, _ => none
@@ -283,8 +331,52 @@ def anchorHolds (S : State) (a : Anchor) : Bool :=
 
 /-! ## Mutant (for a countermodel only) -/
 
-/-- The terminal comparison with the `correctBatchRoot != bytes32(0)` conjunct (`:38`) deleted. -/
-def anchorHoldsNoZeroCheck (S : State) (a : Anchor) : Bool :=
-  (interopRoots S a.chainId a.blockOrBatchNumber).root == a.computedRoot
+/-- `_proveL2LeafInclusionRecursive` with the `correctBatchRoot != bytes32(0)` conjunct (`:38`)
+deleted; otherwise `proveRecursive`. -/
+def proveRecursiveNoZeroCheck (H : Hashes) (S : State) :
+    ℕ → UInt256 → UInt256 → UInt256 → UInt256 → List UInt256 → UInt256 → Option Bool
+  | 0, _, _, _, _, _, _ => none
+  | fuel + 1, chainId, blockOrBatchNumber, leafProofMask, leaf, proof, depth =>
+    match getProofData H chainId blockOrBatchNumber leafProofMask leaf proof with
+    | none => none
+    | some pd =>
+      if pd.finalProofNode then
+        some ((interopRoots S chainId blockOrBatchNumber).root == pd.batchSettlementRoot)
+      else if depth = 1 then none
+      else if UInt256.size ≤ depth.val + 1 then none
+      else
+        proveRecursiveNoZeroCheck H S fuel pd.settlementLayerChainId pd.settlementLayerBatchNumber
+          pd.settlementLayerBatchRootMask pd.chainIdLeaf (proof.drop pd.ptr) (depth + 1)
 
-end Contracts.InteropRootStorage
+/-- `proveL2LeafInclusionShared` of the mutant. -/
+def proveL2LeafInclusionSharedNoZeroCheck (H : Hashes) (S : State)
+    (chainId blockOrBatchNumber leafProofMask leaf : UInt256) (proof : List UInt256) : Option Bool :=
+  proveRecursiveNoZeroCheck H S proof.length chainId blockOrBatchNumber leafProofMask leaf proof 0
+
+/-! ## Proof words, for the witnesses -/
+
+/-- The first word of a new-format proof (`MessageHashing.sol:106-111`): the version
+`SUPPORTED_PROOF_METADATA_VERSION` in the top byte, then the log-leaf path length, the batch-leaf
+path length and the final-node byte, one byte each, then 28 zero bytes.  The arguments are meant
+to be below 256. -/
+def metadataWord (logLeafProofLen batchLeafProofLen finalProofNode : ℕ) : UInt256 :=
+  Nat.toUInt256 (SUPPORTED_PROOF_METADATA_VERSION * 2 ^ 248 + logLeafProofLen * 2 ^ 240 +
+    batchLeafProofLen * 2 ^ 232 + finalProofNode * 2 ^ 224)
+
+/-- The packed settlement-layer word of a non-final step (`MessageHashing.sol:216-219`): the
+settlement-layer block in the high 128 bits, the batch-root mask in the low 128.  The arguments are
+meant to be below `2^128`. -/
+def packedBatchInfo (settlementLayerBatchNumber settlementLayerBatchRootMask : ℕ) : UInt256 :=
+  Nat.toUInt256 (settlementLayerBatchNumber * 2 ^ 128 + settlementLayerBatchRootMask)
+
+/-- A proof with one self-call and empty Merkle paths.  Its first step is non-final (log path
+and batch path of length 0, `l1BatchTimestamp = 100`, batch-leaf mask 0, then settlement-layer
+block 42 with mask 0 and settlement-layer chain 1); its second step is a final node with an empty
+log path. -/
+def oneHopExampleProof : List UInt256 :=
+  [metadataWord 0 0 0, 100, 0, packedBatchInfo 42 0, 1, metadataWord 0 0 1]
+
+/-- A final-node proof with an empty log path: the root it recomputes is the leaf itself. -/
+def zeroLeafDirectProof : List UInt256 := [metadataWord 0 0 1]
+
+end Contracts.MessageVerification
