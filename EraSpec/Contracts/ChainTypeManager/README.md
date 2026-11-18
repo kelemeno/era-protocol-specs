@@ -686,9 +686,14 @@ one version run the same L2 code.
 - Not covered: `_upgrade`'s time gate, its settlement-layer order check and the verifier
   installation (which also reads the chain's `secondProofSystemRequired`), `requireReleaseRouting`
   and the derived cuts (see `LiveRouting`), what the composer returns or whether its call
-  reverts, and the transaction's execution on L2.
+  reverts, and the transaction's execution on L2. `_requireExecutable` (`validate` and
+  `requirePublished`) is not a premise of `CStep`'s commit and replace, so the slot theorem does
+  not conclude that the slot's factory dependencies are published, and
+  `PublishedFactoryDepsStayPublished` is a supplier lemma that is not composed with `CRun`.
 - Witnesses: `ConstructedEdgeWitness` (an L2-carrying minor edge, and a patch edge over a pending
-  upgrade), `CommittedSlotWitness`, `SupplierWitness`.
+  upgrade), `CommittedSlotWitness`, `CommittedSlotWitnessMeetsHeadline` (the witness run meets
+  every premise of `CommittedSlotEdgePassesChainChecks`, and its conclusion is derived from that
+  theorem), `SupplierWitness`.
 
 **UpgradeTxNonces** (pin `b17415d20`: one chain's pending L2 upgrade transaction,
 `l2SystemContractsUpgradeTxHash` and its batch number, across genesis, crossings on and off the

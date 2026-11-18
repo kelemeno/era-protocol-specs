@@ -326,10 +326,12 @@ def Properties.OrderIndependentOnSlots : Prop :=
 witness configuration, lifted), `SelfOnly` and `KeepsAdmin` hold, and `Administered` holds for
 the valid rows `rowA`, `rowB` from `wSlots`. `applyRows` succeeds in both orders and as a
 CTM-domain `applyTransition`, reaching one state that moves proxies `5` and `6` to their
-targets and leaves every admin slot alone. In it `rowB`, the last row, is a real swap with a
-reinitializer: its proxy is not at the target before its iteration. So the premises of
-`ApplyRowsCorrespond`, the six `...OnSlots` results and `SelfOnlyProjectsToReinitFrames` hold
-together, with the moving disjuncts firing.
+targets and leaves every admin slot alone. In it `rowB`, the last row, is a real swap with
+`callInitializeUpgrade` set: its proxy is not at the target before its iteration. `wCfg`'s
+reinitializer is inert (the identity), so `SelfOnly` and `KeepsAdmin` hold there trivially. So the
+premises of `ApplyRowsCorrespond`, the six `...OnSlots` results and
+`SelfOnlyProjectsToReinitFrames` hold together, with the moving disjuncts firing for proxies `5`
+and `6`; no successful call here has a reinitializer that changes the slots.
 
 `wKeepAdminSelfMoving` (`wSelfMoving` lifted) meets `SelfOnly` and `KeepsAdmin` too. Its
 reinitializer moves proxy `6` back to `10` and leaves the admin slot alone. The first loop

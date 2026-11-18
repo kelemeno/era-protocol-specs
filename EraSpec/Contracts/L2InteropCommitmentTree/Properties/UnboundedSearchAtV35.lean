@@ -97,6 +97,13 @@ def Properties.RunCallProjectsV35 : Prop :=
   ∀ R : ℕ → Tree, RunCallV35 R → Valid (R 0) →
     (∀ n, Valid (R n)) ∧ RunV35 (fun n => toAbs (R n))
 
+/-- **AN INDEXED v35 HISTORY IS A GUARDED RUN.**  From a `Valid` state, a v35 history of the
+indexed state is a `Run` of `Specs/Model.lean` (each step idle or an `InsertGuard` insert at the
+index the loop exits at), so the `Run`-based results (`run_valid`, `run_isGuardedEvolution`,
+`genesis_run_reclaimable_iff_absent`) apply to it. -/
+def Properties.RunCallIsRunV35 : Prop :=
+  ∀ R : ℕ → Tree, RunCallV35 R → Valid (R 0) → Run R
+
 /-! ## Hint indices -/
 
 /-- **HINT INDEX 0 ALWAYS WORKS.**  Along a v35 history of the indexed state from `setup`, at every

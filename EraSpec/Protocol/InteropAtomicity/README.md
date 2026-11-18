@@ -33,7 +33,7 @@ Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePer
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
 `Pause` on `FlowBinding` and `OncePerLeg`, `SharedCommitment` on `OncePerLeg`,
 `Operational` on `OncePerLeg`, `FlowBinding` and `SourceHeight`, `RefundFaithful` on
-`Refund` and `Timeout`, `BatchPosition` on `Timeout`, `LegSourceFilterAtV35` on
+`Refund` and `Timeout`, `BatchPosition` on `Timeout` and `Refund`, `LegSourceFilterAtV35` on
 `FlowBinding` and `OncePerLeg`, `FlowBindingAtHead` on `FlowBinding`, `OncePerLeg` and
 `AtomicFlowManager` `FlowCanonicalAtHead`, `OncePerLegAtHead` on `OncePerLeg` and
 `L2InteropCommitmentTree` `HintSearchAtHead`, `SettlementRoots` on `Refund`, `Operational`
@@ -119,8 +119,8 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   numbers strictly increase (`ReachableSlotNumbersIncrease`). A genesis-seeded ZKsync OS
   chain (by round 7's trace, every atomic-interop source chain at the pin) is
   identity-numbered until a Gateway round trip; after one, no first-batch offset makes its
-  tree contiguous, and a
-  `RootBacking` of it misreads the root's last batch (`RoundTripBreaksContiguity`). Chains
+  tree contiguous, and any
+  three-leaf `RootBacking` reads the root's last batch as `2` (`RoundTripBreaksContiguity`). Chains
   registered at a nonzero batch or without a genesis leaf are never identity-numbered
   (`TreePositionBelowBatchNumber`, `CurrentCompositionCannotRepresentOnboardingAt100`); at
   the pin their L1 trees are not an atomic-interop source's (EraVM chains get no atomic
@@ -132,6 +132,9 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   `PositionedEndBreak` is located on the submission: a `PinnedBreak`, a `PathCollision`, or a
   `LeafPreimageClash` between the stored entry and the submitted preimage
   (`PositionedLastBatchIdentifiesLastEntryPinned`, `PositionedEndBranchImpliesVerifiedPinned`).
+  Its `AggregatesBefore` premise has the same body as `Contracts.InteropOperational.AggregatesBefore`,
+  which `SettlementRoots` discharges for MessageRoot-clocked systems
+  (`HistoricalRootAggregatesBefore`).
   Headlines: `PositionedTimeoutMeansMissedDeadlineOrBreak`,
   `PositionedTimeoutExcludesFinalityOrBreak`, `PushLogTimeoutMeansMissedDeadlineOrBreak`
   (premises about the batches actually pushed), and the counterparts of `Refund`'s repaired
@@ -615,7 +618,13 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   pushes; the root's content is a ghost count, not tied to what a Merkle proof against the root
   value shows. Witnesses: `SettlementRootsEndBranchWitness` (an END-branch timeout against a root
   read mid-block, where `Aggregates` fails), `SettlementRootsAcceptedWitness`,
-  `SettlementRootsRefundRunWitness`, `SettlementRootsImportWitness`.
+  `SettlementRootsRefundRunWitness`, `SettlementRootsImportWitness`. Related models: `BatchPosition`
+  takes `AggregatesBefore` as a premise (by definition the same condition as
+  `Contracts.InteropOperational.AggregatesBefore`), which `HistoricalRootAggregatesBefore`
+  discharges for MessageRoot-clocked systems; `../../Contracts/ChainBatchRootTree/` topic `GenesisSeed`
+  (`b17415d20`) models `MessageRootBase`'s per-chain numbering slice, and
+  `../../Contracts/AtomicFlowManager/` topic `RefundClosesAppend` (`b17415d20`) models
+  `L2InteropRootStorage` with `latestInteropRootTimestamp`.
 
 - **DispatchLiveness** (namespace `Contracts.DispatchLiveness`, pin `c67894b9`). One chain's send
   path: the center's salt flags and dispatch log (`InteropCenter`, topic `Dispatch`) composed with

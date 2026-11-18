@@ -93,7 +93,8 @@ failed. The model's guards never read them.
   `getZKChain(_chainId) == msg.sender` (`Mailbox.sol:118-120`), and
   `forwardTransactionOnGateway` requires the virtual sender `SETTLEMENT_LAYER_RELAY_SENDER`
   (`InteropCenter.sol:130-133`, `common/Config.sol:219`), which only `_wrapRequest`
-  (`Mailbox.sol:142-166`) produces. `C` is never a whitelisted settlement layer while away
+  (`Mailbox.sol:142-166`) produces, given that no key or contract exists for that address on L1
+  or on the gateway (`MODEL-PRIORITY-MIRROR` in `ASSUMPTIONS.md`, `VM-DEPLOY`). `C` is never a whitelisted settlement layer while away
   (`core/bridgehub/L1Bridgehub.sol:94-100`, `core/bridgehub/BridgehubBase.sol:416-418`), so its own
   `requestL2TransactionToGatewayMailbox` reverts (`Mailbox.sol:115-117`).
 * **Who pushes into each tree.** `PriorityTree.push` has one caller, `_writePriorityOpHash`

@@ -314,7 +314,11 @@ and that a re-pointed ServerNotifier is a `forward`, not a leg.
   for the source's two `keccak256` calls (`AcceptedLegKeepsShapeOrKeccakCollision`, via
   `DomainHashCollisionIsKeccakCollision`) it is a keccak collision on two named, distinct
   preimages. `AcceptedLegWitness` is an accepted leg that changes the state (a notifier
-  checker and a CTM admin nomination, neither of which the comparison reads).
+  checker and a CTM admin nomination, neither of which the comparison reads). The shape's
+  fields are almost exactly the compared ones, so the headline follows almost directly from
+  the equality of the two readings plus the check before the engine (the CTM's `admin()` is
+  not `pa`), which keeps an unchanged `getProxyAdmin` reading from hiding a move of the CTM
+  proxy away from `pa`; its content is that this tuple and that check suffice.
 - **The check before the engine is load-bearing.** `PreCheckIsLoadBearing`: without it, a leg
   that moves the CTM proxy to another admin passes the comparison when the CTM's `admin` role
   is the `ProxyAdmin` (the case `ProxyUpgradeExecutorBase.sol:72-74` describes).
@@ -339,6 +343,13 @@ and that a re-pointed ServerNotifier is a `forward`, not a leg.
   Both premises are load-bearing (`BoundRefinementPremisesAreLoadBearing`) and hold together
   (`BoundPremisesSatisfiable`). `UpgradeTiming` is pinned at `e561b9cc2`; these results relate
   the two models, not the two commits.
+- **Related topics in this folder.** `DomainHoldersV35`, `EngineLegV35` and
+  `ExecutorOwnerCallsV35` each model `_domainHolders` independently, in their own namespaces.
+  The overlapping results: `PostCheckRejectsRepoint` and `PostCheckRejectsRebind` with
+  `EngineLegV35`'s `NotifierRepointIsCaught`; `PreCheckIsLoadBearing` with `DomainHoldersV35`'s
+  `CtmAdminCheckLoadBearing` and `EngineLegV35`'s `AliasedCtmMoveIsCaughtByTheAdminCheck`;
+  `PostCheckComparesExactly` with `ExecutorOwnerCallsV35`'s `HoldersViewUnchangedIff`. No
+  theorem relates the models.
 
 ### Model boundaries
 
@@ -348,7 +359,11 @@ and that a re-pointed ServerNotifier is a `forward`, not a leg.
   diamond's `s.admin`) is a premise where used (`MODEL-NOTIFIER-BINDING` in `ASSUMPTIONS.md`).
 - Every address has ServerNotifier-shaped proxy storage; after a code swap a proxy is read as
   running its contract's code on the storage the swap leaves.
-- `getProxyAdmin` is modelled with OpenZeppelin v4's forwarding: it answers the `ProxyAdmin`
+- `getProxyAdmin` is modelled with OpenZeppelin v4's forwarding (OpenZeppelin Contracts
+  v4.9.6, the `lib/openzeppelin-contracts-v4` submodule at `dc44c9f` that `b17415d20` pins,
+  `l1-contracts/foundry.toml:37`; its `proxy/transparent/` files were not in the exported tree,
+  so the behaviour is taken from the source's NatSpec and not checked against that code): it
+  answers the `ProxyAdmin`
   when that administers the proxy, the CTM's `admin` role otherwise, and reverts for a
   notifier. Calls a proxy's own admin makes to non-admin functions, and getters on addresses
   without code, revert in the source but not in the model; that only adds accepted legs.

@@ -198,6 +198,15 @@ theorem RunCallProjectsV35 : Properties.RunCallProjectsV35 := by
   · exact Or.inl (by simp only [heq])
   · exact Or.inr ⟨v, lowAbs (R n) hint, (InsertCallProjectsV35 _ _ v hint (hvalid n) hc).1⟩
 
+theorem RunCallIsRunV35 : Properties.RunCallIsRunV35 := by
+  intro R hR h0 n
+  have hV := (RunCallProjectsV35 R hR h0).1 n
+  rcases hR n with heq | ⟨v, hint, hc⟩
+  · exact Or.inl heq
+  · obtain ⟨j, ⟨_, hs⟩, _, hT⟩ := hc.exits
+    exact Or.inr ⟨v, j,
+      search_yields_guard hV hc.initialized hc.nonzero hc.fresh hc.inBounds hc.hintBelow hs, hT⟩
+
 /-! ## Hint indices -/
 
 theorem SentinelIndexAlwaysWorksV35 : Properties.SentinelIndexAlwaysWorksV35 := by

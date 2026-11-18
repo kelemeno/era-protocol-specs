@@ -105,8 +105,12 @@ half.
 * **Hashes are abstract functions** (`Hashes`), with no premise. `chainRoot` stands for the root
   `DynamicIncrementalMerkle.push` returns over the leaf hashes pushed so far and `sharedRoot` for
   the root `FullMerkle` returns over its leaf list. That the libraries compute one function of
-  those lists is not proved here: `DynamicIncrementalMerkle` is not modelled in this repository,
-  and `FullMerkle`'s cached storage is the separate topic `Contracts/FullMerkle` `CachedNodes`.
+  those lists is not proved here. `DynamicIncrementalMerkle` is modelled separately in
+  `Contracts/DynamicIncrementalMerkle` (`Model`: along a run from `setup`, `root()` is the fold at
+  the minimal height for a nonempty leaf list and `0` for the empty tree, `RunRootIsFold`, and each
+  `push` returns that stored root, `PushReturnsStoredRoot`), but `chainRoot` is not instantiated
+  with it here. `FullMerkle`'s cached storage is the separate topic `Contracts/FullMerkle`
+  `CachedNodes`.
 * **A chain tree is the list of its pushed leaves, with their preimages** (`Leaf`): batch number,
   batch root, `l1Timestamp`, and a ghost field `blk`, the `block.number` of the push. Positions in
   that list are the tree's leaf indices.

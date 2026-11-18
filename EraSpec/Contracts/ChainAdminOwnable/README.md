@@ -31,7 +31,7 @@ the setter names. OpenZeppelin's `renounceOwnership` is not disabled.
 
 One execution relation `Sem cfg j S L S'` over the `ChainAdminOwnable`'s storage (owner, nominee,
 setter), every diamond's admin pair and the Bridgehub's owner, nominee, admin and pending admin,
-in the style of the `cov/chain-admin` branch's `ChainAdmin` model. Unknown code (any callee, any
+with a ghost log of the calls made. Unknown code (any callee, any
 callback, any depth) may call anything as any address other than the `ChainAdminOwnable` and zero,
 so the owner and the setter may act at any moment, including inside a `multicall`. A revert is the
 absence of a derivation, and any call may fail with no effect. Only two rules make a call whose
@@ -66,8 +66,8 @@ logs it with its origin: the frame's `msg.sender` and the storage that frame was
   is needed: `PendingDiamondAdminEscapes` (a pending admin, left for instance by the boundary run
   above, still takes the diamond), `CtmCutMovesRenouncedAdmin` (a cut by the chain type manager
   moves it), and `AdminRoleLiveBeforeRenounce` (before the renounce, an `onlyAdmin` function is
-  reachable through the owner's `multicall`). The backlog's statement of (d) omitted the
-  pending-admin premise.
+  reachable through the owner's `multicall`). The no-pending-admin premise is necessary
+  (`PendingDiamondAdminEscapes`).
 - `BridgehubAdminRecoverable` (e): whatever the `ChainAdminOwnable`'s state, the Bridgehub's owner
   can make any actor the Bridgehub's admin in two transactions (`setPendingAdmin` is
   `onlyOwnerOrAdmin`).
@@ -107,8 +107,5 @@ logs it with its origin: the frame's `msg.sender` and the storage that frame was
 
 ## Relation to other work
 
-The `cov/chain-admin` branch's `Specs/Model.lean` (restriction-based `ChainAdmin`, `d9f678900e`)
-says `ChainAdminOwnable` is in `Specs/Ownable.lean`; no branch has that file, and this folder is
-that model. Its diamond admin pair (`chainExec`) is the same reading of `facets/Admin.sol:131-153`
-as `chainAdminStep` here. `RegistryBootstrapMigration` `Forward` proves the analogous stranding for
-the CTM (`RenouncedAuthorityIsStranded`).
+`RegistryBootstrapMigration` `Forward` proves the analogous stranding for the CTM
+(`RenouncedAuthorityIsStranded`).

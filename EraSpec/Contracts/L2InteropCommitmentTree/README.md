@@ -62,7 +62,8 @@ range check on the exit index, the writes) and lifts
   (`SearchFuelIsGapV35`), so the pin's five hops sufficed exactly when that gap held at most five.
 - A v35 call projects to an abstract v35 insert and keeps `Valid` (`InsertCallProjectsV35`); a
   call that passes the five checks succeeds (`InsertCallSucceedsV35`); a v35 history of the
-  indexed state projects to a v35 history (`RunCallProjectsV35`).
+  indexed state projects to a v35 history (`RunCallProjectsV35`) and is itself a guarded `Run`
+  of `Specs/Model.lean`, so the `Run`-based results apply to it (`RunCallIsRunV35`).
 - Hint indices: from `setup`, hint `0` always works (`SentinelIndexAlwaysWorksV35`), and a hint
   index that passed the hint checks once keeps its value and still works
   (`OnceValidHintIndexStaysValidV35`, the claim of `protocol-docs/message-root.md:95`).

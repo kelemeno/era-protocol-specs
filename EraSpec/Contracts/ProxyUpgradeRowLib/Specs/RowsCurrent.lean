@@ -74,7 +74,9 @@ applier to own `_admin`; a skip does not.
   storage and can rewrite that proxy's implementation slot, but it can move another proxy
   only if it holds authority over it. `ReinitFrames` is the realistic case (it moves at
   most its own proxy) and is a premise where results need it. Its effects on other state
-  are not modelled.
+  are not modelled. Here `Impl` is both the `getProxyImplementation` read and the
+  implementation each proxy runs; `Specs/RowsAdminSlot.lean` separates the two, with the
+  admin slot a reinitializer can rewrite, and relates them in `ApplyRowsCorrespond`.
 * **Code existence** (`ObjectAnchorLib.requireCode`) is a predicate `Config.hasCode`.
 * **Events have no effect.**
 * `toRows`'s length check only rejects; it is the caller's side condition, as before.

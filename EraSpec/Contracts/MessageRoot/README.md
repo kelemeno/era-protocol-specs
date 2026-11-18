@@ -53,3 +53,8 @@ How these roots reach a destination and what the timeout protocol gets from them
 `../../Protocol/InteropAtomicity/`, topic `SettlementRoots`. At `draft/v0.35.0` `b17415d20` the
 modelled functions are unchanged apart from line numbers and the details listed in the Specs
 module ("Later heads"); the model was not re-pinned.
+
+Related model: `../ChainBatchRootTree/` topic `GenesisSeed` (`b17415d20`) models the per-chain
+numbering slice of `MessageRootBase` (`chainRegistered`, `currentChainBatchNumber`,
+`chainBatchRoots`); its `GenesisRootStable` and `NoSeedAfterRealBatch` sit next to this topic's
+`BatchRootWriteOnce` and `UnrecordedAboveCurrent`.

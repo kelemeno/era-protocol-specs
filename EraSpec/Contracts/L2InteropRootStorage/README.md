@@ -39,3 +39,5 @@ not check (anything, for the contract alone); `Protocol/InteropAtomicity` topic 
 instantiates it with the settlement layer's Executor check. Callers, events and `uint256` bounds are
 not modelled (`MODEL-ROOT-STORAGE` in `ASSUMPTIONS.md`). At `draft/v0.35.0` `b17415d20` the modelled
 checks and write are unchanged; the new `latestInteropRootTimestamp` mapping is not modelled.
+`../AtomicFlowManager/` topic `RefundClosesAppend` (`b17415d20`) has its own model of this
+contract that includes `latestInteropRootTimestamp`.

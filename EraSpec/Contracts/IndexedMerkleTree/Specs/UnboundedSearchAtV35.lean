@@ -89,6 +89,10 @@ are the existing `imtInsert`.  Only the loop is new.
 * Membership proofs and roots are not modelled here.  A straddling ("reclaim") witness in the
   property statements is a leaf of the set; whether the deployed verifier accepts only such
   leaves is the Merkle-level question of `../../L2InteropCommitmentTree/Specs/TreeRoot.lean`.
+  The deployed absence check is related to this member gate in `ReclaimGateFaithful.lean`:
+  restricted to submissions with no located break it is this gate along runs from `setup`
+  (`BreakFreeGateMatchesMemberGate`), and the deployed check itself does not match it at the
+  pin's padding (`PinnedReclaimDichotomyReadingFails`).
 -/
 
 namespace IMTAbstract

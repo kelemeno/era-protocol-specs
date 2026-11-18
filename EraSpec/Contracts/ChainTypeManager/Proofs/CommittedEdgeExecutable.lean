@@ -552,6 +552,26 @@ theorem CommittedSlotWitness : Properties.CommittedSlotWitness := by
     ⟨by decide, by decide⟩, by unfold UpgradeCalldataFits; decide, 31, ⟨v30, 31, 0⟩, by decide, rfl⟩
   all_goals decide
 
+theorem CommittedSlotWitnessMeetsHeadline : Properties.CommittedSlotWitnessMeetsHeadline := by
+  obtain ⟨s', hrun, hinv, hgen, hslot, hcon, hrep, hfit, -⟩ := CommittedSlotWitness
+  have hpre : ∀ v, (initState wEdgeWorld 100).ut v ≠ 0 →
+      (wEdgeWorld.tr ((initState wEdgeWorld 100).ut v)).old = v :=
+    fun _ h => absurd rfl h
+  have hops : ∀ e r, Op.replace e r ∈ ([.commit 300, .replace 300 400] : List Op) →
+      (wEdgeWorld.tr r).old = wEdgeWorld.relVersion (wEdgeWorld.tr r).fromRel := by
+    intro e r hm
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hm
+    rcases hm with h | h
+    · cases h
+    · cases h
+      exact hgen
+  refine ⟨hpre, hops, s', hrun, hslot, ?_⟩
+  have h := CommittedSlotEdgePassesChainChecks wEdgeWorld wEnv wEdgeObjs _ s' _ hinv hpre hops
+    hrun v29 (by rw [hslot]; decide) (by rw [hslot]; exact hcon) (by rw [hslot]; exact hrep)
+    ⟨v29, 0, 0⟩ 99000 [1, 2, 3] rfl (fun _ => ⟨rfl, rfl⟩) (by decide) (by rw [hslot]; exact hfit)
+  rw [hslot] at h
+  exact h
+
 theorem SupplierWitness : Properties.SupplierWitness := by
   refine ⟨⟨fun x => if x = 7 ∨ x = 8 then 3 else 0⟩, _, ?_,
     SupplierRun.cons (SupplierStep.publish (by decide) (by decide))

@@ -79,6 +79,10 @@ Commit, execute and revert carry `onlySettlementLayer` (`ZKChainBase.sol:141-146
   the verifier, batch contents, callers, the migration's other preconditions, and that migrations
   are disabled at `b17415d20`: `CHAIN_MIGRATIONS_ENABLED = false`, `common/Config.sol:320`). Omitting
   a check only adds runs, and the results here are about all runs.
+* **A mint never targets the diamond the in-flight migration left from** (`mintExisting`'s
+  premise `d ≠ p.src`). Unlike the omissions above, this restricts runs. With one migration in
+  flight that diamond is the source, and a failed migration returns to it through `restore`, not
+  through a mint.
 * **Batch counters are not modelled**: a commit records any positive batch number, an execute may
   or may not reach `b`, and a revert may or may not reach below it.
 * **Not modelled**: break-glass cuts (`Admin.executeUpgrade`), whose init code is arbitrary;
@@ -193,7 +197,7 @@ def commitBatchState (c : ChainUpgradeState) (n : ℕ) : ChainUpgradeState :=
 
 /-- `if (batchWhenUpgradeHappened != 0 && batchWhenUpgradeHappened <= newTotalBatchesExecuted)
 { delete s.l2SystemContractsUpgradeTxHash; delete s.l2SystemContractsUpgradeBatchNumber; }`
-(`Executor.sol:206-211`). -/
+(`Executor.sol:207-211`). -/
 def executeBatchesState (c : ChainUpgradeState) (e : ℕ) : ChainUpgradeState :=
   if c.b ≠ 0 ∧ c.b ≤ e then { c with h := 0, b := 0 } else c
 

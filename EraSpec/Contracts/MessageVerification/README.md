@@ -71,6 +71,10 @@ Not covered: the multi-hop branch (`MessageRootBase.sol:349-360`, `L1MessageRoot
 which the walk's result is authenticated through a settlement layer that
 `L1ChainAssetHandler.isValidSettlementLayer` accepts for the batch (chain migrations are disabled
 in this release, `common/Config.sol:320`); reading the stored root from `chainBatchRoots`; the
-`otherLeaf` case below keccak, which needs the multichain and interop trees; the ZKsync OS side of
+`otherLeaf` case below keccak, which needs the multichain and interop trees (their hashes have
+fixed preimage lengths at `b17415d20`: IMT leaves 96 bytes, `common/libraries/IndexedMerkleTree.sol:125`;
+`chainIdLeafHash` 96 and `batchLeafHash` 128 bytes, `MessageHashing.sol:76-89`; nodes 64, so the
+case may reduce to cross-length or preimage-of-zero statements as for the logs tree; that is not
+done here); the ZKsync OS side of
 `PROTO-L2-LOGS`. The hex constants `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH` and
 `RESERVED_SUBTREE_NODE` are modelled by their documented keccak definitions.

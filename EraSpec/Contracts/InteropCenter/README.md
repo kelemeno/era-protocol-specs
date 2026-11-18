@@ -140,6 +140,10 @@ the current main `70096e2ea`. The Specs header maps every cited line to the curr
 `draft/v0.35.0` head `b17415d20`, where this path differs only by reject-only checks (no pause,
 `isPeerAllowed`) and an unmodelled fee-unit counter. Namespace
 `Contracts.InteropCenter.SendAtHead`; statements are `Contracts.InteropCenter.SendAtHead.Properties.*`.
+The namespace reuses the parent's names (`State`, `Dispatch`, `Params`, `AtomicSend`, `Step`,
+`Reach`, `init`, `Dispatch.key`, `legOf`) and some of its headline names (`EachSaltDispatchesOnce`,
+`SolePath`, `AtomicBytesNeverPublished`, `EachLegAppendedOnce`) for the head model, so refer to
+them by qualified name when comparing pin and head results.
 
 At head every L2→L2 send is atomic: `_sendBundle` sends an atomic bundle only to a chain other
 than L1 and a non-atomic one only to L1, `_dispatchBundle` publishes exactly the L1 sends and
@@ -151,7 +155,10 @@ leg-membership and source-chain checks; six checks are switches.
 - **The pin's `sendMessage` finding, at the attribute level, and its fix.** The pin's parser
   accepts `atomicBundle` under `sendMessage`'s restriction while the pin's `sendMessage` sends
   non-atomically (`PinSendMessageDroppedAtomicBundle`, on a transcription of the pin's parser that
-  agrees with the head's on every decoded list: `PinParserIsHeadParser`). At head every successful
+  agrees with the head's on every decoded list: `PinParserIsHeadParser`). Their content is that
+  the pin's parser accepts a list carrying `atomicBundle` and that the two attribute tables are
+  equal (`MaskTableIsPinTable`); the pin's `sendMessage` send is a constant with
+  `isAtomic = false`. At head every successful
   `sendMessage` carries `atomicBundle`, is atomic, commits its leg and sends nothing to L1
   (`SendMessageAlwaysAtomic`, `PinFindingRejectedAtHead`, `SendMessagesAreAtomicAlongRuns`).
   `_ensureL2ToL2` and `parseAtomicSend` are both load-bearing
@@ -280,8 +287,9 @@ point, a direct `AtomicFlowManager.append` attempt and forced inflows (`MODEL-FE
 - **One send, one claim.** A send adds exactly its protocol fee, credited to the coinbase alone,
   and on the fixed-fee path exactly `ZK_INTEROP_FEE * calls` to the ZK balance and the coinbase's
   ZK entry (`SendAccruesExactProtocolFee`, `SendAccruesExactZkFee`); its payments are the forwards
-  to the asset router (`Σ indirectCallMessageValue`) and one burn through the holder (same base
-  token) or one value-free deposit request (different base token) of exactly the direct calls'
+  to the asset router (`Σ indirectCallMessageValue`) and one burn (same base token;
+  the holder's `burnAndStartBridging` by construction, the burn's recipient not being a modelled
+  field) or one value-free deposit request (different base token) of exactly the direct calls'
   value (`SendPaymentsExact`). A claim pays exactly the claimant's entry and zeroes it
   (`ClaimProtocolFeesExact`, `ClaimZkFeesExact`).
 - **Writers.** `interopProtocolFee` only by the bootloader; the `initL2` fields only by the

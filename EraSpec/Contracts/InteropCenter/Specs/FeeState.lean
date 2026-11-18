@@ -140,6 +140,11 @@ if it differs, the owner.
   `+=` at :749, and `onlyInteropCenter` (a switch).
 * **Ghosts**: `forcedIn` (the native value forced in), `leaves` (the call count of each appended
   bundle, one entry per IMT leaf), `log` (every successful send, with its payments) and `claims`.
+* **Of `AtomicFlowManager`'s entry points only `append` is modelled**, as a foreign attempt
+  (`Tx.foreignAppend`). The others (`initL2`, `requireFlowFinalized`, `authorizeRefund`,
+  `claimRefund`) are not the center's code and append no leaf, so they write none of the center's
+  storage, its counter slot or the leaves; a call they make into the center is one of the
+  center's own transactions, which the model admits from any caller.
 * **Layout.** The counter is its own field. In storage it is the slot `INTEROP_FEE_UNITS_SLOT`; that
   it is distinct from the lock slot, the EIP-1967 slots and every slot below `2^64` (where the
   sequentially allocated variables live) is `FeeUnitsSlotSeparate`; that no mapping slot

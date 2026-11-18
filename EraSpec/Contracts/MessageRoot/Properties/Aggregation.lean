@@ -50,7 +50,7 @@ Equal timestamps across two blocks (`EqualTimestampEscapesRoot`), or a root read
 with strictly increasing timestamps (`MidBlockReadEscapesRoot`), leave a leaf that settled exactly
 at the root's timestamp outside the root: the non-strict form fails while the strict form holds.
 
-## (g) Positions, not batch numbers
+## (f) Positions, not batch numbers
 
 Indexed by pushed position, every leaf past a root's count settles no earlier than the root, for
 every root and every later state (`PushedAfterLastIsLate`, the shape of
@@ -69,7 +69,7 @@ registered at a nonzero start carries batch numbers that are not its positions
 | `AggregationRegistryWitness` | a registered chain `c ≠ self` with no leaf (`FreshChainLeafIsZeroRoot`), and an unregistered chain whose batch number was moved (`UnregisteredChainHoldsNothing`) |
 | `RecordOnlyBatchNotCitableWitness` | `RecordOnlyBatchNotCitable`, with a nonempty tree that grows in the continuation |
 
-The four existential statements of (e) and (g) are countermodels and need no witness.
+The four existential statements of (e) and (f) are countermodels and need no witness.
 -/
 
 namespace Contracts.MessageRoot.Aggregation
@@ -201,7 +201,7 @@ def Properties.MidBlockReadEscapesRoot : Prop :=
     ∧ Reach P .strict st₁ st₂ ∧ st₂.block = st₁.block ∧ st₁.hist b = some e
     ∧ AggregatesStrictAt st₂ e ∧ ¬ AggregatesAt st₂ e
 
-/-! ## (g) Positions, not batch numbers -/
+/-! ## (f) Positions, not batch numbers -/
 
 /-- **A RECORD-ONLY BATCH BREAKS `OutsideRootLate` BY BATCH NUMBER.** Batches 0 and 1 of a chain
 are pushed and counted by a root; batch 2 is then only recorded (`addChainBatchRoot`). With batch
