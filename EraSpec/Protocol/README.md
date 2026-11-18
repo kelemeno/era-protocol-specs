@@ -40,6 +40,12 @@ and properties remain under `../Contracts/<SolidityName>/`.
   can supply the absence-proof break of the refund and timeout forms when the tree
   has an empty slot (for example `PaddingRefundOfExecutedObligationLocatesAbsenceBreak`;
   see the note at `HashAssumptions`).
+- [ZKsyncOSDA](ZKsyncOSDA/README.md): at `b17415d20`, each DA validator composed with the
+  committer's check of its output on ZKsync OS (namespace `Contracts.ZKsyncOSCommitterDA`): the
+  exact inputs each accepts, and what that puts on L1. An acceptance through the rollup validator
+  puts the pubdata in the commit calldata only under a named premise on the off-chain program
+  (`RollupPubdataPublishedOrCollision`; without it, `RollupProgramPremiseLoadBearing`); the gateway
+  validator needs none.
 
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.

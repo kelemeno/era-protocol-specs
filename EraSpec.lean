@@ -222,6 +222,11 @@ import EraSpec.Contracts.PriorityTree.Proofs.SegmentBinding
 import EraSpec.Contracts.ChainTypeManager.Proofs.L2Derivation
 import EraSpec.Contracts.ChainTypeManager.Proofs.L2Convergence
 
+-- Data availability on ZKsync OS at v35 b17415d20: the ZKsync OS blobs validator, and what each
+-- DA validator still guarantees once the committer discards its output
+import EraSpec.Contracts.BlobsL1DAValidatorZKsyncOS.Proofs.Model
+import EraSpec.Protocol.ZKsyncOSDA.Proofs.CommitterDA
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
