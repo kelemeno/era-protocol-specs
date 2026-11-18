@@ -62,6 +62,7 @@ EraSpec/
     BridgedStandardERC20/      Specs/, Properties/, Proofs/
     ChainTypeManager/         Specs/, Properties/, Proofs/
     DataEncoding/             Specs/, Properties/, Proofs/
+    DynamicIncrementalMerkle/ Specs/, Properties/, Proofs/
     EcosystemUpgradeExecutor/ Specs/, Properties/, Proofs/
     FullMerkle/               Specs/, Properties/, Proofs/
     Governance/               Specs/, Properties/, Proofs/

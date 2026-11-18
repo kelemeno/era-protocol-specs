@@ -105,6 +105,12 @@ import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProof
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProofKeccak
 
+-- DynamicIncrementalMerkle: the storage push tree (MessageRoot chain trees, priority tree), its
+-- memory copy, and the chain trees as the backing of the timeout path's last-batch check
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.Model
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.MemoryLazy
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.ChainTreeBacking
+
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec
 import EraSpec.Protocol.MultichainGate.Proofs.Model
