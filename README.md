@@ -52,6 +52,7 @@ Every modeled Solidity contract/library has three real Lean module folders:
 ```text
 EraSpec/
   Contracts/
+    AdminFacet/               Specs/, Properties/, Proofs/
     AtomicFlowManager/
       Specs/          Model.lean, FlowCanonical.lean, RecoveryLimits.lean
       Properties/     Model.lean, FlowCanonical.lean, RecoveryLimits.lean
@@ -60,6 +61,7 @@ EraSpec/
     AssetRouterBase/          Specs/, Properties/, Proofs/
     AtomicInteropProof/       Specs/, Properties/, Proofs/
     BridgedStandardERC20/      Specs/, Properties/, Proofs/
+    Bridgehub/                Specs/, Properties/, Proofs/
     ChainTypeManager/         Specs/, Properties/, Proofs/
     DataEncoding/             Specs/, Properties/, Proofs/
     DynamicIncrementalMerkle/ Specs/, Properties/, Proofs/
