@@ -6,7 +6,9 @@ import EraSpec.Contracts.L1Nullifier.Properties.Model
 Every run-level result is an induction over `Reach` with a one-step lemma that does a case split
 over all fifteen `Step` constructors. The ledger results rest on two one-step facts: a write needs
 an empty slot (`DepositExists`) and a clear needs the slot to equal the claimed hash
-(`DepositDoesNotExist`). The countermodels and witnesses are concrete runs from fresh storage.
+(`DepositDoesNotExist`). The persistence results split a run at the step that logged a given event
+(`reach_split`; each step logs at most one event) and apply `RecordLeavesOnlyByPreimage` to the
+rest. The countermodels and witnesses are concrete runs from fresh storage.
 -/
 
 namespace Contracts.L1Nullifier
@@ -297,7 +299,7 @@ theorem RecordsComeFromBridgehub : Properties.RecordsComeFromBridgehub := by
   · exact Or.inl hm'
   · exact Or.inr hm'
 
-theorem RefundGoesToDepositor : Properties.RefundGoesToDepositor := by
+theorem ClearCarriesDepositTriple : Properties.ClearCarriesDepositTriple := by
   intro env cfg s0 s h0 hr hcfg pre post cl tgt hL hfresh hnz
   have hdep : ∃ t, Event.write (.deposit t) cl.chainId cl.l2TxHash (env.txDataHash t) ∈ pre ∧
       env.txDataHash t = env.txDataHash cl.triple := by
@@ -433,7 +435,7 @@ theorem RecordLeavesOnlyByPreimage : Properties.RecordLeavesOnlyByPreimage := by
         rw [this]; exact List.mem_append_right _ (List.mem_singleton_self _)
     · exact Or.inr ⟨cl, tgt, List.mem_append_left _ hm, h1, h2, h3⟩
 
-/-! ## Configuration and legacy -/
+/-! ## Configuration and pause -/
 
 theorem DeprecatedSlotsFrozen : Properties.DeprecatedSlotsFrozen := by
   intro chk env cfg s s' hr
@@ -469,6 +471,38 @@ theorem ConfigSetOnce : Properties.ConfigSetOnce := by
     · rcases k3 with k | k
       · exact k.trans (h3 hne)
       · exact absurd ((h3 hne).symm.trans k) hne
+
+private lemma step_initialized {chk : Checks} {env : Env} {cfg : Cfg} {s s' : Sys} {l : Label}
+    (hs : Step chk env cfg s l s') (h : s.n.initialized = true) : s'.n.initialized = true := by
+  cases hs with
+  | «initialize» => rfl
+  | forwarded => exact h
+  | twoBridges => exact h
+  | confirm => exact h
+  | recover => exact h
+  | _ => exact h
+
+private lemma reach_initialized {chk : Checks} {env : Env} {cfg : Cfg} {s s' : Sys}
+    (hr : Reach chk env cfg s s') (h : s.n.initialized = true) : s'.n.initialized = true := by
+  induction hr with
+  | refl => exact h
+  | step _ hs ih => exact step_initialized hs ih
+
+theorem InitializeOnlyOnce : Properties.InitializeOnlyOnce := by
+  intro chk env cfg s s' s'' t a o a' o' h1 hr h2
+  have hi : s'.n.initialized = true := by cases h1; rfl
+  have hi'' : s''.n.initialized = true := reach_initialized hr hi
+  cases h2 with
+  | «initialize» _ hni _ => exact absurd (hi''.symm.trans hni) Bool.noConfusion
+
+theorem RouterPausedStepKeepsRecords : Properties.RouterPausedStepKeepsRecords := by
+  intro env cfg s s' l hs hrp hrt
+  cases hs with
+  | forwarded hsnd ha => exact absurd (ha.trans hrt) hsnd.2.2.1
+  | twoBridges hr => exact absurd (hrp.symm.trans hr) Bool.noConfusion
+  | confirm _ hok => exact absurd (hrp.symm.trans (hok.routerLive hrt)) Bool.noConfusion
+  | recover _ hok => exact absurd (hrp.symm.trans (hok.routerLive hrt)) Bool.noConfusion
+  | _ => rfl
 
 theorem PausedStepKeepsRecords : Properties.PausedStepKeepsRecords := by
   intro env cfg s s' l hs hp
@@ -506,109 +540,469 @@ theorem PausedOwnerlessFreezesForever : Properties.PausedOwnerlessFreezesForever
     | routerConfirm => exact ⟨i1, i2, i3, i4, i5⟩
     | routerSetPaused => exact ⟨i1, i2, i3, i4, i5⟩
 
+/-! ## Records stay until cleared -/
+
+/-- Each step appends at most one event to the log. -/
+private lemma step_log {chk : Checks} {env : Env} {cfg : Cfg} {s s' : Sys} {l : Label}
+    (hs : Step chk env cfg s l s') : s'.log = s.log ∨ ∃ e, s'.log = s.log ++ [e] := by
+  cases hs with
+  | forwarded => exact Or.inr ⟨_, rfl⟩
+  | twoBridges => exact Or.inr ⟨_, rfl⟩
+  | confirm => exact Or.inr ⟨_, rfl⟩
+  | recover => exact Or.inr ⟨_, rfl⟩
+  | routerConfirm => exact Or.inr ⟨_, rfl⟩
+  | _ => exact Or.inl rfl
+
+/-- A run from an empty log passes through the step that appended any one of its events. -/
+private lemma reach_split {chk : Checks} {env : Env} {cfg : Cfg} {s0 s : Sys} (h0 : s0.log = [])
+    (hr : Reach chk env cfg s0 s) :
+    ∀ (pre post : List Event) (e : Event), s.log = pre ++ e :: post →
+      ∃ (t t' : Sys) (l : Label), Reach chk env cfg s0 t ∧ Step chk env cfg t l t' ∧
+        t.log = pre ∧ t'.log = pre ++ [e] ∧ Reach chk env cfg t' s := by
+  induction hr with
+  | refl =>
+    intro pre post e hl
+    rw [h0] at hl
+    exact absurd hl.symm (by simp)
+  | @step t u l hr' hs ih =>
+    intro pre post e hl
+    rcases step_log hs with hu | ⟨x, hu⟩
+    · obtain ⟨a, a', l', r1, st, la, la', r2⟩ := ih pre post e (hu ▸ hl)
+      exact ⟨a, a', l', r1, st, la, la', .step r2 hs⟩
+    · rw [hu] at hl
+      rcases split_last hl.symm with ⟨hp, he⟩ | ⟨post', hL⟩
+      · subst he
+        exact ⟨t, u, l, hr', hs, hp.symm, by rw [hu, hp], .refl _⟩
+      · obtain ⟨a, a', l', r1, st, la, la', r2⟩ := ih pre post' e hL
+        exact ⟨a, a', l', r1, st, la, la', .step r2 hs⟩
+
+/-- A step that appends a write of `v` at `(c, h)` leaves `v` there. -/
+private lemma step_write_slot {chk : Checks} {env : Env} {cfg : Cfg} {s s' : Sys} {l : Label}
+    {o : Origin} {c : ChainId} {h v : Bytes32} (hs : Step chk env cfg s l s')
+    (hl : s'.log = s.log ++ [.write o c h v]) : s'.n.depositHappened c h = v := by
+  cases hs with
+  | forwarded =>
+    simp only [afterWrite, List.append_cancel_left_eq, List.cons.injEq, Event.write.injEq,
+      and_true] at hl
+    obtain ⟨-, rfl, rfl, rfl⟩ := hl
+    simp [afterWrite]
+  | twoBridges =>
+    simp only [afterWrite, List.append_cancel_left_eq, List.cons.injEq, Event.write.injEq,
+      and_true] at hl
+    obtain ⟨-, rfl, rfl, rfl⟩ := hl
+    simp [afterWrite]
+  | confirm => simp [afterClaim] at hl
+  | recover => simp [afterClaim] at hl
+  | routerConfirm => simp at hl
+  | _ => exact absurd hl (by simp)
+
+theorem RecordStaysUntilCleared : Properties.RecordStaysUntilCleared := by
+  intro env cfg s0 s h0 hr pre post o c h v hl hv hpost
+  obtain ⟨t, t', l, -, st, htl, ht', r2⟩ := reach_split h0 hr pre post _ hl
+  have hslot : t'.n.depositHappened c h = v := step_write_slot st (by rw [ht', htl])
+  by_contra hne
+  obtain ⟨Δ, hΔ, cl, tgt, hm, h1, h2, -⟩ :=
+    RecordLeavesOnlyByPreimage env cfg t' s c h r2 (hslot ▸ hv) (hslot ▸ hne)
+  have hΔ' : Δ = post := by
+    rw [hl, ht', List.append_assoc, List.singleton_append] at hΔ
+    simpa using (List.append_cancel_left hΔ).symm
+  subst hΔ'
+  exact (List.countP_eq_zero.mp hpost) _ hm (by simp [isClear, h1, h2])
+
+theorem UnclaimedDepositRecoverable : Properties.UnclaimedDepositRecoverable := by
+  intro env cfg s0 s h0 hr pre post t c h hl hnz hpost hp hrt hrp a cl ha hc hh ht hacc
+  have hslot : s.n.depositHappened c h = env.txDataHash t :=
+    RecordStaysUntilCleared env cfg s0 s h0 hr pre post _ c h _ hl hnz hpost
+  subst hc hh ht
+  refine ⟨Step.recover ha ⟨hp, fun _ => hacc, fun _ => hslot, fun _ => hrp⟩, ?_, ?_⟩
+  · simp [afterClaim, Claim.asFailure]
+  · simp [afterClaim, hrt]
+
+/-! ## Who configures -/
+
+theorem OnlyOwnerPausesOrConfigures : Properties.OnlyOwnerPausesOrConfigures := by
+  intro chk env cfg s s' l hs
+  cases hs with
+  | «initialize» _ hni _ => exact ⟨fun h => by simp at h, fun _ => Or.inl ⟨_, _, rfl, hni⟩⟩
+  | transferOwnership => exact ⟨fun h => by simp at h, fun h => by simp at h⟩
+  | acceptOwnership _ ha => exact ⟨fun h => by simp at h, fun _ => Or.inr (Or.inl (by rw [ha]))⟩
+  | renounceOwnership _ ha => exact ⟨fun h => by simp at h, fun _ => Or.inr (Or.inr (by rw [ha]))⟩
+  | setL1NativeTokenVault hsnd ha =>
+    exact ⟨fun _ => ⟨by simp [Label.ownerCaller, ha], ha ▸ hsnd.1⟩, fun h => by simp at h⟩
+  | setL1AssetRouter hsnd ha =>
+    exact ⟨fun _ => ⟨by simp [Label.ownerCaller, ha], ha ▸ hsnd.1⟩, fun h => by simp at h⟩
+  | setL1InteropHandler hsnd ha =>
+    exact ⟨fun _ => ⟨by simp [Label.ownerCaller, ha], ha ▸ hsnd.1⟩, fun h => by simp at h⟩
+  | pause hsnd ha => exact ⟨fun _ => ⟨by simp [Label.ownerCaller, ha], ha ▸ hsnd.1⟩, fun h => by simp at h⟩
+  | unpause hsnd ha => exact ⟨fun _ => ⟨by simp [Label.ownerCaller, ha], ha ▸ hsnd.1⟩, fun h => by simp at h⟩
+  | forwarded => exact ⟨fun h => by simp [afterWrite] at h, fun h => by simp [afterWrite] at h⟩
+  | twoBridges => exact ⟨fun h => by simp [afterWrite] at h, fun h => by simp [afterWrite] at h⟩
+  | confirm => exact ⟨fun h => by simp [afterClaim] at h, fun h => by simp [afterClaim] at h⟩
+  | recover => exact ⟨fun h => by simp [afterClaim] at h, fun h => by simp [afterClaim] at h⟩
+  | routerConfirm => exact ⟨fun h => by simp at h, fun h => by simp at h⟩
+  | routerSetPaused => exact ⟨fun h => by simp at h, fun h => by simp at h⟩
+
 /-! ## Concrete worlds -/
 
-private def zeroDeprecated : Deprecated :=
+private def ledgerZeroDeprecated : Deprecated :=
   ⟨0, 0, 0, 0, 0, fun _ => 0, fun _ _ _ => false, fun _ => false, fun _ _ => 0, 0, 0⟩
 
 /-- Fresh proxy storage: everything zero, not initialized. -/
-private def freshSys : Sys :=
-  ⟨⟨false, 0, 0, false, fun _ _ => 0, 0, 0, 0, zeroDeprecated⟩, false, []⟩
+private def ledgerFresh : Sys :=
+  ⟨⟨false, 0, 0, false, fun _ _ => 0, 0, 0, 0, ledgerZeroDeprecated⟩, false, []⟩
 
 /-- Nullifier `1`, router `2`, bridgehub `3`. -/
-private def wCfg : Cfg := ⟨1, 2, 3⟩
+private def ledgerCfg : Cfg := ⟨1, 2, 3⟩
 
-/-- A claim of transaction `9` on chain `5` by sender `10` for asset `11`, empty data. -/
-private def wClaim : Claim := ⟨5, 10, 0, .failure, 11, [], 9, 0, 0, []⟩
+/-- Deposit A: sender `10`, asset `11`, data `[1]`. Deposit B: sender `12`, asset `11`, data `[2]`. -/
+private def ledgerTripleA : Triple := ⟨10, 11, [1]⟩
+private def ledgerTripleB : Triple := ⟨12, 11, [2]⟩
 
-private lemma ext10 : ExternalSender wCfg 10 := by
+/-- A hash that is never zero and separates A and B. -/
+private def ledgerHash (t : Triple) : Bytes32 :=
+  if t = ledgerTripleA then 7 else if t = ledgerTripleB then 8 else 9
+
+/-- The real statuses: transaction `9` on chain `5` failed, transaction `13` on chain `5`
+succeeded. -/
+private def ledgerTruth (c : ChainId) (h : Bytes32) : Option TxStatus :=
+  if c = 5 ∧ h = 9 then some .failure else if c = 5 ∧ h = 13 then some .success else none
+
+/-- The prover accepts exactly the queries naming the real status. -/
+private def ledgerEnv : Env := ⟨ledgerHash, fun q => ledgerTruth q.chainId q.l2TxHash = some q.status⟩
+
+private lemma ledgerEnv_sound : ∀ q, ledgerEnv.accepts q → ledgerTruth q.chainId q.l2TxHash = some q.status :=
+  fun _ h => h
+
+/-- A's recovery (transaction `9`, failed) and B's confirmation (transaction `13`, succeeded). -/
+private def ledgerClaimA : Claim := ⟨5, 10, 3, .failure, 11, [1], 9, 1, 4, [6]⟩
+private def ledgerClaimB : Claim := ⟨5, 12, 5, .success, 11, [2], 13, 1, 8, [6]⟩
+/-- A second, different claim of A's key and triple (another batch number). -/
+private def ledgerClaimA' : Claim := ⟨5, 10, 3, .failure, 11, [1], 9, 2, 4, [6]⟩
+
+private lemma ledger_ext10 : ExternalSender ledgerCfg 10 := by
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> decide
+private lemma ledger_ext12 : ExternalSender ledgerCfg 12 := by
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> decide
+private lemma ledger_ext20 : ExternalSender ledgerCfg 20 := by
   refine ⟨?_, ?_, ?_, ?_⟩ <;> decide
 
-private lemma ne10 : (10 : UInt256) ≠ 0 := by decide
-private lemma ne2 : (2 : UInt256) ≠ 0 := by decide
-private lemma ne7 : (7 : UInt256) ≠ 0 := by decide
+/-- After `initialize(10)` by `10` and `setL1AssetRouter(2)` by `10`. -/
+private def ledgerConfigured : Sys :=
+  ⟨⟨true, 10, 0, false, fun _ _ => 0, 2, 0, 0, ledgerZeroDeprecated⟩, false, []⟩
 
-/-- A prover accepting exactly the failure claims, sound for "every transaction failed". -/
-private def failEnv : Env := ⟨fun _ => 7, fun q => q.status = .failure⟩
+private lemma ledger_reach_configured (chk : Checks) (env : Env) :
+    Reach chk env ledgerCfg ledgerFresh ledgerConfigured :=
+  .step (.step (.refl _) (Step.initialize ledger_ext10 rfl (by decide)))
+    (Step.setL1AssetRouter ledger_ext10 rfl rfl (by decide))
 
-/-- Storage after `initialize(10)` and `setL1AssetRouter(2)`. -/
-private def s2 : Sys := ⟨⟨true, 10, 0, false, fun _ _ => 0, 2, 0, 0, zeroDeprecated⟩, false, []⟩
+/-- The bridgehub deposit of `t`'s asset and data by `t`'s sender at `(5, h)`. -/
+private def ledgerDeposit (env : Env) (s : Sys) (t : Triple) (h : Bytes32) : Sys :=
+  afterWrite s (.deposit t) 5 h (env.txDataHash t)
 
-/-- Fresh storage, initialized by `10`, router configured, deposit of `wClaim.triple` at `(5, 9)`. -/
-private lemma run_deposit (chk : Checks) (env : Env) :
-    Reach chk env wCfg freshSys
-      (afterWrite s2 (.deposit wClaim.triple) 5 9 (env.txDataHash wClaim.triple)) := by
-  have r : Reach chk env wCfg freshSys s2 :=
-    .step (.step (.refl _) (Step.initialize ext10 rfl ne10)) (Step.setL1AssetRouter ext10 rfl rfl ne2)
-  exact .step r (Step.twoBridges (caller := 10) (req := .deposit 11 []) rfl rfl rfl (fun _ => rfl))
+private lemma ledger_step_deposit (chk : Checks) (env : Env) (s : Sys) (t : Triple) (h : Bytes32)
+    (hr : s.routerPaused = false) (hrt : s.n.l1AssetRouter = 2) (hp : s.n.paused = false)
+    (hx : chk.depositExists = true → s.n.depositHappened 5 h = 0) :
+    Step chk env ledgerCfg s (.twoBridges t.sender 5 (.deposit t.assetId t.data) h)
+      (ledgerDeposit env s t h) :=
+  Step.twoBridges hr hrt.symm hp hx
 
-theorem LifecycleWitness : Properties.LifecycleWitness := by
-  have r := run_deposit Checks.source failEnv
-  have r2 := Reach.step r (Step.recover (cl := wClaim) ext10
-    ⟨rfl, fun _ => rfl, fun _ => by simp [afterWrite, Claim.asFailure, Claim.triple, wClaim, s2], fun _ => rfl⟩)
-  refine ⟨failEnv, wCfg, freshSys, _, fun _ _ => some .failure, ?_, rfl, rfl, fun _ _ => rfl, r2,
-    Or.inr rfl, wClaim.asFailure, 2, ?_, rfl, rfl, ne7, ?_⟩
-  · intro q hq; simp only [failEnv] at hq; rw [hq]
-  · simp [afterClaim, afterWrite, s2, wClaim, Claim.triple, Claim.asFailure]
-  · simp [afterClaim, afterWrite, Claim.asFailure, Claim.triple, failEnv, s2, wClaim]
+private lemma ledgerHash_A : ledgerHash ledgerTripleA = 7 := by simp [ledgerHash]
+private lemma ledgerHash_B : ledgerHash ledgerTripleB = 8 := by
+  simp [ledgerHash, ledgerTripleA, ledgerTripleB]
+
+/-- The run of `LedgerRunWitness`, up to the two deposits. -/
+private def ledgerTwoDeposits : Sys :=
+  ledgerDeposit ledgerEnv (ledgerDeposit ledgerEnv ledgerConfigured ledgerTripleA 9) ledgerTripleB 13
+
+private lemma ledger_reach_two_deposits :
+    Reach Checks.source ledgerEnv ledgerCfg ledgerFresh ledgerTwoDeposits :=
+  .step (.step (ledger_reach_configured _ _)
+    (ledger_step_deposit _ _ _ ledgerTripleA 9 rfl rfl rfl (fun _ => rfl)))
+    (ledger_step_deposit _ _ _ ledgerTripleB 13 rfl rfl rfl
+      (fun _ => by simp [ledgerDeposit, afterWrite, setSlot, ledgerConfigured]))
+
+private lemma ledger_claimA_ok (s : Sys) (hp : s.n.paused = false) (hr : s.routerPaused = false)
+    (hd : s.n.depositHappened 5 9 = 7) :
+    ClaimOk Checks.source ledgerEnv ledgerCfg s ledgerClaimA.asFailure :=
+  ⟨hp, fun _ => by simp [ledgerEnv, ledgerTruth, ledgerClaimA, Claim.asFailure, Claim.query],
+    fun _ => by
+      simp only [ledgerClaimA, Claim.asFailure, Claim.triple, ledgerEnv]
+      rw [hd]; exact ledgerHash_A.symm,
+    fun _ => hr⟩
+
+private lemma ledger_claimB_ok (s : Sys) (hp : s.n.paused = false) (hr : s.routerPaused = false)
+    (hd : s.n.depositHappened 5 13 = 8) :
+    ClaimOk Checks.source ledgerEnv ledgerCfg s ledgerClaimB :=
+  ⟨hp, fun _ => by simp [ledgerEnv, ledgerTruth, ledgerClaimB, Claim.query],
+    fun _ => by
+      simp only [ledgerClaimB, Claim.triple, ledgerEnv]
+      rw [hd]; exact ledgerHash_B.symm,
+    fun _ => hr⟩
+
+/-- The full run of `LedgerRunWitness`. -/
+private def ledgerRunEnd : Sys :=
+  afterClaim (afterClaim ledgerTwoDeposits ledgerClaimA.asFailure) ledgerClaimB
+
+private lemma ledger_reach_run_end :
+    Reach Checks.source ledgerEnv ledgerCfg ledgerFresh ledgerRunEnd :=
+  .step (.step ledger_reach_two_deposits
+    (Step.recover ledger_ext10 (ledger_claimA_ok _ rfl rfl (by
+      simp [ledgerTwoDeposits, ledgerDeposit, afterWrite, setSlot, ledgerEnv, ledgerHash_A]))))
+    (Step.confirm ledger_ext12 (ledger_claimB_ok _ rfl rfl (by
+      simp [ledgerTwoDeposits, ledgerDeposit, afterClaim, afterWrite, setSlot, ledgerEnv,
+        ledgerHash_B, ledgerClaimA, Claim.asFailure])))
+
+theorem LedgerRunWitness : Properties.LedgerRunWitness := by
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, ledgerRunEnd, ledgerTruth, ledgerClaimA, ledgerClaimB,
+    fun _ => Iff.rfl, rfl, rfl, fun _ _ => rfl, ledger_reach_run_end, rfl, ?_, rfl, ?_, rfl, ?_,
+    by decide, by decide, ?_, ?_, ?_⟩
+  · rfl
+  · simp [ledgerTruth, ledgerClaimA]
+  · simp [ledgerTruth, ledgerClaimB]
+  · simp [ledgerEnv, ledgerClaimA, Claim.triple, ledgerHash, ledgerTripleA]
+  · simp [ledgerEnv, ledgerClaimB, Claim.triple, ledgerHash, ledgerTripleA, ledgerTripleB]
+  · simp [ledgerEnv, ledgerClaimA, ledgerClaimB, Claim.triple, ledgerHash, ledgerTripleA,
+      ledgerTripleB]
+
+/-- After deposit A at `(5, 9)`. -/
+private def ledgerOneDeposit (env : Env) : Sys := ledgerDeposit env ledgerConfigured ledgerTripleA 9
+
+private lemma ledger_reach_one_deposit (chk : Checks) (env : Env) :
+    Reach chk env ledgerCfg ledgerFresh (ledgerOneDeposit env) :=
+  .step (ledger_reach_configured _ _)
+    (ledger_step_deposit _ _ _ ledgerTripleA 9 rfl rfl rfl (fun _ => rfl))
 
 theorem PausedOwnerlessReachable : Properties.PausedOwnerlessReachable := by
-  have r := run_deposit Checks.source failEnv
-  have r2 := Reach.step (Reach.step r (Step.pause ext10 rfl rfl)) (Step.renounceOwnership ext10 rfl)
-  refine ⟨failEnv, wCfg, freshSys, _, rfl, rfl, r2, rfl, rfl, rfl, rfl, 5, 9, ?_⟩
-  simp [afterWrite, failEnv, ne7, s2, wClaim, Claim.triple]
+  have r := Reach.step (Reach.step (ledger_reach_one_deposit Checks.source ledgerEnv)
+    (Step.pause ledger_ext10 rfl rfl)) (Step.renounceOwnership ledger_ext10 rfl)
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, rfl, rfl, fun _ _ => rfl, r, rfl, rfl, rfl, rfl,
+    5, 9, ?_⟩
+  simp [ledgerOneDeposit, ledgerDeposit, afterWrite, setSlot, ledgerEnv, ledgerHash_A]
 
 theorem HashCheckLoadBearing : Properties.HashCheckLoadBearing := by
-  have r := run_deposit { Checks.source with dataHash := false } failEnv
   have ok : ∀ s : Sys, s.n.paused = false → s.routerPaused = false →
-      ClaimOk { Checks.source with dataHash := false } failEnv wCfg s wClaim.asFailure :=
-    fun s hp hr => ⟨hp, fun _ => rfl, fun h => absurd h (by decide), fun _ => hr⟩
-  have r2 := Reach.step r (Step.recover (cl := wClaim) ext10 (ok _ rfl rfl))
-  have r3 := Reach.step r2 (Step.recover (cl := wClaim) ext10 (ok _ rfl rfl))
-  refine ⟨failEnv, wCfg, freshSys, _, 5, 9, rfl, r3, ?_, ?_, ?_⟩
-  · simp [afterClaim, afterWrite, isNzWrite, occupied, freshSys, failEnv, ne7, s2, wClaim,
-      Claim.triple, Claim.asFailure]
-  · simp [afterClaim, afterWrite, isZeroClear, failEnv, ne7, s2, wClaim, Claim.triple,
-      Claim.asFailure]
-  · simp [afterClaim, afterWrite, isClear, Claim.asFailure, wClaim, s2, Claim.triple]
-
-/-- A prover accepting exactly the success claims, sound for "every transaction succeeded". -/
-private def succEnv : Env := ⟨fun _ => 7, fun q => q.status = .success⟩
+      ClaimOk { Checks.source with dataHash := false } ledgerEnv ledgerCfg s ledgerClaimA.asFailure :=
+    fun s hp hr => ⟨hp, fun _ => by
+      simp [ledgerEnv, ledgerTruth, ledgerClaimA, Claim.asFailure, Claim.query],
+      fun h => absurd h (by decide), fun _ => hr⟩
+  have r := Reach.step (Reach.step (ledger_reach_one_deposit _ ledgerEnv)
+    (Step.recover (cl := ledgerClaimA) ledger_ext10 (ok _ rfl rfl)))
+    (Step.recover (cl := ledgerClaimA) ledger_ext10 (ok _ rfl rfl))
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, 5, 9, rfl, r, ?_, ?_, ?_⟩
+  · simp [afterClaim, ledgerOneDeposit, ledgerDeposit, afterWrite, isNzWrite, occupied, ledgerFresh,
+      ledgerConfigured, ledgerEnv, ledgerHash_A]
+  · simp [afterClaim, ledgerOneDeposit, ledgerDeposit, afterWrite, isZeroClear, ledgerConfigured,
+      ledgerEnv, ledgerClaimA, Claim.asFailure, Claim.triple, ledgerHash, ledgerTripleA]
+  · simp [afterClaim, ledgerOneDeposit, ledgerDeposit, afterWrite, isClear, ledgerConfigured,
+      ledgerClaimA, Claim.asFailure]
 
 theorem ProofCheckLoadBearing : Properties.ProofCheckLoadBearing := by
-  have r := run_deposit { Checks.source with proof := false } succEnv
-  have r2 := Reach.step r (Step.recover (cl := wClaim) ext10
-    ⟨rfl, fun h => absurd h (by decide),
-      fun _ => by simp [afterWrite, Claim.asFailure, Claim.triple, wClaim, s2], fun _ => rfl⟩)
-  refine ⟨succEnv, wCfg, freshSys, _, fun _ _ => some .success, ?_, rfl, r2, wClaim.asFailure, 2,
-    ?_, rfl, rfl⟩
-  · intro q hq; simp only [succEnv] at hq; rw [hq]
-  · simp [afterClaim, afterWrite, s2, wClaim, Claim.triple, Claim.asFailure]
-
-/-- Hash = the sender, so two deposits by different senders record different values. -/
-private def senderEnv : Env := ⟨fun t => t.sender, fun _ => True⟩
+  have r := Reach.step (Reach.step (ledger_reach_configured _ ledgerEnv)
+    (ledger_step_deposit { Checks.source with proof := false } ledgerEnv _ ledgerTripleB 13
+      rfl rfl rfl (fun _ => rfl)))
+    (Step.recover (cl := ledgerClaimB) ledger_ext12
+      ⟨rfl, fun h => absurd h (by decide), fun _ => by
+        simp [ledgerDeposit, afterWrite, setSlot, ledgerConfigured, ledgerEnv, ledgerClaimB,
+          Claim.asFailure, Claim.triple, ledgerTripleB], fun _ => rfl⟩)
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, ledgerTruth, ledgerEnv_sound, rfl, r,
+    ledgerClaimB.asFailure, 2, ?_, ?_, rfl⟩
+  · simp [afterClaim, ledgerDeposit, afterWrite, ledgerConfigured]
+  · simp [ledgerTruth, ledgerClaimB, Claim.asFailure]
 
 theorem DepositExistsLoadBearing : Properties.DepositExistsLoadBearing := by
-  have r := run_deposit { Checks.source with depositExists := false } senderEnv
-  have r2 := Reach.step r (Step.twoBridges (caller := 12) (c := 5) (h := 9) (req := .deposit 11 [])
-    (chk := { Checks.source with depositExists := false }) rfl rfl rfl (fun h => absurd h (by decide)))
-  refine ⟨senderEnv, wCfg, freshSys, _, 5, 9, rfl, r2, ?_⟩
-  simp [afterWrite, isClear, isNzWrite, isZeroClear, occupied, senderEnv, SecondBridge.origin,
-    SecondBridge.hash, Claim.triple, wClaim, freshSys, s2]
+  have r := Reach.step (ledger_reach_one_deposit { Checks.source with depositExists := false } ledgerEnv)
+    (Step.twoBridges (caller := 12) (c := 5) (h := 9) (req := .deposit 11 [2])
+      (chk := { Checks.source with depositExists := false }) rfl rfl rfl
+      (fun h => absurd h (by decide)))
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, 5, 9, rfl, r, ?_⟩
+  simp [ledgerOneDeposit, ledgerDeposit, afterWrite, isClear, isNzWrite, isZeroClear, occupied,
+    ledgerEnv, SecondBridge.origin, SecondBridge.hash, ledgerFresh, ledgerConfigured, setSlot,
+    ledgerHash, ledgerTripleA, ledgerTripleB]
 
 theorem OnlyNullifierLoadBearing : Properties.OnlyNullifierLoadBearing := by
-  have r := Reach.step (Reach.refl freshSys)
-    (Step.routerConfirm (chk := { Checks.source with onlyNullifier := false }) (env := failEnv)
-      (c := 5) (st := .failure) (t := wClaim.triple) ext10 (fun h => absurd h (by decide)) rfl)
-  refine ⟨failEnv, wCfg, freshSys, _, rfl, r, ?_, fun c h => ?_⟩
-  · simp [freshSys, isHandler, wClaim, Claim.triple]
-  · simp [freshSys, isClear, wClaim, Claim.triple]
+  have r := Reach.step (Reach.refl ledgerFresh)
+    (Step.routerConfirm (chk := { Checks.source with onlyNullifier := false }) (env := ledgerEnv)
+      (c := 5) (st := .failure) (t := ledgerTripleA) ledger_ext10 (fun h => absurd h (by decide)) rfl)
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, rfl, r, ?_, fun c h => ?_⟩
+  · simp [ledgerFresh, isHandler]
+  · simp [ledgerFresh, isClear]
+
+/-- Deposit A, its recovery, deposit A again at the same key, and a recovery with claim `cl'`. -/
+private def ledgerRepeated (cl' : Claim) : Sys :=
+  afterClaim (ledgerDeposit ledgerEnv (afterClaim (ledgerOneDeposit ledgerEnv) ledgerClaimA.asFailure)
+    ledgerTripleA 9) cl'.asFailure
+
+private lemma ledger_reach_repeated (cl' : Claim) (h5 : cl'.chainId = 5) (h9 : cl'.l2TxHash = 9)
+    (ht : cl'.triple = ledgerTripleA) :
+    Reach Checks.source ledgerEnv ledgerCfg ledgerFresh (ledgerRepeated cl') := by
+  have r1 := Reach.step (ledger_reach_one_deposit Checks.source ledgerEnv)
+    (Step.recover (cl := ledgerClaimA) ledger_ext10 (ledger_claimA_ok _ rfl rfl (by
+      simp [ledgerOneDeposit, ledgerDeposit, afterWrite, setSlot, ledgerEnv, ledgerHash_A])))
+  have r2 := Reach.step r1 (ledger_step_deposit _ ledgerEnv _ ledgerTripleA 9 rfl rfl rfl
+    (fun _ => by simp [afterClaim, ledgerClaimA, Claim.asFailure]))
+  refine Reach.step r2 (Step.recover (cl := cl') ledger_ext10 ⟨rfl, fun _ => ?_, fun _ => ?_, fun _ => rfl⟩)
+  · show ledgerTruth cl'.chainId cl'.l2TxHash = some .failure
+    rw [h5, h9]; simp [ledgerTruth]
+  · show (ledgerDeposit ledgerEnv _ ledgerTripleA 9).n.depositHappened cl'.chainId cl'.l2TxHash =
+      ledgerHash cl'.triple
+    rw [h5, h9, ht]
+    simp [ledgerDeposit, afterWrite, ledgerEnv]
+
+theorem TxHashFreshnessLoadBearing : Properties.TxHashFreshnessLoadBearing := by
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, ledgerClaimA, rfl, fun _ _ => rfl,
+    ledger_reach_repeated ledgerClaimA rfl rfl rfl, rfl, ?_, ?_, ?_, ?_⟩
+  · simp [ledgerEnv, ledgerClaimA, Claim.triple, ledgerHash, ledgerTripleA]
+  · simp [ledgerRepeated, afterClaim, ledgerOneDeposit, ledgerDeposit, afterWrite, isNzWrite,
+      ledgerConfigured, ledgerEnv, ledgerHash_A, ledgerClaimA]
+  · simp [ledgerRepeated, afterClaim, ledgerOneDeposit, ledgerDeposit, afterWrite, isZeroClear,
+      ledgerConfigured, ledgerEnv, ledgerClaimA, Claim.asFailure, Claim.triple, ledgerHash,
+      ledgerTripleA]
+  · simp [ledgerRepeated, afterClaim, ledgerOneDeposit, ledgerDeposit, afterWrite, isClear,
+      ledgerConfigured, ledgerClaimA, Claim.asFailure]
+
+theorem SameKeyClearedTwiceWitness : Properties.SameKeyClearedTwiceWitness := by
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, ledgerTruth, ledgerClaimA, ledgerClaimA',
+    fun _ => Iff.rfl, rfl, fun _ _ => rfl, ledger_reach_repeated ledgerClaimA' rfl rfl rfl, ?_,
+    by decide, rfl, rfl, rfl, rfl, ?_⟩
+  · rfl
+  · simp [ledgerEnv, ledgerClaimA, Claim.triple, ledgerHash, ledgerTripleA]
+
+/-- A prover that accepts every query. -/
+private def ledgerAnyEnv : Env := ⟨ledgerHash, fun _ => True⟩
+
+theorem SoundProverLoadBearing : Properties.SoundProverLoadBearing := by
+  have r := Reach.step (Reach.step (ledger_reach_configured _ ledgerAnyEnv)
+    (ledger_step_deposit Checks.source ledgerAnyEnv _ ledgerTripleB 13 rfl rfl rfl (fun _ => rfl)))
+    (Step.recover (cl := ledgerClaimB) ledger_ext12
+      ⟨rfl, fun _ => trivial, fun _ => by
+        simp [ledgerDeposit, afterWrite, setSlot, ledgerConfigured, ledgerAnyEnv, ledgerClaimB,
+          Claim.asFailure, Claim.triple, ledgerTripleB], fun _ => rfl⟩)
+  refine ⟨ledgerAnyEnv, ledgerCfg, ledgerFresh, _, ledgerTruth, rfl, r, ledgerClaimB.asFailure, 2,
+    ?_, ?_, rfl, trivial⟩
+  · simp [afterClaim, ledgerDeposit, afterWrite, ledgerConfigured]
+  · simp [ledgerTruth, ledgerClaimB, Claim.asFailure]
+
+theorem RouterConfiguredLoadBearing : Properties.RouterConfiguredLoadBearing := by
+  -- `initialize(10)`, then `setL1AssetRouter(20)`: an outside address, not the router `2`.
+  let sOut : Sys := ⟨⟨true, 10, 0, false, fun _ _ => 0, 20, 0, 0, ledgerZeroDeprecated⟩, false, []⟩
+  have r0 : Reach Checks.source ledgerEnv ledgerCfg ledgerFresh sOut :=
+    .step (.step (.refl _) (Step.initialize ledger_ext10 rfl (by decide)))
+      (Step.setL1AssetRouter ledger_ext10 rfl rfl (by decide))
+  have r1 := Reach.step r0 (Step.forwarded (c := 5) (v := 7) (h := 9) ledger_ext20 rfl rfl
+    (fun _ => rfl))
+  have r2 := Reach.step r1 (Step.recover (cl := ledgerClaimA) ledger_ext10
+    ⟨rfl, fun _ => by simp [ledgerEnv, ledgerTruth, ledgerClaimA, Claim.asFailure, Claim.query],
+      fun _ => by
+        simp [afterWrite, ledgerEnv, ledgerClaimA, Claim.asFailure, Claim.triple, sOut,
+          ledgerTripleA, ledgerHash],
+      fun h => absurd h (by decide)⟩)
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, rfl, fun _ _ => rfl, r2, ?_, ?_,
+    ⟨5, 9, 7, ?_, by decide⟩, ledgerClaimA.asFailure, 20, ?_, ?_⟩
+  · simp only [RouterConfigured, afterClaim, afterWrite, sOut, ledgerCfg]
+    decide
+  · intro t c h v hm
+    simp [afterClaim, afterWrite, sOut] at hm
+  · simp [afterClaim, afterWrite, sOut]
+  · simp [afterClaim, afterWrite, sOut]
+  · simp [ledgerEnv, ledgerClaimA, Claim.asFailure, Claim.triple, ledgerHash, ledgerTripleA]
+
+/-- A hash sending A to `0`. -/
+private def ledgerZeroEnv : Env :=
+  ⟨fun t => if t = ledgerTripleA then 0 else 7, fun q => ledgerTruth q.chainId q.l2TxHash = some q.status⟩
+
+theorem ZeroHashClaimClearsEmptySlot : Properties.ZeroHashClaimClearsEmptySlot := by
+  have ok : ∀ s : Sys, s.n.paused = false → s.routerPaused = false → s.n.depositHappened 5 9 = 0 →
+      ClaimOk Checks.source ledgerZeroEnv ledgerCfg s ledgerClaimA.asFailure :=
+    fun s hp hr hd => ⟨hp, fun _ => by
+      simp [ledgerZeroEnv, ledgerTruth, ledgerClaimA, Claim.asFailure, Claim.query],
+      fun _ => by
+        simp only [ledgerClaimA, Claim.asFailure, Claim.triple, ledgerZeroEnv]
+        rw [hd]; simp [ledgerTripleA],
+      fun _ => hr⟩
+  have r := Reach.step (Reach.step (ledger_reach_configured Checks.source ledgerZeroEnv)
+    (Step.recover (cl := ledgerClaimA) ledger_ext10 (ok _ rfl rfl rfl)))
+    (Step.recover (cl := ledgerClaimA) ledger_ext10 (ok _ rfl rfl (by
+      simp [afterClaim, setSlot, ledgerConfigured])))
+  refine ⟨ledgerZeroEnv, ledgerCfg, ledgerFresh, _, 5, 9, rfl, fun _ _ => rfl, r, ?_, ?_, ?_, ?_, ?_⟩
+  · exact Or.inr (by simp [afterClaim, ledgerConfigured, ledgerCfg])
+  · intro o c h v hm
+    simp [afterClaim, ledgerConfigured] at hm
+  · simp [afterClaim, ledgerConfigured, isNzWrite, occupied, ledgerFresh]
+  · simp [afterClaim, ledgerConfigured, isClear, ledgerClaimA, Claim.asFailure]
+  · simp [afterClaim, ledgerConfigured, isZeroClear, ledgerZeroEnv, ledgerClaimA, Claim.asFailure,
+      Claim.triple, ledgerTripleA]
 
 theorem RepeatedKeyAccepted : Properties.RepeatedKeyAccepted := by
-  let s : Sys := { freshSys with n := { freshSys.n with l1AssetRouter := 2 } }
-  refine ⟨failEnv, wCfg, s, _, _, 10, 10, 5, 9, .counterpart, .counterpart,
-    Step.twoBridges rfl rfl rfl (fun _ => rfl), Step.twoBridges rfl rfl rfl ?_⟩
-  intro _
-  simp [afterWrite, SecondBridge.hash, s]
+  refine ⟨ledgerEnv, ledgerCfg, ledgerConfigured, _, _, 10, 12, 5, 9, 11, [2],
+    Step.twoBridges rfl rfl rfl (fun _ => rfl), Step.twoBridges rfl rfl rfl ?_, ?_, ?_, ?_⟩
+  · intro _
+    simp [afterWrite, SecondBridge.hash, setSlot, ledgerConfigured]
+  · simp [afterWrite, SecondBridge.hash, setSlot, ledgerConfigured]
+  · simp [afterWrite, SecondBridge.hash, SecondBridge.origin]
+  · simp [ledgerEnv, ledgerHash, ledgerTripleA, ledgerTripleB]
+
+theorem RecordLeavesOnlyByPreimageWitness : Properties.RecordLeavesOnlyByPreimageWitness := by
+  refine ⟨ledgerEnv, ledgerCfg, ledgerOneDeposit ledgerEnv, _, ledgerClaimA,
+    .step (.refl _) (Step.confirm (cl := ledgerClaimA) ledger_ext10
+      ⟨rfl, fun _ => by simp [ledgerEnv, ledgerTruth, ledgerClaimA, Claim.query], fun _ => ?_,
+        fun _ => rfl⟩), ?_, ?_, ?_, rfl⟩
+  · simp [ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerClaimA, Claim.triple, ledgerTripleA]
+  · simp [ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerClaimA, Claim.triple, ledgerTripleA]
+  · simp [ledgerEnv, ledgerClaimA, Claim.triple, ledgerHash, ledgerTripleA]
+  · simp [afterClaim, ledgerClaimA]
+
+theorem UnclaimedDepositRecoverableWitness : Properties.UnclaimedDepositRecoverableWitness := by
+  -- Deposit A, deposit B, B's confirmation; A stays unclaimed and `12` recovers it for `10`.
+  have r := Reach.step ledger_reach_two_deposits (Step.confirm ledger_ext12 (ledger_claimB_ok _ rfl rfl
+    (by simp [ledgerTwoDeposits, ledgerDeposit, afterWrite, setSlot, ledgerEnv, ledgerHash_B])))
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, _, [], _, ledgerTripleA, 5, 9, 12, ledgerClaimA,
+    rfl, fun _ _ => rfl, r, rfl, ?_, ?_, rfl, rfl, rfl, rfl, ledger_ext12, by decide, rfl, rfl, rfl, ?_⟩
+  · simp [ledgerEnv, ledgerHash_A]
+  · simp [isClear, ledgerClaimB]
+  · simp [ledgerEnv, ledgerTruth, ledgerClaimA, Claim.asFailure, Claim.query]
+
+theorem LedgerStepWitness : Properties.LedgerStepWitness := by
+  let s₂ := ledgerOneDeposit ledgerEnv
+  let s₃ : Sys := { s₂ with n := { s₂.n with paused := true } }
+  let s₄ : Sys := { s₃ with n := { s₃.n with paused := false } }
+  have hd : s₄.n.depositHappened 5 9 = 7 := by
+    simp [s₄, s₃, s₂, ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerEnv, ledgerHash_A]
+  refine ⟨ledgerEnv, ledgerCfg, ledgerConfigured, s₂, s₃, s₄, afterClaim s₄ ledgerClaimA.asFailure, _,
+    10, 10, 5, 11, [1], 9, ledgerClaimA,
+    ledger_step_deposit _ _ _ ledgerTripleA 9 rfl rfl rfl (fun _ => rfl), ?_,
+    Step.pause ledger_ext10 rfl rfl,
+    by simp [s₃, s₂, ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerConfigured], Step.unpause ledger_ext10 rfl rfl, rfl, ?_,
+    by simp [s₄, s₃], Step.recover ledger_ext10 (ledger_claimA_ok s₄ rfl rfl hd), rfl, rfl,
+    Step.renounceOwnership ledger_ext10 rfl, ?_⟩
+  · simp [s₂, ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerEnv, ledgerHash_A]
+  · simp [s₃, s₂, ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerEnv, ledgerHash_A]
+  · simp [afterClaim, s₄, s₃, s₂, ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerConfigured]
+
+theorem InitializeOnlyOnceWitness : Properties.InitializeOnlyOnceWitness := by
+  let s₁ : Sys := ⟨⟨true, 10, 0, false, fun _ _ => 0, 0, 0, 0, ledgerZeroDeprecated⟩, false, []⟩
+  have r : Reach Checks.source ledgerEnv ledgerCfg s₁ _ :=
+    .step (.step (.step (.refl _) (Step.setL1AssetRouter ledger_ext10 rfl rfl (by decide)))
+      (ledger_step_deposit _ ledgerEnv _ ledgerTripleA 9 rfl rfl rfl (fun _ => rfl)))
+      (Step.recover (cl := ledgerClaimA) ledger_ext10 (ledger_claimA_ok _ rfl rfl (by
+        simp [ledgerDeposit, afterWrite, ledgerEnv, ledgerHash_A])))
+  refine ⟨ledgerEnv, ledgerCfg, ledgerFresh, s₁, _, 10, 10, rfl,
+    Step.initialize ledger_ext10 rfl (by decide), r, ?_⟩
+  simp [afterClaim, ledgerDeposit, afterWrite, s₁]
+
+theorem RouterPausedStepWitness : Properties.RouterPausedStepWitness := by
+  let s : Sys := { ledgerOneDeposit ledgerEnv with routerPaused := true }
+  refine ⟨ledgerEnv, ledgerCfg, s, _, _, Step.pause ledger_ext10 rfl rfl, rfl, rfl, ⟨5, 9, ?_⟩, ?_⟩
+  · simp [s, ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerEnv, ledgerHash_A]
+  · simp [s, ledgerOneDeposit, ledgerDeposit, afterWrite, ledgerConfigured]
+
+theorem ConfigSetOnceWitness : Properties.ConfigSetOnceWitness := by
+  -- All three addresses set: router `2`, vault `4`, interop handler `6`.
+  let sAll : Sys := ⟨⟨true, 10, 0, false, fun _ _ => 0, 2, 4, 6, ledgerZeroDeprecated⟩, false, []⟩
+  have r := Reach.step (Reach.step (Reach.refl sAll)
+    (ledger_step_deposit Checks.source ledgerEnv sAll ledgerTripleA 9 rfl rfl rfl (fun _ => rfl)))
+    (Step.recover (cl := ledgerClaimA) ledger_ext10 (ledger_claimA_ok _ rfl rfl (by
+      simp [ledgerDeposit, afterWrite, ledgerEnv, ledgerHash_A, sAll])))
+  refine ⟨ledgerEnv, ledgerCfg, sAll, _, r, by decide, by decide, by decide, ?_⟩
+  simp [afterClaim, ledgerDeposit, afterWrite, sAll]
 
 end Contracts.L1Nullifier

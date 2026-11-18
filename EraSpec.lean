@@ -205,8 +205,9 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
--- Coverage round 6: L1Nullifier deposit ledger (draft/v0.35.0, d9f6789)
+-- L1Nullifier: the deposit ledger and calls nested in a claim (draft/v0.35.0, b17415d20)
 import EraSpec.Contracts.L1Nullifier.Proofs.Model
+import EraSpec.Contracts.L1Nullifier.Proofs.Reentrancy
 
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop

@@ -3,21 +3,32 @@ import EraSpec.Core.Word
 /-!
 # Model: `L1Nullifier` and the L1 asset router's deposit-record paths
 
-Source: era-contracts `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`. Paths are
-relative to `l1-contracts/contracts/`; `N` is `bridge/L1Nullifier.sol`, `R` is
+Source: era-contracts branch `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`. Paths
+are relative to `l1-contracts/contracts/`; `N` is `bridge/L1Nullifier.sol`, `R` is
 `bridge/asset-router/L1AssetRouter.sol`, `RB` is `bridge/asset-router/AssetRouterBase.sol`,
-`BH` is `core/bridgehub/L1Bridgehub.sol`.
+`BH` is `core/bridgehub/L1Bridgehub.sol`. The model was first written against
+`d9f678900e1bc8286412b78f56d4a9f443983c29` on the same branch. Every file cited here is
+byte-identical at the two commits, so every line number holds at both: these four,
+`bridge/interfaces/IL1Nullifier.sol`, `common/Messaging.sol`, `common/ReentrancyGuard.sol`,
+`common/libraries/DataEncoding.sol`, `common/interfaces/IMessageVerification.sol`,
+`core/message-root/IMessageRoot.sol`, `bridge/asset-router/IAssetRouterBase.sol` and
+`bridge/ntv/L1NativeTokenVault.sol`. The OpenZeppelin v4.9 code the two contracts inherit is the
+submodule `lib/openzeppelin-contracts-upgradeable-v4` at the commit `b17415d20` pins, `2d081f2`,
+cited as `OZU/<file>:N` (read from a checkout of that commit; the exported source tree has the
+submodule empty).
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.L1Nullifier.Properties.Model` and are proved in
-`EraSpec.Contracts.L1Nullifier.Proofs.Model`.
+`EraSpec.Contracts.L1Nullifier.Proofs.Model`. Nested calls during a claim are modelled in
+`Specs/Reentrancy.lean`.
 
 ## What the nullifier does at this pin
 
-At v0.35.0 the nullifier keeps one live mapping, `depositHappened[chainId][l2TxHash]`
-(`N:67-69`), the data hash of an initiated L1 → L2 deposit. Withdrawal finalization moved to the
-interop handler: `__DEPRECATED_isWithdrawalFinalized` (`N:75-76`) and every legacy-bridge slot
-(`N:45-62`, `:81-92`) are "no longer read or written". So the nullifier is now a deposit ledger:
+At this pin the nullifier keeps one live mapping, `depositHappened[chainId][l2TxHash]`
+(`N:67-69`), the data hash of an initiated L1 → L2 deposit. `__DEPRECATED_isWithdrawalFinalized`
+(`N:71-76`) and the legacy-bridge slots (`N:41-62`, `:78-92`) are kept only for the storage layout:
+no function at this pin writes them, and four of them keep a public getter. So the nullifier is a
+deposit ledger:
 
 1. **Record.** `bridgehubConfirmL2TransactionForwarded(c, v, h)` (`N:155-163`) is `onlyAssetRouter`
    (`N:105-108`) and `whenNotPaused`, then
@@ -27,11 +38,13 @@ interop handler: `__DEPRECATED_isWithdrawalFinalized` (`N:75-76`) and every lega
 
    The asset router calls it only from `bridgehubConfirmL2Transaction` (`R:244-250`, `onlyBridgehub`,
    `whenNotPaused`), and the bridgehub calls that only at the end of
-   `requestL2TransactionTwoBridges` (`BH:260-264`) with the `txDataHash` the router itself returned
-   from `bridgehubDeposit` (`R:201-241`). That is
-   `DataEncoding.encodeTxDataHash(originalCaller, assetId, transferData)` for a deposit
-   (`RB:162-166`; the version byte must be `NEW_ENCODING_VERSION`, else `UnsupportedEncodingVersion`,
-   `RB:125-137`), and `bytes32(0)` for a `SET_ASSET_HANDLER_COUNTERPART` request (`R:216-227`, `:181`).
+   `requestL2TransactionTwoBridges` (`BH:260-264`), on the same second bridge whose
+   `bridgehubDeposit` returned the `txDataHash` (`BH:232-238`). The router's `bridgehubDeposit`
+   (`R:201-241`) returns `DataEncoding.encodeTxDataHash(originalCaller, assetId, transferData)` for a
+   deposit (`RB:162-166`; any version byte other than `NEW_ENCODING_VERSION` reverts with
+   `UnsupportedEncodingVersion`, `RB:125-137`), and `bytes32(0)` for a
+   `SET_ASSET_HANDLER_COUNTERPART` request (`R:216-227`, `:181`). `originalCaller` is the
+   bridgehub's `msg.sender` (`BH:235`).
 2. **Clear.** `bridgeConfirmTransferResult(data)` (`N:166-177`) and
    `bridgeRecoverFailedTransfer(...)` (`N:180-213`, the same with `_txStatus = Failure`) are
    `nonReentrant` and run `_verifyAndClearTransfer` (`N:218-248`, `whenNotPaused`):
@@ -46,39 +59,60 @@ interop handler: `__DEPRECATED_isWithdrawalFinalized` (`N:75-76`) and every lega
    and then call `l1AssetRouter.bridgeConfirmTransferResult(chainId, status, sender, assetId,
    data)` (`N:170-176`, `:206-212`). The router's function (`R:306-325`) is `onlyNullifier`,
    `nonReentrant`, `whenNotPaused`, checks the asset handler is allowed and forwards to it.
-3. **Configuration.** `initialize` (`N:122-125`, `initializer`), the set-once owner setters
-   `setL1NativeTokenVault` (`N:130-134`), `setL1AssetRouter` (`N:139-143`),
-   `setL1InteropHandler` (`N:148-152`), `pause`/`unpause` (`N:255-262`), and the inherited
-   `Ownable2StepUpgradeable` calls (`transferOwnership`, `acceptOwnership`, `renounceOwnership`).
+3. **Configuration.** `initialize` (`N:122-125`, `reentrancyGuardInitializer initializer`), the
+   set-once owner setters `setL1NativeTokenVault` (`N:130-134`), `setL1AssetRouter`
+   (`N:139-143`), `setL1InteropHandler` (`N:148-152`), `pause`/`unpause` (`N:255-262`), and the
+   inherited `Ownable2StepUpgradeable` calls: `transferOwnership` (`OZU/access/Ownable2StepUpgradeable.sol:42-45`,
+   no zero check), `acceptOwnership` (`:59-63`), and `renounceOwnership`
+   (`OZU/access/OwnableUpgradeable.sol:66-68`), which the nullifier does not override. Every
+   owner change goes through `_transferOwnership` (`OZU/access/Ownable2StepUpgradeable.sol:51-54`),
+   which also deletes the pending owner. `_pause`/`_unpause` are `whenNotPaused`/`whenPaused`
+   (`OZU/security/PausableUpgradeable.sol:94-97`, `:106-109`).
+
+Items 1-3 are the nullifier's twelve state-changing entry points; everything else it exposes is a
+getter.
 
 ## Modelling choices
 
-* **One step is one successful top-level call**; a revert is the absence of a step. The
-  `nonReentrant` guards are not modelled: each step is atomic and no callback is modelled
-  (`MODEL-NULLIFIER`). `_verifyAndClearTransfer` clears the slot before the external call
-  (`N:247` before `N:170`), so a nested claim would see the cleared slot in any case.
+* **One step is one successful top-level call**; a revert is the absence of a step
+  (`MODEL-NULLIFIER`). The `nonReentrant` guards are not modelled. A claim makes its only write to
+  the modelled state (`N:247`) before its only external call that can reach other code (`N:170`,
+  `:206`); the reentrancy lock it also writes is not modelled. The status proof is a call through
+  an interface that declares it `view` (`common/interfaces/IMessageVerification.sol:68-76`, via
+  `core/message-root/IMessageRoot.sol:24`), so it is a static call and writes nothing. So whatever
+  a call nested in the router call does to the modelled state happens after the claim's write, as
+  later steps of a run: `Specs/Reentrancy.lean` makes this a theorem. A deposit's external calls
+  (the base-token deposit, the second bridge's `bridgehubDeposit` with its burn, `_sendRequest`)
+  all come before its write (`BH:223-258` before `:260`), and every guard of the write is read when
+  the write happens (`R:248`, `N:159-160`), so a call nested there is an earlier step.
 * **Callers.** `ExternalSender` is a caller other than `0` and the three system contracts
   (nullifier, router, bridgehub). Those contracts issue only the calls their code issues, which are
   the composite steps below: the bridgehub's `requestL2TransactionTwoBridges` → router →
   nullifier chain is `twoBridges`, and the nullifier's call to the router is part of `confirm` and
   `recover`. That the system contracts' addresses do not appear as external callers is `VM-CALL`.
-* **The hash** `encodeTxDataHash` is an arbitrary function `Env.txDataHash : Triple → Bytes32`;
-  no injectivity is assumed anywhere in the model. The legacy hash format the source mentions
-  (`DataEncoding.sol:164-166`) has no writer at this pin.
+* **The hash** `encodeTxDataHash` (`common/libraries/DataEncoding.sol:159-170`, keccak of
+  `0x01 ‖ abi.encode(originalCaller, assetId, transferData)`) is an arbitrary function
+  `Env.txDataHash : Triple → Bytes32`; no injectivity is assumed anywhere in the model.
 * **The status proof.** `Env.accepts q` is the set of queries for which
   `proveL1ToL2TransactionStatusShared` may return `true` at some time (the message root's
   answers can change as batches settle; taking the union over time covers every schedule).
   Soundness of that oracle is a theorem premise, never part of the model (`PROTO-TX-STATUS`).
-* **Reject-only checks downstream are omitted**, which only adds runs: the bridgehub's own
-  guards and `_sendRequest`, the router's `_checkAssetHandlerAllowed`, `baseTokenAssetId` and
-  `msg.value` checks, the vault's `_burn`, and the asset handler's `bridgeConfirmTransferResult`
-  (the native token vault rejects `Success`, `L1NativeTokenVault.sol:358`). Their effects outside
-  the two contracts' storage are not modelled. If the nullifier's `l1AssetRouter` is not the router,
-  the nullifier's call goes to an unmodelled contract, which may accept.
+* **Reject-only checks are omitted**, which only adds runs: the bridgehub's own guards and
+  `_sendRequest`; the router's `_checkAssetHandlerAllowed`, `baseTokenAssetId` and `msg.value`
+  checks; the asset handler's `bridgeBurn` and `bridgeConfirmTransferResult` (the native token
+  vault rejects `Success`, `L1NativeTokenVault.sol:358`); a call to an `l1AssetRouter` with no code
+  or no matching function; and the reentrancy lock's own checks, `nonReentrant` reverting while the
+  lock slot is zero, that is before `initialize` (`common/ReentrancyGuard.sol:72-80`), and
+  `reentrancyGuardInitializer` reverting once it is not (`:43-63`). Their effects outside the two
+  contracts' modelled storage are not modelled. If the nullifier's `l1AssetRouter` is not the
+  router, the nullifier's call goes to an unmodelled contract, which may accept.
 * **The router's pause flag** is `Sys.routerPaused`; the router's owner is not modelled, so
   `routerSetPaused` may fire at any time (an over-approximation).
+* **Not modelled**: upgrades of either proxy and any change of the immutables (`OPS-CONFIG`);
+  events; `l2TxNumberInBatch` is a natural number (`uint16` in the source).
 * **Checks.** The four source checks that the countermodels remove are flags of `Checks`;
-  the source is `Checks.source`, all `true`. Every safety statement is about `Checks.source`.
+  the source is `Checks.source`, all `true`. The safety statements are about `Checks.source`;
+  some hold for every `Checks`.
 * **Ghost log.** `Sys.log` records each write to `depositHappened` with its origin, each clear,
   and each call into the asset handler that did not come through a clear. It is not contract state.
 -/
@@ -150,8 +184,8 @@ structure Env where
   /-- The queries `proveL1ToL2TransactionStatusShared` may answer `true` to, at some time. -/
   accepts : StatusQuery → Prop
 
-/-- The addresses of the three system contracts (immutables: `R:47`, `R:56`; the bridgehub's
-`assetRouter`). -/
+/-- The addresses of the three system contracts: `router` is an `L1AssetRouter` whose immutables
+`BRIDGE_HUB` (`R:47`) and `L1_NULLIFIER` (`R:56`) are `bridgehub` and `nullifier`. -/
 structure Cfg where
   nullifier : Address
   router : Address
@@ -187,7 +221,8 @@ structure Deprecated where
 
 /-- The nullifier's storage (proxy storage, so it starts wherever the deployment left it). -/
 structure Nullifier where
-  /-- OpenZeppelin `Initializable`: whether `initialize` has run. -/
+  /-- OpenZeppelin `Initializable`'s `_initialized ≥ 1`: `initializer` admits a top-level call only
+  below 1 (`OZU/proxy/utils/Initializable.sol:84-99`). -/
   initialized : Bool
   /-- `Ownable2StepUpgradeable.owner()`. -/
   owner : Address
@@ -285,10 +320,22 @@ inductive Label
   /-- The router owner's `pause`/`unpause` (`RB:378-385`). -/
   | routerSetPaused (b : Bool)
 
+/-- The sender of an `onlyOwner` nullifier call (`OZU/access/OwnableUpgradeable.sol:40-43`), if `l` is
+one: `transferOwnership`, `renounceOwnership`, the three setters, `pause` and `unpause`. -/
+def Label.ownerCaller : Label → Option Address
+  | .transferOwnership a _ => some a
+  | .renounceOwnership a => some a
+  | .setL1NativeTokenVault a _ => some a
+  | .setL1AssetRouter a _ => some a
+  | .setL1InteropHandler a _ => some a
+  | .pause a => some a
+  | .unpause a => some a
+  | _ => none
+
 /-- The guards of `_verifyAndClearTransfer` and of the call to the router, in source order:
 `whenNotPaused` (`N:220`), the proof (`N:231`), the data hash (`N:243-245`); then, if the target is
 the router, the router's `whenNotPaused` (`R:312`; `onlyNullifier` holds, the caller is the
-nullifier). -/
+nullifier). The `nonReentrant` guards (`N:168`, `:190`, `R:312`) are not modelled. -/
 structure ClaimOk (chk : Checks) (env : Env) (cfg : Cfg) (s : Sys) (cl : Claim) : Prop where
   notPaused : s.n.paused = false
   proof : chk.proof = true → env.accepts cl.query
@@ -310,22 +357,25 @@ def afterWrite (s : Sys) (o : Origin) (c : ChainId) (h v : Bytes32) : Sys :=
 
 /-- One successful top-level call. -/
 inductive Step (chk : Checks) (env : Env) (cfg : Cfg) : Sys → Label → Sys → Prop
-  /-- `initialize` (`N:122-125`): `initializer`, nonzero owner, `_transferOwnership`
-  (which also deletes `pendingOwner`). -/
+  /-- `initialize` (`N:122-125`): `initializer`, nonzero owner (`N:123`), `_transferOwnership`
+  (`N:124`, which also deletes `pendingOwner`). Anyone may call it. -/
   | initialize {s : Sys} {a o : Address} :
       ExternalSender cfg a → s.n.initialized = false → o ≠ 0 →
       Step chk env cfg s (.initialize a o)
         { s with n := { s.n with initialized := true, owner := o, pendingOwner := 0 } }
-  /-- `Ownable2Step.transferOwnership`: `onlyOwner`, sets the pending owner. -/
+  /-- `transferOwnership` (`OZU/access/Ownable2StepUpgradeable.sol:42-45`): `onlyOwner`, sets the
+  pending owner, which may be zero. -/
   | transferOwnership {s : Sys} {a x : Address} :
       ExternalSender cfg a → a = s.n.owner →
       Step chk env cfg s (.transferOwnership a x) { s with n := { s.n with pendingOwner := x } }
-  /-- `Ownable2Step.acceptOwnership`: the pending owner becomes the owner. -/
+  /-- `acceptOwnership` (`OZU/access/Ownable2StepUpgradeable.sol:59-63`): the pending owner becomes
+  the owner, and the pending owner is deleted. -/
   | acceptOwnership {s : Sys} {a : Address} :
       ExternalSender cfg a → a = s.n.pendingOwner →
       Step chk env cfg s (.acceptOwnership a)
         { s with n := { s.n with owner := a, pendingOwner := 0 } }
-  /-- `Ownable.renounceOwnership`: `onlyOwner`, owner and pending owner become zero. -/
+  /-- `renounceOwnership` (`OZU/access/OwnableUpgradeable.sol:66-68`, through
+  `OZU/access/Ownable2StepUpgradeable.sol:51-54`): `onlyOwner`, owner and pending owner become zero. -/
   | renounceOwnership {s : Sys} {a : Address} :
       ExternalSender cfg a → a = s.n.owner →
       Step chk env cfg s (.renounceOwnership a)
@@ -382,7 +432,7 @@ inductive Step (chk : Checks) (env : Env) (cfg : Cfg) : Sys → Label → Sys �
       ExternalSender cfg a → (chk.onlyNullifier = true → a = cfg.nullifier) →
       s.routerPaused = false →
       Step chk env cfg s (.routerConfirm a c st t) { s with log := s.log ++ [.handler c st t] }
-  /-- The router owner's `pause`/`unpause`. -/
+  /-- The router owner's `pause`/`unpause` (`RB:378-385`), at any time. -/
   | routerSetPaused {s : Sys} {b : Bool} :
       Step chk env cfg s (.routerSetPaused b) { s with routerPaused := b }
 
