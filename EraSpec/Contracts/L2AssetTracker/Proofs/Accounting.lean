@@ -1415,12 +1415,13 @@ theorem BackfillAtMostOnce : Properties.BackfillAtMostOnce := by
 namespace AccountingExample
 
 /-- Vault `1`, holder `2`, base token `3`, upgrader `4`, this chain `7`.  Asset `3` is native
-(token `11`), asset `5` comes from chain `9` (token `12`) and is the base asset `initL2`
-installs, asset `6` is native (token `13`). -/
+(token `11`), asset `4` comes from chain `9` (token `14`), asset `5` comes from chain `9`
+(token `12`) and is the base asset `initL2` installs, asset `6` is native (token `13`). -/
 def cfgEx : Config :=
   ⟨1, 2, 3, 4, 7,
-    fun a => if a = 3 then 7 else if a = 5 then 9 else if a = 6 then 7 else 0,
-    fun a => if a = 3 then 11 else if a = 5 then 12 else if a = 6 then 13 else 0, 100, 5⟩
+    fun a => if a = 3 then 7 else if a = 4 then 9 else if a = 5 then 9 else if a = 6 then 7 else 0,
+    fun a => if a = 3 then 11 else if a = 4 then 14 else if a = 5 then 12 else if a = 6 then 13
+      else 0, 100, 5⟩
 
 /-- The same, except that the base asset `initL2` installs is the native asset `3`. -/
 def cfgSelfNativeBase : Config := { cfgEx with initBaseAssetId := 3 }
@@ -1439,12 +1440,15 @@ def selfNativeBaseSys : Sys :=
   ((exec cfgSelfNativeBase (Sys.fresh 100) (.initL2 false)).bind fun s =>
     exec cfgSelfNativeBase s (.registerNewToken 3)).getD (Sys.fresh 100)
 
+/-- After `initL2` and the upgrader's registration of the base asset `5` (from chain `9`). -/
+def baseRegSys : Sys := (exec cfgEx initedSys .registerBaseDuringUpgrade).getD initedSys
+
 end AccountingExample
 
 open AccountingExample in
 theorem ChainBalanceGatesInflow : Properties.ChainBalanceGatesInflow :=
-  ⟨cfgEx, 100, ⟨0, 0⟩, 8, 3, _, _, _, cfgEx_fresh_inv 100, by decide, by decide, rfl, by decide,
-    rfl, rfl⟩
+  ⟨cfgEx, 100, ⟨0, 0⟩, 8, 6, _, _, _, _, cfgEx_fresh_inv 100, by decide, rfl, rfl, by decide,
+    by decide, rfl, rfl⟩
 
 open AccountingExample in
 theorem BaseTokenNativeAsymmetry : Properties.BaseTokenNativeAsymmetry :=
@@ -1456,10 +1460,22 @@ open AccountingExample in
 theorem AccountingRunSatisfiable : Properties.AccountingRunSatisfiable :=
   ⟨cfgEx, 100, _, ⟨0, 0⟩, 8, 3, 6, 14, 15, cfgEx_fresh_inv 100,
     Relation.ReflTransGen.tail (Relation.ReflTransGen.tail (Relation.ReflTransGen.tail
-      (Relation.ReflTransGen.tail Relation.ReflTransGen.refl ⟨.registerNewToken 3, rfl⟩)
+      (Relation.ReflTransGen.tail (Relation.ReflTransGen.tail Relation.ReflTransGen.refl
+        ⟨.initL2 false, rfl⟩) ⟨.registerNewToken 3, rfl⟩)
       ⟨.initiate ⟨0, 0⟩ 8 3 5, rfl⟩) ⟨.finalize ⟨0, 0⟩ 8 3 2, rfl⟩) ⟨.initiate ⟨0, 10⟩ 8 6 4, rfl⟩,
     by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
-    by decide, by decide, by decide, by decide, ⟨_, rfl⟩, by decide⟩
+    by decide, by decide, by decide, by decide, by decide, ⟨_, rfl⟩, by decide⟩
+
+open AccountingExample in
+theorem BaseFinalizeSatisfiable : Properties.BaseFinalizeSatisfiable := by
+  -- from L1 while the chain settles on L1: the deposit counter of the base asset `5` moves
+  refine ⟨cfgEx, 100, baseRegSys, _, ⟨0, 0⟩, 100, 1, cfgEx_fresh_inv 100,
+    Relation.ReflTransGen.tail (Relation.ReflTransGen.tail Relation.ReflTransGen.refl
+      ⟨.initL2 false, rfl⟩) ⟨.registerBaseDuringUpgrade, rfl⟩, by decide, by decide, rfl, ?_⟩
+  intro h
+  have h' := congrArg (fun st : Storage => (st.interopInfo 5).totalSuccessfulDepositsFromL1.val) h
+  revert h'
+  decide
 
 open AccountingExample in
 theorem TrackerRoundTripSatisfiable : Properties.TrackerRoundTripSatisfiable :=
@@ -1468,6 +1484,9 @@ theorem TrackerRoundTripSatisfiable : Properties.TrackerRoundTripSatisfiable :=
 
 open AccountingExample in
 theorem BackfillSatisfiable : Properties.BackfillSatisfiable :=
-  ⟨cfgEx, 100, _, _, _, 42, cfgEx_fresh_inv 100, by decide, rfl, rfl, rfl⟩
+  ⟨cfgEx, 100, _, _, _, 42, cfgEx_fresh_inv 100, by decide, rfl, rfl,
+    AccountingInvariant cfgEx _ _ (cfgEx_fresh_inv 100)
+      (Relation.ReflTransGen.tail (Relation.ReflTransGen.tail Relation.ReflTransGen.refl
+        ⟨.initL2 true, rfl⟩) ⟨.registerBaseDuringUpgrade, rfl⟩), rfl⟩
 
 end Contracts.L2AssetTracker

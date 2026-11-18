@@ -225,9 +225,9 @@ theorem BaseNeverTakesLegacyPath : Properties.BaseNeverTakesLegacyPath := by
 
 namespace HookOrderingExample
 
-/-- A bridged token of the vault `1` (asset `5`), with `10` units held by `30`. -/
+/-- A bridged token of the vault `1` (asset `4`), with `10` units held by `30`. -/
 def tokB : Contracts.BridgedStandardERC20.State :=
-  ⟨⟨1, 77, 5⟩, fun a => if a = 30 then 10 else 0, 10⟩
+  ⟨⟨1, 77, 4⟩, fun a => if a = 30 then 10 else 0, 10⟩
 
 /-- A native token (asset `6`) with `10` units at `30` and `10` held by the vault `1`. -/
 def tokN : Contracts.BridgedStandardERC20.State :=
@@ -242,14 +242,15 @@ end HookOrderingExample
 
 open AccountingExample HookOrderingExample in
 theorem HookAfterEffectSkews : Properties.HookAfterEffectSkews :=
-  ⟨cfgEx, Storage.fresh, 100, tokB, tokN, 8, 5, 6, 30, 1, _, _, _, _, _, _, _, _, by decide,
-    by decide, by decide, rfl, rfl, by decide, by decide, by decide, ⟨_, rfl⟩, ⟨_, rfl⟩,
-    by decide, by decide, rfl, rfl, by decide, by decide, by decide, ⟨_, rfl⟩, ⟨_, rfl⟩⟩
+  ⟨cfgEx, initedSys.st, 100, tokB, tokN, 8, 4, 6, 30, 1, _, _, _, _, _, _, _, _, by decide,
+    by decide, by decide, by decide, rfl, rfl, by decide, by decide, by decide, ⟨_, rfl⟩,
+    ⟨_, rfl⟩, by decide, by decide, rfl, rfl, by decide, by decide, by decide, ⟨_, rfl⟩,
+    ⟨_, rfl⟩⟩
 
 open AccountingExample HookOrderingExample in
 theorem FirstTouchSatisfiable : Properties.FirstTouchSatisfiable :=
-  ⟨cfgEx, Storage.fresh, 100, tokB, tokN, 8, 5, 6, 30, 1, _, _, _, _, by decide, by decide,
-    by decide, by decide, by decide, rfl, rfl, rfl, rfl⟩
+  ⟨cfgEx, initedSys.st, 100, tokB, tokN, 8, 4, 6, 30, 1, _, _, _, _, by decide, by decide,
+    by decide, by decide, by decide, by decide, rfl, rfl, rfl, rfl⟩
 
 open Contracts.NativeTokenVaultBase.ResolutionExample
   Contracts.NativeTokenVaultBase.TrackerHooksExample in

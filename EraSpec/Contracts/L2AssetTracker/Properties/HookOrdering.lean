@@ -6,22 +6,22 @@ import EraSpec.Contracts.L2AssetTracker.Specs.HookOrdering
 Statements about `EraSpec.Contracts.L2AssetTracker.Specs.HookOrdering`.  Proofs are in
 `EraSpec.Contracts.L2AssetTracker.Proofs.HookOrdering`.
 
-* `HookPrecedesEffect`: with the L2 hooks, the vault model's preparation, destination mint and
-  recovery (`NativeTokenVaultBase`) give exactly what the source-order bridged paths give: the
-  tracker hook reads the token before the burn or the mint.
+* `HookPrecedesEffect`: with the L2 hooks, the vault being the tracker's caller, the vault
+  model's preparation, destination mint and recovery (`NativeTokenVaultBase`) give exactly what
+  the source-order bridged paths give: the tracker hook reads the token before the burn or the
+  mint.
 * `FirstTouchSnapshotIsPreOp`: on each of the four paths, a first touch registers the asset
   with the snapshot of the token as it was before the call.
 * `SnapshotIndependentOfEntry`: whichever path makes the first touch, from the same storage and
   token, the snapshot is the same, so it does not depend on whether the first post-v31 operation
   is a deposit or a withdrawal.
-* `HookAfterEffectSkews` (countermodel): with the effect first, the outbound and inbound
-  snapshots of the same token differ, and neither is the pre-call one, for a bridged token and
-  for a native one.
+* `HookAfterEffectSkews` (countermodel): there are a bridged and a native token for which, with
+  the effect first, the outbound and inbound snapshots differ and neither is the pre-call one.
 * `BaseNeverTakesLegacyPath`: once `initL2` has run and the base token is registered, every later
   state of the run keeps the same base asset registered, and its first-touch registration is the
   identity whatever it would read.
 
-Non-vacuity: `FirstTouchSatisfiable` (all four paths succeed on a first touch),
+Non-vacuity: `FirstTouchSatisfiable` (all four paths succeed on a first touch, after `initL2`),
 `HookPrecedesEffectSatisfiable` (a successful preparation, destination mint and recovery with the
 vault as the tracker's caller), `BaseNeverLegacySatisfiable` (a run with base-token flows from a
 state after `initL2` and the base token's registration).
@@ -78,16 +78,17 @@ def Properties.SnapshotIndependentOfEntry : Prop :=
     runPath cfg q st sl' tok chain' a account' amount' = some (st₂, tok₂) →
       st₁.totalPreV31TotalSupply a = st₂.totalPreV31TotalSupply a
 
-/-- **COUNTERMODEL: EFFECT FIRST SKEWS THE SNAPSHOT.**  For a bridged legacy asset `a` (token
-`tok`) and a native legacy asset `aN` (token `tokN`), all unregistered: in the reversed order
-(`runPathEffectFirst`, which no source path runs) the outbound and the inbound path, from the same
-storage and token, both succeed and record different snapshots, neither equal to the pre-call one;
-in source order both paths succeed (and record the pre-call one, `FirstTouchSnapshotIsPreOp`). -/
+/-- **COUNTERMODEL: EFFECT FIRST SKEWS THE SNAPSHOT.**  There are storage in which `initL2` has
+run, a bridged legacy asset `a` (token `tok`) and a native legacy asset `aN` (token `tokN`), both
+unregistered, such that in the reversed order (`runPathEffectFirst`, which no source path runs) the
+outbound and the inbound path, from the same storage and token, both succeed and record different
+snapshots, neither equal to the pre-call one; in source order both paths succeed (and record the
+pre-call one, `FirstTouchSnapshotIsPreOp`). -/
 def Properties.HookAfterEffectSkews : Prop :=
   ∃ (cfg : Config) (st : Storage) (sl : ChainId) (tok tokN : Contracts.BridgedStandardERC20.State)
     (chain : ChainId) (a aN : AssetId) (account : Address) (amount : UInt256)
     (st₁ st₂ st₃ st₄ : Storage) (tok₁ tok₂ tok₃ tok₄ : Contracts.BridgedStandardERC20.State),
-    amount ≠ 0 ∧
+    amount ≠ 0 ∧ st.guardInitialized = true ∧
     st.isAssetRegistered a = false ∧ ¬ Native cfg a ∧
     runPathEffectFirst cfg .bridgedOut st sl tok chain a account amount = some (st₁, tok₁) ∧
     runPathEffectFirst cfg .bridgedIn st sl tok chain a account amount = some (st₂, tok₂) ∧
@@ -119,13 +120,15 @@ def Properties.BaseNeverTakesLegacyPath : Prop :=
 
 /-! ## Non-vacuity -/
 
-/-- **ALL FOUR PATHS SUCCEED ON A FIRST TOUCH**, with a nonzero amount: a bridged legacy asset
-through `bridgedOut` and `bridgedIn`, a native one through `nativeOut` and `nativeIn`. -/
+/-- **ALL FOUR PATHS SUCCEED ON A FIRST TOUCH**, with a nonzero amount, from storage in which
+`initL2` has run: a bridged legacy asset through `bridgedOut` and `bridgedIn`, a native one
+through `nativeOut` and `nativeIn`. -/
 def Properties.FirstTouchSatisfiable : Prop :=
   ∃ (cfg : Config) (st : Storage) (sl : ChainId) (tok tokN : Contracts.BridgedStandardERC20.State)
     (chain : ChainId) (a aN : AssetId) (account : Address) (amount : UInt256)
     (x₁ x₂ x₃ x₄ : Storage × Contracts.BridgedStandardERC20.State),
-    amount ≠ 0 ∧ st.isAssetRegistered a = false ∧ st.isAssetRegistered aN = false ∧
+    amount ≠ 0 ∧ st.guardInitialized = true ∧ st.isAssetRegistered a = false ∧
+    st.isAssetRegistered aN = false ∧
     ¬ Native cfg a ∧ Native cfg aN ∧
     runPath cfg .bridgedOut st sl tok chain a account amount = some x₁ ∧
     runPath cfg .bridgedIn st sl tok chain a account amount = some x₂ ∧

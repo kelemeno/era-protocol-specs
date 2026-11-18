@@ -20,15 +20,16 @@ make, `TokenMove`):
 * `NativeReleasesAreEscrowed` (headline): for a registered asset native here, `E + Σout - Σin`,
   which is `MAX - chainBalance`, is at most the vault's balance of the token.
 * `NativeInboundIffCap` (headline): for a registered asset whose inbound transfer touches no L1
-  counter, the vault's inbound native path to a nonzero receiver succeeds iff
-  `Σin + amount ≤ E + Σout`: inside the cap the vault's withdrawal does not fail.
+  counter, with a nonzero vault address, the vault's inbound native path to a nonzero receiver
+  succeeds iff `Σin + amount ≤ E + Σout`: inside the cap the vault's withdrawal does not fail.
   `NativeInboundFailsOnlyAtTheHook` is the general form: registered or not, and whatever the
   settlement layer, the path to a nonzero receiver fails only if the tracker's hook fails.
-* `FundedNativeOutboundSucceeds` (headline): a depositor other than the vault, holding at least
-  `amount`, can always move `amount` out on the outbound native path, first touch included; the
-  only exception is the `totalWithdrawalsToL1` counter overflowing on a transfer to L1 while the
-  chain settles on L1.  So for a well-formed token the chain balance never refuses a funded
-  outbound transfer.
+* `FundedNativeOutboundSucceeds` (headline): with a nonzero chain id, vault address and
+  `tokenAddress` entry, a nonzero depositor other than the vault, holding at least `amount`, can
+  always move `amount` out on the outbound native path, first touch included; the only exception
+  is the `totalWithdrawalsToL1` counter overflowing on a transfer to L1 while the chain settles on
+  L1.  So in a composed run the chain balance never refuses such a transfer.  Allowances are not
+  modelled: the deposit is the depositor's transfer.
 * `EscrowNeedsVaultOnlyOutflow` (countermodel): if the vault's balance can fall by a ledger change
   the vault does not make (outside `TokenMove`), the tracker's hook accepts an inbound transfer
   that the vault's withdrawal cannot pay.
@@ -107,7 +108,8 @@ state satisfying `EscrowInv`, for an asset `a` native here (registered or not) w
 in the vault is set, on a chain with nonzero id and a nonzero vault address: for every depositor
 other than the vault and the zero address that holds at least `amount`, the vault's outbound
 native path (hook, then deposit) succeeds, provided that a transfer to L1 while the chain settles
-on L1 does not raise `totalWithdrawalsToL1` past `2^256 - 1`. -/
+on L1 does not raise `totalWithdrawalsToL1` past `2^256 - 1`.  The deposit is the token model's
+transfer by the depositor: the allowance `safeTransferFrom` needs is not modelled. -/
 def Properties.FundedNativeOutboundSucceeds : Prop :=
   ∀ (cfg : Config) (a : AssetId) (e₀ e : EscrowSys) (chain : ChainId) (account : Address)
     (amount : UInt256),

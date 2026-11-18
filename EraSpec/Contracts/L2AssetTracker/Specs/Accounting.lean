@@ -74,7 +74,13 @@ exists so that the meaning of `chainBalance` can be stated.
 
 At `draft/v0.35.0` `b17415d20` and `main` `70096e2ea` the tracker's code is the same (the two
 files differ in comments only, and the first equals the file at the upgrade pin `e561b9cc2`).
-Against the pin it differs as follows; no result here is checked against it.
+Against the pin it differs as follows.  `Specs/LaterHeads.lean` models the tracker at those heads
+and shows that its runs are runs of this model (`HeadRunIsPinRun`), which carries
+`AccountingInvariant`, `NativeSentinel`, `InflowOverflowIsCap`, `OutflowIffNetOutFits` and
+`BaseNeverTakesLegacyPath` over, and that its composed runs with a native token are those of
+`Specs/NativeEscrow.lean` (`HeadEscrowRunIsEscrowRun`), which carries the escrow results over; it
+also models the new recovery guard.  The other results of this folder are not restated for the
+heads.
 
 * `backFillZKSyncOSBaseTokenV31MigrationData` and `registerBaseTokenDuringUpgrade` are gone, the
   backfill flag's slot is deprecated, and `initL2` takes no flag (`L2AssetTracker.sol:61-65`,

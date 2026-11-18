@@ -188,6 +188,62 @@ theorem AtomicRecoveryRestoresVaultAndTrackerL2 :
   subst hst
   exact ⟨rfl, hrec⟩
 
+/-- Two vault states with the same configuration, registry, pause flag and token differ at most
+in their accounting. -/
+private theorem state_eq_with_accounting {s t : State Accounting} {acc : Accounting}
+    (h1 : t.config = s.config) (h2 : t.registry = s.registry) (h3 : t.paused = s.paused)
+    (h4 : t.token = s.token) (h5 : t.accounting = acc) : t = { s with accounting := acc } := by
+  cases t
+  cases s
+  simp only at h1 h2 h3 h4 h5
+  subst h1 h2 h3 h4 h5
+  rfl
+
+theorem AtomicRecoveryAcrossSettlementLayersL2 :
+    Properties.AtomicRecoveryAcrossSettlementLayersL2 := by
+  intro cfg metadata s r out sl₂ hw hp hoff
+  -- the outbound hook the preparation ran
+  have hacc := preparation_accounting hp
+  change (L2AssetTracker.handleInitiateBridgingOnL2 cfg s.accounting.st s.accounting.sl
+    (L2AssetTracker.tokenReads cfg s.token) cfg.ntv r.destinationChain r.assetId r.data.amount
+    (cfg.ntvOriginChainId r.assetId)).map (fun st => { s.accounting with st := st }) =
+      some out.state.accounting at hacc
+  rw [Option.map_eq_some_iff] at hacc
+  obtain ⟨st', hinit, hacc'⟩ := hacc
+  have hst' : out.state.accounting.st = st' := by rw [← hacc']
+  -- off L1, the inbound hook undoes the outbound one on any settlement layer
+  obtain ⟨st₀, hreg, hfin, _⟩ := L2AssetTracker.TrackerHooksCancelOffL1 cfg s.accounting.st st'
+    s.accounting.sl sl₂ (L2AssetTracker.tokenReads cfg s.token)
+    (L2AssetTracker.tokenReads cfg out.state.token) r.destinationChain r.assetId r.data.amount
+    hinit (Or.inl hoff)
+  refine ⟨st₀, hreg, ?_⟩
+  -- the recovery on the moved state is the recovery on the prepared state with a resolution hook
+  -- that reads the new settlement layer
+  let rh₂ : ResolutionHooks L2Accounting :=
+    ⟨fun acc tok chain asset amount =>
+      (l2ResolutionHooks cfg).fromChain { acc with sl := sl₂ } tok chain asset amount⟩
+  have hswap : bridgeRecoverFailedTransfer (l2ResolutionHooks cfg)
+      { out.state with accounting := { out.state.accounting with sl := sl₂ } }
+      (recoveryCall s.config.router r out.data) =
+      bridgeRecoverFailedTransfer rh₂ out.state (recoveryCall s.config.router r out.data) := rfl
+  rw [hswap]
+  have hback : rh₂.fromChain out.state.accounting out.state.token r.destinationChain r.assetId
+      r.data.amount = some ⟨st₀, sl₂⟩ := by
+    show (L2AssetTracker.handleFinalizeBridgingOnL2 cfg out.state.accounting.st sl₂
+      (L2AssetTracker.tokenReads cfg out.state.token) cfg.ntv r.destinationChain r.assetId
+      r.data.amount (cfg.ntvOriginChainId r.assetId) (cfg.ntvTokenAddress r.assetId)).map
+        (fun st => { { out.state.accounting with sl := sl₂ } with st := st }) = _
+    rw [hst', hfin]
+    rfl
+  obtain ⟨_, _, t, ht⟩ :=
+    PrepareThenRecoverEnabled L2Accounting (l2Hooks cfg metadata) rh₂ s r out _ hw hp hback
+  obtain ⟨htok, hcfg, hregy, hpause, _, hfrom⟩ := PrepareThenRecoverRestoresToken L2Accounting
+    (l2Hooks cfg metadata) rh₂ s r out s.config.router t hw.1 hp ht
+  have hacct : t.accounting = ⟨st₀, sl₂⟩ := by
+    rw [hback] at hfrom
+    exact (Option.some.inj hfrom).symm
+  rw [ht, state_eq_with_accounting hcfg hregy hpause htok hacct]
+
 /-! ## The first bridge on L2 -/
 
 /-- A successful fresh registration's accounting is the tracker hook's result. -/
@@ -315,8 +371,9 @@ open ResolutionExample TrackerHooksExample in
 theorem L1TrackerHooksSatisfiable : Properties.L1TrackerHooksSatisfiable := by
   obtain ⟨out, hp⟩ := prep_enabled (l1Hooks 1 md0) l1Acc l1Acc 12 rfl rfl
   have hw := stateWith_wf (A := L1Ledger) (holder := 11) (by decide) 4 l1Acc
-  exact ⟨1, md0, _, _, out, l1Acc, _, 8, 10, 11, hw, ⟨rfl, by decide⟩, hp, by decide, by decide,
-    rfl, trackerHooks_ne_of_field (fun acc => (L1Ledger.bridgedOut acc 8).val) (by decide),
+  exact ⟨1, md0, _, _, out, mintCall, mintCall, _, _, l1Acc, _, 8, 10, 11, hw, ⟨rfl, by decide⟩,
+    hp, by decide, rfl, by decide, rfl, by decide, by decide, rfl,
+    trackerHooks_ne_of_field (fun acc => (L1Ledger.bridgedOut acc 8).val) (by decide),
     by decide, by decide⟩
 
 open ResolutionExample TrackerHooksExample in

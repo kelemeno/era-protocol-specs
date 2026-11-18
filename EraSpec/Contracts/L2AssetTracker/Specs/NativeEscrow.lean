@@ -24,7 +24,8 @@ and the ledger `tok` of its token (`L2_NATIVE_TOKEN_VAULT.tokenAddress(a)`).  A 
   `:296-298`; `L2NTV:238-241`);
 * anyone's `registerLegacyToken(a)`, reading `tok` as it is at that moment (`TRK:198-210`);
 * any other successful tracker call (`Op.TouchesAsset` says which calls are excluded): those
-  read no token of `a` and record no flow of `a`;
+  read no token of `a` and record no flow of `a`, except the base-token flows when `a` is the
+  stored base asset, which `EscrowInv` rules out for an asset native here (`BaseNotSelfNative`);
 * any change of the ledger the vault does not make (`TokenMove`): transfers between other
   holders, transfers into the vault, mints and burns by the token's own logic.
 
@@ -41,8 +42,12 @@ vault's `.initiate` and `.finalize` calls.
   its own (a rebasing or fee-taking token, `MODEL-ESCROW`) is outside the model, and
   `Properties.EscrowNeedsVaultOnlyOutflow` shows that the conclusions fail for it.
 * The vault's other checks around the hook (router, pause, nonzero amount, asset id, WETH,
-  `msg.value`) are not modelled; neither are its bridged paths for `a`, which it does not take for
-  an asset native here (`NTV:245`, `:389`).
+  `msg.value`) are not modelled, nor is `_withdrawFunds`'s check that the asset is not the
+  vault's `BASE_TOKEN_ASSET_ID` (`L2NTV:239`); neither are its bridged paths for `a`, which it
+  does not take for an asset native here (`NTV:245`, `:389`).
+* The token is the token model's ledger (`BridgedStandardERC20`): allowances are not modelled, so
+  `_depositFunds`' `safeTransferFrom` is a transfer by the depositor, and `_withdrawFunds`'
+  `safeTransfer` is the vault's transfer (`Specs/HookOrdering.lean`).
 * `Config` (the vault's maps, this chain, the system addresses) is fixed, as in
   `Specs/Accounting.lean`.
 -/

@@ -29,7 +29,10 @@ This file supplies the deployed hooks at source pin `c67894b970a0dac6fe9144d8ebf
   (`L2Accounting`); the vault's own maps are the tracker `Config`.  The token snapshot the
   hooks receive is what the tracker's first-touch registration reads
   (`L2AssetTracker.tokenReads`): the PRE-burn token for the outbound hook, the PRE-mint token for
-  the inbound one.
+  the inbound one.  The vault model's `State.config` and `registry` and the tracker `Config` are
+  separate parameters, not tied to each other: the results hold for every pair, and the
+  witnesses use pairs that agree on the vault address, `block.chainid`, and the tracked asset's
+  origin chain and token address.
 
 ## Where the hooks run
 
@@ -144,8 +147,9 @@ def l2Registration (cfg : L2AssetTracker.Config) (acc : L2Accounting)
   (L2AssetTracker.registerLegacyTokenIfNeeded cfg acc.st (L2AssetTracker.tokenReads cfg tok) asset
     (cfg.ntvTokenAddress asset)).map fun st => { acc with st := st }
 
-/-- The L2 round trip is accounting-neutral up to registration when the chain is not L1, or the
-chain does not currently settle on L1 (`L2AssetTracker.sol:244-249, 299-304`). -/
+/-- The L2 round trip is accounting-neutral up to registration when the other chain is not the
+tracker's `L1_CHAIN_ID`, or this chain does not currently settle on L1
+(`L2AssetTracker.sol:244-249, 299-304`). -/
 def L2OffL1 (acc : L2Accounting) (chain : UInt256) : Prop :=
   chain ≠ acc.st.l1ChainId ∨ acc.sl ≠ acc.st.l1ChainId
 

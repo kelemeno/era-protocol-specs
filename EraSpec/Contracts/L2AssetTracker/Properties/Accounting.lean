@@ -10,44 +10,50 @@ Statements about `EraSpec.Contracts.L2AssetTracker.Specs.Accounting`.  Proofs ar
 ## The chain balance is a sentinel, and a cap
 
 * `AccountingInvariant`: `Inv` holds along every run from a state satisfying it, and
-  `FreshTrackerSatisfiesInv` gives the deployed starting point.
+  `FreshTrackerSatisfiesInv` gives the starting point of a newly deployed tracker (one upgraded
+  in place keeps its storage, which must satisfy `Inv` for the results to apply).
 * `NativeSentinel` (headline): for every registered native asset,
   `chainBalance + Σout = snapshot + Σin`, so `chainBalance = MAX - (E + Σout - Σin)` where
   `E = MAX - snapshot` is `0` for a token registered as new and, for a legacy one, the vault's
   balance as the first touch read it; and `Σin ≤ E + Σout`.
 * `InflowOverflowIsCap`: for a registered native asset, an inbound transfer touching no L1 counter
   succeeds iff `Σin + amount ≤ E + Σout`; beyond that the checked `+=` at `TRK:296` reverts.
-  `ChainBalanceGatesInflow` is a run in which the same inbound transfer reverts before an
-  outbound one and succeeds after it.
-* `OutflowIffNetOutFits`: in the same setting, an outbound transfer succeeds iff
-  `E + Σout + amount ≤ MAX + Σin`.  In the tracker alone the amounts are free inputs; run
-  together with the token's ledger, a funded outbound transfer never fails on the chain balance
-  (`Properties/NativeEscrow.lean`, `FundedNativeOutboundSucceeds`).
-* `TokenReadsIgnoredOnceRegistered`: for a registered asset the vault's two flow calls do not
-  depend on the token reads.  So once an asset is registered, a transfer straight into the vault
-  changes neither its chain balance nor the cap; one made before a legacy first touch is part of
-  the `E` that touch reads (`TRK:325-326`).
+  `ChainBalanceGatesInflow` is a run (after `initL2`) in which the same inbound transfer reverts
+  before an outbound one and succeeds after it.
+* `OutflowIffNetOutFits`: in the same setting, for an asset whose `tokenAddress` is set in the
+  vault, an outbound transfer succeeds iff `E + Σout + amount ≤ MAX + Σin`.  In the tracker alone
+  the amounts are free inputs; run together with the token's ledger
+  (`Properties/NativeEscrow.lean`), an outbound native transfer by a nonzero depositor other than
+  the vault holding the amount fails only on an overflow of `totalWithdrawalsToL1`, given a
+  nonzero vault address and chain id (`FundedNativeOutboundSucceeds`).
+* `TokenReadsIgnoredOnceRegistered`: for a registered asset the vault's two flow calls give the
+  same result whatever the token reads are, so once an asset is registered their outcome does not
+  depend on the token's state (for example on a transfer straight into the vault).  A transfer
+  into the vault before a legacy first touch is part of the vault balance that touch reads, so it
+  is part of `E` (`TRK:325-328`).
 
 ## The round trip
 
 * `TrackerHooksCancelOffL1`: an outbound call (vault hook, `TRK:221-250`) followed by an inbound
   one of the same chain, asset and amount (`TRK:269-305`) restores the storage exactly, up to the
-  first-touch registration of the asset, when the chain is not L1 or the chain settles off L1 at
-  both calls.  `NativeTokenVaultBase.L2HooksCancelModuloRegistration` is this law for the vault's
-  hooks.
-* `L1CountersMoveTogether`: when the chain is L1 and the chain settles on L1 at both calls, the
-  same round trip raises both `totalWithdrawalsToL1` and `totalSuccessfulDepositsFromL1` by the
-  amount, so neither counter is restored.
+  first-touch registration of the asset, when the other chain is not L1 or this chain settles off
+  L1 at both calls.  `NativeTokenVaultBase.L2HooksCancelModuloRegistration` is this law for the
+  vault's hooks.
+* `L1CountersMoveTogether`: when the other chain is L1 and this chain settles on L1 at both
+  calls, the same round trip, unless `totalSuccessfulDepositsFromL1` would overflow, succeeds and
+  raises both `totalWithdrawalsToL1` and `totalSuccessfulDepositsFromL1` by the amount, so
+  neither counter is restored.
 
 ## The base token
 
 * `BaseFinalizeNeverCreditsChainBalance`: a successful `handleFinalizeBaseTokenBridgingOnL2`
   leaves every chain balance unchanged once the base token is registered, native or not
-  (`TRK:377` passes `_isNativeToThisChain: false`).  The outbound base path does debit a native
-  base token (`TRK:256-260`).
-* `BaseTokenNativeAsymmetry` (countermodel): with a base token native to this chain, an outbound
-  and an inbound base transfer of the same amount leave the chain balance lowered by the amount,
-  and the sentinel fails.  So the premise `BaseNotSelfNative` of `Inv` is needed.
+  (`TRK:377` passes `_isNativeToThisChain: false`).  The outbound base path reads the vault's
+  origin chain for the base token (`TRK:256-260`), so it debits a native one.
+* `BaseTokenNativeAsymmetry` (countermodel): there is a base token native to this chain for which
+  an outbound and an inbound base transfer of one unit leave the chain balance one unit lower,
+  and the sentinel, which held before, fails.  So the premise `BaseNotSelfNative` of `Inv` is
+  needed.
 
 ## Registration and the backfill
 
@@ -61,14 +67,17 @@ Statements about `EraSpec.Contracts.L2AssetTracker.Specs.Accounting`.  Proofs ar
 
 ## Non-vacuity
 
-`AccountingRunSatisfiable` is a run from fresh storage to a state where two native assets are
-registered, one with nonzero outflow and inflow and one whose `E` is nonzero, with nonzero
-outflow; it meets the premises of `NativeSentinel`, `InflowOverflowIsCap` and
-`OutflowIffNetOutFits`, with an inbound amount accepted and a larger one rejected.
+`AccountingRunSatisfiable` is a run from fresh storage, starting with `initL2`, to a state where
+two native assets are registered, one with nonzero outflow and inflow and one whose `E` is
+nonzero, with nonzero outflow; it meets the premises of `NativeSentinel`, `InflowOverflowIsCap`
+and `OutflowIffNetOutFits`, with an inbound amount accepted and a larger one rejected.
 `TrackerRoundTripSatisfiable` meets the premises of `TrackerHooksCancelOffL1` on an unregistered
 native asset, after `initL2` (so the call registers it and moves its chain balance), and those of
-`L1CountersMoveTogether` on a registered native asset.  `BackfillSatisfiable` is a run with a
-successful backfill.  The countermodels are their own witnesses.
+`L1CountersMoveTogether` on a registered native asset.  `BaseFinalizeSatisfiable` meets those of
+`BaseFinalizeNeverCreditsChainBalance` with a call that changes the storage.
+`BackfillSatisfiable` is a run with a successful backfill from a state satisfying `Inv`, so it
+meets the premises of `BackfillOnlyBaseFromZero` and `BackfillAtMostOnce`.  The countermodels are
+their own witnesses.
 -/
 
 namespace Contracts.L2AssetTracker
@@ -149,15 +158,16 @@ def Properties.TokenReadsIgnoredOnceRegistered : Prop :=
         handleFinalizeBridgingOnL2 cfg st sl reads' cfg.ntv c a amount (cfg.ntvOriginChainId a)
           (cfg.ntvTokenAddress a)
 
-/-- **THE CHAIN BALANCE DECIDES AN INBOUND TRANSFER.**  From fresh storage, after the vault
-registers a native asset as new, an inbound transfer of one unit from a chain that is not L1
-reverts; after an outbound transfer of one unit to that chain, the same inbound transfer
-succeeds. -/
+/-- **THE CHAIN BALANCE DECIDES AN INBOUND TRANSFER.**  From fresh storage satisfying `Inv`, after
+the upgrader's `initL2` and the vault's registration of a native asset as new, an inbound transfer
+of one unit from a chain that is not L1 reverts; after an outbound transfer of one unit to that
+chain, the same inbound transfer succeeds. -/
 def Properties.ChainBalanceGatesInflow : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (reads : TokenReads) (c : ChainId) (a : AssetId)
-    (sys₁ sys₂ sys₃ : Sys),
-    Inv cfg (Sys.fresh sl) ∧ Native cfg a ∧ c ≠ sys₁.st.l1ChainId ∧
-    exec cfg (Sys.fresh sl) (.registerNewToken a) = some sys₁ ∧
+    (sys₀ sys₁ sys₂ sys₃ : Sys),
+    Inv cfg (Sys.fresh sl) ∧ Native cfg a ∧
+    exec cfg (Sys.fresh sl) (.initL2 false) = some sys₀ ∧
+    exec cfg sys₀ (.registerNewToken a) = some sys₁ ∧ c ≠ sys₁.st.l1ChainId ∧
     exec cfg sys₁ (.finalize reads c a 1) = none ∧
     exec cfg sys₁ (.initiate reads c a 1) = some sys₂ ∧
     exec cfg sys₂ (.finalize reads c a 1) = some sys₃
@@ -166,11 +176,12 @@ def Properties.ChainBalanceGatesInflow : Prop :=
 
 /-- **OUT THEN IN, OFF L1: EVERYTHING IS RESTORED BUT THE REGISTRATION.**  If the vault's
 outbound call `handleInitiateBridgingOnL2(c, a, amount, originChainId[a])` on storage `st` (with
-settlement layer `sl₁` and token reads `reads₁`) succeeds with `st'`, and `c` is not L1 or the
-chain settles off L1 at both calls (`sl₁`, `sl₂`), then the first-touch registration of `a` from
-`st` with `reads₁` is defined, with result `st₀`, and the vault's inbound call
-`handleFinalizeBridgingOnL2(c, a, amount, originChainId[a], tokenAddress[a])` on `st'` (any
-reads, settlement layer `sl₂`) succeeds with exactly `st₀`.  If `a` was registered, `st₀ = st`. -/
+settlement layer `sl₁` and token reads `reads₁`) succeeds with `st'`, and `c` is not the
+tracker's `L1_CHAIN_ID` or this chain settles off L1 at both calls (`sl₁`, `sl₂`), then the
+first-touch registration of `a` from `st` with `reads₁` is defined, with result `st₀`, and the
+vault's inbound call `handleFinalizeBridgingOnL2(c, a, amount, originChainId[a],
+tokenAddress[a])` on `st'` (any reads, settlement layer `sl₂`) succeeds with exactly `st₀`.  If
+`a` was registered, `st₀ = st`. -/
 def Properties.TrackerHooksCancelOffL1 : Prop :=
   ∀ (cfg : Config) (st st' : Storage) (sl₁ sl₂ : ChainId) (reads₁ reads₂ : TokenReads)
     (c : ChainId) (a : AssetId) (amount : UInt256),
@@ -182,12 +193,13 @@ def Properties.TrackerHooksCancelOffL1 : Prop :=
           (cfg.ntvTokenAddress a) = some st₀ ∧
         (st.isAssetRegistered a = true → st₀ = st)
 
-/-- **OUT THEN IN, ON L1: BOTH L1 COUNTERS GROW.**  With `c = L1_CHAIN_ID` and the chain settling
-on L1 at both calls, after a successful outbound call from `st`: the first-touch registration of
-`a` from `st` is defined, with result `st₀`, and the outbound call did not overflow
-`totalWithdrawalsToL1`; and unless `totalSuccessfulDepositsFromL1` would overflow, the inbound call
-of the same chain, asset and amount succeeds, with the chain balances, registrations and snapshots
-of `st₀`, the other assets' counters of `st₀`, and both of `a`'s counters raised by `amount`. -/
+/-- **OUT THEN IN, ON L1: BOTH L1 COUNTERS GROW.**  With `c = L1_CHAIN_ID` and this chain
+settling on L1 at both calls, after a successful outbound call from `st`: the first-touch
+registration of `a` from `st` is defined, with result `st₀`, and the outbound call did not
+overflow `totalWithdrawalsToL1`; and unless `totalSuccessfulDepositsFromL1` would overflow, the
+inbound call of the same chain, asset and amount succeeds, with the chain balances, registrations
+and snapshots of `st₀`, the other assets' counters of `st₀`, and both of `a`'s counters raised by
+`amount`. -/
 def Properties.L1CountersMoveTogether : Prop :=
   ∀ (cfg : Config) (st st' : Storage) (reads₁ reads₂ : TokenReads) (c : ChainId) (a : AssetId)
     (amount : UInt256),
@@ -220,10 +232,10 @@ def Properties.BaseFinalizeNeverCreditsChainBalance : Prop :=
     handleFinalizeBaseTokenBridgingOnL2 cfg st sl reads caller fromChain amount = some st' →
       st'.chainBalance = st.chainBalance
 
-/-- **COUNTERMODEL: `BaseNotSelfNative` IS NEEDED.**  With a base token native to this chain
-(registered, with chain balance `MAX`), an outbound base transfer of one unit followed by an
-inbound one of one unit, from a chain that is not L1, both succeed and leave the chain balance at
-`MAX - 1`; `ChainBalanceSentinel` held before and fails after. -/
+/-- **COUNTERMODEL: `BaseNotSelfNative` IS NEEDED.**  There is a state with a base token native to
+this chain (registered, with chain balance `MAX`) from which an outbound base transfer of one unit
+followed by an inbound one of one unit, from a chain that is not L1, both succeed and leave the
+chain balance at `MAX - 1`; `ChainBalanceSentinel` held before and fails after. -/
 def Properties.BaseTokenNativeAsymmetry : Prop :=
   ∃ (cfg : Config) (sys₀ sys₁ sys₂ : Sys) (reads : TokenReads) (c : ChainId),
     Native cfg sys₀.st.baseTokenAssetId ∧
@@ -277,14 +289,15 @@ def Properties.BackfillAtMostOnce : Prop :=
 /-! ## Non-vacuity -/
 
 /-- **THE SENTINEL AND CAP PREMISES ON A NONTRIVIAL RUN.**  From fresh storage satisfying `Inv`,
-a run to a state where two distinct native assets `a` and `b`, both with a token address in the
-vault, are registered; `a` has nonzero outflow and inflow, `b` has nonzero outflow and a nonzero
-`E`; a chain `c` is not L1; and an inbound transfer of `b` from `c` succeeds for one amount and
-reverts for another. -/
+a run to a state where `initL2` has run and two distinct native assets `a` and `b`, both with a
+token address in the vault, are registered; `a` has nonzero outflow and inflow, `b` has nonzero
+outflow and a nonzero `E`; a chain `c` is not L1; and an inbound transfer of `b` from `c`
+succeeds for one amount and reverts for another. -/
 def Properties.AccountingRunSatisfiable : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (sys : Sys) (reads : TokenReads) (c : ChainId)
     (a b : AssetId) (small large : UInt256),
-    Inv cfg (Sys.fresh sl) ∧ Reach cfg (Sys.fresh sl) sys ∧ a ≠ b ∧
+    Inv cfg (Sys.fresh sl) ∧ Reach cfg (Sys.fresh sl) sys ∧ sys.st.guardInitialized = true ∧
+    a ≠ b ∧
     sys.st.isAssetRegistered a = true ∧ sys.st.isAssetRegistered b = true ∧
     Native cfg a ∧ Native cfg b ∧ cfg.ntvTokenAddress a ≠ 0 ∧ cfg.ntvTokenAddress b ≠ 0 ∧
     c ≠ sys.st.l1ChainId ∧
@@ -310,13 +323,27 @@ def Properties.TrackerRoundTripSatisfiable : Prop :=
       (cfg.ntvOriginChainId a) = some st₁' ∧
     (st₁.interopInfo a).totalSuccessfulDepositsFromL1.val + amount.val < UInt256.size
 
+/-- **THE INBOUND BASE PATH'S PREMISES ON A RUN.**  From fresh storage satisfying `Inv`, a run to a
+state in which the base token is registered, and a successful
+`handleFinalizeBaseTokenBridgingOnL2` there, by the base-token holder, of a nonzero amount, that
+changes the storage. -/
+def Properties.BaseFinalizeSatisfiable : Prop :=
+  ∃ (cfg : Config) (sl : ChainId) (sys : Sys) (st' : Storage) (reads : TokenReads)
+    (fromChain : ChainId) (amount : UInt256),
+    Inv cfg (Sys.fresh sl) ∧ Reach cfg (Sys.fresh sl) sys ∧
+    sys.st.isAssetRegistered sys.st.baseTokenAssetId = true ∧ amount ≠ 0 ∧
+    handleFinalizeBaseTokenBridgingOnL2 cfg sys.st sys.sl reads cfg.baseTokenHolder fromChain
+      amount = some st' ∧
+    st' ≠ sys.st
+
 /-- **A RUN WITH A BACKFILL.**  From fresh storage satisfying `Inv`: `initL2` with the flag set,
-the upgrade registration of the base token, then a successful backfill. -/
+the upgrade registration of the base token, reaching a state that satisfies `Inv`, then a
+successful backfill of a nonzero amount. -/
 def Properties.BackfillSatisfiable : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (sys₁ sys₂ sys₃ : Sys) (amount : UInt256),
     Inv cfg (Sys.fresh sl) ∧ amount ≠ 0 ∧
     exec cfg (Sys.fresh sl) (.initL2 true) = some sys₁ ∧
-    exec cfg sys₁ .registerBaseDuringUpgrade = some sys₂ ∧
+    exec cfg sys₁ .registerBaseDuringUpgrade = some sys₂ ∧ Inv cfg sys₂ ∧
     exec cfg sys₂ (.backfill amount) = some sys₃
 
 end Contracts.L2AssetTracker
