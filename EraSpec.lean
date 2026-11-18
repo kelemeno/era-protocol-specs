@@ -205,6 +205,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- ChainAssetHandler at draft/v0.35.0 (b17415d20; cited files identical at d9f6789): chains
+-- migrating between settlement layers, over every hub at once, and the migration pauses
+import EraSpec.Contracts.ChainAssetHandler.Proofs.Migration
+import EraSpec.Contracts.ChainAssetHandler.Proofs.Pause
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

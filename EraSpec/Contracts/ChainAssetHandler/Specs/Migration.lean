@@ -15,7 +15,8 @@ files modelled are cited as
 and the callees whose effects or checks are part of a step as
 
 * `BH` — `core/bridgehub/BridgehubBase.sol`, `L1BH` — `core/bridgehub/L1Bridgehub.sol`,
-* `CTM` — `state-transition/ChainTypeManager.sol`, `DI` — `state-transition/chain-deps/DiamondInit.sol`,
+* `CTM` — `state-transition/ChainTypeManager.sol`,
+  `DI` — `state-transition/chain-deps/DiamondInit.sol`,
 * `MIG` — `state-transition/chain-deps/facets/Migrator.sol`, `ADM` — `.../facets/Admin.sol`,
 * `CFG` — `common/Config.sol`.
 
@@ -89,20 +90,22 @@ not fail permanently (the source assumes "GW -> L1 transactions can never fail",
   `:172-176`, `:203-205`); on a returning mint its deposit-pause, permanent-rollup, batch and
   priority-tree checks (`MIG:217-219`, `:234-259`, `:270-276`, `:288`); the base-token checks of
   the mint data (`CAH:337-338`); message-root bookkeeping and batch numbers; the bridgehub's
-  `whenNotPaused` on chain creation (`L1BH:113`) and the `_validateChainParams` checks other
-  than the four kept (`BH:497-499`, `:510-514`, `:519-521`, `:527-533`); the address, chain-id
-  and bridgehub checks of `registerAlreadyDeployedZKChain` (`L1BH:286-288`, `:294-296`,
-  `:304-306`).
+  `whenNotPaused` on chain creation (`L1BH:113`) and the `_validateChainParams` checks not kept
+  in `CreateOk` and `RegisterDeployedOk` (`BH:497-499`, `:510-514`, `:519-521`, `:527-533`); the
+  address, chain-id and bridgehub checks of `registerAlreadyDeployedZKChain` (`L1BH:286-288`,
+  `:294-296`, `:304-306`); the upgrade engine's bound on an away diamond's new version by its
+  settlement layer's diamond (`upgrades/BaseZkSyncUpgrade.sol:89-94`).
 * **Fixed configuration** (`World`), per hub where the source stores it per hub: the
   settlement-layer whitelist, the CTM asset-id registry in both directions, CTM registration,
   CTM owners, and the handler's owner. Every result is about one `World`, so it covers runs in
   which these do not change (`OPS-CONFIG`).
 * **Versions are environment steps.** `ctmUpgrade` is the CTM's `_commitVersionEdge`, which
   strictly raises its version (`CTM:523-537`); `diamondUpgrade` is the diamond's
-  `upgradeChainFromVersion`, which strictly raises its version (`ADM:559-591`, `:585-587`) and
-  has no settlement-layer check, so an away diamond can be upgraded. A CTM owner's arbitrary
-  diamond cut (`ADM:593-596`) can rewrite any diamond field and is not a step; nor is a CTM or
-  handler code swap.
+  `upgradeChainFromVersion`, which strictly raises its version (`ADM:559-590`, `:587-589`).
+  `upgradeChainFromVersion` does not require the diamond to be on its settlement layer, so an
+  away diamond can be upgraded (the engine's bound above is omitted). A cut the CTM owner has
+  the CTM execute (`executeUpgrade`, `CTM:626-628`, `ADM:593-595`) can rewrite any diamond
+  field and is not a step; nor is a CTM or handler code swap.
 * **`CHAIN_MIGRATIONS_ENABLED` is a parameter.** At this commit it is `false` (`CFG:320`), so
   in production `bridgeBurn` and `bridgeMint` always revert (`CAH:151-156`);
   `_getChainMigrationsEnabled` is virtual for test variants (`CAH:163-167`).
@@ -257,7 +260,7 @@ inductive Label
   /-- Environment: CTM `x` on hub `h` moves to version `v` (`CTM:523-537`). -/
   | ctmUpgrade (h : ChainId) (x : Address) (v : ℕ)
   /-- Environment: the diamond of chain `c` on hub `h` is upgraded to version `v`
-  (`ADM:559-591`). -/
+  (`ADM:559-590`). -/
   | diamondUpgrade (h c : ChainId) (v : ℕ)
 
 /-! ## Successor states -/
@@ -521,7 +524,8 @@ inductive Step (W : World) : Sys → Label → Sys → Prop
   /-- L1 `bridgeConfirmTransferResult` (`L1CAH:122-172`). The handler entry point has no pause
   flag and no `whenMigrationsEnabled` (`L1CAH:119-120`, `:128`). -/
   | confirm {s : Sys} {i : ℕ} {m : Msg} {failure : Bool} :
-      ConfirmOk W s i m failure → Step W s (.confirm i m.chain failure) (confirmPost W s i m failure)
+      ConfirmOk W s i m failure →
+      Step W s (.confirm i m.chain failure) (confirmPost W s i m failure)
   /-- `setSettlementLayerChainId` on L2 chain `h` (`L2CAH:116-127`): `onlySystemContext`
   (`L2CAH:119`, `CAH:169-174`), whose arguments are the environment's. -/
   | setSLChainId {s : Sys} {h prev cur : ChainId} :
@@ -554,8 +558,8 @@ inductive Step (W : World) : Sys → Label → Sys → Prop
   | ctmUpgrade {s : Sys} {h : ChainId} {x : Address} {v : ℕ} :
       s.ctmPV h x < v →
       Step W s (.ctmUpgrade h x v) { s with ctmPV := upd2 s.ctmPV h x v }
-  /-- Environment: a diamond's version strictly increases (`ADM:585-587`; no
-  settlement-layer check, so an away diamond can be upgraded). -/
+  /-- Environment: a diamond's version strictly increases (`ADM:587-589`). No guard reads
+  whether the diamond is away (see the module docstring). -/
   | diamondUpgrade {s : Sys} {h c : ChainId} {v : ℕ} :
       s.dpv h c < v →
       Step W s (.diamondUpgrade h c v) { s with dpv := upd2 s.dpv h c v }
@@ -565,8 +569,9 @@ interval or in-progress flag, no message, and no diamond away. A diamond's
 `s.settlementLayer` is written only by the Migrator's three entry points (`MIG:207`, `:299`,
 `:332`), all `onlyChainAssetHandler` of the diamond's own bridgehub
 (`state-transition/chain-deps/facets/ZKChainBase.sol:113-118`), and that handler's
-`bridgeBurn` needs the chain registered there (`BH:419`). CTM versions, diamond versions and
-CTMs, and the pause flags are arbitrary. -/
+`bridgeBurn` needs the chain registered there (`BH:419`); `DiamondInit` does not write it, and
+`registerAlreadyDeployedZKChain` registers only diamonds it set up (`OPS-CONFIG`). CTM
+versions, diamond versions and CTMs, and the pause flags are arbitrary. -/
 structure Init (s : Sys) : Prop where
   sl : ∀ h c, s.sl h c = 0
   reg : ∀ h c, s.reg h c = false
@@ -687,14 +692,14 @@ def countL1Mints (W : World) (c : ChainId) (ls : List Label) : ℕ :=
 
 L1 is chain `1`, the gateway chain `2`, the migrating chain `3`. One CTM, address `7` on
 both hubs, with asset id `5` in both directions of both registries; it is registered on both
-hubs, owned by `11`; both handlers are owned by `10`. L1 whitelists the gateway and the
-gateway whitelists L1. -/
+hubs, owned by `11`; both handlers are owned by `10`. Every bridgehub whitelists L1, as its
+initializer does (`BH:169-172`), and L1's also whitelists the gateway. -/
 
 /-- The witness ecosystem, with migrations enabled. -/
 def cahWorld : World where
   l1 := 1
   migrationsEnabled := true
-  wl := fun h t => decide ((h = 1 ∧ t = 2) ∨ (h = 2 ∧ t = 1))
+  wl := fun h t => decide (t = 1 ∨ (h = 1 ∧ t = 2))
   ctmOfAsset := fun _ a => if a = 5 then 7 else 0
   assetOfCTM := fun _ x => if x = 7 then 5 else 0
   ctmRegistered := fun _ x => decide (x = 7)
