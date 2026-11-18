@@ -289,6 +289,10 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearchAtHead
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLegAtHead
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
 
+-- Registry-driven upgrades at draft/v0.35.0 b17415d (d9f6789 kept for comparison): the
+-- domain-holder check around a proxy-upgrade engine leg (ProxyUpgradeExecutorBase)
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.DomainHoldersV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
