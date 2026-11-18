@@ -205,6 +205,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Native-value atomic legs at head b17415d20 (backlog N-5): collection and refund, and runs
+import EraSpec.Protocol.NativeValueLegs.Proofs.LegConservation
+import EraSpec.Protocol.NativeValueLegs.Proofs.LegConservationRuns
+import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
