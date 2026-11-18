@@ -2,7 +2,9 @@
 
 Source: `contracts/bridge/asset-router/AssetRouterBase.sol` and the two routers
 (`L1AssetRouter.sol`, `L2AssetRouter.sol`) in the pinned era-contracts tree
-(`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`).
+(`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`). `HandlerGateAtV35` and `AtomicRecoveryAtHead`
+are pinned at `draft/v0.35.0` (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`); see their sections
+below.
 
 `HandlerRegistration` models one writer, `_setAssetHandlerAddressThisChain`;
 `L1AssetRouter` and `L2AssetRouter` reach it through
@@ -20,6 +22,9 @@ the initializers (`setNativeTokenVault`, `initL2`), the L2 counterpart's
 calls it. `AtomicRecoveryFaithful` models one place where that model differs from
 the source, the target of a router-produced call to L1, and restates the results
 that depend on it. `AtomicRecovery.routerCall` itself is unchanged.
+`AtomicRecoveryAtHead` models the refund at `draft/v0.35.0` (`b17415d20`), where the
+manager dispatches on the call's sender and the router refunds through the asset's
+registered handler.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -35,12 +40,17 @@ for those exact named propositions, plus auxiliary lemmas.
 | CounterpartGate | [Specs/CounterpartGate.lean](Specs/CounterpartGate.lean) | [Properties/CounterpartGate.lean](Properties/CounterpartGate.lean) | [Proofs/CounterpartGate.lean](Proofs/CounterpartGate.lean) |
 | AtomicRecovery | [Specs/AtomicRecovery.lean](Specs/AtomicRecovery.lean) | [Properties/AtomicRecovery.lean](Properties/AtomicRecovery.lean) | [Proofs/AtomicRecovery.lean](Proofs/AtomicRecovery.lean) |
 | AtomicRecoveryFaithful | [Specs/AtomicRecoveryFaithful.lean](Specs/AtomicRecoveryFaithful.lean) | [Properties/AtomicRecoveryFaithful.lean](Properties/AtomicRecoveryFaithful.lean) | [Proofs/AtomicRecoveryFaithful.lean](Proofs/AtomicRecoveryFaithful.lean) |
+| PausedRecovery | [Specs/PausedRecovery.lean](Specs/PausedRecovery.lean) | [Properties/PausedRecovery.lean](Properties/PausedRecovery.lean) | [Proofs/PausedRecovery.lean](Proofs/PausedRecovery.lean) |
+| AtomicRecoveryAtHead | [Specs/AtomicRecoveryAtHead.lean](Specs/AtomicRecoveryAtHead.lean) | [Properties/AtomicRecoveryAtHead.lean](Properties/AtomicRecoveryAtHead.lean) | [Proofs/AtomicRecoveryAtHead.lean](Proofs/AtomicRecoveryAtHead.lean) |
+| HandlerGateAtV35 | [Specs/HandlerGateAtV35.lean](Specs/HandlerGateAtV35.lean) | [Properties/HandlerGateAtV35.lean](Properties/HandlerGateAtV35.lean) | [Proofs/HandlerGateAtV35.lean](Proofs/HandlerGateAtV35.lean) |
 
 Namespaces: `Contracts.AssetRouter` (HandlerRegistration, HandlerRegistrationRuns),
 `Contracts.AssetRouter.AllWriters` (AllWriters, AllWritersStrong, VaultMintGate,
 CounterpartGate),
-`Contracts.AssetRouter.AtomicRecovery` and
-`Contracts.AssetRouter.AtomicRecoveryFaithful`. Statements are `<namespace>.Properties.*`;
+`Contracts.AssetRouter.AtomicRecovery`,
+`Contracts.AssetRouter.AtomicRecoveryFaithful`,
+`Contracts.AssetRouter.AtomicRecoveryAtHead` and
+`Contracts.AssetRouter.HandlerGateAtV35`. Statements are `<namespace>.Properties.*`;
 each certificate has the same name without the `Properties` segment.
 
 ## Run-level registration (`HandlerRegistrationRuns`)
@@ -218,6 +228,97 @@ no-code premise the refund is whatever the code at that address does
 (`InteropCenter.sol:550-554`) and the recovery of an L1-destined bundle
 (`AtomicFlowManager.sol:295`).
 
+## Atomic recovery while the vault is paused (`PausedRecovery`)
+
+Namespace `Contracts.AssetRouter.PausedRecovery`, in `AtomicRecovery`'s refund model, whose
+world already carries the vault's `paused()` flag and whose vault refund begins with
+`whenNotPaused` (`NativeTokenVaultBase.sol:217`). It adds the owner's `pause()`/`unpause()`
+(`pauseVault`, `unpauseVault`: OpenZeppelin's guards, writing only the flag) and two frame
+premises on the bundle's other targets: `OthersLeavePause` (they do not write the vault's
+flag) and `OthersIgnorePause` (they neither read nor write it). No hash premise.
+
+| Result | Statement |
+|---|---|
+| `PausedVaultRevertsRouterDeposit`, `PausedRouterDepositBlocksClaim`, `RouterRefundLeavesPause` | While the vault is paused, `recoverAtomicCall` on any `finalizeDeposit` call reverts (outcome `reverts`, not `declined`), so no outcome list containing it is accepted. A returning router refund leaves the flag alone. |
+| `PausedVaultBlocksClaim` | Paused vault, `OthersLeavePause`, and a call in the bundle that targets the router with `finalizeDeposit` data (`HasRouterDeposit`): `claimRefund` reverts, for any leg state, on the state the earlier calls leave. The leg keeps its state. |
+| `PauseIrrelevantWithoutRouterDeposit` | With `OthersIgnorePause` and no router deposit, the claim's result does not depend on the flag. |
+| `PauseUnpauseRoundTrip`, `PausedClaimRetriedAfterUnpause` | A claim that succeeds on an unpaused world reverts once the vault is paused; pause then unpause returns exactly the original world, where the claim gives the same result. |
+| `PausedPreparedBurnRefundDelayed` | In `PreparedBurnRefundsDepositor`'s setting (a burn the vault prepared from a `WellFormed` state, an asset the refund world knows as bridged, a returning tracker hook): the router call carrying the burn's data reverts while paused, and unpaused it re-mints the burned amount to the depositor. Stated on `routerCall`, the router-produced call only for a destination other than L1. |
+
+Witness: `PausedRecoveryWitness`, on `AtomicRecovery`'s concrete world: a one-call bundle
+with a vault-asset router deposit is claimed unpaused and reverts paused, and a bundle with
+no router deposit is claimed both paused and unpaused. A router-produced call to L1 targets
+`L1_ASSET_ROUTER` and is a router deposit here only if that address is
+`L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`). The protocol-level pause model is
+`Protocol/InteropAtomicity` `Pause`, whose refund gate reads the vault flag exactly for
+bundles with a router call, which `PauseIrrelevantWithoutRouterDeposit` justifies for this
+model.
+
+## Atomic recovery at head (`AtomicRecoveryAtHead`)
+
+Source: `draft/v0.35.0` at `b17415d20`; the modelled functions are the same at `main`
+`70096e2ea`. Two upstream changes replaced the pin's refund. The manager dispatches on
+`InteropCall.from` (`AtomicFlowManager.sol:312-323`), ignores the router's answer, and no
+longer rejects a claim that recovers nothing. `recoverAtomicCall` calls the handler that
+`assetHandlerAddress` names at claim time (`L2AssetRouter.sol:299-302`). A direct call's
+value is refunded through `bridgehubRecoverBaseToken` (`:314-328`). On L2 the vault's
+refund gained a base-token branch (`L2NativeTokenVault.sol:204-227`); off this chain's
+base token it is the pin model's `ntvRecover`. The pin model is unchanged.
+
+| Result | Statement |
+|---|---|
+| `DirectCallSkipsRouterRecovery`, `DirectCallDataIgnoredAtHead`, `CallTargetIgnoredAtHead`, `DirectValueLegRefundsItsSenderAtHead`, `CrossBaseValueLegRefundAtHead`, `SameBaseValueLegRefundAtHead` | A call not from the router never reaches `recoverAtomicCall`: its iteration is the vault's refund of the call's own value to its own sender, or nothing when the value is zero. No call's target is read. |
+| `DirectBundleClaimIsNoOpAtHead` | Headline (a): a bundle of zero-value direct calls is claimed as a no-op, whatever data the calls carry. For a sender other than the router only indirect starters yield calls from the router (`RouterSenderIffIndirectAtHead`, `SentDirectCallNeverRecoveredAtHead`). The pin's forged-refund instance is rejected (`PinUnbackedMintRejectedAtHead`), and `DirectCallIsRefunded` is false of the head (`DirectCallIsRefundedFailsAtHead`). |
+| `VaultRecoverAtHeadIsPinRefundOffBaseToken`, `VaultRecoverAtHeadOnBaseToken`, `VaultRouterCallIsPinIterationAtHead` | Off this chain's base token and off L1 the vault's head refund is the pin model's `ntvRecover`; on the base token it is the base-token holder's `recoverBaseToken`. While the vault handles an asset, a router call's head iteration equals the pin model's iteration on the pin's router call, so the pin's results about it apply. |
+| `RecoveryReadsClaimTimeHandler`, `BurnLeavesBurnHandler`, `NoRotationKeepsHandler`, `NoRotationKeepsHandlerLoggedOn`, `HandlerMovesOnlyByRotation` | The refund uses the handler registered at claim time. The burn leaves its own handler registered, and a run of the router-map writers (`AllWriters`) that rotates nothing leaves it there: no hash premise, or in the logged form `IdInjOn` on the asset's triple paired with each triple the run hashes. |
+| `RouterLegReachesBurnHandler`, `RouterLegReachesBurnHandlerLoggedOn` | Headline (b): without a rotation, a router leg's refund is the burn handler's own refund on the burn's bytes. Also `CustomHandlerRecoveredByItsHandler` (no hash premise), `PreparedBurnRefundsDepositorAtHead`, `PinStrandedBundleRefundedAtHead`; `RecoveryCallsTheVaultFailsAtHead`, `RecoveryIgnoresHandlerFailsAtHead`. |
+| `VaultBurnRefundsDepositorAfterRunAtHead` | Headline (b) for a vault burn: after any run of the writers that does not rotate the asset away from the vault, the router leg's refund re-mints the prepared burn's amount to its depositor (with the vault-side premises of `PreparedBurnRefundsDepositorAtHead`). |
+| `RotationToNoOpHandlerStrandsBurn`, `RotationToRevertingHandlerBlocksClaim`, `ZeroedHandlerRecoveryReverts`, `L2RotationOnlyByCounterpartSeedOrVault` | Headline (c), upstream known issue 5 (`protocol-docs/atomicity/security.md:149-156`), as concrete instances: one counterpart call between burn and claim that re-points the asset at a no-op handler lets the claim consume the leg with nothing refunded, and one that re-points it at a reverting handler blocks the claim until a second call points it back. An unset handler makes the refund revert. On L2, along runs from fresh storage, only the counterpart, the initializer and the vault's own registration rotate a live route. |
+| `ClaimSucceedsIffLoopCompletesAtHead`, `RevertingCallBlocksClaimAtHead`, `UnrecoverableHandlerBlocksBundleAtHead`, `HandlerWithoutRecoveryStrandsBundleAtHead` | Headline (d): a claim succeeds exactly when no attempted recovery reverts, so one call that reverts in every reachable world blocks its whole bundle. |
+| `NothingRecoveredStillConsumesLegAtHead`, `UnrecognisedRouterCallConsumedAtHead`, `PinRejectsNothingRecoverableHeadAccepts` | A claim that recovers nothing consumes the leg (upstream known issue 1). |
+| `L1DestinationClaimRevertsAtHead` | (e) A claim with an L1 destination reverts in every leg state. An atomic bundle to L1 is rejected at send (`InteropCenter.sol:552-553`), which is not modelled. |
+
+Model boundaries (Specs header; `MODEL-ATOMIC-RECOVERY-HEAD`): the code at every handler
+other than the vault is arbitrary (`HandlerCode`); the vault's hooks and the base-token
+holder's `recoverBase` write only the rest of the world (`DEP-FRAME`); call and mint data
+are typed (`SOL-ABI`); router-map writes between burn and claim are `AllWriters` steps;
+the `L1_CHAIN_ID` slots of router, manager and tracker are one value, and the
+`BASE_TOKEN_ASSET_ID` slots of vault and tracker another (`OPS-CONFIG`); the send side is
+`_processCallStarter` alone, with the premise that the router never sends a bundle
+itself; `nonReentrant`, events and `claimRefund`'s bundle decoding are omitted. The only
+hash premises are in the two `…LoggedOn` forms. Every property with premises has a
+witness (the `…Satisfiable` statements and `ZeroedHandlerReachableByCounterpart`).
+
+## The v35 handler gate (`HandlerGateAtV35`)
+
+Pinned at `draft/v0.35.0` (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). The router, message-root
+and Bridgehub files it cites are unchanged from the earlier head `d9f6789`. v35 adds a check
+to the L1 router, `_checkAssetHandlerAllowed` (`L1AssetRouter.sol:276-288`). It runs first in
+`bridgehubDepositBaseToken`, `bridgehubDeposit` (new encoding), `finalizeDeposit` and
+`bridgeConfirmTransferResult`, and lets the call through when the asset's handler is unset, the
+router's vault or `BRIDGE_HUB.chainAssetHandler()`, or when the chain is interop-enabled in the
+current message root. The model is `AllWriters`' L1 step relation, plus the four entry points as
+events that move an asset through its handler, plus `L1MessageRoot.enableInterop` and
+`L1Bridgehub.setAddresses` as the events that change what the gate reads. The handlers' own calls
+are taken to succeed and the entry points' other checks are not modelled, so "has a step" means
+that the gate and the handler-set check let the call through.
+
+| Result | Statement |
+|---|---|
+| `MovementEnabledIff` | A gated entry point at `(c, a)` has a step exactly when `a`'s handler is set and `(c, a)` is not stranded (custom handler, `c` without interop), and it changes nothing. The gate never stops the fallback. No premises. |
+| `MovementsUseExemptHandlerOrEnabledChain` | In every run, each event moving an asset at chain `c` moved it through the router's vault or the chain asset handler of the state it ran in, or `c` was interop-enabled in that state. Witness `CustomMovementAtEnabledChainWitness`. |
+| `MovementsAtDisabledChainUseExemptHandler` | Along a run without `setAddresses`, every asset moved at a chain still without interop at the end moved through the vault or the chain asset handler. Witness `MovementsAtDisabledChainWitness`. |
+| `RunProjectsToAllWriters`, `GatedRunWeakValidOn` | The router maps of every v35 run follow the `AllWriters` L1 run of its router-writing calls, so the gate adds no writer and `AllWriters`' L1 results carry over, for instance `WeakValid` under the run-local `IdInjOn`. Witnesses `RunProjectsToAllWritersWitness`, `GatedRunWeakValidOnWitness`. |
+| `InteropFlagsOneWayWithoutSetAddresses` | Without `setAddresses`, the chain asset handler stays, enabled chains stay enabled, and only `enableInterop(c)` changes `c`'s flag. Witness `InteropFlagsOneWayWitness`. |
+| `StrandedUntilListedCall`, `UnstrandingCallIsListed` | A stranded `(c, a)` stays stranded, and no event moves `a` at `c`, until `enableInterop(c)`, `setAddresses`, `setNativeTokenVault` seeding `a`, or a registration of `a` (by the vault or `a`'s recorded tracker). Witnesses `StrandedUntilListedCallWitness`, `UnstrandingCallIsListedWitness`. |
+| `OpenGateStaysOpen` | Once a gated entry point at `(c, a)` has a step, every gated entry point at `(c, a)` keeps one, through the same handler, along every run without `setAddresses` and without a call that can rewrite `a`'s handler. Witness `OpenGateStaysOpenWitness`. |
+| `SetAddressesClosesOpenGate`, `RepointingClosesOpenGate` | Both exclusions are needed: a `setAddresses` installing a message root that does not enable `c` closes an open gate, and a tracker's re-registration of an asset routed to the chain asset handler can leave it with a custom handler and close the gate at a chain without interop. |
+
+No hash premise, except `GatedRunWeakValidOn`'s, which is `AllWriters`'. Not modelled: the
+handlers' internal state (for instance the vault's per-chain balance cap, which the upstream
+documentation gives as the reason for the gate), callers of the configuration events, and router,
+Bridgehub and message-root upgrades (`OPS-CONFIG`).
+
 ## Assumptions to review
 
 `NoHijack` and `NtvTouchesOnlyItsOwnIds` take `IdAssumptions enc` as a premise.
@@ -249,3 +350,5 @@ Everything here is abstract. Events, `msg.value`, pause, `nonReentrant`, router
 upgrades, `_setAssetHandler`'s other effects, the L1 failed-deposit path
 (`bridgeConfirmTransferResult`, which does use the handler), and ABI encoding of the
 id preimage are not modelled. Router storage and call correspondence are open.
+`HandlerGateAtV35` models only the v35 gate on that failed-deposit path, with the handler's
+own call taken to succeed (`MODEL-ROUTER-GATE-V35`).

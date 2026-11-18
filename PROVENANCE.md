@@ -98,18 +98,20 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
 
 * At era-contracts `c67894b9`:
   - `AssetRouterBase`: `AtomicRecovery`, `AllWriters`, `VaultMintGate`,
-    `CounterpartGate`, `HandlerRegistrationRuns`.
+    `CounterpartGate`, `HandlerRegistrationRuns`, `PausedRecovery`.
   - `NativeTokenVaultBase`: `Resolution` (with `ResolutionCorrespondence`),
-    `RegistrationUnified`, `Reinitialization`, `LegacyFallback`.
+    `RegistrationUnified`, `Reinitialization`, `LegacyFallback`, `Pause`.
   - `BridgedStandardERC20`: `Reinitialization`, `LegacyFallback`. The OpenZeppelin
     v4.9 lines `Reinitialization` cites were read from a v4.9.6 copy, because the
     pinned tree's submodules are not checked out (see that spec's header).
   - `InteropCenter` (new contract folder): `Dispatch`.
   - `InteropDataEncoding` `BundleHashPinned`; `InteropHandlerBase` `Reentrancy`;
+    `L2InteropHandler` `SourceBindingReduced`;
     `L2InteropCommitmentTree` `CachedRoot`, `InitOnce`, `PublishedRootCommits`;
     `FullMerkle` `CachedNodes`; `Merkle` `RootForgeryPinned`.
-  - `Protocol/InteropAtomicity` `FlowBinding`, `OncePerLeg`;
-    `Protocol/AssetBridgePreparation` `RegistryCorrespondence`, `Reinitialization`;
+  - `Protocol/InteropAtomicity` `FlowBinding`, `OncePerLeg`, `Pause`, `SharedCommitment`,
+    `Operational`; `Protocol/AssetBridgePreparation` `RegistryCorrespondence`,
+    `Reinitialization`, `Resolution`, `ResolutionEvidence`, `FullRecovery`;
     `Examples/BurnMintBridge` `EndBranch`.
   - `Codegen/Calls.lean` (single module) and `Codegen/VaultPreparationSlice/`, which
     transcribes the vault's registered bridged-token `bridgeBurn` branch.
@@ -121,6 +123,42 @@ and `ExecutorRowsUnvalidated` have properties and proofs only.
     that commit unchanged.
   - `RegistryBootstrapMigration` `Forward`, citing the OpenZeppelin v4.9 submodules
     that commit pins (`2d081f2`, `dc44c9f`).
+* At era-contracts `main` commit `3605e82`:
+  - `L2InteropCommitmentTree` `PaddingAtHead`: the tree with the padding constant
+    `IMT_EMPTY_LEAF_HASH` (`common/Config.sol:87-90`,
+    `common/libraries/IndexedMerkleTree.sol`, `Merkle.sol`, `FullMerkle.sol`,
+    `atomic-interop/L2InteropCommitmentTree.sol`). The five files are byte-identical at
+    `main` `70096e2`. On draft/v0.35.0 (`d9f6789` and `b17415d20`) the three library
+    files are byte-identical, the constant is the same declaration (`Config.sol:138-141`),
+    and the contract differs only in its error imports. `Merkle.sol` and `FullMerkle.sol`
+    are byte-identical to `c67894b9`.
+* At `draft/v0.35.0` commit `b17415d20` (first written against `d9f678900`; every Solidity
+  file it cites is the same at both commits, and the cited lines of
+  `protocol-docs/interop-gating.md` are `b17415d20`'s):
+  - `Protocol/InteropAtomicity` `LegSourceFilterAtV35`: the receive filter
+    `_checkLegSourceAllowed` and the `L2Bridgehub.isPeerAllowed` writers, added to the
+    pin's `FlowBinding` and `OncePerLeg` models. Only the filter is taken from that
+    commit; the tree, proof checks and manager stay the pin's models.
+* At era-contracts `main` commit `3605e82` (a moving branch, outside the source pin):
+  - `AtomicFlowManager` `FlowCanonicalAtHead`; `Protocol/InteropAtomicity`
+    `FlowBindingAtHead`. Both sit next to the pin models, which are unchanged, and cite
+    `atomic-interop/AtomicFlowManager.sol`, `atomic-interop/IAtomicInterop.sol`,
+    `atomic-interop/L2InteropCommitmentTree.sol`,
+    `atomic-interop/libraries/AtomicInteropProof.sol`,
+    `common/libraries/IndexedMerkleTree.sol`, `interop/InteropCenter.sol` and
+    `interop/interop-handler/L2InteropHandler.sol` at that commit. `main` at `70096e2`
+    changes nothing under `l1-contracts/contracts` since `3605e82`.
+  - `FlowBindingAtHead`'s `RunAtV35` and the "Other heads" section of
+    `FlowCanonicalAtHead` cite `draft/v0.35.0` at `b17415d20` (`AtomicFlowManager.sol`,
+    `L2InteropHandler.sol`, `InteropCenter.sol`, `core/bridgehub/L2Bridgehub.sol`);
+    `d9f6789` has the same text in the `atomic-interop/` and `interop/` files.
+* At `draft/v0.35.0` commit `b17415d20` (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`,
+  2026-11-16; contains #2654, `95b5c469d`, and #2669, `9775be946`):
+  - `ChainTypeManager` `ExecutorEngineAtV35`: `applyInfrastructureUpgrade` through
+    `ProxyUpgradeExecutorBase` and `DefaultProxyUpgradeEngine`. First written at `d9f6789`
+    (2026-11-06) and re-read at `b17415d20`; its Specs header lists what changed between the
+    two. It reuses the `e561b9cc2` models `ExecutorForward` and `RowsCurrent`; of those, only
+    the function bodies its header names were re-read at `b17415d20`.
 
 Source findings from this work are listed in [REVIEW.md](REVIEW.md); they are reported
 to the maintainer of this repo, not yet confirmed upstream.
@@ -174,18 +212,53 @@ supplying that correspondence.
   sources are under `l1-contracts/contracts/upgrades/registry/` and the
   `ChainTypeManager`, `Admin`, `DefaultUpgrade`, `BootstrapUpgrade` and `DiamondInit`
   contracts. Specs docstrings quote the transcribed guards with file:line at that commit.
+  `Specs/MutableSelectors.lean` is the exception: it cites era-contracts commit
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`), and its header says
+  where the code it reuses from the other topics sits at that commit.
 * `EraSpec/Contracts/RegistryBootstrapMigration/` (bootstrap authority) is pinned at
   `e561b9cc2` too. `EraSpec/Contracts/EcosystemUpgradeExecutor/` (the coordinator and
   its timer) is pinned at **`afa407085`**, because the coordinator and
   `GovernanceUpgradeTimer` were deleted from the branch before `e561b9cc2`
   (`f64622022d`, `469310c94e`); it describes a design that no longer exists at the
   newer pin.
+* `EraSpec/Contracts/L2InteropCommitmentTree/*/CommitmentTreeAtV35.lean` models the tree
+  contract at era-contracts `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch
+  `draft/v0.35.0`, label `head-v35-b17415d`). It was first written against `d9f6789`; every
+  Solidity file it cites is unchanged between the two commits. At `main` `70096e2` the three
+  library files it cites are byte-identical and `atomic-interop/L2InteropCommitmentTree.sol`
+  differs only in its error imports.
 * `EraSpec/Protocol/InteropAtomicity/Specs/RootImport.lean` models the destination gate at
   `c67894b9`. Its cross-pin paragraph also cites era-contracts commits
   `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` (branch `main`, label `head-main-3605e82`)
   and `d9f678900e1bc8286412b78f56d4a9f443983c29` (branch `draft/v0.35.0`, label
   `head-v35-d9f6789`), with `e561b9cc2` (label `upgrade-e561b9cc2`), to record what
   changes at those commits. The model itself stays pinned at `c67894b9`.
+* Three topics model the current heads instead of `c67894b9`: era-contracts
+  `70096e2ea6eeb5373992e178064c4b26dcf6436a` (branch `main`, label `head-main-70096e2`) and
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label
+  `head-v35-b17415d`). They are `L2InteropCommitmentTree` `HintSearchAtHead`,
+  `Protocol/InteropAtomicity` `OncePerLegAtHead` and `NativeTokenVaultBase`
+  `EscrowLedgerAtHead`. They were first written against `3605e82` and `d9f6789`; every
+  Solidity file they cite is unchanged between those commits and the heads above, on each
+  branch. Line numbers are `main`'s unless a spec marks them as `draft/v0.35.0`'s, and
+  `protocol-docs/bridging.md` is cited at `main`.
+* `EraSpec/Contracts/ProxyUpgradeExecutorBase/` topic `NotifierBindingV35` models the CTM
+  executor's check around an engine leg and the ServerNotifier binding at era-contracts
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label
+  `head-v35-b17415d`). The branch moves; `_domainHolders` changed in `9775be946`, after
+  `d9f6789`. Its bound results refine into `EraSpec/Contracts/ChainTypeManager/Specs/UpgradeTiming.lean`,
+  which stays pinned at `e561b9cc2`.
+* `EraSpec/Contracts/ChainTypeManager/Specs/PendingL2UpgradeAtV35.lean` is pinned at
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`), not `e561b9cc2`. It
+  reuses the folder's routing and timed models at `e561b9cc2` and re-reads their timed gates at
+  `b17415d`; its header lists the lines.
+* `EraSpec/Contracts/SecondProofSystem/` topic `UpgradeGateV35` (the second-proof-system gate
+  on chain upgrades) is pinned at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch
+  `draft/v0.35.0`, 2026-11-16). It was first written at `d9f678900` and re-read against the
+  newer commit; its Specs header records what changed between the two. It also cites
+  `protocol-docs/` and `protocol-ops/` at that commit, and reuses `ChainTypeManager`'s
+  `UpgradeTiming` model (written at `e561b9cc2`), listing where each reused check sits at
+  `b17415d20`.
 * `EraSpec/Contracts/SecondProofSystem/*/MigrationV35.lean` is pinned at era-contracts commit
   `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`). It was first written
   at `d9f678900e1bc8286412b78f56d4a9f443983c29`; every Solidity file it cites is unchanged

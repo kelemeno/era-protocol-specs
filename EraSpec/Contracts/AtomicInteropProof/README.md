@@ -2,6 +2,8 @@
 
 Source: `contracts/atomic-interop/libraries/AtomicInteropProof.sol` in the pinned
 era-contracts tree. This Solidity library owns the finalization/timeout proof gates.
+Topics named `…AtHead` or `…AtV35` are pinned to a later era-contracts commit instead, as
+their sections say.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -21,6 +23,7 @@ only import a shared specification when the topic needs no additional definition
 | ProofPolarityFaithful | [Specs/ProofPolarityFaithful.lean](Specs/ProofPolarityFaithful.lean) | [Properties/ProofPolarityFaithful.lean](Properties/ProofPolarityFaithful.lean) | [Proofs/ProofPolarityFaithful.lean](Proofs/ProofPolarityFaithful.lean) |
 | StaleSnapshotFaithful | [Specs/StaleSnapshotFaithful.lean](Specs/StaleSnapshotFaithful.lean) | [Properties/StaleSnapshotFaithful.lean](Properties/StaleSnapshotFaithful.lean) | [Proofs/StaleSnapshotFaithful.lean](Proofs/StaleSnapshotFaithful.lean) |
 | StaleSnapshotBranches | [Specs/StaleSnapshotBranches.lean](Specs/StaleSnapshotBranches.lean) | [Properties/StaleSnapshotBranches.lean](Properties/StaleSnapshotBranches.lean) | [Proofs/StaleSnapshotBranches.lean](Proofs/StaleSnapshotBranches.lean) |
+| AuthenticateRootAtV35 | [Specs/AuthenticateRootAtV35.lean](Specs/AuthenticateRootAtV35.lean) | [Properties/AuthenticateRootAtV35.lean](Properties/AuthenticateRootAtV35.lean) | [Proofs/AuthenticateRootAtV35.lean](Proofs/AuthenticateRootAtV35.lean) |
 
 `LastLeaf` is the hash side of `_verifyLastBatchInRoot`: if every left-child
 sibling on the path is the empty-subtree hash, the proven leaf is the last leaf,
@@ -152,6 +155,51 @@ last-batch proof instead and adds a `PinnedBreak` right after batch `N` in the c
 `PathCollision` on the submitted batch-leaf path. That proof is `LastBatchAccepted`, which
 pins the walk's length to the tree's height and `N` to an occupied leaf, over `RootBacking`,
 which reads leaf position `N` as batch `N` (see their Correction notes).
+
+## `_authenticateRoot` at draft/v0.35.0 (`b17415d20`)
+
+`AuthenticateRootAtV35` transcribes the proof's word layout at `b17415d20` (the cited files are
+the same blobs at `d9f6789`): `_getProofData`, the L2 verifier with its one recursive hop, the
+two positional readers `readSettlementLayerReference` (new at v35) and `readAggregationHopPath`
+(which now rejects a final node), both versions of `_authenticateRoot`, and the
+`_verifyLastBatchInRoot` loop. The parser and the hash functions are parameters; `parseMeta`
+transcribes `parseProofMetadata`, and the witness uses it. No result takes a hash premise.
+
+* The refactor is exact. The v35 `_authenticateRoot`, which reads the settlement-layer words by
+  position, is the pin's, which re-ran `_getProofData`, as a function of its inputs
+  (`AuthenticateRootRefactorExactV35`). The end branch up to the last-batch check accepts the same
+  submissions with the same values in both versions (`EndBranchRefactorExactV35`), and the new
+  final-node revert of `readAggregationHopPath` is unreachable from it (`HopReadTotalAfterAuthV35`).
+  So the v35 refactor does not change what the pin-era topics above take `_authenticateRoot` to
+  have established.
+* The positional readers return the words `_getProofData` consumed (`ReadSLEqParsedV35`,
+  `ReadHopIsFoldedPathV35`). The path `_verifyLastBatchInRoot` checks is the verifier's batch-leaf
+  walk, with its mask in range and from the batch leaf carrying the returned timestamp
+  (`LastBatchCheckOnVerifiedWalkV35`). The outer hop walks the chain-id leaf that walk built to the
+  nonzero imported root at the returned settlement-layer coordinates (`SLHopIsVerifiedWalkV35`).
+* The last leaf. `EndBranchLastLeafOrBreakV35` takes the outer hop as a premise (the chain-id leaf
+  binds the source chain's tree root). `EndBranchTwoHopLastLeafOrBreakV35` replaces that premise
+  by a description of the imported root, `SharedTreeBacking` (the settlement layer's shared tree,
+  premise `PROTO-SHARED-ROOT` in `ASSUMPTIONS.md`), and models the outer hop's path, whose length
+  and slot mask are the prover's: the batch leaf is the source chain tree's last leaf, or the
+  instance exhibits a `LastLeafAnyLengthBreak` on the batch-leaf path or an `SLHopBreak` on the
+  outer hop (a `chainIdLeafHash` collision with the opened slot, a padded slot equal to the built
+  chain-id leaf, or a `PathCollision` / `HeightBreak` against the shared tree).
+* What `_authenticateRoot` authenticates. Its NatSpec (`AtomicInteropProof.sol:145-148`) says it
+  authenticates the claimed IMT root as leaf `_imtRootLeafIndex` of the chain batch root of
+  `(sourceChainId, batchNumber)` against the imported root. `AuthenticateRootSoundV35` proves that,
+  for every leaf index, with no premise on the proof's three paths: given `SharedTreeBacking` and
+  `ChainTreeEntries` (the source chain's tree entries as `MessageRootBase` pushes them, each chain
+  batch root `ChainBatchRootTree`'s height-3 tree), the claimed root is that leaf of the chain batch
+  root of an entry whose batch number is the proof's and whose timestamp is the returned one, or
+  the instance exhibits an `AuthBreak` (a `PathCollision` on the log-leaf path at the pinned depth, a
+  `batchLeafHash` collision, a padded entry, or a `PathCollision` / `HeightBreak` on the batch-leaf
+  path) or an `SLHopBreak`. `EndBranchSoundV35` adds the last-batch check: the claimed root is the
+  IMT end root of the source chain's last batch inside the imported root, or a located break.
+* `EndBranchV35Satisfiable` meets every premise at once on a two-hop proof read by `parseMeta`,
+  with toy hashes: a three-batch chain tree at height 2 (a deployed shape) whose entries are batch
+  leaves of height-3 chain batch roots, the zero check firing at level 0, and a two-slot shared
+  tree; no `SLHopBreak` and no `AuthBreak` holds on it.
 
 These modules expose the hypotheses used by the library's argument. They do not
 prove the compiled verifier, authenticate imported roots, or establish settlement

@@ -2,6 +2,8 @@
 
 Source: `contracts/atomic-interop/L2InteropCommitmentTree.sol`, using
 `contracts/common/libraries/IndexedMerkleTree.sol` in the pinned era-contracts tree.
+Topics named `…AtHead` or `…AtV35` are pinned to a later era-contracts commit instead, as
+their sections say.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -17,7 +19,11 @@ only import a shared specification when the topic needs no additional definition
 | RunHeight | [Specs/RunHeight.lean](Specs/RunHeight.lean) | [Properties/RunHeight.lean](Properties/RunHeight.lean) | [Proofs/RunHeight.lean](Proofs/RunHeight.lean) |
 | CachedRoot | [Specs/CachedRoot.lean](Specs/CachedRoot.lean) | [Properties/CachedRoot.lean](Properties/CachedRoot.lean) | [Proofs/CachedRoot.lean](Proofs/CachedRoot.lean) |
 | PublishedRootCommits | [Specs/PublishedRootCommits.lean](Specs/PublishedRootCommits.lean) | [Properties/PublishedRootCommits.lean](Properties/PublishedRootCommits.lean) | [Proofs/PublishedRootCommits.lean](Proofs/PublishedRootCommits.lean) |
+| CommitmentTreeAtV35 (`draft/v0.35.0` `b17415d20`) | [Specs/CommitmentTreeAtV35.lean](Specs/CommitmentTreeAtV35.lean) | [Properties/CommitmentTreeAtV35.lean](Properties/CommitmentTreeAtV35.lean) | [Proofs/CommitmentTreeAtV35.lean](Proofs/CommitmentTreeAtV35.lean) |
 | InitOnce | [Specs/InitOnce.lean](Specs/InitOnce.lean) | [Properties/InitOnce.lean](Properties/InitOnce.lean) | [Proofs/InitOnce.lean](Proofs/InitOnce.lean) |
+| PaddingAtHead (`main` `3605e82`) | [Specs/PaddingAtHead.lean](Specs/PaddingAtHead.lean) | [Properties/PaddingAtHead.lean](Properties/PaddingAtHead.lean) | [Proofs/PaddingAtHead.lean](Proofs/PaddingAtHead.lean) |
+| HintSearchAtHead (`main` `70096e2`, `draft/v0.35.0` `b17415d`) | [Specs/HintSearchAtHead.lean](Specs/HintSearchAtHead.lean) | [Properties/HintSearchAtHead.lean](Properties/HintSearchAtHead.lean) | [Proofs/HintSearchAtHead.lean](Proofs/HintSearchAtHead.lean) |
+| UnboundedSearchAtV35 | [Specs/UnboundedSearchAtV35.lean](Specs/UnboundedSearchAtV35.lean) | [Properties/UnboundedSearchAtV35.lean](Properties/UnboundedSearchAtV35.lean) | [Proofs/UnboundedSearchAtV35.lean](Proofs/UnboundedSearchAtV35.lean) |
 
 The library's abstract list/order theory, insertion-guard countermodels, and
 reset/sentinel properties live under `../IndexedMerkleTree/`. The wrapper model
@@ -44,6 +50,25 @@ padding/domain hit). `HonestProofNoBreak` shows the break is not a tautology.
 `HonestInsertRevertsAtDeployedFuel` shows the revert at the deployed
 `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5`: on an honest seven-leaf run, an insert from a valid
 but distant hint reverts although a correct low leaf exists.
+
+`UnboundedSearchAtV35` is pinned to `draft/v0.35.0` at `b17415d20`, where the walk has no
+bound. It states the v35 `insert` call on this folder's indexed state (`InsertCallV35`: the
+five checks, the unbounded loop as "some fuel makes `lowSearch` return", `FullMerkle.updateLeaf`'s
+range check on the exit index, the writes) and lifts
+`../IndexedMerkleTree/`'s topic of the same name to it. No hash premise; gas not modelled.
+- On a `Valid` tree, every exiting run of the loop is a v35 walk of the projection and every
+  walk is a run (`SearchIsWalkV35`, `WalkIsSearchV35`), and the loop needs exactly as much fuel
+  as there are values strictly between the hint's value and the inserted one
+  (`SearchFuelIsGapV35`), so the pin's five hops sufficed exactly when that gap held at most five.
+- A v35 call projects to an abstract v35 insert and keeps `Valid` (`InsertCallProjectsV35`); a
+  call that passes the five checks succeeds (`InsertCallSucceedsV35`); a v35 history of the
+  indexed state projects to a v35 history (`RunCallProjectsV35`).
+- Hint indices: from `setup`, hint `0` always works (`SentinelIndexAlwaysWorksV35`), and a hint
+  index that passed the hint checks once keeps its value and still works
+  (`OnceValidHintIndexStaysValidV35`, the claim of `protocol-docs/message-root.md:95`).
+- Witnesses: `ChainTreeProjectsV35` (the pin's `chainTree k` projects to `chainSetV35 k`) and
+  `ChainTreeRunCallsV35` (a v35 history from `setup` whose seventh call, from hint `0`, is the
+  one `HonestInsertRevertsAtDeployedFuel` reverts at the pin).
 
 `RunHeight` carries `FullMerkle`'s `(_leafNumber, _height)` next to the list state, moved
 by `../FullMerkle/Specs/CapacityInvariant.lean`'s `push` once in `setup` and once per
@@ -110,16 +135,152 @@ all-zero storage. No hash premise.
 - Out of model: proxy upgrades by the complex upgrader, who owns the
   `SystemContractProxyAdmin` (`OPS-CONFIG`).
 
-Source finding, reported to the maintainer of this repo, not yet confirmed upstream: the
+`PaddingAtHead` models the tree at era-contracts `main` (`3605e82`), where `setup` pads
+with `IMT_EMPTY_LEAF_HASH = keccak256("zkSync:IndexedMerkleTree:emptyLeaf")` and no longer
+with `hashLeaf({0,0,0})` (item F-04 of commit `78e14b3bc`). Every other topic in this folder
+models the pin `c67894b9`. The cited files are byte-identical at the current `main`
+(`70096e2`); on draft/v0.35.0 (`d9f6789` and its current head `b17415d20`) the three library
+files and the constant are the same, and `L2InteropCommitmentTree.sol` differs only in its
+error imports. No property takes a hash premise; `keccak` is an arbitrary function
+`List UInt8 → UInt256`, applied to the byte strings the source hashes.
+- The model changes one argument of the pin's: `cSetupPad h hl ze` is `setup` with padding
+  `ze`, and `CachedRoot`'s `cSetup`/`CReaches` are the instance `ze = hashLeaf({0,0,0})`
+  (`PinSetupIsPadAtZeroLeafHash`). For every padding constant the storage caches the leaf
+  hashes and `root()` is the published root (`CSetupPadCaches`,
+  `CReachesPadRootIsPublished`, `CRunPadReaches`), and the reached list states and heights
+  are `RunHeight`'s (`CReachesPadViewsAreHReaches`). `insert` is the same `cInsert`; the
+  low-leaf search is unbounded at `main` (#2349), so `HintSearch`'s deployed-fuel caveat
+  (`HonestInsertRevertsAtDeployedFuel`) describes the pin only.
+- Headline, `NonInclusionAtHeadIsAbsentOrKeccakCollision`: on every reached state, against
+  the root the contract stores, an accepted `verifyNonInclusion` means the value is absent,
+  or a `KeccakBreakAtHead`: keccak collides on two different byte strings that the
+  submitted proof names. The cases are a presented leaf's `abi.encode` (96 bytes) against
+  the tag (34 bytes) at a padding slot, against a different stored leaf's `abi.encode` at
+  an occupied slot, a node pair (64 bytes) at a named step of the path, or a wrong length
+  (`LengthKeccakBreak`). `InclusionAtHeadIsPresentOrKeccakCollision` and
+  `ProofsExclusiveAtHeadOrKeccakCollision` are the same for `verifyInclusion` and for a
+  pair of proofs.
+- The tag is the literal's UTF-8 encoding, and the preimages are separated by length and
+  determine what is hashed (`ImtEmptyLeafTagIsTheLiteral`, `ImtPreimagesDomainSeparated`,
+  `ImtPreimagesDetermineTheirInputs`).
+- `KeccakBreakAtHead` implies `TreeRootBreak` at `main`'s hashes
+  (`KeccakBreakAtHeadIsTreeRootBreak`), and for leaves whose `nextIndex` fits a `uint256`
+  every `TreeRootBreak` there is one of the named keccak collisions
+  (`TreeRootBreakAtHeadIsKeccakCollision`; `PathCollisionAtHeadIffKeccak`,
+  `HeightBreakAtHeadIffKeccak`, `PaddingHitAtHeadIffEmptyLeafCollision`). The bound is
+  needed, since the model's `nextIndex` is a natural number
+  (`TreeRootBreakAtHeadNeedsNextIndexBound`). At the pin the padding case held for the zero
+  leaf with no collision (`PaddingHitAtPinNeedsNoCollision`).
+- Against the round-7 padding-forgery notes. `HashAssumptions`' `padNotLeaf`, false at the
+  pin for every hash, is at `main` the statement that no leaf's `abi.encode` collides with
+  the tag under keccak; it is satisfiable, while `HashAssumptions` as a whole stays
+  unsatisfiable (`PadNotLeafAtHeadIsKeccakNonCollision`). Over contract runs at `main`, an
+  accepted absence proof at a snapshot meeting `StaleSnapshot`'s abstract deadline pin
+  excludes on-time delivery, or carries a `KeccakBreakAtHead`, with no premise on the
+  presented leaf (`StaleWitnessAtHeadNotRedeemableOrKeccakCollision`, the `main` counterpart
+  of `StaleSnapshotFaithful`'s `StaleWitnessNotRedeemableOrCollision`;
+  `StaleWitnessAtHeadSatisfiable`). For every keccak that collides on `abi.encode(0,0,0)`
+  and the tag, the pin's padding reclaim of a delivered value is accepted on such a run at
+  `main`, and its located break is exactly the `emptyLeaf` case
+  (`PaddingReclaimAtHeadLocatesEmptyLeafCollision`).
+- The pin's forged proof at `main` (`PinForgeryAtHeadNeedsKeccakCollision`; the same leaf,
+  index and sibling words as at the pin, `PinForgeryProofSameAtPinAndHead`): on the
+  three-leaf run it is accepted exactly when keccak collides on `abi.encode(0,0,0)` and the
+  tag, or on a node pair at one of its two steps. `PinForgeryAcceptedAtPinRejectedAtHead`
+  gives one toy hash for which the same proof against the same tree is accepted with the
+  pin's padding and rejected with `main`'s.
+- Each of the four cases of `KeccakBreakAtHead` is, alone, the located break of an accepted
+  forged proof on a reached state (`KeccakBreakAtHeadExactly`, `KeccakBreakAtHeadIffSomeCase`):
+  `emptyLeaf` (`PinForgeryAtHeadFiresOnCollision`) and `leaf` (`LeafCollisionAtHeadFires`)
+  for every keccak with the named collision, `node` (`NodeCollisionAtHeadFires`) and
+  `length` (`OutOfRangeIndexAtHeadWitness`) on toy keccaks. So no case can be dropped.
+- `calculateRootMemory` still does not bound the index by the leaf count. At `main` the
+  tree's own siblings of an empty slot authenticate `IMT_EMPTY_LEAF_HASH`, and presenting a
+  leaf there takes a collision (`OutOfRangeIndexAtHead`,
+  `HonestSiblingsAcceptEntryOrPathCollision`, `OutOfRangeIndexAtHeadWitness`).
+- Anti-vacuity: `PaddingAtHeadThreeLeafRun`, `NonInclusionAtHeadWitness`,
+  `ContractProofsAtStoredRootAtHead` (the contract's own `merklePath` outputs are accepted
+  with no break), `HonestProofNoKeccakBreakAtHead`, `PaddingAtHeadBreakPremisesSatisfiable`,
+  `StaleWitnessAtHeadSatisfiable`.
+- Not covered: the firing witnesses show the disjuncts are needed in the statement, not that
+  keccak256 collides. `PathAccepts` omits the `_pathLength >= 256` revert, so the model
+  accepts more proofs than the source. The wrapper's `_reportLeaf` hook is taken not to
+  call back into the tree. That the pin's bounded search and `main`'s unbounded one reach
+  the same states is argued from `SearchYieldsGuard`, not stated as a theorem. The
+  stale-snapshot result uses the abstract pin `D < t (j+1)`, not `main`'s timeout branches.
+  `InitOnce`'s `initL2`/caller model and `Protocol/InteropAtomicity` are still at
+  `c67894b9`; only the break disjunct of their results is translated to `main`'s hashes,
+  and how `main`'s `AtomicFlowManager` obtains the root it verifies against is not
+  modelled.
+
+`HintSearchAtHead` re-models `InitOnce` at the current heads (`main` `70096e2`,
+`draft/v0.35.0` `b17415d`; the two cited files are unchanged since `3605e82` and `d9f6789`).
+There `insert`'s low-leaf walk has no hop bound (`b8cc61203`, `IndexedMerkleTree.sol:90-93`),
+read as "some finite number of hops" (`WalkSucceedsAtHead`); gas is not modelled. No hash
+premise.
+- On a valid tree the walk is the search with `leafCount` hops, exits, and is deterministic
+  (`WalkAtHeadIsLeafCountSearch`, `WalkAtHeadTerminates`, `WalkAtHeadDeterministic`); a head
+  insert is the guarded insert at the landing index, which no hint changes
+  (`InsertChecksAtHeadYieldGuard`, `InsertAtHeadLandingHintIndependent`).
+- On a valid tree, for a nonzero unregistered `v`, the engine's checks pass from every
+  occupied hint whose value is below `v` (`InsertAtHeadEnabledIff`), so
+  `HonestInsertRevertsAtDeployedFuel` has no counterpart: `HonestInsertSucceedsAtHead`. Pin
+  inserts are head inserts, and a head insert passes the pin's checks from its own landing
+  index (`InsertChecksAtHeadVsPin`).
+- Every pin run is a head run (`PinTxRunIsTxRunAtHead`), and a head run from the predeploy with
+  each hint replaced by its landing index is a pin run with the same states
+  (`TxRunAtHeadIsRelabelledTxRun`, `RelabelAtHeadKeepsShape`). So `PredeployRunStates`,
+  `PredeployRunReclaimableIffAbsent`, `StoredLeavesAreLeafHashes` and
+  `PredeployStoredRootExclusiveOrBreak` hold at head (the `…AtHead` forms), the last for
+  every padding `z0`, so for `IMT_EMPTY_LEAF_HASH`. The results from any start are re-proved
+  (`InitL2AtMostOnceAtHead`, `TxRunAtHeadAppendOnly`, `TxRunAtHeadKeysMono`,
+  `TxRunAtHeadFromValidIsRun`).
+- Witnesses on runs the pin does not have: `StaleHintRunWitnessAtHead` (an `insert(7, 0)` six
+  hops from its landing index), `StaleHintRunFromValidWitnessAtHead`, and
+  `StaleHintStoredRootWitnessAtHead` (the `_nodes[0]` results, with the pin's padding
+  `hl {0,0,0}`; `LevelRunAtHeadExists`); `InsertAtHeadWitness` for the insert results.
+
+Source finding at the pin `c67894b9`, since fixed upstream (see `PaddingAtHead` above): the
 tree pads empty slots with `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`), against
 `FullMerkle.sol:25-26`'s warning, and `verifyNonInclusion`
 (`IndexedMerkleTree.sol:153-171`) bounds the low-leaf index only by `2^pathLength`
 (`Merkle.sol:133-140`), not by the leaf count. So the padding forgery is accepted against
 the root the contract stores (`CThreeLeafWitness`, `PublishedRootPaddingHitFires`,
 `PaddingCollisionRefundsDeliveredLeg`). Both verifiers classified it as a bug, high
-severity.
+severity. At `main` (`3605e82`, unchanged at `70096e2`) and on draft/v0.35.0 (`b17415d20`)
+`setup` pads with `IMT_EMPTY_LEAF_HASH`; the index bound is unchanged.
 
 Root authentication and hash assumptions have separate proofs under `../Merkle/`
 and `../FullMerkle/`. Caller checks are modelled in `InitOnce`; their source
 correspondence, compiled search, and dispatcher-to-model correspondence remain
 implementation obligations in `../../Refinement.lean`.
+
+`CommitmentTreeAtV35` models the tree contract at era-contracts `draft/v0.35.0` (`b17415d20`;
+the tree code is the same at `main` `70096e2`) as one machine: `InitOnce`'s two entry points
+with their callers, from the predeploy's all-zero storage, acting on `CachedRoot`'s whole
+`FullMerkle` storage. `insert`'s low-leaf walk is unbounded (`b8cc61203`), read as "some number
+of hops exits at the written index" (`WalkExitsAtV35`), and `setup` pads with a parameter `zE`
+(`IMT_EMPTY_LEAF_HASH` at v35, item F-04 of `78e14b3bc`). Gas and the leaf hook report are not
+modelled. No hash premise.
+- On the predeploy's storage only the upgrader's `initL2()` succeeds, and it leaves storage
+  caching `hashLeaf({0,0,0})` padded with `zE` (`CInitL2AtV35OnPredeploy`); with the pin's
+  constant it is `cSetup` (`CInitL2AtV35AtPinPaddingIsCSetup`).
+- A run from there has no successful transaction, or exactly one successful `initL2()` with
+  nothing before it, and from there on it is a `CachedRoot.CRun` (`CTxRunAtV35Shape`; with the
+  pin's constant a `CRun` from `cSetup`, `CTxRunAtV35AtPinPaddingIsCRunFromCSetup`). Each
+  successful insert writes at the index where `InsertGuard` holds and returns the root that
+  `root()` then reads (`CTxRunAtV35InsertIsGuardedCInsert`).
+- Headline, `CTxRunAtV35StoredRootIsPublished`: at every step of every run the storage is the
+  predeploy's, or it caches the leaf hashes padded with `zE`, the list state is reached from
+  `setup` and valid, and `root()` is the fold at the source's own `_height`. Against that root
+  the contract's own `merklePath` outputs are accepted with no located break, and an accepted
+  inclusion and non-inclusion proof of one value locate a `TreeRootBreak`
+  (`CTxRunAtV35ContractProofsAtStoredRoot`). A path accepted at an index at or beyond the leaf
+  count locates `hashLeaf(ℓ) = zE`, a node-hash collision on the path, or a wrong length
+  (`CTxRunAtV35EmptySlotLocatesPadding`).
+- Witnesses: `StaleHintCRunWitnessAtV35` (for every hash and padding constant, a run whose last
+  insert exits six hops from its hint, which the pin's five-hop search refuses) and
+  `PaddingForgeryAtV35Witness` (with the pin's constant as `zE`, the pin's padding forgery is
+  accepted against the stored root of that run, and its located break is exactly `paddingHit`).
+- Not covered: keccak at the byte level (whether `hashLeaf(ℓ) = IMT_EMPTY_LEAF_HASH` has a
+  solution), gas, and that the leaf hook does not write the tree's storage.

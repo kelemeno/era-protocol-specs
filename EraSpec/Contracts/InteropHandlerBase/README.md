@@ -2,6 +2,8 @@
 
 Source: `contracts/interop/interop-handler/InteropHandlerBase.sol` and its L1/L2
 variants in the pinned era-contracts tree.
+Topics named `…AtHead` or `…AtV35` are pinned to a later era-contracts commit instead, as
+their sections say.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -19,6 +21,7 @@ only import a shared specification when the topic needs no additional definition
 | BundleStatusMachineFaithful | [Specs/BundleStatusMachineFaithful.lean](Specs/BundleStatusMachineFaithful.lean) | [Properties/BundleStatusMachineFaithful.lean](Properties/BundleStatusMachineFaithful.lean) | [Proofs/BundleStatusMachineFaithful.lean](Proofs/BundleStatusMachineFaithful.lean) |
 | SelfCallAuthorityFaithful | [Specs/SelfCallAuthorityFaithful.lean](Specs/SelfCallAuthorityFaithful.lean) | [Properties/SelfCallAuthorityFaithful.lean](Properties/SelfCallAuthorityFaithful.lean) | [Proofs/SelfCallAuthorityFaithful.lean](Proofs/SelfCallAuthorityFaithful.lean) |
 | ValueLedgerFaithful | [Specs/ValueLedgerFaithful.lean](Specs/ValueLedgerFaithful.lean) | [Properties/ValueLedgerFaithful.lean](Properties/ValueLedgerFaithful.lean) | [Proofs/ValueLedgerFaithful.lean](Proofs/ValueLedgerFaithful.lean) |
+| ReentrancyAtV35 | [Specs/ReentrancyAtV35.lean](Specs/ReentrancyAtV35.lean) | [Properties/ReentrancyAtV35.lean](Properties/ReentrancyAtV35.lean) | [Proofs/ReentrancyAtV35.lean](Proofs/ReentrancyAtV35.lean) |
 
 `Reentrancy` (namespace `Contracts.InteropHandler`) covers what happens inside a
 transaction. The target of every delivered call is an arbitrary finite tree of re-entrant
@@ -124,6 +127,48 @@ abstract relations or repackage their premise (their docstrings now say so):
   (`TargetRevertingWhereReachedRevertsTheExecution`), reverts the execution, and the attempt can be
   retried (`FailedAttemptWithAlwaysRevertingTargetCanBeRetried`). This covers more than the leaf
   `Callee.reverts`: for example, targets that revert after nested work.
+
+### At draft/v0.35.0 (`ReentrancyAtV35`)
+
+`ReentrancyAtV35` (namespace `Contracts.InteropHandlerAtV35`) models both handlers at
+`draft/v0.35.0` `b17415d20` (first written against `d9f6789`; every cited file is identical at
+both). Public L2→L2 interop is gone: L2 has `executeAtomicBundle` and `verifyAtomicBundle`, L1 has
+`executeBundle` and `verifyBundle`, and `unbundleBundle` is shared. `verifyAtomicBundle` is new, so
+an atomic bundle can be verified, then unbundled; and `executeAtomicBundle` now admits a `Verified`
+bundle and skips the flow gate for it. The entry points of one layer form one type,
+`EntryAtV35 ℓ`, so a call tree holds one layer's entry points only.
+- **The translation.** A v35 frame runs as its translation in the pin model `exec`, in the deployed
+  order and `callWriteAfterCalls` on both layers and in every order on L1 (`ExecMatchesPinAtV35`,
+  `SubmitAllMatchesPinAtV35`).
+  Both layers' `execute` maps to the pin's `executeBundle`; on L2 the pin's extra `Verified` write is
+  overwritten by `FullyExecuted` before any call runs. On L2 in the order `statusWriteAfterCalls`
+  the two differ (`LateStatusWriteSeparatesL2FromPinAtV35`).
+- **Nothing runs twice**, on both layers, proved through the translation:
+  `NoEffectCommittedTwiceAtV35` (headline), `CommittedEffectsWereOpenAtV35`,
+  `WholeBundleExecutionRunsEachCallOnceAtV35`, `StatusRecordsExactlyTheCommittedEffectsAtV35`,
+  `NestedExecutionFollowsTheStatusMachineAtV35`, and `ReentryForAnExecutingBundleRevertsAtV35`
+  (the NatSpec at `L2InteropHandler.sol:55-58`).
+- **Rollback**, in every order, for targets that revert from every state or where the loop reaches
+  them: `AlwaysRevertingTargetRevertsTheExecutionAtV35`,
+  `TargetRevertingWhereReachedRevertsTheExecutionAtV35`, `FailedAttemptCanBeRetriedAtV35`.
+- **The gate.** A `Verified` bundle executes with a failing verdict
+  (`VerifiedBundleExecutesWithoutTheGateAtV35`). A hash none of whose entry-point calls, at any
+  depth, carries a passing verdict stays `Unreceived` with no committed effect
+  (`DeliveryNeedsTheGateAtV35`). On L2 the verdict is the flow gate's, and the statement needs no
+  never-published premise: L2 has no entry point that consults an inclusion proof at v35. The
+  receive filter (`L2Bridgehub.isPeerAllowed`) is read at the gate only: a bundle verified before
+  its source peer is removed still executes (`ReceiveFilterIsReadAtTheGateAtV35`, as
+  `protocol-docs/interop-gating.md:195-197` documents).
+- Witnesses: `PinMatchWitnessAtV35`, `ReentrantExecutionWitnessAtV35`, `RevertingTargetWitnessAtV35`,
+  `CaughtReentrantRevertWitnessAtV35`, `GateRoutesWitnessAtV35` (the three L2 routes, and a bundle
+  left partly executed by unbundling), `ReceiveFilterWitnessAtV35`. Countermodels:
+  `LateStatusWriteSeparatesL2FromPinAtV35`, `StatusWriteAfterCallsRunsTwiceAtV35`,
+  `CallWriteAfterCallsRunsTwiceAtV35`, `StatusWriteAfterCallsRunsAnyBundleTwiceAtV35`,
+  `CallWriteAfterCallsRunsAnyCallTwiceAtV35`.
+
+The model boundary is `MODEL-HANDLER-REENTRY-V35`. The handlers at main `70096e2` differ from
+`b17415d20` only by three internal getters' names (two also `view` instead of `pure`) and
+`L2InteropHandler.updateL2`, so `execAtV35` models them too; main has no receive filter. The pin topics above are unchanged and still describe `c67894b9`.
 
 The atomic path's source identity is reviewed separately under
 `../L2InteropHandler/`. Destination-wide composition is

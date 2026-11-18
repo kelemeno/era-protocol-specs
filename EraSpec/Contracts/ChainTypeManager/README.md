@@ -9,11 +9,30 @@ That code is **not** in the pinned era-contracts tree. It lives on branch
 `feat/upgrade-simplification` of the zksync-era `contracts` repository, and this model
 was written against commit **`e561b9cc2`** (2026-10-19). **The branch moves**: every
 `file:line` quoted in the specs is at that commit, and the results describe that commit,
-not the current branch. Re-check the source before relying on them.
+not the current branch. Re-check the source before relying on them. Several topics are the
+exception and cite branch `draft/v0.35.0` of era-contracts at commit `b17415d20` instead:
+`MutableSelectors`, whose Specs header says where the code it reuses from the other topics sits
+there; `ExecutorEngineAtV35`, `ProofGateAtV35` and `UpgradeTimingAtV35` (below); and
+`L2Derivation`, `L2Convergence`, `CommittedEdgeExecutable`, `UpgradeTxNonces` and
+`PendingL2UpgradeAtV35` (their sections say which of the shared models they re-read there).
 `../ProxyUpgradeRowLib/` models the row library at an older snapshot (`Rows`) and at this
 commit (`RowsCurrent`, and `RowsUnvalidated` for rows no `validateRows` has checked); the
 `ExecutorForward` topic below uses `RowsCurrent`, and `ExecutorRowsUnvalidated` uses
 `RowsUnvalidated`.
+
+`ExecutorEngineAtV35` models
+`applyInfrastructureUpgrade` at branch `draft/v0.35.0`, commit **`b17415d20`** (2026-11-16),
+where #2654 (`95b5c469d`) replaced the executor's own `applyTransition` by a delegatecall
+into the engine the transition names. It was first written at `d9f6789` (2026-11-06) and
+re-read at `b17415d20`; its Specs header lists what changed in between. Every other entry
+point it uses is `ExecutorForward`'s; their bodies at `b17415d20` do what `ExecutorForward`
+models (`forward` gained a code check that never rejects a modelled call). No other part of
+the `e561b9cc2` models has been re-read there for this topic.
+
+Two topics, `ProofGateAtV35` and `UpgradeTimingAtV35`, describe branch `draft/v0.35.0` of
+`matter-labs/era-contracts` at commit **`b17415d20`** instead (first written against `d9f6789`,
+re-read at `b17415d20`). That branch took this registry code by the squash-merge `ccf00623c`;
+their specs list what changed on the modelled paths since then.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those
@@ -26,6 +45,7 @@ exact named propositions, plus auxiliary lemmas.
 | ChainMigration | [Specs/ChainMigration.lean](Specs/ChainMigration.lean) | [Properties/ChainMigration.lean](Properties/ChainMigration.lean) | [Proofs/ChainMigration.lean](Proofs/ChainMigration.lean) |
 | ChainLocal | [Specs/ChainLocal.lean](Specs/ChainLocal.lean) | [Properties/ChainLocal.lean](Properties/ChainLocal.lean) | [Proofs/ChainLocal.lean](Proofs/ChainLocal.lean) |
 | ExecutorForward | [Specs/ExecutorForward.lean](Specs/ExecutorForward.lean) | [Properties/ExecutorForward.lean](Properties/ExecutorForward.lean) | [Proofs/ExecutorForward.lean](Proofs/ExecutorForward.lean) |
+| ExecutorEngineAtV35 (`b17415d20`) | [Specs/ExecutorEngineAtV35.lean](Specs/ExecutorEngineAtV35.lean) | [Properties/ExecutorEngineAtV35.lean](Properties/ExecutorEngineAtV35.lean) | [Proofs/ExecutorEngineAtV35.lean](Proofs/ExecutorEngineAtV35.lean) |
 | ExecutorRowsUnvalidated | (uses [Specs/ExecutorForward.lean](Specs/ExecutorForward.lean)) | [Properties/ExecutorRowsUnvalidated.lean](Properties/ExecutorRowsUnvalidated.lean) | [Proofs/ExecutorRowsUnvalidated.lean](Proofs/ExecutorRowsUnvalidated.lean) |
 | ExecutorUpgradeChain | [Specs/ExecutorUpgradeChain.lean](Specs/ExecutorUpgradeChain.lean) | [Properties/ExecutorUpgradeChain.lean](Properties/ExecutorUpgradeChain.lean) | [Proofs/ExecutorUpgradeChain.lean](Proofs/ExecutorUpgradeChain.lean) |
 | ChainLocalExecutor | [Specs/ChainLocalExecutor.lean](Specs/ChainLocalExecutor.lean) | [Properties/ChainLocalExecutor.lean](Properties/ChainLocalExecutor.lean) | [Proofs/ChainLocalExecutor.lean](Proofs/ChainLocalExecutor.lean) |
@@ -39,25 +59,52 @@ exact named propositions, plus auxiliary lemmas.
 | GenesisWriters | [Specs/GenesisWriters.lean](Specs/GenesisWriters.lean) | [Properties/GenesisWriters.lean](Properties/GenesisWriters.lean) | [Proofs/GenesisWriters.lean](Proofs/GenesisWriters.lean) |
 | EngineGettersFaithful | [Specs/EngineGettersFaithful.lean](Specs/EngineGettersFaithful.lean) | [Properties/EngineGettersFaithful.lean](Properties/EngineGettersFaithful.lean) | [Proofs/EngineGettersFaithful.lean](Proofs/EngineGettersFaithful.lean) |
 | LegacyCrossingFaithful | [Specs/LegacyCrossingFaithful.lean](Specs/LegacyCrossingFaithful.lean) | [Properties/LegacyCrossingFaithful.lean](Properties/LegacyCrossingFaithful.lean) | [Proofs/LegacyCrossingFaithful.lean](Proofs/LegacyCrossingFaithful.lean) |
+| L2Derivation (pin `b17415d20`) | [Specs/L2Derivation.lean](Specs/L2Derivation.lean) | [Properties/L2Derivation.lean](Properties/L2Derivation.lean) | [Proofs/L2Derivation.lean](Proofs/L2Derivation.lean) |
+| L2Convergence (pin `b17415d20`) | [Specs/L2Convergence.lean](Specs/L2Convergence.lean) | [Properties/L2Convergence.lean](Properties/L2Convergence.lean) | [Proofs/L2Convergence.lean](Proofs/L2Convergence.lean) |
+| MutableSelectors | [Specs/MutableSelectors.lean](Specs/MutableSelectors.lean) | [Properties/MutableSelectors.lean](Properties/MutableSelectors.lean) | [Proofs/MutableSelectors.lean](Proofs/MutableSelectors.lean) |
+| CommittedEdgeExecutable | [Specs/CommittedEdgeExecutable.lean](Specs/CommittedEdgeExecutable.lean) | [Properties/CommittedEdgeExecutable.lean](Properties/CommittedEdgeExecutable.lean) | [Proofs/CommittedEdgeExecutable.lean](Proofs/CommittedEdgeExecutable.lean) |
+| UpgradeTxNonces | [Specs/UpgradeTxNonces.lean](Specs/UpgradeTxNonces.lean) | [Properties/UpgradeTxNonces.lean](Properties/UpgradeTxNonces.lean) | [Proofs/UpgradeTxNonces.lean](Proofs/UpgradeTxNonces.lean) |
+| ProofGateAtV35 | [Specs/ProofGateAtV35.lean](Specs/ProofGateAtV35.lean) | [Properties/ProofGateAtV35.lean](Properties/ProofGateAtV35.lean) | [Proofs/ProofGateAtV35.lean](Proofs/ProofGateAtV35.lean) |
+| UpgradeTimingAtV35 | [Specs/UpgradeTimingAtV35.lean](Specs/UpgradeTimingAtV35.lean) | [Properties/UpgradeTimingAtV35.lean](Properties/UpgradeTimingAtV35.lean) | [Proofs/UpgradeTimingAtV35.lean](Proofs/UpgradeTimingAtV35.lean) |
+| PendingL2UpgradeAtV35 | [Specs/PendingL2UpgradeAtV35.lean](Specs/PendingL2UpgradeAtV35.lean) | [Properties/PendingL2UpgradeAtV35.lean](Properties/PendingL2UpgradeAtV35.lean) | [Proofs/PendingL2UpgradeAtV35.lean](Proofs/PendingL2UpgradeAtV35.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
 the `Properties` segment. `GenesisWriters` uses the sub-namespace
 `Contracts.ChainTypeManager.GenesisWriters` (statements
 `Contracts.ChainTypeManager.GenesisWriters.Properties.*`); likewise `EngineGettersFaithful`
-uses `Contracts.ChainTypeManager.EngineGetters` and `LegacyCrossingFaithful` uses
-`Contracts.ChainTypeManager.LegacyCrossing`.
+uses `Contracts.ChainTypeManager.EngineGetters`, `LegacyCrossingFaithful` uses
+`Contracts.ChainTypeManager.LegacyCrossing`, `MutableSelectors` uses
+`Contracts.ChainTypeManager.MutableSelectors`, `ExecutorEngineAtV35` uses
+`Contracts.ChainTypeManager.ExecutorEngineAtV35`, and `PendingL2UpgradeAtV35` uses
+`Contracts.ChainTypeManager.PendingL2UpgradeAtV35`.
+`L2Derivation` and `L2Convergence` share the sub-namespace `Contracts.ChainTypeManager.L2Tables`.
+`CommittedEdgeExecutable` and `UpgradeTxNonces`
+share `Contracts.ChainTypeManager.EdgeChecks` and are written against `draft/v0.35.0` commit
+`b17415d20`. `ProofGateAtV35` and `UpgradeTimingAtV35` use
+`Contracts.ChainTypeManager.ProofGateAtV35` and `Contracts.ChainTypeManager.UpgradeTimingAtV35`;
+a statement there named like an `e561b9cc2` one is that statement over the v35 system.
 
 The topics after `ChainMigration` extend the first four:
 
 - one chain at a time, and the break-glass repair: `ChainLocal`, `ChainLocalExecutor`;
 - the executor's entry points: `ExecutorRowsUnvalidated`, `ExecutorUpgradeChain`, and
   `UpgradeTiming` (callers and block time);
+- the executor's infrastructure leg at `b17415d20`: `ExecutorEngineAtV35`;
 - liveness: `Enabledness`, `DuplicateSelectorCheck`;
 - the routing guard by its code: `DiamondStorage`, `LiveRouting`, `DuplicateSelectorScan`;
 - chain creation by its code: `GenesisWriters`.
 - faithfulness repairs of the executor topics: `EngineGettersFaithful` (the engine's own
-  getters), `LegacyCrossingFaithful` (pre-v35 chains crossing opaque legacy edges themselves).
+  getters), `LegacyCrossingFaithful` (pre-v35 chains crossing opaque legacy edges themselves);
+- the facets' self-descriptions: `MutableSelectors` (`selectors()` answers that change, over
+  `LiveRouting`).
+- the chain-side checks a committed edge must pass, and the L2 upgrade transaction's nonce, at
+  `b17415d20`: `CommittedEdgeExecutable` (composed with `VersionRegistry`'s CTM runs),
+  `UpgradeTxNonces`.
+- the second-proof-system gate at `draft/v0.35.0` (`b17415d20`): `ProofGateAtV35` (over
+  `ChainRouting`) and `UpgradeTimingAtV35` (over `UpgradeTiming`).
+- the pending L2 upgrade transaction and the stored deadlines, at `draft/v0.35.0` `b17415d`:
+  `PendingL2UpgradeAtV35`, which extends `UpgradeTiming`.
 
 Each section below says how its model relates to the one it extends. None is composed
 with another unless its section says so.
@@ -176,6 +223,68 @@ including `UpgradeExecutorBase.forward`, `governance/UpgradeExecutorBase.sol:32-
   move the CTM proxy has the same effect; `Tame` excludes both.
 - `ExecutorWitness` is a tame run that uses every entry point, including a `forward` that
   replaces a committed transition and upgrades a proxy.
+
+**ExecutorEngineAtV35** (`applyInfrastructureUpgrade` at `draft/v0.35.0`, `b17415d20`:
+`CTMUpgradeExecutor.sol:64-72` and `ProxyUpgradeExecutorBase.sol:51-104`, which delegatecall
+`executeUpgrade` on the engine the transition's manifest names; over `ExecutorForward`, whose
+other steps it reuses unchanged):
+
+- **What the executor checks, whatever the engine.** Before the leg, that the CTM's `admin()` is
+  not the `ProxyAdmin`; after it, every row's proxy at its `implNew`, the executor's `owner` and
+  `pendingOwner` unchanged, and the domain holders unchanged or the logged pair (before, after)
+  a collision of the hash the executor compares (`ExecutorChecksAfterAnyEngine`; the hash is an
+  arbitrary function, no keccak property is assumed). The pre-check and each of the three
+  post-checks reject some witness leg whose engine code succeeds
+  (`CtmAdminPrecheckRefusesTheLeg`, `OwnershipCheckRefusesAnEngineNomination`,
+  `HoldersCheckRefusesAnEngineNomination`, `RowsCheckRefusesAHookThatMovesARowProxy`), and the
+  collision case is reachable when the hash does not separate the pair
+  (`HoldersCollisionCaseIsReachable`). Nothing else: an engine that only
+  makes the calls `calls` succeeds exactly when `forward(calls)` does and the rows end applied
+  (`EveryForwardIsAnEngineLeg`, witness `EveryForwardIsAnEngineLegWitness`).
+- **So `ExecutorForward`'s premise no longer suffices.** With "no row names the CTM proxy" as
+  the only condition on an infrastructure step, the run invariants fail at `b17415d20` even for
+  genuine `ProxyUpgradeTransition` objects (`TameRunsNoLongerPreserveSysInv`,
+  `TameRunsNoLongerKeepChainsOnTheirRelease`, `FixedEntrypointsNoLongerMoveOnlyAlongRows`).
+- **With `DefaultProxyUpgradeEngine` nothing changes.** The leg is `ExecutorForward`'s
+  infrastructure step of the same object, and conversely given the checks the executor and
+  engine now make (the executor owns its `ProxyAdmin`, the engine has code, the CTM's `admin()`
+  is not the `ProxyAdmin`, the inventory has the domain's length)
+  (`DefaultEngineLegIsAnInfraStep`, `InfraStepIsADefaultEngineLeg`). The routing headline
+  holds across runs whose transitions pin it (`DefaultEngineRunKeepsChainsOnTheirRelease`,
+  witness `DefaultEngineRunWitness`).
+- **What must be established about any other engine** is stated as two premises; the executor
+  checks neither.
+  - `EngineIsTame` (every leg is a run of tame `e561b9cc2` transactions: no break-glass cut,
+    the CTM proxy not moved) gives `SysInv`, the version never decreasing, the CTM proxy
+    unmoved and the routing headline (`TameEngineRunIsATameExecutorRun`,
+    `TameEngineRunPreservesSysInv`, `TameEngineRunKeepsChainsOnTheirRelease`).
+  - `EngineReviewed` (the engine runs `DefaultProxyUpgradeEngine`'s core on the manifest's
+    rows, and its two hooks make only CTM calls that are not break-glass cuts) makes the leg a
+    `forward`, the `e561b9cc2` infrastructure step and a `forward`
+    (`ReviewedLegIsAnExecutorRun`). For rows that do not name the CTM proxy it implies
+    `EngineIsTame` (`ReviewedEngineIsTame`, `ReviewedRunKeepsChainsOnTheirRelease`,
+    `DefaultEngineIsReviewed`). It also gives the row library's source check at the executor:
+    a proxy moves only along a row's edge, for any rows
+    (`ReviewedLegsMoveProxiesOnlyAlongRows`), and a stale object reverts
+    (`ReviewedEngineRefusesStaleRows`, for rows naming distinct proxies).
+- **Countermodels**, each with a genuine object whose rows do not name the CTM proxy and with
+  every executor check passing (ownership and holders unchanged):
+  `CuttingEngineBreaksTheHeadline` (an `_afterSwaps` break-glass cut; not tame),
+  `CtmSwappingEngineBreaksSysInv` (an `_afterSwaps` `upgradeAndCall` on the CTM proxy; not
+  tame), `ProxyMovingEngineMovesAnUnnamedProxy` (tame, not reviewed),
+  `DirectEngineSkipsTheSourceCheck` (an engine without `applyRows` replays a stale object the
+  default engine refuses; tame, not reviewed), `BeforeHookDefeatsTheSourceCheck` (a
+  `_beforeSwaps` hook puts a row's proxy on its `expectedOldImpl`; tame, not reviewed). The
+  source documents this boundary: the engine runs with the executor's authority, and what it
+  does beyond the executor's checks rests on its review (`ProxyUpgradeExecutorBase.sol:34-41`,
+  `IProxyUpgradeEngine.sol:16-21`, `docs/registry-driven-upgrades.md:473-478`).
+- `ReviewedRunWitness` meets every premise of the positive results in one run: a
+  default-engine leg, a chain created, a commit, an `upgradeChain`, then a leg whose reviewed
+  subclass replaces the committed transition in `_afterSwaps`.
+- Not proved here: anything about the Core domain's executor, which shares
+  `_applyProxyUpgradeTransition`; what a real engine's calls do to ownership and to the holders
+  (only two witness engines write those ghosts, and no other step changes them); that a
+  release's actual engine subclass meets `EngineReviewed`.
 
 **ExecutorUpgradeChain** (the executor's `upgradeChain(t, id)` with its
 `t.oldProtocolVersion()` lookup, `CTMUpgradeExecutor.sol:87-102`; refines `ExecutorForward`'s
@@ -441,6 +550,267 @@ refines the transition step of `ExecutorUpgradeChain`):
   countermodel and witness use pre-registry chains of the bootstrap states.
 - Witness: `LegacyCatchUpWitness` (a lagging pre-registry chain catches up with no owner action).
 
+**L2Derivation** and **L2Convergence** (the L2 implementation tables; era-contracts
+`draft/v0.35.0` at **`b17415d20`**, a newer pin than the topics above; `MODEL-L2-TABLES`). The
+L2 analogue of `ChainRouting`: what L2 code a registry transition installs and whether chains on
+one version run the same L2 code.
+
+- **The derivation, pure** (`L2Derivation`; `CTMTransition.sol:50-143, 173-185`,
+  `TransitionDerivationLib.sol:95-169`, `L2PlanLib.sol:47-82`, `L2InventoryLib.sol:48-113`). A
+  successful construction deploys exactly the target table's new or changed rows (by keccak),
+  each at its member's fixed address with the target shell, at distinct addresses
+  (`TransitionDeploysExactlyTheChangedRows`). It has an L2 side iff it names a delegate; a changed
+  row, an extra or a composer each force one (`HasL2SideIffDelegate`). A patch edge has none
+  (`PatchEdgeHasNoL2Side`). An edge without one stores the empty plan and keeps the L2
+  description: tables equal member by member with padding, shell and blob equal, each up to a
+  named keccak clash, genesis parameters equal (`L1OnlyEdgeKeepsTheL2Description`).
+- **The two table comparisons** (`changedL2Rows`, `_l2TableChanged`). "No row changed" implies
+  `_l2TableChanged` is false with no hash premise; the converse holds up to an appended row
+  that hashes like the empty row (`TableComparisonsAgree`), and such a clash splits them, so
+  `releaseDiff()` can report an unchanged table for an edge that deploys a row
+  (`EmptyRowClashSplitsTheComparisons`). OpenZeppelin L-01: there is an L1-only patch edge onto
+  a table that only gained an empty row which reverts at `4e073f09b`, before the fix `9775be946`,
+  for every injective table hash, and succeeds at `b17415d20` for every hash
+  (`AppendedEmptyRowKeepsAnL1OnlyEdge`).
+- **Boundaries.** A nonempty row never becomes empty (`NonemptyRowStaysNonempty`). A row at a
+  member with no fixed address (members 14-19) can pass `CTMRelease`'s table checks
+  (`FrozenRowWitness`) but can be neither added nor changed by a transition
+  (`NoFixedAddressRowCannotChange`); once in a
+  departing release it is frozen (`NoFixedAddressRowIsFrozen`), and no bootstrap plan onto such a
+  release can be built (`BootstrapOntoNoFixedAddressRowReverts`); `FrozenRowWitness` shows all of
+  it on one 27-row release. The deploy tooling fills only fixed-address members
+  (`l1-contracts/deploy-scripts/upgrade/SystemContractsProcessing.s.sol:184-206`).
+- **Convergence** (`L2Convergence`). Each chain gets a ghost L2 state: per address, the system
+  proxy's shell and implementation row. A crossing of an L2-genuine transition with its L2
+  transaction executed writes exactly the new or changed rows (`CrossingWritesExactlyTheChangedRows`).
+  Headline: along runs from `L2Inv` (fresh or bootstrap starting states,
+  `FreshL2SysSatisfiesInvariant`, `BootstrapL2SysSatisfiesInvariant`) with no break-glass step,
+  every L2 upgrade transaction executed, every crossed transition L2-genuine and the genesis
+  images of the releases the CTM records holding their tables, every chain at a version with a
+  release runs that release's implementation at every member with a fixed address and a
+  nonempty row, or a crossed transition's two releases have a member whose rows clash under the
+  hash (`ChainsRunTheirVersionsL2Rows`); so two chains on one version agree there, however they
+  got there (`ChainsOnOneVersionRunOneL2`). Replacements, skips included, are covered:
+  `L2ConvergenceWitness` brings three chains onto one version by two crossings, by a skip
+  replacement and by genesis; `BootstrapConvergenceWitness` takes a pre-registry chain across
+  the bootstrap edge and a transition, and reads its result off the headline.
+- **What does not converge, and what is needed.** The proxy shell does not converge
+  (`ShellsDoNotConverge`; `TransitionDerivationLib.sol:91-94`). An unexecuted L2 transaction
+  and a plan `CTMTransition` did not derive each leave a chain on its old implementation with an
+  injective hash (`UnexecutedL2TxLeavesTheOldRow`, `NonGenuinePlanLeavesTheOldRow`); the CTM
+  checks only that the plan's bytecodes are published (`ChainTypeManager.sol:449-452`). A
+  genesis image that does not hold its release's table splits a version between a chain that
+  crossed to it and one created there (`StaleGenesisImageSplitsAVersion`); nothing on L1
+  checks the image.
+- **Rows along CTM runs.** With no legacy commit and L2-genuine commits, nonempty rows of the
+  current release stay nonempty and a row without a fixed address keeps its hash
+  (`NonemptyRowsStayNonemptyAlongRegistryRuns`, `NoFixedAddressRowFrozenAlongRegistryRuns`;
+  `FrozenRowAlongRunsWitness`); the legacy `setNewVersionUpgrade` can still replace it
+  (`LegacyCommitMovesTheFrozenRow`).
+- Model boundaries: the CTM steps are `VersionRegistry`'s, re-checked at `b17415d20`; the
+  authored delegate, extras and delegatecall are assumed to write no member's proxy; a new
+  chain's L2 state is its release's genesis image, checked only off chain
+  (`protocol-ops/src/upgrade_verification/registry/genesis.rs:311-371`); routing, callers,
+  timing and migration are not modelled; the factory-dependency cap is omitted.
+
+**MutableSelectors** (each facet's `selectors()` answer as state; extends `LiveRouting`; cites
+`draft/v0.35.0` at `b17415d20`):
+
+- A release stores facet rows, not selectors (`upgrades/registry/RegistryTypes.sol:20-23`). Four
+  readers ask the facets when they run: `validate()`, the derivation in `CTMTransition`'s
+  constructor (whose cuts are stored and applied as they are by `DefaultUpgrade`), the
+  installation at genesis, migration in and the bootstrap, and the guard. `World.relRows` and
+  `DWorld.selectors` fix every answer for a run. Here each answer is state, changed by a step of
+  its own (`setSelectors`), and each transition's cuts are what it stored when it was built.
+- **With stable answers** (`StableSelectors`: no answer changes, and every transition was built
+  under the starting answers) a run is a `LiveRouting` run and conversely
+  (`StableRunIsACountedRun`, `CountedRunIsAStableRun`), and the headline holds
+  (`ChainsRunTheirVersionsReleaseStable`, `FreshChainsRunTheirVersionsReleaseStable`,
+  `StableRunIsARoutingRun`). Only the transitions a run can cross need to have been built under
+  those answers (`StableSelectorsOn`; `StableOnRunIsACountedRun`,
+  `ChainsRunTheirVersionsReleaseStableOn`, `StableSelectorsIsStableOn`).
+- **The installing paths read answers from different times.** A crossing lands on the arriving
+  release as the facets answered when the transition was built (`CrossingInstallsTheBuildAnswers`);
+  a new chain gets the current release as they answer now (`CreationInstallsTheAnswersNow`); the
+  guard reads the answers now (`CrossingNeedsTheAnswersNow`). On consistent storage, with the
+  departing release's rows well-formed now and its facets answering as when the transition was
+  built, a crossing lands on the arriving release as built, whatever the arriving release's
+  facets answer (`UnchangedDepartingAnswersLandOnRelease`).
+- **Load-bearing**, with genuine objects and every release passing `validate()`'s facet checks
+  before and after the change:
+  - one change of the arriving release's facet splits release `200`'s routing between a chain
+    that crossed and one created afterwards, a state no `ChainRouting` or `LiveRouting` world
+    reaches from an invariant state without a break-glass cut (`MutableSelectorsSplitRouting`);
+    the next edge then refuses the chain that crossed (`MutableSelectorsBlockNextEdge`);
+  - the same split happens with no change during the run when a transition was built under
+    other answers (`StaleCutsSplitRouting`);
+  - one change of the departing release's facet leaves that facet routed after a crossing: the
+    chain is at version 2 and routes selector `5` to release `100`'s facet, a state no
+    `LiveRouting` run of these objects reaches from an invariant state without a break-glass
+    cut, under any fixed answers (`MutableSelectorsLeaveDepartingFacetRouted`). Before the
+    crossing every condition of `UnchangedDepartingAnswersLandOnRelease` but the last holds.
+- Witnesses: `StableSelectorsWitness`, `StableSelectorsOnWitness`,
+  `InstallsReadDifferentAnswersWitness`.
+
+**CommittedEdgeExecutable** (pin `b17415d20`: the commit-time checks of a registry edge,
+`VersionEdgeLib.requireValidEdge` and `L2PlanLib.build`/`requirePublished`, against the chain-side
+`BaseZkSyncUpgrade._setNewProtocolVersion`/`_setL2SystemContractUpgrade` and the transaction
+`CTMUpgradeComposer.buildL2UpgradeTxFromPlan` composes; `upgrades/registry/libraries/VersionEdgeLib.sol:35-91`,
+`L2PlanLib.sol:47-97`, `upgrades/BaseZkSyncUpgrade.sol:162-272`):
+
+- **The two copies agree.** Both version checks reduce to `EdgeVersionShape`: construction
+  passes exactly when the versions have that shape, the schedule is valid and a patch has no L2
+  side; a chain's version step passes exactly when its version and the target have that shape
+  and, for a minor change on the settlement layer, nothing is pending
+  (`EdgeShapeIsTheChainVersionCheck`). For a plan `build` returned, the composer's empty
+  transaction test is the constructor's `hasL2Side`, with no hash premise
+  (`ComposerEmptinessIsHasL2Side`). A constructed edge's composed transaction has the upgrade
+  type, nonce `minor(new)`, at most 64 factory dependencies and the canonical envelope
+  (`ConstructedEdgeChainFacts`).
+- **Headline.** `ConstructedEdgePassesChainChecks`: a constructed edge passes both chain-side
+  steps on a chain at its departure on its settlement layer, with nothing pending if the minor
+  changes, `priorityTxMaxPubdata` at least `90_000`, and composed calldata within
+  `UpgradeCalldataFits`. Off the settlement layer only the version step runs, and it passes
+  whatever is pending (`ConstructedEdgePassesOffLayerVersionStep`).
+  `CommittedSlotEdgePassesChainChecks` composes this with `VersionRegistry`'s CTM runs, whose
+  commit and replace steps were re-read at `b17415d20`: whatever a run with genuine replacements
+  leaves in slot `v` passes on a chain at `v`. `PublishedFactoryDepsStayPublished`: what the
+  commit's `requirePublished` checked stays published while the supplier's code stays.
+- **The premises are needed, at their exact thresholds.** `PubdataLimitThresholdIsExact`
+  (`89_999` reverts, `90_000` passes); `CalldataBoundIsExact` (composer answers of `1_799_375`
+  and `1_799_376` bytes; no commit-time check bounds the composed calldata);
+  `NonGenuineSlotEdgeRevertsOnChain` (a replacement reporting another departure leaves a slot
+  on which every chain at its version reverts); `UnbuiltPlanBreaksEmptinessAgreement`
+  (without `build`'s shape checks a patch edge passes construction and reverts on chains);
+  `SupplierSwapClearsPublication` (a supplier proxy upgrade can clear a checked publication).
+- Not covered: `_upgrade`'s time gate, its settlement-layer order check and the verifier
+  installation (which also reads the chain's `secondProofSystemRequired`), `requireReleaseRouting`
+  and the derived cuts (see `LiveRouting`), what the composer returns or whether its call
+  reverts, and the transaction's execution on L2.
+- Witnesses: `ConstructedEdgeWitness` (an L2-carrying minor edge, and a patch edge over a pending
+  upgrade), `CommittedSlotWitness`, `SupplierWitness`.
+
+**UpgradeTxNonces** (pin `b17415d20`: one chain's pending L2 upgrade transaction,
+`l2SystemContractsUpgradeTxHash` and its batch number, across genesis, crossings on and off the
+settlement layer, commit, execute, revert and migration copies, with a ghost log of the
+transactions written to the hash):
+
+- **Per step.** A crossing never overwrites a nonzero pending hash, a patch crossing leaves the
+  pending upgrade alone, and a crossing that writes found nothing pending and wrote nonce
+  `minor(new) > minor(old)` (`CrossingKeepsANonzeroPendingHash`,
+  `PatchCrossingKeepsThePendingUpgrade`, `WritingCrossingRaisesTheMinor`).
+- **Headline.** `UpgradeTxNoncesStrictlyIncrease`: from a chain before `createNewChain`
+  (`NonceInitSatisfiesInvariant`), along every run whose migrations onto an existing diamond land
+  at a version no lower than the one they left (`MintLandsNotBehind`), the log only grows and its
+  nonces strictly increase. Logged hashes are distinct up to a `TxHashCollision` on two logged
+  transactions with different nonces (`LoggedUpgradeTxHashesDistinctOrCollide`). No hash premise.
+- **Needed.** `LaggingReturnRepeatsNonce`: a migration back onto a diamond behind the version the
+  chain left with writes nonce `30` twice, with the same transaction. A destination deployed for
+  the migration starts at the version handed over; for an existing destination nothing on chain
+  relates the two CTMs' versions.
+- **Increasing nonces do not rule out a skipped transaction.** `ReturnAheadSkipsAnL2Upgrade`:
+  under `MintLandsNotBehind`, a diamond that crossed `0.29.0 → 0.30.0` off its settlement layer,
+  where nothing is written, becomes live through a migration back, and the L2 side of that
+  constructed edge is never written. With exact landings (`MintLandsExactly`) only a genesis or a
+  crossing on the settlement layer moves the chain's live version
+  (`ExactLandingRunsKeepTheActiveVersion`).
+- Every migration step of this model reverts at `b17415d20` (`CHAIN_MIGRATIONS_ENABLED = false`,
+  `common/Config.sol:320`); the model omits that check. Not modelled: break-glass cuts and
+  upgrade engines older than `b17415d20`.
+- Witnesses: `UpgradeTxNoncesWitness` (every kind of step; nonces 29, 30, 31),
+  `ExactLandingWitness`.
+
+**ProofGateAtV35** (`ChainRouting` with each diamond's `secondProofSystemRequired`, `verifier` and
+`disabledProofSystems`, at `b17415d20`; the checks #2628 added to `Admin._executeDiamondCut` and
+`BaseZkSyncUpgrade._setVerifier`, `state-transition/chain-deps/facets/Admin.sol:117-128`,
+`upgrades/BaseZkSyncUpgrade.sol:133-153`, and the two writers `permanentlyRequireSecondProofSystem`
+and `setProofSystemStatus`):
+
+- A v35 step is the `e561b9cc2` step plus one condition: a transition or bootstrap crossing of a
+  chain that requires its second proof system needs the arriving release's verifier to report
+  multi-proof mode for mask `0` (`StepIsTheE561StepPlusTheGate`). The routing image of a v35 run
+  is a `ChainRouting` run (`RunIsARun`), so the routing headline holds at v35
+  (`ChainsRunTheirVersionsRelease`, `FreshChainsRunTheirVersionsRelease`,
+  `ChainRunsItsVersionsRelease`). From fields with the requirement off everywhere, every
+  `ChainRouting` run is the image of a v35 run in which no chain requires it
+  (`E561RunsAreRunsWithoutTheRequirement`).
+- Liveness gets that one premise (`TransitionEnabledIff`, `UpgradesStayEnabled`,
+  `ValidatedRunsKeepEverythingEnabled`), and it cannot be dropped: in `GateStrandsRequiringChain`
+  the CTM commits an edge to a release with a PLONK-only verifier, and a chain that requires its
+  second proof system has no transition while a chain that does not crosses.
+  `protocol-docs/interop-gating.md:43-48` at `b17415d20` describes such an edge and leaves its
+  prevention to off-chain package verification. A break-glass cut that clears the requirement
+  lets the chain cross (`BreakGlassClearsTheRequirement`).
+- From `ProofInv`, along every v35 run, break-glass cuts included, a registered chain that
+  requires its second proof system has a verifier in multi-proof mode for mask `0`
+  (`RequiringChainsKeepAMultiProofVerifier`), given `DisablingNeverEnablesMultiProof`, which
+  `MultiProofVerifier` and `ZKsyncOSVerifier` meet and which is needed (`MaskPremiseNeeded`).
+  That is not the chain's current mode: with ZiSK switched off (in the source, by the Bridgehub
+  owner) the chain is not in multi-proof mode (`RequirementDoesNotPinTheCurrentProofMode`).
+- The requirement is changed only by the chain's `permanentlyRequireSecondProofSystem`, which
+  sets it, and by a break-glass cut of the chain, which may set or clear it
+  (`RequirementWriters`); without such a cut it stays set
+  (`RequirementIsPermanentWithoutBreakGlass`). Both are about the in-tree engines.
+- Witnesses: `ProofGateWitness`, `RequiringChainCanCrossWitness` (the enabledness premises with the
+  gate in force), `RequirementLifecycleWitness`, `PerChainHeadlineAtV35Witness` (a run with
+  break-glass cuts), `E561RunLiftWitness`.
+
+**UpgradeTimingAtV35** (`UpgradeTiming` with the same fields and writers, and the caller of
+`permanentlyRequireSecondProofSystem`: the chain's admin, on its settlement layer):
+
+- A v35 timed step is the `e561b9cc2` timed step plus the gate of its routing step
+  (`TimedStepIsTheE561StepPlusTheGate`). For a chain that does not require its second proof system
+  an upgrade succeeds at v35 exactly when it does in `UpgradeTiming`
+  (`UnflaggedChainsUpgradeAsAtE561`). Every `UpgradeTiming` run is the image of a v35 run
+  (`E561TimedRunsAreRunsWithoutTheRequirement`), and the timed image of every v35 run is an
+  `UpgradeTiming` run (`TimedRunIsATimedRun`), so `UpgradeTiming`'s necessary conditions still
+  bind and its routing headline holds (`TimedRunKeepsChainsOnTheirRelease`).
+- The `upgradeChain` NatSpec is unchanged at `b17415d20`. `ICTMUpgradeExecutor.sol:53-54` still
+  holds (`ExecutorPathIgnoresNotifier`). `:48-49` is still false (`NotAtAnyTime`, for every proof
+  world), and fails through the gate too, which binds every path, caller and time
+  (`ProofGateBindsEveryPath`; `OwnerCannotUpgradeARequiringChainToAPlonkRelease`: every condition
+  of `UpgradeTiming`'s repaired statement holds for the owner, and no upgrade exists). The
+  repaired statement is `UpgradeChainEnabledIffTimed`, `UpgradeTiming`'s eight conditions plus the
+  gate; exact for the model, necessary but not sufficient in the source.
+- Along timed runs: `TimedRunIsAProofGateRun`, `TimedRunsKeepAMultiProofVerifier`; the
+  requirement is set by the chain's admin on its settlement layer, and otherwise changed only by a
+  break-glass cut of the chain (`TimedRequirementWriters`), and stays set without one
+  (`TimedRequirementIsPermanentWithoutBreakGlass`).
+- Witnesses: `UpgradeTimingAtV35Witness` (a chain that requires its second proof system upgraded
+  through `upgradeChain` by its admin), `TimedRequirementWritersWitness` (the admin sets the
+  requirement, the chain's validator cannot), `UnflaggedUpgradeWitness`.
+
+**PendingL2UpgradeAtV35** (each chain's pending L2 protocol upgrade transaction, the batch that
+carries it, the batch steps, and the CTM's stored deadline overrides; pinned at `draft/v0.35.0`
+commit `b17415d`, not `e561b9cc2`. It extends `UpgradeTiming`, whose gates are re-read at
+`b17415d`, and replaces its `setAux` by the writers of each field; boundaries in
+`MODEL-CTM-PENDING-L2`):
+
+- The model refines `UpgradeTiming` (`PendingRunIsATimedRun`), and "an upgrade batch number only
+  with a transaction pending" is preserved along runs (`PendingInvAlongRuns`).
+- On its settlement layer, a chain with a pending transaction or a recorded upgrade batch has no
+  upgrade across an edge that changes the minor component, by any path, caller or time
+  (`PendingTxBlocksEveryUpgrade`; `BaseZkSyncUpgrade.sol:259-268`).
+- Take such a chain with the transaction in no batch, the CTM past its version, no legacy cut
+  there, and that version's deadline before `τ`. Along every run with no break-glass cut, no
+  `setProtocolVersionDeadline` at that version and block times from `τ` on, it keeps all of this
+  and is in dead time at every block time from `τ` (`ExpiredPendingChainStaysInDeadTime`;
+  `ExpiredPendingChainWitness`). From such a state in dead time at `τ`, the only steps of this
+  model after which it is not in dead time at `τ` are that override and a break-glass cut
+  (`OnlyOverrideOrBreakGlassEndsDeadTime`). Both do
+  (`OverrideRecoversExpiredPendingChain`, `BreakGlassEndsDeadTime`). An override to a nonzero
+  time `t ≥ τ` lets the pending batch be committed at `τ`, proved and executed, which clears the
+  transaction, when every committed batch is verified and executed (`OverrideClearsPendingTx`).
+  A swap of the CTM's implementation is not a step of the model.
+- `LateUpgradeLandsInDeadTime`: with edges `0.1.0 → 0.2.0 → 0.3.0` that change the minor
+  component, carry an L2 side and satisfy `ValidEdge`, a chain at `0.1.0` that is not in dead
+  time at `25` is upgraded at `25` and lands at `0.2.0` in the state above.
+- `ValidatedTimedRunsHaveNoDeadTime` holds in this model with two more premises: no transaction
+  pending or the edge a patch, and a patch carrying no L2 side (`NoDeadTimeWithoutPendingTx`;
+  witnesses `NoDeadTimeWithoutPendingTxWitness` and, through a patch with a transaction pending,
+  `NoDeadTimeAcrossPatchWithPendingTx`). Without the first premise its conclusion is false
+  (`NoDeadTimeNeedsItsPendingTxPremise`).
+
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises. Each later topic lists
 its own above.
@@ -463,7 +833,7 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
   `DiamondStorage` and proves the two agree under `DiamondOk` and `RowsWf`; its count-checked
   system refines `ChainRouting`. Its boundaries:
   - `selectors()` is a fixed function of the facet address. `validate()` runs at install
-    time, while the check re-reads `selectors()`.
+    time, while the check re-reads `selectors()`. `MutableSelectors` drops this assumption.
   - The keccak comparison in the `deriveFacetCuts` shortcut is modelled as list equality.
   - A break-glass init may leave inconsistent diamond storage (`CountedDriftBlocksTransition`
     takes `DiamondOk` explicitly).
@@ -483,6 +853,17 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
   `forward` (modelled for the authority state in `../RegistryBootstrapMigration/`, topic
   `Forward`), CTM owner functions that touch no modelled state, and calls to other targets
   are not modelled; the `ProxyAdmin`'s owner is fixed configuration.
+- In `ExecutorEngineAtV35` (`b17415d20`), an engine is an arbitrary relation on the model
+  state, so every engine is covered, but only its effect on `ExecutorForward`'s state (the
+  CTM, its chains, the CTM domain's implementations) and on three ghosts is represented:
+  the executor's `owner()`/`pendingOwner()` and the ten values `_domainHolders` reads.
+  No other step changes the ghosts, the `ProxyAdmin`'s owner the row library reads stays
+  fixed configuration, and the hash is an arbitrary function. The witness engines are
+  sequences of `ExecutorForward`'s forwarded calls around the row library's `applyRows`, two of
+  them also writing a ghost; engine calls that touch no modelled state (the ServerNotifier's setters, events) are
+  no-ops, and `_checkPostconditions`, `onlyOwner` and `_domainHolders` reverting for a
+  ServerNotifier the `ProxyAdmin` no longer administers only reject and are omitted. `HookRun`
+  admits any CTM call that is not a break-glass cut, as `forward`'s `FCall.sys` does.
 - In `ExecutorUpgradeChain`, the three ways to cross an edge (`upgradeChain`, the chain
   admin's direct call, a forwarded CTM call) differ only before `Admin.upgradeChainFromVersion`.
   They run the same engine, so the omitted timing checks do not separate them, and neither
@@ -536,6 +917,39 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
     code, `createNewChain` is L1-only and a fresh `forwardedBridgeMint` reverts on L1;
   - transitions, the bootstrap reset and break-glass cuts still use `ChainRouting`'s
     flattened steps.
+- In `MutableSelectors`:
+  - in a given state every reader gets the same answer; a facet that answers by caller, or
+    otherwise differently to two reads in one state, is not modelled;
+  - who can change an answer is not modelled: `setSelectors` stands for any change to the state
+    a facet's code reads. Every facet in the tree declares `selectors()` `pure` with a hard-coded
+    list; the readers call it through a `STATICCALL`;
+  - a transition's construction is not a step: the answers it was built under are a parameter
+    (`MutWorld.FrozenUnder`, `MutWorld.GenuineUnder`);
+  - everything else is as in `LiveRouting`.
+- In `ProofGateAtV35` and `UpgradeTimingAtV35` (`b17415d20`):
+  - `getProofMode(m)` is a fixed function of the verifier and the mask, and a release's
+    `verifier()` a fixed function of the release;
+  - `setProofSystemStatus` is an arbitrary write of the mask; its caller rule
+    (`Admin.sol:417-420`) and the zero check on a release's verifier are omitted. Callers of
+    `permanentlyRequireSecondProofSystem` are modelled only in `UpgradeTimingAtV35`;
+  - every break-glass cut makes the final check of the v35 `Admin` facet. A chain's own
+    crossing of an opaque legacy edge runs its pre-v35 facet, which makes none; the two differ
+    only for a diamond that requires its second proof system and routes a pre-v35 `Admin`
+    facet;
+  - the fields belong to a diamond: migration in deploys a diamond with fresh fields, and the
+    results are about the diamonds registered on the one modelled CTM. `ChainMigration` and
+    `ExecutorForward` steps are not lifted to v35.
+- In `PendingL2UpgradeAtV35` (at `b17415d`, `MODEL-CTM-PENDING-L2`):
+  - the L2 upgrade transaction's gates that `UpgradeTiming` omits are added: the
+    previous-upgrade-finalized check and the refusal of a transaction on a patch; the
+    transaction's own checks, the semver shape and the verifier checks stay omitted;
+  - `setAux` is replaced by the writers of each field; `DiamondInit` with the genesis upgrade and
+    the migration writers are one arbitrary `reinit` write, at the CTM's version or for a chain
+    that settles elsewhere;
+  - the stored deadline overrides are state, written by `setProtocolVersionDeadline` and the
+    legacy commit, and a replacement must keep the deadline;
+  - the bootstrap crossing may set any pending transaction; break-glass cuts move only the
+    version and the routing; a swap of the CTM's implementation is not a step.
 
 ## Source findings
 

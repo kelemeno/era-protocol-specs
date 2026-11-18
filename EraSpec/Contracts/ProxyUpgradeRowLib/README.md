@@ -6,8 +6,8 @@ era-contracts tree. It lives on branch `feat/upgrade-simplification` of the zksy
 `contracts` repository. The branch was called `claude/musing-clarke-8b5f2c`
 when the first model was written, and that model's original commit cites that name.
 
-The branch moves, so each model here is a snapshot. This folder has two, plus topics over
-them that add no operation:
+The branch moves, so each model here is a snapshot. This folder has two, a refinement of the
+second (`RowsAdminSlot`), and topics over them that add no operation:
 
 | Topic | Source commit | Namespace | Specification | Property statements | Checked proofs |
 |---|---|---|---|---|---|
@@ -17,6 +17,7 @@ them that add no operation:
 | RowsOrder | `e561b9cc2` (2026-10-19) | `Contracts.ProxyUpgradeCurrent` | [Specs/RowsOrder.lean](Specs/RowsOrder.lean) | [Properties/RowsOrder.lean](Properties/RowsOrder.lean) | [Proofs/RowsOrder.lean](Proofs/RowsOrder.lean) |
 | RowsStrong | `612a71ccc` (2026-09-22) | `Contracts.ProxyUpgrade` | [Specs/RowsStrong.lean](Specs/RowsStrong.lean) | [Properties/RowsStrong.lean](Properties/RowsStrong.lean) | [Proofs/RowsStrong.lean](Proofs/RowsStrong.lean) |
 | RowsCurrentStrong | `e561b9cc2` (2026-10-19) | `Contracts.ProxyUpgradeCurrent` | [Specs/RowsCurrentStrong.lean](Specs/RowsCurrentStrong.lean) | [Properties/RowsCurrentStrong.lean](Properties/RowsCurrentStrong.lean) | [Proofs/RowsCurrentStrong.lean](Proofs/RowsCurrentStrong.lean) |
+| RowsAdminSlot | `e561b9cc2` (2026-10-19); OpenZeppelin v4.9.6 `dc44c9f` | `Contracts.ProxyUpgradeCurrent.AdminSlot` | [Specs/RowsAdminSlot.lean](Specs/RowsAdminSlot.lean) | [Properties/RowsAdminSlot.lean](Properties/RowsAdminSlot.lean) | [Proofs/RowsAdminSlot.lean](Proofs/RowsAdminSlot.lean) |
 
 `Rows` is kept unchanged. Its header and commit cite no source commit; the library it
 describes was last changed at `ae0698588` (2026-09-16), and a later check found it
@@ -25,7 +26,9 @@ unchanged at `612a71cccb65d6db97674997b21427a50bec6206`. `RowsCurrent` is pinned
 `RowsUnvalidated` uses the `RowsCurrent` model unchanged and adds only `Transition.Genuine`
 and witness data. It states what holds for rows no `validateRows` has checked. `RowsOrder` and
 `RowsCurrentStrong` use the `RowsCurrent` model unchanged, and `RowsStrong` the `Rows` model;
-they add predicates and witness data only.
+they add predicates and witness data only. `RowsAdminSlot` imports the `RowsCurrent` model
+unchanged and refines it with each proxy's two ERC-1967 slots and the OpenZeppelin proxy's admin
+dispatch, in its own sub-namespace.
 Re-check the source before relying on any of them.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
@@ -131,6 +134,45 @@ permutation of a successful call succeeds.
   is not inert, valid rows applying in both orders under it, and a local swap that does not
   apply (`wSelfMoving`).
 
+## The read through the proxy's admin dispatch (`RowsAdminSlot`)
+
+`RowsCurrent` reads `_admin.getProxyImplementation(proxy)` as the implementation the proxy
+runs, and its reinitializer changes only that one mapping. `RowsAdminSlot` (`e561b9cc2`, with
+the OpenZeppelin v4.9.6 proxy code at `dc44c9f`) models what is behind the read: each proxy's
+ERC-1967 implementation and admin slots, and the transparent proxy's dispatch, which answers
+`implementation()`, `upgradeTo` and `upgradeToAndCall` itself only when the caller is its admin
+and otherwise delegates them to its current implementation. A reinitializer runs in its proxy's
+storage and can write both of that proxy's slots.
+
+- `RowsCurrent` is a fragment of this model. Every `RowsCurrent` configuration, lifted, has
+  exactly its `RowsCurrent` calls (`LiftedCallIsRowsCurrentCall`, no premise). Under
+  `SelfOnly` (the slot reading of `ReinitFrames`), `KeepsAdmin` (a reinitializer leaves its
+  proxy's admin slot alone) and `Administered` (`_admin` administers every row's proxy when the
+  call starts), every call is the `RowsCurrent` call of its projection on the implementation
+  slots (`ApplyRowsCorrespond`). The headlines restated on the slots follow:
+  `ApplyRowsPostconditionOnSlots`, `OnlyNamedEdgesAcrossCallOnSlots`,
+  `OnlyNamedEdgesAcrossTransitionOnSlots`, `ReinitMovesAreCaughtOnLastRowOnSlots`,
+  `ReinitMovesAreCaughtOnDistinctRowsOnSlots`, `OrderIndependentOnSlots` (witness
+  `AdminSlotWitness`).
+- Each premise is needed. Without `KeepsAdmin`, a reinitializer that writes only its own
+  proxy's slots can point the admin slot away from `_admin` and the implementation slot at code
+  whose forwarded `implementation()` returns the row's target; the call then succeeds with the
+  implementation slot on no row's edge, while the `RowsCurrent` projection of the call reverts
+  (`AdminRewritePassesVerification`; also `AdminRewriteMakesOrderMatter` and
+  `MoveBackWithAdminRewriteIsNotCaught`). Without `Administered`, a row is skipped while its
+  proxy runs other code (`UnadministeredRowSkippedWhileOffTarget`). Without `SelfOnly`,
+  `ReinitLeakIsNotCaught` carries over to the slots (`SelfOnlyIsNeededOnSlots`).
+- Without `KeepsAdmin`, each `RowsCurrent` conclusion holds on the slots, or the proxy's admin
+  slot no longer holds `_admin` and a row naming it called `initializeUpgrade()`:
+  `AdministeredRowRunsItsTarget`, `AdminLostOnlyByOwnReinitializer`,
+  `OnlyNamedEdgesOrAdminLost`, `ReinitMovesAreCaughtOrAdminLost`, `SourceIsNotAppliedOnSlots`
+  (witness `AdminSlotCasesWitness`, in which every case occurs).
+- At the current `draft/v0.35.0` head `b17415d20` the library reads and swaps as at
+  `e561b9cc2`, with the verification pass moved into the function `requireRowsApplied`, so
+  `ApplyRows` also describes `applyRows` there. `applyTransition` is gone: executors
+  delegatecall an engine and call `requireRowsApplied` again afterwards. Executors and engines
+  are not modelled. The spec header lists the lines.
+
 ## What to check
 
 - `ApplyRowsPostcondition` is now a field of the model (`ApplyRows.verified`), because
@@ -147,6 +189,10 @@ permutation of a successful call succeeds.
   last row per proxy (`ReinitMovesAreCaughtOnLastRow`), and it fails for a duplicate row
   (`DuplicateRowHidesReinitMove`) and, for a reinitializer with authority over another row's
   proxy, on valid rows (`ReinitLeakMovesNamedProxyOffEdge`).
+- `RowsCurrent`'s mapping describes the implementation slots under `RowsAdminSlot`'s
+  `SelfOnly`, `KeepsAdmin` and `Administered` (`ApplyRowsCorrespond`). `KeepsAdmin` and
+  `Administered` are premises, not checks the library makes, and each is needed
+  (`AdminRewritePassesVerification`, `UnadministeredRowSkippedWhileOffTarget`).
 - `applyTransition` checks the object's code and `domain()`, not its rows. `validateRows`
   runs in `ProxyUpgradeTransition`'s constructor (`objects/ProxyUpgradeTransition.sol:36`).
   A different contract answering `domain()` and `rows()` gets its rows applied
@@ -166,6 +212,14 @@ mapping read through the bound admin (a proxy the admin does not administer is o
 model); the reinitializer's effect on the mapping is an arbitrary deterministic function of
 the row and the mapping, and its other effects are not modelled; code existence is a
 predicate; events have no effect; `toRows`' length check is the caller's side condition.
+
+`RowsAdminSlot` models the read through the bound admin: each row's proxy is an OpenZeppelin
+v4.9.6 `TransparentUpgradeableProxy` with an implementation slot and an admin slot, and
+`_admin` is an OpenZeppelin `ProxyAdmin`. Reads and swaps go through the proxy's admin dispatch,
+and what forwarded code answers or does is an arbitrary deterministic function of the slots.
+Storage other than the two slots, `changeProxyAdmin`, and the executors and engines of
+`draft/v0.35.0` are not modelled. `KeepsAdmin` is an assumption about reinitializer code and
+`Administered` about configuration; `RowsCurrent` builds both in.
 
 `RowsUnvalidated` adds no operation. A transition object is its `domain()` and `rows()`. Both
 are `view`, so they are called by `STATICCALL`, and `applyTransition` reads each once, so this

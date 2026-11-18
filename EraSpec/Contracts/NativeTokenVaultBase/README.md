@@ -41,9 +41,18 @@ discharge these concrete obligations.
 | The legacy fallback's asset id against the registry model; the deployed preparation of a legacy token (`prepareLegacy`) | [Specs/LegacyFallback.lean](Specs/LegacyFallback.lean) |
 | Agreement iff (bounded on two pairs), pinned-break form, countermodel, permanence, native misregistration, preparation reduction | [Properties/LegacyFallback.lean](Properties/LegacyFallback.lean) |
 | Checked legacy derivations and witnesses | [Proofs/LegacyFallback.lean](Proofs/LegacyFallback.lean) |
+| The chain-balance hooks at the pin: the L1 vault's `bridgedOut` ledger, the L2 vault's calls into the asset tracker, and the weaker cancel law `HooksCancelModulo` | [Specs/TrackerHooks.lean](Specs/TrackerHooks.lean) |
+| The L1 hooks cancel; the L2 round trip up to the tracker's first-touch registration; countermodels; the first bridge registers as new | [Properties/TrackerHooks.lean](Properties/TrackerHooks.lean) |
+| Checked tracker-hook derivations and witnesses | [Proofs/TrackerHooks.lean](Proofs/TrackerHooks.lean) |
 | Tracked token's full storage, metadata-aware preparation hooks, witness vault | [Specs/Reinitialization.lean](Specs/Reinitialization.lean) |
 | Reinitialization leaves the vault state and invariants alone; only prepared metadata bytes can change | [Properties/Reinitialization.lean](Properties/Reinitialization.lean) |
 | Checked reinitialization derivations and witness | [Proofs/Reinitialization.lean](Proofs/Reinitialization.lean) |
+| The owner's `pause`/`unpause` and attempted entry-point calls during a pause | [Specs/Pause.lean](Specs/Pause.lean) |
+| A paused vault commits nothing; delivery and recovery after unpausing are as before | [Properties/Pause.lean](Properties/Pause.lean) |
+| Checked pause derivations and witness | [Proofs/Pause.lean](Proofs/Pause.lean) |
+| The registry-and-escrow model at the current heads (`main` `70096e2`, `draft/v0.35.0` `b17415d`): `populateBridgedOut`, legacy amounts, the in-place-upgrade start | [Specs/EscrowLedgerAtHead.lean](Specs/EscrowLedgerAtHead.lean) |
+| Solvency under the legacy backing, its countermodel, population effect, run-local net flow, enabledness after an in-place upgrade | [Properties/EscrowLedgerAtHead.lean](Properties/EscrowLedgerAtHead.lean) |
+| Checked derivations and witnesses | [Proofs/EscrowLedgerAtHead.lean](Proofs/EscrowLedgerAtHead.lean) |
 
 ## Two overlapping models
 
@@ -73,6 +82,37 @@ registrations hash, at most one per step), and concludes `Valid`, `Audited`,
 solvency and no-inflation at the end. `LoggedRunSoundSatisfiable` and
 `LogAssumptionWeakerThanGlobal` show that the premise holds on a nontrivial run,
 including for an encoding that collides off the log.
+
+### At the current heads: `populateBridgedOut`
+
+`EscrowLedgerAtHead` extends the registry-and-escrow model to `main` `70096e2` and
+`draft/v0.35.0` `b17415d` (`L1NativeTokenVault.sol` and `NativeTokenVaultBase.sol` unchanged
+since `3605e82` and `d9f6789`). There `bridgedOut` has a third writer, the permissionless
+`populateBridgedOut` (`L1NativeTokenVault.sol:157-181` on `main`), which adds each L1-native
+asset's legacy amount once. It exists for vaults upgraded in place, which start with
+`bridgedOut == 0` (`protocol-docs/bridging.md:183-214`). The legacy amount is a parameter
+fixed for a run and assumed to be returned (`MODEL-ESCROW-HEAD`). Runs start from any state.
+- No hash premise: if `bridgedOut` plus the legacy amounts still to be populated is at most
+  the escrow at the start, it stays so along every run (`SolvencyAtHead`,
+  `StepAtHeadPreservesLedgerBacked`), so a native inflow that passes
+  `InsufficientChainBalance` asks for no more than the vault holds
+  (`GuardedInflowIsBackedAtHead`). The in-place-upgrade start `UpgradeStartAtHead` includes the
+  backing as a field (`UpgradeStartIsLedgerBacked`); `populateBridgedOut` does not check it, and
+  without it one population breaks the model's solvency (`UnbackedLegacyBreaksSolvencyAtHead`).
+- Each asset's legacy amount is added at most once (`PopulateEffectAtHead`,
+  `PopulatedFlagsPersistAtHead`); pin runs are head runs (`PinStepOpIsStepOpAtHead`,
+  `PinReachLogIsReachLogAtHead`).
+- `LoggedRunSoundAtHead`: on a logged run from an upgrade start, under `IdAssumptionsOn` on
+  the start's recorded pairs and the run's own, `Valid` is kept and for a native asset
+  `bridgedOut` plus inflow equals outflow plus the populated legacy amount.
+- Enabledness, for the modelled checks, on an upgraded vault whose escrow is all legacy: an
+  inflow of that escrow fails `InsufficientChainBalance` before the asset's population and
+  passes after it (`PopulateRestoresLegacyWithdrawalAtHead`); before population, inflows from
+  every chain are checked against one per-asset entry (`PrePopulationHeadroomIsSharedAtHead`).
+- Witnesses: `EscrowLedgerAtHeadWitness`, `LoggedRunSoundAtHeadSatisfiable`.
+- `draft/v0.35.0` adds per-chain deposit and withdrawal totals with a cap on withdrawals; their
+  writers never touch `bridgedOut` or the escrow and the cap only reverts, which is argued
+  from source in the spec, not proved. The per-chain maps are not modelled.
 
 ## Invariants and initialization
 
@@ -283,8 +323,10 @@ Witnesses: `ResolutionSatisfiable` (non-identity hooks satisfying `HooksCancel`)
 `SpendingAndDeliverySatisfiable`, `ResolutionRejectionsSatisfiable`,
 `FirstBridgeSatisfiable`, `ResolutionCorrespondenceSatisfiable`. No result takes a
 hash premise. Native escrow release, legacy-token and base-token branches, and
-recovery's own deploy branch are not modelled; trace-level conservation and single
-resolution remain open.
+recovery's own deploy branch are not modelled. Trace-level conservation and single
+resolution across a source and a destination vault are in
+[`Protocol/AssetBridgePreparation`](../../Protocol/AssetBridgePreparation/README.md)
+(`Resolution`), and full recovery of router-deposit bundles in `FullRecovery` there.
 
 Source observations, reported to the maintainer of this repo, not yet confirmed
 upstream. Both verifiers classify the first as a NatSpec error and the second as a
@@ -297,6 +339,29 @@ low-severity bug:
 - A zero receiver is accepted at the source and rejected at every modelled
   destination (`ZeroReceiverOnlyRecoverable`). On routes without a refund path the
   burned value may be unrecoverable; that is not modelled.
+
+## Pause
+
+`Specs/Pause.lean` adds the owner's `pause()` and `unpause()` (`NativeTokenVaultBase.sol:660-668`; `vaultPause`,
+`vaultUnpause`: OpenZeppelin's `whenNotPaused`/`whenPaused`, writing only the flag) and
+attempted calls to the three modelled `whenNotPaused` entry points: `bridgeBurn` (as
+`prepare`), `bridgeMint` and `bridgeRecoverFailedTransfer`, on the registered branches. An
+attempt commits as the commit interfaces do: the successor on success, the unchanged state on
+failure. No hash premise.
+
+| Result | Statement |
+|---|---|
+| `VaultPauseTogglesOnlyTheFlag` | Pausing an unpaused vault sets the flag and nothing else; unpausing returns the original state; neither succeeds from the wrong state. |
+| `PausedVaultCommitsNothing` | On a paused vault every attempted burn, mint and recovery reverts, so any sequence of attempts leaves the state unchanged. |
+| `DeliveryDelayedNotLost` | A paused vault rejects every `bridgeMint`; unpausing after any attempts returns exactly the pre-pause state. No hook premise. |
+| `RecoveryDelayedNotLost` | After a preparation from a `WellFormed` state and a pause: the router's recovery of the prepared data reverts while paused; unpausing after any attempts returns the post-preparation state; and the recovery from there restores the pre-preparation state. The last part is `PrepareThenRecoverRoundTrip` and needs `HooksCancel`, which the L2 tracker's counters do not satisfy (`RoundTripNeedsCancellingHooks`, `REP-RESOLVE`). |
+
+Witness: `VaultPauseWitness`, with B2's counter hooks and a nonzero preparation that changes
+the accounting. Calls by other contracts during the pause, such as token transfers, are not
+attempts on the vault (`RecoverAfterSpending` covers ordinary transfers). Ownership of the
+pause functions is fixed configuration (`OPS-CONFIG`). The protocol-level pause model is
+`Protocol/InteropAtomicity` `Pause`; the refund it delays is `AssetRouterBase`
+`PausedRecovery`.
 
 ## Legacy tokens
 
@@ -334,3 +399,43 @@ Model boundaries: the registry entry of a legacy token is taken as a given `Vali
 state; the registry and token models are compared, not interleaved; destination mint
 and recovery of a legacy token are covered only on the token side.
 
+## Tracker hooks: the chain-balance hooks at the pin
+
+`Specs/TrackerHooks.lean` supplies, at the pin, the two hooks that preparation and resolution
+leave abstract.
+
+* **L1.** They are the vault's own `bridgedOut` ledger (`L1NativeTokenVault.sol:259-277`): a
+  checked `+=` on the way out and a checked `-=` on the way in, for L1-native assets only. They
+  satisfy `HooksCancel` (`L1HooksCancel`), so prepare-then-recover restores the state with no
+  hook premise (`L1PrepareThenRecoverRoundTrip`), and on the bridged branch they are the identity
+  (`L1BridgedBranchHooksAreIdentity`, `L1BridgedResolutionLeavesLedger`). On L1 nothing calls the
+  vault's `bridgeRecoverFailedTransfer`; the failed-deposit refund `bridgeConfirmTransferResult`
+  runs the same inbound hook.
+* **L2.** They are the asset tracker's `handleInitiateBridgingOnL2` and
+  `handleFinalizeBridgingOnL2` (the [L2AssetTracker](../L2AssetTracker/README.md) folder). They
+  do not satisfy `HooksCancel`, only `HooksCancelModulo`: when the destination is not L1 or the
+  chain settles off L1, the inbound hook undoes the outbound one up to the tracker's first-touch
+  registration (`L2HooksCancelModuloRegistration`; for any hooks, `PrepareThenRecoverRoundTripModulo`).
+  So the router's recovery call, applied to the prepared state, restores the modelled vault state
+  and the tracker's storage up to that registration, and exactly for an asset the tracker had
+  registered (`AtomicRecoveryRestoresVaultAndTrackerL2`); for a destination that is not L1 this
+  holds across a change of settlement layer between the two calls
+  (`AtomicRecoveryAcrossSettlementLayersL2`). Countermodels: with destination L1 while
+  settling on L1 both L1 counters rise (`L2L1DestinationCountersDiverge`), with a settlement-layer
+  change in between only one does (`L2SlSwitchBetweenPrepareAndRecover`), and the first legacy
+  bridge leaves its registration (`L2FirstLegacyBridgeLeavesRegistration`). On the first-bridge
+  branch the registration hook registers the asset as new before the inbound hook runs
+  (`L2FirstBridgeRegistersAsNew`).
+* **The vault slice.** `Codegen.VaultPreparationSlice` `L1TrackerHooks` gives the L1 outbound hook
+  as a concrete hook of the transcribed vault program: it meets the slice's `HooksAgree` premise
+  (`L1HooksAgree`), so the slice's simulation, with its one-step bound, holds with it
+  (`L1VaultSimulation`).
+
+Witnesses: `L1TrackerHooksSatisfiable`, `AtomicRecoveryL2Satisfiable`, `L2FirstBridgeSatisfiable`;
+in the L2 witnesses the tracker's storage is reached from fresh storage by `initL2` and, for a
+registered asset, a first touch. The L1 hooks at `main` `70096e2ea` are those of the pin; at
+`draft/v0.35.0` `b17415d20` they also keep per-chain deposit and withdrawal totals, which
+`L1Ledger` does not model. At both heads the L2 vault puts the tracker's
+`assertRecoveryIsAccountingNeutral` in front of every refund; that recovery is modelled in
+`L2AssetTracker` `LaterHeads` (`HeadRecoveryRestoresVaultAndTracker`). Nothing else here is
+checked against those heads.
