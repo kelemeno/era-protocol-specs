@@ -205,6 +205,10 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Liveness of the atomic send path and of an atomic leg's routes on its destination (InteropAtomicity)
+import EraSpec.Protocol.InteropAtomicity.Proofs.DispatchLiveness
+import EraSpec.Protocol.InteropAtomicity.Proofs.ExecutionLiveness
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

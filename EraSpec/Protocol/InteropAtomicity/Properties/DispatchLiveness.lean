@@ -4,17 +4,20 @@ import EraSpec.Protocol.InteropAtomicity.Specs.DispatchLiveness
 # Properties: an informed sender's atomic dispatch is enabled, unless a pinned clash
 
 Statements about `EraSpec.Protocol.InteropAtomicity.Specs.DispatchLiveness`; proofs in
-`EraSpec.Protocol.InteropAtomicity.Proofs.DispatchLiveness`.
+`EraSpec.Protocol.InteropAtomicity.Proofs.DispatchLiveness`. Everything here is about the pin
+`c67894b9`; the Specs header ("At the current heads") lists what differs at the current heads.
 
 ## (a) How many hops a hint needs
 
-In a valid tree the deployed search from a hint succeeds exactly when its fuel covers
+In a valid tree the deployed search from an occupied hint succeeds exactly when its fuel covers
 `hopsNeeded`, the number of occupied leaves strictly between the hint's value and the inserted
-value (`SearchSucceedsIffHopsWithinFuel`). So:
+value (`SearchSucceedsIffHopsWithinFuel`), and that number is below `leafCount`
+(`HopsNeededBelowLeafCount`). So:
 
 * the exact hint needs no hop, succeeds with any fuel, and the insert lands on it
-  (`ExactHintSucceeds`, `ExactHintIffNoHops`); for every fresh nonzero value there is exactly
-  one exact hint (`ExactHintExistsAndIsUnique`);
+  (`ExactHintSucceeds`, `ExactHintIffNoHops`); it is the occupied leaf holding the largest value
+  below the inserted one (`ExactHintIsLargestBelow`), and for every fresh nonzero value there is
+  exactly one (`ExactHintExistsAndIsUnique`);
 * the deployed insert flow succeeds iff the hint is at most `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5`
   hops away (`HintWithinFiveHopsSucceeds`);
 * a hint that was exact when the sender read the tree still works after at most five other
@@ -22,10 +25,10 @@ value (`SearchSucceedsIffHopsWithinFuel`). So:
 
 ## (b) No constant fuel suffices
 
-For every fuel `k` below the word size there is an honest tree, `chainTree (k + 1)`, on which a
-valid starting hint needs `k + 1` hops (`HopsNeededUnbounded`). This is the general form that
-`Contracts.InteropCommitmentTree.Properties.HonestInsertRevertsAtDeployedFuel` states for
-`k = 5` only.
+For every fuel `k` with `k + 2` below the word size there is an honest tree, `chainTree (k + 1)`,
+on which a valid starting hint needs `k + 1` hops (`HopsNeededUnbounded`). This is the general
+form of `Contracts.InteropCommitmentTree.Properties.HonestInsertRevertsAtDeployedFuel`, which
+states `k = 5` on one tree.
 
 ## (c) An honest atomic dispatch is enabled, or a pinned clash with the log
 
@@ -36,23 +39,32 @@ guard and tree insert). Its runs project onto runs of both component models
 * **The manager's guard.** A fresh `(sender, salt)` dispatch passes
   `ManagerLegAlreadyCommitted`, or its leg was already committed by a logged dispatch with which
   it shares one leg through a cross-sender salt clash or a bundle-hash clash
-  (`FreshDispatchPassesManagerGuardOrClash`, in `Contracts.InteropCenter`'s model alone). This
-  is O1's open item 5.
+  (`FreshDispatchPassesManagerGuardOrClash`, in `Contracts.InteropCenter`'s model alone).
 * **Headline.** An atomic dispatch with an unused `(sender, salt)`, a well-formed and validated
   bundle, a nonzero commit value and the exact hint has a step, landing on that hint, or a
   `DispatchClash` with the log holds (`HonestDispatchEnabledOrClash`). The same holds for any hint
-  within five hops (`DispatchWithinFiveHopsEnabledOrClash`).
-* **Sharp.** No hint works iff a `DispatchClash` holds (`AtomicDispatchBlockedIffClash`). So a
-  clash is the only thing that blocks the leg; it blocks only that exact `(flowId, bundleHash)`,
-  and a re-send with another salt is a different leg.
+  within five hops (`DispatchWithinFiveHopsEnabledOrClash`), and for a hint that was exact at an
+  earlier state of the run, with at most five appends in between
+  (`StaleHintDispatchEnabledOrClash`).
+* **Sharp.** No hint works iff a `DispatchClash` holds (`AtomicDispatchBlockedIffClash`). So,
+  given the center's own checks, a clash with the log is the only thing that blocks the leg's
+  `append` on the modelled checks.
 
 ## Non-vacuity and the disjuncts
 
-`HonestDispatchWitness` meets every premise of the headline on a nonempty run, with the step
-present and no clash. `CommitClashBlocksHonestDispatch` fires the `CommitClash` disjunct alone
-(a constant commit value, as in `Contracts.AppendPath.Properties.ClashBlocksFreshLeg`), and
-`LegClashBlocksHonestDispatch` fires the shared-leg disjunct alone, once through a cross-sender
-salt clash and once through a bundle-hash clash, both under a constant keccak.
+`HonestDispatchWitness` meets every premise of the headline, of
+`DispatchWithinFiveHopsEnabledOrClash` (with a hint one hop away) and of
+`FreshDispatchPassesManagerGuardOrClash` on a nonempty run, with the step present and no clash.
+`StaleHintDispatchWitness` meets every premise of `StaleHintDispatchEnabledOrClash` with a hint read
+at genesis and one append in between, at whose end the hint is no longer exact, again with the step
+present and no clash. The counting results of (a) take premises that every reachable tree meets
+for a fresh nonzero value and an occupied hint below it: `FiveHopBoundaryWitness` instantiates them
+on both sides of the boundary of `HintWithinFiveHopsSucceeds` (five hops succeed, six do not), and
+`StaleHintWitness` with an exact hint and one insert in between, meeting the premises of
+`StaleExactHintSurvivesFiveInserts`. `CommitClashBlocksHonestDispatch` fires the `CommitClash` disjunct alone (a constant commit value,
+as in `Contracts.AppendPath.Properties.ClashBlocksFreshLeg`), and `LegClashBlocksHonestDispatch`
+fires the shared-leg disjunct alone, once through a cross-sender salt clash and once through a
+bundle-hash clash, both under a constant keccak.
 -/
 
 namespace Contracts.DispatchLiveness
@@ -93,9 +105,26 @@ def Properties.ExactHintIffNoHops : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint : ℕ), hint < T.leafCount →
     (T.leaf hint).value < v → (ExactHint T v hint ↔ hopsNeeded T v hint = 0)
 
+/-- **THE EXACT HINT IS THE PREDECESSOR.** In a valid tree, `hint` is an exact hint for `v` iff it
+is an occupied leaf below `v` whose value is the largest among the occupied leaves below `v`. -/
+def Properties.ExactHintIsLargestBelow : Prop :=
+  ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint : ℕ),
+    (ExactHint T v hint ↔
+      hint < T.leafCount ∧ (T.leaf hint).value < v ∧
+        ∀ k < T.leafCount, (T.leaf k).value < v → (T.leaf k).value ≤ (T.leaf hint).value)
+
+/-- **A HINT NEEDS FEWER HOPS THAN THERE ARE LEAVES.** From an occupied hint, the leaves
+`hopsNeeded` counts are occupied and exclude the hint itself, so there are fewer than
+`leafCount`. With `SearchSucceedsIffHopsWithinFuel`, in a valid tree a search from an occupied hint
+with `leafCount - 1` hops or more returns a leaf: the exact count behind
+`Contracts.InteropCommitmentTree.Properties.LowSearchTerminates`. -/
+def Properties.HopsNeededBelowLeafCount : Prop :=
+  ∀ (T : Tree) (v : UInt256) (hint : ℕ), hint < T.leafCount → hopsNeeded T v hint < T.leafCount
+
 /-- **EVERY FRESH VALUE HAS EXACTLY ONE EXACT HINT.** In a valid tree, for a nonzero value that is
-not a key, there is one and only one exact hint: the leaf holding the largest value below it. So
-"the exact hint" is well defined, and a sender who reads the tree can compute it. -/
+not a key, there is one and only one exact hint (by `ExactHintIsLargestBelow`, the occupied leaf
+holding the largest value below it). So "the exact hint" is well defined, and a sender who reads
+the tree can compute it. -/
 def Properties.ExactHintExistsAndIsUnique : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256), v ≠ 0 → v ∉ keys (toAbs T) →
     ∃! hint, ExactHint T v hint
@@ -103,8 +132,8 @@ def Properties.ExactHintExistsAndIsUnique : Prop :=
 /-- **A HINT WITHIN FIVE HOPS SUCCEEDS; ONE FURTHER AWAY REVERTS.** In a valid tree, for a nonzero
 value not yet registered and an occupied hint below it, the deployed insert flow (with
 `MAX_LOW_INDEX_SEARCH_ATTEMPTS`) succeeds for some low leaf iff the hint needs at most five hops.
-Past five it reverts with `IMTLowLeafNextTooSmall` (`IndexedMerkleTree.sol:86-88`), although a
-correct low leaf exists. -/
+Past five, every check before the loop passes and the loop reverts with `IMTLowLeafNextTooSmall`
+(`IndexedMerkleTree.sol:86-88`). -/
 def Properties.HintWithinFiveHopsSucceeds : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint : ℕ), v ≠ 0 → T.valueToIndex v = 0 →
     hint < T.leafCount → (T.leaf hint).value < v →
@@ -124,9 +153,11 @@ def Properties.StaleExactHintSurvivesFiveInserts : Prop :=
 /-- **FOR EVERY FUEL, AN HONEST TREE WHOSE HINT NEEDS ONE HOP MORE.** For every `k` with
 `k + 2` below the word size: the honest run `chainTree (k + 1)` (`setup`, then the values
 `1, …, k + 1`, each through the previous leaf) is reachable, has `k + 2` leaves, and for the fresh
-value `k + 2` the sentinel hint `0` is a valid starting hint that needs exactly `k + 1` hops. So
-the search with fuel `k` reverts, while the exact hint `k + 1` works. With `k = 5` this is the
-deployed constant: no fixed `MAX_LOW_INDEX_SEARCH_ATTEMPTS` makes every honest hint succeed. -/
+value `k + 2` the sentinel hint `0` is an occupied leaf below it that needs exactly `k + 1` hops;
+the search from it with fuel `k` returns nothing (a revert), and leaf `k + 1` is the exact hint,
+which succeeds with any fuel (`ExactHintSucceeds`). With `k = 5` the fuel is the deployed
+constant: no fixed `MAX_LOW_INDEX_SEARCH_ATTEMPTS` makes every occupied hint below a fresh value
+succeed. -/
 def Properties.HopsNeededUnbounded : Prop :=
   ∀ k : ℕ, k + 2 < UInt256.size →
     Reaches setup (chainTree (k + 1)) ∧ (chainTree (k + 1)).leafCount = k + 2
@@ -177,8 +208,9 @@ hint. Otherwise a `DispatchClash` with the log holds.
 The commit value is `keccak256(abi.encode(ATOMIC_COMMIT_LEAF_TAG, flowId, bundleHash))`
 (`AtomicInteropProof.sol:100-102`), so "nonzero" is the pinned premise that keccak is not `0` on
 that one preimage (`IMTValueZero`, `IndexedMerkleTree.sol:69-71`, would revert otherwise). The
-checks `Contracts.InteropCenter` omits as reject-only (pause, destination registration, fees and
-`msg.value`) are the sender's to meet and are not modelled (Specs header). -/
+checks and writes this model leaves out (pause, destinations, fees and `msg.value`, attribute
+parsing, an indirect call's sender contract, the `FullMerkle` writes, gas; Specs, "What 'enabled'
+means here") are not part of the statement. -/
 def Properties.HonestDispatchEnabledOrClash : Prop :=
   ∀ (P : Params) (cv : CommitValue) (X : State), Reach P cv genesis X →
     ∀ d : Dispatch, d.isAtomic = true → X.saltUsed d.sender d.salt = false → FormedBy P d →
@@ -199,6 +231,21 @@ def Properties.DispatchWithinFiveHopsEnabledOrClash : Prop :=
       hopsNeeded X.chain.tree (commitValueOf P cv d) d.atomicSend.lowNullifierIndex
         ≤ maxLowIndexSearchAttempts →
       (∃ low, Step P cv X (X.afterAtomic P cv d low)) ∨ DispatchClash P cv X.log d
+
+/-- **THE SAME FOR A HINT READ UP TO FIVE APPENDS EARLIER.** A sender reads the tree at a reachable
+state `X` and takes the exact hint for its commit value there. Its transaction lands at a later
+state `Y` of the same run, after at most `MAX_LOW_INDEX_SEARCH_ATTEMPTS` appends (the tree has at
+most five more leaves). If at `Y` its `(sender, salt)` is unused, and its bundle is formed as
+`_sendBundle` forms it and carries no native value, and its commit value is nonzero, then the
+dispatch has a step at `Y`, landing on the leaf the search reaches, or a `DispatchClash` with `Y`'s
+log holds. -/
+def Properties.StaleHintDispatchEnabledOrClash : Prop :=
+  ∀ (P : Params) (cv : CommitValue) (X Y : State), Reach P cv genesis X → Reach P cv X Y →
+    Y.chain.tree.leafCount ≤ X.chain.tree.leafCount + maxLowIndexSearchAttempts →
+    ∀ d : Dispatch, d.isAtomic = true → Y.saltUsed d.sender d.salt = false → FormedBy P d →
+      Validated d.bundle → commitValueOf P cv d ≠ 0 →
+      ExactHint X.chain.tree (commitValueOf P cv d) d.atomicSend.lowNullifierIndex →
+      (∃ low, Step P cv Y (Y.afterAtomic P cv d low)) ∨ DispatchClash P cv Y.log d
 
 /-- **NO HINT WORKS IFF A PINNED CLASH.** On every reachable state, for a dispatch whose
 `(sender, salt)` is unused, whose bundle is formed as `_sendBundle` forms it and whose commit value
@@ -224,8 +271,13 @@ def Properties.StaleHintWitness : Prop :=
 
 /-- **THE HEADLINE'S PREMISES HOLD ON A NONEMPTY RUN, THE STEP EXISTS, AND NO CLASH.** On the honest
 chain `wParams` with commit value `fun _ b => b`: after sender `1`'s atomic leg (bundle hash `1`),
-sender `2`'s leg (bundle hash `2`) with the exact hint `1` meets every premise, has its step, and
-no `DispatchClash` holds. The stale hint `0` (one hop) also works. -/
+sender `2`'s leg (bundle hash `2`) with the exact hint `1` meets every premise of
+`HonestDispatchEnabledOrClash`, has its step, and no `DispatchClash` holds. The center's view of
+the run is a deployed center run, so the same dispatch also meets every premise of
+`FreshDispatchPassesManagerGuardOrClash`. The same dispatch with the hint `0` (`withHint` keeps
+its sender, salt, bundle and flow) is formed alike, its hint is an occupied leaf below the commit
+value that is not exact and needs one hop, so it meets every premise of
+`DispatchWithinFiveHopsEnabledOrClash`, and its `append` is enabled. -/
 def Properties.HonestDispatchWitness : Prop :=
   Reach wParams bundleCv genesis wX1 ∧ wX1.log ≠ [] ∧
     wNext.isAtomic = true ∧ wX1.saltUsed wNext.sender wNext.salt = false ∧
@@ -234,7 +286,50 @@ def Properties.HonestDispatchWitness : Prop :=
       wNext.atomicSend.lowNullifierIndex ∧
     Step wParams bundleCv wX1 (wX1.afterAtomic wParams bundleCv wNext 1) ∧
     ¬ DispatchClash wParams bundleCv wX1.log wNext ∧
+    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed wParams
+      Contracts.InteropCenter.init wX1.center ∧
+    FormedBy wParams (withHint wNext 0) ∧
+    (withHint wNext 0).atomicSend.lowNullifierIndex < wX1.chain.tree.leafCount ∧
+    (wX1.chain.tree.leaf (withHint wNext 0).atomicSend.lowNullifierIndex).value
+      < commitValueOf wParams bundleCv (withHint wNext 0) ∧
+    hopsNeeded wX1.chain.tree (commitValueOf wParams bundleCv (withHint wNext 0))
+      (withHint wNext 0).atomicSend.lowNullifierIndex = 1 ∧
+    ¬ ExactHint wX1.chain.tree (commitValueOf wParams bundleCv (withHint wNext 0))
+      (withHint wNext 0).atomicSend.lowNullifierIndex ∧
     AtomicSendEnabled wParams bundleCv wX1 (withHint wNext 0)
+
+/-- **THE STALE-HINT FORM'S PREMISES HOLD, AND THE HINT IS NO LONGER EXACT WHEN IT LANDS.** On the
+run of `HonestDispatchWitness`: sender `2` reads the tree at genesis, where the sentinel `0` is the
+exact hint for its commit value `2` (`wStaleNext`), and sender `1`'s leg is appended first (`wX1`,
+one leaf more). Every premise of `StaleHintDispatchEnabledOrClash` holds for `X = genesis` and
+`Y = wX1`; at `wX1` the hint is not exact, the dispatch has a step, and no `DispatchClash` holds. -/
+def Properties.StaleHintDispatchWitness : Prop :=
+  Reach wParams bundleCv genesis genesis ∧ Reach wParams bundleCv genesis wX1 ∧
+    wX1.chain.tree.leafCount = genesis.chain.tree.leafCount + 1 ∧
+    wX1.chain.tree.leafCount ≤ genesis.chain.tree.leafCount + maxLowIndexSearchAttempts ∧
+    wStaleNext.isAtomic = true ∧ wX1.saltUsed wStaleNext.sender wStaleNext.salt = false ∧
+    FormedBy wParams wStaleNext ∧ Validated wStaleNext.bundle ∧
+    commitValueOf wParams bundleCv wStaleNext ≠ 0 ∧
+    ExactHint genesis.chain.tree (commitValueOf wParams bundleCv wStaleNext)
+      wStaleNext.atomicSend.lowNullifierIndex ∧
+    ¬ ExactHint wX1.chain.tree (commitValueOf wParams bundleCv wStaleNext)
+      wStaleNext.atomicSend.lowNullifierIndex ∧
+    (∃ low, Step wParams bundleCv wX1 (wX1.afterAtomic wParams bundleCv wStaleNext low)) ∧
+    ¬ DispatchClash wParams bundleCv wX1.log wStaleNext
+
+/-- **THE FIVE-HOP BOUNDARY, ON BOTH SIDES.** On the honest seven-leaf run `chainTree 6` (`setup`,
+then `1, …, 6`; topic `HintSearch`), for the fresh value `7`: the occupied hint `1` needs exactly
+five hops and the deployed insert flow from it succeeds; the occupied hint `0` needs six, and from
+it the flow fails for every low leaf. Both meet every premise of `HintWithinFiveHopsSucceeds`, one
+on each side of its boundary. -/
+def Properties.FiveHopBoundaryWitness : Prop :=
+  Valid (chainTree 6) ∧ (7 : UInt256) ≠ 0 ∧ (chainTree 6).valueToIndex 7 = 0 ∧
+    1 < (chainTree 6).leafCount ∧ ((chainTree 6).leaf 1).value < 7 ∧
+    hopsNeeded (chainTree 6) 7 1 = maxLowIndexSearchAttempts ∧
+    (∃ low, InsertSucceeds (chainTree 6) 7 1 low) ∧
+    0 < (chainTree 6).leafCount ∧ ((chainTree 6).leaf 0).value < 7 ∧
+    hopsNeeded (chainTree 6) 7 0 = maxLowIndexSearchAttempts + 1 ∧
+    ¬ ∃ low, InsertSucceeds (chainTree 6) 7 0 low
 
 /-- **THE `CommitClash` DISJUNCT FIRES ALONE.** With the constant commit value `1`, after sender
 `1`'s atomic leg, sender `2`'s different leg meets every premise of the headline, with the exact

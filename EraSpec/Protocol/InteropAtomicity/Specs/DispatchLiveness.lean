@@ -5,6 +5,8 @@ import EraSpec.Contracts.InteropCenter.Specs.Dispatch
 # Model: when an atomic dispatch is enabled (liveness of the send path)
 
 Source: era-contracts at the pin `c67894b9`. Paths are relative to `l1-contracts/contracts/`.
+The current heads `70096e2` (branch `main`) and `b17415d20` (branch `draft/v0.35.0`) are cited only
+in "At the current heads" below; the model is the pin's.
 
 **This file is definitions only.** Statements are in
 `EraSpec.Protocol.InteropAtomicity.Properties.DispatchLiveness`, proofs in
@@ -12,12 +14,16 @@ Source: era-contracts at the pin `c67894b9`. Paths are relative to `l1-contracts
 
 The existing results on the send path are about safety: a salt dispatches once, a leg is
 appended once, a commit value occupies one index (`Contracts.InteropCenter`, topic `Dispatch`;
-`Contracts.AppendPath`, topic `OncePerLeg`). The positive side is unstated:
+`Contracts.AppendPath`, topic `OncePerLeg`). The positive side is stated only in part:
 
-* `HintSearch` shows the deployed loop can make an honest insert revert
-  (`HonestInsertRevertsAtDeployedFuel`) and that `leafCount` hops suffice, but not how many hops
-  a given hint needs, nor that the shortfall can be made arbitrarily large.
-* O1 notes that no result says an honest new dispatch avoids `ManagerLegAlreadyCommitted`.
+* `HintSearch` (`Contracts/L2InteropCommitmentTree/`) shows that the deployed loop can make an
+  honest insert revert (`HonestInsertRevertsAtDeployedFuel`, on one seven-leaf tree) and that
+  `leafCount` hops suffice (`LowSearchTerminates`), but not how many hops a given hint needs, nor
+  that the shortfall can be made arbitrarily large.
+* `OncePerLeg` says when an `append` of a given `(flowId, bundleHash)` can succeed
+  (`AppendEnabledIff`, `AppendBlockedOnlyByClash`), for a pair supplied from outside. The
+  `InteropCenter` model, which forms the pair from a dispatch, has no tree and says nothing about
+  whether an honest new dispatch passes `ManagerLegAlreadyCommitted`.
 
 This file adds the two notions those statements need, and one composed model.
 
@@ -34,9 +40,9 @@ caller's `_lowLeafIndex` and walks the sorted linked list (`:85-92`):
 
 with `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5` (`common/Config.sol:66`). This is `lowSearch` with fuel
 `maxLowIndexSearchAttempts` (`Contracts/L2InteropCommitmentTree/Specs/Model.lean`, topic
-`HintSearch`). `hopsNeeded T v hint` counts the occupied leaves whose value lies strictly
-between the hint's value and `v`: the sorted walk has to pass every one of them.
-`ExactHint T v hint` is the hint at which the loop exits at once.
+`HintSearch`): five hops at most. `hopsNeeded T v hint` counts the occupied leaves whose value lies
+strictly between the hint's value and `v`: the sorted walk has to pass every one of them.
+`ExactHint T v hint` is a hint at which the loop exits at once.
 
 ## One chain's send path, composed
 
@@ -84,14 +90,46 @@ carry every result of both component models to this one.
 
 ## What "enabled" means here
 
-A step of this model is a transaction that does not revert **on the modelled checks**. The checks
-`Contracts.InteropCenter` omits as reject-only (pause, destination registration, fees and
-`msg.value`, attribute parsing, the indirect sender's own code) are not modelled here either. For
-a liveness statement they are preconditions the sender controls (payment, a registered
-destination) or protocol configuration (`OPS-CONFIG`, the pause flag); gas is `OPS-PROGRESS`. So
-"the dispatch has a step" reads: once the sender pays, the destination is registered and the
-center is not paused, nothing the run has done can make this transaction revert, except a pinned
-collision.
+A step of this model is a transaction that does not revert **on the modelled checks**: the salt
+check, `_validateAtomicBundle`, the manager's `Unset` guard and every check of
+`IndexedMerkleTree.insert` (`:65-92`). Not modelled, here or in `Contracts.InteropCenter`:
+
+* the reject-only checks of the send: `whenNotPaused`, the destination checks, the fee and
+  `msg.value` checks and attribute parsing (`InteropCenter.sol:378-456`, `:492-497`, `:520-538`,
+  `:548-567`, `:776-868`);
+* the code of an indirect call's sender (`initiateIndirectCall`, `:714-716`), an external
+  contract;
+* the `FullMerkle` hash-tree writes inside `insert` (`IndexedMerkleTree.sol:100`, `:105`) and gas
+  (`OPS-PROGRESS`).
+
+So "the dispatch has a step" reads: if those pass, nothing the run has done can make this
+transaction revert on the modelled checks, except a clash pinned to the run's own log.
+
+## At the current heads
+
+At `70096e2` (`main`) and `b17415d20` (`draft/v0.35.0`) the send path differs in three places
+that this model does not follow:
+
+* The search loop is unbounded: `while (lowLeaf.nextValue != 0 && lowLeaf.nextValue < _value)`
+  (`common/libraries/IndexedMerkleTree.sol:90-93` at both heads), with no
+  `MAX_LOW_INDEX_SEARCH_ATTEMPTS`. The five-hop statements of the Properties file
+  (`HintWithinFiveHopsSucceeds`, `StaleExactHintSurvivesFiveInserts`,
+  `DispatchWithinFiveHopsEnabledOrClash`) and the reverting half of `HopsNeededUnbounded`
+  describe the pin. The counting results (`SearchSucceedsIffHopsWithinFuel`,
+  `HopsNeededBelowLeafCount`) are about the loop itself and describe how many hops the unbounded
+  loop makes.
+* `AtomicFlowManager.append` takes the flow's preimage (`append(bundleHash, lowNullifierIndex,
+  flowPreimage)`, `atomic-interop/AtomicFlowManager.sol:103` at `main`, `:104` at
+  `draft/v0.35.0`) and, before the same `ManagerLegAlreadyCommitted` guard (`:162` / `:163`),
+  checks the preimage, the settlement layer, that no imported settlement-layer root is later
+  than the flow's deadline (`ManagerFlowDeadlinePassed`, `:119-124` / `:120-125`), that the
+  bundle is a leg of the flow with this chain as its source, and that the other legs' source
+  chains are registered (`:126-159` / `:127-160`). None of these is in `Step`.
+* `InteropCenter` sends atomic bundles to L2 destinations only and publishes only bundles to
+  L1 (`interop/InteropCenter.sol:551-555` at `main`, `:552-556` at `draft/v0.35.0`), and
+  `_validateAtomicBundle` is gone.
+
+So `Step` and the headline (c) are statements about the pin.
 -/
 
 namespace Contracts.DispatchLiveness
@@ -111,16 +149,18 @@ open Contracts.Refund (Obligation CommitClash)
 /-- **THE HOPS A HINT NEEDS.** The occupied leaves whose value lies strictly between the hint's
 value and `v`. The loop at `IndexedMerkleTree.sol:85-92` walks the sorted list from the hint, one
 leaf per hop, and stops at the first leaf whose successor is not below `v`; so it must pass each
-of these leaves. In a valid tree it hops exactly this many times
-(`Properties.SearchSucceedsIffHopsWithinFuel`). -/
+of these leaves. In a valid tree, from an occupied hint, the loop with `fuel` hops returns a leaf
+exactly when `hopsNeeded ≤ fuel` (`Properties.SearchSucceedsIffHopsWithinFuel`), and the count is
+below `leafCount` (`Properties.HopsNeededBelowLeafCount`). -/
 def hopsNeeded (T : Tree) (v : UInt256) (hint : ℕ) : ℕ :=
   ((Finset.range T.leafCount).filter
     (fun k => (T.leaf hint).value < (T.leaf k).value ∧ (T.leaf k).value < v)).card
 
 /-- **THE EXACT HINT.** `hint` is an occupied leaf below `v` (`IMTLowLeafIndexOutOfBounds`,
 `IMTLowLeafValueTooLarge`, `IndexedMerkleTree.sol:75-83`) at which the loop condition
-`lowLeaf.nextValue != 0 && lowLeaf.nextValue < _value` (`:85`) is already false. An off-chain
-sender computes it by reading the tree: it is the leaf holding the largest value below `v`
+`lowLeaf.nextValue != 0 && lowLeaf.nextValue < _value` (`:85`) is already false. In a valid tree
+it is the occupied leaf holding the largest value below `v` (`Properties.ExactHintIsLargestBelow`),
+so a sender who reads the tree can compute it, and for a fresh nonzero `v` there is exactly one
 (`Properties.ExactHintExistsAndIsUnique`). -/
 structure ExactHint (T : Tree) (v : UInt256) (hint : ℕ) : Prop where
   inBounds : hint < T.leafCount
@@ -221,10 +261,11 @@ def AtomicSendEnabled (P : Params) (cv : CommitValue) (X : State) (d : Dispatch)
     d.atomicSend.lowNullifierIndex low
 
 /-- **WHAT CAN BLOCK AN HONEST ATOMIC DISPATCH: A PINNED CLASH WITH THE LOG.** Some atomic
-dispatch `d'` of the run either already committed `d`'s very leg, which needs two distinct
-dispatches with one leg (the cross-sender salt clash makes the two bundles equal; otherwise two
-different bundles share a bundle hash), or has a commit value equal to `d`'s on a different
-`(flowId, bundleHash)` (`CommitClash`, a keccak collision on the two named
+dispatch `d'` of the log either has `d`'s leg (the same `(flowId, bundleHash)` on this chain) and
+is tied to `d` by a cross-sender salt clash (`CrossSenderSaltClash`: two senders, one salt, keccak
+colliding on their two packed preimages) or by a bundle-hash clash (`BundleClash`: two different
+bundles, one hash); or it has a commit value equal to `d`'s on a different `(flowId, bundleHash)`
+(`CommitClash`, a keccak collision on the two named
 `abi.encode(ATOMIC_COMMIT_LEAF_TAG, flowId, bundleHash)` preimages). Every disjunct names `d` and a
 dispatch of the log. -/
 def DispatchClash (P : Params) (cv : CommitValue) (log : List Dispatch) (d : Dispatch) : Prop :=
@@ -259,6 +300,10 @@ def wX1 : State :=
 
 /-- The next honest dispatch: sender `2`, salt `2`, with the exact hint `1` (the leaf holding `1`). -/
 def wNext : Dispatch := atomicDispatch Contracts.InteropCenter.wParams 2 2 1
+
+/-- The same dispatch with the hint sender `2` read at genesis: the sentinel `0`, then the exact
+hint for its commit value. -/
+def wStaleNext : Dispatch := atomicDispatch Contracts.InteropCenter.wParams 2 2 0
 
 /-- `setup` after one insert of the value `1` through the sentinel. -/
 def wOneInsertTree : Tree := Contracts.InteropCommitmentTree.insert setup 1 0

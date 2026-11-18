@@ -10,8 +10,9 @@ iff some occupied leaf lies strictly between that leaf's value and `v` (`GapSoun
 direction, `linkAgree` and `WindowPos` for the other), and a hop moves to the immediate
 successor, so it removes exactly that successor from the set `hopsNeeded` counts (`GapSound` and
 `idxInj`). Induction on the fuel then gives `SearchSucceedsIffHopsWithinFuel`; the exact-hint and
-five-hop results are corollaries. An insert adds at most one leaf to the counted set, which gives
-the stale-hint result.
+five-hop results are corollaries. The counted set omits the hint, which bounds it by
+`leafCount - 1`. An insert adds at most one leaf to the counted set, which gives the stale-hint
+result.
 
 **(b)** A closed form for `chainTree n` (`chainTree_leaf`, `chainTree_vti`), then the counted
 set for hint `0` is the interval `(0, k + 2)`.
@@ -212,6 +213,38 @@ theorem ExactHintExistsAndIsUnique : Properties.ExactHintExistsAndIsUnique := by
       · exact h
       · exact absurd h (key hexi hj)
     exact hV.idxInj j hj.inBounds i hi hval
+
+theorem ExactHintIsLargestBelow : Properties.ExactHintIsLargestBelow := by
+  intro T hV v i
+  constructor
+  · intro h
+    refine ⟨h.inBounds, h.below, fun k hk hkv => ?_⟩
+    by_contra hle
+    have hlt : (T.leaf i).value < (T.leaf k).value := not_le.mp hle
+    have h0 := (ExactHintIffNoHops T hV v i h.inBounds h.below).mp h
+    rw [hopsNeeded_eq, Finset.card_eq_zero] at h0
+    have hmem : k ∈ aboveSet T v i := mem_aboveSet.mpr ⟨hk, hlt, hkv⟩
+    rw [h0] at hmem
+    simp at hmem
+  · rintro ⟨hi, hlow, hmax⟩
+    refine (ExactHintIffNoHops T hV v i hi hlow).mpr ?_
+    rw [hopsNeeded_eq, Finset.card_eq_zero, Finset.eq_empty_iff_forall_notMem]
+    intro k hk
+    obtain ⟨hkb, hlo, hhi⟩ := mem_aboveSet.mp hk
+    exact absurd (hmax k hkb hhi) (not_le.mpr hlo)
+
+theorem HopsNeededBelowLeafCount : Properties.HopsNeededBelowLeafCount := by
+  intro T v i hi
+  rw [hopsNeeded_eq]
+  have hsub : aboveSet T v i ⊆ (Finset.range T.leafCount).erase i := by
+    intro k hk
+    obtain ⟨hkb, hlo, _⟩ := mem_aboveSet.mp hk
+    refine Finset.mem_erase.mpr ⟨?_, Finset.mem_range.mpr hkb⟩
+    rintro rfl
+    exact lt_irrefl _ hlo
+  have hcard := Finset.card_le_card hsub
+  rw [Finset.card_erase_of_mem (Finset.mem_range.mpr hi), Finset.card_range] at hcard
+  omega
 
 theorem HintWithinFiveHopsSucceeds : Properties.HintWithinFiveHopsSucceeds := by
   intro T hV v hint hv0 hfresh hi hlow
@@ -589,6 +622,54 @@ theorem DispatchWithinFiveHopsEnabledOrClash :
       (HintWithinFiveHopsSucceeds _ hV _ _ hv0 hreg hb hlow).mpr hhops
     exact ⟨low, Step.sendAtomic d low hat hsalt hform hval ⟨hguard, hins⟩⟩
 
+lemma reach_trans {P : Params} {cv : CommitValue} {X Y Z : State} (h1 : Reach P cv X Y)
+    (h2 : Reach P cv Y Z) : Reach P cv X Z := by
+  induction h2 with
+  | refl => exact h1
+  | tail _ hs ih => exact .tail ih hs
+
+lemma reach_valid {P : Params} {cv : CommitValue} {X : State} (h : Reach P cv genesis X) :
+    Valid X.chain.tree :=
+  (Contracts.AppendPath.inv_of_steps (reach_chain h)).valid
+
+/-- **ALONG A RUN, THE TREE GROWS BY GUARDED INSERTS, ONE PER NEW LEAF.** From a reachable state,
+every later tree of the run is reached by exactly as many guarded inserts as it has new leaves:
+an atomic send's insert passed the deployed checks, which give the guard (`search_yields_guard`),
+and `initL2` never fires on a valid tree. -/
+lemma reach_reachesIn {P : Params} {cv : CommitValue} {X : State} (hX : Reach P cv genesis X)
+    {Y : State} (h : Reach P cv X Y) :
+    ∃ m, ReachesIn X.chain.tree m Y.chain.tree ∧
+      Y.chain.tree.leafCount = X.chain.tree.leafCount + m := by
+  induction h with
+  | refl => exact ⟨0, .refl, rfl⟩
+  | @tail Y Z hXY hs ih =>
+    obtain ⟨m, hR, hlc⟩ := ih
+    have hV := reach_valid (reach_trans hX hXY)
+    cases hs with
+    | sendPublic d hat hsalt hform => exact ⟨m, hR, hlc⟩
+    | sendAtomic d low hat hsalt hform hval happ =>
+      obtain ⟨-, hins⟩ := happ
+      refine ⟨m + 1, ReachesIn.tail hR (search_yields_guard hV hins.initialized hins.nonzero
+        hins.fresh hins.hintInBounds hins.hintBelow hins.search), ?_⟩
+      show (Contracts.InteropCommitmentTree.insert Y.chain.tree _ low).leafCount = _
+      rw [insert_leafCount, hlc]
+      omega
+    | authorize f hh hg => exact ⟨m, hR, hlc⟩
+    | claim f hh hg => exact ⟨m, hR, hlc⟩
+    | initL2 h0 => exact absurd h0 hV.occupied.ne'
+
+theorem StaleHintDispatchEnabledOrClash : Properties.StaleHintDispatchEnabledOrClash := by
+  intro P cv X Y hX hXY hgrow d hat hsalt hform hval hv0 hex
+  have hY : Reach P cv genesis Y := reach_trans hX hXY
+  by_cases hkey : commitValueOf P cv d ∈ keys (toAbs Y.chain.tree)
+  · exact Or.inr (key_gives_clash hY hsalt hform hv0 hkey)
+  · left
+    obtain ⟨hguard, hreg⟩ := fresh_value_guards hY hkey
+    obtain ⟨m, hR, hlc⟩ := reach_reachesIn hX hXY
+    obtain ⟨low, hins⟩ := StaleExactHintSurvivesFiveInserts X.chain.tree Y.chain.tree m _ _
+      (reach_valid hX) hex hR (by omega) hv0 hreg
+    exact ⟨low, Step.sendAtomic d low hat hsalt hform hval ⟨hguard, hins⟩⟩
+
 theorem AtomicDispatchBlockedIffClash : Properties.AtomicDispatchBlockedIffClash := by
   intro P cv X h d hsalt hform hv0
   have hI := Contracts.AppendPath.inv_of_steps (reach_chain h)
@@ -665,10 +746,13 @@ theorem HonestDispatchWitness : Properties.HonestDispatchWitness := by
   have hb2 : bundleHash wParams wNext.bundle = 2 := atomicDispatch_hash 2 2 1
   have hv1 : commitValueOf wParams bundleCv (atomicDispatch wParams 1 1 0) = 1 := hb1
   have hv2 : commitValueOf wParams bundleCv wNext = 2 := hb2
+  have hv2' : commitValueOf wParams bundleCv (withHint wNext 0) = 2 := hb2
   have htree : wX1.chain.tree = oneTree := afterAtomic_genesis_tree _ _ _ hv1
   have hmgr : wX1.chain.mgr = Contracts.AtomicFlowManager.empty.set 7 1 .Committed := by
     show Contracts.AtomicFlowManager.empty.set 7 (bundleHash wParams _) .Committed = _
     rw [hb1]
+  have hreach : Reach wParams bundleCv genesis wX1 :=
+    first_step _ _ _ rfl (atomicDispatch_formed _ _ _ _) (atomicDispatch_validated _ _ _ _) rfl hv1
   have hsalt : wX1.saltUsed wNext.sender wNext.salt = false := by decide
   have hex : ExactHint wX1.chain.tree (commitValueOf wParams bundleCv wNext)
       wNext.atomicSend.lowNullifierIndex := by
@@ -677,9 +761,9 @@ theorem HonestDispatchWitness : Properties.HonestDispatchWitness := by
   have hunset : AppendGuard wX1.chain.mgr wNext.atomicSend.flowId (bundleHash wParams wNext.bundle) := by
     show wX1.chain.mgr.legState 7 (bundleHash wParams wNext.bundle) = .Unset
     rw [hmgr, hb2]; decide
-  refine ⟨first_step _ _ _ rfl (atomicDispatch_formed _ _ _ _) (atomicDispatch_validated _ _ _ _)
-      rfl hv1, by simp [wX1], rfl, hsalt, atomicDispatch_formed _ _ _ _,
-    atomicDispatch_validated _ _ _ _, by rw [hv2]; decide, hex, ?_, ?_, ?_⟩
+  refine ⟨hreach, by simp [wX1], rfl, hsalt, atomicDispatch_formed _ _ _ _,
+    atomicDispatch_validated _ _ _ _, by rw [hv2]; decide, hex, ?_, ?_, reach_center hreach,
+    atomicDispatch_formed wParams 2 2 0, ?_, ?_, ?_, ?_, ?_⟩
   · refine Step.sendAtomic wNext 1 rfl hsalt (atomicDispatch_formed _ _ _ _)
       (atomicDispatch_validated _ _ _ _) ⟨hunset, ?_⟩
     show InsertSucceeds wX1.chain.tree (commitValueOf wParams bundleCv wNext) 1 1
@@ -696,10 +780,84 @@ theorem HonestDispatchWitness : Properties.HonestDispatchWitness := by
           = commitValueOf wParams bundleCv (atomicDispatch wParams 1 1 0) := hcv
       rw [hv1, hv2] at this
       exact absurd this (by decide)
+  · show 0 < wX1.chain.tree.leafCount
+    rw [htree]; decide
+  · show (wX1.chain.tree.leaf 0).value < commitValueOf wParams bundleCv (withHint wNext 0)
+    rw [htree, hv2']; decide
+  · show hopsNeeded wX1.chain.tree (commitValueOf wParams bundleCv (withHint wNext 0)) 0 = 1
+    rw [htree, hv2']; decide
+  · show ¬ ExactHint wX1.chain.tree (commitValueOf wParams bundleCv (withHint wNext 0)) 0
+    rw [htree, hv2']
+    intro h
+    rcases h.window with h0 | hle
+    · exact absurd h0 (by decide)
+    · exact absurd hle (by decide)
   · refine ⟨1, hunset, ?_⟩
     show InsertSucceeds wX1.chain.tree (commitValueOf wParams bundleCv wNext) 0 1
     rw [htree, hv2]
     exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, by decide⟩
+
+theorem StaleHintDispatchWitness : Properties.StaleHintDispatchWitness := by
+  have hb1 := atomicDispatch_hash 1 1 0
+  have hb2 : bundleHash wParams wStaleNext.bundle = 2 := atomicDispatch_hash 2 2 0
+  have hv1 : commitValueOf wParams bundleCv (atomicDispatch wParams 1 1 0) = 1 := hb1
+  have hv2 : commitValueOf wParams bundleCv wStaleNext = 2 := hb2
+  have htree : wX1.chain.tree = oneTree := afterAtomic_genesis_tree _ _ _ hv1
+  have hmgr : wX1.chain.mgr = Contracts.AtomicFlowManager.empty.set 7 1 .Committed := by
+    show Contracts.AtomicFlowManager.empty.set 7 (bundleHash wParams _) .Committed = _
+    rw [hb1]
+  have hreach : Reach wParams bundleCv genesis wX1 :=
+    first_step _ _ _ rfl (atomicDispatch_formed _ _ _ _) (atomicDispatch_validated _ _ _ _) rfl hv1
+  have hsalt : wX1.saltUsed wStaleNext.sender wStaleNext.salt = false := by decide
+  have hunset : AppendGuard wX1.chain.mgr wStaleNext.atomicSend.flowId
+      (bundleHash wParams wStaleNext.bundle) := by
+    show wX1.chain.mgr.legState 7 (bundleHash wParams wStaleNext.bundle) = .Unset
+    rw [hmgr, hb2]; decide
+  refine ⟨.refl, hreach, ?_, ?_, rfl, hsalt, atomicDispatch_formed _ _ _ _,
+    atomicDispatch_validated _ _ _ _, by rw [hv2]; decide, ?_, ?_, ?_, ?_⟩
+  · rw [htree]; decide
+  · rw [htree]; decide
+  · show ExactHint setup (commitValueOf wParams bundleCv wStaleNext) 0
+    rw [hv2]
+    exact ⟨by decide, by decide, Or.inl rfl⟩
+  · show ¬ ExactHint wX1.chain.tree (commitValueOf wParams bundleCv wStaleNext) 0
+    rw [htree, hv2]
+    intro h
+    rcases h.window with h0 | hle
+    · exact absurd h0 (by decide)
+    · exact absurd hle (by decide)
+  · refine ⟨1, Step.sendAtomic wStaleNext 1 rfl hsalt (atomicDispatch_formed _ _ _ _)
+      (atomicDispatch_validated _ _ _ _) ⟨hunset, ?_⟩⟩
+    show InsertSucceeds wX1.chain.tree (commitValueOf wParams bundleCv wStaleNext) 0 1
+    rw [htree, hv2]
+    exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, by decide⟩
+  · rintro ⟨d', hd', -, hcl⟩
+    have hd'eq : d' = atomicDispatch wParams 1 1 0 := by simpa [wX1, genesis] using hd'
+    subst hd'eq
+    rcases hcl with ⟨hleg, -⟩ | ⟨-, hcv⟩
+    · have hh := (legOf_eq.mp hleg).2
+      rw [hb1, hb2] at hh
+      exact absurd hh (by decide)
+    · have : commitValueOf wParams bundleCv wStaleNext
+          = commitValueOf wParams bundleCv (atomicDispatch wParams 1 1 0) := hcv
+      rw [hv1, hv2] at this
+      exact absurd this (by decide)
+
+theorem FiveHopBoundaryWitness : Properties.FiveHopBoundaryWitness := by
+  have hV : Valid (chainTree 6) := reaches_valid (chainTree_reaches 6 (by decide)) setup_valid
+  have hfresh : (chainTree 6).valueToIndex 7 = 0 := by decide
+  have h1 : hopsNeeded (chainTree 6) 7 1 = maxLowIndexSearchAttempts := by decide
+  have h0 : hopsNeeded (chainTree 6) 7 0 = maxLowIndexSearchAttempts + 1 := by decide
+  have hb1 : 1 < (chainTree 6).leafCount := by decide
+  have hb0 : 0 < (chainTree 6).leafCount := by decide
+  have hl1 : ((chainTree 6).leaf 1).value < 7 := by decide
+  have hl0 : ((chainTree 6).leaf 0).value < 7 := by decide
+  refine ⟨hV, by decide, hfresh, hb1, hl1, h1,
+    (HintWithinFiveHopsSucceeds _ hV 7 1 (by decide) hfresh hb1 hl1).mpr h1.le,
+    hb0, hl0, h0, fun h => ?_⟩
+  have := (HintWithinFiveHopsSucceeds _ hV 7 0 (by decide) hfresh hb0 hl0).mp h
+  rw [h0] at this
+  omega
 
 theorem CommitClashBlocksHonestDispatch : Properties.CommitClashBlocksHonestDispatch := by
   have hb1 := atomicDispatch_hash 1 1 0

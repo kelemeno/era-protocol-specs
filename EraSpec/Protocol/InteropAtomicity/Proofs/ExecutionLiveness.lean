@@ -1,38 +1,57 @@
 import EraSpec.Protocol.InteropAtomicity.Properties.ExecutionLiveness
-import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
+import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
+import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
+import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
 /-!
-# Proofs: an atomic leg has one route, and what that costs
+# Proofs: what an atomic leg can still do on its destination
 
-**(d), (e)** Two inductions on the budget, over every frame kind, in the style of
-`Contracts.InteropHandler.exec_good`. A frame whose entry calls are all backed by `Pub` keeps an
-unpublished hash in `{Unreceived, FullyExecuted}` (`exec_keeps_closed`): reaching `Verified` needs a
-backed `true` verdict on that very hash, and `unbundleBundle` needs `Verified` or `Unbundled` to
-start with. If moreover every atomic attempt on the hash meets a reverting target, the hash stays
-`Unreceived` and no frame commits an effect of it (`exec_keeps_stuck`): the one route left reverts
-by `Contracts.InteropHandler.RevertingCallRevertsTheExecution`, at every depth. The source half is
-`abiEncode` injectivity in both arguments plus `Contracts.InteropCenter.AtomicBytesNeverPublished`.
+**(d)** Each public entry point's guard reads the bundle status first; outside `Verified` and
+`Unbundled`, and with the proof bit `false`, every guard fails.
+
+**(e)** One induction on the budget, over every frame kind, in the style of
+`Contracts.InteropHandler.exec_atomicPart` (topic `BundleStatusMachineStrong`), with two
+hypotheses carried down: no entry-point call of the frame presents a valid proof for `h`
+(`Frame.Mentions`), and every atomic attempt on `h` in it meets an always-reverting target
+(`FrameEvery`). A committed frame started with `h` `Unreceived` then ends with `h` `Unreceived` and
+commits no effect of `h` (`exec_keeps_unreceived`): an atomic attempt on `h` would revert
+(`Contracts.InteropHandler.AlwaysRevertingTargetRevertsTheExecution`), so a committed one is on
+another hash, and every other route to `h` needs a valid proof or a status `h` does not have. The
+source-run form discharges the no-proof premise with
+`Contracts.InteropHandler.published_atomic_hash_clashes`, as
+`AtomicLegStaysAtomicAtDestinationOrClash` does.
+
+**(f)** A call reaching `executeAtomicBundle` at the pin is direct
+(`AttackVectors.SelfCallAuthority.Faithful.AtomicSelfDisjunctDeadAtPin`), and for a direct caller
+the gate's self disjunct is false, which leaves the attribute comparison. The relayed
+`executeBundle` is the first arm of the pin's dispatch table, computed.
 
 **(h)** `unbundleBundle`'s first loop on an accepted request computes `applyRequest`
 (`markCalls_accepts`, by induction on the request), and a loop whose targets accept delivers every
-listed call (`Contracts.InteropHandler.exec_calls_returns`).
+listed call (`Contracts.InteropHandler.exec_calls_returns`). The atomic route stays open because
+a no-proof run keeps the hash in the atomic sub-machine
+(`Contracts.InteropHandler.submitAll_atomicPart`).
 -/
 
 namespace Contracts.ExecutionLiveness
 
 open Contracts.InteropHandler (State Entry Callee Frame Tx Bundle BundleHash Effect exec submit
   submitAll toExecute markCalls commit init Variant beforeCalls afterCalls afterUnbundle
-  writesCallsFirst)
+  writesCallsFirst NoProofRun SoundProofRun PublishedHash PublishesOnlyPublicDispatches
+  AlwaysReverts mentions_headD mentions_tail)
 open AttackVectors.BundleStatusMachine (Status CallStatus)
-open AttackVectors.BundleHashEncoding (abiEncode word pad32 toBytesBE length_toBytesBE)
+open AttackVectors.BundleHashEncoding (abiEncode HashCollision)
 open Contracts.InteropCenter (Params Dispatch CrossSenderSaltClash EncInjOn bundleHash
   bundlePreimage)
 open MerkleSpec (Hash)
 open Contracts.InteropCommitmentTree (LeafHash)
 open Contracts.Atomicity (CommitValue FlowHash System Wf Flow FlowLeg GateEvidence ExecutedViaBy)
 open Contracts.Refund (Managers AuthCall ReachLog emptyManagers Refunded RefundBreak obligationOf)
+open AttackVectors.SelfCallAuthority.Faithful (GateCall GateAttrs Reaches pinnedTable InnerGate
+  dispatch)
 
 /-! ## Every entry of a frame -/
 
@@ -57,18 +76,6 @@ lemma markCalls_bundle {h : BundleHash} {req : List CallStatus} {u s₁ : State}
     (hm : markCalls true h 0 req u = some s₁) : s₁.bundle = u.bundle :=
   (Contracts.InteropHandler.markCalls_spec req 0 u s₁ hm).1
 
-/-- The two statuses an unpublished hash keeps. -/
-def Closed (s : State) (h : BundleHash) : Prop :=
-  s.bundle h = .Unreceived ∨ s.bundle h = .FullyExecuted
-
-lemma Closed.not_verified {s : State} {h : BundleHash} (hc : Closed s h) :
-    s.bundle h ≠ .Verified := by
-  rcases hc with h1 | h1 <;> rw [h1] <;> decide
-
-lemma Closed.not_unbundled {s : State} {h : BundleHash} (hc : Closed s h) :
-    s.bundle h ≠ .Unbundled := by
-  rcases hc with h1 | h1 <;> rw [h1] <;> decide
-
 /-- The writes before a whole-bundle execution's calls touch only that bundle's status. -/
 lemma beforeCalls_bundle_other {b : Bundle} {s : State} {h : BundleHash} (hne : h ≠ b.hash) :
     (beforeCalls .deployed b s).bundle h = s.bundle h := by
@@ -79,146 +86,12 @@ lemma verifyIfUnreceived_bundle_other {s : State} {h h' : BundleHash} (hne : h �
   unfold State.verifyIfUnreceived
   split_ifs <;> simp [hne]
 
-/-! ## (d) An unpublished hash keeps only the atomic route -/
-
-/-- **THE FRAME INVARIANT FOR (d).** -/
-theorem exec_keeps_closed {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬ Pub h) :
-    ∀ (n : ℕ) (f : Frame) (s s' : State) (l : List Effect),
-      exec .deployed n f s = some (s', l) → FrameEvery (ProofBacked Pub) f → Closed s h →
-        Closed s' h := by
-  intro n
-  induction n with
-  | zero => intro f s s' l hx _; simp [exec] at hx
-  | succ n ih =>
-    intro f s s' l hx hf hc
-    match f, hf with
-    | .entry (.executeBundle b ok) cs, ⟨hq, hcs⟩ =>
-      simp only [exec] at hx
-      split_ifs at hx with hG
-      split at hx
-      · rename_i s₂ l₂ heq
-        simp only [Contracts.InteropHandler.afterCalls_deployed, Option.some.injEq,
-          Prod.mk.injEq] at hx
-        obtain ⟨rfl, rfl⟩ := hx
-        have hne : b.hash ≠ h := by
-          rintro rfl
-          rcases hG with hv | ⟨_, hok⟩
-          · exact hc.not_verified hv
-          · exact hpub (hq hok)
-        refine ih _ _ _ _ heq hcs ?_
-        unfold Closed
-        rw [beforeCalls_bundle_other (Ne.symm hne), verifyIfUnreceived_bundle_other (Ne.symm hne)]
-        exact hc
-      · simp at hx
-    | .entry (.executeAtomicBundle b ok) cs, ⟨_, hcs⟩ =>
-      simp only [exec] at hx
-      split_ifs at hx with hG
-      split at hx
-      · rename_i s₂ l₂ heq
-        simp only [Contracts.InteropHandler.afterCalls_deployed, Option.some.injEq,
-          Prod.mk.injEq] at hx
-        obtain ⟨rfl, rfl⟩ := hx
-        refine ih _ _ _ _ heq hcs ?_
-        unfold Closed
-        by_cases hb : h = b.hash
-        · subst hb; simp
-        · rw [beforeCalls_bundle_other hb]; exact hc
-      · simp at hx
-    | .entry (.verifyBundle b ok) cs, ⟨hq, _⟩ =>
-      simp only [exec] at hx
-      split_ifs at hx with hG
-      simp only [Option.some.injEq, Prod.mk.injEq] at hx
-      obtain ⟨rfl, rfl⟩ := hx
-      have hne : b.hash ≠ h := by
-        rintro rfl
-        exact hpub (hq hG.2)
-      unfold Closed
-      rw [Contracts.InteropHandler.setBundle_bundle, ite_eq_right (Ne.symm hne)]
-      exact hc
-    | .entry (.unbundleBundle b req) cs, ⟨_, hcs⟩ =>
-      simp only [exec, Contracts.InteropHandler.writesCallsFirst_deployed] at hx
-      split_ifs at hx with hG
-      split at hx
-      · rename_i s₁ hm
-        split at hx
-        · rename_i s₂ l₂ heq
-          simp only [Contracts.InteropHandler.afterUnbundle_deployed, Option.some.injEq,
-            Prod.mk.injEq] at hx
-          obtain ⟨rfl, rfl⟩ := hx
-          have hne : b.hash ≠ h := by
-            rintro rfl
-            rcases hG.2 with hv | hv
-            · exact hc.not_verified hv
-            · exact hc.not_unbundled hv
-          refine ih _ _ _ _ heq hcs ?_
-          unfold Closed
-          rw [markCalls_bundle hm, Contracts.InteropHandler.setBundle_bundle,
-            ite_eq_right (Ne.symm hne)]
-          exact hc
-        · simp at hx
-      · simp at hx
-    | .calls hb [] cs, _ =>
-      simp only [exec, Option.some.injEq, Prod.mk.injEq] at hx
-      obtain ⟨rfl, rfl⟩ := hx
-      exact hc
-    | .calls hb (i :: is) cs, hcs =>
-      simp only [exec] at hx
-      split at hx
-      · rename_i s₁ l₁ heq₁
-        split at hx
-        · rename_i s₂ l₂ heq₂
-          simp only [Option.some.injEq, Prod.mk.injEq] at hx
-          obtain ⟨rfl, rfl⟩ := hx
-          exact ih _ _ _ _ heq₂ (tail_every hcs) (ih _ _ _ _ heq₁ (headD_every hcs) hc)
-        · simp at hx
-      · simp at hx
-    | .target .returns, _ =>
-      simp only [exec, Option.some.injEq, Prod.mk.injEq] at hx
-      obtain ⟨rfl, rfl⟩ := hx
-      exact hc
-    | .target .reverts, _ => simp [exec] at hx
-    | .target (.calls e inner caught next), hcall =>
-      cases hcall with
-      | calls hq hinner hnext =>
-        simp only [exec] at hx
-        split at hx
-        · rename_i s₁ l₁ heq₁
-          split at hx
-          · rename_i s₂ l₂ heq₂
-            simp only [Option.some.injEq, Prod.mk.injEq] at hx
-            obtain ⟨rfl, rfl⟩ := hx
-            exact ih _ _ _ _ heq₂ hnext (ih _ _ _ _ heq₁ ⟨hq, hinner⟩ hc)
-          · simp at hx
-        · split_ifs at hx
-          exact ih _ _ _ _ hx hnext hc
-
-/-- One transaction keeps an unpublished hash closed. -/
-lemma submit_keeps_closed {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬ Pub h)
-    {s : State} {t : Tx} (ht : TxEvery (ProofBacked Pub) t) (hc : Closed s h) :
-    Closed (submit .deployed s t).1 h := by
-  unfold submit
-  cases hx : exec .deployed t.fuel (.entry t.entry t.callees) s with
-  | none => exact hc
-  | some r =>
-    obtain ⟨s', l⟩ := r
-    exact exec_keeps_closed hpub _ _ _ _ _ hx ht hc
-
-lemma submitAll_keeps_closed {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬ Pub h) :
-    ∀ (s : State) (txs : List Tx), (∀ t ∈ txs, TxEvery (ProofBacked Pub) t) → Closed s h →
-      Closed (submitAll .deployed s txs).1 h
-  | _, [], _, hc => hc
-  | _, t :: ts, hts, hc =>
-    submitAll_keeps_closed hpub _ ts (fun t' ht' => hts t' (List.mem_cons_of_mem _ ht'))
-      (submit_keeps_closed hpub (hts t List.mem_cons_self) hc)
-
-theorem UnpublishedHashKeepsOnlyTheAtomicRoute :
-    Properties.UnpublishedHashKeepsOnlyTheAtomicRoute :=
-  fun _ _ hpub s txs hc hts => submitAll_keeps_closed hpub s txs hts hc
+/-! ## (d) Outside `Verified`, the other routes revert -/
 
 theorem PublicRoutesRevertOutsideVerified : Properties.PublicRoutesRevertOutsideVerified := by
   intro s b hc n cs
-  have hv : s.bundle b.hash ≠ .Verified := Closed.not_verified hc
-  have hu : s.bundle b.hash ≠ .Unbundled := Closed.not_unbundled hc
+  have hv : s.bundle b.hash ≠ .Verified := by rcases hc with h1 | h1 <;> rw [h1] <;> decide
+  have hu : s.bundle b.hash ≠ .Unbundled := by rcases hc with h1 | h1 <;> rw [h1] <;> decide
   refine ⟨?_, ?_, fun req => ?_⟩
   · cases n with
     | zero => simp [exec]
@@ -230,28 +103,28 @@ theorem PublicRoutesRevertOutsideVerified : Properties.PublicRoutesRevertOutside
     | zero => simp [exec]
     | succ n => simp [exec, hv, hu]
 
-/-! ## (e) A reverting call strands the atomic route -/
+/-! ## (e) A call that always reverts -/
 
 /-- A loop frame is not one of `h`'s own: the hash whose calls it delivers differs from `h`. -/
 def NotLoopOf (h : BundleHash) : Frame → Prop
   | .calls h' _ _ => h' ≠ h
   | _ => True
 
-/-- **THE FRAME INVARIANT FOR (e).** With every verdict backed, `h` unpublished and every atomic
-attempt on `h` meeting a reverting target, a committed frame started with `h` `Unreceived` ends with
-`h` `Unreceived` and commits no effect of `h`. -/
-theorem exec_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬ Pub h) :
+/-- **THE FRAME INVARIANT FOR (e).** With no valid proof for `h` presented and every atomic attempt
+on `h` meeting an always-reverting target, a committed frame started with `h` `Unreceived` ends
+with `h` `Unreceived` and commits no effect of `h`. -/
+theorem exec_keeps_unreceived {h : BundleHash} :
     ∀ (n : ℕ) (f : Frame) (s s' : State) (l : List Effect),
-      exec .deployed n f s = some (s', l) → FrameEvery (ProofBacked Pub) f →
+      exec .deployed n f s = some (s', l) → (∀ e, f.Mentions e → e.NoProofFor h) →
       FrameEvery (AtomicAttemptReverts h) f → NotLoopOf h f → s.bundle h = .Unreceived →
         s'.bundle h = .Unreceived ∧ ∀ e ∈ l, e.bundleHash ≠ h := by
   intro n
   induction n with
   | zero => intro f s s' l hx; simp [exec] at hx
   | succ n ih =>
-    intro f s s' l hx hf hr hloop hu
-    match f, hf, hr with
-    | .entry (.executeBundle b ok) cs, ⟨hq, hcs⟩, ⟨_, hrs⟩ =>
+    intro f s s' l hx hnp hr hloop hu
+    match f, hr with
+    | .entry (.executeBundle b ok) cs, ⟨_, hrs⟩ =>
       simp only [exec] at hx
       split_ifs at hx with hG
       split at hx
@@ -260,24 +133,27 @@ theorem exec_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬
           Prod.mk.injEq] at hx
         obtain ⟨rfl, rfl⟩ := hx
         have hne : b.hash ≠ h := by
-          rintro rfl
+          intro hb
           rcases hG with hv | ⟨_, hok⟩
-          · rw [hu] at hv; exact absurd hv (by decide)
-          · exact hpub (hq hok)
-        have hu' : (beforeCalls .deployed b (s.verifyIfUnreceived b.hash)).bundle h = .Unreceived := by
+          · rw [hb, hu] at hv; exact absurd hv (by decide)
+          · have hf : ok = false := hnp (.executeBundle b ok) (Or.inl rfl) hb
+            rw [hf] at hok; exact absurd hok (by decide)
+        have hu' : (beforeCalls .deployed b (s.verifyIfUnreceived b.hash)).bundle h
+            = .Unreceived := by
           rw [beforeCalls_bundle_other (Ne.symm hne), verifyIfUnreceived_bundle_other (Ne.symm hne)]
           exact hu
-        obtain ⟨h1, h2⟩ := ih _ _ _ _ heq hcs hrs hne hu'
+        obtain ⟨h1, h2⟩ := ih _ _ _ _ heq (fun e he => hnp e (Or.inr he)) hrs hne hu'
         refine ⟨h1, fun e he => ?_⟩
         rcases List.mem_append.mp he with he | he
         · exact h2 e he
         · rw [List.mem_singleton] at he; subst he; exact hne
       · simp at hx
-    | .entry (.executeAtomicBundle b ok) cs, ⟨_, hcs⟩, ⟨hra, hrs⟩ =>
+    | .entry (.executeAtomicBundle b ok) cs, ⟨hra, hrs⟩ =>
       have hne : b.hash ≠ h := by
         intro hb
-        have hnone := (Contracts.InteropHandler.RevertingCallRevertsTheExecution .deployed (n + 1)
-          b ok cs s (hra hb)).1
+        have hnone :=
+          (Contracts.InteropHandler.AlwaysRevertingTargetRevertsTheExecution .deployed (n + 1)
+            b ok cs s (hra hb)).1
         rw [hnone] at hx
         simp at hx
       simp only [exec] at hx
@@ -289,24 +165,25 @@ theorem exec_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬
         obtain ⟨rfl, rfl⟩ := hx
         have hu' : (beforeCalls .deployed b s).bundle h = .Unreceived := by
           rw [beforeCalls_bundle_other (Ne.symm hne)]; exact hu
-        obtain ⟨h1, h2⟩ := ih _ _ _ _ heq hcs hrs hne hu'
+        obtain ⟨h1, h2⟩ := ih _ _ _ _ heq (fun e he => hnp e (Or.inr he)) hrs hne hu'
         refine ⟨h1, fun e he => ?_⟩
         rcases List.mem_append.mp he with he | he
         · exact h2 e he
         · rw [List.mem_singleton] at he; subst he; exact hne
       · simp at hx
-    | .entry (.verifyBundle b ok) cs, ⟨hq, _⟩, _ =>
+    | .entry (.verifyBundle b ok) cs, _ =>
       simp only [exec] at hx
       split_ifs at hx with hG
       simp only [Option.some.injEq, Prod.mk.injEq] at hx
       obtain ⟨rfl, rfl⟩ := hx
       have hne : b.hash ≠ h := by
-        rintro rfl
-        exact hpub (hq hG.2)
+        intro hb
+        have hf : ok = false := hnp (.verifyBundle b ok) (Or.inl rfl) hb
+        rw [hf] at hG; exact absurd hG.2 (by decide)
       refine ⟨?_, by simp⟩
       rw [Contracts.InteropHandler.setBundle_bundle, ite_eq_right (Ne.symm hne)]
       exact hu
-    | .entry (.unbundleBundle b req) cs, ⟨_, hcs⟩, ⟨_, hrs⟩ =>
+    | .entry (.unbundleBundle b req) cs, ⟨_, hrs⟩ =>
       simp only [exec, Contracts.InteropHandler.writesCallsFirst_deployed] at hx
       split_ifs at hx with hG
       split at hx
@@ -323,14 +200,14 @@ theorem exec_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬
             rw [markCalls_bundle hm, Contracts.InteropHandler.setBundle_bundle,
               ite_eq_right (Ne.symm hne)]
             exact hu
-          exact ih _ _ _ _ heq hcs hrs hne hu'
+          exact ih _ _ _ _ heq (fun e he => hnp e (Or.inr he)) hrs hne hu'
         · simp at hx
       · simp at hx
-    | .calls hb [] cs, _, _ =>
+    | .calls hb [] cs, _ =>
       simp only [exec, Option.some.injEq, Prod.mk.injEq] at hx
       obtain ⟨rfl, rfl⟩ := hx
       exact ⟨hu, by simp⟩
-    | .calls hb (i :: is) cs, hcs, hrs =>
+    | .calls hb (i :: is) cs, hrs =>
       simp only [exec] at hx
       split at hx
       · rename_i s₁ l₁ heq₁
@@ -339,8 +216,10 @@ theorem exec_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬
           simp only [Option.some.injEq, Prod.mk.injEq] at hx
           obtain ⟨rfl, rfl⟩ := hx
           have hne : hb ≠ h := hloop
-          obtain ⟨h1, h2⟩ := ih _ _ _ _ heq₁ (headD_every hcs) (headD_every hrs) trivial hu
-          obtain ⟨h3, h4⟩ := ih _ _ _ _ heq₂ (tail_every hcs) (tail_every hrs) hne h1
+          obtain ⟨h1, h2⟩ := ih _ _ _ _ heq₁ (fun e he => hnp e (mentions_headD he))
+            (headD_every hrs) trivial hu
+          obtain ⟨h3, h4⟩ := ih _ _ _ _ heq₂ (fun e he => hnp e (mentions_tail he))
+            (tail_every hrs) hne h1
           refine ⟨h3, fun e he => ?_⟩
           rcases List.mem_cons.mp he with rfl | he
           · exact hne
@@ -349,54 +228,62 @@ theorem exec_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬
             · exact h4 e he
         · simp at hx
       · simp at hx
-    | .target .returns, _, _ =>
+    | .target .returns, _ =>
       simp only [exec, Option.some.injEq, Prod.mk.injEq] at hx
       obtain ⟨rfl, rfl⟩ := hx
       exact ⟨hu, by simp⟩
-    | .target .reverts, _, _ => simp [exec] at hx
-    | .target (.calls e inner caught next), hcall, hrcall =>
-      cases hcall with
-      | calls hq hinner hnext =>
-        cases hrcall with
-        | calls hrq hrinner hrnext =>
-          simp only [exec] at hx
+    | .target .reverts, _ => simp [exec] at hx
+    | .target (.calls e inner caught next), hrcall =>
+      cases hrcall with
+      | calls hrq hrinner hrnext =>
+        have hnp₁ : ∀ e', Frame.Mentions (.entry e inner) e' → e'.NoProofFor h := by
+          intro e' he'
+          apply hnp e'
+          rcases he' with rfl | ⟨c, hc, hm⟩
+          · exact Contracts.InteropHandler.Callee.Mentions.here
+          · exact Contracts.InteropHandler.Callee.Mentions.nested hc hm
+        have hnp₂ : ∀ e', Frame.Mentions (.target next) e' → e'.NoProofFor h :=
+          fun e' he' => hnp e' (Contracts.InteropHandler.Callee.Mentions.cont he')
+        simp only [exec] at hx
+        split at hx
+        · rename_i s₁ l₁ heq₁
           split at hx
-          · rename_i s₁ l₁ heq₁
-            split at hx
-            · rename_i s₂ l₂ heq₂
-              simp only [Option.some.injEq, Prod.mk.injEq] at hx
-              obtain ⟨rfl, rfl⟩ := hx
-              obtain ⟨h1, h2⟩ := ih _ _ _ _ heq₁ ⟨hq, hinner⟩ ⟨hrq, hrinner⟩ trivial hu
-              obtain ⟨h3, h4⟩ := ih _ _ _ _ heq₂ hnext hrnext trivial h1
-              refine ⟨h3, fun e he => ?_⟩
-              rcases List.mem_append.mp he with he | he
-              · exact h2 e he
-              · exact h4 e he
-            · simp at hx
-          · split_ifs at hx
-            exact ih _ _ _ _ hx hnext hrnext trivial hu
+          · rename_i s₂ l₂ heq₂
+            simp only [Option.some.injEq, Prod.mk.injEq] at hx
+            obtain ⟨rfl, rfl⟩ := hx
+            obtain ⟨h1, h2⟩ := ih _ _ _ _ heq₁ hnp₁ ⟨hrq, hrinner⟩ trivial hu
+            obtain ⟨h3, h4⟩ := ih _ _ _ _ heq₂ hnp₂ hrnext trivial h1
+            refine ⟨h3, fun e he => ?_⟩
+            rcases List.mem_append.mp he with he | he
+            · exact h2 e he
+            · exact h4 e he
+          · simp at hx
+        · split_ifs at hx
+          exact ih _ _ _ _ hx hnp₂ hrnext trivial hu
 
-lemma submit_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬ Pub h)
-    {s : State} {t : Tx} (ht : TxEvery (ProofBacked Pub) t) (hr : TxEvery (AtomicAttemptReverts h) t)
+lemma submit_keeps_unreceived {h : BundleHash} {s : State} {t : Tx}
+    (hnp : ∀ e, t.Mentions e → e.NoProofFor h) (hr : TxEvery (AtomicAttemptReverts h) t)
     (hu : s.bundle h = .Unreceived) :
-    (submit .deployed s t).1.bundle h = .Unreceived ∧ ∀ e ∈ (submit .deployed s t).2, e.bundleHash ≠ h := by
+    (submit .deployed s t).1.bundle h = .Unreceived ∧
+      ∀ e ∈ (submit .deployed s t).2, e.bundleHash ≠ h := by
   unfold submit
   cases hx : exec .deployed t.fuel (.entry t.entry t.callees) s with
   | none => exact ⟨hu, by simp [commit]⟩
   | some r =>
     obtain ⟨s', l⟩ := r
-    exact exec_keeps_stuck hpub _ _ _ _ _ hx ht hr trivial hu
+    exact exec_keeps_unreceived _ _ _ _ _ hx hnp hr trivial hu
 
-lemma submitAll_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub : ¬ Pub h) :
-    ∀ (s : State) (txs : List Tx), (∀ t ∈ txs, TxEvery (ProofBacked Pub) t) →
+lemma submitAll_keeps_unreceived {h : BundleHash} :
+    ∀ (s : State) (txs : List Tx), NoProofRun h txs →
       (∀ t ∈ txs, TxEvery (AtomicAttemptReverts h) t) → s.bundle h = .Unreceived →
       (submitAll .deployed s txs).1.bundle h = .Unreceived ∧
         ∀ e ∈ (submitAll .deployed s txs).2, e.bundleHash ≠ h
   | _, [], _, _, hu => ⟨hu, by simp [submitAll]⟩
-  | s, t :: ts, hts, hrs, hu => by
-    obtain ⟨h1, h2⟩ := submit_keeps_stuck hpub (hts t List.mem_cons_self) (hrs t List.mem_cons_self) hu
-    obtain ⟨h3, h4⟩ := submitAll_keeps_stuck hpub _ ts
-      (fun t' ht' => hts t' (List.mem_cons_of_mem _ ht'))
+  | s, t :: ts, hnp, hrs, hu => by
+    obtain ⟨h1, h2⟩ := submit_keeps_unreceived (hnp t List.mem_cons_self)
+      (hrs t List.mem_cons_self) hu
+    obtain ⟨h3, h4⟩ := submitAll_keeps_unreceived _ ts
+      (fun t' ht' => hnp t' (List.mem_cons_of_mem _ ht'))
       (fun t' ht' => hrs t' (List.mem_cons_of_mem _ ht')) h1
     refine ⟨h3, fun e he => ?_⟩
     simp only [submitAll, List.mem_append] at he
@@ -406,57 +293,60 @@ lemma submitAll_keeps_stuck {Pub : BundleHash → Prop} {h : BundleHash} (hpub :
 
 theorem AtomicLegWithRevertingCallNeverExecutes :
     Properties.AtomicLegWithRevertingCallNeverExecutes :=
-  fun _ _ hpub s txs hu hts hrs => submitAll_keeps_stuck hpub s txs hts hrs hu
+  fun _ s txs hu hnp hrs => submitAll_keeps_unreceived s txs hnp hrs hu
 
-/-! ## (d) The source half, and the composite -/
+/-- A run whose valid proofs are all for published hashes presents none for an atomic leg's hash,
+unless one of the two named clashes. -/
+lemma noProofRun_of_sound {P : Params} {S : Contracts.InteropCenter.State}
+    (hreach : Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
+      Contracts.InteropCenter.init S)
+    (henc : EncInjOn P.enc (S.log.map Dispatch.bundle))
+    {pubs : List (UInt256 × List UInt8)} (hpubs : PublishesOnlyPublicDispatches P S.log pubs)
+    {d : Dispatch} (hd : d ∈ S.log) (hat : d.isAtomic = true) {txs : List Tx}
+    (hsound : SoundProofRun (PublishedHash P.keccak pubs) txs)
+    (hclash : ¬ ((∃ d' ∈ S.log, d'.isAtomic = false ∧ CrossSenderSaltClash P d d')
+      ∨ (∃ p ∈ pubs, HashCollision P.keccak (bundlePreimage P d.bundle) (abiEncode p.1.val p.2)))) :
+    NoProofRun (bundleHash P d.bundle) txs := by
+  intro t ht e he
+  have hsnd := hsound t ht e he
+  cases e with
+  | executeBundle b ok =>
+    intro hbh
+    cases ok with
+    | false => rfl
+    | true =>
+      exfalso
+      have hpub := hsnd rfl
+      rw [hbh] at hpub
+      exact hclash (Contracts.InteropHandler.published_atomic_hash_clashes hreach henc hpubs hd hat
+        hpub)
+  | verifyBundle b ok =>
+    intro hbh
+    cases ok with
+    | false => rfl
+    | true =>
+      exfalso
+      have hpub := hsnd rfl
+      rw [hbh] at hpub
+      exact hclash (Contracts.InteropHandler.published_atomic_hash_clashes hreach henc hpubs hd hat
+        hpub)
+  | unbundleBundle _ _ => trivial
+  | executeAtomicBundle _ _ => trivial
 
-/-- **`abi.encode(uint256, bytes)` DETERMINES ITS WORD**, modulo `2^256`: the head word. -/
-lemma abiEncode_left {c c' : ℕ} {x y : List UInt8} (h : abiEncode c x = abiEncode c' y) :
-    c % 256 ^ 32 = c' % 256 ^ 32 := by
-  have h1 := congrArg (List.take 32) h
-  simp only [abiEncode] at h1
-  rw [List.take_left' (length_toBytesBE 32 _), List.take_left' (length_toBytesBE 32 _)] at h1
-  exact Contracts.InteropCenter.toBytesBE_eq_mod h1
+theorem AtomicLegWithRevertingCallNeverExecutesOrClash :
+    Properties.AtomicLegWithRevertingCallNeverExecutesOrClash := by
+  intro P S hreach henc pubs hpubs d hd hat s txs hu hsound hrs
+  by_cases hclash :
+      (∃ d' ∈ S.log, d'.isAtomic = false ∧ CrossSenderSaltClash P d d')
+      ∨ (∃ p ∈ pubs, HashCollision P.keccak (bundlePreimage P d.bundle) (abiEncode p.1.val p.2))
+  · exact Or.inr hclash
+  · exact Or.inl (submitAll_keeps_unreceived s txs
+      (noProofRun_of_sound hreach henc hpubs hd hat hsound hclash) hrs hu)
 
-/-- Equal preimages name the same chain and the same bytes. -/
-lemma abiEncode_inj_word {c c' : Contracts.InteropCenter.Word} {x y : List UInt8}
-    (h : abiEncode c.val x = abiEncode c'.val y) : c = c' ∧ x = y := by
-  refine ⟨Fin.ext ?_, Contracts.InteropCenter.abiEncode_right_inj h⟩
-  have := abiEncode_left h
-  rwa [Contracts.InteropCenter.size_eq, Nat.mod_eq_of_lt c.isLt, Nat.mod_eq_of_lt c'.isLt] at this
-
-theorem AtomicLegHashUnpublishedOrClash : Properties.AtomicLegHashUnpublishedOrClash := by
-  intro P S hr henc pub hpub d hd hat p hp
-  by_cases hh : publishedHash P.keccak p = bundleHash P d.bundle
-  · by_cases hpre : abiEncode p.1.val p.2 = bundlePreimage P d.bundle
-    · right; left
-      obtain ⟨hc, hx⟩ := abiEncode_inj_word (c := p.1) (c' := P.chainId) hpre
-      have hmem : (P.chainId, P.enc d.bundle) ∈ pub := by
-        rw [← hc, ← hx]; exact hp
-      obtain ⟨d', hd', hat', hx'⟩ := hpub _ hmem
-      refine ⟨d', hd', hat', ?_⟩
-      rcases Contracts.InteropCenter.AtomicBytesNeverPublished P S hr henc d hd hat d' hd' hat'
-        with hne | hcl
-      · exact absurd hx' hne
-      · exact hcl
-    · right; right; exact ⟨hpre, hh⟩
-  · left; exact hh
-
-theorem AtomicHasNoUnbundleRoute : Properties.AtomicHasNoUnbundleRoute := by
-  intro P S hr henc pub hpub txs hts d hd hat
-  by_cases hin : PubHashes P.keccak pub (bundleHash P d.bundle)
-  · obtain ⟨p, hp, hph⟩ := hin
-    rcases AtomicLegHashUnpublishedOrClash P S hr henc pub hpub d hd hat p hp with hne | hcl | hcol
-    · exact absurd hph hne
-    · exact Or.inr (Or.inl hcl)
-    · exact Or.inr (Or.inr ⟨p, hp, hcol⟩)
-  · exact Or.inl (submitAll_keeps_closed hin _ txs hts (Or.inl rfl))
-
-/-! ## (e) The composite -/
-
-theorem FinalizedLegStrandedByRevertingCall : Properties.FinalizedLegStrandedByRevertingCall := by
-  intro hh z0 hl cv fh S hS F ev leg hex other hother Pub hpub txs hts hrs
-  refine ⟨submitAll_keeps_stuck hpub _ txs hts hrs rfl, fun Ms log hrun => ?_⟩
+theorem FinalizedRevertingLegNeitherDeliveredNorRefunded :
+    Properties.FinalizedRevertingLegNeitherDeliveredNorRefunded := by
+  intro hh z0 hl cv fh S hS F ev leg hex other hother txs hnp hrs
+  refine ⟨submitAll_keeps_unreceived _ txs hnp hrs rfl, fun Ms log hrun => ?_⟩
   exact Contracts.Refund.OneExecutionFreezesTheFlowOrBreak hh z0 hl cv fh S hS F ev leg hex Ms log
     hrun other hother
 
@@ -603,7 +493,7 @@ theorem UnbundleEnabled : Properties.UnbundleEnabled := by
   intro s b req cs hlen hst hvalid hcs
   simp only [submit, exec_unbundle_valid hlen hst hvalid hcs, commit]
 
-/-! ## (e) The public contrast -/
+/-! ## (e) The contrast: a bundle that can be verified -/
 
 lemma toExecute_map_range' (g : ℕ → CallStatus) : ∀ (m k : ℕ),
     toExecute k ((List.range' k m).map g) = (List.range' k m).filter (fun j => g j = .Executed)
@@ -630,8 +520,7 @@ lemma escapeRequest_length (n i : ℕ) : (escapeRequest n i).length = n := by
 
 /-- The verify-then-unbundle run, computed. -/
 lemma escape_run (b : Bundle) (i : ℕ) :
-    submitAll .deployed init
-        [⟨1, .verifyBundle b true, []⟩, ⟨b.calls + 2, .unbundleBundle b (escapeRequest b.calls i), []⟩]
+    submitAll .deployed init (escapeRun b i)
       = (applyRequest (init.setBundle b.hash .Verified) b.hash (escapeRequest b.calls i),
           (toExecute 0 (escapeRequest b.calls i)).map (Effect.delivered b.hash)) := by
   have h1 : submit .deployed init ⟨1, .verifyBundle b true, []⟩ = (init.setBundle b.hash .Verified, []) := by
@@ -641,77 +530,50 @@ lemma escape_run (b : Bundle) (i : ℕ) :
     exact ⟨fun _ => rfl, fun _ => by simp [init]⟩
   have h2 := UnbundleEnabled (init.setBundle b.hash .Verified) b (escapeRequest b.calls i) []
     (escapeRequest_length _ _) (Or.inl (by simp)) hvalid (by simp)
-  simp [submitAll, h1, h2]
+  simp [escapeRun, submitAll, h1, h2]
 
 theorem PublicBundleEscapesViaUnbundle : Properties.PublicBundleEscapesViaUnbundle := by
   intro b i hi
-  refine ⟨fun n ok cs s hr => (Contracts.InteropHandler.RevertingCallRevertsTheExecution .deployed
-    n b ok cs s hr).2, ?_⟩
+  refine ⟨fun n ok cs s hr =>
+    (Contracts.InteropHandler.AlwaysRevertingTargetRevertsTheExecution .deployed n b ok cs s hr).2, ?_⟩
   rw [escape_run]
   refine ⟨by simp [applyRequest], ?_, fun j hj hji => ?_, by rw [toExecute_escape]⟩
   · simp [applyRequest, escapeRequest_get _ _ _ hi, requestedStatus]
   · simp [applyRequest, escapeRequest_get _ _ _ hj, hji, requestedStatus]
 
-/-! ## (f) Who may execute -/
+/-! ## (f) Who may execute an atomic leg -/
 
 theorem ExecutorGatedLegNeedsExecutor : Properties.ExecutorGatedLegNeedsExecutor := by
-  intro thisChain ch a r hr
-  cases r with
-  | direct caller =>
-    simp only [ExecutionPermitted] at hr
-    rcases hr with h | ⟨ch', a', heq, hch, ha⟩
-    · exact absurd h (by simp)
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj heq)
-      exact ⟨by rw [ha], hch⟩
-  | rescue sc sa => exact hr.elim
+  intro handler thisChain ch a gc hr hent hexe hgate
+  -- at the pin no arm of `receiveMessage` self-calls `executeAtomicBundle`
+  have hne := AttackVectors.SelfCallAuthority.Faithful.AtomicSelfDisjunctDeadAtPin handler
+    thisChain gc hr hent
+  cases hr with
+  | direct e attrs caller hcaller =>
+    have hx : attrs.execution = .evm ch a := hexe
+    simp only [InnerGate, hx] at hgate
+    rcases hgate with h | ⟨hch, ha⟩
+    · exact absurd h hcaller
+    · exact ⟨hcaller, ha.symm, by rw [ha], hch⟩
+  | relayed caller m sc hd => exact absurd rfl hne
 
-theorem ForeignExecutorStrandsAtomicLeg : Properties.ForeignExecutorStrandsAtomicLeg := by
-  intro thisChain ch a h1 h2
-  refine ⟨fun r hr => ?_, Or.inr ⟨ch, a, rfl, Or.inl rfl, rfl⟩⟩
-  rcases (ExecutorGatedLegNeedsExecutor thisChain ch a r hr).2 with h | h
-  · exact h1 h
-  · exact h2 h
+theorem ForeignChainExecutorHasNoAtomicRoute :
+    Properties.ForeignChainExecutorHasNoAtomicRoute := by
+  intro handler thisChain ch a attrs hexe h1 h2
+  have hd : dispatch pinnedTable handler handler ⟨some (ch, a), some (.entry .executeBundle), attrs⟩
+      = some ⟨.executeBundle, attrs, (ch, a)⟩ := by
+    simp [dispatch, AttackVectors.SelfCallAuthority.Faithful.branchFor, pinnedTable,
+      AttackVectors.SelfCallAuthority.Faithful.Admits, hexe,
+      AttackVectors.SelfCallAuthority.Faithful.AddrField.Names]
+  refine ⟨fun gc hr hent hattrs hgate => ?_, hd, Reaches.relayed handler _ _ hd, ?_⟩
+  · subst hattrs
+    rcases (ExecutorGatedLegNeedsExecutor handler thisChain ch a gc hr hent hexe hgate).2.2.2
+      with h | h
+    · exact h1 h
+    · exact h2 h
+  · simp [InnerGate, hexe]
 
-/-! ## (g) A `Verified` hash -/
-
-lemma reach_not_unreceived {a c : Status} (h : AttackVectors.BundleStatusMachine.Reach a c)
-    (ha : a ≠ .Unreceived) : c ≠ .Unreceived := by
-  induction h with
-  | refl => exact ha
-  | tail _ hs _ => cases hs <;> decide
-
-lemma exec_atomic_of_not_unreceived {s : State} {b : Bundle} (hne : s.bundle b.hash ≠ .Unreceived)
-    (n : ℕ) (ok : Bool) (cs : List Callee) :
-    exec .deployed n (.entry (.executeAtomicBundle b ok) cs) s = none := by
-  cases n with
-  | zero => simp [exec]
-  | succ n => simp [exec, hne]
-
-/-- `executeBundle` of a `Verified` bundle with no proof and accepting targets. -/
-lemma exec_public_verified {s : State} {b : Bundle} (hv : s.bundle b.hash = .Verified)
-    {cs : List Callee} (hcs : ∀ c ∈ cs, c = .returns) :
-    exec .deployed (b.calls + 2) (.entry (.executeBundle b false) cs) s =
-      some (beforeCalls .deployed b s,
-        (List.range b.calls).map (Effect.delivered b.hash) ++ [Effect.executed b.hash]) := by
-  have hvi : s.verifyIfUnreceived b.hash = s := by
-    simp [State.verifyIfUnreceived, hv]
-  show exec .deployed (b.calls + 1 + 1) _ s = _
-  simp only [exec, hv, true_or, ↓reduceIte, hvi]
-  rw [Contracts.InteropHandler.exec_calls_returns .deployed b.hash _ _ _ _ hcs (by simp)]
-  rfl
-
-theorem GriefVerifiedBlocksAtomic : Properties.GriefVerifiedBlocksAtomic := by
-  intro s b hv
-  have hnot : ∀ txs : List Tx, (submitAll .deployed s txs).1.bundle b.hash ≠ .Unreceived := by
-    intro txs
-    have hr := (Contracts.InteropHandler.submitAll_good s txs).reach b.hash
-    exact reach_not_unreceived hr (by rw [hv]; decide)
-  refine ⟨hnot, fun txs n ok cs => exec_atomic_of_not_unreceived (hnot txs) n ok cs,
-    fun cs hcs => ?_⟩
-  simp only [submit, exec_public_verified hv hcs, commit,
-    Contracts.InteropHandler.beforeCalls_deployed]
-
-/-! ## (h) The atomic route is enabled -/
+/-! ## (h) The atomic route stays enabled -/
 
 /-- `executeAtomicBundle` of an `Unreceived` bundle with the gate passing and accepting targets. -/
 lemma exec_atomic_accepting {s : State} {b : Bundle} (hu : s.bundle b.hash = .Unreceived)
@@ -724,10 +586,10 @@ lemma exec_atomic_accepting {s : State} {b : Bundle} (hu : s.bundle b.hash = .Un
   rw [Contracts.InteropHandler.exec_calls_returns .deployed b.hash _ _ _ _ hcs (by simp)]
   rfl
 
-theorem FinalizedLegExecutableUnderEnabledness :
-    Properties.FinalizedLegExecutableUnderEnabledness := by
-  intro Pub b hpub txs hts
-  rcases submitAll_keeps_closed hpub init txs hts (Or.inl rfl) with hu | hfe
+theorem AtomicRouteStaysEnabled : Properties.AtomicRouteStaysEnabled := by
+  intro b txs hnp
+  rcases Contracts.InteropHandler.submitAll_atomicPart b.hash init txs hnp (Or.inl rfl)
+    with hu | hfe
   · right
     refine ⟨hu, fun cs hcs => ?_⟩
     simp only [submit, exec_atomic_accepting hu hcs, commit,
@@ -736,87 +598,114 @@ theorem FinalizedLegExecutableUnderEnabledness :
 
 /-! ## Witnesses -/
 
-theorem NoUnbundleRouteWitness : Properties.NoUnbundleRouteWitness := by
-  have hh1 : bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle = 1 :=
-    Contracts.InteropCenter.wHash1
-  have hh2 : bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD2.bundle = 2 :=
-    Contracts.InteropCenter.wHash2
-  have hlog : Contracts.InteropCenter.wS3.log = [Contracts.InteropCenter.wD1,
-    Contracts.InteropCenter.wD2] := rfl
-  have hp2 : publishedHash Contracts.InteropCenter.wParams.keccak
-      (Contracts.InteropCenter.wParams.chainId,
-        Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD2.bundle) = 2 := hh2
-  refine ⟨Contracts.InteropCenter.wReach, ?_, ?_, ?_, by rw [hlog]; simp, rfl, hh1,
-    by decide, by decide, ?_, ?_⟩
-  · rw [hlog]
-    exact Contracts.InteropCenter.encInjOn_pair Contracts.InteropCenter.wEnc_ne
-  · intro x hx
-    simp only [wPub, List.mem_singleton, Prod.mk.injEq, true_and] at hx
-    exact ⟨Contracts.InteropCenter.wD2, by rw [hlog]; simp, rfl, hx⟩
+lemma reverts_alwaysReverts : AlwaysReverts .deployed .reverts := by
+  intro m t
+  cases m <;> rfl
+
+theorem RevertingLegWitness : Properties.RevertingLegWitness := by
+  intro hh z0 hl
+  refine ⟨Contracts.RootImport.imtEvidence (Contracts.RootImport.twoChainEvidence hh z0 hl 0),
+    Contracts.RootImport.twoChain_wf,
+    Contracts.RootImport.executed_at_projects
+      (Contracts.RootImport.twoChain_executed_at hh z0 hl (sl := 0) (imp := fun _ => True)
+        (d := 0) trivial),
+    by decide, by decide, ?_, ?_, by decide, by decide⟩
+  · intro t ht e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
+    rcases ht with rfl | rfl
+    · rcases he with rfl | ⟨c, hc, hm⟩
+      · trivial
+      · simp only [wRevertingAttempt, List.mem_singleton] at hc
+        subst hc
+        cases hm
+    · rcases he with rfl | ⟨c, hc, hm⟩
+      · trivial
+      · simp only [wNestedRevertingAttempt, List.mem_cons, List.not_mem_nil, or_false] at hc
+        rcases hc with rfl | rfl
+        · cases hm with
+          | here => intro h3; exact absurd h3 (by decide)
+          | nested hc' _ => simp at hc'
+          | cont hm' => cases hm'
+        · cases hm
   · intro t ht
     simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
     rcases ht with rfl | rfl
-    · exact ⟨fun _ => ⟨_, List.mem_singleton_self _, hp2⟩, by simp [wVerifyPublic]⟩
-    · exact ⟨trivial, by simp [wExecAtomic]⟩
+    · refine ⟨fun _ => ⟨.reverts, by simp [wRevertingAttempt], reverts_alwaysReverts⟩,
+        fun c hc => ?_⟩
+      simp only [wRevertingAttempt, List.mem_singleton] at hc
+      subst hc; exact .reverts
+    · refine ⟨fun _ => ⟨.reverts, by simp [wNestedRevertingAttempt], reverts_alwaysReverts⟩,
+        fun c hc => ?_⟩
+      simp only [wNestedRevertingAttempt, List.mem_cons, List.not_mem_nil, or_false] at hc
+      rcases hc with rfl | rfl
+      · exact .calls trivial (by simp) .returns
+      · exact .reverts
+
+theorem RevertingLegFromSourceWitness : Properties.RevertingLegFromSourceWitness := by
+  have hlog : Contracts.InteropCenter.wS3.log =
+      [Contracts.InteropCenter.wD1, Contracts.InteropCenter.wD2] := rfl
+  have h12 : (1 : UInt256) ≠ 2 := by decide
+  refine ⟨Contracts.InteropCenter.wReach, ?_, ?_, by rw [hlog]; simp, rfl,
+    Contracts.InteropCenter.wHash1, rfl, ?_, ?_, by decide, ?_, ?_⟩
+  · rw [hlog]
+    exact Contracts.InteropCenter.encInjOn_pair Contracts.InteropCenter.wEnc_ne
+  · intro p hp _
+    simp only [List.mem_singleton] at hp
+    subst hp
+    exact ⟨Contracts.InteropCenter.wD2, by rw [hlog]; simp, rfl, rfl⟩
+  · intro t ht e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
+    rcases ht with rfl | rfl
+    · rw [Contracts.InteropHandler.tx_mentions_nil rfl he]
+      intro _
+      exact ⟨_, List.mem_singleton_self _, Contracts.InteropCenter.wHash2.symm⟩
+    · rcases he with rfl | ⟨c, hc, hm⟩
+      · trivial
+      · simp only [wRevertingAttempt, List.mem_singleton] at hc
+        subst hc
+        cases hm
+  · intro t ht
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
+    rcases ht with rfl | rfl
+    · exact ⟨trivial, by simp [wVerify]⟩
+    · refine ⟨fun _ => ⟨.reverts, by simp [wRevertingAttempt], reverts_alwaysReverts⟩,
+        fun c hc => ?_⟩
+      simp only [wRevertingAttempt, List.mem_singleton] at hc
+      subst hc; exact .reverts
   · rintro ⟨d', hd', hat', hcl⟩
     rw [hlog] at hd'
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hd'
     rcases hd' with rfl | rfl
     · exact absurd hat' (by decide)
     · exact absurd hcl.1 (by decide)
-  · rintro ⟨p, hp, -, hph⟩
-    simp only [wPub, List.mem_singleton] at hp
+  · rintro ⟨p, hp, -, hk⟩
+    simp only [List.mem_singleton] at hp
     subst hp
-    rw [hp2, hh1] at hph
-    exact absurd hph (by decide)
+    have hk' : bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle =
+        bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD2.bundle := hk
+    rw [Contracts.InteropCenter.wHash1, Contracts.InteropCenter.wHash2] at hk'
+    exact h12 hk'
 
-theorem StrandedLegWitness : Properties.StrandedLegWitness := by
-  intro hh z0 hl
-  have h1 : (0 : UInt256) < 1 := by decide
-  refine ⟨fun _ _ => 1, Contracts.Refund.lengthFlowHash, Contracts.Atomicity.mixedSystem 1,
-    Contracts.Atomicity.subsetFlow 0 1,
-    fun _ => (0, Contracts.Atomicity.honestProof hh z0 hl (Contracts.Atomicity.mixedSystem 1) 0 0 1),
-    ⟨0, 1⟩, ⟨0, 1⟩, [wRevertingAttempt 1, wNestedRevertingAttempt 1],
-    Contracts.Atomicity.mixedSystem_wf h1,
-    (Contracts.Refund.subsetFlow_executes hh z0 hl _ Contracts.Refund.lengthFlowHash_checks_subset).1,
-    List.mem_singleton_self _, rfl, ?_, by decide, ?_, by decide⟩
-  · intro t ht
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
-    rcases ht with rfl | rfl
-    · refine ⟨trivial, fun c hc => ?_⟩
-      simp only [wRevertingAttempt, List.mem_singleton] at hc
-      subst hc; exact .reverts
-    · refine ⟨trivial, fun c hc => ?_⟩
-      simp only [wNestedRevertingAttempt, List.mem_cons, List.not_mem_nil, or_false] at hc
-      rcases hc with rfl | rfl
-      · exact .calls (fun _ => rfl) (by simp) .returns
-      · exact .reverts
-  · intro t ht
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
-    rcases ht with rfl | rfl
-    · refine ⟨fun _ => by simp [wRevertingAttempt], fun c hc => ?_⟩
-      simp only [wRevertingAttempt, List.mem_singleton] at hc
-      subst hc; exact .reverts
-    · refine ⟨fun _ => by simp [wNestedRevertingAttempt], fun c hc => ?_⟩
-      simp only [wNestedRevertingAttempt, List.mem_cons, List.not_mem_nil, or_false] at hc
-      rcases hc with rfl | rfl
-      · exact .calls trivial (by simp) .returns
-      · exact .reverts
-
-theorem GriefWitness : Properties.GriefWitness := by
-  unfold Properties.GriefWitness; decide
+theorem EscapeWitness : Properties.EscapeWitness := by
+  unfold Properties.EscapeWitness; decide
 
 theorem EnablednessWitness : Properties.EnablednessWitness := by
-  refine ⟨⟨by decide, ?_, by decide⟩, ⟨?_, by decide, by decide⟩⟩
+  refine ⟨⟨by decide, ?_, by decide⟩, ⟨?_, ?_, by decide⟩⟩
   · intro j hj
     have hj' : j < 2 := by simpa using hj
     interval_cases j <;> simp [submit, exec, commit, wVerify, init]
-  · intro t ht
+  · intro t ht e he
     simp only [List.mem_singleton] at ht
     subst ht
-    exact ⟨fun _ => rfl, by simp [wVerify]⟩
+    rw [Contracts.InteropHandler.tx_mentions_nil rfl he]
+    intro h3
+    exact absurd h3 (by decide)
+  · intro hnp
+    have := hnp (wVerify 3 2) List.mem_cons_self (.verifyBundle ⟨3, 2⟩ true) (Or.inl rfl) rfl
+    exact absurd this (by decide)
 
 theorem ExecutorGateWitness : Properties.ExecutorGateWitness :=
-  ⟨Or.inr ⟨324, 7, rfl, Or.inl rfl, rfl⟩, Or.inr ⟨325, 7, rfl, Or.inl rfl, rfl⟩⟩
+  ⟨Reaches.direct _ _ 7 (by decide), by simp [InnerGate], Reaches.direct _ _ 7 (by decide),
+    by simp [InnerGate], by decide, by decide⟩
 
 end Contracts.ExecutionLiveness

@@ -1,12 +1,16 @@
-import EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.Specs.ReentrancyStrong
+import EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthorityFaithful
 import EraSpec.Protocol.InteropAtomicity.Specs.Refund
+import EraSpec.Protocol.InteropAtomicity.Specs.RootImport
 
 /-!
-# Model: what can still happen to a dispatched leg on its destination (execution liveness)
+# Model: what an atomic leg can still do on its destination (execution liveness)
 
 Source: era-contracts at the pin `c67894b9`. Paths are relative to `l1-contracts/contracts/`.
-`UPG` is the upgrade-simplification tree `e561b9cc2`, cited only for the comparison at the end.
+`UPG` is the upgrade-simplification tree `e561b9cc2`; `main` and `v35` are the current heads
+`70096e2` (branch `main`) and `b17415d20` (branch `draft/v0.35.0`). They are cited only in "At the
+later trees" below; the model is the pin's.
 
 **This file is definitions only.** Statements are in
 `EraSpec.Protocol.InteropAtomicity.Properties.ExecutionLiveness`, proofs in
@@ -14,13 +18,17 @@ Source: era-contracts at the pin `c67894b9`. Paths are relative to `l1-contracts
 
 The destination model is `Contracts.InteropHandler` (`Contracts/InteropHandlerBase/Specs/Reentrancy.lean`,
 topic `Reentrancy`): the handler's `bundleStatus` and `callStatus`, its four entry points, every
-re-entrant behaviour of every target as a finite `Callee` tree, `Option` rollback. This file adds
-predicates on those trees, the publication side of the source chain, and the execution-permission
-check that model omits.
+re-entrant behaviour of every target as a finite `Callee` tree, `Option` rollback. Topic
+`BundleStatusMachineStrong` (same folder) has the safety side of an atomic leg's position there:
+along a run in which no call presents a valid inclusion proof for its hash, the hash stays
+`Unreceived` or `FullyExecuted` (`NoProofKeepsBundleInAtomicMachine`), and an atomic leg's hash gets
+no valid proof unless one of two named clashes (`AtomicLegStaysAtomicAtDestinationOrClash`). This
+file asks what such a leg can still do: which entry points can deliver it, what a call that always
+reverts does to it, who may execute it, and when each route is enabled.
 
-## The two routes, and which bundles have which
+## The routes at the pin
 
-    executeBundle (interop-handler/InteropHandlerBase.sol:86-147)
+    executeBundle (interop/interop-handler/InteropHandlerBase.sol:86-147)
       require(status == Unreceived || status == Verified)                       // :117-120
       if (status != Verified) _verifyBundle(...)                                // :123
     verifyBundle (:150-161)            require(status == Unreceived); _verifyBundle(...)   // :157-160
@@ -30,75 +38,84 @@ check that model omits.
       _proof.message.data = bytes.concat(BUNDLE_IDENTIFIER, _bundle);           // :308
       require(_proveInclusion(_proof), MessageNotIncluded());                   // :310
       bundleStatus[_bundleHash] = BundleStatus.Verified;                        // :312
-    executeAtomicBundle (interop-handler/L2InteropHandler.sol:49-100)
+    executeAtomicBundle (interop/interop-handler/L2InteropHandler.sol:49-100)
       require(status == BundleStatus.Unreceived, BundleAlreadyProcessed(bundleHash));      // :79
       IAtomicFlowManager(L2_ATOMIC_FLOW_MANAGER_ADDR).requireFlowFinalized(bundleHash, _finality); // :83
 
-`Verified`, and with it the per-call route `unbundleBundle`, is reachable only through an
-inclusion proof of the L2→L1 message `BUNDLE_IDENTIFIER ++ bytes` sent by `L2_INTEROP_CENTER_ADDR`
-on the chain `_proof.chainId`, which `_validateBundleDestinationContext` (:428-437) forces to be the
-decoded bundle's `sourceChainId`; and the status key is
-`encodeInteropBundleHash(sourceChainId, bytes)` (:249). On the source, the center's only
-`sendToL1` (`interop/InteropCenter.sol:626`, inside `_sendBundleToL1`) is reached only from the
-public branch of `_dispatchBundle` (:657), with the bytes `abi.encode(bundle)` (:643). An atomic
-bundle is appended to the flow manager instead (:646-655) and never published.
-
-So an atomic leg has exactly one route: `executeAtomicBundle`, which needs `Unreceived`, runs every
-call in one frame and reverts if any call reverts. It has no per-call route that could skip a bad
-call. The `L2InteropHandler.sol:39-42` NatSpec says so: "Atomic bundles are never published to L1,
-so this is their only execution entry point; there is no atomic verify path."
+`Verified`, and with it `unbundleBundle`, is reached only through `_verifyBundle`, so only with a
+valid inclusion proof for the hash. The source appends an atomic bundle to the flow manager instead
+of publishing it (`interop/InteropCenter.sol:646-657`), and the NatSpec of `executeAtomicBundle`
+(`L2InteropHandler.sol:39-42`) calls it the atomic bundle's only execution entry point, with no
+atomic verify path. `executeAtomicBundle` needs `Unreceived`, runs every call in one frame and
+reverts if any call reverts.
 
 ## Modelling choices
 
-* **Proof verdicts are backed by publication.** `Contracts.InteropHandler` takes the inclusion
-  proof's verdict `proofOk` as an input bit. `ProofBacked Pub` says a verdict is `true` only for a
-  bundle whose hash is in `Pub`, the hashes of what was published; a run is backed when every
-  entry of every transaction, at every depth, is (`TxEvery`). This is message-verification
-  soundness (`proveL2MessageInclusionShared` accepts only messages that were sent, `PROTO-EVIDENCE`)
-  together with the destination's own recomputation of the hash from the presented bytes. It is a
-  premise, stated per run.
-* **What was published.** `Published` is a source chain and the bytes it published.
-  `PublishedOnlyPublicDispatches P S pub` is the local-honesty premise for chain `P.chainId`: every
-  item that chain published is `abi.encode` of a public dispatch of its center run `S`. It is the
-  enumeration above (one `sendToL1` site, reached only from the public branch; the messenger records
-  `msg.sender`, so no other contract can publish as `L2_INTEROP_CENTER_ADDR`), stated rather than
-  derived, like `AttackVectors.LocalHonesty.Guards`. Other chains' publications are arbitrary.
-* **A permanently reverting call.** `AtomicAttemptReverts h` says every `executeAtomicBundle` of a
-  bundle with hash `h`, at top level or nested, meets a target that reverts outright among the
-  bundle's calls: for instance a call to an address with no code (the `receiveMessage` selector
-  check at `InteropHandlerBase.sol:287` fails) or to a destination contract that always reverts.
-  All attempts present the same bytes, so the same targets, unless the destination's keccak
-  collides on two bundle encodings, which this file does not model. The quantification is over
-  every transaction, so it is a property of the target code, not of one attempt.
-* **Permissions.** `Contracts.InteropHandler` omits the execution permission as a reject-only check.
-  The liveness statements need it, so `ExecutionPermitted` models it on its own, for the two ways an
-  execute entry point is reached: a direct call, or the handler's `receiveMessage` (:334-362), which
-  dispatches on `executeBundle`, `verifyBundle` and `unbundleBundle` only (:351-359).
+* **Which calls present a valid proof.** As in `BundleStatusMachineStrong`, an inclusion proof's
+  verdict is the boolean an `executeBundle` or `verifyBundle` call carries. The statements take
+  `NoProofRun h txs` (no call of the run, at any depth, presents a valid proof for `h`), or, for an
+  atomic dispatch of a source run, `SoundProofRun (PublishedHash ..)` with the source's
+  publication premise `PublishesOnlyPublicDispatches`, as `AtomicLegStaysAtomicAtDestinationOrClash`
+  does.
+* **A call that always reverts.** `AtomicAttemptReverts h` says that every `executeAtomicBundle`
+  of a bundle with hash `h`, at top level or nested, has among the targets of its first `calls`
+  calls one that reverts from every state at every budget (`Contracts.InteropHandler.AlwaysReverts`,
+  topic `ReentrancyStrong`): for example the leaf `Callee.reverts`, or any target whose own
+  continuation ends in a revert, whatever it calls first (`EndsInRevertAlwaysReverts`). In the
+  source such a target is, for example, a call to an
+  address with no code (decoding its empty return data as the selector reverts,
+  `InteropHandlerBase.sol:282-287`) or to a contract whose `receiveMessage` always reverts. The
+  premise is per attempt, over every transaction of the run and every nested call.
+* **Permissions.** `Contracts.InteropHandler` omits the execution permission as a reject-only
+  check. The statements about it, (f) of the Properties file, are made on the gate model of topic
+  `SelfCallAuthorityFaithful` (`AttackVectors.SelfCallAuthority.Faithful`, same folder) instead:
+  `Reaches pinnedTable` lists every call the handler receives at an entry point, a direct call or a
+  self-call made by `receiveMessage` (`InteropHandlerBase.sol:334-362`, which dispatches on
+  `executeBundle`, `verifyBundle` and `unbundleBundle` only, `:351-359`), and `InnerGate` is the
+  deployed permission gate. The two models are not composed: (f) says which calls pass the gate,
+  not what `exec` does after it. The center stores any `executionAddress` that `parseEvmV1` parses
+  (`interop/InteropCenter.sol:811-820`, `:885-891`), whatever its chain.
+* **The unbundler.** `unbundleBundle` also checks its caller against the bundle's
+  `unbundlerAddress` (`InteropHandlerBase.sol:170-184`), which the handler model omits as well; the
+  statements about the unbundled route hold for a caller that passes that check (`sendBundle` and
+  `sendMessage` make the sender the unbundler when none is given, `interop/InteropCenter.sol:231-233`,
+  `:314-316`).
 * **Gate verdict.** `requireFlowFinalized` is a static call (`atomic-interop/IAtomicFlowManager.sol:53`),
   so its verdict is the input bit `gateOk`; `true` is "the flow is finalized and the executor
-  presents the proofs" (`Contracts.Atomicity.FlowFinalizedBy`). Data availability is what makes such
-  proofs presentable (`Contracts.Atomicity.DataAvailable`).
+  presents the proofs" (`Contracts.Atomicity.FlowFinalizedBy`).
 
-## At `UPG`
+## At the later trees
 
-`UPG/interop/interop-handler/L2InteropHandler.sol` adds `verifyAtomicBundle` (:83), which runs the
-flow gate and marks the bundle `Verified`, so an atomic leg gains the verify→unbundle route; and its
-`receiveMessage` dispatches the execute selector to `executeAtomicBundle` (:99-100, :109-131), so a
-foreign-chain executor gains a rescue route. Both statements below that turn on the missing routes
-(`FinalizedLegStrandedByRevertingCall`, `ForeignExecutorStrandsAtomicLeg`) are pin-only.
+At `UPG`, `main` and `v35` the L2 handler has other entry points:
+
+* `executeBundle` and `verifyBundle` are on `L1InteropHandler` only
+  (`interop/interop-handler/L1InteropHandler.sol:81`, `:103` at all three). On L2 the entry points
+  are `executeAtomicBundle`, a new `verifyAtomicBundle` that runs the flow gate and marks the bundle
+  `Verified` (`L2InteropHandler.sol:73-82` at `main`, `:83-92` at `v35` and `UPG`), and
+  `unbundleBundle` (`InteropHandlerBase.sol:113` at all three). `executeAtomicBundle` accepts a
+  `Verified` bundle (`_requireExecutable`, `InteropHandlerBase.sol:282-287` at `v35`) and then skips
+  the gate (`L2InteropHandler.sol:62-65` at `main`, `:72-75` at `v35` and `UPG`). So an atomic leg
+  has a verify-then-unbundle route there.
+* `receiveMessage`'s execute selector dispatches to `executeAtomicBundle`, after checking the
+  wrapped sender against the bundle's `executionAddress` (`_requireRescueExecutionAllowed`), and
+  its verify selector to `verifyAtomicBundle` (`L2InteropHandler.sol:89-132` at `main`, `:99-142`
+  at `v35` and `UPG`).
+
+Every statement of the Properties file is about the pin's handler; those of (d), (e) and (f) turn
+on the routes that differ, and nothing here is claimed for these trees.
 -/
 
 namespace Contracts.ExecutionLiveness
 
-open Contracts.InteropHandler (Entry Callee Frame Tx BundleHash)
+open Contracts.InteropHandler (Entry Callee Frame Tx BundleHash AlwaysReverts)
 open AttackVectors.BundleStatusMachine (Status CallStatus)
-open AttackVectors.BundleHashEncoding (abiEncode)
 
-/-! ## Predicates on every entry-point call of a run -/
+/-! ## Predicates on every entry-point call of a run, with the targets it delivers to -/
 
 /-- **EVERY ENTRY-POINT CALL OF A TARGET'S BEHAVIOUR SATISFIES `Q`**, at every depth: each
 `Callee.calls e inner _ next` node has `Q e inner`, and so do the targets `inner` of the calls that
-frame delivers, and the rest `next` of the behaviour. -/
+frame delivers, and the rest `next` of the behaviour. Unlike `Callee.Mentions` (topic
+`BundleStatusMachineStrong`), `Q` also sees the targets each call delivers to. -/
 inductive EveryEntry (Q : Entry → List Callee → Prop) : Callee → Prop
   | returns : EveryEntry Q .returns
   | reverts : EveryEntry Q .reverts
@@ -111,51 +128,19 @@ its delivered targets make, at every depth. -/
 def TxEvery (Q : Entry → List Callee → Prop) (t : Tx) : Prop :=
   Q t.entry t.callees ∧ ∀ c ∈ t.callees, EveryEntry Q c
 
-/-- **THE INCLUSION-PROOF VERDICT IS BACKED BY `Pub`.** `executeBundle` and `verifyBundle` are told
-`proofOk = true` only for a bundle whose hash is in `Pub` (`_verifyBundle`, `:302-312`). The other
-two entry points take no inclusion proof. -/
-def ProofBacked (Pub : BundleHash → Prop) : Entry → List Callee → Prop
-  | .executeBundle b ok, _ => ok = true → Pub b.hash
-  | .verifyBundle b ok, _ => ok = true → Pub b.hash
-  | _, _ => True
-
-/-- **EVERY ATOMIC ATTEMPT ON `h` MEETS A REVERTING TARGET.** An `executeAtomicBundle` of a bundle
-with hash `h` has a target that reverts outright among the targets of its calls. -/
+/-- **AN ATOMIC ATTEMPT ON `h` MEETS A TARGET THAT ALWAYS REVERTS.** An `executeAtomicBundle` of a
+bundle with hash `h` has, among the targets of its `calls` calls, one that reverts from every state
+at every budget in the deployed order. Other entry-point calls are unconstrained. -/
 def AtomicAttemptReverts (h : BundleHash) : Entry → List Callee → Prop
-  | .executeAtomicBundle b _, cs => b.hash = h → Callee.reverts ∈ cs.take b.calls
+  | .executeAtomicBundle b _, cs => b.hash = h → ∃ c ∈ cs.take b.calls, AlwaysReverts .deployed c
   | _, _ => True
-
-/-! ## The source chain's publications -/
-
-/-- An item published to L1: the chain that sent `BUNDLE_IDENTIFIER ++ bytes` from
-`L2_INTEROP_CENTER_ADDR` (`InteropCenter.sol:626`), and the bytes. -/
-abbrev Published := Contracts.InteropCenter.Word × List UInt8
-
-/-- The bundle hash a destination computes for a published item:
-`encodeInteropBundleHash(sourceChainId, bytes)` (`InteropHandlerBase.sol:249`, with `sourceChainId`
-the proof's chain by `:434-437`). -/
-def publishedHash (keccak : List UInt8 → Contracts.InteropCenter.Word) (p : Published) :
-    BundleHash :=
-  keccak (abiEncode p.1.val p.2)
-
-/-- The hashes for which an inclusion proof exists: those of published items. -/
-def PubHashes (keccak : List UInt8 → Contracts.InteropCenter.Word) (pub : List Published) :
-    BundleHash → Prop :=
-  fun h => ∃ p ∈ pub, publishedHash keccak p = h
-
-/-- **LOCAL HONESTY OF PUBLICATION, FOR CHAIN `P.chainId`.** Every item chain `P.chainId` published
-is `abi.encode` of the bundle of a public dispatch of its center run `S`. -/
-def PublishedOnlyPublicDispatches (P : Contracts.InteropCenter.Params)
-    (S : Contracts.InteropCenter.State) (pub : List Published) : Prop :=
-  ∀ x, (P.chainId, x) ∈ pub → ∃ d ∈ S.log, d.isAtomic = false ∧ x = P.enc d.bundle
 
 /-! ## The unbundled route, as a function of the request -/
 
 /-- What `unbundleBundle`'s first loop (`InteropHandlerBase.sol:200-219`) records for one call, from
 its recorded status and the requested one: a requested execution is recorded `Executed`, a requested
 cancellation `Cancelled`, anything else leaves the call as it was. -/
-def requestedStatus : CallStatus → Option CallStatus →
-    CallStatus
+def requestedStatus : CallStatus → Option CallStatus → CallStatus
   | _, some .Executed => .Executed
   | _, some .Cancelled => .Cancelled
   | old, _ => old
@@ -179,74 +164,29 @@ def applyRequest (s : Contracts.InteropHandler.State) (h : BundleHash)
 def escapeRequest (n i : ℕ) : List CallStatus :=
   (List.range n).map fun j => if j = i then .Cancelled else .Executed
 
-/-! ## Who may execute -/
-
-/-- `executionAddress` (`common/Messaging.sol:241-246`, parsed by `InteroperableAddress.parseEvmV1`):
-absent, so execution is permissionless (`InteropHandlerBase.sol:94`), or an EVM address
-`(chainId, address)`. -/
-abbrev ExecAttr := Option (ℕ × ℕ)
-
-/-- How an execute entry point is reached. -/
-inductive Route
-  /-- A call from `caller`, an account or contract on this chain other than the handler. -/
-  | direct (caller : ℕ)
-  /-- The handler's own `receiveMessage` (`:334-362`), while executing a delivered interop call
-  whose sender is `senderAddr` on `senderChain`; it calls the entry point on itself (`:391`), so
-  `msg.sender == address(this)`. -/
-  | rescue (senderChain senderAddr : ℕ)
-
-/-- The two execute entry points. -/
-inductive ExecEntry
-  | executeBundle
-  | executeAtomicBundle
-deriving DecidableEq
-
-/-- **THE EXECUTION PERMISSION, BY ROUTE.**
-
-* Direct, both entry points (`InteropHandlerBase.sol:95-112`, `L2InteropHandler.sol:62-75`): no
-  `executionAddress`, or `(executionChainId == block.chainid || executionChainId == 0) &&
-  executionAddress == msg.sender`.
-* `receiveMessage` into `executeBundle` (`:351-352`, `:364-392`): the same test against the wrapped
-  message's sender chain and address (`:385-388`); the self-call then passes the entry point's own
-  test through `msg.sender == address(this)`.
-* `receiveMessage` into `executeAtomicBundle`: there is no such branch (`:351-359` dispatch on
-  `executeBundle`, `verifyBundle` and `unbundleBundle` only), and no other code of the handler calls
-  it, so the `msg.sender == address(this)` disjunct at `L2InteropHandler.sol:67` is dead
-  (`AttackVectors.SelfCallAuthority`). -/
-def ExecutionPermitted (thisChain : ℕ) (attr : ExecAttr) : ExecEntry → Route → Prop
-  | _, .direct caller =>
-      attr = none ∨ ∃ ch a, attr = some (ch, a) ∧ (ch = thisChain ∨ ch = 0) ∧ a = caller
-  | .executeBundle, .rescue senderChain senderAddr =>
-      attr = none ∨ ∃ ch a, attr = some (ch, a) ∧ (ch = senderChain ∨ ch = 0) ∧ a = senderAddr
-  | .executeAtomicBundle, .rescue _ _ => False
-
 /-! ## Witness data
 
-The source run is `Contracts.InteropCenter.wS3` on the honest chain `wParams` (chain `324`):
-sender `1`'s atomic leg `wD1` (bundle hash `1`) and sender `2`'s public bundle `wD2` (bundle hash
-`2`). On the destination, a handler bundle is its hash and its number of calls. -/
-
-/-- Chain `324` published exactly `wD2`'s bytes. -/
-def wPub : List Published :=
-  [(Contracts.InteropCenter.wParams.chainId,
-    Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD2.bundle)]
-
-/-- `verifyBundle` of the public bundle (hash `2`, one call) with a valid inclusion proof. -/
-def wVerifyPublic : Tx := ⟨2, .verifyBundle ⟨2, 1⟩ true, []⟩
-
-/-- `executeAtomicBundle` of the atomic leg (hash `1`, one call) with the gate passing. -/
-def wExecAtomic : Tx := ⟨3, .executeAtomicBundle ⟨1, 1⟩ true, []⟩
-
-/-- An attempt at the atomic leg `h` (one call) whose target reverts. -/
-def wRevertingAttempt (h : BundleHash) : Tx := ⟨5, .executeAtomicBundle ⟨h, 1⟩ true, [.reverts]⟩
-
-/-- An attempt whose first target executes the public bundle `⟨2, 1⟩` with a valid proof, and
-whose second target is the reverting one: the nested execution is undone with the attempt. -/
-def wNestedRevertingAttempt (h : BundleHash) : Tx :=
-  ⟨8, .executeAtomicBundle ⟨h, 2⟩ true,
-    [.calls (.executeBundle ⟨2, 1⟩ true) [] false .returns, .reverts]⟩
+On the destination, a handler bundle is its hash and its number of calls. -/
 
 /-- `verifyBundle` of a bundle `⟨h, n⟩` with a valid inclusion proof. -/
 def wVerify (h : BundleHash) (n : ℕ) : Tx := ⟨1, .verifyBundle ⟨h, n⟩ true, []⟩
+
+/-- An attempt at the atomic leg `h` (one call, gate passing) whose target reverts. -/
+def wRevertingAttempt (h : BundleHash) : Tx := ⟨5, .executeAtomicBundle ⟨h, 1⟩ true, [.reverts]⟩
+
+/-- An attempt at the atomic leg `h` (two calls, gate passing) whose first target executes the
+public bundle `⟨3, 1⟩` with a valid proof, and whose second target reverts: the nested execution
+is undone with the attempt. -/
+def wNestedRevertingAttempt (h : BundleHash) : Tx :=
+  ⟨8, .executeAtomicBundle ⟨h, 2⟩ true,
+    [.calls (.executeBundle ⟨3, 1⟩ true) [] false .returns, .reverts]⟩
+
+/-- The same nested work at top level: `executeBundle` of the public bundle `⟨3, 1⟩` with a valid
+proof. It commits on its own. -/
+def wPublicRun : Tx := ⟨3, .executeBundle ⟨3, 1⟩ true, []⟩
+
+/-- The verify-then-unbundle run of a public bundle `b` that cancels call `i`. -/
+def escapeRun (b : Contracts.InteropHandler.Bundle) (i : ℕ) : List Tx :=
+  [⟨1, .verifyBundle b true, []⟩, ⟨b.calls + 2, .unbundleBundle b (escapeRequest b.calls i), []⟩]
 
 end Contracts.ExecutionLiveness

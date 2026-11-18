@@ -16,9 +16,14 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | FlowBinding | [Specs/FlowBinding.lean](Specs/FlowBinding.lean) | [Properties/FlowBinding.lean](Properties/FlowBinding.lean) | [Proofs/FlowBinding.lean](Proofs/FlowBinding.lean) |
 | OncePerLeg | [Specs/OncePerLeg.lean](Specs/OncePerLeg.lean) | [Properties/OncePerLeg.lean](Properties/OncePerLeg.lean) | [Proofs/OncePerLeg.lean](Proofs/OncePerLeg.lean) |
 | RootImport | [Specs/RootImport.lean](Specs/RootImport.lean) | [Properties/RootImport.lean](Properties/RootImport.lean) | [Proofs/RootImport.lean](Proofs/RootImport.lean) |
+| DispatchLiveness | [Specs/DispatchLiveness.lean](Specs/DispatchLiveness.lean) | [Properties/DispatchLiveness.lean](Properties/DispatchLiveness.lean) | [Proofs/DispatchLiveness.lean](Proofs/DispatchLiveness.lean) |
+| ExecutionLiveness | [Specs/ExecutionLiveness.lean](Specs/ExecutionLiveness.lean) | [Properties/ExecutionLiveness.lean](Properties/ExecutionLiveness.lean) | [Proofs/ExecutionLiveness.lean](Proofs/ExecutionLiveness.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
-`Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`).
+`Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`,
+`DispatchLiveness` on `OncePerLeg` and `../../Contracts/InteropCenter/`, `ExecutionLiveness` on
+`Refund`, `RootImport` (its witness history) and the handler topics of
+`../../Contracts/InteropHandlerBase/`).
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -147,12 +152,52 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   Aggregation paths inside a settlement proof are idealized as the honest ones; the import
   transitions themselves are not modelled (a snapshot `World`, `ImportsGrow`).
 
+- **DispatchLiveness** (namespace `Contracts.DispatchLiveness`, pin `c67894b9`). One chain's send
+  path: the center's salt flags and dispatch log (`InteropCenter`, topic `Dispatch`) composed with
+  `OncePerLeg`'s manager and tree, so an atomic `_sendBundle` is one step with the dispatch's own
+  hint (`Step`, `MODEL-SEND-PATH` in `ASSUMPTIONS.md`); its runs are runs of both
+  (`DispatchRunProjectsToCenter`, `DispatchRunProjectsToAppendPath`). With no hash premise, an
+  atomic dispatch with an unused salt, a formed and validated bundle, a nonzero commit value and the
+  exact hint (the occupied leaf with the largest value below the commit value,
+  `ExactHintIsLargestBelow`) has a step, or a `DispatchClash` pinned to the run's own log holds
+  (`HonestDispatchEnabledOrClash`), also when the hint was exact at an earlier state of the run with
+  at most five appends in between (`StaleHintDispatchEnabledOrClash`); no hint works iff such a
+  clash holds (`AtomicDispatchBlockedIffClash`). The hint search, counted: the search succeeds iff its fuel
+  covers `hopsNeeded` (`SearchSucceedsIffHopsWithinFuel`), so at the pin a hint works iff it is at
+  most five hops away (`HintWithinFiveHopsSucceeds`), an exact hint still works after five later
+  inserts (`StaleExactHintSurvivesFiveInserts`), and for every fuel some honest tree has an occupied
+  hint that needs one hop more (`HopsNeededUnbounded`). "Enabled" is relative to the modelled checks.
+  At the current heads the walk is unbounded and `append` checks more (Specs header).
+- **ExecutionLiveness** (namespace `Contracts.ExecutionLiveness`, pin `c67894b9`). On the handler
+  model of `InteropHandlerBase` topic `Reentrancy`. Outside `Verified`, without a valid proof,
+  `executeBundle`, `verifyBundle` and `unbundleBundle` revert (`PublicRoutesRevertOutsideVerified`).
+  Under the same no-proof condition only a call that passed the flow gate commits an effect of the
+  hash (`NeverPublishedBundleNeedsTheFlowGate`, topic `BundleStatusMachineFaithful`), and an atomic
+  leg's hash meets that condition up to two named clashes (`AtomicLegStaysAtomicAtDestinationOrClash`,
+  topic `BundleStatusMachineStrong`). If every attempt on the leg meets a target that always
+  reverts, whether or not the attempt passes the flow gate, the leg stays `Unreceived` and none of
+  its calls is delivered (`AtomicLegWithRevertingCallNeverExecutes`; from a source run, up to the
+  same two clashes, `…OrClash`); for a leg of a flow that passed the gate,
+  `FinalizedRevertingLegNeitherDeliveredNorRefunded` adds `Refund`'s
+  `OneExecutionFreezesTheFlowOrBreak`, a separate model linked by the leg's bundle hash. A bundle
+  with a valid proof can instead be verified and unbundled with that call cancelled
+  (`PublicBundleEscapesViaUnbundle`). The execution permission, which the handler model omits, is
+  stated on topic `SelfCallAuthorityFaithful`'s gate model, not composed with `exec`: at the pin a
+  call passes `executeAtomicBundle`'s gate for an `executionAddress` `(ch, a)` only as a direct call
+  from `a`, with `ch` this chain or `0` (`ExecutorGatedLegNeedsExecutor`); for any other `ch` none
+  passes it, while `receiveMessage` relays `executeBundle` for `(ch, a)`
+  (`ForeignChainExecutorHasNoAtomicRoute`). Enabledness: `UnbundleEnabled`,
+  `AtomicRouteStaysEnabled`. At `e561b9cc2` and the current heads the L2 handler has
+  `verifyAtomicBundle` and a `receiveMessage` route into `executeAtomicBundle` (Specs header).
+
 The tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an
 operational model, so excluding both is the stronger claim. An operational model
 (or a projection theorem from one) is open; `OncePerLeg`'s `SysSteps` still checks
 timeout evidence against that fixed history. Also open: liveness (every committed
-obligation eventually executes or refunds). Source-side obligations are O7–O9 in
+obligation eventually executes or refunds); `DispatchLiveness` and `ExecutionLiveness` state when
+the send and execution routes are enabled at the pin, and a case in which a leg of a finalized flow
+is neither delivered nor refunded. Source-side obligations are O7–O9 in
 `../../Refinement.lean`.
 
 These modules keep the namespaces they had on the `claude/proof-attempt-4f3778`
