@@ -28,6 +28,7 @@ Sources: `contracts/atomic-interop/AtomicFlowManager.sol` (`requireFlowFinalized
 | SettlementRoots | [Specs/SettlementRoots.lean](Specs/SettlementRoots.lean) | [Properties/SettlementRoots.lean](Properties/SettlementRoots.lean) | [Proofs/SettlementRoots.lean](Proofs/SettlementRoots.lean) |
 | DispatchLiveness | [Specs/DispatchLiveness.lean](Specs/DispatchLiveness.lean) | [Properties/DispatchLiveness.lean](Properties/DispatchLiveness.lean) | [Proofs/DispatchLiveness.lean](Proofs/DispatchLiveness.lean) |
 | ExecutionLiveness | [Specs/ExecutionLiveness.lean](Specs/ExecutionLiveness.lean) | [Properties/ExecutionLiveness.lean](Properties/ExecutionLiveness.lean) | [Proofs/ExecutionLiveness.lean](Proofs/ExecutionLiveness.lean) |
+| SystemAtV35 (`draft/v0.35.0` `b17415d`) | [Specs/SystemAtV35.lean](Specs/SystemAtV35.lean) | [Properties/SystemAtV35.lean](Properties/SystemAtV35.lean) | [Proofs/SystemAtV35.lean](Proofs/SystemAtV35.lean) |
 
 Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePerLeg` on
 `Refund`, `RootImport` on `Atomicity`, `Timeout`, `SourceHeight` and `FlowBinding`;
@@ -38,15 +39,18 @@ Read them in that order; each builds on earlier ones (`FlowBinding` and `OncePer
 `AtomicFlowManager` `FlowCanonicalAtHead`, `OncePerLegAtHead` on `OncePerLeg` and
 `L2InteropCommitmentTree` `HintSearchAtHead`, `SettlementRoots` on `Refund`, `Operational`
 and the `MessageRoot` and `L2InteropRootStorage` contract models, `DispatchLiveness` on
-`OncePerLeg` and `../../Contracts/InteropCenter/`, and `ExecutionLiveness` on `Refund`,
+`OncePerLeg` and `../../Contracts/InteropCenter/`, `ExecutionLiveness` on `Refund`,
 `RootImport` (its witness history) and the handler topics of
-`../../Contracts/InteropHandlerBase/`).
+`../../Contracts/InteropHandlerBase/`, and `SystemAtV35` on `FlowBinding`,
+`OncePerLegAtHead`, `LegSourceFilterAtV35` and the `AtomicFlowManager` topic
+`RefundClosesAppend`).
 The exception is `RefundStrong`, which also takes `AggregatesBefore` from the later
 `Operational` topic ([Specs/Operational.lean](Specs/Operational.lean)).
 Every topic models the pinned tree except `LegSourceFilterAtV35`, which adds the receive
-filter of `draft/v0.35.0` (`b17415d20`) to the `FlowBinding` and `OncePerLeg` models, and
-`FlowBindingAtHead` and `OncePerLegAtHead`, which model later era-contracts heads (see their
-sections below).
+filter of `draft/v0.35.0` (`b17415d20`) to the `FlowBinding` and `OncePerLeg` models,
+`SystemAtV35`, which composes the `draft/v0.35.0` atomic path with the other contracts' state it
+reads, and `FlowBindingAtHead` and `OncePerLegAtHead`, which model later era-contracts heads
+(see their sections below).
 
 `SourceHeight` derives `Wf.capacity` instead of assuming it: a system built from
 per-chain runs that carry `FullMerkle._height` (`systemOfRuns`, `RunsWf`) is `Wf`
@@ -667,6 +671,59 @@ heights are the ones the source computes. The batch-root tree's `capacity` field
   (`ForeignChainExecutorHasNoAtomicRoute`). Enabledness: `UnbundleEnabled`,
   `AtomicRouteStaysEnabled`. At `e561b9cc2` and the current heads the L2 handler has
   `verifyAtomicBundle` and a `receiveMessage` route into `executeAtomicBundle` (Specs header).
+
+- **SystemAtV35** (namespace `Contracts.SystemAtV35`; source `draft/v0.35.0` at `b17415d20`,
+  first written at `d9f678900`, where every cited Solidity line is the same). One relation,
+  `RunV35`, keeps as state, on every chain at once, what the v35 atomic path reads: every
+  manager and commitment tree (insert with the unbounded walk), the `L2Bridgehub` peer and
+  registration entries with their admin writers, the L1 half of `L2InteropRootStorage`, and the
+  handler's `bundleStatus`. The merged v35 and head models each keep part of this as state and
+  take the rest as a per-call input or leave it out (`RefundClosesAppend` and the
+  `AtomicFlowManager` topic `FlowCanonicalAtV35` are one chain; `LegSourceFilterAtV35` has the
+  allow-lists only; `FlowBindingAtHead`'s `RunAtV35` reads the other contracts per call;
+  `OncePerLegAtHead` has managers and trees; the `InteropHandlerBase` topic `ReentrancyAtV35` is
+  one handler, whose gate verdict is an input bit). No result takes a hash premise. Each result
+  is in one of the categories below.
+  - *New.* The runs project to `ReachLog`, `RunLog` and `SysStepsAtHead`
+    (`RunV35ProjectsToReachLog`, `RunV35ProjectsToRunLog`, `RunV35ProjectsToSysStepsAtHead`; the
+    second parallels `LegSourceFilterAtV35`'s `RunAtV35ProjectsToRunLog`). The expired-flow gate
+    binds only the chain that refunded: on one run chain `1` authorizes a refund and chain `0`
+    then appends a leg of the refunded flow (`RefundThenAppendWitnessV35`, as the NatSpec at
+    `AtomicFlowManager.sol:114-116` says). A refund step marks a leg on its declared chain, as in
+    `ReachLog`; on runs from genesis one code `authorizeRefund` call whose modelled checks pass on
+    a chain is a sequence of such steps ending in the code's write, unless a logged `append`
+    there clashes with the presented flow (`CodeAuthorizeCallIsAuthorizeStepsV35`).
+  - *Transferred* along the projections: the pin's refund result and the head's once-per-leg
+    result (`V35ExecutedObligationNeverRefundedOrBreak`, `SystemOncePerLegV35`; they parallel
+    `LegSourceFilterAtV35`'s `ExecutedObligationNeverRefundedOrBreakAtV35` and
+    `SystemOncePerLegAtV35`).
+  - *Counterparts over `RunV35`*, whose content is the merged result's: of `RefundClosesAppend`,
+    `LatestRootTimestampMonotoneMaxV35`, `RefundedChainLatestPastDeadlineV35`,
+    `NoAppendAfterRefundOnSameChainV35` and the countermodel
+    `WithoutDeadlineGateAppendAfterRefundV35`; of `LegSourceFilterAtV35`,
+    `HubsAreReplayedAdminLogV35`, `GateFilterHeldWhenLoggedV35`, `RefundFilterHeldWhenLoggedV35`,
+    `DeregisteredPeerBlocksLaterGatesAndRefundsV35` (`BlockedUntilReallowedAtV35`) and
+    `ReallowedPeerGateWitnessV35` (one instance of `ReallowRestoresGateAtV35`); of
+    `ReentrancyAtV35` (namespace `Contracts.InteropHandlerAtV35`),
+    `StatusLeavesUnreceivedOnlyThroughGateV35` (`DeliveryNeedsTheGateAtV35` in contrapositive
+    form; here a structural invariant of the step relation) and
+    `VerifiedBundleExecutesAfterDeregistrationV35` (`ReceiveFilterIsReadAtTheGateAtV35`,
+    `ReceiveFilterWitnessAtV35` and `VerifiedBundleExecutesWithoutTheGateAtV35`: a bundle
+    verified before a deregistration executes after it, as `protocol-docs/interop-gating.md:195-197`
+    documents), where `RunV35` reads the gate's verdict from the composed state instead of
+    taking it as an input bit; of `FlowBindingAtHead`, `SetKeyHasLoggedAppendV35`
+    (`CommittedLegHasLoggedPreimage`) and `CodeAuthorizeMarksDeclaredLegOrLoggedClashV35`
+    (`AuthorizeMarksDeclaredLegOrLoggedClash`), which here bounds the declared-chain marking; of
+    `OncePerLegAtHead`, `AppendedAtMostOnceV35`. On one chain, `SetKeyHasLoggedAppendV35` and
+    `AppendedAtMostOnceV35` also restate `FlowCanonicalAtV35`'s
+    `WrittenLegAppendedUnderAcceptedPreimageV35` and `RunV35AppendsEachLegAtMostOnce`.
+  - Witnesses: `RefundThenAppendWitnessV35`, `VerifiedBundleExecutesAfterDeregistrationV35` and
+    `ReallowedPeerGateWitnessV35` are runs themselves; `ExecutedObligationStaysCommittedWitnessV35`
+    (the executed obligation appended and still `Committed` next to a refunded one),
+    `DeregisteredPeerWitnessV35` (a gate and a refund after the deregistration, both reading the
+    filter on a still-allowed peer), `CodeAuthorizeCallIsAuthorizeStepsWitnessV35` (one call marks
+    two keys). `LegSourceFilterAtV35`'s `SystemAtV35Witness` belongs to that topic. Model
+    boundary: `MODEL-V35-SYSTEM` in `ASSUMPTIONS.md`.
 
 The other topics' tree side is a fixed multi-chain, multi-batch history, and steps may cite
 evidence from anywhere in it. That admits more refunds and executions than an

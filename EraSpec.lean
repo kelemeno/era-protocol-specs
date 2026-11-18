@@ -427,6 +427,9 @@ import EraSpec.Contracts.L1ChainAssetHandler.Proofs.SettlementLayerValidation
 -- settlement-layer migration (draft/v0.35.0 at b17415d2; see the folder README)
 import EraSpec.Contracts.SecondProofSystem.Proofs.MigrationV35
 
+-- Atomic interop at draft/v0.35.0: the composed system (InteropAtomicity, SystemAtV35)
+import EraSpec.Protocol.InteropAtomicity.Proofs.SystemAtV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
