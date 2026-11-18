@@ -6,6 +6,8 @@ Only the send path is modelled: the salt mapping `isInteropBundleSaltUsed`, bund
 formation in `_sendBundle`, `_validateAtomicBundle`, and `_dispatchBundle` →
 `AtomicFlowManager.append`. Topic `AtomicRouting` adds the send entry points' handling of
 the `atomicBundle` attribute, the refund loop and the destination handlers' bundle status.
+`ClaimBinding` adds no state or step: it names what one
+`AtomicFlowManager.claimRefund` computes from the bytes it is given, on the same runs.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
@@ -16,6 +18,7 @@ for those exact named propositions, plus auxiliary lemmas.
 | Dispatch | [Specs/Dispatch.lean](Specs/Dispatch.lean) | [Properties/Dispatch.lean](Properties/Dispatch.lean) | [Proofs/Dispatch.lean](Proofs/Dispatch.lean) |
 | SendAtHead (main `3605e82` = `70096e2ea`; `draft/v0.35.0` `b17415d20`) | [Specs/SendAtHead.lean](Specs/SendAtHead.lean) | [Properties/SendAtHead.lean](Properties/SendAtHead.lean) | [Proofs/SendAtHead.lean](Proofs/SendAtHead.lean) |
 | AtomicRouting | [Specs/AtomicRouting.lean](Specs/AtomicRouting.lean) | [Properties/AtomicRouting.lean](Properties/AtomicRouting.lean) | [Proofs/AtomicRouting.lean](Proofs/AtomicRouting.lean) |
+| ClaimBinding | [Specs/ClaimBinding.lean](Specs/ClaimBinding.lean) | [Properties/ClaimBinding.lean](Properties/ClaimBinding.lean) | [Proofs/ClaimBinding.lean](Proofs/ClaimBinding.lean) |
 
 Namespace `Contracts.InteropCenter`. Statements are `Contracts.InteropCenter.Properties.*`;
 each certificate has the same name without the `Properties` segment.
@@ -69,6 +72,47 @@ three checks the results depend on are switches (`Checks`). Not modelled: fee ba
 and claims, asset-router/NTV preparation behind indirect calls, other chains, upgrades
 (`OPS-CONFIG`), events. The tree side of `append` is `../../Protocol/InteropAtomicity/`
 topic `OncePerLeg`.
+
+- **A claimed bundle is a dispatched bundle (`ClaimBinding`).** `claimRefund(f, x)` hashes
+  `abi.encode(bundle.sourceChainId, x)` with `bundle = abi.decode(x)`, the bytes as given.
+  Along any run of the deployed code whose decoder inverts the encoder on the run's own
+  bundles (`SOL-ABI`), if that leg is not `Unset`, then `x` is the canonical
+  `abi.encode(bundle)` of an atomic dispatch of flow `f` in the log and decodes to its
+  bundle, or keccak collides on the claim's preimage and the center's preimage for a logged
+  atomic dispatch of `f` (`ClaimedBundleIsDispatchedOrCollision`; it uses only
+  `onlyInteropCenter`, `ClaimBindingIndependentOfSaltAndValueChecks`). With keccak
+  injective on the claim's preimage and the run's bundle-hash preimages, there is no
+  disjunct (`ClaimedBundleIsDispatchedOn`). It implies O1's
+  `ClaimedBundleValidatedOrCollision` (`ClaimedBundleIsDispatchedImpliesValidated`).
+  - Up to the same collision: the decoded source chain is `block.chainid`
+    (`ClaimSourceChainIsThisChainOrCollision`); the calls `_recoverBundle` makes (target,
+    data, destination chain) are the dispatched bundle's, and the decoded calls are related
+    to the dispatch's own starters by `FormsCall` and carry no value
+    (`RecoveredCallsAreDispatchedCalls`).
+  - The dispatch is unique (`ClaimIdentifiesOneDispatch`, with or without the checks).
+    Two successful claims on one run recover two different bundles, unless a claim
+    collision or O1 (c)'s cross-sender salt clash (`EachBundleRecoveredAtMostOnce`); with
+    keccak injective on the instance's own preimages, always
+    (`EachBundleRecoveredAtMostOnceOn`).
+  - The canonical bytes always reach the committed leg (`CanonicalBytesReadTheirLeg`);
+    any other bytes, such as a re-encoding with a trailing byte, read an `Unset` leg, or
+    the collision holds (`NonCanonicalBytesNeverClaim`, `ReencodedBundleNeverClaims`).
+  - The headline needs its collision disjunct, the round trip and `onlyInteropCenter`
+    (`CollisionLetsAClaimRecoverUndispatchedCalls`,
+    `WithoutRoundTripClaimRecoversUndispatchedCalls`,
+    `WithoutOnlyInteropCenterClaimRecoversUndispatchedCalls`).
+    `EachBundleRecoveredAtMostOnce` needs each of its three break disjuncts
+    (`SaltClashLetsOneBundleBeRecoveredTwice`, `ClaimCollisionLetsOneBundleBeRecoveredTwice`),
+    the salt check, the round trip and `onlyInteropCenter`
+    (`WithoutSaltCheckOneBundleRecoveredTwice`, `WithoutRoundTripOneBundleRecoveredTwice`,
+    `WithoutOnlyInteropCenterOneBundleRecoveredTwice`). Both matches of
+    `ClaimIdentifiesOneDispatch` are needed (`ClaimIdentifiesOneDispatchNeedsBothMatches`).
+  - Witnesses: `ClaimBindingWitness`, `ClaimBindingWithoutValueCheckWitness`,
+    `ClaimBindingWithoutSaltCheckWitness`, `ClaimBindingNonCanonicalWitness`,
+    `ClaimBindingTwoClaimsWitness`.
+  - Pinned at `c67894b9`, like `Dispatch`. At the current heads `claimRefund` hashes
+    `keccak256(_bundle)`, `_recoverBundle` dispatches differently, and `_validateAtomicBundle`
+    is gone; `Specs/ClaimBinding.lean` lists the differences.
 
 Source findings, reported to the maintainer of this repo, not yet confirmed upstream:
 - `sendMessage` parses its attributes with `CallAndBundleAttributes` (:222-225), under

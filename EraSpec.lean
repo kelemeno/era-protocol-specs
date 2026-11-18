@@ -367,6 +367,9 @@ import EraSpec.Contracts.DataEncoding.Proofs.BurnDataSlice
 -- Governance: the owner/security-council timelock, with re-entrant execution (draft/v0.35.0, b17415d2)
 import EraSpec.Contracts.Governance.Proofs.Timelock
 
+-- What `claimRefund` recovers: a claimed bundle is a dispatched bundle (InteropCenter, on O1's model)
+import EraSpec.Contracts.InteropCenter.Proofs.ClaimBinding
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
