@@ -80,9 +80,11 @@ mask of the calling chain and requires the proof type `getProofMode` returns
 
 ### The migration (`Call`, `step`)
 
-The chain asset handler is the only caller of the diamond's and the CTM's migration entry points
-(`onlyChainAssetHandler`, `ZKChainBase.sol:113-118`, `ChainTypeManager.sol:724, 749`). Its
-`bridgeBurn` and `bridgeMint` carry `whenMigrationsEnabled`
+The diamond's and the CTM's migration entry points admit only the address their layer's
+Bridgehub returns as `chainAssetHandler()` (`onlyChainAssetHandler`: `ZKChainBase.sol:113-118`, on
+`Migrator.sol:158, 216, 315`; `ChainTypeManager.sol:216-226`, on `:724, 749`). The model takes
+that address to be the pinned chain asset handler, running the pinned code (see "Not
+modelled"). Its `bridgeBurn` and `bridgeMint` carry `whenMigrationsEnabled`
 (`core/chain-asset-handler/ChainAssetHandlerBase.sol:201, 365`):
 
     modifier whenMigrationsEnabled() {
@@ -94,7 +96,7 @@ The chain asset handler is the only caller of the diamond's and the CTM's migrat
 `Cfg.migrationsEnabled` is the value `_getChainMigrationsEnabled()` returns; `false` is the
 source (a release-level switch, `protocol-docs/chain-lifecycle.md:126-147`). Only the dev
 variants override it (`dev-contracts/L1ChainAssetHandlerDev.sol:37`,
-`L2ChainAssetHandlerDev.sol:11`).
+`L2ChainAssetHandlerDev.sol:11`). It is constant along a run.
 
 **Leaving** (`Call.bridgeBurnToGateway`, `Call.bridgeBurnToL1`):
 `ChainAssetHandlerBase.bridgeBurn` (`:188-254`) → `Migrator.forwardedBridgeBurn`
@@ -193,6 +195,16 @@ diamond that does not accept the chain's batches.
 
 ## Not modelled
 
+* Changes to the contracts around the chain (`OPS-CONFIG` in `ASSUMPTIONS.md`). Each
+  Bridgehub's `chainAssetHandler` and `messageRoot` pointers are fixed along a run: their setter
+  `setAddresses` (`core/bridgehub/L1Bridgehub.sol:268-280`,
+  `core/bridgehub/L2Bridgehub.sol:127-139`), open to the Bridgehub's owner and the L2 complex
+  upgrader address (`onlyOwnerOrUpgrader`, `core/bridgehub/BridgehubBase.sol:146-151`), is not
+  a step. Neither is a proxy upgrade of a chain asset handler, of `L1MessageRoot` or of a
+  Bridgehub. The migration entry points check only the caller's address, so code at another
+  `chainAssetHandler` address would not be bound by `whenMigrationsEnabled`: the results that
+  take `migrationsEnabled = false` cover runs of the modelled calls only, with these pointers
+  and contracts as at the pin.
 * Reject-only checks on the migration path that read no projected field: the settlement-layer
   whitelist and the Bridgehub's bookkeeping (`core/bridgehub/BridgehubBase.sol:403-453`), the
   runtime pauses (`ChainAssetHandlerBase.sol:200, 204, 468-473`), the same-CTM rule
@@ -435,23 +447,14 @@ structure Sys where
   interopEnabled : Bool
   deriving DecidableEq, Repr
 
-/-- The chain's diamond on a layer. -/
-def Sys.diamondAt (s : Sys) : Layer → Option Diamond
-  | .l1 => some s.l1
-  | .gw => s.gw
-
-/-- The owner of a layer's Bridgehub. -/
-def Sys.ownerAt (s : Sys) : Layer → Address
-  | .l1 => s.l1BridgehubOwner
-  | .gw => s.gwBridgehubOwner
-
 /-- What `DiamondInit.initialize` leaves in the projection of a new diamond
 (`DiamondInit.sol:52-150`). -/
 def freshDiamond (cfg : Cfg) (admin : Address) : Diamond :=
   { admin := admin, pendingAdmin := 0, settlementLayer := 0, verifier := cfg.gwVerifier,
     isPermanentRollup := false, secondProofSystemRequired := false, disabledProofSystems := 0 }
 
-/-- The calls. -/
+/-- The modelled calls. Every step of a `Run` is one of them; what is left out is listed under
+"Not modelled" above. -/
 inductive Call
   /-- A call on the chain's diamond on a layer. -/
   | diamond (L : Layer) (call : DCall)
@@ -557,8 +560,8 @@ def step (cfg : Cfg) (E : Env) (c : Address) : Call → Sys → Option Sys
   | .transferBridgehubOwnership .gw o, s =>
     if c ≠ s.gwBridgehubOwner then none else some { s with gwBridgehubOwner := o }
 
-/-- Runs: successful calls, each with its caller, each allowed by `ok` in the state it starts
-from. -/
+/-- Runs: successful modelled calls, each with its caller, each allowed by `ok` in the state it
+starts from. -/
 inductive Run (cfg : Cfg) (E : Env) (ok : Sys → Address → Call → Prop) :
     Sys → List (Address × Call) → Sys → Prop
   | nil (s : Sys) : Run cfg E ok s [] s
@@ -573,20 +576,22 @@ def Call.ziskOffLayer : Call → Option Layer
   | .diamond L (.setProofSystemStatus _ false) => some L
   | _ => none
 
-/-- No break-glass cut. Every other call, by anyone, is allowed. -/
+/-- No break-glass cut. Every other modelled call, by anyone, is allowed. -/
 def Tame (_s : Sys) (_c : Address) (call : Call) : Prop := call.isBreakGlass = false
 
 /-- No break-glass cut, and no proof system turned off on the L1 diamond by the owner of L1's
-Bridgehub. No other call is excluded, whoever makes it: a ZiSK-off on the gateway diamond by
-the owner of the gateway's Bridgehub is allowed. -/
-def AdminSide (s : Sys) (c : Address) (call : Call) : Prop :=
+Bridgehub. No other modelled call is excluded, whoever makes it: a ZiSK-off on the gateway
+diamond by the owner of the gateway's Bridgehub is allowed. (A different predicate from
+`FlagAuthorityV35.AdminSide`, which in that topic's one-diamond model excludes every
+`setProofSystemStatus` call by the Bridgehub owner, ZiSK-on included.) -/
+def NoL1OwnerZiskOff (s : Sys) (c : Address) (call : Call) : Prop :=
   call.isBreakGlass = false ∧
   (call.ziskOffLayer = some .l1 → c ≠ s.l1BridgehubOwner)
 
 instance (s : Sys) (c : Address) (call : Call) : Decidable (Tame s c call) := by
   unfold Tame; infer_instance
-instance (s : Sys) (c : Address) (call : Call) : Decidable (AdminSide s c call) := by
-  unfold AdminSide; infer_instance
+instance (s : Sys) (c : Address) (call : Call) : Decidable (NoL1OwnerZiskOff s c call) := by
+  unfold NoL1OwnerZiskOff; infer_instance
 
 /-- The chain settles on L1: its L1 diamond accepts its batches and its gateway diamond, if
 any, does not. -/

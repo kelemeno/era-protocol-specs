@@ -215,46 +215,51 @@ and `ReleasePolicyWitness`.
 One chain and its two diamonds: the one on L1 and the one on a gateway (absent until the chain
 first arrives there), each projected onto `verifier`, `admin`, `pendingAdmin`,
 `settlementLayer`, `isPermanentRollup`, `disabledProofSystems` and `secondProofSystemRequired`,
-with L1's `interopEnabled[chainId]` and the owners of both layers' Bridgehubs. The calls are the
-`Admin` facet's calls on either diamond, a genuine upgrade, break-glass cuts, the burns and
-mints of the settlement-layer migration (`ChainAssetHandlerBase`, `Migrator`,
+with L1's `interopEnabled[chainId]` and the owners of both layers' Bridgehubs. The modelled
+calls are the `Admin` facet's calls on either diamond, a genuine upgrade, break-glass cuts, the
+burns and mints of the settlement-layer migration (`ChainAssetHandlerBase`, `Migrator`,
 `ChainTypeManager`, and `DiamondInit` for a new gateway diamond), the failed-departure
 confirmation, `L1MessageRoot.enableInterop` and Bridgehub ownership changes. A verifier is only
 its `getProofMode` (`Env`). Model boundary `MODEL-SECOND-PROOF-MIGRATION` in
 [ASSUMPTIONS.md](../../../ASSUMPTIONS.md).
+
+Run predicates: `Tame`, no break-glass cut; `NoL1OwnerZiskOff`, no break-glass cut and no proof
+system turned off on the L1 diamond by the owner of L1's Bridgehub. Both allow every other
+modelled call, by anyone. `NoL1OwnerZiskOff` is not FlagAuthorityV35's `AdminSide`, which
+excludes every `setProofSystemStatus` call by the Bridgehub owner.
 
 ### What to check
 
 - At the pin `CHAIN_MIGRATIONS_ENABLED = false`, and every burn and mint of the chain asset
   handler reverts (`MigrationBanRefusesEveryMigration`). The failed-departure confirmation is
   not gated.
-- With migrations disabled, a chain settling on L1 with the requirement keeps settling on its
-  L1 diamond and keeps the requirement; if its L1 verifier reported multi-proof mode for the
-  empty mask, the L1 verifier of every state reached still does; and ZiSK-off on the L1 diamond
-  succeeds only for the owner of L1's Bridgehub (`RequirementPermanentWhileMigrationsDisabled`).
-  Break-glass cuts are excluded. An L1 diamond that starts with mask `0` or the ZiSK bit always
-  either has mask `0` and reports multi-proof mode, or has exactly the ZiSK bit set, the
-  emergency state (`MultiProofOrZiskOffWhileMigrationsDisabled`).
-- If, moreover, the owner of L1's Bridgehub turns no proof system off on the L1 diamond, the
-  L1 diamond's ZiSK bit stays clear (`ZiskStaysOnWithoutTheBridgehubOwner`), and an L1 diamond
-  that starts with mask `0` keeps mask `0` and keeps reporting multi-proof mode
-  (`MultiProofKeptWhileMigrationsDisabled`).
+- With migrations disabled, along `Tame` runs of modelled calls, a chain settling on L1 with
+  the requirement keeps settling on its L1 diamond and keeps the requirement; if its L1 verifier
+  reported multi-proof mode for the empty mask, the L1 verifier of every state reached still
+  does; and ZiSK-off on the L1 diamond succeeds only for the owner of L1's Bridgehub
+  (`RequirementPermanentWhileMigrationsDisabled`). An L1 diamond that starts with mask `0` or
+  the ZiSK bit always either has mask `0` and reports multi-proof mode, or has exactly the ZiSK
+  bit set, the emergency state (`MultiProofOrZiskOffWhileMigrationsDisabled`).
+- With migrations disabled, along `NoL1OwnerZiskOff` runs, such a chain's L1 diamond keeps its
+  ZiSK bit clear (`ZiskStaysOnWithoutTheBridgehubOwner`), and one that starts with mask `0` and
+  a verifier in multi-proof mode for the empty mask keeps mask `0` and keeps reporting
+  multi-proof mode (`MultiProofKeptWhileMigrationsDisabled`).
 - In the model, which omits its registration and backfill checks, `enableInterop(chainId, req)`
   succeeds exactly for the owner of L1's Bridgehub on a chain not yet enabled, with `req` only if
   the chain's L1 diamond has the flag and reports multi-proof mode, and changes only
   `interopEnabled` (`EnableInteropSucceedsIff`). `MultiProofVerifier` reports multi-proof mode
   exactly for the empty mask (`MultiProofModeIffNothingDisabled`).
-- Headline, `protocol-docs/interop-gating.md:26-27` in the source: a chain settling on L1 that
-  is enabled with the requirement while its L1 verifier runs `MultiProofVerifier.getProofMode`
-  stays enabled, on its L1 diamond, with the flag, mask `0` and multi-proof mode, along every
-  run without a break-glass cut in which the owner of L1's Bridgehub turns no proof system off
-  on the L1 diamond (`EnabledChainStaysMultiProof`). "Both proofs" is read as the proof mode the
-  diamond reports; what a verifier's `verify` accepts is outside the model.
+- Headline, `protocol-docs/interop-gating.md:26-27` in the source setting: a chain settling on L1
+  that is enabled with the requirement while its L1 verifier runs
+  `MultiProofVerifier.getProofMode` stays enabled, on its L1 diamond, with the flag, mask `0` and
+  multi-proof mode, along every `NoL1OwnerZiskOff` run of modelled calls
+  (`EnabledChainStaysMultiProof`). "Both proofs" is read as the proof mode the diamond reports;
+  what a verifier's `verify` accepts is outside the model.
 - Only a diamond that accepts the chain's batches can take the requirement
   (`AwayDiamondCannotRequire`).
 - `isPermanentRollup` is carried by the migration commitment and guarded by the mint
-  (`PermanentRollupCarried`), and is kept along every run without a break-glass cut,
-  migrations included, in every setting (`PermanentRollupKeptAcrossMigration`).
+  (`PermanentRollupCarried`), and is kept along every `Tame` run, migrations included, in every
+  setting (`PermanentRollupKeptAcrossMigration`).
 
 Witnesses: `RequirementPermanentWitness` (the owner's emergency ZiSK-off makes the L1 diamond
 report PLONK mode, the admin's ZiSK-on restores multi-proof mode; the admin's ZiSK-off, a
@@ -265,10 +270,33 @@ Bridgehub, made its admin, turns ZiSK off), `AwayDiamondCannotRequireWitness`,
 `PermanentRollupKeptWitness` (a permanent rollup's round trip to the gateway under the dev
 setting `migrationsEnabled = true`).
 
+### Relation to FlagAuthorityV35 and UpgradeGateV35
+
+The one-diamond facts the run results rest on are proved again in this topic's own model, for
+each of the chain's two diamonds (`dstep_frame` in `Proofs/MigrationV35.lean`). FlagAuthorityV35
+proves them for one diamond, over every `AdminFacet` entry point: the flag is one-way
+(`FlagMonotoneStep`, `FlagMonotone`), only `setProofSystemStatus` writes the mask
+(`MaskWrittenOnlyBySetStatus`), ZiSK-off on a flagged diamond is the Bridgehub owner's
+(`ZiskOffOnFlaggedIsOwners`, `AdminCannotDropSecondProof`), and the second-proof checks of
+`enableInterop(_, true)`, once they pass on a diamond with mask `0`, keep passing along its
+`AdminSide` runs (`InteropGatePersists`). That a flagged chain's verifier keeps answering
+multi-proof mode to `getProofMode(0)` across upgrades is also UpgradeGateV35's
+`FlaggedCutsKeepMultiProof` and `FlaggedChainsStayMultiProof`, over `ChainTypeManager`'s
+upgrade model. The three models are separate: no statement of one topic is derived from
+another's. What MigrationV35 adds is the chain's second diamond, the migration path,
+`L1MessageRoot.interopEnabled` and both layers' Bridgehub owners. Each namespace has its own
+`ziskBit` (a `UInt8` here and in FlagAuthorityV35, a `ℕ` in UpgradeGateV35).
+
 ### Model boundaries
 
+- Each Bridgehub's `chainAssetHandler` and `messageRoot` pointers, and the code of the chain
+  asset handlers, `L1MessageRoot` and the Bridgehubs, are fixed along runs: `setAddresses`
+  (`core/bridgehub/L1Bridgehub.sol:268-280`, open to the Bridgehub's owner) and proxy upgrades
+  of these contracts are not steps (`OPS-CONFIG`). The migration entry points admit whatever
+  address that pointer names, so the results with migrations disabled cover runs of the
+  modelled calls only. `Cfg.migrationsEnabled` is constant along a run.
 - Not modelled: reject-only checks that read no projected field (whitelists, pauses, the
   same-CTM rule, the migration counter, priority mode, deposit pauses, protocol versions,
   `enableInterop`'s registration and backfill checks), the rest of both diamonds' storage, more
   than one gateway, and what a verifier accepts. The run-level results quantify over every
-  verifier behaviour (`Env`) and every caller.
+  verifier behaviour (`Env`), every caller and every modelled call their run predicate allows.

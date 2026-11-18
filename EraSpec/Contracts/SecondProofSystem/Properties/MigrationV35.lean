@@ -14,11 +14,11 @@ upgrades keep the second proof system. "Both proofs" is read here as the proof m
 chain's diamond reports (`getProofMode()`, the value `enableInterop` checks): what a verifier's
 `verify` then accepts is outside the model.
 
-* **The source, where migrations are disabled** (`CHAIN_MIGRATIONS_ENABLED = false`). Every
-  burn and mint reverts (`MigrationBanRefusesEveryMigration`). A chain that settles on L1 with
-  the requirement keeps settling on its L1 diamond and keeps the requirement; if its L1
-  verifier reported multi-proof mode for the empty mask, every later L1 verifier does; and
-  ZiSK-off there stays with the owner of L1's Bridgehub
+* **The source setting, where migrations are disabled** (`CHAIN_MIGRATIONS_ENABLED = false`).
+  Every burn and mint reverts (`MigrationBanRefusesEveryMigration`). Along runs of modelled
+  calls, a chain that settles on L1 with the requirement keeps settling on its L1 diamond and
+  keeps the requirement; if its L1 verifier reported multi-proof mode for the empty mask, every
+  later L1 verifier does; and ZiSK-off there stays with the owner of L1's Bridgehub
   (`RequirementPermanentWhileMigrationsDisabled`). If the L1 diamond starts with mask `0` or
   the ZiSK bit, it always either has mask `0` and reports multi-proof mode, or has exactly the
   ZiSK bit set (`MultiProofOrZiskOffWhileMigrationsDisabled`). If the owner of L1's Bridgehub
@@ -31,24 +31,27 @@ chain's diamond reports (`getProofMode()`, the value `enableInterop` checks): wh
   Bridgehub, on a chain not yet enabled whose L1 diamond has the requirement and reports
   multi-proof mode, and it changes only `interopEnabled` (`EnableInteropSucceedsIff`).
   `MultiProofVerifier` reports multi-proof mode exactly for the empty mask
-  (`MultiProofModeIffNothingDisabled`). Together: in the source, a chain settling on L1 that is
-  enabled with the requirement while its L1 verifier runs `MultiProofVerifier.getProofMode`
-  stays enabled and keeps reporting multi-proof mode along every run without a break-glass cut
-  in which the owner of L1's Bridgehub turns no proof system off on the L1 diamond
-  (`EnabledChainStaysMultiProof`). Witnesses: `RequirementPermanentWitness` (with the owner's
-  emergency switch), `MultiProofKeptWitness`, and `ReturnedChainWitness` (a chain that also has
-  a gateway diamond, left before the pin, on which the owner of the gateway's Bridgehub, made
-  its admin, turns ZiSK off).
+  (`MultiProofModeIffNothingDisabled`). Together: in the source setting, a chain settling on L1
+  that is enabled with the requirement while its L1 verifier runs
+  `MultiProofVerifier.getProofMode` stays enabled and keeps reporting multi-proof mode along
+  every run of modelled calls without a break-glass cut in which the owner of L1's Bridgehub
+  turns no proof system off on the L1 diamond (`EnabledChainStaysMultiProof`). Witnesses:
+  `RequirementPermanentWitness` (with the owner's emergency switch), `MultiProofKeptWitness`,
+  and `ReturnedChainWitness` (a chain that also has a gateway diamond, left before the pin, on
+  which the owner of the gateway's Bridgehub, made its admin, turns ZiSK off).
 * **The migration path, migrations enabled or not.** The requirement can be set only on a
   diamond that accepts the chain's batches (`AwayDiamondCannotRequire`). `isPermanentRollup` is
   carried by the commitment and guarded by the mint (`PermanentRollupCarried`), and is kept
-  along every run without a break-glass cut, migrations included
+  along every run of modelled calls without a break-glass cut, migrations included
   (`PermanentRollupKeptAcrossMigration`; `PermanentRollupKeptWitness` migrates a permanent rollup
   to the gateway and back, under the dev setting `migrationsEnabled = true`).
 
 No statement here has a hash premise. The positive run-level results quantify over every `Env`,
-every caller and every call except break-glass cuts (and, where stated, a ZiSK-off on the L1
-diamond by the owner of L1's Bridgehub); the transport assumption
+every caller and every modelled call except break-glass cuts (and, where stated, a ZiSK-off on
+the L1 diamond by the owner of L1's Bridgehub). They say nothing about calls outside the model:
+among them `setAddresses`, by which a Bridgehub's owner repoints its `chainAssetHandler` and
+`messageRoot`, and proxy upgrades of a chain asset handler, `L1MessageRoot` or a Bridgehub
+(`OPS-CONFIG`; see "Not modelled" in the Specs). The transport assumption
 `MODEL-SECOND-PROOF-MIGRATION` concerns only `PermanentRollupKeptAcrossMigration`.
 -/
 
@@ -66,8 +69,8 @@ def Properties.MigrationBanRefusesEveryMigration : Prop :=
 
 /-- **THE REQUIREMENT IS PERMANENT WHILE MIGRATIONS ARE DISABLED**
 (`protocol-docs/interop-gating.md:35-42`). With `migrationsEnabled = false`, take a chain that
-settles on L1 and whose L1 diamond has the flag. Along every run with no break-glass cut, by any
-callers (the Bridgehub owners' ZiSK-off included):
+settles on L1 and whose L1 diamond has the flag. Along every run of modelled calls with no
+break-glass cut, by any callers (the Bridgehub owners' ZiSK-off included):
 
 * the chain still settles on L1, on its L1 diamond, and the flag is still set;
 * if the L1 verifier reported multi-proof mode for the empty mask (`getProofMode(0)`), the L1
@@ -88,11 +91,11 @@ def Properties.RequirementPermanentWhileMigrationsDisabled : Prop :=
 /-- **MULTI-PROOF MODE, OR ZiSK OFF AND NOTHING ELSE** (`protocol-docs/interop-gating.md:26-27`,
 "unless governance turns ZiSK off in an emergency"). With `migrationsEnabled = false`, take a
 chain that settles on L1 whose L1 diamond has the flag, a mask that is `0` or the ZiSK bit, and
-a verifier reporting multi-proof mode for the empty mask. Along every run with no break-glass
-cut, by any callers (the Bridgehub owners' ZiSK-off included), the L1 diamond of the state
-reached either has mask `0` and reports multi-proof mode, or has exactly the ZiSK bit set. By
-`RequirementPermanentWhileMigrationsDisabled`, only the owner of L1's Bridgehub can make a
-ZiSK-off call there succeed. -/
+a verifier reporting multi-proof mode for the empty mask. Along every run of modelled calls
+with no break-glass cut, by any callers (the Bridgehub owners' ZiSK-off included), the L1
+diamond of the state reached either has mask `0` and reports multi-proof mode, or has exactly
+the ZiSK bit set. By `RequirementPermanentWhileMigrationsDisabled`, only the owner of L1's
+Bridgehub can make a ZiSK-off call there succeed. -/
 def Properties.MultiProofOrZiskOffWhileMigrationsDisabled : Prop :=
   ∀ (cfg : Cfg) (E : Env) (s s' : Sys) (tr : List (Address × Call)),
     cfg.migrationsEnabled = false → Run cfg E Tame s tr s' →
@@ -105,25 +108,27 @@ def Properties.MultiProofOrZiskOffWhileMigrationsDisabled : Prop :=
 
 /-- **ZiSK STAYS ON WITHOUT THE BRIDGEHUB OWNER.** With `migrationsEnabled = false`, a chain
 settling on L1 whose L1 diamond has the flag set and the ZiSK bit clear keeps that ZiSK bit
-clear along every run with no break-glass cut in which the owner of L1's Bridgehub turns no
-proof system off on the L1 diamond (`AdminSide`). No other call is excluded, whoever makes it:
-a ZiSK-off on the gateway diamond by the owner of the gateway's Bridgehub may occur. -/
+clear along every run of modelled calls with no break-glass cut in which the owner of L1's
+Bridgehub turns no proof system off on the L1 diamond (`NoL1OwnerZiskOff`). No other modelled
+call is excluded, whoever makes it: a ZiSK-off on the gateway diamond by the owner of the
+gateway's Bridgehub may occur. -/
 def Properties.ZiskStaysOnWithoutTheBridgehubOwner : Prop :=
   ∀ (cfg : Cfg) (E : Env) (s s' : Sys) (tr : List (Address × Call)),
-    cfg.migrationsEnabled = false → Run cfg E AdminSide s tr s' →
+    cfg.migrationsEnabled = false → Run cfg E NoL1OwnerZiskOff s tr s' →
     SettlesOnL1 s → s.l1.secondProofSystemRequired = true → ¬ ziskOff s.l1 →
       ¬ ziskOff s'.l1
 
 /-- **THE L1 DIAMOND KEEPS REPORTING MULTI-PROOF MODE.** With `migrationsEnabled = false`, take
 a chain that settles on L1 whose L1 diamond has the flag, nothing disabled (mask `0`), and a
-verifier reporting multi-proof mode for the empty mask. Along every run with no break-glass cut
-and no proof system turned off on the L1 diamond by the owner of L1's Bridgehub (`AdminSide`):
-the chain still settles on L1, the flag is set, the mask is still `0`, the proof mode the L1
-diamond reports (`getProofMode(s.disabledProofSystems)`, `ZKChainBase.sol:187-190`) is
-multi-proof, and interop, if enabled, is still enabled. -/
+verifier reporting multi-proof mode for the empty mask. Along every run of modelled calls with
+no break-glass cut and no proof system turned off on the L1 diamond by the owner of L1's
+Bridgehub (`NoL1OwnerZiskOff`; every other modelled call, by anyone, is allowed): the chain
+still settles on L1, the flag is set, the mask is still `0`, the proof mode the L1 diamond
+reports (`getProofMode(s.disabledProofSystems)`, `ZKChainBase.sol:187-190`) is multi-proof, and
+interop, if enabled, is still enabled. -/
 def Properties.MultiProofKeptWhileMigrationsDisabled : Prop :=
   ∀ (cfg : Cfg) (E : Env) (s s' : Sys) (tr : List (Address × Call)),
-    cfg.migrationsEnabled = false → Run cfg E AdminSide s tr s' →
+    cfg.migrationsEnabled = false → Run cfg E NoL1OwnerZiskOff s tr s' →
     SettlesOnL1 s → s.l1.secondProofSystemRequired = true → s.l1.disabledProofSystems = 0 →
     E.proofMode s.l1.verifier 0 = some MULTI_PROOF_TYPE →
       SettlesOnL1 s' ∧ s'.l1.secondProofSystemRequired = true ∧
@@ -153,17 +158,18 @@ def Properties.EnableInteropSucceedsIff : Prop :=
       s' = { s with interopEnabled := true }
 
 /-- **AN ENABLED CHAIN STAYS IN MULTI-PROOF MODE** (`protocol-docs/interop-gating.md:26-27`, in
-the source). With `migrationsEnabled = false`: take a chain that settles on L1 whose L1
+the source setting). With `migrationsEnabled = false`: take a chain that settles on L1 whose L1
 verifier runs `MultiProofVerifier.getProofMode`, and let `enableInterop(chainId, true)` succeed
-on it. Along every run that follows with no break-glass cut and no proof system turned off on
-the L1 diamond by the owner of L1's Bridgehub (`AdminSide`; upgrades to any verifier passing the
-upgrade check included), interop stays enabled, the chain settles on its L1 diamond, which has
-the flag and mask `0`, and the proof mode it reports is multi-proof. -/
+on it. Along every run of modelled calls that follows with no break-glass cut and no proof
+system turned off on the L1 diamond by the owner of L1's Bridgehub (`NoL1OwnerZiskOff`; every
+other modelled call is allowed, upgrades to any verifier passing the upgrade check included),
+interop stays enabled, the chain settles on its L1 diamond, which has the flag and mask `0`,
+and the proof mode it reports is multi-proof. -/
 def Properties.EnabledChainStaysMultiProof : Prop :=
   ∀ (cfg : Cfg) (E : Env) (c : Address) (s s₁ s' : Sys) (tr : List (Address × Call)),
     cfg.migrationsEnabled = false → SettlesOnL1 s →
     (∀ m, E.proofMode s.l1.verifier m = multiProofGetProofMode m) →
-    step cfg E c (.enableInterop true) s = some s₁ → Run cfg E AdminSide s₁ tr s' →
+    step cfg E c (.enableInterop true) s = some s₁ → Run cfg E NoL1OwnerZiskOff s₁ tr s' →
       s'.interopEnabled = true ∧ SettlesOnL1 s' ∧ s'.l1.secondProofSystemRequired = true ∧
       s'.l1.disabledProofSystems = 0 ∧
       E.proofMode s'.l1.verifier s'.l1.disabledProofSystems = some MULTI_PROOF_TYPE
@@ -199,19 +205,19 @@ def Properties.RequirementPermanentWitness : Prop :=
 the source: the admin's `wRequire` reaches `w2`, which settles on L1 with the flag set, mask
 `0`, and the L1 verifier `10` running `MultiProofVerifier.getProofMode`. There the owner's
 `enableInterop(chainId, true)` succeeds with `w3`, while on `w0` (no flag) it is refused and the
-waived `enableInterop(chainId, false)` succeeds. From `w3` the `AdminSide` run `wKeep` (an
-upgrade to the multi-proof verifier `12`, the admin turning ZiSK on, an admin handover to `4`,
-and L1's Bridgehub changing owner to `6`) reaches `wKept`, which reports multi-proof mode. In
-`wKept` the new admin's ZiSK-off, an upgrade to the single-proof verifier `20` and the new
+waived `enableInterop(chainId, false)` succeeds. From `w3` the `NoL1OwnerZiskOff` run `wKeep`
+(an upgrade to the multi-proof verifier `12`, the admin turning ZiSK on, an admin handover to
+`4`, and L1's Bridgehub changing owner to `6`) reaches `wKept`, which reports multi-proof mode.
+In `wKept` the new admin's ZiSK-off, an upgrade to the single-proof verifier `20` and the new
 admin's migration burn are refused, and the new owner's ZiSK-off succeeds. -/
 def Properties.MultiProofKeptWitness : Prop :=
-  Run wSource wEnv AdminSide w0 wRequire w2 ∧
+  Run wSource wEnv NoL1OwnerZiskOff w0 wRequire w2 ∧
   SettlesOnL1 w2 ∧ w2.l1.secondProofSystemRequired = true ∧ w2.l1.disabledProofSystems = 0 ∧
   ¬ ziskOff w2.l1 ∧ (∀ m, wEnv.proofMode w2.l1.verifier m = multiProofGetProofMode m) ∧
   step wSource wEnv 2 (.enableInterop true) w2 = some w3 ∧
   step wSource wEnv 2 (.enableInterop true) w0 = none ∧
   (step wSource wEnv 2 (.enableInterop false) w0).isSome = true ∧
-  Run wSource wEnv AdminSide w3 wKeep wKept ∧
+  Run wSource wEnv NoL1OwnerZiskOff w3 wKeep wKept ∧
   wKept.l1.verifier = 12 ∧ wKept.l1.admin = 4 ∧ wKept.l1BridgehubOwner = 6 ∧
   wEnv.proofMode wKept.l1.verifier wKept.l1.disabledProofSystems = some MULTI_PROOF_TYPE ∧
   step wSource wEnv 4 (.diamond .l1 (.setProofSystemStatus .zisk false)) wKept = none ∧
@@ -219,11 +225,11 @@ def Properties.MultiProofKeptWitness : Prop :=
   step wSource wEnv 4 (.bridgeBurnToGateway 77 4 wPayload) wKept = none ∧
   (step wSource wEnv 6 (.diamond .l1 (.setProofSystemStatus .zisk false)) wKept).isSome = true
 
-/-- **THE SOURCE RESULTS COVER A CHAIN WITH A GATEWAY DIAMOND, AND `AdminSide` ADMITS A ZiSK-OFF
-THERE BY THE OWNER OF THE GATEWAY'S BRIDGEHUB.** `wReturned` is `w3` for a chain that went to
-the gateway and came back before the pin: it also has a gateway diamond, `wDormant`, which
-forwards to L1. It settles on L1 with the flag set, mask `0` and a verifier in multi-proof mode
-for the empty mask, and the gateway's Bridgehub is owned by `3`. The `AdminSide` run
+/-- **THE SOURCE RESULTS COVER A CHAIN WITH A GATEWAY DIAMOND, AND `NoL1OwnerZiskOff` ADMITS A
+ZiSK-OFF THERE BY THE OWNER OF THE GATEWAY'S BRIDGEHUB.** `wReturned` is `w3` for a chain that
+went to the gateway and came back before the pin: it also has a gateway diamond, `wDormant`,
+which forwards to L1. It settles on L1 with the flag set, mask `0` and a verifier in multi-proof
+mode for the empty mask, and the gateway's Bridgehub is owned by `3`. The `NoL1OwnerZiskOff` run
 `wDormantHandover` (the gateway diamond's admin hands over to `3`, who then turns ZiSK off on
 the gateway diamond) succeeds and reaches `wReturnedEnd`, which still settles on L1, whose
 gateway diamond has the ZiSK bit set, and whose L1 diamond reports multi-proof mode. -/
@@ -232,7 +238,7 @@ def Properties.ReturnedChainWitness : Prop :=
   wReturned.gwBridgehubOwner = 3 ∧
   wReturned.l1.secondProofSystemRequired = true ∧ wReturned.l1.disabledProofSystems = 0 ∧
   wEnv.proofMode wReturned.l1.verifier 0 = some MULTI_PROOF_TYPE ∧
-  Run wSource wEnv AdminSide wReturned wDormantHandover wReturnedEnd ∧
+  Run wSource wEnv NoL1OwnerZiskOff wReturned wDormantHandover wReturnedEnd ∧
   SettlesOnL1 wReturnedEnd ∧
   wReturnedEnd.gw = some { wDormant with admin := 3, disabledProofSystems := ziskBit } ∧
   wEnv.proofMode wReturnedEnd.l1.verifier wReturnedEnd.l1.disabledProofSystems =
@@ -268,10 +274,11 @@ def Properties.PermanentRollupCarried : Prop :=
     forwardedBridgeMint c d = none
 
 /-- **`isPermanentRollup` IS KEPT ACROSS MIGRATION.** In every system of the model, migrations
-enabled or not: along a run with no break-glass cut, `PermanentRollupKept` is preserved. So
-once every diamond accepting the chain's batches is a permanent rollup (and every migration in
-flight says so), every diamond that later accepts them is. The in-flight clause rests on the
-transport assumption `MODEL-SECOND-PROOF-MIGRATION`: a mint consumes data a burn produced. -/
+enabled or not: along a run of modelled calls with no break-glass cut, `PermanentRollupKept` is
+preserved. So once every diamond accepting the chain's batches is a permanent rollup (and every
+migration in flight says so), every diamond that later accepts them is. The in-flight clause
+rests on the transport assumption `MODEL-SECOND-PROOF-MIGRATION`: a mint consumes data a burn
+produced. -/
 def Properties.PermanentRollupKeptAcrossMigration : Prop :=
   ∀ (cfg : Cfg) (E : Env) (s s' : Sys) (tr : List (Address × Call)),
     Run cfg E Tame s tr s' → PermanentRollupKept s → PermanentRollupKept s'

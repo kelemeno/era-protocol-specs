@@ -9,9 +9,12 @@ The run-level results are inductions over `Run` with a one-step lemma each:
   `settlementLayer`, never clears either flag, changes the verifier only to one that reports
   multi-proof mode for the empty mask while the flag is set, and changes the mask only by an
   admitted `setProofSystemStatus(Zisk, _)`;
-* `src_step`: with migrations disabled, a chain settling on L1 still does after any call but a
-  break-glass cut, and its L1 diamond changes only as `dstep_frame` allows;
-* `kept_step`: every call but a break-glass cut preserves `PermanentRollupKept`.
+* `src_step`: with migrations disabled, a chain settling on L1 still does after any modelled
+  call but a break-glass cut, and its L1 diamond changes only as `dstep_frame` allows;
+* `kept_step`: every modelled call but a break-glass cut preserves `PermanentRollupKept`.
+
+`dstep_frame` re-derives, in this topic's model, one-diamond facts that `FlagAuthorityV35`
+states in its own model (the folder README lists them); nothing here imports that topic.
 
 The witnesses are evaluated: `exec` runs a list of calls, checking the run predicate before
 each, and `exec_run` turns a successful execution into a `Run`.
@@ -260,9 +263,9 @@ theorem MultiProofOrZiskOffWhileMigrationsDisabled :
       · rw [hv1]; exact hv
       · exact hv1 hf1
 
-/-- `AdminSide` allows no break-glass cut. -/
-private lemma adminSide_tame {s : Sys} {c : Address} {call : Call} (h : AdminSide s c call) :
-    call.isBreakGlass = false := h.1
+/-- `NoL1OwnerZiskOff` allows no break-glass cut. -/
+private lemma noL1OwnerZiskOff_tame {s : Sys} {c : Address} {call : Call}
+    (h : NoL1OwnerZiskOff s c call) : call.isBreakGlass = false := h.1
 
 theorem ZiskStaysOnWithoutTheBridgehubOwner :
     Properties.ZiskStaysOnWithoutTheBridgehubOwner := by
@@ -271,7 +274,7 @@ theorem ZiskStaysOnWithoutTheBridgehubOwner :
   | nil t => exact fun _ _ h => h
   | @cons t t₁ t₂ c call tr hok hstep _ ih =>
     intro hset hf hz
-    obtain ⟨hs1, hf1, -, hm1, -⟩ := src_step hcfg (adminSide_tame hok) hstep hset
+    obtain ⟨hs1, hf1, -, hm1, -⟩ := src_step hcfg (noL1OwnerZiskOff_tame hok) hstep hset
     refine ih hs1 (hf1 hf) ?_
     rcases hm1 with hm | ⟨en, rfl, hc, hm⟩
     · unfold ziskOff at hz ⊢; rwa [hm]
@@ -293,7 +296,7 @@ theorem MultiProofKeptWhileMigrationsDisabled :
   | nil t => exact fun h1 h2 h3 h4 => ⟨h1, h2, h3, by rw [h3]; exact h4, id⟩
   | @cons t t₁ t₂ c call tr hok hstep _ ih =>
     intro hset hf hm0 hv0
-    obtain ⟨hs1, hf1, hv1, hm1, hi1⟩ := src_step hcfg (adminSide_tame hok) hstep hset
+    obtain ⟨hs1, hf1, hv1, hm1, hi1⟩ := src_step hcfg (noL1OwnerZiskOff_tame hok) hstep hset
     have hf1 := hf1 hf
     have hm1' : t₁.l1.disabledProofSystems = 0 := by
       rcases hm1 with hm | ⟨en, rfl, hc, hm⟩
