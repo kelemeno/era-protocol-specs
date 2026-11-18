@@ -205,7 +205,7 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
--- Diamond proxy (d9f6789): dispatch, freezing, the init call, and runs over every entry point
+-- Diamond proxy (b17415d20): dispatch, freezing, cut enabledness, the init call, and runs over every entry point
 import EraSpec.Contracts.Diamond.Proofs.DiamondProxy
 
 /-!

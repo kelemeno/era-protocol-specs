@@ -1,17 +1,22 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.DiamondStorage
+import EraSpec.Contracts.ChainTypeManager.Specs.LiveRouting
 
 /-!
 # Model: the diamond proxy — dispatch, freezing, the init call, and runs
 
-Source: era-contracts `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`. Paths are
-relative to `l1-contracts/contracts/`:
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`. The model
+was first written against `d9f678900e1bc8286412b78f56d4a9f443983c29`; every file cited below is
+byte-identical at the two commits, so each `file:line` holds at both. Paths are relative to
+`l1-contracts/contracts/`:
 
 * `state-transition/libraries/Diamond.sol` (the library: storage, `diamondCut`, the init call);
 * `state-transition/chain-deps/DiamondProxy.sol` (constructor and `fallback`);
 * `state-transition/chain-deps/DiamondInit.sol` (the init the chain-creation path uses);
 * `state-transition/chain-deps/facets/Admin.sol:559-639` (the facet functions that write
   diamond storage: `upgradeChainFromVersion`, `executeUpgrade` and `genesisUpgrade` through
-  `_executeDiamondCut` (:117-118), and `freezeDiamond`/`unfreezeDiamond`);
+  `_executeDiamondCut` (:117-128, its `Diamond.diamondCut` at :118), and
+  `freezeDiamond`/`unfreezeDiamond`);
+* `state-transition/chain-deps/facets/ZKChainBase.sol:85-90` (`onlyChainTypeManager`);
 * `state-transition/chain-deps/facets/Getters.sol:207-217, 245-252` (the freezability getters).
 
 **This file is definitions only.** Statements are in
@@ -20,13 +25,13 @@ relative to `l1-contracts/contracts/`:
 
 ## What is reused
 
-The three source files are byte-identical at `d9f6789` and at `e561b9cc2`, the commit
-`Contracts.ChainTypeManager.Specs.DiamondStorage` transcribes (`git diff --stat e561b9cc2 d9f6789`
-on the three paths is empty). That file's `DiamondStorage`, `addFunctions`, `replaceFunctions`,
-`removeFunctions`, `facetCut`, `diamondCut` (the facet-cut loop, `Diamond.sol:109-133`) and the
-storage invariant `DiamondOk` are used here unchanged, and its modelling choices apply: storage
-arrays are lists, `uint16` positions are `ℕ`, the code-existence check is modelled only for
-address zero, and the `toUint16` casts are omitted. Each omission only removes reverts.
+The three diamond files (`Diamond.sol`, `DiamondProxy.sol`, `DiamondInit.sol`) are also
+byte-identical at `e561b9cc2`, the commit `Contracts.ChainTypeManager.Specs.DiamondStorage`
+transcribes. That file's `DiamondStorage`, `addFunctions`, `replaceFunctions`, `removeFunctions`,
+`facetCut`, `diamondCut` (the facet-cut loop, `Diamond.sol:109-133`) and the storage invariant
+`DiamondOk` are used here unchanged, and its modelling choices apply: storage arrays are lists,
+`uint16` positions are `ℕ`, the code-existence check is modelled only for address zero, and the
+`toUint16` casts are omitted. Each omission only removes reverts.
 
 ## What this file adds
 
@@ -49,22 +54,34 @@ address zero, and the `toUint16` casts are omitted. Each omission only removes r
   `x`, classified by its effect on diamond storage. `Admin.sol` is the only facet that writes
   `Diamond.DiamondStorage`. At the pin, the only files that call `getDiamondStorage()` are
   `Diamond.sol`, `DiamondProxy.sol`, `Admin.sol`, `Getters.sol`, `LiveRoutingReader.sol` and the
-  test contract `dev-contracts/test/DiamondProxyTest.sol`; `Getters` and `LiveRoutingReader`
-  only read. The writers are the cut entry points (`.executeCut`) and `freezeDiamond` /
-  `unfreezeDiamond`. Every other facet function is `.other` and leaves diamond storage alone.
-  Facet storage (`ZKChainStorage`) is not modelled; `Env.ctm` is the value of
-  `s.chainTypeManager` that `onlyChainTypeManager` reads (`ZKChainBase.sol:85-90`).
+  test contract `dev-contracts/test/DiamondProxyTest.sol`; `Getters` only reads, and
+  `LiveRoutingReader` is a library that upgrade code delegatecalled as an init uses (it reads,
+  and its removal cuts go through `Diamond.diamondCut`). The writers are the cut entry points
+  (`.executeCut`) and `freezeDiamond` / `unfreezeDiamond`. Every other facet function is
+  `.other` and leaves diamond storage alone. Facet code that writes diamond storage in any other
+  way (code a cut installs that is none of the pin's facets) is outside the model.
+* **`Env` is fixed for a run.** `Env.fn` is fixed because the code at an address does not change
+  during a run (a `VM-CALL`/`VM-DEPLOY` fact). Facet storage (`ZKChainStorage`) is not modelled;
+  `Env.ctm` is the value of `s.chainTypeManager` that `onlyChainTypeManager` reads
+  (`ZKChainBase.sol:85-90`). At the pin the only write of that field is `DiamondInit.sol:91`
+  (`s.chainTypeManager = msg.sender`, inside the constructor's init); init code that rewrites it
+  later is outside the model.
 * **The cut entry points' own guards are not modelled.** `executeUpgrade` and `genesisUpgrade`
-  are `onlyChainTypeManager`; `upgradeChainFromVersion` checks its caller and versions. A
+  are `onlyChainTypeManager`; `upgradeChainFromVersion` is
+  `onlyAdminOrChainTypeManagerOrValidator` (`Admin.sol:562`) and checks the versions and a
+  timestamp; `_executeDiamondCut` checks the verifier's proof mode afterwards (:121-126). A
   `.executeCut` step may run any cut for any caller. This only adds runs, so the safety results
   still hold; the freeze results name the caller.
 * **The init's delegatecall** (`Diamond.sol:318`) is an `InitRun`: the nested
   `Diamond.diamondCut` calls the init code makes (with `initAddress == 0`, as
   `DiamondInit.sol:84-86` and `BaseZkSyncUpgrade.sol:128` do), and whether it reverted or
   returned, with its return data. Init code that writes diamond storage other than through
-  `Diamond.diamondCut` (an arbitrary `sstore` into `isFrozen` or `selectorToFacet`) is outside
-  the model (`MODEL-DIAMOND-INIT`). A delegatecall to an address without code succeeds and
-  returns no data (`codelessInit`, a `VM-CALL` fact).
+  `Diamond.diamondCut` (an arbitrary `sstore` into `isFrozen` or `selectorToFacet`), or makes a
+  nested cut with an init of its own, is outside the model (`MODEL-DIAMOND-PROXY`). A
+  delegatecall to an address without code succeeds and returns no data (`codelessInit`, a
+  `VM-CALL` fact).
+* **One step is one complete call into the proxy.** A call into the proxy made while another is
+  running is not represented as nested; a run lists the calls that commit, with their callers.
 * **Revert is the absence of a step** (`Option.none`). A reverted init or nested cut reverts
   the whole call (`VM-REVERT`).
 -/
@@ -218,8 +235,9 @@ def construct (chainId blockChainId : ℕ) (cut : CutData) (r : InitRun) : Optio
 
 /-- What a facet function does to diamond storage. -/
 inductive FacetFn
-  /-- A cut entry point: `Admin.upgradeChainFromVersion` (`Admin.sol:559-587`),
-  `executeUpgrade` (:593-595), `genesisUpgrade` (:599-609); each runs `Diamond.diamondCut`. -/
+  /-- A cut entry point: `Admin.upgradeChainFromVersion` (`Admin.sol:559-590`),
+  `executeUpgrade` (:593-595), `genesisUpgrade` (:599-609); each runs `Diamond.diamondCut`
+  through `_executeDiamondCut` (:117-128). -/
   | executeCut
   /-- `Admin.freezeDiamond` (`Admin.sol:616-626`). -/
   | freeze
@@ -229,7 +247,7 @@ inductive FacetFn
   | other
 deriving DecidableEq
 
-/-- The environment of a run. -/
+/-- The environment of a run, fixed for the run. -/
 structure Env where
   /-- `s.chainTypeManager`, the address `onlyChainTypeManager` compares the caller with. -/
   ctm : Address
@@ -344,29 +362,57 @@ def initializeNoReturnCheck (s : ProxyState) (init : Address) (cd : Bytes) (r : 
 
 /-! ## Witness data
 
-A chain-like proxy: an Admin-like facet `21` routes `1` (a cut entry point), `2`
+A chain-like proxy. An Admin-like facet `21` routes `1` (a cut entry point), `2`
 (`freezeDiamond`) and `3` (`unfreezeDiamond`); an Executor-like facet `22` (freezable) routes
-`5`. The CTM is `99`. -/
+`5`; a Getters-like facet `24` (not freezable) routes `7`. The CTM is `99`; `77` stands for the
+chain admin, an address other than the CTM. The deploy scripts at the pin mark the Admin and
+Getters facets not freezable and the Executor freezable (`l1-contracts/deploy-scripts/ctm/
+DeployCTMUtils.s.sol:103-106`, `l1-contracts/deploy-scripts/gateway/
+GatewayCTMDeployerHelper.sol:358, 367, 391`); `proxyWitnessInit true` departs from that for the
+Admin-like facet. -/
 
 /-- The witness's facet functions. -/
-def wEnv : Env :=
+def proxyWitnessEnv : Env :=
   ⟨99, fun f x =>
     if f = 21 ∧ x = 1 then .executeCut
     else if f = 21 ∧ x = 2 then .freeze
     else if f = 21 ∧ x = 3 then .unfreeze
     else .other⟩
 
-/-- What the witness's init does, as `DiamondInit.initialize` does (`DiamondInit.sol:82-86,
-149`): it installs the two facets through `Diamond.diamondCut` and returns the magic value.
+/-- What the witness's init does, as `DiamondInit.initialize` does (`DiamondInit.sol:82-87,
+149`): it installs the three facets through `Diamond.diamondCut` and returns the magic value.
 `adminFreezable` is the Admin-like facet's freezability. -/
-def wInit (adminFreezable : Bool) : InitRun :=
-  ⟨[⟨21, .add, adminFreezable, [1, 2, 3]⟩, ⟨22, .add, true, [5]⟩], .returned magicBytes⟩
+def proxyWitnessInit (adminFreezable : Bool) : InitRun :=
+  ⟨[⟨21, .add, adminFreezable, [1, 2, 3]⟩, ⟨22, .add, true, [5]⟩, ⟨24, .add, false, [7]⟩],
+    .returned magicBytes⟩
 
 /-- The constructor's cut data, shaped as `ChainTypeManager._deployNewChain` passes it: no facet
 cuts, the init at `50` with some calldata. -/
-def wCtorCut : CutData := ⟨[], 50, [1, 2, 3, 4]⟩
+def proxyWitnessCtorCut : CutData := ⟨[], 50, [1, 2, 3, 4]⟩
 
 /-- A cut made while frozen: add a freezable facet `23` routing `6`, no init. -/
-def wFrozenCut : CutData := ⟨[⟨23, .add, true, [6]⟩], 0, []⟩
+def proxyWitnessFrozenCut : CutData := ⟨[⟨23, .add, true, [6]⟩], 0, []⟩
+
+/-- An upgrade-like cut with an init: remove selector `7`, then delegatecall the init at `60`
+(`proxyWitnessUpgradeInit`). -/
+def proxyWitnessUpgradeCut : CutData := ⟨[⟨0, .remove, false, [7]⟩], 60, [9, 9, 9, 9]⟩
+
+/-- What the upgrade-like init does: one nested cut adding facet `26` (not freezable) with
+selectors `7` and `9`, then it returns the magic value. -/
+def proxyWitnessUpgradeInit : InitRun := ⟨[⟨26, .add, false, [7, 9]⟩], .returned magicBytes⟩
+
+/-- The witness facets' self-descriptions (`ISelfDescribingFacet.selectors()`): `21` lists
+`1, 2, 3`, `22` lists `5`, `23` lists `6`, `24` lists `7`. -/
+def proxyWitnessSelectors : Address → List Selector := fun f =>
+  if f = 21 then [1, 2, 3] else if f = 22 then [5] else if f = 23 then [6]
+  else if f = 24 then [7] else []
+
+/-- Release facet rows (`genesisFacets()`, as `Contracts.ChainTypeManager.LiveRouting` models
+them) for the routing `proxyWitnessInit false` installs. -/
+def proxyWitnessGenesisRows : List FacetRow := [(21, false), (22, true), (24, false)]
+
+/-- Release facet rows for that routing plus the freezable facet `23` that
+`proxyWitnessFrozenCut` adds. -/
+def proxyWitnessCutRows : List FacetRow := [(21, false), (22, true), (24, false), (23, true)]
 
 end Contracts.Diamond
