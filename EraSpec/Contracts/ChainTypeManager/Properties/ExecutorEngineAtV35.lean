@@ -103,10 +103,11 @@ and every row's proxy is at its `implNew` in `x'`. The modelled calls go to the 
 forwards of `ExecutorForward`'s countermodels (`ForwardDowngradesAProxy`,
 `ForwardCtmSwapBreaksInvariants`) therefore run inside the fixed entry point once its rows are
 applied. Unlike a `forward`, the leg emits no `CallForwarded`. The equivalence is in the model:
-the reject-only checks it omits (`onlyOwner`, `_checkPostconditions`, and `_domainHolders`
-reverting for a ServerNotifier the `ProxyAdmin` no longer administers,
-`ProxyUpgradeExecutorBase.sol:112-114`; `MODEL-CTM-ENGINE-V35`) can make the real leg revert
-where the modelled one succeeds. -/
+the one omitted reject-only check that separates the two sides is `_domainHolders` reverting for a
+ServerNotifier the `ProxyAdmin` no longer administers (`ProxyUpgradeExecutorBase.sol:112-114`;
+`MODEL-CTM-ENGINE-V35`), which can make the real leg revert where the modelled `forward` succeeds.
+(`onlyOwner` guards `forward` too, and `_checkPostconditions` belongs to the default engine, not
+the `callingEngine` quantified here.) -/
 def Properties.EveryForwardIsAnEngineLeg : Prop :=
   ∀ (X : V35Config) (T : V35Transition) (s : V35State) (calls : List FCall) (x' : XState),
     X.code T.engine = callingEngine X.base calls → X.base.rc.hasCode T.addr → T.domain = .ctm →

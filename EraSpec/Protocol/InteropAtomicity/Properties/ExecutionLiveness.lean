@@ -154,7 +154,7 @@ the source managers its obligation is not refunded, or a call of the run's log t
 carries a located `RefundBreak`. The destination run and the source history are separate models,
 linked by the leg's bundle hash; the second half is
 `Contracts.Refund.Properties.OneExecutionFreezesTheFlowOrBreak` for `other`. Because the models
-are not linked, the statement does not require `other ≠ leg`: its destination half also holds
+share no state and are not composed into one run, the statement does not require `other ≠ leg`: its destination half also holds
 for the leg the history says executed, so it is a conjunction of two results, not one composed
 run. -/
 def Properties.FinalizedRevertingLegNeitherDeliveredNorRefunded : Prop :=
