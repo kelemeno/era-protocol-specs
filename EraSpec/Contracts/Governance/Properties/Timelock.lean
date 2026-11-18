@@ -3,12 +3,15 @@ import EraSpec.Contracts.Governance.Specs.Timelock
 /-!
 # Properties: what the `Governance` timelock guarantees, across re-entrant execution
 
-Statements about `EraSpec.Contracts.Governance.Specs.Timelock` (source `e561b9cc2`,
-identical at `c67894b9`). Proofs are in `EraSpec.Contracts.Governance.Proofs.Timelock`.
+Statements about `EraSpec.Contracts.Governance.Specs.Timelock` (source `Governance.sol` at
+`draft/v0.35.0` `b17415d2`, byte-identical at `c67894b9`, `e561b9cc2`, `d9f67890` and `main`
+`70096e2ea`; OpenZeppelin v4.9.6 `Ownable2Step`). Proofs are in
+`EraSpec.Contracts.Governance.Proofs.Timelock`.
 
-Every result quantifies over every target behaviour (`Callee` trees: re-entrant calls to any
-entry point, as any caller but Governance itself, at any depth, caught or not), every
+Every general result quantifies over every target behaviour (`Callee` trees: re-entrant calls
+to any entry point, as any caller but Governance itself, at any depth, caught or not), every
 self-call decoder `Env.dec`, every hash `Env.H`, and every budget. None takes a hash premise.
+The witnesses and countermodels are concrete runs.
 The run results are about the committed log of any sequence of transactions
 (`submitAll .deployed`); the frame results are about one committed frame anywhere in a
 transaction, nested or not.
@@ -18,31 +21,52 @@ transaction, nested or not.
 * `EntryGuards`: each entry point's transcribed guard and write, in either variant.
   `EntryGuardsWitness`: runs in which every entry point commits, so no guard is vacuous.
 
+## The state is the log
+
+* `StateIsLogReplay`: in either variant, the state a committed frame or a sequence of
+  transactions leaves is the replay of its committed log (`replay`: each entry's write,
+  `Effect.apply`, applied in order). So `getOperationState` of every id, the owner, the pending
+  owner, the council and `minDelay` are functions of the start state and the log
+  (`StateIsLogReplayWitness`).
+* `LoggedEntriesPassedTheirChecks`: every logged entry satisfies `Effect.CheckedAt` on the
+  state its predecessors in the log replay to. A schedule found its id `Unset`, recorded the
+  stored `minDelay` and had a delay at least that; a cancel found its id pending; an execution
+  of `op` has id `H op`, and after the operation's calls its predecessor was zero or `Done` and
+  its id pending (ready, for `execute`); a `minDelay` or council change recorded the stored old
+  value (`LoggedEntriesPassedTheirChecksWitness`: checks on entries made re-entrantly).
+* `NothingAfterExecution`: no entry after an execution of `x` schedules, cancels, delivers or
+  executes `x` (`NothingAfterExecutionWitness`).
+
 ## (a) Once only
 
 * `DoneIsPermanent`: a `Done` operation (`timestamps = 1`) stays `Done` across every frame and
-  every sequence of transactions. Nothing can schedule, cancel or execute it again
-  (`DoneIsPermanentWitness`: a later schedule of an executed operation commits nothing).
+  every sequence of transactions (`DoneIsPermanentWitness`: a later schedule of an executed
+  operation commits nothing).
 * `OnceOnly` (headline): in the committed log of any sequence of transactions, from any
   state, no operation id is executed twice and no call of an operation is delivered twice.
   `CommittedRunsWereOpen`: each logged delivery or execution of `x` was not `Done` at the
   start of the sequence, and `x` is `Done` at its end.
-* `ExecutionRunsEachCallOnce`: a committed `execute(op)`/`executeInstant(op)` logs, for its
-  id, exactly the deliveries of its calls `0, …, n-1`, in order, then its own execution, and
-  leaves the id `Done`. Whatever its targets did re-entrantly concerns other ids only.
+* `DoneIffExecuted`: along transactions whose block times are all at least `2`, an id ends
+  `Done` exactly when it was `Done` at the start or the log executes it, at most once
+  (`DoneIffExecutedWitness`; `SentinelCollision` shows the time premise is needed).
+* `ExecutionRunsEachCallOnce`: in the log of a committed `execute(op)`/`executeInstant(op)`,
+  the deliveries and executions of its id are exactly the deliveries of its calls
+  `0, …, n-1`, in order, then its own execution; the id ends `Done`. Re-entrant frames inside
+  it deliver and execute other ids only (they may cancel and schedule its id: see (f)).
 
 ## (e) The re-check
 
 * `ReentrantReexecutionReverts`: if the calls of an execution of `op` commit, inside them,
   an execution of `op`'s id (re-entrantly, by any caller, through any operation with that
-  id), the outer execution reverts at its re-check (:199-201, :224-226).
+  id), the outer execution reverts: at the latest, its re-check (:199-201, :224-226) finds the
+  id `Done`.
 * `ReentrantReexecutionWitness`: a concrete case. The inner execution commits inside the
   calls, the outer reverts, and the transaction commits nothing.
 * **Countermodel** `WithoutRecheckReexecutes`: without the re-checks, the same transaction
   commits the operation's call twice and its execution twice. `WithoutRecheckAnyOpRunsTwice`:
-  the same holds for every operation whose calls go to other contracts, from every state where
-  the owner may execute it; in the source, that transaction commits nothing
-  (`WithoutRecheckAnyOpRunsTwiceWitness`: its premises hold).
+  the same holds for every operation with at least one call, all to other contracts, from every
+  state where an owner other than Governance may execute it; in the source, that transaction
+  commits nothing (`WithoutRecheckAnyOpRunsTwiceWitness`: its premises hold).
 
 ## (b) The delay, and (h) the published payload
 
@@ -60,6 +84,13 @@ transaction, nested or not.
   and the executed calldata.
 * Witnesses: `OwnerPathWaitedWitness` (the bound is attained), `TransparentBindingWitness`,
   and `TransparentCollisionExecutesAnotherOp`, which shows the collision disjunct can fire.
+* `OutgoingCallsWaitedOrInstant` (headline): in the same setting, every call Governance commits
+  belongs to a later-logged execution of its id that was `executeInstant`, or whose last
+  schedule waited its delay as in `OwnerPathWaited` (`OutgoingCallsWaitedOrInstantWitness`:
+  both cases).
+* `ExecutionNotBeforeSchedule`: when block times never decrease, an execution on either path
+  comes no earlier than its last schedule (`ExecutionNotBeforeScheduleWitness`, which also shows
+  an instant execution timed before its schedule when the times are out of order).
 
 ## (c) Predecessors, and (d) the sentinel
 
@@ -78,9 +109,9 @@ transaction, nested or not.
 
 * `InFlightCancelNeedsReschedule`: in a committed execution of `op`, every cancel of `op`'s id
   is followed, later in that execution's log, by a schedule of the id. So a cancel made from
-  inside the operation's own calls never stands: either the execution reverts at its re-check
-  and takes the cancel with it, or the id was scheduled again and the execution overwrites
-  that schedule with `Done`.
+  inside the operation's own calls never stands: either the execution reverts and takes the
+  cancel with it, or the id was scheduled again and the execution overwrites that schedule
+  with `Done` (`ExecutionRunsEachCallOnce`).
 * **Countermodel** `InFlightCancelIneffective`: the owner's `cancel` succeeds in its own frame
   during the council's `executeInstant`. The transaction still reverts, so the operation is
   still pending afterwards and the council executes it later. When the owner also schedules it
@@ -97,10 +128,20 @@ transaction, nested or not.
 ## Authority
 
 * `ConfigChangesNeedExecution`: a transaction that changes `minDelay` or the security council
-  commits the execution of some operation: `onlySelf` is reachable only through `_execute`.
+  is a call of `execute(op)` or `executeInstant(op)`, and its committed log ends with that
+  execution: `onlySelf` is reachable only through `_execute`
+  (`ConfigChangesNeedExecutionWitness`).
 * `DeliveriesBelongToExecutions`: every call Governance commits (`delivered x i`) is followed,
-  later in the committed log, by the execution of `x`. So every committed outgoing call is
-  part of a committed execution.
+  later in the committed log, by an execution of `x`.
+
+## Enabledness
+
+* `ReadyIsExecutable`: an operation whose calls all go to other contracts, `Ready` at `τ` with
+  its predecessor zero or `Done`, is executed by a transaction of the owner or the council
+  (not Governance itself) at `τ` whose targets return without calling back.
+  `PendingIsInstantlyExecutable`: the same for a pending operation, `executeInstant` and the
+  council. Witnesses: `ReadyIsExecutableWitness`, `PendingIsInstantlyExecutableWitness`, with
+  a nonzero `Done` predecessor.
 -/
 
 namespace Contracts.Governance
@@ -166,6 +207,92 @@ def Properties.EntryGuardsWitness : Prop :=
       .scheduled 12 105 10 10 none, .executed 12 timelockPlainOp 105 true] ∧
   (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).1.minDelay = 100
 
+/-! ## The state is the log -/
+
+/-- **THE STATE IS THE REPLAY OF THE COMMITTED LOG.** In either variant: every frame that
+commits from `s` (an entry point, a call loop or a target, nested or not, at any time and
+budget) leaves exactly `replay s l`, the state that applying the writes of its log `l` to `s`
+in order gives (`Effect.apply`); and every sequence of transactions from `s` leaves the replay
+of its committed log. -/
+def Properties.StateIsLogReplay : Prop :=
+  (∀ (v : Variant) (E : Env) (τ n : ℕ) (f : Frame) (s s' : State) (l : List Effect),
+    exec v E τ n f s = some (s', l) → replay s l = s') ∧
+  ∀ (v : Variant) (E : Env) (s : State) (txs : List Tx),
+    replay s (submitAll v E s txs).2 = (submitAll v E s txs).1
+
+/-- **THE REPLAY RECOMPUTES RE-ENTRANT RUNS.** Replaying the committed log of `timelockRaiseRun`
+on fresh Governance gives `minDelay = 100`, set by a self-call inside an execution, as the run
+leaves it, and ids `11` and `12` `Done`; replaying that of `timelockOwnershipRun` gives owner `0`
+and council `3`, as the run leaves them. -/
+def Properties.StateIsLogReplayWitness : Prop :=
+  (replay timelockInit (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).2).minDelay =
+    100 ∧
+  (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).1.minDelay = 100 ∧
+  (replay timelockInit (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).2).ts 11 =
+    EXECUTED ∧
+  (replay timelockInit (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).2).ts 12 =
+    EXECUTED ∧
+  (replay timelockInit
+      (submitAll .deployed timelockEnv timelockInit timelockOwnershipRun).2).owner = 0 ∧
+  (submitAll .deployed timelockEnv timelockInit timelockOwnershipRun).1.owner = 0 ∧
+  (replay timelockInit
+      (submitAll .deployed timelockEnv timelockInit timelockOwnershipRun).2).council = 3 ∧
+  (submitAll .deployed timelockEnv timelockInit timelockOwnershipRun).1.council = 3
+
+/-- **EVERY LOGGED ENTRY PASSED ITS CHECK.** In the deployed order: in the log of every frame
+that commits from `s`, and in the committed log of every sequence of transactions from `s`,
+each entry `e` satisfies `e.CheckedAt E (replay s l₁)`, where `l₁` is the part of the log before
+it. On that state: a schedule of `x` with recorded minimum delay `m` and delay `d` found `x`
+`Unset` and `m = minDelay ≤ d`, did not overflow, and, if transparent, published an operation
+whose hash is `x`; a cancel of `x` found `x` pending; an execution of `x` with operation `op`
+at time `τ` has `x = H op`, `op`'s predecessor zero or `Done`, and `x` pending, and, for
+`execute`, `timestamps[x] ≤ τ`; a `ChangeMinDelay` or `ChangeSecurityCouncil` entry's old
+value was the stored one. For an execution that state is the one after the operation's
+calls. -/
+def Properties.LoggedEntriesPassedTheirChecks : Prop :=
+  (∀ (E : Env) (τ n : ℕ) (f : Frame) (s s' : State) (l : List Effect),
+    exec .deployed E τ n f s = some (s', l) →
+    ∀ (l₁ l₂ : List Effect) (e : Effect), l = l₁ ++ e :: l₂ → e.CheckedAt E (replay s l₁)) ∧
+  ∀ (E : Env) (s : State) (txs : List Tx) (l₁ l₂ : List Effect) (e : Effect),
+    (submitAll .deployed E s txs).2 = l₁ ++ e :: l₂ → e.CheckedAt E (replay s l₁)
+
+/-- **CHECKS ON RE-ENTRANT ENTRIES.** The committed log of `timelockCancelRescheduleRun` is a
+schedule of id `12`, the delivery of its call, the in-flight cancel, a new shadow schedule of
+`12` at `105` with delay `10`, and the instant execution. On the replay of the first three
+entries, `12` is `Unset` and `minDelay` is `10`, as the new schedule's check requires; on the
+replay of the first four, `timestamps[12] = 115`, so `12` is pending, as the execution's check
+requires. -/
+def Properties.LoggedEntriesPassedTheirChecksWitness : Prop :=
+  (submitAll .deployed timelockEnv timelockInit timelockCancelRescheduleRun).2 =
+    [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0, .cancelled 12] ++
+      .scheduled 12 105 10 10 none :: [.executed 12 timelockPlainOp 105 true] ∧
+  (replay timelockInit
+      [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0, .cancelled 12]).ts 12 =
+    0 ∧
+  (replay timelockInit
+      [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0, .cancelled 12]).minDelay =
+    10 ∧
+  (replay timelockInit
+      [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0, .cancelled 12,
+        .scheduled 12 105 10 10 none]).ts 12 = 115
+
+/-- **NOTHING CONCERNS AN ID AFTER ITS EXECUTION.** In the committed log of any sequence of
+transactions from any state, no entry after an execution of `x` schedules, cancels, delivers
+a call of, or executes `x` (`Effect.opId`). -/
+def Properties.NothingAfterExecution : Prop :=
+  ∀ (E : Env) (s : State) (txs : List Tx) (l₁ l₂ : List Effect) (x : OpId) (op : Operation)
+    (τ : ℕ) (b : Bool),
+    (submitAll .deployed E s txs).2 = l₁ ++ .executed x op τ b :: l₂ →
+    ∀ e ∈ l₂, e.opId ≠ some x
+
+/-- **AN EXECUTION FOLLOWED BY MORE ENTRIES.** From fresh Governance, `timelockPlainRun`
+executes id `12` at `110`; then, at `120`, the owner's `scheduleTransparent` of the same
+operation commits nothing, and the schedule of `timelockSuccOp` (id `13`) commits. -/
+def Properties.NothingAfterExecutionWitness : Prop :=
+  (submitAll .deployed timelockEnv timelockInit (timelockPlainRun ++ timelockAfterDoneRun)).2 =
+    [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
+      .executed 12 timelockPlainOp 110 false, .scheduled 13 120 10 10 (some timelockSuccOp)]
+
 /-! ## (a) Once only -/
 
 /-- **`Done` IS PERMANENT.** In either variant, every frame that commits from a state where
@@ -176,9 +303,9 @@ def Properties.DoneIsPermanent : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx) (x : OpId), s.ts x = EXECUTED →
     (submitAll .deployed E s txs).1.ts x = EXECUTED
 
-/-- **A DONE OPERATION CANNOT BE SCHEDULED AGAIN.** After `timelockPlainRun` id `12` is `Done`;
-the owner's later `scheduleTransparent` of the same operation commits nothing, and `12` stays
-`Done`. -/
+/-- **A LATER SCHEDULE OF A DONE OPERATION COMMITS NOTHING.** After `timelockPlainRun` id `12`
+is `Done`; the owner's later `scheduleTransparent` of the same operation commits nothing, and
+`12` stays `Done`. -/
 def Properties.DoneIsPermanentWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockPlainRun).1.ts 12 = EXECUTED ∧
   (submitAll .deployed timelockEnv timelockInit
@@ -204,10 +331,30 @@ def Properties.CommittedRunsWereOpen : Prop :=
     e ∈ (submitAll .deployed E s txs).2 → e.runId = some x →
     s.ts x ≠ EXECUTED ∧ (submitAll .deployed E s txs).1.ts x = EXECUTED
 
+/-- **`Done` EXACTLY WHEN EXECUTED.** From any state, along any sequence of transactions whose
+block times are all at least `2`: an operation id `x` ends `Done` if and only if it was `Done`
+at the start or the committed log has an execution of `x`; and the log has at most one
+execution of `x`. -/
+def Properties.DoneIffExecuted : Prop :=
+  ∀ (E : Env) (s : State) (txs : List Tx), (∀ t ∈ txs, 2 ≤ t.time) → ∀ x : OpId,
+    ((submitAll .deployed E s txs).1.ts x = EXECUTED ↔
+      s.ts x = EXECUTED ∨ ∃ op τ b, Effect.executed x op τ b ∈ (submitAll .deployed E s txs).2) ∧
+    ((submitAll .deployed E s txs).2.filterMap Effect.runKey).count (.executed x) ≤ 1
+
+/-- **`DoneIffExecuted`'S PREMISE HOLDS, AND AN ID BECOMES `Done` BY EXECUTION.** The block times
+of `timelockPlainRun` are at least `2`; id `12` is not `Done` in fresh Governance, ends `Done`,
+and the committed log executes it. -/
+def Properties.DoneIffExecutedWitness : Prop :=
+  (∀ t ∈ timelockPlainRun, 2 ≤ t.time) ∧ timelockInit.ts 12 ≠ EXECUTED ∧
+  (submitAll .deployed timelockEnv timelockInit timelockPlainRun).1.ts 12 = EXECUTED ∧
+  Effect.executed 12 timelockPlainOp 110 false ∈
+    (submitAll .deployed timelockEnv timelockInit timelockPlainRun).2
+
 /-- **AN EXECUTION RUNS EACH OF ITS CALLS ONCE.** If `execute(op)` or `executeInstant(op)`
-commits, from any state and with any targets, then the entries of its log for the id
-`H op` are exactly the deliveries of its calls `0, …, n-1`, in order, then its own
-execution; and the id ends `Done`. -/
+commits, from any state and with any targets, then the deliveries and executions its log
+records for the id `H op` (the entries whose `Effect.runId` is `H op`) are exactly the
+deliveries of its calls `0, …, n-1`, in order, then its own execution; and the id ends
+`Done`. -/
 def Properties.ExecutionRunsEachCallOnce : Prop :=
   ∀ (E : Env) (τ n : ℕ) (c : Address) (op : Operation) (instant : Bool) (cbs : List Callee)
     (s s' : State) (l : List Effect),
@@ -222,8 +369,8 @@ def Properties.ExecutionRunsEachCallOnce : Prop :=
 /-- **(e) A RE-ENTRANT RE-EXECUTION REVERTS THE OUTER ONE.** If the call loop of an execution
 of `op` commits, with any targets, and its log contains an execution of the id `H op` (of
 `op` itself or of any operation with that id, by any caller, at any depth), then
-`execute(op)` and `executeInstant(op)` with those targets revert, whoever calls them: the
-re-check finds the id `Done`. -/
+`execute(op)` and `executeInstant(op)` with those targets revert, whoever calls them: if the
+entry checks pass, the re-check after the calls finds the id `Done`. -/
 def Properties.ReentrantReexecutionReverts : Prop :=
   ∀ (E : Env) (τ n : ℕ) (c : Address) (op : Operation) (instant : Bool) (cbs : List Callee)
     (s s₂ : State) (l : List Effect),
@@ -318,6 +465,66 @@ def Properties.EarlyExecutionIsInstantWitness : Prop :=
     some ⟨100, 10, 10, some timelockPlainOp⟩ ∧
   105 < 100 + 10
 
+/-- **HEADLINE: EVERY OUTGOING CALL WAITED OR WAS INSTANT.** From any state with no operation
+pending (the constructor's state is one), along any sequence of transactions: every call
+Governance commits (`delivered x i`) is followed in the log by an execution of `x`, with some
+operation `op` at some time `τ`, where `x = H op`. That execution is `executeInstant` (which
+only the security council may call, `EntryGuards`), or the last schedule of `x` before it had a
+delay at least the `minDelay` in force when it was made, and was made at least that delay
+before `τ`. -/
+def Properties.OutgoingCallsWaitedOrInstant : Prop :=
+  ∀ (E : Env) (s : State) (txs : List Tx), NoPending s →
+    ∀ (l₁ l₂ : List Effect) (x : OpId) (i : ℕ),
+      (submitAll .deployed E s txs).2 = l₁ ++ .delivered x i :: l₂ →
+      ∃ (l₃ l₄ : List Effect) (op : Operation) (τ : ℕ) (b : Bool),
+        l₂ = l₃ ++ .executed x op τ b :: l₄ ∧ x = E.H op ∧
+        (b = true ∨ ∃ r, lastSchedule x (l₁ ++ .delivered x i :: l₃) = some r ∧
+          r.minDelay ≤ r.delay ∧ r.time + r.delay ≤ τ)
+
+/-- **BOTH CASES OCCUR.** From fresh Governance (nothing pending): in `timelockPlainRun` the
+delivered call of id `12` belongs to the owner's `execute` at `110`, ten seconds after its
+schedule with the minimum delay `10`; in `timelockCancelRun` it belongs to the council's
+`executeInstant` at `105`. -/
+def Properties.OutgoingCallsWaitedOrInstantWitness : Prop :=
+  NoPending timelockInit ∧
+  (submitAll .deployed timelockEnv timelockInit timelockPlainRun).2 =
+    [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
+      .executed 12 timelockPlainOp 110 false] ∧
+  (submitAll .deployed timelockEnv timelockInit timelockCancelRun).2 =
+    [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
+      .executed 12 timelockPlainOp 105 true]
+
+/-- **WITH NONDECREASING BLOCK TIMES, NO EXECUTION PRECEDES ITS SCHEDULE.** From any state with no
+operation pending, along any sequence of transactions whose block times never decrease
+(`TimesMonotone`): every committed execution of `x` at time `τ`, on either path, has a last
+schedule of `x` earlier in the log, made at a time at most `τ`, with a delay at least the
+`minDelay` in force when it was made; on the `execute` path it was made at least that delay
+before `τ`. -/
+def Properties.ExecutionNotBeforeSchedule : Prop :=
+  ∀ (E : Env) (s : State) (txs : List Tx), NoPending s → TimesMonotone txs →
+    ∀ (l₁ l₂ : List Effect) (x : OpId) (op : Operation) (τ : ℕ) (b : Bool),
+      (submitAll .deployed E s txs).2 = l₁ ++ .executed x op τ b :: l₂ →
+      ∃ r, lastSchedule x l₁ = some r ∧ r.minDelay ≤ r.delay ∧ r.time ≤ τ ∧
+        (b = false → r.time + r.delay ≤ τ)
+
+/-- **`ExecutionNotBeforeSchedule`'S PREMISES HOLD ON THE INSTANT PATH, AND ITS TIME PREMISE IS
+NEEDED.** The block times of `timelockCancelRun` never decrease, and its instant execution at
+`105` comes after the schedule at `100`, before the ready time `110`. With the times out of order
+(schedule at `100`, then the council's `executeInstant` at `50`), the execution commits at `50`,
+before its schedule's time. -/
+def Properties.ExecutionNotBeforeScheduleWitness : Prop :=
+  NoPending timelockInit ∧ TimesMonotone timelockCancelRun ∧
+  (submitAll .deployed timelockEnv timelockInit timelockCancelRun).2 =
+    [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
+      .executed 12 timelockPlainOp 105 true] ∧
+  ¬ TimesMonotone [timelockTx 1 100 (.scheduleTransparent timelockPlainOp 10),
+    timelockTx 2 50 (.executeInstant timelockPlainOp)] ∧
+  (submitAll .deployed timelockEnv timelockInit
+      [timelockTx 1 100 (.scheduleTransparent timelockPlainOp 10),
+        timelockTx 2 50 (.executeInstant timelockPlainOp)]).2 =
+    [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
+      .executed 12 timelockPlainOp 50 true]
+
 /-- **THE BOUND IS ATTAINED.** From fresh Governance, `timelockPlainRun` schedules id `12` at
 `100` with the minimum delay `10` and executes it by the owner at `110`. -/
 def Properties.OwnerPathWaitedWitness : Prop :=
@@ -400,7 +607,8 @@ leaves it `Unset` (as a schedule of id `14` at time `0` with delay `0` does, fro
 Governance with `minDelay = 0`). In `timelockSentinelRun`, from that state: at time
 `1` the owner shadow-schedules id `14` with delay `0`, then schedules and later executes
 `timelockSentinelSuccOp`, whose predecessor is `14`. The execution commits, though `14` was
-never executed and was not `Done` at the start; `14` stays `Done`, so it can never run. -/
+never executed and was not `Done` at the start; `14` ends `Done`, so by `DoneIsPermanent` and
+`EntryGuards` no later schedule or execution of `14` commits. -/
 def Properties.SentinelCollision : Prop :=
   (∀ (τ : ℕ) (s : State) (x : OpId) (d : ℕ) (o : Option Operation) (s' : State)
       (l : List Effect),
@@ -477,13 +685,29 @@ def Properties.DelayRaiseNotRetroactive : Prop :=
 
 /-! ## Authority -/
 
-/-- **ONLY AN EXECUTED OPERATION CHANGES THE DELAY OR THE COUNCIL.** If a transaction changes
-`minDelay` or the security council, its committed log contains an execution. -/
+/-- **ONLY AN EXECUTION CHANGES THE DELAY OR THE COUNCIL.** If a transaction changes
+`minDelay` or the security council, from any state, then it called `execute(op)` or
+`executeInstant(op)` (`GovEntry.execution op b`) for some operation `op`, and its committed
+log ends with the execution of `op`, at the transaction's block time, on that path. -/
 def Properties.ConfigChangesNeedExecution : Prop :=
   ∀ (E : Env) (s : State) (t : Tx),
     ((submit .deployed E s t).1.minDelay ≠ s.minDelay ∨
       (submit .deployed E s t).1.council ≠ s.council) →
-    ∃ x op τ b, Effect.executed x op τ b ∈ (submit .deployed E s t).2
+    ∃ op b, t.entry = GovEntry.execution op b ∧
+      (submit .deployed E s t).2.getLast? = some (.executed (E.H op) op t.time b)
+
+/-- **A TRANSACTION THAT CHANGES THE DELAY.** After the first two transactions of
+`timelockRaiseRun`, its third, the owner's `execute(timelockRaiseOp)` at `110`, changes
+`minDelay` from `10` to `100` through the operation's self-call. -/
+def Properties.ConfigChangesNeedExecutionWitness : Prop :=
+  (submitAll .deployed timelockEnv timelockInit (timelockRaiseRun.take 2)).1.minDelay = 10 ∧
+  (submit .deployed timelockEnv
+      (submitAll .deployed timelockEnv timelockInit (timelockRaiseRun.take 2)).1
+      (timelockTx 1 110 (.execute timelockRaiseOp))).1.minDelay = 100 ∧
+  (submit .deployed timelockEnv
+      (submitAll .deployed timelockEnv timelockInit (timelockRaiseRun.take 2)).1
+      (timelockTx 1 110 (.execute timelockRaiseOp))).2 =
+    [.delivered 11 0, .minDelayChanged 10 100, .executed 11 timelockRaiseOp 110 false]
 
 /-- **EVERY COMMITTED OUTGOING CALL BELONGS TO A COMMITTED EXECUTION.** In the committed log of
 any sequence of transactions, every delivery of a call of operation `x` is followed, later in
@@ -492,5 +716,79 @@ def Properties.DeliveriesBelongToExecutions : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx) (l₁ l₂ : List Effect) (x : OpId) (i : ℕ),
     (submitAll .deployed E s txs).2 = l₁ ++ .delivered x i :: l₂ →
     ∃ op τ b, Effect.executed x op τ b ∈ l₂
+
+/-! ## Enabledness -/
+
+/-- **A READY OPERATION CAN BE EXECUTED.** For every deployment, every state and every
+operation whose calls all go to other contracts: if the operation is `Ready` at time `τ` and
+its predecessor is zero or `Done`, then a transaction at `τ` by the owner or the council, when
+that caller is not Governance itself, calling `execute(op)` with budget at least the number of
+calls plus `2` and targets that all return without calling back (`callees = []`), commits. It
+leaves the operation `Done` and the rest of the state as it was, and logs the delivery of each
+call in order, then the execution. -/
+def Properties.ReadyIsExecutable : Prop :=
+  ∀ (E : Env) (s : State) (op : Operation) (c : Address) (τ n : ℕ),
+    (c = s.owner ∨ c = s.council) → c ≠ E.self → (∀ call ∈ op.calls, call.target ≠ E.self) →
+    op.calls.length + 2 ≤ n →
+    s.predecessorDone τ op.predecessor → s.opState τ (E.H op) = .Ready →
+    submit .deployed E s ⟨c, τ, n, .execute op, []⟩ =
+      (s.setTs (E.H op) EXECUTED,
+        (List.range op.calls.length).map (Effect.delivered (E.H op)) ++
+          [.executed (E.H op) op τ false])
+
+/-- **A PENDING OPERATION CAN BE EXECUTED INSTANTLY.** For every deployment, every state and
+every operation whose calls all go to other contracts: if the operation is pending (`Waiting` or
+`Ready`) at time `τ` and its predecessor is zero or `Done`, and the council is not Governance
+itself, then the council's transaction at `τ` calling `executeInstant(op)` with budget at least
+the number of calls plus `2` and targets that all return without calling back commits. It
+leaves the operation `Done` and the rest of the state as it was, and logs the delivery of each
+call in order, then the instant execution. -/
+def Properties.PendingIsInstantlyExecutable : Prop :=
+  ∀ (E : Env) (s : State) (op : Operation) (τ n : ℕ),
+    s.council ≠ E.self → (∀ call ∈ op.calls, call.target ≠ E.self) →
+    op.calls.length + 2 ≤ n →
+    s.predecessorDone τ op.predecessor → s.isPending τ (E.H op) →
+    submit .deployed E s ⟨s.council, τ, n, .executeInstant op, []⟩ =
+      (s.setTs (E.H op) EXECUTED,
+        (List.range op.calls.length).map (Effect.delivered (E.H op)) ++
+          [.executed (E.H op) op τ true])
+
+/-- **`ReadyIsExecutable`'S PREMISES HOLD, WITH A NONZERO PREDECESSOR.** In the state
+`timelockAfterDoneRun` leaves from `timelockPlainDone` (id `12` `Done`, `timelockSuccOp`
+scheduled at `120` with delay `10`): `timelockSuccOp` has one call, to the foreign target
+`50`; its predecessor `12` is nonzero and `Done`; at `130` it is `Ready`; the owner `1` is not
+Governance. The owner's `execute(timelockSuccOp)` at `130` with budget `3` logs the delivery and
+the execution of id `13`. -/
+def Properties.ReadyIsExecutableWitness : Prop :=
+  timelockSuccOp.calls.length = 1 ∧
+  (∀ call ∈ timelockSuccOp.calls, call.target ≠ timelockEnv.self) ∧
+  (1 : Address) = (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.owner ∧
+  (1 : Address) ≠ timelockEnv.self ∧ timelockSuccOp.predecessor ≠ 0 ∧
+  (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.predecessorDone 130
+    timelockSuccOp.predecessor ∧
+  (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.opState 130
+    (timelockEnv.H timelockSuccOp) = .Ready ∧
+  (submit .deployed timelockEnv
+      (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1
+      ⟨1, 130, 3, .execute timelockSuccOp, []⟩).2 =
+    [.delivered 13 0, .executed 13 timelockSuccOp 130 false]
+
+/-- **`PendingIsInstantlyExecutable`'S PREMISES HOLD, BEFORE THE READY TIME.** In the same state,
+at `125`: `timelockSuccOp` is `Waiting` (pending, not ready), its predecessor `12` is nonzero
+and `Done`, and the council `2` is not Governance. The council's `executeInstant` of it at `125`
+with budget `3` logs the delivery and the instant execution of id `13`. -/
+def Properties.PendingIsInstantlyExecutableWitness : Prop :=
+  (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.council = 2 ∧
+  (2 : Address) ≠ timelockEnv.self ∧ timelockSuccOp.predecessor ≠ 0 ∧
+  (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.predecessorDone 125
+    timelockSuccOp.predecessor ∧
+  (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.opState 125
+    (timelockEnv.H timelockSuccOp) = .Waiting ∧
+  (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.isPending 125
+    (timelockEnv.H timelockSuccOp) ∧
+  (submit .deployed timelockEnv
+      (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1
+      ⟨2, 125, 3, .executeInstant timelockSuccOp, []⟩).2 =
+    [.delivered 13 0, .executed 13 timelockSuccOp 125 true]
 
 end Contracts.Governance

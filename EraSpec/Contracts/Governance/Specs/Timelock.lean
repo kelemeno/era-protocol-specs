@@ -126,8 +126,9 @@ Only inside `_execute` (:263). There Governance calls each target in turn:
   `renounceOwnership` clear the nomination. The owner may be any address, Governance's own
   included: then only a self-call passes `onlyOwner`.
 * **Time** is `block.timestamp`, fixed for a transaction (`Tx.time`). Times along a sequence
-  of transactions are not assumed ordered (`TimesMonotone` is available where wanted);
-  none of the safety results needs it.
+  of transactions are not assumed ordered, which only adds runs. One result takes
+  `TimesMonotone` as a premise (`ExecutionNotBeforeSchedule`); the results that exclude the
+  executed sentinel (`timestamps = 1` written by a schedule) take block times of at least `2`.
 * **Numbers.** Times, delays and timestamps are `ℕ`. The checked addition at :253 is the guard
   `τ + delay < 2^256` ("overflow of τ+d means no step"). Block times and the `uint256`
   arguments `delay`/`_newDelay` are not bounded by `2^256`, which only adds runs.
@@ -671,8 +672,8 @@ def timelockCollideRun : List Tx :=
 /-- The state after `timelockPlainRun`: operation `12` is `Done`. -/
 def timelockPlainDone : State := (submitAll .deployed timelockEnv timelockInit timelockPlainRun).1
 
-/-- After `timelockPlainRun`, at `120`: the owner schedules `timelockPlainOp` again, then
-schedules `timelockSuccOp`. -/
+/-- Two transactions of the owner at `120`, meant to follow `timelockPlainRun`:
+`scheduleTransparent` of `timelockPlainOp` again, then of `timelockSuccOp`. -/
 def timelockAfterDoneRun : List Tx :=
   [timelockTx 1 120 (.scheduleTransparent timelockPlainOp 10),
     timelockTx 1 120 (.scheduleTransparent timelockSuccOp 10)]

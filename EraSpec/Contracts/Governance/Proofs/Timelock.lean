@@ -22,9 +22,13 @@ Three invariants of committed frames, proved together by induction on the budget
   change the configuration; every delivery is followed by its execution.
 
 The run results lift them along `submitAll`. `Done` is permanent in either order by a
-separate induction (`exec_doneMono`). The concrete witnesses and countermodels are evaluated
-by `decide`; the general countermodel `WithoutRecheckAnyOpRunsTwice` is the same computation
-done symbolically, from a loop lemma (`exec_loop_returns`).
+separate induction (`exec_doneMono`), and so is the replay law (`exec_replay`: a committed
+frame leaves `replay s l`). With it, `exec_checked` shows every logged entry passed its check
+on the state its predecessors replay to (`LogChecked`); along such a log an id that is `Done`
+is never scheduled, cancelled or executed again (`checked_done_untouched`). The concrete
+witnesses and countermodels are evaluated by `decide`; the general countermodel
+`WithoutRecheckAnyOpRunsTwice` and the enabledness results are the same computation done
+symbolically, from a loop lemma (`exec_loop_returns`).
 -/
 
 namespace Contracts.Governance
@@ -989,6 +993,574 @@ lemma exec_doneMono (v : Variant) (E : Env) (τ : ℕ) : ∀ (n : ℕ) (f : Fram
           exact ih _ _ _ _ h y hy
         · simp [hcaught] at h
 
+/-! ## The state is the replay of the log, in either order -/
+
+@[simp] lemma replay_nil (s : State) : replay s [] = s := rfl
+
+lemma replay_cons (s : State) (e : Effect) (l : List Effect) :
+    replay s (e :: l) = replay (e.apply s) l := rfl
+
+lemma replay_append (s : State) (l₁ l₂ : List Effect) :
+    replay s (l₁ ++ l₂) = replay (replay s l₁) l₂ := List.foldl_append
+
+lemma exec_replay (v : Variant) (E : Env) (τ : ℕ) : ∀ (n : ℕ) (f : Frame) (s s' : State)
+    (l : List Effect), exec v E τ n f s = some (s', l) → replay s l = s' := by
+  intro n
+  induction n with
+  | zero => intro f s s' l h; simp [exec] at h
+  | succ n ih =>
+    intro f s s' l h
+    match f with
+    | .entry c (.scheduleTransparent op d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      obtain ⟨_, _, _, rfl, rfl⟩ := schedule_eq_some.1 h
+      rfl
+    | .entry c (.scheduleShadow x d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      obtain ⟨_, _, _, rfl, rfl⟩ := schedule_eq_some.1 h
+      rfl
+    | .entry c (.cancel x) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      rfl
+    | .entry c (.execute op) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hG
+      split at h
+      · rename_i s₂ lc heq
+        split_ifs at h with hR
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        rw [replay_append, ih _ _ _ _ heq]; rfl
+      · simp at h
+    | .entry c (.executeInstant op) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hG
+      split at h
+      · rename_i s₂ lc heq
+        split_ifs at h with hR
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        rw [replay_append, ih _ _ _ _ heq]; rfl
+      · simp at h
+    | .entry c (.updateDelay d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .entry c (.updateSecurityCouncil a) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .entry c (.transferOwnership a) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .entry c .acceptOwnership cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .entry c .renounceOwnership cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .entry c .noop cbs =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .entry c .invalid cbs => simp [exec] at h
+    | .calls x i [] cbs =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .calls x i (c :: cs) cbs =>
+      simp only [exec] at h
+      split at h
+      · rename_i s₁ l₁ heq₁
+        split at h
+        · rename_i s₂ l₂ heq₂
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          rw [replay_cons, show Effect.apply s (.delivered x i) = s from rfl, replay_append,
+            ih _ _ _ _ heq₁, ih _ _ _ _ heq₂]
+        · simp at h
+      · simp at h
+    | .target .returns =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .target .reverts => simp [exec] at h
+    | .target (.selfCall _) =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h; rfl
+    | .target (.calls c e inner caught next) =>
+      simp only [exec] at h
+      by_cases hc : c = E.self
+      · simp [hc] at h
+      simp only [hc, ↓reduceIte] at h
+      split at h
+      · rename_i s₁ l₁ heq₁
+        split at h
+        · rename_i s₂ l₂ heq₂
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          rw [replay_append, ih _ _ _ _ heq₁, ih _ _ _ _ heq₂]
+        · simp at h
+      · by_cases hcaught : caught = true
+        · simp only [hcaught, ↓reduceIte] at h
+          exact ih _ _ _ _ h
+        · simp [hcaught] at h
+
+lemma submit_replay (v : Variant) (E : Env) (s : State) (t : Tx) :
+    replay s (submit v E s t).2 = (submit v E s t).1 := by
+  unfold submit
+  split_ifs with hc
+  · rfl
+  · cases hx : exec v E t.time t.fuel (.entry t.caller t.entry t.callees) s with
+    | none => rfl
+    | some r =>
+      obtain ⟨s', l⟩ := r
+      exact exec_replay v E t.time _ _ _ _ _ hx
+
+lemma submitAll_replay (v : Variant) (E : Env) : ∀ (s : State) (txs : List Tx),
+    replay s (submitAll v E s txs).2 = (submitAll v E s txs).1
+  | s, [] => rfl
+  | s, t :: ts => by
+      simp only [submitAll]
+      rw [replay_append, submit_replay, submitAll_replay]
+
+/-! ## Every logged entry passed its check -/
+
+/-- Every entry of `l` passed its check on the state that the entries before it replay to,
+from `s`. -/
+def LogChecked (E : Env) (s : State) (l : List Effect) : Prop :=
+  ∀ (l₁ l₂ : List Effect) (e : Effect), l = l₁ ++ e :: l₂ → e.CheckedAt E (replay s l₁)
+
+lemma LogChecked.nil (E : Env) (s : State) : LogChecked E s [] := fun _ _ _ h => by simp at h
+
+lemma LogChecked.singleton {E : Env} {s : State} {e : Effect} (h : e.CheckedAt E s) :
+    LogChecked E s [e] := fun l₁ l₂ e' h' => by
+  obtain ⟨rfl, rfl, rfl⟩ := singleton_eq_append_cons h'
+  exact h
+
+lemma LogChecked.append {E : Env} {s : State} {l₁ l₂ : List Effect} (h₁ : LogChecked E s l₁)
+    (h₂ : LogChecked E (replay s l₁) l₂) : LogChecked E s (l₁ ++ l₂) := fun a c e h => by
+  rcases append_eq_append_cons h with ⟨c', h1, _⟩ | ⟨a', h1, rfl⟩
+  · exact h₁ a c' e h1
+  · rw [replay_append]; exact h₂ a' c e h1
+
+lemma LogChecked.cons {E : Env} {s : State} {e : Effect} {l : List Effect}
+    (he : e.CheckedAt E s) (h : LogChecked E (e.apply s) l) : LogChecked E s (e :: l) :=
+  LogChecked.append (l₁ := [e]) (LogChecked.singleton he) h
+
+/-- The tail of a checked log is checked from the state its head leads to. -/
+lemma LogChecked.tail {E : Env} {s : State} {e : Effect} {l : List Effect}
+    (h : LogChecked E s (e :: l)) : e.CheckedAt E s ∧ LogChecked E (e.apply s) l :=
+  ⟨h [] l e rfl, fun a c e' h' => by
+    have := h (e :: a) c e' (by rw [h']; rfl)
+    rwa [replay_cons] at this⟩
+
+/-- An execution entry's check, from its loop: the predecessor was done before the calls and
+stays done; the re-check passed after them. -/
+lemma checkedAt_executed {E : Env} {τ m : ℕ} {cbs : List Callee} {s s₂ : State}
+    {lc : List Effect} {op : Operation} {b : Bool} (heq : exec .deployed E τ m (.calls (E.H op) 0 op.calls cbs) s = some (s₂, lc))
+    (hpred : op.predecessor = 0 ∨ s.ts op.predecessor = 1) (hp₂ : s₂.ts (E.H op) ≠ 0 ∧
+      s₂.ts (E.H op) ≠ 1) (hr₂ : b = false → s₂.ts (E.H op) ≤ τ) :
+    (Effect.executed (E.H op) op τ b).CheckedAt E (replay s lc) := by
+  rw [exec_replay .deployed E τ _ _ _ _ _ heq]
+  refine ⟨rfl, ?_, hp₂.1, hp₂.2, hr₂⟩
+  rcases hpred with h | h
+  · exact Or.inl h
+  · exact Or.inr (exec_doneMono .deployed E τ _ _ _ _ _ heq _ h)
+
+lemma exec_checked (E : Env) (τ : ℕ) : ∀ (n : ℕ) (f : Frame) (s s' : State) (l : List Effect),
+    exec .deployed E τ n f s = some (s', l) → LogChecked E s l := by
+  intro n
+  induction n with
+  | zero => intro f s s' l h; simp [exec] at h
+  | succ n ih =>
+    intro f s s' l h
+    match f with
+    | .entry c (.scheduleTransparent op d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      obtain ⟨h0, hm, hov, rfl, rfl⟩ := schedule_eq_some.1 h
+      exact LogChecked.singleton ⟨h0, rfl, hm, hov, fun op₀ ho => by cases ho; rfl⟩
+    | .entry c (.scheduleShadow x d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      obtain ⟨h0, hm, hov, rfl, rfl⟩ := schedule_eq_some.1 h
+      exact LogChecked.singleton ⟨h0, rfl, hm, hov, fun op₀ ho => by cases ho⟩
+    | .entry c (.cancel x) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.singleton (isPending_iff.1 hc.2)
+    | .entry c (.execute op) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hG
+      split at h
+      · rename_i s₂ lc heq
+        split_ifs at h with hR
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        obtain ⟨q0, q1, q2⟩ := opState_Ready.1 (hR.resolve_left (by simp))
+        exact (ih _ _ _ _ heq).append (LogChecked.singleton
+          (checkedAt_executed heq (predecessorDone_iff.1 hG.2.1) ⟨q0, q1⟩ (fun _ => q2)))
+      · simp at h
+    | .entry c (.executeInstant op) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hG
+      split at h
+      · rename_i s₂ lc heq
+        split_ifs at h with hR
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        exact (ih _ _ _ _ heq).append (LogChecked.singleton
+          (checkedAt_executed heq (predecessorDone_iff.1 hG.2.1)
+            (isPending_iff.1 (hR.resolve_left (by simp))) (fun h => by cases h)))
+      · simp at h
+    | .entry c (.updateDelay d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.singleton (show s.minDelay = s.minDelay from rfl)
+    | .entry c (.updateSecurityCouncil a) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.singleton (show s.council = s.council from rfl)
+    | .entry c (.transferOwnership a) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.singleton trivial
+    | .entry c .acceptOwnership cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.singleton trivial
+    | .entry c .renounceOwnership cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.singleton trivial
+    | .entry c .noop cbs =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.nil E s
+    | .entry c .invalid cbs => simp [exec] at h
+    | .calls x i [] cbs =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.nil E s
+    | .calls x i (c :: cs) cbs =>
+      simp only [exec] at h
+      split at h
+      · rename_i s₁ l₁ heq₁
+        split at h
+        · rename_i s₂ l₂ heq₂
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          refine LogChecked.cons trivial ((ih _ _ _ _ heq₁).append ?_)
+          rw [exec_replay .deployed E τ _ _ _ _ _ heq₁]
+          exact ih _ _ _ _ heq₂
+        · simp at h
+      · simp at h
+    | .target .returns =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.nil E s
+    | .target .reverts => simp [exec] at h
+    | .target (.selfCall _) =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact LogChecked.nil E s
+    | .target (.calls c e inner caught next) =>
+      simp only [exec] at h
+      by_cases hc : c = E.self
+      · simp [hc] at h
+      simp only [hc, ↓reduceIte] at h
+      split at h
+      · rename_i s₁ l₁ heq₁
+        split at h
+        · rename_i s₂ l₂ heq₂
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          refine (ih _ _ _ _ heq₁).append ?_
+          rw [exec_replay .deployed E τ _ _ _ _ _ heq₁]
+          exact ih _ _ _ _ heq₂
+        · simp at h
+      · by_cases hcaught : caught = true
+        · simp only [hcaught, ↓reduceIte] at h
+          exact ih _ _ _ _ h
+        · simp [hcaught] at h
+
+lemma submit_checked (E : Env) (s : State) (t : Tx) : LogChecked E s (submit .deployed E s t).2 := by
+  unfold submit
+  split_ifs with hc
+  · exact LogChecked.nil E s
+  · cases hx : exec .deployed E t.time t.fuel (.entry t.caller t.entry t.callees) s with
+    | none => exact LogChecked.nil E s
+    | some r =>
+      obtain ⟨s', l⟩ := r
+      exact exec_checked E t.time _ _ _ _ _ hx
+
+lemma submitAll_checked (E : Env) : ∀ (s : State) (txs : List Tx),
+    LogChecked E s (submitAll .deployed E s txs).2
+  | s, [] => LogChecked.nil E s
+  | s, t :: ts => by
+      simp only [submitAll]
+      refine (submit_checked E s t).append ?_
+      rw [submit_replay]
+      exact submitAll_checked E _ ts
+
+/-- Along a checked log from a state where `x` is `Done`, every entry concerning `x` is a
+delivery: the checks refuse a schedule, a cancel and an execution of a `Done` id, and nothing
+else writes `timestamps[x]`. -/
+lemma checked_done_untouched {E : Env} {x : OpId} : ∀ (st : State) (l : List Effect),
+    st.ts x = 1 → LogChecked E st l → ∀ e ∈ l, e.opId = some x → ∃ i, e = .delivered x i
+  | _, [], _, _, e, he, _ => by simp at he
+  | st, e :: l, hx, hl, e', he', hid => by
+      obtain ⟨he, hl'⟩ := hl.tail
+      have hstep : (e.apply st).ts x = 1 ∧ (e.opId = some x → ∃ i, e = .delivered x i) := by
+        cases e with
+        | scheduled y t d m o =>
+          have hy : y ≠ x := by rintro rfl; have := he.1; omega
+          exact ⟨by simp [Effect.apply, hy.symm, hx], fun h => by simp [Effect.opId] at h; exact absurd h hy⟩
+        | cancelled y =>
+          have hy : y ≠ x := by rintro rfl; exact he.2 hx
+          exact ⟨by simp [Effect.apply, hy.symm, hx], fun h => by simp [Effect.opId] at h; exact absurd h hy⟩
+        | delivered y i =>
+          refine ⟨hx, fun h => ?_⟩
+          simp only [Effect.opId, Option.some.injEq] at h
+          exact ⟨i, by rw [h]⟩
+        | executed y op τ b =>
+          have hy : y ≠ x := by rintro rfl; exact he.2.2.2.1 hx
+          exact ⟨by simp [Effect.apply, hy.symm, hx], fun h => by simp [Effect.opId] at h; exact absurd h hy⟩
+        | minDelayChanged _ _ => exact ⟨hx, fun h => by simp [Effect.opId] at h⟩
+        | councilChanged _ _ => exact ⟨hx, fun h => by simp [Effect.opId] at h⟩
+        | ownershipTransferStarted _ => exact ⟨hx, fun h => by simp [Effect.opId] at h⟩
+        | ownershipTransferred _ => exact ⟨hx, fun h => by simp [Effect.opId] at h⟩
+      rcases List.mem_cons.1 he' with rfl | he'
+      · exact hstep.2 hid
+      · exact checked_done_untouched _ l hstep.1 hl' e' he' hid
+
+/-! ## Block times in the log -/
+
+/-- The block time a schedule or an execution entry records. -/
+def Effect.timeOf : Effect → Option ℕ
+  | .scheduled _ t _ _ _ => some t
+  | .executed _ _ t _ => some t
+  | _ => none
+
+/-- Every timed entry a committed frame at block time `τ` logs records `τ`. -/
+lemma exec_timed (v : Variant) (E : Env) (τ : ℕ) : ∀ (n : ℕ) (f : Frame) (s s' : State)
+    (l : List Effect), exec v E τ n f s = some (s', l) →
+    ∀ e ∈ l, ∀ t, e.timeOf = some t → t = τ := by
+  intro n
+  induction n with
+  | zero => intro f s s' l h; simp [exec] at h
+  | succ n ih =>
+    intro f s s' l h
+    match f with
+    | .entry c (.scheduleTransparent op d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      obtain ⟨_, _, _, rfl, rfl⟩ := schedule_eq_some.1 h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he
+      simp only [Effect.timeOf, Option.some.injEq] at ht; exact ht.symm
+    | .entry c (.scheduleShadow x d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      obtain ⟨_, _, _, rfl, rfl⟩ := schedule_eq_some.1 h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he
+      simp only [Effect.timeOf, Option.some.injEq] at ht; exact ht.symm
+    | .entry c (.cancel x) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he; simp [Effect.timeOf] at ht
+    | .entry c (.execute op) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hG
+      split at h
+      · rename_i s₂ lc heq
+        split_ifs at h with hR
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        intro e he t ht
+        rcases List.mem_append.1 he with he | he
+        · exact ih _ _ _ _ heq e he t ht
+        · rw [List.mem_singleton] at he; subst he
+          simp only [Effect.timeOf, Option.some.injEq] at ht; exact ht.symm
+      · simp at h
+    | .entry c (.executeInstant op) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hG
+      split at h
+      · rename_i s₂ lc heq
+        split_ifs at h with hR
+        simp only [Option.some.injEq, Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        intro e he t ht
+        rcases List.mem_append.1 he with he | he
+        · exact ih _ _ _ _ heq e he t ht
+        · rw [List.mem_singleton] at he; subst he
+          simp only [Effect.timeOf, Option.some.injEq] at ht; exact ht.symm
+      · simp at h
+    | .entry c (.updateDelay d) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he; simp [Effect.timeOf] at ht
+    | .entry c (.updateSecurityCouncil a) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he; simp [Effect.timeOf] at ht
+    | .entry c (.transferOwnership a) cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he; simp [Effect.timeOf] at ht
+    | .entry c .acceptOwnership cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he; simp [Effect.timeOf] at ht
+    | .entry c .renounceOwnership cbs =>
+      simp only [exec] at h
+      split_ifs at h with hc
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he t ht
+      rw [List.mem_singleton] at he; subst he; simp [Effect.timeOf] at ht
+    | .entry c .noop cbs =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he; simp at he
+    | .entry c .invalid cbs => simp [exec] at h
+    | .calls x i [] cbs =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he; simp at he
+    | .calls x i (c :: cs) cbs =>
+      simp only [exec] at h
+      split at h
+      · rename_i s₁ l₁ heq₁
+        split at h
+        · rename_i s₂ l₂ heq₂
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          intro e he t ht
+          rcases List.mem_cons.1 he with rfl | he
+          · simp [Effect.timeOf] at ht
+          rcases List.mem_append.1 he with he | he
+          · exact ih _ _ _ _ heq₁ e he t ht
+          · exact ih _ _ _ _ heq₂ e he t ht
+        · simp at h
+      · simp at h
+    | .target .returns =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he; simp at he
+    | .target .reverts => simp [exec] at h
+    | .target (.selfCall _) =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      intro e he; simp at he
+    | .target (.calls c e inner caught next) =>
+      simp only [exec] at h
+      by_cases hc : c = E.self
+      · simp [hc] at h
+      simp only [hc, ↓reduceIte] at h
+      split at h
+      · rename_i s₁ l₁ heq₁
+        split at h
+        · rename_i s₂ l₂ heq₂
+          simp only [Option.some.injEq, Prod.mk.injEq] at h
+          obtain ⟨rfl, rfl⟩ := h
+          intro e' he t ht
+          rcases List.mem_append.1 he with he | he
+          · exact ih _ _ _ _ heq₁ e' he t ht
+          · exact ih _ _ _ _ heq₂ e' he t ht
+        · simp at h
+      · by_cases hcaught : caught = true
+        · simp only [hcaught, ↓reduceIte] at h
+          exact ih _ _ _ _ h
+        · simp [hcaught] at h
+
+lemma submit_timed (E : Env) (s : State) (t : Tx) :
+    ∀ e ∈ (submit .deployed E s t).2, ∀ x, e.timeOf = some x → x = t.time := by
+  unfold submit
+  split_ifs with hc
+  · intro e he; simp at he
+  · cases hx : exec .deployed E t.time t.fuel (.entry t.caller t.entry t.callees) s with
+    | none => intro e he; simp [commit] at he
+    | some r =>
+      obtain ⟨s', l⟩ := r
+      exact exec_timed .deployed E t.time _ _ _ _ _ hx
+
+/-- In the committed log of a sequence of transactions, every timed entry records the block
+time of one of its transactions; when those times never decrease, so do the logged ones. -/
+lemma submitAll_timed (E : Env) : ∀ (s : State) (txs : List Tx),
+    (∀ e ∈ (submitAll .deployed E s txs).2, ∀ x, e.timeOf = some x → ∃ tx ∈ txs, tx.time = x) ∧
+    (TimesMonotone txs → ∀ (l₁ l₂ : List Effect) (e : Effect),
+      (submitAll .deployed E s txs).2 = l₁ ++ e :: l₂ →
+      ∀ e' ∈ l₁, ∀ x x', e'.timeOf = some x' → e.timeOf = some x → x' ≤ x)
+  | s, [] => ⟨fun e he => by simp [submitAll] at he, fun _ l₁ l₂ e h => by simp [submitAll] at h⟩
+  | s, t :: ts => by
+      obtain ⟨ih₁, ih₂⟩ := submitAll_timed E (submit .deployed E s t).1 ts
+      have h₀ := submit_timed E s t
+      refine ⟨fun e he x hx => ?_, fun hmono l₁ l₂ e h e' he' x x' hx' hx => ?_⟩
+      · simp only [submitAll] at he
+        rcases List.mem_append.1 he with he | he
+        · exact ⟨t, List.mem_cons_self, (h₀ e he x hx).symm⟩
+        · obtain ⟨tx, htx, hte⟩ := ih₁ e he x hx
+          exact ⟨tx, List.mem_cons_of_mem _ htx, hte⟩
+      · unfold TimesMonotone at hmono
+        rw [List.map_cons, List.pairwise_cons] at hmono
+        obtain ⟨hfirst, hrest⟩ := hmono
+        simp only [submitAll] at h
+        rcases append_eq_append_cons h with ⟨c', h1, _⟩ | ⟨a', h1, rfl⟩
+        · -- both entries come from the first transaction
+          have he : e ∈ (submit .deployed E s t).2 := by rw [h1]; simp
+          have he'' : e' ∈ (submit .deployed E s t).2 := by rw [h1]; simp [he']
+          rw [h₀ e he x hx, h₀ e' he'' x' hx']
+        · rcases List.mem_append.1 he' with he' | he'
+          · -- the earlier entry is from the first transaction, the later one from the rest
+            rw [h₀ e' he' x' hx']
+            have he : e ∈ (submitAll .deployed E (submit .deployed E s t).1 ts).2 := by
+              rw [h1]; simp
+            obtain ⟨tx, htx, hte⟩ := ih₁ e he x hx
+            rw [← hte]
+            exact hfirst _ (List.mem_map_of_mem htx)
+          · exact ih₂ hrest a' l₂ e h1 e' he' x x' hx' hx
+
 /-! ## The guards -/
 
 theorem EntryGuards : Properties.EntryGuards := by
@@ -1061,6 +1633,48 @@ theorem EntryGuards : Properties.EntryGuards := by
 theorem EntryGuardsWitness : Properties.EntryGuardsWitness := by
   unfold Properties.EntryGuardsWitness; decide
 
+/-! ## The state is the log -/
+
+theorem StateIsLogReplay : Properties.StateIsLogReplay :=
+  ⟨fun v E τ n f s s' l h => exec_replay v E τ n f s s' l h,
+    fun v E s txs => submitAll_replay v E s txs⟩
+
+theorem StateIsLogReplayWitness : Properties.StateIsLogReplayWitness := by
+  unfold Properties.StateIsLogReplayWitness; decide
+
+theorem LoggedEntriesPassedTheirChecks : Properties.LoggedEntriesPassedTheirChecks :=
+  ⟨fun E τ n f s s' l h l₁ l₂ e hl => exec_checked E τ n f s s' l h l₁ l₂ e hl,
+    fun E s txs l₁ l₂ e h => submitAll_checked E s txs l₁ l₂ e h⟩
+
+theorem LoggedEntriesPassedTheirChecksWitness :
+    Properties.LoggedEntriesPassedTheirChecksWitness := by
+  unfold Properties.LoggedEntriesPassedTheirChecksWitness; decide
+
+theorem NothingAfterExecution : Properties.NothingAfterExecution := by
+  intro E s txs l₁ l₂ x op τ b h
+  have hc := submitAll_checked E s txs
+  rw [h] at hc
+  -- the part after the execution is checked from the replayed state, where `x` is `Done`
+  have hsplit : l₁ ++ Effect.executed x op τ b :: l₂ = (l₁ ++ [.executed x op τ b]) ++ l₂ := by
+    simp
+  have hsuf : LogChecked E (replay s (l₁ ++ [.executed x op τ b])) l₂ := fun a c e' h' => by
+    have := hc ((l₁ ++ [.executed x op τ b]) ++ a) c e' (by rw [hsplit, h']; simp)
+    rwa [replay_append] at this
+  have hdone : (replay s (l₁ ++ [.executed x op τ b])).ts x = 1 := by
+    rw [replay_append]; simp [replay, Effect.apply]
+  have huntouched := checked_done_untouched _ l₂ hdone hsuf
+  intro e he hx
+  obtain ⟨i, rfl⟩ := huntouched e he hx
+  -- a delivery of `x` there is followed by an execution of `x`, which the checks refuse
+  obtain ⟨l₃, l₄, rfl⟩ := List.append_of_mem he
+  obtain ⟨op', τ', b', hm⟩ := (submitAll_inv E s txs).2.2.1 (l₁ ++ .executed x op τ b :: l₃) l₄
+    x i (by rw [h]; simp)
+  obtain ⟨j, hj⟩ := huntouched _ (List.mem_append_right _ (List.mem_cons_of_mem _ hm)) rfl
+  cases hj
+
+theorem NothingAfterExecutionWitness : Properties.NothingAfterExecutionWitness := by
+  unfold Properties.NothingAfterExecutionWitness; decide
+
 /-! ## (a) Once only -/
 
 theorem DoneIsPermanent : Properties.DoneIsPermanent :=
@@ -1076,6 +1690,25 @@ theorem OnceOnly : Properties.OnceOnly :=
 theorem CommittedRunsWereOpen : Properties.CommittedRunsWereOpen :=
   fun E s txs e x he hx =>
     ⟨(submitAll_inv E s txs).2.1.fresh e he x hx, (submitAll_inv E s txs).2.1.spent e he x hx⟩
+
+theorem DoneIffExecuted : Properties.DoneIffExecuted := by
+  intro E s txs htimes x
+  obtain ⟨g, go, _, hsched⟩ := submitAll_inv E s txs
+  refine ⟨⟨fun hx => ?_, fun hx => ?_⟩, List.nodup_iff_count_le_one.1 go.nodup _⟩
+  · rcases g.doneLogged x hx with h | h | ⟨t, d, m, o, hm, ht⟩
+    · exact Or.inl h
+    · exact Or.inr h
+    · -- a schedule writing the sentinel `1` needs a block time below `2`
+      exfalso
+      obtain ⟨tx, htx, hte⟩ := hsched _ hm _ _ _ _ _ rfl
+      have := htimes tx htx
+      omega
+  · rcases hx with h | ⟨op, τ, b, hm⟩
+    · exact g.doneMono x h
+    · exact go.spent _ hm x rfl
+
+theorem DoneIffExecutedWitness : Properties.DoneIffExecutedWitness := by
+  unfold Properties.DoneIffExecutedWitness; decide
 
 /-- The execution entry, unfolded: its loop committed and the re-check passed. -/
 lemma exec_execution_some {E : Env} {τ n : ℕ} {c : Address} {op : Operation} {instant : Bool}
@@ -1288,6 +1921,38 @@ theorem TransparentCollisionExecutesAnotherOp :
     Properties.TransparentCollisionExecutesAnotherOp := by
   unfold Properties.TransparentCollisionExecutesAnotherOp; decide
 
+theorem OutgoingCallsWaitedOrInstant : Properties.OutgoingCallsWaitedOrInstant := by
+  intro E s txs hnp l₁ l₂ x i h
+  obtain ⟨op, τ, b, hm⟩ := (submitAll_inv E s txs).2.2.1 l₁ l₂ x i h
+  obtain ⟨l₃, l₄, rfl⟩ := List.append_of_mem hm
+  have h' : (submitAll .deployed E s txs).2 =
+      (l₁ ++ .delivered x i :: l₃) ++ .executed x op τ b :: l₄ := by rw [h]; simp
+  obtain ⟨hx, _⟩ := TransparentBinding E s txs hnp _ _ x op τ b h'
+  refine ⟨l₃, l₄, op, τ, b, rfl, hx, ?_⟩
+  cases b with
+  | true => exact Or.inl rfl
+  | false => exact Or.inr (OwnerPathWaited E s txs hnp _ _ x op τ h')
+
+theorem OutgoingCallsWaitedOrInstantWitness : Properties.OutgoingCallsWaitedOrInstantWitness :=
+  ⟨fun _ => Or.inl rfl, by decide, by decide⟩
+
+theorem ExecutionNotBeforeSchedule : Properties.ExecutionNotBeforeSchedule := by
+  intro E s txs hnp hmono l₁ l₂ x op τ b h
+  obtain ⟨_, r, hr, hm, _⟩ := TransparentBinding E s txs hnp l₁ l₂ x op τ b h
+  refine ⟨r, hr, hm, ?_, fun hb => ?_⟩
+  · exact (submitAll_timed E s txs).2 hmono l₁ l₂ _ h _ (mem_of_lastSchedule hr) τ r.time
+      rfl rfl
+  · subst hb
+    obtain ⟨r', hr', _, hle⟩ := OwnerPathWaited E s txs hnp l₁ l₂ x op τ h
+    rw [hr] at hr'
+    cases hr'
+    exact hle
+
+theorem ExecutionNotBeforeScheduleWitness : Properties.ExecutionNotBeforeScheduleWitness := by
+  refine ⟨fun _ => Or.inl rfl, ?_, by decide, ?_, by decide⟩
+  · unfold TimesMonotone; decide
+  · unfold TimesMonotone; decide
+
 /-! ## (c) Predecessors, and (d) the sentinel -/
 
 theorem PredecessorDoneOrSentinel : Properties.PredecessorDoneOrSentinel := by
@@ -1348,10 +2013,79 @@ theorem DelayRaiseNotRetroactive : Properties.DelayRaiseNotRetroactive := by
 
 /-! ## Authority -/
 
-theorem ConfigChangesNeedExecution : Properties.ConfigChangesNeedExecution :=
-  fun E s t h => (submit_inv E s t).2.2.2.1 h
+theorem ConfigChangesNeedExecution : Properties.ConfigChangesNeedExecution := by
+  intro E s t h
+  obtain ⟨caller, time, fuel, entry, callees⟩ := t
+  unfold submit at h ⊢
+  by_cases hc : caller = E.self
+  · simp [hc] at h
+  simp only [hc, ↓reduceIte] at h ⊢
+  cases hx : exec .deployed E time fuel (.entry caller entry callees) s with
+  | none => simp [hx, commit] at h
+  | some r =>
+    obtain ⟨s', l⟩ := r
+    rw [hx] at h
+    simp only [commit] at h ⊢
+    have G := EntryGuards .deployed E time fuel caller callees s s' l
+    obtain ⟨g1, g2, g3, _, _, g6, g7, g8, g9, g10⟩ := G
+    cases entry with
+    | scheduleTransparent op d =>
+      obtain ⟨_, _, _, _, rfl, _⟩ := g1 op d hx; simp at h
+    | scheduleShadow x d =>
+      obtain ⟨_, _, _, _, rfl, _⟩ := g2 x d hx; simp at h
+    | cancel x =>
+      obtain ⟨_, _, _, rfl, _⟩ := g3 x hx; simp at h
+    | execute op =>
+      obtain ⟨m, s₂, lc, rfl, _, _, rfl, rfl⟩ := exec_execution_some (instant := false) hx
+      exact ⟨op, false, rfl, by simp⟩
+    | executeInstant op =>
+      obtain ⟨m, s₂, lc, rfl, _, _, rfl, rfl⟩ := exec_execution_some (instant := true) hx
+      exact ⟨op, true, rfl, by simp⟩
+    | updateDelay d => exact absurd (g6 d hx).1 hc
+    | updateSecurityCouncil a => exact absurd (g7 a hx).1 hc
+    | transferOwnership a =>
+      obtain ⟨_, rfl⟩ := g8 a hx; simp at h
+    | acceptOwnership =>
+      obtain ⟨_, rfl⟩ := g9 hx; simp at h
+    | renounceOwnership =>
+      obtain ⟨_, rfl⟩ := g10 hx; simp at h
+    | noop =>
+      rcases fuel with _ | fuel
+      · simp [exec] at hx
+      · simp only [exec, Option.some.injEq, Prod.mk.injEq] at hx
+        obtain ⟨rfl, rfl⟩ := hx; simp at h
+    | invalid =>
+      rcases fuel with _ | fuel <;> simp [exec] at hx
+
+theorem ConfigChangesNeedExecutionWitness : Properties.ConfigChangesNeedExecutionWitness := by
+  unfold Properties.ConfigChangesNeedExecutionWitness; decide
 
 theorem DeliveriesBelongToExecutions : Properties.DeliveriesBelongToExecutions :=
   fun E s txs l₁ l₂ x i h => (submitAll_inv E s txs).2.2.1 l₁ l₂ x i h
+
+/-! ## Enabledness -/
+
+theorem ReadyIsExecutable : Properties.ReadyIsExecutable := by
+  intro E s op c τ n hc hcs hforeign hn hpred hready
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  have hl := exec_loop_returns .deployed E τ (E.H op) op.calls 0 m s hforeign (by omega)
+  simp only [submit, hcs, ↓reduceIte]
+  rw [exec]
+  simp only [hc, hpred, hready, and_self, ↓reduceIte, hl, or_true, commit,
+    List.range_eq_range']
+
+theorem PendingIsInstantlyExecutable : Properties.PendingIsInstantlyExecutable := by
+  intro E s op τ n hcs hforeign hn hpred hpend
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  have hl := exec_loop_returns .deployed E τ (E.H op) op.calls 0 m s hforeign (by omega)
+  simp only [submit, hcs, ↓reduceIte]
+  rw [exec]
+  simp only [hpred, hpend, and_self, ↓reduceIte, hl, or_true, commit, List.range_eq_range']
+
+theorem ReadyIsExecutableWitness : Properties.ReadyIsExecutableWitness := by
+  unfold Properties.ReadyIsExecutableWitness; decide
+
+theorem PendingIsInstantlyExecutableWitness : Properties.PendingIsInstantlyExecutableWitness := by
+  unfold Properties.PendingIsInstantlyExecutableWitness; decide
 
 end Contracts.Governance

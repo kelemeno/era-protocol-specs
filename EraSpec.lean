@@ -205,7 +205,7 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
--- Governance: the owner/security-council timelock (draft/v0.35.0, d9f67890)
+-- Governance: the owner/security-council timelock, with re-entrant execution (draft/v0.35.0, b17415d2)
 import EraSpec.Contracts.Governance.Proofs.Timelock
 
 /-!
