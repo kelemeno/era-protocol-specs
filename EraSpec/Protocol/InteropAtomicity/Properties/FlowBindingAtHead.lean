@@ -284,9 +284,9 @@ def Properties.OncePerLegAtHead : Prop :=
    different chains and their keys clash under `cv`, or their preimages clash.
 
 Item 3 is `Contracts.AppendPath.Properties.SystemOncePerLeg` item 3 without its premise that
-the two obligations are on one chain. For two distinct `(flowId, bundleHash)` keys with one
-commit value (item 3's premise), the `CommitClash` disjunct holds by the definition of
-`CommitClash`; the
+the two obligations are on one chain. For two distinct `(flowId, bundleHash)` keys on different
+chains with one commit value (item 3's premise), the second disjunct holds by the definition of
+`CommitClash`; two distinct keys on one chain are the inherited `SystemOncePerLeg` case. The new
 content of item 3 is the same-key case on two chains, which lands in `PreimageClash` (via
 `SameKeyAppendedOnTwoChainsIsLoggedClash`). -/
 def Properties.SystemOncePerLegAtHead : Prop :=
@@ -681,7 +681,8 @@ def Properties.SameKeyOnTwoChainsWitness : Prop :=
 run between the same states. So every property above that holds for all `RunAtHead` runs (from
 any states, or from `genesisAll`) holds for the projected log of every `RunAtV35` run.
 
-This holds by construction: `RunAtV35` is `RunAtHead` with one more guard conjunct per call.
+This holds by construction: `RunAtV35` is `RunAtHead` with one more guard conjunct (`LegSourceAllowed`) on each execute and
+authorize call; `append`, `claim` and `initL2` are unchanged.
 The evidence that `RunAtV35` is faithful to `b17415d20` is the source comparison in the Specs
 file, not this theorem. -/
 def Properties.RunAtV35ProjectsToRunAtHead : Prop :=

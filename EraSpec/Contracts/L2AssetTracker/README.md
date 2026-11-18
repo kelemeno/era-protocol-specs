@@ -176,10 +176,10 @@ can be switched off (`Guards`) for the countermodels; `Guards.v35` is the source
   (`VaultRecoveryEffectAtV35`, `ClaimRefundNeverWritesInteropInfo`).
 - **Ledger.** `totalWithdrawalsToL1[a]` grows by exactly the logged bridge-outs of `a` toward L1 made
   while settling on L1, under any checks; with the flow manager's check no recovery has an L1
-  destination (`WithdrawalsToL1Ledger`). That a counted L1 bridge-out is never refunded through a
-  claim toward another chain depends on the claim naming its own appended bundle, which is not
-  modelled. The same holds for nested runs, and every run is one
-  (`WithdrawalsToL1LedgerNested`, `NestedLedgerWitness`).
+  destination (`WithdrawalsToL1Ledger`). The same holds for nested runs, and every run is one
+  (`WithdrawalsToL1LedgerNested`, `NestedLedgerWitness`). That a counted L1 bridge-out is never
+  refunded through a claim toward another chain depends on the claim naming its own appended
+  bundle, which is not modelled.
 - **Boundary.** A native re-credit succeeds exactly when it fits in a word (`RecoveryCreditFitsIff`):
   an inbound transfer between a bridge-out and its claim can make the whole claim revert
   (`InflowBeforeRecoveryBlocksClaim`). Without the base-token origin checks, a base token recorded as

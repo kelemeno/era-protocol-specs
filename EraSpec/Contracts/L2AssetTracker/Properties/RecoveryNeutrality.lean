@@ -77,8 +77,8 @@ handler for `a`, and, when `a` is the base asset, the holder's balance.
 
 * `WithdrawalsToL1Ledger`: along any run, under any checks, `totalWithdrawalsToL1[a]` grows by exactly
   the amounts of the logged bridge-outs of `a` toward L1 made while the chain settled on L1; with the
-  flow manager's check (so at v35), no logged recovery has L1 as its destination.  So the counter
-  never decreases, and no logged recovery has L1 as its destination.  That a counted L1 bridge-out
+  flow manager's check (so at v35), no logged recovery has L1 as its destination, so the counter
+  never decreases.  That a counted L1 bridge-out
   is never refunded through a claim toward another chain depends on the claim naming its own
   appended bundle, which is not modelled (see the specification's header).
   `WithdrawalsLedgerWitness` is a run with counted and uncounted bridge-outs and a recovery.
