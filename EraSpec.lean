@@ -80,6 +80,7 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineFaithful
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ValueLedgerFaithful
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
+import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingFaithful
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
 
 -- Solidity Merkle libraries: capacity, padding, root authentication, and the verifier
