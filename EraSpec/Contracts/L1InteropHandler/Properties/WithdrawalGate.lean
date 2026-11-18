@@ -41,8 +41,13 @@ own committed log.
 * `PausedHandlerStartsNoDelivery`: from a paused state `executeBundle` and `unbundleBundle` revert.
 * `OnlyPauseAndUnpauseWritePaused`: along every run, the final pause flag is the last value a
   committed `pause`/`unpause` wrote, or the initial one.
-* `PauseWritesAreOwnerCalls`: an administrative call that writes the flag is `pause` or `unpause` by
-  the current owner.
+* `PauseWritesAreOwnerCalls` (one step): an administrative call that writes the flag is `pause` or
+  `unpause` by the owner of the state it runs in.
+* `CommittedPauseWritesAreOwnerCalls` (along runs): the final owner is the last owner the committed log
+  wrote, or the initial one; and every committed pause write's caller is the owner the committed log
+  gives at that point (the last owner written before it, or the initial one), whether the call was made
+  at top level or re-entrantly by a delivered call's target. `OwnerHandoverPauseWitness`: after an
+  ownership handover, the old owner's `unpause` commits nothing and the new owner's commits.
 * `InitializeRunsAtMostOnce`: at most one committed `initialize`, none once the guard slot is set.
 * `PauseGateWitness`: a paused handler still commits `verifyBundle`, refuses `executeBundle`, and
   delivers after `unpause`. `InitializeOnceWitness`: a second `initialize` reverts.
@@ -57,9 +62,11 @@ own committed log.
   call by call by `verifyBundle` then `unbundleBundle`.
 * `SingleCallEvidenceDeliversOneCall` (repaired form): if every committed verification's bundle has one
   call, every committed delivery is call `0` of a one-call bundle, made unpaused, or the delivered bytes
-  collide with verified ones. `Protocol/L1WithdrawalProvenance` discharges the premise from the source
-  chains' code, up to a named collision (`ProvenBundlesAreDispatchedOrCollide`).
-  `SingleCallEvidenceWitness` instantiates it.
+  collide with verified ones. `SingleCallEvidenceWitness` instantiates it. `Protocol/L1WithdrawalProvenance`
+  discharges the premise under `InclusionSoundOn`, `ChainsRunTheModelOn`, `HooksAsDocumentedOn` and
+  `DispatchRoundTripOn`, from the modelled shape of the center's L1 branch (`WithdrawalShape`, argued
+  from source in `L1Messenger/Specs/SenderKeying.lean`, not derived from transcribed center code), up to
+  a named message collision (`ProvenBundlesAreDispatchedOrCollide`).
 
 ## (e) At most once, across routes
 
@@ -152,13 +159,40 @@ def Properties.OnlyPauseAndUnpauseWritePaused : Prop :=
   ∀ (P : Params) (s : State) (txs : List Tx),
     (submitAll P s txs).1.paused = (pauseWrites (submitAll P s txs).2).getLastD s.paused
 
-/-- **A PAUSE WRITE IS `pause` OR `unpause` BY THE OWNER.** Every successful administrative call that
-logs a pause write, at top level or re-entrantly, is `pause` or `unpause`, called by the owner of the
-state it ran in. -/
+/-- **A PAUSE WRITE IS `pause` OR `unpause` BY THE OWNER (ONE STEP).** For one administrative call
+(`adminStep`, which `exec` runs for an administrative entry at any depth): if it succeeds and logs a
+pause write, it is `pause` or `unpause`, called by the owner of the state it ran in. The statement along
+whole runs is `CommittedPauseWritesAreOwnerCalls`. -/
 def Properties.PauseWritesAreOwnerCalls : Prop :=
   ∀ (caller : Address) (op : AdminOp) (s s' : State) (l : List Effect),
     adminStep caller op s = some (s', l) → pauseWrites l ≠ [] →
       caller = s.owner ∧ (op = .pause ∨ op = .unpause)
+
+/-- **EVERY COMMITTED PAUSE WRITE IS BY THE OWNER OF THAT POINT OF THE LOG.** From every state, along
+every sequence of transactions, with every target behaviour (administrative calls made re-entrantly by
+a delivered call's target included): the final owner is the last owner written in the committed log, or
+the initial owner if none was; and for every committed `pauseSet c v`, the caller `c` is the owner the
+committed log gives just before it: the last owner written before it in the log, or the initial
+owner. -/
+def Properties.CommittedPauseWritesAreOwnerCalls : Prop :=
+  ∀ (P : Params) (s : State) (txs : List Tx),
+    (submitAll P s txs).1.owner = (ownerWrites (submitAll P s txs).2).getLastD s.owner ∧
+      ∀ (l₁ l₂ : List Effect) (c : Address) (v : Bool),
+        (submitAll P s txs).2 = l₁ ++ .pauseSet c v :: l₂ → c = (ownerWrites l₁).getLastD s.owner
+
+/-- **THE PAUSE WRITER FOLLOWS AN OWNERSHIP HANDOVER, ON A RUN.** From fresh storage, with `wParams`,
+the run `wHandoverRun`: `wOwner` initializes as owner and pauses, then `transferOwnership(wUnbundler)`
+and `acceptOwnership` by `wUnbundler` hand ownership over. The old owner's `unpause` then commits
+nothing, and the new owner's commits. The committed log is exactly `initialized wOwner`, `ownerSet
+wOwner`, `pauseSet wOwner true`, `pendingSet wUnbundler`, `ownerSet wUnbundler`, `pauseSet wUnbundler
+false`, and the run ends unpaused with owner `wUnbundler`. -/
+def Properties.OwnerHandoverPauseWitness : Prop :=
+  (submit wParams (submitAll wParams init (wHandoverRun.take 4)).1 (wAdmin .unpause)).2 = [] ∧
+    (submitAll wParams init wHandoverRun).2 =
+      [.initialized wOwner, .ownerSet wOwner, .pauseSet wOwner true, .pendingSet wUnbundler,
+        .ownerSet wUnbundler, .pauseSet wUnbundler false] ∧
+    (submitAll wParams init wHandoverRun).1.paused = false ∧
+    (submitAll wParams init wHandoverRun).1.owner = wUnbundler
 
 /-- **`initialize` RUNS AT MOST ONCE.** From every state, along every sequence of transactions, with
 every target behaviour: the committed log holds at most one `initialize`, and none if the guard slot was

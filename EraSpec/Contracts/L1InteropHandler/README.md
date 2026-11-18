@@ -44,7 +44,10 @@ run's own log.
 - **Pause, owner, initialization (c).** A paused handler starts no `executeBundle` or
   `unbundleBundle` (`PausedHandlerStartsNoDelivery`); `verifyBundle` still commits while paused
   (`PauseGateWitness`). The pause flag is the last value `pause`/`unpause` wrote
-  (`OnlyPauseAndUnpauseWritePaused`), and only the owner's calls write it (`PauseWritesAreOwnerCalls`).
+  (`OnlyPauseAndUnpauseWritePaused`). One administrative call that writes it is `pause` or `unpause` by
+  the owner (`PauseWritesAreOwnerCalls`); along whole runs, every committed pause write's caller is the
+  owner the committed log gives at that point, at top level or re-entrantly
+  (`CommittedPauseWritesAreOwnerCalls`, `OwnerHandoverPauseWitness`).
   `initialize` commits at most once (`InitializeRunsAtMostOnce`, `InitializeOnceWitness`). Boundary:
   the pause check runs once, at entry, so in an `unbundleBundle` of a two-call bundle whose first target
   re-enters `pause()` as the owner, the second call is delivered paused
@@ -54,8 +57,10 @@ run's own log.
   there and delivered call by call by `verifyBundle` then `unbundleBundle`
   (`VerifyThenUnbundleDeliversEveryCall`). If every verified bundle has one call, every delivery is call
   `0` of a one-call bundle, unpaused, or collides (`SingleCallEvidenceDeliversOneCall`,
-  `SingleCallEvidenceWitness`). `Protocol/L1WithdrawalProvenance` discharges that premise from the
-  source chains' code, up to a named collision.
+  `SingleCallEvidenceWitness`). `Protocol/L1WithdrawalProvenance` discharges that premise under
+  `InclusionSoundOn`, `ChainsRunTheModelOn`, `HooksAsDocumentedOn` and `DispatchRoundTripOn`, from the
+  modelled shape of the center's L1 branch (`WithdrawalShape`, argued from source in
+  `L1Messenger/Specs/SenderKeying.lean`, not transcribed), up to a named message collision.
 - **At most once (e).** Every run of this model projects to a run of the pin's re-entrant model with
   the same replay mappings, deliveries and completions (`L1RunsProjectToPinRuns`), so no `(bundleHash,
   index)` is delivered twice across routes and transactions (`EachCallDeliveredAtMostOnce`), and from

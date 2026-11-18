@@ -99,6 +99,11 @@ leaf log's format, which `HOOKS` does not give; it is the weakest form the resul
   calling the leaf hook (the commitment tree does on each insert, `atomic-interop/
   L2InteropCommitmentTree.sol:74`); `bootloaderLog` is a log with sender `L2_BOOTLOADER_ADDRESS`
   (`MessageHashing.sol:39-62`). What the hooks record is `HookSem`; the steps take no premise on it.
+* **The steps are every log source (closure).** The model takes its five steps to be the only writers
+  of the chain's L2→L1 output: ZKsync OS writes no other L2→L1 log with sender `0x8008`, i.e. the `Step`
+  constructors cover every log source. This is not derived (the ZKsync OS output code is not in this
+  repository); it is load-bearing for "exactly the center's dispatch logs" in
+  `CenterKeyedLogsAreItsWithdrawals`, and is recorded in `ASSUMPTIONS.md` (`MODEL-L2-MESSAGE-KEYING`).
 * System-contract upgrades and EraVM chains (whose messenger is not this contract) are out of scope.
 -/
 

@@ -34,7 +34,11 @@ own comment (`L2ContractAddresses.sol:18-19`) states no caller restriction for `
 - `CenterKeyedLogsAreItsWithdrawals`: under the premise, along every run from genesis, the center-keyed
   logs are exactly the logs of the center's L1 dispatches, one per dispatch, in order, and every
   dispatched bundle is a one-call, zero-value withdrawal from `L2_ASSET_ROUTER_ADDR`
-  (`WithdrawalShape`). No hash premise.
+  (`WithdrawalShape`). No hash premise. The shape conjunct holds by construction: the withdrawal step
+  takes `WithdrawalShape` as its guard, which models `InteropCenter.sol:262-264`, `:552-556`,
+  `:629-658`, `:782-822` (argued from source in the Specs header, not transcribed). "Exactly" also rests
+  on the model's closure: ZKsync OS writes no other L2→L1 log with sender `0x8008`, i.e. the model's
+  steps cover every log source (`MODEL-L2-MESSAGE-KEYING`).
 - `SenderKeyingWitness`: the premise holds for documented hooks, on a run with a withdrawal, another
   account's message, a rejected direct hook call and a leaf insert.
 - `UngatedHookForgesACenterKeyedLog`: a messenger hook that records for every caller, and is otherwise as

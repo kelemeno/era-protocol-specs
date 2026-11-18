@@ -5,7 +5,7 @@ import Mathlib.Tactic
 /-!
 # Proofs: the L1 withdrawal finalization gate
 
-Two inductions on the budget carry everything.
+Three inductions on the budget carry everything.
 
 * `exec_frameOk`: every committed frame satisfies `FrameOk`. A frame's committed verifications and
   deliveries are well formed (what the code checked before committing them); bundle statuses never
@@ -22,6 +22,9 @@ Two inductions on the budget carry everything.
   administrative call becomes a pin entry that always reverts, caught. Projecting whole runs
   (`L1RunsProjectToPinRuns`) transfers `NoEffectCommittedTwice` and
   `StatusRecordsExactlyTheCommittedEffects`, which gives (e).
+* `exec_ownerInv`: every committed frame leaves the owner its log says, and each pause write in its
+  log is by the owner the log gives at that point (`OwnerInv`), which gives
+  `CommittedPauseWritesAreOwnerCalls` (c).
 
 The witnesses and countermodels are evaluated by `decide`.
 -/
@@ -604,6 +607,226 @@ theorem InitializeOnceWitness : Properties.InitializeOnceWitness := by
 
 theorem OwnerPauseMidUnbundleWitness : Properties.OwnerPauseMidUnbundleWitness := by
   unfold Properties.OwnerPauseMidUnbundleWitness; decide
+
+/-! ### The owner of each committed pause write, along runs
+
+A third induction on the budget: every committed frame leaves the owner the log says
+(`OwnerInv.owner`), and each pause write in its log is by the owner the log gives at that point
+(`pauserOk`). The administrative step is the only writer of either; every other frame keeps the
+owner and composes. -/
+
+@[simp] lemma ownerWrites_nil : ownerWrites [] = [] := rfl
+@[simp] lemma ownerWrites_verified (v : Verification) (l : List Effect) :
+    ownerWrites (.verified v :: l) = ownerWrites l := rfl
+@[simp] lemma ownerWrites_delivered (d : Delivery) (l : List Effect) :
+    ownerWrites (.delivered d :: l) = ownerWrites l := rfl
+@[simp] lemma ownerWrites_executed (h : Word) (l : List Effect) :
+    ownerWrites (.executed h :: l) = ownerWrites l := rfl
+@[simp] lemma ownerWrites_pauseSet (c : Address) (b : Bool) (l : List Effect) :
+    ownerWrites (.pauseSet c b :: l) = ownerWrites l := rfl
+@[simp] lemma ownerWrites_ownerSet (o : Address) (l : List Effect) :
+    ownerWrites (.ownerSet o :: l) = o :: ownerWrites l := rfl
+@[simp] lemma ownerWrites_pendingSet (o : Address) (l : List Effect) :
+    ownerWrites (.pendingSet o :: l) = ownerWrites l := rfl
+@[simp] lemma ownerWrites_initialized (c : Address) (l : List Effect) :
+    ownerWrites (.initialized c :: l) = ownerWrites l := rfl
+
+@[simp] lemma ownerWrites_append : ∀ l₁ l₂ : List Effect,
+    ownerWrites (l₁ ++ l₂) = ownerWrites l₁ ++ ownerWrites l₂
+  | [], _ => rfl
+  | e :: l₁, l₂ => by cases e <;> simp [ownerWrites_append l₁ l₂]
+
+/-- Read from the owner `o`, every pause write of the log is by the owner the log gives at that
+point. -/
+def pauserOk : Address → List Effect → Prop
+  | _, [] => True
+  | _, .ownerSet o :: l => pauserOk o l
+  | o, .pauseSet c _ :: l => c = o ∧ pauserOk o l
+  | o, _ :: l => pauserOk o l
+
+@[simp] lemma pauserOk_nil (o : Address) : pauserOk o [] = True := rfl
+@[simp] lemma pauserOk_verified (o : Address) (v : Verification) (l : List Effect) :
+    pauserOk o (.verified v :: l) = pauserOk o l := rfl
+@[simp] lemma pauserOk_delivered (o : Address) (d : Delivery) (l : List Effect) :
+    pauserOk o (.delivered d :: l) = pauserOk o l := rfl
+@[simp] lemma pauserOk_executed (o : Address) (h : Word) (l : List Effect) :
+    pauserOk o (.executed h :: l) = pauserOk o l := rfl
+@[simp] lemma pauserOk_pauseSet (o c : Address) (b : Bool) (l : List Effect) :
+    pauserOk o (.pauseSet c b :: l) = (c = o ∧ pauserOk o l) := rfl
+@[simp] lemma pauserOk_ownerSet (o o' : Address) (l : List Effect) :
+    pauserOk o (.ownerSet o' :: l) = pauserOk o' l := rfl
+@[simp] lemma pauserOk_pendingSet (o o' : Address) (l : List Effect) :
+    pauserOk o (.pendingSet o' :: l) = pauserOk o l := rfl
+@[simp] lemma pauserOk_initialized (o c : Address) (l : List Effect) :
+    pauserOk o (.initialized c :: l) = pauserOk o l := rfl
+
+lemma pauserOk_append : ∀ (o : Address) (l₁ l₂ : List Effect),
+    pauserOk o (l₁ ++ l₂) ↔ pauserOk o l₁ ∧ pauserOk ((ownerWrites l₁).getLastD o) l₂
+  | o, [], l₂ => by simp
+  | o, e :: l₁, l₂ => by
+      cases e with
+      | ownerSet o' =>
+        simp only [List.cons_append, pauserOk_ownerSet, ownerWrites_ownerSet, List.getLastD_cons]
+        exact pauserOk_append o' l₁ l₂
+      | pauseSet c b =>
+        simp only [List.cons_append, pauserOk_pauseSet, ownerWrites_pauseSet]
+        rw [pauserOk_append o l₁ l₂, and_assoc]
+      | verified v => simpa using pauserOk_append o l₁ l₂
+      | delivered d => simpa using pauserOk_append o l₁ l₂
+      | executed h => simpa using pauserOk_append o l₁ l₂
+      | pendingSet o' => simpa using pauserOk_append o l₁ l₂
+      | initialized c => simpa using pauserOk_append o l₁ l₂
+
+/-- A pause write in a log read from `o` is by the owner the log gives just before it. -/
+lemma pauserOk_split {o c : Address} {v : Bool} {l₁ l₂ : List Effect}
+    (h : pauserOk o (l₁ ++ .pauseSet c v :: l₂)) : c = (ownerWrites l₁).getLastD o := by
+  have h₂ := ((pauserOk_append o l₁ _).1 h).2
+  rw [pauserOk_pauseSet] at h₂
+  exact h₂.1
+
+/-- What every committed frame satisfies about the owner, for a frame that went from `s` to `s'`
+committing `l`. -/
+structure OwnerInv (s s' : State) (l : List Effect) : Prop where
+  owner : s'.owner = (ownerWrites l).getLastD s.owner
+  pauser : pauserOk s.owner l
+
+lemma OwnerInv.refl (s : State) : OwnerInv s s [] := ⟨rfl, trivial⟩
+
+lemma OwnerInv.append {s s₁ s₂ : State} {l₁ l₂ : List Effect}
+    (g₁ : OwnerInv s s₁ l₁) (g₂ : OwnerInv s₁ s₂ l₂) : OwnerInv s s₂ (l₁ ++ l₂) where
+  owner := by rw [g₂.owner, g₁.owner, ownerWrites_append, getLastD_append']
+  pauser := by
+    rw [pauserOk_append, ← g₁.owner]
+    exact ⟨g₁.pauser, g₂.pauser⟩
+
+/-- A frame that keeps the owner and logs no owner write and no pause write. -/
+lemma OwnerInv.quiet {s s' : State} {l : List Effect} (ho : s'.owner = s.owner)
+    (hw : ownerWrites l = []) (hp : pauserOk s.owner l) : OwnerInv s s' l :=
+  ⟨by simp [hw, ho], hp⟩
+
+/-- `OwnerInv` reads only the owner of the start state. -/
+lemma OwnerInv.of_owner_eq {s₀ s s' : State} {l : List Effect} (g : OwnerInv s₀ s' l)
+    (h : s₀.owner = s.owner) : OwnerInv s s' l :=
+  ⟨h ▸ g.owner, h ▸ g.pauser⟩
+
+/-- The administrative functions write the owner and the pause flag as logged, and `pause`/`unpause`
+log their caller, who is the owner. -/
+lemma adminStep_ownerInv {caller : Address} {op : AdminOp} {s s' : State} {l : List Effect}
+    (hx : adminStep caller op s = some (s', l)) : OwnerInv s s' l := by
+  rcases op with o | _ | _ | o | _ | _ <;> simp only [adminStep] at hx <;> split_ifs at hx with hc <;>
+    simp only [Option.some.injEq, Prod.mk.injEq] at hx <;> obtain ⟨rfl, rfl⟩ := hx <;>
+    exact ⟨by simp, by simp [hc]⟩
+
+/-- **The owner invariant.** Every committed frame is `OwnerInv`. -/
+theorem exec_ownerInv (P : Params) : ∀ (n : ℕ) (f : Frame) (s s' : State) (l : List Effect),
+    exec P n f s = some (s', l) → OwnerInv s s' l := by
+  intro n
+  induction n with
+  | zero => intro f s s' l hx; simp [exec] at hx
+  | succ n ih =>
+    intro f s s' l hx
+    match f with
+    | .entry (.executeBundle caller B pf incl) cs =>
+      simp only [exec] at hx
+      split at hx
+      · cases hx
+      · rename_i b hdec
+        split at hx
+        · split at hx
+          · rename_i s₂ l₂ hrun
+            simp only [Option.some.injEq, Prod.mk.injEq] at hx
+            obtain ⟨rfl, rfl⟩ := hx
+            have pre : OwnerInv s
+                { s with replay := executeWrites (P.codec.keccak B) b.calls.length s.replay }
+                (if s.replay.bundle (P.codec.keccak B) = .Unreceived then
+                  [Effect.verified ⟨B, b, pf⟩] else []) :=
+              OwnerInv.quiet rfl (by split_ifs <;> rfl) (by split_ifs <;> simp)
+            exact (pre.append (ih _ _ _ _ hrun)).append (OwnerInv.quiet rfl rfl (by simp))
+          · cases hx
+        · cases hx
+    | .entry (.verifyBundle caller B pf incl) cs =>
+      simp only [exec] at hx
+      split at hx
+      · cases hx
+      · split at hx
+        · simp only [Option.some.injEq, Prod.mk.injEq] at hx
+          obtain ⟨rfl, rfl⟩ := hx
+          exact OwnerInv.quiet rfl rfl (by simp)
+        · cases hx
+    | .entry (.unbundleBundle caller B req) cs =>
+      simp only [exec] at hx
+      split at hx
+      · cases hx
+      · split at hx
+        · cases hx
+        · split at hx
+          · split at hx
+            · exact (ih _ _ _ _ hx).of_owner_eq rfl
+            · cases hx
+          · cases hx
+    | .entry (.admin caller op) cs =>
+      simp only [exec] at hx
+      exact adminStep_ownerInv hx
+    | .calls B b r [] cs =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at hx
+      obtain ⟨rfl, rfl⟩ := hx
+      exact OwnerInv.refl s
+    | .calls B b r (i :: is) cs =>
+      simp only [exec] at hx
+      split at hx
+      · cases hx
+      · split_ifs at hx
+        split at hx
+        · rename_i s₁ l₁ ht
+          split at hx
+          · rename_i s₂ l₂ hr
+            simp only [Option.some.injEq, Prod.mk.injEq] at hx
+            obtain ⟨rfl, rfl⟩ := hx
+            have g := (ih _ _ _ _ ht).append (ih _ _ _ _ hr)
+            exact ⟨by simpa using g.owner, by simpa using g.pauser⟩
+          · cases hx
+        · cases hx
+    | .target .returns =>
+      simp only [exec, Option.some.injEq, Prod.mk.injEq] at hx
+      obtain ⟨rfl, rfl⟩ := hx
+      exact OwnerInv.refl s
+    | .target .reverts =>
+      simp [exec] at hx
+    | .target (.calls e inner caught next) =>
+      simp only [exec] at hx
+      split at hx
+      · rename_i s₁ l₁ he
+        split at hx
+        · rename_i s₂ l₂ hn
+          simp only [Option.some.injEq, Prod.mk.injEq] at hx
+          obtain ⟨rfl, rfl⟩ := hx
+          exact (ih _ _ _ _ he).append (ih _ _ _ _ hn)
+        · cases hx
+      · split_ifs at hx
+        exact ih _ _ _ _ hx
+
+theorem submit_ownerInv (P : Params) (s : State) (t : Tx) :
+    OwnerInv s (submit P s t).1 (submit P s t).2 := by
+  unfold submit
+  rcases hx : exec P t.fuel (.entry t.entry t.callees) s with _ | ⟨s', l⟩
+  · exact OwnerInv.refl s
+  · exact exec_ownerInv P _ _ _ _ _ hx
+
+theorem submitAll_ownerInv (P : Params) : ∀ (s : State) (txs : List Tx),
+    OwnerInv s (submitAll P s txs).1 (submitAll P s txs).2
+  | s, [] => OwnerInv.refl s
+  | s, t :: ts => (submit_ownerInv P s t).append (submitAll_ownerInv P (submit P s t).1 ts)
+
+theorem CommittedPauseWritesAreOwnerCalls : Properties.CommittedPauseWritesAreOwnerCalls := by
+  intro P s txs
+  have g := submitAll_ownerInv P s txs
+  refine ⟨g.owner, fun l₁ l₂ c v hl => ?_⟩
+  have hp := g.pauser
+  rw [hl] at hp
+  exact pauserOk_split hp
+
+theorem OwnerHandoverPauseWitness : Properties.OwnerHandoverPauseWitness := by
+  unfold Properties.OwnerHandoverPauseWitness; decide
 
 /-! ## (d) The single-call rule -/
 

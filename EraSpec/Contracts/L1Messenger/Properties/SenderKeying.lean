@@ -11,7 +11,11 @@ Statements about `EraSpec.Contracts.L1Messenger.Specs.SenderKeying` (era-contrac
   `L2_INTEROP_CENTER_ADDR` (the only logs `L1InteropHandler._verifyBundle`'s sender check accepts) are
   exactly the message logs of the center's L1 dispatches, `BUNDLE_IDENTIFIER ++ abi.encode(bundle)`, one
   per dispatch, in order; and every dispatched bundle is a one-call, zero-value withdrawal from
-  `L2_ASSET_ROUTER_ADDR`. No hash premise: the log's key is the sender's address, padded.
+  `L2_ASSET_ROUTER_ADDR` (`WithdrawalShape`). The shape conjunct holds by construction: the `withdrawal`
+  step takes `WithdrawalShape` as its guard, which models IC:262-264, :552-556, :629-658, :782-822, and
+  is the only step that appends to `dispatched`; it is no evidence about the center's code. "Exactly"
+  also rests on the model's closure: its five steps are taken to be every writer of the output (Specs
+  header). No hash premise: the log's key is the sender's address, padded.
 * `SenderKeyingWitness`: the premise holds for documented hooks, and a run with a withdrawal, another
   account's message, a rejected direct hook call and a leaf insert keeps exactly the withdrawal's log.
 * `UngatedHookForgesACenterKeyedLog` (countermodel): with a messenger hook that records for every caller
@@ -24,10 +28,12 @@ namespace Contracts.L1MessengerKeying
 open Contracts.L1WithdrawalGate
 
 /-- **EVERY CENTER-KEYED LOG IS ONE OF THE CENTER'S WITHDRAWALS, ONE TO ONE.** For every codec, chain and
-hook behaviour satisfying `HooksAsDocumented`, along every run from genesis: the logs of the output that
-are attributed to the messenger and keyed by the center are exactly the message logs of the center's L1
-dispatches (`dispatchLog`: the message `BUNDLE_IDENTIFIER ++ abi.encode(bundle)` from the center), in
-dispatch order and with multiplicity; and every dispatched bundle has `WithdrawalShape`. -/
+hook behaviour satisfying `HooksAsDocumented`, along every run from genesis of the modelled steps: the
+logs of the output that are attributed to the messenger and keyed by the center are exactly the message
+logs of the center's L1 dispatches (`dispatchLog`: the message `BUNDLE_IDENTIFIER ++ abi.encode(bundle)`
+from the center), in dispatch order and with multiplicity; and every dispatched bundle has
+`WithdrawalShape` (the shape conjunct holds by construction: the withdrawal step takes `WithdrawalShape`
+as its guard, which models IC:262-264, :552-556, :629-658, :782-822). -/
 def Properties.CenterKeyedLogsAreItsWithdrawals : Prop :=
   ∀ (C : Codec) (Q : ChainParams) (H : HookSem) (S : L2State), HooksAsDocumented C H →
     Reach C Q H L2State.init S →

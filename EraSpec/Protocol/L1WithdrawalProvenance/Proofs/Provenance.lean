@@ -4,16 +4,17 @@ import EraSpec.Contracts.L1Messenger.Proofs.SenderKeying
 import Mathlib.Tactic
 
 /-!
-# Proofs: L1 withdrawal provenance, from the gate to the source chains' code
+# Proofs: L1 withdrawal provenance, from the L1 gate to the modelled source chains
 
 A verification's queried message log is in its chain's output (`InclusionSoundOn`) and is center-keyed
-(the handler checked the sender), so by `L1Messenger` `CenterKeyedLogsAreItsWithdrawals` it is the log
-of one of the center's dispatches. The two logs carry the keccak of the queried and the sent message:
-equal messages give the dispatched bundle (by the decoder round trip), different ones are a named
-collision. A delivery is `ProvenBy` a verification of its own bytes or collides with verified bytes
-(`L1InteropHandler` `DeliveredCallIsProvenOrKeccakClash`); the dispatched bundle's shape then fixes its
-index, sender and pause flag through `DeliveriesAreCheckedRouterCalls`. The witnesses are evaluated by
-`decide`.
+(the handler checked the sender), so by `L1Messenger` `CenterKeyedLogsAreItsWithdrawals`, applied to the
+verified chain's run (`ChainsRunTheModelOn`, `HooksAsDocumentedOn`), it is the log of one of the center's
+dispatches, whose bundle has `WithdrawalShape` (the guard of the model's `withdrawal` step). The two logs
+carry the keccak of the queried and the sent message: equal messages give the dispatched bundle (by the
+decoder round trip, `DispatchRoundTripOn`), different ones are a named collision. A delivery is
+`ProvenBy` a verification of its own bytes or collides with verified bytes (`L1InteropHandler`
+`DeliveredCallIsProvenOrKeccakClash`); the dispatched bundle's shape then fixes its index, sender and
+pause flag through `DeliveriesAreCheckedRouterCalls`. The witnesses are evaluated by `decide`.
 -/
 
 namespace Contracts.L1WithdrawalProvenance
@@ -26,9 +27,9 @@ open Contracts.L1MessengerKeying (HookSem HooksAsDocumented ChainParams L2State 
 theorem ProvenBundlesAreDispatchedOrCollide : Properties.ProvenBundlesAreDispatchedOrCollide := by
   intro P Q H runs s txs hrun hH hrt hinc v hv
   obtain ⟨hdec, _, _, hsender, hdata⟩ := VerificationsAreChecked P s txs v hv
-  obtain ⟨_, hreach⟩ := hrun v.proof.chainId
+  obtain ⟨_, hreach⟩ := hrun v hv
   obtain ⟨hfilt, hshape⟩ := CenterKeyedLogsAreItsWithdrawals P.codec (Q v.proof.chainId)
-    (H v.proof.chainId) (runs v.proof.chainId) (hH _) hreach
+    (H v.proof.chainId) (runs v.proof.chainId) (hH v hv) hreach
   have hck : CenterKeyed (msgToLog P.codec v.query) := ⟨rfl, by simp [msgToLog, hsender]⟩
   have hin : msgToLog P.codec v.query ∈
       (runs v.proof.chainId).out.filter (fun L => decide (CenterKeyed L)) :=
@@ -42,7 +43,7 @@ theorem ProvenBundlesAreDispatchedOrCollide : Properties.ProvenBundlesAreDispatc
   by_cases heq : v.bytes = P.codec.enc w.bundle
   · left
     refine ⟨w, hw, heq, ?_, hshape w hw⟩
-    rw [heq, hrt _ w hw] at hdec
+    rw [heq, hrt v hv w hw] at hdec
     exact (Option.some.inj hdec).symm
   · right
     exact ⟨w, hw, fun h => heq (List.cons.inj h).2, hval.symm⟩
@@ -58,7 +59,7 @@ theorem DeliveredWithdrawalWasDispatchedOrCollision :
       obtain ⟨_, htarget, hvalue, b, c, hdec, _, hc, _, _, hfrom, _, _, hsingle⟩ :=
         DeliveriesAreCheckedRouterCalls P init txs d hd
       have hb : b = w.bundle := by
-        rw [← hvb, hbytes, hrt _ w hw] at hdec
+        rw [← hvb, hbytes, hrt v hv w hw] at hdec
         exact (Option.some.inj hdec).symm
       subst hb
       obtain ⟨_, _, _, _, c0, hcalls, _, _, hfrom0, _, _⟩ := hshape
@@ -80,8 +81,9 @@ lemma wRuns_reach (H : HookSem) (c : ℕ) :
     exact wS₄_reach H (by decide) (by decide)
   · exact .refl _
 
-lemma wRuns_roundTrip (H : HookSem) : RoundTripOn wCodec (wRuns H) := by
-  intro c w hw
+lemma wRuns_roundTrip (H : HookSem) (c : ℕ) :
+    ∀ w ∈ (wRuns H c).dispatched, wCodec.decode (wCodec.enc w.bundle) = some w.bundle := by
+  intro w hw
   unfold wRuns at hw
   split_ifs at hw with hc
   · simp only [wS₄, Contracts.L1MessengerKeying.wS₃, Contracts.L1MessengerKeying.wS₂,
@@ -91,10 +93,24 @@ lemma wRuns_roundTrip (H : HookSem) : RoundTripOn wCodec (wRuns H) := by
   · simp [L2State.init] at hw
 
 theorem ProvenanceEndToEndWitness : Properties.ProvenanceEndToEndWitness := by
-  refine ⟨fun c => ⟨rfl, wRuns_reach _ c⟩, fun _ => wGatedHooks_documented,
-    wRuns_roundTrip _, ?_, ?_, ?_⟩ <;> decide
+  refine ⟨?_, ?_, fun v _ => ⟨rfl, wRuns_reach _ _⟩, fun _ _ => wGatedHooks_documented,
+    fun v _ => wRuns_roundTrip _ _, ?_, ?_, ?_⟩ <;> decide
+
+/-- The one verification of the countermodel's L1 run: `[2]`, decoded to `wTwo`, with `wProofTx2`. -/
+lemma wVerifyTx2_verification :
+    (⟨[2], wTwo, wProofTx2⟩ : Verification) ∈
+      verifications (submitAll wParams init [wVerifyTx2, wUnbundleTwo]).2 := by
+  decide
 
 theorem UngatedHookDeliversUndispatchedCalls : Properties.UngatedHookDeliversUndispatchedCalls := by
-  refine ⟨fun c => ⟨rfl, wRuns_reach _ c⟩, wRuns_roundTrip _, ?_, ?_, ?_, ?_⟩ <;> decide
+  refine ⟨fun v _ => ⟨rfl, wRuns_reach _ _⟩, fun v _ => wRuns_roundTrip _ _, ?_, ?_, ?_, ?_, ?_⟩
+  · decide
+  · intro h
+    have hg := (h _ wVerifyTx2_verification).messengerCallerGated
+      Contracts.L1MessengerKeying.wForger 0 (l2InteropCenterAddr, []) (by decide)
+    simp [wUngatedHooks] at hg
+  · decide
+  · decide
+  · decide
 
 end Contracts.L1WithdrawalProvenance

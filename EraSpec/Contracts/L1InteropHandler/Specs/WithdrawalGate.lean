@@ -625,6 +625,13 @@ def pauseWrites : List Effect → List Bool
   | .pauseSet _ v :: l => v :: pauseWrites l
   | _ :: l => pauseWrites l
 
+/-- The owners written in a log, in order (`_transferOwnership`, called by `initialize`,
+`acceptOwnership` and `renounceOwnership`). -/
+def ownerWrites : List Effect → List Address
+  | [] => []
+  | .ownerSet o :: l => o :: ownerWrites l
+  | _ :: l => ownerWrites l
+
 /-- The number of `initialize` calls in a log. -/
 def initCount : List Effect → ℕ
   | [] => 0
@@ -763,6 +770,15 @@ def wInit (caller o : Address) : Tx := ⟨1, .admin caller (.initialize o), []�
 
 /-- An administrative call by the owner. -/
 def wAdmin (op : AdminOp) : Tx := ⟨1, .admin wOwner op, []⟩
+
+/-- An administrative call by `caller`. -/
+def wAdminBy (caller : Address) (op : AdminOp) : Tx := ⟨1, .admin caller op, []⟩
+
+/-- `wOwner` initializes and pauses, then hands ownership to `wUnbundler`, which accepts it; then
+`unpause` by `wOwner`, then `unpause` by `wUnbundler`. -/
+def wHandoverRun : List Tx :=
+  [wInit wOwner wOwner, wAdmin .pause, wAdmin (.transferOwnership wUnbundler),
+    wAdminBy wUnbundler .acceptOwnership, wAdmin .unpause, wAdminBy wUnbundler .unpause]
 
 /-- Unbundling `[2]` after the unbundler became the owner: call 0's target calls `pause()` as the
 owner, call 1's target returns. -/
