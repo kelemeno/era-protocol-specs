@@ -63,7 +63,8 @@ executed operation, its block time and its path, plus a ghost entry for each cal
 - `LoggedEntriesPassedTheirChecks`: every logged entry passed its check (`Effect.CheckedAt`) on the
   state its predecessors replay to: schedules found the id `Unset` and had a delay at least the
   stored `minDelay`, which they record; cancels found the id pending; executions of `op` have id
-  `H op` and, after the calls, a `Done` or zero predecessor and a pending (for `execute`, ready) id.
+  `H op` and, after the calls, a `Done` or zero predecessor and a pending (for `execute`, ready) id;
+  ownership transfers went to the zero address or to the pending owner.
   Witnesses `StateIsLogReplayWitness` and `LoggedEntriesPassedTheirChecksWitness` use runs with
   re-entrant self-calls, cancels and schedules.
 - `NothingAfterExecution`: no entry after an execution of an id concerns that id
@@ -73,14 +74,15 @@ executed operation, its block time and its path, plus a ghost entry for each cal
 
 - `OnceOnly` (headline): in the committed log of any sequence of transactions from any state, no
   id is executed twice and no call of an id is delivered twice. `CommittedRunsWereOpen`,
-  `DoneIsPermanent`.
+  `DoneIsPermanent` (in either variant).
 - `DoneIffExecuted`: when all block times are at least `2`, an id ends `Done` exactly when it was
   `Done` at the start or the log executes it.
 - `ExecutionRunsEachCallOnce`: a committed execution delivers each of its calls once, in order,
   then executes its id; re-entrant frames inside it deliver and execute other ids only.
 
 **The re-check.** `ReentrantReexecutionReverts`: if an operation's calls execute its id
-re-entrantly, the outer execution reverts at the re-check (the NatSpec at `Governance.sol:197-198`).
+re-entrantly, the outer execution reverts, at the latest at its re-check (the NatSpec at
+`Governance.sol:197-198`).
 Witness: `ReentrantReexecutionWitness`. Countermodels: `WithoutRecheckReexecutes`,
 `WithoutRecheckAnyOpRunsTwice` (without the re-checks, every operation with at least one call,
 all to other contracts, runs twice from every state where an owner other than Governance may
@@ -88,10 +90,11 @@ execute it; in the source that transaction commits nothing).
 
 **The delay and the published payload.** From a state with nothing pending (the constructor's):
 
-- `OutgoingCallsWaitedOrInstant` (headline): every call Governance commits belongs to a
-  later-logged execution of its id that was `executeInstant`, which only the council may call
-  (`EntryGuards`), or whose last schedule had a delay at least the `minDelay` then in force and
-  was made at least that delay before the execution. Witness: both cases.
+- `OutgoingCallsWaitedOrInstant` (headline): every call Governance commits is followed later in
+  the log by an execution of its id (the only one, by `OnceOnly`) that was `executeInstant`, which
+  only the council may call (`EntryGuards`), or whose last schedule had a delay at least the
+  `minDelay` then in force and was made at least that delay before the execution. Witness: both
+  cases.
 - `OwnerPathWaited`: every `execute` has a schedule of its id earlier in the log, whose delay was
   at least the `minDelay` then in force and which was made at least that delay before.
   `EarlyExecutionIsInstant`: an execution before the ready time was `executeInstant`.
@@ -107,14 +110,19 @@ the start. `PredecessorDoneOrSentinel` drops the time premise and adds the senti
 
 **Cancelling in flight and raising the delay.** `InFlightCancelNeedsReschedule`: a cancel of an
 operation's id from inside its own execution is followed by a new schedule of it in that log, or
-the execution reverts and the cancel with it (`InFlightCancelIneffective`).
+the execution reverts and the cancel with it (`InFlightCancelIneffective`: the call loop commits
+with the id `Unset`, and the re-check reverts the execution).
 `MinDelayChangeKeepsTimestamps` and `DelayRaiseNotRetroactive`: a new minimum delay applies only to
 later schedules ("for future operations", `Governance.sol:286`).
 
 **Authority.** `ConfigChangesNeedExecution`: a transaction that changes `minDelay` or the council
 is an `execute`/`executeInstant` whose log ends with that execution.
 `DeliveriesBelongToExecutions`: every logged delivery of a call of an id is followed in the log by
-an execution of that id.
+an execution of that id. `NewOwnerWasNominated`: every ownership transfer to a nonzero address
+comes after a nomination of that address (which only the owner can make) with no nomination or
+ownership transfer in between; or no nomination or ownership transfer precedes it, and it went
+to the start state's pending owner. `NewOwnerWasNominatedWitness` has the nominee accept inside
+an execution.
 
 **Enabledness.** `ReadyIsExecutable`: a ready operation whose calls all go to other contracts and
 whose predecessor is zero or `Done` is executed by the owner's or the council's `execute`, when

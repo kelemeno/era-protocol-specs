@@ -117,10 +117,10 @@ Only inside `_execute` (:263). There Governance calls each target in turn:
 * **The log is the committed trace.** It has the contract's events, some with ghost fields,
   and one ghost entry. A schedule records the block time and the minimum delay then in force
   (the event has the id and the delay; the payload too for a transparent schedule). An
-  execution records the executed `Operation` (the transaction's calldata), the block time and
-  the path. The ghost entry `delivered id i` records that call `i` of an execution of `id`
-  returned to Governance in a committed frame. A frame's log lists each delivery followed by
-  the log of the frames nested in it, in execution order.
+  execution records the executed `Operation` (the calldata of that `execute`/`executeInstant`
+  call), the block time and the path. The ghost entry `delivered id i` records that call `i`
+  of an execution of `id` returned to Governance in a committed frame. A frame's log lists
+  each delivery followed by the log of the frames nested in it, in execution order.
 * **Ownership is `Ownable2Step` as written.** `transferOwnership` overrides `Ownable`'s, so it
   has no zero-address check; a new nomination replaces the old one; `acceptOwnership` and
   `renounceOwnership` clear the nomination. The owner may be any address, Governance's own
@@ -527,6 +527,14 @@ def Effect.apply (s : State) : Effect → State
 /-- The state reached from `s` by applying the writes of the log `l`, in order. -/
 def replay (s : State) (l : List Effect) : State := l.foldl Effect.apply s
 
+/-- The pending owner an entry writes, if it writes one: a nomination writes its nominee
+(`Ownable2Step.sol:36`), an ownership transfer deletes it (`Ownable2Step.sol:45`). No other
+entry writes the pending owner (`Effect.apply`). -/
+def Effect.pendingWrite : Effect → Option Address
+  | .ownershipTransferStarted a => some a
+  | .ownershipTransferred _ => some 0
+  | _ => none
+
 /-- The check a logged entry passed, read on the state `s` just before it was logged:
 * a schedule of `x` at block time `t` with delay `d` and recorded minimum delay `m`: `x` was
   `Unset`, `m` was `minDelay`, `m ≤ d`, `t + d` did not overflow, and a published payload
@@ -538,8 +546,10 @@ def replay (s : State) (l : List Effect) : State := l.foldl Effect.apply s
   the predecessor check (:189, :214), which `Done` being permanent carries over the calls;
 * `ChangeMinDelay(old, _)` and `ChangeSecurityCouncil(old, _)`: `old` was the stored value
   (:289, :296);
-* the other entries: nothing (their checks concern the caller, which the log does not
-  record). -/
+* `OwnershipTransferred(_, new)`: `new` is the zero address (`renounceOwnership`,
+  `Ownable.sol:62`) or was the pending owner (`acceptOwnership`, `Ownable2Step.sol:54`);
+* the other entries, `OwnershipTransferStarted` and the ghost delivery: nothing (a
+  nomination's check concerns the caller, which the log does not record). -/
 def Effect.CheckedAt (E : Env) (s : State) : Effect → Prop
   | .scheduled x t d m o =>
       s.ts x = 0 ∧ m = s.minDelay ∧ m ≤ d ∧ t + d < UInt256.size ∧
@@ -550,6 +560,7 @@ def Effect.CheckedAt (E : Env) (s : State) : Effect → Prop
         s.ts x ≠ 0 ∧ s.ts x ≠ EXECUTED ∧ (b = false → s.ts x ≤ τ)
   | .minDelayChanged old _ => old = s.minDelay
   | .councilChanged old _ => old = s.council
+  | .ownershipTransferred a => a = 0 ∨ a = s.pendingOwner
   | _ => True
 
 /-! ## Witness data
@@ -662,6 +673,14 @@ def timelockOwnershipRun : List Tx :=
     timelockTx 5 100 (.scheduleTransparent timelockCouncilOp 10),
     timelockTx 5 110 (.execute timelockCouncilOp),
     timelockTx 5 110 .renounceOwnership]
+
+/-- A nomination accepted re-entrantly. At `100` the owner `1` nominates `5` and schedules
+`timelockPlainOp`; at `105` the council executes it instantly, and its first target has `5`
+call `acceptOwnership`. -/
+def timelockAcceptInsideRun : List Tx :=
+  [timelockTx 1 100 (.transferOwnership 5),
+    timelockTx 1 100 (.scheduleTransparent timelockPlainOp 10),
+    timelockTx 2 105 (.executeInstant timelockPlainOp) [timelockCallback 5 .acceptOwnership]]
 
 /-- The owner publishes `timelockPlainOp` (`scheduleTransparent`) at `100`, and at `110`
 executes `timelockCollideOp`, which has the same id. -/

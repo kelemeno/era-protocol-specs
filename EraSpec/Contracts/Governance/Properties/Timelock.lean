@@ -12,9 +12,9 @@ Every general result quantifies over every target behaviour (`Callee` trees: re-
 to any entry point, as any caller but Governance itself, at any depth, caught or not), every
 self-call decoder `Env.dec`, every hash `Env.H`, and every budget. None takes a hash premise.
 The witnesses and countermodels are concrete runs.
-The run results are about the committed log of any sequence of transactions
-(`submitAll .deployed`); the frame results are about one committed frame anywhere in a
-transaction, nested or not.
+The run results are about the committed log of any sequence of transactions (`submitAll`, in
+the deployed order unless the result says either variant); the frame results are about one
+committed frame anywhere in a transaction, nested or not.
 
 ## The guards
 
@@ -33,15 +33,16 @@ transaction, nested or not.
   stored `minDelay` and had a delay at least that; a cancel found its id pending; an execution
   of `op` has id `H op`, and after the operation's calls its predecessor was zero or `Done` and
   its id pending (ready, for `execute`); a `minDelay` or council change recorded the stored old
-  value (`LoggedEntriesPassedTheirChecksWitness`: checks on entries made re-entrantly).
+  value; an ownership transfer went to the zero address or to the pending owner
+  (`LoggedEntriesPassedTheirChecksWitness`: checks on entries made re-entrantly).
 * `NothingAfterExecution`: no entry after an execution of `x` schedules, cancels, delivers or
   executes `x` (`NothingAfterExecutionWitness`).
 
 ## (a) Once only
 
-* `DoneIsPermanent`: a `Done` operation (`timestamps = 1`) stays `Done` across every frame and
-  every sequence of transactions (`DoneIsPermanentWitness`: a later schedule of an executed
-  operation commits nothing).
+* `DoneIsPermanent`: in either variant, a `Done` operation (`timestamps = 1`) stays `Done`
+  across every frame and every sequence of transactions (`DoneIsPermanentWitness`: a later
+  schedule of an executed operation commits nothing).
 * `OnceOnly` (headline): in the committed log of any sequence of transactions, from any
   state, no operation id is executed twice and no call of an operation is delivered twice.
   `CommittedRunsWereOpen`: each logged delivery or execution of `x` was not `Done` at the
@@ -85,9 +86,9 @@ transaction, nested or not.
 * Witnesses: `OwnerPathWaitedWitness` (the bound is attained), `TransparentBindingWitness`,
   and `TransparentCollisionExecutesAnotherOp`, which shows the collision disjunct can fire.
 * `OutgoingCallsWaitedOrInstant` (headline): in the same setting, every call Governance commits
-  belongs to a later-logged execution of its id that was `executeInstant`, or whose last
-  schedule waited its delay as in `OwnerPathWaited` (`OutgoingCallsWaitedOrInstantWitness`:
-  both cases).
+  is followed, later in the log, by an execution of its id (the only one, by `OnceOnly`) that
+  was `executeInstant`, or whose last schedule waited its delay as in `OwnerPathWaited`
+  (`OutgoingCallsWaitedOrInstantWitness`: both cases).
 * `ExecutionNotBeforeSchedule`: when block times never decrease, an execution on either path
   comes no earlier than its last schedule (`ExecutionNotBeforeScheduleWitness`, which also shows
   an instant execution timed before its schedule when the times are out of order).
@@ -113,14 +114,16 @@ transaction, nested or not.
   cancel with it, or the id was scheduled again and the execution overwrites that schedule
   with `Done` (`ExecutionRunsEachCallOnce`).
 * **Countermodel** `InFlightCancelIneffective`: the owner's `cancel` succeeds in its own frame
-  during the council's `executeInstant`. The transaction still reverts, so the operation is
-  still pending afterwards and the council executes it later. When the owner also schedules it
+  during the council's `executeInstant`, whose call loop then commits with the id `Unset`. The
+  re-check reverts the execution, so the transaction commits nothing, the operation is still
+  pending afterwards, and the council executes it later. When the owner also schedules it
   again inside the same execution, the execution commits, and the new schedule is overwritten.
 
 ## (g) Raising the delay
 
-* `MinDelayChangeKeepsTimestamps`: `updateDelay` writes only `minDelay`, and no operation state
-  reads it. Only `_schedule` does (:249).
+* `MinDelayChangeKeepsTimestamps`: a committed `updateDelay` leaves every `timestamps` entry as
+  it was (it writes only `minDelay`, `EntryGuards`), and no operation state reads `minDelay`.
+  Only `_schedule` does (:249).
 * **Countermodel** `DelayRaiseNotRetroactive`: an operation scheduled with the old minimum
   delay `10` runs `10` seconds later, after an operation raised the minimum to `100`. A new
   schedule with delay `10` is then refused.
@@ -133,6 +136,11 @@ transaction, nested or not.
   (`ConfigChangesNeedExecutionWitness`).
 * `DeliveriesBelongToExecutions`: every call Governance commits (`delivered x i`) is followed,
   later in the committed log, by an execution of `x`.
+* `NewOwnerWasNominated`: every ownership transfer to a nonzero address `a` in the committed
+  log comes after a nomination of `a` (`OwnershipTransferStarted`, which only the owner can
+  log, `EntryGuards`), with no nomination or ownership transfer in between; or nothing before
+  it wrote the pending owner and `a` was the pending owner at the start. This holds for
+  acceptances made re-entrantly, inside an execution (`NewOwnerWasNominatedWitness`).
 
 ## Enabledness
 
@@ -247,7 +255,8 @@ it. On that state: a schedule of `x` with recorded minimum delay `m` and delay `
 whose hash is `x`; a cancel of `x` found `x` pending; an execution of `x` with operation `op`
 at time `τ` has `x = H op`, `op`'s predecessor zero or `Done`, and `x` pending, and, for
 `execute`, `timestamps[x] ≤ τ`; a `ChangeMinDelay` or `ChangeSecurityCouncil` entry's old
-value was the stored one. For an execution that state is the one after the operation's
+value was the stored one; an `OwnershipTransferred` entry's new owner is the zero address or
+was the pending owner. For an execution that state is the one after the operation's
 calls. -/
 def Properties.LoggedEntriesPassedTheirChecks : Prop :=
   (∀ (E : Env) (τ n : ℕ) (f : Frame) (s s' : State) (l : List Effect),
@@ -296,12 +305,12 @@ def Properties.NothingAfterExecutionWitness : Prop :=
 /-! ## (a) Once only -/
 
 /-- **`Done` IS PERMANENT.** In either variant, every frame that commits from a state where
-operation `x` is `Done` leaves it `Done`; so does every sequence of transactions. -/
+operation `x` is `Done` leaves it `Done`, and so does every sequence of transactions. -/
 def Properties.DoneIsPermanent : Prop :=
   (∀ (v : Variant) (E : Env) (τ n : ℕ) (f : Frame) (s s' : State) (l : List Effect) (x : OpId),
     s.ts x = EXECUTED → exec v E τ n f s = some (s', l) → s'.ts x = EXECUTED) ∧
-  ∀ (E : Env) (s : State) (txs : List Tx) (x : OpId), s.ts x = EXECUTED →
-    (submitAll .deployed E s txs).1.ts x = EXECUTED
+  ∀ (v : Variant) (E : Env) (s : State) (txs : List Tx) (x : OpId), s.ts x = EXECUTED →
+    (submitAll v E s txs).1.ts x = EXECUTED
 
 /-- **A LATER SCHEDULE OF A DONE OPERATION COMMITS NOTHING.** After `timelockPlainRun` id `12`
 is `Done`; the owner's later `scheduleTransparent` of the same operation commits nothing, and
@@ -638,7 +647,9 @@ def Properties.InFlightCancelNeedsReschedule : Prop :=
 /-- **COUNTERMODEL (f): AN IN-FLIGHT CANCEL DOES NOT CANCEL.** After the owner schedules
 `timelockPlainOp` (id `12`), the owner's `cancel(12)` succeeds on its own, as a frame, at time
 `105`. In `timelockCancelRun` the council executes the operation instantly and its first target
-makes exactly that cancel. The transaction reverts at the re-check, so it commits nothing: the
+makes exactly that cancel: the execution's call loop (budget `9`, inside the transaction's `10`)
+commits, logging the delivery and the cancel, and leaves `timestamps[12] = 0`, so `12` is no
+longer pending and the re-check reverts the execution. The transaction commits nothing: the
 operation is still pending (`timestamps[12] = 110`), and the council's next `executeInstant`
 runs it. In `timelockCancelRescheduleRun` the owner also shadow-schedules id `12` again inside
 the execution. The execution commits, logs the cancel and the new schedule, and leaves `12`
@@ -647,6 +658,13 @@ def Properties.InFlightCancelIneffective : Prop :=
   (exec .deployed timelockEnv 105 1 (.entry 1 (.cancel 12) [])
       (submitAll .deployed timelockEnv timelockInit (timelockCancelRun.take 1)).1).map
         Prod.snd = some [.cancelled 12] ∧
+  (exec .deployed timelockEnv 105 9 (.calls 12 0 timelockPlainOp.calls
+      [timelockCallback 1 (.cancel 12)])
+      (submitAll .deployed timelockEnv timelockInit (timelockCancelRun.take 1)).1).map
+        (fun r => (r.1.ts 12, r.2)) = some (0, [.delivered 12 0, .cancelled 12]) ∧
+  exec .deployed timelockEnv 105 10 (.entry 2 (.executeInstant timelockPlainOp)
+      [timelockCallback 1 (.cancel 12)])
+      (submitAll .deployed timelockEnv timelockInit (timelockCancelRun.take 1)).1 = none ∧
   (submitAll .deployed timelockEnv timelockInit (timelockCancelRun.take 2)).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp)] ∧
   (submitAll .deployed timelockEnv timelockInit (timelockCancelRun.take 2)).1.ts 12 = 110 ∧
@@ -716,6 +734,33 @@ def Properties.DeliveriesBelongToExecutions : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx) (l₁ l₂ : List Effect) (x : OpId) (i : ℕ),
     (submitAll .deployed E s txs).2 = l₁ ++ .delivered x i :: l₂ →
     ∃ op τ b, Effect.executed x op τ b ∈ l₂
+
+/-- **A NEW OWNER ACCEPTED A NOMINATION (`Ownable2Step`).** In the committed log of any
+sequence of transactions from any state, with every target behaviour: every
+`OwnershipTransferred` entry whose new owner `a` is not the zero address comes after a
+nomination of `a` (`OwnershipTransferStarted`, logged only by `transferOwnership`, which needs
+the owner, `EntryGuards`) with no entry between them that writes the pending owner
+(`Effect.pendingWrite`: a nomination or an ownership transfer); or no entry before it writes the
+pending owner, and `a` was the pending owner at the start. -/
+def Properties.NewOwnerWasNominated : Prop :=
+  ∀ (E : Env) (s : State) (txs : List Tx) (l₁ l₂ : List Effect) (a : Address),
+    (submitAll .deployed E s txs).2 = l₁ ++ .ownershipTransferred a :: l₂ → a ≠ 0 →
+    (∃ l₃ l₄, l₁ = l₃ ++ .ownershipTransferStarted a :: l₄ ∧ ∀ e ∈ l₄, e.pendingWrite = none) ∨
+      (s.pendingOwner = a ∧ ∀ e ∈ l₁, e.pendingWrite = none)
+
+/-- **A NOMINATION ACCEPTED INSIDE AN EXECUTION.** From fresh Governance, in
+`timelockAcceptInsideRun` the owner `1` nominates `5` and schedules `timelockPlainOp`; the
+council's `executeInstant` of it at `105` commits, and inside it `5` accepts. The committed
+log has the transfer to `5` after the nomination of `5`, with the schedule and the delivery,
+which write no pending owner, between them; `5` ends the owner. -/
+def Properties.NewOwnerWasNominatedWitness : Prop :=
+  (submitAll .deployed timelockEnv timelockInit timelockAcceptInsideRun).2 =
+    [.ownershipTransferStarted 5, .scheduled 12 100 10 10 (some timelockPlainOp),
+      .delivered 12 0] ++ .ownershipTransferred 5 :: [.executed 12 timelockPlainOp 105 true] ∧
+  (5 : Address) ≠ 0 ∧
+  (∀ e ∈ [Effect.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0],
+    e.pendingWrite = none) ∧
+  (submitAll .deployed timelockEnv timelockInit timelockAcceptInsideRun).1.owner = 5
 
 /-! ## Enabledness -/
 

@@ -25,10 +25,11 @@ The run results lift them along `submitAll`. `Done` is permanent in either order
 separate induction (`exec_doneMono`), and so is the replay law (`exec_replay`: a committed
 frame leaves `replay s l`). With it, `exec_checked` shows every logged entry passed its check
 on the state its predecessors replay to (`LogChecked`); along such a log an id that is `Done`
-is never scheduled, cancelled or executed again (`checked_done_untouched`). The concrete
-witnesses and countermodels are evaluated by `decide`; the general countermodel
-`WithoutRecheckAnyOpRunsTwice` and the enabledness results are the same computation done
-symbolically, from a loop lemma (`exec_loop_returns`).
+is never scheduled, cancelled or executed again (`checked_done_untouched`), and the pending
+owner an ownership transfer finds is the one the last pending-owner write left
+(`NewOwnerWasNominated`). The concrete witnesses and countermodels are evaluated by `decide`;
+the general countermodel `WithoutRecheckAnyOpRunsTwice` and the enabledness results are the
+same computation done symbolically, from a loop lemma (`exec_loop_returns`).
 -/
 
 namespace Contracts.Governance
@@ -993,6 +994,24 @@ lemma exec_doneMono (v : Variant) (E : Env) (τ : ℕ) : ∀ (n : ℕ) (f : Fram
           exact ih _ _ _ _ h y hy
         · simp [hcaught] at h
 
+lemma submit_doneMono (v : Variant) (E : Env) (s : State) (t : Tx) (y : OpId)
+    (hy : s.ts y = 1) : (submit v E s t).1.ts y = 1 := by
+  unfold submit
+  split_ifs with hc
+  · exact hy
+  · cases hx : exec v E t.time t.fuel (.entry t.caller t.entry t.callees) s with
+    | none => simpa [commit] using hy
+    | some r =>
+      obtain ⟨s', l⟩ := r
+      simpa [commit] using exec_doneMono v E t.time _ _ _ _ _ hx y hy
+
+lemma submitAll_doneMono (v : Variant) (E : Env) : ∀ (s : State) (txs : List Tx) (y : OpId),
+    s.ts y = 1 → (submitAll v E s txs).1.ts y = 1
+  | _, [], _, hy => hy
+  | s, t :: ts, y, hy => by
+      simp only [submitAll]
+      exact submitAll_doneMono v E _ ts y (submit_doneMono v E s t y hy)
+
 /-! ## The state is the replay of the log, in either order -/
 
 @[simp] lemma replay_nil (s : State) : replay s [] = s := rfl
@@ -1249,13 +1268,13 @@ lemma exec_checked (E : Env) (τ : ℕ) : ∀ (n : ℕ) (f : Frame) (s s' : Stat
       split_ifs at h with hc
       simp only [Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
-      exact LogChecked.singleton trivial
+      exact LogChecked.singleton (Or.inr hc)
     | .entry c .renounceOwnership cbs =>
       simp only [exec] at h
       split_ifs at h with hc
       simp only [Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
-      exact LogChecked.singleton trivial
+      exact LogChecked.singleton (Or.inl rfl)
     | .entry c .noop cbs =>
       simp only [exec, Option.some.injEq, Prod.mk.injEq] at h
       obtain ⟨rfl, rfl⟩ := h
@@ -1679,7 +1698,7 @@ theorem NothingAfterExecutionWitness : Properties.NothingAfterExecutionWitness :
 
 theorem DoneIsPermanent : Properties.DoneIsPermanent :=
   ⟨fun v E τ n f s s' l x hx h => exec_doneMono v E τ n f s s' l h x hx,
-    fun E s txs x hx => (submitAll_inv E s txs).1.doneMono x hx⟩
+    fun v E s txs x hx => submitAll_doneMono v E s txs x hx⟩
 
 theorem DoneIsPermanentWitness : Properties.DoneIsPermanentWitness := by
   unfold Properties.DoneIsPermanentWitness; decide
@@ -2062,6 +2081,69 @@ theorem ConfigChangesNeedExecutionWitness : Properties.ConfigChangesNeedExecutio
 
 theorem DeliveriesBelongToExecutions : Properties.DeliveriesBelongToExecutions :=
   fun E s txs l₁ l₂ x i h => (submitAll_inv E s txs).2.2.1 l₁ l₂ x i h
+
+/-! ### The pending owner along the log -/
+
+/-- An entry that writes no pending owner keeps it. -/
+lemma apply_pendingOwner_of_none {s : State} {e : Effect} (h : e.pendingWrite = none) :
+    (e.apply s).pendingOwner = s.pendingOwner := by
+  cases e <;> simp_all [Effect.pendingWrite, Effect.apply]
+
+/-- An entry that writes a pending owner leaves exactly that one. -/
+lemma apply_pendingOwner_of_some {s : State} {e : Effect} {p : Address}
+    (h : e.pendingWrite = some p) : (e.apply s).pendingOwner = p := by
+  cases e <;> simp_all [Effect.pendingWrite, Effect.apply]
+
+lemma replay_pendingOwner_of_quiet : ∀ (s : State) (l : List Effect),
+    (∀ e ∈ l, e.pendingWrite = none) → (replay s l).pendingOwner = s.pendingOwner
+  | _, [], _ => rfl
+  | s, e :: l, h => by
+      rw [replay_cons, replay_pendingOwner_of_quiet (e.apply s) l
+        (fun e' he' => h e' (List.mem_cons_of_mem _ he')),
+        apply_pendingOwner_of_none (h e List.mem_cons_self)]
+
+/-- A log writes no pending owner, or splits at the last entry that writes one. -/
+lemma last_pendingWrite_split : ∀ (l : List Effect),
+    (∀ e ∈ l, e.pendingWrite = none) ∨
+      ∃ l₃ e l₄ p, l = l₃ ++ e :: l₄ ∧ e.pendingWrite = some p ∧
+        ∀ e' ∈ l₄, e'.pendingWrite = none
+  | [] => Or.inl (fun e he => by simp at he)
+  | e :: l => by
+      rcases last_pendingWrite_split l with hq | ⟨l₃, e', l₄, p, rfl, hp, hq⟩
+      · cases hpe : e.pendingWrite with
+        | none =>
+          left
+          intro e' he'
+          rcases List.mem_cons.1 he' with rfl | he'
+          · exact hpe
+          · exact hq e' he'
+        | some p => exact Or.inr ⟨[], e, l, p, rfl, hpe, hq⟩
+      · exact Or.inr ⟨e :: l₃, e', l₄, p, rfl, hp, hq⟩
+
+theorem NewOwnerWasNominated : Properties.NewOwnerWasNominated := by
+  intro E s txs l₁ l₂ a h ha
+  -- the logged check: the new owner is zero or the pending owner where the log has reached
+  have hc : a = 0 ∨ a = (replay s l₁).pendingOwner := submitAll_checked E s txs l₁ l₂ _ h
+  have hpo : a = (replay s l₁).pendingOwner := hc.resolve_left ha
+  rcases last_pendingWrite_split l₁ with hq | ⟨l₃, e, l₄, p, rfl, hp, hq⟩
+  · exact Or.inr ⟨by rw [hpo, replay_pendingOwner_of_quiet s l₁ hq], hq⟩
+  · left
+    rw [replay_append, replay_cons, replay_pendingOwner_of_quiet _ l₄ hq,
+      apply_pendingOwner_of_some hp] at hpo
+    -- the last writer left `a ≠ 0`, so it is a nomination of `a`, not an ownership transfer
+    subst hpo
+    refine ⟨l₃, l₄, ?_, hq⟩
+    cases e with
+    | ownershipTransferStarted b =>
+      simp only [Effect.pendingWrite, Option.some.injEq] at hp
+      rw [hp]
+    | ownershipTransferred b =>
+      simp only [Effect.pendingWrite, Option.some.injEq] at hp
+      exact absurd hp.symm ha
+    | _ => simp [Effect.pendingWrite] at hp
+
+theorem NewOwnerWasNominatedWitness : Properties.NewOwnerWasNominatedWitness := by
+  unfold Properties.NewOwnerWasNominatedWitness; decide
 
 /-! ## Enabledness -/
 
