@@ -274,6 +274,10 @@ import EraSpec.Contracts.ChainBatchRootTree.Proofs.LogConfinement
 -- Head-pinned send path: InteropCenter at main 3605e82 (= 70096e2ea) and draft/v0.35.0 b17415d20
 import EraSpec.Contracts.InteropCenter.Proofs.SendAtHead
 
+-- Mailbox request paths and the privileged L2 senders (draft/v0.35.0 at b17415d20)
+import EraSpec.Contracts.MailboxFacet.Proofs.RequestPaths
+import EraSpec.Protocol.PriorityRequests.Proofs.PrivilegedSenders
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
