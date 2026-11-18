@@ -4,20 +4,21 @@ import EraSpec.Contracts.ChainAssetHandler.Properties.Migration
 # Proofs: where a chain settles, its migration number, and recovery
 
 The reachability results are inductive invariants over `Reach`, proved in layers: message
-ids are fresh (`fresh_inv`); L1's bookkeeping (`book_inv`); bridgehub/diamond agreement
-(`agree_inv`); the holder invariant (`hold_inv`), which uses freshness; and the L1-message
-invariant behind `isMigrationInProgress` (`l1msg_inv`), which uses freshness. Each layer is
-proved by `reach_induction`, case by case over the steps.
+ids are fresh (`msgIds_fresh_inv`); L1's bookkeeping (`l1Book_inv`); bridgehub/diamond
+agreement (`diamondAgree_inv`); the holder invariant (`holder_inv`), which uses freshness;
+and the L1-message invariant behind `isMigrationInProgress` (`l1Departure_inv`), which uses
+freshness. Each layer is proved by `reach_induction`, case by case over the steps. The
+witnesses are concrete runs of `cahWorld`, checked by evaluation.
 -/
 
 namespace Contracts.ChainAssetHandler
 
 /-! ## Generic -/
 
-@[simp] theorem upd_same {α β : Type} [DecidableEq α] (f : α → β) (a : α) (b : β) :
+@[simp] theorem upd_self {α β : Type} [DecidableEq α] (f : α → β) (a : α) (b : β) :
     upd f a b a = b := by simp [upd]
 
-theorem upd_ne {α β : Type} [DecidableEq α] (f : α → β) {a x : α} (b : β) (h : x ≠ a) :
+theorem upd_of_ne {α β : Type} [DecidableEq α] (f : α → β) {a x : α} (b : β) (h : x ≠ a) :
     upd f a b x = f x := by simp [upd, h]
 
 theorem upd2_apply {α β γ : Type} [DecidableEq α] [DecidableEq β] (f : α → β → γ) (a : α)
@@ -41,38 +42,78 @@ theorem Run.reach {W : World} {s s' : Sys} {ls : List Label} (h : Run W s ls s')
   | nil => exact id
   | cons hst _ ih => exact fun hr => ih (Reach.step hr hst)
 
+/-- `setSettlementLayerChainId` on `h` writes only hub `h`'s number for chain `h`. -/
+theorem slChainIdPost_migNum {W : World} {s : Sys} {h p q h' c : ChainId}
+    (hne : ¬ (h' = h ∧ c = h)) : (slChainIdPost W s h p q).migNum h' c = s.migNum h' c := by
+  simp only [slChainIdPost]
+  split_ifs
+  · rfl
+  · simp [upd2_apply, hne]
+
+/-- A burn, inverted. -/
+theorem burn_inv {W : World} {s s' : Sys} {h c t : ChainId} {a : AssetId}
+    (hst : Step W s (.burn h c t a) s') : BurnOk W s h c t a ∧ s' = burnPost W s h c t a := by
+  cases hst with
+  | burn hg => exact ⟨hg, rfl⟩
+
+/-- A mint, inverted. -/
+theorem mint_inv {W : World} {s s' : Sys} {h : ChainId} {i : ℕ} {c : ChainId} {a : AssetId}
+    (hst : Step W s (.mint h i c a) s') :
+    ∃ m, MintOk W s h i m ∧ m.chain = c ∧ m.asset = a ∧
+      ((s.reg h c = false ∧ m.pv = s.ctmPV h (W.ctmOfAsset h a) ∧ h ≠ W.l1 ∧
+          s' = mintPost W s h i m (W.ctmOfAsset h a) true) ∨
+        (s.reg h c = true ∧ s.dpv h c = s.ctmPV h (s.dctm h c) ∧ s.away h c = true ∧
+          s' = mintPost W s h i m (W.ctmOfAsset h a) false)) := by
+  cases hst with
+  | @mintFresh _ _ m hg hnew hpv hl2 => exact ⟨m, hg, rfl, rfl, Or.inl ⟨hnew, hpv, hl2, rfl⟩⟩
+  | @mintReturn _ _ m hg hold hpv haway =>
+    exact ⟨m, hg, rfl, rfl, Or.inr ⟨hold, hpv, haway, rfl⟩⟩
+
+/-- The destination of a burn is not its hub. -/
+theorem BurnOk.dst_ne {W : World} {s : Sys} {h c t : ChainId} {a : AssetId}
+    (hg : BurnOk W s h c t a) : t ≠ h := by
+  by_cases hh : h = W.l1
+  · exact hh ▸ (hg.l1Record hh).1
+  · rw [hg.toL1 hh]; exact Ne.symm hh
+
 /-! ## Layer 0: message ids are fresh -/
 
-theorem fresh_inv {W : World} : ∀ s, Reach W s → ∀ i, s.nMsgs ≤ i → s.msgs i = none := by
+theorem msgIds_fresh_inv {W : World} :
+    ∀ s, Reach W s → ∀ i, s.nMsgs ≤ i → s.msgs i = none := by
   refine reach_induction _ (fun s hi i _ => hi.msgs i) ?_
   intro s l s' _ ih hst
   cases hst with
   | burn =>
     intro i hi
     simp only [burnPost] at hi ⊢
-    rw [upd_ne _ _ (by omega)]
+    rw [upd_of_ne _ _ (by omega)]
     exact ih i (by omega)
-  | @mintFresh _ j m hm =>
+  | @mintFresh _ j m hg =>
     intro i hi
+    have hj : i ≠ j := by
+      rintro rfl; have h1 := hg.msgAt; rw [ih _ hi] at h1; cases h1
     simp only [mintPost] at hi ⊢
-    have hj : j ≠ i := fun h => by subst h; simp [ih j hi] at hm
-    rw [upd_ne _ _ (Ne.symm hj)]; exact ih i hi
-  | @mintReturn _ j m hm =>
+    rw [upd_of_ne _ _ hj]; exact ih i hi
+  | @mintReturn _ j m hg =>
     intro i hi
+    have hj : i ≠ j := by
+      rintro rfl; have h1 := hg.msgAt; rw [ih _ hi] at h1; cases h1
     simp only [mintPost] at hi ⊢
-    have hj : j ≠ i := fun h => by subst h; simp [ih j hi] at hm
-    rw [upd_ne _ _ (Ne.symm hj)]; exact ih i hi
+    rw [upd_of_ne _ _ hj]; exact ih i hi
   | @failDeposit j m hm =>
     intro i hi
-    have hj : j ≠ i := fun h => by subst h; simp [ih j hi] at hm
+    have hj : i ≠ j := by rintro rfl; rw [ih _ hi] at hm; cases hm
     simp only at hi ⊢
-    rw [upd_ne _ _ (Ne.symm hj)]; exact ih i hi
-  | @confirm j m f hm =>
+    rw [upd_of_ne _ _ hj]; exact ih i hi
+  | @confirm j m f hg =>
     intro i hi
     have hi' : s.nMsgs ≤ i := by cases f <;> exact hi
-    have hj : i ≠ j := fun h => by subst h; simp [ih i hi'] at hm
+    have hj : i ≠ j := by
+      rintro rfl; have h1 := hg.msgAt; rw [ih _ hi'] at h1; cases h1
     cases f <;> simp [confirmPost, upd, hj, ih i hi']
-  | register => exact ih
+  | createChain => exact ih
+  | registerDeployed => exact ih
+  | setSLChainId => exact ih
   | pauseMigration => exact ih
   | unpauseMigration => exact ih
   | pauseCTM => exact ih
@@ -115,28 +156,36 @@ theorem book_two {W : World} {s : Sys} {c : ChainId} (hm : s.migNum W.l1 c = num
     Book W s c := by
   simp [Book, hm, hr, ha, hsl, numToSL, numToL1, maxMigrations]
 
-theorem book_inv {W : World} : ∀ s, Reach W s → ∀ c, Book W s c := by
+/-- Registering chain `c0` on L1 (either path) keeps L1's bookkeeping. -/
+theorem book_register {W : World} {s s' : Sys} {c c0 : ChainId} (hb : Book W s c)
+    (hnr : s.reg W.l1 c0 = false) (hsl : s'.sl = upd2 s.sl W.l1 c0 W.l1)
+    (hreg : s'.reg = upd2 s.reg W.l1 c0 true) (hn : s'.migNum = s.migNum)
+    (ha : s'.ivActive = s.ivActive) (hs : s'.ivSL = s.ivSL) : Book W s' c := by
+  obtain ⟨_, h2, h3, _, _, _⟩ := id hb
+  by_cases hc : c = c0
+  · subst hc
+    have h0 := h2 hnr
+    exact book_zero (by rw [hn]; exact h0) (by rw [ha]; exact (h3 h0).1)
+      (by rw [hs]; exact (h3 h0).2) (fun _ => by rw [hsl]; simp [upd2_apply])
+  · exact hb.congr (by rw [hn]) (by rw [hreg]; simp [upd2_apply, hc]) (by rw [ha])
+      (by rw [hs]) (by rw [hsl]; simp [upd2_apply, hc])
+
+theorem l1Book_inv {W : World} : ∀ s, Reach W s → ∀ c, Book W s c := by
   refine reach_induction _ (fun s hi c => ?_) ?_
   · exact book_zero (hi.migNum _ _) (hi.ivActive _) (hi.ivSL _) (by simp [hi.reg])
   intro s l s' _ ih hst c
   have hb := ih c
-  obtain ⟨_, h2, h3, _, _, _⟩ := id hb
   cases hst with
-  | @register c0 x _ _ _ _ hnr =>
-    by_cases hc : c = c0
-    · subst hc
-      have h0 := h2 hnr
-      exact book_zero (by simpa [registerPost, upd2_apply] using h0) (h3 h0).1 (h3 h0).2
-        (fun _ => by simp [registerPost, upd2_apply])
-    · exact hb.congr (by simp [registerPost]) (by simp [registerPost, upd2_apply, hc])
-        rfl rfl (by simp [registerPost, upd2_apply, hc])
-  | @burn h c0 t a o hh0 _ _ _ _ _ _ _ hsl _ hreg _ _ _ hnl _ _ _ hl1 =>
+  | @createChain c0 x hg => exact book_register hb hg.notRegistered rfl rfl rfl rfl rfl
+  | @registerDeployed c0 hg => exact book_register hb hg.notRegistered rfl rfl rfl rfl rfl
+  | @burn h c0 t a hg =>
     by_cases hh : h = W.l1
     · subst hh
-      obtain ⟨htl, hn⟩ := hl1 rfl
+      obtain ⟨htl, hn⟩ := hg.l1Record rfl
       by_cases hc : c = c0
       · subst hc
-        exact book_one (by simp [burnPost, upd2_apply, hn]) (by simpa [burnPost] using hreg)
+        exact book_one (by simp [burnPost, upd2_apply, hn])
+          (by simpa [burnPost] using hg.registered)
           (by simp [burnPost]) (by simp [burnPost, upd2_apply])
           (by simpa [burnPost, upd2_apply] using htl)
       · exact hb.congr (by simp [burnPost, upd2_apply, hc]) rfl
@@ -145,35 +194,40 @@ theorem book_inv {W : World} : ∀ s, Reach W s → ∀ c, Book W s c := by
     · have hh' : W.l1 ≠ h := Ne.symm hh
       exact hb.congr (by simp [burnPost, upd2_apply, hh']) rfl (by simp [burnPost, hh])
         (by simp [burnPost, hh]) (by simp [burnPost, upd2_apply, hh'])
-  | @mintFresh h i m _ _ _ _ _ _ _ _ _ _ _ _ _ _ hnl =>
-    have hh : W.l1 ≠ h := Ne.symm hnl
+  | @mintFresh h i m hg hnew hpv hl2 =>
+    have hh : W.l1 ≠ h := Ne.symm hl2
     exact hb.congr (by simp [mintPost, upd2_apply, hh]) (by simp [mintPost, upd2_apply, hh])
-      (by simp [mintPost, hnl]) rfl (by simp [mintPost, upd2_apply, hh])
-  | @mintReturn h i m _ _ _ _ _ _ _ _ hl1 hiv _ _ hreg _ _ =>
+      (by simp [mintPost, hl2]) rfl (by simp [mintPost, upd2_apply, hh])
+  | @mintReturn h i m hg hold hpv haway =>
     by_cases hh : h = W.l1
     · subst hh
-      obtain ⟨_, hmn⟩ := hl1 rfl
+      obtain ⟨_, hmn⟩ := hg.l1Numbers rfl
       by_cases hc : c = m.chain
       · subst hc
         exact book_two (by simp [mintPost, upd2_apply, hmn]) (by simp [mintPost, upd2_apply])
           (by simp [mintPost]) (by simp [mintPost, upd2_apply])
-      · exact hb.congr (by simp [mintPost, upd2_apply, hc]) (by simp [mintPost, upd2_apply, hc])
+      · exact hb.congr (by simp [mintPost, upd2_apply, hc])
+          (by simp [mintPost, upd2_apply, hc])
           (by simp [mintPost, upd, hc]) rfl (by simp [mintPost, upd2_apply, hc])
     · have hh' : W.l1 ≠ h := Ne.symm hh
-      exact hb.congr (by simp [mintPost, upd2_apply, hh']) (by simp [mintPost, upd2_apply, hh'])
+      exact hb.congr (by simp [mintPost, upd2_apply, hh'])
+        (by simp [mintPost, upd2_apply, hh'])
         (by simp [mintPost, hh]) rfl (by simp [mintPost, upd2_apply, hh'])
   | failDeposit => exact hb
-  | @confirm i m f _ _ hfail _ hreg _ hnum _ _ =>
+  | @confirm i m f hg =>
     cases f
     · exact hb.congr rfl rfl rfl rfl rfl
-    · have hn := hnum rfl
+    · have hn := hg.failNum rfl
       by_cases hc : c = m.chain
       · subst hc
-        exact book_zero (by simp [confirmPost, upd2_apply, hn, numToSL]) (by simp [confirmPost])
-          (by simp [confirmPost]) (fun _ => by simp [confirmPost, upd2_apply])
+        exact book_zero (by simp [confirmPost, upd2_apply, hn, numToSL])
+          (by simp [confirmPost]) (by simp [confirmPost])
+          (fun _ => by simp [confirmPost, upd2_apply])
       · exact hb.congr (by simp [confirmPost, upd2_apply, hc]) rfl
           (by simp [confirmPost, upd, hc]) (by simp [confirmPost, upd, hc])
           (by simp [confirmPost, upd2_apply, hc])
+  | @setSLChainId h p q _ hl2 =>
+    exact hb.congr (slChainIdPost_migNum (fun h' => hl2 h'.1.symm)) rfl rfl rfl rfl
   | pauseMigration => exact hb
   | unpauseMigration => exact hb
   | pauseCTM => exact hb
@@ -185,56 +239,56 @@ theorem book_inv {W : World} : ∀ s, Reach W s → ∀ c, Book W s c := by
 
 /-! ## Layer 2: the bridgehub and the diamond agree -/
 
-theorem agree_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s → ∀ h c, s.reg h c = true →
-    h ≠ 0 ∧ (s.sl h c = h ↔ s.away h c = false) := by
-  refine reach_induction _ (fun s hi h c hr => by simp [hi.reg] at hr) ?_
-  intro s l s' _ ih hst hq cq hr
+theorem diamondAgree_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s → ∀ h c,
+    (s.reg h c = true → h ≠ 0 ∧ (s.sl h c = h ↔ s.away h c = false)) ∧
+    (s.reg h c = false → s.away h c = false) := by
+  refine reach_induction _
+    (fun s hi h c => ⟨fun hr => by simp [hi.reg] at hr, fun _ => hi.away h c⟩) ?_
+  intro s l s' _ ih hq cq
   cases hst with
-  | @register c0 x _ _ _ _ _ =>
+  | @createChain c0 x hg =>
     by_cases hp : hq = W.l1 ∧ cq = c0
     · obtain ⟨rfl, rfl⟩ := hp
-      simp [registerPost, upd2_apply, hl]
-    · simp only [registerPost, upd2_apply, hp, ite_false] at hr ⊢
-      exact ih hq cq hr
-  | @burn h c0 t a o hh0 _ _ _ _ _ _ _ _ _ _ _ _ _ hnl _ _ _ hl1 =>
+      simp [createPost, upd2_apply, hl]
+    · simp only [createPost, upd2_apply, hp, ite_false]; exact ih hq cq
+  | @registerDeployed c0 hg =>
+    by_cases hp : hq = W.l1 ∧ cq = c0
+    · obtain ⟨rfl, rfl⟩ := hp
+      have haw := (ih W.l1 cq).2 hg.notRegistered
+      simp [registerDeployedPost, upd2_apply, hl, haw]
+    · simp only [registerDeployedPost, upd2_apply, hp, ite_false]; exact ih hq cq
+  | @burn h c0 t a hg =>
     by_cases hp : hq = h ∧ cq = c0
     · obtain ⟨rfl, rfl⟩ := hp
-      have htne : t ≠ hq := by
-        by_cases hh : hq = W.l1
-        · exact hh ▸ (hl1 hh).1
-        · rw [hnl hh]; exact Ne.symm hh
-      simp [burnPost, upd2_apply, hh0, htne]
-    · simp only [burnPost, upd2_apply, hp, ite_false] at hr ⊢
-      exact ih hq cq hr
-  | @mintFresh h i m _ _ _ hh0 =>
+      simp [burnPost, upd2_apply, hg.hubNonzero, hg.dst_ne, hg.registered]
+    · simp only [burnPost, upd2_apply, hp, ite_false]; exact ih hq cq
+  | @mintFresh h i m hg =>
     by_cases hp : hq = h ∧ cq = m.chain
     · obtain ⟨rfl, rfl⟩ := hp
-      simp [mintPost, upd2_apply, hh0]
-    · simp only [mintPost, upd2_apply, hp, ite_false] at hr ⊢
-      exact ih hq cq hr
-  | @mintReturn h i m _ _ _ hh0 =>
+      simp [mintPost, upd2_apply, hg.hubNonzero]
+    · simp only [mintPost, upd2_apply, hp, ite_false]; exact ih hq cq
+  | @mintReturn h i m hg =>
     by_cases hp : hq = h ∧ cq = m.chain
     · obtain ⟨rfl, rfl⟩ := hp
-      simp [mintPost, upd2_apply, hh0]
-    · simp only [mintPost, upd2_apply, hp, ite_false] at hr ⊢
-      exact ih hq cq hr
-  | failDeposit => exact ih hq cq hr
-  | @confirm i m f =>
+      simp [mintPost, upd2_apply, hg.hubNonzero]
+    · simp only [mintPost, upd2_apply, hp, ite_false]; exact ih hq cq
+  | failDeposit => exact ih hq cq
+  | @confirm i m f hg =>
     cases f
-    · exact ih hq cq hr
+    · exact ih hq cq
     · by_cases hp : hq = W.l1 ∧ cq = m.chain
       · obtain ⟨rfl, rfl⟩ := hp
         simp [confirmPost, upd2_apply, hl]
-      · simp only [confirmPost, upd2_apply, hp, ite_false, ite_true] at hr ⊢
-        exact ih hq cq hr
-  | pauseMigration => exact ih hq cq hr
-  | unpauseMigration => exact ih hq cq hr
-  | pauseCTM => exact ih hq cq hr
-  | unpauseCTM => exact ih hq cq hr
-  | pause => exact ih hq cq hr
-  | unpause => exact ih hq cq hr
-  | ctmUpgrade => exact ih hq cq hr
-  | diamondUpgrade => exact ih hq cq hr
+      · simp only [confirmPost, upd2_apply, hp, ite_false, ite_true]; exact ih hq cq
+  | setSLChainId => exact ih hq cq
+  | pauseMigration => exact ih hq cq
+  | unpauseMigration => exact ih hq cq
+  | pauseCTM => exact ih hq cq
+  | unpauseCTM => exact ih hq cq
+  | pause => exact ih hq cq
+  | unpause => exact ih hq cq
+  | ctmUpgrade => exact ih hq cq
+  | diamondUpgrade => exact ih hq cq
 
 /-! ## Layer 3: one holder per chain -/
 
@@ -271,9 +325,38 @@ theorem holds_congr {s s' : Sys} {c : ChainId} (hsl : ∀ h, s'.sl h c = s.sl h 
   | hub h => simp only [Holds, hsl]
   | msg j => exact hm j
 
+/-- Registering chain `c0` on L1 (either path) makes L1 its unique holder. -/
+theorem hold_register {W : World} {s s' : Sys} {c0 : ChainId} (hl : W.l1 ≠ 0)
+    (ihm : ∀ i m, s.msgs i = some m → s.reg W.l1 m.chain = true) (ih : ∀ c, HoldInv W s c)
+    (hnr : s.reg W.l1 c0 = false) (hsl : s'.sl = upd2 s.sl W.l1 c0 W.l1)
+    (hreg : s'.reg = upd2 s.reg W.l1 c0 true) (hmsgs : s'.msgs = s.msgs) :
+    (∀ i m, s'.msgs i = some m → s'.reg W.l1 m.chain = true) ∧ ∀ c, HoldInv W s' c := by
+  refine ⟨fun i m hm => ?_, fun cq => ?_⟩
+  · rw [hmsgs] at hm
+    have := ihm i m hm
+    rw [hreg]; simp only [upd2_apply]; split_ifs <;> simp_all
+  · by_cases hc : cq = c0
+    · subst hc
+      refine ⟨fun _ => ⟨.hub W.l1, fun y => ?_⟩, fun h => by
+        rw [hreg] at h; simp [upd2_apply] at h⟩
+      have hno := (ih cq).2 hnr
+      cases y with
+      | hub h' =>
+        by_cases hh : h' = W.l1
+        · subst hh; simp [Holds, hsl, upd2_apply, hl]
+        · have := hno (.hub h')
+          simp only [Holds, hsl, upd2_apply, hh, false_and, ite_false] at this ⊢
+          simp [this, hh]
+      | msg j =>
+        have := hno (.msg j)
+        simpa [Holds, hmsgs] using this
+    · refine (ih cq).congr (by rw [hreg]; simp [upd2_apply, hc]) ?_
+      exact holds_congr (fun h => by rw [hsl]; simp [upd2_apply, hc])
+        (fun j => by rw [hmsgs])
+
 /-- A mint moves its chain from the message to the minting hub. -/
 theorem hold_mint {W : World} {s : Sys} {h : ChainId} {i : ℕ} {m : Msg} {x : Address}
-    {fresh : Bool} (hl : W.l1 ≠ 0)
+    {fresh : Bool}
     (ihm : ∀ i m, s.msgs i = some m → s.reg W.l1 m.chain = true) (ih : ∀ c, HoldInv W s c)
     (hm : s.msgs i = some m) (hpend : m.status = .pending) (hh0 : h ≠ 0) :
     (∀ j m', (mintPost W s h i m x fresh).msgs j = some m' →
@@ -313,7 +396,7 @@ theorem hold_mint {W : World} {s : Sys} {h : ChainId} {i : ℕ} {m : Msg} {x : A
       · subst hj; simp [hm, Ne.symm hc]
       · exact Iff.rfl
 
-theorem hold_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s →
+theorem holder_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s →
     (∀ i m, s.msgs i = some m → s.reg W.l1 m.chain = true) ∧ ∀ c, HoldInv W s c := by
   refine reach_induction _ (fun s hi => ⟨fun i m h => by simp [hi.msgs] at h,
     fun c => ⟨fun h => by simp [hi.reg] at h, fun _ y => ?_⟩⟩) ?_
@@ -322,32 +405,13 @@ theorem hold_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s →
     | msg j => simp [Holds, hi.msgs]
   intro s l s' hreach ⟨ihm, ih⟩ hst
   cases hst with
-  | @register c0 x _ _ _ _ hnr =>
-    refine ⟨fun i m hm => ?_, fun cq => ?_⟩
-    · have := ihm i m hm
-      simp only [registerPost, upd2_apply]; split_ifs <;> simp_all
-    · by_cases hc : cq = c0
-      · subst hc
-        refine ⟨fun _ => ⟨.hub W.l1, fun y => ?_⟩, fun h => by simp [registerPost, upd2_apply] at h⟩
-        have hno := (ih cq).2 hnr
-        cases y with
-        | hub h' =>
-          by_cases hh : h' = W.l1
-          · subst hh; simp [Holds, registerPost, upd2_apply, hl]
-          · have := hno (.hub h')
-            simp only [Holds, registerPost, upd2_apply, hh, false_and, ite_false] at this ⊢
-            simp [this, hh]
-        | msg j => have := hno (.msg j); simpa [Holds, registerPost] using this
-      · refine (ih cq).congr (by simp [registerPost, upd2_apply, hc]) ?_
-        exact holds_congr (fun h => by simp [registerPost, upd2_apply, hc]) (fun j => Iff.rfl)
-  | @burn h c0 t a o hh0 _ _ _ _ _ _ _ hsl _ _ _ _ _ hnl _ _ _ hl1 =>
-    have hfresh := fresh_inv s hreach s.nMsgs le_rfl
-    have hhub : Holds s c0 (.hub h) := ⟨hh0, hsl⟩
+  | @createChain c0 x hg => exact hold_register hl ihm ih hg.notRegistered rfl rfl rfl
+  | @registerDeployed c0 hg => exact hold_register hl ihm ih hg.notRegistered rfl rfl rfl
+  | @burn h c0 t a hg =>
+    have hfresh := msgIds_fresh_inv s hreach s.nMsgs le_rfl
+    have hhub : Holds s c0 (.hub h) := ⟨hg.hubNonzero, hg.settlesHere⟩
     have hregc := (ih c0).reg hhub
-    have htne : t ≠ h := by
-      by_cases hh : h = W.l1
-      · exact hh ▸ (hl1 hh).1
-      · rw [hnl hh]; exact Ne.symm hh
+    have htne := hg.dst_ne
     refine ⟨fun i m hm => ?_, fun cq => ?_⟩
     · simp only [burnPost, upd] at hm ⊢
       split_ifs at hm with hi
@@ -375,10 +439,10 @@ theorem hold_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s →
         split_ifs with hj
         · subst hj; simp [hfresh, burnMsg, Ne.symm hc]
         · exact Iff.rfl
-  | @mintFresh h i m hm hpend _ hh0 =>
-    exact hold_mint hl ihm ih hm hpend hh0
-  | @mintReturn h i m hm hpend _ hh0 =>
-    exact hold_mint hl ihm ih hm hpend hh0
+  | @mintFresh h i m hg =>
+    exact hold_mint ihm ih hg.msgAt hg.pending hg.hubNonzero
+  | @mintReturn h i m hg =>
+    exact hold_mint ihm ih hg.msgAt hg.pending hg.hubNonzero
   | @failDeposit i m hm hpend _ =>
     refine ⟨fun j m' hm' => ?_, fun cq => (ih cq).congr rfl ?_⟩
     · simp only [upd] at hm'; split_ifs at hm' with hj
@@ -388,21 +452,24 @@ theorem hold_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s →
       simp only [upd]; split_ifs with hj
       · subst hj; simp [hm, Msg.Live, hpend]
       · exact Iff.rfl
-  | @confirm i m f hm _ hf hs hreg =>
+  | @confirm i m f hg =>
+    have hm := hg.msgAt
+    have hreg := hg.registered
     refine ⟨fun j m' hm' => ?_, fun cq => ?_⟩
-    · cases f <;> simp only [confirmPost, upd, ite_true, ite_false, Bool.false_eq_true] at hm' ⊢ <;>
+    · cases f <;>
+        simp only [confirmPost, upd, ite_true, ite_false, Bool.false_eq_true] at hm' ⊢ <;>
         (split_ifs at hm' with hj
          · cases hm'; first | exact hreg | simp [upd2_apply, hreg]
          · first | exact ihm j m' hm' | (have := ihm j m' hm'; simp [upd2_apply, this]))
     · cases f
       · -- success: the message was executed, not live, before and after
-        have hst : m.status = .executed := hs rfl
+        have hst : m.status = .executed := hg.executed rfl
         refine (ih cq).congr rfl (holds_congr (fun _ => rfl) (fun j => ?_))
         simp only [confirmPost, upd, Bool.false_eq_true, ite_false]
         split_ifs with hj
         · subst hj; simp [hm, Msg.Live, hst]
         · exact Iff.rfl
-      · have hfl : m.status = .failed := hf rfl
+      · have hfl : m.status = .failed := hg.failed rfl
         by_cases hc : cq = m.chain
         · subst hc
           have hmsg : Holds s m.chain (.msg i) := ⟨m, hm, rfl, Or.inr hfl⟩
@@ -428,6 +495,7 @@ theorem hold_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s →
           split_ifs with hj
           · subst hj; simp [hm, Ne.symm hc]
           · exact Iff.rfl
+  | setSLChainId => exact ⟨ihm, ih⟩
   | pauseMigration => exact ⟨ihm, ih⟩
   | unpauseMigration => exact ⟨ihm, ih⟩
   | pauseCTM => exact ⟨ihm, ih⟩
@@ -436,6 +504,11 @@ theorem hold_inv {W : World} (hl : W.l1 ≠ 0) : ∀ s, Reach W s →
   | unpause => exact ⟨ihm, ih⟩
   | ctmUpgrade => exact ⟨ihm, ih⟩
   | diamondUpgrade => exact ⟨ihm, ih⟩
+
+/-- On a reachable state, a holder of a chain is its unique holder. -/
+theorem holds_unique {W : World} {s : Sys} {c : ChainId} {x : Holder} (hl : W.l1 ≠ 0)
+    (hr : Reach W s) (hx : Holds s c x) : ∀ y, Holds s c y ↔ y = x :=
+  ((holder_inv hl s hr).2 c).unique hx
 
 /-! ## Layer 4: unconfirmed L1 departures and `isMigrationInProgress` -/
 
@@ -465,18 +538,19 @@ theorem nd_status {W : World} {s : Sys} {c : ChainId} {i : ℕ} {m : Msg} {st : 
   · subst hj; simp [hm, hst, hst']
   · exact Iff.rfl
 
-theorem l1msg_inv {W : World} : ∀ s, Reach W s → ∀ c, L1Msg W s c := by
+theorem l1Departure_inv {W : World} : ∀ s, Reach W s → ∀ c, L1Msg W s c := by
   refine reach_induction _ (fun s hi c => ⟨by simp [hi.inProgress, ND, hi.msgs],
     fun i hi' => by obtain ⟨m, hm, _⟩ := hi'; simp [hi.msgs] at hm⟩) ?_
   intro s l s' hreach ih hst c
   cases hst with
-  | @register c0 x =>
-    exact (ih c).congr rfl (fun _ => Iff.rfl) (fun h => by simpa [registerPost] using h)
-  | @burn h c0 t a o _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hl1 =>
-    have hfresh := fresh_inv s hreach s.nMsgs le_rfl
+  | createChain => exact (ih c).congr rfl (fun _ => Iff.rfl) id
+  | registerDeployed => exact (ih c).congr rfl (fun _ => Iff.rfl) id
+  | @burn h c0 t a hg =>
+    have hfresh := msgIds_fresh_inv s hreach s.nMsgs le_rfl
     by_cases hp : h = W.l1 ∧ c = c0
     · obtain ⟨rfl, rfl⟩ := hp
-      have hn0 : s.migNum W.l1 c = 0 := by have := (hl1 rfl).2; simp [numToSL] at this; omega
+      have hn0 : s.migNum W.l1 c = 0 := by
+        have := (hg.l1Record rfl).2; simp [numToSL] at this; omega
       have hnone : ∀ j, ¬ ND W s c j := fun j hj => ((ih c).2 j hj).1 hn0
       have hnd : ∀ j, ND W (burnPost W s W.l1 c t a) c j ↔ j = s.nMsgs := by
         intro j
@@ -505,25 +579,29 @@ theorem l1msg_inv {W : World} : ∀ s, Reach W s → ∀ c, L1Msg W s c := by
         split_ifs with hq
         · exact absurd ⟨hq.1.symm, hq.2⟩ hp
         · exact hn
-  | @mintFresh h i m hm hpend _ _ _ _ _ _ _ _ _ _ _ _ hnl =>
-    refine (ih c).congr rfl (nd_status hm (by simp [hpend]) (by simp)) (fun hn => ?_)
+  | @mintFresh h i m hg hnew hpv hl2 =>
+    refine (ih c).congr rfl (nd_status hg.msgAt (by simp [hg.pending]) (by simp))
+      (fun hn => ?_)
     simp only [mintPost, upd2_apply]
     split_ifs with hq
-    · exact absurd hq.1.symm hnl
+    · exact absurd hq.1.symm hl2
     · exact hn
-  | @mintReturn h i m hm hpend _ _ _ _ _ _ hl1 =>
-    refine (ih c).congr rfl (nd_status hm (by simp [hpend]) (by simp)) (fun hn => ?_)
+  | @mintReturn h i m hg =>
+    refine (ih c).congr rfl (nd_status hg.msgAt (by simp [hg.pending]) (by simp))
+      (fun hn => ?_)
     simp only [mintPost, upd2_apply]
     split_ifs with hq
-    · rw [(hl1 hq.1.symm).2]; simp [numToL1]
+    · rw [(hg.l1Numbers hq.1.symm).2]; simp [numToL1]
     · exact hn
   | @failDeposit i m hm hpend _ =>
     exact (ih c).congr rfl (nd_status hm (by simp [hpend]) (by simp)) id
-  | @confirm i m f hm hsrc hf hs =>
+  | @confirm i m f hg =>
+    have hm := hg.msgAt
+    have hsrc := hg.fromL1
     have hmnd : m.status ≠ .done := by
       cases f
-      · simp [hs rfl]
-      · simp [hf rfl]
+      · simp [hg.executed rfl]
+      · simp [hg.failed rfl]
     by_cases hc : c = m.chain
     · subst hc
       have hndi : ND W s m.chain i := ⟨m, hm, hsrc, rfl, hmnd⟩
@@ -531,16 +609,19 @@ theorem l1msg_inv {W : World} : ∀ s, Reach W s → ∀ c, L1Msg W s c := by
       have hnone : ∀ j, ¬ ND W (confirmPost W s i m f) m.chain j := by
         intro j hj
         obtain ⟨m', hm', h1, h2, h3⟩ := hj
-        cases f <;> simp only [confirmPost, upd, Bool.false_eq_true, ite_false, ite_true] at hm' <;>
-        (split_ifs at hm' with hji
-         · cases hm'; exact h3 rfl
-         · exact hji (hu j ⟨m', hm', h1, h2, h3⟩))
-      refine ⟨⟨fun h => ?_, fun ⟨j, hj⟩ => absurd hj (hnone j)⟩, fun j hj => absurd hj (hnone j)⟩
+        cases f <;>
+          simp only [confirmPost, upd, Bool.false_eq_true, ite_false, ite_true] at hm' <;>
+          (split_ifs at hm' with hji
+           · cases hm'; exact h3 rfl
+           · exact hji (hu j ⟨m', hm', h1, h2, h3⟩))
+      refine ⟨⟨fun h => ?_, fun ⟨j, hj⟩ => absurd hj (hnone j)⟩,
+        fun j hj => absurd hj (hnone j)⟩
       cases f <;> simp [confirmPost, upd] at h
     · refine (ih c).congr ?_ (fun j => ?_) ?_
       · cases f <;> simp [confirmPost, upd, hc]
       · have : ∀ st : MsgStatus,
-            ND W { s with msgs := upd s.msgs i (some { m with status := st }) } c j ↔ ND W s c j := by
+            ND W { s with msgs := upd s.msgs i (some { m with status := st }) } c j ↔
+              ND W s c j := by
           intro st
           simp only [ND, upd]
           split_ifs with hj
@@ -557,6 +638,9 @@ theorem l1msg_inv {W : World} : ∀ s, Reach W s → ∀ c, L1Msg W s c := by
           split_ifs with hq
           · exact absurd hq.2 hc
           · exact hn
+  | @setSLChainId h p q _ hl2 =>
+    exact (ih c).congr rfl (fun _ => Iff.rfl)
+      (fun hn => by rwa [slChainIdPost_migNum (fun h' => hl2 h'.1.symm)])
   | pauseMigration => exact ih c
   | unpauseMigration => exact ih c
   | pauseCTM => exact ih c
@@ -570,11 +654,11 @@ theorem l1msg_inv {W : World} : ∀ s, Reach W s → ∀ c, L1Msg W s c := by
 
 theorem ExactlyOneSettlementLayer : Properties.ExactlyOneSettlementLayer := by
   intro W s hl hr c
-  exact (hold_inv hl s hr).2 c
+  exact (holder_inv hl s hr).2 c
 
 theorem BridgehubAgreesWithDiamond : Properties.BridgehubAgreesWithDiamond := by
-  intro W s hl hr h c hreg
-  exact agree_inv hl s hr h c hreg
+  intro W s hl hr h c
+  exact diamondAgree_inv hl s hr h c
 
 /-- A nonzero L1 migration number means the chain is registered on L1. -/
 theorem reg_of_num {W : World} {s : Sys} {c : ChainId} (hb : Book W s c)
@@ -583,7 +667,7 @@ theorem reg_of_num {W : World} {s : Sys} {c : ChainId} (hb : Book W s c)
 
 theorem L1MigrationBookkeeping : Properties.L1MigrationBookkeeping := by
   intro W s hl hr c
-  have hb := book_inv s hr c
+  have hb := l1Book_inv s hr c
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := id hb
   refine ⟨h1, h2, h3, h4, h5, h6, fun hreg => ?_⟩
   simp only [Holds]
@@ -600,36 +684,39 @@ theorem L1MigrationBookkeeping : Properties.L1MigrationBookkeeping := by
 theorem L1MigrationNumberTransitions : Properties.L1MigrationNumberTransitions := by
   intro W s s' l c hst hne
   cases hst with
-  | @register c0 x => exact absurd rfl hne
-  | @burn h c0 t a o _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hl1 =>
+  | createChain => exact absurd rfl hne
+  | registerDeployed => exact absurd rfl hne
+  | @burn h c0 t a hg =>
     simp only [burnPost, upd2_apply] at hne ⊢
     split_ifs at hne ⊢ with hq
     · obtain ⟨rfl, rfl⟩ := hq
-      have hn := (hl1 rfl).2
-      left; refine ⟨by simp [numToSL] at hn; omega, hn, rfl, rfl⟩
+      have hn := (hg.l1Record rfl).2
+      left; exact ⟨by simp [numToSL] at hn; omega, hn, rfl, rfl⟩
     · exact absurd rfl hne
-  | @mintFresh h i m _ _ _ _ _ _ _ _ _ _ _ _ _ _ hnl =>
+  | @mintFresh h i m hg hnew hpv hl2 =>
     simp only [mintPost, upd2_apply] at hne
     split_ifs at hne with hq
-    · exact absurd hq.1.symm hnl
+    · exact absurd hq.1.symm hl2
     · exact absurd rfl hne
-  | @mintReturn h i m _ _ _ _ _ _ _ _ hl1 =>
+  | @mintReturn h i m hg =>
     simp only [mintPost, upd2_apply] at hne ⊢
     split_ifs at hne ⊢ with hq
     · obtain ⟨rfl, rfl⟩ := hq
-      obtain ⟨hn, hmn⟩ := hl1 rfl
+      obtain ⟨hn, hmn⟩ := hg.l1Numbers rfl
       right; left; exact ⟨hn, hmn, by simp [Label.mintsOnL1]⟩
     · exact absurd rfl hne
   | failDeposit => exact absurd rfl hne
-  | @confirm i m f _ _ _ _ _ _ hnum =>
+  | @confirm i m f hg =>
     cases f
     · exact absurd rfl hne
     · simp only [confirmPost, ite_true, upd2_apply] at hne ⊢
       split_ifs at hne ⊢ with hq
       · obtain ⟨-, rfl⟩ := hq
-        have hn := hnum rfl
+        have hn := hg.failNum rfl
         right; right; exact ⟨hn, by simp [hn, numToSL], i, rfl⟩
       · exact absurd rfl hne
+  | @setSLChainId h p q _ hl2 =>
+    exact absurd (slChainIdPost_migNum (fun h' => hl2 h'.1.symm)) hne
   | pauseMigration => exact absurd rfl hne
   | unpauseMigration => exact absurd rfl hne
   | pauseCTM => exact absurd rfl hne
@@ -640,8 +727,8 @@ theorem L1MigrationNumberTransitions : Properties.L1MigrationNumberTransitions :
   | diamondUpgrade => exact absurd rfl hne
 
 /-- L1's migration number 2 is absorbing. -/
-theorem num_two_stays {W : World} {s s' : Sys} {l : Label} {c : ChainId} (hst : Step W s l s')
-    (h2 : s.migNum W.l1 c = numToL1) : s'.migNum W.l1 c = numToL1 := by
+theorem num_two_stays {W : World} {s s' : Sys} {l : Label} {c : ChainId}
+    (hst : Step W s l s') (h2 : s.migNum W.l1 c = numToL1) : s'.migNum W.l1 c = numToL1 := by
   by_contra hne
   rcases L1MigrationNumberTransitions W s s' l c hst (by rw [h2]; exact hne) with
     ⟨h, _⟩ | ⟨h, _⟩ | ⟨h, _⟩ <;> simp [h2, numToSL, numToL1] at h
@@ -649,9 +736,8 @@ theorem num_two_stays {W : World} {s s' : Sys} {l : Label} {c : ChainId} (hst : 
 /-- On a reachable state where L1's number of `c` is 2, L1 is `c`'s only holder. -/
 theorem returned_holder {W : World} {s : Sys} {c : ChainId} (hl : W.l1 ≠ 0) (hr : Reach W s)
     (h2 : s.migNum W.l1 c = numToL1) : ∀ y, Holds s c y ↔ y = .hub W.l1 := by
-  have hb := book_inv s hr c
-  have hreg := reg_of_num hb (by rw [h2]; simp [numToL1])
-  exact ((hold_inv hl s hr).2 c).unique ⟨hl, (hb.2.2.2.2.2 h2).2⟩
+  have hb := l1Book_inv s hr c
+  exact holds_unique hl hr ⟨hl, (hb.2.2.2.2.2 h2).2⟩
 
 theorem ReturnedChainStaysOnL1 : Properties.ReturnedChainStaysOnL1 := by
   intro W s s' ls c hl hr hrun h2
@@ -665,17 +751,17 @@ theorem ReturnedChainStaysOnL1 : Properties.ReturnedChainStaysOnL1 := by
     · intro hmv
       have hu := returned_holder hl hr h2
       cases hst with
-      | @burn h c0 t a o hh0 _ _ _ _ _ _ _ hsl _ _ _ _ _ _ _ _ _ hl1 =>
+      | @burn h c0 t a hg =>
         simp only [Label.movesChain] at hmv; subst hmv
-        have := (hu (.hub h)).1 ⟨hh0, hsl⟩
+        have := (hu (.hub h)).1 ⟨hg.hubNonzero, hg.settlesHere⟩
         cases this
-        have := (hl1 rfl).2; rw [h2] at this; simp [numToL1, numToSL] at this
-      | @mintFresh h i m hm hpend =>
+        have := (hg.l1Record rfl).2; rw [h2] at this; simp [numToL1, numToSL] at this
+      | @mintFresh h i m hg =>
         simp only [Label.movesChain] at hmv; subst hmv
-        exact absurd ((hu (.msg i)).1 ⟨m, hm, rfl, Or.inl hpend⟩) (by simp)
-      | @mintReturn h i m hm hpend =>
+        exact absurd ((hu (.msg i)).1 ⟨m, hg.msgAt, rfl, Or.inl hg.pending⟩) (by simp)
+      | @mintReturn h i m hg =>
         simp only [Label.movesChain] at hmv; subst hmv
-        exact absurd ((hu (.msg i)).1 ⟨m, hm, rfl, Or.inl hpend⟩) (by simp)
+        exact absurd ((hu (.msg i)).1 ⟨m, hg.msgAt, rfl, Or.inl hg.pending⟩) (by simp)
       | _ => simp [Label.movesChain] at hmv
     · exact hC l' hmem
 
@@ -690,11 +776,11 @@ theorem AtMostOneRoundTrip : Properties.AtMostOneRoundTrip := by
     · -- the step is an L1 mint of `c`: the number goes 1 → 2
       have hpre : s0.migNum W.l1 c = numToSL ∧ s1.migNum W.l1 c = numToL1 := by
         cases hst with
-        | @mintFresh h i m _ _ _ _ _ _ _ _ _ _ _ _ _ _ hnl =>
-          simp [Label.mintsOnL1] at hm; exact absurd hm.1 hnl
-        | @mintReturn h i m _ _ _ _ _ _ _ _ hl1 =>
+        | @mintFresh h i m hg hnew hpv hl2 =>
+          simp [Label.mintsOnL1] at hm; exact absurd hm.1 hl2
+        | @mintReturn h i m hg =>
           simp [Label.mintsOnL1] at hm; obtain ⟨rfl, rfl⟩ := hm
-          obtain ⟨hn, hmn⟩ := hl1 rfl
+          obtain ⟨hn, hmn⟩ := hg.l1Numbers rfl
           exact ⟨hn, by simp [mintPost, upd2_apply, hmn]⟩
         | _ => simp [Label.mintsOnL1] at hm
       rw [if_pos hm, if_neg (by rw [hpre.1]; simp [numToSL, numToL1])]
@@ -705,90 +791,106 @@ theorem AtMostOneRoundTrip : Properties.AtMostOneRoundTrip := by
       · rw [if_pos (num_two_stays hst h2)] at ih'; rw [if_pos h2]; exact ih'
       · rw [if_neg h2]; split_ifs at ih' <;> omega
 
-/-- The burn of a reachable state, inverted. -/
 theorem FailedMigrationRecoveryRestoresSource :
     Properties.FailedMigrationRecoveryRestoresSource := by
-  intro W s s1 c t a orig hl hr hst
-  cases hst with
-  | burn _ _ _ _ _ hctm _ _ _ _ hreg _ hdpv _ _ _ haway _ hl1 =>
-    obtain ⟨_, hn⟩ := hl1 rfl
-    have hn0 : s.migNum W.l1 c = 0 := by simp [numToSL] at hn; omega
-    have hb := book_inv s hr c
-    obtain ⟨hiv, hivsl⟩ := hb.2.2.1 hn0
-    have hip : s.inProgress c = false := by
-      have h1 := ((l1msg_inv s hr c).1)
-      by_contra hc
-      obtain ⟨j, hj⟩ := h1.1 (by simpa using hc)
-      exact ((l1msg_inv s hr c).2 j hj).1 hn0
-    set b := burnMsg s W.l1 c t a with hbdef
-    let s2 : Sys := { burnPost W s W.l1 c t a with
-      msgs := upd (burnPost W s W.l1 c t a).msgs s.nMsgs (some { b with status := .failed }) }
-    have hfail : Step W (burnPost W s W.l1 c t a) (.failDeposit s.nMsgs) s2 :=
-      Step.failDeposit (m := b) (by simp [burnPost, b]) rfl rfl
-    have hconf : Step W s2 (.confirm s.nMsgs c true)
-        (confirmPost W s2 s.nMsgs { b with status := .failed } true) :=
-      Step.confirm (m := { b with status := .failed }) (by simp [s2]) rfl (fun _ => rfl)
-        (fun h => by simp at h) (by simpa [s2, burnPost, b, burnMsg] using hreg)
-        (by simpa [s2, burnPost, b, burnMsg] using hctm)
-        (fun _ => by simp [s2, burnPost, b, burnMsg, upd2_apply, hn])
-        (fun _ => by simp [s2, burnPost, b, burnMsg, upd2_apply])
-        (fun _ => by simp [s2, burnPost, b, burnMsg])
-    refine ⟨s2, _, hfail, hconf, ?_⟩
-    simp only [confirmPost, ite_true, s2, burnPost, b, burnMsg]
-    congr 1
-    · funext h' c'; simp only [upd2_apply]; split_ifs with h1 h2 <;> simp_all
-    · funext h' c'; simp only [upd2_apply]; split_ifs with h1 h2 <;> simp_all
-    · funext c'; simp only [upd]; split_ifs with h1 <;> simp_all
-    · funext c'; simp only [upd]; split_ifs with h1 <;> simp_all
-    · funext c'; simp only [upd]; split_ifs with h1 <;> simp_all
-    · funext h' c'; simp only [upd2_apply]; split_ifs with h1 h2 <;> simp_all
-    · funext j; simp only [upd]; split_ifs <;> simp_all
+  intro W s s1 c t a hl hr hst
+  obtain ⟨hg, rfl⟩ := burn_inv hst
+  obtain ⟨_, hn⟩ := hg.l1Record rfl
+  have hn0 : s.migNum W.l1 c = 0 := by simp [numToSL] at hn; omega
+  have hb := l1Book_inv s hr c
+  obtain ⟨hiv, hivsl⟩ := hb.2.2.1 hn0
+  have hip : s.inProgress c = false := by
+    have h1 := (l1Departure_inv s hr c).1
+    by_contra hc
+    obtain ⟨j, hj⟩ := h1.1 (by simpa using hc)
+    exact ((l1Departure_inv s hr c).2 j hj).1 hn0
+  set b := burnMsg s W.l1 c t a with hbdef
+  let s2 : Sys := { burnPost W s W.l1 c t a with
+    msgs := upd (burnPost W s W.l1 c t a).msgs s.nMsgs (some { b with status := .failed }) }
+  have hfail : Step W (burnPost W s W.l1 c t a) (.failDeposit s.nMsgs) s2 :=
+    Step.failDeposit (m := b) (by simp [burnPost, b]) rfl rfl
+  have hconf : Step W s2 (.confirm s.nMsgs c true)
+      (confirmPost W s2 s.nMsgs { b with status := .failed } true) :=
+    Step.confirm (m := { b with status := .failed })
+      { msgAt := by simp [s2]
+        fromL1 := rfl
+        failed := fun _ => rfl
+        executed := fun h => by simp at h
+        registered := by simpa [s2, burnPost, b, burnMsg] using hg.registered
+        ctmSet := by simpa [s2, burnPost, b, burnMsg] using hg.ctmSet
+        failNum := fun _ => by simp [s2, burnPost, b, burnMsg, upd2_apply, hn]
+        failAway := fun _ => by simp [s2, burnPost, b, burnMsg, upd2_apply]
+        failPv := fun _ => by simp [s2, burnPost, b, burnMsg] }
+  refine ⟨s2, _, hfail, hconf, ?_⟩
+  have hsl := hg.settlesHere
+  have haway := hg.notAway
+  simp only [confirmPost, ite_true, s2, burnPost, b, burnMsg]
+  congr 1
+  · funext h' c'; simp only [upd2_apply]; split_ifs with h1 h2 <;> simp_all
+  · funext h' c'; simp only [upd2_apply]; split_ifs with h1 h2 <;> simp_all
+  · funext c'; simp only [upd]; split_ifs with h1 <;> simp_all
+  · funext c'; simp only [upd]; split_ifs with h1 <;> simp_all
+  · funext c'; simp only [upd]; split_ifs with h1 <;> simp_all
+  · funext h' c'; simp only [upd2_apply]; split_ifs with h1 h2 <;> simp_all
+  · funext j; simp only [upd]; split_ifs <;> simp_all
 
 theorem InProgressTracksUnconfirmedDeparture :
     Properties.InProgressTracksUnconfirmedDeparture := by
   intro W s hl hr c
-  have h := l1msg_inv s hr c
+  have h := l1Departure_inv s hr c
   refine ⟨?_, fun i j m m' hm hm' hs hs' hc hc' hd hd' => ?_⟩
   · rw [h.1]; simp only [ND]
   · exact ((h.2 i ⟨m, hm, hs, hc, hd⟩).2 j ⟨m', hm', hs', hc', hd'⟩).symm
 
 theorem VersionEqualityAtBurnAndMint : Properties.VersionEqualityAtBurnAndMint := by
   intro W s s' l hst
-  refine ⟨fun h c t a orig hl => ?_, fun h i c a hl => ?_⟩
+  refine ⟨fun h c t a hl => ?_, fun h i c a hl => ?_⟩
   · subst hl
-    cases hst with
-    | burn _ _ _ _ _ _ _ _ _ _ _ _ hdpv =>
-      exact ⟨hdpv, burnMsg s h c t a, by simp [burnPost], rfl, rfl⟩
+    obtain ⟨hg, rfl⟩ := burn_inv hst
+    exact ⟨hg.atCtmVersion, burnMsg s h c t a, by simp [burnPost], rfl, rfl⟩
   · subst hl
-    cases hst with
-    | @mintFresh _ _ m hm =>
-      refine ⟨m, hm, rfl, by simp [mintPost, upd2_apply], by simp [mintPost, upd2_apply],
-        fun _ => ?_⟩
-      assumption
-    | @mintReturn _ _ m hm _ _ _ _ _ _ _ _ _ _ _ hreg hdpv =>
-      refine ⟨m, hm, rfl, by simp [mintPost, upd2_apply], ?_, fun h => by simp [hreg] at h⟩
-      simp [mintPost, upd2_apply, hdpv]
+    obtain ⟨m, hg, rfl, rfl, hcase⟩ := mint_inv hst
+    rcases hcase with ⟨_, hpv, _, rfl⟩ | ⟨hold, hpv, _, rfl⟩
+    · exact ⟨m, hg.msgAt, rfl, by simp [mintPost, upd2_apply],
+        by simp [mintPost, upd2_apply], fun _ => ⟨by simp [mintPost, upd2_apply], hpv⟩⟩
+    · refine ⟨m, hg.msgAt, rfl, by simp [mintPost, upd2_apply], ?_,
+        fun h => by simp [hold] at h⟩
+      simp [mintPost, upd2_apply, hpv]
 
 theorem MigrationsDisabledFreezeSettlement : Properties.MigrationsDisabledFreezeSettlement := by
   intro W s hl hen hr
-  have key : ∀ s, Reach W s → (∀ i, s.msgs i = none) ∧ (∀ h c, s.migNum h c = 0) ∧
-      (∀ h c, h ≠ W.l1 → s.sl h c = 0) ∧ (∀ c, s.reg W.l1 c = true → s.sl W.l1 c = W.l1) := by
-    refine reach_induction _ (fun s hi => ⟨hi.msgs, hi.migNum, fun h c _ => hi.sl h c,
-      fun c h => by simp [hi.reg] at h⟩) ?_
+  have key : ∀ s, Reach W s → (∀ i, s.msgs i = none) ∧ (∀ h c, h ≠ c → s.migNum h c = 0) ∧
+      (∀ h c, h ≠ W.l1 → s.sl h c = 0) ∧
+      (∀ c, s.reg W.l1 c = true → s.sl W.l1 c = W.l1) := by
+    refine reach_induction _ (fun s hi => ⟨hi.msgs, fun h c _ => hi.migNum h c,
+      fun h c _ => hi.sl h c, fun c h => by simp [hi.reg] at h⟩) ?_
     intro s l s' _ ⟨hm, hn, hsl, hreg⟩ hst
+    have hreg_register : ∀ c0 (s'' : Sys), s''.reg = upd2 s.reg W.l1 c0 true →
+        s''.sl = upd2 s.sl W.l1 c0 W.l1 → ∀ c, s''.reg W.l1 c = true → s''.sl W.l1 c = W.l1 := by
+      intro c0 s'' hr' hs' c h
+      rw [hs']; rw [hr'] at h
+      simp only [upd2_apply] at h ⊢
+      split_ifs at h ⊢ with hq
+      · rfl
+      · exact hreg c (by simpa [hq] using h)
+    have hsl_register : ∀ c0 (s'' : Sys), s''.sl = upd2 s.sl W.l1 c0 W.l1 →
+        ∀ h c, h ≠ W.l1 → s''.sl h c = 0 := by
+      intro c0 s'' hs' h c hh
+      rw [hs']; simp [upd2_apply, hh, hsl h c hh]
     cases hst with
-    | @register c0 x =>
-      refine ⟨hm, hn, fun h c hh => ?_, fun c h => ?_⟩
-      · simp [registerPost, upd2_apply, hh, hsl h c hh]
-      · simp only [registerPost, upd2_apply] at h ⊢
-        split_ifs at h ⊢ with hq
-        · rfl
-        · exact hreg c (by simpa [hq] using h)
-    | burn _ _ he => simp [hen] at he
-    | mintFresh _ _ _ _ _ he => simp [hen] at he
-    | mintReturn _ _ _ _ _ he => simp [hen] at he
+    | @createChain c0 x hg =>
+      exact ⟨hm, hn, hsl_register c0 _ rfl, hreg_register c0 _ rfl rfl⟩
+    | @registerDeployed c0 hg =>
+      exact ⟨hm, hn, hsl_register c0 _ rfl, hreg_register c0 _ rfl rfl⟩
+    | burn hg => exact absurd hg.enabled (by simp [hen])
+    | mintFresh hg => exact absurd hg.enabled (by simp [hen])
+    | mintReturn hg => exact absurd hg.enabled (by simp [hen])
     | failDeposit hm' => simp [hm] at hm'
-    | confirm hm' => simp [hm] at hm'
+    | confirm hg => have := hg.msgAt; simp [hm] at this
+    | @setSLChainId h p q _ _ =>
+      refine ⟨hm, fun h' c hne => ?_, hsl, hreg⟩
+      rw [slChainIdPost_migNum (fun h'' => hne (h''.1.trans h''.2.symm))]
+      exact hn h' c hne
     | pauseMigration => exact ⟨hm, hn, hsl, hreg⟩
     | unpauseMigration => exact ⟨hm, hn, hsl, hreg⟩
     | pauseCTM => exact ⟨hm, hn, hsl, hreg⟩
