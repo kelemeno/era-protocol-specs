@@ -69,16 +69,19 @@ keccak are abstract.
 `AtomicSourceBindingFaithful` (namespace `Contracts.L2InteropHandler.AtomicSourceFaithful`, pin
 `c67894b9`) states the binding over the entry point itself: every check of `executeAtomicBundle`,
 every revert of `requireFlowFinalized`, and the calls `_executeCalls` makes (`ExecutesAtomic`). With
-no premise, a successful execution locates its one vouching leg and delivers every call with the
-bundle's own `sourceChainId` (`AtomicExecutionLocatesVouchingLeg`, `VouchingLegUnique`,
-`DeliveriesCarryDeclaredSource`). If the leg's declared chain vouches honestly (`HonestVouching`),
+no premise beyond the model, a successful execution locates its one vouching leg and delivers every
+call with the bundle's own `sourceChainId` (`AtomicExecutionLocatesVouchingLeg`, `VouchingLegUnique`,
+which uses the model's `FlowGateAccepts`, `DeliveriesCarryDeclaredSource`). If the leg's declared chain vouches honestly (`HonestVouching`),
 every call is delivered with that chain, or the leg's commit value is the tree sentinel `0`, or
 keccak collides on a named preimage pair (`AtomicSenderIsVouchingChainOrBreak`). Honest vouching is
 derived from the vouching chain's deployed run in `SourceBindingReduced`'s model, with the
 verifier's soundness for that run's tree as the remaining premise (`DeployedRunVouchesHonestly`).
 On such a run, with the ABI decoder inverting the encoder, the executed bundle is a dispatched one
 and every recipient sees a sender on the vouching chain that took part in the send and receives no
-base-token value, up to the same breaks (`AtomicExecutionRunsTheDispatchedBundleOrBreak`). Without
+base-token value, up to the same breaks (`AtomicExecutionRunsTheDispatchedBundleOrBreak`). These
+run-level results recompose `SourceBindingReduced`'s headline (`ExecutedCallersAreSourceSendersOrBreak`,
+`ExecutedBytesAreDispatchedOrBreak`) at the entry point; what is new is the entry-point model and
+the `AcceptsOnlyKeysOf` link. Without
 honest vouching any chain impersonates any other, for every keccak
 (`MisbehavingLegChainImpersonates`); each break disjunct can hold alone (`SentinelCommitFires`,
 `CommitPreimageClashFires`, `BundlePreimageClashFires`).

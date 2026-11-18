@@ -15,11 +15,9 @@ Source: era-contracts `draft/v0.35.0` at `b17415d20`, under
 * `ValidiumL1DAValidator.sol:9-28`;
 * constants: `DAConstants.sol:11-20`, `CalldataDA.sol:17-20`, `common/Config.sol:43`.
 
-These transcriptions are adapted from the unmerged branch `origin/cov2/da` (commit `7dd67bf`,
-`EraSpec/Contracts/DataAvailability/Specs/{Common,RollupL1DAValidator,OtherValidators}.lean`,
-written against `d9f678900`). Every citation here was re-checked against `b17415d20`. Changes from
-that copy: the namespace (`Contracts.ZKsyncOSCommitterDA`, so the two
-copies can coexist), the ablation flags are dropped, `publishBlobs` of the rollup validator is not
+These transcriptions are adapted from an earlier draft DA model and re-checked line by line
+against `b17415d20`. Changes from that draft: the namespace (`Contracts.ZKsyncOSCommitterDA`),
+the ablation flags are dropped, `publishBlobs` of the rollup validator is not
 transcribed (its record only matters through `RollupState`), and the blob loop advances its slice
 by one record per iteration as the source does at `:178`.
 

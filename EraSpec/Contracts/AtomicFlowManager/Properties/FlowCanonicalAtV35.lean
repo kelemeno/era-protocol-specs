@@ -228,7 +228,11 @@ every hash, chain, starting state `M₀` and successful run `calls` ending in `M
 is `Unset` in `M₀` and `Revertable` or `Reverted` in `M`, the run has a call `append h p` and a
 call `authorizeRefund F k` such that `p` is accepted with `enc p = id`, `F` passes `_checkFlowId`
 with `F.flowId = id` and lists `h`, and either `F.preimage = p` (the same version, deadline,
-settlement layer, legs and source chains) or `PreimageClashV35 enc p F.preimage`. -/
+settlement layer, legs and source chains) or `PreimageClashV35 enc p F.preimage`.
+
+Given `enc p = id` and the check on `F`, the last disjunct is excluded middle. The content is
+that both preimages were presented by calls of the run, so a hash injective on the run's
+presented preimages forces `F.preimage = p`. -/
 def Properties.RefundedLegSameFlowOrLoggedClashV35 : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35),
     runV35 enc chainId M₀ calls = some M →

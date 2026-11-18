@@ -92,8 +92,10 @@ injectivity (see `CRYPTO-ID` in `ASSUMPTIONS.md`).
 ## The leg writes (`MODEL-AFM-V35` in `ASSUMPTIONS.md`)
 
 `_state` (`AtomicFlowManager.sol:61`) is written by three entry points only: `append` (`:166`),
-`authorizeRefund` (`:244`) and `claimRefund` (`:260`). Below, each entry point that reads or
-writes it is a function on the pin's `Contracts.AtomicFlowManager.Manager`, the same mapping.
+`authorizeRefund` (`:244`) and `claimRefund` (`:260`). Below, each entry point that takes a flow
+preimage or writes `_state` is a function on the pin's `Contracts.AtomicFlowManager.Manager`, the
+same mapping. `requireFlowFinalized` is among them although it does not read `_state`; the
+`legState` view (`:268-270`), a pure read of `_state`, is left out.
 Each function transcribes, in source order, the flow-id check, the checks that pick out legs of
 the presented preimage, the `_state` guard and the write; its docstring lists the checks it
 leaves out. Each left-out check only reverts, so leaving it out only adds successful calls; it
@@ -208,8 +210,8 @@ def pairClashHashV35 (p0 q0 : PreimageV35) (id : UInt256) : PreimageHashV35 :=
 
 /-! ## The leg writes -/
 
-/-- One call of an `AtomicFlowManager` entry point that reads or writes `_state`, with the
-arguments the transcribed checks read. -/
+/-- One call of an `AtomicFlowManager` entry point that takes a flow preimage or writes `_state`,
+with the arguments the transcribed checks read. The `legState` view is not modelled. -/
 inductive CallV35 where
   /-- `append(_bundleHash, _lowNullifierIndex, _flowPreimage)` (`AtomicFlowManager.sol:104-173`). -/
   | append (bundleHash : UInt256) (preimage : PreimageV35)

@@ -12,7 +12,8 @@ cites are byte-identical except `governance/UpgradeExecutorBase.sol`, whose `for
 check named below, and `upgrades/registry/executors/ProxyUpgradeExecutorBase.sol`, whose
 infrastructure path is not modelled here. As in `ProofGateAtV35`, the comparison with the `e561b9cc2` model is
 taken from `ccf00623c`, the squash-merge of the registry code into `draft/v0.35.0` (#2525), at
-which the functions below sit at the lines `UpgradeTiming` gives.
+which the functions below sit at the lines `UpgradeTiming` gives. `l1-contracts/contracts` is
+byte-identical at `ccf00623c` and `e561b9cc2`, so that comparison is exact.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.UpgradeTimingAtV35` and are proved in

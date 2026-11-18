@@ -126,7 +126,11 @@ any refund. The registration and flow functions and their callers' arguments are
   registration (`HeadRecoveryRestoresVaultAndTracker`). The pin's divergent recovery to L1 reverts
   there (`HeadGuardRejectsPinDivergence`). The router's own checks at the heads
   (`L2AssetRouter.recoverAtomicCall`, which also rejects an L1 destination: `L2AssetRouter.sol:275`
-  at `b17415d20`, `:281` at `70096e2ea`) are not modelled.
+  at `b17415d20`, `:281` at `70096e2ea`) are not modelled. The router and claim side of atomic
+  recovery at the same heads, which also models `assertRecoveryIsAccountingNeutral`, is
+  `AssetRouterBase/Properties/AtomicRecoveryAtHead.lean` (namespace
+  `Contracts.AssetRouter.AtomicRecoveryAtHead`); this topic covers the vault and tracker
+  state restoration.
 
 Witnesses: `HeadRunSatisfiable` (a run through the heads' `initL2` with a legacy native asset and
 flows both ways), `HeadBaseNeverLegacySatisfiable` (the heads' `initL2`, the vault's registration of

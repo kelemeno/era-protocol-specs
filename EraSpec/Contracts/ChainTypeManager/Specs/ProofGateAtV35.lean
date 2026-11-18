@@ -17,7 +17,8 @@ lines of `RegistryTypes.sol` and `CTMTransition.sol` moved but did not change.
 `draft/v0.35.0` took the registry-driven upgrade code of `feat/upgrade-simplification` by the
 squash-merge `ccf00623c` (#2525). At `ccf00623c` the functions that this folder's `e561b9cc2`
 models cite sit at the lines those models give, so the comparison below is taken from
-`ccf00623c`.
+`ccf00623c`. `git diff ccf00623c e561b9cc2 -- l1-contracts/contracts` is empty, so the
+comparison from `ccf00623c` is exact for `e561b9cc2`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ProofGateAtV35` and are proved in
@@ -158,7 +159,11 @@ CTM commits an edge those chains can never cross". Nothing on L1 checks this; of
   `:703-711`, `:746-758`): requirement off, the current release's verifier, nothing disabled
   (`ProofState.fresh`). `genesisUpgrade`'s cut then passes the check vacuously.
   `L1GenesisUpgrade` and `DiamondInit` write none of the three fields except the verifier, and
-  `Migrator.forwardedBridgeMint` writes none of them.
+  `Migrator.forwardedBridgeMint` writes none of them. Chain migration is switched off at
+  `b17415d20` (`bool constant CHAIN_MIGRATIONS_ENABLED = false`, `common/Config.sol:320`, read at
+  `core/chain-asset-handler/ChainAssetHandlerBase.sol:166`), so the `migrateIn` steps only add
+  runs the production source does not take; they matter only if a later commit enables
+  migration again. `ChainRouting` keeps them for the same reason.
 * **Omitted**, as reject-only or as callers: `onlyAdmin` and `onlySettlementLayer` of
   `permanentlyRequireSecondProofSystem`, and the caller rule of `setProofSystemStatus` (see
   `UpgradeTimingAtV35` for the timed model with callers for the first). Also the zero check on
@@ -168,10 +173,11 @@ CTM commits an edge those chains can never cross". Nothing on L1 checks this; of
   `permanentlyRequireSecondProofSystem` reads the mask.
 * **Migration out** is no step, as in `ChainRouting`. A returning chain keeps its diamond, and
   with it its proof-system fields.
-* **One CTM's diamonds.** The three fields belong to a diamond. The migration commitment does
-  not carry them (`Migrator.sol:221-241` reads the batch counters and `isPermanentRollup` from
-  it), so a diamond that migration in deploys starts with fresh fields (`ProofEffect.migrateIn`).
-  Every result here is about the diamonds registered on the one modelled CTM.
+* **One CTM's diamonds.** The three fields belong to a diamond and are not part of the
+  migration commitment (`ZKChainCommitment`, `common/Config.sol:234-261`), so a diamond that
+  migration in deploys starts with fresh fields (`ProofEffect.migrateIn`). Migration is disabled
+  at `b17415d20` (*New diamonds* above), so this per-diamond boundary only matters if a later
+  commit enables it. Every result here is about the diamonds registered on the one modelled CTM.
 -/
 
 namespace Contracts.ChainTypeManager.ProofGateAtV35

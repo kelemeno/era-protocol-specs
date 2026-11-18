@@ -79,7 +79,9 @@ def Properties.NativeReleasesAreEscrowed : Prop :=
 composed run from a state satisfying `EscrowInv`, for a registered asset `a` native here, a
 nonzero vault address and a nonzero receiver, and an inbound transfer touching no L1 counter (the
 source chain is not L1, or the chain does not settle on L1): the vault's inbound native path
-(hook, then withdrawal) succeeds iff `Σin + amount ≤ E + Σout`. -/
+(hook, then withdrawal) succeeds iff `Σin + amount ≤ E + Σout`. This is relative to the modelled
+path (`runPath`); the vault's other checks (amount, pause, base-token and `msg.value` checks) are
+not modelled. -/
 def Properties.NativeInboundIffCap : Prop :=
   ∀ (cfg : Config) (a : AssetId) (e₀ e : EscrowSys) (chain : ChainId) (account : Address)
     (amount : UInt256),
@@ -109,7 +111,9 @@ in the vault is set, on a chain with nonzero id and a nonzero vault address: for
 other than the vault and the zero address that holds at least `amount`, the vault's outbound
 native path (hook, then deposit) succeeds, provided that a transfer to L1 while the chain settles
 on L1 does not raise `totalWithdrawalsToL1` past `2^256 - 1`.  The deposit is the token model's
-transfer by the depositor: the allowance `safeTransferFrom` needs is not modelled. -/
+transfer by the depositor: the allowance `safeTransferFrom` needs is not modelled. "Succeeds" is
+relative to the modelled path (`runPath`); the vault's other checks (amount, pause, WETH and
+`msg.value` checks) are not modelled. -/
 def Properties.FundedNativeOutboundSucceeds : Prop :=
   ∀ (cfg : Config) (a : AssetId) (e₀ e : EscrowSys) (chain : ChainId) (account : Address)
     (amount : UInt256),

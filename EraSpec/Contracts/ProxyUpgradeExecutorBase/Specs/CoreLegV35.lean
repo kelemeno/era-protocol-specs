@@ -17,7 +17,8 @@ submodule `lib/openzeppelin-contracts-v4` that commit pins, `dc44c9f1a4c3` (rele
 ## Re-pinned from `d9f678900`
 
 The first draft of this model cited `d9f678900e1bc8286412b78f56d4a9f443983c29`, the same
-branch two days earlier. `git diff d9f678900 b17415d20` changes three things the model reads:
+branch ten days earlier (2026-11-06; `b17415d20` is of 2026-11-16). `git diff d9f678900
+b17415d20` changes three things the model reads:
 
 * `_applyProxyUpgradeTransition` gained a check that runs only with a nonzero CTM
   (`upgrades/registry/executors/ProxyUpgradeExecutorBase.sol:72-77`), and `_domainHolders`

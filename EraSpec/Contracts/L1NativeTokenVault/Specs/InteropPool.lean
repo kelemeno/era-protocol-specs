@@ -80,7 +80,12 @@ functions below. Each is a `PoolCall`:
   (`:496-499`, "Also keeps `INTEROP_POOL_CHAIN_ID` from ever being registered"), not
   `block.chainid` (`:501-503`), no chain type manager recorded yet
   (`chainTypeManager[_chainId] == address(0)`, `:534-536`; registration sets it together with the
-  `zkChainMap` entry, so the model reads it as "not already registered"). The chain id joins
+  `zkChainMap` entry, so the model reads it as "not already registered").
+  `registerAlreadyDeployedZKChain` also refuses an existing `zkChainMap` key directly
+  (`zkChainMap.tryGet`, `L1Bridgehub.sol:290-293`). The model refuses any re-registration of a
+  key; since `zkChainMap.set` on an existing key changes neither `getAllZKChainChainIDs()` nor
+  `getZKChain(c) != 0`, this loses no modelled state, even for a key whose `chainTypeManager`
+  entry is zero. The chain id joins
   `zkChainMap` (`:301-307`), whose keys are `getAllZKChainChainIDs()` (`:337-339`); nothing removes
   a key. The chain asset handler's `registerNewZKChain` (`ChainAssetHandlerBase.sol:405`) skips
   `_validateChainParams`, but on L1 it runs only for a chain arriving with
@@ -296,7 +301,8 @@ def initializeUpgrade (s : PoolSys) : Option PoolSys :=
   else none
 
 /-- **Chain registration** in the Bridgehub (`createNewChain`, `registerAlreadyDeployedZKChain`),
-with `_validateChainParams`' chain-id checks (`BridgehubBase.sol:492-503, :534-536`). -/
+with `_validateChainParams`' chain-id checks (`BridgehubBase.sol:492-503, :534-536`) and
+`registerAlreadyDeployedZKChain`'s key check (`L1Bridgehub.sol:290-293`). -/
 def registerChain (l1 : ChainId) (s : PoolSys) (chain : ChainId) : Option PoolSys :=
   if chain.val = 0 ∨ chainIdCap ≤ chain.val ∨ chain = l1 ∨ s.registered chain = true then none
   else some { s with registered := setAt s.registered chain true }

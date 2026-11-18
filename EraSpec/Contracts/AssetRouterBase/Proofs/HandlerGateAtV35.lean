@@ -714,6 +714,14 @@ theorem MovementsAtDisabledChainWitness : Properties.MovementsAtDisabledChainWit
 theorem StrandedUntilListedCall : Properties.StrandedUntilListedCall :=
   fun _ _ _ _ _ _ hS hr hm => stranded_until_listed_call hS hr hm
 
+theorem StrandedAlongRun : Properties.StrandedAlongRun := by
+  intro K S T evs₁ evs₂ c a hS hr hm
+  obtain ⟨U, hU, hUT⟩ := run_split hr evs₁ evs₂ rfl
+  have hstr := (stranded_until_listed_call hS hU
+    (fun e he => hm e (List.mem_append_left _ he))).1
+  refine ⟨U, hU, hUT, hstr, fun g hstep => ?_⟩
+  exact ((movement_enabled_iff K U c a).1 g).1.1 hstep |>.2 hstr
+
 theorem StrandedUntilListedCallWitness : Properties.StrandedUntilListedCallWitness :=
   stranded_until_listed_call_witness
 

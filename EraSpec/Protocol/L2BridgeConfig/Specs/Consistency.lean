@@ -785,7 +785,13 @@ def ConfigOp.IsCounterpartAt (a : AssetId) : ConfigOp → Prop
 * the upgrader makes no direct call: under `MODEL-L2-CONFIG` its calls are the helper's, which
   `upgrade` already contains;
 * a logged vault registration does not register a token whose vault id on this chain is `a`.
-  This is a premise on the logged call's own input. -/
+  This is a premise on the logged call's own input. With a collision-free encoding it binds only
+  when the base token's origin chain is this L2 and `t` is the base token's origin token
+  (`registerToken`, `ensureTokenIsRegistered`, `tryRegisterTokenFromBurnData`, through
+  `bridge/ntv/NativeTokenVaultBase.sol:131-140, 492-499`); otherwise it would take an encoding
+  collision. There the registration's `_setNewTokenStorage` would overwrite `tokenAddress[a]` and
+  the route of `a`. The L2 code takes the base token never to be native on L2
+  (`NativeTokenVaultBase.sol:442`, `bridge/asset-tracker/L2AssetTracker.sol:180`). -/
 structure ConfigCall.Admissible (E : ConfigEnv) (a : AssetId) (c : ConfigCall) : Prop where
   notUpgraderDirect : ∀ d, c.op = .direct d → c.sender ≠ E.upgrader
   registrationMissesBase : ∀ t, c.op = .vaultRegister t → E.encNTV E.thisChain t ≠ a

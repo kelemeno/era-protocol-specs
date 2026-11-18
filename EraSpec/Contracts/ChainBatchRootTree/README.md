@@ -40,8 +40,11 @@ fires (`OpeningCollisionFires`). Leaf 1 of the genesis root opens only to `0`
 (`GenesisLeafOneRejectsInitialAggregatedRootWitness`). Source context, not modelled here: no
 contract at `b17415d20` reads `MULTICHAIN_ROOT_LEAF_INDEX`; batch 0 is rejected on the settlement
 layer's final-node path (`BatchZeroNotAllowed`, `MessageRootBase.sol:366`); on L2 consumers a proof
-for batch 0 goes through the chain tree, which holds the seeded leaf (`L2MessageVerification.sol:18-56`),
-and that is how atomic interop reaches the genesis leaves 2 and 3.
+for batch 0 that is not a final-node proof goes through the chain tree, which holds the seeded leaf
+(`L2MessageVerification.sol:18-56`), and that is how atomic interop reaches the genesis leaves 2
+and 3. A final-node proof on L2 compares its root directly with `interopRoots(chainId, n)`
+(`L2MessageVerification.sol:33-38`); atomic interop rejects final-node proofs
+(`ProofMissingSettlementLayerBatch`, `AtomicInteropProof.sol:177-179`).
 
 **GenesisSeed.** A successful `createNewChain` leaves `chainBatchRoots[c][0]` and the diamond's
 `l2LogsRootHashes[0]` both equal to `compute(0, 0, EMPTY_IMT_ROOT, EMPTY_IMT_ROOT)` with

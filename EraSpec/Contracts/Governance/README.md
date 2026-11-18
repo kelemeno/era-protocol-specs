@@ -13,8 +13,8 @@ Governance. It is an abstract specification and does not establish Solidity corr
 | `contracts/access/Ownable.sol`, `contracts/access/Ownable2Step.sol` | submodule `lib/openzeppelin-contracts-v4` at `dc44c9f1a4c3b10af99492eed84f83ed244203f6` (release v4.9.6) |
 
 The three era-contracts files are byte-identical at the interop pin `c67894b9`, at `e561b9cc2`
-(the commit `../ChainTypeManager/` models), at `draft/v0.35.0` `d9f67890` and at `main`
-`70096e2ea`, so every line number in the spec holds at each of them. All of these commits record
+(the commit `../ChainTypeManager/` models), at `draft/v0.35.0` `d9f67890` and at `main` `3605e82`
+and `70096e2ea`, so every line number in the spec holds at each of them. All of these commits record
 the same OpenZeppelin gitlink.
 
 Review it alongside the [assumption register](../../../ASSUMPTIONS.md): `MODEL-GOVERNANCE`, plus
@@ -93,15 +93,19 @@ execute it; in the source that transaction commits nothing).
 - `OutgoingCallsWaitedOrInstant` (headline): every call Governance commits is followed later in
   the log by an execution of its id (the only one, by `OnceOnly`) that was `executeInstant`, which
   only the council may call (`EntryGuards`), or whose last schedule had a delay at least the
-  `minDelay` then in force and was made at least that delay before the execution. Witness: both
-  cases.
+  `minDelay` then in force and was made at least that delay before the execution. The schedule
+  reported is the last one before the execution's end, so it may be a re-entrant reschedule made
+  inside the execution after the call (as in `timelockCancelRescheduleRun`), not the one that
+  gated the execution at entry. Witness: both cases.
 - `OwnerPathWaited`: every `execute` has a schedule of its id earlier in the log, whose delay was
   at least the `minDelay` then in force and which was made at least that delay before.
   `EarlyExecutionIsInstant`: an execution before the ready time was `executeInstant`.
   `ExecutionNotBeforeSchedule`: when block times never decrease, no execution, instant or not,
   is timed before its last schedule.
 - `TransparentBinding`: every execution of `op` has id `H op`; if its last schedule was
-  transparent, it published `op` or another operation with the same hash, both logged.
+  transparent, it published `op` or another operation with the same hash, both logged. That
+  disjunction is equivalent to hash equality, so the payload is bound only up to a keccak
+  collision.
   `TransparentCollisionExecutesAnotherOp` shows the collision case.
 
 **Predecessors.** `PredecessorDone`: when all block times are at least `2`, an operation with a

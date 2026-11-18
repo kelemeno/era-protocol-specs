@@ -145,7 +145,10 @@ chain's `secondProofSystemRequired`, then either the step is that chain's
 `permanentlyRequireSecondProofSystem`, its caller is the chain's admin, the diamond is on its
 settlement layer and the step sets the requirement, or the step is a break-glass cut of that
 chain (which may set or clear it). An upgrade by any path, by any caller and at any time leaves
-it alone. -/
+it alone. The caller and settlement-layer conjuncts restate the modelled `onlyAdmin` and
+`onlySettlementLayer` modifiers (`facets/ZKChainBase.sol:46-51`, `:141-146`), which are premises of
+`TimedStep35.requireSecondProofSystem`; the result checks that transcription and that no other
+step writes the field. -/
 def Properties.TimedRequirementWriters : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (l : TimedLabel35) (id : ChainId)
     (c : Chain), TimedStep35 T P s l s' → s.timed.sys.chains id = some c →
@@ -270,8 +273,9 @@ break-glass cut. At the end chain `0` is at version 2 on release `200`, still re
 proof system, and has verifier `53` installed, which is in multi-proof mode; `ProofInv` holds.
 This meets the premises of `TimedRunIsATimedRun`, `TimedRunKeepsChainsOnTheirRelease`,
 `TimedRunIsAProofGateRun`, `TimedRunsKeepAMultiProofVerifier`, `ProofGateBindsEveryPath` (the
-last step, from `s`) and `TimedRequirementIsPermanentWithoutBreakGlass` (the one-step run from
-`s`). -/
+last step, from `s`) and, through that step, `TimedRequirementIsPermanentWithoutBreakGlass`:
+the statement gives the step from `s`, and the one-step run from `s` is that step followed by the
+empty run. -/
 def Properties.UpgradeTimingAtV35Witness : Prop :=
   SysInv wTiming.X.W wTimingSys35.timed.sys ∧ ProofInv wProofMulti wTimingSys35.routing ∧
     DisablingNeverEnablesMultiProof wProofMulti ∧

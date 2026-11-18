@@ -206,7 +206,11 @@ def Properties.EnabledChainTotalsFrozen : Prop :=
 asset `a`, `chainTotalDeposited[POOL][a]` is the ghost `directToPool a` (what `toChain` calls
 credited to the pool's key; `DirectToPoolIsPoolKeyedDeposits`) plus, over every chain `c` with
 `chainBalanceInInteropPool[c][a]`, `max(0, chainTotalDeposited[c][a] + chainBalanceBackfill[c][a]
-- chainTotalWithdrawn[c][a])`, with the backfill as it is now. -/
+- chainTotalWithdrawn[c][a])`, with the backfill as it is now. The ghost also absorbs hook calls
+whose chain argument is the pool id itself, which the model allows (the hooks take any chain) and
+the hooks' callers rule out (not modelled); `PoolKeyedMeansEnabledDestination` is stated for a
+chain id other than the pool's. The ghost is pinned step by step (`DirectToPoolIsPoolKeyedDeposits`);
+no run-level statement sums it over the run's calls. -/
 def Properties.PoolDepositIdentity : Prop :=
   ∀ (l1 : ChainId) (pre s₀ t : PoolSys) (L : List PoolCall),
     PreUpgrade pre → initializeUpgrade pre = some s₀ → PoolRun l1 s₀ L t →

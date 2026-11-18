@@ -19,7 +19,10 @@ Statements about `EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks`.  P
 * `L1PrepareThenRecoverRoundTrip`: `Properties.PrepareThenRecoverRoundTrip` with the L1 hooks and
   no hook premise: in the vault model, prepare-then-recover returns the original state exactly.
   On L1 nothing calls the vault's `bridgeRecoverFailedTransfer`; the model's recovery stands for
-  the hook and mint of the failed-deposit refund (`Specs/TrackerHooks.lean`).
+  the hook and mint of the failed-deposit refund (`Specs/TrackerHooks.lean`). The vault model's
+  preparation and recovery are the registered-bridged branch, where, with a ledger that agrees
+  with the configuration, the L1 hooks are the identity (`L1BridgedBranchHooksAreIdentity`); the
+  native `bridgedOut` accounting is carried by `L1HooksCancel` and `L1NativeHooksMoveBridgedOut`.
 * `L1BridgedResolutionLeavesLedger`: on the bridged branch the resolution model covers, with the
   ledger agreeing with the configuration, preparation, destination mint and recovery leave the
   ledger unchanged.
@@ -124,7 +127,11 @@ def Properties.L1BridgedBranchHooksAreIdentity : Prop :=
 /-- **THE L1 ROUND TRIP, WITH NO HOOK PREMISE.**  With the L1 hooks, on a `WellFormed` state, the
 vault model's recovery (`recoveryCall`) of a successful preparation's returned data returns exactly
 the state before the preparation, and through the commit interfaces the recovery reports success.
-On L1 the router never makes this call; the failed-deposit refund runs the same hook and mint. -/
+On L1 the router never makes this call; the failed-deposit refund runs the same hook and mint.
+The vault model's preparation and recovery are the registered-bridged branch: with a ledger that
+agrees with the configuration (`L1LedgerAgrees`), the L1 hooks there are the identity
+(`L1BridgedBranchHooksAreIdentity`), and that is the case the witness exercises. The native
+`bridgedOut` accounting is carried by `L1HooksCancel` and `L1NativeHooksMoveBridgedOut`. -/
 def Properties.L1PrepareThenRecoverRoundTrip : Prop :=
   ∀ (thisChain : UInt256) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L1Ledger) (r : Request) (out : Result L1Ledger),

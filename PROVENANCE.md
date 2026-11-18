@@ -259,6 +259,22 @@ supplying that correspondence.
   `protocol-docs/` and `protocol-ops/` at that commit, and reuses `ChainTypeManager`'s
   `UpgradeTiming` model (written at `e561b9cc2`), listing where each reused check sits at
   `b17415d20`.
+* `EraSpec/Contracts/ProxyUpgradeExecutorBase/` topic `CoreLegV35` (the Core-domain leg of the
+  proxy-upgrade executor) is pinned at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch
+  `draft/v0.35.0`, label `head-v35-b17415d`), with OpenZeppelin `lib/openzeppelin-contracts-v4`
+  at the gitlink `dc44c9f1a4c3b10af99492eed84f83ed244203f6` (v4.9.6) that commit records. It was
+  first written against `d9f678900` (2026-11-06); its Specs header lists what changed between
+  the two.
+* `EraSpec/Contracts/AssetRouterBase/*/HandlerGateAtV35.lean` (the L1 router's asset-handler
+  gate) is pinned at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label
+  `head-v35-b17415d`). It was first written against `d9f6789`; `bridge/`, `core/` and
+  `common/libraries/` are identical at the two commits. It reuses the `AllWriters` model at
+  `c67894b9`.
+* `EraSpec/Contracts/Governance/` (the `Governance` timelock) is pinned at
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`), with OpenZeppelin
+  `lib/openzeppelin-contracts-v4` at the gitlink `dc44c9f1a4c3b10af99492eed84f83ed244203f6`
+  (v4.9.6). The three governance files it cites are byte-identical at `c67894b9`, `e561b9cc2`,
+  `d9f6789`, and `main` `3605e82` and `70096e2ea`, which record the same gitlink.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.

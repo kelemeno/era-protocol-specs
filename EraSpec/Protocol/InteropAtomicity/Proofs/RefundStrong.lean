@@ -475,15 +475,23 @@ lemma chainZero_leg_one_committed :
   rw [mixedSystem_tree_zero]
   exact mem_insertSetup (by decide)
 
+theorem missed_deadline_refundable_by_honest_proof_committed_witness :
+    Properties.MissedDeadlineRefundableByHonestProofCommittedWitness := fun h z0 hl =>
+  ⟨mixedSystem_wf (by decide), honestAccess_dataAvailable h z0 hl _, by decide,
+    chainZero_leg_two_missed, by simp [chainZeroTwoLegFlow, mixedSystem],
+    fun M hM => by simp [chainZeroTwoLegFlow, mixedSystem]; omega,
+    chainZero_leg_one_committed⟩
+
 lemma chainZero_leg_one_not_missed :
     ¬ LegMissedDeadline (fun _ b => b) (mixedSystem 1) chainZeroTwoLegFlow ⟨0, 1⟩ :=
   fun hmiss => hmiss 0 (by simp [chainZeroTwoLegFlow]) chainZero_leg_one_committed
 
 /-- A backing for `endOnlyRoot` under any node hash and padding: one batch leaf at height 1.
 The root's last batch `0` is a left child at level `0`, so `_verifyLastBatchInRoot` compares
-its level-`0` sibling with that level's zero. -/
+its level-`0` sibling with that level's zero. The leaf is `ze + 1`, which differs from the
+padding `ze`, so the last batch leaf never coincides with `CHAIN_TREE_EMPTY_ENTRY_HASH`. -/
 def endOnlyRootBacking (h : Hash) (ze : UInt256) : RootBacking h ze endOnlyRoot where
-  leaves := fun _ => [0]
+  leaves := fun _ => [ze + 1]
   height := fun _ => 1
   upToLast := fun _ => rfl
   capacity := fun _ => by norm_num
@@ -866,6 +874,9 @@ theorem MissedDeadlineRefundableByHonestProof : Properties.MissedDeadlineRefunda
 theorem MissedDeadlineRefundableByHonestProofWitness :
     Properties.MissedDeadlineRefundableByHonestProofWitness :=
   missed_deadline_refundable_by_honest_proof_witness
+theorem MissedDeadlineRefundableByHonestProofCommittedWitness :
+    Properties.MissedDeadlineRefundableByHonestProofCommittedWitness :=
+  missed_deadline_refundable_by_honest_proof_committed_witness
 theorem AcceptedGateCompleteFromAnyPostDeadlineRoot :
     Properties.AcceptedGateCompleteFromAnyPostDeadlineRoot :=
   fun _ _ _ _ _ hS _ _ B _ _ hR hv hmiss =>

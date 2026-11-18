@@ -140,8 +140,10 @@ at most once; a leg first written in a run was appended under an accepted preima
 hashes to its flow id and declares it on this chain; a run writes no `Unset` leg under the
 flow id of a rejected (for instance oversized) preimage unless it appended under an accepted
 preimage that clashes with it; and a refunded leg was marked by an `authorizeRefund`
-presenting the preimage it was committed under, or one that clashes with it. No hash
-premise; each clash disjunct is reached by a witness.
+presenting the preimage it was committed under, or one that clashes with it (that last
+disjunction is excluded middle given the hash equalities; the content is that both preimages
+were presented by calls of the run). No hash premise; each clash disjunct is reached by a
+witness.
 
 **RecoveryTargets** (`c67894b9`) models `claimRefund`'s loop over a code map: what is
 deployed at each call's `to` on the chain running the refund (the leg's source chain) is

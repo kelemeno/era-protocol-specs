@@ -86,7 +86,9 @@ def Properties.DeliveriesCarryDeclaredSource : Prop :=
 checks pass for a bundle `b`, they also pass for any nonempty bytes `B'` that decode to `b` with a
 different `sourceChainId` and have the same bundle hash. No check of `executeAtomicBundle` or
 `requireFlowFinalized`, as modelled, reads the field except through the hash and the validator's
-comparison of the field with itself. -/
+comparison of the field with itself. This is an observation about the model, not a binding
+result: the statement also covers `s' = b.sourceChainId`, and for a different `s'` the hash
+equality it assumes is a keccak collision on two different `abiEncode` preimages. -/
 def Properties.DeclaredSourceSeenOnlyThroughHash : Prop :=
   ∀ (D : Dest) (st : HandlerState) (caller : Address) (fin : AtomicFinalityProof)
     (B B' : List UInt8) (b : Bundle) (s' : UInt256),

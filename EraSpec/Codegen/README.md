@@ -98,7 +98,11 @@ What is not proved:
 * That `_trackedBalance`'s view calls return (`DEP-RESULTS`). The interop answers are an
   input, fixed for a slice run and free for each cap step, so no statement relies on
   `enableInterop` being one-way, and none relates a chain's own counters to the pool's after
-  its balance moved.
+  its balance moved. Those results, over a run model of the same function shapes with one-way
+  flags, are in `Contracts/L1NativeTokenVault/` topic `InteropPool` (`FlagsMonotone`,
+  `PoolDepositIdentity`, `PoolWithdrawalsCovered`, `TotalsOnlyGrow`); `CapCountersMonotoneV35`
+  and `PoolNeverOverdrawnV35` here are close to `TotalsOnlyGrow` and `PoolWithdrawalsCovered`
+  there, but hold from any state satisfying the invariant, with interop answers free per step.
 * That the chains `initializeUpgrade` lists are below `2^48`: a premise of that step.
 * The native-token and base-token branches of `bridgeBurn`, and `bridgeMint` and the recovery
   paths, beyond their hook step; the router's choice of handler.

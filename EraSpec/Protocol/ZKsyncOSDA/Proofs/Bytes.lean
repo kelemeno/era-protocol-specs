@@ -7,8 +7,8 @@ import EraSpec.Contracts.BlobsL1DAValidatorZKsyncOS.Proofs.Model
 Auxiliary lemmas only; no property of `../Properties/` is stated here. They read words back from
 `toB32`/`encWords`/`l2Output` layouts, and invert `processL2`: an input it accepts is
 `l2Output sd fp lin ++ rest` for the words it parsed (`processL2_eq_some`), and an input of that
-shape is parsed back to those words (`processL2_l2Output`). Parts follow `origin/cov2/da`'s
-`Proofs/Bytes.lean` (commit `7dd67bf`).
+shape is parsed back to those words (`processL2_l2Output`). Parts follow an earlier draft DA
+model's byte lemmas.
 -/
 
 namespace Contracts.ZKsyncOSCommitterDA

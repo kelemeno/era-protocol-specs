@@ -629,7 +629,13 @@ from fresh managers under full allowance appends both swap legs and the leg `⟨
 different one-leg flow `⟨0, [⟨2, 3⟩], 0⟩`, authorizes that leg's refund on its honest timeout
 evidence, executes swap leg `⟨0, 1⟩`, and ends with chain `0` deregistering chain `1`.  The
 authorize log is nonempty, no `RefundBreak` is located for either swap leg, and neither is
-refunded. -/
+refunded.  The `authorizeRefund` call is on a one-leg flow, so its missing leg is itself and the
+refund filter passes through its own-chain clause (`s = block.chainid`); the filter with a
+foreign source is exercised by `SwapStrandedByDeregistrationAtV35`,
+`IncompleteSwapRefundStrandedByDeregistrationAtV35`,
+`RefundEvidenceCompleteAtV35Witness` and `ReallowRestoresGateAtV35Witness`.  The leg is appended
+on chain `2`'s manager while `swapSystem` has chain `2` never commit, the decoupling of
+systems and managers inherited from the pin. -/
 def Properties.SafetyAtV35Witness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     ∃ (Y : WorldAtV35) (log : List CallAtV35) (ev : GateEvidence),
@@ -713,7 +719,10 @@ constant and leaf hash:
   segment is an `authorizeRefund` call on chain `2` (the one-leg flow `strandedFlow`, whose leg
   `⟨2, 3⟩` is its own missing leg), then the gate call for swap leg `⟨0, 1⟩` on chain `2`, then
   an unrelated deregistration.  Both calls are logged under the starting allow-lists, and no
-  `allowPeer 2 3` is in the log. -/
+  `allowPeer 2 3` is in the log.  The `authorizeRefund` call passes the filter through its
+  own-chain clause, and the blocking conclusions hold on this segment because no logged flow
+  has a leg from chain `3`, not because of the filter; the filter's effect is shown by
+  `ReallowRestoresGateAtV35Witness`. -/
 def Properties.ReallowAtV35Witness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash),
     (allPeersAllowed.deregister 2 3) 0 1 = true
