@@ -430,6 +430,11 @@ import EraSpec.Contracts.SecondProofSystem.Proofs.MigrationV35
 -- Atomic interop at draft/v0.35.0: the composed system (InteropAtomicity, SystemAtV35)
 import EraSpec.Protocol.InteropAtomicity.Proofs.SystemAtV35
 
+-- Batch counters (draft/v0.35.0, b17415d20): each diamond's executed count against its layer's
+-- MessageRoot counter, and one chain's two copies across migration (latent at that head)
+import EraSpec.Protocol.BatchCounters.Proofs.MessageRootSync
+import EraSpec.Protocol.BatchCounters.Proofs.MigrationContinuity
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

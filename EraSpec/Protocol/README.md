@@ -57,6 +57,22 @@ and properties remain under `../Contracts/<SolidityName>/`.
   prepared data across arbitrary preparation/spending traces. This topic uses
   separate specification, property, and proof folders; its pending ledger is
   trace bookkeeping rather than vault storage or a publication guarantee.
+- [BatchCounters](BatchCounters/README.md) (`b17415d20`, namespace `Contracts.BatchCounters`):
+  each diamond's `totalBatchesExecuted` against its layer's `MessageRootBase` counter
+  `currentChainBatchNumber`. With migrations disabled, every chain of a layer reachable from the
+  empty one has the two equal (`ReachableHeadHubsSynced`). On a layer satisfying the layer
+  invariant `HubInv`, an execute that passes the executor's own modelled checks with nonzero logs
+  roots exists iff they are equal (`ExecuteEnabledIffSynced`); with migrations disabled a chain
+  whose counters disagree never executes again (`DriftPersistsAtHead`), for example one registered
+  before v31 whose v31 counter was never saved (`LegacyUnsavedChainIsWedged`). Batch roots are
+  write-once (`BatchRootsWriteOnce`). Across the (disabled) migration path, for two copies of one
+  chain and an honest at-most-once channel, along every run from a state satisfying `TwoInv` (by
+  `TwoInvInit`, any state with both layers satisfying `HubInv`, the chain synced and settling on
+  L1, no settlement-layer diamond for it and nothing in flight): exactly one copy settles or a
+  migration is in flight (`ExactlyOneCopySettles`), the batch numbers executed on both layers are
+  consecutive (`ExecutedLogContiguous`), and neither copy's executed count goes down
+  (`CopiesNeverGoBack`). Countermodel: a mint from a stale commitment lowers the executed count
+  (`StaleMintRewritesHistory`). No hash premise.
 - [InteropAtomicity](InteropAtomicity/README.md): the destination's all-legs gate
   across chains and batches (none-or-all, given data availability), the timeout
   decision derived from what `verifyTimeoutAbsence` checks, and one outcome per
