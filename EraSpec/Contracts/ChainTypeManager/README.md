@@ -9,7 +9,9 @@ That code is **not** in the pinned era-contracts tree. It lives on branch
 `feat/upgrade-simplification` of the zksync-era `contracts` repository, and this model
 was written against commit **`e561b9cc2`** (2026-10-19). **The branch moves**: every
 `file:line` quoted in the specs is at that commit, and the results describe that commit,
-not the current branch. Re-check the source before relying on them.
+not the current branch. Re-check the source before relying on them. One topic is the exception:
+`MutableSelectors` cites branch `draft/v0.35.0` of era-contracts at commit `b17415d20`, and its
+Specs header says where the code it reuses from the other topics sits there.
 `../ProxyUpgradeRowLib/` models the row library at an older snapshot (`Rows`) and at this
 commit (`RowsCurrent`, and `RowsUnvalidated` for rows no `validateRows` has checked); the
 `ExecutorForward` topic below uses `RowsCurrent`, and `ExecutorRowsUnvalidated` uses
@@ -41,14 +43,16 @@ exact named propositions, plus auxiliary lemmas.
 | LegacyCrossingFaithful | [Specs/LegacyCrossingFaithful.lean](Specs/LegacyCrossingFaithful.lean) | [Properties/LegacyCrossingFaithful.lean](Properties/LegacyCrossingFaithful.lean) | [Proofs/LegacyCrossingFaithful.lean](Proofs/LegacyCrossingFaithful.lean) |
 | L2Derivation (pin `b17415d20`) | [Specs/L2Derivation.lean](Specs/L2Derivation.lean) | [Properties/L2Derivation.lean](Properties/L2Derivation.lean) | [Proofs/L2Derivation.lean](Proofs/L2Derivation.lean) |
 | L2Convergence (pin `b17415d20`) | [Specs/L2Convergence.lean](Specs/L2Convergence.lean) | [Properties/L2Convergence.lean](Properties/L2Convergence.lean) | [Proofs/L2Convergence.lean](Proofs/L2Convergence.lean) |
+| MutableSelectors | [Specs/MutableSelectors.lean](Specs/MutableSelectors.lean) | [Properties/MutableSelectors.lean](Properties/MutableSelectors.lean) | [Proofs/MutableSelectors.lean](Proofs/MutableSelectors.lean) |
 
 Namespace: `Contracts.ChainTypeManager`. Statements are
 `Contracts.ChainTypeManager.Properties.*`; each certificate has the same name without
 the `Properties` segment. `GenesisWriters` uses the sub-namespace
 `Contracts.ChainTypeManager.GenesisWriters` (statements
 `Contracts.ChainTypeManager.GenesisWriters.Properties.*`); likewise `EngineGettersFaithful`
-uses `Contracts.ChainTypeManager.EngineGetters` and `LegacyCrossingFaithful` uses
-`Contracts.ChainTypeManager.LegacyCrossing`.
+uses `Contracts.ChainTypeManager.EngineGetters`, `LegacyCrossingFaithful` uses
+`Contracts.ChainTypeManager.LegacyCrossing` and `MutableSelectors` uses
+`Contracts.ChainTypeManager.MutableSelectors`.
 `L2Derivation` and `L2Convergence` share the sub-namespace `Contracts.ChainTypeManager.L2Tables`.
 
 The topics after `ChainMigration` extend the first four:
@@ -60,7 +64,9 @@ The topics after `ChainMigration` extend the first four:
 - the routing guard by its code: `DiamondStorage`, `LiveRouting`, `DuplicateSelectorScan`;
 - chain creation by its code: `GenesisWriters`.
 - faithfulness repairs of the executor topics: `EngineGettersFaithful` (the engine's own
-  getters), `LegacyCrossingFaithful` (pre-v35 chains crossing opaque legacy edges themselves).
+  getters), `LegacyCrossingFaithful` (pre-v35 chains crossing opaque legacy edges themselves);
+- the facets' self-descriptions: `MutableSelectors` (`selectors()` answers that change, over
+  `LiveRouting`).
 
 Each section below says how its model relates to the one it extends. None is composed
 with another unless its section says so.
@@ -507,6 +513,45 @@ one version run the same L2 code.
   (`protocol-ops/src/upgrade_verification/registry/genesis.rs:311-371`); routing, callers,
   timing and migration are not modelled; the factory-dependency cap is omitted.
 
+**MutableSelectors** (each facet's `selectors()` answer as state; extends `LiveRouting`; cites
+`draft/v0.35.0` at `b17415d20`):
+
+- A release stores facet rows, not selectors (`upgrades/registry/RegistryTypes.sol:20-23`). Four
+  readers ask the facets when they run: `validate()`, the derivation in `CTMTransition`'s
+  constructor (whose cuts are stored and applied as they are by `DefaultUpgrade`), the
+  installation at genesis, migration in and the bootstrap, and the guard. `World.relRows` and
+  `DWorld.selectors` fix every answer for a run. Here each answer is state, changed by a step of
+  its own (`setSelectors`), and each transition's cuts are what it stored when it was built.
+- **With stable answers** (`StableSelectors`: no answer changes, and every transition was built
+  under the starting answers) a run is a `LiveRouting` run and conversely
+  (`StableRunIsACountedRun`, `CountedRunIsAStableRun`), and the headline holds
+  (`ChainsRunTheirVersionsReleaseStable`, `FreshChainsRunTheirVersionsReleaseStable`,
+  `StableRunIsARoutingRun`). Only the transitions a run can cross need to have been built under
+  those answers (`StableSelectorsOn`; `StableOnRunIsACountedRun`,
+  `ChainsRunTheirVersionsReleaseStableOn`, `StableSelectorsIsStableOn`).
+- **The installing paths read answers from different times.** A crossing lands on the arriving
+  release as the facets answered when the transition was built (`CrossingInstallsTheBuildAnswers`);
+  a new chain gets the current release as they answer now (`CreationInstallsTheAnswersNow`); the
+  guard reads the answers now (`CrossingNeedsTheAnswersNow`). On consistent storage, with the
+  departing release's rows well-formed now and its facets answering as when the transition was
+  built, a crossing lands on the arriving release as built, whatever the arriving release's
+  facets answer (`UnchangedDepartingAnswersLandOnRelease`).
+- **Load-bearing**, with genuine objects and every release passing `validate()`'s facet checks
+  before and after the change:
+  - one change of the arriving release's facet splits release `200`'s routing between a chain
+    that crossed and one created afterwards, a state no `ChainRouting` or `LiveRouting` world
+    reaches from an invariant state without a break-glass cut (`MutableSelectorsSplitRouting`);
+    the next edge then refuses the chain that crossed (`MutableSelectorsBlockNextEdge`);
+  - the same split happens with no change during the run when a transition was built under
+    other answers (`StaleCutsSplitRouting`);
+  - one change of the departing release's facet leaves that facet routed after a crossing: the
+    chain is at version 2 and routes selector `5` to release `100`'s facet, a state no
+    `LiveRouting` run of these objects reaches from an invariant state without a break-glass
+    cut, under any fixed answers (`MutableSelectorsLeaveDepartingFacetRouted`). Before the
+    crossing every condition of `UnchangedDepartingAnswersLandOnRelease` but the last holds.
+- Witnesses: `StableSelectorsWitness`, `StableSelectorsOnWitness`,
+  `InstallsReadDifferentAnswersWitness`.
+
 Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitness` and
 `MigrationRoundTripWitness` are concrete runs that meet the premises. Each later topic lists
 its own above.
@@ -529,7 +574,7 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
   `DiamondStorage` and proves the two agree under `DiamondOk` and `RowsWf`; its count-checked
   system refines `ChainRouting`. Its boundaries:
   - `selectors()` is a fixed function of the facet address. `validate()` runs at install
-    time, while the check re-reads `selectors()`.
+    time, while the check re-reads `selectors()`. `MutableSelectors` drops this assumption.
   - The keccak comparison in the `deriveFacetCuts` shortcut is modelled as list equality.
   - A break-glass init may leave inconsistent diamond storage (`CountedDriftBlocksTransition`
     takes `DiamondOk` explicitly).
@@ -602,6 +647,15 @@ bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgrad
     code, `createNewChain` is L1-only and a fresh `forwardedBridgeMint` reverts on L1;
   - transitions, the bootstrap reset and break-glass cuts still use `ChainRouting`'s
     flattened steps.
+- In `MutableSelectors`:
+  - in a given state every reader gets the same answer; a facet that answers by caller, or
+    otherwise differently to two reads in one state, is not modelled;
+  - who can change an answer is not modelled: `setSelectors` stands for any change to the state
+    a facet's code reads. Every facet in the tree declares `selectors()` `pure` with a hard-coded
+    list; the readers call it through a `STATICCALL`;
+  - a transition's construction is not a step: the answers it was built under are a parameter
+    (`MutWorld.FrozenUnder`, `MutWorld.GenuineUnder`);
+  - everything else is as in `LiveRouting`.
 
 ## Source findings
 
