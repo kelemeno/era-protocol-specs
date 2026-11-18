@@ -38,8 +38,10 @@ Proofs are in `EraSpec.Protocol.BatchCounters.Proofs.MessageRootSync`.
 | `LegacySavedChainExecutes` | an invariant layer, a synced chain and a call passing the executor's modelled checks with nonzero roots (`ExecuteNeverRevertsInMessageRoot`, the `←` direction of `ExecuteEnabledIffSynced`) |
 | `LegacyUnsavedChainIsWedged` | a chain whose counters disagree on an invariant layer, and runs with migrations disabled from it (`DriftBlocksExecute`, `DriftPersistsAtHead`, the `→` direction of `ExecuteEnabledIffSynced`) |
 | `ZeroLogsRootRefusedOnSyncedChain` | `ZeroLogsRootRefused` on a synced chain of an invariant layer, for a call passing the executor's modelled checks |
+| `HubUpgradeRevertWitness` | a run from the empty layer with a nonzero genesis upgrade transaction, a commit that records the upgrade batch, a revert that resets it, a re-commit, an execution that clears both upgrade fields and an in-tree upgrade that sets a new transaction hash (`HubStepPreservesInv`, `SyncedStaysSynced`, `SyncedAlongRuns`, `HeadRunsKeepSync`, `ReachableHubsSatisfyInv`, `ReachableHeadHubsSynced` and `BatchRootsWriteOnce` through revert and upgrade steps; `ExecutedRootsRecorded` for a batch number whose first committed batch was reverted) |
 
-Mint steps with consistent data are instantiated in `MigrationContinuity` (`RoundTripWitness`).
+Mint steps with consistent data are instantiated in `MigrationContinuity` (`RoundTripWitness`,
+`PendingUpgradeMigratesWitness`).
 -/
 
 namespace Contracts.BatchCounters
@@ -187,13 +189,15 @@ def Properties.ZeroLogsRootRefusedOnSyncedChain : Prop :=
 
 /-! ## Witness -/
 
-/-- **A RUN THROUGH EVERY REGISTRATION PATH AND THE PIPELINE.** From the empty layer with the
-`b17415d20` L1 configuration: create chain `1`; commit batches 1 and 2; prove both; execute
-both in one call; register an already-deployed chain `2` that has executed seven batches and
-committed and verified an eighth; execute that eighth batch. At the end both chains are
-synced, chain `1`'s counter is `2` and chain `2`'s is `8`, batch roots `21`, `22` (chain `1`)
-and `28` (chain `2`) are recorded in the message root and in the diamonds, and the run's
-executed batch numbers of chain `1` are `[1, 2]`. -/
+/-- **A RUN THROUGH `createNewChain`, `registerAlreadyDeployedZKChain`, COMMIT, PROVE AND
+EXECUTE.** From the empty layer with the `b17415d20` L1 configuration: create chain `1`; commit
+batches 1 and 2; prove both; execute both in one call; register an already-deployed chain `2`
+that has executed seven batches and committed and verified an eighth; execute that eighth batch.
+At the end both chains are synced, chain `1`'s counter is `2` and chain `2`'s is `8`, batch roots
+`21`, `22` (chain `1`) and `28` (chain `2`) are recorded in the message root and in the diamonds,
+and the run's executed batch numbers of chain `1` are `[1, 2]`. Registration by a mint is in
+`RoundTripWitness` (`MigrationContinuity`); a revert and an upgrade are in
+`HubUpgradeRevertWitness`. -/
 def Properties.HubSyncWitness : Prop :=
   ∃ (ls : List HubLabel) (h : Hub), HubRun headL1 emptyHub ls h ∧
     execNumbers 1 ls = [1, 2] ∧ execNumbers 2 ls = [8] ∧
@@ -201,5 +205,30 @@ def Properties.HubSyncWitness : Prop :=
     h.mr.roots 1 1 = 21 ∧ h.mr.roots 1 2 = 22 ∧ h.mr.roots 2 8 = 28 ∧
     (∃ d, h.chains 1 = some d ∧ d.executed = 2 ∧ d.logsRoot 1 = 21 ∧ d.logsRoot 2 = 22) ∧
     ∃ d, h.chains 2 = some d ∧ d.executed = 8 ∧ d.logsRoot 8 = 28
+
+/-- **A RUN WITH THE GENESIS UPGRADE TRANSACTION, A REVERT AND AN IN-TREE UPGRADE.** From the empty
+layer with the `b17415d20` L1 configuration: create chain `1` with genesis upgrade transaction
+hash `77`, and commit the batch 1 `wInfoReverted` (logs root `31`); afterwards one batch is
+committed and the upgrade fields are `77` and `1` (batch 1 is the upgrade batch). Revert to `0`
+batches: none is committed and the upgrade fields are `77` and `0`. Commit batch 1 again, now
+`wInfo 1` (logs root `21`), prove it and execute it: one batch is executed and both upgrade fields
+are `0`. Then an in-tree upgrade with transaction hash `88`. At the end the layer satisfies the
+invariant, chain `1` is synced with counter `1`, its diamond has one batch executed, its batch
+root of batch 1 is `21` in the message root and in the diamond, its stored hash of batch 1 is
+that of `wInfo 1` and not that of `wInfoReverted` (under the witness hash `wHash`), and its upgrade
+fields are `88` and `0`. -/
+def Properties.HubUpgradeRevertWitness : Prop :=
+  ∃ h₁ h₂ h₃ h : Hub,
+    HubRun headL1 emptyHub [.createChain 1 13 12 77, .commit 1 wInfo0 wInfoReverted] h₁ ∧
+    (∃ d, h₁.chains 1 = some d ∧ d.committed = 1 ∧ d.upgradeTxHash = 77 ∧ d.upgradeBatch = 1) ∧
+    HubStep headL1 h₁ (.revert 1 0) h₂ ∧
+    (∃ d, h₂.chains 1 = some d ∧ d.committed = 0 ∧ d.upgradeTxHash = 77 ∧ d.upgradeBatch = 0) ∧
+    HubRun headL1 h₂ [.commit 1 wInfo0 (wInfo 1), .prove 1 1, .execute 1 [wInfo 1]] h₃ ∧
+    (∃ d, h₃.chains 1 = some d ∧ d.executed = 1 ∧ d.upgradeTxHash = 0 ∧ d.upgradeBatch = 0) ∧
+    HubStep headL1 h₃ (.upgrade 1 88) h ∧
+    HubInv h ∧ Synced h 1 ∧ h.mr.cur 1 = 1 ∧ h.mr.roots 1 1 = 21 ∧
+    ∃ d, h.chains 1 = some d ∧ d.executed = 1 ∧ d.logsRoot 1 = 21 ∧
+      d.batchHash 1 = headL1.hash (wInfo 1) ∧ d.batchHash 1 ≠ headL1.hash wInfoReverted ∧
+      d.upgradeTxHash = 88 ∧ d.upgradeBatch = 0
 
 end Contracts.BatchCounters

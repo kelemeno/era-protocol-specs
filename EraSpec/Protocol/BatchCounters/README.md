@@ -32,8 +32,8 @@ batch), `_revertBatches`, the in-tree upgrade's transaction write, and the chain
   (`ExecutedRootsRecorded`).
 - **Sync.** `currentChainBatchNumber[c] = totalBatchesExecuted` is preserved by every step whose
   mint data is consistent (`SyncedStaysSynced`, `SyncedAlongRuns`), with no premise while
-  migrations are disabled (`HeadRunsKeepSync`); every chain of a layer reachable from the empty
-  one is synced (`ReachableHeadHubsSynced`).
+  migrations are disabled (`HeadRunsKeepSync`); with migrations disabled, every chain of a layer
+  reachable from the empty one is synced (`ReachableHeadHubsSynced`).
 - **Liveness.** On an invariant layer, an execute passing the executor's own modelled checks with
   nonzero logs roots exists iff the counters agree (`ExecuteNeverRevertsInMessageRoot`,
   `ExecuteEnabledIffSynced`); a zero logs root is refused (`ZeroLogsRootRefused`,
@@ -72,10 +72,20 @@ Latent at `b17415d20`: `bridgeBurn` and `bridgeMint` carry `whenMigrationsEnable
   The batch numbers executed for `C` on both layers together are exactly the next ones after its
   executed count, in order (`ExecutedLogContiguous`), and neither copy's executed count decreases
   (`CopiesNeverGoBack`). An honest arrival passes the kept checks (`HonestArrivalsAccepted`).
+- **Migration numbers.** `MAX_ALLOWED_NUMBER_OF_MIGRATIONS` and the chain asset handlers'
+  migration-number checks are omitted, so the model allows any number of round trips. In the
+  source a chain departs from L1 only until its first return, so for a chain that starts on L1
+  with migration number `0` and no settlement-layer diamond, no source run reaches the
+  existing-diamond cases of `ArrivalOnSLCopiesSource` and `HonestArrivalsAccepted`
+  (`Specs/MigrationContinuity.lean`, model boundaries).
 
-Witnesses: `HubSyncWitness`, `LegacySavedChainExecutes`, `LegacyUnsavedChainIsWedged`,
-`ZeroLogsRootRefusedOnSyncedChain`, `RoundTripWitness`, `ReentryWitness`; each Properties module's
-table says which premises each meets.
+Witnesses: `HubSyncWitness`, `HubUpgradeRevertWitness`, `LegacySavedChainExecutes`,
+`LegacyUnsavedChainIsWedged`, `ZeroLogsRootRefusedOnSyncedChain`, `RoundTripWitness`,
+`PendingUpgradeMigratesWitness`, `ReentryWitness`; each Properties module's table says which
+premises each meets. `RoundTripWitness` (one round trip) and `PendingUpgradeMigratesWitness` (a
+failed departure, then one round trip, carrying nonzero upgrade-transaction fields both ways) are
+runs the source's migration-number checks accept; `ReentryWitness` is a run of the model only from
+its second departure from L1 on.
 
 Out of scope: the chain and shared trees and the historical roots that `_pushChainBatchRoot`
 writes, `isValidSettlementLayer` and the migration interval bookkeeping, the priority tree, and the

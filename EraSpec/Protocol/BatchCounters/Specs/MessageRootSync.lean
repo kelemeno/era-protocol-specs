@@ -496,6 +496,9 @@ def wInfo0 : BatchInfo := { batchNumber := 0, logsRoot := 12, rest := 0 }
 /-- The stored infos of the witness batches: batch `n` has logs root `20 + n`. -/
 def wInfo (n : ℕ) : BatchInfo := { batchNumber := n, logsRoot := 20 + n, rest := 0 }
 
+/-- The stored info of a batch 1 that a witness commits and then reverts: logs root `31`. -/
+def wInfoReverted : BatchInfo := { batchNumber := 1, logsRoot := 31, rest := 0 }
+
 /-- A diamond registered before v31 that never saved its v31 batch number: it has executed
 five batches, committed and verified a sixth, and settles here. -/
 def wLegacyDiamond : Diamond where

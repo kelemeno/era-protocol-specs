@@ -1046,4 +1046,120 @@ theorem ReentryWitness : Properties.ReentryWitness := by
     ⟨_, hcS10, by decide, rfl⟩, ?_⟩
   rw [hcurS10]; decide
 
+/-! The diamonds of chain `1` along `PendingUpgradeMigratesWitness`'s two-layer run, from
+`wUpgD5` on L1: `wPuA*` on L1, `wPuB*` on the settlement layer. -/
+
+/-- L1, departed. -/
+def wPuA1 : Diamond := { wUpgD5 with away := true }
+/-- L1, the departure having failed. -/
+def wPuA2 : Diamond := { wPuA1 with away := false }
+/-- L1, departed again. -/
+def wPuA3 : Diamond := { wPuA2 with away := true }
+/-- The settlement layer, arrived on a fresh diamond. -/
+def wPuB0 : Diamond := mintApply (initDiamond 13 12 0) (prepare wPuA2)
+/-- The settlement layer, batch 2 committed: the upgrade batch. -/
+def wPuB1 : Diamond := commitEffect wHash wPuB0 (wInfo 2)
+/-- The settlement layer, batch 2 proved and executed. -/
+def wPuB2 : Diamond := executeEffect { wPuB1 with verified := 2 } [wInfo 2]
+/-- The settlement layer, the in-tree upgrade with transaction hash `99`. -/
+def wPuB3 : Diamond := upgradeEffect wPuB2 99
+/-- The settlement layer, departed. -/
+def wPuB4 : Diamond := { wPuB3 with away := true }
+/-- L1, arrived back. -/
+def wPuA4 : Diamond := mintApply wPuA3 (prepare wPuB3)
+
+theorem PendingUpgradeMigratesWitness : Properties.PendingUpgradeMigratesWitness := by
+  obtain ⟨_, _, _, L0, hr₁, _, st₂, _, hr₃, _, st₄, hcL0, hcurL0, _⟩ := wUpg_l1Run true
+  have hr₀ : HubRun latentL1 emptyHub [.createChain 1 13 12 77, .commit 1 wInfo0 wInfoReverted,
+      .revert 1 0, .commit 1 wInfo0 (wInfo 1), .prove 1 1, .execute 1 [wInfo 1], .upgrade 1 88] L0 :=
+    hr₁.append (HubRun.cons st₂ (hr₃.append (HubRun.cons st₄ HubRun.nil)))
+  have hS0 : Synced L0 1 := fun d hd => by rw [hcL0] at hd; cases hd; rw [hcurL0]; decide
+  have hI0 : TwoInv wTwo ⟨L0, emptyHub, none⟩ :=
+    TwoInvInit wTwo _ (hubRun_inv EmptyHubInv hr₀) EmptyHubInv hS0 ⟨_, hcL0, by decide⟩ rfl rfl
+  -- 1. `C` leaves L1 with upgrade transaction `88` pending.
+  obtain ⟨L1, hb1, hcL1, hcurL1⟩ : ∃ L1, HubStep latentL1 L0
+      (.burn 1 (L0.mr.cur 1) (prepare wUpgD5)) L1 ∧ L1.chains 1 = some wPuA1 ∧ L1.mr.cur 1 = 1 :=
+    ⟨_, HubStep.burn rfl hcL0 (by decide) (by decide) (by decide) (by decide), rfl, hcurL0⟩
+  have st1 : TwoStep wTwo ⟨L0, emptyHub, none⟩ .departL1
+      ⟨L1, emptyHub, some ⟨.toSL, L0.mr.cur 1, prepare wUpgD5⟩⟩ := TwoStep.departL1 rfl hb1
+  have hI1 := TwoStepPreservesInv _ _ _ _ hI0 st1
+  -- 2. The departure fails.
+  obtain ⟨L2, hf2, hcL2, hcurL2⟩ : ∃ L2, HubStep latentL1 L1 (.confirmFailure 1) L2 ∧
+      L2.chains 1 = some wPuA2 ∧ L2.mr.cur 1 = 1 :=
+    ⟨_, HubStep.confirmFailure rfl hcL1 rfl, rfl, hcurL1⟩
+  have st2 : TwoStep wTwo ⟨L1, emptyHub, some ⟨.toSL, L0.mr.cur 1, prepare wUpgD5⟩⟩ .failL1
+      ⟨L2, emptyHub, none⟩ := TwoStep.failL1 rfl rfl hf2
+  have hI2 := TwoStepPreservesInv _ _ _ _ hI1 st2
+  -- 3. `C` departs again.
+  obtain ⟨L3, hb3, hcL3, hcurL3⟩ : ∃ L3, HubStep latentL1 L2
+      (.burn 1 (L2.mr.cur 1) (prepare wPuA2)) L3 ∧ L3.chains 1 = some wPuA3 ∧ L3.mr.cur 1 = 1 :=
+    ⟨_, HubStep.burn rfl hcL2 rfl (by decide) (by decide) (by decide), rfl, hcurL2⟩
+  have st3 : TwoStep wTwo ⟨L2, emptyHub, none⟩ .departL1
+      ⟨L3, emptyHub, some ⟨.toSL, L2.mr.cur 1, prepare wPuA2⟩⟩ := TwoStep.departL1 rfl hb3
+  have hI3 := TwoStepPreservesInv _ _ _ _ hI2 st3
+  -- 4. It arrives on the settlement layer, which has no diamond for it.
+  obtain ⟨S1, hm4, hcS1, hcurS1⟩ : ∃ S1, HubStep latentSL emptyHub
+      (.mintNew 1 (L2.mr.cur 1) (prepare wPuA2) 13 12) S1 ∧ S1.chains 1 = some wPuB0 ∧
+      S1.mr.cur 1 = 1 :=
+    ⟨_, HubStep.mintNew rfl rfl rfl rfl (by decide) (prepare_mintShape (by decide) (by decide)),
+      rfl, (upd_same emptyHub.mr.cur 1 (L2.mr.cur 1)).trans hcurL2⟩
+  have st4 : TwoStep wTwo ⟨L3, emptyHub, some ⟨.toSL, L2.mr.cur 1, prepare wPuA2⟩⟩
+      (.arriveSLNew 13 12) ⟨L3, S1, none⟩ := TwoStep.arriveSLNew rfl rfl hm4
+  have hI4 := TwoStepPreservesInv _ _ _ _ hI3 st4
+  -- 5. Batch 2 is committed there: it carries the upgrade transaction.
+  obtain ⟨S2, hc5, hcS2, hmS2⟩ : ∃ S2, HubStep latentSL S1 (.commit 1 (wInfo 1) (wInfo 2)) S2 ∧
+      S2.chains 1 = some wPuB1 ∧ S2.mr = S1.mr :=
+    ⟨_, HubStep.commit hcS1 rfl (by decide) rfl, rfl, rfl⟩
+  have st5 : TwoStep wTwo ⟨L3, S1, none⟩ (.sl (.commit 1 (wInfo 1) (wInfo 2))) ⟨L3, S2, none⟩ :=
+    TwoStep.sl (fun _ => rfl) hc5
+  have hI5 := TwoStepPreservesInv _ _ _ _ hI4 st5
+  -- 6–7. It is proved and executed there, which clears both upgrade fields.
+  obtain ⟨S3, hp6, hcS3, hmS3⟩ : ∃ S3, HubStep latentSL S2 (.prove 1 2) S3 ∧
+      S3.chains 1 = some { wPuB1 with verified := 2 } ∧ S3.mr = S1.mr :=
+    ⟨_, HubStep.prove hcS2 rfl (by decide) (by decide), rfl, hmS2⟩
+  have st6 : TwoStep wTwo ⟨L3, S2, none⟩ (.sl (.prove 1 2)) ⟨L3, S3, none⟩ :=
+    TwoStep.sl (fun _ => rfl) hp6
+  have hI6 := TwoStepPreservesInv _ _ _ _ hI5 st6
+  obtain ⟨S4, he7, hcS4, hcurS4⟩ := hubStep_execute_exists (cfg := latentSL) (c := 1) hI6.slInv
+    hI6.slSync hcS3 (execGuard_single (b := wInfo 2) rfl rfl (by decide) (by decide)) (by decide)
+  have hcurS4' : S4.mr.cur 1 = 2 := by rw [hcurS4]; decide
+  have st7 : TwoStep wTwo ⟨L3, S3, none⟩ (.sl (.execute 1 [wInfo 2])) ⟨L3, S4, none⟩ :=
+    TwoStep.sl (fun _ => rfl) he7
+  have hI7 := TwoStepPreservesInv _ _ _ _ hI6 st7
+  -- 8. An in-tree upgrade there sets transaction hash `99`.
+  obtain ⟨S5, hu8, hcS5, hmS5⟩ : ∃ S5, HubStep latentSL S4 (.upgrade 1 99) S5 ∧
+      S5.chains 1 = some wPuB3 ∧ S5.mr = S4.mr :=
+    ⟨_, HubStep.upgrade hcS4, rfl, rfl⟩
+  have hcurS5 : S5.mr.cur 1 = 2 := by rw [hmS5]; exact hcurS4'
+  have st8 : TwoStep wTwo ⟨L3, S4, none⟩ (.sl (.upgrade 1 99)) ⟨L3, S5, none⟩ :=
+    TwoStep.sl (fun _ => rfl) hu8
+  have hI8 := TwoStepPreservesInv _ _ _ _ hI7 st8
+  -- 9. `C` leaves the settlement layer with upgrade transaction `99` pending.
+  obtain ⟨S6, hb9, hcS6, _⟩ : ∃ S6, HubStep latentSL S5
+      (.burn 1 (S5.mr.cur 1) (prepare wPuB3)) S6 ∧ S6.chains 1 = some wPuB4 ∧ S6.mr.cur 1 = 2 :=
+    ⟨_, HubStep.burn rfl hcS5 (by decide) (by decide) (by decide) (by decide), rfl, hcurS5⟩
+  have st9 : TwoStep wTwo ⟨L3, S5, none⟩ .departSL
+      ⟨L3, S6, some ⟨.toL1, S5.mr.cur 1, prepare wPuB3⟩⟩ := TwoStep.departSL rfl hb9
+  have hI9 := TwoStepPreservesInv _ _ _ _ hI8 st9
+  -- 10. It arrives back on L1.
+  obtain ⟨L4, hm10, hcL4, _⟩ : ∃ L4, HubStep latentL1 L3
+      (.mintExisting 1 (S5.mr.cur 1) (prepare wPuB3)) L4 ∧ L4.chains 1 = some wPuA4 ∧
+      L4.mr.cur 1 = 2 :=
+    ⟨_, HubStep.mintExisting rfl hcL3 (by rw [hcurL3, hcurS5]; decide)
+      (prepare_mintShape (by decide) (by decide)) rfl, rfl,
+      (upd_same L3.mr.cur 1 (S5.mr.cur 1)).trans hcurS5⟩
+  have st10 : TwoStep wTwo ⟨L3, S6, some ⟨.toL1, S5.mr.cur 1, prepare wPuB3⟩⟩ .arriveL1
+      ⟨L4, S6, none⟩ := TwoStep.arriveL1 rfl rfl hm10
+  have hI10 := TwoStepPreservesInv _ _ _ _ hI9 st10
+  exact ⟨L0, _, _, _, _, _, _, _, _, _, hr₀, ⟨_, hcL0, by decide, by decide, by decide⟩, hI0, st1,
+    st2, ⟨_, hcL2, by decide, by decide, by decide⟩, st3, hI3, rfl,
+    ⟨_, rfl, show (prepare wPuA2).upgradeTxHash = 88 by decide,
+      show (prepare wPuA2).upgradeBatch = 0 by decide⟩, st4,
+    ⟨_, hcS1, by decide, by decide, by decide, by decide⟩, st5,
+    ⟨_, hcS2, by decide, by decide⟩, TwoRun.cons st6 (TwoRun.cons st7 TwoRun.nil),
+    ⟨_, hcS4, by decide, by decide, by decide⟩, st8,
+    ⟨_, hcS5, by decide, by decide, by decide⟩, st9, hI9,
+    ⟨_, hcL3, by decide, by decide, by decide⟩, st10, hI10,
+    ⟨_, hcL4, by decide, by decide, by decide, by decide⟩⟩
+
 end Contracts.BatchCounters

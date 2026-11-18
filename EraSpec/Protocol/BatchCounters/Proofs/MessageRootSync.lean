@@ -293,6 +293,13 @@ lemma hubRun_inv {cfg : HubConfig} {h h' : Hub} {ls : List HubLabel} (hI : HubIn
   | nil => exact hI
   | cons hs _ ih => exact ih (HubStepPreservesInv _ _ _ _ hI hs)
 
+/-- Two runs, one after the other. -/
+lemma HubRun.append {cfg : HubConfig} {h h' h'' : Hub} {ls ls' : List HubLabel}
+    (r : HubRun cfg h ls h') (r' : HubRun cfg h' ls' h'') : HubRun cfg h (ls ++ ls') h'' := by
+  induction r with
+  | nil => exact r'
+  | cons hs _ ih => exact HubRun.cons hs (ih r')
+
 theorem ReachableHubsSatisfyInv : Properties.ReachableHubsSatisfyInv := by
   intro cfg ls h hr
   have hI := hubRun_inv EmptyHubInv hr
@@ -622,5 +629,55 @@ theorem ZeroLogsRootRefusedOnSyncedChain : Properties.ZeroLogsRootRefusedOnSynce
     · simp [h, wLegacyHub, upd, hx]
   · rw [hc] at he; cases he; rfl
   · exact (ZeroLogsRootRefused headL1 h 7 [b] ⟨b, by simp, rfl⟩).2 h' hs
+
+/-! The diamonds of chain `1` along `HubUpgradeRevertWitness`'s run. -/
+
+/-- Created, with genesis upgrade transaction hash `77`. -/
+def wUpgD0 : Diamond := initDiamond 13 12 77
+/-- `wInfoReverted` committed: batch 1 is the upgrade batch. -/
+def wUpgD1 : Diamond := commitEffect wHash wUpgD0 wInfoReverted
+/-- Reverted to `0` batches. -/
+def wUpgD2 : Diamond := revertEffect wUpgD1 0
+/-- `wInfo 1` committed. -/
+def wUpgD3 : Diamond := commitEffect wHash wUpgD2 (wInfo 1)
+/-- Batch 1 proved and executed. -/
+def wUpgD4 : Diamond := executeEffect { wUpgD3 with verified := 1 } [wInfo 1]
+/-- The in-tree upgrade with transaction hash `88`. -/
+def wUpgD5 : Diamond := upgradeEffect wUpgD4 88
+
+/-- `HubUpgradeRevertWitness`'s run, on an L1 layer with either migration flag. -/
+lemma wUpg_l1Run (m : Bool) : ∃ h₁ h₂ h₃ h : Hub,
+    HubRun ⟨true, m, wHash⟩ emptyHub [.createChain 1 13 12 77, .commit 1 wInfo0 wInfoReverted] h₁ ∧
+    h₁.chains 1 = some wUpgD1 ∧
+    HubStep ⟨true, m, wHash⟩ h₁ (.revert 1 0) h₂ ∧ h₂.chains 1 = some wUpgD2 ∧
+    HubRun ⟨true, m, wHash⟩ h₂ [.commit 1 wInfo0 (wInfo 1), .prove 1 1, .execute 1 [wInfo 1]] h₃ ∧
+    h₃.chains 1 = some wUpgD4 ∧
+    HubStep ⟨true, m, wHash⟩ h₃ (.upgrade 1 88) h ∧ h.chains 1 = some wUpgD5 ∧
+    h.mr.cur 1 = 1 ∧ h.mr.roots 1 1 = 21 :=
+  ⟨_, _, _, _,
+    HubRun.cons (HubStep.createChain (c := 1) (gh := 13) (gr := 12) (g := 77) rfl rfl rfl
+        (by decide) (by decide) rfl)
+      (HubRun.cons (HubStep.commit (c := 1) (prev := wInfo0) (new := wInfoReverted) rfl rfl rfl rfl)
+      HubRun.nil),
+    rfl,
+    HubStep.revert (c := 1) (n := 0) rfl rfl (Nat.le_refl 0) (Nat.zero_le 1), rfl,
+    HubRun.cons (HubStep.commit (c := 1) (prev := wInfo0) (new := wInfo 1) rfl rfl rfl rfl)
+      (HubRun.cons (HubStep.prove (c := 1) (v := 1) rfl rfl Nat.zero_lt_one (Nat.le_refl 1))
+      (HubRun.cons (HubStep.execute (c := 1) (infos := [wInfo 1]) rfl
+          ⟨by simp, rfl, rfl, fun b hb => by
+            simp only [List.mem_singleton] at hb
+            subst hb; rfl, Nat.le_refl 1⟩ rfl)
+      HubRun.nil)),
+    rfl, HubStep.upgrade (c := 1) (t := 88) rfl, rfl, rfl, rfl⟩
+
+theorem HubUpgradeRevertWitness : Properties.HubUpgradeRevertWitness := by
+  obtain ⟨h₁, h₂, h₃, h, hr₁, hc₁, st₂, hc₂, hr₃, hc₃, st₄, hc, hcur, hroot⟩ := wUpg_l1Run false
+  have hI₂ := HubStepPreservesInv _ _ _ _ (hubRun_inv EmptyHubInv hr₁) st₂
+  have hI := HubStepPreservesInv _ _ _ _ (hubRun_inv hI₂ hr₃) st₄
+  refine ⟨h₁, h₂, h₃, h, hr₁, ⟨_, hc₁, by decide, by decide, by decide⟩, st₂,
+    ⟨_, hc₂, by decide, by decide, by decide⟩, hr₃, ⟨_, hc₃, by decide, by decide, by decide⟩, st₄,
+    hI, fun d hd => ?_, hcur, hroot, _, hc, by decide, by decide, by decide, by decide, by decide,
+    by decide⟩
+  rw [hc] at hd; cases hd; rw [hcur]; decide
 
 end Contracts.BatchCounters

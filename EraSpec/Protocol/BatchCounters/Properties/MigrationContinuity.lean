@@ -37,8 +37,9 @@ latent there because migrations are disabled). Proofs are in
 
 | Witness | Premises it meets |
 |---|---|
-| `RoundTripWitness` | `TwoInvInit` (an L1 copy with one batch executed, reached from the empty layer); runs of `TwoInv` states with departures from both layers, an arrival on a fresh settlement-layer diamond and an arrival back on L1, and pipeline steps of `C` on both layers (`TwoStepPreservesInv`, `TwoRunKeepsInv`, `ExactlyOneCopySettles`, `PipelineOnlyOnSettlingCopy`, `ExecutedLogContiguous`, `CopiesNeverGoBack`); an idle L1 copy while the settlement layer runs (`IdleCopyChangesOnlyByMint`); flights in both directions, towards a layer without a diamond (`HonestArrivalsAccepted`, `ArrivalOnL1CopiesSource` with the L1 copy behind the source, 1 < 3, `ArrivalOnSLCopiesSource` for a fresh diamond); a burn of a synced chain on each layer (`BurnDataConsistent`) and a consistent mint onto an existing diamond on L1 (`ConsistentMintNeverLowersExecuted`) |
-| `ReentryWitness` | the same run continued: a failure confirmation from a `TwoInv` state whose L1 copy is away with 4 batches executed (`IdleCopyChangesOnlyByMint` for the cleared flag); an arrival on an existing settlement-layer diamond that is behind the data in flight, 3 < 4 (`ArrivalOnSLCopiesSource` for an existing diamond, the existing-diamond case of `HonestArrivalsAccepted`, `ConsistentMintNeverLowersExecuted` on the settlement layer) |
+| `RoundTripWitness` | `TwoInvInit` (an L1 copy with one batch executed, reached from the empty layer); runs of `TwoInv` states with departures from both layers, an arrival on a fresh settlement-layer diamond and an arrival back on L1, and pipeline steps of `C` on both layers (`TwoStepPreservesInv`, `TwoRunKeepsInv`, `ExactlyOneCopySettles`, `PipelineOnlyOnSettlingCopy`, `ExecutedLogContiguous`, `CopiesNeverGoBack`); an idle L1 copy while the settlement layer runs (`IdleCopyChangesOnlyByMint`); flights in both directions, towards a layer without a diamond (`HonestArrivalsAccepted`, `ArrivalOnL1CopiesSource` with the L1 copy behind the source, 1 < 3, `ArrivalOnSLCopiesSource` for a fresh diamond); a burn of a synced chain on each layer (`BurnDataConsistent`) and a consistent mint onto an existing diamond on L1 (`ConsistentMintNeverLowersExecuted`). One round trip, which the source's migration-number checks accept |
+| `PendingUpgradeMigratesWitness` | an L1 copy reached from the empty layer through a nonzero genesis upgrade transaction, a revert, an execution that clears the upgrade fields and an in-tree upgrade, so that an upgrade transaction is set and in no committed batch (`TwoInvInit`); a failure confirmation of a first departure (`IdleCopyChangesOnlyByMint` for the cleared flag); burns whose data carries a nonzero upgrade transaction hash, on each layer (`BurnDataConsistent`); an arrival on a fresh settlement-layer diamond, whose upgrade transaction hash was `0` and becomes the source's `88`, and an arrival back on L1, whose copy had `88` and gets the source's `99` (`ArrivalOnSLCopiesSource`, `ArrivalOnL1CopiesSource` and `HonestArrivalsAccepted` with nonzero upgrade fields that differ from the destination's previous ones); after the arrival on the settlement layer, a commit that records the upgrade batch, an execution that clears both fields and an in-tree upgrade. A failed departure, then one round trip, which the source's migration-number checks accept |
+| `ReentryWitness` | `RoundTripWitness`'s run continued: a failure confirmation from a `TwoInv` state whose L1 copy is away with 4 batches executed (`IdleCopyChangesOnlyByMint` for the cleared flag); an arrival on an existing settlement-layer diamond that is behind the data in flight, 3 < 4 (`ArrivalOnSLCopiesSource` for an existing diamond, the existing-diamond case of `HonestArrivalsAccepted`, `ConsistentMintNeverLowersExecuted` on the settlement layer). A run of the model only: the source refuses a departure from L1 after a return (`ChainAssetHandlerBase.sol:277`, `L1ChainAssetHandler.sol:286-289`) and the failure confirmation of such a departure (`L1ChainAssetHandler.sol:152-156`). For a chain that starts on L1 with migration number `0` and no settlement-layer diamond, no source run meets the existing-diamond premises (the migration-number boundary in `Specs.MigrationContinuity`) |
 
 `StaleMintRewritesHistory` is a countermodel and needs no witness.
 -/
@@ -224,7 +225,15 @@ the resulting state, which satisfies `TwoInv`, the data in flight carries 4 exec
 the settlement layer's existing copy is away with 3; it arrives on that diamond
 (`arriveSLExisting`), which then settles with 4 executed and a message-root counter of 4; batch 5
 is committed, proved and executed there, leaving a state satisfying `TwoInv` with the settlement
-layer's copy and counter at 5. -/
+layer's copy and counter at 5.
+
+The source refuses this run after `lsRt`: there a departure from L1 after a return is
+refused (`ChainAssetHandlerBase.sol:277` with `MAX_ALLOWED_NUMBER_OF_MIGRATIONS = 2`, and
+`L1ChainAssetHandler.sol:286-289`, which requires the departure's new migration number to be
+`1`), and so is the failure confirmation of such a departure (`L1ChainAssetHandler.sol:152-156`
+requires migration number `1`). The model omits these checks, so the steps from `s₁` on are steps
+of the model only; they show that the existing-diamond premises are satisfiable in the model, not
+in a source run. -/
 def Properties.ReentryWitness : Prop :=
   ∃ (ls₀ : List HubLabel) (h₀ : Hub) (lsRt : List TwoLabel) (s₁ s₂ s₃ s₄ s₅ s : TwoHubs),
     HubRun latentL1 emptyHub ls₀ h₀ ∧
@@ -243,5 +252,47 @@ def Properties.ReentryWitness : Prop :=
       .sl (.execute 1 [wInfo 5])] s ∧
     TwoInv wTwo s ∧ (∃ e, s.sl.chains 1 = some e ∧ e.executed = 5 ∧ e.away = false) ∧
     s.sl.mr.cur 1 = 5
+
+/-- **A PENDING UPGRADE TRANSACTION MOVES WITH THE CHAIN.** For chain `1` with migrations enabled on
+both layers. A run on L1 from the empty layer with the labels of `HubUpgradeRevertWitness`
+(genesis upgrade transaction hash `77`; the batch 1 `wInfoReverted` committed and reverted; batch
+1 committed, proved and executed; an in-tree upgrade with transaction hash `88`) leaves L1's copy
+with one batch executed and upgrade fields `88` and `0`. From there, with the settlement layer
+empty and nothing in flight (a state satisfying `TwoInv`): `C` departs from L1 and the departure
+fails (`failL1`), after which L1's copy settles with upgrade fields `88` and `0`. `C` departs
+again; in the resulting state, which satisfies `TwoInv`, the settlement layer has no diamond for
+`C` and the data in flight carries upgrade fields `88` and `0`. `C` arrives there
+(`arriveSLNew`), and the new copy settles, has one batch executed and has upgrade fields `88` and
+`0`. Committing batch 2 there makes the upgrade fields `88` and `2`; proving and executing it
+leaves two batches executed and both fields `0`; an in-tree upgrade then gives `99` and `0`, the
+copy still settling. `C` departs from the settlement layer; in the resulting state, which
+satisfies `TwoInv`, L1's copy is away with upgrade fields `88` and `0`. `C` arrives back on L1
+(`arriveL1`), and in the resulting state, which satisfies `TwoInv`, L1's copy settles with two
+batches executed and upgrade fields `99` and `0`. -/
+def Properties.PendingUpgradeMigratesWitness : Prop :=
+  ∃ (h₀ : Hub) (s₁ s₂ s₃ s₄ s₅ s₆ s₇ s₈ s : TwoHubs),
+    HubRun latentL1 emptyHub [.createChain 1 13 12 77, .commit 1 wInfo0 wInfoReverted, .revert 1 0,
+      .commit 1 wInfo0 (wInfo 1), .prove 1 1, .execute 1 [wInfo 1], .upgrade 1 88] h₀ ∧
+    (∃ d, h₀.chains 1 = some d ∧ d.executed = 1 ∧ d.upgradeTxHash = 88 ∧ d.upgradeBatch = 0) ∧
+    TwoInv wTwo { l1 := h₀, sl := emptyHub, flight := none } ∧
+    TwoStep wTwo { l1 := h₀, sl := emptyHub, flight := none } .departL1 s₁ ∧
+    TwoStep wTwo s₁ .failL1 s₂ ∧
+    (∃ d, s₂.l1.chains 1 = some d ∧ d.away = false ∧ d.upgradeTxHash = 88 ∧ d.upgradeBatch = 0) ∧
+    TwoStep wTwo s₂ .departL1 s₃ ∧ TwoInv wTwo s₃ ∧ s₃.sl.chains 1 = none ∧
+    (∃ f, s₃.flight = some f ∧ f.com.upgradeTxHash = 88 ∧ f.com.upgradeBatch = 0) ∧
+    TwoStep wTwo s₃ (.arriveSLNew 13 12) s₄ ∧
+    (∃ e, s₄.sl.chains 1 = some e ∧ e.away = false ∧ e.executed = 1 ∧ e.upgradeTxHash = 88 ∧
+      e.upgradeBatch = 0) ∧
+    TwoStep wTwo s₄ (.sl (.commit 1 (wInfo 1) (wInfo 2))) s₅ ∧
+    (∃ e, s₅.sl.chains 1 = some e ∧ e.upgradeTxHash = 88 ∧ e.upgradeBatch = 2) ∧
+    TwoRun wTwo s₅ [.sl (.prove 1 2), .sl (.execute 1 [wInfo 2])] s₆ ∧
+    (∃ e, s₆.sl.chains 1 = some e ∧ e.executed = 2 ∧ e.upgradeTxHash = 0 ∧ e.upgradeBatch = 0) ∧
+    TwoStep wTwo s₆ (.sl (.upgrade 1 99)) s₇ ∧
+    (∃ e, s₇.sl.chains 1 = some e ∧ e.away = false ∧ e.upgradeTxHash = 99 ∧ e.upgradeBatch = 0) ∧
+    TwoStep wTwo s₇ .departSL s₈ ∧ TwoInv wTwo s₈ ∧
+    (∃ d, s₈.l1.chains 1 = some d ∧ d.away = true ∧ d.upgradeTxHash = 88 ∧ d.upgradeBatch = 0) ∧
+    TwoStep wTwo s₈ .arriveL1 s ∧ TwoInv wTwo s ∧
+    ∃ d, s.l1.chains 1 = some d ∧ d.away = false ∧ d.executed = 2 ∧ d.upgradeTxHash = 99 ∧
+      d.upgradeBatch = 0
 
 end Contracts.BatchCounters

@@ -44,8 +44,22 @@ Every other `HubStep` on either layer is a step (`l1`, `sl`), except the migrati
   `StaleMintRewritesHistory` shows what the mint does with data that is not the departed
   copy's.
 * **"The chain has gone back to L1 at most once"** (`MAX_ALLOWED_NUMBER_OF_MIGRATIONS = 2`,
-  `common/Config.sol:329`, enforced at `CAH:274-279, 372-383`) is a reject-only check and is
-  omitted: the model allows any number of round trips.
+  `common/Config.sol:329`, enforced at `CAH:274-279, 372-383` and `L1CAH:152-156, 286-289`) is a
+  reject-only check and is omitted: the model allows any number of round trips. In the source a
+  departure from L1 is accepted only while the chain's migration number there is `0`: `CAH:277`
+  needs it below `2`, and `L1CAH:286-289` needs the incremented number to be `1`. The number
+  becomes `1` at a departure (`CAH:278-279`), `0` again at a failure confirmation
+  (`L1CAH:152-157`, which requires `1`), and `2` at a return (`CAH:374-384`, which requires `1`
+  on L1 and `2` in the data). So after a return `C` departs from L1 no more, and the failure
+  confirmation of such a departure, or a second return, would be refused as well. A
+  settlement-layer diamond comes only from an arrival there (`CAH:397-409` is the only
+  registration off L1), and `C` must settle on L1 again before it departs towards that layer
+  again. Hence, in the source, a chain that starts on L1 with migration number `0` and no
+  settlement-layer diamond (the witnesses start with an empty settlement layer) never reaches
+  `arriveSLExisting`: the existing-diamond cases of `ArrivalOnSLCopiesSource` and
+  `HonestArrivalsAccepted` are met only by runs of the model, such as `ReentryWitness` from its
+  second departure from L1 on. Raising the limit alone would not change that, because of
+  `L1CAH:286-289`.
 * Everything `HubStep` omits stays omitted; the settlement layer's `MessageRoot` is
   `L2MessageRoot`, which inherits `MessageRootBase` and overrides none of the modelled functions
   (`core/message-root/L2MessageRoot.sol:24`).
