@@ -90,6 +90,9 @@ and properties remain under `../Contracts/<SolidityName>/`.
   a failed service entry and out-of-order execution; every chain's `baseTokenAssetId[p]` is `0` or
   L1's, and L1's never changes once set, across the (disabled) migration path, where a settled
   chain's entry stays L1's. No hash premise.
+- [L1WithdrawalProvenance](L1WithdrawalProvenance/README.md) (`b17415d20`): composition of
+  `Contracts/L1InteropHandler` `WithdrawalGate` (the L1 handler) with `Contracts/L1Messenger`
+  `SenderKeying` (each source chain's modelled L2→L1 output).
 
 The illustrative prepared application is under `../Examples/BurnMintBridge/`.
 The actual source/compiled implementation obligations are in `../Refinement.lean`.

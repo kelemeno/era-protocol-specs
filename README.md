@@ -64,10 +64,13 @@ EraSpec/
     DataEncoding/             Specs/, Properties/, Proofs/
     EcosystemUpgradeExecutor/ Specs/, Properties/, Proofs/
     FullMerkle/               Specs/, Properties/, Proofs/
+    Governance/               Specs/, Properties/, Proofs/
     IndexedMerkleTree/        Specs/, Properties/, Proofs/
     InteropCenter/            Specs/, Properties/, Proofs/
     InteropDataEncoding/      Specs/, Properties/, Proofs/
     InteropHandlerBase/       Specs/, Properties/, Proofs/
+    L1InteropHandler/         Specs/, Properties/, Proofs/
+    L1Messenger/              Specs/, Properties/, Proofs/
     L2AssetTracker/           Specs/, Properties/, Proofs/
     L2InteropCommitmentTree/   Specs/, Properties/, Proofs/
     L2InteropHandler/         Specs/, Properties/, Proofs/

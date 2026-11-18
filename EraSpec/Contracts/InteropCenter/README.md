@@ -2,6 +2,8 @@
 
 Source: `contracts/interop/InteropCenter.sol` in the pinned era-contracts tree, with
 `contracts/atomic-interop/AtomicFlowManager.sol` for the leg state that `append` writes.
+Topics `SendAtHead`, `FeeState` and `FeeReentry` are pinned to later era-contracts commits
+instead, as their table rows and sections say.
 Only the send path is modelled: the salt mapping `isInteropBundleSaltUsed`, bundle
 formation in `_sendBundle`, `_validateAtomicBundle`, and `_dispatchBundle` →
 `AtomicFlowManager.append`. Topic `AtomicRouting` adds the send entry points' handling of
