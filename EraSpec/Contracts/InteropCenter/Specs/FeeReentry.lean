@@ -79,6 +79,13 @@ def withoutClaimLock : Guards := ⟨true, false, true⟩
 /-- The deployed code without `nonReentrant` on the claims and with the write after the call. -/
 def withoutClaimLockPayFirst : Guards := ⟨true, false, false⟩
 
+/-- The deployed locks, with `claimProtocolFees`' write after its call. -/
+def payFirst : Guards := ⟨true, true, false⟩
+
+/-- `nonReentrant` on the claims only (not on the sends), with `claimProtocolFees`' write after
+its call. -/
+def withoutSendLockPayFirst : Guards := ⟨false, true, false⟩
+
 /-- `nonReentrant` entry (`ReentrancyGuard.sol:73-89`): with the modifier, the slot must hold `1`
 and holds `2` during the call. -/
 def enterLock (on : Bool) (S : State) : Option State :=
@@ -268,5 +275,14 @@ def wReenteringClaim : NTx :=
 `claimProtocolFees` for coinbase `0x77`. -/
 def wSendWithNestedClaim : NTx :=
   .send wSendA (.cons .nil (.cons (.cons (.claimProtocolFees 0x77 0x88 .nil) .nil) .nil)) .nil
+
+/-- Coinbase `0x77` claims to a receiver whose code forces `1` of native value into the center. -/
+def wClaimWithNestedInflow : NTx :=
+  .claimProtocolFees 0x77 0x88 (.cons (.other (.nativeInflow 1)) .nil)
+
+/-- Coinbase `0x77` claims to a receiver whose code makes the L2→L2 send `FeeState.wSendA` (whose
+coinbase is `0x77`), with no nested calls of its own. -/
+def wClaimWithNestedSend : NTx :=
+  .claimProtocolFees 0x77 0x88 (.cons (.send wSendA .nil .nil) .nil)
 
 end Contracts.InteropCenter.FeeState.Reentry

@@ -27,10 +27,11 @@ credited to the coinbase alone (`SendAccruesExactProtocolFee`). Under the standa
 the fixed-fee path it adds exactly `ZK_INTEROP_FEE * calls` to the center's balance in the ZK token
 and to the coinbase's ZK entry, and off that path it changes neither (`SendAccruesExactZkFee`). Its
 payments are a forward to the asset router per indirect starter, totalling
-`Σ indirectCallMessageValue`; then a burn through the holder toward the destination exactly when
-the base tokens agree and the direct calls carry value, and a value-free deposit request exactly
-when they differ and the direct calls carry value; with the equalities `msg.value` is the native
-value paid out plus the protocol fee (`SendPaymentsExact`).
+`Σ indirectCallMessageValue`; then one burn of the direct calls' total value through the holder
+toward the destination exactly when the base tokens agree and that total is nonzero, and one
+value-free deposit request of that total toward the destination (for the destination's base-token
+asset id, with the sender as original caller) exactly when they differ and it is nonzero; with the
+equalities `msg.value` is the native value paid out plus the protocol fee (`SendPaymentsExact`).
 
 ## (3) Claims
 
@@ -153,17 +154,25 @@ def Properties.SendAccruesExactZkFee : Prop :=
     (fixedFeePath S inp = false →
       S'.zkToken = S.zkToken ∧ S'.tokBal = S.tokBal ∧ S'.zkFees = S.zkFees)
 
-/-- **(2c) WHERE A SEND'S VALUE GOES.** For a successful send: the log gains its record; the
-forwards are made to the asset router alone and total `Σ indirectCallMessageValue` over the
-indirect starters; the calls' value `totalBurnedCallsValue` is the sum over the direct starters;
-the payments contain a burn through the holder toward the destination exactly when the base tokens
-agree and that value is nonzero, a value-free deposit request exactly when they differ and it is
-nonzero; and with the `msg.value` equalities, `msg.value` is the native value paid out plus the
-protocol fee. -/
+/-- **(2c) WHERE A SEND'S VALUE GOES.** For a successful send: the log gains its record, whose
+payments are `sendPayments P inp`; every forward among them is to the asset router, the forwards
+(`forwardPayments`, one per indirect starter) are made to the asset router alone and total
+`Σ indirectCallMessageValue` over the indirect starters; the calls' value `totalBurnedCallsValue`
+is the sum over the direct starters; the payments contain a burn through the holder toward the
+destination exactly when the base tokens agree and that value is nonzero, a value-free deposit
+request toward the destination exactly when they differ and it is nonzero. Every burn among the
+payments is toward the destination for exactly `totalBurnedCallsValue`, and that burn occurs once
+when the base tokens agree and the value is nonzero, never otherwise; every deposit request among
+them is toward the destination for the destination's base-token asset id, with the sender as
+original caller and exactly `totalBurnedCallsValue`, and that request occurs once when the base
+tokens differ and the value is nonzero, never otherwise. With the `msg.value` equalities,
+`msg.value` is the native value paid out plus the protocol fee. -/
 def Properties.SendPaymentsExact : Prop :=
   ∀ (K : Checks) (P : Params) (S : State) (inp : SendInput) (S' : State),
     exec K P (.send inp) S = some S' →
     S'.log = S.log ++ [sendRecord P S inp] ∧
+    (sendRecord P S inp).payments = sendPayments P inp ∧
+    (∀ s v, Payment.forward s v ∈ sendPayments P inp → s = P.router) ∧
     (∀ p ∈ forwardPayments inp.starters, ∃ v, p = .forward P.router v) ∧
     nativeOut (forwardPayments inp.starters) = indirectTotal inp.starters ∧
     totalBurnedCallsValue inp.starters =
@@ -173,6 +182,15 @@ def Properties.SendPaymentsExact : Prop :=
       (sameBase P inp = true ∧ totalBurnedCallsValue inp.starters ≠ 0)) ∧
     ((∃ a o v, Payment.deposit inp.dest a o v ∈ sendPayments P inp) ↔
       (sameBase P inp = false ∧ totalBurnedCallsValue inp.starters ≠ 0)) ∧
+    (∀ d v, Payment.burn d v ∈ sendPayments P inp →
+      d = inp.dest ∧ v = totalBurnedCallsValue inp.starters) ∧
+    (sendPayments P inp).count (.burn inp.dest (totalBurnedCallsValue inp.starters)) =
+      (if sameBase P inp = true ∧ totalBurnedCallsValue inp.starters ≠ 0 then 1 else 0) ∧
+    (∀ d a o v, Payment.deposit d a o v ∈ sendPayments P inp →
+      d = inp.dest ∧ a = inp.destBase ∧ o = inp.sender ∧ v = totalBurnedCallsValue inp.starters) ∧
+    (sendPayments P inp).count
+        (.deposit inp.dest inp.destBase inp.sender (totalBurnedCallsValue inp.starters)) =
+      (if sameBase P inp = false ∧ totalBurnedCallsValue inp.starters ≠ 0 then 1 else 0) ∧
     (K.valueCheck = true → inp.msgValue = nativeOut (sendPayments P inp) + protocolFeeOf S inp)
 
 /-! ## (3) Claims -/

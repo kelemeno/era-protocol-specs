@@ -37,7 +37,11 @@ claim (`HeldLockBlocksSendsAndClaims`).
 `NestedClaimInsideSendWitness`: with the deployed code minus the claims' lock, a claim runs inside
 a send's indirect call and pays `6`, and the run, reachable from fresh storage, ends with nonzero
 accrued fees; with the deployed code the same send reverts. Its run meets the premises of the
-three backing results (`FeeState.wP_standard` gives the standard-token premise).
+three backing results (`FeeState.wP_standard` gives the standard-token premise) through the
+write-first disjunct. `PayFirstClaimLockNestedWitness` meets them through the other disjunct (the
+claims' lock, the write after the call): a claim whose receiver forces value into the center, and,
+without the sends' lock, a claim whose receiver makes an L2→L2 send crediting the claimant's own
+coinbase, both succeed in runs reachable from fresh storage.
 -/
 
 namespace Contracts.InteropCenter.FeeState.Reentry
@@ -112,5 +116,28 @@ def Properties.NestedClaimInsideSendWitness : Prop :=
     execN withoutClaimLock deployed wP wSendWithNestedClaim S = some S' ∧
     S'.claims.length = 1 ∧ S'.protocolFees 0x77 = 6 ∧ S'.bal = 6 ∧
     ReachN withoutClaimLock deployed wP init S'
+
+/-- **THE CLAIMS' LOCK WITH THE WRITE AFTER THE CALL, WITH NESTED CALLS THAT SUCCEED.** On the
+witness chain, from a state reachable from fresh storage under the guards in question in which
+coinbase `0x77` has `6` accrued and the balance is `6`, coinbase `0x77` claims to `0x88`.
+(i) With the deployed locks and the write after the call (`payFirst`): when the receiver forces `1`
+into the center (`wClaimWithNestedInflow`), the claim succeeds with `0x77`'s entry `0`, balance
+`1`, forced value `1` and one claim logged, an end state reachable from fresh storage; when the
+receiver makes the L2→L2 send `wSendA` instead (`wClaimWithNestedSend`), the claim reverts.
+(ii) With the claims' lock only and the write after the call (`withoutSendLockPayFirst`): the claim
+whose receiver makes `wSendA` succeeds; the log then holds two sends, each crediting coinbase `0x77`
+with a protocol fee of `6`, `0x77`'s entry is `0`, the balance is `6`, one claim is logged, and the
+end state is reachable from fresh storage. -/
+def Properties.PayFirstClaimLockNestedWitness : Prop :=
+  (∃ S S1, ReachN payFirst deployed wP init S ∧ S.protocolFees 0x77 = 6 ∧ S.bal = 6 ∧
+    execN payFirst deployed wP wClaimWithNestedInflow S = some S1 ∧
+    S1.protocolFees 0x77 = 0 ∧ S1.bal = 1 ∧ S1.forcedIn = 1 ∧ S1.claims.length = 1 ∧
+    ReachN payFirst deployed wP init S1 ∧
+    execN payFirst deployed wP wClaimWithNestedSend S = none) ∧
+  (∃ S S2, ReachN withoutSendLockPayFirst deployed wP init S ∧ S.protocolFees 0x77 = 6 ∧
+    S.bal = 6 ∧ execN withoutSendLockPayFirst deployed wP wClaimWithNestedSend S = some S2 ∧
+    S2.log.map (fun r => (r.input.coinbase, r.protocolFee)) = [(0x77, 6), (0x77, 6)] ∧
+    S2.protocolFees 0x77 = 0 ∧ S2.bal = 6 ∧ S2.claims.length = 1 ∧
+    ReachN withoutSendLockPayFirst deployed wP init S2)
 
 end Contracts.InteropCenter.FeeState.Reentry

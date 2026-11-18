@@ -933,4 +933,31 @@ theorem NestedClaimInsideSendWitness : Properties.NestedClaimInsideSendWitness :
   exact ⟨S, S', ⟨_, runN_liftTx rfl _ _ _ (hnc _) hS⟩, ⟨_, hR⟩, h77, hdep, h', hcl, hp, hb,
     ⟨_, runN_snoc _ _ _ _ hR h'⟩⟩
 
+set_option maxHeartbeats 800000 in
+theorem PayFirstClaimLockNestedWitness : Properties.PayFirstClaimLockNestedWitness := by
+  refine ⟨?_, ?_⟩
+  · obtain ⟨S, hS, h77, hb, S1, h1, hp1, hb1, hf1, hc1, hblk⟩ :
+        ∃ S, run deployed wP [wInit, wSetFee, .send wSendA] init = some S ∧
+          S.protocolFees 0x77 = 6 ∧ S.bal = 6 ∧
+          ∃ S1, execN payFirst deployed wP wClaimWithNestedInflow S = some S1 ∧
+            S1.protocolFees 0x77 = 0 ∧ S1.bal = 1 ∧ S1.forcedIn = 1 ∧ S1.claims.length = 1 ∧
+            execN payFirst deployed wP wClaimWithNestedSend S = none :=
+      ⟨_, rfl, by decide, by decide, ⟨_, rfl, by decide, by decide, by decide, by decide, rfl⟩⟩
+    have hnc : ∀ tx ∈ [wInit, wSetFee, .send wSendA], tx.isClaim = true → payFirst.claimLock = true :=
+      fun _ _ _ => rfl
+    have hR := runN_liftTx (G := payFirst) rfl _ _ _ hnc hS
+    exact ⟨S, S1, ⟨_, hR⟩, h77, hb, h1, hp1, hb1, hf1, hc1, ⟨_, runN_snoc _ _ _ _ hR h1⟩, hblk⟩
+  · -- The setup state is computed by the flat run; that the nested run without the sends' lock
+    -- reaches the same state is checked by evaluation (`runN_liftTx` needs the sends' lock).
+    obtain ⟨S, -, hSN, h77, hb, S2, h2, hlog, hp2, hb2, hc2⟩ :
+        ∃ S, run deployed wP [wInit, wSetFee, .send wSendA] init = some S ∧
+          runN withoutSendLockPayFirst deployed wP ([wInit, wSetFee, .send wSendA].map liftTx)
+            init = some S ∧
+          S.protocolFees 0x77 = 6 ∧ S.bal = 6 ∧
+          ∃ S2, execN withoutSendLockPayFirst deployed wP wClaimWithNestedSend S = some S2 ∧
+            S2.log.map (fun r => (r.input.coinbase, r.protocolFee)) = [(0x77, 6), (0x77, 6)] ∧
+            S2.protocolFees 0x77 = 0 ∧ S2.bal = 6 ∧ S2.claims.length = 1 :=
+      ⟨_, rfl, rfl, by decide, by decide, ⟨_, rfl, by decide, by decide, by decide, by decide⟩⟩
+    exact ⟨S, S2, ⟨_, hSN⟩, h77, hb, h2, hlog, hp2, hb2, hc2, ⟨_, runN_snoc _ _ _ _ hSN h2⟩⟩
+
 end Contracts.InteropCenter.FeeState.Reentry

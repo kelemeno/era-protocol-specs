@@ -108,9 +108,9 @@ point, a direct `AtomicFlowManager.append` attempt and forced inflows (`MODEL-FE
 - **One send, one claim.** A send adds exactly its protocol fee, credited to the coinbase alone,
   and on the fixed-fee path exactly `ZK_INTEROP_FEE * calls` to the ZK balance and the coinbase's
   ZK entry (`SendAccruesExactProtocolFee`, `SendAccruesExactZkFee`); its payments are the forwards
-  to the asset router (`Σ indirectCallMessageValue`) and a burn through the holder (same base token)
-  or a value-free deposit request (different base token) of the direct calls' value
-  (`SendPaymentsExact`). A claim pays exactly the claimant's entry and zeroes it
+  to the asset router (`Σ indirectCallMessageValue`) and one burn through the holder (same base
+  token) or one value-free deposit request (different base token) of exactly the direct calls'
+  value (`SendPaymentsExact`). A claim pays exactly the claimant's entry and zeroes it
   (`ClaimProtocolFeesExact`, `ClaimZkFeesExact`).
 - **Writers.** `interopProtocolFee` only by the bootloader; the `initL2` fields only by the
   upgrader's single `initL2`, which precedes every send and claim; `zkToken` only from unset;
@@ -126,7 +126,8 @@ point, a direct `AtomicFlowManager.append` attempt and forced inflows (`MODEL-FE
   is separate from the fixed slots (`FeeUnitsSlotSeparate`).
 
 Witnesses: `FeeStateWitness`, `SendWitness`, `ClaimWitness`, `WriterWitness`, `OwnershipWitness`,
-`NestedClaimInsideSendWitness`.
+`NestedClaimInsideSendWitness` (write-first disjunct), `PayFirstClaimLockNestedWitness` (claims'
+lock disjunct).
 
 Model boundaries: one chain; ERC-7930 and attribute parsing, destination and peer checks, the salt
 check, `append`'s own checks, the token side of deposits and the ZK allowance, and overflow of the

@@ -394,11 +394,39 @@ theorem burned_eq_direct (l : List CallStarter)
       simp [hi, h0, ih']
     · simp [hi, ih']
 
+/-- Every payment `forwardPayments` lists is a forward. -/
+theorem forwardPayments_forward (l : List CallStarter) :
+    ∀ p ∈ forwardPayments l, ∃ s v, p = .forward s v := by
+  intro p hp
+  simp only [forwardPayments, List.mem_map, List.mem_filter] at hp
+  obtain ⟨cs, _, rfl⟩ := hp
+  exact ⟨_, _, rfl⟩
+
+theorem burn_not_mem_forwardPayments (l : List CallStarter) (d : Word) (v : ℕ) :
+    Payment.burn d v ∉ forwardPayments l := fun hm => by
+  obtain ⟨s, w, h⟩ := forwardPayments_forward l _ hm
+  cases h
+
+theorem deposit_not_mem_forwardPayments (l : List CallStarter) (d a : Word) (o : Address) (v : ℕ) :
+    Payment.deposit d a o v ∉ forwardPayments l := fun hm => by
+  obtain ⟨s, w, h⟩ := forwardPayments_forward l _ hm
+  cases h
+
 theorem SendPaymentsExact : Properties.SendPaymentsExact := by
   intro K P S inp S' h
   obtain ⟨hok, rfl⟩ := exec_send_iff.mp h
-  refine ⟨rfl, ?_, nativeOut_forwardPayments _, burned_eq_direct _ ?_, ?_, ?_,
-    fun hK => msgValue_split hK hok⟩
+  refine ⟨rfl, rfl, ?_, ?_, nativeOut_forwardPayments _, burned_eq_direct _ ?_, ?_, ?_, ?_, ?_, ?_,
+    ?_, fun hK => msgValue_split hK hok⟩
+  · intro s v hm
+    simp only [sendPayments, List.mem_append] at hm
+    rcases hm with hm | hm
+    · simp only [forwardPayments, List.mem_map, List.mem_filter] at hm
+      obtain ⟨cs, ⟨hcs, hind⟩, hf⟩ := hm
+      simp only [forwardOf, Payment.forward.injEq] at hf
+      rw [← hf.1]
+      exact (hok.indirect cs hcs hind).1
+    · unfold valuePayment at hm
+      split_ifs at hm <;> simp at hm
   · intro p hp
     simp only [forwardPayments, List.mem_map, List.mem_filter] at hp
     obtain ⟨cs, ⟨hcs, hind⟩, rfl⟩ := hp
@@ -424,6 +452,42 @@ theorem SendPaymentsExact : Properties.SendPaymentsExact := by
     · rintro ⟨hb, h0⟩
       exact ⟨inp.destBase, inp.sender, totalBurnedCallsValue inp.starters,
         by simp [sendPayments, valuePayment, h0, hb]⟩
+  · intro d v hm
+    simp only [sendPayments, List.mem_append] at hm
+    rcases hm with hm | hm
+    · exact absurd hm (burn_not_mem_forwardPayments _ _ _)
+    · unfold valuePayment at hm
+      split_ifs at hm with h0 hb
+      · simp at hm
+      · simp only [List.mem_singleton, Payment.burn.injEq] at hm
+        exact hm
+      · simp at hm
+  · rw [sendPayments, List.count_append,
+      List.count_eq_zero.mpr (burn_not_mem_forwardPayments _ _ _), Nat.zero_add]
+    unfold valuePayment
+    by_cases h0 : totalBurnedCallsValue inp.starters = 0
+    · simp [h0]
+    · by_cases hb : sameBase P inp = true
+      · simp [h0, hb]
+      · simp [h0, hb]
+  · intro d a o v hm
+    simp only [sendPayments, List.mem_append] at hm
+    rcases hm with hm | hm
+    · exact absurd hm (deposit_not_mem_forwardPayments _ _ _ _ _)
+    · unfold valuePayment at hm
+      split_ifs at hm with h0 hb
+      · simp at hm
+      · simp at hm
+      · simp only [List.mem_singleton, Payment.deposit.injEq] at hm
+        exact hm
+  · rw [sendPayments, List.count_append,
+      List.count_eq_zero.mpr (deposit_not_mem_forwardPayments _ _ _ _ _), Nat.zero_add]
+    unfold valuePayment
+    by_cases h0 : totalBurnedCallsValue inp.starters = 0
+    · simp [h0]
+    · by_cases hb : sameBase P inp = true
+      · simp [h0, hb]
+      · simp [h0, hb]
 
 /-! ## (3) Claims -/
 
