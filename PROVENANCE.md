@@ -248,6 +248,10 @@ supplying that correspondence.
   `head-v35-b17415d`). The branch moves; `_domainHolders` changed in `9775be946`, after
   `d9f6789`. Its bound results refine into `EraSpec/Contracts/ChainTypeManager/Specs/UpgradeTiming.lean`,
   which stays pinned at `e561b9cc2`.
+* `EraSpec/Contracts/ChainTypeManager/Specs/PendingL2UpgradeAtV35.lean` is pinned at
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`), not `e561b9cc2`. It
+  reuses the folder's routing and timed models at `e561b9cc2` and re-reads their timed gates at
+  `b17415d`; its header lists the lines.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.
