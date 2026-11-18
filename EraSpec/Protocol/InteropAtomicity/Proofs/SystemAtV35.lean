@@ -1,11 +1,17 @@
 import EraSpec.Protocol.InteropAtomicity.Properties.SystemAtV35
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
 import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
+import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLegAtHead
+import EraSpec.Protocol.InteropAtomicity.Proofs.LegSourceFilterAtV35
 
 /-!
 # Proofs: the composed system at `draft/v0.35.0`
 
-Proofs of `EraSpec.Protocol.InteropAtomicity.Properties.SystemAtV35`.
+Proofs of `EraSpec.Protocol.InteropAtomicity.Properties.SystemAtV35`.  Each run-level result is
+one induction over `RunV35`.  The transfers apply the merged results to a projected run
+(`runV35_reachLog`, `runV35_sysStepsAtHead`).  The refinement of a code `authorizeRefund` call
+(`runV35_code_marks`) is an induction over the presented flow's legs, one `authorize` step per
+`Committed` key.
 -/
 
 namespace Contracts.SystemAtV35
@@ -81,6 +87,16 @@ lemma v35_mgr_set_same (W : WorldV35) (c : Chain) {x : ChainV35}
     checkedLog (.authorize a :: log) = .authorize a :: checkedLog log := rfl
 @[simp] lemma checkedLog_cons_admin (c : Chain) (op : AdminOp) (log : List CallV35) :
     checkedLog (.admin c op :: log) = checkedLog log := rfl
+
+@[simp] lemma appendLog_cons_append (c : Chain) (F : Flow) (b : UInt256) (d : Chain)
+    (log : List CallV35) : appendLog (.append c F b d :: log) = ⟨F.flowId, b, c⟩ :: appendLog log :=
+  rfl
+@[simp] lemma appendLog_cons_gate (d : Chain) (e : ExecCall) (log : List CallV35) :
+    appendLog (.gate d e :: log) = appendLog log := rfl
+@[simp] lemma appendLog_cons_authorize (a : AuthCall) (log : List CallV35) :
+    appendLog (.authorize a :: log) = appendLog log := rfl
+@[simp] lemma appendLog_cons_admin (c : Chain) (op : AdminOp) (log : List CallV35) :
+    appendLog (.admin c op :: log) = appendLog log := rfl
 
 @[simp] lemma hubsAfter_cons_append (H : Chain → Hub) (c : Chain) (F : Flow) (b : UInt256)
     (d : Chain) (log : List CallV35) : hubsAfter H (.append c F b d :: log) = hubsAfter H log := rfl
@@ -168,6 +184,61 @@ theorem V35ExecutedObligationNeverRefundedOrBreak :
   rw [genesisV35_mgrs] at hrl
   exact Contracts.Refund.ExecutedObligationNeverRefundedOrBreak h z0 hl cv fh S hS F ev leg hex
     Y.mgrs (authLog log) hrl
+
+/-! ## The head system run -/
+
+lemma v35_chains_set (W : WorldV35) (c : Chain) (x : ChainV35) :
+    (W.set c x).chains = W.chains.update c x.base := by
+  funext y
+  by_cases hy : y = c
+  · subst hy; simp [WorldV35.chains, Chains.update]
+  · simp [WorldV35.chains, Chains.update, v35_set_other _ _ hy, hy]
+
+/-- A step that leaves the chain's manager and tree alone leaves every chain's alone. -/
+lemma v35_chains_set_same (W : WorldV35) (c : Chain) {x : ChainV35} (hx : x.base = (W c).base) :
+    (W.set c x).chains = W.chains := by
+  funext y
+  by_cases hy : y = c
+  · subst hy; simp [WorldV35.chains, hx]
+  · simp [WorldV35.chains, v35_set_other _ _ hy]
+
+theorem runV35_sysStepsAtHead {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {X Y : WorldV35} {log : List CallV35}
+    (hr : RunV35 h z0 hl cv fh S X Y log) :
+    SysStepsAtHead h z0 hl cv fh S X.chains Y.chains (appendLog log) (authLog log) := by
+  induction hr with
+  | refl => exact SysStepsAtHead.refl
+  | @append Y log c F b dest hint low _ ha ih =>
+    rw [v35_chains_set, appendLog_cons_append, authLog_cons_append]
+    exact SysStepsAtHead.append (c := c) (f := F.flowId) (b := b) (hint := hint) (low := low) ih
+      ⟨ha.legUnset, ha.treeInsert⟩
+  | importRoot _ _ _ ih => simpa only [v35_chains_set_same] using ih
+  | gate _ _ _ _ ih =>
+    simpa only [v35_chains_set_same, appendLog_cons_gate, authLog_cons_gate] using ih
+  | resume _ _ ih => simpa only [v35_chains_set_same] using ih
+  | @authorize Y log a _ hok hg ih =>
+    rw [v35_chains_set, appendLog_cons_authorize, authLog_cons_authorize]
+    exact SysStepsAtHead.authorize a ih hok.1 hg
+  | @claim Y log c f b _ hg ih =>
+    rw [v35_chains_set]
+    exact SysStepsAtHead.claim (c := c) (f := f) (b := b) ih hg
+  | admin _ _ _ ih =>
+    simpa only [v35_chains_set_same, appendLog_cons_admin, authLog_cons_admin] using ih
+  | @initL2 Y log c _ h0 ih =>
+    rw [v35_chains_set]
+    exact SysStepsAtHead.initL2 (c := c) ih h0
+
+theorem RunV35ProjectsToSysStepsAtHead : Properties.RunV35ProjectsToSysStepsAtHead :=
+  fun _ _ _ _ _ _ _ _ _ hr => runV35_sysStepsAtHead hr
+
+lemma genesisV35_chains (H0 : Chain → Hub) : (genesisV35 H0).chains = genesisAll := rfl
+
+theorem SystemOncePerLegV35 : Properties.SystemOncePerLegV35 := by
+  intro h z0 hl cv fh S H0 Y log hr
+  have hs := runV35_sysStepsAtHead hr
+  rw [genesisV35_chains] at hs
+  exact Contracts.AppendPath.SystemOncePerLegAtHead h z0 hl cv fh S Y.chains (appendLog log)
+    (authLog log) hs
 
 /-! ## Refund before append, on one chain -/
 
@@ -660,16 +731,6 @@ theorem runV35_set_key {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitVal
 theorem SetKeyHasLoggedAppendV35 : Properties.SetKeyHasLoggedAppendV35 :=
   fun _ _ _ _ _ _ _ _ _ hr => runV35_set_key hr
 
-@[simp] lemma appendLog_cons_append (c : Chain) (F : Flow) (b : UInt256) (d : Chain)
-    (log : List CallV35) : appendLog (.append c F b d :: log) = ⟨F.flowId, b, c⟩ :: appendLog log :=
-  rfl
-@[simp] lemma appendLog_cons_gate (d : Chain) (e : ExecCall) (log : List CallV35) :
-    appendLog (.gate d e :: log) = appendLog log := rfl
-@[simp] lemma appendLog_cons_authorize (a : AuthCall) (log : List CallV35) :
-    appendLog (.authorize a :: log) = appendLog log := rfl
-@[simp] lemma appendLog_cons_admin (c : Chain) (op : AdminOp) (log : List CallV35) :
-    appendLog (.admin c op :: log) = appendLog log := rfl
-
 theorem runV35_appended_once {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
     {fh : FlowHash} {S : System} {H0 : Chain → Hub} {Y : WorldV35} {log : List CallV35}
     (hr : RunV35 h z0 hl cv fh S (genesisV35 H0) Y log) :
@@ -766,6 +827,119 @@ theorem CodeAuthorizeMarksDeclaredLegOrLoggedClashV35 :
     · show fh F.legs F.deadline = fh F'.legs F'.deadline
       rw [hF, hF', hid]
 
+/-! ## One code `authorizeRefund` call as model steps -/
+
+lemma v35_set_set (W : WorldV35) (c : Chain) (x x' : ChainV35) :
+    (W.set c x).set c x' = W.set c x' := by
+  funext y
+  by_cases hy : y = c <;> simp [WorldV35.set, hy]
+
+lemma v35_set_eta (W : WorldV35) (c : Chain) : W.set c (W c) = W := by
+  funext y
+  by_cases hy : y = c
+  · subst hy; simp [WorldV35.set]
+  · simp [WorldV35.set, hy]
+
+/-- The marking loop, run over the legs `L` of the presented flow: one `authorize` step per key
+that is `Committed` when the loop reaches it.  The steps change only chain `x`'s manager, so the
+filter and the root check read the same state at every step, and the keys of later legs, whose
+bundle hashes differ, are untouched. -/
+theorem runV35_code_marks {h : Hash} {z0 : UInt256} {hl : LeafHash} {cv : CommitValue}
+    {fh : FlowHash} {S : System} {X : WorldV35} {x : Chain} {F : Flow} {m : FlowLeg} {N : ℕ}
+    {p : ImtProof} (hF : FlowIdChecked fh F) (hm : m ∈ F.legs)
+    (hrf : LegRefundableBy h z0 hl cv S F m N p) :
+    ∀ (L : List FlowLeg), (∀ l ∈ L, l ∈ F.legs) → (L.map FlowLeg.bundleHash).Pairwise (· < ·) →
+    ∀ (Z : WorldV35) (logZ : List CallV35), RunV35 h z0 hl cv fh S X Z logZ →
+      SourceAllowed (Z x).hub x m.chain → (∃ blk, F.deadline < (Z x).roots.stored blk) →
+      (∀ l ∈ L, (Z x).base.mgr.legState F.flowId l.bundleHash = .Committed → l.chain = x) →
+        ∃ steps : List CallV35,
+          (∀ c ∈ steps, ∃ l ∈ L, l.chain = x ∧ c = CallV35.authorize ⟨F, l, m, N, p⟩)
+          ∧ RunV35 h z0 hl cv fh S X
+              (Z.set x { Z x with base :=
+                ⟨RefundClosesAppend.markCommittedRevertable (Z x).base.mgr F.flowId
+                    (L.map FlowLeg.bundleHash), (Z x).base.tree⟩ })
+              (steps ++ logZ) := by
+  intro L
+  induction L with
+  | nil =>
+    intro _ _ Z logZ hr _ _ _
+    refine ⟨[], fun c hc => absurd hc List.not_mem_nil, ?_⟩
+    have hZ : Z.set x { Z x with base :=
+        ⟨RefundClosesAppend.markCommittedRevertable (Z x).base.mgr F.flowId
+          (([] : List FlowLeg).map FlowLeg.bundleHash), (Z x).base.tree⟩ } = Z := by
+      simp only [List.map_nil, RefundClosesAppend.markCommittedRevertable]
+      exact v35_set_eta Z x
+    rw [hZ, List.nil_append]
+    exact hr
+  | cons l L ih =>
+    intro hsub hsort Z logZ hr hsrc hroot hdecl
+    rw [List.map_cons, List.pairwise_cons] at hsort
+    obtain ⟨hlt, hsort'⟩ := hsort
+    have hlF : l ∈ F.legs := hsub l List.mem_cons_self
+    have hsub' : ∀ l' ∈ L, l' ∈ F.legs := fun l' hl' => hsub l' (List.mem_cons_of_mem _ hl')
+    have hne : ∀ l' ∈ L, l'.bundleHash ≠ l.bundleHash := by
+      intro l' hl' heq
+      have := hlt l'.bundleHash (List.mem_map.mpr ⟨l', hl', rfl⟩)
+      rw [heq] at this
+      exact lt_irrefl _ this
+    by_cases hc : (Z x).base.mgr.legState F.flowId l.bundleHash = .Committed
+    · -- the loop marks `l`: one model step on `x`, then the rest of the legs
+      have hlx : l.chain = x := hdecl l List.mem_cons_self hc
+      subst hlx
+      have hr' : RunV35 h z0 hl cv fh S X
+          (Z.set l.chain { Z l.chain with
+            base := ⟨(Z l.chain).base.mgr.set F.flowId l.bundleHash .Revertable,
+              (Z l.chain).base.tree⟩ })
+          (CallV35.authorize ⟨F, l, m, N, p⟩ :: logZ) :=
+        RunV35.authorize ⟨F, l, m, N, p⟩ hr ⟨⟨hF, hlF, hm, hrf⟩, hsrc, hroot⟩ hc
+      obtain ⟨steps, hsteps, hrun⟩ := ih hsub' hsort' _ _ hr'
+        (by simpa only [v35_set_self] using hsrc) (by simpa only [v35_set_self] using hroot)
+        (by
+          intro l' hl' hc'
+          simp [v35_set_self, Manager.set, hne l' hl'] at hc'
+          exact hdecl l' (List.mem_cons_of_mem _ hl') hc')
+      refine ⟨steps ++ [CallV35.authorize ⟨F, l, m, N, p⟩], fun c hc' => ?_, ?_⟩
+      · rcases List.mem_append.mp hc' with hc' | hc'
+        · obtain ⟨l', hl', h1, h2⟩ := hsteps c hc'
+          exact ⟨l', List.mem_cons_of_mem _ hl', h1, h2⟩
+        · rw [List.mem_singleton] at hc'
+          exact ⟨l, List.mem_cons_self, rfl, hc'⟩
+      · rw [List.append_assoc, List.singleton_append]
+        rw [v35_set_set, v35_set_self] at hrun
+        have hmark : RefundClosesAppend.markCommittedRevertable (Z l.chain).base.mgr F.flowId
+            ((l :: L).map FlowLeg.bundleHash)
+            = RefundClosesAppend.markCommittedRevertable
+                ((Z l.chain).base.mgr.set F.flowId l.bundleHash .Revertable) F.flowId
+                (L.map FlowLeg.bundleHash) := by
+          simp only [List.map_cons, RefundClosesAppend.markCommittedRevertable, hc, ↓reduceIte]
+        rw [hmark]
+        exact hrun
+    · -- the loop skips `l`
+      obtain ⟨steps, hsteps, hrun⟩ := ih hsub' hsort' Z logZ hr hsrc hroot
+        (fun l' hl' => hdecl l' (List.mem_cons_of_mem _ hl'))
+      refine ⟨steps, fun c hc' => ?_, ?_⟩
+      · obtain ⟨l', hl', h1, h2⟩ := hsteps c hc'
+        exact ⟨l', List.mem_cons_of_mem _ hl', h1, h2⟩
+      · have hmark : RefundClosesAppend.markCommittedRevertable (Z x).base.mgr F.flowId
+            ((l :: L).map FlowLeg.bundleHash)
+            = RefundClosesAppend.markCommittedRevertable (Z x).base.mgr F.flowId
+                (L.map FlowLeg.bundleHash) := by
+          simp only [List.map_cons, RefundClosesAppend.markCommittedRevertable, hc, ↓reduceIte]
+        rw [hmark]
+        exact hrun
+
+theorem CodeAuthorizeCallIsAuthorizeStepsV35 :
+    Properties.CodeAuthorizeCallIsAuthorizeStepsV35 := by
+  intro h z0 hl cv fh S H0 Y log hr x F m N p hF hsort hm hrf hsrc hroot hnoclash
+  have hdecl : ∀ l ∈ F.legs,
+      (Y x).base.mgr.legState F.flowId l.bundleHash = .Committed → l.chain = x := by
+    intro l hlF hc
+    rcases CodeAuthorizeMarksDeclaredLegOrLoggedClashV35 h z0 hl cv fh S H0 Y log hr x F l hF hlF hc
+      with h1 | ⟨F', dest, hmem, hcl⟩
+    · exact h1
+    · exact absurd hcl (hnoclash l hlF F' dest hmem)
+  exact runV35_code_marks hF hm hrf F.legs (fun _ hl' => hl') hsort Y log hr hsrc hroot hdecl
+
 /-! ## Witnesses
 
 The worlds of the witness runs are named, one per step, so that every check on them is a closed
@@ -816,18 +990,18 @@ lemma v35_refund_leg13 (h : Hash) (z0 : UInt256) (hl : LeafHash) :
     (cv := v35BundleCv) (id := 1) (hA := 1) (hB := 3) (by decide) (by decide)).2.2
   exact ⟨N, p, href⟩
 
-/-- The absence proof for leg `⟨2, 3⟩` of `v35PeerRefundFlow`: chain `2` never commits in
+/-- The absence proof for leg `⟨2, 4⟩` of `v35SameChainLegsFlow`: chain `2` never commits in
 `mixedSystem 1`, and batch `1` settled after the deadline `0`. -/
-lemma v35_refund_leg23 (h : Hash) (z0 : UInt256) (hl : LeafHash) :
-    ∃ N p, LegRefundableBy h z0 hl v35BundleCv (mixedSystem 1) v35PeerRefundFlow ⟨2, 3⟩ N p := by
-  have hb : (0 : UInt256) < 3 := by decide
+lemma v35_refund_leg24 (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ∃ N p, LegRefundableBy h z0 hl v35BundleCv (mixedSystem 1) v35SameChainLegsFlow ⟨2, 4⟩ N p := by
+  have hb : (0 : UInt256) < 4 := by decide
   obtain ⟨ℓ, idx, habs⟩ :=
     non_inclusion_complete (h := h) (z0 := z0) (hl := hl) (T := setup) (height := 0)
       setup_valid (by norm_num [setup]) (ne_of_gt hb) (not_mem_setup hb)
   refine ⟨1, ⟨ℓ, idx, honestSibs h z0 (leafHashes hl setup) idx, 0⟩, Or.inl ⟨?_, ?_⟩⟩
   · show (0 : ℕ) < (mixedSystem 1).time 2 1
     simp
-  · show AbsenceAccepted h z0 hl ((mixedSystem 1).tree 2 0) ((mixedSystem 1).height 2 0) 3 _
+  · show AbsenceAccepted h z0 hl ((mixedSystem 1).tree 2 0) ((mixedSystem 1).height 2 0) 4 _
     rw [mixedSystem_tree_other (by decide : (2 : Chain) ≠ 0),
       mixedSystem_height_other (by decide : (2 : Chain) ≠ 0)]
     exact habs
@@ -906,26 +1080,9 @@ theorem RefundThenAppendWitnessV35 : Properties.RefundThenAppendWitnessV35 := by
   intro h z0 hl
   obtain ⟨N, p, href⟩ := v35_refund_leg13 h z0 hl
   have r := v35_refund_run h z0 hl N p href
-  refine ⟨v35RefundW7, v35RefundCall N p, fun _ => (0, honestProof h z0 hl (mixedSystem 1) 0 0 1),
-    rfl, rfl, rfl, r, rfl, v35W0_rootsWf, mixedSystem_wf (by decide), v35_subset_executes h z0 hl,
-    ⟨⟨1, 2, 1⟩, ?_⟩, ?_, ?_, by decide, by unfold FlowIdChecked; decide, by decide, ?_, by decide,
-    by unfold FlowIdChecked; decide, by decide, List.mem_cons_of_mem _ List.mem_cons_self,
-    by unfold FlowIdClash; decide⟩
-  · unfold Refunded; decide
-  · unfold Refunded; decide
-  · -- the only logged refund marked `⟨1, 2, 1⟩`, not the executed obligation `⟨0, 1, 0⟩`
-    have hneq : obligationOf (v35RefundCall N p).flow (v35RefundCall N p).leg
-        ≠ obligationOf (subsetFlow 0 1) ⟨0, 1⟩ := by
-      show (⟨1, 2, 1⟩ : Obligation) ≠ ⟨0, 1, 0⟩
-      decide
-    intro hb
-    cases hb with
-    | flowIdClash a ha hobl _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
-    | inclusion a ha hobl _ _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
-    | absence a ha hobl _ _ =>
-      rw [List.mem_singleton] at ha; subst ha; exact hneq hobl
+  refine ⟨v35RefundW7, v35RefundCall N p, rfl, rfl, rfl, r, rfl, v35W0_rootsWf, by decide,
+    by unfold FlowIdChecked; decide, by decide, ?_, by decide, by unfold FlowIdChecked; decide,
+    by decide, List.mem_cons_of_mem _ List.mem_cons_self, by unfold FlowIdClash; decide⟩
   · rintro ⟨F', dest, hmem, hcl⟩
     simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
     rcases hmem with h1 | h1 | h1 | h1 | h1 | h1
@@ -999,6 +1156,109 @@ theorem VerifiedBundleExecutesAfterDeregistrationV35 :
   intro hg
   exact hnot (hg.2 ⟨0, 1⟩ List.mem_cons_self)
 
+/-! ### An executed obligation next to a refunded one -/
+
+/-- Chain `0` appends leg `⟨0, 1⟩` of `subsetFlow 0 1`. -/
+def v35ExObW3 : WorldV35 :=
+  v35RefundW2.set 0
+    { v35RefundW2 0 with
+      base := (v35RefundW2 0).base.appended v35BundleCv (subsetFlow 0 1).flowId 1 0 }
+
+/-- Chain `1` appends leg `⟨1, 2⟩` of `v35RefundFlow`. -/
+def v35ExObW4 : WorldV35 :=
+  v35ExObW3.set 1
+    { v35ExObW3 1 with base := (v35ExObW3 1).base.appended v35BundleCv v35RefundFlow.flowId 2 0 }
+
+/-- Chain `1` imports an L1 root with timestamp `1` at block `0`. -/
+def v35ExObW5 : WorldV35 :=
+  v35ExObW4.set 1 { v35ExObW4 1 with roots := (v35ExObW4 1).roots.import 0 1 }
+
+/-- Chain `1` marks `(1, 2)` `Revertable`. -/
+def v35ExObW6 : WorldV35 :=
+  v35ExObW5.set 1 { v35ExObW5 1 with
+    base := ⟨(v35ExObW5 1).base.mgr.set v35RefundFlow.flowId 2 .Revertable,
+      (v35ExObW5 1).base.tree⟩ }
+
+/-- Chain `1` executes bundle `1`. -/
+def v35ExObW7 : WorldV35 :=
+  v35ExObW6.set 1 { v35ExObW6 1 with status := setStatus (v35ExObW6 1).status 1 .FullyExecuted }
+
+theorem ExecutedObligationStaysCommittedWitnessV35 :
+    Properties.ExecutedObligationStaysCommittedWitnessV35 := by
+  intro h z0 hl
+  obtain ⟨N, p, href⟩ := v35_refund_leg13 h z0 hl
+  have r1 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35W1
+      [.admin 1 (.allow 0)] := RunV35.admin 1 (.allow 0) RunV35.refl
+  have r2 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35RefundW2
+      [.admin 0 (.allow 1), .admin 1 (.allow 0)] := RunV35.admin 0 (.allow 1) r1
+  have hok3 : AppendOkV35 v35BundleCv lengthFlowHash (v35RefundW2 0) 0 (subsetFlow 0 1) 1 1 0 0 :=
+    ⟨by decide, by decide, by unfold FlowIdChecked; decide, by decide, by decide, by decide,
+      by decide, by decide, by unfold AppendGuard; decide,
+      ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, ⟨0, by decide⟩⟩⟩
+  have r3 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35ExObW3
+      [.append 0 (subsetFlow 0 1) 1 1, .admin 0 (.allow 1), .admin 1 (.allow 0)] :=
+    RunV35.append (c := 0) (F := subsetFlow 0 1) (b := 1) (dest := 1) (hint := 0) (low := 0) r2
+      hok3
+  have hok4 : AppendOkV35 v35BundleCv lengthFlowHash (v35ExObW3 1) 1 v35RefundFlow 2 0 0 0 :=
+    ⟨by decide, by decide, by unfold FlowIdChecked; decide, by decide, by decide, by decide,
+      by decide, by decide, by unfold AppendGuard; decide,
+      ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, ⟨0, by decide⟩⟩⟩
+  have r4 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35ExObW4
+      [.append 1 v35RefundFlow 2 0, .append 0 (subsetFlow 0 1) 1 1, .admin 0 (.allow 1),
+        .admin 1 (.allow 0)] :=
+    RunV35.append (c := 1) (F := v35RefundFlow) (b := 2) (dest := 0) (hint := 0) (low := 0) r3 hok4
+  have r5 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35ExObW5
+      [.append 1 v35RefundFlow 2 0, .append 0 (subsetFlow 0 1) 1 1, .admin 0 (.allow 1),
+        .admin 1 (.allow 0)] :=
+    RunV35.importRoot (c := 1) (blk := 0) (t := 1) r4 (by decide) (by decide)
+  have hok6 : AuthorizeOkV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) (v35ExObW5 1)
+      (v35RefundCall N p) := by
+    refine ⟨⟨?_, ?_, ?_, href⟩, Or.inl rfl, ⟨0, ?_⟩⟩
+    · show FlowIdChecked lengthFlowHash v35RefundFlow
+      unfold FlowIdChecked; decide
+    · show (⟨1, 2⟩ : FlowLeg) ∈ v35RefundFlow.legs
+      decide
+    · show (⟨1, 3⟩ : FlowLeg) ∈ v35RefundFlow.legs
+      decide
+    · show v35RefundFlow.deadline < (v35ExObW5 1).roots.stored 0
+      decide
+  have hg6 : AuthorizeGuard (v35ExObW5 1).base.mgr v35RefundFlow.flowId 2 := by
+    unfold AuthorizeGuard; decide
+  have r6 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35ExObW6
+      [.authorize (v35RefundCall N p), .append 1 v35RefundFlow 2 0, .append 0 (subsetFlow 0 1) 1 1,
+        .admin 0 (.allow 1), .admin 1 (.allow 0)] :=
+    RunV35.authorize (v35RefundCall N p) r5 hok6 hg6
+  have hex := v35_subset_executes h z0 hl
+  have hgate : GateOkV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) (v35ExObW6 1) 1
+      (v35ExecCall h z0 hl) := by
+    refine ⟨hex, fun l hl' => ?_⟩
+    obtain rfl : l = ⟨0, 1⟩ := List.mem_singleton.mp hl'
+    decide
+  have r7 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35ExObW7
+      [.gate 1 (v35ExecCall h z0 hl), .authorize (v35RefundCall N p), .append 1 v35RefundFlow 2 0,
+        .append 0 (subsetFlow 0 1) 1 1, .admin 0 (.allow 1), .admin 1 (.allow 0)] :=
+    RunV35.gate (d := 1) (e := v35ExecCall h z0 hl) (st := .FullyExecuted) r6
+      (show (v35ExObW6 1).status 1 = .Unreceived by decide) (Or.inr rfl) hgate
+  have hneq : obligationOf (v35RefundCall N p).flow (v35RefundCall N p).leg
+      ≠ obligationOf (subsetFlow 0 1) ⟨0, 1⟩ := by
+    show (⟨1, 2, 1⟩ : Obligation) ≠ ⟨0, 1, 0⟩
+    decide
+  refine ⟨v35ExObW7, v35RefundCall N p, v35ExecCall h z0 hl, rfl, rfl, rfl, rfl, rfl, r7,
+    mixedSystem_wf (by decide), hex, ?_, by decide, by unfold Refunded; decide,
+    by unfold Refunded; decide, ?_⟩
+  · rw [appendLog_cons_gate, appendLog_cons_authorize, appendLog_cons_append, appendLog_cons_append]
+    exact List.mem_cons_of_mem _ List.mem_cons_self
+  · rw [authLog_cons_gate, authLog_cons_authorize, authLog_cons_append, authLog_cons_append,
+      authLog_cons_admin, authLog_cons_admin]
+    intro hb
+    cases hb with
+    | flowIdClash a ha hobl _ =>
+      simp only [authLog, List.filterMap_nil, List.mem_singleton] at ha; subst ha; exact hneq hobl
+    | inclusion a ha hobl _ _ =>
+      simp only [authLog, List.filterMap_nil, List.mem_singleton] at ha; subst ha; exact hneq hobl
+    | absence a ha hobl _ _ =>
+      simp only [authLog, List.filterMap_nil, List.mem_singleton] at ha; subst ha; exact hneq hobl
+
 /-! ### The re-allow run -/
 
 /-- Chain `1` deregisters peer `0`. -/
@@ -1035,7 +1295,7 @@ theorem ReallowedPeerGateWitnessV35 : Properties.ReallowedPeerGateWitnessV35 := 
       (show (v35ReallowW3 1).status 1 = .Unreceived by decide) (Or.inr rfl) hgate
   exact ⟨v35ReallowW4, v35ExecCall h z0 hl, rfl, rfl, r4, by decide⟩
 
-/-! ### The deregistration run on chain `0` -/
+/-! ### The deregistration run on chain `0`, over the complete swap -/
 
 /-- Chain `0` allows peer `1`. -/
 def v35PeerW1 : WorldV35 :=
@@ -1045,82 +1305,180 @@ def v35PeerW1 : WorldV35 :=
 def v35PeerW2 : WorldV35 :=
   v35PeerW1.set 0 { v35PeerW1 0 with hub := (AdminOp.allow 2).apply (v35PeerW1 0).hub }
 
-/-- Chain `0` deregisters peer `1`. -/
+/-- Chain `0` deregisters peer `2`. -/
 def v35PeerW3 : WorldV35 :=
-  v35PeerW2.set 0 { v35PeerW2 0 with hub := (AdminOp.deregister 1).apply (v35PeerW2 0).hub }
+  v35PeerW2.set 0 { v35PeerW2 0 with hub := (AdminOp.deregister 2).apply (v35PeerW2 0).hub }
 
-/-- Chain `0` appends leg `⟨0, 2⟩` of `v35PeerRefundFlow`. -/
+/-- Chain `0` appends leg `⟨0, 4⟩` of `v35PeerRefundFlow`. -/
 def v35PeerW4 : WorldV35 :=
   v35PeerW3.set 0
     { v35PeerW3 0 with
-      base := (v35PeerW3 0).base.appended v35BundleCv v35PeerRefundFlow.flowId 2 0 }
+      base := (v35PeerW3 0).base.appended v35BundleCv v35PeerRefundFlow.flowId 4 0 }
 
 /-- Chain `0` imports an L1 root with timestamp `1` at block `0`. -/
 def v35PeerW5 : WorldV35 :=
   v35PeerW4.set 0 { v35PeerW4 0 with roots := (v35PeerW4 0).roots.import 0 1 }
 
-/-- Chain `0` marks `(1, 2)` `Revertable`. -/
+/-- Chain `0` marks `(1, 4)` `Revertable`. -/
 def v35PeerW6 : WorldV35 :=
   v35PeerW5.set 0 { v35PeerW5 0 with
-    base := ⟨(v35PeerW5 0).base.mgr.set v35PeerRefundFlow.flowId 2 .Revertable,
+    base := ⟨(v35PeerW5 0).base.mgr.set v35PeerRefundFlow.flowId 4 .Revertable,
       (v35PeerW5 0).base.tree⟩ }
 
-/-- Chain `0` executes bundle `1`. -/
+/-- Chain `0` executes bundle `2`. -/
 def v35PeerW7 : WorldV35 :=
-  v35PeerW6.set 0 { v35PeerW6 0 with status := setStatus (v35PeerW6 0).status 1 .FullyExecuted }
+  v35PeerW6.set 0 { v35PeerW6 0 with status := setStatus (v35PeerW6 0).status 2 .FullyExecuted }
+
+/-- In the complete swap chain `1` never commits `5`: its tree holds `2` only. -/
+lemma v35_swap_five_not_committed :
+    ¬ Contracts.LegSourceFilterAtV35.CommittedOnTime v35BundleCv
+      Contracts.LegSourceFilterAtV35.swapSystem v35PeerRefundFlow ⟨1, 5⟩ := by
+  rintro ⟨n, _, hmem⟩
+  change (5 : UInt256) ∈ keys (toAbs (Contracts.LegSourceFilterAtV35.swapSystem.tree 1 n)) at hmem
+  rw [Contracts.LegSourceFilterAtV35.swapSystem_eq, pairSystem_tree_one,
+    (insert_sound_step setup_valid (setup_insertGuard (by decide : (0 : UInt256) < 2))).2] at hmem
+  rcases Finset.mem_insert.mp hmem with h5 | h5
+  · exact absurd h5 (by decide)
+  · exact not_mem_setup (by decide) h5
+
+/-- The honest absence proof for leg `⟨1, 5⟩` of `v35PeerRefundFlow` in the complete swap. -/
+lemma v35_refund_leg15 (h : Hash) (z0 : UInt256) (hl : LeafHash) :
+    ∃ N p, LegRefundableBy h z0 hl v35BundleCv Contracts.LegSourceFilterAtV35.swapSystem
+      v35PeerRefundFlow ⟨1, 5⟩ N p := by
+  obtain ⟨N, p, href, _⟩ := Contracts.LegSourceFilterAtV35.honest_refund_evidence (h := h)
+    (z0 := z0) (hl := hl) (cv := v35BundleCv) (F := v35PeerRefundFlow) (m := ⟨1, 5⟩)
+    Contracts.LegSourceFilterAtV35.swap_wf (show (5 : UInt256) ≠ 0 by decide)
+    v35_swap_five_not_committed ⟨1, by decide⟩
+  exact ⟨N, p, href⟩
 
 theorem DeregisteredPeerWitnessV35 : Properties.DeregisteredPeerWitnessV35 := by
   intro h z0 hl
-  obtain ⟨N, p, href⟩ := v35_refund_leg23 h z0 hl
-  let a : AuthCall := ⟨v35PeerRefundFlow, ⟨0, 2⟩, ⟨2, 3⟩, N, p⟩
-  have r1 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35PeerW1
-      [.admin 0 (.allow 1)] := RunV35.admin 0 (.allow 1) RunV35.refl
-  have r2 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35PeerW2
-      [.admin 0 (.allow 2), .admin 0 (.allow 1)] := RunV35.admin 0 (.allow 2) r1
-  have r3 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35PeerW3
-      [.admin 0 (.deregister 1), .admin 0 (.allow 2), .admin 0 (.allow 1)] :=
-    RunV35.admin 0 (.deregister 1) r2
-  have hok4 : AppendOkV35 v35BundleCv lengthFlowHash (v35PeerW3 0) 0 v35PeerRefundFlow 2 2 0 0 :=
+  obtain ⟨N, p, href⟩ := v35_refund_leg15 h z0 hl
+  let a : AuthCall := ⟨v35PeerRefundFlow, ⟨0, 4⟩, ⟨1, 5⟩, N, p⟩
+  let e : ExecCall := pairExec h z0 hl ⟨1, 2⟩
+  have r1 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
+      v35W0 v35PeerW1 [.admin 0 (.allow 1)] := RunV35.admin 0 (.allow 1) RunV35.refl
+  have r2 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
+      v35W0 v35PeerW2 [.admin 0 (.allow 2), .admin 0 (.allow 1)] := RunV35.admin 0 (.allow 2) r1
+  have r3 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
+      v35W0 v35PeerW3 [.admin 0 (.deregister 2), .admin 0 (.allow 2), .admin 0 (.allow 1)] :=
+    RunV35.admin 0 (.deregister 2) r2
+  have hok4 : AppendOkV35 v35BundleCv lengthFlowHash (v35PeerW3 0) 0 v35PeerRefundFlow 4 1 0 0 :=
     ⟨by decide, by decide, by unfold FlowIdChecked; decide, by decide, by decide, by decide,
       by decide, by decide, by unfold AppendGuard; decide,
       ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, ⟨0, by decide⟩⟩⟩
-  have r4 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35PeerW4
-      [.append 0 v35PeerRefundFlow 2 2, .admin 0 (.deregister 1), .admin 0 (.allow 2),
+  have r4 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
+      v35W0 v35PeerW4
+      [.append 0 v35PeerRefundFlow 4 1, .admin 0 (.deregister 2), .admin 0 (.allow 2),
         .admin 0 (.allow 1)] :=
-    RunV35.append (c := 0) (F := v35PeerRefundFlow) (b := 2) (dest := 2) (hint := 0) (low := 0)
+    RunV35.append (c := 0) (F := v35PeerRefundFlow) (b := 4) (dest := 1) (hint := 0) (low := 0)
       r3 hok4
-  have r5 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35PeerW5
-      [.append 0 v35PeerRefundFlow 2 2, .admin 0 (.deregister 1), .admin 0 (.allow 2),
+  have r5 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
+      v35W0 v35PeerW5
+      [.append 0 v35PeerRefundFlow 4 1, .admin 0 (.deregister 2), .admin 0 (.allow 2),
         .admin 0 (.allow 1)] :=
     RunV35.importRoot (c := 0) (blk := 0) (t := 1) r4 (by decide) (by decide)
-  have hok6 : AuthorizeOkV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) (v35PeerW5 0) a := by
+  have hok6 : AuthorizeOkV35 h z0 hl v35BundleCv lengthFlowHash
+      Contracts.LegSourceFilterAtV35.swapSystem (v35PeerW5 0) a := by
     refine ⟨⟨?_, ?_, ?_, href⟩, ?_, ⟨0, ?_⟩⟩
     · show FlowIdChecked lengthFlowHash v35PeerRefundFlow
       unfold FlowIdChecked; decide
-    · show (⟨0, 2⟩ : FlowLeg) ∈ v35PeerRefundFlow.legs
+    · show (⟨0, 4⟩ : FlowLeg) ∈ v35PeerRefundFlow.legs
       decide
-    · show (⟨2, 3⟩ : FlowLeg) ∈ v35PeerRefundFlow.legs
+    · show (⟨1, 5⟩ : FlowLeg) ∈ v35PeerRefundFlow.legs
       decide
-    · show SourceAllowed (v35PeerW5 0).hub 0 2
+    · show SourceAllowed (v35PeerW5 0).hub 0 1
       decide
     · show v35PeerRefundFlow.deadline < (v35PeerW5 0).roots.stored 0
       decide
-  have hg6 : AuthorizeGuard (v35PeerW5 0).base.mgr v35PeerRefundFlow.flowId 2 := by
+  have hg6 : AuthorizeGuard (v35PeerW5 0).base.mgr v35PeerRefundFlow.flowId 4 := by
     unfold AuthorizeGuard; decide
-  have r6 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35PeerW6
-      [.authorize a, .append 0 v35PeerRefundFlow 2 2, .admin 0 (.deregister 1),
+  have r6 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
+      v35W0 v35PeerW6
+      [.authorize a, .append 0 v35PeerRefundFlow 4 1, .admin 0 (.deregister 2),
         .admin 0 (.allow 2), .admin 0 (.allow 1)] :=
     RunV35.authorize a r5 hok6 hg6
-  have hgate : GateOkV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) (v35PeerW6 0) 0
-      (v35ExecCall h z0 hl) := by
-    refine ⟨v35_subset_executes h z0 hl, fun l hl' => ?_⟩
-    obtain rfl : l = ⟨0, 1⟩ := List.mem_singleton.mp hl'
-    exact Or.inl rfl
-  have r7 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35PeerW7
-      [.gate 0 (v35ExecCall h z0 hl), .authorize a, .append 0 v35PeerRefundFlow 2 2,
-        .admin 0 (.deregister 1), .admin 0 (.allow 2), .admin 0 (.allow 1)] :=
-    RunV35.gate (d := 0) (e := v35ExecCall h z0 hl) (st := .FullyExecuted) r6
-      (show (v35PeerW6 0).status 1 = .Unreceived by decide) (Or.inr rfl) hgate
-  exact ⟨v35PeerW7, a, v35ExecCall h z0 hl, rfl, rfl, rfl, rfl, rfl, r7, by decide⟩
+  have hgate : GateOkV35 h z0 hl v35BundleCv lengthFlowHash
+      Contracts.LegSourceFilterAtV35.swapSystem (v35PeerW6 0) 0 e := by
+    refine ⟨Contracts.LegSourceFilterAtV35.pairExec_verified_swap lengthFlowHash_checks_mixed
+      h z0 hl Contracts.LegSourceFilterAtV35.swap_legB_mem, fun l hl' => ?_⟩
+    change l ∈ [(⟨0, 1⟩ : FlowLeg), ⟨1, 2⟩] at hl'
+    simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl'
+    rcases hl' with rfl | rfl
+    · exact Or.inl rfl
+    · show SourceAllowed (v35PeerW6 0).hub 0 1
+      decide
+  have r7 : RunV35 h z0 hl v35BundleCv lengthFlowHash Contracts.LegSourceFilterAtV35.swapSystem
+      v35W0 v35PeerW7
+      [.gate 0 e, .authorize a, .append 0 v35PeerRefundFlow 4 1,
+        .admin 0 (.deregister 2), .admin 0 (.allow 2), .admin 0 (.allow 1)] :=
+    RunV35.gate (d := 0) (e := e) (st := .FullyExecuted) r6
+      (show (v35PeerW6 0).status 2 = .Unreceived by decide) (Or.inr rfl) hgate
+  exact ⟨v35PeerW7, a, e, rfl, rfl, rfl, rfl, rfl, r7, by decide, by decide⟩
+
+/-! ### The two-key code call -/
+
+/-- Chain `1` allows peer `2` (after `v35W1`, where it allowed peer `0`). -/
+def v35SameW2 : WorldV35 :=
+  v35W1.set 1 { v35W1 1 with hub := (AdminOp.allow 2).apply (v35W1 1).hub }
+
+/-- Chain `1` appends leg `⟨1, 2⟩` of `v35SameChainLegsFlow`. -/
+def v35SameW3 : WorldV35 :=
+  v35SameW2.set 1
+    { v35SameW2 1 with
+      base := (v35SameW2 1).base.appended v35BundleCv v35SameChainLegsFlow.flowId 2 0 }
+
+/-- Chain `1` appends leg `⟨1, 3⟩` of `v35SameChainLegsFlow`, landing on leaf `1`. -/
+def v35SameW4 : WorldV35 :=
+  v35SameW3.set 1
+    { v35SameW3 1 with
+      base := (v35SameW3 1).base.appended v35BundleCv v35SameChainLegsFlow.flowId 3 1 }
+
+/-- Chain `1` imports an L1 root with timestamp `1` at block `0`. -/
+def v35SameW5 : WorldV35 :=
+  v35SameW4.set 1 { v35SameW4 1 with roots := (v35SameW4 1).roots.import 0 1 }
+
+theorem CodeAuthorizeCallIsAuthorizeStepsWitnessV35 :
+    Properties.CodeAuthorizeCallIsAuthorizeStepsWitnessV35 := by
+  intro h z0 hl
+  obtain ⟨N, p, href⟩ := v35_refund_leg24 h z0 hl
+  have r1 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35W1
+      [.admin 1 (.allow 0)] := RunV35.admin 1 (.allow 0) RunV35.refl
+  have r2 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35SameW2
+      [.admin 1 (.allow 2), .admin 1 (.allow 0)] := RunV35.admin 1 (.allow 2) r1
+  have hok3 : AppendOkV35 v35BundleCv lengthFlowHash (v35SameW2 1) 1 v35SameChainLegsFlow 2 0 0 0 :=
+    ⟨by decide, by decide, by unfold FlowIdChecked; decide, by decide, by decide, by decide,
+      by decide, by decide, by unfold AppendGuard; decide,
+      ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, ⟨0, by decide⟩⟩⟩
+  have r3 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35SameW3
+      [.append 1 v35SameChainLegsFlow 2 0, .admin 1 (.allow 2), .admin 1 (.allow 0)] :=
+    RunV35.append (c := 1) (F := v35SameChainLegsFlow) (b := 2) (dest := 0) (hint := 0) (low := 0)
+      r2 hok3
+  have hok4 : AppendOkV35 v35BundleCv lengthFlowHash (v35SameW3 1) 1 v35SameChainLegsFlow 3 0 0 1 :=
+    ⟨by decide, by decide, by unfold FlowIdChecked; decide, by decide, by decide, by decide,
+      by decide, by decide, by unfold AppendGuard; decide,
+      ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, ⟨1, by decide⟩⟩⟩
+  have r4 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35SameW4
+      [.append 1 v35SameChainLegsFlow 3 0, .append 1 v35SameChainLegsFlow 2 0,
+        .admin 1 (.allow 2), .admin 1 (.allow 0)] :=
+    RunV35.append (c := 1) (F := v35SameChainLegsFlow) (b := 3) (dest := 0) (hint := 0) (low := 1)
+      r3 hok4
+  have r5 : RunV35 h z0 hl v35BundleCv lengthFlowHash (mixedSystem 1) v35W0 v35SameW5
+      [.append 1 v35SameChainLegsFlow 3 0, .append 1 v35SameChainLegsFlow 2 0,
+        .admin 1 (.allow 2), .admin 1 (.allow 0)] :=
+    RunV35.importRoot (c := 1) (blk := 0) (t := 1) r4 (by decide) (by decide)
+  refine ⟨v35SameW5, N, p, r5, by unfold FlowIdChecked; decide, by decide, by decide, href,
+    by decide, ⟨0, by decide⟩, ?_, by decide, by decide, by decide, by decide⟩
+  intro l _ F' dest hmem
+  simp only [List.mem_cons, List.mem_nil_iff, or_false] at hmem
+  rcases hmem with h1 | h1 | h1 | h1
+  · simp only [CallV35.append.injEq] at h1
+    obtain ⟨-, rfl, -, -⟩ := h1
+    exact fun hcl => hcl.1 rfl
+  · simp only [CallV35.append.injEq] at h1
+    obtain ⟨-, rfl, -, -⟩ := h1
+    exact fun hcl => hcl.1 rfl
+  · cases h1
+  · cases h1
 
 end Contracts.SystemAtV35

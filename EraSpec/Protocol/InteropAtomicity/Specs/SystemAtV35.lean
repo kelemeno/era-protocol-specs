@@ -1,5 +1,5 @@
 import EraSpec.Protocol.InteropAtomicity.Specs.FlowBinding
-import EraSpec.Protocol.InteropAtomicity.Specs.OncePerLeg
+import EraSpec.Protocol.InteropAtomicity.Specs.OncePerLegAtHead
 import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachine
 
 /-!
@@ -7,10 +7,12 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachine
 
 **Commit.** matter-labs/era-contracts, branch `draft/v0.35.0` at `b17415d20`.  Paths are relative
 to `l1-contracts/contracts/` unless they start with `protocol-docs/`.  This model was first
-written against `d9f678900e`; between that commit and `b17415d20` no file under
+written against `d9f678900e`.  Between that commit and `b17415d20` no file under
 `atomic-interop/`, `interop/`, `core/bridgehub/`, `core/chain-registration/`, `common/libraries/`
-or `l2-upgrades/` changed, so every line cited below is the same at both commits.  Every other
-model in this folder describes the pinned tree `c67894b9`; none of them is changed here.
+or `l2-upgrades/` changed, nor `common/Messaging.sol`, so every Solidity line cited below is the
+same at both commits.  `protocol-docs/interop-gating.md` did change: six lines were inserted at
+its line 40, above every section cited here, so its line numbers below are those at
+`b17415d20`, six more than at `d9f678900e`.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Protocol.InteropAtomicity.Properties.SystemAtV35`, proofs in
@@ -33,9 +35,25 @@ state, each owned by another contract:
 | verify, then execute or unbundle, without a second gate | `InteropHandlerBase.bundleStatus` | `interop/interop-handler/L2InteropHandler.sol:61-92`; `interop/interop-handler/InteropHandlerBase.sol:55` |
 
 and the tree's `insert` walks from a stale hint without a hop bound
-(`common/libraries/IndexedMerkleTree.sol:90-93`).  `RunV35` below is one relation over all of
-it, so that ordering facts between these pieces (an `authorizeRefund` on chain `x` before an
-`append` on `x`; a `verifyAtomicBundle` before a deregistration) can be stated at all.
+(`common/libraries/IndexedMerkleTree.sol:90-93`).
+
+The merged v35 and head models each keep part of this as state and take the rest as an input
+of each call:
+
+* `Contracts.AtomicFlowManager.RefundClosesAppend` (`b17415d20`): ONE chain's manager, root
+  storage (both mappings) and an abstract tree; the bridgehub's answers are per-call inputs.
+* `Contracts.LegSourceFilterAtV35` (`b17415d20`): every chain's manager (and tree, in
+  `SysStepsAtV35`) and allow-list; no root storage, no registration, no bundle status, and the
+  pin's five-hop insert.
+* `Contracts.FlowBindingAtHead.RunAtV35` (`b17415d20`): every chain's manager and tree with the
+  head `append`; the root timestamp, the registration and `isPeerAllowed` are per-call readings.
+* `Contracts.AppendPath.SysStepsAtHead` (`main` `70096e2ea`, `draft/v0.35.0` `b17415d20`):
+  `SysSteps` with the unbounded walk.
+
+`RunV35` below keeps all of it as state, on every chain at once, so that ordering facts between
+these pieces on different chains (an `authorizeRefund` on chain `x` before an `append` on chain
+`y`; a `verifyAtomicBundle` before a deregistration) can be stated.  The tree insert is
+`Contracts.InteropCommitmentTree.InsertChecksAtHead`, the one `SysStepsAtHead` uses.
 
 ## The state, per chain
 
@@ -57,7 +75,7 @@ it, so that ordering facts between these pieces (an `authorizeRefund` on chain `
 * `append` — `InteropCenter._sendBundle` → `_dispatchBundle` → `AtomicFlowManager.append`
   (`InteropCenter.sol:533-613, :727-750`; `AtomicFlowManager.sol:104-173`).  The checks are the
   fields of `AppendOkV35`, together with the send-side destination checks.  The tree insert is
-  `InsertOkV35`: the pin's `InsertSucceeds` with the hop bound removed.  The logged call
+  `InsertChecksAtHead`: the pin's `InsertSucceeds` with the hop bound removed.  The logged call
   carries the bundle's destination chain, the `_destinationChainId` the send-side checks read.
 * `importRoot` — `L2InteropRootStorage._addInteropRoot` for the L1 entry
   (`L2InteropRootStorage.sol:70-103`), called only by the bootloader (`:20-25, :50-68`).
@@ -74,7 +92,9 @@ it, so that ordering facts between these pieces (an `authorizeRefund` on chain `
   `BridgehubBase.forwardedBridgeMint` (`core/bridgehub/BridgehubBase.sol:432-453`), which writes
   `baseTokenAssetId` (`:447`) and leaves `isPeerAllowed` alone.  No other function of
   `L2Bridgehub` or `BridgehubBase` writes either entry.  Every admin step is enabled for every
-  pair at every moment.
+  pair at every moment.  Who sends these calls, through which priority queue and in what order,
+  is the merged `Contracts.InteropPeerRegistry` model (`Protocol/InteropPeerRegistry/`); it has
+  no atomic-interop state.
 * `initL2` — `L2InteropCommitmentTree.initL2` (`L2InteropCommitmentTree.sol:45-48`).  At v35
   only the genesis upgrade calls it (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:230-232,
   :373`); the step is kept, with the pin's `leafCount = 0` guard, as an over-approximation.
@@ -91,13 +111,18 @@ stated with the result that bounds it.
   manager of the chain that RUNS it (`AtomicFlowManager.sol:236-246`), whatever chain the flow
   declares for that leg, and reads that chain's root storage and bridgehub.  Like the pin's
   `ReachLog`, `authorize` marks one leg per step, on the leg's declared chain, and reads that
-  chain's state; one code call that marks several keys is represented by several consecutive
-  `authorize` steps with the same flow and evidence, each logged.  So "the chain that runs the
-  call" is `a.leg.chain` here.  At v35 `append` requires the committing leg to be declared on
-  the committing chain (`:141-147`), and on runs from genesis
-  `Contracts.SystemAtV35.Properties.CodeAuthorizeMarksDeclaredLegOrLoggedClashV35` shows that a
-  `Committed` key the code would mark is declared by the presented flow on the marking chain,
-  or the presented flow clashes on `fh` with the flow of a logged `append`.
+  chain's state.  So "the chain that runs the call" is `a.leg.chain` here.  At v35 `append`
+  requires the committing leg to be declared on the committing chain (`:141-147`).  On runs
+  from genesis, `Contracts.SystemAtV35.Properties.CodeAuthorizeMarksDeclaredLegOrLoggedClashV35`
+  shows that a `Committed` key the code would mark is declared by the presented flow on the
+  marking chain, or the presented flow clashes on `fh` with the flow of a logged `append`; and
+  `Contracts.SystemAtV35.Properties.CodeAuthorizeCallIsAuthorizeStepsV35` shows that, outside
+  that clash, one code call whose modelled checks pass on a chain is a sequence of `authorize`
+  steps (same flow, missing leg and evidence, each logged) ending in exactly the code's write,
+  the marking loop as `Contracts.AtomicFlowManager.RefundClosesAppend.markCommittedRevertable`
+  transcribes it.
+  `Contracts.FlowBindingAtHead.RunAtV35` instead marks the calling chain's key, as the code
+  does; it has no root storage, bridgehub or bundle status as state.
 * The flow canonicalization (`_validateAndComputeFlowId`, `:360-379`: version, leg cap,
   strictly ascending bundle hashes) runs on all three paths.  The model keeps the leg cap and
   the ordering on `append` only, and folds the `version` byte and the settlement-layer field
@@ -131,36 +156,6 @@ open Contracts.AtomicFlowManager Contracts.Refund Contracts.FlowBinding Contract
 /-- `InteropHandlerBase.bundleStatus`'s type `BundleStatus` (`common/Messaging.sol`), as
 modelled at the pin by `AttackVectors.BundleStatusMachine.Status`. -/
 abbrev BundleStatus := AttackVectors.BundleStatusMachine.Status
-
-/-! ## The tree's insert, with the unbounded walk -/
-
-/-- **`IndexedMerkleTree.insert(v, hint)` SUCCEEDS AT v35, LANDING ON LOW LEAF `low`**
-(`common/libraries/IndexedMerkleTree.sol:65-107`).  The fields are the checks in source order.
-`walk` is the deployed loop
-
-    while (lowLeaf.nextValue != 0 && lowLeaf.nextValue < _value) {   // :90
-        lowLeafIndex = lowLeaf.nextIndex;                              // :91
-        lowLeaf = self.leaves[lowLeafIndex];                           // :92
-    }
-
-which has no hop bound at v35 (the NatSpec at `:59-62` calls it "deliberately unbounded").  The
-insert succeeds only if the walk exits, here at `low` after some finite number of hops.  The
-pin's `Contracts.AppendPath.InsertSucceeds` is the same structure with the walk cut at
-`MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5` hops (`lowSearch … maxLowIndexSearchAttempts`).  The writes (`:95-106`) are the pin's
-`Contracts.InteropCommitmentTree.insert T v low`. -/
-structure InsertOkV35 (T : Tree) (v : UInt256) (hint low : ℕ) : Prop where
-  /-- `IMTNotInitialized` (`:71-73`). -/
-  initialized : Initialized T
-  /-- `IMTValueZero` (`:74-76`). -/
-  nonzero : v ≠ 0
-  /-- `IMTValueAlreadyExists` (`:77-79`): the dedup gate. -/
-  fresh : T.valueToIndex v = 0
-  /-- `IMTLowLeafIndexOutOfBounds` (`:80-82`). -/
-  hintInBounds : hint < T.leafCount
-  /-- `IMTLowLeafValueTooLarge` (`:86-88`). -/
-  hintBelow : (T.leaf hint).value < v
-  /-- The unbounded walk (`:90-93`) exits at `low`. -/
-  walk : ∃ hops : ℕ, lowSearch T v hops hint = some low
 
 /-! ## The other contracts' state the atomic path reads -/
 
@@ -258,7 +253,8 @@ def genesisV35 (H0 : Chain → Hub) : WorldV35 :=
 is at most `latestInteropRootTimestamp[L1]`.  `_addInteropRoot` is the only writer of either
 mapping and keeps the maximum (`L2InteropRootStorage.sol:93, :98-100`).  It holds at
 `genesisV35`, and every step keeps it
-(`Contracts.SystemAtV35.Properties.LatestRootTimestampMonotoneMaxV35`). -/
+(`Contracts.SystemAtV35.Properties.LatestRootTimestampMonotoneMaxV35`).  It is the L1-entry form
+of `Contracts.AtomicFlowManager.RefundClosesAppend.LatestBoundsStored`. -/
 def RootsWf (W : WorldV35) : Prop := ∀ c blk, (W c).roots.stored blk ≤ (W c).roots.latest
 
 /-! ## The entry points' checks -/
@@ -294,14 +290,17 @@ structure AppendOkV35 (cv : CommitValue) (fh : FlowHash) (x : ChainV35) (c : Cha
   /-- `ManagerLegAlreadyCommitted` (`:162-164`). -/
   legUnset : AppendGuard x.base.mgr F.flowId b
   /-- The tree's `insert(commitValue(flowId, b), hint)` (`:168-170`;
-  `L2InteropCommitmentTree.sol:51-64`). -/
-  treeInsert : InsertOkV35 x.base.tree (cv F.flowId b) hint low
+  `L2InteropCommitmentTree.sol:51-64`; `IndexedMerkleTree.sol:65-107`), with the unbounded walk
+  (`:90-93`, "deliberately unbounded" in the NatSpec at `:59-62`): the merged
+  `Contracts.InteropCommitmentTree.InsertChecksAtHead`. -/
+  treeInsert : InsertChecksAtHead x.base.tree (cv F.flowId b) hint low
 
 /-- **COUNTERFACTUAL: `append` WITHOUT THE EXPIRED-FLOW GATE.**  `AppendOkV35` minus `notExpired`
 (`ManagerFlowDeadlinePassed`, `AtomicFlowManager.sol:120-125`).  This is not the v35 contract;
-the pin's `append` had no such gate.  It is used only to show, on one run, that this one check
-is what stops a new leg of a refunded flow from being committed on the chain that refunded it
-(`Contracts.SystemAtV35.Properties.WithoutDeadlineGateAppendAfterRefundV35`). -/
+the pin's `append` had no such gate.  It is used only to show, on one run of this model, that this
+one check is what stops a new leg of a refunded flow from being committed on the chain that
+refunded it (`Contracts.SystemAtV35.Properties.WithoutDeadlineGateAppendAfterRefundV35`; the
+per-chain mutant is `Contracts.AtomicFlowManager.RefundClosesAppend.withoutDeadlineGate`). -/
 structure AppendOkV35WithoutDeadlineGate (cv : CommitValue) (fh : FlowHash) (x : ChainV35)
     (c : Chain) (F : Flow) (b : UInt256) (dest : Chain) (hint low : ℕ) : Prop where
   destRegistered : x.hub.registered dest = true
@@ -312,7 +311,7 @@ structure AppendOkV35WithoutDeadlineGate (cv : CommitValue) (fh : FlowHash) (x :
   isLegHere : (⟨c, b⟩ : FlowLeg) ∈ F.legs
   othersRegistered : ∀ l ∈ F.legs, l.chain ≠ c → x.hub.registered l.chain = true
   legUnset : AppendGuard x.base.mgr F.flowId b
-  treeInsert : InsertOkV35 x.base.tree (cv F.flowId b) hint low
+  treeInsert : InsertChecksAtHead x.base.tree (cv F.flowId b) hint low
 
 /-- **`requireFlowFinalized` PASSES ON CHAIN `d` AT v35** (`AtomicFlowManager.sol:176-213`) for
 the logged call `e`: the pin's checks on the call's own evidence (`ExecCall.Verified`:
@@ -435,10 +434,12 @@ def CallV35.obligation? : CallV35 → Option Obligation
   | .append c F b _ => some ⟨F.flowId, b, c⟩
   | _ => none
 
-/-- The appended obligations, most recent first. -/
+/-- The appended obligations, most recent first: the `log` that `SysSteps` and `SysStepsAtHead`
+keep. -/
 def appendLog (log : List CallV35) : List Obligation := log.filterMap CallV35.obligation?
 
-/-- The `authorizeRefund` calls, most recent first: the log `ReachLog` keeps. -/
+/-- The `authorizeRefund` calls, most recent first: the log `ReachLog` keeps, and the `alog`
+of `SysSteps` and `SysStepsAtHead`. -/
 def authLog (log : List CallV35) : List AuthCall := log.filterMap CallV35.authCall?
 
 /-- The calls that check a flow id, most recent first: the log `RunLog` keeps. -/
@@ -461,10 +462,12 @@ def hubsAfter (H : Chain → Hub) : List CallV35 → Chain → Hub
 
 /-! ## Witness objects
 
-Chains `0`, `1` and `2`, the pin's `mixedSystem 1` as the fixed history (chain `0` committed the
-value `1` in batch 0; chains `1` and `2` never committed; batch `n` settled at time `n`), the
-commit value `v35BundleCv` (a leg's commit value is its bundle hash) and `lengthFlowHash` (a
-one-leg flow has id `0`, every other flow id `1`). -/
+Chains `0`, `1` and `2`.  The fixed history is the pin's `mixedSystem 1` (chain `0` committed the
+value `1` in batch 0; chains `1` and `2` never committed; batch `n` settled at time `n`), except
+in the deregistration witness, which uses `Contracts.LegSourceFilterAtV35.swapSystem` (chain `0`
+committed `1` and chain `1` committed `2`, both in batch 0).  The commit value is `v35BundleCv`
+(a leg's commit value is its bundle hash) and the flow hash `lengthFlowHash` (a one-leg flow
+has id `0`, every other flow id `1`). -/
 
 /-- The commit value of every leg is its bundle hash. -/
 def v35BundleCv : CommitValue := fun _ b => b
@@ -480,13 +483,18 @@ def v35RefundFlow : Flow := ⟨1, [⟨0, 1⟩, ⟨1, 2⟩, ⟨1, 3⟩], 0⟩
 id `0`. -/
 def v35LaterFlow : Flow := ⟨0, [⟨1, 4⟩], 1⟩
 
-/-- A two-leg flow with deadline `0`: leg `⟨0, 2⟩` on chain `0`, leg `⟨2, 3⟩` on chain `2`.
-`lengthFlowHash` checks it with id `1`. -/
-def v35PeerRefundFlow : Flow := ⟨1, [⟨0, 2⟩, ⟨2, 3⟩], 0⟩
+/-- A two-leg flow with deadline `0`: leg `⟨0, 4⟩` on chain `0`, leg `⟨1, 5⟩` on chain `1`.
+`lengthFlowHash` checks it with id `1`.  In `swapSystem` chain `1` never commits `5`. -/
+def v35PeerRefundFlow : Flow := ⟨1, [⟨0, 4⟩, ⟨1, 5⟩], 0⟩
 
 /-- A two-leg flow with id `1` that declares bundle `1` on chain `1`.  `lengthFlowHash` checks
 it with id `1`, so its preimage clashes with `v35RefundFlow`'s, which declares bundle `1` on
 chain `0`. -/
 def v35ClashFlow : Flow := ⟨1, [⟨1, 1⟩, ⟨1, 7⟩], 0⟩
+
+/-- A three-leg flow with deadline `0` that declares two legs on one chain: legs `⟨1, 2⟩` and
+`⟨1, 3⟩` on chain `1`, leg `⟨2, 4⟩` on chain `2`.  `lengthFlowHash` checks it with id `1`.  One
+code `authorizeRefund` call on chain `1` marks both of chain `1`'s legs. -/
+def v35SameChainLegsFlow : Flow := ⟨1, [⟨1, 2⟩, ⟨1, 3⟩, ⟨2, 4⟩], 0⟩
 
 end Contracts.SystemAtV35
