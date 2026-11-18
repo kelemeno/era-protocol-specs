@@ -32,8 +32,7 @@ chain registration, and one entry of `populateBridgedOut`. A revert is no step a
 checked. The hooks read the interop flags from the state, so the keying of every deposit and
 withdrawal follows the message root's actual flags.
 
-The function shapes follow the unreviewed WIP model `CapStepV35` on `origin/wip/repin-v35/17`,
-re-checked against `b17415d20`.
+The function shapes were re-checked line by line against `b17415d20`.
 
 Most results start from the **post-upgrade state**: `initializeUpgrade` succeeding on a
 `PreUpgrade` state, in which no chain is enabled yet and the pool's slots are zero.

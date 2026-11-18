@@ -13,9 +13,8 @@ Source: era-contracts `draft/v0.35.0` at `b17415d20` (paths under `l1-contracts/
 `main` at `70096e2ea` has none of the per-chain ledger or the pool: its `L1NativeTokenVault`
 keeps only the aggregate `bridgedOut`, and its `L1MessageRoot` has no `enableInterop`.
 
-The function shapes follow the unreviewed WIP model `L1PerChainCapAtV35.lean` on
-`origin/wip/repin-v35/17` (`CapStepV35`), re-checked line by line against `b17415d20`. They differ
-in four ways. Storage values are naturals, and each checked `+`, `+=` and `-` is a guard that makes
+The function shapes start from an earlier draft cap model (`CapStepV35`), re-checked line by line
+against `b17415d20`. This model differs from it in four ways. Storage values are naturals, and each checked `+`, `+=` and `-` is a guard that makes
 the call `none`, not error data. The interop answers are the message root's own flags in the
 system state, not a free input per step. The system adds the message root's `interopEnabled`,
 the Bridgehub's chain registry and the vault's initializer version, with their writers as steps.
@@ -79,7 +78,9 @@ functions below. Each is a `PoolCall`:
   `registerAlreadyDeployedZKChain` (`:285-319`). Both run `_validateChainParams`
   (`core/bridgehub/BridgehubBase.sol:491-537`): nonzero (`:492-494`), at most `type(uint48).max`
   (`:496-499`, "Also keeps `INTEROP_POOL_CHAIN_ID` from ever being registered"), not
-  `block.chainid` (`:501-503`), not already registered (`:534-536`). The chain id joins
+  `block.chainid` (`:501-503`), no chain type manager recorded yet
+  (`chainTypeManager[_chainId] == address(0)`, `:534-536`; registration sets it together with the
+  `zkChainMap` entry, so the model reads it as "not already registered"). The chain id joins
   `zkChainMap` (`:301-307`), whose keys are `getAllZKChainChainIDs()` (`:337-339`); nothing removes
   a key. The chain asset handler's `registerNewZKChain` (`ChainAssetHandlerBase.sol:405`) skips
   `_validateChainParams`, but on L1 it runs only for a chain arriving with
