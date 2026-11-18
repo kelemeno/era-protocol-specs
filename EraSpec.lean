@@ -205,6 +205,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- Settlement: one chain's batch pipeline (commit, prove, execute, revert, priority mode, the
+-- L2 upgrade transaction) at draft/v0.35.0 b17415d20
+import EraSpec.Contracts.ExecutorFacet.Proofs.Pipeline
+import EraSpec.Contracts.ExecutorFacet.Proofs.Checks
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
