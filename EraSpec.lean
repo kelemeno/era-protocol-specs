@@ -248,6 +248,9 @@ import EraSpec.Protocol.FlowAtomicityPerChain.Proofs.Model
 -- AtomicFlowManager at draft/v0.35.0 b17415d20: an authorized refund closes `append` for its flow
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RefundClosesAppend
 
+-- L2 bridge configuration words across genesis and default upgrades (v0.35 head b17415d20)
+import EraSpec.Protocol.L2BridgeConfig.Proofs.Consistency
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
