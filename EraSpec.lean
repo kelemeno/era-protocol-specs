@@ -308,6 +308,9 @@ import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.EngineLegV35
 -- CTM's owner calls and what the executor logs, infrastructure legs' engines included
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.ExecutorOwnerCallsV35
 
+-- ServerNotifier binding under the CTM executor's engine-leg check (ProxyUpgradeExecutorBase, draft/v0.35.0 b17415d20)
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.NotifierBindingV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

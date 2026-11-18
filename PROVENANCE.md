@@ -236,6 +236,12 @@ supplying that correspondence.
   Solidity file they cite is unchanged between those commits and the heads above, on each
   branch. Line numbers are `main`'s unless a spec marks them as `draft/v0.35.0`'s, and
   `protocol-docs/bridging.md` is cited at `main`.
+* `EraSpec/Contracts/ProxyUpgradeExecutorBase/` topic `NotifierBindingV35` models the CTM
+  executor's check around an engine leg and the ServerNotifier binding at era-contracts
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label
+  `head-v35-b17415d`). The branch moves; `_domainHolders` changed in `9775be946`, after
+  `d9f6789`. Its bound results refine into `EraSpec/Contracts/ChainTypeManager/Specs/UpgradeTiming.lean`,
+  which stays pinned at `e561b9cc2`.
 
 These pins describe reproducibility and historical source context. They do not
 imply current Solidity correspondence; that must be established independently.
