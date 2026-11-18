@@ -61,6 +61,7 @@ EraSpec/
     AtomicInteropProof/       Specs/, Properties/, Proofs/
     BridgedStandardERC20/      Specs/, Properties/, Proofs/
     ChainTypeManager/         Specs/, Properties/, Proofs/
+    DynamicIncrementalMerkle/ Specs/, Properties/, Proofs/
     EcosystemUpgradeExecutor/ Specs/, Properties/, Proofs/
     FullMerkle/               Specs/, Properties/, Proofs/
     IndexedMerkleTree/        Specs/, Properties/, Proofs/

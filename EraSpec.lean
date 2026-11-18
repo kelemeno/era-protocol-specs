@@ -90,6 +90,12 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgery
 import EraSpec.Contracts.Merkle.Proofs.Verifier
 import EraSpec.Contracts.Merkle.Proofs.PathCollision
 
+-- DynamicIncrementalMerkle: the storage push tree (MessageRoot chain trees, priority tree), its
+-- memory copy, and the chain trees as the backing of the timeout path's last-batch check
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.Model
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.MemoryLazy
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.ChainTreeBacking
+
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec
 import EraSpec.Protocol.MultichainGate.Proofs.Model
