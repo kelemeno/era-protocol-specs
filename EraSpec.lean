@@ -301,6 +301,9 @@ import EraSpec.Contracts.SecondProofSystem.Proofs.FlagAuthorityV35
 -- authority state (RegistryBootstrapMigration)
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityEngineV35
 
+-- Engine-leg checks of the proxy upgrade executors at draft/v0.35.0 b17415d20 (ProxyUpgradeExecutorBase)
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.EngineLegV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
