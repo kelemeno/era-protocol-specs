@@ -15,6 +15,7 @@ only import a shared specification when the topic needs no additional definition
 | ModelStrong | [Specs/ModelStrong.lean](Specs/ModelStrong.lean) | [Properties/ModelStrong.lean](Properties/ModelStrong.lean) | [Proofs/ModelStrong.lean](Proofs/ModelStrong.lean) |
 | RecoveryLimitsStrong | [Specs/RecoveryLimitsStrong.lean](Specs/RecoveryLimitsStrong.lean) | [Properties/RecoveryLimitsStrong.lean](Properties/RecoveryLimitsStrong.lean) | [Proofs/RecoveryLimitsStrong.lean](Proofs/RecoveryLimitsStrong.lean) |
 | RecoveryLimitsFaithful | [Specs/RecoveryLimitsFaithful.lean](Specs/RecoveryLimitsFaithful.lean) | [Properties/RecoveryLimitsFaithful.lean](Properties/RecoveryLimitsFaithful.lean) | [Proofs/RecoveryLimitsFaithful.lean](Proofs/RecoveryLimitsFaithful.lean) |
+| RefundClosesAppend | [Specs/RefundClosesAppend.lean](Specs/RefundClosesAppend.lean) | [Properties/RefundClosesAppend.lean](Properties/RefundClosesAppend.lean) | [Proofs/RefundClosesAppend.lean](Proofs/RefundClosesAppend.lean) |
 
 Several `Model` and `RecoveryLimits` properties are one-state facts whose docstrings
 used to make run-level claims; the docstrings now say so, and the run-level claims
@@ -61,6 +62,37 @@ other code, needs no recovery, and rejects an L1 destination
 `V35ClaimRejectsL1Destination`). The witnesses use a two-call leg that the deployed
 center and manager bring to `Revertable`, on source chains that differ only in the
 code at the direct call's target.
+
+**RefundClosesAppend** (pin `draft/v0.35.0` `b17415d20`; namespace
+`Contracts.AtomicFlowManager.RefundClosesAppend`). One chain's manager `_state` and
+`L1_CHAIN_ID`, its `L2InteropRootStorage`, and an abstract commitment tree, under every
+writing entry point in any interleaving. The source comment at `AtomicFlowManager.sol:116-119`
+says that once a leg of a flow was reverted on a chain, no new leg of it can be committed
+there. With no hash premise, from root storage satisfying `LatestBoundsStored` (fresh storage
+and the v31 layout do, and every run keeps it: `LatestBoundsStoredInvariant`), after a
+successful `authorizeRefund` of preimage `p`:
+- every later `append` of `p` reverts (`AuthorizedPreimageNeverAppendedAgain`), with
+  `ManagerFlowDeadlinePassed` for the interop center once `L1_CHAIN_ID` is set
+  (`AuthorizedPreimageAppendHitsDeadlineGate`); keyed on the flow id, a later `append`
+  reverts or its preimage collides with `p` (`AuthorizedFlowIdAppendRevertsOrLoggedClash`);
+- every later successful `append`, of any flow, has a later deadline
+  (`LaterAppendsHaveLaterDeadlines`);
+- from a fresh manager, no leg of the flow is `Committed` afterwards except through a
+  `flowHash` collision between two preimages of the run
+  (`RefundedFlowHasNoCommittedLegOrLoggedClash`), and the comment's own form holds
+  (`RevertedLegClosesFlowOrLoggedClash`);
+- legs committed at the authorization become claimable and are claimed at most once
+  (`CommittedLegsBecomeClaimableOnce`).
+
+The leg map of every run is a `Reach` run of the `Model` machine (`ChainRunLegsReach`).
+
+Countermodels: the expired-flow gate, the maximum in the root storage, the proof's
+settlement-layer check, the strict root-timestamp check and `LatestBoundsStored` are each
+needed (`WithoutDeadlineGateLegCommittedAfterRefund`, `LastValueLatestReadmitsAppend`,
+`UnboundProofSettlementLayerReadmitsAppend`, `NonStrictRootTimestampReadmitsAppend`,
+`WithoutLatestBoundAppendAfterRefund`). Without the gate, a leg appended after the refund
+is `Committed`, and repeating the same `authorizeRefund` call then marks it `Revertable`.
+Witness: `RefundClosesAppendWitness`. Model boundary: `MODEL-REFUND-CLOSES-APPEND`.
 
 The full flow gate spans `AtomicInteropProof`, the commitment tree, and the
 handler. Its multi-chain composition lives in `../../Protocol/`. Implementation
