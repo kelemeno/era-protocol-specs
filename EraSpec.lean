@@ -293,6 +293,10 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
 -- domain-holder check around a proxy-upgrade engine leg (ProxyUpgradeExecutorBase)
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.DomainHoldersV35
 
+-- Second proof system (draft/v0.35.0 at b17415d20): one diamond's requirement flag and ZiSK
+-- switch, and who may move them
+import EraSpec.Contracts.SecondProofSystem.Proofs.FlagAuthorityV35
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 
