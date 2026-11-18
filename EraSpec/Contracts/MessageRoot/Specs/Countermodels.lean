@@ -1,10 +1,10 @@
 import EraSpec.Contracts.MessageRoot.Specs.Model
 
 /-!
-# Countermodels and a concrete run
+# Check-deleted variants, and concrete instances for the witnesses
 
 Source as in `Model.lean` (`MessageRootBase.sol`, cited `MRB`, at
-`d9f678900e1bc8286412b78f56d4a9f443983c29`).
+`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`).
 
 * Five variants of the model, each with one source check deleted:
   `execNoRegisteredCheck` drops `if (chainRegistered(_chainId)) revert ChainExists()`
@@ -16,10 +16,12 @@ Source as in `Model.lean` (`MessageRootBase.sol`, cited `MRB`, at
   `setMigratingChainBatchNumber`; `execNoRecordRegisteredCheck` drops
   `if (!chainRegistered(_chainId)) revert MessageRootNotRegistered()` (`MRB:184-186`) from
   `_recordChainBatchRoot`, in both append flows.  Everything else is the model.
-* `runFrom` applies a list of calls in order (`none` if one reverts).
-* `wH`, `wCfg` and the environments `wEnv` are concrete instances for witnesses.  The hashes
-  are arbitrary arithmetic, not keccak: a witness only shows that the premises of the
-  properties can hold together, and a countermodel only needs one instance.
+* `execCalls` applies a list of calls in order (`none` if one reverts).
+* `mrHashes`, `mrConfig`, `mrConfigPreV31` and the environments `mrEnv` are concrete
+  instances, and `mrCalls`, `mrMigrationCalls`, `mrCollisionCalls`, `mrWritersOnlyFirst`,
+  `mrWritersOnlySecond` and `mrReregistrationCalls` concrete call lists.
+  The hashes are arbitrary arithmetic, not keccak: a witness only shows that the premises of
+  the properties can hold together, and a countermodel only needs one instance.
 -/
 
 namespace Contracts.MessageRoot
@@ -95,54 +97,100 @@ def execNoRecordRegisteredCheck (H : Hashes) (cfg : Config) (env : Env) (s : Sta
   | call => exec H cfg env s call
 
 /-- Apply calls in order; `none` if any reverts. -/
-def runFrom (H : Hashes) (cfg : Config) (s : State) : List (Env × Call) → Option State
+def execCalls (H : Hashes) (cfg : Config) (s : State) : List (Env × Call) → Option State
   | [] => some s
-  | (e, c) :: rest => (exec H cfg e s c).bind fun t => runFrom H cfg t rest
+  | (e, c) :: rest => (exec H cfg e s c).bind fun t => execCalls H cfg t rest
 
 /-! ## Concrete instances -/
 
 /-- Arbitrary arithmetic "hashes". -/
-def wH : Hashes where
+def mrHashes : Hashes where
   node a b := a + 2 * b + 1
   batchLeaf r n ts := r + 3 * (n : UInt256) + 5 * (ts : UInt256) + 1
   chainIdLeaf r c := r + 7 * (c : UInt256) + 2
   chainTreeRoot L := L.sum + 11
 
-/-- A deployment on chain `1`, Bridgehub `10`, chain asset handler `11`, Bridgehub owner `12`,
-chain `5`'s diamond at `55`, no pre-v31 batches. -/
-def wCfg : Config where
+/-- A deployment on chain `1`: Bridgehub `10`, chain asset handler `11`, empty-tree constant
+`9`, no pre-v31 batches. -/
+def mrConfig : Config where
   selfChainId := 1
   bridgehub := 10
   chainAssetHandler := 11
   emptyHash := 9
   v31Upgrade := fun _ => 0
 
-/-- The environment of a call from `sender` in block `b`: chain `5`'s diamond is `55`, its
-genesis batch root is `77`, no backfill is pending, the chain needs no second proof system. -/
-def wEnv (sender : Address) (b : ℕ) : Env where
+/-- `mrConfig`, except that chain `5`'s `v31UpgradeChainBatchNumber` is `4`. -/
+def mrConfigPreV31 : Config := { mrConfig with v31Upgrade := fun c => if c = 5 then 4 else 0 }
+
+/-- The environment of a call from `sender` in block `b`, at timestamp `1000 + b`: chain `5`'s
+diamond is `55` and chain `6`'s is `66`; the Bridgehub owner is `12`; chain `5`'s diamond
+answers `l2LogsRootHash(0) = 77` and `l2LogsRootHash(n) = 300 + n` for `n > 0`; no backfill is
+pending; no chain requires a second proof system. -/
+def mrEnv (sender : Address) (b : ℕ) : Env where
   sender := sender
   blockNumber := b
   timestamp := 1000 + b
-  zkChain := fun c => if c = 5 then 55 else 0
+  zkChain := fun c => if c = 5 then 55 else if c = 6 then 66 else 0
   bridgehubOwner := 12
   allZKChainsLength := 0
   backfillPending := fun _ => false
   secondProofRequired := fun _ => false
   proofMode := fun _ => 0
-  l2LogsRootHash := fun c n => if c = 5 ∧ n = 0 then 77 else 0
+  l2LogsRootHash := fun c n => if c = 5 then (if n = 0 then 77 else 300 + (n : Bytes32)) else 0
 
-/-- The witness run: initialize; the Bridgehub adds chain `5` at batch `0` and seeds its
-genesis root; the chain appends batch `1` (v32 flow) and batch `2` (v31 record-only flow); the
-chain asset handler moves its counter to `5` (a round trip through another settlement layer);
-the chain appends batch `6` (v32); the Bridgehub owner enables interop for it. -/
-def witnessCalls : List (Env × Call) :=
-  [ (wEnv 10 1, .initialize),
-    (wEnv 10 2, .addNewChain 5 0),
-    (wEnv 10 2, .seedGenesisRoot 5),
-    (wEnv 55 3, .addChainBatchRootV32 5 1 101),
-    (wEnv 55 3, .addChainBatchRoot 5 2 102),
-    (wEnv 11 4, .setMigratingChainBatchNumber 5 5),
-    (wEnv 55 5, .addChainBatchRootV32 5 6 106),
-    (wEnv 12 6, .enableInterop 5 false) ]
+/-- The main witness run: initialize (block 1); the Bridgehub adds chain `5` at batch `0` and
+seeds its genesis root (block 2); the chain appends batch `1` (record and push) and records
+batch `2` (record only) (block 3); the chain asset handler moves its counter to `5`, as on a
+return from another settlement layer (block 4); the chain appends batch `6` (block 5); the
+Bridgehub owner enables interop for it (block 6); the chain asset handler registers chain `6`
+at batch `0`, and chain `6` appends batch `1` (block 7). -/
+def mrCalls : List (Env × Call) :=
+  [ (mrEnv 10 1, .initialize),
+    (mrEnv 10 2, .addNewChain 5 0),
+    (mrEnv 10 2, .seedGenesisRoot 5),
+    (mrEnv 55 3, .addChainBatchRootV32 5 1 101),
+    (mrEnv 55 3, .addChainBatchRoot 5 2 102),
+    (mrEnv 11 4, .setMigratingChainBatchNumber 5 5),
+    (mrEnv 55 5, .addChainBatchRootV32 5 6 106),
+    (mrEnv 12 6, .enableInterop 5 false),
+    (mrEnv 11 7, .addNewChain 6 0),
+    (mrEnv 66 7, .addChainBatchRootV32 6 1 201) ]
+
+/-- A migration round trip with every batch pushed: initialize; add chain `5` at batch `0`
+and seed its genesis root; append batch `1`; the chain asset handler moves the counter to `5`;
+append batch `6`. -/
+def mrMigrationCalls : List (Env × Call) :=
+  [ (mrEnv 10 1, .initialize),
+    (mrEnv 10 2, .addNewChain 5 0),
+    (mrEnv 10 2, .seedGenesisRoot 5),
+    (mrEnv 55 3, .addChainBatchRootV32 5 1 101),
+    (mrEnv 11 4, .setMigratingChainBatchNumber 5 5),
+    (mrEnv 55 5, .addChainBatchRootV32 5 6 106) ]
+
+/-- From the storage of the first five calls of `mrCalls` (chain `5` at counter `2`): the chain
+asset handler adds chain `6` at batch `0` and moves chain `5`'s counter to `5` (block 4). -/
+def mrWritersOnlyFirst : List (Env × Call) :=
+  [(mrEnv 11 4, .addNewChain 6 0), (mrEnv 11 4, .setMigratingChainBatchNumber 5 5)]
+
+/-- Then chain `6` appends batch `1` (block 5) and the Bridgehub owner enables interop for chain
+`5` (block 6). -/
+def mrWritersOnlySecond : List (Env × Call) :=
+  [(mrEnv 66 5, .addChainBatchRootV32 6 1 201), (mrEnv 12 6, .enableInterop 5 false)]
+
+/-- After a counter move on an unregistered chain `5`: the Bridgehub adds chain `5` at batch `0`
+and seeds its genesis root (block 3), and the chain appends batch `1` (block 4). -/
+def mrReregistrationCalls : List (Env × Call) :=
+  [(mrEnv 10 3, .addNewChain 5 0), (mrEnv 10 3, .seedGenesisRoot 5),
+    (mrEnv 55 4, .addChainBatchRootV32 5 1 101)]
+
+/-- Initialize; add chains `5` (by the Bridgehub) and `6` (by the chain asset handler) at batch
+`0`; chain `5` appends batch `1` with root `r₅` and chain `6` appends batch `1` with root `r₆`,
+in the same block. -/
+def mrCollisionCalls (r₅ r₆ : Bytes32) : List (Env × Call) :=
+  [ (mrEnv 10 1, .initialize),
+    (mrEnv 10 2, .addNewChain 5 0),
+    (mrEnv 11 2, .addNewChain 6 0),
+    (mrEnv 55 3, .addChainBatchRootV32 5 1 r₅),
+    (mrEnv 66 3, .addChainBatchRootV32 6 1 r₆) ]
 
 end Contracts.MessageRoot

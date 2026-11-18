@@ -3,10 +3,17 @@ import EraSpec.Contracts.FullMerkle.Specs.CachedNodes
 /-!
 # Model: `MessageRootBase` and `L1MessageRoot`, every state-changing entry point
 
-Source: era-contracts `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`,
-`l1-contracts/contracts/core/message-root/MessageRootBase.sol` (cited `MRB`) and
-`L1MessageRoot.sol` (cited `L1MR`).  A revert is `none`; a successful call is `some` of the new
-storage.  Guards are listed in source order.
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, under
+`l1-contracts/contracts/`: `core/message-root/MessageRootBase.sol` (cited `MRB`),
+`core/message-root/L1MessageRoot.sol` (cited `L1MR`), `core/message-root/IMessageRoot.sol`,
+`common/libraries/DynamicIncrementalMerkle.sol` (cited `DIM`), `common/libraries/FullMerkle.sol`,
+`common/libraries/MessageHashing.sol` and `common/Config.sol`.  Each of these files is
+byte-identical at `d9f678900e1bc8286412b78f56d4a9f443983c29`, the earlier `draft/v0.35.0` pin, so
+every line number below holds at both commits.  `FullMerkle.sol` is also byte-identical at
+`c67894b9`, where `../FullMerkle/Specs/CachedNodes.lean` transcribes it.
+
+This is the L1 contract (`L1MessageRoot`); `L2MessageRoot` is not modelled.  A revert is `none`;
+a successful call is `some` of the new storage.  Guards are listed in source order.
 
 ## Storage (`MRB:53-104`, `L1MR:46-49`)
 
@@ -15,15 +22,17 @@ OpenZeppelin `_initialized` counter.  Two are abstracted:
 
 * `sharedTree` is the library's own storage, `FullMerkle.FullTree` as transcribed in
   `../FullMerkle/Specs/CachedNodes.lean`.  `pushNewLeaf`, `updateLeaf`, `setup` and `root` are
-  the transcribed functions, so the shared tree is **not** abstracted.
+  the transcribed functions, so the shared tree is **not** abstracted (`MODEL-FULLMERKLE`).
 * `chainTree[c]` (a `DynamicIncrementalMerkle.Bytes32PushTree`) is abstracted to two things:
   `chainTreeSetups c`, how many times `setup` ran on it, and `chainLeaves c`, the leaves pushed
-  into it since.  The library is cited `DIM` (`common/libraries/DynamicIncrementalMerkle.sol`).
+  into it since.
   - `setup` (`DIM:53-58`) has no guard: it zeroes `_nextLeafIndex` and pushes one more entry
     onto `_zeros` and `_sides`.  On a tree that was never set up this gives the empty tree.  On
-    one that was, it corrupts it.  The model counts the calls and empties `chainLeaves`; the
-    abstraction below is claimed only for a count of `1`, and `Inv.setups` shows the count is
-    `1` for every registered chain and `0` for every other, on every reachable storage.
+    one that was, `_nextLeafIndex` restarts at `0` while `_zeros` and `_sides` keep their old
+    entries plus one, which is not an empty tree.  The model counts the calls and empties
+    `chainLeaves`; the abstraction below is meant only for a count of `1`, and `Inv.setups`
+    shows the count is `1` for every registered chain and `0` for every other, on every
+    reachable storage.
   - `push` (`DIM:93-137`) on a never-set-up tree reverts: `self._zeros.length - 1` (`DIM:95`)
     underflows.  The model reverts there too.
   - The root of a tree set up once is `chainRootOf H (chainLeaves c)`: `bytes32(0)` for no
@@ -35,27 +44,45 @@ OpenZeppelin `_initialized` counter.  Two are abstracted:
 
 `DEPRECATED_l1ChainId` and `__gap` are never written and are omitted.  Events are omitted
 except where they write storage (`_emitRoot` writes `interopRootLogId`/`lastEmitBlock`).
+`ReentrancyGuard` is inherited but no entry point here uses `nonReentrant`.
 
 ## Hashes and environment
 
 `Hashes` collects the hash functions as uninterpreted parameters: `node` is
 `Merkle.efficientHash` inside `FullMerkle`, `batchLeaf` is `MessageHashing.batchLeafHash`,
-`chainIdLeaf` is `MessageHashing.chainIdLeafHash`.  No property assumes anything about them.
+`chainIdLeaf` is `MessageHashing.chainIdLeafHash`, and `chainTreeRoot` stands for the chain
+tree's root (`CHAIN_TREE_EMPTY_ENTRY_HASH`, `IMessageRoot.sol:9-11`, and `Merkle.efficientHash`
+folded in).  No property assumes anything about them.
 
 `Config` is fixed per deployment: `block.chainid`, the two immutables, the empty-leaf constant
 and `v31UpgradeChainBatchNumber`.  The last is storage, but this release has no writer for it
-(`L1MR:35-46`: "nothing writes it any more"), so it is a constant of every run.
+(`L1MR:35-46`: "nothing writes it any more"; only `dev-contracts/L1MessageRootDev.sol` sets it),
+so it is a constant of every run.
 
 `Env` is what one call sees: `msg.sender`, `block.number`, `block.timestamp`, and the answers
 of the external calls it makes (`Bridgehub.getZKChain`, `Bridgehub.owner`,
 `getAllZKChainChainIDs().length`, the vault's `chainBalanceBackfillPending`, the chain's
 getters).  Each call gets its own `Env`, so the Bridgehub's registry may change arbitrarily
-between calls.  `MODEL-MR-ENV` in `ASSUMPTIONS.md`.
+between calls, and block numbers and timestamps need not increase along a run.  An external
+call always returns its `Env` answer: its revert (for example a getter call to an address with
+no code) is not modelled, so the model has successful calls the contract would revert
+(`MODEL-MR-ENV` in `ASSUMPTIONS.md`).
+
+## What is not modelled
+
+* The proof path below the final node: `MessageHashing._getProofData` (the parsed proof is
+  the input `proven` of `finalNodeAccepts`) and the recursion through a settlement layer
+  (`L1MR:96-120`).  `finalNodeAccepts` is the final-node branch alone (`MRB:343-348`).
+* Calls before `initialize`: `Reachable` starts with a successful `initialize` on fresh
+  storage (`MODEL-MR-GENESIS`).  A proxy upgraded from an earlier release is not covered by
+  `Reachable`; `InvKeptByEveryCall` (`Properties/Model.lean`) applies to it only if its storage
+  satisfies `Inv`, which is not proved.
 
 ## Arithmetic
 
 Numbers are `ℕ`.  The three checked increments revert at `2^256 - 1`: `++chainCount`
 (`MRB:279`), `currentChainBatchNumber[c] + 1` (`MRB:192`) and `++currentCount` (`MRB:239`).
+Call arguments are not bounded by `2^256`; a larger argument only adds behaviours.
 -/
 
 namespace Contracts.MessageRoot
@@ -93,7 +120,7 @@ structure Config where
   /-- `v31UpgradeChainBatchNumber` (`L1MR:46`): no writer in this release. -/
   v31Upgrade : ℕ → ℕ
 
-/-- What one call sees. -/
+/-- What one call sees.  Each external call returns the field's value; it never reverts. -/
 structure Env where
   sender : Address
   blockNumber : ℕ
@@ -180,11 +207,11 @@ def chainRootOf (H : Hashes) (leaves : List Bytes32) : Bytes32 :=
 def getAggregatedRoot (cfg : Config) (s : State) : Option Bytes32 :=
   if s.chainCount = 0 then some cfg.emptyHash else Contracts.FullMerkle.root s.sharedTree
 
-/-- `getChainRoot(c)` (`MRB:263-268`). -/
+/-- `getChainRoot(c)` (`MRB:263-268`), for a chain tree set up once. -/
 def getChainRoot (H : Hashes) (cfg : Config) (s : State) (c : ℕ) : Option Bytes32 :=
   if chainRegistered cfg s c then some (chainRootOf H (s.chainLeaves c)) else none
 
-/-- `chainTreeLeafCount(c)` (`MRB:257-259`). -/
+/-- `chainTreeLeafCount(c)` (`MRB:257-259`), for a chain tree set up at most once. -/
 def chainTreeLeafCount (s : State) (c : ℕ) : ℕ := (s.chainLeaves c).length
 
 /-- `_getChainBatchRoot(c, n)` (`MRB:364-373`) with L1's `_noBatchFallback` (`L1MR:123-128`). -/
@@ -265,17 +292,20 @@ def pushChainBatchRoot (H : Hashes) (env : Env) (c n : ℕ) (r : Bytes32) (s : S
 
 /-! ## Entry points -/
 
-/-- The state-changing external functions. -/
+/-- The state-changing external functions.  The functions inherited from
+`MessageVerification` are `view`. -/
 inductive Call where
-  /-- `L1MessageRoot.initialize()` (`L1MR:63-69`), `reinitializer(2)`. -/
+  /-- `L1MessageRoot.initialize()` (`L1MR:63-69`), `reinitializer(2)`, any caller. -/
   | initialize
   /-- `addNewChain(c, start)` (`MRB:145-150`). -/
   | addNewChain (c start : ℕ)
   /-- `setMigratingChainBatchNumber(c, n)` (`MRB:153-157`). -/
   | setMigratingChainBatchNumber (c n : ℕ)
-  /-- `addChainBatchRoot(c, n, r)` (`MRB:164-170`): the v31 record-only flow. -/
+  /-- `addChainBatchRoot(c, n, r)` (`MRB:164-170`): the record-only flow
+  (`IMessageRoot.sol:74-79`). -/
   | addChainBatchRoot (c n : ℕ) (r : Bytes32)
-  /-- `addChainBatchRootV32(c, n, r)` (`MRB:173-180`): record and push. -/
+  /-- `addChainBatchRootV32(c, n, r)` (`MRB:173-180`): record and push
+  (`IMessageRoot.sol:81-86`). -/
   | addChainBatchRootV32 (c n : ℕ) (r : Bytes32)
   /-- `seedGenesisRoot(c)` (`MRB:296-314`). -/
   | seedGenesisRoot (c : ℕ)
@@ -344,7 +374,7 @@ inductive Run (H : Hashes) (cfg : Config) : State → List (Env × Call) → Sta
       Run H cfg s tr t → exec H cfg e t c = some u → Run H cfg s (tr ++ [(e, c)]) u
 
 /-- Storage reachable from fresh proxy storage: a successful `initialize`, then any successful
-calls from any callers in any order. -/
+calls from any callers in any order (`MODEL-MR-GENESIS`: no call precedes `initialize`). -/
 inductive Reachable (H : Hashes) (cfg : Config) : State → Prop
   | init {e : Env} {s : State} : exec H cfg e fresh .initialize = some s → Reachable H cfg s
   | step {s t : State} {e : Env} {c : Call} :
@@ -370,11 +400,12 @@ def ChainLog (H : Hashes) (s : State) (c : ℕ) : Prop :=
     ∧ (∀ n ∈ ns, n ≤ s.currentChainBatchNumber c ∧ s.chainBatchRoots c n ≠ 0)
     ∧ s.chainLeaves c = ns.map (batchLeafOf H s c)
 
-/-- The storage invariant of an initialized message root: the index bijection
-(`self_at_zero` … `slot_of_index`), the shared tree holding `sharedLeaves` (`tree_reach`,
-`tree_rep`), the batch-root bookkeeping (`unreg_empty`, `beyond_zero`), each chain tree as a
-log of recorded batches (`log`), the last recorded historical root being the current one
-(`hist`), and each chain tree set up once exactly when its chain is registered (`setups`). -/
+/-- The storage invariant of an initialized message root: `initialize` has run (`initialized`);
+the index bijection (`count_pos` … `slot_of_index`); the shared tree reachable by the library's
+own calls and holding `sharedLeaves` (`tree_reach`, `tree_rep`); the batch-root bookkeeping
+(`unreg_empty`, `beyond_zero`); each chain tree a log of recorded batches (`log`); the last
+recorded historical root being the current one (`hist`); and each chain tree set up once exactly
+when its chain is registered (`setups`). -/
 structure Inv (H : Hashes) (cfg : Config) (s : State) : Prop where
   initialized : 2 ≤ s.initialized
   count_pos : 1 ≤ s.chainCount

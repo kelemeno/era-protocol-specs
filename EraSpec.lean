@@ -205,6 +205,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
+-- MessageRoot (L1, draft/v0.35.0 b17415d2): registration, the aggregated root, batch roots and
+-- chain trees, writers, migration, and the final proof node
+import EraSpec.Contracts.MessageRoot.Proofs.Model
+import EraSpec.Contracts.MessageRoot.Proofs.Countermodels
+
 /-!
 # EraSpec — the protocol-level specification of ZKsync Era atomic interop
 

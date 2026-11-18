@@ -13,12 +13,13 @@ followed by any successful calls to any entry point (`addNewChain`,
 `enableInterop`, `initialize` again), from any callers, in any order, each call with its own
 environment (so the Bridgehub's `getZKChain` may change between calls).  `Run H cfg s tr t`:
 the calls of `tr` take `s` to `t`.  No hash premise is used anywhere: every statement holds for
-all hash functions `H`.
+all hash functions `H`.  External calls return their `Env` answers and never revert
+(`MODEL-MR-ENV`); `Specs/Model.lean` lists what else is outside the model.
 
-A proxy upgraded from an earlier release does not start from `initialize` (`L1MR:62`: "used in
-local deployments").  `InvKeptByEveryCall` is the statement for it: storage that satisfies
-`Inv` keeps satisfying it.  That an upgraded proxy's storage satisfies `Inv` at the upgrade is
-not proved here (`MODEL-MR-GENESIS` in `ASSUMPTIONS.md`).
+`initialize` "is used in local deployments" (`L1MR:62`); a proxy upgraded from an earlier
+release does not start from it.  `InvKeptByEveryCall` is the statement for such a proxy:
+storage that satisfies `Inv` keeps satisfying it.  That an upgraded proxy's storage satisfies
+`Inv` at the upgrade is not proved here (`MODEL-MR-GENESIS` in `ASSUMPTIONS.md`).
 
 Groups:
 * **Registration**: chains have unique indices, are added once, keep their index forever.
@@ -31,11 +32,16 @@ Groups:
   chain's batch roots and tree; the counter additionally only by the chain asset handler.
 * **Liveness**: a registration by the Bridgehub or the chain asset handler, and a correctly
   ordered append by the registered chain, do not revert in the shared-tree update.
-* **Migration**: batch numbers skipped by `setMigratingChainBatchNumber` never get a root here.
+* **Migration**: on a registered chain, batch numbers skipped by
+  `setMigratingChainBatchNumber` never get a root here.
 * **Proofs**: the final proof node's verdict, exactly; from `v31UpgradeChainBatchNumber` on it
   only accepts a recorded batch root.
 * **Bookkeeping**: `interopRootLogId` advances at most once per block; interop enablement is
   owner-only and permanent; `initialize` cannot run twice.
+
+`Properties/Countermodels.lean` has a witness instantiating every premise of each statement
+here together, the countermodels for the premises that are needed, and the source checks the
+statements depend on.
 -/
 
 namespace Contracts.MessageRoot
@@ -46,13 +52,15 @@ open AttackVectors.CapacityInvariant (TreeDims)
 
 /-- **EVERY REACHABLE STORAGE SATISFIES `Inv`.**  `Inv` (`Specs/Model.lean`) collects the
 index bijection, the shared tree representing `sharedLeaves`, the batch-root bookkeeping, the
-chain-tree log and the historical-root equation.  The properties below restate its parts. -/
+chain-tree log, the historical-root equation and the set-up counts.  Several properties below
+restate its parts. -/
 def Properties.ReachableInv : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State), Reachable H cfg s → Inv H cfg s
 
-/-- **EVERY CALL KEEPS `Inv`, FROM ANY STORAGE.**  If storage satisfies `Inv` (reachable from
-`initialize` or not, e.g. a proxy upgraded from an earlier release whose storage satisfies it),
-every successful call leaves storage that satisfies `Inv`. -/
+/-- **EVERY CALL KEEPS `Inv`, FROM ANY STORAGE.**  If storage satisfies `Inv`, whether reached
+from `initialize` or not, every successful call leaves storage that satisfies `Inv`.  Whether
+the storage of a proxy upgraded from an earlier release satisfies `Inv` is not proved
+(`MODEL-MR-GENESIS`). -/
 def Properties.InvKeptByEveryCall : Prop :=
   ∀ (H : Hashes) (cfg : Config) (env : Env) (s t : State) (call : Call),
     Inv H cfg s → exec H cfg env s call = some t → Inv H cfg t
@@ -76,7 +84,8 @@ def Properties.ChainIndexBijection : Prop :=
 registered chain reverts, whoever calls.  A successful `addNewChain(c, start)` was called by
 the Bridgehub or the chain asset handler for an unregistered `c`; it gives `c` the index
 `chainCount`, increments `chainCount`, sets `c`'s counter to `start` with an empty tree, and
-appends exactly `chainIdLeafHash(0, c)` to the shared tree's leaves. -/
+appends exactly `chainIdLeafHash(0, c)` to `sharedLeaves`, the leaf list the shared tree
+holds on reachable storage (`Inv.tree_rep`). -/
 def Properties.ChainAddedOnce : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State) (env : Env) (c start : ℕ), Reachable H cfg s →
     (chainRegistered cfg s c = true → exec H cfg env s (.addNewChain c start) = none)
@@ -138,7 +147,8 @@ slot holds `c` in the second too.  If their aggregated roots are equal, then `c`
 roots are equal, or `chainIdLeafHash` maps the two different roots (with the same chain id) to
 one value, or the two shared trees hash different pairs to one value on the path of `c`'s
 slot (`MerkleSpec.Pinned.TreeCollision`).  Every collision named is at specific inputs taken
-from the two storages; no hash is assumed injective. -/
+from the two storages; no hash is assumed injective.  The last disjunct can be the only one
+that holds (`AggregatedRootCollisionFires`, with toy hashes). -/
 def Properties.AggregatedRootPinsChainRootOrCollision : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s s' : State) (c : ℕ), Reachable H cfg s → Reachable H cfg s' →
     s.chainCount = s'.chainCount → chainRegistered cfg s c = true →
@@ -175,8 +185,10 @@ def Properties.BatchRootsBeyondCurrentAreZero : Prop :=
 and for every chain, there are strictly increasing batch numbers `ns`, each at most the
 chain's counter and each with a nonzero recorded root, such that the chain tree's leaves are
 `batchLeafHash(chainBatchRoots[c][n], n, chainBatchRootTimestamp[c][n])` for `n ∈ ns`, in
-order.  Batches recorded by the v31 flow are in `chainBatchRoots` but not in the tree; that
-is why `ns` may skip numbers. -/
+order.  `ns` may skip numbers: a batch recorded by the record-only `addChainBatchRoot` is in
+`chainBatchRoots` but not in the tree, and a batch number skipped by
+`setMigratingChainBatchNumber` is in neither.  So a leaf's position in the tree need not be its
+batch number (`ChainTreePositionIsNotBatchNumber`). -/
 def Properties.ChainTreeIsOrderedLog : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State), Reachable H cfg s → ∀ c, ∃ ns : List ℕ,
     ns.Pairwise (· < ·)
@@ -186,9 +198,9 @@ def Properties.ChainTreeIsOrderedLog : Prop :=
 
 /-- **EACH CHAIN TREE IS SET UP EXACTLY ONCE.**  On every reachable storage,
 `DynamicIncrementalMerkle.setup` has run once on the tree of every registered chain and never
-on the tree of any other chain.  The library's `setup` has no guard and a second call corrupts
-the tree (`DIM:53-58`); a `push` into a never-set-up tree reverts (`DIM:95`).  Neither
-happens. -/
+on the tree of any other chain.  The library's `setup` has no guard (`DIM:53-58`), and a `push`
+into a never-set-up tree reverts (`DIM:95`).  So no reachable storage has a tree set up twice,
+and the tree of every chain an append can target (a registered one) is set up. -/
 def Properties.ChainTreeSetUpOnce : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State), Reachable H cfg s → ∀ c,
     s.chainTreeSetups c = if chainRegistered cfg s c then 1 else 0
@@ -204,11 +216,12 @@ def Properties.BatchRootsWriteOnce : Prop :=
 /-- **A BATCH ROOT IS FINAL ONCE THE COUNTER HAS PASSED IT.**  Take a registered chain `c` on
 reachable storage and a batch number `n ≤ currentChainBatchNumber[c]`, with the counter
 positive or the genesis root (batch `0`) recorded.  Along any run, `chainBatchRoots[c][n]`
-never changes, whether it is zero or not.  So a batch number skipped by
-`setMigratingChainBatchNumber` (settled on another layer) never gets a root here.  And for
-`n` at or above `v31UpgradeChainBatchNumber[c]` the final proof node's verdict on `(c, n)` is
-the same before and after the run, for every candidate root and whatever the chain's getters
-answer. -/
+never changes, whether it is zero or not (`MigrationSkippedBatchesNeverRecorded` applies this
+to the batch numbers a migration skips).  And for `n` at or above
+`v31UpgradeChainBatchNumber[c]` the final proof node's verdict on `(c, n)` is the same before
+and after the run, for every candidate root and whatever the chain's getters answer.  Below
+`v31UpgradeChainBatchNumber[c]` the verdict on an unrecorded batch follows the chain's getter
+(`FinalNodeFallbackFollowsTheChain`). -/
 def Properties.SettledBatchRootsFrozen : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s t : State) (tr : List (Env × Call)) (c n : ℕ),
     Reachable H cfg s → Run H cfg s tr t → chainRegistered cfg s c = true →
@@ -234,11 +247,11 @@ def Properties.CurrentBatchMonotone : Prop :=
 on reachable storage and a successful `setMigratingChainBatchNumber(c, m)`.  It was sent by the
 chain asset handler with `currentChainBatchNumber[c] ≤ m` and sets the counter to `m`.  After
 any further run the counter is still at least `m`, and every batch number `n` the call skipped
-(old counter `< n ≤ m`: the batches settled on another layer) has `chainBatchRoots[c][n] = 0`.
-For such `n` at or above `v31UpgradeChainBatchNumber[c]` the final proof node never accepts
-`(c, n)`, for any candidate root and whatever the chain's getters answer: these batches can
-only be proven through the settlement layer they settled on
-(`_proveL2LeafInclusionOnSettlementLayer`, not modelled).  The registration premise is needed:
+(old counter `< n ≤ m`) has `chainBatchRoots[c][n] = 0`.  For such `n` at or above
+`v31UpgradeChainBatchNumber[c]` the final proof node never accepts `(c, n)`, for any candidate
+root and whatever the chain's getters answer.  (In the source, the other branch of
+`_proveL2LeafInclusionRecursive` is the recursion through a settlement layer, `MRB:349-360`,
+which is not modelled.)  The registration premise is needed:
 `MigrationBeforeRegistrationIsOverwritten` in `Properties/Countermodels.lean`. -/
 def Properties.MigrationSkippedBatchesNeverRecorded : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s t u : State) (env : Env) (tr : List (Env × Call)) (c m : ℕ),
@@ -348,10 +361,10 @@ def Properties.ChainWriteProvenance : Prop :=
 accepts `proven` for `(c, n)` exactly when `n > 0`, `proven ≠ 0`, and either `proven` is the
 recorded `chainBatchRoots[c][n]`, or no root is recorded, `n` is below
 `v31UpgradeChainBatchNumber[c]`, and `proven` is what the chain's diamond answers for
-`l2LogsRootHash(n)` in that call.  The second case is the trust the source documents at
-`L1MR:42-44`: for an unrecorded pre-v31 batch the contract accepts whatever nonzero root the
-chain's own diamond reports.  Where `v31UpgradeChainBatchNumber[c] = 0` (every chain added
-under this release, `L1MR:37`) only recorded roots are accepted. -/
+`l2LogsRootHash(n)` in that call (`L1MR:124-125`; that call's revert is not modelled,
+`MODEL-MR-ENV`).  Where `v31UpgradeChainBatchNumber[c] = 0` (every chain added under this
+release, `L1MR:37`) only recorded roots are accepted.  Both cases occur:
+`EveryEntryPointRun` and `FinalNodeFallbackFollowsTheChain`. -/
 def Properties.FinalNodeAcceptsIff : Prop :=
   ∀ (cfg : Config) (env : Env) (s : State) (c n : ℕ) (proven : Bytes32),
     finalNodeAccepts cfg env s c n proven = some true ↔
@@ -364,8 +377,8 @@ def Properties.FinalNodeAcceptsIff : Prop :=
 for a batch number at or above the chain's `v31UpgradeChainBatchNumber`, if the final-node
 check of `_proveL2LeafInclusionRecursive` (`MRB:343-348`) accepts `proven` for `(c, n)`, then
 `n > 0`, `n` is at most the chain's counter, and `proven` is the nonzero recorded
-`chainBatchRoots[c][n]`.  Batch `0`, the seeded genesis root included, is never accepted
-(`BatchZeroNotAllowed`). -/
+`chainBatchRoots[c][n]`.  On batch `0`, the seeded genesis root included, the check reverts
+(`BatchZeroNotAllowed`, `MRB:366`), for every `v31UpgradeChainBatchNumber`. -/
 def Properties.ProofRootIsRecordedRoot : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State) (env : Env) (c n : ℕ) (proven : Bytes32),
     Reachable H cfg s →
