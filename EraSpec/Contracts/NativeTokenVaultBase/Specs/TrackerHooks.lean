@@ -7,21 +7,28 @@ import EraSpec.Contracts.L2AssetTracker.Specs.Accounting
 `Specs/RepresentationPreparation.lean` and `Specs/Resolution.lean` leave the two chain-balance
 hooks abstract (`Hooks.account`, `ResolutionHooks.fromChain`), and the round trip
 `Properties.PrepareThenRecoverRoundTrip` takes their inverse law `HooksCancel` as a premise.
-This file supplies the deployed hooks at source pin `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`
-(`l1-contracts/contracts/`):
+This file supplies the deployed hooks at `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`l1-contracts/contracts/`; first written at the pin `c67894b9`):
 
-* **L1** (`bridge/ntv/L1NativeTokenVault.sol:259-277`, cited `L1NTV`).  For an asset whose
-  `originChainId` is `block.chainid`, `_handleBridgeToChain(_, assetId, amount)` adds `amount` to
-  `bridgedOut[assetId]` (`L1NTV:260-264`), and `_handleBridgeFromChain(chainId, assetId, amount)`
-  reverts with `InsufficientChainBalance` if `bridgedOut[assetId] < amount` and otherwise
-  subtracts it (`L1NTV:270-277`); for any other asset both do nothing.
+* **L1** (`bridge/ntv/L1NativeTokenVault.sol:424-459`, cited `L1NTV`): the `bridgedOut` part only.
+  For an asset whose `originChainId` is `block.chainid`, `_handleBridgeToChain(chainId, assetId,
+  amount)` adds `amount` to `bridgedOut[assetId]` (`L1NTV:426-428`), and
+  `_handleBridgeFromChain(chainId, assetId, amount)` reverts with `InsufficientChainBalance` if
+  `bridgedOut[assetId] < amount` and otherwise subtracts it (`L1NTV:440-445`); for any other asset
+  that part does nothing.  At the pin (`L1NativeTokenVault.sol:259-277` there) this was the whole
+  hook.  At `b17415d20` each hook then also adds the amount to the per-chain
+  `chainTotalDeposited` or `chainTotalWithdrawn` of a tracked chain balance, and the inbound hook
+  reverts when that exceeds the chain's cap (`L1NTV:429-432`, `:446-458`).  `L1Ledger` does not
+  model those totals: L1NativeTokenVault `InteropPool` does, and `LedgerRefinement` there shows that
+  every successful hook of that model is the `L1Ledger` hook on `bridgedOut` (the per-chain part
+  only adds reverts).  So the L1 results here are about the `bridgedOut` ledger; `HooksCancel` does
+  not hold of the whole `b17415d20` hooks, whose per-chain totals both grow on a round trip.
 
-  `L1Ledger` holds the two maps the hooks touch (`L1NTV:73`, and the vault's `originChainId`,
-  which the hooks only read); `block.chainid` is a parameter.  `+=` is checked
-  (`L2AssetTracker.checkedAdd`, `SOL-ARITH`).  The chain argument is unnamed in the outbound hook
-  and only reported in the inbound one's error, so the ledger is aggregated over chains.
+  `L1Ledger` holds the two maps the `bridgedOut` part touches (`L1NTV:90`, and the vault's
+  `originChainId`, which the hooks only read); `block.chainid` is a parameter.  `+=` is checked
+  (`L2AssetTracker.checkedAdd`, `SOL-ARITH`).  `bridgedOut` has no chain index.
 
-* **L2** (`bridge/ntv/L2NativeTokenVault.sol:296-315`): the two hooks call
+* **L2** (`bridge/ntv/L2NativeTokenVault.sol:279-293`): the two hooks call
   `L2AssetTracker.handleInitiateBridgingOnL2(_chainid, _assetId, _amount, originChainId[_assetId])`
   and `handleFinalizeBridgingOnL2(_chainId, _assetId, _amount, originChainId[_assetId],
   tokenAddress[_assetId])`, modelled in `Contracts.L2AssetTracker` (`Specs/Accounting.lean`).
@@ -37,9 +44,9 @@ This file supplies the deployed hooks at source pin `c67894b970a0dac6fe9144d8ebf
 ## Where the hooks run
 
 The vault's `bridgeRecoverFailedTransfer` has one caller, `L2AssetRouter.recoverAtomicCall`
-(`bridge/asset-router/L2AssetRouter.sol:294`), so on L1 nothing calls it.  The L1 vault's refund
-of a failed deposit is `bridgeConfirmTransferResult` (`L1NTV:182-214`), which runs the same
-`_disburseFailedTransfer` (`bridge/ntv/NativeTokenVaultBase.sol:284-306`) and so the same inbound
+(`bridge/asset-router/L2AssetRouter.sol:301`), so on L1 nothing calls it.  The L1 vault's refund
+of a failed deposit is `bridgeConfirmTransferResult` (`L1NTV:351-380`), which runs the same
+`_disburseFailedTransfer` (`bridge/ntv/NativeTokenVaultBase.sol:264-286`) and so the same inbound
 hook.  With the L1 hooks, the resolution model's recovery therefore stands for that refund's hook
 and mint only, not for its own checks and decoding.
 
@@ -73,14 +80,14 @@ def HooksCancelModulo (hooks : Hooks Accounting) (rh : ResolutionHooks Accountin
 /-! ## L1: `bridgedOut` -/
 
 /-- The L1 vault storage the hooks touch: `originChainId` (read) and `bridgedOut` (read and
-written), `L1NTV:73`. -/
+written), `L1NTV:90`. -/
 structure L1Ledger where
   /-- `originChainId[assetId]` (`NativeTokenVaultBase.sol`; read only by the hooks). -/
   originChainId : UInt256 → UInt256
-  /-- `bridgedOut[assetId]` (`L1NTV:73`). -/
+  /-- `bridgedOut[assetId]` (`L1NTV:90`). -/
   bridgedOut : UInt256 → UInt256
 
-/-- `_handleBridgeToChain(_, _assetId, _amount)` on L1 (`L1NTV:260-264`), with `block.chainid`
+/-- `_handleBridgeToChain(_, _assetId, _amount)` on L1, its `bridgedOut` part (`L1NTV:426-428`), with `block.chainid`
 `thisChain`: checked `bridgedOut[_assetId] += _amount` for a native asset, nothing otherwise. -/
 def l1ToChain (thisChain : UInt256) (acc : L1Ledger) (asset amount : UInt256) : Option L1Ledger :=
   if acc.originChainId asset = thisChain then
@@ -88,7 +95,7 @@ def l1ToChain (thisChain : UInt256) (acc : L1Ledger) (asset amount : UInt256) : 
       { acc with bridgedOut := Function.update acc.bridgedOut asset v }
   else some acc
 
-/-- `_handleBridgeFromChain(_chainId, _assetId, _amount)` on L1 (`L1NTV:270-277`): for a native
+/-- `_handleBridgeFromChain(_chainId, _assetId, _amount)` on L1, its `bridgedOut` part (`L1NTV:440-445`): for a native
 asset, revert if `bridgedOut[_assetId] < _amount`, else subtract; nothing otherwise. -/
 def l1FromChain (thisChain : UInt256) (acc : L1Ledger) (asset amount : UInt256) :
     Option L1Ledger :=
@@ -122,7 +129,7 @@ structure L2Accounting where
 
 /-- The L2 vault's preparation hooks: `_handleBridgeToChain` is
 `handleInitiateBridgingOnL2(chain, asset, amount, originChainId[asset])` called by the vault
-(`L2NativeTokenVault.sol:296-302`), the tracker reading the PRE-burn token; the metadata
+(`L2NativeTokenVault.sol:279-283`), the tracker reading the PRE-burn token; the metadata
 dependency is left as given. -/
 def l2Hooks (cfg : L2AssetTracker.Config)
     (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes) : Hooks L2Accounting :=
@@ -132,7 +139,7 @@ def l2Hooks (cfg : L2AssetTracker.Config)
    metadata⟩
 
 /-- The L2 vault's resolution hook: `_handleBridgeFromChain` is `handleFinalizeBridgingOnL2(chain,
-asset, amount, originChainId[asset], tokenAddress[asset])` (`L2NativeTokenVault.sol:304-315`). -/
+asset, amount, originChainId[asset], tokenAddress[asset])` (`L2NativeTokenVault.sol:285-293`). -/
 def l2ResolutionHooks (cfg : L2AssetTracker.Config) : ResolutionHooks L2Accounting :=
   ⟨fun acc tok chain asset amount =>
     (L2AssetTracker.handleFinalizeBridgingOnL2 cfg acc.st acc.sl (L2AssetTracker.tokenReads cfg tok)
@@ -149,13 +156,13 @@ def l2Registration (cfg : L2AssetTracker.Config) (acc : L2Accounting)
 
 /-- The L2 round trip is accounting-neutral up to registration when the other chain is not the
 tracker's `L1_CHAIN_ID`, or this chain does not currently settle on L1
-(`L2AssetTracker.sol:244-249, 299-304`). -/
+(`L2AssetTracker.sol:160-165, 223-228`). -/
 def L2OffL1 (acc : L2Accounting) (chain : UInt256) : Prop :=
   chain ≠ acc.st.l1ChainId ∨ acc.sl ≠ acc.st.l1ChainId
 
 /-- The L2 registration hook of a first bridge: `_setNewTokenStorage`
-(`bridge/ntv/NativeTokenVaultBase.sol:588-598`) calls `_registerTokenInAssetTracker`
-(`L2NativeTokenVault.sol:186-188`), which is `registerNewTokenIfNeeded(assetId, originChainId)`
+(`bridge/ntv/NativeTokenVaultBase.sol:565-575`) calls `_registerTokenInAssetTracker`
+(`L2NativeTokenVault.sol:177-179`), which is `registerNewTokenIfNeeded(assetId, originChainId)`
 called by the vault. -/
 def l2RegistrationHook (cfg : L2AssetTracker.Config) (acc : L2Accounting) (_ : Registry)
     (_ : BridgedStandardERC20.State) (asset origin : UInt256) : Option L2Accounting :=

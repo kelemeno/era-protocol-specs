@@ -9,8 +9,8 @@ Statements about `EraSpec.Contracts.NativeTokenVaultBase.Specs.RegistryAndEscrow
 ## The registry
 
 The source states the registry's coherence as an assumption in a comment
-("it is assumed, that `originChainId`, `tokenAddress` and `assetId` mappings are
-always atomically populated").  `RunValid` makes it an inductive invariant of every
+("The `originChainId`, `tokenAddress` and `assetId` mappings are always populated
+atomically", `NativeTokenVaultBase.sol:74-75` at `b17415d20`).  `RunValid` makes it an inductive invariant of every
 run from fresh storage.
 
 The interesting step is `RegisterNativeIdFresh`.  `_registerToken` guards only on
@@ -40,14 +40,11 @@ total ever bridged in never exceeds the total ever bridged out.  It follows from
 
 ## And what the ledger does not do
 
-`PerChainIsolationFails` is the honest other half.  The outbound hook takes the
-chain id as an unnamed parameter and the ledger is aggregated, so one chain can
-withdraw against another chain's deposit: an explicit two-chain run where the books
-balance in aggregate while chain `cA` takes out an asset it never deposited.  The
-source is explicit that this is the design ("there is no on-chain per-chain balance
-enforcement"; correctness of minted amounts rests on the sending chain's ZK proofs),
-so this theorem is not a defect report — it is the boundary of what the vault's own
-arithmetic protects, stated so a reader does not assume more.
+The ledger is aggregated over chains, so these results say nothing per chain.  At the pin
+`c67894b9` that was the whole of the vault's own accounting; the record of it,
+`PerChainIsolationFails`, is in `History/Properties/PerChainIsolation.lean`.  At `b17415d20` the
+L1 vault also keeps per-chain totals with a cap: L1NativeTokenVault `InteropPool` and
+`BulkheadIsolation`.
 -/
 
 namespace Contracts.NativeTokenVault
@@ -152,23 +149,6 @@ def Properties.UnguardedInflowUnbacked : Prop :=
         ∧ W.vault.escrowed (e thisChain t) = 0
         ∧ FlowInGuardUnchecked W.vault (e thisChain t) 1
         ∧ ¬ FlowInGuard thisChain W.vault (e thisChain t) 1
-
-/-- **PER-CHAIN ISOLATION DOES NOT HOLD.**  A two-chain run in which the aggregate
-books balance exactly, yet chain `cA` bridged in an asset that only chain `cB` ever
-had bridged out to it.
-
-The ledger carries no chain index — `_handleBridgeToChain`'s chain parameter is
-unnamed — so this is by design, with the sending chain's ZK proof standing where a
-per-chain balance would. Stated here so that `Solvency` is not read as more than it
-is. -/
-def Properties.PerChainIsolationFails : Prop :=
-  ∀ (e : NtvAssetId) (thisChain : Chain),
-    ∀ (t : Address), t ≠ 0 → ∀ (cA cB : Chain), cA ≠ cB →
-      ∃ W : World, Reach e thisChain empty W
-        ∧ W.audit.totalIn (e thisChain t) = W.audit.totalOut (e thisChain t)
-        ∧ W.audit.outTo cA (e thisChain t) = 0
-        ∧ W.audit.innFrom cA (e thisChain t) = 1
-
 
 /-! ## `IdAssumptions` is unsatisfiable
 

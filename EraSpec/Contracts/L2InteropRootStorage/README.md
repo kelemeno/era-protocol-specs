@@ -1,109 +1,83 @@
 # L2InteropRootStorage
 
-Source: `contracts/interop/L2InteropRootStorage.sol` in the pinned era-contracts tree
-(`c67894b9`), with `IL2InteropRootStorage.sol`, `common/Messaging.sol`, and the two readers the
-interop gates use (`interop/L2MessageVerification.sol:29-33`,
-`atomic-interop/libraries/AtomicInteropProof.sol:171-179`). The whole storage
-(`storedInteropRoots`) and both bootloader entry points are modelled, with every check of
-`_addInteropRoot` in source order.
+## Headline guarantees
 
-Topics `Storage` and `RootImportLink` model the contract at era-contracts `draft/v0.35.0` head
-`b17415d20` (byte-identical at `d9f6789` and `e561b9cc2`; the same code, with one more comment
-line, at `main` `70096e2`). At `c67894b9`, the interop pin, the contract has no
-`latestInteropRootTimestamp`; that version is transcribed separately (`execAtC67`).
+All about `l1-contracts/contracts/interop/L2InteropRootStorage.sol` at era-contracts
+`draft/v0.35.0` head `b17415d20`. The contract hashes nothing, so no statement has a hash premise.
+A "run" is any sequence of successful calls, by any caller, with any arguments.
 
-Review `Specs/` for state, operations, and assumptions; review `Properties/` for
-the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
-for those exact named propositions, plus auxiliary lemmas.
+- `Contracts.InteropRootStorage.Properties.OnlyBootloaderWrites`: every successful call was made
+  by the bootloader address.
+- `Contracts.InteropRootStorage.Properties.NoOverwrite`: along any run from any storage, a key
+  holding a nonzero root keeps its whole stored pair, root and timestamp.
+- `Contracts.InteropRootStorage.Properties.EachKeyImportedOnce`: in any logged run, the imported
+  keys are pairwise distinct and each was unset at the start.
+- `Contracts.InteropRootStorage.Properties.ZeroTimestampIffUnsetInvariant`: on fresh storage, and
+  along any run from storage where it holds, a stored timestamp is zero exactly when the stored
+  root is. Premise: the storage started empty, as the source comment (`:29-31`) says it was at the
+  v31 upgrade; `LegacyRootBreaksZeroTimestampClaim` shows a carried-over root breaks it.
+- `Contracts.InteropRootStorage.Properties.LatestIsMaxInvariant`: on fresh storage, and along any
+  run from storage where it holds, `latestInteropRootTimestamp[c]` bounds every timestamp stored
+  for `c` and, if nonzero, is one of them.
+- `Contracts.InteropRootStorage.Properties.StoredTimestampStaysBelowLatest`: for storage reached
+  from fresh storage, every stored timestamp stays at or below the chain's
+  `latestInteropRootTimestamp` in every later state.
+- `Contracts.InteropRootStorage.Properties.StorageRunsGrowImports`: if each destination's storage
+  moves by a run, the imports read off the storages only grow
+  (`Contracts.RootImport.ImportsGrow`, the premise of
+  `Contracts.RootImport.Properties.FinalizableAtPersistsAsImportsGrow`).
+
+Nothing here makes a stored root authentic: which tuples the bootloader imports is checked on the
+settlement layer (`ExecutorFacet._verifyDependencyInteropRoots`), outside this contract.
+
+## Topics
 
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
-| Model | [Specs/Model.lean](Specs/Model.lean) | [Properties/Model.lean](Properties/Model.lean) | [Proofs/Model.lean](Proofs/Model.lean) |
-| Storage | [Specs/Storage.lean](Specs/Storage.lean) | [Properties/Storage.lean](Properties/Storage.lean) | [Proofs/Storage.lean](Proofs/Storage.lean) |
+| Storage (canonical) | [Specs/Storage.lean](Specs/Storage.lean) | [Properties/Storage.lean](Properties/Storage.lean) | [Proofs/Storage.lean](Proofs/Storage.lean) |
 | RootImportLink | [Specs/RootImportLink.lean](Specs/RootImportLink.lean) | [Properties/RootImportLink.lean](Properties/RootImportLink.lean) | [Proofs/RootImportLink.lean](Proofs/RootImportLink.lean) |
+| Model | [Specs/Model.lean](Specs/Model.lean) | [Properties/Model.lean](Properties/Model.lean) | [Proofs/Model.lean](Proofs/Model.lean) |
+| Refinement | [Specs/Refinement.lean](Specs/Refinement.lean) | [Properties/Refinement.lean](Properties/Refinement.lean) | [Proofs/Refinement.lean](Proofs/Refinement.lean) |
+| History: `c67894b9` | [History/Specs/AtC67894b9.lean](History/Specs/AtC67894b9.lean) | [History/Properties/AtC67894b9.lean](History/Properties/AtC67894b9.lean) | [History/Proofs/AtC67894b9.lean](History/Proofs/AtC67894b9.lean) |
 
-## Model (`c67894b9`)
+## Storage and RootImportLink (canonical)
 
-Namespace `Contracts.L2InteropRootStorage`. Statements are
-`Contracts.L2InteropRootStorage.Properties.*`; each certificate has the same name without the
-`Properties` segment.
+Namespace `Contracts.InteropRootStorage`. The whole storage (both mappings) and both bootloader
+entry points, every check of `_addInteropRoot` in source order. Further results:
+`AddInteropRootIff`, `AddInteropRootEffect`, `BatchUnfoldsToSingles`, `BatchRejectsDuplicateKey`,
+`StorageIsTheLog`, `StoredIffImported`, `LatestNeverDecreases`, `LatestBoundsEveryImport`,
+`LatestZeroIffNothingImported`. Each check is load-bearing: `WithoutAuthAnyoneSquatsAKey`,
+`WithoutExistsCheckRootIsOverwritten`, `WithoutZeroRootCheckTimestampIsRewritten`,
+`WithoutZeroTimestampCheckRootLooksUnimported`. Witnesses: `RootImportRunWitness`,
+`SingleImportEffectWitness`, `StoredRootSurvivesRunWitness`, `DuplicateKeyBatchWitness`,
+`LegacyRootStateWitness`, `StorageRunsGrowImportsRunWitness`.
 
-- **Write-once.** In any run from any storage, an entry with a nonzero root never changes
-  (`WriteOnce`); from fresh storage, neither does one with a nonzero timestamp
-  (`TimestampNotRewritable`). A successful batch import stores every tuple as given and has
-  pairwise distinct, previously unused keys (`BatchImportWritesEach`, `BatchKeysDistinct`).
-- **A zero timestamp means nothing imported.** From fresh storage an entry's timestamp is zero
-  iff its root is (`ZeroTimestampIffAbsent`, the `IL2InteropRootStorage.sol:18-19` invariant the
-  timeout path relies on), and every nonzero entry is an admitted import, as imported
-  (`EntriesAreAdmittedImports`).
-- **A zero-timestamp entry from earlier storage** is kept forever: inclusion against it is
-  accepted and the timeout read at its key fails for every deadline
-  (`LegacyEntryBlocksTimeoutForever`, `LegacyEntryCountermodel`). It is not reachable from fresh
-  storage, and the source's NatSpec says none was carried over (`:35-39`).
+Model boundaries (`MODEL-ROOT-STORAGE-V35` in `ASSUMPTIONS.md`): events, calldata decoding, gas and
+code replacement by upgrades are not modelled; the caller and the imported tuples are inputs.
 
-Witness: `RootStorageRunWitness`.
+## Model and Refinement
 
-Model boundaries: imports are admitted by a predicate `ok` on the tuple, which the contract does
-not check (anything, for the contract alone); `Protocol/InteropAtomicity` topic `SettlementRoots`
-instantiates it with the settlement layer's Executor check. Callers, events and `uint256` bounds are
-not modelled (`MODEL-ROOT-STORAGE` in `ASSUMPTIONS.md`). At `draft/v0.35.0` `b17415d20` the modelled
-checks and write are unchanged; the new `latestInteropRootTimestamp` mapping is not modelled.
-`../AtomicFlowManager/` topic `RefundClosesAppend` (`b17415d20`) has its own model of this
-contract that includes `latestInteropRootTimestamp`.
+Namespace `Contracts.L2InteropRootStorage`. `Model` is a coarser view of the same code that
+`../../Protocol/InteropAtomicity/` topic `SettlementRoots` instantiates: `storedInteropRoots` only,
+`ℕ` keys and timestamps, no callers, and an admission predicate `ok` on each import. Its results:
+`WriteOnce`, `TimestampNotRewritable`, `BatchImportWritesEach`, `BatchKeysDistinct`,
+`ZeroTimestampIffAbsent`, `EntriesAreAdmittedImports`, `LegacyEntryBlocksTimeoutForever`,
+`LegacyEntryCountermodel`; witness `RootStorageRunWitness` (`MODEL-ROOT-STORAGE`).
 
-## Storage and RootImportLink (`b17415d20`)
+`Refinement` proves that the canonical model refines it: `toModel` reads the canonical storage
+exactly at every addressable key (`ToModelReadsTheStorage`, `ToModelEmpty`), every successful
+canonical call is a `Step ok` for any `ok` admitting its imports (`CanonicalCallIsModelStep`), and
+every logged canonical run is a `Reach ok` run (`CanonicalRunIsModelRun`). So the `Model` results
+hold of the canonical runs.
 
-Namespace `Contracts.InteropRootStorage`. Statements are `Contracts.InteropRootStorage.Properties.*`;
-each certificate has the same name without the `Properties` segment. No result takes a hash
-premise: the contract hashes nothing.
+## History
 
-- **Who writes, and what.** Every successful call is the bootloader's (`OnlyBootloaderWrites`,
-  `LoggedCallersAreBootloader`). One import succeeds exactly when `sides` is one nonzero word, the
-  timestamp is nonzero and the key holds a zero root (`AddInteropRootIff`, `AddInteropRootEffect`).
-  A batch is its singles in order, all or nothing, and a batch naming a key twice reverts
-  (`BatchUnfoldsToSingles`, `BatchRejectsDuplicateKey`).
-- **Keys are written once.** A key holding a nonzero root keeps its whole pair, root and
-  timestamp, in every later state of every run (`NoOverwrite`). In a logged run the imported keys
-  are distinct and were unset at the start, and the storage is exactly the log
-  (`EachKeyImportedOnce`, `StorageIsTheLog`; `StoredIffImported` from fresh storage).
-- **Timestamps.** Along runs from fresh storage a zero stored timestamp means "nothing imported"
-  (`ZeroTimestampIffUnsetInvariant`), and `latestInteropRootTimestamp` is the chain's maximum
-  stored timestamp, zero exactly when the chain has no root (`LatestIsMaxInvariant`,
-  `LatestZeroIffNothingImported`). Along every run it never decreases and bounds every import of
-  the run (`LatestNeverDecreases`, `LatestBoundsEveryImport`). From fresh storage it bounds, in
-  every later state, every timestamp stored earlier (`StoredTimestampStaysBelowLatest`), the
-  ordering `AtomicFlowManager.append` relies on at `b17415d20`
-  (`atomic-interop/AtomicFlowManager.sol:112-125`; the manager is not modelled here).
-- **Each check is load-bearing.** With one check deleted: anyone squats a key, after which the
-  bootloader's import of it reverts forever (`WithoutAuthAnyoneSquatsAKey`); a stored root is
-  replaced (`WithoutExistsCheckRootIsOverwritten`); a stored timestamp is rewritten
-  (`WithoutZeroRootCheckTimestampIsRewritten`); a root looks unimported forever
-  (`WithoutZeroTimestampCheckRootLooksUnimported`). With no check deleted, any start state holding
-  a nonzero root with timestamp zero, which is how a root stored under the earlier `bytes32` value
-  type would read, falsifies the zero-timestamp claim in every reachable state
-  (`LegacyRootBreaksZeroTimestampClaim`). The claim rests on the source comment that the mapping
-  was empty at the v31 upgrade (`:29-31`), which the model takes as its start state and does not
-  check.
-- **At `c67894b9`.** The pin's calls and runs are this model's with the tracked timestamps dropped
-  (`C67894b9CallIsTheProjection`, `C67894b9RunsAreProjectedRuns`), so a stored root is never
-  overwritten there either, and from fresh storage a zero timestamp means "nothing imported"
-  (`NoOverwriteAtC67894b9`, `ZeroTimestampIffUnsetAtC67894b9`).
-- **`RootImportLink`.** `Contracts.RootImport` (`../../Protocol/InteropAtomicity/`, `c67894b9`)
-  describes a destination's imports as an abstract predicate and relates snapshots by
-  `ImportsGrow`. Reading that predicate off one `c67894b9` storage per destination,
-  `ImportsGrow` follows from the storages' runs (`StorageRunsGrowImportsAtC67894b9`), so
-  `FinalizableAtPersistsAsImportsGrow` applies to such runs.
+`History/` is the record of the interop pin `c67894b9`, where the contract had no
+`latestInteropRootTimestamp`; it is not a claim about `b17415d20`. Namespace
+`Contracts.InteropRootStorage.History`: that version is the canonical model with the tracked
+timestamps dropped (`C67894b9CallIsTheProjection`, `C67894b9RunsAreProjectedRuns`), so
+`NoOverwriteAtC67894b9` and `ZeroTimestampIffUnsetAtC67894b9` hold there, and its runs grow
+`RootImport` imports (`StorageRunsGrowImportsAtC67894b9`). Witnesses: `C67894b9RunWitness`,
+`StorageRunsGrowImportsWitnessAtC67894b9`.
 
-Witnesses: `RootImportRunWitness` (a two-call run from fresh storage, with a batch out of
-timestamp order), `SingleImportEffectWitness`, `StoredRootSurvivesRunWitness`,
-`DuplicateKeyBatchWitness`, `LegacyRootStateWitness`, `C67894b9RunWitness`,
-`StorageRunsGrowImportsWitness`.
-
-Model boundaries (`MODEL-ROOT-STORAGE-V35` in `ASSUMPTIONS.md`): the `InteropRootAdded` event is not
-modelled (the logged run carries the same data). The caller and the imported tuples are inputs:
-that the bootloader imports only the settlement layer's `MessageRoot.historicalRoot` tuples,
-checked when the importing batch executes (`ExecutorFacet._verifyDependencyInteropRoots`), is
-outside this contract, so nothing here establishes that a stored root or timestamp is authentic.
-Results that need a start state start from fresh storage. Code replacement by protocol upgrades
-(`OPS-CONFIG`), calldata decoding (`SOL-ABI`) and gas are not modelled. The verifier that reads
-these roots is [`../L2MessageVerification/`](../L2MessageVerification/README.md).
+The verifier that reads these roots is [`../L2MessageVerification/`](../L2MessageVerification/README.md).

@@ -7,9 +7,9 @@ Local specification at era-contracts `draft/v0.35.0` head
 `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, paths under `l1-contracts/contracts/`.
 `L1NTV` is `bridge/ntv/L1NativeTokenVault.sol`, `NTVB` is `bridge/ntv/NativeTokenVaultBase.sol`,
 `L1AR` is `bridge/asset-router/L1AssetRouter.sol`, `L1MR` is `core/message-root/L1MessageRoot.sol`,
-`BHB` is `core/bridgehub/BridgehubBase.sol`.  The per-chain cap exists only on the v35 branch:
-`main` at `70096e2ea` keeps the aggregate `bridgedOut` ledger alone, whose boundary
-`Contracts.NativeTokenVault.Properties.PerChainIsolationFails` already states.
+`BHB` is `core/bridgehub/BridgehubBase.sol`.  The per-chain cap is new at `b17415d20`: the pin
+`c67894b9` had the aggregate `bridgedOut` ledger alone, whose boundary
+`Contracts.NativeTokenVault.History.Properties.PerChainIsolationFails` records.
 
 **This file is definitions only.**  The statements are in
 `EraSpec.Contracts.L1NativeTokenVault.Properties.BulkheadIsolation` and the proofs in

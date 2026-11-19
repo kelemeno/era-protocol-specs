@@ -1,0 +1,296 @@
+[
+  {
+    "old": "Contracts.DomainHoldersV35.Properties.AliasingPassesAtD9CaughtAtB17",
+    "new": "Contracts.DomainHoldersV35.History.Properties.AliasingPassesAtD9CaughtAtB17",
+    "kind": "history",
+    "justification": "Compares the d9f6789 leg (D9, a pin record) with the b17415d20 leg; kept unchanged under History."
+  },
+  {
+    "old": "Contracts.DomainHoldersV35.Properties.AliasingPassesAtD9CaughtAtB17Satisfiable",
+    "new": "Contracts.DomainHoldersV35.History.Properties.AliasingPassesAtD9CaughtAtB17Satisfiable",
+    "kind": "history",
+    "justification": "Witness for the d9f6789/b17415d20 comparison; kept unchanged under History with the D9 leg it uses."
+  },
+  {
+    "old": "Contracts.DomainHoldersV35.Properties.MovedCtmCaughtNotVacuous",
+    "new": "Contracts.DomainHoldersV35.History.Properties.MovedCtmCaughtNotVacuous",
+    "kind": "history",
+    "justification": "Kept unchanged under History because one conjunct is about the d9f6789 leg; its b17415d20 conjuncts are also Contracts.DomainHoldersV35.Properties.MovedCtmCaughtWitness."
+  },
+  {
+    "old": "Contracts.DomainHoldersV35.Properties.MovedCtmWithCtmRowReverts",
+    "new": "Contracts.DomainHoldersV35.History.Properties.MovedCtmWithCtmRowReverts",
+    "kind": "history",
+    "justification": "Kept unchanged under History because one conjunct is about the d9f6789 leg; its b17415d20 conjunct is also Contracts.DomainHoldersV35.Properties.MovedCtmWithCtmRowLegReverts."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.ExecutionWaitsForTheNamedTimer",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.ExecutionWaitsForTheNamedTimer",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.ForwardAppliesLegBeforeTheDelay",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.ForwardAppliesLegBeforeTheDelay",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.GovernanceTimerPreparesOnce",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.GovernanceTimerPreparesOnce",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleAbandonAfterExecuteWitness",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleAbandonAfterExecuteWitness",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleAbandonDuringDelayWitness",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleAbandonDuringDelayWitness",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleAbandonEnabledWhilePending",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleAbandonEnabledWhilePending",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleAbandonEnabledWhilePendingSatisfiable",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleAbandonEnabledWhilePendingSatisfiable",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleAbandonExact",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleAbandonExact",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleForwardReleaseWedgesCoordinator",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleForwardReleaseWedgesCoordinator",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleFreeingIsStage2OrAbandon",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleFreeingIsStage2OrAbandon",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleFreeingIsStage2OrAbandonSatisfiable",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleFreeingIsStage2OrAbandonSatisfiable",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleOwnerCanAlwaysReturnToIdle",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleOwnerCanAlwaysReturnToIdle",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleOwnerCanAlwaysReturnToIdleSatisfiable",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleOwnerCanAlwaysReturnToIdleSatisfiable",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecyclePreparedGovernanceOpStaysRefused",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecyclePreparedGovernanceOpStaysRefused",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecyclePreparedGovernanceOpStaysRefusedSatisfiable",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecyclePreparedGovernanceOpStaysRefusedSatisfiable",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleStageGuardsExact",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleStageGuardsExact",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.LifecycleTimestampZeroReprepares",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleTimestampZeroReprepares",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.PermissiveTimerPasses",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.PermissiveTimerPasses",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.ReservationTracksSlot",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.ReservationTracksSlot",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.SlotEmptyIffStageNone",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.SlotEmptyIffStageNone",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.Stage0RefusesForeignOrStartedTimer",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.Stage0RefusesForeignOrStartedTimer",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.StageGuards",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.StageGuards",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.StagesMoveForward",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.StagesMoveForward",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.TimerBoundIsTight",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.TimerBoundIsTight",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.EcosystemUpgradeExecutor.Properties.ZeroDelayTimerPasses",
+    "new": "Contracts.EcosystemUpgradeExecutor.History.Properties.ZeroDelayTimerPasses",
+    "kind": "history",
+    "justification": "The staged coordinator and its timer (afa407085) do not exist at b17415d20; the statement is kept unchanged under History as the record of that commit."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.AppliedGatePasses",
+    "new": "Contracts.ProxyUpgrade.History.Properties.AppliedGatePasses",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.ApplyRowsDeterministic",
+    "new": "Contracts.ProxyUpgrade.History.Properties.ApplyRowsDeterministic",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.ApplyRowsEnabledIff",
+    "new": "Contracts.ProxyUpgrade.History.Properties.ApplyRowsEnabledIff",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.ApplyRowsIdempotent",
+    "new": "Contracts.ProxyUpgrade.History.Properties.ApplyRowsIdempotent",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.ApplyRowsPassesGateWhenEnabled",
+    "new": "Contracts.ProxyUpgrade.History.Properties.ApplyRowsPassesGateWhenEnabled",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.ApplyRowsPostcondition",
+    "new": "Contracts.ProxyUpgrade.History.Properties.ApplyRowsPostcondition",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.DuplicateRowsBreakIdempotence",
+    "new": "Contracts.ProxyUpgrade.History.Properties.DuplicateRowsBreakIdempotence",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.DuplicateRowsBreakOrder",
+    "new": "Contracts.ProxyUpgrade.History.Properties.DuplicateRowsBreakOrder",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.DuplicateRowsBreakPostcondition",
+    "new": "Contracts.ProxyUpgrade.History.Properties.DuplicateRowsBreakPostcondition",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.ForeignRowLeavesGateOpen",
+    "new": "Contracts.ProxyUpgrade.History.Properties.ForeignRowLeavesGateOpen",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.InertSlotNeverUpgraded",
+    "new": "Contracts.ProxyUpgrade.History.Properties.InertSlotNeverUpgraded",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.OnlyTheNamedEdge",
+    "new": "Contracts.ProxyUpgrade.History.Properties.OnlyTheNamedEdge",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.OrderIndependent",
+    "new": "Contracts.ProxyUpgrade.History.Properties.OrderIndependent",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.OrderIndependentExecutability",
+    "new": "Contracts.ProxyUpgrade.History.Properties.OrderIndependentExecutability",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.RowStepIffEnabled",
+    "new": "Contracts.ProxyUpgrade.History.Properties.RowStepIffEnabled",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.RowsStrongWitness",
+    "new": "Contracts.ProxyUpgrade.History.Properties.RowsStrongWitness",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.StaleObjectCannotDowngrade",
+    "new": "Contracts.ProxyUpgrade.History.Properties.StaleObjectCannotDowngrade",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.StaleObjectReverts",
+    "new": "Contracts.ProxyUpgrade.History.Properties.StaleObjectReverts",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.ToRowsKeepsActiveSlots",
+    "new": "Contracts.ProxyUpgrade.History.Properties.ToRowsKeepsActiveSlots",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  },
+  {
+    "old": "Contracts.ProxyUpgrade.Properties.UnmovedProxiesFrame",
+    "new": "Contracts.ProxyUpgrade.History.Properties.UnmovedProxiesFrame",
+    "kind": "history",
+    "justification": "Statement over the 612a71ccc row-library snapshot (rows with an admin field), kept unchanged under History as the record of that commit; RowsCurrent is the b17415d20 model."
+  }
+]

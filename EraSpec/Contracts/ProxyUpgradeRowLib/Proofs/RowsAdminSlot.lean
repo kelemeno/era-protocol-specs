@@ -2,7 +2,7 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Properties.RowsAdminSlot
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 
 /-!
-# Proofs: the rows at `e561b9cc2`, read through the proxies' admin dispatch
+# Proofs: the rows at `b17415d20`, read through the proxies' admin dispatch
 
 Three loop lemmas carry the results that hold without `KeepsAdmin`:
 

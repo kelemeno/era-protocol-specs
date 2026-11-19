@@ -116,7 +116,7 @@ def Properties.BridgeMintAssetBinding : Prop :=
 
 /-- **`bridgeMint` READS ONLY THE RECEIVER AND THE AMOUNT FROM THE DATA.** For every input,
 replacing the data's `originalCaller`, `originToken` and metadata leaves the result unchanged.
-The data's origin token is decoded (`NTV:251`) but only the deploy branch (`NTV:253-255`) uses
+The data's origin token is decoded (`NTV:231`) but only the deploy branch (`NTV:233-235`) uses
 it; on the registered branch nothing compares it with the token's own `originToken`. -/
 def Properties.BridgeMintIgnoresUnreadFields : Prop :=
   ∀ (Accounting : Type) (rh : ResolutionHooks Accounting) (s : State Accounting)
@@ -167,7 +167,7 @@ def Properties.RecoverExact : Prop :=
       t.config = s.config ∧ t.registry = s.registry ∧ t.paused = s.paused
 
 /-- **RECOVERY IGNORES THE REMOTE RECEIVER.** For every input, replacing the data's
-`remoteReceiver`, `originToken` and metadata leaves the result unchanged (`NTV:219-220` decodes
+`remoteReceiver`, `originToken` and metadata leaves the result unchanged (`NTV:201-202` decodes
 the receiver into an unnamed slot). -/
 def Properties.RecoverIgnoresReceiver : Prop :=
   ∀ (Accounting : Type) (rh : ResolutionHooks Accounting) (s : State Accounting)
@@ -217,7 +217,7 @@ def Properties.PrepareThenRecoverRestoresToken : Prop :=
 /-- **NOTHING BUT THE HOOK CAN BLOCK THAT RECOVERY.** After a successful preparation on a
 `WellFormed` state, the router's recovery call for the returned data passes all three entry
 checks (the preparation left the vault unpaused), is on the registered bridged branch (so
-recovery's deploy branch, `NTV:301-303`, is not taken), and succeeds whenever the resolution hook
+recovery's deploy branch, `NTV:281-283`, is not taken), and succeeds whenever the resolution hook
 does: the depositor is nonzero, the vault is the token's minter, and the re-mint fits under the
 supply bound because the burn freed that much. -/
 def Properties.PrepareThenRecoverEnabled : Prop :=
@@ -300,8 +300,8 @@ def Properties.VaultHasNoReplayGuard : Prop :=
 
 /-- **COUNTERMODEL: WITHOUT CANCELLING HOOKS THE ROUND TRIP DOES NOT RESTORE THE VAULT.** Hooks
 that record outflow and inflow in two separate counters (the pattern of the L2 asset tracker's
-`totalWithdrawalsToL1` and `totalSuccessfulDepositsFromL1`, `L2AssetTracker.sol:244-249,
-299-304`, for an L1 destination while settling on L1) violate `HooksCancel`. On a `WellFormed`
+`totalWithdrawalsToL1` and `totalSuccessfulDepositsFromL1`, `L2AssetTracker.sol:160-165,
+223-228`, for an L1 destination while settling on L1) violate `HooksCancel`. On a `WellFormed`
 state a preparation and the router's recovery of its data both succeed; the token ledger is
 restored exactly, and the state is not. -/
 def Properties.RoundTripNeedsCancellingHooks : Prop :=
@@ -313,7 +313,7 @@ def Properties.RoundTripNeedsCancellingHooks : Prop :=
 
 /-! ## Guards and rollback -/
 
-/-- **ONLY THE ROUTER RESOLVES** (`onlyAssetRouter`, `NTV:107-110`). -/
+/-- **ONLY THE ROUTER RESOLVES** (`onlyAssetRouter`, `NTV:104-107`). -/
 def Properties.ResolutionWrongRouterRejected : Prop :=
   ∀ (Accounting : Type) (rh : ResolutionHooks Accounting) (s : State Accounting)
     (c : ResolutionCall),
@@ -328,7 +328,7 @@ def Properties.ResolutionPausedRejected : Prop :=
       bridgeMint rh s c = none ∧ bridgeRecoverFailedTransfer rh s c = none
 
 /-- **NO NATIVE VALUE** (`requireZeroValue(msg.value)`; the router forwards its `msg.value`,
-`AssetRouterBase.sol:284, 290`). -/
+`AssetRouterBase.sol:276, 281`). -/
 def Properties.ResolutionValueRejected : Prop :=
   ∀ (Accounting : Type) (rh : ResolutionHooks Accounting) (s : State Accounting)
     (c : ResolutionCall),
@@ -378,8 +378,8 @@ def Properties.MintSupplyOverflowRejected : Prop :=
       bridgeMint rh s c = none ∧ bridgeRecoverFailedTransfer rh s c = none
 
 /-- **LIMIT: A PREPARED TRANSFER TO THE ZERO RECEIVER CAN ONLY BE RECOVERED.** Preparation never
-checks the receiver; it only copies it into the returned data (`NTV:330, 336, 415-421`; the
-router's `_burn`, `AssetRouterBase.sol:313-346`, does not check it either). There is a
+checks the receiver; it only copies it into the returned data (`NTV:309, 315, 395-401`; the
+router's `_burn`, `AssetRouterBase.sol:303-331`, does not check it either). There is a
 `WellFormed` state and a successful
 preparation whose returned data names receiver `0`. No destination on the registered bridged
 branch, whatever its state and hooks, can mint that data, and neither can a first bridge. The
@@ -399,7 +399,7 @@ def Properties.ZeroReceiverOnlyRecoverable : Prop :=
 /-- **FIRST BRIDGE: THE DATA'S ORIGIN TOKEN IS CHECKED, AND THE NEW TOKEN HOLDS EXACTLY THE
 AMOUNT.** A successful first-bridge `bridgeMint` passed the entry checks, started at an unset
 `tokenAddress` slot, and checked the call's asset id against the encoding of the resolved origin
-chain and the DATA's origin token (`assetIdCheck`, `NTV:580`). Its result is `WellFormed`; its
+chain and the DATA's origin token (`assetIdCheck`, `NTV:557`). Its result is `WellFormed`; its
 token is the fresh representation of that origin token for the call's asset id, minted by this
 vault, holding exactly `amount` at the receiver and nothing elsewhere; the registry is installed
 for the asset. The hook ran after registration, on the freshly initialized token. -/

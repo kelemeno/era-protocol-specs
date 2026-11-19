@@ -1,5 +1,5 @@
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Properties.LifecycleStrong
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleStrong
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.Lifecycle
 
 /-!
 # Proofs: the stage guards exactly, and abandonment as a live escape hatch
@@ -13,7 +13,7 @@ timer. The recovery with `forward` is a case split on whether the slot and the r
 are occupied, using `SlotEmptyIffStageNone`.
 -/
 
-namespace Contracts.EcosystemUpgradeExecutor
+namespace Contracts.EcosystemUpgradeExecutor.History
 
 /-! ## The guards, exactly -/
 
@@ -300,4 +300,4 @@ theorem LifecycleOwnerCanAlwaysReturnToIdleSatisfiable :
     | abandon _ ha => exact ha rfl
     | _ => exact (by decide : (2 : UInt256) ≠ 0) hp'
 
-end Contracts.EcosystemUpgradeExecutor
+end Contracts.EcosystemUpgradeExecutor.History

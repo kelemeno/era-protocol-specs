@@ -1,0 +1,6 @@
+[
+  {"old": "Contracts.L2AssetTracker.Properties.BackfillOnlyBaseFromZero", "new": "Contracts.L2AssetTracker.History.Properties.BackfillOnlyBaseFromZero", "kind": "history", "justification": "About backFillZKSyncOSBaseTokenV31MigrationData, which exists only at the pin c67894b9 (gone at b17415d20); statement unchanged, moved to History."},
+  {"old": "Contracts.L2AssetTracker.Properties.BackfillAtMostOnce", "new": "Contracts.L2AssetTracker.History.Properties.BackfillAtMostOnce", "kind": "history", "justification": "About the pin-only backfill (gone at b17415d20); statement unchanged, moved to History."},
+  {"old": "Contracts.L2AssetTracker.Properties.BackfillSatisfiable", "new": "Contracts.L2AssetTracker.History.Properties.BackfillSatisfiable", "kind": "history", "justification": "Witness for the two pin-only backfill statements; statement unchanged, moved to History."},
+  {"old": "Contracts.NativeTokenVault.Properties.PerChainIsolationFails", "new": "Contracts.NativeTokenVault.History.Properties.PerChainIsolationFails", "kind": "history", "justification": "Records that the pin c67894b9 had no per-chain enforcement (its NatSpec said so); b17415d20 adds the per-chain cap (InteropPool, BulkheadIsolation); statement unchanged, moved to History."}
+]

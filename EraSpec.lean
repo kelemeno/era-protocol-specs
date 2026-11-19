@@ -14,13 +14,14 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.PreparationGuards
 -- Asset bridge: the vault's registry and escrow ledger, and the router's handler
 -- table (registry-wide models; see the contract READMEs for how they relate)
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistryAndEscrow
+import EraSpec.Contracts.NativeTokenVaultBase.History.Proofs.PerChainIsolation
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ModelCorrespondence
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 
 -- Registry-driven upgrades: the proxy row state machine (a snapshot of a moving
 -- branch outside the pinned era-contracts tree; see PROVENANCE.md), at 612a71ccc and at
 -- e561b9cc2
-import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.Rows
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrent
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsAdminSlot
 
@@ -36,8 +37,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorEngineAtV35
 -- Registry-driven upgrades: who holds the CTM domain's authority across the bootstrap edge
 -- (e561b9cc2), and the staged coordinator with its timer (afa407085; deleted by e561b9cc2)
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Authority
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.LifecycleStrong
 
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
@@ -104,6 +105,7 @@ import EraSpec.Contracts.Merkle.Proofs.DomainSeparation
 import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProof
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProofKeccak
+import EraSpec.Contracts.MessageVerification.Proofs.Refinement
 
 -- DynamicIncrementalMerkle: the storage push tree (MessageRoot chain trees, priority tree), its
 -- memory copy, and the chain trees as the backing of the timeout path's last-batch check
@@ -237,7 +239,7 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
 
 -- Strengthened row-application liveness and parked-CTM exits (ProxyUpgradeRowLib, RegistryBootstrapMigration)
-import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
@@ -249,6 +251,7 @@ import EraSpec.Contracts.L1NativeTokenVault.Proofs.InteropPool
 -- per-chain cap, the escrow ledger identity, and the bulkhead model's calls as InteropPool calls (N-3)
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadIsolation
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadPoolSimulation
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.LedgerRefinement
 
 -- Range proofs of the priority queue (b17415d20): `Merkle.calculateRootPaths` and
 -- `PriorityTree.processBatch` (N-8)
@@ -290,6 +293,7 @@ import EraSpec.Contracts.ChainAdminOwnable.Proofs.AdminRoles
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.Layout
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.GenesisSeed
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.LogConfinement
+import EraSpec.Contracts.ChainBatchRootTree.Proofs.MessageRootLink
 
 -- Head-pinned send path: InteropCenter at main 3605e82 (= 70096e2ea) and draft/v0.35.0 b17415d20
 import EraSpec.Contracts.InteropCenter.Proofs.SendAtHead
@@ -310,6 +314,8 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
 -- Registry-driven upgrades at draft/v0.35.0 b17415d (d9f6789 kept for comparison): the
 -- domain-holder check around a proxy-upgrade engine leg (ProxyUpgradeExecutorBase)
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.DomainHoldersV35
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.History.Proofs.DomainHoldersD9
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.CoreLegRefinement
 
 -- Second proof system (draft/v0.35.0 at b17415d20): one diamond's requirement flag and ZiSK
 -- switch, and who may move them
@@ -354,15 +360,16 @@ import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
 -- balance cap's accounting hook, and the cap's own run model
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.L1PerChainCapAtV35
 
--- Settlement-layer roots (c67894b9): MessageRootBase's historical roots, L2InteropRootStorage's
--- imports, and the timeout and refund headlines against those roots
+-- Settlement-layer roots: MessageRootBase's historical roots and L2InteropRootStorage's imports
+-- (re-pinned to b17415d20), and the timeout and refund headlines against those roots
 import EraSpec.Contracts.MessageRoot.Proofs.Aggregation
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.Model
 import EraSpec.Protocol.InteropAtomicity.Proofs.SettlementRoots
 
--- L2AssetTracker accounting (pin c67894b9, transferred to b17415d20/70096e2ea), and the vault's
+-- L2AssetTracker accounting (b17415d20; the pin-only backfill under History), and the vault's
 -- deployed chain-balance hooks (L1 `bridgedOut`, L2 tracker)
 import EraSpec.Contracts.L2AssetTracker.Proofs.Accounting
+import EraSpec.Contracts.L2AssetTracker.History.Proofs.Backfill
 import EraSpec.Contracts.L2AssetTracker.Proofs.HookOrdering
 import EraSpec.Contracts.L2AssetTracker.Proofs.NativeEscrow
 import EraSpec.Contracts.L2AssetTracker.Proofs.LaterHeads
@@ -414,6 +421,7 @@ import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
 
 -- Atomic recovery on the L2 asset tracker at v35 (b17415d20)
 import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
+import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutralityRefinement
 
 -- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
 -- on the PriorityTree model copied from origin/cov/mailbox
@@ -426,6 +434,7 @@ import EraSpec.Contracts.L1ChainAssetHandler.Proofs.SettlementLayerValidation
 -- The second-proof-system requirement of one chain, its two diamonds, interop enabling and
 -- settlement-layer migration (draft/v0.35.0 at b17415d2; see the folder README)
 import EraSpec.Contracts.SecondProofSystem.Proofs.MigrationV35
+import EraSpec.Contracts.SecondProofSystem.Proofs.DiamondRefinement
 
 -- Atomic interop at draft/v0.35.0: the composed system (InteropAtomicity, SystemAtV35)
 import EraSpec.Protocol.InteropAtomicity.Proofs.SystemAtV35
@@ -452,9 +461,11 @@ import EraSpec.Contracts.ExecutorFacet.Proofs.Pipeline
 import EraSpec.Contracts.ExecutorFacet.Proofs.Checks
 
 -- Imported interop roots on an L2 and the verifier that reads them (L2InteropRootStorage,
--- L2MessageVerification; draft/v0.35.0 b17415d20, with the c67894b9 storage contract)
+-- L2MessageVerification; draft/v0.35.0 b17415d20), and the c67894b9 storage contract as History
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.Storage
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.RootImportLink
+import EraSpec.Contracts.L2InteropRootStorage.History.Proofs.AtC67894b9
+import EraSpec.Contracts.L2InteropRootStorage.Proofs.Refinement
 import EraSpec.Contracts.L2MessageVerification.Proofs.Verification
 
 -- L1Nullifier: the deposit ledger and calls nested in a claim (draft/v0.35.0, b17415d20)

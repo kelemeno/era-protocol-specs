@@ -1,5 +1,48 @@
 # SecondProofSystem
 
+## Headline guarantees
+
+About era-contracts `draft/v0.35.0` at `b17415d20`. A revert is the absence of a step; the
+installed facets are those at `b17415d20`.
+
+- `Contracts.SecondProofSystem.FlagAuthorityV35.Properties.FlagMonotone`: premise: no
+  break-glass cut (a CTM diamond cut whose init is arbitrary code) along the run. Then a
+  diamond that requires the second proof system keeps requiring it, whatever every other
+  caller does and whatever the verifier answers.
+- `Contracts.SecondProofSystem.FlagAuthorityV35.Properties.AdminCannotDropSecondProof`:
+  premises: no break-glass cut and no `setProofSystemStatus` by whoever owns the Bridgehub at
+  that moment. Then a flagged diamond with ZiSK on stays flagged with ZiSK on, whatever the
+  verifier answers.
+- `Contracts.SecondProofSystem.MigrationV35.Properties.EnabledChainStaysMultiProof`:
+  premises: chain migrations are disabled (`CHAIN_MIGRATIONS_ENABLED = false`, as at
+  `b17415d20`); the chain settles on L1; its L1 verifier answers `getProofMode` as
+  `MultiProofVerifier` does; `enableInterop` with the requirement succeeds; afterwards no
+  break-glass cut and no proof system turned off on the L1 diamond by L1's Bridgehub owner.
+  Then the chain stays interop-enabled, on L1, flagged, with mask `0` and in multi-proof mode.
+- `Contracts.SecondProofSystem.UpgradeGateV35.Properties.FlaggedChainsStayMultiProof`:
+  premises: every verifier that answers multi-proof under some mask answers it under mask `0`
+  (`MaskMonotone`; both deployed verifiers do); every flagged chain starts on a verifier that
+  passes the gate. Then along every run every flagged chain's verifier passes the gate. This
+  topic extends `../ChainTypeManager/`'s `UpgradeTiming` model (written at `e561b9cc2`).
+- `Contracts.SecondProofSystem.UpgradeGateV35.Properties.LockedChainCannotUpgrade`: premise:
+  the chain is locked (flagged, and the edge committed at its version lands on a release whose
+  verifier fails the gate, with nothing committed above). Then no upgrade step of that chain
+  succeeds, by any path, caller or time.
+
+- `Contracts.SecondProofSystem.DiamondRefinement.Properties.DiamondStepRefines`: every
+  successful call on either of MigrationV35's two diamonds is a successful FlagAuthorityV35 call
+  of the same entry point on the projected diamond (a break-glass cut maps to an
+  arbitrary-init cut chosen per starting diamond). So FlagAuthorityV35's per-step results apply
+  to both diamonds; its run-level results carry over along runs that keep the projected CTM
+  and Bridgehub owner fixed. No premise.
+
+Witnesses: `FlagMonotoneRunWitness`, `AdminSideRunWitness`, `MultiProofKeptWitness`,
+`UpgradeGateV35Witness`, `ReleasePolicyWitness`. Countermodels: `InitClearsFlag`,
+`BreakGlassDropsSecondProof`, `LyingVerifierFlagsWithZiskOff`, `AdminOnlyRuleLetsAdminDrop`,
+`MaskMonotoneIsLoadBearing`, `ReleasePolicyIsLoadBearing`.
+
+## Source and layout
+
 The second-proof-system requirement of ZKsync OS chains: a chain's admin can make its diamond
 permanently require the ZiSK proof next to the Airbender one, after which switching ZiSK off is
 reserved for the Bridgehub owner (`protocol-docs/interop-gating.md`, "Second proof system
@@ -15,10 +58,15 @@ facets, `DiamondInit`, the `ChainTypeManager` and chain-asset-handler migration 
 and `protocol-docs/chain-lifecycle.md`.
 
 Source: era-contracts branch `draft/v0.35.0` at **`b17415d20`**
-(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, 2026-11-16). Paths are relative to
-`l1-contracts/contracts/`. **The branch moves**: every `file:line` in the spec is at that commit.
-All three topics were first written against `d9f678900`; each Specs header records what changed.
-The commit is outside the interop pin `c67894b9`.
+(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). Paths are relative to `l1-contracts/contracts/`;
+every `file:line` in the specs is at that commit.
+
+The three topics are three models: one diamond (FlagAuthorityV35, the canonical diamond
+model), one chain with its L1 and gateway diamonds (MigrationV35) and the CTM-level gate over
+`../ChainTypeManager/`'s upgrade model (UpgradeGateV35). DiamondRefinement maps MigrationV35's
+diamonds and diamond calls onto FlagAuthorityV35 (`DiamondStepRefines`) and derives
+MigrationV35's one-diamond facts from FlagAuthorityV35's theorems. UpgradeGateV35 is not related
+to the other two by a theorem; see "Relation to FlagAuthorityV35 and UpgradeGateV35" below.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those exact
@@ -29,9 +77,11 @@ named propositions.
 | FlagAuthorityV35 | [Specs/FlagAuthorityV35.lean](Specs/FlagAuthorityV35.lean) | [Properties/FlagAuthorityV35.lean](Properties/FlagAuthorityV35.lean) | [Proofs/FlagAuthorityV35.lean](Proofs/FlagAuthorityV35.lean) |
 | UpgradeGateV35 | [Specs/UpgradeGateV35.lean](Specs/UpgradeGateV35.lean) | [Properties/UpgradeGateV35.lean](Properties/UpgradeGateV35.lean) | [Proofs/UpgradeGateV35.lean](Proofs/UpgradeGateV35.lean) |
 | MigrationV35 | [Specs/MigrationV35.lean](Specs/MigrationV35.lean) | [Properties/MigrationV35.lean](Properties/MigrationV35.lean) | [Proofs/MigrationV35.lean](Proofs/MigrationV35.lean) |
+| DiamondRefinement | [Specs/DiamondRefinement.lean](Specs/DiamondRefinement.lean) | [Properties/DiamondRefinement.lean](Properties/DiamondRefinement.lean) | [Proofs/DiamondRefinement.lean](Proofs/DiamondRefinement.lean) |
 
 Namespaces: `Contracts.SecondProofSystem.FlagAuthorityV35`,
-`Contracts.SecondProofSystem.UpgradeGateV35` and `Contracts.SecondProofSystem.MigrationV35`.
+`Contracts.SecondProofSystem.UpgradeGateV35`, `Contracts.SecondProofSystem.MigrationV35` and
+`Contracts.SecondProofSystem.DiamondRefinement`.
 Statements are `<namespace>.Properties.*`; each certificate has the same name without the
 `Properties` segment.
 
@@ -285,8 +335,17 @@ proves them for one diamond, over every `AdminFacet` entry point: the flag is on
 `AdminSide` runs (`InteropGatePersists`). That a flagged chain's verifier keeps answering
 multi-proof mode to `getProofMode(0)` across upgrades is also UpgradeGateV35's
 `FlaggedCutsKeepMultiProof` and `FlaggedChainsStayMultiProof`, over `ChainTypeManager`'s
-upgrade model. The three models are separate: no statement of one topic is derived from
-another's. What MigrationV35 adds is the chain's second diamond, the migration path,
+upgrade model.
+
+DiamondRefinement bridges MigrationV35 to FlagAuthorityV35: every successful MigrationV35 diamond
+call, on either diamond, is the FlagAuthorityV35 call of the same entry point on the projected
+diamond (`DiamondStepRefines`, no premise; the projection drops `isPermanentRollup` and adds the
+CTM and the Bridgehub owner the diamond reads), and a break-glass cut exactly when its image is.
+Through it `DiamondFlagMonotoneStep`, `DiamondMaskWrittenOnlyBySetStatus` and
+`DiamondZiskOffOnFlaggedIsOwners` are derived from FlagAuthorityV35's `FlagMonotoneStep`,
+`MaskWrittenOnlyBySetStatus` and `ZiskOffOnFlaggedIsOwners`. `dstep_frame` still proves the
+same facts directly for MigrationV35's run results. UpgradeGateV35 is not related to the other
+two by a theorem. What MigrationV35 adds is the chain's second diamond, the migration path,
 `L1MessageRoot.interopEnabled` and both layers' Bridgehub owners. Each namespace has its own
 `ziskBit` (a `UInt8` here and in FlagAuthorityV35, a `ℕ` in UpgradeGateV35).
 

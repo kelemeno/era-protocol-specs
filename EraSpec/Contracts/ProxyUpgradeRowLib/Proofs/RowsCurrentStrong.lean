@@ -2,7 +2,7 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Properties.RowsCurrentStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsOrder
 
 /-!
-# Proofs: when the `e561b9cc2` rows apply, and in which orders
+# Proofs: when the rows apply, and in which orders (`b17415d20`)
 
 A local swap is a point update of the row's proxy by a fixed implementation. So, on distinct
 proxies:

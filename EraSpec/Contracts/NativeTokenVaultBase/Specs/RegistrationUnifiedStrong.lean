@@ -55,10 +55,10 @@ told apart. -/
 inductive LifecycleOp where
   /-- A successful `prepare` of request `r` (the `bridgeBurn` branch). -/
   | prepared (r : Request)
-  /-- The token model's `bridgeBurn(owner, amount)` (`BridgedStandardERC20.sol:179-182`),
+  /-- The token model's `bridgeBurn(owner, amount)` (`BridgedStandardERC20.sol:164-167`),
   called by `caller`. -/
   | burn (caller owner : Address) (amount : UInt256)
-  /-- The token model's `bridgeMint(recipient, amount)` (`BridgedStandardERC20.sol:170-173`),
+  /-- The token model's `bridgeMint(recipient, amount)` (`BridgedStandardERC20.sol:158-161`),
   called by `caller`. -/
   | mint (caller recipient : Address) (amount : UInt256)
   /-- An ordinary transfer of `amount` from `owner` to `recipient`. -/

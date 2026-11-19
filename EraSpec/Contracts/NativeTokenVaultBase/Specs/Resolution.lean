@@ -4,30 +4,36 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.Initialization
 # Resolution: destination `bridgeMint` and source `bridgeRecoverFailedTransfer`
 
 Local specification of the two `NativeTokenVaultBase` entry points that resolve a
-prepared transfer, at source pin `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`
-(`l1-contracts/contracts/bridge/ntv/NativeTokenVaultBase.sol`, cited below as `NTV`).
+prepared transfer, at `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`l1-contracts/contracts/bridge/ntv/NativeTokenVaultBase.sol`, cited below as `NTV`).  First written
+at the pin `c67894b9`; the modelled branches are the same code at `b17415d20`.  What differs: the L2
+vault overrides `_disburseFailedTransfer` (`bridge/ntv/L2NativeTokenVault.sol:204-228`) to call the
+tracker's view `assertRecoveryIsAccountingNeutral` first and to refund the base asset through the
+base-token holder.  `bridgeRecoverFailedTransfer` here is the base `_disburseFailedTransfer`, which
+the L2 vault runs after that check for a non-base asset; the guarded L2 recovery is
+`L2AssetTracker` `headRecover` (`L2AssetTracker/Specs/LaterHeads.lean`).
 It is built on the representation model's `State` (`Specs/RepresentationPreparation.lean`)
 and the token ledger (`BridgedStandardERC20/Specs/Model.lean`); the first-bridge branch
 is built on the registration projection (`Specs/Initialization.lean`).
 
 ## What the source does
 
-* `bridgeMint(_chainId, _assetId, _data)` (`NTV:193-205`) carries the modifiers
-  `requireZeroValue(msg.value) onlyAssetRouter whenNotPaused` (`NTV:197`;
-  `bridge/interfaces/AssetHandlerModifiers.sol:11-16`, `NTV:107-110`) and calls
-  `_bridgeMintToken` (`NTV:240-267`). That reads `_isBridgedToken =
-  originChainId[_assetId] != block.chainid` (`:245`) and `token = tokenAddress[_assetId]`
-  (`:247`), decodes `(_, receiver, originToken, amount, erc20Data)` (`:251`), deploys the
-  token if it is bridged and `token == 0` (`:253-255`), calls the chain-balance hook
-  `_handleBridgeFromChain(_chainId, _assetId, amount)` (`:260`), and then, for a bridged
-  token, `IBridgedStandardToken(token).bridgeMint(receiver, amount)` (`:262-263`).
-* `bridgeRecoverFailedTransfer(_chainId, _assetId, _data)` (`NTV:213-233`) carries the
-  same three modifiers (`:217`), decodes `(originalCaller, _, originToken, amount,
-  erc20Data)` (`:219-220`), and calls `_disburseFailedTransfer` with
-  `_receiver: originalCaller` (`:222-230`). That calls the same hook first (`:296`) and
-  then, for a bridged asset, re-mints to the receiver (`:300-304`), deploying the token
-  first if `tokenAddress[_assetId] == 0` (`:301-303`).
-* `L2AssetRouter.recoverAtomicCall` (`bridge/asset-router/L2AssetRouter.sol:281-296`)
+* `bridgeMint(_chainId, _assetId, _data)` (`NTV:180-189`) carries the modifiers
+  `requireZeroValue(msg.value) onlyAssetRouter whenNotPaused` (`NTV:184`;
+  `bridge/interfaces/AssetHandlerModifiers.sol:11-16`, `NTV:104-107`) and calls
+  `_bridgeMintToken` (`NTV:220-247`). That reads `_isBridgedToken =
+  originChainId[_assetId] != block.chainid` (`:225`) and `token = tokenAddress[_assetId]`
+  (`:227`), decodes `(_, receiver, originToken, amount, erc20Data)` (`:231`), deploys the
+  token if it is bridged and `token == 0` (`:233-235`), calls the chain-balance hook
+  `_handleBridgeFromChain(_chainId, _assetId, amount)` (`:240`), and then, for a bridged
+  token, `IBridgedStandardToken(token).bridgeMint(receiver, amount)` (`:242-243`).
+* `bridgeRecoverFailedTransfer(_chainId, _assetId, _data)` (`NTV:195-214`) carries the
+  same three modifiers (`:199`), decodes `(originalCaller, _, originToken, amount,
+  erc20Data)` (`:201-202`), and calls `_disburseFailedTransfer` with
+  `_receiver: originalCaller` (`:204-212`). That calls the same hook first (`:276`) and
+  then, for a bridged asset, re-mints to the receiver (`:280-284`), deploying the token
+  first if `tokenAddress[_assetId] == 0` (`:281-283`).
+* `L2AssetRouter.recoverAtomicCall` (`bridge/asset-router/L2AssetRouter.sol:269-303`)
   forwards the bundle's mint data verbatim and passes the burn-time destination chain as
   `_chainId`. `recoveryCall` below is that call.
 
@@ -36,27 +42,27 @@ is built on the registration projection (`Specs/Initialization.lean`).
 * **Registered bridged representation** (`RegisteredBridged`): the call names the
   tracked asset, which is not native to this chain, whose `tokenAddress` entry is set and
   is the tracked token, with a nonzero vault (the token's nonlegacy `onlyNTV` branch,
-  `bridge/BridgedStandardERC20.sol:52-64`). On this branch both entry points are: entry
+  `bridge/BridgedStandardERC20.sol:49-61`). On this branch both entry points are: entry
   checks, hook, mint (`hookThenMint`). `RegisteredBridged` SELECTS the branch the model
   represents; it is not a production guard, and a `none` for a call outside it is not a
   claim that the source reverts (native assets release escrow via `_withdrawFunds`,
-  `NTV:264-266, 297-298`, which is not modelled here).
+  `NTV:244-246, 297-298`, which is not modelled here).
 * **First bridge** (`bridgeMintFirst`): `bridgeMint` when `tokenAddress[_assetId]` is
-  unset. `_ensureAndSaveTokenDeployed` (`NTV:538-552`) checks
-  `assetIdCheck(tokenOriginChainId, _assetId, originToken)` (`:580`), deploys and
-  initializes the representation (`:582`, `:620-633`), checks the address (`:583`) and
-  installs the registry (`:585`, `:588-598`) — exactly the registration projection
+  unset. `_ensureAndSaveTokenDeployed` (`NTV:515-529`) checks
+  `assetIdCheck(tokenOriginChainId, _assetId, originToken)` (`:557`), deploys and
+  initializes the representation (`:559`, `:597-610`), checks the address (`:560`) and
+  installs the registry (`:562`, `:565-575`) — exactly the registration projection
   `registerFreshBranch`, applied with the DATA's origin token. The origin chain and
   expected address that `_calculateExpectedTokenAddress` derives from `erc20Data`
-  (`NTV:555-571`) are the registration state's `config.originChainId` and
+  (`NTV:532-548`) are the registration state's `config.originChainId` and
   `config.tokenAddress`; that decoding is not modelled. Recovery's own deploy branch
-  (`NTV:301-303`) is not modelled: after a preparation of the same asset the token is
+  (`NTV:281-283`) is not modelled: after a preparation of the same asset the token is
   registered, so it is not taken (`Properties.PrepareThenRecoverEnabled`).
 
 ## Dependencies and boundaries
 
-* The chain-balance hook `_handleBridgeFromChain` (`NTV:532`; L2 implementation
-  `bridge/ntv/L2NativeTokenVault.sol:304-315`, L1 `bridge/ntv/L1NativeTokenVault.sol:270-277`)
+* The chain-balance hook `_handleBridgeFromChain` (`NTV:509`; L2 implementation
+  `bridge/ntv/L2NativeTokenVault.sol:285-293`, L1 `bridge/ntv/L1NativeTokenVault.sol:439-458`)
   is a parameter, `ResolutionHooks.fromChain`, as the preparation hook is. It sees the
   PRE-mint token snapshot, which is how "before the mint" is represented, and it may
   fail. Its interface confines writes to `Accounting` (`DEP-FRAME`).
@@ -64,16 +70,18 @@ is built on the registration projection (`Specs/Initialization.lean`).
   premise, not a fact about the deployed trackers: the L2 asset tracker counts
   `totalWithdrawalsToL1` on the way out and `totalSuccessfulDepositsFromL1` on the way
   in when the other chain is L1 and the settlement layer is L1
-  (`bridge/asset-tracker/L2AssetTracker.sol:244-249, 299-304`): a round trip moves both
+  (`bridge/asset-tracker/L2AssetTracker.sol:160-165, 223-228`): a round trip moves both
   counters by the same amount, so their difference is kept but neither is restored. Its
-  first-touch legacy registration (`:292`, `:342-353`) also persists. Whether an atomic
+  first-touch legacy registration (`:216`, `:264-274`) also persists. Whether an atomic
   recovery can name L1 as the burn's destination is not examined here.
-  `Properties.RoundTripNeedsCancellingHooks` is that counter pattern as a countermodel. For a
-  bridged (non-native) asset on L1 both hooks are no-ops (`L1NativeTokenVault.sol:260-277` only
-  touch native assets), so they cancel.
+  `Properties.RoundTripNeedsCancellingHooks` is that counter pattern as a countermodel. On L1
+  the hooks (`L1NativeTokenVault.sol:424-459`) also keep per-chain deposit and withdrawal totals
+  for a tracked chain balance, with a cap on withdrawals, so they do not cancel either; their
+  `bridgedOut` part, which `NativeTokenVaultBase` `TrackerHooks` models, is a no-op for a bridged
+  (non-native) asset.
 * `_data` is the typed `MintData` tuple; `DataEncoding.decodeBridgeMintData`
-  (`common/libraries/DataEncoding.sol:102-118`) and its decoding failures are not
-  modelled (`SOL-ABI`). Events (`NTV:204, 232`) are not modelled.
+  (`common/libraries/DataEncoding.sol:101-117`) and its decoding failures are not
+  modelled (`SOL-ABI`). Events (`NTV:188, 213`) are not modelled.
 * Each operation returns `Option`; `commitResolution` keeps only a successful result,
   which models atomic rollback (`MODEL-COMMIT`), not EVM semantics (`VM-REVERT`).
 * The vault calls the token with its own address `config.vault` as `msg.sender`
@@ -85,7 +93,7 @@ is built on the registration projection (`Specs/Initialization.lean`).
 namespace Contracts.NativeTokenVaultBase
 
 /-- The inputs of `bridgeMint(_chainId, _assetId, _data)` and
-`bridgeRecoverFailedTransfer(_chainId, _assetId, _data)` (`NTV:193-197, 213-217`), with
+`bridgeRecoverFailedTransfer(_chainId, _assetId, _data)` (`NTV:180-184, 213-217`), with
 `_data` already decoded into the typed mint-data tuple. -/
 structure ResolutionCall where
   /-- `msg.sender`; `onlyAssetRouter` requires the router. -/
@@ -109,13 +117,13 @@ structure ResolutionHooks (Accounting : Type) where
 variable {Accounting : Type}
 
 /-- The three modifiers both entry points carry: `requireZeroValue(msg.value)`,
-`onlyAssetRouter`, `whenNotPaused` (`NTV:197, 217`). -/
+`onlyAssetRouter`, `whenNotPaused` (`NTV:184, 217`). -/
 def ResolveEntryAllowed (s : State Accounting) (c : ResolutionCall) : Prop :=
   c.msgValue = 0 ∧ c.caller = s.config.router ∧ s.paused = false
 
 /-- Branch selection, not a guard: the call names the tracked asset; it is not native here
-(`originChainId[_assetId] != block.chainid`, `NTV:245`, `:221`); its `tokenAddress` entry
-(`NTV:247`, `:300`) is the tracked token and is set; the vault address is nonzero. -/
+(`originChainId[_assetId] != block.chainid`, `NTV:225`, `:203`); its `tokenAddress` entry
+(`NTV:227`, `:280`) is the tracked token and is set; the vault address is nonzero. -/
 def RegisteredBridged (s : State Accounting) (c : ResolutionCall) : Prop :=
   s.config.vault ≠ 0 ∧ c.assetId = s.config.assetId ∧
   s.config.originChainId ≠ s.config.chainId ∧
@@ -127,8 +135,8 @@ instance (s : State Accounting) (c : ResolutionCall) : Decidable (ResolveEntryAl
 instance (s : State Accounting) (c : ResolutionCall) : Decidable (RegisteredBridged s c) :=
   inferInstanceAs (Decidable (_ ∧ _ ∧ _ ∧ _ ∧ _))
 
-/-- The common tail of `_bridgeMintToken` (`NTV:260-263`) and `_disburseFailedTransfer`
-(`NTV:296, 300-304`) on the registered bridged branch: the chain-balance hook on the
+/-- The common tail of `_bridgeMintToken` (`NTV:240-243`) and `_disburseFailedTransfer`
+(`NTV:276, 300-304`) on the registered bridged branch: the chain-balance hook on the
 pre-mint snapshot, then `IBridgedStandardToken(token).bridgeMint(recipient, amount)` with the
 vault as caller. A failure of either step fails the whole call. -/
 def hookThenMint (rh : ResolutionHooks Accounting) (s : State Accounting)
@@ -173,7 +181,7 @@ def recoverTransact (rh : ResolutionHooks Accounting) (s : State Accounting)
   commitResolution s (bridgeRecoverFailedTransfer rh s c)
 
 /-- The call `L2AssetRouter.recoverAtomicCall` makes for a bundle call carrying preparation
-request `r`'s asset and the returned mint data `data` (`L2AssetRouter.sol:281-296`): the
+request `r`'s asset and the returned mint data `data` (`L2AssetRouter.sol:269-303`): the
 router is the caller, it sends no value (`recoverAtomicCall` is not payable), the chain is
 the burn's destination, and the data is forwarded verbatim. -/
 def recoveryCall (router : Address) (r : Request) (data : MintData) : ResolutionCall :=
@@ -205,9 +213,9 @@ def FirstEntryAllowed (s : RegistrationState Accounting) (c : ResolutionCall) : 
   c.msgValue = 0 ∧ c.caller = s.config.router ∧ s.paused = false
 
 /-- Branch selection: the call names the asset being deployed, and the vault address is
-nonzero. That the asset is not native here (`NTV:245`; an unregistered asset's stored origin
+nonzero. That the asset is not native here (`NTV:225`; an unregistered asset's stored origin
 chain is `0`) is part of the selection; the deploy itself requires the resolved origin chain
-to differ from this chain (`NTV:626`), which `registerRepresentation` checks. -/
+to differ from this chain (`NTV:603`), which `registerRepresentation` checks. -/
 def FirstBridge (s : RegistrationState Accounting) (c : ResolutionCall) : Prop :=
   s.config.vault ≠ 0 ∧ c.assetId = s.config.assetId
 
@@ -218,7 +226,7 @@ instance (s : RegistrationState Accounting) (c : ResolutionCall) :
 instance (s : RegistrationState Accounting) (c : ResolutionCall) : Decidable (FirstBridge s c) :=
   inferInstanceAs (Decidable (_ ∧ _))
 
-/-- `bridgeMint` on the first-bridge branch (`NTV:253-255`, then `:260-263`): deploy, initialize
+/-- `bridgeMint` on the first-bridge branch (`NTV:233-235`, then `:240-243`): deploy, initialize
 and register the representation for the data's origin token (`registerFreshBranch`, which
 starts at the unset `tokenAddress` slot and runs the asset-id check), then the hook, then the
 mint to the data's `remoteReceiver`. -/

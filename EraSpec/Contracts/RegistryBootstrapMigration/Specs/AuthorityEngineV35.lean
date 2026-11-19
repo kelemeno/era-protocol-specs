@@ -7,8 +7,8 @@ Source: era-contracts `draft/v0.35.0` at commit `b17415d20` (`b17` below). Paths
 to `l1-contracts/contracts/`; every `file:line` in this file is at `b17`. OpenZeppelin is the
 pair of submodules `Specs/Forward.lean` cites (`dc44c9f`, `2d081f2`); `b17` pins the same two.
 
-`Specs/Authority.lean` and `Specs/Forward.lean` were written at `e561b9cc2`; this file reuses
-their `MigrateStep` and `OpStep`. At `b17`, `RegistryBootstrapMigration.migrate()` is
+`Specs/Authority.lean` and `Specs/Forward.lean` (first written at `e561b9cc2`, re-pinned to
+`b17`) supply the `MigrateStep` and `OpStep` this file reuses. At `b17`, `RegistryBootstrapMigration.migrate()` is
 `upgrades/registry/bootstrap/RegistryBootstrapMigration.sol:265-307`. It makes the calls
 `Specs/Authority.lean` quotes, in the same order, each three lines below the number quoted
 there; `validate()` (:152-189) makes the same checks, and the `RegistryAuthorityLib` functions

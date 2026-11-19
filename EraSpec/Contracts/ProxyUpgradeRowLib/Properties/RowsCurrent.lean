@@ -1,18 +1,18 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrent
 
 /-!
-# Properties: the proxy rows at `e561b9cc2`
+# Properties: the proxy rows at `b17415d20`
 
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrent`. Proofs are in
 `EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrent`. The same names as in
-`Properties/Rows.lean` (the `612a71ccc` snapshot) are used where a result is re-established;
+`History/Properties/Rows.lean` (the record of the `612a71ccc` snapshot) are used where a result is re-established;
 the folder README lists which ones changed status.
 
 ## What the in-call verification pass changed
 
 At `612a71ccc` the post-state check (`requireRowsApplied`) ran in a later transaction and
-held only for rows naming distinct proxies under an owned admin. At `e561b9cc2` it is the
-last pass of `applyRows` itself, so a successful `applyRows` establishes it with no premise
+held only for rows naming distinct proxies under an owned admin. Since `e561b9cc2` it is the
+last pass of `applyRows` itself (at `b17415d20` the call `requireRowsApplied`, `:127`), so a successful `applyRows` establishes it with no premise
 (`ApplyRowsPostcondition`). Consequences:
 
 * idempotence needs no distinct-proxies premise any more (`ApplyRowsIdempotent`);
@@ -35,7 +35,7 @@ at most its own proxy. Without it the final state can also depend on the order o
 
 ## What the self-edge check adds
 
-With `expectedOldImpl ≠ implNew` (`validateRows`, `:78-80`), a row's source state does not
+With `expectedOldImpl ≠ implNew` (`validateRows`, `:81-83`), a row's source state does not
 already pass the verification, so a successful application from the source really moves
 the proxy (`ValidSourceIsNotApplied`). A self-edge row passed the `612a71ccc` checks and
 "applies" without moving anything (`SelfEdgeAppliesWithoutMoving`).
@@ -83,10 +83,13 @@ state the first one left, succeeds and changes nothing. No distinct-proxies prem
 def Properties.ApplyRowsIdempotent : Prop :=
   ∀ (C : Config) (I J : Impl) (rows : List Row), ApplyRows C I rows J → ApplyRows C J rows J
 
-/-- **A LATER READER SEES THE ROWS APPLIED IF NOTHING MOVED THEM.** The library no longer
-has a separate `requireRowsApplied`. A reader in a later transaction sees every row applied
-provided the rows' proxies have not moved since `applyRows` returned. The frame hypothesis
-is not established by the library: the `ProxyAdmin`'s owner can move a proxy in between. -/
+/-- **A LATER READER SEES THE ROWS APPLIED IF NOTHING MOVED THEM.** The separate
+verification pass is `requireRowsApplied` (`ProxyUpgradeRowLib.sol:133-141`): `applyRows`
+ends with it (`:127`), and the executor runs it again after the engine returns, in the same
+transaction (`executors/ProxyUpgradeExecutorBase.sol:103`). This property covers a reader in
+a later transaction: it sees every row applied provided the rows' proxies have not moved
+since `applyRows` returned. That frame hypothesis is not established by the library: the
+`ProxyAdmin`'s owner can move a proxy in between. -/
 def Properties.AppliedGatePasses : Prop :=
   ∀ (C : Config) (I J K : Impl) (rows : List Row), ApplyRows C I rows J →
     (∀ r ∈ rows, K r.proxy = J r.proxy) → RowsApplied K rows
@@ -141,15 +144,15 @@ def Properties.OrderIndependentOnRowProxies : Prop :=
 
 /-! ## The self-edge check -/
 
-/-- **A VALID ROW'S SOURCE STATE IS NOT ALREADY APPLIED.** Under `validateRows` at
-`e561b9cc2`, a state with a row's proxy at its `expectedOldImpl` fails the verification,
+/-- **A VALID ROW'S SOURCE STATE IS NOT ALREADY APPLIED.** Under `validateRows` (with the
+self-edge check, present since `e561b9cc2`), a state with a row's proxy at its `expectedOldImpl` fails the verification,
 and any successful `applyRows` from it moves that proxy. -/
 def Properties.ValidSourceIsNotApplied : Prop :=
   ∀ (C : Config) (I J : Impl) (rows : List Row) (r : Row), ValidRows rows → r ∈ rows →
     I r.proxy = r.expectedOldImpl → ¬ RowsApplied I rows ∧ (ApplyRows C I rows J → J r.proxy ≠ I r.proxy)
 
 /-- **A SELF-EDGE PASSED THE OLD CHECKS AND APPLIES WITHOUT MOVING.** The row `5: 10 → 10`
-passes `validateRows` as it was at `612a71ccc` and fails it at `e561b9cc2`. From the state
+passes `validateRows` as it was at `612a71ccc` and fails it at `b17415d20`. From the state
 with proxy `5` at its source `10`, the verification already holds, and `applyRows` succeeds
 and leaves the state unchanged. -/
 def Properties.SelfEdgeAppliesWithoutMoving : Prop :=

@@ -1,31 +1,31 @@
 # EcosystemUpgradeExecutor
 
-Source: `l1-contracts/contracts/upgrades/registry/executors/EcosystemUpgradeExecutor.sol`
+## Headline guarantees
+
+None about `b17415d20`. The staged coordinator, its `GovernanceUpgradeTimer` and
+`UpgradeStageValidator` do not exist at era-contracts `draft/v0.35.0` `b17415d20`: `f64622022d`
+(2026-10-14) deleted the stages, the pending-operation state and the timer, and `469310c94e`
+(2026-10-17) deleted the coordinator. Everything in this folder is under `History/`, the record
+of commit **`afa407085`** (`afa4070854051db19da27c85ec23dca712a6554b`, 2026-10-14, branch
+`feat/upgrade-simplification`), the last commit with the staged coordinator and its timer. The
+results matter only if a coordinator or a timer like this one returns.
+
+## Layout
+
+Source at `afa407085`: `l1-contracts/contracts/upgrades/registry/executors/EcosystemUpgradeExecutor.sol`
 (the staged coordinator), `upgrades/GovernanceUpgradeTimer.sol` (the timer its operation
 names), `executors/DomainUpgradeExecutorBase.sol` and `executors/CTMUpgradeExecutor.sol` (the
-CTM domain's reservation), and `objects/EcosystemUpgradeOperation.sol`. The code lives on branch
-`feat/upgrade-simplification` of the zksync-era `contracts` repository.
-
-**This code no longer exists at `e561b9cc2`**, the commit `../ChainTypeManager/` models:
-
-- `f64622022d` (2026-10-14) deleted the three stages, the pending-operation state,
-  `GovernanceUpgradeTimer` and `UpgradeStageValidator`;
-- `469310c94e` (2026-10-17) deleted the coordinator.
-
-This model is pinned at **`afa407085`** (`afa4070854051db19da27c85ec23dca712a6554b`,
-2026-10-14). It is the parent of `f64622022d`, the last commit with the staged coordinator and
-its timer, and an ancestor of `e561b9cc2`. Every `file:line` in the spec is at `afa407085`. The
-results describe deleted code. They matter only if a coordinator or a timer like this one
-returns.
+CTM domain's reservation), and `objects/EcosystemUpgradeOperation.sol`. Every `file:line` in
+the spec is at `afa407085`.
 
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
-| Lifecycle | [Specs/Lifecycle.lean](Specs/Lifecycle.lean) | [Properties/Lifecycle.lean](Properties/Lifecycle.lean) | [Proofs/Lifecycle.lean](Proofs/Lifecycle.lean) |
-| LifecycleStrong | [Specs/Lifecycle.lean](Specs/Lifecycle.lean) | [Properties/LifecycleStrong.lean](Properties/LifecycleStrong.lean) | [Proofs/LifecycleStrong.lean](Proofs/LifecycleStrong.lean) |
+| Lifecycle | [History/Specs/Lifecycle.lean](History/Specs/Lifecycle.lean) | [History/Properties/Lifecycle.lean](History/Properties/Lifecycle.lean) | [History/Proofs/Lifecycle.lean](History/Proofs/Lifecycle.lean) |
+| LifecycleStrong | [History/Specs/Lifecycle.lean](History/Specs/Lifecycle.lean) | [History/Properties/LifecycleStrong.lean](History/Properties/LifecycleStrong.lean) | [History/Proofs/LifecycleStrong.lean](History/Proofs/LifecycleStrong.lean) |
 
-Namespace: `Contracts.EcosystemUpgradeExecutor`. Statements are
-`Contracts.EcosystemUpgradeExecutor.Properties.*`; each certificate has the same name without
-the `Properties` segment.
+Namespace: `Contracts.EcosystemUpgradeExecutor.History`. Statements are
+`Contracts.EcosystemUpgradeExecutor.History.Properties.*`; each certificate has the same name
+without the `Properties` segment.
 
 ## What to check
 

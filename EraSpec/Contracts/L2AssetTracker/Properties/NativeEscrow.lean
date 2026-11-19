@@ -5,7 +5,7 @@ import EraSpec.Contracts.L2AssetTracker.Specs.NativeEscrow
 
 Statements about `EraSpec.Contracts.L2AssetTracker.Specs.NativeEscrow`.  Proofs are in
 `EraSpec.Contracts.L2AssetTracker.Proofs.NativeEscrow`.  `TRK` is
-`bridge/asset-tracker/L2AssetTracker.sol` at pin `c67894b9`.
+`bridge/asset-tracker/L2AssetTracker.sol` at `b17415d20`.
 
 For a registered asset `a` native here, `Properties.NativeSentinel` says what the chain balance is
 in the tracker alone: `chainBalance = MAX - (E + Σout - Σin)`, with `E = MAX - snapshot`.  Run

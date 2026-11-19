@@ -194,6 +194,13 @@ Every topic has `Specs/<Topic>.lean`, `Properties/<Topic>.lean` and `Proofs/<Top
 (`ExecutorRowsUnvalidated` reuses `ExecutorForward`'s Specs). Each Specs header quotes the code it
 transcribes, with its lines.
 
+Related folders: `../ProxyUpgradeRowLib/` models the row library `ExecutorForward` uses
+(`RowsCurrent`, and `RowsUnvalidated` for rows no `validateRows` has checked, used by
+`ExecutorRowsUnvalidated`; its `History/` keeps an older snapshot). `../RegistryBootstrapMigration/`
+models who holds the CTM's authority across the bootstrap and what a `forward` does to it.
+`../EcosystemUpgradeExecutor/History/` is the record of the staged coordinator at the earlier
+commit `afa407085`, which `b17415d20` no longer contains.
+
 ## Model boundaries
 
 - A revert is the absence of a step. Checks that only reject and read nothing the model tracks are

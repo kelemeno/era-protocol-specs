@@ -4,6 +4,8 @@ import EraSpec.Core.Word
 /-!
 # Model: `ProxyUpgradeRowLib` — the registry-driven upgrade's proxy rows
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 The registry-driven upgrade system carries implementation swaps as *rows*, and
 `ProxyUpgradeRowLib` is the one place their semantics live — shared by the core
 registry, the CTM transition and the bootstrap migration, and by everything that
@@ -16,8 +18,8 @@ applies them.  The library's own summary:
     ///         upgrade has already moved on.
 
 **This file is definitions only.**  The results are in
-`EraSpec.Contracts.ProxyUpgradeRowLib.Properties.Rows` and proved in
-`EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows`.
+`EraSpec.Contracts.ProxyUpgradeRowLib.History.Properties.Rows` and proved in
+`EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.Rows`.
 
 ## Why this is worth modelling
 
@@ -25,7 +27,7 @@ Three claims are made for these rows and none of them is obvious from the loop:
 idempotence, replay safety, and that a post-state check (`requireRowsApplied`)
 follows from having applied them.  The third turns out to depend on the duplicate
 check in `validateRows`, which is the kind of dependency that is easy to lose in a
-refactor — see `Contracts.ProxyUpgrade.Properties.DuplicateRowsBreakPostcondition`.
+refactor — see `Contracts.ProxyUpgrade.History.Properties.DuplicateRowsBreakPostcondition`.
 
 ## The four cases of one row
 
@@ -63,7 +65,7 @@ proxy.  A row that gets this wrong reverts on the read, so the assumption costs 
 safety here — it means these results say nothing about *that* misconfiguration.
 -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 open Clear
 
@@ -190,4 +192,4 @@ def fgnConfig : Config where
 demanded by `requireRowsApplied`. -/
 def fgnRow : Row := ⟨5, 10, 11, false, 9⟩
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History

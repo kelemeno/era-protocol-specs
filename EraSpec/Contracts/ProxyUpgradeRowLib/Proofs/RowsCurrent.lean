@@ -1,7 +1,7 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Properties.RowsCurrent
 
 /-!
-# Proofs: the proxy rows at `e561b9cc2`
+# Proofs: the proxy rows at `b17415d20`
 
 The verification pass makes the post-state a field of `ApplyRows`, so the postcondition,
 idempotence and the two-targets revert are immediate. The frame results rest on one loop

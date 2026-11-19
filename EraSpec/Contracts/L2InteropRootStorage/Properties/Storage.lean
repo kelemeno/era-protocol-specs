@@ -6,7 +6,7 @@ import EraSpec.Contracts.L2InteropRootStorage.Specs.Storage
 Statements about `EraSpec.Contracts.L2InteropRootStorage.Specs.Storage`; proofs are in
 `EraSpec.Contracts.L2InteropRootStorage.Proofs.Storage`.  Source: era-contracts `draft/v0.35.0`
 head `b17415d20`, `l1-contracts/contracts/interop/L2InteropRootStorage.sol` (identical at
-`d9f6789`; see the Specs header for `main` and `c67894b9`).  No result takes a hash premise:
+`d9f6789`; see the Specs header for `main`).  No result takes a hash premise:
 the contract hashes nothing.
 
 ## What holds
@@ -25,10 +25,6 @@ the contract hashes nothing.
   in every later state, every timestamp stored earlier (`StoredTimestampStaysBelowLatest`).
 * **A batch is its singles in order, all or nothing** (`BatchUnfoldsToSingles`,
   `BatchRejectsDuplicateKey`).
-* **At `c67894b9`**, where the contract has no `latestInteropRootTimestamp`, its calls and runs
-  are this model's with the tracked timestamps dropped (`C67894b9CallIsTheProjection`,
-  `C67894b9RunsAreProjectedRuns`), so `NoOverwriteAtC67894b9` and
-  `ZeroTimestampIffUnsetAtC67894b9` hold there.
 
 ## Why each check is there (countermodels; the mutants are in the Specs file)
 
@@ -54,8 +50,10 @@ the contract hashes nothing.
   premises of every property above that takes a run from fresh storage or a logged run.
 * `SingleImportEffectWitness` (`AddInteropRootEffect`), `StoredRootSurvivesRunWitness`
   (`NoOverwrite`, `StoredTimestampStaysBelowLatest`), `DuplicateKeyBatchWitness`
-  (`BatchRejectsDuplicateKey`), `LegacyRootStateWitness` (`LegacyRootBreaksZeroTimestampClaim`),
-  `C67894b9RunWitness` (the `c67894b9` results).
+  (`BatchRejectsDuplicateKey`), `LegacyRootStateWitness` (`LegacyRootBreaksZeroTimestampClaim`).
+
+The `c67894b9` version of the contract and its results are the pin record
+`../History/Properties/AtC67894b9.lean`.
 -/
 
 namespace Contracts.InteropRootStorage
@@ -212,35 +210,6 @@ def Properties.BatchRejectsDuplicateKey : Prop :=
   ∀ (S : State) (caller : Address) (rs : List InteropRoot),
     ¬ (rs.map InteropRoot.key).Nodup → addInteropRootsInBatch S caller rs = none
 
-/-! ## The contract at `c67894b9` -/
-
-/-- **THE `c67894b9` CONTRACT IS THIS ONE WITHOUT THE TRACKED TIMESTAMPS, PER CALL.**  For every
-state, caller and call, the `c67894b9` writer on the state's `storedInteropRoots` succeeds exactly
-when this model's call does, and leaves the `storedInteropRoots` this model's call leaves. -/
-def Properties.C67894b9CallIsTheProjection : Prop :=
-  ∀ (S : State) (caller : Address) (c : Call),
-    execAtC67 S.storedInteropRoots caller c = (exec S caller c).map State.storedInteropRoots
-
-/-- **… AND PER RUN.**  The `c67894b9` contract reaches `R'` from `R` exactly when, for every
-choice `L` of tracked timestamps, this model reaches from `⟨R, L⟩` some state whose
-`storedInteropRoots` is `R'`. -/
-def Properties.C67894b9RunsAreProjectedRuns : Prop :=
-  ∀ (R R' : RootsAtC67),
-    ReachAtC67 R R' ↔ ∀ L : UInt256 → UInt256, ∃ L', Reach ⟨R, L⟩ ⟨R', L'⟩
-
-/-- **AT `c67894b9` A STORED ROOT IS NEVER OVERWRITTEN EITHER**: the pin's `InteropRootAlreadyExists`
-check (`L2InteropRootStorage.sol:97-100` there), along every run of that contract. -/
-def Properties.NoOverwriteAtC67894b9 : Prop :=
-  ∀ (R R' : RootsAtC67) (c b : UInt256),
-    ReachAtC67 R R' → (R c b).root ≠ 0 → R' c b = R c b
-
-/-- **AT `c67894b9` A ZERO TIMESTAMP MEANS "NOT IMPORTED" TOO**, at every key, along every run of
-that contract from fresh storage.  The pin's timeout check reads a zero
-`interopRoots(…).timestamp` as "not imported" (`AtomicInteropProof.sol:171-174` there). -/
-def Properties.ZeroTimestampIffUnsetAtC67894b9 : Prop :=
-  ∀ R : RootsAtC67, ReachAtC67 empty.storedInteropRoots R →
-    ∀ c b, (R c b).root = 0 ↔ (R c b).timestamp = 0
-
 /-! ## Countermodels: each check is load-bearing -/
 
 /-- **WITHOUT `onlyCallFromBootloader`, ANYONE SQUATS A KEY.**  There are a non-bootloader
@@ -357,14 +326,5 @@ def Properties.LegacyRootStateWitness : Prop :=
     (S.storedInteropRoots 1 100).root ≠ 0 ∧ (S.storedInteropRoots 1 100).timestamp = 0 ∧
     (∀ c b, (c, b) ≠ (1, 100) → S.storedInteropRoots c b = ⟨0, 0⟩) ∧
     Reach S S' ∧ (S'.storedInteropRoots 1 101).root ≠ 0 ∧ S'.storedInteropRoots 1 100 = ⟨0xaa, 0⟩
-
-/-- **A RUN OF THE `c67894b9` CONTRACT.**  From fresh storage the bootloader imports `(9, 7)`;
-from there it imports `(9, 8)`, and `(9, 7)` keeps its pair: the premises of
-`NoOverwriteAtC67894b9` and `ZeroTimestampIffUnsetAtC67894b9`, on a run that changes the
-storage. -/
-def Properties.C67894b9RunWitness : Prop :=
-  ∃ (R₁ R₂ : RootsAtC67),
-    ReachAtC67 empty.storedInteropRoots R₁ ∧ ReachAtC67 R₁ R₂ ∧
-    R₁ 9 7 = ⟨0xdd, 5⟩ ∧ R₂ 9 7 = ⟨0xdd, 5⟩ ∧ (R₁ 9 8).root = 0 ∧ R₂ 9 8 = ⟨0xee, 6⟩
 
 end Contracts.InteropRootStorage

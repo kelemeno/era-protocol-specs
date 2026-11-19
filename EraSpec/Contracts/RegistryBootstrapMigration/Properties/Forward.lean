@@ -46,8 +46,8 @@ in `EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Forward`.
 * **Renounced authority is stranded** (`RenouncedAuthorityIsStranded`). Once the
   `ProxyAdmin` has no owner, no call moves it again. Once the CTM has neither an owner nor a
   nominee, it gets them back only through a code swap by the `ProxyAdmin`'s owner.
-  `RenounceStrandsWitness` shows both. `UpgradeExecutorBase.sol:14-17` says `forward` keeps
-  the authority the executor holds reachable, and :48-53 disables `renounceOwnership` on the
+  `RenounceStrandsWitness` shows both. `UpgradeExecutorBase.sol:15-20` says `forward` keeps
+  the authority the executor holds reachable, and :57-62 disables `renounceOwnership` on the
   executor itself so that it cannot strand that authority. The authorities it holds keep
   their own `renounceOwnership`, so one forwarded call strands them.
 
@@ -73,7 +73,7 @@ in `EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Forward`.
   * In the non-genuine parked state, the executor's `acceptCTMOwnership()` does nothing. If
     its `forward` runs `UpgradeExecutorBase`'s code, it can still recover the CTM by
     forwarding the CTM's `acceptOwnership()`, the escape hatch of
-    `UpgradeExecutorBase.sol:14-17`.
+    `UpgradeExecutorBase.sol:15-20`.
   * A forwarded `migrate()` moves a `ProxyAdmin` the migration holds.
 -/
 
