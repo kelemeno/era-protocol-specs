@@ -359,7 +359,7 @@ inductive Step (P : Params) (r : TsRule) : State → State → Prop
   /-- `addChainBatchRootV32(c, b, root)` (:173-180): record, then push. -/
   | addChainBatchRootV32 {st : State} (c : ChainId) (b : ℕ) (root : Word) :
       RecordGuard P st c b root → Step P r st ((st.record c b root).push P c b root)
-  /-- `setMigratingChainBatchNumber(c, b)` (:153-157); also `saveV31UpgradeChainBatchNumber`. -/
+  /-- `setMigratingChainBatchNumber(c, b)` (:153-157). -/
   | setMigratingChainBatchNumber {st : State} (c : ChainId) (b : ℕ) :
       st.current c ≤ b → Step P r st (st.migrate c b)
   /-- A new block, with a timestamp the rule allows. -/

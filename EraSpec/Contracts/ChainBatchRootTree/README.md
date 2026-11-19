@@ -24,8 +24,11 @@ on it is the documented value of a named constant where stated.
 - `Contracts.ChainBatchRootTree.Properties.SeedAtMostOnce` and
   `Contracts.ChainBatchRootTree.Properties.NoSeedAfterRealBatch`: on every successful run from any
   storage, `seedGenesisRoot` succeeds at most once and never after a batch root was recorded
-  (message-root calls from any caller at any time). `MessageRootLink` shows the canonical
-  `../MessageRoot/` model's calls move a chain's slice exactly by these `seedExec` calls.
+  (message-root calls from any caller at any time). `MessageRootLink`: for a chain other than
+  `block.chainid`, each call of the canonical `../MessageRoot/` model on reachable storage (`Inv`)
+  leaves the chain's slice unchanged or is one `seedExec` call (`MessageRootCallIsSeedCall`,
+  `ReachableSliceIsSeedRun`). This does not by itself transfer the `SeedSystem` results
+  (`SeedAtMostOnce`, `NoSeedAfterRealBatch`) to the canonical model.
 
 ## Topics
 

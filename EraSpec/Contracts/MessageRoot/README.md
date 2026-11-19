@@ -12,9 +12,9 @@ followed by any successful calls, from any callers, in any order, each with its 
   chain is at index 0 and the registered chains occupy distinct slots below `chainCount`.
 - `Contracts.MessageRoot.Properties.BatchRootsWriteOnce`: along any run from reachable storage, a
   nonzero recorded batch root and its timestamp never change.
-- `Contracts.MessageRoot.Properties.SettledBatchRootsFrozen`: for a registered chain whose counter
-  is positive or whose genesis root is recorded, every batch root at or below the counter never
-  changes along any run, and for batches at or above `v31UpgradeChainBatchNumber` the final-node
+- `Contracts.MessageRoot.Properties.SettledBatchRootsFrozen`: along any run from reachable storage,
+  for a chain registered there whose counter is positive or whose genesis root is recorded, every
+  batch root at or below the counter never changes, and for batches at or above `v31UpgradeChainBatchNumber` the final-node
   verdict never changes either.
 - `Contracts.MessageRoot.Properties.ChainTreeIsOrderedLog`: on reachable storage, each chain tree
   is the batch leaves of strictly increasing recorded batches, none above the chain's counter.

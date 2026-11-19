@@ -64,7 +64,8 @@ element fails a check, the call reverts and none of its writes persist (`VM-REVE
 ## Modelling choices
 
 * **`latestInteropRootTimestamp` is left out.** No check of the contract reads it (:98-100 is its
-  only use), so dropping it leaves the behaviour on `storedInteropRoots` unchanged.
+  only use), so dropping it leaves the behaviour on `storedInteropRoots` unchanged. Consumers of
+  its getter must use the canonical `Specs/Storage.lean`, which models it, not this topic.
 * **Imports are admitted by a predicate** `ok` on the imported tuple. For the contract alone
   `ok` is anything (`fun _ => True`); `Protocol/InteropAtomicity/Specs/SettlementRoots.lean`
   instantiates it with the settlement layer's Executor check (`AcceptedInRun`), which the
