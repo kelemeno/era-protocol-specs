@@ -3,9 +3,13 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting
 /-!
 # Model: when a chain can upgrade, be deployed, or cross the bootstrap edge
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for
-`EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting`, whose system this topic reads.
-Paths are relative to `l1-contracts/contracts/`.
+Source: era-contracts branch `draft/v0.35.0` at commit `b17415d20`. Paths are relative to
+`l1-contracts/contracts/`, and every `file:line` below is at `b17415d20`. This topic reads the
+system of `EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting`, which was written at
+`e561b9cc2` (branch `feat/upgrade-simplification`). The topic was first written at `e561b9cc2`
+too and re-read at `b17415d20`: the code it cites is unchanged apart from line numbers, except
+that `b17415d20` adds the second-proof-system gate to the transition path (listed below among
+the checks the model omits; `ProofGateAtV35` models it).
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.Enabledness` and are proved in
@@ -21,21 +25,21 @@ A **transition** of chain `id` at version `v` (`Step.transition`) reverts in the
 when one of these holds:
 
 1. nothing is committed for `v`: `upgradeCutForVersion` reverts
-   `NoCommittedUpgradeCutForVersion` (`state-transition/ChainTypeManager.sol:607-610`);
+   `NoCommittedUpgradeCutForVersion` (`state-transition/ChainTypeManager.sol:602-605`);
 2. the live routing is not the departing release's: `requireReleaseRouting` reverts
-   `LiveRoutingDiverged` (`upgrades/DefaultUpgrade.sol:37`,
+   `LiveRoutingDiverged` (`upgrades/DefaultUpgrade.sol:36`,
    `upgrades/registry/libraries/LiveRoutingReader.sol:38-59`);
 3. a derived cut fails: a `Remove` of an unrouted selector (`RemoveFunctionFacetAddressZero`,
    `state-transition/libraries/Diamond.sol:209-211`) or an `Add` of a routed one
-   (`FacetExists`, `Diamond.sol:158-160`), applied by `DefaultUpgrade.sol:41`;
-4. the version would not increase: `ProtocolIdNotGreater` (`Admin.sol:556-558`).
+   (`FacetExists`, `Diamond.sol:158-160`), applied by `DefaultUpgrade.sol:40`;
+4. the version would not increase: `ProtocolIdNotGreater` (`Admin.sol:587-589`).
 
-A **genesis** (`createNewChain`, `ChainTypeManager.sol:708-716`) or **migration in**
-(`forwardedBridgeMint`, :751-763) reverts in the model when the id is taken
-(`ChainAlreadyLive`, :680-683) or when `DiamondInit`'s `Add` of the current release's rows
+A **genesis** (`createNewChain`, `ChainTypeManager.sol:703-711`) or **migration in**
+(`forwardedBridgeMint`, :746-758) reverts in the model when the id is taken
+(`ChainAlreadyLive`, :675-678) or when `DiamondInit`'s `Add` of the current release's rows
 fails (`DiamondInit.sol:82-87`). A migration in must also carry the CTM's version
-(`OutdatedProtocolVersion`, :759-761). The label `migrateIn id` does not name the carried
-version, and the step takes it to be the CTM's, so the results below are about a migration
+(`OutdatedProtocolVersion`, `ChainTypeManager.sol:754-756`). The label `migrateIn id` does not
+name the carried version, and the step takes it to be the CTM's, so the results below are about a migration
 that carries the CTM's version. A **bootstrap reset** (`BootstrapUpgrade.sol:29-44`) reverts
 when no bootstrap cut is recorded for the chain's version or the `Add` of the genesis
 release's rows fails (:41). Its version check always passes under `CtmInv`.
@@ -48,16 +52,16 @@ list. That is the one property of release objects these paths depend on.
 
 ## Well-formed releases
 
-`CTMRelease.validate()` (`upgrades/registry/objects/CTMRelease.sol:105-129`) refuses a release
-whose facets' self-described selectors repeat: `_requireNoDuplicateSelectors(routing)` (:128,
-defined at :190-213, revert `RegistryDuplicateSelector` at :205-207). The source gives the
-reason (:125-127):
+`CTMRelease.validate()` (`upgrades/registry/objects/CTMRelease.sol:118-142`) refuses a release
+whose facets' self-described selectors repeat: `_requireNoDuplicateSelectors(routing)` (:141,
+defined at :238-261, revert `RegistryDuplicateSelector` at :253-255). The source gives the
+reason (:138-140):
 
     // Same reason: the installing paths add every facet's routing, and `Diamond.diamondCut`
     // rejects a selector added twice. ...
 
-`validate()` runs where a release is installed, `_setCurrentRelease` (`ChainTypeManager.sol:310`),
-which `initialize` (:297), the registry commit (:422) and the legacy commit (:817) all call.
+`validate()` runs where a release is installed, `_setCurrentRelease` (`ChainTypeManager.sol:305`),
+which `initialize` (:292), the registry commit (:417) and the legacy commit (:812) all call.
 It also runs on both releases of every `CTMTransition` at construction
 (`CTMTransition.sol:74-75`), which the derivation relies on
 (`TransitionDerivationLib.sol:59-60`: "Both releases passed `validate()` ... none is routed
@@ -81,18 +85,21 @@ omits on that path to pass:
 * **all paths**: the caller checks (`onlyBridgehub`, `onlyChainAssetHandler`,
   `onlyAdminOrChainTypeManagerOrValidator`); facet code existence (`AddressHasNoCode`,
   `Diamond.sol:147-149`); nonempty selector lists per cut row (`NoFunctionsForDiamondCut`,
-  :120-122, refused for releases by `CTMRelease.sol:121-123`); one freezability per facet
-  (`SelectorsMustAllHaveSameFreezability`, :243-248, which unique facet rows give,
-  `CTMRelease.sol:171-184`);
+  :120-122, refused for releases by `CTMRelease.sol:134-136`); one freezability per facet
+  (`SelectorsMustAllHaveSameFreezability`, `Diamond.sol:243-248`, which unique facet rows give,
+  `CTMRelease.sol:219-232`);
 * **transition**: for a validator caller, the chain's `ServerNotifier` timestamp
-  (`Admin.sol:546-554`); `_requireAllBatchesExecuted` (`DefaultUpgrade.sol:31`); a nonzero
-  target verifier (:68-72); the manifest's upgrade timestamp (`TimeNotReached`,
-  `BaseZkSyncUpgrade.sol:76-78`); the settlement layer being upgraded first (:83-88); the
+  (`Admin.sol:577-585`); `_requireAllBatchesExecuted` (`DefaultUpgrade.sol:30`); a nonzero
+  target verifier (:67-71); the manifest's upgrade timestamp (`TimeNotReached`,
+  `BaseZkSyncUpgrade.sol:82-84`); the settlement layer being upgraded first (:89-94); the
   version-shape and L2-upgrade checks of `_setNewProtocolVersion` and
-  `_setL2SystemContractUpgrade`;
+  `_setL2SystemContractUpgrade`; and, on a chain that has set `secondProofSystemRequired`, the
+  second-proof-system gate: the verifier `_setVerifier` installs (`BaseZkSyncUpgrade.sol:143-148`)
+  and the verifier after the cut (`_executeDiamondCut`, `Admin.sol:121-126`) must report the
+  multi-proof mode, else `NotMultiProofMode` (modelled in `ProofGateAtV35`);
 * **genesis and migration in**: the rest of `DiamondInit.initialize`'s checks
   (`DiamondInit.sol:52-150`: bridgehub, admin, validator timelock, base token, verifier,
-  stored batch zero); for genesis, `genesisUpgrade` (`ChainTypeManager.sol:712`), which the
+  stored batch zero); for genesis, `genesisUpgrade` (`ChainTypeManager.sol:707`), which the
   model does not run.
 
 Results that say a step does **not** exist need no such premise. The model keeps only checks
@@ -106,7 +113,7 @@ namespace Contracts.ChainTypeManager
 /-! ## Well-formed releases -/
 
 /-- **`CTMRelease.validate()`'s duplicate-selector check**, as a predicate
-(`_requireNoDuplicateSelectors`, `CTMRelease.sol:190-213`): no selector appears twice in the
+(`_requireNoDuplicateSelectors`, `CTMRelease.sol:238-261`): no selector appears twice in the
 release's flattened routing, across all of its facets. -/
 def ReleaseWf (W : World) (r : Address) : Prop :=
   ((W.relRows r).map Prod.fst).Nodup
@@ -123,10 +130,10 @@ def ChainsOnWfReleases (W : World) (s : Sys) : Prop :=
   ∀ id c, s.chains id = some c → s.ctm.relAt c.pv ≠ 0 → ReleaseWf W (s.ctm.relAt c.pv)
 
 /-- The release a CTM writer installs passed `validate()`, as `_setCurrentRelease` requires
-(`ChainTypeManager.sol:310`): the commit installs its transition's `newRelease()` (:422), the
-legacy commit its `_newRelease` (:817). A replacement installs no release: its departing
-release is the replaced one's (`_requireSameDeparture`, :442) and its landing release is
-already installed (`_requireOnwardDestination`, :444). `setUpgradeDiamondCut` installs none. -/
+(`ChainTypeManager.sol:305`): the commit installs its transition's `newRelease()` (:417), the
+legacy commit its `_newRelease` (:812). A replacement installs no release: its departing
+release is the replaced one's (`_requireSameDeparture`, :437) and its landing release is
+already installed (`_requireOnwardDestination`, :439). `setUpgradeDiamondCut` installs none. -/
 def Op.InstallsWf (W : World) : Op → Prop
   | .commit t => ReleaseWf W (W.tr t).newRel
   | .legacyCommit R _ => ReleaseWf W R
@@ -145,8 +152,8 @@ version: a registry transition in `upgradeTransition[v]`, or a legacy cut in
 `__LEGACY_upgradeCutHash[v]` (the bootstrap's, or an opaque one). The CTM leaves a version only
 through the two version edges, and each records one or the other for the version it leaves:
 the registry commit writes `upgradeTransition[protocolVersion]` (`_recordTransition`,
-`ChainTypeManager.sol:421`, :469), and the legacy commit writes the cut for
-`_oldProtocolVersion` (`setUpgradeDiamondCutInner`, :814). -/
+`ChainTypeManager.sol:416`, :464), and the legacy commit writes the cut for
+`_oldProtocolVersion` (`setUpgradeDiamondCutInner`, :809). -/
 
 /-- Every reached version below the CTM's own was left by a registry commit (its slot is
 filled) or by a legacy commit (a legacy cut is recorded). -/

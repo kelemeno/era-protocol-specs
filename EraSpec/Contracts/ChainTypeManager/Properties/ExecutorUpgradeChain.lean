@@ -52,7 +52,7 @@ namespace Contracts.ChainTypeManager
 the `ExecutorForward` step `XStep.upgradeChain` between the same states. Its argument `t` is the
 transition the CTM commits at the chain's version (`upgradeTransition[c.pv]`), and the chain
 lands on `t.newProtocolVersion()`, which is what `ChainUpgradeApplied` reports
-(`CTMUpgradeExecutor.sol:101`). -/
+(`CTMUpgradeExecutor.sol:106`). -/
 def Properties.UpgradeChainRunsTheCommittedEdge : Prop :=
   ∀ (X : XConfig) (s s' : XState) (t : Address) (id : ChainId),
     UStep X s (.upgradeChain t id) s' →
@@ -135,7 +135,7 @@ def Properties.GenuineReplacementsKeepUpgradeChainLive : Prop :=
 slot `v` holds a transition whose `oldProtocolVersion()` is not `v`, no run of CTM writers
 changes slot `v`. A commit writes the slot of the current version, which lies above every
 committed slot. `replaceUpgradeTransition(e, r)` finds its slot through `e.oldProtocolVersion()`
-and requires `e` to be committed there (`ChainTypeManager.sol:433-437`). To rewrite slot `v` it
+and requires `e` to be committed there (`ChainTypeManager.sol:428-432`). To rewrite slot `v` it
 would need an `e` that reports `v` and is committed at `v`, and the only transition committed at
 `v` reports another version. So replacement cannot repair the slot. -/
 def Properties.MisreportingSlotIsFrozen : Prop :=
@@ -204,7 +204,7 @@ tame, and the one replacement forwarded reports its departing release's version.
 
 * slot 1 holds `400`, and every slot reports its version;
 * the replaced `300` no longer works as the argument of `upgradeChain`: the replaced object
-  "stops working at once" (`protocol-docs/ecosystem-upgrade-coordination.md:192-193`);
+  "stops working at once" (`protocol-docs/ecosystem-upgrade-coordination.md:201-202`);
 * `upgradeChain(400, 0)` takes chain `0` to version 2, whose release `200` it then routes
   exactly. -/
 def Properties.ExecutorUpgradeChainWitness : Prop :=
@@ -228,7 +228,7 @@ def Properties.ExecutorUpgradeChainWitness : Prop :=
 `initialize(100)`, commit `300` and replace it by `500`, as in
 `NonGenuineReplacementBreaksSlotVersion`. The state satisfies `CtmInv`, and slot 1 holds `500`,
 which reports `7`. Replacing `500` by anything reverts, because `replaceUpgradeTransition` looks
-`500` up at slot 7, where nothing is committed (`ChainTypeManager.sol:433-437`). The CTM still
+`500` up at slot 7, where nothing is committed (`ChainTypeManager.sol:428-432`). The CTM still
 moves on: committing `600` (2→3) succeeds and leaves slot 1 at `500`. -/
 def Properties.MisreportingSlotWitness : Prop :=
   ∃ c c', CRun wWorld (initState wWorld 100) [.commit 300, .replace 300 500] c ∧
