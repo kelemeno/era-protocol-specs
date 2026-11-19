@@ -427,6 +427,7 @@ import EraSpec.Contracts.L1ChainAssetHandler.Proofs.SettlementLayerValidation
 -- The second-proof-system requirement of one chain, its two diamonds, interop enabling and
 -- settlement-layer migration (draft/v0.35.0 at b17415d2; see the folder README)
 import EraSpec.Contracts.SecondProofSystem.Proofs.MigrationV35
+import EraSpec.Contracts.SecondProofSystem.Proofs.DiamondRefinement
 
 -- Atomic interop at draft/v0.35.0: the composed system (InteropAtomicity, SystemAtV35)
 import EraSpec.Protocol.InteropAtomicity.Proofs.SystemAtV35

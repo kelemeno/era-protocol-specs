@@ -42,13 +42,17 @@ the overlapping results.
 | Topic | Commit (verified) | Model | Imports / importers | Decision |
 |---|---|---|---|---|
 | FlagAuthorityV35 | `b17415d20` (first `d9f678900`) | one diamond: `St`, `Call`, `Init`, `ReachWith`/`Reach`/`ReachEnvs` | none / none | **canonical** (the diamond) |
-| MigrationV35 | `b17415d20` (Solidity byte-identical to `d9f678900`) | one chain, two diamonds (`Diamond`, `Sys`), `DCall`, `Call`, `Run` | none / none | keep; step 2 deferred (see below) |
+| MigrationV35 | `b17415d20` (Solidity byte-identical to `d9f678900`) | one chain, two diamonds (`Diamond`, `Sys`), `DCall`, `Call`, `Run` | none / DiamondRefinement | keep; refinement lemma onto FlagAuthorityV35 (see below) |
 | UpgradeGateV35 | `b17415d20`, over `ChainTypeManager` `UpgradeTiming` (`e561b9cc2`) | `GateConfig`, `GState`, `GSys`, `GStep`, `GRun` extending `TimedSys` | imports `ChainTypeManager` `UpgradeTiming`, `Enabledness`; no importers | keep; it extends the CTM unit's model and is consolidated with it |
 
-Step 2 deferred: MigrationV35 re-proves the one-diamond facts in its own model (`dstep_frame`).
-A refinement from `MigrationV35`'s diamond step to `FlagAuthorityV35`'s needs a map between the
-two call sets (MigrationV35's `DCall` covers a subset of FlagAuthorityV35's `Call`, with its own
-`ProofSystem`, mask and `getProofMode` encodings). Not attempted in this wave.
+Step 2, done in part: the new topic DiamondRefinement maps MigrationV35's diamonds and diamond
+calls onto FlagAuthorityV35 (`DiamondStepRefines`: every successful `dstep` is a successful
+FlagAuthorityV35 `step` of the same entry point on the projection) and derives MigrationV35's
+one-diamond facts from FlagAuthorityV35's theorems (`DiamondFlagMonotoneStep`,
+`DiamondMaskWrittenOnlyBySetStatus`, `DiamondZiskOffOnFlaggedIsOwners`). MigrationV35's own
+system (two diamonds, migration, `interopEnabled`) has no counterpart in FlagAuthorityV35, so its
+model stays; its run proofs still use its own `dstep_frame`. UpgradeGateV35 extends the CTM
+unit's model and is not related by a theorem.
 
 ## ProxyUpgradeRowLib
 
