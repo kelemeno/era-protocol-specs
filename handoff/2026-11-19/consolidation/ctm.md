@@ -30,9 +30,9 @@ models, derived through the refinement lemmas, under the same names:
 | Base topic | Restated over the `b17415d20` model |
 |---|---|
 | `ChainRouting` | `ProofGateAtV35`: `ChainsRunTheirVersionsRelease`, `FreshChainsRunTheirVersionsRelease` (already there); new `StepPreservesSysInvariant`, `TransitionStartsAndLandsOnRelease` (adds the installed verifier), `DriftBlocksTransition`. Not restated: the invariant constructors (`FreshSystemSatisfiesInvariant`, `BootstrapSystemSatisfiesInvariant`, about `Sys` only, apply unchanged), `UnguardedCutKeepsForeignSelectors` (about `applyDerived` only), and the two countermodels (gate-free runs are gated runs without the requirement, `UngatedRunsAreRunsWithoutTheRequirement`). |
-| `ChainLocal` | `ChainRunsItsVersionsRelease` (already there); new `StepsElsewhereKeepChainOk`, `NonCutWriteLandsOnRelease`, `NewChainRunsItsVersionsRelease`, `RepairCutRestoresChainOk`, `OnlyRepairCutsLandOnARelease`, `RepairEnablesTransition` (plus the gate premise), `RepeatedSelectorBlocksTheEdge`. Not restated: `LastWriteDecidesTheRouting` (needs a split of `Run35` at a step; follow-up), the migration ones (below), `GlobalPremiseImpliesChainLocal` (about label lists only). |
+| `ChainLocal` | `ChainRunsItsVersionsRelease` (already there); new `StepsElsewhereKeepChainOk`, `NonCutWriteLandsOnRelease`, `NewChainRunsItsVersionsRelease`, `RepairCutRestoresChainOk`, `OnlyRepairCutsLandOnARelease`, `RepairEnablesTransition` (plus the gate premise), `RepeatedSelectorBlocksTheEdge`, `LastWriteDecidesTheRouting`. Not restated: the migration ones (below), `GlobalPremiseImpliesChainLocal` (about label lists only). |
 | `ChainMigration` | Not restated: `Sys35` has no migration out. Migration is disabled at `b17415d20` (`CHAIN_MIGRATIONS_ENABLED = false`), so these results describe runs production does not take. |
-| `Enabledness` | `TransitionEnabledIff`, `UpgradesStayEnabled`, `ValidatedRunsKeepEverythingEnabled` (already there, with the gate); new `NewChainEnabledIff` (no extra condition), `BootstrapResetEnabledIff` (plus the gate), `ChainsStayOnWfReleases`. Not restated: `BehindChainsCanCatchUp` (needs the gate premise on both the edge and the bootstrap legs; follow-up), `TransitionEnabled`/`NewChainEnabled` (implied by the iff forms), `StartingStatesMeetLivenessPremises` (about `Sys` only). |
+| `Enabledness` | `TransitionEnabledIff`, `UpgradesStayEnabled`, `ValidatedRunsKeepEverythingEnabled` (already there, with the gate); new `NewChainEnabledIff` (no extra condition), `BootstrapResetEnabledIff` (plus the gate), `ChainsStayOnWfReleases`, `BehindChainsCanCatchUp` (plus the gate on the edge's and the bootstrap's verifier). Not restated: `TransitionEnabled`/`NewChainEnabled` (implied by the iff forms), `StartingStatesMeetLivenessPremises` (about `Sys` only). |
 | `ExecutorForward` | `ExecutorEngineAtV35` (already there): `TameEngineRunPreservesSysInv`, `TameEngineRunKeepsChainsOnTheirRelease`, `ReviewedLegsMoveProxiesOnlyAlongRows`, and the countermodels showing the old premises no longer suffice. `ForwardOfCtmCallsIsARun` is about `forward`, unchanged at `b17415d20` (`V35Step.other`). |
 | `ChainLocalExecutor` | new `ExecutorEngineAtV35.ChainRunsItsVersionsReleaseAcrossEngineRuns`. |
 | `ExecutorUpgradeChain` | new `ExecutorEngineAtV35.MisreportingSlotStaysFrozen`. The step-level results are about `upgradeChain`, unchanged at `b17415d20`. Not restated: `GenuineReplacementsKeepUpgradeChainLive` (its premise names the run's forwarded replacements, which the engine runs hide; follow-up). |
@@ -43,10 +43,17 @@ models, derived through the refinement lemmas, under the same names:
 ## Duplication left inside this folder (follow-ups)
 
 - `DuplicateSelectorScan` and `DuplicateSelectorCheck` transcribe the same
-  `_requireNoDuplicateSelectors`; prove the two equal and keep one (ctm-a).
+  `_requireNoDuplicateSelectors` (ctm-a). Now bridged: `ScanIsTheDuplicateCheck` proves the two
+  accept the same routings for 4-byte selectors, so their results compose. Keeping one
+  transcription is left: `DuplicateSelectorCheck`'s is imported by `Enabledness`'s users,
+  `DuplicateSelectorScan`'s by `LiveRouting`'s.
 - `EdgeChecks` (`CommittedEdgeExecutable`) and `L2Tables` (`L2Derivation`) model `L2PlanLib.build`
   twice, and `requireValidEdge` is re-stated in `L2Derivation.ValidEdge` and
-  `PendingL2UpgradeAtV35.ValidEdge` (ctm-c).
+  `PendingL2UpgradeAtV35.ValidEdge` (ctm-c). Bridged for the edge check:
+  `EdgeChecks.RequireValidEdgeIsL2TablesValidEdge` proves `L2Tables.ValidEdge` is exactly
+  `requireValidEdge` returning. Still open: the two plan builders, and
+  `PendingL2UpgradeAtV35.ValidEdge`, an abstraction (version increase, valid schedule, no L2 side on
+  a patch) with its own `minorOf` that does not truncate to `uint32`.
 - `PendingL2UpgradeAtV35.BatchAux` and `UpgradeTxNonces.NonceDiamond` model the same pending pair
   (ctm-c).
 - `GenesisWriters` transcribes `Diamond.sol` independently of `DiamondStorage`; a refinement lemma

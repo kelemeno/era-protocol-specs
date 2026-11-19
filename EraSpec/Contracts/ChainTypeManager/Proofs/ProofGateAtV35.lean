@@ -803,4 +803,24 @@ theorem RepairEnablesTransition : Properties.RepairEnablesTransition := by
   rw [harr]
   exact hgate hreq
 
+theorem LastWriteDecidesTheRouting : Properties.LastWriteDecidesTheRouting := by
+  intro W P s s₁ s₂ s' pre post l id hC hpre hs hpost hw hpost' hl
+  exact Contracts.ChainTypeManager.LastWriteDecidesTheRouting W s.sys s₁.sys s₂.sys s'.sys _ _ l
+    id hC (RunIsARun W P s s₁ pre hpre) (step35_step hs) (RunIsARun W P s₂ s' post hpost) hw
+    hpost' hl
+
+theorem BehindChainsCanCatchUp : Properties.BehindChainsCanCatchUp := by
+  intro W P s s' ls hI hR hD hA h hl hwf id c hc hlt hgate hboot
+  rcases Contracts.ChainTypeManager.BehindChainsCanCatchUp W s.sys s'.sys _ hI hR hD hA
+      (RunIsARun W P s s' ls h) (routing_no_arbitrary hl) hwf id c hc hlt with
+    hstep | ⟨R, hleg, s'', hs⟩ | ⟨hop, hnt, hnb⟩
+  · exact Or.inl (Step35.routing hstep (ProofEffect.transition hc hgate))
+  · exact Or.inr (Or.inl ⟨R, hleg, _,
+      Step35.routing hs (ProofEffect.bootstrapReset hc hleg (fun hr => hboot hr R hleg))⟩)
+  · refine Or.inr (Or.inr ⟨hop, ?_, ?_⟩)
+    · rintro ⟨s'', h⟩
+      exact hnt ⟨_, step35_step h⟩
+    · rintro ⟨s'', h⟩
+      exact hnb ⟨_, step35_step h⟩
+
 end Contracts.ChainTypeManager.ProofGateAtV35

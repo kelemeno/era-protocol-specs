@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.CommittedEdgeExecutable
+import EraSpec.Contracts.ChainTypeManager.Specs.L2Derivation
 
 /-!
 # Properties: the commit-time edge checks imply the chain-side upgrade checks
@@ -326,5 +327,13 @@ def Properties.SupplierWitness : Prop :=
     SupplierRun s [.publish 9 10, .publish 11 12] s' ∧
     (∀ op ∈ [SupplierOp.publish 9 10, .publish 11 12], op.IsPublish) ∧
     requirePublished s' wPlan.factoryDepHashes ∧ s'.pub 9 = 10
+
+/-- **THE TWO TRANSCRIPTIONS OF `requireValidEdge` AGREE.** `L2Derivation`'s `L2Tables.ValidEdge`
+(`VersionEdgeLib.sol:35-91`, stated as a predicate) holds exactly when this file's
+`requireValidEdge` returns, for every pair of versions, deadline, upgrade time and L2 side. -/
+def Properties.RequireValidEdgeIsL2TablesValidEdge : Prop :=
+  ∀ (old new deadline upgradeTs : ℕ) (hasL2Side : Bool),
+    requireValidEdge old new deadline upgradeTs hasL2Side = some () ↔
+      L2Tables.ValidEdge old new deadline upgradeTs hasL2Side
 
 end Contracts.ChainTypeManager.EdgeChecks

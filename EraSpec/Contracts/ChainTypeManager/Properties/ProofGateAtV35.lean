@@ -74,8 +74,9 @@ steps, under the same names: `StepPreservesSysInvariant`, `TransitionStartsAndLa
 `RepeatedSelectorBlocksTheEdge`, `NewChainEnabledIff` (no extra condition),
 `BootstrapResetEnabledIff` (plus the gate on the genesis release's verifier),
 `ChainsStayOnWfReleases`, `StepsElsewhereKeepChainOk`, `NonCutWriteLandsOnRelease`,
-`NewChainRunsItsVersionsRelease`, `RepairCutRestoresChainOk`, `OnlyRepairCutsLandOnARelease` and
-`RepairEnablesTransition` (plus the gate on the arriving release's verifier). The migration-out
+`NewChainRunsItsVersionsRelease`, `RepairCutRestoresChainOk`, `OnlyRepairCutsLandOnARelease`,
+`LastWriteDecidesTheRouting`, `RepairEnablesTransition` (plus the gate on the arriving release's
+verifier) and `BehindChainsCanCatchUp` (plus the gate on both verifiers it may install). The migration-out
 model of `ChainMigration` has no v35 counterpart here: chain migration is disabled at
 `b17415d20` (*Scope*).
 
@@ -368,6 +369,50 @@ def Properties.RepairEnablesTransition : Prop :=
     ∃ s'', Step35 W P s' (.routing (.transition id)) s'' ∧ ∃ c, s''.sys.chains id = some c ∧
       v < c.pv ∧ c.pv = (s.sys.edge W v).new ∧ s''.sys.ctm.relAt c.pv ≠ 0 ∧
       c.routing = rowsRouting (W.relRows (s''.sys.ctm.relAt c.pv))
+
+/-- **AT v35 THE LAST WRITE DECIDES THE ROUTING.** As
+`Contracts.ChainTypeManager.Properties.LastWriteDecidesTheRouting`, over v35 runs: if the last
+routing step of a run that writes chain `id` is not a break-glass cut, or is the repair cut to a
+version with a release, then at the end chain `id` is not ahead of its CTM and routes exactly its
+version's release, a release of that version. The two proof-system writers do not write a chain's
+routing. -/
+def Properties.LastWriteDecidesTheRouting : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s₁ s₂ s' : Sys35) (pre post : List Label35) (l : Label)
+    (id : ChainId),
+    CtmInv W s.sys.ctm → Run35 W P s pre s₁ → Step35 W P s₁ (.routing l) s₂ →
+    Run35 W P s₂ post s' → l.writesChain id →
+    (∀ l' ∈ post.flatMap Label35.routingSteps, ¬ l'.writesChain id) →
+    (¬ l.isArbitrary ∨ ∃ v, s₁.sys.ctm.relAt v ≠ 0 ∧ l = repairCut W s₁.sys id v) →
+    ∃ c, s'.sys.chains id = some c ∧ c.pv ≤ s'.sys.ctm.pv ∧ s'.sys.ctm.relAt c.pv ≠ 0 ∧
+      W.relVersion (s'.sys.ctm.relAt c.pv) = c.pv ∧
+      c.routing = rowsRouting (W.relRows (s'.sys.ctm.relAt c.pv))
+
+/-- **AT v35 NO CHAIN IS LEFT BEHIND, EXCEPT ACROSS AN OPAQUE LEGACY EDGE OR THE GATE.** As
+`Contracts.ChainTypeManager.Properties.BehindChainsCanCatchUp`, over v35 runs (in the model):
+under the premises of `ValidatedRunsKeepEverythingEnabled`, plus `DepartedBelow` and
+`ChainsAtDepartedVersions` at the start, take a chain behind its CTM at the end. If it requires its
+second proof system, assume the verifier of the release the committed edge at its version arrives
+at, and that of the release a bootstrap cut at its version installs, report multi-proof mode with
+nothing disabled. Then it can cross the committed edge (landing on the arriving release, with its
+verifier installed), or a bootstrap cut is recorded at its version and the bootstrap crossing is
+enabled, or an opaque legacy cut is recorded there and neither step exists. -/
+def Properties.BehindChainsCanCatchUp : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35), SysInv W s.sys →
+    RecordedReleasesWf W s.sys.ctm → DepartedBelow s.sys.ctm → ChainsAtDepartedVersions s.sys →
+    Run35 W P s ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →
+    (∀ l ∈ ls.flatMap Label35.routingSteps, l.InstallsWf W) →
+    ∀ id c, s'.sys.chains id = some c → c.pv < s'.sys.ctm.pv →
+      ((s'.proof id).required = true → P.multi (arrivingVerifier W P s'.sys c) 0 = true) →
+      ((s'.proof id).required = true → ∀ R, s'.sys.ctm.legacy c.pv = LegacyCut.bootstrap R →
+        P.multi (P.relVerifier R) 0 = true) →
+      Step35 W P s' (.routing (.transition id))
+          ⟨s'.sys.crossEdge W id c,
+            upd s'.proof id ((s'.proof id).install (arrivingVerifier W P s'.sys c))⟩ ∨
+      (∃ R, s'.sys.ctm.legacy c.pv = LegacyCut.bootstrap R ∧
+        ∃ s'', Step35 W P s' (.routing (.bootstrapReset id)) s'') ∨
+      (s'.sys.ctm.legacy c.pv = LegacyCut.opaque ∧
+        (¬ ∃ s'', Step35 W P s' (.routing (.transition id)) s'') ∧
+        ¬ ∃ s'', Step35 W P s' (.routing (.bootstrapReset id)) s'')
 
 /-! ## What #2628 guarantees -/
 

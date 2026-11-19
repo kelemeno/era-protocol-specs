@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.DuplicateSelectorScan
+import EraSpec.Contracts.ChainTypeManager.Specs.DuplicateSelectorCheck
 
 /-!
 # Properties: the duplicate-selector scan is exact
@@ -14,6 +15,10 @@ in `EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorScan`.
   `LiveRouting`'s equivalence holds for every release that passed the code of `validate()`
   (`CountCheckExactAfterValidate`): the counting check is exact, from `validate()`'s code to
   `requireReleaseRouting`'s code, on consistent diamond storage.
+
+* **It is `DuplicateSelectorCheck`'s transcription of the same function**
+  (`ScanIsTheDuplicateCheck`), for 4-byte selectors: the two topics' readings of
+  `_requireNoDuplicateSelectors` accept the same routings, so their results compose.
 
 `DuplicateScanWitness` exercises a home-slot collision, both duplicate shapes, and the witness
 world's release.
@@ -57,5 +62,12 @@ def Properties.DuplicateScanWitness : Prop :=
     ValidateRowsPasses wDWorld.selectors (wDWorld.genesisFacets 100) ∧
     ∃ ds, diamondCut DiamondStorage.fresh (newChainInstallations wDWorld 100) = some ds ∧
       DiamondOk ds ∧ CountCheck wDWorld.selectors ds (wDWorld.genesisFacets 100)
+
+/-- **THE TWO TRANSCRIPTIONS OF `_requireNoDuplicateSelectors` AGREE.** For selectors that are
+4-byte values, this file's scan (`NoDuplicateScanPasses`, which reads each selector through
+`uint32`) succeeds iff `DuplicateSelectorCheck`'s `noDuplicateSelectors` returns `true`. -/
+def Properties.ScanIsTheDuplicateCheck : Prop :=
+  ∀ routing : List (List Selector), (∀ x ∈ routing.flatten, x < 2 ^ 32) →
+    (NoDuplicateScanPasses routing ↔ noDuplicateSelectors routing = true)
 
 end Contracts.ChainTypeManager
