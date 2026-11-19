@@ -1,5 +1,14 @@
 import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
 
+/-!
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`).  Order theory over the abstract leaf set of
+`Specs/Model.lean`.  The one-time initialization guard it discusses is `IMTAlreadyInitialized` in
+`IndexedMerkleTree.setup` (`common/libraries/IndexedMerkleTree.sol:47-49`), reached only through
+`L2InteropCommitmentTree.initL2` (`atomic-interop/L2InteropCommitmentTree.sol:45-48`,
+`onlyUpgrader` `:35-40`); the machine with that guard is
+`../../L2InteropCommitmentTree/Specs/CommitmentTreeAtV35.lean`.
+-/
+
 
 /- EXTRACTED from contracts-formal-verification (`specs/specs/AttackVectors/ResetAndZero.lean`) — protocol-level,
    no EVM semantics.  The sibling copy is still the one that repo builds against; see

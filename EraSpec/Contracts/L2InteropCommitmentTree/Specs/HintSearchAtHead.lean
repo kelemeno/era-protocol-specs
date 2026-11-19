@@ -3,15 +3,16 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.InitOnce
 /-!
 # Model at head: `insert`'s low-leaf walk has no hop bound
 
-**Commits.** era-contracts `main` at `70096e2ea6eeb5373992e178064c4b26dcf6436a` and
-`draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.  The two files cited below,
-`common/libraries/IndexedMerkleTree.sol` and `atomic-interop/L2InteropCommitmentTree.sol`, are
-unchanged on `main` since `3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` and on `draft/v0.35.0`
-since `d9f678900e1bc8286412b78f56d4a9f443983c29`, where this model was first written.
-`IndexedMerkleTree.sol` is identical on the two branches.  `L2InteropCommitmentTree.sol`
-differs only in its imports: line numbers below are `main`'s, and on `draft/v0.35.0` they are
-one higher from line 12 on (one import line is split in two).  Paths are relative to
-`l1-contracts/contracts/`.
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`b17415d20`); paths are relative to `l1-contracts/contracts/` and line numbers are
+`b17415d20`'s.  The model was first written against `main` `70096e2ea` and `draft/v0.35.0`
+`d9f6789`: `IndexedMerkleTree.sol` is byte-identical at all three, and `L2InteropCommitmentTree.sol`
+differs on `main` only in its error imports (lines from 13 on are one lower there).
+
+**Place in the consolidated model.**  This is the list-state view of the canonical v35 machine
+`CommitmentTreeAtV35.CTxStepAtV35`: its walk and checks are the shared `WalkExitsAtV35` and
+`InsertChecksAtV35` (`Specs/HintSearch.lean`), and
+`Properties.CTxRunAtV35ProjectsToTxRunAtHead` projects every canonical run onto a `TxRunAtHead`.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.HintSearchAtHead`, proofs in
@@ -70,20 +71,20 @@ checks of the code, not about gas.
 ## The tree contract at head
 
 `L2InteropCommitmentTree` still has the two state-changing entry points of `InitOnce`:
-`initL2` (`L2InteropCommitmentTree.sol:44-47`, `onlyUpgrader` at `:34-39`) and `insert`
-(`:50-63`, appender check at `:51-53`, then the engine's `insert` at `:56`).  Two additions do
+`initL2` (`L2InteropCommitmentTree.sol:45-48`, `onlyUpgrader` at `:35-40`) and `insert`
+(`:51-64`, appender check at `:52-54`, then the engine's `insert` at `:57`).  Two additions do
 not write the list state:
 
 * after the engine's insert, `insert` reports the value to `INTEROP_COMMITMENT_LEAF_HOOK`
-  (`_reportLeaf`, `:61`, `:70-75`).  The report first burns gas through a self-call
-  (`_burnLogGas`, `:79-90`), and it reverts the insert if the hook call fails.  Both only
+  (`_reportLeaf`, `:62`, `:71-76`).  The report first burns gas through a self-call
+  (`_burnLogGas`, `:80-91`), and it reverts the insert if the hook call fails.  Both only
   reject calls;
-* a `fallback` (`:120-125`) requires `msg.sender == address(this)` and then executes
+* a `fallback` (`:121-126`) requires `msg.sender == address(this)` and then executes
   `invalid()`, so every call to it reverts.
 
 As in `InitOnce`, runs start from all-zero storage (`predeploy`), and `initL2()` is the call
 that seeds the tree; `L2GenesisForceDeploymentsHelper` makes it
-(`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:423` on `main`, `:373` on `draft/v0.35.0`).
+(`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:373`).
 How each chain's tree storage came to be zero is not re-checked at head, and proxy upgrades
 stay outside the model.
 
@@ -109,7 +110,7 @@ is a pin run with the same states
 (`Contracts.InteropCommitmentTree.Properties.TxRunAtHeadIsRelabelledTxRun`).
 `LevelRunAtHead` is the `_nodes[0]` ghost of a head run: `LevelRun` over the relabelled trace,
 so that each insert writes its leaf hashes at the index the walk lands on, as
-`IndexedMerkleTree.sol:100-106` does.
+`IndexedMerkleTree.sol:101, 106` do.
 -/
 
 namespace Contracts.InteropCommitmentTree

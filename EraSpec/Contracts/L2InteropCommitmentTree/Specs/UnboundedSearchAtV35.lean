@@ -26,7 +26,7 @@ pin's counted loop (`HintSearch`).
 
 ## What is modelled
 
-* `WalkExitsAtV35 T v i j`: the unbounded loop started at index `i` exits at index `j`, that is,
+* `WalkExitsAtV35 T v i j` (the canonical definition, in `Specs/HintSearch.lean`): the unbounded loop started at index `i` exits at index `j`, that is,
   some fuel makes `lowSearch` return `some j`.  The fuel is a proof device; the source has no
   bound.  A loop run that never exits has no `j`.
 * `InsertCallV35 T v hint T'`: a successful v35 `insert(v, hint)` leaving `T'`.  Its fields are

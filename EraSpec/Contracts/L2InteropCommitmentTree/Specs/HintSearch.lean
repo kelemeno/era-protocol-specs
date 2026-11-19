@@ -3,8 +3,15 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.Reaches
 /-!
 # Contract spec: the hint search
 
-`lowSearch` and `InsertGuard` are defined in `Specs/Model.lean`; this topic needs
-no further definitions.  `MAX_LOW_INDEX_SEARCH_ATTEMPTS` is the deployed fuel.
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`), `common/libraries/IndexedMerkleTree.sol:90-93`:
+the walk from the hint has no hop bound.  `WalkExitsAtV35` and `InsertChecksAtV35` below are that
+walk and the checks before it, the canonical v35 definitions.  `lowSearch` and `InsertGuard` are
+in `Specs/Model.lean`.
+
+**What differs from the interop pin.**  At `c67894b9` the walk was a counted loop that reverted
+after `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5` hops; `maxLowIndexSearchAttempts` is that bound and
+`HonestInsertRevertsAtDeployedFuel` its revert, kept as the comparison the v35 topics use.  The
+other results of this topic hold for every fuel and so at `b17415d20`.
 -/
 
 namespace Contracts.InteropCommitmentTree

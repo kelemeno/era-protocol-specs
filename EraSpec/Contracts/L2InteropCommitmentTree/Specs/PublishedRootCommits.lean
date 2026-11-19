@@ -4,6 +4,10 @@ import EraSpec.Contracts.Merkle.Specs.RootForgeryPinned
 /-!
 # Model: what the published root commits, at the run's own height
 
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`b17415d20`).  The padding constant is the parameter `z0` of `TreeRoot.root`
+(`IMT_EMPTY_LEAF_HASH` at `b17415d20`).
+
 No new definitions: this module only imports the two models the topic combines.
 
 * `RunHeight` — the commitment tree's list state with `FullMerkle`'s `(_leafNumber, _height)`

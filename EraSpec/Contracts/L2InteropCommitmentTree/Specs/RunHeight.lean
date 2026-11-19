@@ -16,9 +16,10 @@ run's root is published is the run's own.
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.RunHeight`, proofs in
 `EraSpec.Contracts.L2InteropCommitmentTree.Proofs.RunHeight`.
 
-## What the source does (era-contracts `c67894b9`)
+## What the source does (era-contracts `b17415d20`)
 
-`FullMerkle.sol`:
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`).  `common/libraries/FullMerkle.sol` (`setup` `:29-35`,
+`pushNewLeaf` `:41-66`, `updateLeaf` `:73-94`; byte-identical at the interop pin `c67894b9`):
 
     function setup(FullTree storage self, bytes32 zero) internal returns (bytes32 initialRoot) {
         self._zeros.push(zero);
@@ -32,9 +33,11 @@ run's root is published is the run's own.
             …
 
 `updateLeaf` writes neither `_height` nor `_leafNumber`.  `IndexedMerkleTree.setup`
-calls `tree.setup(zeroLeafHash)` (both fields stay `0`) and then
-`tree.pushNewLeaf(zeroLeafHash)`; `IndexedMerkleTree.insert` calls
-`tree.updateLeaf(lowLeafIndex, …)` and then `tree.pushNewLeaf(hashLeaf(newLeaf))`.
+calls `tree.setup(IMT_EMPTY_LEAF_HASH)` (both fields stay `0`) and then
+`tree.pushNewLeaf(hashLeaf({0,0,0}))` (`common/libraries/IndexedMerkleTree.sol:51-52`; the pin
+passed `hashLeaf({0,0,0})` to both, which moves the counters the same way);
+`IndexedMerkleTree.insert` calls `tree.updateLeaf(lowLeafIndex, …)` and then
+`tree.pushNewLeaf(hashLeaf(newLeaf))` (`:101, 106`).
 
 So the pair `(_leafNumber, _height)` moves by exactly
 `AttackVectors.CapacityInvariant.push` (`TreeDims` with `count = _leafNumber`): once

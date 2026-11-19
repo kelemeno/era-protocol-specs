@@ -5,6 +5,16 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.Model
 /-!
 # Model: the root, and the two proof gates over it
 
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`); paths relative to `l1-contracts/contracts/`.
+The verifiers are `IndexedMerkleTree.verifyInclusion` (`common/libraries/IndexedMerkleTree.sol:134-146`)
+and `verifyNonInclusion` (`:154-172`) over `Merkle.calculateRootMemory`
+(`common/libraries/Merkle.sol:53-70`, index bound `_validatePathLengthForSingleProof` `:133-140`).
+The root is the fold over the leaf hashes padded with a parameter `z0`: `IMT_EMPTY_LEAF_HASH`
+(`common/Config.sol:141`, passed by `IndexedMerkleTree.setup` at `:51`) at `b17415d20`, and
+`hashLeaf({0,0,0})` at the interop pin `c67894b9`.  The results at the pin's constant are in
+`History/Specs/PaddingForgeryPinned.lean`; `threeLeafTree`, `toyNodeHash` and `toyLeafHash` below
+are the shared witnesses.
+
 `Contracts.InteropCommitmentTree` carries the LIST state of the indexed Merkle
 tree.  This file adds the hash side: the root `FullMerkle` publishes over that
 state, and the two verifiers `IndexedMerkleTree.verifyInclusion` /
@@ -103,7 +113,7 @@ anywhere in this package.  **Unsatisfiable**: no `h`, `z0`, `hl` meets it
 
 **Not a keccak premise at `c67894b9`.**  `padNotLeaf` depends on the contract's padding
 constant, not only on the hash: `IndexedMerkleTree.setup` pads with `z0 = hashLeaf({0,0,0})`
-(`IndexedMerkleTree.sol:47-48`, against `FullMerkle.sol:25-26`), so `padNotLeaf` fails at
+(`IndexedMerkleTree.sol:47-48` at the pin, against the warning of `FullMerkle.sol:24-25`), so `padNotLeaf` fails at
 `ℓ = ⟨0,0,0⟩` for every `hl`.  The padding forgery is exactly that failure and needs no
 collision: its located break is `TreeRootBreak.paddingHit`, and of `TreeRootStrongLogSafe`'s
 clauses it fails only `padNotPresented` when the tree's own log has no node-hash collision

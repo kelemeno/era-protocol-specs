@@ -16,46 +16,64 @@ the model chose to start.
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.InitOnce`, proofs in
 `EraSpec.Contracts.L2InteropCommitmentTree.Proofs.InitOnce`.
 
-## What the source does (era-contracts `c67894b9`)
+## What the source does (era-contracts `b17415d20`)
 
-`L2InteropCommitmentTree.sol` has exactly two non-`view` functions:
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`b17415d20`); paths relative to `l1-contracts/contracts/`.
+`atomic-interop/L2InteropCommitmentTree.sol` has two state-changing functions:
 
-    function initL2() external onlyUpgrader {                         // :47-50
+    function initL2() external onlyUpgrader {                         // :45-48
         _imt.setup();
         emit RootUpdated(0, _imt.root());
     }
-    function insert(uint256 _value, uint256 _lowNullifierIndex)       // :53-59
+    function insert(uint256 _value, uint256 _lowNullifierIndex)       // :51-64
         external returns (uint256 newIndex, bytes32 newRoot) {
         if (msg.sender != appender()) revert CommitmentTreeNotAppender(msg.sender);
         (newIndex, newRoot) = _imt.insert(_value, _lowNullifierIndex);
+        _reportLeaf(_value);
         …
 
-`onlyUpgrader` (:36-41) requires `msg.sender == L2_COMPLEX_UPGRADER_ADDR`, and
-`appender()` (:82-84) is the constant `L2_ATOMIC_FLOW_MANAGER_ADDR`. Every other
-function (:62-84) is `view`. `IndexedMerkleTree.setup` (`IndexedMerkleTree.sol:42-51`):
+`onlyUpgrader` (:35-40) requires `msg.sender == L2_COMPLEX_UPGRADER_ADDR`, and `appender()`
+(:114-116) is the constant `L2_ATOMIC_FLOW_MANAGER_ADDR`.  The other functions are `view`
+(:94-111), the private `_reportLeaf`/`_burnLogGas` (:71-91), and a `fallback` (:121-126) that
+always reverts.  `IndexedMerkleTree.setup` (`common/libraries/IndexedMerkleTree.sol:46-54`):
 
-    if (self.tree._leafNumber != 0) { revert IMTAlreadyInitialized(); }   // :43-45
-    bytes32 zeroLeafHash = hashLeaf(IMTLeaf({value: 0, nextIndex: 0, nextValue: 0}));
-    self.tree.setup(zeroLeafHash);                                         // :48
-    self.tree.pushNewLeaf(zeroLeafHash);                                   // :49
-    self.leaves[0] = IMTLeaf({value: 0, nextIndex: 0, nextValue: 0});      // :50
+    if (self.tree._leafNumber != 0) { revert IMTAlreadyInitialized(); }               // :47-49
+    self.tree.setup(IMT_EMPTY_LEAF_HASH);                                               // :51
+    self.tree.pushNewLeaf(hashLeaf(IMTLeaf({value: 0, nextIndex: 0, nextValue: 0})));  // :52
+    self.leaves[0] = IMTLeaf({value: 0, nextIndex: 0, nextValue: 0});                  // :53
 
 On the list state (`Tree`), past its guard, that is: `_leafNumber` goes up by one
 (`FullMerkle.pushNewLeaf`, `FullMerkle.sol:43`; `FullMerkle.setup`, `:29-35`, only pushes
-onto `_zeros` and `_nodes`), and `leaves[0]` is overwritten with `{0,0,0}`. Nothing
-else is written: no other `leaves[i]`, and no `valueToIndex` entry. `setupWrites` below
-is exactly that. On the zero storage of the predeploy it yields the model's `setup`.
+onto `_zeros` and `_nodes`), and `leaves[0]` is overwritten with `{0,0,0}`.  Nothing
+else is written: no other `leaves[i]`, and no `valueToIndex` entry.  `setupWrites` below
+is exactly that.  On the zero storage of the predeploy it yields the model's `setup`.  The
+padding constant does not enter the list state, and `setupLevel` writes only index 0's stored
+hash, `hashLeaf({0,0,0})` at both revisions.
+
+**What differs from the interop pin.**  `InsertChecks.search` (and `levelWrites`) run the
+walk with the pin's five hops, `maxLowIndexSearchAttempts`: at `c67894b9` `insert` reverted
+after five hops, while at `b17415d20` the walk is unbounded (`IndexedMerkleTree.sol:90-93`).  So
+`TxStep` is the pin's machine.  The v35 machines are `HintSearchAtHead.TxStepAtHead` (list state)
+and `CommitmentTreeAtV35.CTxStepAtV35` (whole storage, canonical).  Every `TxStep` run is a
+`TxStepAtHead` run (`Properties.PinTxRunIsTxRunAtHead`), and a `TxStepAtHead` run from the
+predeploy, with each hint replaced by its landing index, is a `TxStep` run with the same states
+(`Properties.TxRunAtHeadIsRelabelledTxRun`); the results below are carried to v35 that way (the
+`…AtHead` and `CTxRunAtV35…` statements).  The other definitions here (`Roles`, `Call`,
+`predeploy`, `setupWrites`, `Trace`, `RunOf`, the `_nodes[0]` ghost) are `b17415d20`'s and shared
+with the v35 machines.
 
 ## Deployment
 
 The tree is a ZKsync OS genesis predeploy with no constructor (`L2InteropCommitmentTree.sol:26`):
 the genesis tool places a `SystemContractProxy` at its address with the implementation
-elsewhere (`tools/zksync-os-genesis-gen/src/consts.rs:248-251`, `genesis.rs:69-79`), and
-the proxy's only initial storage is the EIP-1967 implementation and admin slots
-(`genesis.rs:85-86, 330-338`). So `_imt` starts as all-zero storage, which is `predeploy`.
-The genesis upgrade calls `initL2()` once, on ZKsync OS genesis only
-(`L2GenesisForceDeploymentsHelper.sol:448-461`). The proxy forwards `initL2` and `insert`
-to the implementation for every caller (`SystemContractProxy.sol:39-67`).
+elsewhere (`tools/zksync-os-genesis-gen/src/consts.rs:248-249`; the `genesis.rs` lines below are
+as recorded at the pin and not re-checked), and the proxy's only initial storage is the EIP-1967
+implementation and admin slots (`genesis.rs:85-86, 330-338`).  So `_imt` starts as all-zero
+storage, which is `predeploy`.  The genesis upgrade calls `initL2()` once, on ZKsync OS genesis
+only (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:352-375`, the call at `:373`).  The proxy
+forwards `initL2` and `insert` to the implementation for every caller
+(`l2-upgrades/SystemContractProxy.sol:39-67`).
 
 ## The countermodel's machine
 
@@ -79,8 +97,8 @@ the zero leaf at the old `_leafNumber` is in both.)
 * A reverted transaction, or a transaction to another contract, is an idle step: it
   leaves the tree unchanged (`VM-REVERT`, `MODEL-COMMIT`).
 * `insert`'s label is the calldata `(_value, _lowNullifierIndex)`; the index written is
-  the one the bounded search returns, with the deployed fuel
-  `MAX_LOW_INDEX_SEARCH_ATTEMPTS` (`HintSearch`).
+  the one the bounded search returns, with the pin's fuel
+  `MAX_LOW_INDEX_SEARCH_ATTEMPTS` (`HintSearch`; unbounded at `b17415d20`, see above).
 * Counts and indices are `ℕ`. `_leafNumber++` is checked arithmetic and cannot reach
   `2^256` in practice, so `_leafNumber` never returns to `0`.
 * Callers are compared with the two role addresses by equality only.
@@ -98,22 +116,22 @@ abbrev Caller := UInt256
 /-- The two addresses the contract compares `msg.sender` against. -/
 structure Roles where
   /-- `L2_COMPLEX_UPGRADER_ADDR`, checked by `onlyUpgrader`
-  (`L2InteropCommitmentTree.sol:36-41`). -/
+  (`L2InteropCommitmentTree.sol:35-40`). -/
   upgrader : Caller
   /-- `appender()`, the constant `L2_ATOMIC_FLOW_MANAGER_ADDR`
-  (`L2InteropCommitmentTree.sol:82-84`), checked first thing in `insert` (`:54`). -/
+  (`L2InteropCommitmentTree.sol:114-116`), checked first thing in `insert` (`:52-54`). -/
   appender : Caller
 
 /-- The deployed role addresses: `L2_COMPLEX_UPGRADER_ADDR = SYSTEM_CONTRACTS_OFFSET + 0x0f`
-(`L2ContractAddresses.sol:75`, `system-contracts/contracts/Constants.sol:10`) and
+(`common/l2-helpers/L2ContractAddresses.sol:6, 65`) and
 `L2_ATOMIC_FLOW_MANAGER_ADDR = BUILT_IN_CONTRACTS_OFFSET + 0x14`
-(`L2ContractAddresses.sol:12,150`). -/
+(`L2ContractAddresses.sol:12, 142`). -/
 def deployedRoles : Roles := ⟨0x800f, 0x10014⟩
 
 /-! ## Entry points -/
 
-/-- The contract's state-changing entry points (`L2InteropCommitmentTree.sol:47-59`); every
-other function of the contract is `view`. -/
+/-- The contract's state-changing entry points (`L2InteropCommitmentTree.sol:45-64`); every
+other external function is `view`, and `fallback` always reverts. -/
 inductive Call where
   /-- `initL2()`. -/
   | initL2
@@ -136,7 +154,7 @@ def predeploy : Tree where
   valueToIndex := fun _ => 0
 
 /-- The list-state writes of `IndexedMerkleTree.setup` past its guard
-(`IndexedMerkleTree.sol:47-50`): `pushNewLeaf` increments `_leafNumber`, and
+(`IndexedMerkleTree.sol:51-53`): `pushNewLeaf` increments `_leafNumber`, and
 `leaves[0] := {0,0,0}`. Every other leaf and all of `valueToIndex` are left as they were. -/
 def setupWrites (T : Tree) : Tree where
   leafCount := T.leafCount + 1
@@ -145,21 +163,23 @@ def setupWrites (T : Tree) : Tree where
 
 /-! ## Transactions -/
 
-/-- What a successful `insert(v, hint)` has checked before it writes, at the index `low`
-the search returns (`IndexedMerkleTree.sol:65-92`). -/
+/-- What a successful `insert(v, hint)` had checked at the interop pin before it wrote, at the
+index `low` the five-hop search returned.  The first five fields are `b17415d20`'s checks
+(`IndexedMerkleTree.sol:70-88`); `search` is the pin's bounded loop, where `b17415d20` has
+`InsertChecksAtV35.walk`. -/
 structure InsertChecks (T : Tree) (v : UInt256) (hint low : ℕ) : Prop where
-  /-- `leafNumber == 0` reverts with `IMTNotInitialized` (:65-68). -/
+  /-- `leafNumber == 0` reverts with `IMTNotInitialized` (:70-73). -/
   initialized : Initialized T
-  /-- `_value == 0` reverts with `IMTValueZero` (:69-71). -/
+  /-- `_value == 0` reverts with `IMTValueZero` (:74-76). -/
   nonzero : v ≠ 0
-  /-- `valueToIndex[_value] != 0` reverts with `IMTValueAlreadyExists` (:72-74). -/
+  /-- `valueToIndex[_value] != 0` reverts with `IMTValueAlreadyExists` (:77-79). -/
   unregistered : T.valueToIndex v = 0
-  /-- `_lowLeafIndex >= leafNumber` reverts with `IMTLowLeafIndexOutOfBounds` (:75-77). -/
+  /-- `_lowLeafIndex >= leafNumber` reverts with `IMTLowLeafIndexOutOfBounds` (:80-82). -/
   hintInBounds : hint < T.leafCount
-  /-- `lowLeaf.value >= _value` reverts with `IMTLowLeafValueTooLarge` (:79-83). -/
+  /-- `lowLeaf.value >= _value` reverts with `IMTLowLeafValueTooLarge` (:84-88). -/
   hintBelow : (T.leaf hint).value < v
-  /-- The bounded walk (:85-92) ends at `low`; running out of hops reverts with
-  `IMTLowLeafNextTooSmall`. -/
+  /-- The pin's bounded walk ends at `low`; running out of hops reverted with
+  `IMTLowLeafNextTooSmall` (at `b17415d20` the walk is unbounded, `:90-93`). -/
   search : lowSearch T v maxLowIndexSearchAttempts hint = some low
 
 /-- One successful transaction of the deployed contract, sent by `c`. -/
@@ -251,15 +271,15 @@ the open obligation O7 (the cached-nodes half), as in `TreeRoot` and `RunHeight`
 /-- `FullMerkle._nodes[0]`, the stored leaf hashes, as a total function of the index. -/
 abbrev LeafLevel := ℕ → UInt256
 
-/-- `IMT.setup`'s write to `_nodes[0]` past its guard: `pushNewLeaf(zeroLeafHash)` stores the
-zero leaf's hash at index `_leafNumber` (`IndexedMerkleTree.sol:47-49`). The write
-`leaves[0] := {0,0,0}` (`:50`) does not touch `_nodes`. -/
+/-- `IMT.setup`'s write to `_nodes[0]` past its guard: `pushNewLeaf(hashLeaf({0,0,0}))` stores
+the zero leaf's hash at index `_leafNumber` (`IndexedMerkleTree.sol:52`). The write
+`leaves[0] := {0,0,0}` (`:53`) does not touch `_nodes`. -/
 def setupLevel (hl : LeafHash) (T : Tree) (H : LeafLevel) : LeafLevel :=
   Function.update H T.leafCount (hl ⟨0, 0, 0⟩)
 
 /-- `IMT.insert`'s writes to `_nodes[0]` at the searched index `low`:
 `updateLeaf(low, hashLeaf(updatedLowLeaf))`, then `pushNewLeaf(hashLeaf(newLeaf))` at index
-`_leafNumber` (`IndexedMerkleTree.sol:98-105`). -/
+`_leafNumber` (`IndexedMerkleTree.sol:101, 106`). -/
 def insertLevel (hl : LeafHash) (T : Tree) (H : LeafLevel) (v : UInt256) (low : ℕ) :
     LeafLevel :=
   Function.update

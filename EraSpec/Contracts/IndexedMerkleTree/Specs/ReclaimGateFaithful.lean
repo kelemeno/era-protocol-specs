@@ -4,6 +4,11 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.CachedRoot
 /-!
 # Model: the reclaim capstones read against the deployed absence check
 
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`).  The padding constant is a parameter `z0`
+(`IMT_EMPTY_LEAF_HASH` at `b17415d20`); the storage model is the canonical `cSetupPad` /
+`CReachesPad` of `../../L2InteropCommitmentTree/Specs/CachedRoot.lean`.  The results at the pin's
+padding `hashLeaf({0,0,0})` are in `../History/Specs/PinnedGate.lean`.
+
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.IndexedMerkleTree.Properties.ReclaimGateFaithful`, proofs in
 `EraSpec.Contracts.IndexedMerkleTree.Proofs.ReclaimGateFaithful`.
@@ -21,7 +26,7 @@ model the refund path's absence check as
 so the presented low leaf is a MEMBER of the snapshot by hypothesis.  In the contract the
 low leaf is the prover's, and the check does not test membership.
 `IndexedMerkleTree.verifyNonInclusion(_root, _value, _lowLeaf, _lowLeafIndex, _lowLeafProof)`
-(c67894b9 `IndexedMerkleTree.sol:153-171`) reverts on `_value == 0`, on
+(`IndexedMerkleTree.sol:154-172` at `b17415d20`) reverts on `_value == 0`, on
 `_lowLeaf.value >= _value` and on `_lowLeaf.nextValue != 0 && _lowLeaf.nextValue <= _value`,
 and otherwise returns `Merkle.calculateRootMemory(_lowLeafProof, _lowLeafIndex,
 hashLeaf(_lowLeaf)) == _root`.  The leaf, its index, the path and the path length are all

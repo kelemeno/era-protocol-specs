@@ -22,6 +22,12 @@ cited below (`common/l2-helpers/L2ContractAddresses.sol`, the genesis helper,
 `:157`.  The address values are the same (`0x800f`, `0x10014`, `0x7004`); every citation below is
 `b17415d20`'s.
 
+**The canonical model.**  `CTxStepAtV35` / `CTxRunAtV35` is the one v35 model of the tree
+contract.  Its walk and checks are `WalkExitsAtV35` and `InsertChecksAtV35`
+(`Specs/HintSearch.lean`), its `initL2()` makes the same `FullMerkle` calls as
+`CachedRoot.cSetupPad`, and its list state projects onto
+`HintSearchAtHead.TxStepAtHead` (`Properties.CTxRunAtV35ProjectsToTxRunAtHead`).
+
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.CommitmentTreeAtV35`, proofs in
 `EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CommitmentTreeAtV35`.
