@@ -3,9 +3,13 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting
 /-!
 # Model: chains leaving and returning — a returning chain keeps its diamond
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for
+Source: branch `draft/v0.35.0` of `matter-labs/era-contracts`, commit `b17415d20`, as for
 `EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting`, whose system this model extends.
-Paths are relative to `l1-contracts/contracts/`.
+Every `file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`.
+
+First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415d20`: only
+`ChainTypeManager.sol` and `Admin.sol` lines moved. `Migrator.sol` and
+`ChainAssetHandlerBase.sol` are unchanged, and the cited part of `BridgehubBase.sol` is too.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ChainMigration` and are proved in
@@ -18,10 +22,10 @@ elsewhere, and a chain that comes back reuses it.
 
 ## Leaving
 
-`ChainTypeManager.forwardedBridgeBurn` (`state-transition/ChainTypeManager.sol:726-746`)
+`ChainTypeManager.forwardedBridgeBurn` (`state-transition/ChainTypeManager.sol:721-741`)
 requires the chain to be at the CTM's version:
 
-    if (chainProtocolVersion != protocolVersion) { revert OutdatedProtocolVersion(...); } // :741-743
+    if (chainProtocolVersion != protocolVersion) { revert OutdatedProtocolVersion(...); } // :736-738
 
 and the diamond's `Migrator.forwardedBridgeBurn`
 (`state-transition/chain-deps/facets/Migrator.sol:154-209`) refuses a chain already away
@@ -47,8 +51,8 @@ chain's settlement layer and reads `zkChainMap`).
     IZKChain(zkChain).forwardedBridgeMint(bridgehubMintData.chainData, contractAlreadyDeployed); // :417
 
 So a registered chain skips `ChainTypeManager.forwardedBridgeMint` — and with it the CTM's
-version check (:759-761) and `_deployNewChain`, which would revert `ChainAlreadyLive`
-anyway (:680-683). The diamond's `Migrator.forwardedBridgeMint` (`Migrator.sol:213-305`)
+version check (:754-756) and `_deployNewChain`, which would revert `ChainAlreadyLive`
+anyway (:675-678). The diamond's `Migrator.forwardedBridgeMint` (`Migrator.sol:213-305`)
 does check the version, and clears the settlement layer:
 
     if (currentProtocolVersion != protocolVersion) { revert OutdatedProtocolVersion(...); } // :225-229
@@ -73,7 +77,7 @@ touching neither routing nor version.
   runs.
 * **Every `ChainRouting` step is kept as is** and does not read `away`; in particular a
   diamond that is away can still be upgraded or cut, since `upgradeChainFromVersion`
-  (`Admin.sol:528-559`) and `executeUpgrade` (:562-564) carry no `onlySettlementLayer`.
+  (`Admin.sol:559-590`) and `executeUpgrade` (:593-595) carry no `onlySettlementLayer`.
   On L1 the fresh `migrateIn` of `ChainRouting` cannot happen (`Migrator.sol:277-279`
   reverts `ContractNotDeployed`); keeping it only adds runs.
 -/
@@ -110,7 +114,7 @@ inductive MStep (W : World) : MSys → MLabel → MSys → Prop
   | base {s : MSys} {l : Label} {s' : Sys} :
       Step W s.sys l s' → MStep W s (.base l) { s with sys := s' }
   /-- Leaving: the chain is registered, not away (`Migrator.sol:162-164`), and at the
-  CTM's version (`ChainTypeManager.sol:741-743`, `Migrator.sol:196-198`). -/
+  CTM's version (`ChainTypeManager.sol:736-738`, `Migrator.sol:196-198`). -/
   | migrateOut {s : MSys} {id : ChainId} {c : Chain} :
       s.sys.chains id = some c → s.away id = false → c.pv = s.sys.ctm.pv →
       MStep W s (.migrateOut id) { s with away := upd s.away id true }

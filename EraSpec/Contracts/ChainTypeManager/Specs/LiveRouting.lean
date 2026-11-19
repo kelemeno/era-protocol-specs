@@ -3,8 +3,18 @@ import EraSpec.Contracts.ChainTypeManager.Specs.DiamondStorage
 /-!
 # Model: `requireReleaseRouting`'s counting check, and the routing system that runs it
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for the rest of this folder.
-Paths are relative to `l1-contracts/contracts/`.
+Source: branch `draft/v0.35.0` of `matter-labs/era-contracts`, commit `b17415d20`. Every
+`file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`.
+
+First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415d20`.
+`LiveRoutingReader.sol`, `ReleaseFacetReader.sol`, `TransitionDerivationLib.sol`,
+`DiamondInit.sol`, `BootstrapUpgrade.sol` and `ISelfDescribingFacet.sol` are unchanged.
+`CTMRelease.validate()` is unchanged apart from its lines; the constructor's
+`_requireUniqueFacetRows` now also refuses a zero facet address (it skipped one before), and the
+constructor refuses an empty facet set with its own error. Neither changes `ReleaseValid`,
+which is what `validate()` checks. The Admin and Getters facets each self-describe one more
+selector (`permanentlyRequireSecondProofSystem()`, `isSecondProofSystemRequired()`); the
+model's facets are abstract, so nothing here depends on their lists.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.LiveRouting` and are proved in
@@ -13,7 +23,7 @@ Paths are relative to `l1-contracts/contracts/`.
 ## The check
 
 `DefaultUpgrade.upgradeFromTransition` refuses to cross an edge unless the chain's live
-routing is its departing release's (`upgrades/DefaultUpgrade.sol:37`). The check
+routing is its departing release's (`upgrades/DefaultUpgrade.sol:36`). The check
 (`upgrades/registry/libraries/LiveRoutingReader.sol:32-59`):
 
     /// @notice Reverts unless the live routing is exactly `_release`'s: the same facets, each
@@ -46,31 +56,31 @@ diamond storage of `DiamondStorage`, and rebuilds the routing system on that sto
 
 `ChainRouting`'s `World.relRows` is a release's routing flattened to one entry per selector.
 Here a release is what its contract returns: `genesisFacets()`, a list of rows
-`(facet, isFreezable)` (`upgrades/registry/RegistryTypes.sol:22-25`), and each facet's
+`(facet, isFreezable)` (`upgrades/registry/RegistryTypes.sol:24-27`), and each facet's
 `ISelfDescribingFacet(facet).selectors()`. `DWorld.toWorld` flattens it back to a `World`, so
 every `ChainRouting` definition applies to it.
 
-What `CTMRelease.validate()` checks of the rows (`upgrades/registry/objects/CTMRelease.sol:105-129`)
-is `ReleaseValid`: every facet has code (in particular is nonzero, :117), every facet's
-selector list is nonempty (:121-123), and no selector appears twice across the rows
-(`_requireNoDuplicateSelectors`, :128, :190-213). It does not check that facet rows are
+What `CTMRelease.validate()` checks of the rows (`upgrades/registry/objects/CTMRelease.sol:118-142`)
+is `ReleaseValid`: every facet has code (in particular is nonzero, :130), every facet's
+selector list is nonempty (:134-136), and no selector appears twice across the rows
+(`_requireNoDuplicateSelectors`, :141, :238-261). It does not check that facet rows are
 distinct; that follows (`Properties.ValidRowsHaveDistinctFacets`), because a repeated facet
 repeats its nonempty selector list.
 
 ## Modelling choices
 
 * **`selectors()` is a fixed function of the facet address** (`DWorld.selectors`). Every
-  facet in the tree declares it `public pure` (e.g. `state-transition/chain-deps/facets/Admin.sol:615`,
-  `Executor.sol:276`, `Getters.sol:356`) and the interface declares it `pure`
+  facet in the tree declares it `public pure` (e.g. `state-transition/chain-deps/facets/Admin.sol:646`,
+  `Executor.sol:276`, `Getters.sol:360`) and the interface declares it `pure`
   (`state-transition/chain-interfaces/ISelfDescribingFacet.sol:24`). This matters because
-  `validate()` runs when a release is installed (`ChainTypeManager.sol:310`) and when a
+  `validate()` runs when a release is installed (`ChainTypeManager.sol:305`) and when a
   transition is built from it (`CTMTransition.sol:74-75`), while the check re-reads
   `selectors()` when a chain upgrades. A facet whose answer changes over time (a call through
   a `pure` interface is a `STATICCALL`, which may still read state) is outside the model.
 * **`validate()` is checked when a release is installed** (`DStep.ctm`, through
-  `_setCurrentRelease`, `ChainTypeManager.sol:305-323`), and by the starting states; it is
+  `_setCurrentRelease`, `ChainTypeManager.sol:300-318`), and by the starting states; it is
   the only check of the facet rows in the system. The duplicate-selector scan is an
-  open-addressing set (`CTMRelease.sol:190-213`), modelled here by its meaning: no selector
+  open-addressing set (`CTMRelease.sol:238-261`), modelled here by its meaning: no selector
   twice. The `DuplicateSelectorScan` topic transcribes the scan and proves it checks exactly
   that for 4-byte selectors (`Properties.DuplicateScanIffNodup`, `ValidateRowsIffRowsWf`).
 * **The transition's cuts** are `TransitionDerivationLib.deriveFacetCuts(fromRelease,
@@ -82,7 +92,7 @@ repeats its nonempty selector list.
 * **The rest of the engine and the omitted checks** are as in `ChainRouting`: reject-only
   checks are omitted, a transition lands on `newProtocolVersion()`, and every engine runs
   `DefaultUpgrade` / `BootstrapUpgrade` logic. In that logic the only writer of diamond
-  storage is `_applyDerivedFacetCuts` (`BaseZkSyncUpgrade.sol:118-123`), a `diamondCut` with
+  storage is `_applyDerivedFacetCuts` (`BaseZkSyncUpgrade.sol:124-129`), a `diamondCut` with
   init zero; `_upgrade` writes the chain's own storage, not the diamond's.
 * **A break-glass cut leaves any storage** (`DLabel.arbitraryCut`): its init can
   `delegatecall` code that writes diamond storage directly, so even the storage invariant
@@ -94,7 +104,7 @@ namespace Contracts.ChainTypeManager
 
 /-! ## Releases as facet rows -/
 
-/-- `GenesisFacet` (`RegistryTypes.sol:22-25`): a facet and its freezability. -/
+/-- `GenesisFacet` (`RegistryTypes.sol:24-27`): a facet and its freezability. -/
 abbrev FacetRow := Address × Bool
 
 /-- A release's routing flattened to one entry per selector, in row order, each selector read
@@ -123,14 +133,14 @@ abbrev DWorld.rows (D : DWorld) (R : Address) : ReleaseRows := D.toWorld.relRows
 /-- What the count check needs of a release's rows: every row self-describes at least one
 selector, and no selector appears twice across the rows. -/
 structure RowsWf (sel : Address → List Selector) (rows : List FacetRow) : Prop where
-  /-- `if (routing[i].length == 0) { revert RegistryEmptySelectors(facet); }` (`CTMRelease.sol:121-123`). -/
+  /-- `if (routing[i].length == 0) { revert RegistryEmptySelectors(facet); }` (`CTMRelease.sol:134-136`). -/
   nonempty : ∀ fb ∈ rows, sel fb.1 ≠ []
-  /-- `_requireNoDuplicateSelectors(routing)` (`CTMRelease.sol:128`). -/
+  /-- `_requireNoDuplicateSelectors(routing)` (`CTMRelease.sol:141`). -/
   nodup : (rows.flatMap fun fb => sel fb.1).Nodup
 
-/-- What `CTMRelease.validate()` checks of a release's facet rows (`CTMRelease.sol:105-129`). -/
+/-- What `CTMRelease.validate()` checks of a release's facet rows (`CTMRelease.sol:118-142`). -/
 structure ReleaseValid (D : DWorld) (R : Address) : Prop where
-  /-- `ObjectAnchorLib.requireCode(facet)` (:117); address zero has no code. -/
+  /-- `ObjectAnchorLib.requireCode(facet)` (:130); address zero has no code. -/
   facetsNonzero : ∀ fb ∈ D.genesisFacets R, fb.1 ≠ 0
   /-- Nonempty and duplicate-free selector lists. -/
   rows : RowsWf D.selectors (D.genesisFacets R)
@@ -216,8 +226,8 @@ def DLabel.isArbitrary : DLabel → Prop
   | _ => False
 
 /-- The release a CTM writer installs through `_setCurrentRelease`, which runs
-`release.validate()` (`ChainTypeManager.sol:310`): the commit's new release (:422) and the
-legacy commit's release (:817). -/
+`release.validate()` (`ChainTypeManager.sol:305`): the commit's new release (:417) and the
+legacy commit's release (:812). -/
 def Op.installs (W : World) : Op → Option Address
   | .commit t => some (W.tr t).newRel
   | .legacyCommit R _ => some R
@@ -247,7 +257,7 @@ inductive DStep (D : DWorld) : DSys → DLabel → DSys → Prop
       diamondCut DiamondStorage.fresh (newChainInstallations D s.ctm.cur) = some ds →
       DStep D s (.migrateIn id) { s with chains := upd s.chains id (some ⟨v, ds⟩) }
   /-- `upgradeChainFromVersion` across `upgradeTransition[c.pv]`: the count check against the
-  departing release (`DefaultUpgrade.sol:37`), then the derived cuts (:41). -/
+  departing release (`DefaultUpgrade.sol:36`), then the derived cuts (:40). -/
   | transition {s : DSys} {id : ChainId} {c : DChain} {ds : DiamondStorage} :
       s.chains id = some c →
       s.ctm.ut c.pv ≠ 0 →
@@ -357,7 +367,7 @@ def cmSelectors : Address → List Selector := fun f =>
 def cmRows : List FacetRow := [(11, false), (12, false)]
 
 /-- A release that lists facet `11` twice (which `CTMRelease`'s constructor refuses,
-`CTMRelease.sol:171-184`, and `validate()` refuses through the repeated selector). -/
+`CTMRelease.sol:219-232`, and `validate()` refuses through the repeated selector). -/
 def cmRepeatedRows : List FacetRow := [(11, false), (11, false)]
 
 /-- The cuts that build the live diamond of the countermodel: facet `11` with selector `1`,

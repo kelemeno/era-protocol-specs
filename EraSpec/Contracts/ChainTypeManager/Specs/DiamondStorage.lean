@@ -3,9 +3,13 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting
 /-!
 # Model: a chain diamond's own storage and `Diamond.diamondCut`
 
-Source: `state-transition/libraries/Diamond.sol` on branch `feat/upgrade-simplification` at
-`e561b9cc2`, as for the rest of this folder (the branch moves; every `file:line` below is at
-that commit). Paths are relative to `l1-contracts/contracts/`.
+Source: `state-transition/libraries/Diamond.sol` on branch `draft/v0.35.0` of
+`matter-labs/era-contracts`, commit `b17415d20`. Every `file:line` below is at that commit.
+Paths are relative to `l1-contracts/contracts/`.
+
+First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415d20`.
+`Diamond.sol`, `DiamondProxy.sol`, `DiamondInit.sol` and `LiveRoutingReader.sol` are unchanged
+there; only the cited lines of `BaseZkSyncUpgrade.sol` moved.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.DiamondStorage` and are proved in
@@ -52,7 +56,7 @@ The proxy's fallback routes a call by `selectorToFacet[msg.sig]` alone and refus
 * **The init call is not modelled here.** `diamondCut` below is the facet-cut loop
   (`Diamond.sol:114-133`) with `initAddress == address(0)` and empty calldata, which is what
   every diamond cut this folder models has once the engine runs (`DiamondInit.sol:84-86`,
-  `BaseZkSyncUpgrade.sol:118-123`): `_initializeDiamondCut(0, "")` does nothing
+  `BaseZkSyncUpgrade.sol:124-129`): `_initializeDiamondCut(0, "")` does nothing
   (`Diamond.sol:311-315`). An init that `delegatecall`s arbitrary code could write diamond
   storage directly; that is outside this file (see `LiveRouting`'s break-glass step).
 -/

@@ -8,19 +8,9 @@ Source: era-contracts branch `draft/v0.35.0` at commit `b17415d20`. Paths are re
 (at `70096e2`) has none of this code: no release objects and no self-describing facets.
 
 The definitions reused from `LiveRouting` and `VersionRegistry` (`DStep`, `CStep`, `CountCheck`,
-`deriveFacetCuts`, `newChainInstallations`, `ReleaseValid`) cite the folder's pin `e561b9cc2`. At
-`b17415d20` the code they transcribe reads the same, at these lines:
-* `DefaultUpgrade.upgradeFromTransition` is at `upgrades/DefaultUpgrade.sol:29-43`, its guard at
-  :36 and its cut at :40;
-* `CTMRelease.validate()` is at `upgrades/registry/objects/CTMRelease.sol:118-142`, with the
-  facet's code check at :130, the `selectors()` read at :131, the nonempty check at :134-136 and
-  the duplicate scan at :141;
-* the `ChainTypeManager.sol` functions `VersionRegistry` quotes are five lines earlier than it
-  cites them, and the storage declarations three (for example `_setCurrentRelease`'s
-  `validate()` call is at `state-transition/ChainTypeManager.sol:305`);
-* `LiveRoutingReader.sol`, `ReleaseFacetReader.sol`, `TransitionDerivationLib.sol`,
-  `BootstrapUpgrade.sol`, `DiamondInit.sol` and `CTMTransition.sol`'s constructor are at the lines
-  cited there.
+`deriveFacetCuts`, `newChainInstallations`, `ReleaseValid`) were first written against
+`e561b9cc2` and are now pinned to `b17415d20` too; the code they transcribe reads the same at
+both commits, and their Specs headers cite it at `b17415d20`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.MutableSelectors` and are proved in

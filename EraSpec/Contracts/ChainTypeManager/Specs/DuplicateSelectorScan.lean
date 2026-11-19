@@ -3,8 +3,12 @@ import EraSpec.Contracts.ChainTypeManager.Specs.LiveRouting
 /-!
 # Model: `CTMRelease._requireNoDuplicateSelectors`, an open-addressing set
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for the rest of this folder.
-Paths are relative to `l1-contracts/contracts/`.
+Source: branch `draft/v0.35.0` of `matter-labs/era-contracts`, commit `b17415d20`. Every
+`file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`.
+
+First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415d20`:
+`_requireNoDuplicateSelectors` and the loop of `validate()` that feeds it are unchanged; only
+their lines in `CTMRelease.sol` moved.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.DuplicateSelectorScan` and are proved in
@@ -14,7 +18,7 @@ Paths are relative to `l1-contracts/contracts/`.
 
 `LiveRouting` states what `CTMRelease.validate()` checks of a release's rows by meaning
 (`RowsWf`): no selector appears twice. The code does not compare pairs; it inserts every
-selector into a hash table (`upgrades/registry/objects/CTMRelease.sol:186-213`):
+selector into a hash table (`upgrades/registry/objects/CTMRelease.sol:234-261`):
 
     /// @dev An open-addressing set over the release's selectors: a pairwise scan of the ~a hundred
     ///      selectors costs ~0.9M gas. A slot holds
@@ -57,11 +61,11 @@ selector appears twice.
 
 namespace Contracts.ChainTypeManager
 
-/-- `uint256(uint32(selector)) + 1` (`CTMRelease.sol:202`): a selector's table entry; zero
+/-- `uint256(uint32(selector)) + 1` (`CTMRelease.sol:250`): a selector's table entry; zero
 marks an empty slot. -/
 def scanEntry (x : Selector) : ℕ := x % 2 ^ 32 + 1
 
-/-- The probe of one selector (`CTMRelease.sol:203-210`), from slot `slot`, with `fuel`
+/-- The probe of one selector (`CTMRelease.sol:251-258`), from slot `slot`, with `fuel`
 iterations of the `while` loop left: an empty slot takes the entry, a slot holding the same
 entry reverts, any other slot moves on to the next one, cyclically. -/
 def scanProbe (size : ℕ) (table : ℕ → ℕ) (entry : ℕ) : ℕ → ℕ → Option (ℕ → ℕ)
@@ -71,7 +75,7 @@ def scanProbe (size : ℕ) (table : ℕ → ℕ) (entry : ℕ) : ℕ → ℕ →
       else if table slot = entry then none
       else scanProbe size table entry fuel ((slot + 1) % size)
 
-/-- The loop over every selector of every row, in order (`CTMRelease.sol:198-212`): each one
+/-- The loop over every selector of every row, in order (`CTMRelease.sol:246-260`): each one
 is probed from its entry's home slot `entry % tableSize`. -/
 def scanLoop (size : ℕ) : (ℕ → ℕ) → List Selector → Option (ℕ → ℕ)
   | table, [] => some table
@@ -79,12 +83,12 @@ def scanLoop (size : ℕ) : (ℕ → ℕ) → List Selector → Option (ℕ → 
       (scanProbe size table (scanEntry x) size (scanEntry x % size)).bind fun t =>
         scanLoop size t xs
 
-/-- **`_requireNoDuplicateSelectors(routing)` does not revert** (`CTMRelease.sol:190-213`):
+/-- **`_requireNoDuplicateSelectors(routing)` does not revert** (`CTMRelease.sol:238-261`):
 the table has `2 * total + 1` slots, `total` being the number of selectors. -/
 def NoDuplicateScanPasses (routing : List (List Selector)) : Prop :=
   (scanLoop (2 * routing.flatten.length + 1) (fun _ => 0) routing.flatten).isSome
 
-/-- The facet-row part of `CTMRelease.validate()` as the code does it (`CTMRelease.sol:112-128`):
+/-- The facet-row part of `CTMRelease.validate()` as the code does it (`CTMRelease.sol:125-141`):
 every row's self-described selector list is nonempty, then the scan over all of them. -/
 def ValidateRowsPasses (sel : Address → List Selector) (rows : List FacetRow) : Prop :=
   (∀ fb ∈ rows, sel fb.1 ≠ []) ∧ NoDuplicateScanPasses (rows.map fun fb => sel fb.1)
