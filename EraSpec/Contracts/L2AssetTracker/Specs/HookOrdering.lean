@@ -3,8 +3,10 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks
 /-!
 # Model: the order of the tracker hook and the token effect on the vault's four paths
 
-Source: pin `c67894b9`, `NTV` = `bridge/ntv/NativeTokenVaultBase.sol`, `TRK` =
-`bridge/asset-tracker/L2AssetTracker.sol`.
+Source: `draft/v0.35.0` head `b17415d20`, `NTV` = `bridge/ntv/NativeTokenVaultBase.sol`, `TRK` =
+`bridge/asset-tracker/L2AssetTracker.sol` (paths under `l1-contracts/contracts/`).  First written at
+the pin `c67894b9`; the four paths, the hook calls and the quoted comments are the same at
+`b17415d20` (the vault's code differs only in renamed internal getters and locals).
 
 **This file is definitions only.**  The results are in
 `EraSpec.Contracts.L2AssetTracker.Properties.HookOrdering` and proved in
@@ -13,27 +15,32 @@ Source: pin `c67894b9`, `NTV` = `bridge/ntv/NativeTokenVaultBase.sol`, `TRK` =
 ## Why the order matters
 
 The tracker's first-touch registration of a legacy token reads the token
-(`TRK:327`, `:336`) and stores what it reads as the token's pre-v31 snapshot.  The source
+(`TRK:249`, `:258`) and stores what it reads as the token's pre-v31 snapshot.  The source
 relies on the read happening before the token moves:
 
-* `TRK:334-335`: "here we assume that `totalSupply()` won't be affected in any way until it is
+* `TRK:256-257`: "here we assume that `totalSupply()` won't be affected in any way until it is
   used here, i.e. all deposits or withdrawals should firstly record the previous totalSupply";
-* `NTV:454-455`: "in order to track `totalPreV31TotalSupply` correctly in L2AssetTracker, we
+* `NTV:433-434`: "in order to track `totalPreV31TotalSupply` correctly in L2AssetTracker, we
   have to call `_handleBridgeToChain` before any balance changes will be performed";
-* `NTV:257-259` and `:293-295`: the inbound hook runs "before giving out funds to the user".
+* `NTV:237-239` and `:273-275`: the inbound hook runs "before giving out funds to the user".
 
 ## The four paths (L2 vault, non-base asset)
 
 * `bridgedOut`: `_handleBridgeToChain`, then `IBridgedStandardToken(token).bridgeBurn(_originalCaller,
-  amount)` (`NTV:469`, `:471-472`);
+  amount)` (`NTV:447`, `:449-450`);
 * `nativeOut`: `_handleBridgeToChain`, then `_depositFunds(_originalCaller, token, amount)`,
   which moves `amount` from the depositor to the vault and returns the vault's balance increase,
-  and the vault's check that the increase is `amount` (`NTV:469`, `:473-476`, `:490-497`;
+  and the vault's check that the increase is `amount` (`NTV:447`, `:451-454`, `:468-475`;
   `depositFunds`);
-* `bridgedIn`: `_handleBridgeFromChain`, then `bridgeMint(receiver, amount)` (`NTV:260`,
-  `:262-263`; recovery `:296`, `:304`);
+* `bridgedIn`: `_handleBridgeFromChain`, then `bridgeMint(receiver, amount)` (`NTV:240`,
+  `:242-243`; recovery `:276`, `:284`);
 * `nativeIn`: `_handleBridgeFromChain`, then `_withdrawFunds`, which moves `amount` from the vault
-  to the receiver (`NTV:260`, `:264-265`; recovery `:296-298`; `L2NativeTokenVault.sol:238-241`).
+  to the receiver (`NTV:240`, `:244-245`; recovery `:276-278`; `L2NativeTokenVault.sol:196-199`).
+
+At `b17415d20` the L2 vault's recovery first calls the tracker's view
+`assertRecoveryIsAccountingNeutral` (`L2NativeTokenVault.sol:213`), which writes nothing and does
+not read the token; the recovery paths here are what follows it.  The guarded recovery is
+`headRecover` (`Specs/LaterHeads.lean`).
 
 The token is the token model's ledger; a native token's transfers are modelled by its
 `transfer` (allowances are not modelled, so `safeTransferFrom` is a transfer by the depositor).
@@ -41,12 +48,12 @@ The token is the token model's ledger; a native token's transfers are modelled b
 `runPathEffectFirst` is the other order, for the countermodel only; no source path runs it.
 The vault's other checks (router, pause, nonzero amount, asset id, WETH, `msg.value`)
 are not part of a path.  Which path the vault takes is decided by `originChainId[_assetId] !=
-block.chainid` (`NTV:245`, `:389`); `runPath` takes the path as an argument, so a statement about
+block.chainid` (`NTV:225`, `:369`); `runPath` takes the path as an argument, so a statement about
 every path covers combinations the vault never makes.
 
 The base token's outbound path is different: the vault forwards the value to the
-`BaseTokenHolder`, whose `burnAndStartBridging` then calls the tracker (`NTV:463`,
-`l2-system/BaseTokenHolder.sol:115-118`), so there the value moves before the hook runs.  It has
+`BaseTokenHolder`, whose `burnAndStartBridging` then calls the tracker (`NTV:441`,
+`l2-system/BaseTokenHolder.sol:93-96`), so there the value moves before the hook runs.  It has
 no first-touch read once `initL2` has run and the base token is registered
 (`Properties.BaseNeverTakesLegacyPath`).
 -/
@@ -69,7 +76,7 @@ def VaultPath.outbound : VaultPath → Bool
   | .nativeIn => false
 
 /-- `_depositFunds(_originalCaller, token, amount)` and the check on its result
-(`NTV:474-476`, `:490-497`): `balanceBefore = balanceOf(vault)`, the transfer from the depositor
+(`NTV:452-454`, `:468-475`): `balanceBefore = balanceOf(vault)`, the transfer from the depositor
 to the vault, `balanceAfter = balanceOf(vault)`, and `require(amount == balanceAfter -
 balanceBefore)`, the subtraction checked.  With the token model's `transfer` the check fails
 exactly when the depositor is the vault and `amount ≠ 0`. -/
@@ -123,7 +130,7 @@ def runPathEffectFirst (cfg : Config) (p : VaultPath) (st : Storage) (sl : Chain
   | some tok' => (pathHook cfg p st sl (tokenReads cfg tok') chain a amount).map fun st' => (st', tok')
 
 /-- The snapshot a first-touch registration takes from a token state: `MAX - balanceOf(vault)`
-for a native asset, `totalSupply()` otherwise (`TRK:327-337`). -/
+for a native asset, `totalSupply()` otherwise (`TRK:249-259`). -/
 def legacySnapshot (cfg : Config) (a : AssetId) (tok : Contracts.BridgedStandardERC20.State) :
     SavedTotalSupply :=
   if Native cfg a then ⟨true, maxMinus (tokenReads cfg tok).ntvBalance⟩

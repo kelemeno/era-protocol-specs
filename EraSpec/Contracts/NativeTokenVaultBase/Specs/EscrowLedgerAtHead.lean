@@ -3,15 +3,11 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.RegistryAndEscrow
 /-!
 # Model at head: the escrow ledger with `populateBridgedOut`
 
-**Commits.** era-contracts `main` at `70096e2ea6eeb5373992e178064c4b26dcf6436a` and
-`draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.  `bridge/ntv/L1NativeTokenVault.sol`
-and `bridge/ntv/NativeTokenVaultBase.sol` are unchanged on `main` since
-`3605e82dbdca5b60bd7bc6bde14ebb52a6b09b73` and on `draft/v0.35.0` since
-`d9f678900e1bc8286412b78f56d4a9f443983c29`, where this model was first written.  Line numbers
-are `main`'s unless marked.  `draft/v0.35.0` has the same `populateBridgedOut` and
-`legacyBridgedOut` (`L1NativeTokenVault.sol:146-212` there) and the same `bridgedOut` updates
-in its hooks (`:424-459` there), plus per-chain caps that only reject inflows (see the last
-section).  Paths are relative to `l1-contracts/contracts/`.
+**Commit.** era-contracts `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`; paths are
+relative to `l1-contracts/contracts/` and line numbers are `b17415d20`'s.  First written at
+`d9f6789` (and `main` `70096e2ea`, which has the same `populateBridgedOut`).  At `b17415d20` the
+hooks also keep per-chain totals with a cap that only rejects inflows (see the last section; that
+ledger is L1NativeTokenVault `InteropPool`, related to this one by its `LedgerRefinement`).
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.NativeTokenVaultBase.Properties.EscrowLedgerAtHead`, proofs in
@@ -22,53 +18,53 @@ section).  Paths are relative to `l1-contracts/contracts/`.
 `Contracts.NativeTokenVault` (`Specs/RegistryAndEscrow.lean`, pin `c67894b9`) says that
 `bridgedOut` moves only in `_handleBridgeToChain` and `_handleBridgeFromChain`, and its runs
 start from fresh storage.  At head `L1NativeTokenVault` has a third writer
-(`bridge/ntv/L1NativeTokenVault.sol:157-181`):
+(`bridge/ntv/L1NativeTokenVault.sol:188-212`):
 
     function populateBridgedOut(bytes32[] calldata _assetIds) external returns (..) {
         for (..) {
-            if (bridgedOutPopulated[assetIdToPopulate]) continue;              // :167-169
-            bridgedOutPopulated[assetIdToPopulate] = true;                     // :170
-            uint256 legacyAmount = legacyBridgedOut(assetIdToPopulate);        // :174
-            if (legacyAmount != 0) bridgedOut[assetIdToPopulate] += legacyAmount; // :175-178
+            if (bridgedOutPopulated[assetIdToPopulate]) continue;              // :198-200
+            bridgedOutPopulated[assetIdToPopulate] = true;                     // :201
+            uint256 legacyAmount = legacyBridgedOut(assetIdToPopulate);        // :205
+            if (legacyAmount != 0) bridgedOut[assetIdToPopulate] += legacyAmount; // :206-209
         }
     }
 
-It takes no privilege, and `bridgedOutPopulated` (`:77`) has no other writer; `bridgedOut`
-(`:74`) is otherwise written only by the two hooks (`:335`, `:348`).
-`legacyBridgedOut(a)` (`:121-155`) reverts with `AssetNotNativeToL1` unless
-`originChainId[a] == L1_CHAIN_ID` (`:125-126`).  `L1_CHAIN_ID` is `block.chainid`
-(constructor, `:196`), so the check is the pin's `Native`.  The function then reads one of
+It takes no privilege, and `bridgedOutPopulated` (`:93`) has no other writer; `bridgedOut`
+(`:90`) is otherwise written only by the two hooks (`:427`, `:445`).
+`legacyBridgedOut(a)` (`:152-186`) reverts with `AssetNotNativeToL1` unless
+`originChainId[a] == L1_CHAIN_ID` (`:156-157`).  `L1_CHAIN_ID` is `block.chainid`
+(constructor, `:273`), so the check is the pin's `Native`.  The function then reads one of
 two legacy sources:
 
 * for an asset the removed v31 `L1AssetTracker` registered, `MAX_TOKEN_BALANCE -
-  tracker.chainBalance(L1_CHAIN_ID, a)` (`:143-145`), the complement of L1's bulkhead there;
+  tracker.chainBalance(L1_CHAIN_ID, a)` (`:174-176`), the complement of L1's bulkhead there;
 * otherwise the sum of the vault's own `DEPRECATED_chainBalance[c][a]` over
-  `getAllZKChainChainIDs()` (`:150-154`).
+  `getAllZKChainChainIDs()` (`:181-185`).
 
-The motivation (`protocol-docs/bridging.md:183-214` at `main`) is an in-place upgrade: the
+The motivation (`protocol-docs/bridging.md:193-224`) is an in-place upgrade: the
 upgraded vault starts with `bridgedOut == 0` while it still holds the escrow of everything
 bridged out before.  Until an asset is populated, its `bridgedOut` counts only what was
 bridged out after the upgrade, and an inflow larger than that fails
-`InsufficientChainBalance` (`:343-350`).  The two hooks are unchanged since the pin
-(`:333-337`, `:343-350`), and so are their call sites in `NativeTokenVaultBase.sol` (`:240`,
+`InsufficientChainBalance` (`:439-458`).  The two hooks are unchanged since the pin
+(`:424-433`, `:439-458`, their `bridgedOut` part), and so are their call sites in `NativeTokenVaultBase.sol` (`:240`,
 `:276`, `:444`, `:447`), which the pin's `bridgeOut` and `bridgeIn` model.  On L1 the registry
 maps still have one writer, `_setNewTokenStorage` (`NativeTokenVaultBase.sol:565-575`), reached
-from the two registration paths the pin's `StepOp` models (`_registerToken`, `:131-137`, now
+from the two registration paths the pin's `StepOp` models (`_registerToken`, `:131-140`, now
 with a WETH check that only reverts, and `_ensureAndSaveTokenDeployedInner`, `:550-563`), and
-from `L1NativeTokenVault.registerEthToken` (`L1NativeTokenVault.sol:211-214`), which calls
+from `L1NativeTokenVault.registerEthToken` (`L1NativeTokenVault.sol:301-304`), which calls
 `_unsafeRegisterNativeToken` directly, as the pin's `registerNative` step models.  The
 pin's steps are reused unchanged, with their boundaries (`MODEL-ESCROW`).
 
 ## How the model reads it
 
 * **The legacy amount is a parameter.**  `legacy a` is what `legacyBridgedOut(a)` returns.
-  The model assumes the call returns: its external reads (`:143-144`, `:150`) and the
-  subtraction at `:144` are taken not to revert, so a `populate` step exists for every
+  The model assumes the call returns: its external reads (`:174-175`, `:181`) and the
+  subtraction at `:175` are taken not to revert, so a `populate` step exists for every
   unpopulated native asset.  The amount is taken as fixed for a run.  The source comments say
-  that nothing writes the vault's legacy entries any more (`:138-139`, `:147-148`) and that
+  that nothing writes the vault's legacy entries any more (`:169-170`, `:178-179`) and that
   the tracker branch is immune to amounts moving between chains, which the tracker's migration
-  entry points can still do (`:130-134`); the docs say that chains are never removed from
-  the bridgehub list (`protocol-docs/bridging.md:202-205`).  These are claims about deployed
+  entry points can still do (`:161-165`); the docs say that chains are never removed from
+  the bridgehub list (`protocol-docs/bridging.md:212-215`).  These are claims about deployed
   legacy state that this model does not check.
 * **The legacy amount must be backed.**  `populateBridgedOut` does not compare `legacy a`
   with what the vault holds.  The headline results take it as a premise: an unpopulated
@@ -80,23 +76,23 @@ pin's steps are reused unchanged, with their boundaries (`MODEL-ESCROW`).
 * **One asset per step.**  A successful batch is a sequence of successful single-asset steps
   with nothing in between, so the model's runs contain every batch.  A batch that reverts
   midway is no step.  A repeated or already-populated asset is skipped before the native
-  check (`:167-169`), so skipping never reverts (`StepOpAtHead.populateSkip`).
+  check (`:198-200`), so skipping never reverts (`StepOpAtHead.populateSkip`).
 * **Start states.**  The pin's runs start at `empty`.  Here a run starts at any state.  The
   run results take either the invariant `LedgerBackedAtHead` or the in-place-upgrade state
   `UpgradeStartAtHead`: `bridgedOut` zero, nothing populated, the post-upgrade flow audit
   zero, and the legacy amounts backed.  A fresh deployment after the trackers were removed
-  is the case `legacy = 0` (`protocol-docs/bridging.md:206-207`), in which `populate` only
+  is the case `legacy = 0` (`protocol-docs/bridging.md:216-217`), in which `populate` only
   sets the flag.
 
-## `draft/v0.35.0`
+## The per-chain totals at `b17415d20`
 
-At `b17415d` (as at `d9f6789`) the population code is the same.  `_handleBridgeToChain`
-additionally adds to `chainTotalDeposited` (`L1NativeTokenVault.sol:429-432` there), and
+The population code is the same as at `d9f6789`.  `_handleBridgeToChain`
+additionally adds to `chainTotalDeposited` (`L1NativeTokenVault.sol:429-432`), and
 `_handleBridgeFromChain` additionally reverts with `ChainBalanceExceeded` when a tracked
 chain's withdrawals would exceed its deposits plus backfill and adds to `chainTotalWithdrawn`
-(`:447-458` there).  The new entry points, owner-only `setChainBalanceBackfill` and
-`markBackfilled`, permissionless `moveChainBalanceToInteropPool` (`:219-258` there) and the
-proxy admin's `initializeUpgrade` (`:291-298` there), write only the per-chain maps, never
+(`:447-458`).  The new entry points, owner-only `setChainBalanceBackfill` and
+`markBackfilled`, permissionless `moveChainBalanceToInteropPool` (`:219-258`) and the
+proxy admin's `initializeUpgrade` (`:291-298`), write only the per-chain maps, never
 `bridgedOut`, `bridgedOutPopulated` or the escrow.  So, projected to the storage modelled
 here, every successful operation of the v35 vault is a `StepOpAtHead` step (argued from the
 source, not proved), and the statements about all runs apply to it.  The enabledness
@@ -112,7 +108,7 @@ namespace Contracts.NativeTokenVault
 /-! ## State -/
 
 /-- The vault at head: the pin's world, plus `bridgedOutPopulated`
-(`L1NativeTokenVault.sol:77`). -/
+(`L1NativeTokenVault.sol:93`). -/
 structure WorldAtHead where
   /-- The pin's registry, ledger, escrow and flow audit. -/
   world : World
@@ -137,7 +133,7 @@ def populatedLegacy (legacy : LegacyAmounts) (W : WorldAtHead) (a : AssetId) : �
 /-! ## `populateBridgedOut` -/
 
 /-- One asset of `populateBridgedOut` past its skip test: the flag is set, and the legacy
-amount is added to `bridgedOut` (`L1NativeTokenVault.sol:170-178`).  Adding `0` is the
+amount is added to `bridgedOut` (`L1NativeTokenVault.sol:201-209`).  Adding `0` is the
 source's `legacyAmount == 0` case. -/
 def populateAtHead (legacy : LegacyAmounts) (W : WorldAtHead) (a : AssetId) : WorldAtHead where
   world :=
@@ -172,11 +168,11 @@ inductive StepOpAtHead (e : NtvAssetId) (thisChain : Chain) (legacy : LegacyAmou
   /-- A pin operation.  It leaves the population flags alone. -/
   | pin {o : Op} {W : WorldAtHead} {X : World} : StepOp e thisChain o W.world X →
       StepOpAtHead e thisChain legacy (.pin o) W ⟨X, W.populated⟩
-  /-- An asset already populated is skipped (`:167-169`), whether or not it is native. -/
+  /-- An asset already populated is skipped (`:198-200`), whether or not it is native. -/
   | populateSkip {W : WorldAtHead} {a : AssetId} : W.populated a = true →
       StepOpAtHead e thisChain legacy (.populate a) W W
-  /-- An unpopulated asset native to this chain is populated (`:170-178`).  `legacyBridgedOut`
-  reverts for an asset that is not native (`:125-126`); its other reads are assumed to return
+  /-- An unpopulated asset native to this chain is populated (`:201-209`).  `legacyBridgedOut`
+  reverts for an asset that is not native (`:156-157`); its other reads are assumed to return
   `legacy a` (see the module header). -/
   | populate {W : WorldAtHead} {a : AssetId} : W.populated a = false →
       Native thisChain W.world.vault a →
@@ -198,7 +194,7 @@ def LedgerBackedAtHead (legacy : LegacyAmounts) (W : WorldAtHead) : Prop :=
   ∀ a, W.world.vault.bridgedOut a + pendingLegacy legacy W a ≤ W.world.vault.escrowed a
 
 /-- **THE VAULT RIGHT AFTER THE IN-PLACE UPGRADE.**  `bridgedOut` is zero
-(`protocol-docs/bridging.md:185`), nothing is populated, the flow audit counts from here, and
+(`protocol-docs/bridging.md:195`), nothing is populated, the flow audit counts from here, and
 the legacy accounting never claims more than the vault holds.  The registry is whatever the
 upgraded vault had. -/
 structure UpgradeStartAtHead (legacy : LegacyAmounts) (W : WorldAtHead) : Prop where

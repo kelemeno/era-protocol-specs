@@ -5,7 +5,8 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.RegistryAndEscrow
 # Correspondence between the two native-token-vault models
 
 This folder holds two independently written models of `NativeTokenVaultBase.sol`
-(era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`):
+(era-contracts `draft/v0.35.0` head `b17415d20`; both were first written at the pin
+`c67894b9`, and the modelled code is the same at `b17415d20`):
 
 * the representation model, namespace `Contracts.NativeTokenVaultBase`
   (`Specs/RepresentationPreparation.lean`, `Specs/Initialization.lean`): ONE tracked

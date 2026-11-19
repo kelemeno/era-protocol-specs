@@ -14,6 +14,7 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.PreparationGuards
 -- Asset bridge: the vault's registry and escrow ledger, and the router's handler
 -- table (registry-wide models; see the contract READMEs for how they relate)
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistryAndEscrow
+import EraSpec.Contracts.NativeTokenVaultBase.History.Proofs.PerChainIsolation
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ModelCorrespondence
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 
@@ -360,9 +361,10 @@ import EraSpec.Contracts.MessageRoot.Proofs.Aggregation
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.Model
 import EraSpec.Protocol.InteropAtomicity.Proofs.SettlementRoots
 
--- L2AssetTracker accounting (pin c67894b9, transferred to b17415d20/70096e2ea), and the vault's
+-- L2AssetTracker accounting (b17415d20; the pin-only backfill under History), and the vault's
 -- deployed chain-balance hooks (L1 `bridgedOut`, L2 tracker)
 import EraSpec.Contracts.L2AssetTracker.Proofs.Accounting
+import EraSpec.Contracts.L2AssetTracker.History.Proofs.Backfill
 import EraSpec.Contracts.L2AssetTracker.Proofs.HookOrdering
 import EraSpec.Contracts.L2AssetTracker.Proofs.NativeEscrow
 import EraSpec.Contracts.L2AssetTracker.Proofs.LaterHeads
