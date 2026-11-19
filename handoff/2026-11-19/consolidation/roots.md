@@ -38,6 +38,29 @@ for no gain in strength, so this unit leaves the namespaces as they are.
 - `Protocol/InteropAtomicity/Specs/RootImport.lean`: imported by RootImportLink.
 - `EraSpec.lean`: the module list.
 
+## Other models of these contracts outside the unit's folders
+
+Found by grep; not consolidated here (other units' folders):
+`AtomicFlowManager/Specs/RefundClosesAppend.lean` (its own model of `L2InteropRootStorage` with
+`latestInteropRootTimestamp`), `DynamicIncrementalMerkle/Specs/ChainTreeBacking.lean` (MessageRoot
+chain trees), `Protocol/BatchCounters/Specs/MessageRootSync.lean` (MessageRoot's
+`currentChainBatchNumber`), and `Protocol/InteropAtomicity/Specs/{SystemAtV35,Atomicity,RootImport}.lean`.
+Each could be linked to the canonical models here by a refinement lemma like the ones below.
+
+## Done in this unit
+
+- MessageRoot/Aggregation re-pinned to `b17415d20` (line numbers; the "Later heads" note replaced by
+  the relation to the canonical model).
+- L2InteropRootStorage/Model re-pinned to `b17415d20`, with `Refinement`: canonical calls and runs
+  are `Model` steps and runs (`CanonicalCallIsModelStep`, `CanonicalRunIsModelRun`).
+- L2InteropRootStorage `c67894b9` transcription and its five statements, and the `c67894b9`
+  RootImportLink, moved to `History/`; RootImportLink restated on the canonical storage
+  (`StorageRunsGrowImports`).
+- ChainBatchRootTree/MessageRootLink: canonical MessageRoot calls project onto `seedExec`
+  (`MessageRootCallIsSeedCall`, `InitializedSliceIsFresh`, `ReachableSliceIsSeedRun`).
+- MessageVerification/Refinement: `ChainBatchRootIsCompute`, `StatusProofAtMessageRoot`.
+- Renames: `handoff/2026-11-19/renames/roots.json` (7 entries, all History moves).
+
 ## Not done in this unit (and why)
 
 - **Aggregation onto the canonical MessageRoot Model.** A simulation from the Model's runs to the
