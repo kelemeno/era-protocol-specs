@@ -50,7 +50,7 @@ Source findings, reported to the maintainer of this repo, not yet confirmed upst
   padding `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`), the honest siblings of an
   empty slot are an accepted non-inclusion proof against the stored root
   (`Contracts.InteropCommitmentTree.History.CThreeLeafWitness`). This is the known padding
-  forgery (`PaddingCollisionRefundsDeliveredLeg`); both verifiers classified it as a bug,
+  forgery (`History.PaddingCollisionRefundsDeliveredLeg`); both verifiers classified it as a bug,
   high severity.
 - NatSpec (both verifiers: documentation wrong, informational): `FullMerkle.sol:23` says
   capacity is set to `2**levels`, but `setup` (:29) takes no `levels` and `pushNewLeaf`

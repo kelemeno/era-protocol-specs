@@ -130,7 +130,7 @@ At that pin, `setup` padded empty slots with `hashLeaf({0,0,0})`. `verifyNonIncl
 the low-leaf index only by `2^pathLength` (`Merkle.sol:133-140`), not by the leaf count, so a
 forged absence proof was accepted against the stored root (finding H2, high severity; fixed by
 `78e14b3bc`). The record is in `History.Properties.CThreeLeafWitness`,
-`PaddingCollisionRefundsDeliveredLeg`, `PaddingForgeryAtOwnHeight` and
+`History.PaddingCollisionRefundsDeliveredLeg`, `History.PaddingForgeryAtOwnHeight` and
 `PaddingCountermodel…`. The index bound is unchanged at `b17415d20`. There, presenting a leaf at
 an empty slot requires `hashLeaf(ℓ) = IMT_EMPTY_LEAF_HASH` (`CTxRunAtV35EmptySlotLocatesPadding`,
 `PaddingHitAtHeadIffEmptyLeafCollision`).

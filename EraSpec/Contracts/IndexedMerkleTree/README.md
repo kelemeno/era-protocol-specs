@@ -19,7 +19,7 @@ premise.
 - `IMTAbstract.Properties.DeliveredAvailableForeverV35`: a value that is a key at a snapshot
   settled by the deadline stays a key, and no leaf straddles it at any snapshot whose successor
   settles after the deadline. Premises: a v35 history from genesis; settlement times that never
-  decrease; the first snapshot settled at or before the deadline.
+  decrease; `v` is a key at a snapshot `i` with `t i ≤ D`.
 - `IMTAbstract.Properties.DeliveryExactlyOnceV35`: a nonzero key entered the set at exactly one
   earlier step. Premises: a v35 history from genesis; the value is nonzero.
 - `IMTAbstract.Properties.HonestInsertNeverSearchRevertsV35`: an insert of an absent value

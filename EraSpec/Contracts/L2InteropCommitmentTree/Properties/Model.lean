@@ -243,7 +243,7 @@ mathematics is `IMTAbstract.guardedEvolution_reclaimable_iff_absent`.
 **Correction (StaleSnapshotFaithful).**  "Reclaimable" here is a straddling leaf of
 `toAbs (R n)`, a genuine leaf.  At `c67894b9` the deployed `verifyNonInclusion` also accepts
 the sentinel `{0,0,0}` at an empty slot, so it accepts an absence proof for a delivered value
-against the root the contract stores (`CThreeLeafWitness`, `PaddingCollisionRefundsDeliveredLeg`;
+against the root the contract stores (`History.CThreeLeafWitness`, `History.PaddingCollisionRefundsDeliveredLeg`;
 `../README.md`), and a delivered leg can be refunded
 (`Contracts.Refund.PaddingRefundOfExecutedObligationLocatesAbsenceBreak`). -/
 abbrev Properties.genesis_run_reclaimable_iff_absent {R : ℕ → Tree}

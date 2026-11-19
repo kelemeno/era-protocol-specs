@@ -67,9 +67,9 @@ with the v35 machines.
 
 The tree is a ZKsync OS genesis predeploy with no constructor (`L2InteropCommitmentTree.sol:26`):
 the genesis tool places a `SystemContractProxy` at its address with the implementation
-elsewhere (`tools/zksync-os-genesis-gen/src/consts.rs:248-249`; the `genesis.rs` lines below are
-as recorded at the pin and not re-checked), and the proxy's only initial storage is the EIP-1967
-implementation and admin slots (`genesis.rs:85-86, 330-338`).  So `_imt` starts as all-zero
+elsewhere (`tools/zksync-os-genesis-gen/src/consts.rs:248-249`, `genesis.rs:60-69`), and the
+proxy's only initial storage is the EIP-1967 implementation and admin slots
+(`genesis.rs:76, 323-327`).  So `_imt` starts as all-zero
 storage, which is `predeploy`.  The genesis upgrade calls `initL2()` once, on ZKsync OS genesis
 only (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:352-375`, the call at `:373`).  The proxy
 forwards `initL2` and `insert` to the implementation for every caller
@@ -90,7 +90,7 @@ the zero leaf at the old `_leafNumber` is in both.)
 ## Model boundary
 
 * The model is the implementation's own code. The complex upgrader also owns the
-  `SystemContractProxyAdmin` that administers the tree's proxy (`genesis.rs:320-328`), and
+  `SystemContractProxyAdmin` that administers the tree's proxy (`genesis.rs:311-315`), and
   through it can `upgradeTo`/`upgradeToAndCall` (`SystemContractProxy.sol:42-49`), which
   can rewrite `_imt` arbitrarily. Such an upgrade is outside this transition system
   (`OPS-CONFIG`, and the governance caveat in `ResetAndZero`).

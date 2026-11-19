@@ -249,7 +249,7 @@ def Properties.LogDefaultIsZeroLog : Prop :=
 * `leafNotNode` and `padNotNode` hold up to a collision on the named 96-byte and 64-byte preimages;
 * `padNotLeaf` is refuted EXACTLY at `⟨0, 0, 0⟩`: a bounded leaf hashes to the padding iff it is
   the zero leaf, or its preimage collides with the 96 zero bytes. (The failure at `⟨0, 0, 0⟩` is
-  the known `PaddingCollisionRefundsDeliveredLeg`.) -/
+  the known `History.PaddingCollisionRefundsDeliveredLeg`.) -/
 def Properties.HashAssumptionsFieldsUpToCollision : Prop :=
   ∀ keccak : Keccak,
     (∀ a b c d : UInt256, efficientHash keccak a b = efficientHash keccak c d →
@@ -331,7 +331,7 @@ at the pin. If a value has an accepted inclusion proof and an accepted non-inclu
 valid tree's root, then one of:
 
 * the non-inclusion proof presents the zero leaf `⟨0, 0, 0⟩` at an unoccupied index (the
-  forged-absence bug, `PaddingCollisionRefundsDeliveredLeg`; no keccak work);
+  forged-absence bug, `History.PaddingCollisionRefundsDeliveredLeg`; no keccak work);
 * the inclusion proof carries an `ImtKeccakBreak`;
 * the non-inclusion proof carries an `ImtKeccakBreak`.
 

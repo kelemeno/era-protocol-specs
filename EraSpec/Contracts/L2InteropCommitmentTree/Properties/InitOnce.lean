@@ -329,7 +329,7 @@ def Properties.PredeployStoredRootExclusiveOrBreak : Prop :=
 the hashes of `threeLeafTree a b`'s leaves `{0,1,a}`, `{a,2,b}`, `{b,0,0}`, and the source's
 `_height` is 2. Against its fold at that height with the pinned padding `hl {0,0,0}`, `a`
 has an accepted honest inclusion proof (index 1) and an accepted non-inclusion proof (the
-empty slot 3: the existing padding forgery, `PaddingForgeryAtOwnHeight`). So the premises of
+empty slot 3: the existing padding forgery, `History.PaddingForgeryAtOwnHeight`). So the premises of
 `PredeployStoredRootExclusiveOrBreak` hold at step 3 of a run from the predeploy, at the
 root the source publishes. Its conclusion is met by the second disjunct only: the honest
 inclusion path carries no located break, the forged absence path carries the padding hit. -/

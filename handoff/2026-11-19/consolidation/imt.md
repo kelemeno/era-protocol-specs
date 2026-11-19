@@ -122,7 +122,18 @@ padded with `hashLeaf({0,0,0})`. They move under `EraSpec/Contracts/<C>/History/
 Each result keeps its statement and proof. Only its name gains the `History` segment (see
 `../renames/imt.json`).
 
+The proof theorems move the same way: each `<Ns>.<Name>` above becomes `<Ns>.History.<Name>`,
+for example `Contracts.InteropCommitmentTree.CThreeLeafWitness` becomes
+`Contracts.InteropCommitmentTree.History.CThreeLeafWitness` and
+`IMTAbstract.ReclaimGateFaithful.PinnedReclaimDichotomyReadingFails` becomes
+`IMTAbstract.ReclaimGateFaithful.History.PinnedReclaimDichotomyReadingFails`. No other proof
+theorem of this unit is renamed (beyond the generated equation and constructor lemmas of the
+renamed specs `InsertChecksAtHead`, `cSetupAtPadding` and `CReachesAtPadding`).
+
 ## Not done in this unit
+
+* Headline tagging waits for `EraSpec/Core/Headline.lean`. The tagging script is
+  `imt-tag.py` in this folder; run it from the repo root once that module has landed.
 
 * The `…AtHead` / `…AtV35` topic and property names are kept. External references depend on
   them, and one model per contract does not require renaming them.

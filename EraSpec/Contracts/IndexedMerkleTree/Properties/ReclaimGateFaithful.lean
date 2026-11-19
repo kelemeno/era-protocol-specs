@@ -15,13 +15,13 @@ leaf `W ∈ S j`.  What fails is their reading with the deployed absence check
   for every node hash and leaf hash, at every reached snapshot whose leaf count is not a
   power of two, `verifyNonInclusion` accepts the zero leaf at the first empty index for
   EVERY nonzero value, delivered values included, and the break located on that submission
-  is exactly `paddingHit` (`PinnedGateAcceptsEveryValueOffPowersOfTwo`).  The counterexample
+  is exactly `paddingHit` (`History.PinnedGateAcceptsEveryValueOffPowersOfTwo`).  The counterexample
   run meets the capstones' hypotheses (a `GuardedEvolution` from the genesis singleton), and
   the accepted low leaf projects to `⟨0, 0⟩`, which is not a leaf of the snapshot
-  (`PinnedCounterexampleMeetsCapstoneHypotheses`; the order-theoretic side is
+  (`History.PinnedCounterexampleMeetsCapstoneHypotheses`; the order-theoretic side is
   `IMTAbstract.ModelStrong.Properties.padding_leaf_forges_on_guarded_history`).  So both
-  readings are false at the pin (`PinnedReclaimDichotomyReadingFails`,
-  `PinnedDeliveryFinalityReadingFails`).
+  readings are false at the pin (`History.PinnedReclaimDichotomyReadingFails`,
+  `History.PinnedDeliveryFinalityReadingFails`).
 * **The capstones re-proved over the refined gate.**  At every padding constant, with no
   hash premise: acceptance on which no `TreeRootBreak` is located discharges `W ∈ S j`
   (`BreakFreeGateImpliesMemberGate`); on run snapshots the break-free gate is the capstones'
@@ -112,7 +112,7 @@ def Properties.BreakFreeGateDichotomy : Prop :=
 iff the capstones' member gate is open for it.  So, along runs from `setup`, the
 genesis-rooted reclaim capstone is an exact statement about `verifyNonInclusion` restricted
 to break-free submissions.  `DeployedGate`, which does not exclude submissions with a
-located break, does not match it at the pin (`PinnedReclaimDichotomyReadingFails`). -/
+located break, does not match it at the pin (`History.PinnedReclaimDichotomyReadingFails`). -/
 def Properties.BreakFreeGateMatchesMemberGate : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → HState), HRun R → R 0 = hSetup →
     ∀ (j : ℕ) (v : UInt256), v ≠ 0 →
@@ -158,7 +158,7 @@ reached from `setup` whose leaf count is `2 ^ _height` (on reached states exactl
 power-of-two leaf counts 1, 2, 4, 8, …: `ReachedBelowCapacityIffNotPowerOfTwo`), at every
 padding constant, the pinned one included: an absence proof accepted for a delivered value
 carries the `wrongLength`, `pathCollision` or `leafCollision` case.  With
-`PinnedGateAcceptsEveryValueOffPowersOfTwo`, at the pin: on reached snapshots whose leaf
+`History.PinnedGateAcceptsEveryValueOffPowersOfTwo`, at the pin: on reached snapshots whose leaf
 count is not a power of two, every nonzero value, delivered or not, has an accepted absence
 proof carrying none of these three cases; on the others, no delivered value has one. -/
 def Properties.FullSnapshotRefundOfDeliveredNeedsCollision : Prop :=
@@ -247,8 +247,8 @@ def Properties.DedicatedPaddingPremiseWitness : Prop :=
 leaves at height 1) is reached and full, with a power-of-two leaf count; `hThree a b` (three
 leaves at height 2) is reached and below capacity, and its leaf count is no power of two.  So
 both sides of both equivalences of `ReachedBelowCapacityIffNotPowerOfTwo` occur, and the
-shape premises of `PinnedGateAcceptsEveryValueBelowCapacity`,
-`PinnedGateAcceptsEveryValueOffPowersOfTwo` and `FullSnapshotRefundOfDeliveredNeedsCollision`
+shape premises of `History.PinnedGateAcceptsEveryValueBelowCapacity`,
+`History.PinnedGateAcceptsEveryValueOffPowersOfTwo` and `FullSnapshotRefundOfDeliveredNeedsCollision`
 are each met on a reached state. -/
 def Properties.ReachedSnapshotShapesWitness : Prop :=
   ∀ a b : UInt256, 0 < a → a < b →

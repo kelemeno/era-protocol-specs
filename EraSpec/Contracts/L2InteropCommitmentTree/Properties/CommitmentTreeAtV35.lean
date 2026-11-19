@@ -202,7 +202,7 @@ the root check that both verifiers make), then
 * `k` is not `_height`, located by `HeightBreak`.
 
 At the pin the padding constant was `hashLeaf({0,0,0})`, so the first case held for `ℓ = {0,0,0}`
-with no collision (`CThreeLeafWitness`); here `zE` is a parameter, and at v35 the first case is the
+with no collision (`History.CThreeLeafWitness`); here `zE` is a parameter, and at v35 the first case is the
 keccak equation of the spec's model boundary.  `PaddingForgeryAtV35Witness` meets the premises on
 a run of this machine; it exhibits only the first case, at the pin's padding.  The
 `PathCollision` and `HeightBreak` break cases fire on the base model at an occupied index

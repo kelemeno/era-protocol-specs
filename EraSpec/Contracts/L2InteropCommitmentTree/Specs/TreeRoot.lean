@@ -160,7 +160,7 @@ only because of one of:
 * `paddingHit` — the opened index is empty and the presented leaf's hash IS the
   padding constant.  At the extraction pin `z0 = hl ⟨0,0,0⟩`, so this disjunct holds
   for `ℓ = ⟨0,0,0⟩` with no cryptographic work: it is the forged-absence bug
-  (`PaddingCollisionRefundsDeliveredLeg`), which `IMT_EMPTY_LEAF_HASH` turns into a
+  (`History.PaddingCollisionRefundsDeliveredLeg`), which `IMT_EMPTY_LEAF_HASH` turns into a
   preimage problem.
 
 Every case is reachable and attributed alone: `Properties.TreeRootBreakEveryCaseFires`
