@@ -29,7 +29,7 @@ its bridged branch, where `originChainId[assetId] != block.chainid`: `_bridgeMin
 (:369, :449-450). For a token native to this chain it escrows instead (`_depositFunds` :452,
 `_withdrawFunds` :245, :278). `VaultBridgesToken` names that condition.
 
-## What writes a legacy token's registry entry at the pin
+## What writes a legacy token's registry entry
 
 Nothing that can record it as bridged. `_setNewTokenStorage` (:565-575) is the only writer of
 `assetId[token]` in this file, and it is reached from two places:

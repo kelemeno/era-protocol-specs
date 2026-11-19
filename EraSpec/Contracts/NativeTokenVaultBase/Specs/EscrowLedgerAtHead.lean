@@ -15,7 +15,7 @@ ledger is L1NativeTokenVault `InteropPool`, related to this one by its `LedgerRe
 
 ## What changed since the pin
 
-`Contracts.NativeTokenVault` (`Specs/RegistryAndEscrow.lean`, pin `c67894b9`) says that
+`Contracts.NativeTokenVault` (`Specs/RegistryAndEscrow.lean`, first written at the pin `c67894b9`) says that
 `bridgedOut` moves only in `_handleBridgeToChain` and `_handleBridgeFromChain`, and its runs
 start from fresh storage.  At head `L1NativeTokenVault` has a third writer
 (`bridge/ntv/L1NativeTokenVault.sol:188-212`):
