@@ -3,21 +3,21 @@ import EraSpec.Core.Word
 /-!
 # Model: the `PriorityTree` library and the tree it wraps
 
-Source: era-contracts `draft/v0.35.0` at `d9f678900e1bc8286412b78f56d4a9f443983c29`. Both files
-below are byte-identical at `b17415d20`, and `PriorityTree.sol` also at `main` `70096e2ea`. Paths
-are relative to `l1-contracts/contracts/`.
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`; every
+`file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`.
 
 * `state-transition/libraries/PriorityTree.sol`, cited as `PT`.
 * `common/libraries/DynamicIncrementalMerkle.sol`, cited as `DIM`: only the struct and the three
   functions `PriorityTree` calls (`setup`, `push`, `root`).
 
-**This file is definitions only.** It is copied from branch `origin/cov/mailbox` (commit
-`212f846`) with only this header paragraph and the one above changed. On that branch the
-statements about it are `EraSpec.Contracts.MailboxFacet.Properties.PriorityTree` and the proofs
-`EraSpec.Contracts.MailboxFacet.Proofs.PriorityTree`; neither module is copied here, so the
-`Properties.*` names below refer to that branch. Here the definitions are used by the topic
-`EraSpec.Protocol.PriorityMirror` (`Mirror`), whose proofs show the shape these accesses need for
-every tree pushed from the setup state (`pm_pushAll_shape`).
+**This file is definitions only.** It is the library model of the `PriorityTree` contract
+folder; `Specs/SegmentBinding.lean` models `processBatch` again with `calculateRootPaths`
+transcribed, and `Properties/Library.lean` proves that this file's `processBatch`, with that
+transcription as its `rootPaths` parameter, is the same function
+(`LibraryProcessBatchIsSegmentBinding`). The definitions were copied from branch
+`origin/cov/mailbox` (commit `212f846`), where they sat in `MailboxFacet/Specs/PriorityTree.lean`;
+the statements written about them there are not in this package. They are used by the topic
+`EraSpec.Protocol.PriorityMirror` (`Mirror`).
 
 ## Conventions
 
@@ -28,9 +28,10 @@ every tree pushed from the setup state (`pm_pushAll_shape`).
 * `Merkle.calculateRootPaths` (`PT:85-90`) is a parameter `RootPaths`: `none` is a revert of that
   call. Nothing is assumed about it.
 * `Arrays.unsafeAccess` (`DIM:120-135`, `:162`) does no bounds check. The model reads a missing
-  slot as `0` and drops a write to a missing slot. On every state reachable from `setup` or
-  `initFromCommitment` the accesses are in bounds (`Properties.TreeShapeInvariant`), so the choice
-  is not observable there.
+  slot as `0` and drops a write to a missing slot. On every tree pushed from the setup state the
+  accesses are in bounds (`pm_pushAll_shape` in `Protocol/PriorityMirror`), so the choice is not
+  observable there; branch `origin/cov/mailbox` states the same for states reached through
+  `initFromCommitment` (`Properties.TreeShapeInvariant`), not proved in this package.
 * The loop counter of `DIM.push` is a `uint32` (`DIM:114`). Its overflow needs `2^32` levels and is
   not modelled.
 
@@ -50,7 +51,7 @@ That `DIM.push` computes the Merkle root of the pushed leaves: that is the
 it. `Merkle.calculateRootPaths`. The callers' own guards (Executor, Migrator).
 -/
 
-namespace Contracts.MailboxFacet
+namespace Contracts.PriorityTree.Library
 
 /-- `2^256`: one past the largest `uint256`. -/
 def wordLimit : ℕ := 2 ^ 256
@@ -372,4 +373,4 @@ def emptyTree : PTree :=
 with start index `5`. -/
 def wFresh : PTree := emptyTree.setup wParams 5
 
-end Contracts.MailboxFacet
+end Contracts.PriorityTree.Library

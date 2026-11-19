@@ -1,13 +1,12 @@
-import EraSpec.Contracts.MailboxFacet.Specs.PriorityTree
+import EraSpec.Contracts.PriorityTree.Specs.Library
 
 /-!
 # Model: one chain's priority queue on L1 and on its gateway, out and back
 
 Source: era-contracts `draft/v0.35.0` at `b17415d20`. Paths are relative to
 `l1-contracts/contracts/`. The `PriorityTree` and `DynamicIncrementalMerkle` model this file
-builds on (`EraSpec.Contracts.MailboxFacet.Specs.PriorityTree`) is copied, header aside, from
-branch `origin/cov/mailbox` (commit `212f846`), which pinned `d9f678900`; both libraries are
-byte-identical at `b17415d20`.
+builds on is `EraSpec.Contracts.PriorityTree.Specs.Library` (namespace
+`Contracts.PriorityTree.Library`), at the same commit.
 
 **This file is definitions only.** Statements are in
 `EraSpec.Protocol.PriorityMirror.Properties.Mirror`, proofs in
@@ -135,7 +134,7 @@ failed. The model's guards never read them.
 
 namespace Protocol.PriorityMirror
 
-open Contracts.MailboxFacet
+open Contracts.PriorityTree.Library
 
 /-! ## Constants -/
 
@@ -632,7 +631,7 @@ def Honest (s : St) (op : Op) : Prop := ConsistentProcessing s op ∧ FreezeOrde
 /-! ## Witness data
 
 Inside this namespace `wNode` and `wParams` are the definitions below; the library model's own
-witness data (`Contracts.MailboxFacet.wNode`, `Contracts.MailboxFacet.wParams`) is not used here. -/
+witness data (`Contracts.PriorityTree.Library.wNode`, `Contracts.PriorityTree.Library.wParams`) is not used here. -/
 
 /-- Witness node hash: `2a + 3b + 1` in `uint256`. -/
 def wNode : NodeHash := fun a b => 2 * a + 3 * b + 1

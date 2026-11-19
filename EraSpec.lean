@@ -254,6 +254,8 @@ import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadPoolSimulation
 -- `PriorityTree.processBatch` (N-8)
 import EraSpec.Contracts.Merkle.Proofs.RootPaths
 import EraSpec.Contracts.PriorityTree.Proofs.SegmentBinding
+-- The PriorityTree library model (used by Protocol/PriorityMirror) and its bridge to SegmentBinding
+import EraSpec.Contracts.PriorityTree.Proofs.Library
 
 -- L2 implementation tables of registry transitions (ChainTypeManager, pin b17415d20)
 import EraSpec.Contracts.ChainTypeManager.Proofs.L2Derivation
@@ -416,7 +418,7 @@ import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
 import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
 
 -- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
--- on the PriorityTree model copied from origin/cov/mailbox
+-- on the PriorityTree library model (Contracts/PriorityTree/Specs/Library.lean)
 import EraSpec.Protocol.PriorityMirror.Proofs.Mirror
 
 -- L1ChainAssetHandler at draft/v0.35.0 (b17415d20): isValidSettlementLayer against the layer that
