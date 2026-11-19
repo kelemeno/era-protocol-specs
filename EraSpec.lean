@@ -104,6 +104,7 @@ import EraSpec.Contracts.Merkle.Proofs.DomainSeparation
 import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProof
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProofKeccak
+import EraSpec.Contracts.MessageVerification.Proofs.Refinement
 
 -- DynamicIncrementalMerkle: the storage push tree (MessageRoot chain trees, priority tree), its
 -- memory copy, and the chain trees as the backing of the timeout path's last-batch check
@@ -290,6 +291,7 @@ import EraSpec.Contracts.ChainAdminOwnable.Proofs.AdminRoles
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.Layout
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.GenesisSeed
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.LogConfinement
+import EraSpec.Contracts.ChainBatchRootTree.Proofs.MessageRootLink
 
 -- Head-pinned send path: InteropCenter at main 3605e82 (= 70096e2ea) and draft/v0.35.0 b17415d20
 import EraSpec.Contracts.InteropCenter.Proofs.SendAtHead
