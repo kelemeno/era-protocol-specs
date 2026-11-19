@@ -79,6 +79,15 @@ Not touched here: the upgrade-stack unit is consolidating those folders now.
 - `AdminFacet.State` overlaps `GenesisWriters.AppStorage`'s slice of `ZKChainStorage`.
 - The SemVer helpers of `EdgeChecks` duplicate the unmerged `Contracts.SemVer` (`cov2/encodings`).
 
+## Checks
+
+- `claude/proof-round-9` at `df7120b` (roots, assets and upgrade merged) was merged in; the only
+  conflict was this README, resolved by keeping the rewrite and its *Related folders* paragraph.
+- `lake build EraSpec` 3994 jobs; audit 28489 theorems, 4513 properties, 0 NOT clean, 0 axioms.
+- ChainTypeManager properties: 351 at the branch point, 382 at the head. The six absent at the head
+  are the renames in `../renames/ctm.json` (checked by listing every `Properties` def of the
+  environment before and after).
+
 ## Headline tags
 
 `EraSpec/Core/Headline.lean` had not landed on `claude/proof-round-9` when this unit finished, so no
