@@ -677,4 +677,130 @@ theorem UngatedRunLiftWitness : Properties.UngatedRunLiftWitness := by
   · exact ⟨_, rfl, rfl⟩
   · exact ⟨_, rfl, rfl⟩
 
+/-! ## `ChainRouting`, `Enabledness` and `ChainLocal` step results over v35 steps -/
+
+/-- The routing step of a v35 routing step. -/
+lemma step35_step {W : World} {P : ProofWorld} {s s' : Sys35} {l : Label}
+    (h : Step35 W P s (.routing l) s') : Step W s.sys l s'.sys := by
+  cases h with
+  | routing hs _ => exact hs
+
+theorem StepPreservesSysInvariant : Properties.StepPreservesSysInvariant := by
+  intro W P s s' l hI h hl
+  cases h with
+  | routing hs _ => exact Contracts.ChainTypeManager.StepPreservesSysInvariant W _ _ _ hI hs hl
+  | requireSecondProofSystem _ _ _ => exact hI
+  | setProofSystems _ => exact hI
+
+theorem TransitionStartsAndLandsOnRelease : Properties.TransitionStartsAndLandsOnRelease := by
+  intro W P s s' id c hC hc h
+  have hbase := Contracts.ChainTypeManager.TransitionStartsAndLandsOnRelease W s.sys s'.sys id c
+    hC hc (step35_step h)
+  refine ⟨hbase.1, hbase.2.1, hbase.2.2, ?_⟩
+  cases h with
+  | routing _ he =>
+      cases he with
+      | @transition _ c' hc' _ =>
+          rw [hc] at hc'
+          cases hc'
+          simp [ProofState.install]
+
+theorem DriftBlocksTransition : Properties.DriftBlocksTransition := by
+  rintro W P s id c hC hc hd ⟨s', h⟩
+  exact Contracts.ChainTypeManager.DriftBlocksTransition W s.sys id c hC hc hd ⟨_, step35_step h⟩
+
+theorem RepeatedSelectorBlocksTheEdge : Properties.RepeatedSelectorBlocksTheEdge := by
+  rintro W P s id c hc hne hdup ⟨s', h⟩
+  exact Contracts.ChainTypeManager.RepeatedSelectorBlocksTheEdge W s.sys id c hc hne hdup
+    ⟨_, step35_step h⟩
+
+theorem NewChainEnabledIff : Properties.NewChainEnabledIff := by
+  intro W P s id
+  obtain ⟨hg, hm⟩ := Contracts.ChainTypeManager.NewChainEnabledIff W s.sys id
+  constructor
+  · constructor
+    · rintro ⟨s', h⟩
+      exact hg.mp ⟨_, step35_step h⟩
+    · intro hcond
+      obtain ⟨sys', hs⟩ := hg.mpr hcond
+      exact ⟨_, Step35.routing hs ProofEffect.genesis⟩
+  · constructor
+    · rintro ⟨s', h⟩
+      exact hm.mp ⟨_, step35_step h⟩
+    · intro hcond
+      obtain ⟨sys', hs⟩ := hm.mpr hcond
+      exact ⟨_, Step35.routing hs ProofEffect.migrateIn⟩
+
+theorem BootstrapResetEnabledIff : Properties.BootstrapResetEnabledIff := by
+  intro W P s id c hC hc
+  have hbase := Contracts.ChainTypeManager.BootstrapResetEnabledIff W s.sys id c hC hc
+  constructor
+  · rintro ⟨s', h⟩
+    cases h with
+    | routing hs he =>
+        obtain ⟨R, hl, hwf⟩ := hbase.mp ⟨_, hs⟩
+        exact ⟨R, hl, hwf, fun hr => proofEffect_gate (s := s) he c R hc hl hr⟩
+  · rintro ⟨R, hl, hwf, hgate⟩
+    obtain ⟨sys', hs⟩ := hbase.mpr ⟨R, hl, hwf⟩
+    exact ⟨_, Step35.routing hs (ProofEffect.bootstrapReset hc hl hgate)⟩
+
+theorem ChainsStayOnWfReleases : Properties.ChainsStayOnWfReleases := by
+  intro W P s s' ls hI hW h hl
+  exact Contracts.ChainTypeManager.ChainsStayOnWfReleases W s.sys s'.sys _ hI hW
+    (RunIsARun W P s s' ls h) (routing_no_arbitrary hl)
+
+theorem StepsElsewhereKeepChainOk : Properties.StepsElsewhereKeepChainOk := by
+  intro W P s s' l id hok h hw
+  cases h with
+  | @routing l' _ _ hs _ =>
+      exact Contracts.ChainTypeManager.StepsElsewhereKeepChainOk W _ _ l' id hok hs
+        (hw l' (List.mem_singleton_self _))
+  | requireSecondProofSystem _ _ _ => exact hok
+  | setProofSystems _ => exact hok
+
+theorem NonCutWriteLandsOnRelease : Properties.NonCutWriteLandsOnRelease := by
+  intro W P s s' l id hC h hw hl
+  exact Contracts.ChainTypeManager.NonCutWriteLandsOnRelease W s.sys s'.sys l id hC
+    (step35_step h) hw hl
+
+theorem NewChainRunsItsVersionsRelease : Properties.NewChainRunsItsVersionsRelease := by
+  intro W P s s' ls id hC hn h hlast
+  exact Contracts.ChainTypeManager.NewChainRunsItsVersionsRelease W s.sys s'.sys _ id hC hn
+    (RunIsARun W P s s' ls h) hlast
+
+theorem RepairCutRestoresChainOk : Properties.RepairCutRestoresChainOk := by
+  intro W P s id v hC hreg hv
+  obtain ⟨⟨sys', hs⟩, hall⟩ := Contracts.ChainTypeManager.RepairCutRestoresChainOk W s.sys id v hC
+    hreg hv
+  refine ⟨?_, fun s' h => hall s'.sys (step35_step h)⟩
+  obtain ⟨pr', he⟩ := gate_proofEffect (P := P) (s := s) hs (by unfold repairCut; trivial)
+  exact ⟨_, Step35.routing hs he⟩
+
+theorem OnlyRepairCutsLandOnARelease : Properties.OnlyRepairCutsLandOnARelease := by
+  intro W P s s' id v ρ h hland
+  exact Contracts.ChainTypeManager.OnlyRepairCutsLandOnARelease W s.sys s'.sys id v ρ
+    (step35_step h) hland
+
+/-- A break-glass cut is of a registered chain. -/
+private lemma arbitraryCut_registered {W : World} {s sys' : Sys} {id : ChainId} {v : ℕ}
+    {ρ : Routing} (h : Step W s (.arbitraryCut id v ρ) sys') : ∃ c, s.chains id = some c := by
+  cases h with
+  | arbitraryCut _ _ hc => exact ⟨_, hc⟩
+
+theorem RepairEnablesTransition : Properties.RepairEnablesTransition := by
+  intro W P s s' id v hC hv h hut hn1 hn2 hgate
+  have hs := step35_step h
+  obtain ⟨s'', hstep, hland⟩ := Contracts.ChainTypeManager.RepairEnablesTransition W s.sys s'.sys
+    id v hC hv hs hut hn1 hn2
+  obtain ⟨hctm, -, c0, hc0, hpv, -⟩ :=
+    (Contracts.ChainTypeManager.RepairCutRestoresChainOk W s.sys id v hC
+      (arbitraryCut_registered hs) hv).2 s'.sys hs
+  have harr : arrivingVerifier W P s'.sys c0 = P.relVerifier (s.sys.edge W v).newRel := by
+    simp only [arrivingVerifier, Sys.edge, hctm, hpv]
+  refine ⟨⟨s'', _⟩, Step35.routing hstep (ProofEffect.transition hc0 ?_), hland⟩
+  intro hreq
+  show P.multi (arrivingVerifier W P s'.sys c0) 0 = true
+  rw [harr]
+  exact hgate hreq
+
 end Contracts.ChainTypeManager.ProofGateAtV35

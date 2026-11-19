@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorEngineAtV35
+import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorUpgradeChain
 
 /-!
 # Properties: `applyInfrastructureUpgrade` at `draft/v0.35.0`, with an arbitrary engine
@@ -30,6 +31,10 @@ infrastructure step, and conversely, given the checks the executor and engine no
 (`DefaultEngineLegIsAnInfraStep`, `InfraStepIsADefaultEngineLeg`). The default engine meets the
 review condition `EngineReviewed` (`DefaultEngineIsReviewed`), and the routing headline holds
 across `b17415d20` runs whose transitions pin it (`DefaultEngineRunKeepsChainsOnTheirRelease`).
+
+Two run results of the executor's other topics are restated for runs whose engines are tame:
+the per-chain headline of `ChainLocalExecutor` (`ChainRunsItsVersionsReleaseAcrossEngineRuns`)
+and `ExecutorUpgradeChain`'s `MisreportingSlotStaysFrozen`.
 
 ## What governance must check
 
@@ -334,6 +339,45 @@ def Properties.ReviewedEngineRefusesStaleRows : Prop :=
     T.rows.Pairwise (fun a b => a.proxy ≠ b.proxy) → r ∈ T.rows →
     s.x.impl r.proxy ≠ r.expectedOldImpl → s.x.impl r.proxy ≠ r.implNew →
     ¬ ∃ s', V35Step X s (.infra T) s'
+
+/-! ## `ChainLocalExecutor` and `ExecutorUpgradeChain` run results over tame-engine runs
+
+The entry points other than `applyInfrastructureUpgrade` are unchanged at `b17415d20`
+(`V35Step.other`), and a run whose engines are tame is a tame `ExecutorForward` run
+(`TameEngineRunIsATameExecutorRun`). So the run results of `ChainLocalExecutor` and
+`ExecutorUpgradeChain` that hold for tame executor runs hold for these runs. -/
+
+/-- **PER-CHAIN HEADLINE AT `b17415d20`, IF THE ENGINES ARE TAME.** As
+`Contracts.ChainTypeManager.Properties.ChainRunsItsVersionsReleaseAcrossExecutorRuns`, over
+`b17415d20` runs: under `ReinitFrames` and the CTM's invariant, if chain `id` is consistent at the
+start, then along a run of tame transactions whose infrastructure transitions pin tame engines,
+chain `id` is not ahead of its CTM at the end and routes its version's release, if the CTM has
+one. Unlike `TameEngineRunKeepsChainsOnTheirRelease` it needs only chain `id`'s own consistency at
+the start, not `SysInv` of the whole system. -/
+def Properties.ChainRunsItsVersionsReleaseAcrossEngineRuns : Prop :=
+  ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label) (id : ChainId),
+    ProxyUpgradeCurrent.ReinitFrames X.base.rc → CtmInv X.base.W s.x.sys.ctm →
+    (∀ c, s.x.sys.chains id = some c → ChainOk X.base.W s.x.sys c) → V35Run X s ls s' →
+    (∀ l ∈ ls, l.Tame X) → (∀ T, V35Label.infra T ∈ ls → EngineIsTame X T) →
+    ∀ c, s'.x.sys.chains id = some c → c.pv ≤ s'.x.sys.ctm.pv ∧
+      (s'.x.sys.ctm.relAt c.pv ≠ 0 → X.base.W.relVersion (s'.x.sys.ctm.relAt c.pv) = c.pv ∧
+        c.routing = rowsRouting (X.base.W.relRows (s'.x.sys.ctm.relAt c.pv)))
+
+/-- **A MISREPORTING SLOT STAYS FROZEN ACROSS TAME-ENGINE RUNS.** As
+`Contracts.ChainTypeManager.Properties.MisreportingSlotStaysFrozen`, over `b17415d20` runs: under
+`ReinitFrames` and the CTM's invariant, if the transition committed at version `v` reports an old
+version other than `v`, then along a run of tame transactions whose infrastructure transitions
+pin tame engines the slot keeps that transition, and at the end no chain at `v` can be upgraded
+by `upgradeChain(t, id)`, for any `t` (`ExecutorUpgradeChain`'s `UStep`, the `b17415d20` entry
+point, which `V35Step.other` leaves unchanged). -/
+def Properties.MisreportingSlotStaysFrozen : Prop :=
+  ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label) (v : ℕ),
+    ProxyUpgradeCurrent.ReinitFrames X.base.rc → CtmInv X.base.W s.x.sys.ctm →
+    s.x.sys.ctm.ut v ≠ 0 → (X.base.W.tr (s.x.sys.ctm.ut v)).old ≠ v → V35Run X s ls s' →
+    (∀ l ∈ ls, l.Tame X) → (∀ T, V35Label.infra T ∈ ls → EngineIsTame X T) →
+    s'.x.sys.ctm.ut v = s.x.sys.ctm.ut v ∧
+      ∀ id c, s'.x.sys.chains id = some c → c.pv = v →
+        ¬ ∃ t s'', UStep X.base s'.x (.upgradeChain t id) s''
 
 /-! ## Countermodels: each part of `EngineIsTame` and `EngineReviewed` is load-bearing -/
 

@@ -1,5 +1,7 @@
 import EraSpec.Contracts.ChainTypeManager.Properties.ExecutorEngineAtV35
 import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
+import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorUpgradeChain
+import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocalExecutor
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 
 /-!
@@ -984,5 +986,31 @@ theorem ReviewedRunWitness : Properties.ReviewedRunWitness := by
   · trivial
   · trivial
   · exact wTAB_tame 71
+
+end Contracts.ChainTypeManager.ExecutorEngineAtV35
+
+namespace Contracts.ChainTypeManager.ExecutorEngineAtV35
+
+/-! ## `ChainLocalExecutor` and `ExecutorUpgradeChain` run results over tame-engine runs -/
+
+theorem ChainRunsItsVersionsReleaseAcrossEngineRuns :
+    Properties.ChainRunsItsVersionsReleaseAcrossEngineRuns := by
+  intro X s s' ls id hR hC hok h htame heng
+  obtain ⟨xs, hx, hxt⟩ := TameEngineRunIsATameExecutorRun X s s' ls h htame heng
+  obtain ⟨hk, hlast⟩ :=
+    Contracts.ChainTypeManager.TamePremiseImpliesChainLocal X.base s.x s'.x xs hx hxt
+  exact Contracts.ChainTypeManager.ChainRunsItsVersionsReleaseAcrossExecutorRuns X.base s.x s'.x
+    xs id hR hC hok hx hk (hlast id)
+
+theorem MisreportingSlotStaysFrozen : Properties.MisreportingSlotStaysFrozen := by
+  intro X s s' ls v hR hC hut hold h htame heng
+  obtain ⟨xs, hx, hxt⟩ := TameEngineRunIsATameExecutorRun X s s' ls h htame heng
+  obtain ⟨hu, hiff, -⟩ := Contracts.ChainTypeManager.ExecutorRunsNeedNoUpgradeChain X.base s.x s'.x
+    xs hx
+  refine Contracts.ChainTypeManager.MisreportingSlotStaysFrozen X.base s.x s'.x _ v hR hC hut hold
+    hu ?_
+  intro u hu'
+  obtain ⟨x, hx', rfl⟩ := List.mem_map.mp hu'
+  exact (hiff x).mpr (hxt x hx')
 
 end Contracts.ChainTypeManager.ExecutorEngineAtV35

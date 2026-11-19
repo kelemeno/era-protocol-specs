@@ -66,6 +66,19 @@ proof system. For those it asks the arriving release's verifier to report multi-
   A break-glass cut can clear the requirement, and that is also a way out for a chain stranded
   as in `GateStrandsRequiringChain` (`BreakGlassClearsTheRequirement`).
 
+## The other routing results at v35
+
+The step and run results of `ChainRouting`, `Enabledness` and `ChainLocal` are restated over v35
+steps, under the same names: `StepPreservesSysInvariant`, `TransitionStartsAndLandsOnRelease`
+(which adds that the arriving release's verifier is installed), `DriftBlocksTransition`,
+`RepeatedSelectorBlocksTheEdge`, `NewChainEnabledIff` (no extra condition),
+`BootstrapResetEnabledIff` (plus the gate on the genesis release's verifier),
+`ChainsStayOnWfReleases`, `StepsElsewhereKeepChainOk`, `NonCutWriteLandsOnRelease`,
+`NewChainRunsItsVersionsRelease`, `RepairCutRestoresChainOk`, `OnlyRepairCutsLandOnARelease` and
+`RepairEnablesTransition` (plus the gate on the arriving release's verifier). The migration-out
+model of `ChainMigration` has no v35 counterpart here: chain migration is disabled at
+`b17415d20` (*Scope*).
+
 ## Scope
 
 The proof-system fields are a diamond's, and the model has the diamonds of one CTM. A diamond
@@ -204,6 +217,157 @@ def Properties.ValidatedRunsKeepEverythingEnabled : Prop :=
     (∀ id, s'.sys.chains id = none →
       (∃ pr', Step35 W P s' (.routing (.genesis id)) ⟨s'.sys.deployNew W id, pr'⟩) ∧
       ∃ pr', Step35 W P s' (.routing (.migrateIn id)) ⟨s'.sys.deployNew W id, pr'⟩)
+
+/-! ## `ChainRouting`, `Enabledness` and `ChainLocal` step results over v35 steps
+
+Each statement below is the `ChainRouting`, `Enabledness` or `ChainLocal` statement of the same
+name, over `Step35` and `Run35`. Necessary conditions transfer through the projection of a v35
+step to its routing step; the existence results transfer with the gate where it applies: genesis
+and migration in add no condition, the bootstrap crossing adds the gate on the genesis release's
+verifier, a break-glass cut can always leave the requirement off, and a transition adds the gate
+on the arriving release's verifier. -/
+
+/-- **EVERY v35 STEP OTHER THAN A BREAK-GLASS CUT PRESERVES THE ROUTING INVARIANT.** As
+`Contracts.ChainTypeManager.Properties.StepPreservesSysInvariant`, over v35 steps; the two
+proof-system writers leave the routing state alone. -/
+def Properties.StepPreservesSysInvariant : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (l : Label35), SysInv W s.sys →
+    Step35 W P s l s' → ¬ l.isArbitrary → SysInv W s'.sys
+
+/-- **A v35 TRANSITION STARTS AND LANDS ON A RELEASE.** As
+`Contracts.ChainTypeManager.Properties.TransitionStartsAndLandsOnRelease`, over v35 steps: under
+the CTM's invariant, a chain that crosses an edge routed exactly its version's release before,
+and after it is at a higher version, not ahead of its CTM, routing exactly that version's
+release, a release of that version. In addition the chain's verifier is now the arriving
+release's. -/
+def Properties.TransitionStartsAndLandsOnRelease : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (id : ChainId) (c : Chain),
+    CtmInv W s.sys.ctm → s.sys.chains id = some c → Step35 W P s (.routing (.transition id)) s' →
+    s.sys.ctm.relAt c.pv ≠ 0 ∧ c.routing = rowsRouting (W.relRows (s.sys.ctm.relAt c.pv)) ∧
+    (∃ c', s'.sys.chains id = some c' ∧ c.pv < c'.pv ∧ c'.pv ≤ s'.sys.ctm.pv ∧
+      s'.sys.ctm.relAt c'.pv ≠ 0 ∧ W.relVersion (s'.sys.ctm.relAt c'.pv) = c'.pv ∧
+      c'.routing = rowsRouting (W.relRows (s'.sys.ctm.relAt c'.pv))) ∧
+    (s'.proof id).verifier = arrivingVerifier W P s.sys c
+
+/-- **AT v35 DRIFT STILL BLOCKS THE TRANSITION.** As
+`Contracts.ChainTypeManager.Properties.DriftBlocksTransition`: under the CTM's invariant, a
+chain whose routing is not its version's release has no v35 transition. -/
+def Properties.DriftBlocksTransition : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId) (c : Chain), CtmInv W s.sys.ctm →
+    s.sys.chains id = some c → c.routing ≠ rowsRouting (W.relRows (s.sys.ctm.relAt c.pv)) →
+    ¬ ∃ s', Step35 W P s (.routing (.transition id)) s'
+
+/-- **AT v35 A REPEATED SELECTOR STILL BLOCKS AN EDGE THAT CHANGES THE ROUTING.** As
+`Contracts.ChainTypeManager.Properties.RepeatedSelectorBlocksTheEdge`, over v35 steps. -/
+def Properties.RepeatedSelectorBlocksTheEdge : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId) (c : Chain),
+    s.sys.chains id = some c →
+    W.relRows (s.sys.edge W c.pv).fromRel ≠ W.relRows (s.sys.edge W c.pv).newRel →
+    (¬ ((W.relRows (s.sys.edge W c.pv).fromRel).map Prod.fst).Nodup ∨
+      ¬ ((W.relRows (s.sys.edge W c.pv).newRel).map Prod.fst).Nodup) →
+    ¬ ∃ s', Step35 W P s (.routing (.transition id)) s'
+
+/-- **EXACTLY WHEN A CHAIN CAN BE CREATED AT v35.** As
+`Contracts.ChainTypeManager.Properties.NewChainEnabledIff`: the gate adds nothing to genesis or to
+migration in (a fresh diamond does not require its second proof system). Migration in is disabled
+at `b17415d20` (Specs, *New diamonds*). -/
+def Properties.NewChainEnabledIff : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId),
+    ((∃ s', Step35 W P s (.routing (.genesis id)) s') ↔
+      s.sys.chains id = none ∧ ReleaseWf W s.sys.ctm.cur) ∧
+    ((∃ s', Step35 W P s (.routing (.migrateIn id)) s') ↔
+      s.sys.chains id = none ∧ ReleaseWf W s.sys.ctm.cur)
+
+/-- **EXACTLY WHEN THE BOOTSTRAP CROSSING EXISTS AT v35.** As
+`Contracts.ChainTypeManager.Properties.BootstrapResetEnabledIff`, plus the gate: under the CTM's
+invariant, a registered chain has a v35 bootstrap crossing iff its version has a bootstrap legacy
+cut to a well-formed release `R` and, if the chain requires its second proof system, `R`'s
+verifier reports multi-proof mode with nothing disabled. -/
+def Properties.BootstrapResetEnabledIff : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId) (c : Chain),
+    CtmInv W s.sys.ctm → s.sys.chains id = some c →
+    ((∃ s', Step35 W P s (.routing (.bootstrapReset id)) s') ↔
+      ∃ R, s.sys.ctm.legacy c.pv = LegacyCut.bootstrap R ∧ ReleaseWf W R ∧
+        ((s.proof id).required = true → P.multi (P.relVerifier R) 0 = true))
+
+/-- **AT v35 CHAINS STAY ON WELL-FORMED RELEASES.** As
+`Contracts.ChainTypeManager.Properties.ChainsStayOnWfReleases`, over v35 runs with no break-glass
+cut. -/
+def Properties.ChainsStayOnWfReleases : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35), SysInv W s.sys →
+    ChainsOnWfReleases W s.sys → Run35 W P s ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →
+    ChainsOnWfReleases W s'.sys
+
+/-- **v35 STEPS THAT DO NOT WRITE A CHAIN KEEP IT CONSISTENT.** As
+`Contracts.ChainTypeManager.Properties.StepsElsewhereKeepChainOk`, over v35 steps: a step none of
+whose routing steps writes chain `id` (the two proof-system writers have none) keeps `ChainOk` of
+the chain. -/
+def Properties.StepsElsewhereKeepChainOk : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (l : Label35) (id : ChainId),
+    (∀ c, s.sys.chains id = some c → ChainOk W s.sys c) → Step35 W P s l s' →
+    (∀ l' ∈ l.routingSteps, ¬ l'.writesChain id) →
+    ∀ c, s'.sys.chains id = some c → ChainOk W s'.sys c
+
+/-- **A v35 WRITE OF A CHAIN THAT IS NOT A CUT LANDS IT ON A RELEASE.** As
+`Contracts.ChainTypeManager.Properties.NonCutWriteLandsOnRelease`, over v35 steps. -/
+def Properties.NonCutWriteLandsOnRelease : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (l : Label) (id : ChainId),
+    CtmInv W s.sys.ctm → Step35 W P s (.routing l) s' → l.writesChain id → ¬ l.isArbitrary →
+    ∃ c, s'.sys.chains id = some c ∧ c.pv ≤ s'.sys.ctm.pv ∧ s'.sys.ctm.relAt c.pv ≠ 0 ∧
+      c.routing = rowsRouting (W.relRows (s'.sys.ctm.relAt c.pv))
+
+/-- **A CHAIN CREATED DURING A v35 RUN RUNS ITS VERSION'S RELEASE.** As
+`Contracts.ChainTypeManager.Properties.NewChainRunsItsVersionsRelease`, over v35 runs: if chain
+`id` is not registered at the start and the last routing step writing it is not a break-glass
+cut, at the end it is at a version, not ahead of its CTM, with a release of that version, which
+it routes exactly. -/
+def Properties.NewChainRunsItsVersionsRelease : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35) (id : ChainId),
+    CtmInv W s.sys.ctm → s.sys.chains id = none → Run35 W P s ls s' →
+    LastWriteNotBreakGlass id (ls.flatMap Label35.routingSteps) →
+    ∀ c, s'.sys.chains id = some c → c.pv ≤ s'.sys.ctm.pv ∧ s'.sys.ctm.relAt c.pv ≠ 0 ∧
+      W.relVersion (s'.sys.ctm.relAt c.pv) = c.pv ∧
+      c.routing = rowsRouting (W.relRows (s'.sys.ctm.relAt c.pv))
+
+/-- **AT v35 THE REPAIR CUT EXISTS AND RESTORES THE CHAIN.** As
+`Contracts.ChainTypeManager.Properties.RepairCutRestoresChainOk`, over v35 steps: under the CTM's
+invariant, for a registered chain and a version `v` with a release, the repair cut to `v` is a
+v35 step (it can leave proof-system fields that pass the cut check, for example with the
+requirement off), and every such step leaves the CTM and the other chains alone and puts the
+chain at `v`, consistent, routing exactly `R_v`. As in `ChainLocal`, the model's break-glass step
+has no routing precondition (`RepairStepIgnoresLiveRouting`). -/
+def Properties.RepairCutRestoresChainOk : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId) (v : ℕ), CtmInv W s.sys.ctm →
+    (∃ c, s.sys.chains id = some c) → s.sys.ctm.relAt v ≠ 0 →
+    (∃ s', Step35 W P s (.routing (repairCut W s.sys id v)) s') ∧
+    ∀ s', Step35 W P s (.routing (repairCut W s.sys id v)) s' →
+      s'.sys.ctm = s.sys.ctm ∧ (∀ id', id' ≠ id → s'.sys.chains id' = s.sys.chains id') ∧
+      ∃ c, s'.sys.chains id = some c ∧ c.pv = v ∧ ChainOk W s'.sys c ∧
+        c.routing = rowsRouting (W.relRows (s'.sys.ctm.relAt v))
+
+/-- **AT v35 ONLY REPAIR CUTS LAND ON A RELEASE.** As
+`Contracts.ChainTypeManager.Properties.OnlyRepairCutsLandOnARelease`, over v35 steps. -/
+def Properties.OnlyRepairCutsLandOnARelease : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (id : ChainId) (v : ℕ) (ρ : Routing),
+    Step35 W P s (.routing (.arbitraryCut id v ρ)) s' →
+    (∃ c, s'.sys.chains id = some c ∧ s'.sys.ctm.relAt c.pv ≠ 0 ∧
+      c.routing = rowsRouting (W.relRows (s'.sys.ctm.relAt c.pv))) →
+    s.sys.ctm.relAt v ≠ 0 ∧ Label.arbitraryCut id v ρ = repairCut W s.sys id v
+
+/-- **AT v35 A REPAIR ENABLES THE COMMITTED EDGE, GIVEN THE GATE.** As
+`Contracts.ChainTypeManager.Properties.RepairEnablesTransition`, over v35 steps, with one more
+premise: if the repaired chain requires its second proof system, the verifier of the release the
+edge at `v` arrives at reports multi-proof mode with nothing disabled. -/
+def Properties.RepairEnablesTransition : Prop :=
+  ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (id : ChainId) (v : ℕ), CtmInv W s.sys.ctm →
+    s.sys.ctm.relAt v ≠ 0 → Step35 W P s (.routing (repairCut W s.sys id v)) s' →
+    s.sys.ctm.ut v ≠ 0 →
+    ((W.relRows (s.sys.ctm.relAt v)).map Prod.fst).Nodup →
+    ((W.relRows (s.sys.edge W v).newRel).map Prod.fst).Nodup →
+    ((s'.proof id).required = true → P.multi (P.relVerifier (s.sys.edge W v).newRel) 0 = true) →
+    ∃ s'', Step35 W P s' (.routing (.transition id)) s'' ∧ ∃ c, s''.sys.chains id = some c ∧
+      v < c.pv ∧ c.pv = (s.sys.edge W v).new ∧ s''.sys.ctm.relAt c.pv ≠ 0 ∧
+      c.routing = rowsRouting (W.relRows (s''.sys.ctm.relAt c.pv))
 
 /-! ## What #2628 guarantees -/
 
