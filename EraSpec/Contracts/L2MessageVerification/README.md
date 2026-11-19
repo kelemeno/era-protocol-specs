@@ -1,11 +1,33 @@
 # L2MessageVerification
 
+## Headline guarantees
+
+All about `l1-contracts/contracts/interop/L2MessageVerification.sol` with
+`common/MessageVerification.sol`, `MessageHashing.sol` and `Merkle.sol` at era-contracts
+`draft/v0.35.0` head `b17415d20`. The three hashes are arbitrary functions; no statement assumes
+injectivity. The storage read is the canonical model of `../L2InteropRootStorage/`.
+
+- `Contracts.MessageVerification.Properties.AcceptedIffStoredRootAtAnchor`: for any storage, a
+  proof is accepted exactly when the storage-free computation names a key and a recomputed root,
+  and the root stored at that key is that root and nonzero.
+- `Contracts.MessageVerification.Properties.SharedEntryAcceptsIff`: the depth-0 entry that
+  `AtomicInteropProof._authenticateRoot` calls accepts exactly a direct proof against the root at
+  its own key, or a proof with one self-call against the root at the settlement-layer key the proof
+  names.
+- `Contracts.MessageVerification.Properties.AcceptanceSurvivesRuns`: along any run of the storage
+  contract, an accepted proof stays accepted.
+- `Contracts.MessageVerification.Properties.AcceptedFromFreshStorageWasImported`: for storage
+  reached from fresh storage by a logged run, every accepted proof names a key that a logged
+  bootloader call imported with exactly the recomputed root.
+- `Contracts.MessageVerification.Properties.AcceptedAnchorHasNonzeroTimestamp`: for storage reached
+  from fresh storage, the key an accepted proof names has a nonzero stored timestamp.
+
+## Topics
+
 Source: `contracts/interop/L2MessageVerification.sol`, with `common/MessageVerification.sol`,
 `common/libraries/MessageHashing.sol` and `common/libraries/Merkle.sol`, at era-contracts
-`draft/v0.35.0` head `b17415d20` (byte-identical at `d9f6789` and `e561b9cc2`; the same code at
-`main` `70096e2` and at `c67894b9`, up to comments and line numbers, except that
-`MessageHashing.readSettlementLayerReference` does not exist at `c67894b9`). The roots it reads
-are those of [`../L2InteropRootStorage/`](../L2InteropRootStorage/README.md).
+`draft/v0.35.0` head `b17415d20` (other commits are compared in the Specs header). The roots it
+reads are those of [`../L2InteropRootStorage/`](../L2InteropRootStorage/README.md).
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence

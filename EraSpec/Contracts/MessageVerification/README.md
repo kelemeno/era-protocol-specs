@@ -1,5 +1,29 @@
 # MessageVerification
 
+## Headline guarantees
+
+All about `l1-contracts/contracts/common/MessageVerification.sol` on L1 (final-node branch) at
+era-contracts `draft/v0.35.0` head `b17415d20`. keccak is an arbitrary function.
+
+- `Contracts.MessageVerification.Properties.FailureProofForSucceededTxIsKeccakBreak`: if the
+  recorded root is the chain batch root over the batch's logs tree (L2-side premise), every
+  bootloader log of the batch is a genuine status log with its transaction's real status (L2-side
+  premise), the logs fit their Solidity types and the transaction number is below `2^16`, then an
+  accepted Failure proof for a transaction that succeeded gives a keccak collision between the
+  batch's log at the proof's index and the Failure log, or a keccak collision on named byte strings
+  of the walk, except when the walk reaches another leaf of the chain batch root (`otherLeaf`).
+- `Contracts.MessageVerification.Properties.HeldLogIsProvable`: under the same root premise, every
+  log the batch holds at an index below `2^H`, with `H + 3 < 256`, a nonzero root and a leaf hash
+  other than the default leaf hash, has an honest proof that the check accepts.
+- `Contracts.MessageVerification.Properties.StatusProofAtMessageRoot`: for a batch `n > 0` at or
+  above `v31UpgradeChainBatchNumber[c]`, or with a recorded root, the status check against
+  `R = chainBatchRoots[c][n]` is exactly the default-leaf and bounds checks followed by the
+  canonical `../MessageRoot/` model's final-node verdict.
+- `Contracts.MessageVerification.Properties.ChainBatchRootIsCompute`: given the documented value
+  of `RESERVED_SUBTREE_NODE`, this folder's chain batch root is `ChainBatchRootTree.compute`.
+
+## Topics
+
 Source: `l1-contracts/contracts/common/MessageVerification.sol` at era-contracts
 `draft/v0.35.0` head `b17415d20` (`proveL1ToL2TransactionStatusShared`, `_proveL2LogInclusion`,
 `proveL2LogInclusionShared`), with the L1 leaf check it reaches
@@ -19,6 +43,7 @@ only import a shared specification when the topic needs no additional definition
 |---|---|---|---|
 | StatusProof | [Specs/StatusProof.lean](Specs/StatusProof.lean) | [Properties/StatusProof.lean](Properties/StatusProof.lean) | [Proofs/StatusProof.lean](Proofs/StatusProof.lean) |
 | StatusProofKeccak | [Specs/StatusProofKeccak.lean](Specs/StatusProofKeccak.lean) | [Properties/StatusProofKeccak.lean](Properties/StatusProofKeccak.lean) | [Proofs/StatusProofKeccak.lean](Proofs/StatusProofKeccak.lean) |
+| Refinement | [Specs/Refinement.lean](Specs/Refinement.lean) | [Properties/Refinement.lean](Properties/Refinement.lean) | [Proofs/Refinement.lean](Proofs/Refinement.lean) |
 
 `L1Nullifier.bridgeRecoverFailedTransfer` refunds a deposit after
 `proveL1ToL2TransactionStatusShared(…, TxStatus.Failure)` returns `true`
@@ -66,6 +91,11 @@ branch: the default-leaf check, the path-length and index bounds, the walk
   `otherLeaf`. `HonestStatusWalkNoKeccakBreak` shows the predicate is not a tautology;
   `ShortStatusProofIsCrossLengthCollision` is an accepted zero-length Failure proof under a
   stand-in keccak, located as a cross-length collision.
+
+`Refinement` links this folder to the canonical models: its `chainBatchRoot` is
+`ChainBatchRootTree.compute` under the documented reserved value (`ChainBatchRootIsCompute`), and
+its abstract stored root `R` is `MessageRoot`'s `chainBatchRoots[c][n]` with the final-node verdict
+of `../MessageRoot/` topic `Model` (`StatusProofAtMessageRoot`).
 
 Not covered: the multi-hop branch (`MessageRootBase.sol:349-360`, `L1MessageRoot.sol:96-120`), on
 which the walk's result is authenticated through a settlement layer that
