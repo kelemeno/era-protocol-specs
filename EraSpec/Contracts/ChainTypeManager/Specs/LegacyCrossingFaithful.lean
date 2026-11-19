@@ -5,10 +5,16 @@ import EraSpec.Contracts.ChainTypeManager.Specs.Enabledness
 /-!
 # Model: a pre-v35 chain crossing an opaque legacy edge from its own diamond
 
-Source: the CTM at branch `feat/upgrade-simplification`, commit `e561b9cc2`, as for the rest of
-this folder, and the pre-v35 chain-side `Admin` facet at the pinned era-contracts commit
-`c67894b9`. Paths are relative to `l1-contracts/contracts/`, except those starting with `docs/`,
-which are at the root of the `e561b9cc2` repository.
+Source: the CTM at era-contracts branch `draft/v0.35.0`, commit `b17415d20`, and the pre-v35
+chain-side `Admin` facet at era-contracts commit `c67894b9` (code that chains still on a
+v31-v34 facet run; `b17415d20` does not contain it). Paths are relative to
+`l1-contracts/contracts/`, except those starting with `docs/`, which are at the root of the
+`b17415d20` repository. Every `file:line` is at `b17415d20` unless `c67894b9` is named. The
+topic was first written with the CTM at `e561b9cc2` (branch `feat/upgrade-simplification`) and
+re-read at `b17415d20`: the legacy entry points it cites (`upgradeCutHash`,
+`setUpgradeDiamondCut`, the CTM's three-argument `upgradeChainFromVersion`, `IAdminWithCut`) are
+unchanged apart from line numbers. They are still present at `b17415d20`; their removal is
+planned for v36.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.LegacyCrossingFaithful` and are proved in
@@ -22,7 +28,7 @@ definition.
 (`Specs/ChainRouting.lean`, "Break-glass"): the CTM owner's `executeUpgrade`, and crossing an
 opaque legacy edge. Only the first of these is owner-only. A chain whose diamond still runs a
 v31-v34 `Admin` facet exposes the cut-taking upgrade entry point
-(`state-transition/chain-interfaces/IAdminWithCut.sol:7-22` at `e561b9cc2`). Its code, at
+(`state-transition/chain-interfaces/IAdminWithCut.sol:7-22`). Its code, at
 `c67894b9` (`state-transition/chain-deps/facets/Admin.sol:494-525`), is:
 
     function upgradeChainFromVersion(address, uint256 _oldProtocolVersion,
@@ -36,12 +42,12 @@ v31-v34 `Admin` facet exposes the cut-taking upgrade entry point
         if (s.protocolVersion <= _oldProtocolVersion) { revert ProtocolIdNotGreater(); }
 
 The modifier lets the chain's admin, its CTM and its validators call (`ZKChainBase.sol:140-145` at
-`c67894b9`). The CTM at `e561b9cc2` still serves the commitment: `upgradeCutHash` returns
-`__LEGACY_upgradeCutHash` (`state-transition/ChainTypeManager.sol:871-878`: "their Admin facets
+`c67894b9`). The CTM at `b17415d20` still serves the commitment: `upgradeCutHash` returns
+`__LEGACY_upgradeCutHash` (`state-transition/ChainTypeManager.sol:866-873`: "their Admin facets
 verify the handed cut against this"). The authority matrix lists this entry point with the chain
-admin on the chain side (`docs/registry-driven-upgrades.md:402`), and the bootstrap section says
+admin on the chain side (`docs/registry-driven-upgrades.md:484`), and the bootstrap section says
 pre-v35 chains cross "through the legacy cut-taking chain entrypoint: from their admin, or from
-governance ... (`forward`)" (:895-897).
+governance ... (`forward`)" (`docs/registry-driven-upgrades.md:1028-1030`).
 
 So a pre-v35 chain's admin or validator can cross any legacy-committed edge at the chain's version
 directly on the diamond, without the CTM owner. In `ExecutorForward`, `arbitraryCut` occurs only as
@@ -56,20 +62,20 @@ Opaque legacy edges exist in reachable states:
 
 * `bootstrapState W old R` records an opaque cut at every version below `old` (the pre-registry
   history).
-* The CTM owner's `setUpgradeDiamondCut(cut, v)` (`ChainTypeManager.sol:842-855`, `Op.legacyRecut`)
+* The CTM owner's `setUpgradeDiamondCut(cut, v)` (`ChainTypeManager.sol:837-850`, `Op.legacyRecut`)
   re-commits an arbitrary cut for a legacy-committed version, the bootstrap edge included. It is
-  the "operational fix-up while pre-v35 chains still have to cross such an edge" (:835-837). A
+  the "operational fix-up while pre-v35 chains still have to cross such an edge" (:830-832). A
   forward of it is `Tame` (`FCall.Tame` excludes only `arbitraryCut` and `swapCtm`).
 * `setNewVersionUpgrade(cut, v, _, R)` with a cut other than the bootstrap's
   (`Op.legacyCommit R false`) records an opaque cut at the current version.
 
 ## The step
 
-`CrossStep s id v ρ s'`: chain `id` is registered at version `c.pv`; the legacy cut committed for
-`c.pv` is opaque; the chain lands at version `v` with routing `ρ`; `c.pv < v`
-(`ProtocolIdNotGreater`, `Admin.sol:522-524`); the CTM and every other chain are untouched. What an
-opaque cut installs is unknown to the model, so `v` and `ρ` are free beyond `c.pv < v`, exactly as
-for `Label.arbitraryCut`.
+`CrossStep s id v ρ s'`: chain `id` is registered at version `c.pv`; the legacy cut committed
+for `c.pv` is opaque; the chain lands at version `v` with routing `ρ`; `c.pv < v`
+(`ProtocolIdNotGreater`, `Admin.sol:522-524` at `c67894b9`); the CTM and every other chain are
+untouched. What an opaque cut installs is unknown to the model, so `v` and `ρ` are free beyond
+`c.pv < v`, exactly as for `Label.arbitraryCut`.
 
 ## Modelling choices
 
@@ -81,7 +87,7 @@ for `Label.arbitraryCut`.
   `Step.bootstrapReset`, which `ExecutorForward` already lets other actors take.
 * **Callers are not modelled.** The admin, the CTM and the validators may all call. The
   validators' `ServerNotifier` gate only rejects. The CTM's own three-argument
-  `upgradeChainFromVersion(chainId, old, cut)` (`ChainTypeManager.sol:826-833`, `onlyOwner`) reaches
+  `upgradeChainFromVersion(chainId, old, cut)` (`ChainTypeManager.sol:821-828`, `onlyOwner`) reaches
   the same diamond function. Through the executor it is a forward of `arbitraryCut`, which is
   already in `ExecutorForward`.
 * **Dispatch is not modelled**, as everywhere in this folder. The step exists for every chain at
