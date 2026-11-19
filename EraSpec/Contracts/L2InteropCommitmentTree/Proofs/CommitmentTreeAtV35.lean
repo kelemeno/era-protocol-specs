@@ -1,6 +1,7 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Properties.CommitmentTreeAtV35
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.InitOnce
+import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.HintSearchAtHead
 
 /-!
 # Proofs: the v35 tree contract's transactions on its whole storage
@@ -688,5 +689,59 @@ theorem StaleHintCRunWitnessAtV35 : Properties.StaleHintCRunWitnessAtV35 :=
   staleHint_cRun_witness_atV35
 theorem PaddingForgeryAtV35Witness : Properties.PaddingForgeryAtV35Witness :=
   padding_forgery_atV35_witness
+
+/-! ## The list-state projection -/
+
+/-- One step of the canonical machine is, on the list state, a step of `TxStepAtHead`. -/
+lemma cTxStepAtV35_projects {h : MerkleSpec.Hash} {hl : LeafHash} {zE : UInt256} {K : Roles}
+    {S S' : CState} {c : Caller} {call : Call} (hs : CTxStepAtV35 h hl zE K S c call S') :
+    TxStepAtHead K S.tree c call S'.tree := by
+  cases hs with
+  | initL2 hc h0 hi =>
+      unfold cInitL2AtV35 at hi
+      cases hp : FullMerkle.pushNewLeaf h (FullMerkle.setup S.fm zE).1 (hl ⟨0, 0, 0⟩) with
+      | none => rw [hp] at hi; cases hi
+      | some r =>
+          rw [hp] at hi
+          cases hi
+          exact TxStepAtHead.initL2 hc h0
+  | insert hc hchk hi =>
+      rename_i v hint low r
+      unfold cInsert at hi
+      cases h1 : FullMerkle.updateLeaf h S.fm low
+          (hl { S.tree.leaf low with nextIndex := S.tree.leafCount, nextValue := v }) with
+      | none => simp [h1] at hi
+      | some r₁ =>
+        cases h2 : FullMerkle.pushNewLeaf h r₁.1
+            (hl ⟨v, (S.tree.leaf low).nextIndex, (S.tree.leaf low).nextValue⟩) with
+        | none => simp [h1, h2] at hi
+        | some r₂ =>
+          simp only [h1, h2, Option.bind_eq_bind, Option.bind_some, Option.pure_def] at hi
+          cases hi
+          exact TxStepAtHead.insert hc hchk
+
+theorem cTxRunAtV35_projects (h : MerkleSpec.Hash) (hl : LeafHash) (zE : UInt256) (K : Roles)
+    (R : ℕ → CState) (tx : Trace) (hR : CTxRunAtV35 h hl zE K R tx) :
+    TxRunAtHead K (fun n => (R n).tree) tx := by
+  intro n
+  rcases hR n with ⟨hn, hRn⟩ | ⟨c, call, hn, hs⟩
+  · exact Or.inl ⟨hn, by simp only [hRn]⟩
+  · exact Or.inr ⟨c, call, hn, cTxStepAtV35_projects hs⟩
+
+theorem CTxRunAtV35ProjectsToTxRunAtHead : Properties.CTxRunAtV35ProjectsToTxRunAtHead :=
+  cTxRunAtV35_projects
+
+theorem CTxRunAtV35ReclaimableIffAbsent : Properties.CTxRunAtV35ReclaimableIffAbsent :=
+  fun h hl zE K R tx hR h0 =>
+    PredeployRunReclaimableIffAbsentAtHead K (fun n => (R n).tree) tx
+      (cTxRunAtV35_projects h hl zE K R tx hR) (by simp only [h0]; rfl)
+
+theorem CTxRunAtV35KeysMono : Properties.CTxRunAtV35KeysMono :=
+  fun h hl zE K R tx hR =>
+    TxRunAtHeadKeysMono K (fun n => (R n).tree) tx (cTxRunAtV35_projects h hl zE K R tx hR)
+
+theorem CTxRunAtV35InitL2AtMostOnce : Properties.CTxRunAtV35InitL2AtMostOnce :=
+  fun h hl zE K R tx hR =>
+    InitL2AtMostOnceAtHead K (fun n => (R n).tree) tx (cTxRunAtV35_projects h hl zE K R tx hR)
 
 end Contracts.InteropCommitmentTree

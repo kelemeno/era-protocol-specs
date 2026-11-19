@@ -30,7 +30,7 @@ Three groups:
   extraction pin (`setup` pads with `hashLeaf({0,0,0})`), and the consequence is
   a forged absence proof for a delivered leg, on a real contract run, with no
   hash assumption at all.  Later era-contracts revisions pad with a dedicated
-  `IMT_EMPTY_LEAF_HASH`; `Properties.PaddingCollisionRefundsDeliveredLeg` is what that
+  `IMT_EMPTY_LEAF_HASH`; `History.Properties.PaddingCollisionRefundsDeliveredLeg` is what that
   constant buys.
 -/
 
@@ -122,7 +122,7 @@ def Properties.NonInclusionSound : Prop :=
 /-- **VACUOUS AS STATED** (`HashAssumptions` is unsatisfiable).  Intended reading: a
 delivered value has no verified absence proof against a valid tree's root.  Without the
 premise this is false at the extraction pin for every hash
-(`Properties.PaddingCollisionRefundsDeliveredLeg`).  Non-vacuous forms:
+(`History.Properties.PaddingCollisionRefundsDeliveredLeg`).  Non-vacuous forms:
 `Properties.VerifiedAbsenceExcludesDeliveredOrBreak` and
 `Properties.TreeRootStrongVerifiedAbsenceExcludesDelivered`. -/
 def Properties.VerifiedAbsenceExcludesDelivered : Prop :=
@@ -198,29 +198,6 @@ def Properties.NonInclusionComplete : Prop :=
           (honestSibs h z0 (leafHashes hl T) idx) height
 
 /-! ## The padding countermodel -/
-
-/-- Without padding separation, every empty slot is a universal low leaf: in any
-tree with an empty slot below capacity, the honest sibling path for that slot is
-accepted by `verifyNonInclusion` with `{0,0,0}` as the low leaf, for EVERY
-nonzero value.  No hash assumption is used — the proof is honest. -/
-def Properties.PaddingCollisionForgesAbsence : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (T : Tree) (height : ℕ), T.leafCount < 2 ^ height →
-    ∀ v : UInt256, 0 < v →
-      NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl T height) v ⟨0, 0, 0⟩ T.leafCount
-        (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl T) T.leafCount) height
-
-/-- The padding collision refunds a delivered leg.  A real run from `setup` (two
-guarded inserts, so the tree is `Valid`) has `a` delivered, and yet — with
-`hashLeaf({0,0,0})` as the padding constant — `verifyNonInclusion` accepts an
-absence proof for `a` against the tree's own root at its own height.  This is
-the double spend the `IMT_EMPTY_LEAF_HASH` fix removes. -/
-def Properties.PaddingCollisionRefundsDeliveredLeg : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
-    Valid (threeLeafTree a b)
-      ∧ a ∈ keys (toAbs (threeLeafTree a b))
-      ∧ NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2) a ⟨0, 0, 0⟩ 3
-          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2
-
 
 /-! ## The hash-assumption bundle is unsatisfiable
 
@@ -338,16 +315,6 @@ def Properties.ProofsExclusiveOrBreakSatisfiable : Prop :=
       ∧ NonInclusionAccepted h hl (root h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2) a ⟨0, 0, 0⟩ 3
           (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2
 
-/-- **THE BREAK FIRES WHERE THE BUG IS.**  On that instance the honest inclusion
-proof locates no break, and the forged absence proof's break is `paddingHit`. -/
-def Properties.PaddingCountermodelLocatesPaddingHit : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256),
-    ¬ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
-        (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 1) 2 1
-        ((threeLeafTree a b).leaf 1)
-      ∧ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
-        (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩
-
 /-- **THE PREMISES OF `RunRootsExclusiveOrBreak` ARE SATISFIABLE.**  The run
 `setup, insert a, insert b`, constant afterwards, is a `Run` from `setup`, and at
 step 2 the two proofs of `Properties.ProofsExclusiveOrBreakSatisfiable` are both
@@ -364,7 +331,7 @@ def Properties.RunRootsExclusiveOrBreakSatisfiable : Prop :=
 /-! ## Every case of the break fires, and is attributed alone
 
 Before this section only `paddingHit` had an instance on which it fires
-(`Properties.PaddingCountermodelLocatesPaddingHit`).  The properties below show each
+(`History.Properties.PaddingCountermodelLocatesPaddingHit`).  The properties below show each
 of the other three cases is reachable — not dead code — and is the ONLY case the
 located break can be: on the single-leaf `setup` tree at height 1 (valid, within
 capacity), an inclusion proof for a value the tree does not hold is accepted, and
@@ -440,14 +407,6 @@ def Properties.PaddingHitForgesInclusion : Prop :=
         ∧ ℓ.value ∉ keys (toAbs setup)
         ∧ TreeRootBreakExactly h z0 hl setup 1 (honestSibs h z0 (leafHashes hl setup) 1) 1 1 ℓ
             .paddingHit
-
-/-- **THE PADDING COUNTERMODEL'S BREAK IS EXACTLY `paddingHit`.**  Sharpens
-`Properties.PaddingCountermodelLocatesPaddingHit`: on the forged absence proof at slot 3
-of `threeLeafTree a b`, no case other than `paddingHit` holds. -/
-def Properties.PaddingCountermodelExactlyPaddingHit : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256),
-    TreeRootBreakExactly h (hl ⟨0, 0, 0⟩) hl (threeLeafTree a b) 2
-      (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (threeLeafTree a b)) 3) 2 3 ⟨0, 0, 0⟩ .paddingHit
 
 /-- **THE COLLISION HYPOTHESES ABOVE ARE SATISFIABLE.**  With the toy node hash
 (addition), the toy leaf hash (`value - nextValue`) and padding constant `1`:

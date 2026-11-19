@@ -1,0 +1,170 @@
+[
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.PaddingCollisionForgesAbsence",
+    "new": "Contracts.InteropCommitmentTree.History.Properties.PaddingCollisionForgesAbsence",
+    "kind": "history",
+    "justification": "Padding-forgery record at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from TreeRoot to L2InteropCommitmentTree/History/Properties/PaddingForgeryPinned with statement and proof unchanged."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.PaddingCollisionRefundsDeliveredLeg",
+    "new": "Contracts.InteropCommitmentTree.History.Properties.PaddingCollisionRefundsDeliveredLeg",
+    "kind": "history",
+    "justification": "Padding-forgery record at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from TreeRoot to L2InteropCommitmentTree/History/Properties/PaddingForgeryPinned with statement and proof unchanged."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.PaddingCountermodelLocatesPaddingHit",
+    "new": "Contracts.InteropCommitmentTree.History.Properties.PaddingCountermodelLocatesPaddingHit",
+    "kind": "history",
+    "justification": "Padding-forgery record at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from TreeRoot to L2InteropCommitmentTree/History/Properties/PaddingForgeryPinned with statement and proof unchanged."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.PaddingCountermodelExactlyPaddingHit",
+    "new": "Contracts.InteropCommitmentTree.History.Properties.PaddingCountermodelExactlyPaddingHit",
+    "kind": "history",
+    "justification": "Padding-forgery record at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from TreeRoot to L2InteropCommitmentTree/History/Properties/PaddingForgeryPinned with statement and proof unchanged."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.PaddingForgeryAtOwnHeight",
+    "new": "Contracts.InteropCommitmentTree.History.Properties.PaddingForgeryAtOwnHeight",
+    "kind": "history",
+    "justification": "Padding-forgery record at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from RunHeight to L2InteropCommitmentTree/History/Properties/PaddingForgeryPinned with statement and proof unchanged."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.CThreeLeafWitness",
+    "new": "Contracts.InteropCommitmentTree.History.Properties.CThreeLeafWitness",
+    "kind": "history",
+    "justification": "Padding-forgery record at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from CachedRoot to L2InteropCommitmentTree/History/Properties/PaddingForgeryPinned with statement and proof unchanged."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.PinnedGateAcceptsEveryValueBelowCapacity",
+    "new": "IMTAbstract.ReclaimGateFaithful.History.Properties.PinnedGateAcceptsEveryValueBelowCapacity",
+    "kind": "history",
+    "justification": "Deployed-gate result at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from ReclaimGateFaithful to IndexedMerkleTree/History/Properties/PinnedGate with statement and proof unchanged."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.PinnedGateAcceptsEveryValueOffPowersOfTwo",
+    "new": "IMTAbstract.ReclaimGateFaithful.History.Properties.PinnedGateAcceptsEveryValueOffPowersOfTwo",
+    "kind": "history",
+    "justification": "Deployed-gate result at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from ReclaimGateFaithful to IndexedMerkleTree/History/Properties/PinnedGate with statement and proof unchanged."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.PinnedCounterexampleMeetsCapstoneHypotheses",
+    "new": "IMTAbstract.ReclaimGateFaithful.History.Properties.PinnedCounterexampleMeetsCapstoneHypotheses",
+    "kind": "history",
+    "justification": "Deployed-gate result at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from ReclaimGateFaithful to IndexedMerkleTree/History/Properties/PinnedGate with statement and proof unchanged."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.PinnedReclaimDichotomyReadingFails",
+    "new": "IMTAbstract.ReclaimGateFaithful.History.Properties.PinnedReclaimDichotomyReadingFails",
+    "kind": "history",
+    "justification": "Deployed-gate result at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from ReclaimGateFaithful to IndexedMerkleTree/History/Properties/PinnedGate with statement and proof unchanged."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.PinnedDeliveryFinalityReadingFails",
+    "new": "IMTAbstract.ReclaimGateFaithful.History.Properties.PinnedDeliveryFinalityReadingFails",
+    "kind": "history",
+    "justification": "Deployed-gate result at the c67894b9 padding hashLeaf({0,0,0}) (finding H2), moved from ReclaimGateFaithful to IndexedMerkleTree/History/Properties/PinnedGate with statement and proof unchanged."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.SetupAtPaddingIsPinnedSetup",
+    "new": "IMTAbstract.ReclaimGateFaithful.Properties.SetupAtPaddingIsPinnedSetup",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; cSetupAtPadding/CReachesAtPadding replaced by CachedRoot's cSetupPad/CReachesPad, whose bodies and constructors are identical, so the statement is the same proposition."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.StoredRootAtPaddingIsPublished",
+    "new": "IMTAbstract.ReclaimGateFaithful.Properties.StoredRootAtPaddingIsPublished",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; cSetupAtPadding/CReachesAtPadding replaced by CachedRoot's cSetupPad/CReachesPad, whose bodies and constructors are identical, so the statement is the same proposition."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.ReachedStatesLiftAtPadding",
+    "new": "IMTAbstract.ReclaimGateFaithful.Properties.ReachedStatesLiftAtPadding",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; cSetupAtPadding/CReachesAtPadding replaced by CachedRoot's cSetupPad/CReachesPad, whose bodies and constructors are identical, so the statement is the same proposition."
+  },
+  {
+    "old": "IMTAbstract.ReclaimGateFaithful.Properties.StoredRootAtPaddingWitness",
+    "new": "IMTAbstract.ReclaimGateFaithful.Properties.StoredRootAtPaddingWitness",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; cSetupAtPadding/CReachesAtPadding replaced by CachedRoot's cSetupPad/CReachesPad, whose bodies and constructors are identical, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.WalkAtHeadIsLeafCountSearch",
+    "new": "Contracts.InteropCommitmentTree.Properties.WalkAtHeadIsLeafCountSearch",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.WalkAtHeadTerminates",
+    "new": "Contracts.InteropCommitmentTree.Properties.WalkAtHeadTerminates",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.WalkAtHeadDeterministic",
+    "new": "Contracts.InteropCommitmentTree.Properties.WalkAtHeadDeterministic",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.InsertChecksAtHeadYieldGuard",
+    "new": "Contracts.InteropCommitmentTree.Properties.InsertChecksAtHeadYieldGuard",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.InsertAtHeadLandingHintIndependent",
+    "new": "Contracts.InteropCommitmentTree.Properties.InsertAtHeadLandingHintIndependent",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.InsertAtHeadEnabledIff",
+    "new": "Contracts.InteropCommitmentTree.Properties.InsertAtHeadEnabledIff",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.InsertChecksAtHeadVsPin",
+    "new": "Contracts.InteropCommitmentTree.Properties.InsertChecksAtHeadVsPin",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.HonestInsertSucceedsAtHead",
+    "new": "Contracts.InteropCommitmentTree.Properties.HonestInsertSucceedsAtHead",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.InsertAtHeadWitness",
+    "new": "Contracts.InteropCommitmentTree.Properties.InsertAtHeadWitness",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; WalkSucceedsAtHead/InsertChecksAtHead replaced by the canonical WalkExitsAtV35/InsertChecksAtV35, which have identical bodies and fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.InteropCommitmentTree.Properties.SearchExitsDeterministicV35",
+    "new": "Contracts.InteropCommitmentTree.Properties.SearchExitsDeterministicV35",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept; SearchExitsV35 replaced by the canonical WalkExitsAtV35, which has the identical body, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.AppendPath.Properties.NoSecondAppendAtHead",
+    "new": "Contracts.AppendPath.Properties.NoSecondAppendAtHead",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept (Protocol/InteropAtomicity OncePerLegAtHead); InsertChecksAtHead replaced by the canonical InsertChecksAtV35, which has identical fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.AppendPath.Properties.TreeGateImpliesManagerGateAtHead",
+    "new": "Contracts.AppendPath.Properties.TreeGateImpliesManagerGateAtHead",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept (Protocol/InteropAtomicity OncePerLegAtHead); InsertChecksAtHead replaced by the canonical InsertChecksAtV35, which has identical fields, so the statement is the same proposition."
+  },
+  {
+    "old": "Contracts.AppendPath.Properties.RefundedLegAtHeadWitness",
+    "new": "Contracts.AppendPath.Properties.RefundedLegAtHeadWitness",
+    "kind": "restated-on-shared-model",
+    "justification": "Name kept (Protocol/InteropAtomicity OncePerLegAtHead); InsertChecksAtHead replaced by the canonical InsertChecksAtV35, which has identical fields, so the statement is the same proposition."
+  }
+]

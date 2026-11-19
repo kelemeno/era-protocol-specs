@@ -93,7 +93,7 @@ replacement.
   `AttackVectors.StaleSnapshotBranches.BeginBranchNeedsBeginIsPrevEnd`,
   `AttackVectors.StaleSnapshotBranches.EndBranchNeedsLaterBatchesLate`) and sound IMT
   proofs, and the latter fail at `c67894b9` by the padding forgery
-  (`Contracts.InteropCommitmentTree.CThreeLeafWitness`,
+  (`Contracts.InteropCommitmentTree.History.CThreeLeafWitness`,
   `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`). Without the finality-side
   check, leg `v` passes the unchecked finality check and passes `authorizeRefund` as the
   missing leg iff it is committed on its real source chain and misdeclared

@@ -4,6 +4,11 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.CachedRoot
 /-!
 # Model: the reclaim capstones read against the deployed absence check
 
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`).  The padding constant is a parameter `z0`
+(`IMT_EMPTY_LEAF_HASH` at `b17415d20`); the storage model is the canonical `cSetupPad` /
+`CReachesPad` of `../../L2InteropCommitmentTree/Specs/CachedRoot.lean`.  The results at the pin's
+padding `hashLeaf({0,0,0})` are in `../History/Specs/PinnedGate.lean`.
+
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.IndexedMerkleTree.Properties.ReclaimGateFaithful`, proofs in
 `EraSpec.Contracts.IndexedMerkleTree.Proofs.ReclaimGateFaithful`.
@@ -21,7 +26,7 @@ model the refund path's absence check as
 so the presented low leaf is a MEMBER of the snapshot by hypothesis.  In the contract the
 low leaf is the prover's, and the check does not test membership.
 `IndexedMerkleTree.verifyNonInclusion(_root, _value, _lowLeaf, _lowLeafIndex, _lowLeafProof)`
-(c67894b9 `IndexedMerkleTree.sol:153-171`) reverts on `_value == 0`, on
+(`IndexedMerkleTree.sol:154-172` at `b17415d20`) reverts on `_value == 0`, on
 `_lowLeaf.value >= _value` and on `_lowLeaf.nextValue != 0 && _lowLeaf.nextValue <= _value`,
 and otherwise returns `Merkle.calculateRootMemory(_lowLeafProof, _lowLeafIndex,
 hashLeaf(_lowLeaf)) == _root`.  The leaf, its index, the path and the path length are all
@@ -85,7 +90,7 @@ length) and writes `Contracts.InteropCommitmentTree.insert`, so its runs are `HR
   `guardedEvolution_delivered_available_forever` with `DeployedGate` in place of
   `MemberGate`, along every run from `setup` (`HRun` from `hSetup`, whose leaf-set
   projection `absHistory` is a `GuardedEvolution` from the genesis singleton).
-* `cSetupAtPadding` / `CReachesAtPadding`: `IndexedMerkleTree.setup` and its reached states
+* `cSetupPad` / `CReachesPad`: `IndexedMerkleTree.setup` and its reached states
   with `FullMerkle`'s whole storage and the padding constant as a parameter, so the root
   `IndexedMerkleTree.root()` returns at either revision can be compared with `HState.root`.
 
@@ -169,7 +174,7 @@ def DedicatedPadding (hl : LeafHash) (z0 : UInt256) : Prop :=
 along every run from `setup`, at every step, a nonzero value passes `DeployedGate` exactly
 when it is absent.  This is the capstone's gloss "no false refunds, no missed refunds" for
 the IMT absence check as deployed.  It is false at the pin's padding for every hash
-(`Properties.PinnedReclaimDichotomyReadingFails`) and, under the toy hashes, at a dedicated
+(`History.Properties.PinnedReclaimDichotomyReadingFails`) and, under the toy hashes, at a dedicated
 padding too (`Properties.DedicatedPaddingReadingsFailUnderToyHashes`); its "no missed refunds"
 half holds at every padding (`Properties.DeployedGateLiveness`). -/
 def ReclaimDichotomyReading (h : Hash) (z0 : UInt256) (hl : LeafHash) : Prop :=
@@ -181,7 +186,7 @@ def ReclaimDichotomyReading (h : Hash) (z0 : UInt256) (hl : LeafHash) : Prop :=
 check** (and `delivered_and_reclaimed_impossible`), at padding `z0`: along every run from
 `setup` with a monotone settlement clock `t` and deadline `D`, a value delivered at an
 on-time step fails `DeployedGate` at every step meeting the abstract pin `D < t (j + 1)`.
-False at the pin's padding for every hash (`Properties.PinnedDeliveryFinalityReadingFails`). -/
+False at the pin's padding for every hash (`History.Properties.PinnedDeliveryFinalityReadingFails`). -/
 def DeliveryFinalityReading (h : Hash) (z0 : UInt256) (hl : LeafHash) : Prop :=
   ∀ R : ℕ → HState, HRun R → R 0 = hSetup →
     ∀ (t : ℕ → UInt256) (D v : UInt256) (i : ℕ), Monotone t → t i ≤ D →
@@ -190,26 +195,10 @@ def DeliveryFinalityReading (h : Hash) (z0 : UInt256) (hl : LeafHash) : Prop :=
 
 /-! ## The stored root at either revision
 
-`Contracts.InteropCommitmentTree.cSetup` passes the pin's `hashLeaf({0,0,0})` to
-`FullMerkle.setup`.  Here the constant is a parameter: `FullMerkle.setup(z0)`, then
-`FullMerkle.pushNewLeaf(hashLeaf({0,0,0}))`, which is b17415d20's `setup` (`:51-52`) at
-`z0 = IMT_EMPTY_LEAF_HASH` and the pin's (`:47-49`) at `z0 = zeroLeafHash hl`.  `insert`
-makes the same two `FullMerkle` calls at both revisions, so it is `cInsert`. -/
-
-/-- `IndexedMerkleTree.setup` on fresh storage with padding constant `z0`: `tree.setup(z0)`,
-then `tree.pushNewLeaf(hashLeaf({0,0,0}))`, with the sentinel list state. -/
-def cSetupAtPadding (h : Hash) (hl : LeafHash) (z0 : UInt256) : Option CState :=
-  (Contracts.FullMerkle.pushNewLeaf h
-    (Contracts.FullMerkle.setup Contracts.FullMerkle.FullTree.empty z0).1
-    (hl ⟨0, 0, 0⟩)).map fun r => ⟨setup, r.1⟩
-
-/-- States reached from `cSetupAtPadding h hl z0` by guarded inserts that do not revert:
-`Contracts.InteropCommitmentTree.CReaches` with the padding constant a parameter. -/
-inductive CReachesAtPadding (h : Hash) (hl : LeafHash) (z0 : UInt256) : CState → Prop
-  | init {S : CState} : cSetupAtPadding h hl z0 = some S → CReachesAtPadding h hl z0 S
-  | insert {S S' : CState} {v : UInt256} {low : ℕ} {r : UInt256} :
-      CReachesAtPadding h hl z0 S → InsertGuard S.tree v low →
-      cInsert h hl S v low = some (S', r) → CReachesAtPadding h hl z0 S'
+The storage model with the padding constant as a parameter is `cSetupPad` / `CReachesPad`
+(`L2InteropCommitmentTree/Specs/CachedRoot.lean`): `FullMerkle.setup(z0)`, then
+`FullMerkle.pushNewLeaf(hashLeaf({0,0,0}))`, which is `b17415d20`'s `setup` (`:51-52`) at
+`z0 = IMT_EMPTY_LEAF_HASH` and the pin's at `z0 = zeroLeafHash hl`. -/
 
 /-! ## A settlement clock, for the witnesses -/
 

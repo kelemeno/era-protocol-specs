@@ -153,32 +153,4 @@ def Properties.ContractProofsAtStoredRoot : Prop :=
 
 /-! ## Anti-vacuity -/
 
-/-- **THE PREMISES ARE SATISFIABLE, AND THE PADDING FORGERY HITS THE STORED ROOT.**  For
-every node and leaf hash and `0 < a < b`, the run `setup; insert a at 0; insert b at 1`
-with whole storage does not revert.  It reaches `threeLeafTree a b` with the view
-`hThree a b` at height 2, and `root()` returns the `newRoot` of the last insert, `r₂`.
-Against `r₂`:
-
-* the contract's own `merklePath(1)` is an accepted inclusion proof for `a`;
-* the contract refuses `merklePath(3)` (slot 3 is empty);
-* yet the honest siblings of slot 3 are an accepted non-inclusion proof for the delivered
-  `a` with the zero leaf, whose located break is exactly `paddingHit`.
-
-So clauses 1 and 3 of `ContractProofsAtStoredRoot` have their premises met, and the
-forged absence proof is against the root the contract stores, not a modelled one. -/
-def Properties.CThreeLeafWitness : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
-    ∃ (S₀ S₁ S₂ : CState) (r₁ r₂ : UInt256),
-      cSetup h hl = some S₀ ∧ cInsert h hl S₀ a 0 = some (S₁, r₁)
-      ∧ cInsert h hl S₁ b 1 = some (S₂, r₂)
-      ∧ CReaches h hl S₂ ∧ S₂.tree = threeLeafTree a b ∧ S₂.toH = hThree a b
-      ∧ S₁.fm.height = 1 ∧ S₂.fm.height = 2 ∧ S₂.root = some r₂
-      ∧ (∃ p : List UInt256, S₂.merklePath 1 = some p
-          ∧ InclusionAccepted h hl r₂ a (S₂.tree.leaf 1) 1 (FullMerkle.pathSibs p) p.length)
-      ∧ S₂.merklePath 3 = none
-      ∧ NonInclusionAccepted h hl r₂ a ⟨0, 0, 0⟩ 3
-          (honestSibs h (zeroLeafHash hl) (leafHashes hl S₂.tree) 3) 2
-      ∧ TreeRootBreakExactly h (zeroLeafHash hl) hl S₂.tree 2
-          (honestSibs h (zeroLeafHash hl) (leafHashes hl S₂.tree) 3) 2 3 ⟨0, 0, 0⟩ .paddingHit
-
 end Contracts.InteropCommitmentTree

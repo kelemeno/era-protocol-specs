@@ -303,4 +303,12 @@ theorem ChainTreeRunCallsV35 : Properties.ChainTreeRunCallsV35 := by
   refine ⟨hrun, rfl, hcalls, hidle, hreach, reaches_valid hreach setup_valid, by decide, by decide,
     by decide, by decide, hwalk, by decide, by decide, by decide, by decide⟩
 
+theorem InsertCallV35IffChecksAtV35 : Properties.InsertCallV35IffChecksAtV35 := by
+  intro T v hint T'
+  constructor
+  · rintro ⟨hi, hn, hf, hb, hv, j, hw, hj, rfl⟩
+    exact ⟨j, ⟨hi, hn, hf, hb, hv, hw⟩, hj, rfl⟩
+  · rintro ⟨j, ⟨hi, hn, hf, hb, hv, hw⟩, hj, rfl⟩
+    exact ⟨hi, hn, hf, hb, hv, j, hw, hj, rfl⟩
+
 end Contracts.InteropCommitmentTree

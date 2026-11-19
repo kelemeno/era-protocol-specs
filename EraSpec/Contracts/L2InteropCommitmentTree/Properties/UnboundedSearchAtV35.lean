@@ -43,7 +43,7 @@ open IMTAbstract
 index: the loop is deterministic, and more fuel never changes where it stops.  No premise. -/
 def Properties.SearchExitsDeterministicV35 : Prop :=
   ∀ (T : Tree) (v : UInt256) (i j j' : ℕ),
-    SearchExitsV35 T v i j → SearchExitsV35 T v i j' → j = j'
+    WalkExitsAtV35 T v i j → WalkExitsAtV35 T v i j' → j = j'
 
 /-- **EVERY EXITING SEARCH IS A v35 WALK OF THE PROJECTION.**  On a `Valid` tree, from an occupied
 index `i`, if the fuelled loop returns `j`, then the abstract v35 walk from `lowAbs T i` exits at
@@ -162,5 +162,16 @@ def Properties.ChainTreeRunCallsV35 : Prop :=
     ∧ (chainTreeRunV35 6).valueToIndex 7 = 0
     ∧ 5 < (chainTreeRunV35 5).leafCount ∧ ((chainTreeRunV35 5).leaf 5).value < 7
     ∧ (chainTreeRunV35 5).leaf 5 ≠ (chainTreeRunV35 6).leaf 5
+
+/-- **`InsertCallV35` IS THE CANONICAL CHECKS PLUS THE RANGE CHECK AND THE WRITES.**  A successful
+v35 `insert(v, hint)` on the list state, as this topic states it, is exactly: the canonical v35
+checks `InsertChecksAtV35` (`Specs/HintSearch.lean`) at some exit index `low`,
+`FullMerkle.updateLeaf`'s range check `low < leafCount`, and the writes `insert T v low`.  So this
+topic's call and the canonical machine's insert (`CommitmentTreeAtV35.CTxStepAtV35.insert`) read
+the same checks. -/
+def Properties.InsertCallV35IffChecksAtV35 : Prop :=
+  ∀ (T : Tree) (v : UInt256) (hint : ℕ) (T' : Tree),
+    InsertCallV35 T v hint T'
+      ↔ ∃ low, InsertChecksAtV35 T v hint low ∧ low < T.leafCount ∧ T' = insert T v low
 
 end Contracts.InteropCommitmentTree

@@ -1,5 +1,16 @@
 import EraSpec.Core.Word
 
+/-!
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`),
+`l1-contracts/contracts/common/libraries/IndexedMerkleTree.sol`.  `AbsLeaf` is `IMTLeaf`
+(`:21-25`) with `nextIndex` erased.  `imtInsert` is `insert`'s list update (`:95-106`: the low
+leaf retargeted to the new value, the new leaf appended with the low leaf's old successor), and
+`GuardedEvolution`'s guard is `insert`'s checks (`:74-88`) with the exit window of its walk
+(`:90-93`), read on keys.  Nothing here depends on the padding constant or on a hop bound, the two
+places where `b17415d20` differs from the interop pin `c67894b9`.  The correction notes below that
+cite `c67894b9` record that pin's padding finding (History).
+-/
+
 
 /- EXTRACTED from contracts-formal-verification (`specs/specs/IMTAbstract.lean`) — protocol-level,
    no EVM semantics.  The sibling copy is still the one that repo builds against; see

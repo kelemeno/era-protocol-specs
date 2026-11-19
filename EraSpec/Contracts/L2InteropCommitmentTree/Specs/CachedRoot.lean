@@ -20,33 +20,44 @@ calls them, so `root()` and `merklePath(i)` read the storage those calls wrote.
 storage) beside `HState`, `hSetup`, `hInsert`, `HReaches`, `HRun`, and `CState.toH`
 forgets `_nodes` and `_zeros`.
 
-## What the source does (era-contracts `c67894b9`)
+## What the source does (era-contracts `b17415d20`)
 
-`IndexedMerkleTree.sol`:
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`b17415d20`), `l1-contracts/contracts/common/libraries/IndexedMerkleTree.sol`:
 
-    function setup(IMT storage self) internal {                                  // :42-51
-        if (self.tree._leafNumber != 0) revert IMTAlreadyInitialized();
-        bytes32 zeroLeafHash = hashLeaf(IMTLeaf({value: 0, nextIndex: 0, nextValue: 0}));
-        self.tree.setup(zeroLeafHash);
-        self.tree.pushNewLeaf(zeroLeafHash);
+    function setup(IMT storage self) internal {                                  // :46-54
+        if (self.tree._leafNumber != 0) { revert IMTAlreadyInitialized(); }
+        self.tree.setup(IMT_EMPTY_LEAF_HASH);
+        self.tree.pushNewLeaf(hashLeaf(IMTLeaf({value: 0, nextIndex: 0, nextValue: 0})));
         self.leaves[0] = IMTLeaf({value: 0, nextIndex: 0, nextValue: 0});
     }
-    function insert(IMT storage self, uint256 _value, uint256 _lowLeafIndex) ... { // :60-106
-        ... guards and the bounded search ...
-        self.tree.updateLeaf(lowLeafIndex, hashLeaf(updatedLowLeaf));           // :100
+    function insert(IMT storage self, uint256 _value, uint256 _lowLeafIndex) ... { // :65-107
+        ... checks (:70-88) and the unbounded walk (:90-93) ...
+        self.tree.updateLeaf(lowLeafIndex, hashLeaf(updatedLowLeaf));           // :101
         ...
-        newRoot = self.tree.pushNewLeaf(hashLeaf(newLeaf));                      // :105
+        newRoot = self.tree.pushNewLeaf(hashLeaf(newLeaf));                      // :106
     }
-    function root(IMT storage self) ... { return self.tree.root(); }             // :109-111
-    function merklePath(IMT storage self, uint256 _leafIndex) ... {              // :115-117
+    function root(IMT storage self) ... { return self.tree.root(); }             // :110-112
+    function merklePath(IMT storage self, uint256 _leafIndex) ... {              // :116-118
         path = self.tree.merklePath(_leafIndex);
     }
 
+`cSetupPad h hl ze` is `setup` with the padding constant `ze` (`IMT_EMPTY_LEAF_HASH` at
+`b17415d20`), and `CReachesPad` the states reached from it; `cInsert`, `root` and `merklePath`
+are the same calls at every revision.
+
+**What differs from the interop pin.**  At `c67894b9` `setup` passed `hashLeaf({0,0,0})` to both
+`FullMerkle.setup` and `pushNewLeaf`.  `cSetup`, `CReaches` and `CRun` are that instance
+(`ze = zeroLeafHash hl`, `Properties.PinSetupIsPadAtZeroLeafHash`); the results stated over them
+hold for the pin's constant, and their every-padding forms are `CSetupPadCaches`,
+`CReachesPadRootIsPublished` and `CRunPadReaches` (`PaddingAtHead`) and the canonical machine's
+`CTxRunAtV35StoredRootIsPublished`.  The padding-forgery record is
+`History/Specs/PaddingForgeryPinned.lean`.
+
 ## Model boundary
 
-* `FullMerkle.setup` is passed `hashLeaf({0,0,0})`, so the padding constant is
-  `hl ⟨0, 0, 0⟩` (`zeroLeafHash`).  This is the pin's choice, and the one the padding
-  countermodel `PaddingCollisionRefundsDeliveredLeg` uses.
+* `cSetup` passes `hashLeaf({0,0,0})` to `FullMerkle.setup`, so its padding constant is
+  `hl ⟨0, 0, 0⟩` (`zeroLeafHash`), the pin's choice; `cSetupPad` takes it as a parameter.
 * The list state, the guards (`InsertGuard`) and the search are as in `Specs/Model.lean`;
   `low` is the low leaf the search ends on.  `IMTAlreadyInitialized` is replaced by
   starting from fresh storage (`FullMerkle.FullTree.empty`).
@@ -114,5 +125,31 @@ def CRun (h : MerkleSpec.Hash) (hl : LeafHash) (R : ℕ → CState) : Prop :=
   ∀ n, R (n + 1) = R n
     ∨ ∃ (v : UInt256) (low : ℕ) (r : UInt256),
         InsertGuard (R n).tree v low ∧ cInsert h hl (R n) v low = some (R (n + 1), r)
+
+/-! ## `setup` with the padding constant as a parameter
+
+`cSetup` passes the pin's `hashLeaf({0,0,0})` to `FullMerkle.setup`.  At `b17415d20`,
+`IndexedMerkleTree.setup` passes `IMT_EMPTY_LEAF_HASH` there (`IndexedMerkleTree.sol:51`) and
+`hashLeaf({0,0,0})` to `pushNewLeaf` (`:52`).  `cSetupPad h hl ze` is that call with the padding
+constant `ze` as a parameter; `insert` makes the same `FullMerkle` calls at both revisions, so
+its step is `cInsert`.  These are the v35 setup and reached states that `PaddingAtHead`,
+`ReclaimGateFaithful` and `CommitmentTreeAtV35` share. -/
+
+/-- `IndexedMerkleTree.setup` on fresh storage, padding with `ze`
+(`IndexedMerkleTree.sol:46-54` at `b17415d20`): `tree.setup(ze)`, then
+`tree.pushNewLeaf(hashLeaf({0,0,0}))`, with the sentinel list state.  At `b17415d20`, `ze` is
+`IMT_EMPTY_LEAF_HASH`.  With `ze = hashLeaf({0,0,0})` this is the pin's `cSetup`
+(`Properties.PinSetupIsPadAtZeroLeafHash`). -/
+def cSetupPad (h : MerkleSpec.Hash) (hl : LeafHash) (ze : UInt256) : Option CState :=
+  (FullMerkle.pushNewLeaf h (FullMerkle.setup FullMerkle.FullTree.empty ze).1 (hl ⟨0, 0, 0⟩)).map
+    fun r => ⟨setup, r.1⟩
+
+/-- States reached from `cSetupPad h hl ze` by guarded inserts that do not revert: `CReaches`
+with the padding constant as a parameter; the insert step is the same `cInsert`. -/
+inductive CReachesPad (h : MerkleSpec.Hash) (hl : LeafHash) (ze : UInt256) : CState → Prop
+  | init {S : CState} : cSetupPad h hl ze = some S → CReachesPad h hl ze S
+  | insert {S S' : CState} {v : UInt256} {low : ℕ} {r : UInt256} :
+      CReachesPad h hl ze S → InsertGuard S.tree v low → cInsert h hl S v low = some (S', r) →
+      CReachesPad h hl ze S'
 
 end Contracts.InteropCommitmentTree

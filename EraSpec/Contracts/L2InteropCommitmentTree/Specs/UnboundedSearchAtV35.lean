@@ -26,7 +26,7 @@ pin's counted loop (`HintSearch`).
 
 ## What is modelled
 
-* `SearchExitsV35 T v i j`: the unbounded loop started at index `i` exits at index `j`, that is,
+* `WalkExitsAtV35 T v i j` (the canonical definition, in `Specs/HintSearch.lean`): the unbounded loop started at index `i` exits at index `j`, that is,
   some fuel makes `lowSearch` return `some j`.  The fuel is a proof device; the source has no
   bound.  A loop run that never exits has no `j`.
 * `InsertCallV35 T v hint T'`: a successful v35 `insert(v, hint)` leaving `T'`.  Its fields are
@@ -45,13 +45,6 @@ callers (`InitOnce` has them), indices are `ℕ`, and gas is not modelled.
 namespace Contracts.InteropCommitmentTree
 
 open IMTAbstract
-
-/-- **The v35 loop exits at index `j`** (`IndexedMerkleTree.sol:90-93` at `b17415d20`): started at
-index `i`, the unbounded `while` loop ends with `lowLeafIndex = j`.  Some fuel makes the fuelled
-loop `lowSearch` return `j`; any larger fuel returns the same index
-(`Properties.SearchExitsDeterministicV35`). -/
-def SearchExitsV35 (T : Tree) (v : UInt256) (i j : ℕ) : Prop :=
-  ∃ fuel : ℕ, lowSearch T v fuel i = some j
 
 /-- **A successful v35 `insert(v, hint)`** (`IndexedMerkleTree.sol:65-107` at `b17415d20`) on the
 indexed list state `T`, leaving `T'`.  The fields are the source's checks, in source order, and
@@ -72,7 +65,7 @@ structure InsertCallV35 (T : Tree) (v : UInt256) (hint : ℕ) (T' : Tree) : Prop
   fresh : T.valueToIndex v = 0
   inBounds : hint < T.leafCount
   hintBelow : (T.leaf hint).value < v
-  exits : ∃ j, SearchExitsV35 T v hint j ∧ j < T.leafCount ∧ T' = insert T v j
+  exits : ∃ j, WalkExitsAtV35 T v hint j ∧ j < T.leafCount ∧ T' = insert T v j
 
 /-- **A v35 history of the indexed state.**  Each step leaves the state unchanged (a call that
 does not write the tree, or one that reverts), or is a successful v35 `insert` call. -/

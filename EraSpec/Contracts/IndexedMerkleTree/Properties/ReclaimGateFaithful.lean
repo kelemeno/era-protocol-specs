@@ -15,13 +15,13 @@ leaf `W ∈ S j`.  What fails is their reading with the deployed absence check
   for every node hash and leaf hash, at every reached snapshot whose leaf count is not a
   power of two, `verifyNonInclusion` accepts the zero leaf at the first empty index for
   EVERY nonzero value, delivered values included, and the break located on that submission
-  is exactly `paddingHit` (`PinnedGateAcceptsEveryValueOffPowersOfTwo`).  The counterexample
+  is exactly `paddingHit` (`History.PinnedGateAcceptsEveryValueOffPowersOfTwo`).  The counterexample
   run meets the capstones' hypotheses (a `GuardedEvolution` from the genesis singleton), and
   the accepted low leaf projects to `⟨0, 0⟩`, which is not a leaf of the snapshot
-  (`PinnedCounterexampleMeetsCapstoneHypotheses`; the order-theoretic side is
+  (`History.PinnedCounterexampleMeetsCapstoneHypotheses`; the order-theoretic side is
   `IMTAbstract.ModelStrong.Properties.padding_leaf_forges_on_guarded_history`).  So both
-  readings are false at the pin (`PinnedReclaimDichotomyReadingFails`,
-  `PinnedDeliveryFinalityReadingFails`).
+  readings are false at the pin (`History.PinnedReclaimDichotomyReadingFails`,
+  `History.PinnedDeliveryFinalityReadingFails`).
 * **The capstones re-proved over the refined gate.**  At every padding constant, with no
   hash premise: acceptance on which no `TreeRootBreak` is located discharges `W ∈ S j`
   (`BreakFreeGateImpliesMemberGate`); on run snapshots the break-free gate is the capstones'
@@ -66,23 +66,6 @@ open Clear IMTAbstract MerkleSpec MerkleSpec.Verifier Contracts.InteropCommitmen
 
 /-! ## The countermodel at c67894b9 -/
 
-/-- **AT THE PIN, AN EMPTY SLOT OPENS THE ABSENCE CHECK FOR EVERY VALUE.**  With the pinned
-padding `zeroLeafHash hl = hashLeaf({0,0,0})`, in any state with an empty slot below
-capacity at its own `_height`, for every node hash and leaf hash and every nonzero `v`:
-`verifyNonInclusion` accepts, against the published root, the zero leaf `{0,0,0}` at index
-`leafCount` with that slot's honest siblings and the published path length, and the break
-located on that submission is exactly `paddingHit` (no other case of `TreeRootBreak`
-holds).  This is `Contracts.InteropCommitmentTree.Properties.PaddingCollisionForgesAbsence`
-at the state's own height, with the attribution. -/
-def Properties.PinnedGateAcceptsEveryValueBelowCapacity : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (S : HState), S.tree.leafCount < 2 ^ S.height →
-    ∀ v : UInt256, v ≠ 0 →
-      NonInclusionAccepted h hl (S.root h (zeroLeafHash hl) hl) v ⟨0, 0, 0⟩ S.tree.leafCount
-          (honestSibs h (zeroLeafHash hl) (leafHashes hl S.tree) S.tree.leafCount) S.height
-        ∧ TreeRootBreakExactly h (zeroLeafHash hl) hl S.tree S.height
-            (honestSibs h (zeroLeafHash hl) (leafHashes hl S.tree) S.tree.leafCount) S.height
-            S.tree.leafCount ⟨0, 0, 0⟩ .paddingHit
-
 /-- **WHICH REACHED SNAPSHOTS HAVE AN EMPTY SLOT.**  On a state reached from `setup`,
 `FullMerkle._height` leaves an empty slot below capacity exactly when the leaf count is not
 a power of two, and the tree is full at its own height exactly when the leaf count is a
@@ -91,62 +74,6 @@ def Properties.ReachedBelowCapacityIffNotPowerOfTwo : Prop :=
   ∀ S : HState, HReaches hSetup S →
     (S.tree.leafCount < 2 ^ S.height ↔ ∀ k : ℕ, S.tree.leafCount ≠ 2 ^ k)
       ∧ (S.tree.leafCount = 2 ^ S.height ↔ ∃ k : ℕ, S.tree.leafCount = 2 ^ k)
-
-/-- **AT THE PIN, THE ABSENCE CHECK ACCEPTS EVERY VALUE OFF POWERS OF TWO.**  At c67894b9's
-padding, for every node hash and leaf hash, at every state reached from `setup` whose leaf
-count is not a power of two (3, 5, 6, 7, 9, … leaves), and every nonzero `v`, delivered or
-not: `DeployedGate` holds, through the submission of
-`PinnedGateAcceptsEveryValueBelowCapacity` (the zero leaf at index `leafCount`, that slot's
-honest siblings, the published length), whose located break is exactly `paddingHit`. -/
-def Properties.PinnedGateAcceptsEveryValueOffPowersOfTwo : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (S : HState), HReaches hSetup S →
-    (∀ k : ℕ, S.tree.leafCount ≠ 2 ^ k) →
-      ∀ v : UInt256, v ≠ 0 →
-        DeployedGate h (zeroLeafHash hl) hl S v
-          ∧ NonInclusionAccepted h hl (S.root h (zeroLeafHash hl) hl) v ⟨0, 0, 0⟩
-              S.tree.leafCount
-              (honestSibs h (zeroLeafHash hl) (leafHashes hl S.tree) S.tree.leafCount) S.height
-          ∧ TreeRootBreakExactly h (zeroLeafHash hl) hl S.tree S.height
-              (honestSibs h (zeroLeafHash hl) (leafHashes hl S.tree) S.tree.leafCount) S.height
-              S.tree.leafCount ⟨0, 0, 0⟩ .paddingHit
-
-/-- **THE COUNTEREXAMPLE MEETS THE CAPSTONES' HYPOTHESES.**  For every node and leaf hash
-and `0 < a < b`, the run `setup; insert a; insert b` (`hThreeRun a b`) satisfies:
-
-* it is an `HRun` from `hSetup`, and its leaf-set projection is a `GuardedEvolution` from
-  the genesis singleton `{⟨0, 0⟩}`, which are the hypotheses of
-  `guardedEvolution_reclaimable_iff_absent` and `guardedEvolution_delivered_available_forever`;
-* at step 2, `a` is delivered, and the capstones' member gate is closed for it;
-* yet `verifyNonInclusion` with the pinned padding accepts the zero leaf `{0,0,0}` at the
-  empty index 3 for `a`, with that slot's honest siblings, against step 2's published root
-  at its own height; the accepted leaf's projection `⟨0, 0⟩` is NOT a leaf of step 2;
-* so `DeployedGate` holds for `a` at step 2, and `BreakFreeGate` does not. -/
-def Properties.PinnedCounterexampleMeetsCapstoneHypotheses : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
-    HRun (hThreeRun a b) ∧ hThreeRun a b 0 = hSetup
-      ∧ GuardedEvolution (absHistory (hThreeRun a b))
-      ∧ absHistory (hThreeRun a b) 0 = ({⟨0, 0⟩} : Finset AbsLeaf)
-      ∧ a ∈ keys (absHistory (hThreeRun a b) 2)
-      ∧ ¬ MemberGate (absHistory (hThreeRun a b) 2) a
-      ∧ NonInclusionAccepted h hl ((hThreeRun a b 2).root h (zeroLeafHash hl) hl) a ⟨0, 0, 0⟩ 3
-          (honestSibs h (zeroLeafHash hl) (leafHashes hl (hThreeRun a b 2).tree) 3)
-          (hThreeRun a b 2).height
-      ∧ (⟨0, 0⟩ : AbsLeaf) ∉ absHistory (hThreeRun a b) 2
-      ∧ DeployedGate h (zeroLeafHash hl) hl (hThreeRun a b 2) a
-      ∧ ¬ BreakFreeGate h (zeroLeafHash hl) hl (hThreeRun a b 2) a
-
-/-- **THE RECLAIM DICHOTOMY'S READING IS FALSE AT THE PIN.**  For every node hash and leaf
-hash, with the pinned padding, `DeployedGate` does not hold exactly on the absent values
-along runs from `setup`: it holds for a delivered value. -/
-def Properties.PinnedReclaimDichotomyReadingFails : Prop :=
-  ∀ (h : Hash) (hl : LeafHash), ¬ ReclaimDichotomyReading h (zeroLeafHash hl) hl
-
-/-- **DELIVERY FINALITY'S READING IS FALSE AT THE PIN.**  For every node hash and leaf hash,
-with the pinned padding, `DeployedGate` holds for a value delivered at an on-time step, at
-a step meeting the abstract pin `D < t (j + 1)`, along a run from `setup` with a monotone
-clock. -/
-def Properties.PinnedDeliveryFinalityReadingFails : Prop :=
-  ∀ (h : Hash) (hl : LeafHash), ¬ DeliveryFinalityReading h (zeroLeafHash hl) hl
 
 /-! ## The capstones re-proved over the refined gate -/
 
@@ -185,7 +112,7 @@ def Properties.BreakFreeGateDichotomy : Prop :=
 iff the capstones' member gate is open for it.  So, along runs from `setup`, the
 genesis-rooted reclaim capstone is an exact statement about `verifyNonInclusion` restricted
 to break-free submissions.  `DeployedGate`, which does not exclude submissions with a
-located break, does not match it at the pin (`PinnedReclaimDichotomyReadingFails`). -/
+located break, does not match it at the pin (`History.PinnedReclaimDichotomyReadingFails`). -/
 def Properties.BreakFreeGateMatchesMemberGate : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → HState), HRun R → R 0 = hSetup →
     ∀ (j : ℕ) (v : UInt256), v ≠ 0 →
@@ -231,7 +158,7 @@ reached from `setup` whose leaf count is `2 ^ _height` (on reached states exactl
 power-of-two leaf counts 1, 2, 4, 8, …: `ReachedBelowCapacityIffNotPowerOfTwo`), at every
 padding constant, the pinned one included: an absence proof accepted for a delivered value
 carries the `wrongLength`, `pathCollision` or `leafCollision` case.  With
-`PinnedGateAcceptsEveryValueOffPowersOfTwo`, at the pin: on reached snapshots whose leaf
+`History.PinnedGateAcceptsEveryValueOffPowersOfTwo`, at the pin: on reached snapshots whose leaf
 count is not a power of two, every nonzero value, delivered or not, has an accepted absence
 proof carrying none of these three cases; on the others, no delivered value has one. -/
 def Properties.FullSnapshotRefundOfDeliveredNeedsCollision : Prop :=
@@ -279,32 +206,32 @@ def Properties.DedicatedPaddingZeroLeafNeedsPathCollision : Prop :=
 
 /-! ## The stored root at either revision -/
 
-/-- **ONE SETUP FOR BOTH REVISIONS.**  At the pin's padding constant, `cSetupAtPadding` is
+/-- **ONE SETUP FOR BOTH REVISIONS.**  At the pin's padding constant, `cSetupPad` is
 the pinned `Contracts.InteropCommitmentTree.cSetup`, and its reached states are exactly
 `CReaches`'s. -/
 def Properties.SetupAtPaddingIsPinnedSetup : Prop :=
   ∀ (h : Hash) (hl : LeafHash),
-    cSetupAtPadding h hl (zeroLeafHash hl) = cSetup h hl
-      ∧ ∀ S : CState, CReachesAtPadding h hl (zeroLeafHash hl) S ↔ CReaches h hl S
+    cSetupPad h hl (zeroLeafHash hl) = cSetup h hl
+      ∧ ∀ S : CState, CReachesPad h hl (zeroLeafHash hl) S ↔ CReaches h hl S
 
 /-- **THE STORED ROOT IS THE PUBLISHED ROOT, AT EVERY PADDING CONSTANT.**  For every node
-hash, leaf hash and padding constant `z0`, every state reached from `cSetupAtPadding h hl z0`
+hash, leaf hash and padding constant `z0`, every state reached from `cSetupPad h hl z0`
 by guarded inserts has, as its `RunHeight` view, a state reached from `hSetup`, and the
 transcribed `IndexedMerkleTree.root()` (`_nodes[_height][0]`) returns `HState.root h z0 hl`
 of that view.  At `z0 = IMT_EMPTY_LEAF_HASH` this is b17415d20's `setup` and `root()`; at
 `z0 = zeroLeafHash hl` it is
 `Contracts.InteropCommitmentTree.Properties.CReachesRootIsPublished`. -/
 def Properties.StoredRootAtPaddingIsPublished : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (z0 : UInt256) (S : CState), CReachesAtPadding h hl z0 S →
+  ∀ (h : Hash) (hl : LeafHash) (z0 : UInt256) (S : CState), CReachesPad h hl z0 S →
     HReaches hSetup S.toH ∧ S.root = some (S.toH.root h z0 hl)
 
 /-- **NO REACHED STATE IS LOST, AT EVERY PADDING CONSTANT.**  Every state reached from
-`hSetup` is the `RunHeight` view of a state reached from `cSetupAtPadding h hl z0`, for every
+`hSetup` is the `RunHeight` view of a state reached from `cSetupPad h hl z0`, for every
 node hash, leaf hash and padding constant (so no guarded insert on the way reverts inside
 `FullMerkle`). -/
 def Properties.ReachedStatesLiftAtPadding : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (z0 : UInt256) (S : HState), HReaches hSetup S →
-    ∃ C : CState, CReachesAtPadding h hl z0 C ∧ C.toH = S
+    ∃ C : CState, CReachesPad h hl z0 C ∧ C.toH = S
 
 /-! ## Witnesses -/
 
@@ -320,8 +247,8 @@ def Properties.DedicatedPaddingPremiseWitness : Prop :=
 leaves at height 1) is reached and full, with a power-of-two leaf count; `hThree a b` (three
 leaves at height 2) is reached and below capacity, and its leaf count is no power of two.  So
 both sides of both equivalences of `ReachedBelowCapacityIffNotPowerOfTwo` occur, and the
-shape premises of `PinnedGateAcceptsEveryValueBelowCapacity`,
-`PinnedGateAcceptsEveryValueOffPowersOfTwo` and `FullSnapshotRefundOfDeliveredNeedsCollision`
+shape premises of `History.PinnedGateAcceptsEveryValueBelowCapacity`,
+`History.PinnedGateAcceptsEveryValueOffPowersOfTwo` and `FullSnapshotRefundOfDeliveredNeedsCollision`
 are each met on a reached state. -/
 def Properties.ReachedSnapshotShapesWitness : Prop :=
   ∀ a b : UInt256, 0 < a → a < b →
@@ -405,11 +332,11 @@ def Properties.FinalityPremisesWitness : Prop :=
 
 /-- **THE STORED-ROOT PREMISE IS MET ON A GROWN TREE.**  For every node hash, leaf hash and
 padding constant, and `0 < a < b`, the transcribed contract reaches from
-`cSetupAtPadding h hl z0` a state whose view is `hThree a b` (three leaves at height 2), and
+`cSetupPad h hl z0` a state whose view is `hThree a b` (three leaves at height 2), and
 the transcribed `root()` returns `(hThree a b).root h z0 hl` there. -/
 def Properties.StoredRootAtPaddingWitness : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (z0 : UInt256) (a b : UInt256), 0 < a → a < b →
-    ∃ C : CState, CReachesAtPadding h hl z0 C ∧ C.toH = hThree a b
+    ∃ C : CState, CReachesPad h hl z0 C ∧ C.toH = hThree a b
       ∧ C.root = some ((hThree a b).root h z0 hl)
 
 /-- **A DEDICATED PADDING CONSTANT ALONE DOES NOT MAKE THE READINGS HOLD.**  With the toy

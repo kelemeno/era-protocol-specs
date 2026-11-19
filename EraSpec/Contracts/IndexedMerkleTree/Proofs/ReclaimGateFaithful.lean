@@ -270,13 +270,13 @@ theorem pinned_counterexample_meets_capstone_hypotheses (h : Hash) (hl : LeafHas
 /-- `IndexedMerkleTree.setup` with padding `z0` leaves storage caching the one leaf hash
 `hashLeaf({0,0,0})`, and its `RunHeight` view is `hSetup`. -/
 theorem setup_at_padding_caches (h : Hash) (hl : LeafHash) (z0 : UInt256) :
-    ∃ S : CState, cSetupAtPadding h hl z0 = some S ∧ S.tree = setup
+    ∃ S : CState, cSetupPad h hl z0 = some S ∧ S.tree = setup
       ∧ S.toH = hSetup ∧ Contracts.FullMerkle.Represents h z0 (leafHashes hl S.tree) S.fm := by
   have hR₀ := (Contracts.FullMerkle.setup_represents_empty h z0).1
   obtain ⟨F, hp, hR, hd⟩ :=
     Contracts.FullMerkle.pushNewLeaf_computes_root h z0 [] _ (hl ⟨0, 0, 0⟩) hR₀
   refine ⟨⟨setup, F⟩, ?_, rfl, ?_, ?_⟩
-  · simp [cSetupAtPadding, hp]
+  · simp [cSetupPad, hp]
   · show (⟨setup, ⟨F.leafNumber, F.height⟩⟩ : HState) = ⟨setup, setupDims⟩
     rw [hd]
     rfl
@@ -284,10 +284,10 @@ theorem setup_at_padding_caches (h : Hash) (hl : LeafHash) (z0 : UInt256) :
     rw [hleaves]
     exact hR
 
-/-- Along `CReachesAtPadding`, the view is reached from `hSetup` and the storage caches the
+/-- Along `CReachesPad`, the view is reached from `hSetup` and the storage caches the
 leaf hashes at padding `z0`. -/
 private lemma reaches_at_padding_caches {h : Hash} {hl : LeafHash} {z0 : UInt256} {S : CState}
-    (hS : CReachesAtPadding h hl z0 S) :
+    (hS : CReachesPad h hl z0 S) :
     HReaches hSetup S.toH ∧ Contracts.FullMerkle.Represents h z0 (leafHashes hl S.tree) S.fm := by
   induction hS with
   | init hs =>
@@ -304,19 +304,19 @@ private lemma reaches_at_padding_caches {h : Hash} {hl : LeafHash} {z0 : UInt256
     exact ⟨htoH ▸ HReaches.tail hH hg, hR''⟩
 
 theorem setup_at_padding_is_pinned_setup (h : Hash) (hl : LeafHash) :
-    cSetupAtPadding h hl (zeroLeafHash hl) = cSetup h hl
-      ∧ ∀ S : CState, CReachesAtPadding h hl (zeroLeafHash hl) S ↔ CReaches h hl S := by
-  have hset : cSetupAtPadding h hl (zeroLeafHash hl) = cSetup h hl := rfl
+    cSetupPad h hl (zeroLeafHash hl) = cSetup h hl
+      ∧ ∀ S : CState, CReachesPad h hl (zeroLeafHash hl) S ↔ CReaches h hl S := by
+  have hset : cSetupPad h hl (zeroLeafHash hl) = cSetup h hl := rfl
   refine ⟨hset, fun S => ⟨fun hS => ?_, fun hS => ?_⟩⟩
   · induction hS with
     | init hs => exact CReaches.init (by rw [← hset]; exact hs)
     | insert _ hg hins ih => exact CReaches.insert ih hg hins
   · induction hS with
-    | init hs => exact CReachesAtPadding.init (by rw [hset]; exact hs)
-    | insert _ hg hins ih => exact CReachesAtPadding.insert ih hg hins
+    | init hs => exact CReachesPad.init (by rw [hset]; exact hs)
+    | insert _ hg hins ih => exact CReachesPad.insert ih hg hins
 
 theorem stored_root_at_padding_is_published (h : Hash) (hl : LeafHash) (z0 : UInt256)
-    (S : CState) (hS : CReachesAtPadding h hl z0 S) :
+    (S : CState) (hS : CReachesPad h hl z0 S) :
     HReaches hSetup S.toH ∧ S.root = some (S.toH.root h z0 hl) := by
   obtain ⟨hH, hR⟩ := reaches_at_padding_caches hS
   refine ⟨hH, ?_⟩
@@ -325,11 +325,11 @@ theorem stored_root_at_padding_is_published (h : Hash) (hl : LeafHash) (z0 : UIn
 
 theorem reached_states_lift_at_padding (h : Hash) (hl : LeafHash) (z0 : UInt256) (S : HState)
     (hS : HReaches hSetup S) :
-    ∃ C : CState, CReachesAtPadding h hl z0 C ∧ C.toH = S := by
+    ∃ C : CState, CReachesPad h hl z0 C ∧ C.toH = S := by
   induction hS with
   | refl =>
     obtain ⟨C, hC, _, hH, _⟩ := setup_at_padding_caches h hl z0
-    exact ⟨C, CReachesAtPadding.init hC, hH⟩
+    exact ⟨C, CReachesPad.init hC, hH⟩
   | @tail U _ v low hg ih =>
     obtain ⟨C, hC, hCU⟩ := ih
     have hg' : InsertGuard C.tree v low := by
@@ -338,7 +338,7 @@ theorem reached_states_lift_at_padding (h : Hash) (hl : LeafHash) (z0 : UInt256)
       exact hg
     obtain ⟨C', r, hins, _, htoH, _, _⟩ :=
       cInsert_caches h z0 hl C v low (reaches_at_padding_caches hC).2 hg'.inBounds
-    exact ⟨C', CReachesAtPadding.insert hC hg' hins, by rw [htoH, hCU]⟩
+    exact ⟨C', CReachesPad.insert hC hg' hins, by rw [htoH, hCU]⟩
 
 /-! ## Witnesses -/
 
@@ -486,7 +486,7 @@ theorem finality_premises_witness (a b : UInt256) (ha : 0 < a) (hab : a < b) :
 
 theorem stored_root_at_padding_witness (h : Hash) (hl : LeafHash) (z0 : UInt256)
     (a b : UInt256) (ha : 0 < a) (hab : a < b) :
-    ∃ C : CState, CReachesAtPadding h hl z0 C ∧ C.toH = hThree a b
+    ∃ C : CState, CReachesPad h hl z0 C ∧ C.toH = hThree a b
       ∧ C.root = some ((hThree a b).root h z0 hl) := by
   obtain ⟨C, hC, hCH⟩ := reached_states_lift_at_padding h hl z0 _ (hThree_reaches ha hab)
   refine ⟨C, hC, hCH, ?_⟩
@@ -536,21 +536,8 @@ end IMTAbstract.ReclaimGateFaithful
 
 namespace IMTAbstract.ReclaimGateFaithful
 
-theorem PinnedGateAcceptsEveryValueBelowCapacity :
-    Properties.PinnedGateAcceptsEveryValueBelowCapacity :=
-  pinned_gate_accepts_every_value_below_capacity
 theorem ReachedBelowCapacityIffNotPowerOfTwo : Properties.ReachedBelowCapacityIffNotPowerOfTwo :=
   reached_below_capacity_iff_not_power_of_two
-theorem PinnedGateAcceptsEveryValueOffPowersOfTwo :
-    Properties.PinnedGateAcceptsEveryValueOffPowersOfTwo :=
-  pinned_gate_accepts_every_value_off_powers_of_two
-theorem PinnedCounterexampleMeetsCapstoneHypotheses :
-    Properties.PinnedCounterexampleMeetsCapstoneHypotheses :=
-  pinned_counterexample_meets_capstone_hypotheses
-theorem PinnedReclaimDichotomyReadingFails : Properties.PinnedReclaimDichotomyReadingFails :=
-  pinned_reclaim_dichotomy_reading_fails
-theorem PinnedDeliveryFinalityReadingFails : Properties.PinnedDeliveryFinalityReadingFails :=
-  pinned_delivery_finality_reading_fails
 theorem BreakFreeGateImpliesMemberGate : Properties.BreakFreeGateImpliesMemberGate :=
   break_free_gate_implies_member_gate
 theorem DeployedGateLiveness : Properties.DeployedGateLiveness := deployed_gate_liveness

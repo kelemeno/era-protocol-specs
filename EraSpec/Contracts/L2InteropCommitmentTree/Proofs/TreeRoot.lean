@@ -428,13 +428,6 @@ theorem VerifiedAbsenceIsWitness : Contracts.InteropCommitmentTree.Properties.Ve
   @verified_absence_is_witness
 theorem InclusionComplete : Contracts.InteropCommitmentTree.Properties.InclusionComplete := @inclusion_complete
 theorem NonInclusionComplete : Contracts.InteropCommitmentTree.Properties.NonInclusionComplete := @non_inclusion_complete
-theorem PaddingCollisionForgesAbsence : Contracts.InteropCommitmentTree.Properties.PaddingCollisionForgesAbsence :=
-  @padding_collision_forges_absence
-theorem PaddingCollisionRefundsDeliveredLeg :
-    Contracts.InteropCommitmentTree.Properties.PaddingCollisionRefundsDeliveredLeg :=
-  @padding_collision_refunds_delivered_leg
-
-
 /-- Pigeonhole: no `h : UInt256 → UInt256 → UInt256` is injective on pairs. -/
 theorem not_nodeInj (h : MerkleSpec.Hash) : ¬ ∀ a b c d : UInt256, h a b = h c d → a = c ∧ b = d := by
   intro hinj
@@ -466,8 +459,6 @@ theorem VerifiedAbsenceIsWitnessOrBreak : Properties.VerifiedAbsenceIsWitnessOrB
 theorem HonestProofNoBreak : Properties.HonestProofNoBreak := honest_proof_no_break
 theorem ProofsExclusiveOrBreakSatisfiable : Properties.ProofsExclusiveOrBreakSatisfiable :=
   proofs_exclusive_or_break_satisfiable
-theorem PaddingCountermodelLocatesPaddingHit : Properties.PaddingCountermodelLocatesPaddingHit :=
-  padding_countermodel_locates_padding_hit
 theorem RunRootsExclusiveOrBreakSatisfiable : Properties.RunRootsExclusiveOrBreakSatisfiable :=
   run_roots_exclusive_or_break_satisfiable
 
@@ -712,8 +703,6 @@ theorem WrongLengthForgesInclusion : Properties.WrongLengthForgesInclusion :=
   wrong_length_forges_inclusion
 theorem PaddingHitForgesInclusion : Properties.PaddingHitForgesInclusion :=
   padding_hit_forges_inclusion
-theorem PaddingCountermodelExactlyPaddingHit : Properties.PaddingCountermodelExactlyPaddingHit :=
-  padding_countermodel_exactly_padding_hit
 theorem ForgedInclusionPremisesSatisfiable : Properties.ForgedInclusionPremisesSatisfiable :=
   forged_inclusion_premises_satisfiable
 theorem TreeRootBreakEveryCaseFires : Properties.TreeRootBreakEveryCaseFires :=
