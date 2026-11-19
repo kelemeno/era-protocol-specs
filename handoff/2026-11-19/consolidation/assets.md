@@ -84,3 +84,20 @@ has it (`git show`); `b17415d20` from the extracted tree.
 - No model is deleted: every second model has properties that need state the canonical one does not keep,
   and restating them would mean rebuilding the canonical model. The refinement lemmas are the link.
 - The twelve vacuous `IdAssumptions` properties of `RegistryAndEscrow` are untouched (see `CRYPTO-ID`).
+
+## Outcome
+
+- Re-pin: every non-History Specs file in the three folders cites `b17415d20`, line numbers checked
+  against the source tree; where the code differs from the pin the header says how.
+- History: `Contracts.L2AssetTracker.History` (`BackfillOnlyBaseFromZero`, `BackfillAtMostOnce`,
+  `BackfillSatisfiable`) and `Contracts.NativeTokenVault.History` (`PerChainIsolationFails`), statements
+  unchanged.
+- New refinement topics: `L2AssetTracker/RecoveryNeutralityRefinement` (8 properties) and
+  `L1NativeTokenVault/LedgerRefinement` (7 properties, one countermodel and one witness).
+- Renames: `handoff/2026-11-19/renames/assets.json`, checked by listing every constant with a
+  `Properties` segment in a `Properties` module at the branch point and at the head and diffing: the
+  four moved names are the only removals.
+- Files outside the three folders changed: `EraSpec.lean` (imports), `ASSUMPTIONS.md` (rows
+  `MODEL-ESCROW`, `MODEL-ESCROW-HEAD`, `MODEL-L2-TRACKER`: the moved name and the new links),
+  `L1NativeTokenVault/Specs/BulkheadIsolation.lean` header (the moved name).
+
