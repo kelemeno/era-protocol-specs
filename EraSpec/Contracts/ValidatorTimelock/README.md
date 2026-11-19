@@ -5,7 +5,9 @@ execution delay, ownership and the packed commit timestamps.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). A "run"
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. A "run"
 is any sequence of successful calls of the proxy's state-changing entry points, by any senders.
 External reads (`getChainId`, `getAdmin`, `getZKChain`, block time, whether the forwarded call
 succeeds) are a per-call environment, fixed within a call and unrelated between calls. No result
@@ -27,10 +29,10 @@ takes a hash premise.
 | After a renounce, the owner stays `0` and every enforced delay only rises | Initialized storage with owner and pending owner `0`; no call is sent by address `0` | `RenouncedTimelockOnlyRaisesDelays` |
 | The bit-level `LibMap` storage represents the model's commit timestamps along every run | The packed storage represents the start state (all-zero storage represents fresh storage) | `PackedTimestampsRefineRuns` |
 
-Witnesses (`@[witness]`): `ExecutionWaitsForTheDelayWitness`, `RecommitWitness`,
+Witnesses: `ExecutionWaitsForTheDelayWitness`, `RecommitWitness`,
 `DelayBoundIsTight`, `DelayWritersWitness`, `MaxDelayIsAttained`, `IsolationWitness`,
 `RoleDelegationWitness`, `HandoverWitness`, `RenounceWitness`, `RotationWrappersRun`,
-`PackedTimestampsWitness`, `LibMapWitness`. Countermodels (`@[countermodel]`):
+`PackedTimestampsWitness`, `LibMapWitness`. Countermodels:
 `OwnerCanShortenAPendingDelay`, `ClockPast2106SkipsTheDelay`, `RecommitAtAnEarlierClock`,
 `UnrecordedBatchIsNotDelayed`, `UncheckedExecuteRunsEarly`, `UncheckedIncreaseLowersTheDelay`,
 `StoredComparisonAdmitsNoRaise`, `UncheckedLookupGrantsOnUnregisteredChain`,

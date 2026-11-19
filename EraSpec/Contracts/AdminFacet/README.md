@@ -5,7 +5,9 @@ freeze switch, priority mode, protocol upgrades and fee inputs.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). "A run"
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. "A run"
 is any interleaving of calls (any sender, any block time), environment changes and writes by the
 other facets; "without cuts" excludes the three entries that run a diamond cut
 (`upgradeChainFromVersion`, `executeUpgrade`, `genesisUpgrade`), whose effect is arbitrary code.
@@ -27,12 +29,12 @@ other facets; "without cuts" excludes the three entries that run a diamond cut
 | Fee updates (`changeFeeParams`, `setTokenMultiplier`) are at least `PRICE_UPDATE_INTERVAL` (1 day) apart | The first update was at a nonzero time; a run without cuts | `FeeUpdatesAtLeastADayApart` |
 | A fee update keeps the derived L2 gas price within a factor 13/10 of the price before | Priority mode is allowed; not the exempt case of price 0 with no unprocessed priority transaction | `StageOneFeeUpdateWithinPriceBound` |
 
-Witnesses (`@[witness]`): `EveryEntrySucceedsSomewhere`, `ValidatorUpgradeWitness`,
+Witnesses: `EveryEntrySucceedsSomewhere`, `ValidatorUpgradeWitness`,
 `AdminHandoverWitness`, `ValidatorChangeWitness`, `FreezeWitness`, `StrandedChainWitness`,
 `PriorityModeWitness`, `PriorityModeActivationRevertsBatchesWitness`,
 `PriorityModeDeactivationWitness`, `OneWayFlagsWitness`, `DueActivationSurvivesWitness`,
 `UpgradeWitness`, `GenesisRunsOnceWitness`, `PricingModeChangeWitness`, `FeeUpdatesWitness`,
-`StageOneFeeUpdateWitness`, `StageOneFeeInputsWitness`. Countermodels (`@[countermodel]`):
+`StageOneFeeUpdateWitness`, `StageOneFeeInputsWitness`. Countermodels:
 `CTMFreezeBlocksActivation`, `ActivationNeedsPermanentRollup`, `UnguardedFiltererBreaksStage1`,
 `UnguardedL1FilteringBreaksStage1`, `ExecuteUpgradeCanLowerVersion`,
 `UpgradePostCheckIsLoadBearing`, `GenesisRerunsAfterFinalization`, `FeeUpdateAtTimeZeroNotSpaced`,

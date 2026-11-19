@@ -5,7 +5,9 @@ the layer that actually executed each batch of one migrating chain.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
 "Reachable" means reached by any run of the ten modelled steps from a start state: a chain that
 settles on L1, has never migrated, and whose two L1 counters agree. "The real environment" is
 `ValEnv.real`: L1 executes only sealed layer batches (`sealedOnly`), and the return message is
@@ -23,8 +25,8 @@ contracts.
 | After a confirmed migration failure the call accepts exactly the claims naming L1 | Any state | `FailureClassifiesAllOnL1` |
 | With migrations disabled (as at `b17415d20`), every accepted claim naming a layer other than L1 was already accepted at the start of the run | Any start state; `CHAIN_MIGRATIONS_ENABLED = false` | `MigrationsDisabledOnlyHistoricalIntervals` |
 
-Witnesses (`@[witness]`): `RoundTripWitness`, `FailedMigrationWitness`, `MigrationsDisabledWitness`.
-Countermodels (`@[countermodel]`): `CompletenessNeedsSealedOnly`,
+Witnesses: `RoundTripWitness`, `FailedMigrationWitness`, `MigrationsDisabledWitness`.
+Countermodels: `CompletenessNeedsSealedOnly`,
 `CompletenessNeedsFinalizedAfterExec`, `SoundnessNeedsNonzeroLayerIds`,
 `ClaimBelowFirstContainingBatchAccepted`. The other statements are supporting lemmas, among them
 the comparison with `main`'s loop (`LegacyIndexZero`, `MainAgreesWithoutLegacyInterval`).

@@ -6,7 +6,9 @@ back into Governance.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). Every
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. Every
 statement quantifies over every target behaviour (a finite tree of calls back into Governance, as
 any caller but Governance, at any depth), every self-call decoder, every operation hash `H` and
 every budget; none assumes `H` injective. "The log" is the committed log of the transactions.
@@ -24,8 +26,7 @@ every budget; none assumes `H` injective. "The log" is the committed log of the 
 | A ready operation whose predecessor is zero or done is executed by the owner's or the council's `execute` | Its calls all go to other contracts that return without calling back; enough budget | `ReadyIsExecutable` |
 | Each entry point's guard and write (owner for schedule and cancel; owner or council for `execute`; council for `executeInstant`; Governance itself for `updateDelay` and `updateSecurityCouncil`; the `Ownable2Step` rules) | None | `EntryGuards` |
 
-Witnesses (`@[witness]`): every `…Witness` statement of `Properties/Timelock.lean`. Countermodels
-(`@[countermodel]`): `WithoutRecheckReexecutes`, `WithoutRecheckAnyOpRunsTwice`,
+Witnesses: every `…Witness` statement of `Properties/Timelock.lean`. Countermodels: `WithoutRecheckReexecutes`, `WithoutRecheckAnyOpRunsTwice`,
 `TransparentCollisionExecutesAnotherOp`, `SentinelCollision`, `InFlightCancelIneffective`,
 `DelayRaiseNotRetroactive`. The other statements are supporting lemmas.
 

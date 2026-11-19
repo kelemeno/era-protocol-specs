@@ -5,7 +5,9 @@ facet cuts and the init call, over runs of every entry point that writes diamond
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
 "Reachable" means a successful constructor followed by any run of calls through the proxy, by any
 callers, for any facet behaviour. A cut's init is in the `InitRun` class: nested
 `Diamond.diamondCut` calls without an init of their own, then a revert or return data. Init code
@@ -22,8 +24,8 @@ that writes diamond storage directly is outside the model (`MODEL-DIAMOND-PROXY`
 | A successful `diamondCut` leaves `isFrozen` unchanged, and either had no init and empty calldata, or its init returned exactly the 32 bytes of `DIAMOND_INIT_SUCCESS_RETURN_VALUE` | None | `InitReturnChecked` |
 | On reachable storage, and on what further facet cuts make of it, the CTM's live-routing count check against well-formed release rows passes exactly when the storage routes exactly the release's rows | Reachable state; release rows nonempty and duplicate-free (what `CTMRelease.validate()` checks) | `ReachableCountCheckExact` |
 
-Witnesses (`@[witness]`): `ProxyRunWitness`, `FreezePermanentWitness`, `CutEnablednessWitness`,
-`InitCallWitness`, `ReachableCountCheckWitness`. Countermodels (`@[countermodel]`):
+Witnesses: `ProxyRunWitness`, `FreezePermanentWitness`, `CutEnablednessWitness`,
+`InitCallWitness`, `ReachableCountCheckWitness`. Countermodels:
 `ReplaceWithSameFacetAccepted`, `ReturnDataCheckLoadBearing`, `FreezabilityCheckLoadBearing`,
 `FacetExistsCheckLoadBearing`. The other statements are supporting lemmas.
 

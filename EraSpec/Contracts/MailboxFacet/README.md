@@ -5,7 +5,9 @@ era-contracts `draft/v0.35.0` `b17415d20`.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). They
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. They
 are about one diamond; the external view calls (transaction filterer, 7702 checker,
 `isMigrationInProgress`, code size) are environment values, and the hash
 `keccak256(abi.encode(tx))` is an arbitrary function (no hash premise). Caller checks, the
@@ -23,9 +25,9 @@ reentrancy lock and the relay into the settlement layer are applied by
 | Every index from the run's initial total to the current total has a nonzero request timestamp; the start index is unchanged and the total never decreases | A run of an L1 diamond (requests, `processBatch`, `l1Reinit`, writes that leave the tree counters and timestamps alone) whose requests are all at a positive `block.timestamp` | `L1RequestTimestampsNonzero` |
 | The first unprocessed operation carries the nonzero timestamp `activatePriorityMode` and `permanentlyAllowPriorityMode` require | Such a run; the first unprocessed index lies between the run's initial total and the current total | `FirstUnprocessedTimestampNonzero` |
 
-Witnesses (`@[witness]`): `UserRequestWitness`, `UserRequestOriginWitness`,
+Witnesses: `UserRequestWitness`, `UserRequestOriginWitness`,
 `UserRequest7702Witness`, `FreeRequestWitness`, `OnGatewayRequestWitness`, `L1TimestampWitness`.
-Countermodel (`@[countermodel]`): `AliasPreimageYieldsServiceSender`. The other statements are
+Countermodel: `AliasPreimageYieldsServiceSender`. The other statements are
 supporting lemmas.
 
 ## Source

@@ -6,7 +6,9 @@ diamonds and pause switches.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
 "Reachable" means reached from a fresh deployment by any interleaving of the model's steps, for one
 fixed `World` (whitelists, CTM registries and owners). Message delivery is the environment's
 guarantee (`PROTO-CAH-DELIVERY`: an L1 → L2 transaction executes once with a truthful status that
@@ -29,10 +31,10 @@ the migration results describe the kept machinery.
 | Only a CTM's owner toggles its pause, only the handler owner the ecosystem pause | Any run | `OnlyOwnersTogglePauses` |
 | L1's confirmation of a failed deposit reads no pause switch and no release flag | None | `RecoveryIgnoresPauses` |
 
-Witnesses (`@[witness]`): `CahRoundTripWitness`, `CahInFlightWitness`, `CahGatewayWitness`,
+Witnesses: `CahRoundTripWitness`, `CahInFlightWitness`, `CahGatewayWitness`,
 `CahFailedAttemptWitness`, `CahReturnedChainWitness`, `CahDisabledWitness`, `CahArrivalWitness`,
 `CahReturnInFlightWitness`, `CahRecoveryWitness`, `CahCTMPauseWitness`, `CahPausedHubWitness`,
-`CahPauseHoldsWitness`. Countermodel (`@[countermodel]`):
+`CahPauseHoldsWitness`. Countermodel:
 `CahMismatchedRegistryReadsAnotherPause`. The other statements are supporting lemmas.
 
 ## Source

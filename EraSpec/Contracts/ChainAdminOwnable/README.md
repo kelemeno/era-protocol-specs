@@ -5,7 +5,9 @@ it, and the diamond and Bridgehub admin roles it holds.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). A "run"
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. A "run"
 is any derivation of the execution relation `Sem`: any calls, by any address other than the
 `ChainAdminOwnable` and zero, with unknown code that may call anything at any depth, including
 inside a `multicall`. "Well-formed configuration" (`Config.WF`) means the `ChainAdminOwnable` is
@@ -24,8 +26,8 @@ nonzero, is not the Bridgehub, and neither it nor the Bridgehub is a diamond. Di
 | Whatever the `ChainAdminOwnable`'s state, the Bridgehub's owner makes any actor the Bridgehub's admin in two transactions | The owner and the target are nonzero, not the `ChainAdminOwnable` and not the Bridgehub proxy's admin | `BridgehubAdminRecoverable` |
 | No `setTokenMultiplier` call of the setter reaches the Bridgehub (it has no such function and no fallback) | Well-formed configuration | `NoSetterCallReachesBridgehub` |
 
-Witnesses (`@[witness]`): `AuthorityWitness`, `ZeroSetterWitness`, `RenounceWitness`,
-`AdminRolesWitness`, `SetterReachesDiamondNotBridgehub`. Countermodels (`@[countermodel]`):
+Witnesses: `AuthorityWitness`, `ZeroSetterWitness`, `RenounceWitness`,
+`AdminRolesWitness`, `SetterReachesDiamondNotBridgehub`. Countermodels:
 `MulticallOutlivesRenounce`, `PendingDiamondAdminEscapes`, `CtmCutMovesRenouncedAdmin`,
 `AdminRoleLiveBeforeRenounce`. The other statements are supporting lemmas.
 

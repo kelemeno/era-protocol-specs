@@ -5,7 +5,9 @@ priority-operation step that calls it.
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). No hash
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. No hash
 premise anywhere: a "break" is a located hash event (`BatchBreak`), not an assumption.
 
 | Guarantee | Premises | Statement |
@@ -14,7 +16,7 @@ premise anywhere: a "break" is a located hash event (`BatchBreak`), not an assum
 | A successful `processBatch` advances `unprocessedIndex` by exactly the number of items | None | `ProcessBatchAdvancesByLength` |
 | The Executor checks the count and the rolling hash of the items as submitted, before `processBatch` overwrites them | None | `ExecutePriorityHashesSubmittedItems` |
 
-Witness (`@[witness]`): `SegmentBindingWitness`. Countermodels (`@[countermodel]`):
+Witness: `SegmentBindingWitness`. Countermodels:
 `HashAfterCallRejectsHonestBatch`, `PaddingItemsAdvancePastQueue`, `SetupRootAcceptsZeroItem`. The
 other statements are supporting lemmas, among them the bridge between the two models below
 (`LibraryProcessBatchIsSegmentBinding`).

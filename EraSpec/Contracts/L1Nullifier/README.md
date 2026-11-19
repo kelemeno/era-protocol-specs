@@ -5,7 +5,9 @@
 
 ## Headline guarantees
 
-The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). "A run
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. "A run
 of the source" is any sequence of successful top-level calls of the fifteen modelled labels, with
 every source check, from any start storage and an empty ghost log. The hash and the status prover
 are arbitrary (`Env`); no statement assumes the hash injective.
@@ -23,10 +25,10 @@ are arbitrary (`Env`); no statement assumes the hash injective.
 | `l1AssetRouter`, `l1NativeTokenVault` and `l1InteropHandler` are set once | Any run, any checks | `ConfigSetOnce` |
 | The deprecated slots (the old withdrawal map, the legacy-bridge and Era-upgrade slots, the old admin pair) never change | Any run, any checks | `DeprecatedSlotsFrozen` |
 
-Witnesses (`@[witness]`): `LedgerRunWitness`, `SameKeyClearedTwiceWitness`,
+Witnesses: `LedgerRunWitness`, `SameKeyClearedTwiceWitness`,
 `RecordLeavesOnlyByPreimageWitness`, `UnclaimedDepositRecoverableWitness`, `LedgerStepWitness`,
 `InitializeOnlyOnceWitness`, `RouterPausedStepWitness`, `ConfigSetOnceWitness`,
-`PausedOwnerlessReachable`, `NestedRunWitness`. Countermodels (`@[countermodel]`):
+`PausedOwnerlessReachable`, `NestedRunWitness`. Countermodels:
 `HashCheckLoadBearing`, `ProofCheckLoadBearing`, `DepositExistsLoadBearing`,
 `OnlyNullifierLoadBearing`, `TxHashFreshnessLoadBearing`, `SoundProverLoadBearing`,
 `RouterConfiguredLoadBearing`, `ZeroHashClaimClearsEmptySlot`, `RepeatedKeyAccepted`,

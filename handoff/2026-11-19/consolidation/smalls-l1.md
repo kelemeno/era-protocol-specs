@@ -82,5 +82,14 @@ lists other models of the same Solidity code.
   numbers; `L1ChainAssetHandler` follows one chain's intervals and batch numbers, for
   `isValidSettlementLayer`. Neither state is a projection of the other, so no property moves. A
   simulation lemma between them is not done; both READMEs say the models are not composed.
-* **Headlines.** Tagged per the `EraSpec.Core.Headline` convention once it lands on
-  `claude/proof-round-9`; each README starts with its headline list.
+* **Headlines.** Each README starts with its headline table (every premise in plain words), then
+  its witnesses and countermodels; the remaining statements are supporting lemmas. The
+  classification, per folder (headline / witness / countermodel / untagged): AdminFacet
+  14/17/10/8 (with `ExecutorBridge`), Bridgehub 12/5/11/14, ChainAssetHandler 12/12/1/9,
+  L1ChainAssetHandler 7/3/4/8, Diamond 8/5/4/10, ExecutorFacet 11/5/6/12, MailboxFacet 8/6/1/4,
+  ValidatorTimelock 13/12/9/20, Governance 10/18/6/14, ChainAdminOwnable 9/5/4/7, PriorityTree
+  3/1/3/7, L1Nullifier 10/10/10/11, BlobsL1DAValidatorZKsyncOS 7/3/2/4. The `@[headline]`,
+  `@[witness]` and `@[countermodel]` attributes are **not applied**: `EraSpec.Core.Headline` was
+  not on `claude/proof-round-9` while this unit ran (it sits on `consol9/infra`). Applying them is
+  mechanical: prefix each listed `def Properties.X` with its tag and add
+  `import EraSpec.Core.Headline`.
