@@ -25,7 +25,7 @@ headline does not survive it, so it carries the premise. What the system then do
   be exactly `R_v`'s (`DriftBlocksTransition`), so a drifted chain cannot upgrade until
   its routing is restored. Every transition that does run starts from `R_v` and lands
   on `R_w` (`TransitionStartsAndLandsOnRelease`), whatever happened before.
-* **The guard is what stops it.** Without `DefaultUpgrade.sol:37`, the derived cuts only
+* **The guard is what stops it.** Without `DefaultUpgrade.sol:36`, the derived cuts only
   touch the two releases' selectors, so any other selector is carried across the edge
   (`UnguardedCutKeepsForeignSelectors`). A concrete break-glass selector survives an
   unguarded transition (`BreakGlassSelectorSurvivesWithoutGuard`). With the guard, the

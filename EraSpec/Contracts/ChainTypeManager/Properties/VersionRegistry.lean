@@ -9,7 +9,7 @@ in `EraSpec.Contracts.ChainTypeManager.Proofs.VersionRegistry`.
 ## What holds
 
 * The current release is always the release of the current version
-  (`CurrentReleaseIsVersionsRelease`), as the source claims at `ChainTypeManager.sol:162-163`
+  (`CurrentReleaseIsVersionsRelease`), as the source claims at `ChainTypeManager.sol:159-160`
   ("always the release OF `protocolVersion`").
 * The version never decreases, every version edge strictly increases it, and so a run
   containing an edge ends strictly higher (`VersionStrictlyIncreasesOnEdges`,
@@ -64,7 +64,7 @@ def Properties.CurrentReleaseIsVersionsRelease : Prop :=
 
 /-- **NO WRITER LOWERS THE VERSION; EVERY EDGE RAISES IT.** Both commits go through
 `_commitVersionEdge`, whose `_newProtocolVersion <= _oldProtocolVersion` check
-(`ChainTypeManager.sol:537-539`) is what makes the increase strict. -/
+(`ChainTypeManager.sol:532-534`) is what makes the increase strict. -/
 def Properties.VersionStrictlyIncreasesOnEdges : Prop :=
   ∀ (W : World) (s s' : CTM) (op : Op), CStep W s op s' →
     s.pv ≤ s'.pv ∧ (op.isEdge = true → s.pv < s'.pv) ∧ (op.isEdge = false → s'.pv = s.pv)
@@ -107,7 +107,7 @@ def Properties.OnlyCommitOrReplaceWritesSlots : Prop :=
 * `t` departs from `R_v` (the release of version `v`), whose version is `v`;
 * `t` lands on a version `w` with `v < w ≤ protocolVersion`, on release `R_w`, whose
   version is `w` — so the executor's "a committed edge's target is never ahead of
-  `protocolVersion`" (`CTMUpgradeExecutor.sol:112-115`) always holds;
+  `protocolVersion`" (`CTMUpgradeExecutor.sol:117-120`) always holds;
 * if `w` is the current version, `t` lands on `currentRelease`;
 * if slot `w` holds a transition, it departs from exactly the release `t` lands on.
 
@@ -125,7 +125,7 @@ def Properties.TransitionsChain : Prop :=
 
 /-- **THE EXECUTOR'S POST-CHECK CANNOT FAIL.** After a successful commit of `t`,
 `upgradeTransition[t.oldProtocolVersion()] == t` and `protocolVersion >= t.newProtocolVersion()`,
-which is all `CTMUpgradeExecutor._requireTransitionApplied` (`CTMUpgradeExecutor.sol:104-116`)
+which is all `CTMUpgradeExecutor._requireTransitionApplied` (`CTMUpgradeExecutor.sol:109-121`)
 checks. -/
 def Properties.ExecutorPostcheckPasses : Prop :=
   ∀ (W : World) (s s' : CTM) (t : Address), CStep W s (.commit t) s' →

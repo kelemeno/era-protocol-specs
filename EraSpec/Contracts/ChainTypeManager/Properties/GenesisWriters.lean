@@ -20,7 +20,7 @@ Statements about `EraSpec.Contracts.ChainTypeManager.Specs.GenesisWriters`. Proo
   `Diamond.DiamondStorage`, the version, the CTM binding, the admin and the verifier as they
   were, and writes only the L2 upgrade transaction hash (`GenesisUpgradeWritesNoDiamondStorage`).
   This holds on any diamond. The genesis upgrade goes through the shared
-  `BaseZkSyncUpgrade._upgrade`, which could in principle write diamond storage; at `e561b9cc2`
+  `BaseZkSyncUpgrade._upgrade`, which could in principle write diamond storage; at `b17415d20`
   it writes only the version (back to its own value) and that hash.
 * **The diamond library's `Add` cuts are `ChainRouting`'s `addAll`.** A successful list of
   `Add` facet cuts changes the routing exactly as `addAll` of its flattened rows does
@@ -111,7 +111,7 @@ def Properties.DiamondInitCannotRerun : Prop :=
 /-! ## The genesis upgrade -/
 
 /-- **THE GENESIS UPGRADE'S CUT HAS NO FACET CUTS.** `Admin.genesisUpgrade` builds
-`{facetCuts: emptyArray, initAddress: l1GenesisUpgrade, ...}` (`Admin.sol:570-575`), with the
+`{facetCuts: emptyArray, initAddress: l1GenesisUpgrade, ...}` (`Admin.sol:601-606`), with the
 current release's genesis upgrade as init. -/
 def Properties.GenesisUpgradeCutIsEmpty : Prop :=
   ∀ (E : Env) (c : CTM),
@@ -274,7 +274,7 @@ entry points, and its rows are unchanged. `Step.genesis` exists on the fresh sys
 `createNewChain` reverts for every id, admin and timestamp, at the cut with no selectors
 (`NoFunctionsForDiamondCut`, `Diamond.sol:120-122`). So the converse of
 `CodeCreationIsAStep` needs `ReleaseWf`, whose nonempty-selectors part is
-`CTMRelease.validate()`'s refusal (`CTMRelease.sol:121-123`). -/
+`CTMRelease.validate()`'s refusal (`CTMRelease.sol:134-136`). -/
 def Properties.SelectorlessRowRevertsCreation : Prop :=
   eEnv.code 0 = .none ∧ GenuineRelease eEnv eWorld 100 ∧
   RoutesTo eEnv 100 selGenesisUpgrade .adminFacet ∧ RoutesTo eEnv 100 selPauseDeposits .migratorFacet ∧

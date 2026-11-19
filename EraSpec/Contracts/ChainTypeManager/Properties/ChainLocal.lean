@@ -55,8 +55,8 @@ calls (`ChainLocalExecutor`).
   enabledness in the model. Timestamps, executed batches, the settlement-layer order, the
   diamond's dispatch of `upgradeChainFromVersion` and the other reject-only checks are not
   modelled, so only a revert of the guard or of the derived cuts is ruled out.
-  `CTMRelease.validate()` checks that (`upgrades/registry/objects/CTMRelease.sol:128`,
-  `:190-213`) when a release is installed (`state-transition/ChainTypeManager.sol:310`); the
+  `CTMRelease.validate()` checks that (`upgrades/registry/objects/CTMRelease.sol:141`,
+  `:238-261`) when a release is installed (`state-transition/ChainTypeManager.sol:305`); the
   model omits `validate()`, so it is a stated premise. It cannot be dropped: a release that
   lists a selector twice blocks every changing edge at it, repaired chains included
   (`RepeatedSelectorBlocksTheEdge`, `RepairNeedsUniqueSelectors`).
@@ -169,13 +169,13 @@ its CTM (`v ≤ pv` follows from the invariant), routing exactly `R_v`.
 
 **Model boundary: the existence of the step is enabledness in the model only.**
 `Step.arbitraryCut` has no precondition on the live routing. In the source the repair is the
-CTM's `executeUpgrade` (`state-transition/ChainTypeManager.sol:631-633`). Its call enters the
+CTM's `executeUpgrade` (`state-transition/ChainTypeManager.sol:626-628`). Its call enters the
 drifted diamond through the diamond's own dispatch
 (`state-transition/chain-deps/DiamondProxy.sol:32-36`), which reverts with `"F"` if
 `executeUpgrade`'s selector is unrouted, and with `"q1"` if the diamond is frozen and the
 selector is marked freezable. So the repair needs the drifted diamond still to route
 `executeUpgrade`, non-freezable or on an unfrozen diamond, to code that performs the cut for the
-CTM as `Admin.executeUpgrade` does (`chain-deps/facets/Admin.sol:562-564`). A drift that
+CTM as `Admin.executeUpgrade` does (`chain-deps/facets/Admin.sol:593-595`). A drift that
 unrouted it cannot be repaired by `executeUpgrade`. `RepairStepIgnoresLiveRouting` exhibits the
 gap. The second half, what every repair step does, does not depend on this. -/
 def Properties.RepairCutRestoresChainOk : Prop :=
@@ -222,13 +222,15 @@ the edge's target version `w > v`, routing exactly `R_w`.
 
 This is enabledness **in the model**, which omits the checks that only reject. In the source
 the crossing also needs, among others:
-* the manifest's `upgradeTimestamp` to have passed (`upgrades/BaseZkSyncUpgrade.sol:76-78`);
-* every committed batch executed (`upgrades/DefaultUpgrade.sol:31`,
-  `BaseZkSyncUpgrade.sol:109-113`);
-* the settlement layer to be at the new version already (`BaseZkSyncUpgrade.sol:83-88`);
+* the manifest's `upgradeTimestamp` to have passed (`upgrades/BaseZkSyncUpgrade.sol:82-84`);
+* every committed batch executed (`upgrades/DefaultUpgrade.sol:30`,
+  `BaseZkSyncUpgrade.sol:115-119`);
+* the settlement layer to be at the new version already (`BaseZkSyncUpgrade.sol:89-94`);
 * on a minor bump, the previous L2 upgrade transaction finalized
-  (`BaseZkSyncUpgrade.sol:245-254`);
-* the diamond's dispatch of `upgradeChainFromVersion` (`ChainTypeManager.sol:625`,
+  (`BaseZkSyncUpgrade.sol:259-268`);
+* on a chain with `secondProofSystemRequired`, a verifier that keeps the multi-proof mode
+  (`BaseZkSyncUpgrade.sol:143-148`, `Admin.sol:119-126`);
+* the diamond's dispatch of `upgradeChainFromVersion` (`ChainTypeManager.sol:620`,
   `state-transition/chain-deps/DiamondProxy.sol:32-36`). After the repair the chain routes
   exactly `R_v`, so this is a condition on `R_v`: it must route that selector to code that runs
   it, non-freezable or on an unfrozen diamond. The Admin facet of a release built by the CTM

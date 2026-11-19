@@ -15,7 +15,7 @@ Statements about `EraSpec.Contracts.ChainTypeManager.Specs.LiveRouting`. Proofs 
   checked. `CountCheckWitness` shows both outcomes.
 * **The premises are what `validate()` checks, and each is needed.** `validate()` checks
   `RowsWf` (and nonzero facets); distinct facet rows follow from it
-  (`ValidRowsHaveDistinctFacets`), which is what `CTMRelease.sol:167-170` says. Without
+  (`ValidRowsHaveDistinctFacets`), which is what `CTMRelease.sol:214-218` says. Without
   nonempty selector lists, a release `{11: [1], 12: []}` passes the check against a diamond
   `{11: [1], 13: [2]}` that also routes selector `2` (`EmptySelectorRowFoolsCountCheck`).
   Without distinct selectors, a release listing facet `11` twice passes against the same
@@ -58,8 +58,8 @@ namespace Contracts.ChainTypeManager
 
 /-- **`validate()`'s CHECKS FORCE DISTINCT FACET ROWS.** A repeated facet repeats its
 self-described selectors, which are nonempty; so rows with nonempty and duplicate-free
-selector lists name each facet once (`CTMRelease.sol:167-170`: "`validate()` refuses the same
-repetition through the selectors it repeats"). -/
+selector lists name each facet once (`CTMRelease.sol:214-218`: "`validate()` refuses both too
+(the repetition through the selectors it repeats, ...)"). -/
 def Properties.ValidRowsHaveDistinctFacets : Prop :=
   ∀ (sel : Address → List Selector) (rows : List FacetRow), RowsWf sel rows →
     (rows.map Prod.fst).Nodup
@@ -89,7 +89,7 @@ facet `11` self-describes `[1]` and facet `12` nothing; no selector is listed tw
 diamond built by adding `11: [1]` and `13: [2]` satisfies `DiamondOk` and passes the check
 (two facets, two rows; `11` routes its one selector; `12` has nothing to compare), yet routes
 selector `2`, which the release does not. So the check's exactness rests on `validate()`
-refusing empty selector lists (`CTMRelease.sol:121-123`). -/
+refusing empty selector lists (`CTMRelease.sol:134-136`). -/
 def Properties.EmptySelectorRowFoolsCountCheck : Prop :=
   ∃ ds, diamondCut DiamondStorage.fresh cmCuts = some ds ∧ DiamondOk ds ∧
     CountCheck cmSelectors ds cmRows ∧
@@ -100,7 +100,7 @@ def Properties.EmptySelectorRowFoolsCountCheck : Prop :=
 /-- **COUNTERMODEL: A REPEATED ROW FOOLS THE COUNT.** Release rows `[11, 11]`, facet `11`
 self-describing `[1]`: every row has a selector, but selector `1` is listed twice. The same
 diamond passes the check (two facets, two rows) and routes selector `2`. So the check also
-rests on `validate()` refusing a repeated selector (`CTMRelease.sol:128`). -/
+rests on `validate()` refusing a repeated selector (`CTMRelease.sol:141`). -/
 def Properties.RepeatedRowFoolsCountCheck : Prop :=
   ∃ ds, diamondCut DiamondStorage.fresh cmCuts = some ds ∧ DiamondOk ds ∧
     CountCheck cmSelectors ds cmRepeatedRows ∧
@@ -186,13 +186,13 @@ def Properties.FreshChainsRunTheirVersionsReleaseCounted : Prop :=
 /-! ## Starting states -/
 
 /-- **A FRESHLY INITIALIZED CTM WITH NO CHAINS SATISFIES THE INVARIANT**, its release having
-passed `validate()` in `initialize` (`ChainTypeManager.sol:297` → :310). -/
+passed `validate()` in `initialize` (`ChainTypeManager.sol:292` → :305). -/
 def Properties.FreshCountedSystemSatisfiesInvariant : Prop :=
   ∀ (D : DWorld) (R : Address), R ≠ 0 → ReleaseValid D R →
     DSysInv D ⟨initState D.toWorld R, fun _ => none⟩
 
 /-- **A JUST-BOOTSTRAPPED CTM SATISFIES THE INVARIANT**, its release having passed `validate()`
-in `setNewVersionUpgrade` (:817 → :310), provided every pre-registry chain is not ahead of the
+in `setNewVersionUpgrade` (:812 → :305), provided every pre-registry chain is not ahead of the
 departing version and has consistent diamond storage. -/
 def Properties.BootstrapCountedSystemSatisfiesInvariant : Prop :=
   ∀ (D : DWorld) (old : ℕ) (R : Address) (chains : ChainId → Option DChain),

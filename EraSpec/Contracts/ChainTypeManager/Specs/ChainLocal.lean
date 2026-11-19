@@ -3,12 +3,19 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ChainMigration
 /-!
 # Model: one chain at a time, and the break-glass repair
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for
+Source: branch `draft/v0.35.0` of `matter-labs/era-contracts`, commit `b17415d20`, as for
 `EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting` and
-`EraSpec.Contracts.ChainTypeManager.Specs.ChainMigration`. This file adds **no step and no
-state**: it reuses `Step`/`Run` and `MStep`/`MRun` unchanged and only names which steps
-write a given chain, the repair cut, and witness data. Paths are relative to
-`l1-contracts/contracts/`.
+`EraSpec.Contracts.ChainTypeManager.Specs.ChainMigration`. Every `file:line` below is at that
+commit. This file adds **no step and no state**: it reuses `Step`/`Run` and `MStep`/`MRun`
+unchanged and only names which steps write a given chain, the repair cut, and witness data.
+Paths are relative to `l1-contracts/contracts/`.
+
+First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415d20`. Only lines
+moved, with one addition on the break-glass path: `Admin._executeDiamondCut` (`Admin.sol:117-128`)
+now also rejects a cut that leaves a chain with `secondProofSystemRequired` on a verifier
+without the multi-proof mode. That check only rejects, so `Step.arbitraryCut` still covers every
+cut that succeeds; for the repair step (which exists in the model only, see *The repair*) it is
+one more source-side condition the model does not check.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ChainLocal` and are proved in
@@ -21,13 +28,13 @@ break-glass cut writes one chain. The CTM owner names the chain, and the CTM for
 to that chain's diamond only:
 
     function executeUpgrade(uint256 _chainId, Diamond.DiamondCutData calldata _diamondCut) external onlyOwner {
-        IZKChain(getZKChain(_chainId)).executeUpgrade(_diamondCut);          // state-transition/ChainTypeManager.sol:631-633
+        IZKChain(getZKChain(_chainId)).executeUpgrade(_diamondCut);          // state-transition/ChainTypeManager.sol:626-628
 
-The diamond runs it on its own storage (`state-transition/chain-deps/facets/Admin.sol:562-564`,
-`onlyChainTypeManager` at `chain-deps/facets/ZKChainBase.sol:84-89`):
+The diamond runs it on its own storage (`state-transition/chain-deps/facets/Admin.sol:593-595`,
+`onlyChainTypeManager` at `chain-deps/facets/ZKChainBase.sol:85-90`):
 
     function executeUpgrade(Diamond.DiamondCutData calldata _diamondCut) external onlyChainTypeManager {
-        _executeDiamondCut(_diamondCut);                                     // → Diamond.diamondCut, Admin.sol:112-115
+        _executeDiamondCut(_diamondCut);                                     // → Diamond.diamondCut, Admin.sol:117-128
 
 `Diamond.diamondCut` (`state-transition/libraries/Diamond.sol:109-133`) edits that diamond's
 routing and then delegatecalls the cut's init in that diamond's context (:310-318).
@@ -48,7 +55,7 @@ be stated chain by chain, with a premise about that chain's own history only:
 ## The repair
 
 `DefaultUpgrade.upgradeFromTransition` checks the live routing before applying the derived
-cuts (`upgrades/DefaultUpgrade.sol:33-37`):
+cuts (`upgrades/DefaultUpgrade.sol:32-36`):
 
     // The derived cuts remove the departing RELEASE's routing, not the live one: a chain whose
     // routing drifted from it (a CTM-owner `executeUpgrade` recovery cut) would keep the drift
@@ -57,7 +64,7 @@ cuts (`upgrades/DefaultUpgrade.sol:33-37`):
     LiveRoutingReader.requireReleaseRouting(ICTMRelease(transition.fromRelease()));
 
 The design document says the same ("Such a recovery ends by restoring the release's
-routing", `docs/registry-driven-upgrades.md:680-682` at the repository root).
+routing", `docs/registry-driven-upgrades.md:785-786` at the repository root).
 `repairCut W s id v` is that last step: a break-glass cut of chain `id` that leaves it at
 version `v` routing exactly `R_v = relAt v`, the release the CTM installed when it reached
 `v`. In the source it is one `executeUpgrade` whose facet cuts remove every live selector
@@ -67,7 +74,7 @@ every registered chain.
 
 **Model boundary: the repair step exists in the model only.** `Step.arbitraryCut` has no
 precondition on the live routing. In the source the CTM's call
-`IZKChain(getZKChain(_chainId)).executeUpgrade(_diamondCut)` (`ChainTypeManager.sol:632`)
+`IZKChain(getZKChain(_chainId)).executeUpgrade(_diamondCut)` (`ChainTypeManager.sol:627`)
 enters the drifted diamond through the diamond's own dispatch
 (`state-transition/chain-deps/DiamondProxy.sol:32-36`):
 
@@ -77,10 +84,10 @@ enters the drifted diamond through the diamond's own dispatch
     require(!diamondStorage.isFrozen || !facet.isFreezable, "q1"); // Facet is frozen
 
 So the repair needs the drifted routing still to send `executeUpgrade`'s selector to code that
-performs the cut for the CTM, as `Admin.executeUpgrade` does (`Admin.sol:562-564`), and the
+performs the cut for the CTM, as `Admin.executeUpgrade` does (`Admin.sol:593-595`), and the
 selector not to be marked freezable while the diamond is frozen. Unfreezing
-(`ChainTypeManager.unfreezeChain`, `ChainTypeManager.sol:589-591`, calling
-`Admin.unfreezeDiamond`, `Admin.sol:598-608`) goes through the same dispatch. A drift that
+(`ChainTypeManager.unfreezeChain`, `ChainTypeManager.sol:584-586`, calling
+`Admin.unfreezeDiamond`, `Admin.sol:629-639`) goes through the same dispatch. A drift that
 unrouted that selector, or routed it to code that does not perform the cut, cannot be repaired
 by `executeUpgrade`. A chain on a release meets the condition when that release routes its
 Admin facet non-freezable, as the releases built by the CTM deployment script do
@@ -115,7 +122,7 @@ selector `9`.
   Omitting it only adds runs, so the safety results stand. For enabledness:
   - For the repair it is the boundary under *The repair*.
   - For a transition, the CTM calls `Admin.upgradeChainFromVersion`
-    (`ChainTypeManager.sol:623-626`). The guard already requires the routing to be exactly the
+    (`ChainTypeManager.sol:618-621`). The guard already requires the routing to be exactly the
     departing release, so there the dispatch is a condition on that release: it must route
     `upgradeChainFromVersion` to code that runs it, non-freezable or on an unfrozen diamond.
     The Admin facet of a release built by the CTM deployment script does.
@@ -149,7 +156,7 @@ def LastWriteNotBreakGlass (id : ChainId) (ls : List Label) : Prop :=
 /-- **The repair cut** of chain `id` to version `v`, as the CTM owner would issue it in state
 `s`: a break-glass cut that leaves the chain at version `v` routing exactly `R_v`, the release
 `s.ctm.relAt v` the CTM installed when it reached `v` (the "last step of such a recovery" of
-`DefaultUpgrade.sol:33-36`). Its step exists in the model for every registered chain, whatever
+`DefaultUpgrade.sol:32-35`). Its step exists in the model for every registered chain, whatever
 the chain routes; in the source it needs the drifted diamond still to dispatch
 `executeUpgrade` (the model boundary under *The repair*). -/
 def repairCut (W : World) (s : Sys) (id : ChainId) (v : ℕ) : Label :=
@@ -196,8 +203,8 @@ def wUnstickRun : List MLabel :=
 /-! ### A release that lists a selector twice
 
 `CTMRelease.validate()` refuses a release whose facets list a selector twice
-(`upgrades/registry/objects/CTMRelease.sol:128`, `:190-213`), and the CTM calls it whenever it
-installs a release (`state-transition/ChainTypeManager.sol:310`). The model omits `validate()`,
+(`upgrades/registry/objects/CTMRelease.sol:141`, `:238-261`), and the CTM calls it whenever it
+installs a release (`state-transition/ChainTypeManager.sol:305`). The model omits `validate()`,
 so such a release can be committed in the model. This world has one: releases `100`, `700`,
 `200` at versions 1, 2, 3, where `700` lists selector `1` twice, and transitions `800`
 (1→2, onto `700`) and `900` (2→3, leaving `700`). -/

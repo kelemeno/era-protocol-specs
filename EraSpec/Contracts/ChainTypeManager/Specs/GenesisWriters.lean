@@ -3,9 +3,21 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting
 /-!
 # Model: the diamond writers on the chain-creation path — `DiamondInit` and `L1GenesisUpgrade`
 
-Source: branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at
-commit `e561b9cc2` (2026-10-19), as for the rest of this folder. Paths are relative to
+Source: branch `draft/v0.35.0` of `matter-labs/era-contracts`, commit `b17415d20`
+(2026-11-16). Every `file:line` below is at that commit. Paths are relative to
 `l1-contracts/contracts/`.
+
+First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415d20`.
+`DiamondInit.sol`, `DiamondProxy.sol`, `Diamond.sol`, `L1GenesisUpgrade.sol`,
+`BaseZkSyncUpgradeGenesis.sol`, `Migrator.sol`, `ReleaseFacetReader.sol` and
+`ChainAssetHandlerBase.sol` are unchanged; `ChainTypeManager.sol`, `Admin.sol`,
+`BaseZkSyncUpgrade.sol` and `CTMRelease.sol` changed off the modelled path, so only their lines
+moved, with one exception. `Admin._executeDiamondCut` (`Admin.sol:117-128`), which
+`Admin.genesisUpgrade` calls, now ends with the second-proof-system check: if
+`s.secondProofSystemRequired` (a new `ZKChainStorage` field, `ZKChainStorage.sol:304`) is set, it
+reverts unless the chain's verifier reports the multi-proof mode. Nothing on the creation path
+writes that field, so on a fresh diamond it is zero and the check does nothing; in general it
+only rejects, and the model omits it as such (see the modelling choices).
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.GenesisWriters` and are proved in
@@ -24,18 +36,18 @@ becomes a theorem.
 
 ## The creation path
 
-`ChainTypeManager.createNewChain(_chainId, _admin)` (`state-transition/ChainTypeManager.sol:708-716`):
+`ChainTypeManager.createNewChain(_chainId, _admin)` (`state-transition/ChainTypeManager.sol:703-711`):
 
-    zkChainAddress = _deployNewChain(_chainId, _admin);                    // :709
-    IAdmin(zkChainAddress).genesisUpgrade();                               // :712
-    IMigrator(zkChainAddress).pauseDepositsBeforeInitiatingMigration();    // :715
+    zkChainAddress = _deployNewChain(_chainId, _admin);                    // :704
+    IAdmin(zkChainAddress).genesisUpgrade();                               // :707
+    IMigrator(zkChainAddress).pauseDepositsBeforeInitiatingMigration();    // :710
 
-1. **Deployment.** `_deployNewChain` (:679-697) refuses a registered id (:680-683) and runs
-   `new DiamondProxy{salt: bytes32(0)}(block.chainid, diamondCut)` (:693) with
+1. **Deployment.** `_deployNewChain` (:674-692) refuses a registered id (:675-678) and runs
+   `new DiamondProxy{salt: bytes32(0)}(block.chainid, diamondCut)` (:688) with
 
-        facetCuts: new Diamond.FacetCut[](0),                                // :687
-        initAddress: ICTMRelease(currentRelease).diamondInit(),              // :685, :688
-        initCalldata: abi.encodeCall(IDiamondInit.initialize, (_chainId, _admin)) // :689
+        facetCuts: new Diamond.FacetCut[](0),                                // :682
+        initAddress: ICTMRelease(currentRelease).diamondInit(),              // :680, :683
+        initCalldata: abi.encodeCall(IDiamondInit.initialize, (_chainId, _admin)) // :684
 
    The proxy's constructor is `Diamond.diamondCut(_diamondCut)` (`state-transition/chain-deps/DiamondProxy.sol:16-21`):
    no facet cut, then the init delegatecall (`state-transition/libraries/Diamond.sol:135, 310-340`)
@@ -52,16 +64,16 @@ becomes a theorem.
    `s.protocolVersion = ctm.protocolVersion()` (:58, :110).
 2. **Genesis upgrade.** `genesisUpgrade()` reaches the Admin facet through the proxy's
    `fallback` (`DiamondProxy.sol:25-60`). `Admin.genesisUpgrade`
-   (`state-transition/chain-deps/facets/Admin.sol:566-578`):
+   (`state-transition/chain-deps/facets/Admin.sol:597-609`):
 
-        address l1GenesisUpgrade = IChainTypeManager(s.chainTypeManager).l1GenesisUpgrade(); // :569
-        Diamond.FacetCut[] memory emptyArray;                                                // :570
+        address l1GenesisUpgrade = IChainTypeManager(s.chainTypeManager).l1GenesisUpgrade(); // :600
+        Diamond.FacetCut[] memory emptyArray;                                                // :601
         ... DiamondCutData({facetCuts: emptyArray, initAddress: l1GenesisUpgrade,
-                            initCalldata: abi.encodeCall(IL1GenesisUpgrade.genesisUpgrade, ())}) // :571-575
-        _executeDiamondCut(cutData);                                                          // :577
+                            initCalldata: abi.encodeCall(IL1GenesisUpgrade.genesisUpgrade, ())}) // :602-606
+        _executeDiamondCut(cutData);                                                          // :608
 
    where `l1GenesisUpgrade()` is the first field of `currentRelease.genesisParams()`
-   (`ChainTypeManager.sol:327-330`). The init is `L1GenesisUpgrade.genesisUpgrade`
+   (`ChainTypeManager.sol:322-325`). The init is `L1GenesisUpgrade.genesisUpgrade`
    (`upgrades/L1GenesisUpgrade.sol:31-53`):
 
         uint256 protocolVersion = s.protocolVersion;                               // :32
@@ -69,18 +81,18 @@ becomes a theorem.
         _upgrade({_newProtocolVersion: protocolVersion, _upgradeTimestamp: 0,
                   _verifier: address(0), _l2ProtocolUpgradeTx: l2ProtocolUpgradeTx}); // :42-47
 
-   `BaseZkSyncUpgrade._upgrade` (`upgrades/BaseZkSyncUpgrade.sol:66-102`) has no timestamp gate
-   at `0` (:76-78), skips the verifier at `address(0)` (:91-93), runs the genesis
+   `BaseZkSyncUpgrade._upgrade` (`upgrades/BaseZkSyncUpgrade.sol:72-108`) has no timestamp gate
+   at `0` (:82-84), skips the verifier at `address(0)` (:97-99), runs the genesis
    `_setNewProtocolVersion` (`upgrades/BaseZkSyncUpgradeGenesis.sol:25-82`), which writes the
-   **same** version back (:80), and `_setL2SystemContractUpgrade` (`BaseZkSyncUpgrade.sol:148-188`),
-   which writes `s.l2SystemContractsUpgradeTxHash` (:185). Nothing on this path calls
+   **same** version back (:80), and `_setL2SystemContractUpgrade` (`BaseZkSyncUpgrade.sol:162-202`),
+   which writes `s.l2SystemContractsUpgradeTxHash` (:199). Nothing on this path calls
    `Diamond.diamondCut` or touches `Diamond.DiamondStorage`: the helpers it calls are `pure`
    or `view`.
 3. **Deposit pause.** `Migrator.pauseDepositsBeforeInitiatingMigration`
    (`state-transition/chain-deps/facets/Migrator.sol:105-129`) writes `s.pausedDepositsTimestamp` (:121).
 
-Migration in, `ChainTypeManager.forwardedBridgeMint` (:751-763), checks the incoming version
-(:759-761) and deploys through the same `_deployNewChain` (:762). The chain asset handler then
+Migration in, `ChainTypeManager.forwardedBridgeMint` (:746-758), checks the incoming version
+(:754-756) and deploys through the same `_deployNewChain` (:757). The chain asset handler then
 calls the new diamond's `Migrator.forwardedBridgeMint(chainData, false)`
 (`core/chain-asset-handler/ChainAssetHandlerBase.sol:399, 417`; `Migrator.sol:213-305`). There
 is no genesis upgrade on that path.
@@ -90,7 +102,7 @@ is no genesis upgrade on that path.
 * **Storage.** A chain's storage is three disjoint regions: `Diamond.DiamondStorage` at
   `DIAMOND_STORAGE_POSITION` (`Diamond.sol:33-34, 62-67`), the reentrancy lock at
   `LOCK_FLAG_ADDRESS` (`common/ReentrancyGuard.sol:31`), and `ZKChainStorage s` from slot 0
-  (`state-transition/chain-deps/facets/ZKChainBase.sol:42`). That the three do not overlap is
+  (`state-transition/chain-deps/facets/ZKChainBase.sol:43`). That the three do not overlap is
   a storage-layout fact, assumed (the two fixed positions are `keccak256(...) - 1`).
   `DiamondStorage` is transcribed whole. Of `ZKChainStorage`, only the fields the path reads
   or that the routing model uses are kept (`AppStorage`). The other fields DiamondInit writes
@@ -106,7 +118,7 @@ is no genesis upgrade on that path.
   code is `Code.other`, with an arbitrary effect on the storage it is delegatecalled into. A
   release names its members by address (`ICTMRelease.diamondInit()`, `genesisParams()`,
   `genesisFacets()`). That these addresses hold the code named here is what governance reviews
-  (`upgrades/registry/objects/CTMRelease.sol:23-26`). In the properties it is the premise
+  (`upgrades/registry/objects/CTMRelease.sol:27-30`). In the properties it is the premise
   `GenuineRelease`, and it is load-bearing.
 * **A delegatecall's success** is the init returning `DIAMOND_INIT_SUCCESS_RETURN_VALUE`
   (`Diamond.sol:318-338`). The genuine inits return it (`DiamondInit.sol:149`,
@@ -122,8 +134,10 @@ is no genesis upgrade on that path.
   `onlyL1`), the zero checks of DiamondInit (:55-57, :64-72, :96-106, :115-117, :123-125),
   `SafeCast.toUint16` overflow in the diamond library (:225, :238, :272, :301), the genesis
   version's major/minor checks (`BaseZkSyncUpgradeGenesis.sol:41-60`), the upgrade
-  transaction's validation (`BaseZkSyncUpgrade.sol:158-181`, all `pure`),
-  `canBeActivated` (`Migrator.sol:106-108`), and the commitment's consistency checks and the
+  transaction's validation (`BaseZkSyncUpgrade.sol:172-195`, all `pure`),
+  `canBeActivated` (`Migrator.sol:106-108`), the second-proof-system check of
+  `_executeDiamondCut` (`Admin.sol:121-126`, which reads `secondProofSystemRequired`, a field
+  `AppStorage` does not keep), and the commitment's consistency checks and the
   L1-only branch of `forwardedBridgeMint` (`Migrator.sol:217-219, 234-236, 247-283`). Omitting
   a rejecting check only adds executions, so every "a successful creation is a `Step`" result
   holds a fortiori. The exactness and enabledness results are about this model, which
@@ -334,7 +348,7 @@ def applyFacetCuts (hasCode : Address → Bool) : DiamondStorage → List FacetC
 
 /-! ## The chain's storage, calls and code -/
 
-/-- The modelled fields of `ZKChainStorage` (`state-transition/chain-deps/ZKChainStorage.sol:74-272`). -/
+/-- The modelled fields of `ZKChainStorage` (`state-transition/chain-deps/ZKChainStorage.sol:74-305`). -/
 structure AppStorage where
   /-- `protocolVersion` (:156). -/
   protocolVersion : ℕ
@@ -377,9 +391,9 @@ def ChainState.chain (st : ChainState) : Chain := ⟨st.app.protocolVersion, st.
 inductive InitCalldata
   /-- `""`. -/
   | empty
-  /-- `abi.encodeCall(IDiamondInit.initialize, (_chainId, _admin))` (`ChainTypeManager.sol:689`). -/
+  /-- `abi.encodeCall(IDiamondInit.initialize, (_chainId, _admin))` (`ChainTypeManager.sol:684`). -/
   | initialize (chainId : ChainId) (admin : Address)
-  /-- `abi.encodeCall(IL1GenesisUpgrade.genesisUpgrade, ())` (`Admin.sol:574`). -/
+  /-- `abi.encodeCall(IL1GenesisUpgrade.genesisUpgrade, ())` (`Admin.sol:605`). -/
   | genesisUpgrade
 deriving DecidableEq
 
@@ -391,9 +405,9 @@ structure DiamondCutData where
 
 /-- The calls the creation paths make through the diamond proxy. -/
 inductive ProxyCall
-  /-- `IAdmin.genesisUpgrade()` (`ChainTypeManager.sol:712`). -/
+  /-- `IAdmin.genesisUpgrade()` (`ChainTypeManager.sol:707`). -/
   | genesisUpgrade
-  /-- `IMigrator.pauseDepositsBeforeInitiatingMigration()` (`ChainTypeManager.sol:715`). `ts` is
+  /-- `IMigrator.pauseDepositsBeforeInitiatingMigration()` (`ChainTypeManager.sol:710`). `ts` is
   not calldata: it is the timestamp the call computes from `block.timestamp`
   (`Migrator.sol:110-120`). -/
   | pauseDeposits (ts : ℕ)
@@ -402,7 +416,7 @@ inductive ProxyCall
   (`l2SystemContractsUpgradeTxHash`, `l2SystemContractsUpgradeBatchNumber`). -/
   | forwardedBridgeMint (txHash batch : ℕ)
 
-/-- `genesisUpgrade()` (`Admin.sol:657-658`). -/
+/-- `genesisUpgrade()` (`Admin.sol:690-691`). -/
 def selGenesisUpgrade : Selector := 0xd241f618
 
 /-- `pauseDepositsBeforeInitiatingMigration()` (`Migrator.sol:390-391`). -/
@@ -441,7 +455,7 @@ def Code.hasCode : Code → Bool
   | .none => false
   | _ => true
 
-/-- One row of `ICTMRelease.genesisFacets()` (`upgrades/registry/RegistryTypes.sol:22-25`). -/
+/-- One row of `ICTMRelease.genesisFacets()` (`upgrades/registry/RegistryTypes.sol:24-27`). -/
 structure GenesisFacet where
   facet : Address
   isFreezable : Bool
@@ -465,7 +479,7 @@ structure Env where
   /-- `ICTMRelease(R).verifier()`. -/
   verifierOf : Address → Address
   /-- `keccak256(abi.encode(tx))` of the genesis transaction composed for a release, a chain
-  id and a version (`L1GenesisUpgrade.sol:35-40`, `BaseZkSyncUpgrade.sol:165, 183`). -/
+  id and a version (`L1GenesisUpgrade.sol:35-40`, `BaseZkSyncUpgrade.sol:179, 197`). -/
   genesisTxHash : Address → ChainId → ℕ → ℕ
 
 /-- `_facet.code.length != 0`. -/
@@ -518,17 +532,17 @@ diamond; the CTM at `s.chainTypeManager` has version state `c`:
     _upgrade({_newProtocolVersion: protocolVersion, _upgradeTimestamp: 0,
               _verifier: address(0), _l2ProtocolUpgradeTx: ...});                // :42-47
 
-and in `_upgrade` (`BaseZkSyncUpgrade.sol:66-102`) and the genesis `_setNewProtocolVersion`
+and in `_upgrade` (`BaseZkSyncUpgrade.sol:72-108`) and the genesis `_setNewProtocolVersion`
 (`BaseZkSyncUpgradeGenesis.sol:25-82`):
 
-    if (block.timestamp < 0) ...                                   // :76-78, never
-    bool isOnSettlementLayer = s.settlementLayer == address(0);    // :81
+    if (block.timestamp < 0) ...                                   // :82-84, never
+    bool isOnSettlementLayer = s.settlementLayer == address(0);    // :87
     if (!_isOnSettlementLayer) { revert GenesisUpgradeExpectedOnSettlementLayer(); } // Genesis :62-64
     if (s.l2SystemContractsUpgradeTxHash != bytes32(0)) { revert ... }               // Genesis :72-74
     if (s.l2SystemContractsUpgradeBatchNumber != 0) { revert ... }                   // Genesis :75-77
     s.protocolVersion = _newProtocolVersion;                       // Genesis :80, the same value
-    if (_verifier != address(0)) { ... }                           // :91-93, skipped
-    s.l2SystemContractsUpgradeTxHash = l2ProtocolUpgradeTxHash;    // :97-99 → :185
+    if (_verifier != address(0)) { ... }                           // :97-99, skipped
+    s.l2SystemContractsUpgradeTxHash = l2ProtocolUpgradeTxHash;    // :103-105 → :199
 
 The version check `_newProtocolVersion < previousProtocolVersion` (Genesis :30-35) cannot fire:
 the two are equal. The upgrade transaction always has the system-upgrade type
@@ -566,12 +580,12 @@ def diamondCut (E : Env) (c : CTM) (st : ChainState) (cut : DiamondCutData) : Op
 
 /-! ## The facet entry points and the proxy -/
 
-/-- The cut `Admin.genesisUpgrade` builds (`Admin.sol:569-575`): no facet cuts, the release's
-L1 genesis upgrade as init (`ChainTypeManager.sol:327-330`). -/
+/-- The cut `Admin.genesisUpgrade` builds (`Admin.sol:600-606`): no facet cuts, the release's
+L1 genesis upgrade as init (`ChainTypeManager.sol:322-325`). -/
 def genesisUpgradeCut (E : Env) (c : CTM) : DiamondCutData :=
   ⟨[], E.genesisUpgradeOf c.cur, .genesisUpgrade⟩
 
-/-- `Admin.genesisUpgrade()` (`Admin.sol:566-578`): `_executeDiamondCut(cutData)` (:577, :112-115). -/
+/-- `Admin.genesisUpgrade()` (`Admin.sol:597-609`): `_executeDiamondCut(cutData)` (:608, :117-128). -/
 def adminGenesisUpgrade (E : Env) (c : CTM) (st : ChainState) : Option ChainState :=
   diamondCut E c st (genesisUpgradeCut E c)
 
@@ -606,7 +620,7 @@ def migratorForwardedBridgeMint (c : CTM) (txHash batch : ℕ) (st : ChainState)
 
 /-- The facet code for a call. A genuine contract that lacks the called function reverts: none
 has a `fallback`. Of the three selectors (`ProxyCall.selector`), `genesisUpgrade()` is in
-`Admin.selectors()` (`Admin.sol:657-658`) and the other two in `Migrator.selectors()`
+`Admin.selectors()` (`Admin.sol:690-691`) and the other two in `Migrator.selectors()`
 (`Migrator.sol:386-391`); `L1GenesisUpgrade` also has a `genesisUpgrade()`
 (`L1GenesisUpgrade.sol:31`), so it runs if a release routed that selector to it. -/
 def runFacet (E : Env) (c : CTM) : Code → ProxyCall → ChainState → Option ChainState
@@ -628,18 +642,18 @@ def proxyCall (E : Env) (c : CTM) (st : ChainState) (call : ProxyCall) : Option 
 
 /-! ## Creation -/
 
-/-- The cut `_deployNewChain` hands the proxy (`ChainTypeManager.sol:685-690`). -/
+/-- The cut `_deployNewChain` hands the proxy (`ChainTypeManager.sol:680-685`). -/
 def genesisCut (E : Env) (c : CTM) (id : ChainId) (admin : Address) : DiamondCutData :=
   ⟨[], E.diamondInitOf c.cur, .initialize id admin⟩
 
-/-- `_deployNewChain` after its registration check (`ChainTypeManager.sol:685-693`): the
+/-- `_deployNewChain` after its registration check (`ChainTypeManager.sol:680-688`): the
 `DiamondProxy` constructor runs the genesis cut on fresh storage (`DiamondProxy.sol:16-21`; its
 `_chainId == block.chainid` check passes, the CTM passes `block.chainid`). -/
 def deployNewChain (E : Env) (c : CTM) (id : ChainId) (admin : Address) : Option ChainState :=
   diamondCut E c ChainState.fresh (genesisCut E c id admin)
 
 /-- `createNewChain(_chainId, _admin)` after its registration check
-(`ChainTypeManager.sol:708-716`). -/
+(`ChainTypeManager.sol:703-711`). -/
 def createNewChain (E : Env) (c : CTM) (id : ChainId) (admin : Address) (ts : ℕ) :
     Option ChainState :=
   (deployNewChain E c id admin).bind (fun st1 =>
@@ -647,7 +661,7 @@ def createNewChain (E : Env) (c : CTM) (id : ChainId) (admin : Address) (ts : �
       proxyCall E c st2 (.pauseDeposits ts)))
 
 /-- A chain arriving where it has no diamond: `ChainTypeManager.forwardedBridgeMint`
-(`ChainTypeManager.sol:751-763`) with incoming version `v`, then the diamond's
+(`ChainTypeManager.sol:746-758`) with incoming version `v`, then the diamond's
 `forwardedBridgeMint(chainData, false)` (`ChainAssetHandlerBase.sol:399, 417`). In between, the
 chain asset handler registers the diamond with the bridgehub and the message root (:405, :409),
 which write their own storage, not the diamond's (`core/bridgehub/BridgehubBase.sol:301-307`). -/
@@ -659,7 +673,7 @@ def migrateInNewChain (E : Env) (c : CTM) (v : ℕ) (id : ChainId) (admin : Addr
 /-! ## The system with chain creation run as code -/
 
 /-- A chain creation as the code runs it. The registration check is `getZKChain(_chainId) ==
-address(0)` (`ChainTypeManager.sol:680-683`); the model keeps `ChainRouting`'s chains map, so
+address(0)` (`ChainTypeManager.sol:675-678`); the model keeps `ChainRouting`'s chains map, so
 the new chain is recorded under `id` as `ChainRouting` records it. -/
 inductive CodeCreation (E : Env) : Sys → Label → Sys → Prop
   | createNewChain {s : Sys} {id : ChainId} {admin : Address} {ts : ℕ} {st : ChainState} :
@@ -696,7 +710,7 @@ inductive CodeRun (W : World) (E : Env) : Sys → List Label → Sys → Prop
 `genesisUpgrade()` to is the Admin facet, the ones for the two Migrator entry points are the
 Migrator facet, and the world's flattened rows of `R` are the release's rows
 (`World.relRows`, "objects are their getters"). Governance's review of a release is what
-establishes this (`CTMRelease.sol:23-26`); nothing on chain checks it. -/
+establishes this (`CTMRelease.sol:27-30`); nothing on chain checks it. -/
 structure GenuineRelease (E : Env) (W : World) (R : Address) : Prop where
   diamondInit : E.code (E.diamondInitOf R) = .diamondInit
   genesisUpgrade : E.code (E.genesisUpgradeOf R) = .l1GenesisUpgrade
@@ -707,9 +721,9 @@ structure GenuineRelease (E : Env) (W : World) (R : Address) : Prop where
   rows : W.relRows R = releaseRows E R
 
 /-- **What `CTMRelease` checks about a release** (`upgrades/registry/objects/CTMRelease.sol`):
-one row per facet (the constructor, :171-184), every facet with code (`validate()`, :117), every
-facet with at least one selector (:121-123), and no selector routed twice (:128, :190-213). The
-CTM runs `validate()` on every release it installs (`ChainTypeManager.sol:310`). -/
+one row per facet (the constructor, :219-232), every facet with code (`validate()`, :130), every
+facet with at least one selector (:134-136), and no selector routed twice (:141, :238-261). The
+CTM runs `validate()` on every release it installs (`ChainTypeManager.sol:305`). -/
 structure ReleaseWf (E : Env) (R : Address) : Prop where
   uniqueFacets : ((E.genesisFacets R).map GenesisFacet.facet).Nodup
   facetsHaveCode : ∀ g ∈ E.genesisFacets R, E.hasCode g.facet = true
