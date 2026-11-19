@@ -39,6 +39,12 @@ followed by any successful calls, from any callers, in any order, each with its 
   root is recorded, or the chain is registered with a positive counter, `seedGenesisRoot` for it
   reverts after any run.
 
+- `Contracts.MessageRoot.Aggregation.Properties.AggregatesStrictFromMessageRoot`: in the
+  ghost-instrumented view (topic `Aggregation`: caller checks and overflow omitted, blocks with
+  non-decreasing or strictly increasing timestamps), every chain-tree leaf that settled strictly
+  before a historical root was written is counted by that root, for the root as it stood at any
+  point of a run from `initialize` and in every later state.
+
 Witnesses for each premise group are in `Properties/Countermodels.lean`; countermodels there show
 the registration premise and four source checks are needed.
 

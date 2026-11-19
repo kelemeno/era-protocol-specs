@@ -15,12 +15,8 @@ era-contracts `draft/v0.35.0` head `b17415d20`. keccak is an arbitrary function.
 - `Contracts.MessageVerification.Properties.HeldLogIsProvable`: under the same root premise, every
   log the batch holds at an index below `2^H`, with `H + 3 < 256`, a nonzero root and a leaf hash
   other than the default leaf hash, has an honest proof that the check accepts.
-- `Contracts.MessageVerification.Properties.StatusProofAtMessageRoot`: for a batch `n > 0` at or
-  above `v31UpgradeChainBatchNumber[c]`, or with a recorded root, the status check against
-  `R = chainBatchRoots[c][n]` is exactly the default-leaf and bounds checks followed by the
-  canonical `../MessageRoot/` model's final-node verdict.
-- `Contracts.MessageVerification.Properties.ChainBatchRootIsCompute`: given the documented value
-  of `RESERVED_SUBTREE_NODE`, this folder's chain batch root is `ChainBatchRootTree.compute`.
+- `Refinement` (supporting, not headlines) ties the abstract stored root `R` to the canonical
+  `../MessageRoot/` model and this folder's chain batch root to `../ChainBatchRootTree/`'s `compute`.
 
 ## Topics
 

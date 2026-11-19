@@ -21,12 +21,11 @@ on it is the documented value of a named constant where stated.
 - `Contracts.ChainBatchRootTree.Properties.GenesisRootStable`: on every successful run from fresh
   storage, once the chain exists both the diamond's `l2LogsRootHashes[0]` and the message root's
   `chainBatchRoots[c][0]` hold the nonzero genesis root, and the chain is registered.
-- `Contracts.ChainBatchRootTree.Properties.SeedAtMostOnce` and `NoSeedAfterRealBatch`: on every
-  successful run from any storage, `seedGenesisRoot` succeeds at most once and never after a batch
-  root was recorded (message-root calls from any caller at any time).
-- `Contracts.ChainBatchRootTree.Properties.ReachableSliceIsSeedRun`: for every storage the
-  canonical `MessageRoot` model reaches, the slice of a chain other than `block.chainid` is reached
-  from the fresh slice by the `seedExec` calls `GenesisSeed` models.
+- `Contracts.ChainBatchRootTree.Properties.SeedAtMostOnce` and
+  `Contracts.ChainBatchRootTree.Properties.NoSeedAfterRealBatch`: on every successful run from any
+  storage, `seedGenesisRoot` succeeds at most once and never after a batch root was recorded
+  (message-root calls from any caller at any time). `MessageRootLink` shows the canonical
+  `../MessageRoot/` model's calls move a chain's slice exactly by these `seedExec` calls.
 
 ## Topics
 
