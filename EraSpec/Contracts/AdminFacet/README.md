@@ -37,7 +37,8 @@ Witnesses (`@[witness]`): `EveryEntrySucceedsSomewhere`, `ValidatorUpgradeWitnes
 `UnguardedL1FilteringBreaksStage1`, `ExecuteUpgradeCanLowerVersion`,
 `UpgradePostCheckIsLoadBearing`, `GenesisRerunsAfterFinalization`, `FeeUpdateAtTimeZeroNotSpaced`,
 `PriceBoundNeedsPriorityModeAllowed`, `PricingModeMovesPriceWithoutPriorityMode`. The other
-statements are supporting lemmas.
+statements are supporting lemmas, among them `RevertBatchesAgreesWithExecutorModel`: this model's
+`_revertBatches` and the one of `../ExecutorFacet/` succeed together and write the same counters.
 
 ## Source
 
@@ -66,6 +67,7 @@ certificate has the same name without the `Properties` segment.
 | PriorityMode | [Specs/AdminFacet.lean](Specs/AdminFacet.lean), [Specs/Mutants.lean](Specs/Mutants.lean) | [Properties/PriorityMode.lean](Properties/PriorityMode.lean) | [Proofs/PriorityMode.lean](Proofs/PriorityMode.lean) |
 | Upgrade | [Specs/AdminFacet.lean](Specs/AdminFacet.lean), [Specs/Mutants.lean](Specs/Mutants.lean) | [Properties/Upgrade.lean](Properties/Upgrade.lean) | [Proofs/Upgrade.lean](Proofs/Upgrade.lean) |
 | Fees | [Specs/AdminFacet.lean](Specs/AdminFacet.lean) | [Properties/Fees.lean](Properties/Fees.lean) | [Proofs/Fees.lean](Proofs/Fees.lean) |
+| ExecutorBridge | [Specs/AdminFacet.lean](Specs/AdminFacet.lean), [../ExecutorFacet/Specs/Pipeline.lean](../ExecutorFacet/Specs/Pipeline.lean) | [Properties/ExecutorBridge.lean](Properties/ExecutorBridge.lean) | [Proofs/ExecutorBridge.lean](Proofs/ExecutorBridge.lean) |
 
 `Proofs/Basic.lean` holds auxiliary frame lemmas only (which entry can change which field).
 

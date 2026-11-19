@@ -73,8 +73,10 @@ lists other models of the same Solidity code.
   `AdminFacet`/`ExecutorFacet`, `Bridgehub`/`ChainAssetHandler` and `ChainAdminOwnable`'s
   diamond and Bridgehub stand-ins each model a contract in its own folder and read only a few
   entry points of the other, at a different level of detail (the stand-ins keep access checks
-  only, or one flag). Each contract has one Specs model of its own. Bridges between them are not
-  done (see the unit's report).
+  only, or one flag). Each contract has one Specs model of its own. One bridge is proved:
+  `AdminFacet` `RevertBatchesAgreesWithExecutorModel` (the two transcriptions of
+  `ZKChainBase._revertBatches` succeed together and write the same counters). The others are not
+  done.
 * **`ChainAssetHandler` and `L1ChainAssetHandler`.** Two models of the burn, mint and confirmation
   code. `ChainAssetHandler` follows every hub, the pauses and the migration numbers, without batch
   numbers; `L1ChainAssetHandler` follows one chain's intervals and batch numbers, for

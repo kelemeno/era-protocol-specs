@@ -138,3 +138,9 @@ the return of a migration (`forwardedBridgeMint`), so the results cover a chain 
 calls whose unchecked loop counter wraps, which need at least `2^256 - verified` batches in
 one call; events. That the deployed facets execute this transcription is open
 (`VM-STORAGE`, `SOL-ARITH`, `SOL-ABI`).
+
+`../AdminFacet/` transcribes the same `_revertBatches`, and the priority-mode entry points with
+the checks this model omits. `RevertBatchesAgreesWithExecutorModel` there proves the two
+`_revertBatches` succeed together and write the same counters; the rest of the two models is not
+composed. `processBatch` is abstract here (`Env` and the Merkle-break log); the library itself is
+modelled in `../PriorityTree/`.
