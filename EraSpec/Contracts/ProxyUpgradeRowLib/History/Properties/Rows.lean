@@ -3,6 +3,8 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.Rows
 /-!
 # Properties: the registry upgrade's proxy rows
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.Rows`.  Proofs are in
 `EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.Rows`.
 

@@ -4,6 +4,8 @@ import EraSpec.Core.Word
 /-!
 # Model: `ProxyUpgradeRowLib` — the registry-driven upgrade's proxy rows
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 The registry-driven upgrade system carries implementation swaps as *rows*, and
 `ProxyUpgradeRowLib` is the one place their semantics live — shared by the core
 registry, the CTM transition and the bootstrap migration, and by everything that

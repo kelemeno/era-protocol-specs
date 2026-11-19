@@ -3,8 +3,8 @@ import EraSpec.Contracts.RegistryBootstrapMigration.Specs.Forward
 /-!
 # Model: who can move a CTM parked on the spent migration
 
-Source: branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at
-commit `e561b9cc2`, as for `Specs/Authority.lean` and `Specs/Forward.lean`.
+Source: era-contracts `draft/v0.35.0` at commit `b17415d20`, as for `Specs/Authority.lean` and
+`Specs/Forward.lean` (first written at `e561b9cc2`).
 
 **This file adds no new operation.** It reuses the label model of `Specs/Authority.lean` and
 the call model of `Specs/Forward.lean` unchanged (`AStep`, `ARun`, `OpStep`, `FRun`, `Call`,

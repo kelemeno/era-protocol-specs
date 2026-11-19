@@ -4,6 +4,8 @@ import EraSpec.Core.Word
 /-!
 # Model: the `EcosystemUpgradeExecutor` lifecycle and the timer its operation names
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 **Source commit.** The coordinator does **not** exist at `e561b9cc2`, the commit the
 `ChainTypeManager` folder models: commit `f64622022d` ("an upgrade is one atomic call",
 2026-10-14) deleted its stages, the pending-operation state and `GovernanceUpgradeTimer`,

@@ -3,6 +3,8 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.Rows
 /-!
 # Model: when the `612a71ccc` rows apply
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 **This file adds no new operation.** It reuses the model of `Specs/Rows.lean` unchanged
 (`ApplyRow`, `ApplyRows`, `RowsApplied`, ...) and adds one predicate, `RowEnabled`, and witness
 data. The results are in `EraSpec.Contracts.ProxyUpgradeRowLib.History.Properties.RowsStrong` and are

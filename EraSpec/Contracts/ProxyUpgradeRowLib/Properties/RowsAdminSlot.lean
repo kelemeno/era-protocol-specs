@@ -1,7 +1,7 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsAdminSlot
 
 /-!
-# Properties: the rows at `e561b9cc2`, read through the proxies' admin dispatch
+# Properties: the rows at `b17415d20`, read through the proxies' admin dispatch
 
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsAdminSlot`, which models
 each proxy's ERC-1967 implementation and admin slots, the OpenZeppelin v4.9.6 transparent
@@ -282,8 +282,8 @@ def Properties.OnlyNamedEdgesAcrossCallOnSlots : Prop :=
       ∀ p, J.impl p = S.impl p ∨
         ∃ r ∈ rows, r.proxy = p ∧ S.impl p = r.expectedOldImpl ∧ J.impl p = r.implNew
 
-/-- **`OnlyNamedEdgesAcrossTransitionAnyRows` ON THE SLOTS.** The same for `applyTransition`
-(`e561b9cc2`) on any object that is code and reports the domain. `Administered` is about the
+/-- **`OnlyNamedEdgesAcrossTransitionAnyRows` ON THE SLOTS.** The same for `ApplyTransition`
+(the leg's object checks and the default engine's `applyRows`) on any object that is code and reports the domain. `Administered` is about the
 object's rows. -/
 def Properties.OnlyNamedEdgesAcrossTransitionOnSlots : Prop :=
   ∀ (C : Config) (d : Domain) (T : Transition) (S J : Slots), SelfOnly C → KeepsAdmin C →

@@ -3,6 +3,8 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.RowsStrong
 /-!
 # Properties: when the `612a71ccc` rows apply, and in which orders
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.RowsStrong`, which is the model of
 `Specs/Rows.lean` plus `RowEnabled` and witness data. Proofs are in
 `EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.RowsStrong`.

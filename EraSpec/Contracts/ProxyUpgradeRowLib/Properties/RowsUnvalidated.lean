@@ -1,15 +1,16 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsUnvalidated
 
 /-!
-# Properties: rows that `validateRows` never checked (`e561b9cc2`)
+# Properties: rows that `validateRows` never checked (`b17415d20`)
 
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsUnvalidated`, which is the
 `RowsCurrent` model plus `Transition.Genuine` and witness data. Proofs are in
 `EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated`.
 
-`applyTransition` applies whatever `rows()` the object it is handed returns
-(`ProxyUpgradeRowLib.sol:102-113`). Only a genuine `ProxyUpgradeTransition` ran
-`validateRows` on them (`objects/ProxyUpgradeTransition.sol:36`). `OnlyNamedEdgesAcrossCall`
+An executor applies whatever rows the manifest of the object it is handed carries
+(`executors/ProxyUpgradeExecutorBase.sol:57-63`, then the engine;
+`engines/DefaultProxyUpgradeEngine.sol:41-44`). Only a genuine `ProxyUpgradeTransition` ran
+`validateRows` on them (`objects/ProxyUpgradeTransition.sol:37`). `OnlyNamedEdgesAcrossCall`
 and `ValidSourceIsNotApplied` (`Properties/RowsCurrent.lean`) take distinct proxies or
 `ValidRows`, so they cover only genuine objects. This file states what holds for any row
 list.
@@ -20,7 +21,7 @@ list.
   over any rows moves each proxy only from some row's `expectedOldImpl` to that row's
   `implNew`. The distinct-proxies premise of `OnlyNamedEdgesAcrossCall` is dropped.
 * The row is the first one naming the proxy (`FirstRowCarriesTheEdge`). The verification
-  pass (`:142-147`) requires `p`'s final implementation to be the target of every row naming
+  pass (`requireRowsApplied`, `ProxyUpgradeRowLib.sol:133-141`) requires `p`'s final implementation to be the target of every row naming
   `p`, so all of them have one target. Rows naming other proxies leave `p` alone, so the
   first row naming `p` finds it where the call started: at that target (no net move) or at
   the row's own source (a move along its edge). Later events, such as a reinitializer moving
@@ -28,16 +29,17 @@ list.
 * A later duplicate row need not start where the call started
   (`LaterDuplicateRowIsNotAnEdgeFromStart`). The proof of `OnlyNamedEdgesAcrossCall` used
   that per-row fact, which is why it needed distinct proxies.
-* `OnlyNamedEdgesAcrossTransitionAnyRows` is the same for `applyTransition` on any object,
-  which is the entry point of both domain executors (`CTMUpgradeExecutor.sol:64-67`,
-  `CoreUpgradeExecutor.sol:33-36`).
+* `OnlyNamedEdgesAcrossTransitionAnyRows` is the same for `ApplyTransition` on any object:
+  the object checks of both domain executors' leg (`CTMUpgradeExecutor.sol:64-70`,
+  `CoreUpgradeExecutor.sol:33-36`, `ProxyUpgradeExecutorBase.sol:57-61`) followed by the default
+  engine's `applyRows`.
 * Of `validateRows`' checks, `ValidSourceIsNotApplied` needs only the row's own self-edge
   check (`SourceIsNotAppliedAnyRows`). `SelfEdgeAppliesWithoutMoving` shows that one is
   needed.
 
 ## What the duplicate check still buys
 
-* The source's reason for a separate verification pass (`:119-120`): "a reinitializer that
+* The source's reason for a separate verification pass (`ProxyUpgradeRowLib.sol:104-105`): "a reinitializer that
   moves any proxy of the row set is caught too". For rows naming distinct proxies, and
   reinitializers that move at most their own proxy, it holds: in a successful call every
   row's iteration leaves the mapping exactly as a plain swap would, so no reinitializer
@@ -121,7 +123,7 @@ def Properties.ReinitMovesAreCaughtOnLastRow : Prop :=
 
 /-- **ON DISTINCT ROWS, A REINITIALIZER THAT MOVES ANYTHING IS CAUGHT.** The source says the
 verification is a separate pass "so a reinitializer that moves any proxy of the row set is
-caught too" (`ProxyUpgradeRowLib.sol:119-120`). For rows naming distinct proxies, as a genuine
+caught too" (`ProxyUpgradeRowLib.sol:104-105`). For rows naming distinct proxies, as a genuine
 object's rows do, and reinitializers that move at most their own proxy, this holds: every row
 is the last for its proxy, so by `ReinitMovesAreCaughtOnLastRow` no reinitializer of a
 successful call moved anything. -/

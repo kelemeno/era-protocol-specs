@@ -3,6 +3,8 @@ import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle
 /-!
 # Properties: the stage guards exactly, and abandonment as a live escape hatch
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 Strengthenings of `EraSpec.Contracts.EcosystemUpgradeExecutor.History.Properties.Lifecycle`, over the
 same model (`EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle`, source commit
 `afa407085`; the coordinator is deleted at `e561b9cc2`). Proofs are in

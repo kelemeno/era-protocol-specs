@@ -3,6 +3,8 @@ import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle
 /-!
 # Properties: the coordinator's lifecycle, and what its timer guarantees
 
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
 Statements about `EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle` (source
 commit `afa407085`; the coordinator is deleted at `e561b9cc2`). Proofs are in
 `EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.Lifecycle`.
