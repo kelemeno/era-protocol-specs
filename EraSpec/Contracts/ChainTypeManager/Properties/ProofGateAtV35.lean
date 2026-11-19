@@ -6,12 +6,12 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ProofGateAtV35
 Statements about `EraSpec.Contracts.ChainTypeManager.Specs.ProofGateAtV35` (commit
 `b17415d20`). Proofs are in `EraSpec.Contracts.ChainTypeManager.Proofs.ProofGateAtV35`. The
 statements live in `Contracts.ChainTypeManager.ProofGateAtV35.Properties`; a statement named
-like an `e561b9cc2` one (`ChainsRunTheirVersionsRelease`, `TransitionEnabledIff`, ...) is that
-statement re-proved over the v35 system.
+like one of `ChainRouting`, `ChainLocal` or `Enabledness` (`ChainsRunTheirVersionsRelease`,
+`TransitionEnabledIff`, ...) is that statement re-proved over the gated system.
 
-## The v35 step is the `e561b9cc2` step plus one condition
+## The v35 step is the gate-free `ChainRouting` step plus one condition
 
-`StepIsTheE561StepPlusTheGate`: for every `ChainRouting` label, a v35 step to a routing state
+`StepIsTheUngatedStepPlusTheGate`: for every `ChainRouting` label, a v35 step to a routing state
 exists iff `ChainRouting`'s step to it exists and `GateHolds` does. `GateHolds` is `True` for
 every step except a transition and the bootstrap crossing of a chain that requires its second
 proof system. For those it asks the arriving release's verifier to report multi-proof mode.
@@ -23,11 +23,11 @@ proof system. For those it asks the arriving release's verifier to report multi-
 * **Where no chain requires the second proof system, the routing runs are `ChainRouting`'s.**
   From proof-system fields with the requirement off everywhere, every `ChainRouting` run is the
   routing image of a v35 run in which no chain ever requires it
-  (`E561RunsAreRunsWithoutTheRequirement`). With `RunIsARun`, the routing states reachable at
+  (`UngatedRunsAreRunsWithoutTheRequirement`). With `RunIsARun`, the routing states reachable at
   v35 from such a state are exactly those `ChainRouting` reaches. And every step other than the
   transition or the bootstrap crossing of a chain that requires it exists at v35 iff it exists
-  in `ChainRouting` (`StepIsTheE561StepPlusTheGate`).
-* **Liveness gets one premise.** A transition exists iff `e561b9cc2`'s conditions hold and, if
+  in `ChainRouting` (`StepIsTheUngatedStepPlusTheGate`).
+* **Liveness gets one premise.** A transition exists iff `Enabledness`'s conditions hold and, if
   the chain requires its second proof system, the arriving release's verifier reports
   multi-proof mode (`TransitionEnabledIff`). Along runs without a break-glass cut, upgrades
   stay enabled under that premise (`UpgradesStayEnabled`), and with validated installs no
@@ -35,8 +35,9 @@ proof system. For those it asks the arriving release's verifier to report multi-
   (`ValidatedRunsKeepEverythingEnabled`). The premise cannot be dropped. In
   `GateStrandsRequiringChain` the CTM commits an edge to a release whose verifier is
   PLONK-only; a chain that requires its second proof system then has no transition, while a
-  chain that does not crosses. So `e561b9cc2`'s `TransitionEnabledIff` and
-  `UpgradesStayEnabled`, read as statements about v35, are false.
+  chain that does not crosses. So `Enabledness`'s `TransitionEnabledIff` and
+  `UpgradesStayEnabled`, which are about the gate-free step, do not describe a chain that
+  requires its second proof system.
   `protocol-docs/interop-gating.md:43-48` (at `b17415d20`) describes such an edge and leaves its
   prevention to off-chain package verification.
 
@@ -81,7 +82,7 @@ requires its second proof system crosses an edge. `RequiringChainCanCrossWitness
 the enabledness results with the gate premise in force, `RequirementLifecycleWitness` those of
 `RequirementWriters` and `RequirementIsPermanentWithoutBreakGlass`,
 `PerChainHeadlineAtV35Witness` those of `ChainRunsItsVersionsRelease` in a run with break-glass
-cuts, and `E561RunLiftWitness` those of `E561RunsAreRunsWithoutTheRequirement`.
+cuts, and `UngatedRunLiftWitness` those of `UngatedRunsAreRunsWithoutTheRequirement`.
 `GateStrandsRequiringChain`, `BreakGlassClearsTheRequirement`, `MaskPremiseNeeded` and
 `RequirementDoesNotPinTheCurrentProofMode` are the countermodels.
 -/
@@ -92,11 +93,11 @@ open Contracts.ChainTypeManager
 
 /-! ## The v35 step and run -/
 
-/-- **EVERY v35 STEP IS THE `e561b9cc2` STEP PLUS THE PROOF GATE.** For every `ChainRouting`
+/-- **EVERY v35 STEP IS THE GATE-FREE `ChainRouting` STEP PLUS THE PROOF GATE.** For every `ChainRouting`
 label `l` and routing state `sys'`, a v35 step labelled `l` that leaves `sys'` exists, with some
 proof-system fields, iff `ChainRouting`'s step `l` to `sys'` exists and `GateHolds` holds before
 it. -/
-def Properties.StepIsTheE561StepPlusTheGate : Prop :=
+def Properties.StepIsTheUngatedStepPlusTheGate : Prop :=
   ∀ (W : World) (P : ProofWorld) (s : Sys35) (l : Label) (sys' : Sys),
     (∃ pr', Step35 W P s (.routing l) ⟨sys', pr'⟩) ↔ (Step W s.sys l sys' ∧ GateHolds W P s l)
 
@@ -110,7 +111,7 @@ def Properties.RunIsARun : Prop :=
 /-- **EVERY `ChainRouting` RUN IS A v35 RUN IN WHICH NO CHAIN REQUIRES ITS SECOND PROOF SYSTEM.**
 Starting from any proof-system fields with the requirement off everywhere, the same labels run
 at v35 to the same routing state, and the requirement is still off everywhere. -/
-def Properties.E561RunsAreRunsWithoutTheRequirement : Prop :=
+def Properties.UngatedRunsAreRunsWithoutTheRequirement : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys) (ls : List Label) (pr : ChainId → ProofState),
     Run W s ls s' → (∀ id, (pr id).required = false) →
     ∃ pr', Run35 W P ⟨s, pr⟩ (ls.map Label35.routing) ⟨s', pr'⟩ ∧ ∀ id, (pr' id).required = false
@@ -159,7 +160,7 @@ def Properties.ChainRunsItsVersionsRelease : Prop :=
 has a v35 transition iff the three conditions of
 `Contracts.ChainTypeManager.Properties.TransitionEnabledIff` hold and, if the chain requires its
 second proof system, the verifier of the release its edge arrives at reports multi-proof mode
-with nothing disabled. As for `e561b9cc2`, this is about the checks the model keeps. -/
+with nothing disabled. As in `Enabledness`, this is about the checks the model keeps. -/
 def Properties.TransitionEnabledIff : Prop :=
   ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId) (c : Chain),
     CtmInv W s.sys.ctm → s.sys.chains id = some c →
@@ -393,8 +394,8 @@ def Properties.PerChainHeadlineAtV35Witness : Prop :=
 /-- **A `ChainRouting` RUN THAT LIFTS TO v35.** The routing image of `wGateRun`, namely the
 geneses of chains `0` and `1`, the commit of `300` and both transitions, is a `ChainRouting` run
 from `wSys0` that ends with both chains at version 2, and the fields of `wSys35` have the
-requirement off everywhere: the premises of `E561RunsAreRunsWithoutTheRequirement`. -/
-def Properties.E561RunLiftWitness : Prop :=
+requirement off everywhere: the premises of `UngatedRunsAreRunsWithoutTheRequirement`. -/
+def Properties.UngatedRunLiftWitness : Prop :=
   wGateRun.flatMap Label35.routingSteps =
       [.genesis 0, .genesis 1, .ctm (.commit 300), .transition 0, .transition 1] ∧
     (∀ id : ChainId, (wSys35.proof id).required = false) ∧

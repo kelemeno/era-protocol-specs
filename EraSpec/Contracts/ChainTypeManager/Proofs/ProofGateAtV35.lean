@@ -8,8 +8,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
 
 A v35 step is a `ChainRouting` step plus a `ProofEffect`, and the only condition a
 `ProofEffect` adds is `GateHolds` (`proofEffect_gate`, `gate_proofEffect`). So the routing results are
-the `e561b9cc2` theorems applied to the run's projection (`RunIsARun`). The enabledness
-results are the `e561b9cc2` ones plus the gate. The invariant `ProofInv` is an induction in
+the `ChainRouting` and `ChainLocal` theorems applied to the run's projection (`RunIsARun`). The enabledness
+results are `Enabledness`'s plus the gate. The invariant `ProofInv` is an induction in
 which only `permanentlyRequireSecondProofSystem` needs `DisablingNeverEnablesMultiProof`. The
 countermodels are concrete runs on the `ChainRouting` witness world.
 -/
@@ -56,7 +56,7 @@ lemma gate_proofEffect {W : World} {P : ProofWorld} {s : Sys35} {l : Label} {sys
   | arbitraryCut _ _ _ =>
       exact ⟨_, ProofEffect.arbitraryCut (p := ⟨false, 0, 0⟩) (fun h => absurd h (by decide))⟩
 
-theorem StepIsTheE561StepPlusTheGate : Properties.StepIsTheE561StepPlusTheGate := by
+theorem StepIsTheUngatedStepPlusTheGate : Properties.StepIsTheUngatedStepPlusTheGate := by
   intro W P s l sys'
   constructor
   · rintro ⟨pr', h⟩
@@ -133,8 +133,8 @@ lemma lift_proofEffect {W : World} {P : ProofWorld} {s : Sys} {l : Label} {sys' 
       intro h
       exact absurd ((hpr id).symm.trans h) (by decide)
 
-theorem E561RunsAreRunsWithoutTheRequirement :
-    Properties.E561RunsAreRunsWithoutTheRequirement := by
+theorem UngatedRunsAreRunsWithoutTheRequirement :
+    Properties.UngatedRunsAreRunsWithoutTheRequirement := by
   intro W P s s' ls pr h hpr
   induction h generalizing pr with
   | nil => exact ⟨pr, Run35.nil, hpr⟩
@@ -167,7 +167,7 @@ theorem TransitionEnabledIff : Properties.TransitionEnabledIff := by
   have e561 := Contracts.ChainTypeManager.TransitionEnabledIff W s.sys id c hC hc
   constructor
   · rintro ⟨⟨sys', pr'⟩, h⟩
-    obtain ⟨hs, hg⟩ := (StepIsTheE561StepPlusTheGate W P s _ sys').mp ⟨pr', h⟩
+    obtain ⟨hs, hg⟩ := (StepIsTheUngatedStepPlusTheGate W P s _ sys').mp ⟨pr', h⟩
     exact ⟨e561.mp ⟨sys', hs⟩, hg c hc⟩
   · rintro ⟨hcond, hgate⟩
     obtain ⟨sys', hs⟩ := e561.mpr hcond
@@ -176,7 +176,7 @@ theorem TransitionEnabledIff : Properties.TransitionEnabledIff := by
       rw [hc] at hc'
       cases hc'
       exact hgate hreq
-    obtain ⟨pr', h⟩ := (StepIsTheE561StepPlusTheGate W P s _ sys').mpr ⟨hs, hg⟩
+    obtain ⟨pr', h⟩ := (StepIsTheUngatedStepPlusTheGate W P s _ sys').mpr ⟨hs, hg⟩
     exact ⟨_, h⟩
 
 theorem UpgradesStayEnabled : Properties.UpgradesStayEnabled := by
@@ -459,7 +459,7 @@ theorem GateStrandsRequiringChain : Properties.GateStrandsRequiringChain := by
       (RunIsARun wWorld wProofPlonk _ _ _ hrun) (routing_no_arbitrary gSetup_noArb) 0 _ rfl
       (by decide) xNodup200
   · rintro ⟨⟨sys', pr'⟩, h⟩
-    obtain ⟨_, hg⟩ := (StepIsTheE561StepPlusTheGate wWorld wProofPlonk
+    obtain ⟨_, hg⟩ := (StepIsTheUngatedStepPlusTheGate wWorld wProofPlonk
       ⟨gSys, gProof wProofPlonk⟩ _ sys').mp ⟨pr', h⟩
     exact absurd (hg _ rfl rfl) (by decide)
   · exact ⟨_, Step35.routing (gSys_transition 1 (Or.inr rfl))
@@ -670,7 +670,7 @@ theorem PerChainHeadlineAtV35Witness : Properties.PerChainHeadlineAtV35Witness :
     ⟨_, rfl, rfl, by decide, ?_⟩⟩
   exact fun h => absurd (congrFun h 9) (by decide)
 
-theorem E561RunLiftWitness : Properties.E561RunLiftWitness := by
+theorem UngatedRunLiftWitness : Properties.UngatedRunLiftWitness := by
   refine ⟨rfl, fun _ => rfl, gEndSys, RunIsARun wWorld wProofMulti _ _ _ gRun_multi, ?_⟩
   intro id hid
   interval_cases id

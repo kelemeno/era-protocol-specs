@@ -90,7 +90,9 @@ def Properties.DiamondInitWrites : Prop :=
 proxy, if address zero has no code: after a successful `DiamondInit.initialize(id, admin)`, the
 diamond routes exactly the current release's flattened rows. That routing is the result of
 `ChainRouting`'s `addAll` on the empty routing. The diamond is not frozen. The chain is at the
-CTM's version and bound to the CTM, and the fields the genesis upgrade checks are still zero. -/
+CTM's version and bound to the CTM, the fields the genesis upgrade checks are still zero, and the
+chain does not require its second proof system, so the check `_executeDiamondCut` makes after the
+genesis upgrade's cut (`Admin.sol:121-126`) passes. -/
 def Properties.DiamondInitInstallsTheRelease : Prop :=
   ∀ (E : Env) (c : CTM) (id : ChainId) (admin : Address) (st : ChainState),
     E.code 0 = .none →
@@ -99,7 +101,8 @@ def Properties.DiamondInitInstallsTheRelease : Prop :=
     st.diamond.routing = rowsRouting (releaseRows E c.cur) ∧ st.diamond.isFrozen = false ∧
     st.app.protocolVersion = c.pv ∧ st.app.chainTypeManager = E.ctm ∧
     st.app.settlementLayer = 0 ∧ st.app.l2SystemContractsUpgradeTxHash = 0 ∧
-    st.app.l2SystemContractsUpgradeBatchNumber = 0 ∧ st.app.pausedDepositsTimestamp = 0
+    st.app.l2SystemContractsUpgradeBatchNumber = 0 ∧ st.app.pausedDepositsTimestamp = 0 ∧
+    st.app.secondProofSystemRequired = false
 
 /-- **DIAMONDINIT CANNOT RUN TWICE IN ONE DIAMOND.** With the lock set, which the first run does
 (`DiamondInitWrites`), `initialize` reverts `SlotOccupied` (`ReentrancyGuard.sol:59-62`), so a

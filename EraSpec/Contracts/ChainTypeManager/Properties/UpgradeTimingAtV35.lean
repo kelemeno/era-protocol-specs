@@ -15,11 +15,11 @@ upgrade has one more condition.
 
 * A v35 timed step is the `UpgradeTiming` timed step (first written at `e561b9cc2`; it
   omits the proof-system checks) plus `TimedGateHolds`
-  (`TimedStepIsTheE561StepPlusTheGate`). For a chain that does not require its second proof
+  (`TimedStepIsTheUngatedStepPlusTheGate`). For a chain that does not require its second proof
   system, the gate is vacuous and an upgrade succeeds at v35 exactly when it does in
-  `UpgradeTiming`, with the same effect on the timed state (`UnflaggedChainsUpgradeAsAtE561`).
+  `UpgradeTiming`, with the same effect on the timed state (`UnflaggedChainsUpgradeAsUngated`).
   Every `UpgradeTiming` run is the timed image of a v35 run in which no chain requires it
-  (`E561TimedRunsAreRunsWithoutTheRequirement`).
+  (`UngatedTimedRunsAreRunsWithoutTheRequirement`).
 * Every necessary condition `UpgradeTiming` proves for a timed run still binds, because the
   timed image of every v35 timed run is an `UpgradeTiming` run (`TimedRunIsATimedRun`). That
   covers `ManifestTimestampGates`, `EveryPathNeedsExecutedBatches`,
@@ -62,8 +62,8 @@ The caller of `setProofSystemStatus` is not modelled; its mask write is arbitrar
 is upgraded through `upgradeChain` by its admin; it meets the premises of the run-level results
 and of `ProofGateBindsEveryPath`. `TimedRequirementWritersWitness` is the setup's successful
 `permanentlyRequireSecondProofSystem` by the admin, which a validator's call cannot replace.
-`UnflaggedUpgradeWitness` meets the premises of `E561TimedRunsAreRunsWithoutTheRequirement` and
-`UnflaggedChainsUpgradeAsAtE561` with an upgrade that exists on both sides.
+`UnflaggedUpgradeWitness` meets the premises of `UngatedTimedRunsAreRunsWithoutTheRequirement` and
+`UnflaggedChainsUpgradeAsUngated` with an upgrade that exists on both sides.
 `NotAtAnyTime` and `OwnerCannotUpgradeARequiringChainToAPlonkRelease` are the countermodels.
 -/
 
@@ -78,7 +78,7 @@ open Contracts.ChainTypeManager.ProofGateAtV35
 `UpgradeTiming` label `l` and timed state `t'`, a v35 step labelled `l` that leaves `t'` exists,
 with some proof-system fields, iff `UpgradeTiming`'s step `l` to `t'` exists and `TimedGateHolds`
 holds before it. -/
-def Properties.TimedStepIsTheE561StepPlusTheGate : Prop :=
+def Properties.TimedStepIsTheUngatedStepPlusTheGate : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s : TimedSys35) (l : TimedLabel) (t' : TimedSys),
     (∃ pr', TimedStep35 T P s (.timed l) ⟨t', pr'⟩) ↔
       (TimedStep T s.timed l t' ∧ TimedGateHolds T P s l)
@@ -92,7 +92,7 @@ def Properties.TimedRunIsATimedRun : Prop :=
 /-- **EVERY `UpgradeTiming` RUN IS A v35 RUN IN WHICH NO CHAIN REQUIRES ITS SECOND PROOF
 SYSTEM.** Starting from any proof-system fields with the requirement off everywhere, the same
 labels run at v35 to the same timed state, and the requirement is still off everywhere. -/
-def Properties.E561TimedRunsAreRunsWithoutTheRequirement : Prop :=
+def Properties.UngatedTimedRunsAreRunsWithoutTheRequirement : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys) (ls : List TimedLabel)
     (pr : ChainId → ProofState), TimedRun T s ls s' → (∀ id, (pr id).required = false) →
     ∃ pr', TimedRun35 T P ⟨s, pr⟩ (ls.map TimedLabel35.timed) ⟨s', pr'⟩ ∧
@@ -101,7 +101,7 @@ def Properties.E561TimedRunsAreRunsWithoutTheRequirement : Prop :=
 /-- **FOR A CHAIN THAT DOES NOT REQUIRE ITS SECOND PROOF SYSTEM, AN UPGRADE SUCCEEDS AT v35 EXACTLY
 WHEN IT DOES IN `UpgradeTiming`**, by every path, for every caller and at every time, with the
 same effect on the timed state. -/
-def Properties.UnflaggedChainsUpgradeAsAtE561 : Prop :=
+def Properties.UnflaggedChainsUpgradeAsUngated : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s : TimedSys35) (id : ChainId) (path : UpgradePath)
     (caller : Address) (τ : ℕ) (t' : TimedSys), (s.proof id).required = false →
     ((∃ pr', TimedStep35 T P s (.timed (.upgrade id path caller τ)) ⟨t', pr'⟩) ↔
@@ -306,9 +306,9 @@ def Properties.TimedRequirementWritersWitness : Prop :=
 
 /-- **AN UPGRADE OF A CHAIN THAT DOES NOT REQUIRE ITS SECOND PROOF SYSTEM, ON BOTH SIDES.** For
 every proof world: the `UpgradeTiming` run `wTimingSetup` from `wTimingSys0`, with the all-off
-fields of `wTimingSys35`, meets the premises of `E561TimedRunsAreRunsWithoutTheRequirement`, and
+fields of `wTimingSys35`, meets the premises of `UngatedTimedRunsAreRunsWithoutTheRequirement`, and
 its v35 counterpart reaches a state whose timed part is the `UpgradeTiming` one and in which no
-chain requires its second proof system (the premise of `UnflaggedChainsUpgradeAsAtE561`). There
+chain requires its second proof system (the premise of `UnflaggedChainsUpgradeAsUngated`). There
 `upgradeChain(300, 0)` by the executor's owner `2` at time `10` is both an `UpgradeTiming` step and
 a v35 step. -/
 def Properties.UnflaggedUpgradeWitness : Prop :=

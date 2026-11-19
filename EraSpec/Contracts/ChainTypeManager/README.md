@@ -736,12 +736,12 @@ and `setProofSystemStatus`):
 
 - A v35 step is the `e561b9cc2` step plus one condition: a transition or bootstrap crossing of a
   chain that requires its second proof system needs the arriving release's verifier to report
-  multi-proof mode for mask `0` (`StepIsTheE561StepPlusTheGate`). The routing image of a v35 run
+  multi-proof mode for mask `0` (`StepIsTheUngatedStepPlusTheGate`). The routing image of a v35 run
   is a `ChainRouting` run (`RunIsARun`), so the routing headline holds at v35
   (`ChainsRunTheirVersionsRelease`, `FreshChainsRunTheirVersionsRelease`,
   `ChainRunsItsVersionsRelease`). From fields with the requirement off everywhere, every
   `ChainRouting` run is the image of a v35 run in which no chain requires it
-  (`E561RunsAreRunsWithoutTheRequirement`).
+  (`UngatedRunsAreRunsWithoutTheRequirement`).
 - Liveness gets that one premise (`TransitionEnabledIff`, `UpgradesStayEnabled`,
   `ValidatedRunsKeepEverythingEnabled`), and it cannot be dropped: in `GateStrandsRequiringChain`
   the CTM commits an edge to a release with a PLONK-only verifier, and a chain that requires its
@@ -761,16 +761,16 @@ and `setProofSystemStatus`):
   (`RequirementIsPermanentWithoutBreakGlass`). Both are about the in-tree engines.
 - Witnesses: `ProofGateWitness`, `RequiringChainCanCrossWitness` (the enabledness premises with the
   gate in force), `RequirementLifecycleWitness`, `PerChainHeadlineAtV35Witness` (a run with
-  break-glass cuts), `E561RunLiftWitness`.
+  break-glass cuts), `UngatedRunLiftWitness`.
 
 **UpgradeTimingAtV35** (`UpgradeTiming` with the same fields and writers, and the caller of
 `permanentlyRequireSecondProofSystem`: the chain's admin, on its settlement layer):
 
 - A v35 timed step is the `e561b9cc2` timed step plus the gate of its routing step
-  (`TimedStepIsTheE561StepPlusTheGate`). For a chain that does not require its second proof system
+  (`TimedStepIsTheUngatedStepPlusTheGate`). For a chain that does not require its second proof system
   an upgrade succeeds at v35 exactly when it does in `UpgradeTiming`
-  (`UnflaggedChainsUpgradeAsAtE561`). Every `UpgradeTiming` run is the image of a v35 run
-  (`E561TimedRunsAreRunsWithoutTheRequirement`), and the timed image of every v35 run is an
+  (`UnflaggedChainsUpgradeAsUngated`). Every `UpgradeTiming` run is the image of a v35 run
+  (`UngatedTimedRunsAreRunsWithoutTheRequirement`), and the timed image of every v35 run is an
   `UpgradeTiming` run (`TimedRunIsATimedRun`), so `UpgradeTiming`'s necessary conditions still
   bind and its routing headline holds (`TimedRunKeepsChainsOnTheirRelease`).
 - The `upgradeChain` NatSpec is unchanged at `b17415d20`. `ICTMUpgradeExecutor.sol:53-54` still

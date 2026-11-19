@@ -15,9 +15,9 @@ First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415
 moved, with one exception. `Admin._executeDiamondCut` (`Admin.sol:117-128`), which
 `Admin.genesisUpgrade` calls, now ends with the second-proof-system check: if
 `s.secondProofSystemRequired` (a new `ZKChainStorage` field, `ZKChainStorage.sol:304`) is set, it
-reverts unless the chain's verifier reports the multi-proof mode. Nothing on the creation path
-writes that field, so on a fresh diamond it is zero and the check does nothing; in general it
-only rejects, and the model omits it as such (see the modelling choices).
+reverts unless the chain's verifier reports the multi-proof mode. The model keeps the field
+(`AppStorage.secondProofSystemRequired`) and the check (`executeDiamondCut`). Nothing on the
+creation path writes the field, so on a fresh diamond it is zero and the check passes.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.GenesisWriters` and are proved in
@@ -135,9 +135,7 @@ is no genesis upgrade on that path.
   `SafeCast.toUint16` overflow in the diamond library (:225, :238, :272, :301), the genesis
   version's major/minor checks (`BaseZkSyncUpgradeGenesis.sol:41-60`), the upgrade
   transaction's validation (`BaseZkSyncUpgrade.sol:172-195`, all `pure`),
-  `canBeActivated` (`Migrator.sol:106-108`), the second-proof-system check of
-  `_executeDiamondCut` (`Admin.sol:121-126`, which reads `secondProofSystemRequired`, a field
-  `AppStorage` does not keep), and the commitment's consistency checks and the
+  `canBeActivated` (`Migrator.sol:106-108`), and the commitment's consistency checks and the
   L1-only branch of `forwardedBridgeMint` (`Migrator.sol:217-219, 234-236, 247-283`). Omitting
   a rejecting check only adds executions, so every "a successful creation is a `Step`" result
   holds a fortiori. The exactness and enabledness results are about this model, which
@@ -368,9 +366,13 @@ structure AppStorage where
   l2SystemContractsUpgradeBatchNumber : ℕ
   /-- `pausedDepositsTimestamp` (:255). -/
   pausedDepositsTimestamp : ℕ
+  /-- `secondProofSystemRequired` (:304, storage slot 70). Its only writer in the source is
+  `Admin.permanentlyRequireSecondProofSystem` (`Admin.sol:454-465`), which is not on the
+  creation path; code a cut delegatecalls (`Code.other`) may write it too. -/
+  secondProofSystemRequired : Bool
 
 /-- Every modelled field zero. -/
-def AppStorage.zero : AppStorage := ⟨0, 0, 0, 0, 0, 0, 0, 0, 0⟩
+def AppStorage.zero : AppStorage := ⟨0, 0, 0, 0, 0, 0, 0, 0, 0, false⟩
 
 /-- A chain diamond's storage. -/
 structure ChainState where
@@ -478,6 +480,10 @@ structure Env where
   genesisUpgradeOf : Address → Address
   /-- `ICTMRelease(R).verifier()`. -/
   verifierOf : Address → Address
+  /-- `IZKsyncOSVerifier(v).getProofMode(0) == ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE`
+  (`Admin.sol:122-123`, `common/Config.sol:108`) for the verifier at `v`; `false` where the call
+  reverts. A fixed function of the address, as the other getters. -/
+  multiProofOf : Address → Bool
   /-- `keccak256(abi.encode(tx))` of the genesis transaction composed for a release, a chain
   id and a version (`L1GenesisUpgrade.sol:35-40`, `BaseZkSyncUpgrade.sol:179, 197`). -/
   genesisTxHash : Address → ChainId → ℕ → ℕ
@@ -585,9 +591,25 @@ L1 genesis upgrade as init (`ChainTypeManager.sol:322-325`). -/
 def genesisUpgradeCut (E : Env) (c : CTM) : DiamondCutData :=
   ⟨[], E.genesisUpgradeOf c.cur, .genesisUpgrade⟩
 
+/-- `Admin._executeDiamondCut` (`Admin.sol:117-128`): the cut, then the second-proof-system check
+on the state it leaves:
+
+    Diamond.diamondCut(_diamondCut);                                                // :118
+    if (s.secondProofSystemRequired) {                                              // :121
+        uint256 proofMode = IZKsyncOSVerifier(address(s.verifier)).getProofMode(0);  // :122
+        if (proofMode != ZKSYNC_OS_MULTI_PROOF_VERIFICATION_TYPE) {                  // :123
+            revert NotMultiProofMode(proofMode);                                     // :124
+        }
+    } -/
+def executeDiamondCut (E : Env) (c : CTM) (st : ChainState) (cut : DiamondCutData) :
+    Option ChainState :=
+  (diamondCut E c st cut).bind (fun st' =>
+    if st'.app.secondProofSystemRequired = true ∧ E.multiProofOf st'.app.verifier = false then none
+    else some st')
+
 /-- `Admin.genesisUpgrade()` (`Admin.sol:597-609`): `_executeDiamondCut(cutData)` (:608, :117-128). -/
 def adminGenesisUpgrade (E : Env) (c : CTM) (st : ChainState) : Option ChainState :=
-  diamondCut E c st (genesisUpgradeCut E c)
+  executeDiamondCut E c st (genesisUpgradeCut E c)
 
 /-- `Migrator.pauseDepositsBeforeInitiatingMigration()` (`Migrator.sol:105-129`):
 
@@ -778,6 +800,7 @@ def gEnv : Env where
   diamondInitOf := fun _ => 7
   genesisUpgradeOf := fun _ => 8
   verifierOf := fun _ => 9
+  multiProofOf := fun _ => true
   genesisTxHash := fun _ _ _ => 1
 
 /-- The witness world: `wWorld`'s versions and transitions, with each release's rows read off

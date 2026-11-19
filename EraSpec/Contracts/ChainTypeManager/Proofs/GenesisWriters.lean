@@ -195,7 +195,7 @@ theorem DiamondInitInstallsTheRelease : Properties.DiamondInitInstallsTheRelease
   refine ⟨hadd, addAll_empty hadd, ?_, ?_⟩
   · rw [hfz]; rfl
   · rw [happ]
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
 theorem DiamondInitCannotRerun : Properties.DiamondInitCannotRerun := by
   intro E c id admin st hl
@@ -208,7 +208,14 @@ theorem GenesisUpgradeCutIsEmpty : Properties.GenesisUpgradeCutIsEmpty :=
 
 theorem GenesisUpgradeWritesNoDiamondStorage : Properties.GenesisUpgradeWritesNoDiamondStorage := by
   intro E c st st' hcode h
-  unfold adminGenesisUpgrade diamondCut genesisUpgradeCut at h
+  unfold adminGenesisUpgrade executeDiamondCut at h
+  obtain ⟨st1, h, hg⟩ := Option.bind_eq_some_iff.mp h
+  have hst : st' = st1 := by
+    split_ifs at hg
+    simp only [Option.some.injEq] at hg
+    exact hg.symm
+  subst hst
+  unfold diamondCut genesisUpgradeCut at h
   simp only [applyFacetCuts, Option.bind_some] at h
   unfold initializeDiamondCut at h
   by_cases hz : E.genesisUpgradeOf c.cur = 0
@@ -459,11 +466,12 @@ transaction hash. -/
 lemma adminGenesisUpgrade_ok {E : Env} {c : CTM} {st : ChainState} (h0 : E.code 0 = .none)
     (hgu : E.code (E.genesisUpgradeOf c.cur) = .l1GenesisUpgrade)
     (hsl : st.app.settlementLayer = 0) (hh : st.app.l2SystemContractsUpgradeTxHash = 0)
-    (hb : st.app.l2SystemContractsUpgradeBatchNumber = 0) :
+    (hb : st.app.l2SystemContractsUpgradeBatchNumber = 0)
+    (hr : st.app.secondProofSystemRequired = false) :
     ∃ st', adminGenesisUpgrade E c st = some st' := by
   have hz : E.genesisUpgradeOf c.cur ≠ 0 := code_ne_zero h0 hgu rfl
-  simp [adminGenesisUpgrade, diamondCut, genesisUpgradeCut, applyFacetCuts, initializeDiamondCut,
-    hz, runInit, hgu, l1GenesisUpgradeRun, hsl, hh, hb]
+  simp [adminGenesisUpgrade, executeDiamondCut, diamondCut, genesisUpgradeCut, applyFacetCuts,
+    initializeDiamondCut, hz, runInit, hgu, l1GenesisUpgradeRun, hsl, hh, hb, hr]
 
 /-- With `DiamondInit` at the release's `diamondInit()`, deploying is running it on a new proxy. -/
 lemma deployNewChain_eq {E : Env} {c : CTM} {id : ChainId} {admin : Address}
@@ -484,8 +492,9 @@ lemma deployNewChain_ok {E : Env} {c : CTM} {id : ChainId} {admin : Address} {st
 theorem ValidatedReleaseCreatesChains : Properties.ValidatedReleaseCreatesChains := by
   intro W E c id admin ts h0 hc hG hwf hA hM
   obtain ⟨st1, h1⟩ := diamondInitialize_fresh_ok (id := id) (admin := admin) hc hwf
-  obtain ⟨-, hrt, hfz, -, -, hsl, hh, hb, hp⟩ := DiamondInitInstallsTheRelease E c id admin st1 h0 h1
-  obtain ⟨st2, h2⟩ := adminGenesisUpgrade_ok (c := c) h0 hG.genesisUpgrade hsl hh hb
+  obtain ⟨-, hrt, hfz, -, -, hsl, hh, hb, hp, hr⟩ :=
+    DiamondInitInstallsTheRelease E c id admin st1 h0 h1
+  obtain ⟨st2, h2⟩ := adminGenesisUpgrade_ok (c := c) h0 hG.genesisUpgrade hsl hh hb hr
   obtain ⟨hd2, -, ha2⟩ := GenesisUpgradeWritesNoDiamondStorage E c st1 st2 hG.genesisUpgrade h2
   obtain ⟨f, b, hfb, hfa⟩ := hA
   obtain ⟨f', b', hfb', hfm⟩ := hM
@@ -743,8 +752,8 @@ theorem GenesisWritersWitness : Properties.GenesisWritersWitness := by
   obtain ⟨st, hst⟩ := diamondInitialize_fresh_ok (c := initState gWorld 100) (id := 0) (admin := 1)
     hc gReleaseWf100
   obtain ⟨-, -, hcut, -, -⟩ := DiamondInitWrites gEnv _ 0 1 _ _ hst
-  obtain ⟨-, -, -, -, -, hsl, hh, hb, -⟩ := DiamondInitInstallsTheRelease gEnv _ 0 1 st h0 hst
-  obtain ⟨st', hst'⟩ := adminGenesisUpgrade_ok (c := initState gWorld 100) h0 rfl hsl hh hb
+  obtain ⟨-, -, -, -, -, hsl, hh, hb, -, hr⟩ := DiamondInitInstallsTheRelease gEnv _ 0 1 st h0 hst
+  obtain ⟨st', hst'⟩ := adminGenesisUpgrade_ok (c := initState gWorld 100) h0 rfl hsl hh hb hr
   exact ⟨h0, rfl, gEnv_genuine 100, gReleaseWf100, ⟨11, false, by decide, rfl⟩,
     ⟨12, true, by decide, rfl⟩, ⟨12, true, by decide, rfl⟩, newChainInstallations_add gEnv 100,
     ⟨_, hcut⟩, ⟨st, hst⟩, st, st', deployNewChain_ok h0 rfl hst, hst'⟩

@@ -8,7 +8,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ProofGateAtV35
 A v35 timed step is an `UpgradeTiming` step plus the `ProofEffect` of its routing step, so
 `ProofGateAtV35`'s two lemmas (`proofEffect_gate`, `gate_proofEffect`) give the step
 characterization. The `UpgradeTiming` results then transfer: necessary conditions through the
-projection `TimedRunIsATimedRun`, exact ones through `UnflaggedChainsUpgradeAsAtE561`. The
+projection `TimedRunIsATimedRun`, exact ones through `UnflaggedChainsUpgradeAsUngated`. The
 countermodel and the witness are concrete runs over `UpgradeTiming`'s witness configuration.
 -/
 
@@ -48,7 +48,7 @@ private lemma gate_timedEffect {T : TimedConfig} {P : ProofWorld} {s : TimedSys3
   | swapNotifier _ => exact ⟨_, TimedProofEffect.swapNotifier⟩
   | setAux _ _ => exact ⟨_, TimedProofEffect.setAux⟩
 
-theorem TimedStepIsTheE561StepPlusTheGate : Properties.TimedStepIsTheE561StepPlusTheGate := by
+theorem TimedStepIsTheUngatedStepPlusTheGate : Properties.TimedStepIsTheUngatedStepPlusTheGate := by
   intro T P s l t'
   constructor
   · rintro ⟨pr', h⟩
@@ -99,8 +99,8 @@ private lemma lift_timedEffect {T : TimedConfig} {P : ProofWorld} {s t' : TimedS
   | swapNotifier _ => exact ⟨_, TimedProofEffect.swapNotifier, hpr⟩
   | setAux _ _ => exact ⟨_, TimedProofEffect.setAux, hpr⟩
 
-theorem E561TimedRunsAreRunsWithoutTheRequirement :
-    Properties.E561TimedRunsAreRunsWithoutTheRequirement := by
+theorem UngatedTimedRunsAreRunsWithoutTheRequirement :
+    Properties.UngatedTimedRunsAreRunsWithoutTheRequirement := by
   intro T P s s' ls pr h hpr
   induction h generalizing pr with
   | nil => exact ⟨pr, TimedRun35.nil, hpr⟩
@@ -109,9 +109,9 @@ theorem E561TimedRunsAreRunsWithoutTheRequirement :
       obtain ⟨pr2, hrun, hpr2⟩ := ih pr1 hpr1
       exact ⟨pr2, TimedRun35.cons (TimedStep35.timed hs he) hrun, hpr2⟩
 
-theorem UnflaggedChainsUpgradeAsAtE561 : Properties.UnflaggedChainsUpgradeAsAtE561 := by
+theorem UnflaggedChainsUpgradeAsUngated : Properties.UnflaggedChainsUpgradeAsUngated := by
   intro T P s id path caller τ t' hreq
-  rw [TimedStepIsTheE561StepPlusTheGate T P s _ t']
+  rw [TimedStepIsTheUngatedStepPlusTheGate T P s _ t']
   refine ⟨fun h => h.1, fun h => ⟨h, ?_⟩⟩
   intro c _ hr
   exact absurd (hreq.symm.trans hr) (by decide)
@@ -344,7 +344,7 @@ theorem NotAtAnyTime : Properties.NotAtAnyTime := by
   intro P
   obtain ⟨s0, hrun, hut, hts, hc, hown, hadm, h9o, h9a, h9, h10o, h10a⟩ :=
     Contracts.ChainTypeManager.NotAtAnyTime
-  obtain ⟨pr', hrun35, hpr'⟩ := E561TimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0 s0
+  obtain ⟨pr', hrun35, hpr'⟩ := UngatedTimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0 s0
     wTimingSetup (fun _ => ⟨false, 0, 0⟩) hrun (fun _ => rfl)
   -- a v35 step from `⟨s0, pr'⟩` is an `UpgradeTiming` step from `s0`
   have proj : ∀ l s', TimedStep35 wTiming P ⟨s0, pr'⟩ (.timed l) s' → ∃ t', TimedStep wTiming s0 l t' := by
@@ -355,7 +355,7 @@ theorem NotAtAnyTime : Properties.NotAtAnyTime := by
   have lift : ∀ path caller τ, (∃ t', TimedStep wTiming s0 (.upgrade 0 path caller τ) t') →
       ∃ s', TimedStep35 wTiming P ⟨s0, pr'⟩ (.timed (.upgrade 0 path caller τ)) s' := by
     rintro path caller τ ⟨t', h⟩
-    obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsAtE561 wTiming P ⟨s0, pr'⟩ 0 path caller τ t'
+    obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsUngated wTiming P ⟨s0, pr'⟩ 0 path caller τ t'
       (hpr' 0)).mpr h
     exact ⟨_, h'⟩
   refine ⟨⟨s0, pr'⟩, hrun35, hut, hts, hc, hown, hadm, ?_, ?_, ?_, lift _ _ _ h10o, lift _ _ _ h10a⟩
@@ -503,10 +503,10 @@ theorem TimedRequirementWritersWitness : Properties.TimedRequirementWritersWitne
 theorem UnflaggedUpgradeWitness : Properties.UnflaggedUpgradeWitness := by
   intro P
   obtain ⟨s0, hrun, _, _, _, _, _, _, _, _, h10o, _⟩ := Contracts.ChainTypeManager.NotAtAnyTime
-  obtain ⟨pr', hrun35, hpr'⟩ := E561TimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0
+  obtain ⟨pr', hrun35, hpr'⟩ := UngatedTimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0
     s0 wTimingSetup (fun _ => ⟨false, 0, 0⟩) hrun (fun _ => rfl)
   obtain ⟨t', h⟩ := h10o
-  obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsAtE561 wTiming P ⟨s0, pr'⟩ 0 (.executor 300) 2 10
+  obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsUngated wTiming P ⟨s0, pr'⟩ 0 (.executor 300) 2 10
     t' (hpr' 0)).mpr h
   exact ⟨s0, ⟨s0, pr'⟩, hrun, fun _ => rfl, hrun35, rfl, hpr', ⟨t', h⟩, ⟨_, h'⟩⟩
 

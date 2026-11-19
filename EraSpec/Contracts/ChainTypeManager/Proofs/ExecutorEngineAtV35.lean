@@ -6,7 +6,7 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 # Proofs: `applyInfrastructureUpgrade` at `draft/v0.35.0`, with an arbitrary engine
 
 A leg whose engine meets `EngineReviewed` is three `ExecutorForward` transactions: a `forward`
-of the `_beforeSwaps` calls, the `e561b9cc2` infrastructure step, and a `forward` of the
+of the `_beforeSwaps` calls, the `ExecutorForward` infrastructure step, and a `forward` of the
 `_afterSwaps` calls (`reviewed_leg`). The hook calls are tame CTM calls, so for rows that do
 not name the CTM proxy a reviewed engine is tame (`reviewed_tame`). A `b17415d20` run of tame
 transactions with tame engines maps to a tame `ExecutorForward` run (`tame_run`), and
@@ -105,7 +105,7 @@ lemma tame_toX {X : V35Config} {l : V35Label} {x : XLabel} (hl : l.toX? = some x
       simp only [V35Label.toX?, Option.some.injEq] at hl
       subst hl; trivial
 
-/-! ## A reviewed leg is an `e561b9cc2` executor run -/
+/-! ## A reviewed leg is an `ExecutorForward` executor run -/
 
 lemma reviewed_leg {X : V35Config} {T : V35Transition} {s s' : V35State}
     (hr : EngineReviewed X T) (h : V35Step X s (.infra T) s') :
@@ -772,7 +772,7 @@ theorem BeforeHookDefeatsTheSourceCheck : Properties.BeforeHookDefeatsTheSourceC
     (by show s.x.impl 5 ≠ 10; rw [h5]; decide) (by show s.x.impl 5 ≠ 11; rw [h5]; decide)
     ⟨s', hleg⟩
 
-/-! ### The `e561b9cc2` premises no longer suffice -/
+/-! ### The `ExecutorForward` premises no longer suffice -/
 
 theorem TameRunsNoLongerPreserveSysInv : Properties.TameRunsNoLongerPreserveSysInv := by
   intro hall
