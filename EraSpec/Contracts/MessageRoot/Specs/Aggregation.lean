@@ -4,11 +4,13 @@ import EraSpec.Core.Word
 /-!
 # Model: `MessageRootBase` — chain trees, the shared tree, and the historical roots
 
-Source: `l1-contracts/contracts/core/message-root/MessageRootBase.sol` in the pinned era-contracts
-tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), with `L1MessageRoot.sol`,
+Source: `l1-contracts/contracts/core/message-root/MessageRootBase.sol` at era-contracts
+`draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, with `L1MessageRoot.sol`,
 `common/libraries/MessageHashing.sol`, `core/bridgehub/L1Bridgehub.sol` and
 `core/chain-asset-handler/ChainAssetHandlerBase.sol` from the same tree. A bare `:N` is a line of
-`MessageRootBase.sol`.
+`MessageRootBase.sol`. This is the same code as the canonical model `Specs/Model.lean`, seen with
+ghost state (which leaf each historical root counts); see "Relation to the canonical model"
+below.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.MessageRoot.Properties.Aggregation` and are proved in
@@ -30,74 +32,71 @@ half.
 
 ## The code
 
-    // _pushChainBatchRoot (:247-271), the interop half of the v32 flow
-    uint256 l1Timestamp = block.timestamp;                                          // :251
-    chainBatchRootTimestamp[_chainId][_batchNumber] = l1Timestamp;                  // :252
+    // _pushChainBatchRoot (:201-220), the interop half of the v32 flow
+    uint256 l1Timestamp = block.timestamp;                                          // :202
+    chainBatchRootTimestamp[_chainId][_batchNumber] = l1Timestamp;                  // :203
     (, chainRoot) = chainTree[_chainId].push(
-        MessageHashing.batchLeafHash(_chainBatchRoot, _batchNumber, l1Timestamp));  // :257-259
+        MessageHashing.batchLeafHash(_chainBatchRoot, _batchNumber, l1Timestamp));  // :207-209
     bytes32 cachedChainIdLeafHash =
-        MessageHashing.chainIdLeafHash(chainRoot, _chainId);                         // :264
+        MessageHashing.chainIdLeafHash(chainRoot, _chainId);                         // :213
     bytes32 sharedTreeRoot =
-        sharedTree.updateLeaf(chainIndex[_chainId], cachedChainIdLeafHash);          // :265
+        sharedTree.updateLeaf(chainIndex[_chainId], cachedChainIdLeafHash);          // :214
     _emitRoot(sharedTreeRoot);
-    _recordHistoricalRoot(sharedTreeRoot);                                          // :270
+    _recordHistoricalRoot(sharedTreeRoot);                                          // :219
 
-    // _recordHistoricalRoot (:275-277)
+    // _recordHistoricalRoot (:223-225)
     historicalRoots[block.number] =
-        StoredInteropRoot({root: _sharedTreeRoot, timestamp: block.timestamp});      // :276
+        StoredInteropRoot({root: _sharedTreeRoot, timestamp: block.timestamp});      // :224
 
-    // _recordChainBatchRoot (:228-243), shared by both add-chain-batch-root flows
-    if (!chainRegistered(_chainId)) revert MessageRootNotRegistered();              // :230-232
-    require(_chainBatchRoot != bytes32(0), ChainBatchRootZero());                   // :233
-    require(chainBatchRoots[_chainId][_batchNumber] == bytes32(0), ...);            // :234-237
-    uint256 expectedNewChainBatchNumber = currentChainBatchNumber[_chainId] + 1;    // :238
-    require(_batchNumber == expectedNewChainBatchNumber, NonConsecutiveBatchNumber(...)); // :239
-    chainBatchRoots[_chainId][_batchNumber] = _chainBatchRoot;                      // :241
-    currentChainBatchNumber[_chainId] = expectedNewChainBatchNumber;                // :242
+    // _recordChainBatchRoot (:183-197), shared by both add-chain-batch-root flows
+    if (!chainRegistered(_chainId)) revert MessageRootNotRegistered();              // :184-186
+    require(_chainBatchRoot != bytes32(0), ChainBatchRootZero());                   // :187
+    require(chainBatchRoots[_chainId][_batchNumber] == bytes32(0), ...);            // :188-191
+    uint256 expectedNewChainBatchNumber = currentChainBatchNumber[_chainId] + 1;    // :192
+    require(_batchNumber == expectedNewChainBatchNumber, NonConsecutiveBatchNumber(...)); // :193
+    chainBatchRoots[_chainId][_batchNumber] = _chainBatchRoot;                      // :195
+    currentChainBatchNumber[_chainId] = expectedNewChainBatchNumber;                // :196
 
-    // addChainBatchRoot (:199-205): record ONLY (the v31 flow)
-    // addChainBatchRootV32 (:217-224): record, then _pushChainBatchRoot
+    // addChainBatchRoot (:164-170): record ONLY (the v31 flow)
+    // addChainBatchRootV32 (:173-180): record, then _pushChainBatchRoot
 
-    // _addNewChain (:339-358)
-    ++chainCount; chainIndex[_chainId] = cachedChainCount;                          // :344-345
-    chainIndexToId[cachedChainCount] = _chainId;                                    // :346
-    currentChainBatchNumber[_chainId] = _startingBatchNumber;                       // :347
-    chainTree[_chainId].setup(CHAIN_TREE_EMPTY_ENTRY_HASH);                         // :350
-    sharedTree.pushNewLeaf(MessageHashing.chainIdLeafHash(bytes32(0), _chainId));   // :352
-    _emitRoot(sharedTreeRoot); _recordHistoricalRoot(sharedTreeRoot);               // :356-357
+    // _addNewChain (:275-293)
+    ++chainCount; chainIndex[_chainId] = cachedChainCount;                          // :279-280
+    chainIndexToId[cachedChainCount] = _chainId;                                    // :281
+    currentChainBatchNumber[_chainId] = _startingBatchNumber;                       // :282
+    chainTree[_chainId].setup(CHAIN_TREE_EMPTY_ENTRY_HASH);                         // :285
+    sharedTree.pushNewLeaf(MessageHashing.chainIdLeafHash(bytes32(0), _chainId));   // :287
+    _emitRoot(sharedTreeRoot); _recordHistoricalRoot(sharedTreeRoot);               // :291-292
 
-    // seedGenesisRoot (:364-387): genesis root r = zkChain.l2LogsRootHash(0) of a ZKsync OS chain
-    require(r != 0); registered; require(currentChainBatchNumber[_chainId] == 0);   // :374-380
-    require(chainBatchRoots[_chainId][0] == bytes32(0));                            // :381
-    chainBatchRoots[_chainId][0] = r; _pushChainBatchRoot(_chainId, 0, r);          // :383-386
+    // seedGenesisRoot (:296-314): genesis root r = zkChain.l2LogsRootHash(0) of a ZKsync OS chain
+    require(r != 0); registered; require(currentChainBatchNumber[_chainId] == 0);   // :303-308
+    require(chainBatchRoots[_chainId][0] == bytes32(0));                            // :309
+    chainBatchRoots[_chainId][0] = r; _pushChainBatchRoot(_chainId, 0, r);          // :311-313
 
-    // setMigratingChainBatchNumber (:178-183), onlyChainAssetHandler, no registration check
-    require(currentChainBatchNumber[_chainId] <= _batchNumber, ...);                // :181
-    currentChainBatchNumber[_chainId] = _batchNumber;                               // :182
+    // setMigratingChainBatchNumber (:153-157), onlyChainAssetHandler, no registration check
+    require(currentChainBatchNumber[_chainId] <= _batchNumber, ...);                // :155
+    currentChainBatchNumber[_chainId] = _batchNumber;                               // :156
 
-`chainRegistered(c)` is `c == block.chainid || chainIndex[c] != 0` (:185-187), and `_initialize`
-(:162-166) sets the shared tree up and registers `block.chainid` at index 0.
+`chainRegistered(c)` is `c == block.chainid || chainIndex[c] != 0` (:159-161), and `_initialize`
+(:138-142) sets the shared tree up and registers `block.chainid` at index 0.
 
-## The inventory the model rests on (checked against the pinned tree)
+## The inventory the model rests on (checked against `b17415d20`)
 
-* `historicalRoots` (:86) has one writer, `_recordHistoricalRoot` (:276), called from
-  `_pushChainBatchRoot` (:270) and `_addNewChain` (:357). It is keyed by `block.number`, so a later
+* `historicalRoots` (:75) has one writer, `_recordHistoricalRoot` (:224), called from
+  `_pushChainBatchRoot` (:219) and `_addNewChain` (:292). It is keyed by `block.number`, so a later
   write in the same block overwrites an earlier one.
-* `chainTree[c]` (:69) is written by `_addNewChain` (`setup`, :350) and `_pushChainBatchRoot`
-  (`push`, :257); `sharedTree` (:64) by `_initialize` (`setup`, :164), `_addNewChain`
-  (`pushNewLeaf`, :352) and `_pushChainBatchRoot` (`updateLeaf`, :265).
-* `chainBatchRoots` (:101) is written at :241 and :383, both guarded by "still zero";
-  `chainBatchRootTimestamp` (:108) only at :252.
-* `currentChainBatchNumber` (:95) is written at :182, :242, :347, and by
-  `L1MessageRoot.saveV31UpgradeChainBatchNumber` (`L1MessageRoot.sol:99-117`: it writes
-  `totalBatchesExecuted` under `require(currentChainBatchNumber[_chainId] == 0)`, :113-115). On the
-  modelled state that last writer is a `setMigratingChainBatchNumber` step (its guard implies
-  `current ≤ n`), so it is covered by that constructor.
-* Callers: `addNewChain` is `onlyBridgehubOrChainAssetHandler` (:170); the Bridgehub registers a
-  fresh chain at start 0 and seeds it (`L1Bridgehub.sol:141-142`), and onboards an existing chain
-  at `getTotalBatchesExecuted()` (`L1Bridgehub.sol:309, 323`); the chain asset handler registers a
-  migrating chain at its batch number or moves a returning chain's number with
-  `setMigratingChainBatchNumber` (`ChainAssetHandlerBase.sol:380, 386`).
+* `chainTree[c]` (:69) is written by `_addNewChain` (`setup`, :285) and `_pushChainBatchRoot`
+  (`push`, :207); `sharedTree` (:64) by `_initialize` (`setup`, :140), `_addNewChain`
+  (`pushNewLeaf`, :287) and `_pushChainBatchRoot` (`updateLeaf`, :214).
+* `chainBatchRoots` (:90) is written at :195 and :311, both guarded by "still zero";
+  `chainBatchRootTimestamp` (:104) only at :203.
+* `currentChainBatchNumber` (:84) is written at :156, :196 and :282, and nowhere else under
+  `l1-contracts/contracts`.
+* Callers: `addNewChain` is `onlyBridgehubOrChainAssetHandler` (:145); the Bridgehub registers a
+  fresh chain at start 0 and seeds it (`L1Bridgehub.sol:134-135`), and onboards an existing chain
+  at `getTotalBatchesExecuted()` (`L1Bridgehub.sol:302, 316`); the chain asset handler registers a
+  migrating chain at its batch number, with no genesis leaf, or moves a returning chain's number
+  with `setMigratingChainBatchNumber` (`ChainAssetHandlerBase.sol:409, 414`).
 
 ## Modelling choices
 
@@ -126,25 +125,28 @@ half.
   `seedGenesisRoot`). They only reject, so omitting them adds runs, and every result that holds of
   all runs holds a fortiori of the runs the callers allow. The existential statements of the
   Properties module are the exception: a run they exhibit is a run of the model, and where its
-  steps need a caller the pinned code does not have, its docstring says so. Arithmetic is on `ℕ`, so
+  steps need a caller the code does not have, its docstring says so. Arithmetic is on `ℕ`, so
   the checked increments that revert at `2^256 - 1` never do here (more runs again). Also omitted:
-  events and `interopRootLogId` (:288-303), message verification (:393-452),
-  `v31UpgradeChainBatchNumber` (`L1MessageRoot.sol:54`), and the external reads of
-  `seedGenesisRoot` (the genesis root is a parameter of the step, and its no-op branch for
-  non-ZKsync-OS chains, :369-371, writes nothing).
+  events and `interopRootLogId` (:233-246), message verification (:316-375),
+  `v31UpgradeChainBatchNumber` (`L1MessageRoot.sol:46`), and the external read of
+  `seedGenesisRoot` (the genesis root is a parameter of the step).
 * **Runs start at `_initialize`** (`init`), at any block and timestamp. A MessageRoot upgraded in
-  place without `_initialize` (`L1MessageRoot.initializeL1V31Upgrade`, `L1MessageRoot.sol:86-89`)
-  starts from storage the model does not construct and is not covered.
+  place from an earlier release starts from storage the model does not construct and is not
+  covered.
 
-## Later heads
+## Relation to the canonical model
 
-The cited lines are at `c67894b9`. At `draft/v0.35.0` `b17415d20`, the modelled functions of
-`MessageRootBase.sol` are the same apart from line numbers, the internal getters' names
-(`_getBridgehub`, `_getChainAssetHandler`), the storage order of three variables, and
-`seedGenesisRoot`, which no longer has the non-ZKsync-OS no-op branch (the model never took it).
-`L1MessageRoot.saveV31UpgradeChainBatchNumber` is gone there, so `setMigratingChainBatchNumber`
-is the only writer of `currentChainBatchNumber` besides `_recordChainBatchRoot` and
-`_addNewChain`. The model was not re-pinned.
+This topic was first written at the interop pin `c67894b9` and re-pinned to `b17415d20`: the
+modelled functions differ there only in line numbers, the internal getters' names, the storage
+order of three variables, a non-ZKsync-OS no-op branch of `seedGenesisRoot` and the writer
+`L1MessageRoot.saveV31UpgradeChainBatchNumber`, neither of which this model took or needs.
+
+`Specs/Model.lean` is the canonical model of the same code: every entry point, the `FullMerkle`
+shared tree, callers, the checked increments and per-call environments. This topic keeps a coarser
+view with ghost state (leaf preimages, push blocks, the leaf counts of each historical root) and a
+block clock with a timestamp rule, because its statements are about that ghost state. Its steps
+omit the caller checks and the overflow reverts, which only adds runs. No simulation between the
+two models is proved (`handoff/2026-11-19/consolidation/roots.md`).
 
 ## Pushed positions, not batch numbers
 
@@ -168,45 +170,45 @@ abbrev ChainId := UInt256
 /-- The four hashes `MessageRootBase` composes. Abstract: no injectivity or other premise. -/
 structure Hashes where
   /-- `MessageHashing.batchLeafHash(batchRoot, batchNumber, l1Timestamp)`
-  (`MessageHashing.sol:78-84`). -/
+  (`MessageHashing.sol:76-82`). -/
   batchLeaf : Word → ℕ → ℕ → Word
-  /-- `MessageHashing.chainIdLeafHash(chainRoot, chainId)` (`MessageHashing.sol:89-91`). -/
+  /-- `MessageHashing.chainIdLeafHash(chainRoot, chainId)` (`MessageHashing.sol:87-89`). -/
   chainIdLeaf : Word → ChainId → Word
-  /-- The root `chainTree[c].push` returns (:257), over all leaf hashes pushed so far. -/
+  /-- The root `chainTree[c].push` returns (:207), over all leaf hashes pushed so far. -/
   chainRoot : List Word → Word
-  /-- The root `sharedTree.pushNewLeaf` / `updateLeaf` return (:265, :352), over the leaf list. -/
+  /-- The root `sharedTree.pushNewLeaf` / `updateLeaf` return (:214, :287), over the leaf list. -/
   sharedRoot : List Word → Word
 
 /-- The deployment constants. -/
 structure Params where
-  /-- `block.chainid` of the chain the contract is deployed on; registered at index 0 (:165). -/
+  /-- `block.chainid` of the chain the contract is deployed on; registered at index 0 (:141). -/
   self : ChainId
   /-- The hashes. -/
   H : Hashes
 
 /-! ## State -/
 
-/-- One leaf of a chain tree, with its preimage: what `_pushChainBatchRoot` hashed (:257-259). -/
+/-- One leaf of a chain tree, with its preimage: what `_pushChainBatchRoot` hashed (:207-209). -/
 structure Leaf where
   /-- `_batchNumber`. -/
   batch : ℕ
   /-- `_chainBatchRoot`. -/
   root : Word
-  /-- `l1Timestamp = block.timestamp` at the push (:251). -/
+  /-- `l1Timestamp = block.timestamp` at the push (:202). -/
   ts : ℕ
   /-- Ghost: `block.number` at the push. The contract does not store it. -/
   blk : ℕ
 deriving DecidableEq
 
-/-- The leaf hash the chain tree stores (:258). -/
+/-- The leaf hash the chain tree stores (:208). -/
 def Leaf.hash (H : Hashes) (l : Leaf) : Word := H.batchLeaf l.root l.batch l.ts
 
-/-- One `historicalRoots[blockNumber]` entry (:86, `StoredInteropRoot`, `Messaging.sol:170-173`),
+/-- One `historicalRoots[blockNumber]` entry (:75, `StoredInteropRoot`, `Messaging.sol:161-164`),
 plus the ghost count of what it aggregated. -/
 structure HistEntry where
   /-- `root`: the shared tree root when it was written. -/
   root : Word
-  /-- `timestamp`: `block.timestamp` when it was written (:276). -/
+  /-- `timestamp`: `block.timestamp` when it was written (:224). -/
   ts : ℕ
   /-- Ghost: the number of leaves of each chain tree when it was written. -/
   count : ChainId → ℕ
@@ -223,44 +225,44 @@ structure State where
   chainIndex : ChainId → ℕ
   /-- `chainIndexToId` (:60). -/
   chainIndexToId : ℕ → ChainId
-  /-- `currentChainBatchNumber` (:95). -/
+  /-- `currentChainBatchNumber` (:84). -/
   current : ChainId → ℕ
-  /-- `chainBatchRoots` (:101); `0` is "none". -/
+  /-- `chainBatchRoots` (:90); `0` is "none". -/
   batchRoot : ChainId → ℕ → Word
-  /-- `chainBatchRootTimestamp` (:108); `0` is "none". -/
+  /-- `chainBatchRootTimestamp` (:104); `0` is "none". -/
   batchTs : ChainId → ℕ → ℕ
   /-- `chainTree[c]` (:69), as its pushed leaves, oldest first. -/
   leaves : ChainId → List Leaf
   /-- `sharedTree` (:64), as its leaf list in index order. -/
   shared : List Word
-  /-- `historicalRoots` (:86); `none` is the default `(0, 0)`. -/
+  /-- `historicalRoots` (:75); `none` is the default `(0, 0)`. -/
   hist : ℕ → Option HistEntry
 
-/-- `chainRegistered(c)` (:185-187). -/
+/-- `chainRegistered(c)` (:159-161). -/
 def State.Registered (P : Params) (st : State) (c : ChainId) : Prop :=
   c = P.self ∨ st.chainIndex c ≠ 0
 
-/-- The `(root, timestamp)` pair `historicalRoot(b)` returns (:281-283). -/
+/-- The `(root, timestamp)` pair `historicalRoot(b)` returns (:228-230). -/
 def State.historicalRoot (st : State) (b : ℕ) : Word × ℕ :=
   match st.hist b with
   | some e => (e.root, e.ts)
   | none => (0, 0)
 
 /-- The chain root a chain's shared-tree leaf commits to: `bytes32(0)` while the tree is empty
-(:352), else the root `push` returned for its leaves (:257, :264). -/
+(:287), else the root `push` returned for its leaves (:207, :213). -/
 def chainRootVal (H : Hashes) : List Leaf → Word
   | [] => 0
   | ls => H.chainRoot (ls.map (Leaf.hash H))
 
 /-! ## Effects -/
 
-/-- `_recordHistoricalRoot` after a tree update (:275-277): the current shared root, the current
+/-- `_recordHistoricalRoot` after a tree update (:223-225): the current shared root, the current
 timestamp, and (ghost) the current chain-tree sizes. -/
 def State.writeHist (P : Params) (st : State) : State :=
   let e : HistEntry := ⟨P.H.sharedRoot st.shared, st.time, fun c => (st.leaves c).length⟩
   { st with hist := Function.update st.hist st.block (some e) }
 
-/-- `_addNewChain(c, start)` (:339-358). -/
+/-- `_addNewChain(c, start)` (:275-293). -/
 def State.addChain (P : Params) (st : State) (c : ChainId) (start : ℕ) : State :=
   State.writeHist P
     { st with
@@ -271,18 +273,18 @@ def State.addChain (P : Params) (st : State) (c : ChainId) (start : ℕ) : State
       leaves := Function.update st.leaves c []
       shared := st.shared ++ [P.H.chainIdLeaf 0 c] }
 
-/-- `chainBatchRoots[c][b] = r` (:241, :383). -/
+/-- `chainBatchRoots[c][b] = r` (:195, :311). -/
 def State.setBatchRoot (st : State) (c : ChainId) (b : ℕ) (r : Word) : State :=
   { st with batchRoot := Function.update st.batchRoot c (Function.update (st.batchRoot c) b r) }
 
-/-- The effect of `_recordChainBatchRoot(c, b, r)` once its checks pass (:241-242). -/
+/-- The effect of `_recordChainBatchRoot(c, b, r)` once its checks pass (:195-196). -/
 def State.record (st : State) (c : ChainId) (b : ℕ) (r : Word) : State :=
   { st.setBatchRoot c b r with current := Function.update st.current c b }
 
-/-- The leaf `_pushChainBatchRoot(c, b, r)` pushes in state `st` (:251, :257-259). -/
+/-- The leaf `_pushChainBatchRoot(c, b, r)` pushes in state `st` (:202, :207-209). -/
 def State.newLeaf (st : State) (b : ℕ) (r : Word) : Leaf := ⟨b, r, st.time, st.block⟩
 
-/-- `_pushChainBatchRoot(c, b, r)` (:247-271). -/
+/-- `_pushChainBatchRoot(c, b, r)` (:201-220). -/
 def State.push (P : Params) (st : State) (c : ChainId) (b : ℕ) (r : Word) : State :=
   let ls := st.leaves c ++ [st.newLeaf b r]
   State.writeHist P
@@ -291,11 +293,11 @@ def State.push (P : Params) (st : State) (c : ChainId) (b : ℕ) (r : Word) : St
       leaves := Function.update st.leaves c ls
       shared := st.shared.set (st.chainIndex c) (P.H.chainIdLeaf (chainRootVal P.H ls) c) }
 
-/-- `seedGenesisRoot(c)` with genesis root `r` once its checks pass (:383-386). -/
+/-- `seedGenesisRoot(c)` with genesis root `r` once its checks pass (:311-313). -/
 def State.seed (P : Params) (st : State) (c : ChainId) (r : Word) : State :=
   (st.setBatchRoot c 0 r).push P c 0 r
 
-/-- `setMigratingChainBatchNumber(c, b)` once its check passes (:182). -/
+/-- `setMigratingChainBatchNumber(c, b)` once its check passes (:156). -/
 def State.migrate (st : State) (c : ChainId) (b : ℕ) : State :=
   { st with current := Function.update st.current c b }
 
@@ -305,26 +307,26 @@ def State.advance (st : State) (τ : ℕ) : State :=
 
 /-! ## Guards -/
 
-/-- The checks of `_recordChainBatchRoot(c, b, r)` (:230-239). -/
+/-- The checks of `_recordChainBatchRoot(c, b, r)` (:184-193). -/
 structure RecordGuard (P : Params) (st : State) (c : ChainId) (b : ℕ) (r : Word) : Prop where
-  /-- `MessageRootNotRegistered` (:230-232). -/
+  /-- `MessageRootNotRegistered` (:184-186). -/
   registered : st.Registered P c
-  /-- `ChainBatchRootZero` (:233). -/
+  /-- `ChainBatchRootZero` (:187). -/
   nonzero : r ≠ 0
-  /-- `ChainBatchRootAlreadyExists` (:234-237). -/
+  /-- `ChainBatchRootAlreadyExists` (:188-191). -/
   fresh : st.batchRoot c b = 0
-  /-- `NonConsecutiveBatchNumber` (:238-239). -/
+  /-- `NonConsecutiveBatchNumber` (:192-193). -/
   consecutive : b = st.current c + 1
 
-/-- The checks of `seedGenesisRoot(c)` with genesis root `r` (:374-381). -/
+/-- The checks of `seedGenesisRoot(c)` with genesis root `r` (:303-309). -/
 structure SeedGuard (P : Params) (st : State) (c : ChainId) (r : Word) : Prop where
-  /-- `ChainBatchRootZero` (:374). -/
+  /-- `ChainBatchRootZero` (:303). -/
   nonzero : r ≠ 0
-  /-- `MessageRootNotRegistered` (:375-377). -/
+  /-- `MessageRootNotRegistered` (:304-306). -/
   registered : st.Registered P c
-  /-- `NonConsecutiveBatchNumber(_chainId, 0)` (:380). -/
+  /-- `NonConsecutiveBatchNumber(_chainId, 0)` (:308). -/
   atGenesis : st.current c = 0
-  /-- `ChainBatchRootAlreadyExists(_chainId, 0)` (:381). -/
+  /-- `ChainBatchRootAlreadyExists(_chainId, 0)` (:309). -/
   unseeded : st.batchRoot c 0 = 0
 
 /-- How `block.timestamp` moves from one block to the next: a premise about the chain the
@@ -345,19 +347,19 @@ def TsRule.Allows : TsRule → ℕ → ℕ → Prop
 
 /-- One transaction that changes the modelled state, or a new block. -/
 inductive Step (P : Params) (r : TsRule) : State → State → Prop
-  /-- `addNewChain(c, start)` (:170-175): `ChainExists` unless unregistered. -/
+  /-- `addNewChain(c, start)` (:145-150): `ChainExists` unless unregistered. -/
   | addNewChain {st : State} (c : ChainId) (start : ℕ) :
       ¬ st.Registered P c → Step P r st (st.addChain P c start)
-  /-- `seedGenesisRoot(c)` of a ZKsync OS chain whose genesis root is `g` (:364-387). -/
+  /-- `seedGenesisRoot(c)` of a ZKsync OS chain whose genesis root is `g` (:296-314). -/
   | seedGenesisRoot {st : State} (c : ChainId) (g : Word) :
       SeedGuard P st c g → Step P r st (st.seed P c g)
-  /-- `addChainBatchRoot(c, b, root)` (:199-205): record only, no push. -/
+  /-- `addChainBatchRoot(c, b, root)` (:164-170): record only, no push. -/
   | addChainBatchRoot {st : State} (c : ChainId) (b : ℕ) (root : Word) :
       RecordGuard P st c b root → Step P r st (st.record c b root)
-  /-- `addChainBatchRootV32(c, b, root)` (:217-224): record, then push. -/
+  /-- `addChainBatchRootV32(c, b, root)` (:173-180): record, then push. -/
   | addChainBatchRootV32 {st : State} (c : ChainId) (b : ℕ) (root : Word) :
       RecordGuard P st c b root → Step P r st ((st.record c b root).push P c b root)
-  /-- `setMigratingChainBatchNumber(c, b)` (:178-183); also `saveV31UpgradeChainBatchNumber`. -/
+  /-- `setMigratingChainBatchNumber(c, b)` (:153-157); also `saveV31UpgradeChainBatchNumber`. -/
   | setMigratingChainBatchNumber {st : State} (c : ChainId) (b : ℕ) :
       st.current c ≤ b → Step P r st (st.migrate c b)
   /-- A new block, with a timestamp the rule allows. -/
@@ -382,7 +384,7 @@ def blank (b0 τ0 : ℕ) : State where
   shared := []
   hist := fun _ => none
 
-/-- `_initialize()` (:162-166): the shared tree is set up empty, and `block.chainid` is added at
+/-- `_initialize()` (:138-142): the shared tree is set up empty, and `block.chainid` is added at
 index 0 with starting batch 0. -/
 def init (P : Params) (b0 τ0 : ℕ) : State := (blank b0 τ0).addChain P P.self 0
 
@@ -393,7 +395,7 @@ def Reachable (P : Params) (r : TsRule) (st : State) : Prop :=
 /-! ## The settlement clock and the aggregation properties -/
 
 /-- **THE SETTLEMENT CLOCK, BY PUSHED POSITION.** The `l1Timestamp` of chain `c`'s `i`-th leaf
-(:251, bound into the leaf at :258). A position not yet pushed has not settled; it gets
+(:202, bound into the leaf at :208). A position not yet pushed has not settled; it gets
 `time + 1`, later than every timestamp so far. -/
 def State.leafTime (st : State) (c : ChainId) (i : ℕ) : ℕ :=
   match (st.leaves c)[i]? with

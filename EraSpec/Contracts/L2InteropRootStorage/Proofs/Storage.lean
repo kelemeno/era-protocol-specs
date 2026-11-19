@@ -9,8 +9,7 @@ root there.  A successful external call is the bootloader's and is a sequence of
 (`exec_eq_some`), so a logged run from `S₀` is `addRoots S₀ (imports log)` (`reachLog_addRoots`)
 and the log-level results are inductions on that list.  Relations that are reflexive,
 transitive and hold of one import hold of every run (`reach_of_addRoot_rel`).  The `c67894b9`
-contract is the projection of this one call by call (`execAtC67_eq`), and runs lift and project
-(`reachAtC67_lifts`, `reach_projects`); the two `c67894b9` results follow from this model's.
+pin record is `../History/Proofs/AtC67894b9.lean`.
 -/
 
 namespace Contracts.InteropRootStorage
@@ -589,84 +588,6 @@ theorem stored_timestamp_stays_below_latest {S S' : State} (h0 : Reach empty S) 
   le_trans ((latest_is_max_invariant.2 _ _ h0 latest_is_max_invariant.1).1 c b)
     (latest_never_decreases h c)
 
-/-! ### The contract at `c67894b9` -/
-
-lemma addInteropRootAtC67_eq (S : State) (chainId blockOrBatchNumber timestamp : UInt256)
-    (sides : List UInt256) :
-    addInteropRootAtC67 S.storedInteropRoots chainId blockOrBatchNumber timestamp sides =
-      (addInteropRoot S chainId blockOrBatchNumber timestamp sides).map State.storedInteropRoots := by
-  unfold addInteropRootAtC67 addInteropRoot
-  split_ifs <;> rfl
-
-lemma addRootsAtC67_eq (rs : List InteropRoot) (S : State) :
-    addRootsAtC67 S.storedInteropRoots rs = (addRoots S rs).map State.storedInteropRoots := by
-  induction rs generalizing S with
-  | nil => rfl
-  | cons r rs ih =>
-    have h := addInteropRootAtC67_eq S r.chainId r.blockOrBatchNumber r.timestamp r.sides
-    simp only [addRootsAtC67, addRoots, addRoot]
-    rw [h]
-    cases addInteropRoot S r.chainId r.blockOrBatchNumber r.timestamp r.sides with
-    | none => rfl
-    | some S₁ => exact ih S₁
-
-lemma execAtC67_eq (S : State) (caller : Address) (c : Call) :
-    execAtC67 S.storedInteropRoots caller c = (exec S caller c).map State.storedInteropRoots := by
-  cases c with
-  | single r =>
-    simp only [execAtC67, exec, addSingleInteropRoot, Call.roots]
-    split_ifs
-    · rfl
-    · rw [addRootsAtC67_eq, addRoots_singleton]
-  | batch rs =>
-    simp only [execAtC67, exec, addInteropRootsInBatch, Call.roots]
-    split_ifs
-    · rfl
-    · exact addRootsAtC67_eq rs S
-
-lemma reach_projects {S S' : State} (h : Reach S S') :
-    ReachAtC67 S.storedInteropRoots S'.storedInteropRoots := by
-  induction h with
-  | refl => exact ReachAtC67.refl
-  | tail _ hstep ih =>
-    obtain ⟨caller, c, hexec⟩ := hstep
-    exact ReachAtC67.tail caller c ih (by rw [execAtC67_eq, hexec]; rfl)
-
-lemma reachAtC67_lifts {R R' : RootsAtC67} (h : ReachAtC67 R R') (L : UInt256 → UInt256) :
-    ∃ L', Reach ⟨R, L⟩ ⟨R', L'⟩ := by
-  induction h with
-  | refl => exact ⟨L, Reach.refl⟩
-  | @tail T U caller c _ hexec ih =>
-    obtain ⟨L', hreach⟩ := ih
-    have hproj := execAtC67_eq ⟨T, L'⟩ caller c
-    rw [hexec] at hproj
-    cases hS : exec ⟨T, L'⟩ caller c with
-    | none => rw [hS] at hproj; exact absurd hproj (by simp)
-    | some S'' =>
-      rw [hS] at hproj
-      obtain rfl : _ = S''.storedInteropRoots := Option.some.inj hproj
-      exact ⟨S''.latestInteropRootTimestamp, Reach.tail hreach (Step.call caller c hS)⟩
-
-theorem c67894b9_runs_are_projected_runs (R R' : RootsAtC67) :
-    ReachAtC67 R R' ↔ ∀ L : UInt256 → UInt256, ∃ L', Reach ⟨R, L⟩ ⟨R', L'⟩ := by
-  constructor
-  · intro h L
-    exact reachAtC67_lifts h L
-  · intro h
-    obtain ⟨_, hreach⟩ := h (fun _ => 0)
-    exact reach_projects hreach
-
-theorem no_overwrite_at_c67894b9 {R R' : RootsAtC67} (h : ReachAtC67 R R') {c b : UInt256}
-    (hset : (R c b).root ≠ 0) : R' c b = R c b := by
-  obtain ⟨_, hreach⟩ := reachAtC67_lifts h (fun _ => 0)
-  exact no_overwrite hreach hset
-
-theorem zero_timestamp_iff_unset_at_c67894b9 {R : RootsAtC67}
-    (h : ReachAtC67 empty.storedInteropRoots R) (c b : UInt256) :
-    (R c b).root = 0 ↔ (R c b).timestamp = 0 := by
-  obtain ⟨_, hreach⟩ := reachAtC67_lifts h (fun _ => 0)
-  exact zero_timestamp_iff_unset_invariant.2 _ _ hreach (fun _ _ => Iff.rfl) c b
-
 /-! ### Witnesses -/
 
 theorem root_import_run_witness : Properties.RootImportRunWitness := by
@@ -724,14 +645,6 @@ theorem legacy_root_state_witness : Properties.LegacyRootStateWitness := by
   rintro ⟨rfl, rfl⟩
   exact hcb rfl
 
-theorem c67894b9_run_witness : Properties.C67894b9RunWitness := by
-  let S₁ := writeRoot empty 9 7 5 0xdd
-  have h1 : Reach empty S₁ := reach_of_addRoot (addRoot_mk (by decide) (by decide) rfl)
-  have h2 : Reach S₁ (writeRoot S₁ 9 8 6 0xee) :=
-    reach_of_addRoot (addRoot_mk (by decide) (by decide) (by decide))
-  exact ⟨S₁.storedInteropRoots, (writeRoot S₁ 9 8 6 0xee).storedInteropRoots, reach_projects h1,
-    reach_projects h2, by decide, by decide, by decide, by decide⟩
-
 /-! ### The named properties -/
 
 theorem AddInteropRootIff : Properties.AddInteropRootIff :=
@@ -763,13 +676,6 @@ theorem LatestZeroIffNothingImported : Properties.LatestZeroIffNothingImported :
   fun _ h c => latest_zero_iff_nothing_imported h c
 theorem BatchUnfoldsToSingles : Properties.BatchUnfoldsToSingles := batch_unfolds_to_singles
 theorem BatchRejectsDuplicateKey : Properties.BatchRejectsDuplicateKey := batch_rejects_duplicate_key
-theorem C67894b9CallIsTheProjection : Properties.C67894b9CallIsTheProjection := execAtC67_eq
-theorem C67894b9RunsAreProjectedRuns : Properties.C67894b9RunsAreProjectedRuns :=
-  c67894b9_runs_are_projected_runs
-theorem NoOverwriteAtC67894b9 : Properties.NoOverwriteAtC67894b9 :=
-  fun _ _ _ _ h hset => no_overwrite_at_c67894b9 h hset
-theorem ZeroTimestampIffUnsetAtC67894b9 : Properties.ZeroTimestampIffUnsetAtC67894b9 :=
-  fun _ h c b => zero_timestamp_iff_unset_at_c67894b9 h c b
 theorem WithoutAuthAnyoneSquatsAKey : Properties.WithoutAuthAnyoneSquatsAKey :=
   without_auth_anyone_squats_a_key
 theorem WithoutExistsCheckRootIsOverwritten : Properties.WithoutExistsCheckRootIsOverwritten :=
@@ -789,6 +695,5 @@ theorem StoredRootSurvivesRunWitness : Properties.StoredRootSurvivesRunWitness :
   stored_root_survives_run_witness
 theorem DuplicateKeyBatchWitness : Properties.DuplicateKeyBatchWitness := duplicate_key_batch_witness
 theorem LegacyRootStateWitness : Properties.LegacyRootStateWitness := legacy_root_state_witness
-theorem C67894b9RunWitness : Properties.C67894b9RunWitness := c67894b9_run_witness
 
 end Contracts.InteropRootStorage

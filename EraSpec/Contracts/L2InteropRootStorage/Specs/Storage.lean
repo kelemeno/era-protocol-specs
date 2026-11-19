@@ -14,7 +14,7 @@ era-contracts `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, u
 model was first written, and at `e561b9cc2`.  At `main` `70096e2ea6ee` the contract's code is the
 same: it imports `Unauthorized` from another file and has one more comment line (`:29`), so its
 source lines from `:29` on are one higher than those cited here.  At `c67894b9` the contract has no
-`latestInteropRootTimestamp`; the last section of this file transcribes that version.
+`latestInteropRootTimestamp`; that version is the pin record `../History/Specs/AtC67894b9.lean`.
 
 `interop/L2InteropRootStorage.sol` (104 lines, the whole contract):
 
@@ -267,47 +267,5 @@ def addInteropRootNoZeroTimestampCheck (S : State) (chainId blockOrBatchNumber t
 the caller is not read. -/
 def addSingleNoAuth (S : State) (_caller : Address) (r : InteropRoot) : Option State :=
   addRoot S r
-
-/-! ## The contract at `c67894b9`
-
-`interop/L2InteropRootStorage.sol` at `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (107 lines): the
-storage is `storedInteropRoots` alone (`:40`); the modifier is `:20-25`, `addSingleInteropRoot`
-`:58-60`, `addInteropRootsInBatch` `:64-76`, and `_addInteropRoot` (`:78-106`) has the same four
-checks in the same order (`:85-87`, `:88-90`, `:93-95`, `:98-100`) and the same write (`:103`),
-with no `latestInteropRootTimestamp` update.  Apart from comments and the `Unauthorized` import,
-that is the only difference from the code above. -/
-
-/-- The storage at `c67894b9`: `storedInteropRoots` (`:40` there). -/
-abbrev RootsAtC67 := UInt256 → UInt256 → StoredInteropRoot
-
-/-- `_addInteropRoot` at `c67894b9` (`:78-106` there); `none` is a revert. -/
-def addInteropRootAtC67 (R : RootsAtC67) (chainId blockOrBatchNumber timestamp : UInt256)
-    (sides : List UInt256) : Option RootsAtC67 :=
-  if sides.length ≠ 1 then none                                                     -- :85 SidesLengthNotOne
-  else if sides.headD 0 = 0 then none                                               -- :88 MessageRootIsZero
-  else if timestamp = 0 then none                                                   -- :93 InteropRootTimestampIsZero
-  else if (R chainId blockOrBatchNumber).root ≠ 0 then none                         -- :98 InteropRootAlreadyExists
-  else some (fun c b =>                                                             -- :103
-    if c = chainId ∧ b = blockOrBatchNumber then ⟨sides.headD 0, timestamp⟩ else R c b)
-
-/-- The loop of `addInteropRootsInBatch` at `c67894b9` (`:67-74` there), all or nothing; a single
-import is the one-element case. -/
-def addRootsAtC67 (R : RootsAtC67) : List InteropRoot → Option RootsAtC67
-  | [] => some R
-  | r :: rs =>
-    match addInteropRootAtC67 R r.chainId r.blockOrBatchNumber r.timestamp r.sides with
-    | none => none
-    | some R' => addRootsAtC67 R' rs
-
-/-- Either writer at `c67894b9`, called by `caller`: the modifier (`:20-25`), then
-`_addInteropRoot` on the call's roots in order. -/
-def execAtC67 (R : RootsAtC67) (caller : Address) (c : Call) : Option RootsAtC67 :=
-  if caller ≠ L2_BOOTLOADER_ADDRESS then none else addRootsAtC67 R c.roots
-
-/-- Any finite sequence of successful calls of the `c67894b9` contract. -/
-inductive ReachAtC67 : RootsAtC67 → RootsAtC67 → Prop
-  | refl {R : RootsAtC67} : ReachAtC67 R R
-  | tail {R T U : RootsAtC67} (caller : Address) (c : Call) :
-      ReachAtC67 R T → execAtC67 T caller c = some U → ReachAtC67 R U
 
 end Contracts.InteropRootStorage
