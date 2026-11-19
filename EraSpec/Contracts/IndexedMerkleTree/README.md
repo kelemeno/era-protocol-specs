@@ -1,88 +1,90 @@
 # IndexedMerkleTree
 
-Source: `contracts/common/libraries/IndexedMerkleTree.sol` in the pinned
-era-contracts tree. This folder owns the library's abstract IMT theory even
-though the proofs are mathematical and shared by other contracts.
-Topics named `…AtHead` or `…AtV35` are pinned to a later era-contracts commit instead, as
-their sections say.
+Source: `l1-contracts/contracts/common/libraries/IndexedMerkleTree.sol` at era-contracts
+`draft/v0.35.0` `b17415d20`. The model is the abstract sorted leaf set `IMTAbstract`
+(`Specs/Model.lean`: leaves `⟨key, nextKey⟩` with indices erased), with the v35 unbounded walk
+(`Specs/UnboundedSearchAtV35.lean`). The indexed storage model of the deployed wrapper is
+`../L2InteropCommitmentTree/`, which projects into this one.
 
-Review `Specs/` for state, operations, and assumptions; review `Properties/` for
-the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
-for those exact named propositions, plus auxiliary lemmas. Some spec modules
-only import a shared specification when the topic needs no additional definitions.
+## Headline guarantees
+
+A *v35 history* (`RunV35`) is a sequence of leaf sets in which each step changes nothing or is a
+successful v35 `insert`: the five checks, then the unbounded walk from the hint. The genesis set
+is `{⟨0, 0⟩}`, the sentinel that `setup` writes. Gas is not modelled. No statement takes a hash
+premise.
+
+- `IMTAbstract.Properties.ReclaimableIffAbsentV35`: on every snapshot of a v35 history, a
+  nonzero value is straddled by a leaf of the set exactly when it is not a key. Premises: the
+  history is a v35 history; it starts at genesis; the value is nonzero.
+- `IMTAbstract.Properties.DeliveredAvailableForeverV35`: a value that is a key at a snapshot
+  settled by the deadline stays a key, and no leaf straddles it at any snapshot whose successor
+  settles after the deadline. Premises: a v35 history from genesis; settlement times that never
+  decrease; the first snapshot settled at or before the deadline.
+- `IMTAbstract.Properties.DeliveryExactlyOnceV35`: a nonzero key entered the set at exactly one
+  earlier step. Premises: a v35 history from genesis; the value is nonzero.
+- `IMTAbstract.Properties.HonestInsertNeverSearchRevertsV35`: an insert of an absent value
+  succeeds from every member hint below it. The walk takes exactly as many hops as there are
+  keys strictly between the hint and the value. Premises: the leaf set is sound (sorted links,
+  unique keys, no dangling link); the value is nonzero and not a key; the hint is a member whose
+  key is below the value.
+- `IMTAbstract.ReclaimGateFaithful.Properties.DeliveredRefundLocatesCollisionOrPaddingHit`: an
+  absence proof that `verifyNonInclusion` accepts for a present value carries one of these:
+  a wrong path length, a node-hash collision on the path, a leaf-hash collision with the stored
+  leaf, or a presented leaf whose hash equals the padding constant at an empty index. Premises:
+  the state is reached from `setup` by guarded inserts; the root is the fold over the leaf hashes
+  at the state's own height (obligation O7). The statement holds for every node hash, leaf hash
+  and padding constant.
+- `IMTAbstract.ReclaimGateFaithful.Properties.BreakFreeGateDichotomy` and `DeployedGateLiveness`:
+  along every run from `setup`, a nonzero value passes `verifyNonInclusion` with no located
+  break exactly when it is absent, and every absent nonzero value passes. Premises: a run from
+  `setup`; the value is nonzero. The statements hold for every node hash, leaf hash and padding
+  constant.
+
+**Witnesses:** `RunV35Satisfiable`, `RunV35PremisesMetV35`, `WalkPremisesSatisfiableV35`,
+`BreakFreeGateRunWitness`, `FinalityPremisesWitness`, `DedicatedPaddingPremiseWitness`,
+`ReachedSnapshotShapesWitness`, `StoredRootAtPaddingWitness`, `genesisInsertHistory_guarded`.
+
+**Countermodels**, each showing that a premise or a stronger reading fails:
+- the membership premise of the exclusivity theorems: `forged_padding_witness_breaks_exclusivity`,
+  `ModelStrong.Properties.padding_leaf_forges_every_delivered`;
+- the insert guard: `InsertGuard`'s `weak_window_without_dedup_breaks_keyInj` and
+  `below_window_insert_breaks_windowPos`;
+- reset: `ResetAndZero`'s `resetHistory_*`;
+- the deployed gate: `DedicatedPaddingReadingsFailUnderToyHashes`, `ToyEmptyIndexRefundWitness`
+  and `ToyFullSnapshotRefundWitness`;
+- the pin's hop bound: `PinBoundRevertsWhereV35InsertsV35`.
+
+## Topics
 
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
-| InsertGuard | [Specs/InsertGuard.lean](Specs/InsertGuard.lean) | [Properties/InsertGuard.lean](Properties/InsertGuard.lean) | [Proofs/InsertGuard.lean](Proofs/InsertGuard.lean) |
-| ResetAndZero | [Specs/ResetAndZero.lean](Specs/ResetAndZero.lean) | [Properties/ResetAndZero.lean](Properties/ResetAndZero.lean) | [Proofs/ResetAndZero.lean](Proofs/ResetAndZero.lean) |
 | Model | [Specs/Model.lean](Specs/Model.lean) | [Properties/Model.lean](Properties/Model.lean) | [Proofs/Model.lean](Proofs/Model.lean) |
-| ReclaimGateFaithful | [Specs/ReclaimGateFaithful.lean](Specs/ReclaimGateFaithful.lean) | [Properties/ReclaimGateFaithful.lean](Properties/ReclaimGateFaithful.lean) | [Proofs/ReclaimGateFaithful.lean](Proofs/ReclaimGateFaithful.lean) |
-
-`ReclaimGateFaithful` (c67894b9, and b17415d20 for the dedicated padding constant) reads the
-genesis-rooted reclaim capstones of `Model` with the deployed absence check
-`verifyNonInclusion` (`DeployedGate`) in place of their member-leaf hypothesis, along runs
-from `setup` at each step's own `_height`. No hash premise except two pinned inequalities:
-`DedicatedPadding` (`hashLeaf({0,0,0}) ≠ z0`) and, in one statement, `hl ℓ ≠ z0` for the
-presented leaf.
-- At the pin's padding `hashLeaf({0,0,0})`, for every hash: on every reached snapshot whose
-  leaf count is not a power of two, the zero leaf at the first empty index is accepted for
-  every nonzero value, delivered ones included, and its located break is exactly `paddingHit`
-  (`PinnedGateAcceptsEveryValueOffPowersOfTwo`, `ReachedBelowCapacityIffNotPowerOfTwo`). So
-  both readings are false (`PinnedReclaimDichotomyReadingFails`,
-  `PinnedDeliveryFinalityReadingFails`) on a run meeting the capstones' hypotheses
-  (`PinnedCounterexampleMeetsCapstoneHypotheses`).
-- Restricted to submissions with no located `TreeRootBreak` (`BreakFreeGate`), both capstones
-  hold at every padding constant (`BreakFreeGateDichotomy`, `BreakFreeGateMatchesMemberGate`,
-  `BreakFreeDeliveryFinality`), and every absent nonzero value passes the deployed check
-  (`DeployedGateLiveness`).
-- On every reached snapshot, at every padding constant, an absence proof accepted for a
-  delivered value carries a `wrongLength`, `pathCollision` or `leafCollision` break, or is a
-  padding hit at the published height (`DeliveredRefundLocatesCollisionOrPaddingHit`). At full
-  snapshots, or for a presented leaf that does not hash to the padding constant, only the
-  first three remain (`FullSnapshotRefundOfDeliveredNeedsCollision`,
-  `DedicatedPaddingRefundOfDeliveredNeedsCollision`). Under `DedicatedPadding`, the pin's
-  submission shape needs a `PathCollision` (`DedicatedPaddingZeroLeafNeedsPathCollision`).
-- With the padding constant a parameter of `setup` (b17415d20 passes `IMT_EMPTY_LEAF_HASH`),
-  the transcribed `root()` is the published root on every reached state
-  (`StoredRootAtPaddingIsPublished`, `ReachedStatesLiftAtPadding`, `SetupAtPaddingIsPinnedSetup`).
-- The dedicated constant alone does not make either reading hold for every hash: both fail
-  under the toy hashes at padding `1` (`DedicatedPaddingReadingsFailUnderToyHashes`).
 | UnboundedSearchAtV35 | [Specs/UnboundedSearchAtV35.lean](Specs/UnboundedSearchAtV35.lean) | [Properties/UnboundedSearchAtV35.lean](Properties/UnboundedSearchAtV35.lean) | [Proofs/UnboundedSearchAtV35.lean](Proofs/UnboundedSearchAtV35.lean) |
+| ReclaimGateFaithful | [Specs/ReclaimGateFaithful.lean](Specs/ReclaimGateFaithful.lean) | [Properties/ReclaimGateFaithful.lean](Properties/ReclaimGateFaithful.lean) | [Proofs/ReclaimGateFaithful.lean](Proofs/ReclaimGateFaithful.lean) |
+| InsertGuard | [Specs/InsertGuard.lean](Specs/InsertGuard.lean) | [Properties/InsertGuard.lean](Properties/InsertGuard.lean) | [Proofs/InsertGuard.lean](Proofs/InsertGuard.lean) |
+| ModelStrong | [Specs/ModelStrong.lean](Specs/ModelStrong.lean) | [Properties/ModelStrong.lean](Properties/ModelStrong.lean) | [Proofs/ModelStrong.lean](Proofs/ModelStrong.lean) |
+| ResetAndZero | [Specs/ResetAndZero.lean](Specs/ResetAndZero.lean) | [Properties/ResetAndZero.lean](Properties/ResetAndZero.lean) | [Proofs/ResetAndZero.lean](Proofs/ResetAndZero.lean) |
+| ResetAndZeroStrong | [Specs/ResetAndZeroStrong.lean](Specs/ResetAndZeroStrong.lean) | [Properties/ResetAndZeroStrong.lean](Properties/ResetAndZeroStrong.lean) | [Proofs/ResetAndZeroStrong.lean](Proofs/ResetAndZeroStrong.lean) |
 
-`UnboundedSearchAtV35` is pinned to `draft/v0.35.0` at `b17415d20` (the cited files are
-byte-identical at `d9f6789`), where `insert`'s low-leaf walk has no hop bound
-(`IndexedMerkleTree.sol:90-93`; `MAX_LOW_INDEX_SEARCH_ATTEMPTS` was removed in `b8cc61203`). It
-models the walk as a relation over the abstract leaf set, with no gas and indices erased. No
-hash premise.
-- The walk exits in the weak window with no invariant (`WalkSoundV35`); on a sound set it exits
-  from every leaf (`WalkTerminatesV35`), is unique (`WalkDeterministicV35`), takes exactly as many
-  hops as there are keys strictly between the hint's key and the value (`WalkLengthIsGapV35`), and
-  for an absent value ends at the one straddling leaf whatever the hint (`WalkFindsLowLeafV35`,
-  `WalkHintIndependentV35`).
-- A successful v35 insert is a `GuardedEvolution` step (`InsertV35IsGuardedStep`), so the history
-  capstones hold of v35 histories (`RunV35IsEvolution`, `ReclaimableIffAbsentV35`,
-  `DeliveredAvailableForeverV35`, `DeliveryExactlyOnceV35`; reclaim witnesses are leaves of the
-  set). The deployed absence check is related to that member gate in `ReclaimGateFaithful`
-  (`BreakFreeGateMatchesMemberGate`; the deployed check alone does not match it at the pin's
-  padding, `PinnedReclaimDichotomyReadingFails`). On a sound set its result does not depend on the
-  hint (`InsertV35HintIndependent`).
-- Liveness: on a sound set an insert of a nonzero absent value succeeds from every member hint
-  below it (`HonestInsertNeverSearchRevertsV35`); along a history the key-0 leaf always works
-  and a hint key that passed the checks once still does (`SentinelHintAlwaysWorksV35`,
-  `OnceValidHintStaysValidV35`, the claim of `protocol-docs/message-root.md:95` read through
-  keys).
-- A sound leaf set is determined by its keys, so the inserted values determine every leaf set
-  of a history (`SoundLeafSetDeterminedByKeysV35`, `ValuesDetermineTreeV35`).
-- The pin's counted loop is the walk cut off at the bound and reverts exactly when the gap
-  exceeds it (`BoundedWalkIsTruncatedWalkV35`, `BoundedWalkRevertsIffGapExceedsV35`);
-  `PinBoundRevertsWhereV35InsertsV35` is the six-hop insert the pin's bound of five reverts.
-- Witnesses: `WalkPremisesSatisfiableV35`, `InsertOrderForgottenV35`, `RunV35Satisfiable`,
-  `RunV35PremisesMetV35`. The lift to the indexed state is
-  `../L2InteropCommitmentTree/`'s topic of the same name.
+- **Model** holds the order theory: `GapSound`, `SoundState`, `imtInsert`, `Evolution`,
+  `GuardedEvolution`, and the capstones over histories (`guardedEvolution_*`). A v35 history
+  is a `GuardedEvolution` (`RunV35IsGuardedEvolution`), so they apply to v35.
+- **UnboundedSearchAtV35** adds the v35 walk (`WalkV35`) and insert (`InsertV35`) on the same
+  state. It also models the pin's counted loop (`BoundedWalkV35`) for comparison.
+- **ReclaimGateFaithful** reads the reclaim capstones with the deployed absence check
+  (`DeployedGate`) in place of their member-leaf premise. It works over the canonical storage
+  model with the padding constant as a parameter (`cSetupPad`/`CReachesPad` in
+  `../L2InteropCommitmentTree/Specs/CachedRoot.lean`).
+- **InsertGuard, ModelStrong, ResetAndZero(Strong)** show that each guard conjunct, the
+  membership premise, the one-time setup and the zero sentinel are each needed.
 
-The deployed wrapper's indexed storage/search model is
-`../L2InteropCommitmentTree/Specs/Model.lean`, which projects into this abstract theory.
-Hash-tree behavior and proof soundness live under `../FullMerkle/` and `../Merkle/`.
-These results do not alone establish compiled storage/root correspondence,
-authorized callers, or the wrapper's one-time initialization guard; see
-`../../Refinement.lean`.
+## History
+
+[History/](History/) is the record of the interop pin `c67894b9`, not a claim about `b17415d20`.
+At that pin, empty slots were padded with `hashLeaf({0,0,0})` (finding H2). The `PinnedGate`
+topic shows that at that padding the deployed check accepts a reclaim for every nonzero value on
+reached snapshots whose leaf count is not a power of two, so both capstone readings fail
+(`IMTAbstract.ReclaimGateFaithful.History.Properties.Pinned…`).
+
+Hash-tree behaviour and proof soundness are in `../FullMerkle/` and `../Merkle/`. That compiled
+code implements these models is an obligation in `../../Refinement.lean`.
