@@ -4,12 +4,12 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks
 # Properties: the deployed chain-balance hooks discharge (or fail) the round-trip premise
 
 Statements about `EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks`.  Proofs are in
-`EraSpec.Contracts.NativeTokenVaultBase.Proofs.TrackerHooks`.  Source pin `c67894b9`,
+`EraSpec.Contracts.NativeTokenVaultBase.Proofs.TrackerHooks`.  Source `b17415d20`,
 `L1NTV` = `bridge/ntv/L1NativeTokenVault.sol`, `TRK` = `bridge/asset-tracker/L2AssetTracker.sol`.
 
 ## L1: `HooksCancel` holds
 
-* `L1HooksCancel`: the L1 vault's two hooks (`L1NTV:259-277`) satisfy `HooksCancel`, for every
+* `L1HooksCancel`: the `bridgedOut` part of the L1 vault's two hooks (`L1NTV:426-428`, `:440-445`) satisfies `HooksCancel`, for every
   `block.chainid` and every metadata dependency, native assets included: a checked
   `bridgedOut += amount` is undone by the checked `bridgedOut -= amount` of the same amount.
 * `L1NativeHooksMoveBridgedOut`: for a native asset, the outbound hook succeeds iff
@@ -27,9 +27,11 @@ Statements about `EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks`.  P
   ledger agreeing with the configuration, preparation, destination mint and recovery leave the
   ledger unchanged.
 
-These are results about the hooks at the pin.  The L1 hooks at `main` `70096e2ea` are the same;
-at `draft/v0.35.0` `b17415d20` they also record per-chain deposit and withdrawal totals
-(`L1NativeTokenVault.sol:424-459` there), which `L1Ledger` does not model.
+The L1 results are about the `bridgedOut` ledger, which was the whole hook at the pin.  At
+`b17415d20` the hooks also record per-chain deposit and withdrawal totals with a cap on
+withdrawals (`L1NTV:429-432`, `:446-458`), which `L1Ledger` does not model; L1NativeTokenVault
+`LedgerRefinement` shows that every successful `b17415d20` hook is the `L1Ledger` hook on
+`bridgedOut`.
 
 ## L2: `HooksCancel` fails, and what holds instead
 
@@ -114,8 +116,8 @@ def Properties.L1NativeHooksMoveBridgedOut : Prop :=
           (acc'.bridgedOut asset).val = (acc.bridgedOut asset).val - amount.val ∧
           ∀ b, b ≠ asset → acc'.bridgedOut b = acc.bridgedOut b)
 
-/-- **ON THE BRIDGED BRANCH THE L1 HOOKS ARE THE IDENTITY** (`L1NTV:260-264, 270-277` touch only
-native assets).  This is the branch `Codegen.VaultPreparationSlice` transcribes; its
+/-- **ON THE BRIDGED BRANCH THE L1 HOOKS ARE THE IDENTITY** (`L1NTV:426-428, 440-445`, the `bridgedOut`
+part, touch only native assets).  This is the branch `Codegen.VaultPreparationSlice` transcribes; its
 `HooksAgree` premise is then about this identity. -/
 def Properties.L1BridgedBranchHooksAreIdentity : Prop :=
   ∀ (thisChain : UInt256) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
@@ -302,7 +304,7 @@ registration hook (`registerNewTokenIfNeeded`, called through `_setNewTokenStora
 resolution hook: for a successful first-bridge `bridgeMint` of an asset the tracker had not
 registered, whose origin chain is not this chain, the fresh registration's tracker storage, which
 the inbound hook then reads, already has the asset registered; and the result has the asset
-registered with snapshot `(true, 0)` (`L2AssetTracker.sol:168-174`). -/
+registered with snapshot `(true, 0)` (`L2AssetTracker.sol:113-116`). -/
 def Properties.L2FirstBridgeRegistersAsNew : Prop :=
   ∀ (cfg : L2AssetTracker.Config) (reg : RegistrationHooks L2Accounting)
     (s : RegistrationState L2Accounting) (c : ResolutionCall) (t : State L2Accounting),

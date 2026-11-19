@@ -1,11 +1,45 @@
 # L1NativeTokenVault
 
-Source: era-contracts `draft/v0.35.0` at `b17415d20`, `l1-contracts/contracts/bridge/ntv/L1NativeTokenVault.sol`
-(the per-chain ledger and the interop pool, `:90-108`, `:219-298`, `:424-493`), with
-`core/message-root/L1MessageRoot.sol` (`enableInterop`, `:72-94`) and the Bridgehub's chain
-registration (`core/bridgehub/BridgehubBase.sol:301-347, :491-537`). `main` at `70096e2ea` has none
-of this code. The vault's other models (registry, escrow, preparation, resolution) are under
-[NativeTokenVaultBase](../NativeTokenVaultBase/README.md) at the older pin `c67894b9`.
+## Headline guarantees
+
+About era-contracts `draft/v0.35.0` head `b17415d20`. Statements are `….Properties.<Name>`, proofs
+`….<Name>`, in the namespaces `Contracts.L1NativeTokenVault.InteropPool` (`InteropPool`) and
+`Contracts.L1NativeTokenVault.Bulkhead` (`Bulkhead`). "The post-upgrade state" is any state reached by
+a successful `initializeUpgrade` from a state in which no chain is enabled, no pair is in the pool,
+pending chains are registered, the pool's key is unregistered and its totals, backfill and ghost are
+zero. A run is any sequence of successful calls of the modelled entry points. No statement takes a
+hash premise.
+
+- `InteropPool.FlagsAfterUpgrade`: along every run from the post-upgrade state, an enabled chain is
+  never pending, a moved pair's chain is enabled, and the pool's key is never registered, pending
+  or enabled and has no backfill. Premise: the run starts at the post-upgrade state.
+- `InteropPool.PoolDepositIdentity`: along such a run, the pool's deposits of each asset are the
+  deposits credited to the pool's key plus, over the moved chains, `max(0, deposited + backfill -
+  withdrawn)` at the current backfill. Same premise.
+- `InteropPool.PoolWithdrawalsCovered`: along such a run the pool's withdrawals of each asset are at
+  most its deposits. Same premise.
+- `InteropPool.MoveBackfillCommute`: `moveChainBalanceToInteropPool` and a backfill entry for one
+  pair give the same result in either order, reverts included. No premise.
+- `Bulkhead.BulkheadDisabledChainReleaseBound`: over any run, what is released for a chain `c` and
+  an asset `a` totals at most the growth of `deposited + backfill` plus the starting headroom if it
+  is positive, whatever the other calls are. Premises: the run starts after the upgrade with `c` not
+  pending, `c` is disabled at the end and is not the pool's key, and `a`'s origin is not `c` at the
+  start or the end.
+- `Bulkhead.BulkheadEnabledSetReleaseBound`: the chains enabled at the time of their withdrawals
+  jointly release at most the pool's deposits (moves and pool backfill credits included) less the
+  pool's starting `withdrawn`. Premise: the run starts after the upgrade.
+- `Bulkhead.BulkheadEscrowBacksHeadroom`: from the upgrade state, for an L1-native asset, if the
+  backfills fit the escrow and no moved chain is in deficit, `bridgedOut` covers the unmoved chains'
+  and the pool's headrooms. Premises: those two (`OPS-CONFIG` for the owner's backfill amounts).
+- `Bulkhead.BulkheadHonestWithdrawalSucceeds`: a registered, disabled, non-pending chain's
+  withdrawal of an L1-native asset within its headroom passes both hooks' checks. Premises: the
+  deployed constants, a run from the upgrade state, the backfills fit the starting `bridgedOut` plus
+  the populated amounts, no key is in deficit, and the pair's `deposited + backfill` is below
+  `2^256`.
+
+The refinement lemmas `Bulkhead.BulkheadRunsArePoolRuns` (the two transcriptions agree) and
+`LedgerRefinement` (every successful `b17415d20` hook is the `bridgedOut`-only hook of the older
+vault models) tie these to the other vault models.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the guarantees
 and their hypotheses. `Proofs/` contains the Lean-checked evidence for those exact named
@@ -16,6 +50,7 @@ propositions, plus auxiliary lemmas.
 | InteropPool | [Specs/InteropPool.lean](Specs/InteropPool.lean) | [Properties/InteropPool.lean](Properties/InteropPool.lean) | [Proofs/InteropPool.lean](Proofs/InteropPool.lean) |
 | BulkheadIsolation | [Specs/BulkheadIsolation.lean](Specs/BulkheadIsolation.lean) | [Properties/BulkheadIsolation.lean](Properties/BulkheadIsolation.lean) | [Proofs/BulkheadIsolation.lean](Proofs/BulkheadIsolation.lean), step lemmas in [Proofs/BulkheadIsolationSteps.lean](Proofs/BulkheadIsolationSteps.lean) |
 | BulkheadPoolSimulation | [Specs/BulkheadPoolSimulation.lean](Specs/BulkheadPoolSimulation.lean) | [Properties/BulkheadPoolSimulation.lean](Properties/BulkheadPoolSimulation.lean) | [Proofs/BulkheadPoolSimulation.lean](Proofs/BulkheadPoolSimulation.lean) |
+| LedgerRefinement | [Specs/LedgerRefinement.lean](Specs/LedgerRefinement.lean) | [Properties/LedgerRefinement.lean](Properties/LedgerRefinement.lean) | [Proofs/LedgerRefinement.lean](Proofs/LedgerRefinement.lean) |
 
 Namespace `Contracts.L1NativeTokenVault.InteropPool`. Statements are
 `Contracts.L1NativeTokenVault.InteropPool.Properties.*`; each certificate has the same name
@@ -167,3 +202,17 @@ contract wiring and implementation correspondence apply to it too):
   vault's hook passes. Whether the owner's backfills fit the escrow is a premise (`OPS-CONFIG`).
 - The ledger results start at the post-`initializeUpgrade` state; a vault whose `initializeUpgrade`
   runs late is covered only by the release bounds.
+
+## LedgerRefinement: the `bridgedOut`-only models
+
+Namespace `Contracts.L1NativeTokenVault.LedgerRefinement`. Three older models keep `bridgedOut`
+alone: NativeTokenVaultBase's `L1Ledger` hooks (`TrackerHooks`), the registry-and-escrow model
+`Contracts.NativeTokenVault`, and its `populateBridgedOut` extension `EscrowLedgerAtHead`. On agreeing
+`bridgedOut` maps, a successful `InteropPool` deposit or inbound hook is the `L1Ledger` hook
+(`PoolToChainIsL1ToChain`, `PoolFromChainIsL1FromChain`) and moves `bridgedOut` as the registry
+model's `bridgeOut`/`bridgeIn`, meeting its `InsufficientChainBalance` guard
+(`PoolHooksAreRegistryLedgerSteps`); a population entry is `populateAtHead`
+(`PoolPopulateIsPopulateAtHead`); no other call writes `bridgedOut` (`PoolOtherCallsKeepBridgedOut`).
+The converse fails: the per-chain cap rejects an inbound transfer the `L1Ledger` hook accepts
+(`PerChainCapIsStricterThanL1Ledger`). `LedgerRefinementWitness` meets the outbound premises with a
+nonzero native deposit.

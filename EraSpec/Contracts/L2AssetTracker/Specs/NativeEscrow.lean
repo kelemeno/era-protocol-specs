@@ -3,7 +3,8 @@ import EraSpec.Contracts.L2AssetTracker.Specs.HookOrdering
 /-!
 # Model: the tracker run together with a native token's ledger
 
-Source: pin `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`, `TRK` =
+Source: `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (first written at the pin
+`c67894b9`; the paths modelled are the same code), `TRK` =
 `l1-contracts/contracts/bridge/asset-tracker/L2AssetTracker.sol`, `NTV` =
 `bridge/ntv/NativeTokenVaultBase.sol`, `L2NTV` = `bridge/ntv/L2NativeTokenVault.sol`.
 
@@ -18,11 +19,11 @@ and the ledger `tok` of its token (`L2_NATIVE_TOKEN_VAULT.tokenAddress(a)`).  A 
 
 * the vault's outbound native path for `a` in source order (`runPath .nativeOut`): the tracker's
   `handleInitiateBridgingOnL2`, reading `tok`, then `_depositFunds` from the depositor with the
-  vault's check on the balance increase (`NTV:469`, `:473-476`, `:490-497`);
+  vault's check on the balance increase (`NTV:447`, `:451-454`, `:468-475`);
 * the vault's inbound native path for `a` (`runPath .nativeIn`): `handleFinalizeBridgingOnL2`,
-  reading `tok`, then `_withdrawFunds` to the receiver (`NTV:260`, `:264-265`; recovery
-  `:296-298`; `L2NTV:238-241`);
-* anyone's `registerLegacyToken(a)`, reading `tok` as it is at that moment (`TRK:198-210`);
+  reading `tok`, then `_withdrawFunds` to the receiver (`NTV:240`, `:244-245`; recovery
+  `:276-278`; `L2NTV:196-199`);
+* anyone's `registerLegacyToken(a)`, reading `tok` as it is at that moment (`TRK:121-130`);
 * any other successful tracker call (`Op.TouchesAsset` says which calls are excluded): those
   read no token of `a` and record no flow of `a`, except the base-token flows when `a` is the
   stored base asset, which `EscrowInv` rules out for an asset native here (`BaseNotSelfNative`);
@@ -35,7 +36,7 @@ vault's `.initiate` and `.finalize` calls.
 ## Model boundaries
 
 * The vault's balance of the token is lowered only by its own `_withdrawFunds`, on the inbound
-  path: at the pin the L2 vault moves tokens only through `_withdrawFunds` and `_depositFunds`
+  path: at `b17415d20` the L2 vault moves tokens only through `_withdrawFunds` and `_depositFunds`
   and grants no allowance.  `TokenMove` therefore assumes that the ledger stays well-formed
   (`BridgedStandardERC20.WellFormed`: balances sum to the supply, supply below `2^256`) and that
   the vault's balance does not fall (`DEP-FRAME`).  A token that can lower the vault's balance on
@@ -43,8 +44,8 @@ vault's `.initiate` and `.finalize` calls.
   `Properties.EscrowNeedsVaultOnlyOutflow` shows that the conclusions fail for it.
 * The vault's other checks around the hook (router, pause, nonzero amount, asset id, WETH,
   `msg.value`) are not modelled, nor is `_withdrawFunds`'s check that the asset is not the
-  vault's `BASE_TOKEN_ASSET_ID` (`L2NTV:239`); neither are its bridged paths for `a`, which it
-  does not take for an asset native here (`NTV:245`, `:389`).
+  vault's `BASE_TOKEN_ASSET_ID` (`L2NTV:197`); neither are its bridged paths for `a`, which it
+  does not take for an asset native here (`NTV:225`, `:369`).
 * The token is the token model's ledger (`BridgedStandardERC20`): allowances are not modelled, so
   `_depositFunds`' `safeTransferFrom` is a transfer by the depositor, and `_withdrawFunds`'
   `safeTransfer` is the vault's transfer (`Specs/HookOrdering.lean`).

@@ -4,7 +4,8 @@ import EraSpec.Contracts.BridgedStandardERC20.Specs.Reinitialization
 /-!
 # The vault's tracked token, reinitialized
 
-Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`, paths relative to
+Source: era-contracts `draft/v0.35.0` head `b17415d20` (first written at the pin `c67894b9`; the
+cited code is unchanged), paths relative to
 `l1-contracts/contracts/bridge/`: `ntv/NativeTokenVaultBase.sol` (cited as `NTV:N`),
 `BridgeHelper.sol`, and `BridgedStandardERC20.sol` (cited as `BSE:N`).
 
@@ -28,11 +29,11 @@ it, and no vault slot changes.
 
 `bridgeBurn`'s representation branch reads the token's metadata after the burn:
 `_bridgeBurnToken` encodes `_getERC20Metadata(token, assetId, true)` into the returned mint data
-(NTV:415-421); that reads `getERC20Getters(token, originChainId)` (NTV:432-444, :501-510),
+(NTV:395-401); that reads `getERC20Getters(token, originChainId)` (NTV:412-423, :478-487),
 i.e. `BridgeHelper.getERC20Getters` (`BridgeHelper.sol:20-50`), which `staticcall`s the token's
 `name()`, `symbol()` and `decimals()`, uses empty bytes for a getter that reverts (:30-46), and
 encodes the three with the origin chain (:48-49). `reinitializeToken` changes what those getters
-return: the name, the symbol, and which getters revert (BSE:198-223, :159-161).
+return: the name, the symbol, and which getters revert (BSE:183-208, :150-152).
 
 The vault model's `Hooks.metadata` sees only the ledger-and-identity state, so it cannot express
 that dependence. `MetaHooks` lets the metadata read see the token's `Metadata` as well, and
