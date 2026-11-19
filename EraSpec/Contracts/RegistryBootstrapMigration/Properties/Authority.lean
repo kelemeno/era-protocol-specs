@@ -11,7 +11,7 @@ in `EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Authority`.
 * **`migrate()` with a genuine CTM executor parks nothing.** After it, the CTM and the
   CTM-domain `ProxyAdmin` are the executor's, no CTM nomination is outstanding, and
   `validateApplied()` passes (`MigrateLeavesNothingParked`; `MigrateWitness` fires it from
-  the governance hand-over, exercising the claim at :271-273).
+  the governance hand-over, exercising the claim at :274-276).
 * **The bundle parks nothing, whatever the executor's code.** Its last call,
   `validateApplied()`, excludes every parked state (`ValidateAppliedExcludesParking`), so a
   bundle that commits leaves the executor holding both authorities (`BundleNeverParks`;
@@ -134,7 +134,7 @@ def Properties.SplitBundleParksProxyAdmin : Prop :=
 /-- **`MigrateLeavesNothingParked` IS NOT VACUOUS.** In the witness configuration with a
 genuine executor, after governance nominates the migration and hands it the
 `ProxyAdmin`, `migrate()` succeeds; before it the migration was only the CTM's nominee
-(so the claim at :271-273 runs), and after it the executor owns both authorities at the
+(so the claim at :274-276 runs), and after it the executor owns both authorities at the
 new version `35` on release `60`. -/
 def Properties.MigrateWitness : Prop :=
   ∃ s s', ARun (wConfig true) wPre [.nominate 50, .transferPA 50] s ∧

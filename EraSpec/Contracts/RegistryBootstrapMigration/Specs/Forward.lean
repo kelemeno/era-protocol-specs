@@ -3,10 +3,9 @@ import EraSpec.Contracts.RegistryBootstrapMigration.Specs.Authority
 /-!
 # Model: forwarded calls, seen by the authority model
 
-Source: branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at
-commit `e561b9cc2` (2026-10-19), as for `Specs/Authority.lean`. Paths are relative to
-`l1-contracts/contracts/`. The OpenZeppelin v4.9 files are the two submodules that commit
-pins: `lib/openzeppelin-contracts-upgradeable-v4` at `2d081f2` (`OZU/` below) and
+Source: era-contracts `draft/v0.35.0` at commit **`b17415d20`**, as for `Specs/Authority.lean`
+(first written at `e561b9cc2`). Paths are relative to `l1-contracts/contracts/`. The
+OpenZeppelin v4.9 files are the two submodules that commit pins (the same as at `e561b9cc2`): `lib/openzeppelin-contracts-upgradeable-v4` at `2d081f2` (`OZU/` below) and
 `lib/openzeppelin-contracts-v4` at `dc44c9f` (`OZ/` below). Every `file:line` is at those
 commits.
 
@@ -23,10 +22,13 @@ a `forward` is a sequence of those four steps, so every result that holds "along
 covers it. That was an argument about the label set, not a theorem. This file models the
 calls a `forward` can make, so the argument can be checked.
 
-## `forward` (`governance/UpgradeExecutorBase.sol:32-46`)
+## `forward` (`governance/UpgradeExecutorBase.sol:35-55`)
 
     function forward(Call[] calldata _calls) external payable onlyOwner {
         for (uint256 i = 0; i < _calls.length; ++i) {
+            if (_calls[i].data.length != 0) {
+                ObjectAnchorLib.requireCode(_calls[i].target);
+            }
             (bool success, bytes memory returnData) = _calls[i].target.call{value: _calls[i].value}(_calls[i].data);
             if (!success) { assembly { revert(add(returnData, 0x20), mload(returnData)) } }
             emit CallForwarded(_calls[i].target, _calls[i].value, _calls[i].data);
@@ -34,10 +36,11 @@ calls a `forward` can make, so the argument can be checked.
     }
 
 Each call is a `CALL` with the executor as `msg.sender`. A failing call reverts the whole
-forward. Targets and calldata are arbitrary. The executor's NatSpec (:14-17) says
+forward. The code check on the target of a call with calldata (`:42-44`, new since
+`e561b9cc2`) only rejects, so the model, which omits it, only has more runs. Targets and calldata are arbitrary. The executor's NatSpec (:15-20) says
 `forward` exists "so the authority the executor holds never becomes unreachable".
-`CTMUpgradeExecutor.sol:25-29` says every CTM owner operation without a fixed entry point
-goes through it. The authority matrix (`docs/registry-driven-upgrades.md:413`, from the
+`CTMUpgradeExecutor.sol:24-29` says every CTM owner operation without a fixed entry point
+goes through it. The authority matrix (`docs/registry-driven-upgrades.md:495`, from the
 repository root) routes "CTM / ProxyAdmin `transferOwnership` (executor succession)" through
 `forward` only.
 
@@ -56,10 +59,10 @@ Their writers at the pin:
     (`OZU/access/Ownable2StepUpgradeable.sol:51-54, 59-63`).
   * `renounceOwnership()` is `onlyOwner` and calls `_transferOwnership(address(0))`
     (`OZU/access/OwnableUpgradeable.sol:66-68`). The owner and the nomination both become zero.
-  * The version writers are `setNewVersionUpgradeFromTransition` (:408-423) and the legacy
-    `setNewVersionUpgrade` (:799-818). Both are `onlyOwner`, and both go through
-    `_commitVersionEdge` (:528-542) and `_setCurrentRelease` (:305-323). `initialize`
-    (:275-298) writes them too, but it is `reentrancyGuardInitializer` and reverts once the
+  * The version writers are `setNewVersionUpgradeFromTransition` (:403-418) and the legacy
+    `setNewVersionUpgrade` (:794-813). Both are `onlyOwner`, and both go through
+    `_commitVersionEdge` (:523-537) and `_setCurrentRelease` (:300-318). `initialize`
+    (:270-293) writes them too, but it is `reentrancyGuardInitializer` and reverts once the
     CTM is initialized (`common/ReentrancyGuard.sol:43-63`).
 * **The CTM-domain `ProxyAdmin`** is OpenZeppelin's `ProxyAdmin is Ownable`
   (`OZ/proxy/transparent/ProxyAdmin.sol:13`).
@@ -70,8 +73,8 @@ Their writers at the pin:
     (`CTMUpgradeExecutor.sol:38-40`), they replace the CTM's code. `upgradeAndCall` also
     runs `data` on the new code in the CTM's storage, so any of the CTM's slots can end up
     holding anything.
-* **The migration** writes `executed` in `migrate()` only (`RegistryBootstrapMigration.sol:262-304`).
-  `migrate()` is permissionless (:257-261) and is the contract's only state-changing entry
+* **The migration** writes `executed` in `migrate()` only (`RegistryBootstrapMigration.sol:265-307`).
+  `migrate()` is permissionless (:260-264) and is the contract's only state-changing entry
   point. Its other functions are `view`, and it has "no arbitrary-call surface" (:43-47).
   So the migration sends calls only from inside `migrate()`, and those calls are part of
   `MigrateStep`.
@@ -170,7 +173,7 @@ inductive OpStep (K : Config) (a : Address) : AState → Op → AState → Prop
   | ctmRenounceOwnership {s : AState} :
       s.ctmOwner = a →
       OpStep K a s .ctmRenounceOwnership { s with ctmOwner := 0, ctmPending := 0 }
-  /-- `onlyOwner` (`ChainTypeManager.sol:408, 804`), then the version and release move. -/
+  /-- `onlyOwner` (`ChainTypeManager.sol:403, 799`), then the version and release move. -/
   | ctmSetVersion {s : AState} {v : ℕ} {r : Address} :
       s.ctmOwner = a → OpStep K a s (.ctmSetVersion v r) { s with ctmPv := v, ctmRel := r }
   /-- `onlyOwner` and `newOwner != address(0)` (`OZ/access/Ownable.sol:69-72`). -/
@@ -185,7 +188,7 @@ inductive OpStep (K : Config) (a : Address) : AState → Op → AState → Prop
       s.paOwner = a →
       OpStep K a s (.ctmCodeSwap o p v r)
         { s with ctmOwner := o, ctmPending := p, ctmPv := v, ctmRel := r }
-  /-- Permissionless (`RegistryBootstrapMigration.sol:257-262`): one successful `migrate()`. -/
+  /-- Permissionless (`RegistryBootstrapMigration.sol:260-265`): one successful `migrate()`. -/
   | migrate {s s' : AState} : MigrateStep K s s' → OpStep K a s .migrate s'
   /-- Writes nothing tracked. -/
   | untracked {s : AState} : OpStep K a s .untracked s

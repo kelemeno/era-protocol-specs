@@ -1,33 +1,89 @@
 # ProxyUpgradeExecutorBase
 
-Source: `l1-contracts/contracts/upgrades/registry/executors/ProxyUpgradeExecutorBase.sol` and
-`CoreUpgradeExecutor.sol`, with the engine it delegatecalls
-(`engines/DefaultProxyUpgradeEngine.sol`) and `libraries/ProxyUpgradeRowLib.sol`. The code is
-**not** in the pinned era-contracts tree. It lives on branch `draft/v0.35.0` of the era-contracts
-repository, and the `CoreLegV35` model is written against commit **`b17415d20`**
-(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, 2026-11-16); a first draft cited `d9f678900`.
-**The branch moves**: every `file:line` quoted in the spec is at that commit. OpenZeppelin lines
-are at the submodule that commit pins (`dc44c9f1a4c3`, release 4.9.6).
+## Headline guarantees
 
-`ProxyUpgradeExecutorBase.sol` is the base of both registry-driven domain executors
-(`CTMUpgradeExecutor`, `CoreUpgradeExecutor`); each topic names the commit its `file:line`s are at.
-Both domain executors (`CoreUpgradeExecutor.applyL1Upgrade`,
-`CTMUpgradeExecutor.applyInfrastructureUpgrade`) apply a `ProxyUpgradeTransition` through
-`_applyProxyUpgradeTransition`, which delegatecalls the engine the transition pins and then
-checks what the engine did.
+Every statement is about era-contracts `draft/v0.35.0` at `b17415d20`, for every engine a
+transition pins (an arbitrary function of the context, the inventory and the world, or an
+arbitrary call trace) and for every hash function standing in for `keccak256(abi.encode(...))`.
 
-| Topic | Source commit | Namespace | Specification | Property statements | Checked proofs |
-|---|---|---|---|---|---|
-| CoreLegV35 | `b17415d20` (2026-11-16) | `Contracts.ProxyUpgradeExecutorV35.CoreLeg` | [Specs/CoreLegV35.lean](Specs/CoreLegV35.lean) | [Properties/CoreLegV35.lean](Properties/CoreLegV35.lean) | [Proofs/CoreLegV35.lean](Proofs/CoreLegV35.lean) |
-| DomainHoldersV35 | `b17415d20` (2026-11-16); the `d9f678900` leg kept as `D9.leg` | `Contracts.DomainHoldersV35` | [Specs/DomainHoldersV35.lean](Specs/DomainHoldersV35.lean) | [Properties/DomainHoldersV35.lean](Properties/DomainHoldersV35.lean) | [Proofs/DomainHoldersV35.lean](Proofs/DomainHoldersV35.lean) |
-| EngineLegV35 | `b17415d20` (first written at `d9f6789`) | `Contracts.EngineLegV35` | [Specs/EngineLegV35.lean](Specs/EngineLegV35.lean) | [Properties/EngineLegV35.lean](Properties/EngineLegV35.lean) | [Proofs/EngineLegV35.lean](Proofs/EngineLegV35.lean) |
-| ExecutorOwnerCallsV35 | `b17415d20` (2026-11-16) | `Contracts.ExecutorOwnerCallsV35` | [Specs/ExecutorOwnerCallsV35.lean](Specs/ExecutorOwnerCallsV35.lean) | [Properties/ExecutorOwnerCallsV35.lean](Properties/ExecutorOwnerCallsV35.lean) | [Proofs/ExecutorOwnerCallsV35.lean](Proofs/ExecutorOwnerCallsV35.lean) |
-| NotifierBindingV35 | `b17415d20` (2026-11-16) | `Contracts.NotifierBindingV35` | [Specs/NotifierBindingV35.lean](Specs/NotifierBindingV35.lean) | [Properties/NotifierBindingV35.lean](Properties/NotifierBindingV35.lean) | [Proofs/NotifierBindingV35.lean](Proofs/NotifierBindingV35.lean) |
+- `Contracts.DomainHoldersV35.Properties.PassingLegKeepsHolderReads`: a leg that succeeds
+  leaves the `ProxyAdmin`'s owner, and with a CTM the CTM's owner, pending owner, `admin()`,
+  `getProxyAdmin` answer and ServerNotifier pointer, and that notifier's owner, pending owner,
+  `getProxyAdmin` answer and CTM pointer, unchanged, or the leg's own two compared word lists
+  hash equal while differing. No other premise.
+- `Contracts.DomainHoldersV35.Properties.MovedCtmCaught`: premises: there is a CTM; before the
+  leg the executor's `ProxyAdmin` administers the CTM proxy; the engine leaves the CTM proxy
+  administered by something else. Then the leg reverts, or its compared word lists collide.
+- `Contracts.DomainHoldersV35.Properties.MovedNotifierReverts`: premises: there is a CTM; after
+  the engine the CTM points at a nonzero ServerNotifier that the `ProxyAdmin` does not
+  administer and whose implementation has no `admin()`. Then the leg reverts (no hash premise).
+- `Contracts.ProxyUpgradeExecutorV35.CoreLeg.Properties.CoreLegChecks`: a successful
+  `CoreUpgradeExecutor.applyL1Upgrade` was sent by the executor's owner, applied a transition
+  that is code, of the Core domain, whose engine is code, ran exactly that engine, kept the
+  executor's owner and pending owner, kept the `ProxyAdmin`'s owner (or that owner's hash
+  collides with the old one), had a nine-slot inventory, and left every row's proxy reading
+  its `implNew`. No premise beyond the Core-leg model (`MODEL-PROXY-LEG`).
+- `Contracts.ProxyUpgradeExecutorV35.CoreLeg.Properties.DefaultCoreLegReplayIsNoop`: premise:
+  the transition pins `DefaultProxyUpgradeEngine`. Then applying a successfully applied
+  transition again succeeds and changes nothing.
+- `Contracts.CoreLegRefinement.Properties.CoreLegIsDomainHoldersLeg`: premise: a
+  DomainHoldersV35 engine does, on the embedded world, what the Core leg's engine does. Then the
+  CoreLegV35 leg in the Core domain and the canonical DomainHoldersV35 leg give the same result,
+  reverts included, so the DomainHoldersV35 results above apply to the Core leg.
+- `Contracts.EngineLegV35.Properties.LegKeepsExecutorOwnership` and
+  `Contracts.EngineLegV35.Properties.LegLandsEveryRow`: every successful leg keeps the
+  executor's owner and pending owner, had an inventory of its domain's length, and leaves
+  every row's proxy at its `implNew`. No premise.
+- `Contracts.NotifierBindingV35.Properties.AcceptedLegKeepsShapeOrKeccakCollision`: premise:
+  the CTM domain starts in the registry shape (notifier handed over, the CTM, its
+  `ProxyAdmin` and through it both proxies held by the executor, no nominations). Then every
+  engine leg the executor accepts ends in that shape, or `keccak256` collides on two named,
+  distinct preimages of the leg's own readings.
+- `Contracts.ExecutorOwnerCallsV35.Properties.OwnerCallsOutsideEngineLegsAreLogged`: premise:
+  the frame is not an infrastructure leg whose engine calls the CTM. Then every CTM owner call
+  the frame makes is named in the executor's own log.
 
-Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
-guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those exact
-named propositions. Statements are `<namespace>.Properties.*`; each certificate has the same
-name without the `Properties` segment.
+Witnesses: `MovedCtmCaughtWitness`, `MovedNotifierRevertsSatisfiable`, `CoreLegWitness`,
+`CoreLegIsDomainHoldersLegSatisfiable`, `DefaultEngineLegWitness`, `AcceptedLegWitness`. Countermodels:
+`MovedCtmCollisionDisjunctLoadBearing`, `CtmAdminCheckLoadBearing`,
+`CorePAOwnerMoveUnderCollisionPasses`, `PreCheckIsLoadBearing`,
+`EngineOwnerCallsNotLoggedByExecutor`, `CallsOutsideLegsMoveTheBinding`.
+
+## Source and layout
+
+`l1-contracts/contracts/upgrades/registry/executors/ProxyUpgradeExecutorBase.sol`, the two
+domain executors (`CoreUpgradeExecutor.sol`, `CTMUpgradeExecutor.sol`), the engine they
+delegatecall (`engines/DefaultProxyUpgradeEngine.sol`) and `libraries/ProxyUpgradeRowLib.sol`,
+at era-contracts `draft/v0.35.0` commit **`b17415d20`**
+(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). OpenZeppelin lines are at the submodule that
+commit pins (`dc44c9f1a4c3`, release 4.9.6). Both domain executors apply a
+`ProxyUpgradeTransition` through `_applyProxyUpgradeTransition` (`:51-104`), which
+delegatecalls the engine the transition pins and then checks what the engine did.
+
+| Topic | Namespace | Specification | Property statements | Checked proofs |
+|---|---|---|---|---|
+| CoreLegV35 | `Contracts.ProxyUpgradeExecutorV35.CoreLeg` | [Specs/CoreLegV35.lean](Specs/CoreLegV35.lean) | [Properties/CoreLegV35.lean](Properties/CoreLegV35.lean) | [Proofs/CoreLegV35.lean](Proofs/CoreLegV35.lean) |
+| DomainHoldersV35 | `Contracts.DomainHoldersV35` | [Specs/DomainHoldersV35.lean](Specs/DomainHoldersV35.lean) | [Properties/DomainHoldersV35.lean](Properties/DomainHoldersV35.lean) | [Proofs/DomainHoldersV35.lean](Proofs/DomainHoldersV35.lean) |
+| EngineLegV35 | `Contracts.EngineLegV35` | [Specs/EngineLegV35.lean](Specs/EngineLegV35.lean) | [Properties/EngineLegV35.lean](Properties/EngineLegV35.lean) | [Proofs/EngineLegV35.lean](Proofs/EngineLegV35.lean) |
+| ExecutorOwnerCallsV35 | `Contracts.ExecutorOwnerCallsV35` | [Specs/ExecutorOwnerCallsV35.lean](Specs/ExecutorOwnerCallsV35.lean) | [Properties/ExecutorOwnerCallsV35.lean](Properties/ExecutorOwnerCallsV35.lean) | [Proofs/ExecutorOwnerCallsV35.lean](Proofs/ExecutorOwnerCallsV35.lean) |
+| NotifierBindingV35 | `Contracts.NotifierBindingV35` | [Specs/NotifierBindingV35.lean](Specs/NotifierBindingV35.lean) | [Properties/NotifierBindingV35.lean](Properties/NotifierBindingV35.lean) | [Proofs/NotifierBindingV35.lean](Proofs/NotifierBindingV35.lean) |
+| CoreLegRefinement | `Contracts.CoreLegRefinement` | [Specs/CoreLegRefinement.lean](Specs/CoreLegRefinement.lean) | [Properties/CoreLegRefinement.lean](Properties/CoreLegRefinement.lean) | [Proofs/CoreLegRefinement.lean](Proofs/CoreLegRefinement.lean) |
+| History: DomainHoldersD9 | `Contracts.DomainHoldersV35.History` | [History/Specs/DomainHoldersD9.lean](History/Specs/DomainHoldersD9.lean) | [History/Properties/DomainHoldersD9.lean](History/Properties/DomainHoldersD9.lean) | [History/Proofs/DomainHoldersD9.lean](History/Proofs/DomainHoldersD9.lean) |
+
+`History/` is the record of the older commit `d9f678900`, not a claim about `b17415d20`: the
+leg before `9775be946` (#2669) added the CTM-admin check and widened `_domainHolders`, compared
+with the current leg on the same engines (`AliasingPassesAtD9CaughtAtB17`).
+
+The five topics are five models of the same leg. DomainHoldersV35's `leg` is the canonical one
+(both domains). CoreLegRefinement embeds CoreLegV35's world into it and proves the Core leg is
+the canonical leg in the Core domain (`CoreLegIsDomainHoldersLeg`: equal results, reverts
+included, for engines that agree up to the embedding), and derives the `ProxyAdmin`-owner part
+of `CoreLegChecks` from `PassingLegKeepsHolderReads` through it
+(`CoreLegKeepsPAOwnerViaDomainHolders`). EngineLegV35, ExecutorOwnerCallsV35 and
+NotifierBindingV35 are not yet related to it by a theorem (see "Related topics" under
+NotifierBindingV35, and `handoff/2026-11-19/consolidation/upgrade.md`).
+Statements are `<namespace>.Properties.*`; each certificate has the same name without the
+`Properties` segment.
 
 ## The Core leg (topic CoreLegV35)
 
@@ -38,9 +94,8 @@ the domain `Core`; the executor DELEGATECALLS the engine's `executeUpgrade`, so 
 with the executor's storage and its ownership of the `ProxyAdmin`; afterwards the executor
 requires its owner and pending owner unchanged, `keccak256(abi.encode(PROXY_ADMIN.owner()))`
 unchanged (the zero-CTM branch of `_domainHolders`, `:119-121`), and every row's proxy at its
-`implNew` as `ProxyAdmin.getProxyImplementation` reads it (`requireRowsApplied`). At
-`e561b9cc2` (branch `feat/upgrade-simplification`) the executor applied the rows itself
-(`../ProxyUpgradeRowLib/`, `RowsCurrent`).
+`implNew` as `ProxyAdmin.getProxyImplementation` reads it (`requireRowsApplied`). The default engine's `applyRows` is `../ProxyUpgradeRowLib/`'s
+`RowsCurrent` model.
 
 ### What to check
 
@@ -100,16 +155,6 @@ CTM side of `_domainHolders` and the CTM-only check are opaque (`CoreLegIgnoresC
 Events, ETH and other storage are not modelled. The witnesses use toy data (identity owner
 hash, small addresses).
 
-### Re-pin from `d9f678900`
-
-`git diff d9f678900 b17415d20` changes `_applyProxyUpgradeTransition` and `_domainHolders` only
-on the CTM side (a new CTM-only check at `:72-77`; the ServerNotifier read moved into
-`_domainHolders`), gives each `DefaultProxyUpgradeEngine` hook and `toRows` its own memory copy of
-the calldata inventory (`:38-46`; the model passes each hook the inventory as pinned, the
-`b17415d20` code), and adds a `@dev` paragraph to `ProxyUpgradeRowLib.sol` (`:28-32`), moving its
-lines by five. `CoreUpgradeExecutor.sol`, `ICoreUpgradeExecutor.sol` and
-`objects/ProxyUpgradeTransition.sol` are unchanged.
-
 ## The domain-holder check (topic DomainHoldersV35)
 
 `_applyProxyUpgradeTransition` (`:51-104` at `b17415d20`) delegatecalls the engine a transition
@@ -120,11 +165,6 @@ the `ProxyAdmin`'s owner; the CTM's owner, pending owner, `admin()`, `getProxyAd
 `chainTypeManager()`. Before the engine runs, the leg also refuses a CTM whose `admin()` is the
 `ProxyAdmin` (`:75-77`).
 
-`ProxyUpgradeExecutorBase.sol` changed between `d9f678900` and `b17415d20` in one commit,
-`9775be946` (#2669): the check at `:75-77` is new, the hash gained `admin()`, the notifier
-address and the notifier's `chainTypeManager()`, and the notifier is read afresh by each
-`_domainHolders` call instead of once before the engine. `b17415d20` itself changes no contract.
-The model is the `b17415d20` leg (`leg`); the `d9f678900` leg is `D9.leg`.
 
 ### What to check
 
@@ -133,7 +173,7 @@ The model is the `b17415d20` leg (`leg`); the `d9f678900` leg is `D9.leg`.
   premise. `PendingAdminLegWitness` is a passing leg.
 - `MovedCtmCaught`: if the `ProxyAdmin` administered the CTM proxy before the leg and the
   engine moved the admin slot away, the leg reverts or the compared pair collides. There is no
-  premise on what the CTM's `admin()` answers afterwards. `MovedCtmCaughtNotVacuous` fires it
+  premise on what the CTM's `admin()` answers afterwards. `MovedCtmCaughtWitness` fires it
   with the aliasing engine below; `MovedCtmCollisionDisjunctLoadBearing` shows the collision
   disjunct is needed (constant hash).
 - The check at `:75-77`: `CtmAdminIsProxyAdminReverts`. `CtmAdminCheckLoadBearing`: from a CTM
@@ -146,17 +186,13 @@ The model is the `b17415d20` leg (`leg`); the `d9f678900` leg is `D9.leg`.
 - `CtmPendingAdminOutsideHash`: in the standing configuration with the check at `:75-77`
   passing and the rows applied, an engine that only calls `ctm.setPendingAdmin(Y)` passes, for
   every `Y` and hash, as the `@dev` at `:115-116` says.
-- `MovedCtmWithCtmRowReverts`: a moved CTM whose implementation has no `implementation()` and
-  that has a participating row reverts at the rows post-check, at both commits.
-- **Comparison with `d9f678900`** (`AliasingPassesAtD9CaughtAtB17`). The aliasing engine sets
-  the CTM's `pendingAdmin` to the `ProxyAdmin`, has the `ProxyAdmin` run
-  `upgradeAndCall(ctm, liveImpl, acceptAdmin())` (so `acceptAdmin` sees
-  `msg.sender = ProxyAdmin`), then moves the CTM proxy's admin to `X`. In the standing
-  configuration, after a prefix that applies the rows (none on the CTM proxy) and leaves the
-  holder reads alone: at `d9f678900` this passes every check for every hash, the hashed tuples
-  are equal word for word, and afterwards `X`, not the executor's `ProxyAdmin`, administers the
-  CTM proxy; at `b17415d20` the same engine reverts or its compared pair collides. The comment
-  at `:72-74`, added with the check in `9775be946` (#2669), describes this case.
+- `MovedCtmWithCtmRowLegReverts`: a moved CTM whose implementation has no `implementation()` and
+  that has a participating row reverts at the rows post-check.
+- **Comparison with `d9f678900`** (History, `AliasingPassesAtD9CaughtAtB17`). The aliasing
+  engine sets the CTM's `pendingAdmin` to the `ProxyAdmin`, has the `ProxyAdmin` run
+  `upgradeAndCall(ctm, liveImpl, acceptAdmin())`, then moves the CTM proxy's admin to `X`. At
+  `d9f678900` this passes every check for every hash; at `b17415d20` it reverts or its compared
+  pair collides. The comment at `:72-74` describes this case.
 
 ### Model boundaries
 
@@ -196,8 +232,8 @@ arbitrary function. A successful leg:
   (`LegKeepsCtmProxyAdministeredUnlessCollision`);
 - landed every row (`LegLandsEveryRow`, `LegLandsEveryActiveSlot`).
 
-In a concrete world, `DefaultProxyUpgradeEngine` is the `e561b9cc2` `applyTransition` plus four
-requirements (`DefaultEngineLegIsApplyTransition`; witnesses `DefaultEngineLegWitness`,
+In a concrete world, `DefaultProxyUpgradeEngine` is `../ProxyUpgradeRowLib/`'s `ApplyTransition` (the object
+checks and `applyRows`) plus four requirements (`DefaultEngineLegIsApplyTransition`; witnesses `DefaultEngineLegWitness`,
 `DefaultEngineCoreLegWitness`; `UnownedAdminReplayNowReverts`). Each of the six checks is
 load-bearing: `OwnerSlotWriteIsCaught`, `CtmNominationIsCaught`, `NotifierRepointIsCaught`,
 `RowMovedBackIsCaught`, `AliasedCtmMoveIsCaughtByTheAdminCheck`, the codeless-engine results
@@ -211,10 +247,6 @@ source says (`ProxyUpgradeExecutorBase.sol:40-41`).
 
 ### What to check
 
-- The model was re-pinned from `d9f6789` to `b17415d20`. Between them `_domainHolders` began
-  reading the ServerNotifier itself and hashing its address, the CTM's `admin()` and the
-  notifier's CTM, and `_applyProxyUpgradeTransition` gained the CTM-admin check (`:72-77`). The
-  spec's last section lists the diff.
 - `AdminFallsThrough` is a premise, not a theorem: it describes OpenZeppelin v4's transparent
   proxy and a CTM implementation whose `admin()` getter does not depend on the caller. The
   OpenZeppelin submodule was not available at the pin, so its lines are not cited.
@@ -231,9 +263,7 @@ not modelled. The concrete world has inert reinitializers and four call kinds.
 ## The executor's owner calls (topic ExecutorOwnerCallsV35)
 
 Source: the CTM-domain executor (`executors/CTMUpgradeExecutor.sol`) and the `forward` it
-inherits (`governance/UpgradeExecutorBase.sol`), besides `ProxyUpgradeExecutorBase.sol`. The
-topic was first written against commit `d9f6789` and is pinned to **`b17415d20`**; its Specs
-header lists what changed in the modelled code between the two.
+inherits (`governance/UpgradeExecutorBase.sol`), besides `ProxyUpgradeExecutorBase.sol`.
 
 Which frames of the CTM executor make the CTM's owner calls, and what the executor logs for
 them, now that `applyInfrastructureUpgrade` delegatecalls the engine its transition pins. A
@@ -286,9 +316,7 @@ a trace.
 Source: besides `ProxyUpgradeExecutorBase.sol` (the check a domain executor makes around the
 engine it delegatecalls), the contracts whose state that check reads:
 `state-transition/ChainTypeManager.sol`, `governance/ServerNotifier.sol` and
-`upgrades/registry/libraries/RegistryAuthorityLib.sol`, at **`b17415d20`**; the results describe
-that commit only. `_domainHolders` changed in `9775be946`, between `d9f6789` and `b17415d20`;
-the model does not describe `d9f6789`.
+`upgrades/registry/libraries/RegistryAuthorityLib.sol`.
 
 A chain's validators may upgrade it once the chain's entry in the ServerNotifier the CTM points
 at is set and reached (`Admin.sol:577-585`). Who may write that entry is decided by two

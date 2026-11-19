@@ -1,11 +1,13 @@
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Specs.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle
 
 /-!
 # Properties: the coordinator's lifecycle, and what its timer guarantees
 
-Statements about `EraSpec.Contracts.EcosystemUpgradeExecutor.Specs.Lifecycle` (source
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
+Statements about `EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle` (source
 commit `afa407085`; the coordinator is deleted at `e561b9cc2`). Proofs are in
-`EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle`.
+`EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.Lifecycle`.
 
 ## The lifecycle
 
@@ -18,7 +20,7 @@ commit `afa407085`; the coordinator is deleted at `e561b9cc2`). Proofs are in
   abandonment always reverted, and no witness below takes an `abandon` step. That the guards,
   with those `active` conjuncts, are also sufficient, and that abandonment succeeds whenever
   an operation is pending, are separate results in
-  `EraSpec.Contracts.EcosystemUpgradeExecutor.Properties.LifecycleStrong`
+  `EraSpec.Contracts.EcosystemUpgradeExecutor.History.Properties.LifecycleStrong`
   (`LifecycleStageGuardsExact`, `LifecycleAbandonEnabledWhilePending`).
 * Without `forward`, the CTM domain's reservation is exactly the pending operation
   (`ReservationTracksSlot`).
@@ -45,7 +47,7 @@ nothing else about it:
   while `stage1` is still refused (`ForwardAppliesLegBeforeTheDelay`).
 -/
 
-namespace Contracts.EcosystemUpgradeExecutor
+namespace Contracts.EcosystemUpgradeExecutor.History
 
 /-! ## The lifecycle -/
 
@@ -152,4 +154,4 @@ def Properties.TimerBoundIsTight : Prop :=
     (¬ ∃ s', Step wK s (.stage1 2) s') ∧
     ∃ s'' s''', Step wK s (.tick 110) s'' ∧ Step wK s'' (.stage1 2) s''' ∧ s''.now = 110
 
-end Contracts.EcosystemUpgradeExecutor
+end Contracts.EcosystemUpgradeExecutor.History

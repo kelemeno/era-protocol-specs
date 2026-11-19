@@ -1,7 +1,7 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsOrder
 
 /-!
-# Properties: which row orders succeed (`e561b9cc2`)
+# Properties: which row orders succeed (`b17415d20`)
 
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsOrder`, which is the
 `RowsCurrent` model plus `ReinitReadsOwnProxy` and witness data. Proofs are in

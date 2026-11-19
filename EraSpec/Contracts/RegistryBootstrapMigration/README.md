@@ -1,13 +1,43 @@
 # RegistryBootstrapMigration
 
+## Headline guarantees
+
+About `upgrades/registry/bootstrap/RegistryBootstrapMigration.sol` and the governance bundle
+`RegistryBootstrapSequence.sol` derives, at era-contracts `draft/v0.35.0` commit `b17415d20`.
+"Parked" means the spent migration owns the CTM, is its `Ownable2Step` nominee, or owns the
+CTM-domain `ProxyAdmin` (`ParkedOnMigration`). A revert is the absence of a step.
+
+- `Contracts.RegistryBootstrapMigration.Properties.MigrateLeavesNothingParked`: premise: the
+  CTM executor named in the manifest runs the genuine `acceptCTMOwnership()` logic. Then a
+  successful `migrate()` leaves the CTM and the `ProxyAdmin` owned by that executor, no CTM
+  nomination outstanding, nothing parked, and `validateApplied()` passing.
+- `Contracts.RegistryBootstrapMigration.Properties.BundleNeverParks`: the bundle's last four
+  calls, in one transaction, leave the same result, whatever the executor's code. No premise.
+- `Contracts.RegistryBootstrapMigration.Properties.MigrateIsOneShot`: after a successful
+  `migrate()` the migration is spent and never runs again. No premise.
+- `Contracts.RegistryBootstrapMigration.Properties.NoReparkingAcrossEngineLegs`: premises: the
+  migration is spent and nothing is parked; the CTM answers its ownership reads from its own
+  slots; along the run no transaction, forwarded call or core leg hands authority to the
+  migration by an ownership call or replaces the CTM's code, and no CTM leg leaves the CTM
+  running code that answers the ownership reads falsely. Then nothing is parked at the end, or
+  some engine leg of the run passed its holders check only through a hash collision on that
+  leg's own two readings.
+
+Witnesses: `MigrateWitness`, `BundleWitness`, `ForwardWitness`, `EngineLegPremisesWitness`.
+Countermodels: `NonGenuineExecutorParksTheCTM`, `SplitBundleParksProxyAdmin`,
+`ForwardCtmSwapReparks`, `NoHolderCheckReparks`, `CollisionDisjunctNeeded`.
+
+## Source and layout
+
 Source: `l1-contracts/contracts/upgrades/registry/bootstrap/RegistryBootstrapMigration.sol`,
 with `RegistryBootstrapSequence.sol` (the governance bundle it derives) and
-`libraries/RegistryAuthorityLib.sol` (the authority checks). The code is **not** in the pinned
-era-contracts tree. It lives on branch `feat/upgrade-simplification` of the zksync-era
-`contracts` repository, and this model was written against commit **`e561b9cc2`**
-(2026-10-19), the same commit as `../ChainTypeManager/`. **The branch moves**: every
-`file:line` quoted in the spec is at that commit. The exception is topic AuthorityEngineV35,
-pinned to era-contracts `draft/v0.35.0` at **`b17415d20`** (see its section below).
+`libraries/RegistryAuthorityLib.sol` (the authority checks), at era-contracts `draft/v0.35.0`
+commit **`b17415d20`** (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). Authority, Forward and
+AuthorityStrong were first written at `e561b9cc2`; the logic they model is unchanged at
+`b17415d20` (the manifest's engine field is now `chainUpgradeEngine`, and `forward` gained a
+reject-only code check). What `b17415d20` adds, the executors' engine legs, is
+AuthorityEngineV35, which extends the same state. One model: Forward and AuthorityEngineV35
+reuse Authority's `AState`, `MigrateStep` and `OpStep`.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those exact
@@ -138,10 +168,9 @@ AuthorityStrong uses the Authority and Forward models unchanged and adds witness
   the migration, so the results above cover the label model.
 - `AuthorityStrongWitness` fires both exits from `wParked`.
 
-## Engine legs at draft/v0.35.0 (topic AuthorityEngineV35)
+## Engine legs (topic AuthorityEngineV35)
 
-Pinned to era-contracts `draft/v0.35.0` at `b17415d20`; paths under `l1-contracts/contracts/`.
-There both domain executors apply a transition through an **engine leg**
+Paths under `l1-contracts/contracts/`. Both domain executors apply a transition through an **engine leg**
 (`upgrades/registry/executors/ProxyUpgradeExecutorBase.sol:51-104`): they delegatecall the
 engine the transition pins, so it runs with the executor's address and storage. Before it runs,
 a CTM leg refuses a CTM whose `admin()` is the `ProxyAdmin` (:75-77). After it returns, the leg
@@ -203,12 +232,13 @@ models quote.
 
 Reported to the maintainer of this repo, not yet confirmed upstream. Each was checked by two
 independent verifiers; only findings both upheld are listed, with the classification both
-gave. Paths are under `l1-contracts/contracts/` at `e561b9cc2`.
+gave. Paths are under `l1-contracts/contracts/`; first reported at `e561b9cc2`, re-checked at
+`b17415d20` (lines below are at `b17415d20`).
 
 - *real-bug.* `ChainTypeManager` (`state-transition/ChainTypeManager.sol:58`,
   `Ownable2StepUpgradeable`) does not disable `renounceOwnership`, so one forwarded call
   leaves the CTM with neither owner nor nominee (`RenouncedAuthorityIsStranded`). This
-  conflicts with `governance/UpgradeExecutorBase.sol:14-17` and :48-53, which disable it on
+  conflicts with `governance/UpgradeExecutorBase.sol:15-20` and :57-62, which disable it on
   the executor so that its authority is never stranded. Only the executor's owner (governance)
   can send the call; recovery is a CTM code swap by the `ProxyAdmin`'s owner. The same call on
   the CTM-domain `ProxyAdmin` was classified not-an-issue by both: governance can strand it

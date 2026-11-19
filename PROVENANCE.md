@@ -201,15 +201,12 @@ supplying that correspondence.
   `encodeAssetId`, `assetIdCheck`) at the pin above. Re-read all four when the pin
   moves. Each models one writer of its mappings; other writers exist at the pin (see
   the two READMEs).
-* `EraSpec/Contracts/ProxyUpgradeRowLib/` is **outside** that pin. It models
-  `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on
-  branch `feat/upgrade-simplification` of the zksync-era `contracts` repository
-  (formerly `claude/musing-clarke-8b5f2c`). The branch moves. The model's header and
-  commit cite no source commit. The library was found unchanged at
-  `612a71cccb65d6db97674997b21427a50bec6206` (last library change `ae0698588`), so
-  treat the model as a snapshot at that commit. The library has changed since; see
-  that contract's README. `Specs/RowsCurrent.lean` and `Specs/RowsUnvalidated.lean` model the
-  library at `e561b9cc2` instead.
+* `EraSpec/Contracts/ProxyUpgradeRowLib/` models
+  `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` at era-contracts
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label `head-v35-b17415d`):
+  `RowsCurrent` and the topics over it, first written at `e561b9cc2`. Its `History/` keeps the
+  snapshot at `612a71cccb65d6db97674997b21427a50bec6206` (branch `feat/upgrade-simplification`,
+  last library change `ae0698588`) as a record of that commit.
 * `EraSpec/Contracts/ChainTypeManager/` models the CTM's version/transition registry and
   chain facet routing on the same branch, pinned at commit `e561b9cc2` (read-only);
   sources are under `l1-contracts/contracts/upgrades/registry/` and the
@@ -219,11 +216,10 @@ supplying that correspondence.
   `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`), and its header says
   where the code it reuses from the other topics sits at that commit.
 * `EraSpec/Contracts/RegistryBootstrapMigration/` (bootstrap authority) is pinned at
-  `e561b9cc2` too. `EraSpec/Contracts/EcosystemUpgradeExecutor/` (the coordinator and
-  its timer) is pinned at **`afa407085`**, because the coordinator and
-  `GovernanceUpgradeTimer` were deleted from the branch before `e561b9cc2`
-  (`f64622022d`, `469310c94e`); it describes a design that no longer exists at the
-  newer pin.
+  `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`); Authority, Forward and
+  AuthorityStrong were first written at `e561b9cc2`. `EraSpec/Contracts/EcosystemUpgradeExecutor/`
+  is entirely `History/`: the coordinator and its timer at **`afa407085`**, deleted from the
+  branch before `e561b9cc2` (`f64622022d`, `469310c94e`) and absent at `b17415d20`.
 * `EraSpec/Contracts/L2InteropCommitmentTree/*/CommitmentTreeAtV35.lean` models the tree
   contract at era-contracts `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch
   `draft/v0.35.0`, label `head-v35-b17415d`). It was first written against `d9f6789`; every
@@ -249,9 +245,8 @@ supplying that correspondence.
   `ExecutorOwnerCallsV35` are pinned at era-contracts `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
   (branch `draft/v0.35.0`, label `head-v35-b17415d`). Each was first written at `d9f6789`, and
   its Specs header lists what changed between the two commits. `EngineLegV35` reuses the
-  `e561b9cc2` row model (`ProxyUpgradeRowLib` `RowsCurrent`); between `e561b9cc2` and
-  `b17415d20`, `libraries/ProxyUpgradeRowLib.sol` drops `applyTransition`, moves `applyRows`'s
-  verification loop into `requireRowsApplied` unchanged, and adds a `@dev` comment.
+  row model `ProxyUpgradeRowLib` `RowsCurrent`. `DomainHoldersV35`'s `d9f6789` leg is kept in
+  that folder's `History/`.
 * `EraSpec/Contracts/ProxyUpgradeExecutorBase/` topic `NotifierBindingV35` models the CTM
   executor's check around an engine leg and the ServerNotifier binding at era-contracts
   `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (branch `draft/v0.35.0`, label
