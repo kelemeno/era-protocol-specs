@@ -61,6 +61,55 @@ Each could be linked to the canonical models here by a refinement lemma like the
 - MessageVerification/Refinement: `ChainBatchRootIsCompute`, `StatusProofAtMessageRoot`.
 - Renames: `handoff/2026-11-19/renames/roots.json` (7 entries, all History moves).
 
+## Tag plan (not applied: `EraSpec/Core/Headline.lean` was not on `claude/proof-round-9` yet)
+
+Apply with `import EraSpec.Core.Headline` and `attribute [tag] Properties.X` at the end of each
+module. Untagged statements are supporting lemmas; History, Refinement, RootImportLink-at-c67894b9
+and MessageRootLink statements stay untagged.
+
+- `EraSpec/Contracts/MessageRoot/Properties/Model.lean`:
+  - headline: `ChainIndexBijection`, `BatchRootsWriteOnce`, `SettledBatchRootsFrozen`, `ChainTreeIsOrderedLog`, `AppendExact`, `ChainWritersOnly`, `MigrationSkippedBatchesNeverRecorded`, `ProofRootIsRecordedRoot`, `AggregatedRootPinsChainRootOrCollision`, `GenesisSeedOnce`
+- `EraSpec/Contracts/MessageRoot/Properties/Countermodels.lean`:
+  - witness: `EveryEntryPointRun`, `RegistrationPremisesHold`, `AppendPremisesHold`, `MigrationPremisesHold`, `RunPremisesHold`, `WritersOnlyPremisesHold`, `LogIdPremisesHold`, `InteropPremisesHold`, `SameTreesPremisesHold`, `FinalNodeFallbackFollowsTheChain`
+  - countermodel: `AggregatedRootCollisionFires`, `MigrationBeforeRegistrationIsOverwritten`, `ChainTreePositionIsNotBatchNumber`, `RegisteredCheckLoadBearing`, `ConsecutiveCheckLoadBearing`, `MigratingCheckLoadBearing`, `RecordRegisteredCheckLoadBearing`
+- `EraSpec/Contracts/MessageRoot/Properties/Aggregation.lean`:
+  - headline: `AggregatesStrictFromMessageRoot`
+  - witness: `AggregationWitness`, `AggregationRegistryWitness`, `RecordOnlyBatchNotCitableWitness`
+  - countermodel: `EqualTimestampEscapesRoot`, `MidBlockReadEscapesRoot`, `RecordOnlyGap`, `OnboardedChainPositionsAreNotBatchNumbers`
+- `EraSpec/Contracts/L2InteropRootStorage/Properties/Storage.lean`:
+  - headline: `OnlyBootloaderWrites`, `NoOverwrite`, `EachKeyImportedOnce`, `ZeroTimestampIffUnsetInvariant`, `LatestIsMaxInvariant`, `StoredTimestampStaysBelowLatest`
+  - witness: `RootImportRunWitness`, `SingleImportEffectWitness`, `StoredRootSurvivesRunWitness`, `DuplicateKeyBatchWitness`, `LegacyRootStateWitness`
+  - countermodel: `WithoutAuthAnyoneSquatsAKey`, `WithoutExistsCheckRootIsOverwritten`, `WithoutZeroRootCheckTimestampIsRewritten`, `WithoutZeroTimestampCheckRootLooksUnimported`, `LegacyRootBreaksZeroTimestampClaim`
+- `EraSpec/Contracts/L2InteropRootStorage/Properties/RootImportLink.lean`:
+  - headline: `StorageRunsGrowImports`
+  - witness: `StorageRunsGrowImportsRunWitness`
+- `EraSpec/Contracts/L2InteropRootStorage/Properties/Model.lean`:
+  - witness: `RootStorageRunWitness`
+  - countermodel: `LegacyEntryCountermodel`
+- `EraSpec/Contracts/ChainBatchRootTree/Properties/Layout.lean`:
+  - headline: `OpeningPinsLeafOrCollision`, `ImtRootHopPinsLeafOrCollision`
+  - witness: `HonestOpeningAccepted`, `HonestOpeningNoCollision`, `ReservedOpeningWitness`, `ImtRootHopWitness`, `GenesisLeafOneRejectsInitialAggregatedRootWitness`
+  - countermodel: `ComputeRootNeedsDocumentedValue`, `ImtRootHopDepthPinNeeded`, `OpeningCollisionFires`
+- `EraSpec/Contracts/ChainBatchRootTree/Properties/GenesisSeed.lean`:
+  - headline: `GenesisRootStable`, `SeedAtMostOnce`, `NoSeedAfterRealBatch`
+  - witness: `GenesisSeedRunWitness`, `GenesisImtLeavesWitness`
+- `EraSpec/Contracts/ChainBatchRootTree/Properties/LogConfinement.lean`:
+  - headline: `ImtBatchRootLogProofConfinedOrKeccakEvent`
+  - witness: `HonestLogProofPassesLeafZero`, `LogProofPassesLeafZeroWitness`
+  - countermodel: `ImtLandingCollisionFires`
+- `EraSpec/Contracts/L2MessageVerification/Properties/Verification.lean`:
+  - headline: `AcceptedIffStoredRootAtAnchor`, `SharedEntryAcceptsIff`, `AcceptanceSurvivesRuns`, `AcceptedFromFreshStorageWasImported`, `AcceptedAnchorHasNonzeroTimestamp`
+  - witness: `HonestOneHopProofAccepted`, `OneHopProofWitness`
+  - countermodel: `WithoutNonzeroCheckUnimportedKeyAccepts`
+- `EraSpec/Contracts/MessageVerification/Properties/StatusProof.lean`:
+  - headline: `HeldLogIsProvable`
+  - witness: `HonestBatchWalkNoBreak`, `HeldLogIsProvableWitness`, `StatusProofWitness`
+  - countermodel: `BootloaderPremiseLoadBearing`, `DefaultLeafCheckLoadBearing`
+- `EraSpec/Contracts/MessageVerification/Properties/StatusProofKeccak.lean`:
+  - headline: `FailureProofForSucceededTxIsKeccakBreak`
+  - witness: `HonestStatusWalkNoKeccakBreak`
+  - countermodel: `ShortStatusProofIsCrossLengthCollision`
+
 ## Not done in this unit (and why)
 
 - **Aggregation onto the canonical MessageRoot Model.** A simulation from the Model's runs to the
@@ -72,3 +121,6 @@ Each could be linked to the canonical models here by a refinement lemma like the
   the same 88 bytes. Merging them touches `Contracts/MessageHashing` (another unit).
 - **`SettlementRoots` onto the canonical models.** It is a Protocol topic; it keeps using the two
   re-pinned abstract views.
+- **Headline tags.** The infra unit's `EraSpec/Core/Headline.lean` had not reached
+  `claude/proof-round-9` when this unit finished, so no tags are applied; the READMEs carry the
+  headline lists and the tag plan above says which statement gets which tag.
