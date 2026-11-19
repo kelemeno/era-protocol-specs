@@ -1,5 +1,41 @@
 # SecondProofSystem
 
+## Headline guarantees
+
+About era-contracts `draft/v0.35.0` at `b17415d20`. A revert is the absence of a step; the
+installed facets are those at `b17415d20`.
+
+- `Contracts.SecondProofSystem.FlagAuthorityV35.Properties.FlagMonotone`: premise: no
+  break-glass cut (a CTM diamond cut whose init is arbitrary code) along the run. Then a
+  diamond that requires the second proof system keeps requiring it, whatever every other
+  caller does and whatever the verifier answers.
+- `Contracts.SecondProofSystem.FlagAuthorityV35.Properties.AdminCannotDropSecondProof`:
+  premises: no break-glass cut and no `setProofSystemStatus` by whoever owns the Bridgehub at
+  that moment. Then a flagged diamond with ZiSK on stays flagged with ZiSK on, whatever the
+  verifier answers.
+- `Contracts.SecondProofSystem.MigrationV35.Properties.EnabledChainStaysMultiProof`:
+  premises: chain migrations are disabled (`CHAIN_MIGRATIONS_ENABLED = false`, as at
+  `b17415d20`); the chain settles on L1; its L1 verifier answers `getProofMode` as
+  `MultiProofVerifier` does; `enableInterop` with the requirement succeeds; afterwards no
+  break-glass cut and no proof system turned off on the L1 diamond by L1's Bridgehub owner.
+  Then the chain stays interop-enabled, on L1, flagged, with mask `0` and in multi-proof mode.
+- `Contracts.SecondProofSystem.UpgradeGateV35.Properties.FlaggedChainsStayMultiProof`:
+  premises: every verifier that answers multi-proof under some mask answers it under mask `0`
+  (`MaskMonotone`; both deployed verifiers do); every flagged chain starts on a verifier that
+  passes the gate. Then along every run every flagged chain's verifier passes the gate. This
+  topic extends `../ChainTypeManager/`'s `UpgradeTiming` model (written at `e561b9cc2`).
+- `Contracts.SecondProofSystem.UpgradeGateV35.Properties.LockedChainCannotUpgrade`: premise:
+  the chain is locked (flagged, and the edge committed at its version lands on a release whose
+  verifier fails the gate, with nothing committed above). Then no upgrade step of that chain
+  succeeds, by any path, caller or time.
+
+Witnesses: `FlagMonotoneRunWitness`, `AdminSideRunWitness`, `MultiProofKeptWitness`,
+`UpgradeGateV35Witness`, `ReleasePolicyWitness`. Countermodels: `InitClearsFlag`,
+`BreakGlassDropsSecondProof`, `LyingVerifierFlagsWithZiskOff`, `AdminOnlyRuleLetsAdminDrop`,
+`MaskMonotoneIsLoadBearing`, `ReleasePolicyIsLoadBearing`.
+
+## Source and layout
+
 The second-proof-system requirement of ZKsync OS chains: a chain's admin can make its diamond
 permanently require the ZiSK proof next to the Airbender one, after which switching ZiSK off is
 reserved for the Bridgehub owner (`protocol-docs/interop-gating.md`, "Second proof system
@@ -15,10 +51,13 @@ facets, `DiamondInit`, the `ChainTypeManager` and chain-asset-handler migration 
 and `protocol-docs/chain-lifecycle.md`.
 
 Source: era-contracts branch `draft/v0.35.0` at **`b17415d20`**
-(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, 2026-11-16). Paths are relative to
-`l1-contracts/contracts/`. **The branch moves**: every `file:line` in the spec is at that commit.
-All three topics were first written against `d9f678900`; each Specs header records what changed.
-The commit is outside the interop pin `c67894b9`.
+(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). Paths are relative to `l1-contracts/contracts/`;
+every `file:line` in the specs is at that commit.
+
+The three topics are three models: one diamond (FlagAuthorityV35, the canonical diamond
+model), one chain with its L1 and gateway diamonds (MigrationV35) and the CTM-level gate over
+`../ChainTypeManager/`'s upgrade model (UpgradeGateV35). No theorem relates them yet; see
+"Relation to FlagAuthorityV35 and UpgradeGateV35" below.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those exact
