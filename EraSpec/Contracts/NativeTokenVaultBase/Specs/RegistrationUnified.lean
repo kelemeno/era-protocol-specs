@@ -13,15 +13,17 @@ origin token `0`, which the representation model never does.  Each model lacks a
 condition the source implies.
 
 This file adds each missing condition to the model that lacks it, as a NEW
-definition beside the unchanged original (era-contracts `c67894b9`, paths relative
-to `l1-contracts/contracts/` unless they start with `system-contracts/`):
+definition beside the unchanged original (era-contracts `draft/v0.35.0` head `b17415d20`,
+paths relative to `l1-contracts/contracts/`; first written at the pin `c67894b9`, where EraVM
+chains deployed bridged tokens through the `ContractDeployer` system contract; at `b17415d20`
+both vaults deploy with OpenZeppelin `Create2.deploy`):
 
 | Added to | Condition | Where the source gets it |
 |---|---|---|
-| `registerRepresentation'` | origin chain `≠ 0` | `tokenDataOriginChainId` replaces a decoded `0` by `_l1ChainId()` (`bridge/ntv/NativeTokenVaultBase.sol:565-571`) and the result is the inner helper's `_tokenOriginChainId` (`:544-551`); it is nonzero when `_l1ChainId() ≠ 0` |
-| `registerRepresentation'` | token address `≠ 0` | the token address is checked against the address the CREATE2 deployment returned (`:582-583`), which is never `0`: L1 and ZKsync OS deploy with `Create2.deploy` (`bridge/ntv/L1NativeTokenVault.sol:249-257`, `bridge/ntv/L2NativeTokenVaultZKOS.sol:21-35`), and EraVM's `ContractDeployer` refuses kernel-space addresses (`system-contracts/contracts/ContractDeployer.sol:434-436`) |
-| `registerRepresentation'` | token address unmapped | the same deployment reverts at an occupied address (`ContractDeployer.sol:438-446`; a CREATE2 collision under `Create2.deploy`), and every mapped token address is occupied except L1's ETH sentinel `address(1)`, which `registerEthToken` maps with no code check (`bridge/ntv/L1NativeTokenVault.sol:135-138`); CREATE2 returns that address only for a keccak preimage (`DeployFresh`) |
-| `RegisterBridgedGuard'` | origin token `≠ 0` | `bridgeInitialize` requires `_originToken != address(0)` (`bridge/BridgedStandardERC20.sol:86`); `_deployBridgedToken` calls it (`NativeTokenVaultBase.sol:630`) before the registry write (`:585`) |
+| `registerRepresentation'` | origin chain `≠ 0` | `tokenDataOriginChainId` replaces a decoded `0` by `_l1ChainId()` (`bridge/ntv/NativeTokenVaultBase.sol:542-548`) and the result is the inner helper's `_tokenOriginChainId` (`:521-528`); it is nonzero when `_l1ChainId() ≠ 0` |
+| `registerRepresentation'` | token address `≠ 0` | the token address is checked against the address the CREATE2 deployment returned (`:559-560`), which is never `0`: both vaults deploy with `Create2.deploy` (`bridge/ntv/L1NativeTokenVault.sol:413-420`, `bridge/ntv/L2NativeTokenVault.sol:184-194`), which reverts when CREATE2 returns `0` |
+| `registerRepresentation'` | token address unmapped | the same deployment reverts at an occupied address (a CREATE2 collision under `Create2.deploy`), and every mapped token address is occupied except L1's ETH sentinel `address(1)`, which `registerEthToken` maps with no code check (`bridge/ntv/L1NativeTokenVault.sol:301-304`); CREATE2 returns that address only for a keccak preimage (`DeployFresh`) |
+| `RegisterBridgedGuard'` | origin token `≠ 0` | `bridgeInitialize` requires `_originToken != address(0)` (`bridge/BridgedStandardERC20.sol:83`); `_deployBridgedToken` calls it (`NativeTokenVaultBase.sol:607`) before the registry write (`:562`) |
 
 The source has no `require` for the first three.  They follow from mechanisms the
 representation model takes as parameters: the resolved origin chain
@@ -60,7 +62,7 @@ part of the premise.  That step needs every mapped token address to carry code, 
 one does not: L1's ETH sentinel `address(1)`.  For it the premise rests on CREATE2
 addresses being keccak outputs instead (see `DeployFresh`).  On L2,
 `_l1ChainId()` is whatever `updateL2` stored, which it does not check for zero
-(`bridge/ntv/L2NativeTokenVault.sol:160-164`); `SourceRegistrationInput.l1Nonzero`
+(`bridge/ntv/L2NativeTokenVault.sol:148-159`); `SourceRegistrationInput.l1Nonzero`
 is configuration there (`OPS-CONFIG`).
 
 **This file is definitions only.**  Statements are in
@@ -72,10 +74,10 @@ namespace Contracts.NativeTokenVault
 /-! ## The tightened registry model -/
 
 /-- `RegisterBridgedGuard`, plus the origin-token check the source performs on this
-path before the registry write: `_deployBridgedToken` (`NativeTokenVaultBase.sol:630`)
+path before the registry write: `_deployBridgedToken` (`NativeTokenVaultBase.sol:607`)
 calls `bridgeInitialize`, which requires `_originToken != address(0)`
-(`BridgedStandardERC20.sol:86`), and only then does `_ensureAndSaveTokenDeployedInner`
-write the registry (`NativeTokenVaultBase.sol:585`). -/
+(`BridgedStandardERC20.sol:83`), and only then does `_ensureAndSaveTokenDeployedInner`
+write the registry (`NativeTokenVaultBase.sol:562`). -/
 structure RegisterBridgedGuard' (e : NtvAssetId) (thisChain : Chain) (V : Vault)
     (a : AssetId) (t ot : Address) (origin : Chain) : Prop
     extends RegisterBridgedGuard e thisChain V a t ot origin where
@@ -109,8 +111,8 @@ variable {Accounting : Type}
 
 /-! ## Where the three registry-only conditions come from -/
 
-/-- `tokenDataOriginChainId` (`NativeTokenVaultBase.sol:565-571`), taking the chain-id
-field `decoded` that `DataEncoding.decodeTokenData` returns (`DataEncoding.sol:174-186`)
+/-- `tokenDataOriginChainId` (`NativeTokenVaultBase.sol:542-548`), taking the chain-id
+field `decoded` that `DataEncoding.decodeTokenData` returns (`DataEncoding.sol:173-185`)
 and the vault's `_l1ChainId()`: a decoded `0` stands for L1.  The decoded field comes
 from the mint data, which the sending chain supplies. -/
 def tokenDataOriginChainId (decoded l1ChainId : UInt256) : UInt256 :=
@@ -123,30 +125,25 @@ asset id in the registry about to be written.
 The source discharges this from the deployment mechanism, not from a check of its
 own:
 
-* nonzero: L1 and ZKsync OS deploy with OpenZeppelin `Create2.deploy`
-  (`L1NativeTokenVault.sol:249-257`, `L2NativeTokenVaultZKOS.sol:21-35`), which
-  reverts when CREATE2 returns `0` (the library is not in the pinned tree; this is its
-  v4 behaviour); EraVM chains deploy through the `ContractDeployer` system contract
-  (`L2NativeTokenVault.sol:217-236`), whose `create2` → `create2Account` →
-  `_nonSystemDeployOnAddress` path (`system-contracts/contracts/ContractDeployer.sol:167-173,
-  287-299, 422-450`) reverts for any address up to `MAX_SYSTEM_CONTRACT_ADDRESS`
-  (`:434-436`);
-* unmapped, for a mapped address that carries code: both revert at an occupied
-  address (`ContractDeployer.sol:438-446`; CREATE2 fails on a collision on the EVM).
-  At the pin the map is written only by `_setNewTokenStorage`
-  (`NativeTokenVaultBase.sol:588-598`) and by `updateL2` for the base token
-  (`L2NativeTokenVault.sol:170-172`).  `_setNewTokenStorage` is reached from
-  `_ensureAndSaveTokenDeployedInner`, for a bridged token deployed here (`:582-585`),
-  and from `_unsafeRegisterNativeToken` (`:515-522`), which checks nothing about the
-  token (`:513`).  `_registerToken` calls it only after
-  `require(_nativeToken.code.length > 0)` (`:139`, `:141`).  The L2 base token is the
+* nonzero: both vaults deploy with OpenZeppelin `Create2.deploy`
+  (`L1NativeTokenVault.sol:413-420`, `L2NativeTokenVault.sol:184-194`), which reverts
+  when CREATE2 returns `0` (`lib/openzeppelin-contracts-v4`, v4 behaviour).  (At the pin
+  EraVM chains deployed through the `ContractDeployer` system contract instead, which
+  refused kernel-space addresses.)
+* unmapped, for a mapped address that carries code: CREATE2 fails on a collision.
+  The map is written only by `_setNewTokenStorage` (`NativeTokenVaultBase.sol:565-575`)
+  and by `updateL2` for the base token (`L2NativeTokenVault.sol:165-167`).
+  `_setNewTokenStorage` is reached from `_ensureAndSaveTokenDeployedInner`, for a bridged
+  token deployed here (`:559-562`), and from `_unsafeRegisterNativeToken` (`:492-499`),
+  which checks nothing about the token (`:490`).  `_registerToken` calls it only after
+  `require(_nativeToken.code.length > 0)` (`:137`, `:139`).  The L2 base token is the
   system contract at `L2_BASE_TOKEN_SYSTEM_CONTRACT_ADDR`
-  (`common/l2-helpers/L2ContractAddresses.sol:63`), which the genesis and upgrade
-  helper calls (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:446`);
+  (`common/l2-helpers/L2ContractAddresses.sol:59`), which the genesis and upgrade
+  helper registers (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:369`);
 * unmapped, for the one address mapped with no code: L1's `registerEthToken`
-  (`L1NativeTokenVault.sol:135-138`) calls `_unsafeRegisterNativeToken` directly, with
+  (`L1NativeTokenVault.sol:301-304`) calls `_unsafeRegisterNativeToken` directly, with
   no code check, for the ETH sentinel `ETH_TOKEN_ADDRESS = address(1)`
-  (`common/Config.sol:159`).  On Ethereum that is the `ecrecover` precompile, which has
+  (`common/Config.sol:203`).  On Ethereum that is the `ecrecover` precompile, which has
   no code, so no collision revert protects it.  The premise rests instead on CREATE2
   addresses being keccak outputs: L1's `Create2.deploy` returns `address(1)` only if
   the keccak hash of (vault, salt, init code) has low 160 bits equal to `1`, a
@@ -170,11 +167,12 @@ structure SourceRegistrationInput (hooks : RegistrationHooks Accounting)
     (s : RegistrationState Accounting) (origin : Address) (decoded l1ChainId : UInt256) :
     Prop where
   /-- `_l1ChainId() ≠ 0`.  On L1 it is the deployment's `block.chainid`
-  (`L1NativeTokenVault.sol:120`).  On L2 it is the value `updateL2` stored
-  (`L2NativeTokenVault.sol:160-164`), which is not checked for zero: configuration. -/
+  (`L1NativeTokenVault.sol:273`).  On L2 it is the value `updateL2` stored
+  (`L2NativeTokenVault.sol:148-159`), which is not checked for zero: configuration. -/
   l1Nonzero : l1ChainId ≠ 0
   /-- The origin chain handed to the inner helper is the normalised one
-  (`NativeTokenVaultBase.sol:544-551`, `L2NativeTokenVault.sol:200-208`). -/
+  (`NativeTokenVaultBase.sol:521-528`; at the pin the L2 vault overrode it with the same
+  normalisation). -/
   originChain : s.config.originChainId = tokenDataOriginChainId decoded l1ChainId
   /-- The deployment law. -/
   deployFresh : DeployFresh hooks s origin
@@ -198,8 +196,8 @@ def registerRepresentation' (hooks : RegistrationHooks Accounting)
   if RegistryOnlyGuards s then registerRepresentation hooks s origin else none
 
 /-- `registerFreshBranch` with the tightened registration: the caller's
-missing-forward-slot test (`token == address(0)`, `NativeTokenVaultBase.sol:253`,
-`:301`), then `registerRepresentation'`. -/
+missing-forward-slot test (`token == address(0)`, `NativeTokenVaultBase.sol:233`,
+`:281`), then `registerRepresentation'`. -/
 def registerFreshBranch' (hooks : RegistrationHooks Accounting)
     (s : RegistrationState Accounting) (origin : Address) : Option (Registered Accounting) :=
   if s.registry.tokenForAsset s.config.assetId = 0 then registerRepresentation' hooks s origin
@@ -209,7 +207,7 @@ def registerFreshBranch' (hooks : RegistrationHooks Accounting)
 
 /-- **One operation on the tracked token after its registration**: the `bridgeBurn`
 branch (`prepare`), or one operation of the token model on the tracked token — the
-vault's `bridgeMint` / `bridgeBurn` (`BridgedStandardERC20.sol:170-182`), or an
+vault's `bridgeMint` / `bridgeBurn` (`BridgedStandardERC20.sol:158-167`), or an
 ordinary transfer.  The token model's mint and burn require the caller to be the
 token's configured vault. -/
 inductive RepStep (hooks : Hooks Accounting) : State Accounting → State Accounting → Prop

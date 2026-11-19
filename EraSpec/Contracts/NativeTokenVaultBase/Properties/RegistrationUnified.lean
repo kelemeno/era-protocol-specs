@@ -306,7 +306,7 @@ def Properties.UnifiedRegistrationGuardsAgree : Prop :=
 a `Valid` vault, with every other premise of `UnifiedRegistrationPreservesValidOn`, whose
 asset is already registered at another token; the registry guard then fails, and the
 corresponding registry write breaks `Valid`.  In the source both callers test
-`tokenAddress[_assetId] == address(0)` first (`NativeTokenVaultBase.sol:253`, `:301`),
+`tokenAddress[_assetId] == address(0)` first (`NativeTokenVaultBase.sol:233`, `:281`),
 which is `registerFreshBranch'`'s test. -/
 def Properties.InnerRegistrationNeedsFreshSlot : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)

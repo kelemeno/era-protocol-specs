@@ -14,6 +14,7 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.PreparationGuards
 -- Asset bridge: the vault's registry and escrow ledger, and the router's handler
 -- table (registry-wide models; see the contract READMEs for how they relate)
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.RegistryAndEscrow
+import EraSpec.Contracts.NativeTokenVaultBase.History.Proofs.PerChainIsolation
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.ModelCorrespondence
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 
@@ -251,6 +252,7 @@ import EraSpec.Contracts.L1NativeTokenVault.Proofs.InteropPool
 -- per-chain cap, the escrow ledger identity, and the bulkhead model's calls as InteropPool calls (N-3)
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadIsolation
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadPoolSimulation
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.LedgerRefinement
 
 -- Range proofs of the priority queue (b17415d20): `Merkle.calculateRootPaths` and
 -- `PriorityTree.processBatch` (N-8)
@@ -363,9 +365,10 @@ import EraSpec.Contracts.MessageRoot.Proofs.Aggregation
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.Model
 import EraSpec.Protocol.InteropAtomicity.Proofs.SettlementRoots
 
--- L2AssetTracker accounting (pin c67894b9, transferred to b17415d20/70096e2ea), and the vault's
+-- L2AssetTracker accounting (b17415d20; the pin-only backfill under History), and the vault's
 -- deployed chain-balance hooks (L1 `bridgedOut`, L2 tracker)
 import EraSpec.Contracts.L2AssetTracker.Proofs.Accounting
+import EraSpec.Contracts.L2AssetTracker.History.Proofs.Backfill
 import EraSpec.Contracts.L2AssetTracker.Proofs.HookOrdering
 import EraSpec.Contracts.L2AssetTracker.Proofs.NativeEscrow
 import EraSpec.Contracts.L2AssetTracker.Proofs.LaterHeads
@@ -418,6 +421,7 @@ import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
 
 -- Atomic recovery on the L2 asset tracker at v35 (b17415d20)
 import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
+import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutralityRefinement
 
 -- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
 -- on the PriorityTree model copied from origin/cov/mailbox

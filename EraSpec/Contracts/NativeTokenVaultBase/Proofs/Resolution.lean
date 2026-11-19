@@ -679,7 +679,7 @@ theorem stateWith_wf {A : Type} {holder : Address} (hh : holder ≠ 0) (amount :
 def countOut : Hooks ℕ := ⟨fun a _ _ _ amount => some (a + amount.val), fun _ _ => some []⟩
 
 /-- Resolution hook: the same counter, shrinking by the amount bridged in and failing below
-zero (the shape of the L1 vault's `bridgedOut`, `L1NativeTokenVault.sol:260-277`). -/
+zero (the shape of the L1 vault's `bridgedOut`, `L1NativeTokenVault.sol:426-428, 440-445`). -/
 def countIn : ResolutionHooks ℕ :=
   ⟨fun a _ _ _ amount => if amount.val ≤ a then some (a - amount.val) else none⟩
 

@@ -32,7 +32,7 @@ registry, so it agrees with the vault exactly when the vault happens to record t
 * `RegisteredTokenIdFrozen`: no vault operation changes a token's nonzero id. With the token
   side's `legacy_run_config`, `LegacyAgreementPermanent`: once the fallback has fired and the
   vault has an id, agreement or disagreement is permanent. No hash premise in either.
-* `UnregisteredLegacyTokenRegistersNative`: at the pin, the permissionless `registerToken` on a
+* `UnregisteredLegacyTokenRegistersNative`: at `b17415d20` (as at the pin), the permissionless `registerToken` on a
   legacy token with no id records it as native to this chain, permanently. The vault then
   escrows it rather than calling it, so the fallback never fires through the vault, and the
   fallback's id would not be the vault's.
@@ -166,9 +166,9 @@ def Properties.LegacyAgreementPermanent : Prop :=
     vaultIdOf W.vault T ≠ 0 → NativeTokenVault.Reach e thisChain W X →
       (AssetIdAgrees X.vault T t' ↔ AssetIdAgrees W.vault T t)
 
-/-- **AN UNREGISTERED LEGACY TOKEN CAN BE REGISTERED AS NATIVE, PERMANENTLY.** At the pin
-`registerToken` is permissionless and has no legacy-token check (`NativeTokenVaultBase.sol`
-:129-142). On an L2 (`l1 ≠ thisChain`), take a nonzero token address with no id and an encoding
+/-- **AN UNREGISTERED LEGACY TOKEN CAN BE REGISTERED AS NATIVE, PERMANENTLY.** At `b17415d20`
+(as at the pin) `registerToken` is permissionless and has no legacy-token check
+(`NativeTokenVaultBase.sol` :127-140). On an L2 (`l1 ≠ thisChain`), take a nonzero token address with no id and an encoding
 injective and nonzero on the pair it derives and the fallback's pair. Then there is a vault
 step, `registerNative`, after which: the token's id is `encodeNTVAssetId(thisChain, T)` and is
 native, so the vault escrows the token instead of calling it (no `VaultBridgesToken`, so the

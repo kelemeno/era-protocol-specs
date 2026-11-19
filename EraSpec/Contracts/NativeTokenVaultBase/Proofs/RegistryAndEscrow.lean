@@ -1407,11 +1407,6 @@ theorem NoInflation : Properties.NoInflation :=
   fun _ he _ hc0 _ hr a hnat => no_inflation he hc0 hr a hnat
 theorem UnguardedInflowUnbacked : Properties.UnguardedInflowUnbacked :=
   fun _ he _ hc0 _ ht0 => unguarded_inflow_unbacked he hc0 ht0
-theorem PerChainIsolationFails : Properties.PerChainIsolationFails :=
-  fun _ _ _ ht0 _ _ hAB =>
-    ⟨_, (per_chain_isolation_fails ht0 hAB).1, (per_chain_isolation_fails ht0 hAB).2.1,
-      (per_chain_isolation_fails ht0 hAB).2.2.1, (per_chain_isolation_fails ht0 hAB).2.2.2⟩
-
 
 /-- Pigeonhole: no map `UInt256 → UInt256 → UInt256` is injective on pairs. -/
 theorem not_pair_inj (f : UInt256 → UInt256 → UInt256)

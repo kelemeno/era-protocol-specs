@@ -1,12 +1,13 @@
 import EraSpec.Contracts.L2AssetTracker.Specs.NativeEscrow
 
 /-!
-# Model: the tracker at the current heads, and the recovery guard they add
+# Model: the tracker's step at `b17415d20`, and the recovery guard
 
 Sources, under `l1-contracts/contracts/`: `draft/v0.35.0` at `b17415d20`, cited `TRKH` for
 `bridge/asset-tracker/L2AssetTracker.sol` and `L2NTVH` for `bridge/ntv/L2NativeTokenVault.sol`;
 and `main` at `70096e2ea`, whose `L2AssetTracker.sol` differs from `TRKH` in two comments only
-(`:54`, `:62-63`).  The rest of this folder models the pin `c67894b9` (`TRK`).
+(`:54`, `:62-63`).  `Specs/Accounting.lean` was first written at the pin `c67894b9`
+(`TRK` here is the pin's file) and models the same functions plus three pin-only ones.
 
 **This file is definitions only.**  The results are in
 `EraSpec.Contracts.L2AssetTracker.Properties.LaterHeads` and proved in

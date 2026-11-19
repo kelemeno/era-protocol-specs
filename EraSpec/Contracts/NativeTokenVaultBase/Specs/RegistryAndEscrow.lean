@@ -4,6 +4,14 @@ import EraSpec.Core.Word
 /-!
 # Model: `NativeTokenVault` — the asset registry and the escrow ledger
 
+Source: era-contracts `draft/v0.35.0` head `b17415d20`, `l1-contracts/contracts/bridge/ntv/`
+`NativeTokenVaultBase.sol` (`NTV`) and `L1NativeTokenVault.sol` (`L1NTV`).  First written at the pin
+`c67894b9`.  The registry writers are the same code at `b17415d20`.  The ledger here is the
+aggregate `bridgedOut` alone, which was the whole L1 ledger at the pin; at `b17415d20` the L1 hooks
+also keep per-chain totals with a cap, which only add reverts, so every successful `b17415d20`
+hook call on an L1-native asset is this model's `bridgeOut`/`bridgeIn` on `bridgedOut`
+(L1NativeTokenVault `LedgerRefinement`; the per-chain ledger is L1NativeTokenVault `InteropPool`).
+
 The vault holds this chain's native tokens that have been bridged away, and mints
 or burns local representations of tokens native elsewhere.  Two things in it are
 worth stating precisely, and this file models both.
@@ -14,20 +22,19 @@ worth stating precisely, and this file models both.
 
 ## 1. The registry, and a documented assumption
 
-`NativeTokenVaultBase` carries three mappings and the same comment three times:
+`NativeTokenVaultBase` carries three mappings with the comment (`NTV:74-81`)
 
-    /// @dev A mapping assetId => originChainId
-    /// @dev It is assumed, that `originChainId`, `tokenAddress` and `assetId`
-    /// mappings are always atomically populated
+    /// @dev A mapping assetId => originChainId. The `originChainId`, `tokenAddress` and `assetId`
+    /// mappings are always populated atomically.
 
-That is an assumption in a comment, and `_setNewTokenStorage` is the writer modelled here.
-(`L2NativeTokenVault`'s initializer also writes all three maps for the base token,
-without `assetIdCheck`; that path is not modelled.)
+That is an assumption in a comment, and `_setNewTokenStorage` (`NTV:565-575`) is the writer
+modelled here.  (`L2NativeTokenVault`'s `updateL2` also writes all three maps for the base
+token, without `assetIdCheck`; that path is not modelled.)
 `Valid` below states what the three maps must satisfy, and
 `Contracts.NativeTokenVault.Properties.RegisterNativePreservesValid` turns the comment into
 an inductive invariant.
 
-The load-bearing part is subtler than atomicity.  `_registerToken` guards only on
+The load-bearing part is subtler than atomicity.  `_registerToken` (`NTV:131-140`) guards only on
 the TOKEN being unregistered (`assetId[_nativeToken] == 0`), not on the asset id
 being free.  Nothing stops the write from clobbering an id that is already in use
 — nothing, that is, except the id being derived from the token:
@@ -39,29 +46,17 @@ So id-freshness is a *consequence* of token-freshness plus keccak injectivity, v
 the `idShape` invariant.  That is what `RegisterNativePreservesValid` proves, and it
 is why the one-sided guard is enough.
 
-## 2. The escrow ledger, and what it does NOT guarantee
+## 2. The escrow ledger
 
-`bridgedOut[assetId]` is the net amount of a this-chain-native asset currently away.
+`bridgedOut[assetId]` (`L1NTV:90`) is the net amount of a this-chain-native asset currently away.
 `_handleBridgeToChain` increases it on the way out, `_handleBridgeFromChain`
 decreases it on the way in and reverts with `InsufficientChainBalance` if the
-inbound amount exceeds it.  Both are no-ops for assets native elsewhere, which are
-minted and burned rather than escrowed.
+inbound amount exceeds it (`L1NTV:426-428`, `:440-445`).  For assets native elsewhere,
+which are minted and burned rather than escrowed, that part is a no-op.
 
-Note the signature of the outbound hook:
-
-    function _handleBridgeToChain(uint256, bytes32 _assetId, uint256 _amount) internal override
-
-The chain id is **unnamed** — the ledger is aggregated over all chains.  The source
-says so outright:
-
-    /// - Correctness of the minted amounts is guaranteed by the ZK proofs of the sending chain
-    /// (plus 2FA on ZKsync OS chains); there is no on-chain per-chain balance enforcement.
-
-So the vault's own arithmetic guarantees *aggregate* solvency and not per-chain
-isolation.  `Audit` below records the per-chain and total flows the contract does
-**not** keep, purely so that both halves of that sentence can be stated:
-`NoInflation` is what the ledger buys, and `PerChainIsolationFails` is what it does
-not, with an explicit two-chain run.
+`bridgedOut` has no chain index, so it guarantees *aggregate* solvency only.  `Audit` below
+records the per-chain and total flows, so that what the ledger buys can be stated
+(`NoInflation`).
 
 ## What is assumed about the token
 

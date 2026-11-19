@@ -4,8 +4,10 @@ import EraSpec.Contracts.BridgedStandardERC20.Specs.Model
 # Registered representation-token preparation
 
 Local specification of the non-native, non-base ERC20 branch of
-`NativeTokenVaultBase.bridgeBurn` at source pin
-`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`.
+`NativeTokenVaultBase.bridgeBurn` at `draft/v0.35.0` head
+`b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`bridge/ntv/NativeTokenVaultBase.sol:294-318`,
+`:361-410`, `:425-457`).  First written at the pin `c67894b9`; this branch is the same code at
+`b17415d20` up to renamed internal getters and locals.
 
 One already registered token is modeled. `InScope` selects this branch, not an
 extra guard purported to reject all other production routes. Typed burn/mint

@@ -14,37 +14,39 @@ This file asks when that id is the vault's id for the token, in the registry mod
 **This file is definitions only.** Statements are in
 `EraSpec.Contracts.NativeTokenVaultBase.Properties.LegacyFallback`.
 
-Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`,
-`l1-contracts/contracts/bridge/ntv/NativeTokenVaultBase.sol` unless another file is named.
+Source: era-contracts `draft/v0.35.0` head `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`,
+`l1-contracts/contracts/bridge/ntv/NativeTokenVaultBase.sol` unless another file is named (first
+written at the pin `c67894b9`; the cited code is the same at `b17415d20`).
 
 ## The vault side
 
-The vault's id for a token `T` is `assetId[T]` (:85). The registry model's `Valid.idShape`
+The vault's id for a token `T` is `assetId[T]` (:82). The registry model's `Valid.idShape`
 says a registered id is `encodeNTVAssetId(originChain, originToken)` of the pair it records.
 
 The vault calls a token's `bridgeMint` / `bridgeBurn`, and so can trigger the fallback, only on
 its bridged branch, where `originChainId[assetId] != block.chainid`: `_bridgeMintToken`
-(:245, :262-263), `_disburseFailedTransfer` (:221, :297-304) and `_getTokenAndBridgeToChain`
-(:389, :471-472). For a token native to this chain it escrows instead (`_depositFunds` :474,
-`_withdrawFunds` :265, :298). `VaultBridgesToken` names that condition.
+(:225, :242-243), `_disburseFailedTransfer` (:203, :277-284) and `_getTokenAndBridgeToChain`
+(:369, :449-450). For a token native to this chain it escrows instead (`_depositFunds` :452,
+`_withdrawFunds` :245, :278). `VaultBridgesToken` names that condition.
 
-## What writes a legacy token's registry entry at the pin
+## What writes a legacy token's registry entry
 
-Nothing that can record it as bridged. `_setNewTokenStorage` (:588-598) is the only writer of
+Nothing that can record it as bridged. `_setNewTokenStorage` (:565-575) is the only writer of
 `assetId[token]` in this file, and it is reached from two places:
 
-* `_unsafeRegisterNativeToken` (:515-522), from `_registerToken` (:133-142), which is reached
-  from the permissionless `registerToken` (:129-131), `ensureTokenIsRegistered` (:145-152) and
-  `tryRegisterTokenFromBurnData` (:341-355). It records the pair `(block.chainid, token)` as
-  native. It checks only WETH, that the token has code and that it has no id (:138-140), and has
+* `_unsafeRegisterNativeToken` (:492-499), from `_registerToken` (:131-140), which is reached
+  from the permissionless `registerToken` (:127-129), `ensureTokenIsRegistered` (:143-150) and
+  `tryRegisterTokenFromBurnData` (:321-335). It records the pair `(block.chainid, token)` as
+  native. It checks only WETH, that the token has code and that it has no id (:132-138), and has
   no legacy-token check, so on a legacy token with no id it records it as native to this chain.
   This is the registry model's `registerNative`.
-* `_ensureAndSaveTokenDeployedInner` (:573-586), for a token deployed by that same call. A
+* `_ensureAndSaveTokenDeployedInner` (:550-563), for a token deployed by that same call. A
   legacy token is already deployed, so this path cannot record it (`VM-DEPLOY`).
 
-`L2NativeTokenVault.updateL2` (`bridge/ntv/L2NativeTokenVault.sol:170-172`) writes the maps for
-the base token only. The comments at :200 and :439 refer to `setLegacyTokenAssetId`, which is
-not in the pinned source, and `bridge/asset-tracker/L2AssetTracker.sol:310` states the
+`L2NativeTokenVault.updateL2` (`bridge/ntv/L2NativeTokenVault.sol:165-167`) writes the maps for
+the base token only. (At the pin `c67894b9` two comments, `:200` and `:439` there, referred to a
+`setLegacyTokenAssetId` that was not in that source; both are gone at `b17415d20`.)
+`bridge/asset-tracker/L2AssetTracker.sol:234` states the
 expectation that all legacy tokens have their origin chain set in the vault. So a legacy token's
 bridged registry entry was written before the pin, and whether it records
 `(L1_CHAIN_ID, originToken)` depends on that history (`OPS-CONFIG`), not on pinned code.
@@ -54,7 +56,7 @@ bridged registry entry was written before the pin, and whether it records
 `legacyEnv e l1` runs the fallback with `encodeNTVAssetId` taken to be the registry model's
 `e` on the zero-extended address (`widen`). Both are
 `keccak256(abi.encode(chainId, L2_NATIVE_TOKEN_VAULT_ADDR, token))`
-(`common/libraries/DataEncoding.sol:151-153`), and ABI-encoding an address zero-extends it.
+(`common/libraries/DataEncoding.sol:150-152`), and ABI-encoding an address zero-extends it.
 
 The registry model's `originToken` is not storage. For a bridged asset it stands for the
 token's own `originToken()` getter (`Specs/RegistryAndEscrow.lean`, and `Refinement.lean` O9).
@@ -77,7 +79,7 @@ def legacyEnv (e : NtvAssetId) (l1 : Chain) : BridgedStandardERC20.LegacyEnv :=
 def legacyPair (l1 : Chain) (ot : Address) : Chain × NativeTokenVault.Address :=
   (l1, widen ot)
 
-/-- The vault's id for the token at `T`: `assetId[T]` (:85). Zero means none. -/
+/-- The vault's id for the token at `T`: `assetId[T]` (:82). Zero means none. -/
 def vaultIdOf (V : Vault) (T : Address) : NativeTokenVault.AssetId :=
   V.assetOf (widen T)
 
@@ -95,7 +97,7 @@ def AssetIdAgrees (V : Vault) (T : Address) (tok : BridgedStandardERC20.State) :
 
 /-- The vault has an id for the token at `T` and it is not native to this chain. This is the
 condition under which the vault's own flows call the token's `bridgeMint` / `bridgeBurn`
-(:245, :262-263, :297-304, :471-472) rather than escrowing it. -/
+(:225, :242-243, :277-284, :449-450) rather than escrowing it. -/
 def VaultBridgesToken (thisChain : Chain) (V : Vault) (T : Address) : Prop :=
   vaultIdOf V T ≠ 0 ∧ ¬ NativeTokenVault.Native thisChain V (vaultIdOf V T)
 
@@ -114,7 +116,7 @@ def LegacyIdBreak (e : NtvAssetId) (V : Vault) (T : Address) (l1 : Chain) (ot : 
 `prepare` (`Specs/RepresentationPreparation.lean`) calls the nonlegacy `burn`, which refuses a
 legacy token, so none of its results covers the first preparation of one. `prepareLegacy` is
 `prepare` verbatim except that the token call is the deployed `bridgeBurn`, with both `onlyNTV`
-branches (`_getTokenAndBridgeToChain`, :469-472). As in `prepare`, the accounting hook runs
+branches (`_getTokenAndBridgeToChain`, :447-450). As in `prepare`, the accounting hook runs
 first and sees the token before the call, so before the fallback. -/
 
 variable {Accounting : Type}
@@ -143,8 +145,8 @@ def prepareLegacy (env : BridgedStandardERC20.LegacyEnv) (hooks : Hooks Accounti
 
 /-- The accounting hook does not read the token's configuration (vault, origin token, asset id):
 changing it changes nothing. The deployed hook, `_handleBridgeToChain` →
-`L2AssetTracker.handleInitiateBridgingOnL2` (`bridge/ntv/L2NativeTokenVault.sol:296-302`,
-`bridge/asset-tracker/L2AssetTracker.sol:221-250, :309-340`), reads the token only through
+`L2AssetTracker.handleInitiateBridgingOnL2` (`bridge/ntv/L2NativeTokenVault.sol:279-283`,
+`bridge/asset-tracker/L2AssetTracker.sol:137-166, :233-262`), reads the token only through
 `totalSupply()` and `balanceOf`, never `nativeTokenVault()` or `assetId()`. -/
 def HookIgnoresTokenConfig (hooks : Hooks Accounting) : Prop :=
   ∀ (acc : Accounting) (tok : BridgedStandardERC20.State) (cfg : BridgedStandardERC20.Config)

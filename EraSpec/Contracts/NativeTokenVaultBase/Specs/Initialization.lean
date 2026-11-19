@@ -5,7 +5,9 @@ import EraSpec.Contracts.BridgedStandardERC20.Specs.Initialization
 # New representation deployment and registry installation
 
 Source projection of `_ensureAndSaveTokenDeployedInner` → `_deployBridgedToken`
-→ `bridgeInitialize` → `_setNewTokenStorage`, at the recorded c678... pin.
+→ `bridgeInitialize` → `_setNewTokenStorage` (`bridge/ntv/NativeTokenVaultBase.sol:550-563`,
+`:597-610`, `:565-575` at `draft/v0.35.0` head `b17415d20`; first written at the pin `c67894b9`,
+the same code).
 `RegistrationState` has no tracked token yet. The deploy dependency represents
 allocation of a NEW proxy with zeroed storage; its actual address is checked
 against the expected `config.tokenAddress` only AFTER token initialization.
