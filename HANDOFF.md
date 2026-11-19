@@ -71,6 +71,9 @@ statements. The plan is below.
 
 ### Rules for consolidation
 
+The tags, the `History` folder convention and the renames file format are in
+[CONSOLIDATION.md](CONSOLIDATION.md).
+
 - **Never weaken a statement.** Moving a property to a shared model must keep it at least as strong. If it
   cannot, say so and keep the old one.
 - **Every step must pass the checks.** Each step keeps `lake build EraSpec` and the audit passing.

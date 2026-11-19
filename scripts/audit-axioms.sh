@@ -27,8 +27,14 @@
 # audit to reject it with that defect's finding. The defects are a `sorry`
 # theorem, a declared axiom, an unused `sorry` def or type, a property proved at
 # some universes only or for a special case, a missing, restated, opaque or
-# non-Prop property, and a theorem in a Properties module. A valid control must
-# pass. Add a case there when you add a check here.
+# non-Prop property, a theorem in a Properties module, a headline tag on a model
+# def or on a proof, a statement with two tags, and a headline in a History
+# module. A valid control must pass, with its tag counts. Add a case there when
+# you add a check here.
+#
+# The audit also prints the headline / witness / countermodel / untagged property
+# counts, in total and per folder (`FOLDER` lines); set ERASPEC_HEADLINES_OUT=<file>
+# to get the full list of tagged properties. See CONSOLIDATION.md.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -46,7 +52,7 @@ if "$LAKE" env lean scripts/Audit.lean > "$OUT" 2>&1; then
   cat "$OUT"
   # Belt and braces: Audit.lean throws on a finding, but a future edit could
   # weaken that, so re-check the reported numbers here too.
-  if grep -qE '^(UNCLEAN|  UNCLEAN|  DECLARED AXIOM)' "$OUT"; then
+  if grep -qE '^(UNCLEAN|  UNCLEAN|  DECLARED AXIOM|  MISPLACED TAG|  DOUBLE TAG|  HISTORY HEADLINE)' "$OUT"; then
     echo "FAIL: findings reported above"
     exit 1
   fi

@@ -7,6 +7,31 @@ represented here. `LegacyFallback` adds the zero-vault branch of `onlyNTV`, and
 `Reinitialization` adds `reinitializeToken` on the full proxy storage. None of these
 models establishes Solidity correspondence.
 
+## Headline guarantees
+
+These are the folder's `@[headline]` statements so far (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+They are about the token ledger with a nonzero configured vault, that is the `onlyNTV` branch
+that does not take the legacy fallback (`BridgedStandardERC20.sol:49-61`, `bridgeMint` `:158-161`,
+`bridgeBurn` `:164-167` at `b17415d20`; the Specs cite `c67894b9`, where the token has the same
+code, as recorded at the end of this README).
+"Well-formed" means: the balances of all `2^160` addresses sum to the total supply, the supply is
+below `2^256`, and the zero address holds nothing. Only the [Model](Properties/Model.lean) and
+[ModelStrong](Properties/ModelStrong.lean) statements are classified so far; the other topics'
+properties are still untagged.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| Only the configured vault can bridge-mint or bridge-burn | The caller is not the configured vault | `unauthorized_bridge_calls` |
+| A mint adds exactly the amount to the recipient's balance and to the supply, nothing else changes | The mint succeeded | `mint_exact` |
+| A burn removes exactly the amount from the owner's balance and from the supply, nothing else changes; no allowance is needed | The ledger is well-formed; the burn succeeded | `burn_exact` |
+| A transfer succeeds exactly when both accounts are nonzero and the owner holds the amount | None | `transfer_succeeds_iff` |
+| A transfer between two accounts moves exactly the amount; supply, other balances and identity are unchanged | The two accounts differ; the transfer succeeded | `transfer_exact` |
+| Every sequence of mints, burns and transfers keeps the ledger well-formed and the identity fixed | The starting ledger is well-formed | `reachable_ledger` |
+| No balance exceeds the supply, and both fit a uint256 | The ledger is well-formed | `balance_bounded` |
+
+Witnesses (`@[witness]`): `one_unit_roundtrip` (a vault mint then burn of one unit, back to the
+empty ledger) and `transfer_moves_value_witness` (mint, a value-moving transfer, burn).
+
 | Review | File |
 |---|---|
 | State, successful-call guards, ledger operations, and allowed traces | [Specs/Model.lean](Specs/Model.lean) |
