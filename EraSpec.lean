@@ -250,6 +250,7 @@ import EraSpec.Contracts.L1NativeTokenVault.Proofs.InteropPool
 -- per-chain cap, the escrow ledger identity, and the bulkhead model's calls as InteropPool calls (N-3)
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadIsolation
 import EraSpec.Contracts.L1NativeTokenVault.Proofs.BulkheadPoolSimulation
+import EraSpec.Contracts.L1NativeTokenVault.Proofs.LedgerRefinement
 
 -- Range proofs of the priority queue (b17415d20): `Merkle.calculateRootPaths` and
 -- `PriorityTree.processBatch` (N-8)
@@ -416,6 +417,7 @@ import EraSpec.Protocol.NativeValueLegs.Proofs.RouterRecoveryFrame
 
 -- Atomic recovery on the L2 asset tracker at v35 (b17415d20)
 import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutrality
+import EraSpec.Contracts.L2AssetTracker.Proofs.RecoveryNeutralityRefinement
 
 -- One chain's priority tree on L1 and on its gateway across a migration out and back (b17415d20),
 -- on the PriorityTree model copied from origin/cov/mailbox

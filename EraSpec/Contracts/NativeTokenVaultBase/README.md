@@ -1,5 +1,49 @@
 # NativeTokenVaultBase
 
+## Headline guarantees
+
+About era-contracts `draft/v0.35.0` head `b17415d20` (`bridge/ntv/NativeTokenVaultBase.sol`; the
+modelled branches are the same code as at the pin `c67894b9` where these models were first
+written). Statements are `….Properties.<Name>`, proofs `….<Name>`, under
+`Contracts.NativeTokenVaultBase` unless marked `NativeTokenVault.` (the registry-and-escrow model).
+"Preparation" is `bridgeBurn` on a registered bridged token; "the hooks" are the chain-balance
+hooks, parameters of the model unless named.
+
+- `BridgeMintExact`, `RecoverExact`: a successful `bridgeMint` (`bridgeRecoverFailedTransfer`)
+  passed the router, pause and value checks, ran the hook on the pre-mint token, and credits
+  exactly `amount` to the data's `remoteReceiver` (`originalCaller`) and to the supply, changing
+  nothing else. No premise.
+- `PrepareThenRecoverRoundTrip`: the router's recovery of a preparation's data returns exactly the
+  pre-preparation state. Premises: the vault state is well formed (`WellFormed`: the token's ledger
+  sums, the registry maps agree with the tracked token), and the hooks cancel (`HooksCancel`). The
+  L1 `bridgedOut` hooks cancel (`L1HooksCancel`); the L2 tracker's do not, only up to its first-touch
+  registration (`L2HooksCancelModuloRegistration`, `AtomicRecoveryRestoresVaultAndTrackerL2`).
+- `RecoverAfterSpending`: ordinary transfers between a preparation and its recovery cannot block the
+  refund or change its amount, and the supply returns to its starting value. Premises: a
+  well-formed start, and the resolution hook succeeds on the state reached.
+- `PrepareThenDeliverConserves`: one transfer across two vaults: the destination credit equals the
+  source debit, and the sum of the two supplies is unchanged. Premise: the source token's ledger
+  invariant.
+- `PausedVaultCommitsNothing`: on a paused vault every attempted burn, mint and recovery reverts.
+  No premise.
+- `NativeTokenVault.LoggedRunSound`: every registry-and-escrow run from fresh storage keeps the
+  registry `Valid`, the audit exact, `bridgedOut` at most the escrow, and, for a native asset,
+  total inflow at most total outflow. Premises: a nonzero chain id, and the asset-id encoding is
+  injective and nonzero on the (chain, token) pairs the run registers (`IdAssumptionsOn`).
+- `NativeTokenVault.SolvencyAtHead`: with `populateBridgedOut`, if `bridgedOut` plus the legacy
+  amounts still to be populated is at most the escrow at the start, it stays so along every run.
+  Premise: that starting bound (`LedgerBackedAtHead`; `UnbackedLegacyBreaksSolvencyAtHead` shows it
+  is needed).
+- `UnifiedRegistrationPreservesValidOn`: a successful tightened first-bridge registration is a
+  registry step and keeps `Valid` and `WellFormed`. Premises: `IdAssumptionsOn` on a pair set
+  containing the registered pair and the vault's recorded pairs, a nonzero chain id, a `Valid`
+  corresponding start, and the registration's asset encoder agreeing with the registry's.
+
+The L1 `bridgedOut` ledger these models use is the `bridgedOut` part of the canonical L1 ledger
+(L1NativeTokenVault `InteropPool`); L1NativeTokenVault `LedgerRefinement` proves the link.
+
+## Topics
+
 These local models cover a fresh representation-token registration projection,
 one `NativeTokenVaultBase.bridgeBurn` case (one already registered token on the
 non-base, non-native branch), the destination `bridgeMint` and
@@ -41,7 +85,7 @@ discharge these concrete obligations.
 | The legacy fallback's asset id against the registry model; the deployed preparation of a legacy token (`prepareLegacy`) | [Specs/LegacyFallback.lean](Specs/LegacyFallback.lean) |
 | Agreement iff (bounded on two pairs), pinned-break form, countermodel, permanence, native misregistration, preparation reduction | [Properties/LegacyFallback.lean](Properties/LegacyFallback.lean) |
 | Checked legacy derivations and witnesses | [Proofs/LegacyFallback.lean](Proofs/LegacyFallback.lean) |
-| The chain-balance hooks at the pin: the L1 vault's `bridgedOut` ledger, the L2 vault's calls into the asset tracker, and the weaker cancel law `HooksCancelModulo` | [Specs/TrackerHooks.lean](Specs/TrackerHooks.lean) |
+| The chain-balance hooks: the `bridgedOut` part of the L1 vault's hooks, the L2 vault's calls into the asset tracker, and the weaker cancel law `HooksCancelModulo` | [Specs/TrackerHooks.lean](Specs/TrackerHooks.lean) |
 | The L1 hooks cancel; the L2 round trip up to the tracker's first-touch registration; countermodels; the first bridge registers as new | [Properties/TrackerHooks.lean](Properties/TrackerHooks.lean) |
 | Checked tracker-hook derivations and witnesses | [Proofs/TrackerHooks.lean](Proofs/TrackerHooks.lean) |
 | Tracked token's full storage, metadata-aware preparation hooks, witness vault | [Specs/Reinitialization.lean](Specs/Reinitialization.lean) |
@@ -50,7 +94,7 @@ discharge these concrete obligations.
 | The owner's `pause`/`unpause` and attempted entry-point calls during a pause | [Specs/Pause.lean](Specs/Pause.lean) |
 | A paused vault commits nothing; delivery and recovery after unpausing are as before | [Properties/Pause.lean](Properties/Pause.lean) |
 | Checked pause derivations and witness | [Proofs/Pause.lean](Proofs/Pause.lean) |
-| The registry-and-escrow model at the current heads (`main` `70096e2`, `draft/v0.35.0` `b17415d`): `populateBridgedOut`, legacy amounts, the in-place-upgrade start | [Specs/EscrowLedgerAtHead.lean](Specs/EscrowLedgerAtHead.lean) |
+| The registry-and-escrow model with `populateBridgedOut` (`b17415d20`): legacy amounts, the in-place-upgrade start | [Specs/EscrowLedgerAtHead.lean](Specs/EscrowLedgerAtHead.lean) |
 | Solvency under the legacy backing, its countermodel, population effect, run-local net flow, enabledness after an in-place upgrade | [Properties/EscrowLedgerAtHead.lean](Properties/EscrowLedgerAtHead.lean) |
 | Checked derivations and witnesses | [Proofs/EscrowLedgerAtHead.lean](Proofs/EscrowLedgerAtHead.lean) |
 
@@ -60,8 +104,8 @@ discharge these concrete obligations.
 `Contracts.NativeTokenVault`. It is not built on the `Contracts.NativeTokenVaultBase`
 models above. It covers the whole registry (`originChainId`, `tokenAddress`,
 `assetId` written by `_setNewTokenStorage`), both registration paths, and the
-aggregate `bridgedOut` escrow ledger. The ledger hooks themselves are in
-`L1NativeTokenVault.sol` at the same pin. The two models overlap on registration
+aggregate `bridgedOut` escrow ledger (the `bridgedOut` part of the hooks in
+`L1NativeTokenVault.sol`; the per-chain totals are L1NativeTokenVault `InteropPool`). The two models overlap on registration
 and the registry maps and use different state types. `ModelCorrespondence` relates them on that
 overlap (see [below](#how-the-two-models-relate)); results transfer only through
 the statements proved there.
@@ -85,12 +129,11 @@ including for an encoding that collides off the log.
 
 ### At the current heads: `populateBridgedOut`
 
-`EscrowLedgerAtHead` extends the registry-and-escrow model to `main` `70096e2` and
-`draft/v0.35.0` `b17415d` (`L1NativeTokenVault.sol` and `NativeTokenVaultBase.sol` unchanged
+`EscrowLedgerAtHead` extends the registry-and-escrow model to `b17415d20` (`L1NativeTokenVault.sol` and `NativeTokenVaultBase.sol` unchanged
 since `3605e82` and `d9f6789`). There `bridgedOut` has a third writer, the permissionless
-`populateBridgedOut` (`L1NativeTokenVault.sol:157-181` on `main`), which adds each L1-native
+`populateBridgedOut` (`L1NativeTokenVault.sol:188-212`), which adds each L1-native
 asset's legacy amount once. It exists for vaults upgraded in place, which start with
-`bridgedOut == 0` (`protocol-docs/bridging.md:183-214`). The legacy amount is a parameter
+`bridgedOut == 0` (`protocol-docs/bridging.md:193-224`). The legacy amount is a parameter
 fixed for a run and assumed to be returned (`MODEL-ESCROW-HEAD`). Runs start from any state.
 - No hash premise: if `bridgedOut` plus the legacy amounts still to be populated is at most
   the escrow at the start, it stays so along every run (`SolvencyAtHead`,
@@ -153,8 +196,7 @@ not establish nonzero vault/token addresses or all preparation guards.
 
 ## Preparation branch and assumptions
 
-Reviewed source context is era-contracts commit
-`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`. `InScope` selects the configured
+`InScope` selects the configured
 representation-token case for this model; it is not an additional production
 requirement that rejects other routes. The preparation model contains one
 registered token. Its forward `tokenForAsset` and reverse `assetForToken` maps are
@@ -243,7 +285,7 @@ Proved agreement:
 Disagreements (countermodels, each on a `Valid` corresponding vault with the hash
 premise on every pair involved):
 
-| Result | Representation model | Registry model | Source at the pin |
+| Result | Representation model | Registry model | Source |
 |---|---|---|---|
 | `RepRegistrationRebindsLiveToken` | registers at an address already mapped to a live asset; `WellFormed` holds after | `freshToken` guard rejects; the corresponding write breaks `Valid.inverse` | no explicit check in `_ensureAndSaveTokenDeployedInner`; freshness rests on CREATE2 reverting at an occupied address. The representation header says the deploy hook allocates a new proxy, but its type does not enforce it. |
 | `RepRegistrationAcceptsZeroOriginChain` | registers with origin chain `0` | `originNonzero` guard rejects; the write breaks `Valid.originIff` | `tokenDataOriginChainId` replaces `0` with `_l1ChainId()` before the inner helper, so the registry model matches when `_l1ChainId() ≠ 0`. |
@@ -286,7 +328,7 @@ conditions alongside the unchanged models, and shows that this closes the gap:
 Model boundaries: `DeployFresh` packages two facts, that CREATE2 reverts at an
 occupied address and that every mapped token address is occupied. The second fails
 for L1's ETH sentinel `address(1)`, which `registerEthToken`
-(`L1NativeTokenVault.sol:135-138`) maps with no code check; for that address the
+(`L1NativeTokenVault.sol:301-304`) maps with no code check; for that address the
 premise rests on CREATE2 addresses being keccak outputs. That mapped addresses keep
 their code is part of the premise. `_l1ChainId() ≠ 0` is configuration on L2
 (`OPS-CONFIG`). Interleaving the tracked token's life with registry operations on
@@ -295,7 +337,7 @@ other assets, and native registration, are not covered.
 ## Resolution: destination mint and failed-transfer recovery
 
 `Specs/Resolution.lean` models `bridgeMint` and `bridgeRecoverFailedTransfer`
-(`NativeTokenVaultBase.sol:193-233`) on two branches. The registered bridged branch:
+(`NativeTokenVaultBase.sol:180-214`) on two branches. The registered bridged branch:
 entry checks, the chain-balance hook on the pre-mint token, then the token's
 `bridgeMint`. The first-bridge deploy branch of `bridgeMint`: `registerFreshBranch`
 applied to the data's origin token, then hook, then mint. `RegisteredBridged` selects
@@ -328,21 +370,20 @@ resolution across a source and a destination vault are in
 [`Protocol/AssetBridgePreparation`](../../Protocol/AssetBridgePreparation/README.md)
 (`Resolution`), and full recovery of router-deposit bundles in `FullRecovery` there.
 
-Source observations, reported to the maintainer of this repo, not yet confirmed
-upstream. Both verifiers classify the first as a NatSpec error and the second as a
-low-severity bug:
+Source observations, reported to the maintainer of this repo. Both verifiers classified the
+first as a NatSpec error and the second as a low-severity bug:
 
-- `NativeTokenVaultBase.sol:186-187` says an asset-id check "must be performed" in
-  `bridgeMint`; on the registered branch none is (`BridgeMintIgnoresUnreadFields`
-  against `FirstBridgeChecksOriginToken`). The minted token is still fixed by
-  `tokenAddress[_assetId]`.
+- At the pin `c67894b9`, `bridgeMint`'s NatSpec said an asset-id check "must be performed";
+  on the registered branch none is (`BridgeMintIgnoresUnreadFields` against
+  `FirstBridgeChecksOriginToken`). The minted token is still fixed by `tokenAddress[_assetId]`.
+  At `b17415d20` that NatSpec sentence is gone; the code is the same.
 - A zero receiver is accepted at the source and rejected at every modelled
   destination (`ZeroReceiverOnlyRecoverable`). On routes without a refund path the
   burned value may be unrecoverable; that is not modelled.
 
 ## Pause
 
-`Specs/Pause.lean` adds the owner's `pause()` and `unpause()` (`NativeTokenVaultBase.sol:660-668`; `vaultPause`,
+`Specs/Pause.lean` adds the owner's `pause()` and `unpause()` (`NativeTokenVaultBase.sol:636-643`; `vaultPause`,
 `vaultUnpause`: OpenZeppelin's `whenNotPaused`/`whenPaused`, writing only the flag) and
 attempted calls to the three modelled `whenNotPaused` entry points: `bridgeBurn` (as
 `prepare`), `bridgeMint` and `bridgeRecoverFailedTransfer`, on the registered branches. An
@@ -391,20 +432,20 @@ deployment context; reported to the maintainer of this repo, not yet confirmed
 upstream): `registerToken` has no legacy check, so a legacy token left without a
 registry entry can be registered as native by anyone, permanently
 (`UnregisteredLegacyTokenRegistersNative`, `RegisteredTokenIdFrozen`). Whether such
-tokens exist depends on migrations before the pin, which this repo cannot check. The
-comments at `NativeTokenVaultBase.sol:200` and `:439` cite `setLegacyTokenAssetId`,
-which is not in the pinned source (both verifiers: NatSpec error).
+tokens exist depends on earlier migrations, which this repo cannot check. (At the pin two
+comments cited a `setLegacyTokenAssetId` not in that source; they are gone at `b17415d20`.)
 
 Model boundaries: the registry entry of a legacy token is taken as a given `Valid`
 state; the registry and token models are compared, not interleaved; destination mint
 and recovery of a legacy token are covered only on the token side.
 
-## Tracker hooks: the chain-balance hooks at the pin
+## Tracker hooks: the chain-balance hooks
 
-`Specs/TrackerHooks.lean` supplies, at the pin, the two hooks that preparation and resolution
+`Specs/TrackerHooks.lean` supplies the two hooks that preparation and resolution
 leave abstract.
 
-* **L1.** They are the vault's own `bridgedOut` ledger (`L1NativeTokenVault.sol:259-277`): a
+* **L1.** They are the `bridgedOut` part of the vault's hooks (`L1NativeTokenVault.sol:426-428`,
+  `:440-445`; at `b17415d20` the hooks also keep per-chain totals, see L1NativeTokenVault): a
   checked `+=` on the way out and a checked `-=` on the way in, for L1-native assets only. They
   satisfy `HooksCancel` (`L1HooksCancel`), so prepare-then-recover restores the state with no
   hook premise (`L1PrepareThenRecoverRoundTrip`), and on the bridged branch they are the identity
@@ -433,9 +474,14 @@ leave abstract.
 
 Witnesses: `L1TrackerHooksSatisfiable`, `AtomicRecoveryL2Satisfiable`, `L2FirstBridgeSatisfiable`;
 in the L2 witnesses the tracker's storage is reached from fresh storage by `initL2` and, for a
-registered asset, a first touch. The L1 hooks at `main` `70096e2ea` are those of the pin; at
-`draft/v0.35.0` `b17415d20` they also keep per-chain deposit and withdrawal totals, which
-`L1Ledger` does not model. At both heads the L2 vault puts the tracker's
+registered asset, a first touch. The L1 hooks also keep per-chain deposit and withdrawal totals,
+which `L1Ledger` does not model; every successful such hook is the `L1Ledger` hook on `bridgedOut`
+(L1NativeTokenVault `LedgerRefinement`). The L2 vault puts the tracker's
 `assertRecoveryIsAccountingNeutral` in front of every refund; that recovery is modelled in
-`L2AssetTracker` `LaterHeads` (`HeadRecoveryRestoresVaultAndTracker`). Nothing else here is
-checked against those heads.
+`L2AssetTracker` `LaterHeads` (`HeadRecoveryRestoresVaultAndTracker`).
+
+## History
+
+`History/` is the record of the pin `c67894b9`, not a claim about `b17415d20`:
+`NativeTokenVault.History.PerChainIsolationFails` shows that the pin's aggregate ledger, which had
+no per-chain enforcement, lets one chain be credited what only another chain sent.
