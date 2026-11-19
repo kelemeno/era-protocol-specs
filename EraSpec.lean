@@ -104,6 +104,7 @@ import EraSpec.Contracts.Merkle.Proofs.DomainSeparation
 import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProof
 import EraSpec.Contracts.MessageVerification.Proofs.StatusProofKeccak
+import EraSpec.Contracts.MessageVerification.Proofs.Refinement
 
 -- DynamicIncrementalMerkle: the storage push tree (MessageRoot chain trees, priority tree), its
 -- memory copy, and the chain trees as the backing of the timeout path's last-batch check
@@ -291,6 +292,7 @@ import EraSpec.Contracts.ChainAdminOwnable.Proofs.AdminRoles
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.Layout
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.GenesisSeed
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.LogConfinement
+import EraSpec.Contracts.ChainBatchRootTree.Proofs.MessageRootLink
 
 -- Head-pinned send path: InteropCenter at main 3605e82 (= 70096e2ea) and draft/v0.35.0 b17415d20
 import EraSpec.Contracts.InteropCenter.Proofs.SendAtHead
@@ -355,8 +357,8 @@ import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
 -- balance cap's accounting hook, and the cap's own run model
 import EraSpec.Codegen.VaultPreparationSlice.Proofs.L1PerChainCapAtV35
 
--- Settlement-layer roots (c67894b9): MessageRootBase's historical roots, L2InteropRootStorage's
--- imports, and the timeout and refund headlines against those roots
+-- Settlement-layer roots: MessageRootBase's historical roots and L2InteropRootStorage's imports
+-- (re-pinned to b17415d20), and the timeout and refund headlines against those roots
 import EraSpec.Contracts.MessageRoot.Proofs.Aggregation
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.Model
 import EraSpec.Protocol.InteropAtomicity.Proofs.SettlementRoots
@@ -454,9 +456,11 @@ import EraSpec.Contracts.ExecutorFacet.Proofs.Pipeline
 import EraSpec.Contracts.ExecutorFacet.Proofs.Checks
 
 -- Imported interop roots on an L2 and the verifier that reads them (L2InteropRootStorage,
--- L2MessageVerification; draft/v0.35.0 b17415d20, with the c67894b9 storage contract)
+-- L2MessageVerification; draft/v0.35.0 b17415d20), and the c67894b9 storage contract as History
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.Storage
 import EraSpec.Contracts.L2InteropRootStorage.Proofs.RootImportLink
+import EraSpec.Contracts.L2InteropRootStorage.History.Proofs.AtC67894b9
+import EraSpec.Contracts.L2InteropRootStorage.Proofs.Refinement
 import EraSpec.Contracts.L2MessageVerification.Proofs.Verification
 
 -- L1Nullifier: the deposit ledger and calls nested in a claim (draft/v0.35.0, b17415d20)

@@ -1,5 +1,37 @@
 # ChainBatchRootTree
 
+## Headline guarantees
+
+All about `l1-contracts/contracts/common/libraries/ChainBatchRootTree.sol` and its consumers at
+era-contracts `draft/v0.35.0` head `b17415d20`. keccak is an arbitrary function; the only premise
+on it is the documented value of a named constant where stated.
+
+- `Contracts.ChainBatchRootTree.Properties.OpeningPinsLeafOrCollision`: given the documented value
+  of `RESERVED_SUBTREE_NODE`, a 3-sibling path at an index below 8 that returns
+  `compute(a, b, c, d)` claims the leaf at that index (`0` for the reserved half), or a keccak
+  collision on two named 64-byte node preimages is located.
+- `Contracts.ChainBatchRootTree.Properties.ImtRootHopPinsLeafOrCollision`: with no premise, the
+  atomic-interop IMT-root hop (depth pinned to 3, mask 2 or 3) that reaches `compute(a, b, c, d)`
+  claims `c` (resp. `d`), or a collision is located.
+- `Contracts.ChainBatchRootTree.Properties.ImtBatchRootLogProofConfinedOrKeccakEvent`: given the
+  documented reserved value and a multichain subtree with no cut and no 64- or 88-byte leaf
+  preimage, a log proof of any length and mask that returns a ZKsync OS batch root passes through
+  leaf 0 at height 3, or keccak collides the walk's 88- or 64-byte input with a named string of
+  another length, or maps it to `0` or a multichain constant.
+- `Contracts.ChainBatchRootTree.Properties.GenesisRootStable`: on every successful run from fresh
+  storage, once the chain exists both the diamond's `l2LogsRootHashes[0]` and the message root's
+  `chainBatchRoots[c][0]` hold the nonzero genesis root, and the chain is registered.
+- `Contracts.ChainBatchRootTree.Properties.SeedAtMostOnce` and
+  `Contracts.ChainBatchRootTree.Properties.NoSeedAfterRealBatch`: on every successful run from any
+  storage, `seedGenesisRoot` succeeds at most once and never after a batch root was recorded
+  (message-root calls from any caller at any time). `MessageRootLink`: for a chain other than
+  `block.chainid`, each call of the canonical `../MessageRoot/` model on reachable storage (`Inv`)
+  leaves the chain's slice unchanged or is one `seedExec` call (`MessageRootCallIsSeedCall`,
+  `ReachableSliceIsSeedRun`). This does not by itself transfer the `SeedSystem` results
+  (`SeedAtMostOnce`, `NoSeedAfterRealBatch`) to the canonical model.
+
+## Topics
+
 Source: `l1-contracts/contracts/common/libraries/ChainBatchRootTree.sol` at era-contracts
 `draft/v0.35.0` head `b17415d20` (the library's code is identical at `d9f678900`, `c67894b9` and main
 `70096e2ea`; only comments differ), with the consumers that read it: `DiamondInit.sol:138`,
@@ -18,6 +50,7 @@ assumed about it except the two documented constants where named (`ASSUMPTIONS.m
 | Layout | [Specs/Layout.lean](Specs/Layout.lean) | [Properties/Layout.lean](Properties/Layout.lean) | [Proofs/Layout.lean](Proofs/Layout.lean) |
 | GenesisSeed | [Specs/GenesisSeed.lean](Specs/GenesisSeed.lean) | [Properties/GenesisSeed.lean](Properties/GenesisSeed.lean) | [Proofs/GenesisSeed.lean](Proofs/GenesisSeed.lean) |
 | LogConfinement | [Specs/LogConfinement.lean](Specs/LogConfinement.lean) | [Properties/LogConfinement.lean](Properties/LogConfinement.lean) | [Proofs/LogConfinement.lean](Proofs/LogConfinement.lean) |
+| MessageRootLink | [Specs/MessageRootLink.lean](Specs/MessageRootLink.lean) | [Properties/MessageRootLink.lean](Properties/MessageRootLink.lean) | [Proofs/MessageRootLink.lean](Proofs/MessageRootLink.lean) |
 
 **Layout.** Under the documented value of `RESERVED_SUBTREE_NODE`, `compute(a, b, c, d)` is
 `rootOf (node keccak) 0 [a, b, c, d] 3`, the `FullMerkle` fold at height 3 with padding `0`
@@ -61,6 +94,13 @@ or 3 of the genesis root opens the root of the freshly set-up commitment tree, t
 `GenesisSeedRunWitness` runs creation and one batch on a concrete keccak. The model lets every
 message-root call come from any caller at any time, so these hold for the deployed callers too
 (`MODEL-CBR-SEED`).
+
+**MessageRootLink.** `GenesisSeed` models one chain's slice of `MessageRootBase` with its own
+transition `seedExec`; the canonical model of the contract is `../MessageRoot/` topic `Model`. On
+storage satisfying that model's invariant, every successful call leaves the slice of a chain other
+than `block.chainid` unchanged or is one `seedExec` call on it (`MessageRootCallIsSeedCall`); right
+after `initialize` such a slice is fresh (`InitializedSliceIsFresh`); so every reachable slice is a
+`seedExec` run from the fresh slice (`ReachableSliceIsSeedRun`).
 
 **LogConfinement.** `MessageVerification._proveL2LogInclusion` does not check the log proof's
 length and uses the log index as the mask; its comment justifies this by the 88-byte log preimage
