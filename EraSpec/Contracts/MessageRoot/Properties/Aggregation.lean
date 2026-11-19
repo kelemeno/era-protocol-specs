@@ -18,7 +18,7 @@ tree root, `chainIdLeafHash(0, c)` while the chain has no leaf (`SharedLeafIsCha
 `FreshChainLeafIsZeroRoot`). A chain tree holds recorded batches only, in strictly increasing
 batch order, each with the timestamp the contract recorded for it (`ChainLeavesArePushedBatches`).
 The source's stated invariant "for all batches starting from `currentChainBatchNumber + 1`, the
-`chainBatchRoots` is 0" (:100) holds (`UnrecordedAboveCurrent`), a recorded batch root is never
+`chainBatchRoots` is 0" (:89) holds (`UnrecordedAboveCurrent`), a recorded batch root is never
 rewritten (`BatchRootWriteOnce`), and an unregistered chain has no leaf and no recorded batch
 (`UnregisteredChainHoldsNothing`).
 
@@ -98,7 +98,7 @@ def Properties.SharedLeafIsChainIdLeaf : Prop :=
   ∀ (P : Params) (r : TsRule) (st : State), Reachable P r st → ∀ c, st.Registered P c →
     st.shared[st.chainIndex c]? = some (P.H.chainIdLeaf (chainRootVal P.H (st.leaves c)) c)
 
-/-- **A FRESH CHAIN'S LEAF IS `chainIdLeafHash(0, c)`** (:352): while a registered chain has no
+/-- **A FRESH CHAIN'S LEAF IS `chainIdLeafHash(0, c)`** (:287): while a registered chain has no
 leaf, its shared-tree leaf commits to the zero word. -/
 def Properties.FreshChainLeafIsZeroRoot : Prop :=
   ∀ (P : Params) (r : TsRule) (st : State), Reachable P r st → ∀ c, st.Registered P c →
@@ -113,7 +113,7 @@ def Properties.ChainLeavesArePushedBatches : Prop :=
       ∧ ∀ l ∈ st.leaves c, st.batchRoot c l.batch = l.root ∧ l.root ≠ 0
           ∧ st.batchTs c l.batch = l.ts ∧ l.batch ≤ st.current c
 
-/-- **THE SOURCE'S OWN INVARIANT (:100).** No batch above `currentChainBatchNumber` is recorded. -/
+/-- **THE SOURCE'S OWN INVARIANT (:89).** No batch above `currentChainBatchNumber` is recorded. -/
 def Properties.UnrecordedAboveCurrent : Prop :=
   ∀ (P : Params) (r : TsRule) (st : State), Reachable P r st →
     ∀ c b, st.current c < b → st.batchRoot c b = 0
@@ -208,8 +208,8 @@ are pushed and counted by a root; batch 2 is then only recorded (`addChainBatchR
 numbers as the index and `chainBatchRootTimestamp` as the clock, batch 2 is outside the root yet
 its time is `0`, before the root's: `LastBatchInRoot.OutsideRootLate` is false.
 
-The run takes the record-only step after pushes. The pinned executor facet calls only
-`addChainBatchRootV32` (`Executor.sol:154`), so on chain this order needs a chain whose executor
+The run takes the record-only step after pushes. The executor facet calls only
+`addChainBatchRootV32` (`Executor.sol:163-166`), so on chain this order needs a chain whose executor
 calls the record-only entry point after it has pushed (ASSUMPTIONS.md, `PROTO-CONTIGUOUS-PUSH`).
 Record-only batches before the first push are the v31 path; they give the offset of
 `OnboardedChainPositionsAreNotBatchNumbers` instead. -/
@@ -229,7 +229,7 @@ def Properties.PushedAfterLastIsLate : Prop :=
 reachable state and is in none of `c`'s leaves, then in every later state of the run it is still
 in none of `c`'s leaves, its recorded timestamp is `0`, and its recorded root is unchanged.
 (At the source level the unchanged root is what `_getChainBatchRoot` serves for direct,
-single-hop message verification, :436-445; that path is not modelled.) -/
+single-hop message verification, :364-373; that path is not modelled.) -/
 def Properties.RecordOnlyBatchNotCitable : Prop :=
   ∀ (P : Params) (r : TsRule) (st₁ st₂ : State), Reachable P r st₁ → Reach P r st₁ st₂ →
     ∀ c b, st₁.batchRoot c b ≠ 0 → (∀ l ∈ st₁.leaves c, l.batch ≠ b) →
@@ -237,7 +237,7 @@ def Properties.RecordOnlyBatchNotCitable : Prop :=
         ∧ st₂.batchRoot c b = st₁.batchRoot c b
 
 /-- **AN ONBOARDED CHAIN'S POSITIONS ARE NOT ITS BATCH NUMBERS.** A chain registered at start 5
-(as `L1Bridgehub.sol:323` registers an existing chain at its executed-batch count) pushes its
+(as `L1Bridgehub.sol:316` registers an existing chain at its executed-batch count) pushes its
 batch 6 at position 0: a root counts one leaf of the chain, that leaf carries batch number 6, and
 no leaf carries a batch number below 6. Reading the count as "batches `0 … count - 1`" names
 batches that are in no tree. -/
@@ -262,8 +262,8 @@ def Properties.AggregationWitness : Prop :=
 /-- **THE REGISTRY PREMISES ARE MET NON-TRIVIALLY.** A run under strict timestamps reaching a
 state with a registered chain `c ≠ self` that has no leaf yet, and an unregistered chain `c'`
 whose `currentChainBatchNumber` was moved by `setMigratingChainBatchNumber`, which has no
-registration check (:178-183). Its deployed caller, the chain asset handler, calls it only for a
-chain already deployed on the settlement layer (`ChainAssetHandlerBase.sol:363-386`), so the
+registration check (:153-157). Its deployed caller, the chain asset handler, calls it only for a
+chain already deployed on the settlement layer (`ChainAssetHandlerBase.sol:397-414`), so the
 second chain is a state of the model, not necessarily of the deployed system. -/
 def Properties.AggregationRegistryWitness : Prop :=
   ∃ (P : Params) (st : State) (c c' : ChainId), Reachable P .strict st
@@ -271,7 +271,7 @@ def Properties.AggregationRegistryWitness : Prop :=
     ∧ ¬ st.Registered P c' ∧ st.current c' ≠ 0
 
 /-- **`RecordOnlyBatchNotCitable`'S PREMISES, ON THE v31-TO-v32 PATH.** A chain registered at start
-0 and never seeded (as for a chain `seedGenesisRoot` skips, :369-371) records its batch 1 with
+0 and never seeded (as a chain the chain asset handler registers, `ChainAssetHandlerBase.sol:409`) records its batch 1 with
 `addChainBatchRoot`, then pushes batches 2 and 3 with `addChainBatchRootV32`. With `st₁` after
 the first push and `st₂` after the second: batch 1 is recorded, is in none of the nonempty
 tree's leaves at `st₁`, and the tree grows from `st₁` to `st₂`. -/

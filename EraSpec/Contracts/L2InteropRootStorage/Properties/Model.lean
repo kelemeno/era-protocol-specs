@@ -18,7 +18,7 @@ that repeats a key, or reuses a stored one, has no successful run (`BatchKeysDis
 ## A zero timestamp means "nothing imported"
 
 From fresh storage, an entry's timestamp is zero iff its root is (`ZeroTimestampIffAbsent`), the
-`IL2InteropRootStorage.sol:18-19` invariant the timeout path relies on, and every nonzero entry
+`IL2InteropRootStorage.sol:18-20` invariant the timeout path relies on, and every nonzero entry
 is `(root, timestamp)` of an admitted tuple for its key (`EntriesAreAdmittedImports`).
 
 ## An entry with a zero timestamp, from earlier storage
@@ -27,8 +27,8 @@ A storage holding `(root ≠ 0, timestamp 0)` at a key, which is how a bare `byt
 over from v31 would read, keeps that entry forever: in every later state inclusion against that
 root is accepted at the key, and the timeout path's root read fails at the key for every deadline
 (`LegacyEntryBlocksTimeoutForever`; `LegacyEntryCountermodel` is a concrete run). By
-`ZeroTimestampIffAbsent` no such entry is reachable from fresh storage; the source's NatSpec says
-none was carried over (`L2InteropRootStorage.sol:35-39`).
+`ZeroTimestampIffAbsent` no such entry is reachable from fresh storage; the source comment says
+none was carried over (`L2InteropRootStorage.sol:29-31`).
 
 ## Witnesses
 
@@ -52,7 +52,7 @@ def Properties.TimestampNotRewritable : Prop :=
   ∀ (ok : RootIn → Prop) (st st' : State), Reach ok empty st → Reach ok st st' →
     ∀ c n, (st.entries c n).ts ≠ 0 → st'.entries c n = st.entries c n
 
-/-- **A ZERO TIMESTAMP MEANS NOTHING IMPORTED** (`IL2InteropRootStorage.sol:18-19`). From fresh
+/-- **A ZERO TIMESTAMP MEANS NOTHING IMPORTED** (`IL2InteropRootStorage.sol:18-20`). From fresh
 storage, an entry's timestamp is `0` iff its root is. -/
 def Properties.ZeroTimestampIffAbsent : Prop :=
   ∀ (ok : RootIn → Prop) (st : State), Reach ok empty st →
