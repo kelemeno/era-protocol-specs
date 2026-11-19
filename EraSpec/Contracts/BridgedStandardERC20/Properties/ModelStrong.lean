@@ -29,7 +29,9 @@ nothing, and for one that credits the wrong account. This file adds what they le
 
 Classification (`EraSpec.Core.Headline`): `transfer_succeeds_iff` and `transfer_exact` are
 `@[headline]`s, `transfer_moves_value_witness` is their `@[witness]`, and `transfer_balances_exact`
-is a supporting lemma.
+is a supporting lemma. `transfer` does not pass through `onlyNTV`, so the deployed token's transfer
+is this one on a legacy token too (`LegacyStep.transfer` in `Specs/LegacyFallback.lean`), and the
+two headlines need no vault premise.
 -/
 
 namespace Contracts.BridgedStandardERC20
@@ -37,7 +39,8 @@ namespace Contracts.BridgedStandardERC20
 /-- **WHEN A TRANSFER SUCCEEDS.** Exactly when the owner and the recipient are nonzero and the
 owner's balance covers the amount (`TransferAllowed`, OpenZeppelin `_transfer`'s two zero-address
 checks and its balance check). The model has no other guard: no caller, vault or supply
-condition. -/
+condition. This is the ERC20 `transfer` call with `owner = msg.sender`; `transferFrom` and
+allowances are not modelled, and `transferFrom` also needs an allowance. -/
 @[headline] abbrev Properties.transfer_succeeds_iff (s : State) (owner recipient : Address)
     (amount : UInt256) :=
   (∃ t, transfer s owner recipient amount = some t) ↔

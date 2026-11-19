@@ -37,6 +37,10 @@ import EraSpec.Core.Headline
 
 `attribute [headline] Properties.foo` after the declaration also works, in the same module (a tag
 attribute cannot be added to a declaration of an imported module).
+
+The end of this file also holds the predicates that say which declarations are property
+statements. `scripts/Audit.lean` and `scripts/ListProperties.lean` both use them, so the list of
+names the renames check diffs is the audit's own list of properties.
 -/
 
 namespace EraSpec.Headline
@@ -58,5 +62,25 @@ premises is necessary. -/
 initialize countermodelAttr : TagAttribute ←
   registerTagAttribute `countermodel
     "property statement: shows that a stronger reading of some headline fails, or that a premise is necessary"
+
+/-! ## Which declarations are property statements
+
+Shared by `scripts/Audit.lean` and `scripts/ListProperties.lean`. -/
+
+/-- `part` is one of the components of `n`. -/
+def hasNamePart (part : String) : Name → Bool
+  | .anonymous => false
+  | .str parentName s => s == part || hasNamePart part parentName
+  | .num parentName _ => hasNamePart part parentName
+
+/-- A Properties module: a module of this package (`EraSpec.…`) with a `Properties` component. -/
+def isPropertiesModule (modName : Name) : Bool :=
+  (`EraSpec).isPrefixOf modName && hasNamePart "Properties" modName
+
+/-- A declaration a user wrote, as opposed to an auxiliary Lean generates for one (`_proof_1`, …).
+A `private` declaration counts as written by a user: its name carries the `_private.<module>.0`
+prefix, which `Name.isInternal` alone would take for an auxiliary. -/
+def isUserDecl (n : Name) : Bool :=
+  !(privateToUserName n).isInternal
 
 end EraSpec.Headline

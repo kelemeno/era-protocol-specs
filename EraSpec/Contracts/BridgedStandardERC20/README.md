@@ -10,38 +10,54 @@ models establishes Solidity correspondence.
 ## Headline guarantees
 
 These are the folder's `@[headline]` statements so far (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
-They are about the token ledger with a nonzero configured vault, that is the `onlyNTV` branch
-that does not take the legacy fallback (`BridgedStandardERC20.sol:49-61`, `bridgeMint` `:158-161`,
-`bridgeBurn` `:164-167` at `b17415d20`; the Specs cite `c67894b9`, where the token has the same
-code, as recorded at the end of this README).
+They are about the token at `b17415d20` (`BridgedStandardERC20.sol:49-61` `onlyNTV`, `bridgeMint`
+`:158-161`, `bridgeBurn` `:164-167`; the Specs cite `c67894b9`, where the token has the same code,
+as recorded at the end of this README).
+
+The bridge-call and run headlines are about the deployed calls `bridgeMint` / `bridgeBurn` and the
+deployed runs (`LegacyReach`, both `onlyNTV` branches), and each carries the premise that the
+token's configured vault is nonzero as a hypothesis of its Lean statement (`hv`). On a legacy token
+(zero vault) the deployed token behaves differently: the L2 native token vault may mint and burn,
+and the call first rewrites the vault and the asset id. That branch is in
+[LegacyFallback](Properties/LegacyFallback.lean) (`legacy_unauthorized_bridge_calls`,
+`legacy_bridge_mint_exact`, `legacy_bridge_burn_exact`, `legacy_reachable_ledger`, …) and is not
+classified yet. The [Model](Properties/Model.lean) statements `unauthorized_bridge_calls`,
+`mint_exact`, `burn_exact` and `reachable_ledger` are about the nonlegacy model's `mint` / `burn` /
+`Reach`, which refuse every bridge call on a zero vault, so they are supporting lemmas, not
+headlines; the headlines below are proved from them. `transfer` does not pass through `onlyNTV`, so
+the transfer headlines need no vault premise.
+
 "Well-formed" means: the balances of all `2^160` addresses sum to the total supply, the supply is
-below `2^256`, and the zero address holds nothing. Only the [Model](Properties/Model.lean) and
-[ModelStrong](Properties/ModelStrong.lean) statements are classified so far; the other topics'
-properties are still untagged.
+below `2^256`, and the zero address holds nothing. Only the [Model](Properties/Model.lean),
+[ModelStrong](Properties/ModelStrong.lean) and the nonlegacy headlines of
+[LegacyFallback](Properties/LegacyFallback.lean) are classified so far; the other properties are
+still untagged.
 
 | Guarantee | Premises | Statement |
 |---|---|---|
-| Only the configured vault can bridge-mint or bridge-burn | The caller is not the configured vault | `unauthorized_bridge_calls` |
-| A mint adds exactly the amount to the recipient's balance and to the supply, nothing else changes | The mint succeeded | `mint_exact` |
-| A burn removes exactly the amount from the owner's balance and from the supply, nothing else changes; no allowance is needed | The ledger is well-formed; the burn succeeded | `burn_exact` |
-| A transfer succeeds exactly when both accounts are nonzero and the owner holds the amount | None | `transfer_succeeds_iff` |
+| Only the configured vault can bridge-mint or bridge-burn | The token's configured vault is nonzero (not a legacy token); the caller is not the configured vault | `nonlegacy_unauthorized_bridge_calls` |
+| A bridge mint adds exactly the amount to the recipient's balance and to the supply, nothing else changes | The token's configured vault is nonzero (not a legacy token); the mint succeeded | `nonlegacy_bridge_mint_exact` |
+| A bridge burn removes exactly the amount from the owner's balance and from the supply, nothing else changes; no allowance is needed | The token's configured vault is nonzero (not a legacy token); the ledger is well-formed; the burn succeeded | `nonlegacy_bridge_burn_exact` |
+| An ERC20 `transfer` (owner = `msg.sender`; `transferFrom` and allowances are not modelled) succeeds exactly when both accounts are nonzero and the owner holds the amount | None | `transfer_succeeds_iff` |
 | A transfer between two accounts moves exactly the amount; supply, other balances and identity are unchanged | The two accounts differ; the transfer succeeded | `transfer_exact` |
-| Every sequence of mints, burns and transfers keeps the ledger well-formed and the identity fixed | The starting ledger is well-formed | `reachable_ledger` |
+| Every sequence of bridge mints, bridge burns and transfers keeps the ledger well-formed and the identity fixed | The token's configured vault is nonzero (not a legacy token) at the start; the starting ledger is well-formed | `nonlegacy_reachable_ledger` |
 | No balance exceeds the supply, and both fit a uint256 | The ledger is well-formed | `balance_bounded` |
 
-Witnesses (`@[witness]`): `one_unit_roundtrip` (a vault mint then burn of one unit, back to the
-empty ledger) and `transfer_moves_value_witness` (mint, a value-moving transfer, burn).
+Witnesses (`@[witness]`): `nonlegacy_one_unit_roundtrip` (on a token with a nonzero vault, the
+vault's deployed one-unit `bridgeMint` then `bridgeBurn`, back to the empty ledger; it also meets
+the premises of `balance_bounded`) and `transfer_moves_value_witness` (mint, a value-moving
+transfer, burn).
 
 | Review | File |
 |---|---|
 | State, successful-call guards, ledger operations, and allowed traces | [Specs/Model.lean](Specs/Model.lean) |
-| Exact security/accounting statements | [Properties/Model.lean](Properties/Model.lean) |
+| Exact security/accounting statements on the nonlegacy model (supporting lemmas; `balance_bounded`) | [Properties/Model.lean](Properties/Model.lean) |
 | Checked ledger derivations | [Proofs/Model.lean](Proofs/Model.lean) |
 | Fresh-proxy initializer projection | [Specs/Initialization.lean](Specs/Initialization.lean) |
 | Initialization input, ledger, once-only, and failure properties | [Properties/Initialization.lean](Properties/Initialization.lean) |
 | Checked initialization derivations | [Proofs/Initialization.lean](Proofs/Initialization.lean) |
 | Legacy zero-vault fallback in `onlyNTV`: prologue, both-branch bridge calls, runs | [Specs/LegacyFallback.lean](Specs/LegacyFallback.lean) |
-| Conservativity, first-call exactness and authority, at-most-once write, run characterization, ledger | [Properties/LegacyFallback.lean](Properties/LegacyFallback.lean) |
+| Conservativity, the nonlegacy bridge-call headlines, first-call exactness and authority, at-most-once write, run characterization, ledger | [Properties/LegacyFallback.lean](Properties/LegacyFallback.lean) |
 | Checked legacy-fallback derivations and witness | [Proofs/LegacyFallback.lean](Proofs/LegacyFallback.lean) |
 | `reinitializeToken` on the full proxy storage, every modelled entry point, labelled runs | [Specs/Reinitialization.lean](Specs/Reinitialization.lean) |
 | Reinitialization guards and effect, version counter, identity for life, countermodels | [Properties/Reinitialization.lean](Properties/Reinitialization.lean) |
@@ -224,5 +240,5 @@ has the same code with rewritten comments; the Specs file maps the cited lines.
   transaction rollback corresponding to these local transitions.
 
 Continue review with [Properties/Initialization.lean](Properties/Initialization.lean)
-and `Properties.burn_exact`, then the
+and `Properties.nonlegacy_bridge_burn_exact`, then the
 [native token vault registration and preparation models](../NativeTokenVaultBase/README.md).

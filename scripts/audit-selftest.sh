@@ -143,6 +143,11 @@ reject OpaqueProperty \
   "$T.OpaqueProperty.Properties.Unproved in EraSpec.$T.OpaqueProperty.Properties is opaque"
 reject TheoremInProperties \
   "$T.TheoremInProperties.Properties.Smuggled in EraSpec.$T.TheoremInProperties.Properties (theorem)"
+# Private declarations, whose `_private` prefix makes them look like Lean auxiliaries
+reject PrivateProperty \
+  "$T.PrivateProperty.Properties.Unproved in EraSpec.$T.PrivateProperty.Properties (def) is private"
+reject PrivateTheorem \
+  "$T.PrivateTheorem.Properties.Smuggled in EraSpec.$T.PrivateTheorem.Properties (theorem) is private"
 
 # The earlier checks
 reject SorryTheorem "UNCLEAN $T.SorryTheorem.bad : [sorryAx]"
@@ -161,6 +166,8 @@ reject TagOnTheorem \
 reject DoubleTag "DOUBLE TAG $T.DoubleTag.Properties.Q carries 2 of"
 reject HistoryHeadline \
   "HISTORY HEADLINE $T.HistoryHeadline.History.Properties.Q in EraSpec.$T.HistoryHeadline.History.Properties"
+reject HeadlineNoDocstring \
+  "HEADLINE WITHOUT DOCSTRING $T.HeadlineNoDocstring.Properties.Q in EraSpec.$T.HeadlineNoDocstring.Properties"
 
 # The control
 accept Accept "properties proved    : 6 " \

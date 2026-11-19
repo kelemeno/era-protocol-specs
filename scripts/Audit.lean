@@ -31,7 +31,9 @@ quantified statement, at every universe level. Missing proofs, special-case-only
 proofs (a proof of one universe instance among them), and independently restated
 theorem conclusions are rejected. A Properties module may declare only `def`
 property statements: an `opaque` property, or a theorem, axiom or inductive type
-there, is an error, never a declaration the coverage check skips.
+there, is an error, never a declaration the coverage check skips. So is a `private`
+declaration of any kind there: `Name.isInternal` takes a private name's `_private`
+prefix for a Lean auxiliary, so the check strips that prefix first (`isUserDecl`).
 
 Property statements may carry one of the tags of `EraSpec.Core.Headline`: `@[headline]` (a real
 guarantee about era-contracts `b17415d20`), `@[witness]` (a non-vacuity witness for a headline) or
@@ -40,9 +42,13 @@ separately, with the untagged properties (supporting lemmas), in total and per c
 (`EraSpec.Contracts.<C>`) and protocol area (`EraSpec.Protocol.<A>`), so that the README headline
 indexes can be checked against it. It rejects a tag on anything but a property statement (a `def` in
 a Properties module), a statement carrying two of the tags, and a `@[headline]` in a `History` module
-or namespace (History is the record of an older commit, not a claim about `b17415d20`). If the
+or namespace (History is the record of an older commit, not a claim about `b17415d20`), and a
+`@[headline]` without a docstring (its docstring states every premise; that it states ALL of them,
+and that each headline with premises has a witness, stay review items). If the
 environment variable `ERASPEC_HEADLINES_OUT` names a file, the audit writes every tagged property to
 it, one per line: tag, folder, statement name and module, separated by tabs.
+
+The axiom findings and the tag findings are all printed before the audit fails on any of them.
 
 `scripts/audit-selftest.sh` runs this file against planted defects
 (`scripts/audit-selftest/`) and requires each to be rejected for its own reason.
@@ -64,10 +70,7 @@ formatted text, which is what removes the print-order and line-wrapping hazards.
 private def axiomsOf (n : Name) : CommandElabM (Array Name) :=
   Lean.collectAxioms n
 
-private def hasPart (part : String) : Name → Bool
-  | .anonymous => false
-  | .str parentName s => s == part || hasPart part parentName
-  | .num parentName _ => hasPart part parentName
+open EraSpec.Headline (hasNamePart isPropertiesModule isUserDecl)
 
 /-- Statements add a `Properties` namespace segment; their public proofs keep
 the original name. Removing that segment gives the required proof declaration. -/
@@ -135,7 +138,12 @@ run_cmd do
     -- declaration kind is handled here, so none can bypass the coverage check by
     -- being a kind it does not look at. Internal names (`_proof_1`, …) are the
     -- auxiliaries Lean generates for a statement; the axiom check below covers them.
-    if hasPart "Properties" modName && !n.isInternal then
+    -- A `private` declaration is not internal (`isUserDecl` strips its `_private`
+    -- prefix first), and it is rejected: a property statement is public, so that its
+    -- name can be cited and its proof found.
+    if isPropertiesModule modName && isUserDecl n then
+      if isPrivateName n then
+        throwError "{privateToUserName n} in {modName} ({kindName ci}) is private: a Properties module may declare only public `def` property statements"
       match ci with
       | .defnInfo statement =>
         properties := properties + 1
@@ -231,9 +239,14 @@ run_cmd do
       if tags.size > 1 then
         tagFindings := tagFindings.push
           m!"  DOUBLE TAG {n} carries {tags.size} of @[headline], @[witness], @[countermodel]: {", ".intercalate (tags.toList.map (s!"@[{·}]"))}"
-      if tags.contains "headline" && (hasPart "History" modName || hasPart "History" n) then
+      if tags.contains "headline" && (hasNamePart "History" modName || hasNamePart "History" n) then
         tagFindings := tagFindings.push
           m!"  HISTORY HEADLINE {n} in {modName}: a History record is not a guarantee about b17415d20 and may not carry @[headline]"
+      if tags.contains "headline" then
+        let doc := (← findDocString? env n).getD ""
+        if doc.all Char.isWhitespace then
+          tagFindings := tagFindings.push
+            m!"  HEADLINE WITHOUT DOCSTRING {n} in {modName}: a @[headline] states every premise in its docstring"
       for tag in tags do
         listing := listing.push s!"{tag}\t{folderOf modName}\t{n}\t{modName}"
   for (n, modName) in propertyModules.toList do
@@ -263,6 +276,8 @@ run_cmd do
       let lines := listing.qsort (· < ·)
       IO.FS.writeFile path (String.intercalate "\n" (header :: lines.toList) ++ "\n")
       logInfo m!"tagged properties written to {path}"
+  for f in tagFindings do
+    logInfo f
   for n in declaredAxioms do
     logInfo m!"  DECLARED AXIOM {n}"
   for (n, axs) in unclean do
@@ -275,7 +290,5 @@ run_cmd do
     throwError "audit failed: {uncleanOthers.size} other declaration(s) depend on non-standard axioms"
   if declaredAxioms.size > 0 then
     throwError "audit failed: {declaredAxioms.size} axiom(s) declared in EraSpec"
-  for f in tagFindings do
-    logInfo f
   if tagFindings.size > 0 then
-    throwError "audit failed: {tagFindings.size} misplaced, doubled or History headline tag(s)"
+    throwError "audit failed: {tagFindings.size} misplaced, doubled, History or undocumented headline tag(s)"

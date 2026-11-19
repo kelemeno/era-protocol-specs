@@ -34,7 +34,26 @@ untagged` lines, so that a README's headline index can be checked against them. 
   the proof theorem of a property;
 - a statement that carries two of the tags;
 - a `@[headline]` in a `History` module or namespace (see below). Witnesses and countermodels may
-  stay in History.
+  stay in History;
+- a `@[headline]` without a docstring;
+- a `private` declaration of any kind in a Properties module (a property statement is public).
+
+Two promises are review items, not audit checks: that a headline's docstring states **every**
+premise, and that every headline with hypotheses has a `@[witness]` showing they can all hold.
+
+A premise that comes from the model's scope rather than from the contract is still a premise, and
+a headline carries it as a hypothesis of its Lean statement, not only in prose. When a model covers
+only one branch of the target code (for example the nonlegacy model of BridgedStandardERC20, whose
+`mint` and `burn` refuse every call on a zero vault where the deployed `onlyNTV` takes the legacy
+fallback), a statement about that model's calls, read outside the branch, describes the model, not
+`b17415d20`. Such a statement is a supporting lemma. The headline is stated about the deployed
+behaviour (a model covering every branch, or the branch selector made explicit) with the branch as
+a hypothesis, and its docstring and the README's Premises cell name that hypothesis. In
+BridgedStandardERC20 the headlines `nonlegacy_bridge_mint_exact`, `nonlegacy_bridge_burn_exact`,
+`nonlegacy_unauthorized_bridge_calls` and `nonlegacy_reachable_ledger` are about the deployed
+`bridgeMint`, `bridgeBurn` and runs, with the hypothesis `s.config.vault ≠ 0`; the Model statements
+they are proved from are untagged. A headline must not be readable more strongly than the target
+commit allows.
 
 With `ERASPEC_HEADLINES_OUT=<file>` set, the audit also writes every tagged property to `<file>`,
 one per line: tag, folder, statement name and module, separated by tabs.

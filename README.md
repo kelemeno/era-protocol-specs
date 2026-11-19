@@ -262,7 +262,8 @@ never failed has never been tested:
   property has a named theorem proving its full universally quantified statement.
   It reports the `@[headline]` (real guarantees about `b17415d20`), `@[witness]` and
   `@[countermodel]` properties separately from the untagged supporting lemmas, in total and per
-  contract folder and protocol area, and rejects misplaced or doubled tags; see
+  contract folder and protocol area. It rejects misplaced or doubled tags, a `@[headline]` in a
+  History record or without a docstring, and a `private` declaration in a Properties module; see
   [CONSOLIDATION.md](CONSOLIDATION.md).
 - **`scripts/check-word-fidelity.sh`** checks the local word declarations against
   `scripts/word-baseline.json`. It needs no older checkout. Changes to word
