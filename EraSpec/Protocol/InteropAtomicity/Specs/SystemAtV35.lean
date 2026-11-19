@@ -61,7 +61,7 @@ of each call or leave it out:
 `RunV35` below keeps every piece of state in the table above, on every chain at once, so that
 ordering facts between these pieces on different chains (an `authorizeRefund` on chain `x`
 before an `append` on chain `y`; a `verifyAtomicBundle` before a deregistration) can be stated.
-The tree insert is `Contracts.InteropCommitmentTree.InsertChecksAtHead`, the one `SysStepsAtHead`
+The tree insert is `Contracts.InteropCommitmentTree.InsertChecksAtV35`, the one `SysStepsAtHead`
 uses.  `RunV35` has no call trees, re-entry, reverting frames or per-call statuses: each step is
 the committed write of a call that succeeded (for `authorize`, of one leg of it).
 
@@ -93,7 +93,7 @@ of those namespaces together with this one should qualify these three names.
 * `append` — `InteropCenter._sendBundle` → `_dispatchBundle` → `AtomicFlowManager.append`
   (`InteropCenter.sol:533-613, :727-750`; `AtomicFlowManager.sol:104-173`).  The checks are the
   fields of `AppendOkV35`, together with the send-side destination checks.  The tree insert is
-  `InsertChecksAtHead`: the pin's `InsertSucceeds` with the hop bound removed.  The logged call
+  `InsertChecksAtV35`: the pin's `InsertSucceeds` with the hop bound removed.  The logged call
   carries the bundle's destination chain, the `_destinationChainId` the send-side checks read.
 * `importRoot` — `L2InteropRootStorage._addInteropRoot` for the L1 entry
   (`L2InteropRootStorage.sol:70-103`), called only by the bootloader (`:20-25, :50-68`).
@@ -311,8 +311,8 @@ structure AppendOkV35 (cv : CommitValue) (fh : FlowHash) (x : ChainV35) (c : Cha
   /-- The tree's `insert(commitValue(flowId, b), hint)` (`:168-170`;
   `L2InteropCommitmentTree.sol:51-64`; `IndexedMerkleTree.sol:65-107`), with the unbounded walk
   (`:90-93`, "deliberately unbounded" in the NatSpec at `:59-62`): the merged
-  `Contracts.InteropCommitmentTree.InsertChecksAtHead`. -/
-  treeInsert : InsertChecksAtHead x.base.tree (cv F.flowId b) hint low
+  `Contracts.InteropCommitmentTree.InsertChecksAtV35`. -/
+  treeInsert : InsertChecksAtV35 x.base.tree (cv F.flowId b) hint low
 
 /-- **COUNTERFACTUAL: `append` WITHOUT THE EXPIRED-FLOW GATE.**  `AppendOkV35` minus `notExpired`
 (`ManagerFlowDeadlinePassed`, `AtomicFlowManager.sol:120-125`).  This is not the v35 contract;
@@ -330,7 +330,7 @@ structure AppendOkV35WithoutDeadlineGate (cv : CommitValue) (fh : FlowHash) (x :
   isLegHere : (⟨c, b⟩ : FlowLeg) ∈ F.legs
   othersRegistered : ∀ l ∈ F.legs, l.chain ≠ c → x.hub.registered l.chain = true
   legUnset : AppendGuard x.base.mgr F.flowId b
-  treeInsert : InsertChecksAtHead x.base.tree (cv F.flowId b) hint low
+  treeInsert : InsertChecksAtV35 x.base.tree (cv F.flowId b) hint low
 
 /-- **`requireFlowFinalized` PASSES ON CHAIN `d` AT v35** (`AtomicFlowManager.sol:176-213`) for
 the logged call `e`: the pin's checks on the call's own evidence (`ExecCall.Verified`:

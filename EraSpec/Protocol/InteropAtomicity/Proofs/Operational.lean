@@ -1361,7 +1361,7 @@ theorem OpLivenessWitness : Properties.OpLivenessWitness := by
 /-! ## The padding bug as an operational run
 
 At the extraction pin the IMT pads with `hashLeaf({0,0,0})`, so an empty slot "holds" the
-sentinel leaf (`Contracts.InteropCommitmentTree.Properties.PaddingCollisionRefundsDeliveredLeg`).
+sentinel leaf (`Contracts.InteropCommitmentTree.History.Properties.PaddingCollisionRefundsDeliveredLeg`).
 Here it is replayed operationally, on settled batches and a recorded root. -/
 
 /-- Commit value `a` for bundle `0` and `b` for every other bundle. -/

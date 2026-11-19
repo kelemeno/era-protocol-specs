@@ -332,7 +332,4 @@ theorem ProofsExclusiveOrBreakAtOwnHeight : Properties.ProofsExclusiveOrBreakAtO
 theorem RunRootsExclusiveOrBreakAtOwnHeight : Properties.RunRootsExclusiveOrBreakAtOwnHeight :=
   run_roots_exclusive_or_break_at_own_height
 theorem HThreeRunWitness : Properties.HThreeRunWitness := hThreeRun_witness
-theorem PaddingForgeryAtOwnHeight : Properties.PaddingForgeryAtOwnHeight :=
-  padding_forgery_at_own_height
-
 end Contracts.InteropCommitmentTree

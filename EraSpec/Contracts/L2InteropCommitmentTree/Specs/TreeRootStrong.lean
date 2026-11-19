@@ -4,6 +4,9 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Specs.RunHeight
 /-!
 # Spec: the query log of one verification, and a hash premise pinned to it
 
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`); the verifiers and the root are `Specs/TreeRoot.lean`'s,
+with the padding constant a parameter.
+
 ## Why this topic exists
 
 `Properties/TreeRoot.lean` states seven soundness results under `HashAssumptions`:

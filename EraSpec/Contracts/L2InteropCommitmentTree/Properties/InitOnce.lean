@@ -202,7 +202,7 @@ no leaf at all.)
 a genuine leaf.  At `c67894b9` the deployed `verifyNonInclusion` can also accept the sentinel
 `{0,0,0}` at an empty slot: at step 3 of `genesisRun a b`, a run from the predeploy, the key `a`
 has an accepted non-inclusion proof at the root the source publishes
-(`Properties.StoredRootWitness`; `Properties.CThreeLeafWitness` at the stored root). -/
+(`Properties.StoredRootWitness`; `History.Properties.CThreeLeafWitness` at the stored root). -/
 def Properties.PredeployRunReclaimableIffAbsent : Prop :=
   ∀ (K : Roles) (R : ℕ → Tree) (tx : Trace), TxRun K R tx →
     R 0 = predeploy →
@@ -329,7 +329,7 @@ def Properties.PredeployStoredRootExclusiveOrBreak : Prop :=
 the hashes of `threeLeafTree a b`'s leaves `{0,1,a}`, `{a,2,b}`, `{b,0,0}`, and the source's
 `_height` is 2. Against its fold at that height with the pinned padding `hl {0,0,0}`, `a`
 has an accepted honest inclusion proof (index 1) and an accepted non-inclusion proof (the
-empty slot 3: the existing padding forgery, `PaddingForgeryAtOwnHeight`). So the premises of
+empty slot 3: the existing padding forgery, `History.PaddingForgeryAtOwnHeight`). So the premises of
 `PredeployStoredRootExclusiveOrBreak` hold at step 3 of a run from the predeploy, at the
 root the source publishes. Its conclusion is met by the second disjunct only: the honest
 inclusion path carries no located break, the forged absence path carries the padding hit. -/

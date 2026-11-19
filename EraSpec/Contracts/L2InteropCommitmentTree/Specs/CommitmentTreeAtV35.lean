@@ -1,5 +1,6 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.InitOnce
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.CachedRoot
+import EraSpec.Contracts.L2InteropCommitmentTree.Specs.HintSearchAtHead
 
 /-!
 # Model at `draft/v0.35.0`: the tree contract's transactions on its whole storage
@@ -20,6 +21,12 @@ cited below (`common/l2-helpers/L2ContractAddresses.sol`, the genesis helper,
 `L2_COMPLEX_UPGRADER_ADDR` is at `L2ContractAddresses.sol:80` and `L2_ATOMIC_FLOW_MANAGER_ADDR` at
 `:157`.  The address values are the same (`0x800f`, `0x10014`, `0x7004`); every citation below is
 `b17415d20`'s.
+
+**The canonical model.**  `CTxStepAtV35` / `CTxRunAtV35` is the one v35 model of the tree
+contract.  Its walk and checks are `WalkExitsAtV35` and `InsertChecksAtV35`
+(`Specs/HintSearch.lean`), its `initL2()` makes the same `FullMerkle` calls as
+`CachedRoot.cSetupPad`, and its list state projects onto
+`HintSearchAtHead.TxStepAtHead` (`Properties.CTxRunAtV35ProjectsToTxRunAtHead`).
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.L2InteropCommitmentTree.Properties.CommitmentTreeAtV35`, proofs in
@@ -137,32 +144,6 @@ make them.  Runs start from the predeploy's storage, `cPredeployAtV35`.
 namespace Contracts.InteropCommitmentTree
 
 open IMTAbstract
-
-/-! ## The walk and the insert checks -/
-
-/-- **THE v35 LOOP EXITS AT `low`** (`IndexedMerkleTree.sol:90-93`): some number of hops of the
-walk from `hint` ends on `low`.  `lowSearch T v hops hint` (`Specs/Model.lean`) runs the same exit
-test and hop with at most `hops` hops, and returns `none` only if it needs more. -/
-def WalkExitsAtV35 (T : Tree) (v : UInt256) (hint low : ℕ) : Prop :=
-  ∃ hops : ℕ, lowSearch T v hops hint = some low
-
-/-- What a successful v35 `insert(v, hint)` has checked before it writes, at the index `low` the
-walk exits on (`IndexedMerkleTree.sol:65-93`).  The first five fields are `InitOnce.InsertChecks`'s
-at their v35 lines; `walk` replaces the pin's five-hop search.  `FullMerkle.updateLeaf`'s range
-check is in `cInsert` (see the model boundary). -/
-structure InsertChecksAtV35 (T : Tree) (v : UInt256) (hint low : ℕ) : Prop where
-  /-- `leafNumber == 0` reverts with `IMTNotInitialized` (`:70-73`). -/
-  initialized : Initialized T
-  /-- `_value == 0` reverts with `IMTValueZero` (`:74-76`). -/
-  nonzero : v ≠ 0
-  /-- `valueToIndex[_value] != 0` reverts with `IMTValueAlreadyExists` (`:77-79`). -/
-  unregistered : T.valueToIndex v = 0
-  /-- `_lowLeafIndex >= leafNumber` reverts with `IMTLowLeafIndexOutOfBounds` (`:80-82`). -/
-  hintInBounds : hint < T.leafCount
-  /-- `leaves[_lowLeafIndex].value >= _value` reverts with `IMTLowLeafValueTooLarge` (`:84-88`). -/
-  hintBelow : (T.leaf hint).value < v
-  /-- The unbounded walk (`:90-93`) exits at `low`. -/
-  walk : WalkExitsAtV35 T v hint low
 
 /-! ## Storage and the setup call -/
 

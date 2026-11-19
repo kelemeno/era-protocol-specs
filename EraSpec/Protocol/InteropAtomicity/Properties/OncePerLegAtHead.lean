@@ -109,7 +109,7 @@ def Properties.NoSecondAppendAtHead : Prop :=
     (f b : UInt256) (hint low : ℕ) (t : ChainState) (log' : List Obligation),
     StepsAtHead cv c genesis s log → AppendSucceedsAtHead cv s f b hint low →
     StepsAtHead cv c (s.appended cv f b low) t log' →
-      ¬ AppendGuard t.mgr f b ∧ ∀ hint' low', ¬ InsertChecksAtHead t.tree (cv f b) hint' low'
+      ¬ AppendGuard t.mgr f b ∧ ∀ hint' low', ¬ InsertChecksAtV35 t.tree (cv f b) hint' low'
 
 /-- **A LEG PAST `Committed` WAS APPENDED EXACTLY ONCE, AND ITS VALUE IS A KEY, AT HEAD.** -/
 def Properties.RefundedLegWasAppendedOnceAtHead : Prop :=
@@ -131,7 +131,7 @@ head tree would accept the commit value of `(f, b)` from some hint, the manager 
 def Properties.TreeGateImpliesManagerGateAtHead : Prop :=
   ∀ (cv : CommitValue) (c : Chain) (s : ChainState) (log : List Obligation),
     StepsAtHead cv c genesis s log → ∀ (f b : UInt256) (hint low : ℕ),
-      InsertChecksAtHead s.tree (cv f b) hint low → AppendGuard s.mgr f b
+      InsertChecksAtV35 s.tree (cv f b) hint low → AppendGuard s.mgr f b
 
 /-- **THE TWO GATES DISAGREE EXACTLY ON A LOGGED CLASH, AT HEAD.** -/
 def Properties.GatesDisagreeOnlyOnLoggedClashAtHead : Prop :=
@@ -236,7 +236,7 @@ def Properties.RefundedLegAtHeadWitness : Prop :=
   ∃ (cv : CommitValue) (s : ChainState) (log : List Obligation),
     StepsAtHead cv 0 genesis s log ∧ log.length = 7 ∧ s.mgr.legState 0 7 = .Reverted
       ∧ 2 ≤ rank (s.mgr.legState 0 7)
-      ∧ InsertChecksAtHead s.tree (cv 0 8) 0 7
+      ∧ InsertChecksAtV35 s.tree (cv 0 8) 0 7
       ∧ ∀ low, lowSearch s.tree (cv 0 8) maxLowIndexSearchAttempts 0 ≠ some low
 
 /-- **`NoSecondAppendAtHead`'S PREMISES HOLD WITH A STALE-HINT `append`.**  On the state of six

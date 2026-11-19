@@ -55,7 +55,7 @@ reductions; `../Proofs/DomainSeparation.lean` proves them.
 
 * **IMT** (`IndexedMerkleTree`, a `FullMerkle`): leaves `hashLeaf` (96), nodes 64. Padding at the pin
   is `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`): the padding preimage IS a leaf preimage,
-  which is the known forged-absence bug (`PaddingCollisionRefundsDeliveredLeg`, not re-reported here).
+  which is the known forged-absence bug (`History.PaddingCollisionRefundsDeliveredLeg`, not re-reported here).
   At UPG the padding is `keccak256("zkSync:IndexedMerkleTree:emptyLeaf")` (UPG
   `IndexedMerkleTree.sol:44-53`), a 34-byte preimage.
 * **Chain tree** (per chain, a `DynamicIncrementalMerkle`, `core/message-root/MessageRootBase.sol:69`):

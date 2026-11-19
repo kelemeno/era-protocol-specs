@@ -23,7 +23,16 @@ straddling `v`, while no member does.  So the forged witness is available agains
 leg of every sound tree, and in particular on every state of a guarded history from genesis once
 a leg has been delivered.
 
-## What the source does (era-contracts `c67894b9`)
+## The padding leaf at `b17415d20` and at the interop pin
+
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`).  The statements are order theory and hold at every
+revision: they show that the membership premise of the exclusivity theorems cannot be dropped.
+Whether a deployed absence proof can present the non-member `⟨0, 0⟩` depends on the padding
+constant.  At `b17415d20` `setup` pads with `IMT_EMPTY_LEAF_HASH`
+(`IndexedMerkleTree.sol:51`, `Config.sol:141`), so presenting it at an empty slot needs a keccak
+collision (`Contracts.InteropCommitmentTree.Properties.PaddingHitAtHeadIffEmptyLeafCollision`).
+
+At the interop pin `c67894b9` (History, line numbers of that pin)
 
 `l1-contracts/contracts/common/libraries/IndexedMerkleTree.sol`:
 
@@ -44,7 +53,7 @@ The padding constant of the underlying `FullMerkle` tree is the hash of the gene
 
 Order theory over `Finset AbsLeaf`, as in `Model`.  Whether the padding leaf's hash is accepted
 under a published root is the Merkle-level question, answered for the deployed tree by
-`Contracts.InteropCommitmentTree.Properties.PaddingCollisionRefundsDeliveredLeg`
+`Contracts.InteropCommitmentTree.History.Properties.PaddingCollisionRefundsDeliveredLeg`
 (`../../L2InteropCommitmentTree/Properties/TreeRoot.lean`).
 -/
 

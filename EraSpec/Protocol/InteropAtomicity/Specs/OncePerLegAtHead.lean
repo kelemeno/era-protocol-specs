@@ -25,7 +25,7 @@ unbounded (`IndexedMerkleTree.sol:90-93`; `Contracts/L2InteropCommitmentTree/Spe
 so the head accepts appends whose stale hint needs more hops.  Those appends were outside
 the pin model, so `OncePerLeg` and the other results stated over `Steps` did not cover them.
 `StepsAtHead` and `SysStepsAtHead` below are `Steps` and `SysSteps` with the tree's insert
-replaced by the head's (`InsertChecksAtHead`).  Every other step is unchanged.
+replaced by the head's (`InsertChecksAtV35`).  Every other step is unchanged.
 
 The manager side of `append` (`atomic-interop/AtomicFlowManager.sol:103-172`) is kept at the
 pin's abstraction: the guard `_state[flowId][bundleHash] == Unset` (`:161-163`; `:162-164` on
@@ -78,7 +78,7 @@ structure AppendSucceedsAtHead (cv : CommitValue) (s : ChainState) (f b : UInt25
   /-- `ManagerLegAlreadyCommitted` (`AtomicFlowManager.sol:161-163`). -/
   legUnset : AppendGuard s.mgr f b
   /-- The tree's `insert(commitValue(f, b), hint)` at head (`:167-169`). -/
-  treeInsert : InsertChecksAtHead s.tree (cv f b) hint low
+  treeInsert : InsertChecksAtV35 s.tree (cv f b) hint low
 
 /-- **ONE CHAIN'S RUN AT HEAD, WITH ITS `append`s LOGGED.**  `Steps` with the head's tree
 insert.  The authorize, claim and `initL2` steps are `Steps`' own. -/

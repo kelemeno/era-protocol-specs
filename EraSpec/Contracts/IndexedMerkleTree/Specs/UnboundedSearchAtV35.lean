@@ -92,7 +92,7 @@ are the existing `imtInsert`.  Only the loop is new.
   The deployed absence check is related to this member gate in `ReclaimGateFaithful.lean`:
   restricted to submissions with no located break it is this gate along runs from `setup`
   (`BreakFreeGateMatchesMemberGate`), and the deployed check itself does not match it at the
-  pin's padding (`PinnedReclaimDichotomyReadingFails`).
+  pin's padding (`History.PinnedReclaimDichotomyReadingFails`).
 -/
 
 namespace IMTAbstract

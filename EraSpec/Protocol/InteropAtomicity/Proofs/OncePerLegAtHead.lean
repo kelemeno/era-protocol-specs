@@ -25,7 +25,7 @@ open Contracts.AtomicFlowManager Contracts.Refund
 
 /-- On a valid tree, a head insert passes the pin's checks from its landing index. -/
 lemma pin_insert_of_atHead {T : Tree} (hV : Valid T) {v : UInt256} {hint low : ℕ}
-    (h : InsertChecksAtHead T v hint low) : InsertSucceeds T v low low := by
+    (h : InsertChecksAtV35 T v hint low) : InsertSucceeds T v low low := by
   have hg := insertChecksAtHead_guard hV h
   refine ⟨hg.initialized, hg.nonzero, hg.fresh, hg.inBounds, hg.lowBelow, ?_⟩
   apply lowSearch_stop
@@ -36,7 +36,7 @@ lemma pin_insert_of_atHead {T : Tree} (hV : Valid T) {v : UInt256} {hint low : �
 
 /-- Every pin insert is a head insert. -/
 lemma atHead_insert_of_pin {T : Tree} {v : UInt256} {hint low : ℕ}
-    (h : InsertSucceeds T v hint low) : InsertChecksAtHead T v hint low :=
+    (h : InsertSucceeds T v hint low) : InsertChecksAtV35 T v hint low :=
   ⟨h.initialized, h.nonzero, h.fresh, h.hintInBounds, h.hintBelow, _, h.search⟩
 
 lemma pin_append_of_atHead {cv : CommitValue} {s : ChainState} (hV : Valid s.tree)
@@ -247,7 +247,7 @@ private lemma honest_six_guard : AppendGuard (honestState 6).mgr 0 7 := by
 
 private lemma stale_atHead : AppendSucceedsAtHead headCv (honestState 6) 0 7 0 6 := by
   refine ⟨honest_six_guard, ?_⟩
-  show InsertChecksAtHead (honestState 6).tree 7 0 6
+  show InsertChecksAtV35 (honestState 6).tree 7 0 6
   rw [honestState_tree 6]
   exact HonestInsertSucceedsAtHead.2.2
 
@@ -304,7 +304,7 @@ theorem RefundedLegAtHeadWitness : Properties.RefundedLegAtHeadWitness := by
   have h9 := StepsAtHead.claim h8 hr
   have hst : ((staleState.mgr.set 0 7 .Revertable).set 0 7 .Reverted).legState 0 7
       = .Reverted := set_same
-  have hins : InsertChecksAtHead staleState.tree (headCv 0 8) 0 7 := by
+  have hins : InsertChecksAtV35 staleState.tree (headCv 0 8) 0 7 := by
     rw [staleState_tree]
     exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, 7,
       by decide⟩
@@ -321,7 +321,7 @@ theorem NoSecondAppendAtHeadWitness : Properties.NoSecondAppendAtHeadWitness := 
     · show ((honestState 6).mgr.set 0 7 .Committed).legState 0 8 = .Unset
       rw [set_other (by decide)]
       decide
-    · show InsertChecksAtHead staleState.tree (headCv 0 8) 7 7
+    · show InsertChecksAtV35 staleState.tree (headCv 0 8) 7 7
       rw [staleState_tree]
       exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, 0,
         by decide⟩

@@ -60,19 +60,19 @@ hint, the head's walk lands at `low` exactly when `lowSearch` with `leafCount` h
 `low`.  So the walk's result is that of any number of hops that lets it exit. -/
 def Properties.WalkAtHeadIsLeafCountSearch : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint low : ℕ), hint < T.leafCount →
-    (WalkSucceedsAtHead T v hint low ↔ lowSearch T v T.leafCount hint = some low)
+    (WalkExitsAtV35 T v hint low ↔ lowSearch T v T.leafCount hint = some low)
 
 /-- **THE WALK ALWAYS EXITS.**  On a valid tree, from every occupied hint and for every value,
 the head's loop exits after finitely many hops (`LowSearchTerminates`). -/
 def Properties.WalkAtHeadTerminates : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint : ℕ), hint < T.leafCount →
-    ∃ low, WalkSucceedsAtHead T v hint low
+    ∃ low, WalkExitsAtV35 T v hint low
 
 /-- **THE WALK IS DETERMINISTIC.**  On any tree, two exits of the walk from one hint are at
 one index. -/
 def Properties.WalkAtHeadDeterministic : Prop :=
   ∀ (T : Tree) (v : UInt256) (hint low low' : ℕ),
-    WalkSucceedsAtHead T v hint low → WalkSucceedsAtHead T v hint low' → low = low'
+    WalkExitsAtV35 T v hint low → WalkExitsAtV35 T v hint low' → low = low'
 
 /-! ## The insert -/
 
@@ -81,24 +81,24 @@ the head's checks and walk establish `InsertGuard` at the landing index, so the 
 is the guarded `insert` of `Specs/Model.lean` (`SearchYieldsGuard`, for the walk). -/
 def Properties.InsertChecksAtHeadYieldGuard : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint low : ℕ),
-    InsertChecksAtHead T v hint low → InsertGuard T v low
+    InsertChecksAtV35 T v hint low → InsertGuard T v low
 
 /-- **THE HINT DOES NOT CHOOSE WHERE THE VALUE GOES.**  On a valid tree, two successful head
 inserts of one value, from any two hints, land at one index: the leaf whose window straddles
 the value.  So the state after an insert does not depend on its hint. -/
 def Properties.InsertAtHeadLandingHintIndependent : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint hint' low low' : ℕ),
-    InsertChecksAtHead T v hint low → InsertChecksAtHead T v hint' low' → low = low'
+    InsertChecksAtV35 T v hint low → InsertChecksAtV35 T v hint' low' → low = low'
 
 /-- **AT HEAD, AN INSERT PASSES THE ENGINE'S CHECKS FROM EVERY ADMISSIBLE HINT.**  On a valid
-tree, some landing index makes `insert(v, hint)` pass every check of `InsertChecksAtHead`
+tree, some landing index makes `insert(v, hint)` pass every check of `InsertChecksAtV35`
 exactly when the tree is initialized, `v` is nonzero and unregistered, and the hint is an
 occupied index whose value is below `v`.  These are the checks of
 `IndexedMerkleTree.sol:71-88`: the walk adds no check that can fail.  Gas, the tree's appender
-check and its leaf report are not part of `InsertChecksAtHead`. -/
+check and its leaf report are not part of `InsertChecksAtV35`. -/
 def Properties.InsertAtHeadEnabledIff : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint : ℕ),
-    (∃ low, InsertChecksAtHead T v hint low)
+    (∃ low, InsertChecksAtV35 T v hint low)
       ↔ Initialized T ∧ v ≠ 0 ∧ T.valueToIndex v = 0 ∧ hint < T.leafCount
         ∧ (T.leaf hint).value < v
 
@@ -108,8 +108,8 @@ at the same index; and every head insert passes the pin's checks when its landin
 sent as the hint, since the walk then makes no hop. -/
 def Properties.InsertChecksAtHeadVsPin : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint low : ℕ),
-    (InsertChecks T v hint low → InsertChecksAtHead T v hint low)
-      ∧ (InsertChecksAtHead T v hint low → InsertChecks T v low low)
+    (InsertChecks T v hint low → InsertChecksAtV35 T v hint low)
+      ∧ (InsertChecksAtV35 T v hint low → InsertChecks T v low low)
 
 /-- **THE PIN'S HONEST REVERT PASSES THE HEAD'S CHECKS.**  The instance of
 `HonestInsertRevertsAtDeployedFuel`: on the honest seven-leaf tree `chainTree 6`, reached from
@@ -118,7 +118,7 @@ five-hop search runs out), and passes the head's checks, landing at index `6` af
 def Properties.HonestInsertSucceedsAtHead : Prop :=
   Reaches setup (chainTree 6)
     ∧ (∀ low, ¬ InsertChecks (chainTree 6) 7 0 low)
-    ∧ InsertChecksAtHead (chainTree 6) 7 0 6
+    ∧ InsertChecksAtV35 (chainTree 6) 7 0 6
 
 /-- **THE INSERT RESULTS' PREMISES, WITH TWO HINTS.**  On the valid tree `chainTree 6`, for any
 roles: inserting `7` passes the head's checks from hint `0` (six hops) and from hint `3`
@@ -130,7 +130,7 @@ of both halves of `InsertChecksAtHeadVsPin` hold, and so do those of
 def Properties.InsertAtHeadWitness : Prop :=
   ∀ K : Roles,
     Valid (chainTree 6)
-      ∧ InsertChecksAtHead (chainTree 6) 7 0 6 ∧ InsertChecksAtHead (chainTree 6) 7 3 6
+      ∧ InsertChecksAtV35 (chainTree 6) 7 0 6 ∧ InsertChecksAtV35 (chainTree 6) 7 3 6
       ∧ InsertChecks (chainTree 6) 7 3 6
       ∧ TxStepAtHead K (chainTree 6) K.appender (.insert 7 0) (chainTree 7)
       ∧ ¬ TxStep K (chainTree 6) K.appender (.insert 7 0) (chainTree 7)

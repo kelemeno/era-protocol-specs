@@ -20,7 +20,7 @@ as the padding constant, the sentinel opened at an empty slot below capacity pas
 delivered value (`Properties.PinnedPaddingDeployedGateRefundsDeliveredLeg`).  The forged
 proof uses the tree's own sibling nodes, and its only located break is `paddingHit`: no
 hash collision is involved.  The single-tree form of this countermodel is
-`Contracts.InteropCommitmentTree.Properties.PaddingForgeryAtOwnHeight`.
+`Contracts.InteropCommitmentTree.History.Properties.PaddingForgeryAtOwnHeight`.
 `EraSpec.Refinement.protocol_guarantee` names `chains_no_double_spend`.
 
 ## What replaces them

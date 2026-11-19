@@ -9,6 +9,15 @@ contract's OWN data — leaf indices, `nextIndex` links, and the `valueToIndex`
 map — together with the projection that connects it to the order theory in
 `EraSpec.Contracts.IndexedMerkleTree.Specs.Model`.
 
+**Commit.** era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5` (`b17415d20`);
+paths relative to `l1-contracts/contracts/`.  `Leaf` is `IMTLeaf` and `Tree` the `leaves` /
+`valueToIndex` part of `IMT` (`common/libraries/IndexedMerkleTree.sol:21-34`); `setup`'s list
+state is what `IndexedMerkleTree.setup` writes (`:52-53`); `InsertGuard` is `insert`'s checks
+(`:71-88`) with the exit test of its walk (`:90-93`), and `insert` its writes (`:95-106`).  The
+walk is unbounded at `b17415d20`; `lowSearch` takes the number of hops as fuel, so it serves both
+the unbounded walk (`WalkExitsAtV35`, `Specs/HintSearch.lean`: some fuel exits) and the interop
+pin's five-hop loop (`maxLowIndexSearchAttempts`).  Nothing in this file depends on which.
+
 ## Why this layer exists
 
 `EraSpec.Contracts.IndexedMerkleTree.Specs.Model` models the tree as a `Finset AbsLeaf`: a leaf is a
@@ -28,8 +37,9 @@ so three things the `Finset` view cannot see are load-bearing on chain:
 2. `valueToIndex` — the dedup gate reads *this*, not the key set.  The
    `Finset`-level theorems assume freshness (`v ∉ keys s`); the contract only
    checks `valueToIndex[v] == 0`.  `dedup_gate_sound` is the missing implication.
-3. The bounded search loop — the contract does not receive a correct low leaf, it
-   *walks* to one from a caller-supplied hint, and reverts if the walk runs long.
+3. The search loop — the contract does not receive a correct low leaf, it *walks* to one
+   from a caller-supplied hint (unbounded at `b17415d20`; at the interop pin it reverted
+   after five hops).
 
 This file models all three and discharges them into the `Finset` layer, so the
 security corpus applies to a state machine that has the contract's shape.
@@ -135,14 +145,18 @@ structure Valid (T : Tree) : Prop where
   absSound : SoundState (toAbs T)
 
 
-/-! ## The bounded search loop
+/-! ## The search loop
 
-`insert` receives a low-leaf *hint* and walks the successor chain from it,
-reverting after `MAX_LOW_INDEX_SEARCH_ATTEMPTS` hops.  `none` models the revert. -/
+`insert` receives a low-leaf *hint* and walks the successor chain from it
+(`IndexedMerkleTree.sol:90-93`).  `lowSearch` is that walk with at most `fuel` hops; `none` means
+more hops are needed.  At `b17415d20` the loop has no bound (`WalkExitsAtV35`: some fuel
+exits); at the interop pin it reverted with `IMTLowLeafNextTooSmall` after
+`MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5` hops (`maxLowIndexSearchAttempts`). -/
 
 /-- The fuelled predecessor walk.  At each step, if the current leaf's successor
 is still strictly below `v`, hop to it; the loop exits when it is not.  Running
-out of fuel is a revert (`none`), matching `IMTLowLeafNextTooSmall`. -/
+out of fuel is `none`: more hops are needed (at the interop pin, the
+`IMTLowLeafNextTooSmall` revert). -/
 def lowSearch (T : Tree) (v : UInt256) : ℕ → ℕ → Option ℕ
   | 0, i => if (T.leaf i).nextValue ≠ 0 ∧ (T.leaf i).nextValue < v then none else some i
   | fuel + 1, i =>

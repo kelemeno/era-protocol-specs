@@ -45,7 +45,7 @@ theorem lowSearch_mono_atHead {T : Tree} {v : UInt256} :
       exact h
 
 theorem walkAtHead_det {T : Tree} {v : UInt256} {hint low low' : ℕ}
-    (h : WalkSucceedsAtHead T v hint low) (h' : WalkSucceedsAtHead T v hint low') :
+    (h : WalkExitsAtV35 T v hint low) (h' : WalkExitsAtV35 T v hint low') :
     low = low' := by
   obtain ⟨n, hn⟩ := h
   obtain ⟨n', hn'⟩ := h'
@@ -56,7 +56,7 @@ theorem walkAtHead_det {T : Tree} {v : UInt256} {hint low low' : ℕ}
 
 theorem walkAtHead_iff_leafCount {T : Tree} (hV : Valid T) (v : UInt256) (hint low : ℕ)
     (hi : hint < T.leafCount) :
-    WalkSucceedsAtHead T v hint low ↔ lowSearch T v T.leafCount hint = some low := by
+    WalkExitsAtV35 T v hint low ↔ lowSearch T v T.leafCount hint = some low := by
   constructor
   · intro h
     obtain ⟨j, hj⟩ := lowSearch_terminates hV v hint hi
@@ -66,14 +66,14 @@ theorem walkAtHead_iff_leafCount {T : Tree} (hV : Valid T) (v : UInt256) (hint l
     exact ⟨_, h⟩
 
 theorem walkAtHead_terminates {T : Tree} (hV : Valid T) (v : UInt256) (hint : ℕ)
-    (hi : hint < T.leafCount) : ∃ low, WalkSucceedsAtHead T v hint low := by
+    (hi : hint < T.leafCount) : ∃ low, WalkExitsAtV35 T v hint low := by
   obtain ⟨j, hj⟩ := lowSearch_terminates hV v hint hi
   exact ⟨j, _, hj⟩
 
 /-! ## The insert -/
 
 theorem insertChecksAtHead_guard {T : Tree} (hV : Valid T) {v : UInt256} {hint low : ℕ}
-    (h : InsertChecksAtHead T v hint low) : InsertGuard T v low := by
+    (h : InsertChecksAtV35 T v hint low) : InsertGuard T v low := by
   obtain ⟨n, hn⟩ := h.walk
   exact search_yields_guard hV h.initialized h.nonzero h.unregistered h.hintInBounds
     h.hintBelow hn
@@ -104,12 +104,12 @@ theorem insertGuard_unique_atHead {T : Tree} (hV : Valid T) {v : UInt256} {j j' 
     · exact absurd (lt_of_lt_of_le hv hle) (not_lt.mpr hg.lowBelow.le)
 
 theorem insertAtHead_landing_hint_independent {T : Tree} (hV : Valid T) {v : UInt256}
-    {hint hint' low low' : ℕ} (h : InsertChecksAtHead T v hint low)
-    (h' : InsertChecksAtHead T v hint' low') : low = low' :=
+    {hint hint' low low' : ℕ} (h : InsertChecksAtV35 T v hint low)
+    (h' : InsertChecksAtV35 T v hint' low') : low = low' :=
   insertGuard_unique_atHead hV (insertChecksAtHead_guard hV h) (insertChecksAtHead_guard hV h')
 
 theorem insertAtHead_enabled_iff {T : Tree} (hV : Valid T) (v : UInt256) (hint : ℕ) :
-    (∃ low, InsertChecksAtHead T v hint low)
+    (∃ low, InsertChecksAtV35 T v hint low)
       ↔ Initialized T ∧ v ≠ 0 ∧ T.valueToIndex v = 0 ∧ hint < T.leafCount
         ∧ (T.leaf hint).value < v := by
   constructor
@@ -121,18 +121,18 @@ theorem insertAtHead_enabled_iff {T : Tree} (hV : Valid T) (v : UInt256) (hint :
 
 /-- Every pin insert is a head insert (no validity needed). -/
 lemma insertChecksAtHead_of_pin {T : Tree} {v : UInt256} {hint low : ℕ}
-    (h : InsertChecks T v hint low) : InsertChecksAtHead T v hint low :=
+    (h : InsertChecks T v hint low) : InsertChecksAtV35 T v hint low :=
   ⟨h.initialized, h.nonzero, h.unregistered, h.hintInBounds, h.hintBelow, _, h.search⟩
 
 /-- On a valid tree, a head insert passes the pin's checks from its landing index. -/
 lemma pin_insertChecks_of_atHead {T : Tree} (hV : Valid T) {v : UInt256} {hint low : ℕ}
-    (h : InsertChecksAtHead T v hint low) : InsertChecks T v low low :=
+    (h : InsertChecksAtV35 T v hint low) : InsertChecks T v low low :=
   insertChecks_of_guard (insertChecksAtHead_guard hV h)
 
 theorem honest_insert_succeeds_at_head :
     Reaches setup (chainTree 6)
       ∧ (∀ low, ¬ InsertChecks (chainTree 6) 7 0 low)
-      ∧ InsertChecksAtHead (chainTree 6) 7 0 6 := by
+      ∧ InsertChecksAtV35 (chainTree 6) 7 0 6 := by
   obtain ⟨hR, hcount, hval, hpin, hfull, hguard⟩ := HonestInsertRevertsAtDeployedFuel
   refine ⟨hR, fun low hch => ?_, ?_⟩
   · have := hch.search
@@ -310,7 +310,7 @@ theorem txRunAtHead_from_valid_is_run (K : Roles) (R : ℕ → Tree) (tx : Trace
 
 /-- The six honest inserts of the witness, each from its own low leaf. -/
 private lemma stale_honest_checks (n : ℕ) (hn : n < 6) :
-    InsertChecksAtHead (chainTree n) ((n + 1 : ℕ) : UInt256) n n := by
+    InsertChecksAtV35 (chainTree n) ((n + 1 : ℕ) : UInt256) n n := by
   interval_cases n <;>
     exact ⟨by unfold Initialized; decide, by decide, by decide, by decide, by decide, 0,
       by decide⟩
@@ -395,7 +395,7 @@ private lemma chainTree6_init : Initialized (chainTree 6) := by
 
 theorem insertAtHead_witness (K : Roles) :
     Valid (chainTree 6)
-      ∧ InsertChecksAtHead (chainTree 6) 7 0 6 ∧ InsertChecksAtHead (chainTree 6) 7 3 6
+      ∧ InsertChecksAtV35 (chainTree 6) 7 0 6 ∧ InsertChecksAtV35 (chainTree 6) 7 3 6
       ∧ InsertChecks (chainTree 6) 7 3 6
       ∧ TxStepAtHead K (chainTree 6) K.appender (.insert 7 0) (chainTree 7)
       ∧ ¬ TxStep K (chainTree 6) K.appender (.insert 7 0) (chainTree 7) := by

@@ -36,7 +36,7 @@ Statements about `EraSpec.Contracts.L2InteropCommitmentTree.Specs.PaddingAtHead`
   at `main` with exactly the `emptyLeaf` case located
   (`PaddingReclaimAtHeadLocatesEmptyLeafCollision`).
 * **The pin's countermodel at `main`.**  On the three-leaf run, the forged absence proof of
-  `PaddingCollisionRefundsDeliveredLeg` / `CThreeLeafWitness` (the same leaf, index and sibling
+  `History.PaddingCollisionRefundsDeliveredLeg` / `History.CThreeLeafWitness` (the same leaf, index and sibling
   words, `PinForgeryProofSameAtPinAndHead`) is accepted at `main` exactly when keccak collides on
   `abi.encode(0,0,0)` and the tag, or on a node pair at one of the two steps of its path.  For one
   hash, the same proof against the same tree is accepted with the pin's padding and rejected with
@@ -418,7 +418,7 @@ def Properties.PaddingAtHeadThreeLeafRun : Prop :=
 /-- **THE PIN'S FORGED PROOF IS THE SAME WORDS AT `main`.**  On `threeLeafTree a b`, for every
 keccak and every padding constant `ze`, the two siblings of slot 3 that a length-2 path reads (the
 tree's own, `honestSibs`) are leaf 2's `hashLeaf` and the node over the `hashLeaf`s of leaves 0
-and 1; neither depends on `ze`.  So the forged proof `CThreeLeafWitness` accepts at the pin
+and 1; neither depends on `ze`.  So the forged proof `History.CThreeLeafWitness` accepts at the pin
 (padding `hashLeaf({0,0,0})`) is, word for word, the instance of
 `PinForgeryAtHeadNeedsKeccakCollision`'s clause 2 (padding `IMT_EMPTY_LEAF_HASH`). -/
 def Properties.PinForgeryProofSameAtPinAndHead : Prop :=
@@ -437,7 +437,7 @@ def Properties.PinForgeryProofSameAtPinAndHead : Prop :=
    the tag at the right length, a node collision on the path at the right length, or a
    `LengthKeccakBreak`;
 2. the zero leaf at slot 3 with the tree's own siblings of slot 3, length 2 (the proof
-   `PaddingCollisionRefundsDeliveredLeg` and `CThreeLeafWitness` accept at the pin for every
+   `History.PaddingCollisionRefundsDeliveredLeg` and `History.CThreeLeafWitness` accept at the pin for every
    hash, with the same sibling words: `PinForgeryProofSameAtPinAndHead`) is accepted at `main`
    exactly when keccak collides on `abi.encode(0,0,0)` and the tag, or on a node pair at one of
    its two steps. -/
@@ -539,7 +539,7 @@ def Properties.LeafCollisionAtHeadFires : Prop :=
 /-- **SAME HASH, SAME TREE, SAME PROOF: ACCEPTED AT THE PIN, REJECTED AT `main`.**  There is a
 keccak that does not collide on `abi.encode(0,0,0)` and the tag, such that for every
 `0 < a < b`: with the pin's setup the forged proof of slot 3 is accepted against the stored root
-for the delivered `a` (as `CThreeLeafWitness` says for every hash), while with `main`'s setup no
+for the delivered `a` (as `History.CThreeLeafWitness` says for every hash), while with `main`'s setup no
 path of length 2 at slot 3 presenting the zero leaf is accepted for `a`.  The inserts are the
 same in both runs; only the padding constant differs (`PinSetupIsPadAtZeroLeafHash`).  The proof's
 keccak is a toy that returns the right-hand word of a 64-byte input, not a model of keccak256. -/

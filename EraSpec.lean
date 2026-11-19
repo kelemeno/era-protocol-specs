@@ -71,6 +71,7 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.InsertGuard
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZero
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.ReclaimGateFaithful
+import EraSpec.Contracts.IndexedMerkleTree.History.Proofs.PinnedGate
 
 -- L2InteropCommitmentTree: the wrapper's indexed state machine, batches, hint search, and root
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
@@ -191,6 +192,7 @@ import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashAtV35
 import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
+import EraSpec.Contracts.L2InteropCommitmentTree.History.Proofs.PaddingForgeryPinned
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.InitOnce
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.PublishedRootCommits
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRootStrong

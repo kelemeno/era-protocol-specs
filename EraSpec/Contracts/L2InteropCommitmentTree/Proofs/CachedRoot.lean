@@ -363,6 +363,4 @@ theorem HReachesLifts : Properties.HReachesLifts := hReaches_lifts
 theorem HRunLiftsToCRun : Properties.HRunLiftsToCRun := hRun_lifts_to_cRun
 theorem ContractProofsAtStoredRoot : Properties.ContractProofsAtStoredRoot :=
   contract_proofs_at_stored_root
-theorem CThreeLeafWitness : Properties.CThreeLeafWitness := cThreeLeaf_witness
-
 end Contracts.InteropCommitmentTree
