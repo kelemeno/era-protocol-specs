@@ -10,6 +10,7 @@ are in `EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.CoreLegRefinement`.
   embedded starting world, what the `CoreLeg` engine does (up to the embedding), the embedded
   result of the `CoreLeg` leg in the Core domain is the `DomainHoldersV35` leg's result. Equal
   as options: the two legs revert together, and succeed with the same world.
+  `CoreLegIsDomainHoldersLegSatisfiable` is the witness that its premise can be met.
 * `CoreLegKeepsPAOwnerViaDomainHolders`: the `ProxyAdmin`-owner part of `CoreLegChecks`,
   derived through it from `DomainHoldersV35`'s `PassingLegKeepsHolderReads`.
 -/
@@ -33,6 +34,17 @@ def Properties.CoreLegIsDomainHoldersLeg : Prop :=
     (CoreLeg.applyProxyUpgradeTransition X E T .core 0 W).map (embed X w₀)
       = DomainHoldersV35.leg (env X) (bindings X) T.addr (manifestMap T.manifest) eng
           (embed X w₀ W)
+
+/-- **THE ENGINE-AGREEMENT PREMISE OF `CoreLegIsDomainHoldersLeg` IS SATISFIABLE.** For every
+Core executor, engines, transition, world and filler world there is a `DomainHoldersV35` engine
+meeting it: the one that returns the embedding of what `T`'s engine returns on `W`. -/
+def Properties.CoreLegIsDomainHoldersLegSatisfiable : Prop :=
+  ∀ (X : CoreLeg.Exec) (E : CoreLeg.Engines) (T : CoreLeg.TransitionObj) (W : CoreLeg.World)
+    (w₀ : DomainHoldersV35.World), ∃ eng : DomainHoldersV35.Engine,
+    eng X.self (DomainHoldersV35.buildContext (bindings X) T.addr (manifestMap T.manifest))
+        (manifestMap T.manifest).proxyUpgrades (embed X w₀ W)
+      = (E T.manifest.engine (CoreLeg.context X T .core 0) T.manifest.proxyUpgrades W).map
+          (embed X w₀)
 
 /-- **A CORE LEG KEEPS THE `ProxyAdmin`'S OWNER, OR ITS HASH COLLIDES**, derived from
 `DomainHoldersV35.PassingLegKeepsHolderReads` through `CoreLegIsDomainHoldersLeg`. -/

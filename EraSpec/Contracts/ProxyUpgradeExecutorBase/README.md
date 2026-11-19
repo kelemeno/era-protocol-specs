@@ -44,7 +44,7 @@ arbitrary call trace) and for every hash function standing in for `keccak256(abi
   the frame makes is named in the executor's own log.
 
 Witnesses: `MovedCtmCaughtWitness`, `MovedNotifierRevertsSatisfiable`, `CoreLegWitness`,
-`DefaultEngineLegWitness`, `AcceptedLegWitness`. Countermodels:
+`CoreLegIsDomainHoldersLegSatisfiable`, `DefaultEngineLegWitness`, `AcceptedLegWitness`. Countermodels:
 `MovedCtmCollisionDisjunctLoadBearing`, `CtmAdminCheckLoadBearing`,
 `CorePAOwnerMoveUnderCollisionPasses`, `PreCheckIsLoadBearing`,
 `EngineOwnerCallsNotLoggedByExecutor`, `CallsOutsideLegsMoveTheBinding`.

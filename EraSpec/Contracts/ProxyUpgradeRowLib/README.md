@@ -49,7 +49,10 @@ At `b17415d20` `applyRows` (`:106-128`) reads and swaps as it did at `e561b9cc2`
 `requireRowsApplied` (`:133-141`), which the executors call again after their engine
 (`executors/ProxyUpgradeExecutorBase.sol:103`). `applyTransition` is gone: `ApplyTransition`
 is now the leg's object checks (`ProxyUpgradeExecutorBase.sol:57-61`) followed by the default
-engine's `applyRows` (`engines/DefaultProxyUpgradeEngine.sol:41-44`). Statements are
+engine's `applyRows` (`engines/DefaultProxyUpgradeEngine.sol:41-44`): the leg of an object
+whose manifest pins `DefaultProxyUpgradeEngine`. A transition object pins its own engine
+(`ProxyUpgradeExecutorBase.sol:63`, `:82`), and a leg with any other engine is arbitrary code
+bounded only by the executor's post-checks (`../ProxyUpgradeExecutorBase/`). Statements are
 `<namespace>.Properties.*`; each certificate has the same name without the `Properties`
 segment.
 
@@ -143,7 +146,10 @@ storage and can write both of that proxy's slots.
   (`AdminRewritePassesVerification`, `UnadministeredRowSkippedWhileOffTarget`).
 - The executor checks the object's code and domain, not its rows. `validateRows`
   runs in `ProxyUpgradeTransition`'s constructor (`objects/ProxyUpgradeTransition.sol:37`).
-  A different contract answering `getManifest()` gets its rows applied unvalidated. Replay safety does not depend on validation: `OnlyNamedEdgesAcrossCallAnyRows`
+  A different contract answering `getManifest()` with a manifest pinning
+  `DefaultProxyUpgradeEngine` gets its rows applied unvalidated; one pinning any other engine
+  runs arbitrary code, bounded only by the executor's post-checks (`../ProxyUpgradeExecutorBase/`:
+  `DomainHoldersV35`, `EngineLegV35`). Replay safety does not depend on validation: `OnlyNamedEdgesAcrossCallAnyRows`
   and `SourceIsNotAppliedAnyRows` (`RowsUnvalidated`) restate `OnlyNamedEdgesAcrossCall` and
   `ValidSourceIsNotApplied` for any rows. Validation is still needed for order-independent
   executability (`DuplicateRowsBreakOrder`), though not sufficient for it under `ReinitFrames`
@@ -169,7 +175,11 @@ modelled here (`../ProxyUpgradeExecutorBase/`). `KeepsAdmin` is an assumption ab
 
 `RowsUnvalidated` adds no operation. A transition object is its manifest. `getManifest()` is
 `view`, so it is called by `STATICCALL`, and the executor reads it once, so this describes any
-object. `Transition.Genuine` records what a real `ProxyUpgradeTransition`
+object whose manifest pins `DefaultProxyUpgradeEngine` (empty hooks at `b17415d20`,
+`engines/DefaultProxyUpgradeEngine.sol:51-65`). The object pins its own engine
+(`ProxyUpgradeExecutorBase.sol:63`, `:82`); a leg with any other engine is arbitrary code,
+bounded only by the executor's post-checks, and is modelled in `../ProxyUpgradeExecutorBase/`
+(`DomainHoldersV35`, `EngineLegV35`), not by `ApplyTransition`. `Transition.Genuine` records what a real `ProxyUpgradeTransition`
 guarantees: nonempty rows that satisfy `ValidRows`. `ReinitFrames` stays a premise, an
 assumption about reinitializer code and authority. The executors' legs are in `../ProxyUpgradeExecutorBase/`
 (`EngineLegV35`'s `DefaultEngineLegIsApplyTransition`) and `../ChainTypeManager/`
@@ -187,7 +197,8 @@ and domain only).
 - *natspec-or-doc-wrong, info.* `upgrades/registry/libraries/ProxyUpgradeRowLib.sol:104-105`
   overstates what the post-swap verification catches. Nothing on the leg re-validates rows,
   and both executors accept any `IProxyUpgradeTransition` from their owner,
-  so a non-genuine object can carry two rows on one proxy. A reinitializer can then move its
+  so a non-genuine object, even one pinning `DefaultProxyUpgradeEngine`, can carry two rows on
+  one proxy. A reinitializer can then move its
   own proxy to the later row's `expectedOldImpl`, and the later row moves it on to the target,
   uncaught (`DuplicateRowHidesReinitMove`). The net effect is still the first row's
   source-checked edge (`OnlyNamedEdgesAcrossCallAnyRows`).
@@ -251,8 +262,9 @@ New at `e561b9cc2`:
     `OnlyNamedEdgesAcrossCall`; only `ReinitFrames` remains. The edge belongs to the first row
     naming the proxy (`FirstRowCarriesTheEdge`); `LaterDuplicateRowIsNotAnEdgeFromStart` shows
     why the old proof needed distinct proxies.
-  - `OnlyNamedEdgesAcrossTransitionAnyRows` is the same for `applyTransition` on any object,
-    the entry point of both executors. `SourceIsNotAppliedAnyRows` needs only the row's own
+  - `OnlyNamedEdgesAcrossTransitionAnyRows` is the same for `ApplyTransition` (at
+    `e561b9cc2`, `applyTransition`, the entry point of both executors) on any object; at
+    `b17415d20` it covers an object whose manifest pins `DefaultProxyUpgradeEngine`. `SourceIsNotAppliedAnyRows` needs only the row's own
     self-edge check.
   - The source's `@dev` (`:119-120`), "a reinitializer that moves any proxy of the row set is
     caught too", holds for the last row per proxy (`ReinitMovesAreCaughtOnLastRow`) and hence

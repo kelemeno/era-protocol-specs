@@ -83,10 +83,13 @@ state the first one left, succeeds and changes nothing. No distinct-proxies prem
 def Properties.ApplyRowsIdempotent : Prop :=
   ∀ (C : Config) (I J : Impl) (rows : List Row), ApplyRows C I rows J → ApplyRows C J rows J
 
-/-- **A LATER READER SEES THE ROWS APPLIED IF NOTHING MOVED THEM.** The library no longer
-has a separate `requireRowsApplied`. A reader in a later transaction sees every row applied
-provided the rows' proxies have not moved since `applyRows` returned. The frame hypothesis
-is not established by the library: the `ProxyAdmin`'s owner can move a proxy in between. -/
+/-- **A LATER READER SEES THE ROWS APPLIED IF NOTHING MOVED THEM.** The separate
+verification pass is `requireRowsApplied` (`ProxyUpgradeRowLib.sol:133-141`): `applyRows`
+ends with it (`:127`), and the executor runs it again after the engine returns, in the same
+transaction (`executors/ProxyUpgradeExecutorBase.sol:103`). This property covers a reader in
+a later transaction: it sees every row applied provided the rows' proxies have not moved
+since `applyRows` returned. That frame hypothesis is not established by the library: the
+`ProxyAdmin`'s owner can move a proxy in between. -/
 def Properties.AppliedGatePasses : Prop :=
   ∀ (C : Config) (I J K : Impl) (rows : List Row), ApplyRows C I rows J →
     (∀ r ∈ rows, K r.proxy = J r.proxy) → RowsApplied K rows

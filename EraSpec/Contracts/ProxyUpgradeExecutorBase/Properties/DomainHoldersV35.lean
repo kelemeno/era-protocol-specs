@@ -235,6 +235,8 @@ def Properties.MovedCtmWithCtmRowRevertsWitness : Prop :=
     ∧ (w'.proxy B.ctm).adminSlot ≠ B.pa ∧ w'.implAnswer B.ctm = none
     ∧ (∃ r ∈ toRows m.proxyUpgrades, r.proxy = B.ctm)
 
-/-! ## (g) Comparison with `d9f6789` -/
+/-! ## (g) Comparison with `d9f6789`
+
+The `d9f6789` leg and its comparison with this one are in `History/Properties/DomainHoldersD9.lean`. -/
 
 end Contracts.DomainHoldersV35

@@ -31,8 +31,10 @@ installed facets are those at `b17415d20`.
 
 - `Contracts.SecondProofSystem.DiamondRefinement.Properties.DiamondStepRefines`: every
   successful call on either of MigrationV35's two diamonds is a successful FlagAuthorityV35 call
-  of the same entry point on the projected diamond, so FlagAuthorityV35's one-diamond results
-  apply to both. No premise.
+  of the same entry point on the projected diamond (a break-glass cut maps to an
+  arbitrary-init cut chosen per starting diamond). So FlagAuthorityV35's per-step results apply
+  to both diamonds; its run-level results carry over along runs that keep the projected CTM
+  and Bridgehub owner fixed. No premise.
 
 Witnesses: `FlagMonotoneRunWitness`, `AdminSideRunWitness`, `MultiProofKeptWitness`,
 `UpgradeGateV35Witness`, `ReleasePolicyWitness`. Countermodels: `InitClearsFlag`,

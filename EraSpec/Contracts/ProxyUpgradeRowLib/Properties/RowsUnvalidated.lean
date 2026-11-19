@@ -15,6 +15,13 @@ and `ValidSourceIsNotApplied` (`Properties/RowsCurrent.lean`) take distinct prox
 `ValidRows`, so they cover only genuine objects. This file states what holds for any row
 list.
 
+The transition-level results describe a leg only when the object's manifest pins
+`DefaultProxyUpgradeEngine` (`manifest.proxyUpgradeEngine`, checked only for code at
+`ProxyUpgradeExecutorBase.sol:63` and delegatecalled at `:82`), whose hooks are empty at
+`b17415d20` (`engines/DefaultProxyUpgradeEngine.sol:51-65`). A leg with any other engine runs
+arbitrary code with the executor's authority, bounded only by the executor's post-checks; see
+`../ProxyUpgradeExecutorBase/` (`DomainHoldersV35`, `EngineLegV35`).
+
 ## Replay safety needs no validation
 
 * `OnlyNamedEdgesAcrossCallAnyRows`: under `ReinitFrames` alone, a successful `applyRows`
@@ -29,8 +36,9 @@ list.
 * A later duplicate row need not start where the call started
   (`LaterDuplicateRowIsNotAnEdgeFromStart`). The proof of `OnlyNamedEdgesAcrossCall` used
   that per-row fact, which is why it needed distinct proxies.
-* `OnlyNamedEdgesAcrossTransitionAnyRows` is the same for `ApplyTransition` on any object:
-  the object checks of both domain executors' leg (`CTMUpgradeExecutor.sol:64-70`,
+* `OnlyNamedEdgesAcrossTransitionAnyRows` is the same for `ApplyTransition` on any object
+  whose manifest pins `DefaultProxyUpgradeEngine`, genuine or not: the object checks of both
+  domain executors' leg (`CTMUpgradeExecutor.sol:64-70`,
   `CoreUpgradeExecutor.sol:33-36`, `ProxyUpgradeExecutorBase.sol:57-61`) followed by the default
   engine's `applyRows`.
 * Of `validateRows`' checks, `ValidSourceIsNotApplied` needs only the row's own self-edge
@@ -70,7 +78,7 @@ namespace Contracts.ProxyUpgradeCurrent
 /-! ## Replay safety for any rows -/
 
 /-- **ACROSS A CALL, A PROXY MOVES ONLY ALONG A ROW'S EDGE, FOR ANY ROWS.** For any row list,
-including the `rows()` of an object that is not a genuine `ProxyUpgradeTransition` (rows on the
+including the rows of `getManifest().proxyUpgrades` of an object that is not a genuine `ProxyUpgradeTransition` (rows on the
 same proxy, self-edges, zero fields), and reinitializers that move at most their own proxy:
 after a successful `applyRows`, every proxy is either where it was, or was at some row's
 `expectedOldImpl` and is now at that row's `implNew`. This is `OnlyNamedEdgesAcrossCall`
@@ -89,10 +97,14 @@ def Properties.FirstRowCarriesTheEdge : Prop :=
     ApplyRows C I (pre ++ r :: post) J → (∀ x ∈ pre, x.proxy ≠ r.proxy) →
     (I r.proxy = r.implNew ∨ I r.proxy = r.expectedOldImpl) ∧ J r.proxy = r.implNew
 
-/-- **THE SAME FOR `applyTransition` ON ANY OBJECT.** A successful `applyTransition` of either
-domain, on any object that is code and reports the domain, genuine or not, moves each proxy
-only along an edge of one of the object's rows, provided reinitializers move at most their own
-proxy. -/
+/-- **THE SAME FOR `ApplyTransition` ON ANY DEFAULT-ENGINE OBJECT.** A successful
+`ApplyTransition` (the leg's object checks followed by the default engine's `applyRows`) of
+either domain, on any object that is code, reports the domain and whose manifest pins
+`DefaultProxyUpgradeEngine`, genuine or not, moves each proxy only along an edge of one of the
+object's rows, provided reinitializers move at most their own proxy. A leg whose object pins
+any other engine runs arbitrary code, bounded only by the executor's post-checks
+(`../ProxyUpgradeExecutorBase/`: `DomainHoldersV35`, `EngineLegV35`); `ApplyTransition` does
+not describe it. -/
 def Properties.OnlyNamedEdgesAcrossTransitionAnyRows : Prop :=
   ∀ (C : Config) (d : Domain) (T : Transition) (I J : Impl), ReinitFrames C →
     ApplyTransition C d T I J →
@@ -194,7 +206,8 @@ def Properties.ReinitLeakMovesNamedProxyOffEdge : Prop :=
 whose rows name proxy `6` twice: `rowB` (`6: 10 → 12`, with a reinitializer), then `rowB2`
 (`6: 11 → 12`). It is not a genuine `ProxyUpgradeTransition`, and `OnlyNamedEdgesAcrossCall`
 does not apply to it. Under `wDetour`, whose reinitializers move at most their own proxy,
-`applyTransition` on it succeeds from the state with every proxy at `10`. Proxy `6` really
+`ApplyTransition` on it (as an object pinning `DefaultProxyUpgradeEngine`) succeeds from the
+state with every proxy at `10`. Proxy `6` really
 moves, from `rowB`'s source to its target, which is the first row's edge, and every other
 proxy stays. `rowB` is not a self-edge and its proxy starts at its source. So the premises
 of `OnlyNamedEdgesAcrossCallAnyRows`, `OnlyNamedEdgesAcrossTransitionAnyRows`,

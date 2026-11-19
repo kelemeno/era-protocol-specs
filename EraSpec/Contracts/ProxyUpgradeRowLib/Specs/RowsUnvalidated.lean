@@ -32,9 +32,18 @@ manifest's inventory with `toRows`, refuses an empty result and runs `validateRo
 (`objects/ProxyUpgradeTransition.sol:27-42`, the refusal at `:34-36`, the check at `:37`), and
 `getManifest()` returns the manifest it pinned (`:44-47`), which only the constructor writes
 (`objects/ManifestStorage.sol:13-15`; the object has no state-mutating function,
-`ProxyUpgradeTransition.sol:14-17`). Any other contract that answers `getManifest()` gets its
-rows applied as they are: rows on the same proxy, self-edges and zero `proxy` or
-`expectedOldImpl` fields included. The parameter is documented as "The write-once transition
+`ProxyUpgradeTransition.sol:14-17`). Any other contract that answers `getManifest()` with a
+manifest pinning `DefaultProxyUpgradeEngine` gets its rows applied as they are: rows on the
+same proxy, self-edges and zero `proxy` or `expectedOldImpl` fields included.
+
+The object also pins its own engine: `manifest.proxyUpgradeEngine`, checked only for code
+(`ProxyUpgradeExecutorBase.sol:63`) and delegatecalled (`:82`). `DefaultProxyUpgradeEngine`'s
+hooks are empty at `b17415d20` (`engines/DefaultProxyUpgradeEngine.sol:51-65`), so its leg is
+the object checks followed by `applyRows`, which `ApplyTransition` over-approximates (it omits
+the engine-code check and the ownership check at `:34-37`). A leg with any other engine is
+arbitrary code running with the executor's authority, bounded only by the executor's
+post-checks; it is modelled in `../ProxyUpgradeExecutorBase/` (`DomainHoldersV35`,
+`EngineLegV35`), not here. The parameter is documented as "The write-once transition
 approved by governance" (`executors/ICTMUpgradeExecutor.sol:35`,
 `executors/ICoreUpgradeExecutor.sol:17`), and the off-chain review before the vote checks the
 object's code identity and its rows, duplicate proxies included
@@ -47,7 +56,8 @@ object's code identity and its rows, duplicate proxies included
   object cannot change state while answering; the executor reads it once
   (`executors/ProxyUpgradeExecutorBase.sol:58`) and the engine receives the inventory as an
   argument. So `ProxyUpgradeCurrent.Transition`, an address, a domain and a row list with no
-  condition on the rows, describes any object, genuine or not. (`toRows` drops the rows with a
+  condition on the rows, describes any object whose manifest pins `DefaultProxyUpgradeEngine`,
+  genuine or not. (`toRows` drops the rows with a
   zero `implNew`, so the real row lists are a subset of the modelled ones; that only adds
   objects.)
 * **`Genuine` is what a real `ProxyUpgradeTransition`'s rows satisfy**: nonempty and

@@ -66,7 +66,8 @@ implementation slots meets `RowsCurrent`'s `ReinitFrames`, and it does not keep 
 `99`, and a proxy running `99` answers a forwarded `implementation()` with `12`.
 
 The `RowsCurrent` call of the projection on the implementation slots reverts. In this model the
-call succeeds, directly and as a CTM-domain `applyTransition`, because the verification read of
+call succeeds, directly and as a CTM-domain `ApplyTransition` (the leg's object checks followed
+by the default engine's `applyRows`), because the verification read of
 proxy `6` is the forwarded answer. Afterwards proxy `6`'s implementation slot holds `99`: not its
 row's target, and `10 → 99` is on no row's edge. Its admin slot no longer holds `_admin`, and
 `rowB`'s iteration did not leave the implementation slots as a plain swap would.
@@ -283,8 +284,11 @@ def Properties.OnlyNamedEdgesAcrossCallOnSlots : Prop :=
         ∃ r ∈ rows, r.proxy = p ∧ S.impl p = r.expectedOldImpl ∧ J.impl p = r.implNew
 
 /-- **`OnlyNamedEdgesAcrossTransitionAnyRows` ON THE SLOTS.** The same for `ApplyTransition`
-(the leg's object checks and the default engine's `applyRows`) on any object that is code and reports the domain. `Administered` is about the
-object's rows. -/
+(the leg's object checks and the default engine's `applyRows`) on any object that is code,
+reports the domain and whose manifest pins `DefaultProxyUpgradeEngine` (empty hooks at
+`b17415d20`, `engines/DefaultProxyUpgradeEngine.sol:51-65`). A leg with any other engine runs
+arbitrary code, bounded only by the executor's post-checks (`../ProxyUpgradeExecutorBase/`:
+`DomainHoldersV35`, `EngineLegV35`). `Administered` is about the object's rows. -/
 def Properties.OnlyNamedEdgesAcrossTransitionOnSlots : Prop :=
   ∀ (C : Config) (d : Domain) (T : Transition) (S J : Slots), SelfOnly C → KeepsAdmin C →
     Administered C S T.rows → ApplyTransition C d T S J → J.admin = S.admin ∧
@@ -325,7 +329,7 @@ def Properties.OrderIndependentOnSlots : Prop :=
 /-- **THE TRANSFER PREMISES ARE MET, AND NOT ONLY VACUOUSLY.** In `wCfg` (`RowsCurrent`'s
 witness configuration, lifted), `SelfOnly` and `KeepsAdmin` hold, and `Administered` holds for
 the valid rows `rowA`, `rowB` from `wSlots`. `applyRows` succeeds in both orders and as a
-CTM-domain `applyTransition`, reaching one state that moves proxies `5` and `6` to their
+CTM-domain `ApplyTransition`, reaching one state that moves proxies `5` and `6` to their
 targets and leaves every admin slot alone. In it `rowB`, the last row, is a real swap with
 `callInitializeUpgrade` set: its proxy is not at the target before its iteration. `wCfg`'s
 reinitializer is inert (the identity), so `SelfOnly` and `KeepsAdmin` hold there trivially. So the

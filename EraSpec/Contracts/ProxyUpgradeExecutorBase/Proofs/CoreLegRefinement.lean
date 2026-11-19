@@ -126,6 +126,13 @@ theorem CoreLegIsDomainHoldersLeg : Properties.CoreLegIsDomainHoldersLeg := by
       rw [ite_eq_right ho, ite_eq_left ho']
       rfl
 
+theorem CoreLegIsDomainHoldersLegSatisfiable :
+    Properties.CoreLegIsDomainHoldersLegSatisfiable :=
+  fun X E T W w₀ =>
+    ⟨fun _ _ _ _ =>
+      (E T.manifest.engine (CoreLeg.context X T .core 0) T.manifest.proxyUpgrades W).map
+        (embed X w₀), rfl⟩
+
 theorem CoreLegKeepsPAOwnerViaDomainHolders : Properties.CoreLegKeepsPAOwnerViaDomainHolders := by
   classical
   intro X E T W W' h
