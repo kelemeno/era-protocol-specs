@@ -16,7 +16,7 @@ Groups, in order:
   The legacy preimage is 96 bytes. The record starts with `0x01` and the legacy one with `0x00`.
 * **(f) Injectivity and separation.** The record preimage determines `(sender, assetId,
   transferData)`; the legacy preimage determines its triple; and no record preimage is a legacy
-  preimage, by the first byte (the argument of the comment at `DataEncoding.sol:165-167`) and
+  preimage, by the first byte (the argument of the comment at `DataEncoding.sol:164-166`) and
   also by length.
 * **(f) At the hash level.** Equal record hashes mean the same record or a keccak collision on the
   two named preimages; a record hash equal to a legacy hash is a keccak collision on the two
@@ -89,7 +89,7 @@ def Properties.LegacyPreimageInjective : Prop :=
 
 /-- **(f) A RECORD PREIMAGE IS NEVER A LEGACY PREIMAGE.** The two differ in length (at least 129
 bytes against 96) and in their first byte (`0x01` against `0x00`), so they differ. The first-byte
-argument is the one `DataEncoding.sol:165-167` gives; the length argument is a second,
+argument is the one `DataEncoding.sol:164-166` gives; the length argument is a second,
 independent one. No premise. -/
 def Properties.NewNeverLegacy : Prop :=
   ∀ (s : Addr) (a : UInt256) (d : List UInt8) (account token : Addr) (amount : UInt256),
@@ -102,7 +102,7 @@ def Properties.NewNeverLegacy : Prop :=
 /-- **(f) A RECORD HASH BINDS ITS RECORD, OR KECCAK COLLIDES ON THE TWO NAMED PREIMAGES.** If a
 claim's recomputed `encodeTxDataHash` equals a recorded one, the claim names the recorded
 `(sender, assetId, transferData)`, or keccak collides on the two record preimages. This is the
-binding the nullifier's claim check (`L1Nullifier.sol:237-248`) relies on. -/
+binding the nullifier's claim check (`L1Nullifier.sol:234-247`) relies on. -/
 def Properties.TxDataHashBindsOrCollision : Prop :=
   ∀ (keccak : Keccak) (s s' : Addr) (a a' : UInt256) (d d' : List UInt8),
     d.length < 2 ^ 256 → d'.length < 2 ^ 256 →
@@ -120,7 +120,7 @@ def Properties.NewHashMatchesLegacyOnlyByCollision : Prop :=
       HashCollision keccak (txDataPreimage s a d) (legacyTxDataPreimage account token amount)
 
 /-- **(f) A ZERO RECORD HASH IS A ZERO PREIMAGE.** The nullifier reads `depositHappened == 0` as
-"no record" (`L1Nullifier.sol:164`) and deletes a claimed slot back to zero (`:250`). A record
+"no record" (`L1Nullifier.sol:160`) and deletes a claimed slot back to zero (`:247`). A record
 hash is zero only when keccak sends the named record preimage to zero. -/
 def Properties.TxDataHashZeroIsPreimageEvent : Prop :=
   ∀ (keccak : Keccak) (s : Addr) (a : UInt256) (d : List UInt8),

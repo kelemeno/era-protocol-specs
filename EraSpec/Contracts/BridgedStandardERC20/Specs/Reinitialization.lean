@@ -3,37 +3,37 @@ import EraSpec.Contracts.BridgedStandardERC20.Specs.Initialization
 /-!
 # BridgedStandardERC20: `reinitializeToken`, on the token's full storage
 
-Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`,
-`l1-contracts/contracts/bridge/BridgedStandardERC20.sol` (cited as `:N`), and the
-OpenZeppelin v4.9 code it inherits. The pinned tree's OpenZeppelin submodules
-(`lib/openzeppelin-contracts-upgradeable-v4` and `lib/openzeppelin-contracts-v4`, branch
-`release-v4.9` per the pinned `.gitmodules`) are not checked out there; the library lines
+Source: era-contracts `draft/v0.35.0` head `b17415d20`,
+`l1-contracts/contracts/bridge/BridgedStandardERC20.sol` (cited as `:N`; the same code as at the old
+pin `c67894b9`, with rewritten comments), and the OpenZeppelin v4.9 code it inherits. The tree's
+OpenZeppelin submodules (`lib/openzeppelin-contracts-upgradeable-v4` and
+`lib/openzeppelin-contracts-v4`, branch `release-v4.9` per `.gitmodules`) are not checked out; the library lines
 below were read from a v4.9.6 copy of both and are cited as `OZ <file>:N`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.BridgedStandardERC20.Properties.Reinitialization` and are proved in
 `EraSpec.Contracts.BridgedStandardERC20.Proofs.Reinitialization`.
 
-## The entry point (:141-164)
+## The entry point (:132-155)
 
     function reinitializeToken(
         ERC20Getters calldata _availableGetters,
         string calldata _newName,
         string calldata _newSymbol,
         uint8 _version
-    ) external onlyNextVersion(_version) reinitializer(_version) {               // :148-153
-        address beaconAddress = _getBeacon();                                       // :156
+    ) external onlyNextVersion(_version) reinitializer(_version) {               // :139-144
+        address beaconAddress = _getBeacon();                                       // :147
         require(msg.sender == UpgradeableBeacon(beaconAddress).owner(),
-                Unauthorized(msg.sender));                                          // :157
-        __ERC20_init_unchained(_newName, _newSymbol);                               // :159
-        __ERC20Permit_init(_newName);                                               // :160
-        availableGetters = _availableGetters;                                       // :161
-        emit BridgeInitialize(originToken, _newName, _newSymbol, decimals_);        // :163
+                Unauthorized(msg.sender));                                          // :148
+        __ERC20_init_unchained(_newName, _newSymbol);                               // :150
+        __ERC20Permit_init(_newName);                                               // :151
+        availableGetters = _availableGetters;                                       // :152
+        emit BridgeInitialize(originToken, _newName, _newSymbol, decimals_);        // :154
     }
 
 Its guards, in the order they run:
 
-* `onlyNextVersion(_version)` (:66-71): `require(_version == _getInitializedVersion() + 1)`.
+* `onlyNextVersion(_version)` (:63-68): `require(_version == _getInitializedVersion() + 1)`.
   `_getInitializedVersion()` is the `uint8 _initialized` slot (`OZ Initializable.sol:63,
   156-158`), and Solidity 0.8 `+ 1` on `uint8` is checked: at `_initialized = 255` it panics.
   So the guard is exactly `_version = _initialized + 1` over the naturals (`NextVersion`).
@@ -42,7 +42,7 @@ Its guards, in the order they run:
   `_initializing = true`, the body, `_initializing = false`. The `_initialized < version`
   conjunct is `ReinitializerAllowed`; it is implied by `NextVersion`, and kept so that the
   transcription is literal.
-* The caller check (:156-157): `_getBeacon()` reads the ERC-1967 beacon slot
+* The caller check (:147-148): `_getBeacon()` reads the ERC-1967 beacon slot
   (`OZ ERC1967Upgrade.sol:123, 128-130`) and the call asks that beacon for `owner()`.
   `beaconOwner : Option Address` is what that lookup returns: `some o` when the beacon slot
   names a contract whose `owner()` returned `o`, `none` when the call reverts (an empty slot,
@@ -57,19 +57,19 @@ Its writes:
   `_hashedVersion` (`OZ EIP712Upgradeable.sol:40-45`). The permit domain separator is rebuilt
   from `_name` on every use (`OZ EIP712Upgradeable.sol:79-81, 162-176`), so EIP-2612
   signatures made under the old name stop verifying. Permits are not modelled.
-* `availableGetters` (:30, :161).
+* `availableGetters` (:28, :152).
 * `_initialized` becomes `_version`; `_initializing` is set for the body and reset after it.
 
-Nothing else is written. In particular `decimals_` (:35) is only read (:163), and the ledger
-(`_balances`, `_totalSupply`), `originToken`, `nativeTokenVault` and `assetId` (:42-48) are
+Nothing else is written. In particular `decimals_` (:32) is only read (:154), and the ledger
+(`_balances`, `_totalSupply`), `originToken`, `nativeTokenVault` and `assetId` (:39-45) are
 not touched (`reinitMetadata`, `reinitializeToken`).
 
 ## Who writes the identity slots
 
-In the pinned implementation `originToken` is written only by `bridgeInitialize` (:87), and
-`assetId` and `nativeTokenVault` only by `bridgeInitialize` (:88-90) and by the legacy branch of
-`onlyNTV` (:54-61), which runs only while `nativeTokenVault` is zero. So for a token initialized
-with a nonzero vault, `StorageStep` below contains every writer of those slots in the pinned
+In the implementation `originToken` is written only by `bridgeInitialize` (:84), and
+`assetId` and `nativeTokenVault` only by `bridgeInitialize` (:85-87) and by the legacy branch of
+`onlyNTV` (:51-58), which runs only while `nativeTokenVault` is zero. So for a token initialized
+with a nonzero vault, `StorageStep` below contains every writer of those slots in the
 code. A beacon `upgradeTo` replaces the code itself and is outside the model.
 
 ## Modelling choices
@@ -87,15 +87,15 @@ code. A beacon `upgradeTo` replaces the code itself and is outside the model.
 * **A revert is `none`.** As in `Specs/Model.lean`, a failed call commits nothing.
 * **`bridgeInitialize` on the full storage** (`initializeStorage`) is the existing
   `initializeToken` projection plus the metadata it writes. That metadata is an input:
-  `none` when the outer `DataEncoding.decodeTokenData` reverts (:97; `metadataDecoded = false`
+  `none` when the outer `DataEncoding.decodeTokenData` reverts (:94; `metadataDecoded = false`
   in `initializeToken`), else the record of decoded name/symbol/decimals and getter flags
-  (:99-137), whose contents are not transcribed.
+  (:96-128), whose contents are not transcribed.
 * **`StorageStep` is every entry point modelled for the token:** `bridgeInitialize`,
   `reinitializeToken` (with any beacon-owner answer and any caller, so the results do not
   depend on who governs the beacon), and the existing ledger `Step` (vault `bridgeMint` and
   `bridgeBurn` on the nonlegacy branch, and `transfer`, whose arbitrary `owner` also covers
   `transferFrom`'s ledger effect).
-* **Outside the model:** the legacy `onlyNTV` fallback for a zero vault (:54-61, item B7),
+* **Outside the model:** the legacy `onlyNTV` fallback for a zero vault (:51-58, item B7),
   which writes `nativeTokenVault` and `assetId`; a beacon `upgradeTo`, which swaps the code of
   every bridged token at once (`OPS-CONFIG`); permit signatures and allowances; events. Because
   of the first, `StorageStep` has no bridge call on a zero vault where the deployed token has one,
@@ -105,8 +105,8 @@ code. A beacon `upgradeTo` replaces the code itself and is outside the model.
 
 namespace Contracts.BridgedStandardERC20
 
-/-- `ERC20Getters` (:24-28): which of the getters `name()`, `symbol()`, `decimals()` revert
-(:198-223). -/
+/-- `ERC20Getters` (:22-26): which of the getters `name()`, `symbol()`, `decimals()` revert
+(:185-208). -/
 structure Getters where
   ignoreName : Bool
   ignoreSymbol : Bool
@@ -123,9 +123,9 @@ structure Metadata where
   name : Text
   /-- `ERC20Upgradeable._symbol`. -/
   symbol : Text
-  /-- `decimals_` (:35). Written only by `bridgeInitialize` (:130-135). -/
+  /-- `decimals_` (:32). Written only by `bridgeInitialize` (:121-126). -/
   decimals : UInt8
-  /-- `availableGetters` (:30). -/
+  /-- `availableGetters` (:28). -/
   getters : Getters
   /-- `EIP712Upgradeable._name`: the permit domain's name. -/
   eip712Name : Text
@@ -155,20 +155,20 @@ def TokenStorage.init (s : TokenStorage) : InitState := ⟨s.token, s.version⟩
 def freshStorage : TokenStorage := ⟨freshProxy.token, freshProxy.version, emptyMetadata⟩
 
 /-- The implementation contract's own storage: its constructor ran `_disableInitializers()`
-(:74-77), so its version is 255 (`OZ Initializable.sol:145-151`). -/
+(:71-74), so its version is 255 (`OZ Initializable.sol:145-151`). -/
 def disabledStorage : TokenStorage :=
   ⟨disabledImplementation.token, disabledImplementation.version, emptyMetadata⟩
 
 /-- `"1"`, the EIP-712 version `__ERC20Permit_init` writes (`OZ ERC20PermitUpgradeable.sol:48`). -/
 def permitVersion : Text := [0x31]
 
-/-- The metadata after `reinitializeToken`'s body (:159-161): name and symbol, the EIP-712
+/-- The metadata after `reinitializeToken`'s body (:150-152): name and symbol, the EIP-712
 name and version, the zeroed EIP-712 caches, and the getter flags. `decimals` is kept. -/
 def reinitMetadata (m : Metadata) (getters : Getters) (name symbol : Text) : Metadata :=
   { m with name := name, symbol := symbol, getters := getters,
            eip712Name := name, eip712Version := permitVersion, hashedName := 0, hashedVersion := 0 }
 
-/-- `onlyNextVersion` (:66-71), with Solidity's checked `uint8` addition: the version must be
+/-- `onlyNextVersion` (:63-68), with Solidity's checked `uint8` addition: the version must be
 the current one plus one, and 255 has no successor. -/
 def NextVersion (s : TokenStorage) (version : UInt8) : Prop :=
   version.toNat = s.version.toNat + 1
@@ -178,7 +178,7 @@ def ReinitializerAllowed (s : TokenStorage) (version : UInt8) : Prop :=
   s.version < version
 
 /-- All of `reinitializeToken`'s guards: `onlyNextVersion`, `reinitializer`, and the caller
-being the owner the beacon reports (:157). -/
+being the owner the beacon reports (:148). -/
 def ReinitAllowed (beaconOwner : Option Address) (s : TokenStorage) (caller : Address)
     (version : UInt8) : Prop :=
   NextVersion s version ∧ ReinitializerAllowed s version ∧ beaconOwner = some caller
@@ -193,7 +193,7 @@ instance (beaconOwner : Option Address) (s : TokenStorage) (caller : Address) (v
     Decidable (ReinitAllowed beaconOwner s caller version) :=
   inferInstanceAs (Decidable (_ ∧ _ ∧ _))
 
-/-- `reinitializeToken(getters, name, symbol, version)` (:148-164), called by `caller`, with
+/-- `reinitializeToken(getters, name, symbol, version)` (:139-155), called by `caller`, with
 the beacon's `owner()` lookup answering `beaconOwner`. -/
 def reinitializeToken (beaconOwner : Option Address) (s : TokenStorage) (caller : Address)
     (getters : Getters) (name symbol : Text) (version : UInt8) : Option TokenStorage :=
@@ -201,7 +201,7 @@ def reinitializeToken (beaconOwner : Option Address) (s : TokenStorage) (caller 
     some ⟨s.token, version, reinitMetadata s.metadata getters name symbol⟩
   else none
 
-/-- `reinitializeToken` **without** `onlyNextVersion` (:66-71): only OpenZeppelin's
+/-- `reinitializeToken` **without** `onlyNextVersion` (:63-68): only OpenZeppelin's
 `reinitializer` check and the owner check, as the function would be with the modifier
 removed. Not source code; it shows what the modifier adds. -/
 def reinitializeWithoutNextVersion (beaconOwner : Option Address) (s : TokenStorage)
@@ -211,9 +211,9 @@ def reinitializeWithoutNextVersion (beaconOwner : Option Address) (s : TokenStor
     some ⟨s.token, version, reinitMetadata s.metadata getters name symbol⟩
   else none
 
-/-- `bridgeInitialize(assetId, originToken, data)` (:85-139) on the full storage: the existing
+/-- `bridgeInitialize(assetId, originToken, data)` (:82-130) on the full storage: the existing
 `initializeToken` projection, plus the metadata the call writes (`none`: the outer decode of
-`data` reverted, :97). -/
+`data` reverted, :94). -/
 def initializeStorage (s : TokenStorage) (caller : Address) (assetId : UInt256)
     (originToken : Address) (decoded : Option Metadata) : Option TokenStorage :=
   match decoded with

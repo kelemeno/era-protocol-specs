@@ -2,42 +2,8 @@ import EraSpec.Contracts.InteropDataEncoding.Properties.BundleHashEncoding
 import Mathlib.Tactic
 
 
-/- EXTRACTED from contracts-formal-verification (`specs/specs/AttackVectors/BundleHashEncoding.lean`) — protocol-level,
-   no EVM semantics.  The sibling copy is still the one that repo builds against; see
-   PROVENANCE.md for the pending migration and the drift risk it carries. -/
-
-/-
-  THE BUNDLE-HASH ENCODING — no ambiguity below keccak.
-
-  Every binding result in this corpus that keys off a bundle hash assumes the hash DETERMINES the pair
-  it was built from.  The deployed derivation is a single library function, and all four call sites go
-  through it:
-
-      library InteropDataEncoding {
-          function encodeInteropBundleHash(uint256 _sourceChainId, bytes memory _bundle)
-              internal pure returns (bytes32)
-          {
-              return keccak256(abi.encode(_sourceChainId, _bundle));
-          }
-      }
-
-      InteropCenter.sol:644                encodeInteropBundleHash(block.chainid, interopBundleBytes)
-      InteropHandlerBase.sol:249           encodeInteropBundleHash(interopBundle.sourceChainId, _bundle)
-      AtomicFlowManager.sol:167            encodeInteropBundleHash(bundle.sourceChainId, _bundle)
-
-  That assumption has two halves.  Keccak injectivity is the half this corpus already tracks (see
-  `KeccakDeterminism` and the derived-counterparts note).  The OTHER half is that the ARGUMENT of
-  keccak determines the pair — i.e. that the encoding step contributes no collisions of its own.  A
-  collision there would need no hash break at all, so it is the cheaper attack, and nothing in the
-  corpus checked it.
-
-  This file closes that half, by exhibiting a DECODER and proving round-trip.  A left inverse gives
-  injectivity and says more besides: the pair is recoverable, not merely determined.
-
-  Scope: this is a byte-level model of `abi.encode(uint256, bytes)`, not the deployed Yul.  It shows the
-  ENCODING SHAPE is unambiguous; that the compiler emits this shape is the standard ABI spec, and the
-  concrete `abi_encode_*` specs under `specs/L1AssetRouter/` are where the emitted memory is checked.
--/
+/-! The ABI byte layer: statements and proofs for `Specs/BundleHashEncoding.lean`, whose header
+describes the scope. -/
 
 namespace AttackVectors.BundleHashEncoding
 
@@ -112,9 +78,9 @@ theorem abiDecode_abiEncode {c : ℕ} {b : List UInt8}
       simp only [abiDecode, h1, h3, h4, h5, fromBytesBE_toBytesBE hc, fromBytesBE_toBytesBE hb]
 
 
-/-- **INJECTIVITY**, the form the binding results use: equal encodings force equal pairs, so a bundle
-hash collision across distinct `(sourceChainId, bundle)` pairs requires a KECCAK collision.  There is
-no cheaper encoding-level route. -/
+/-- **INJECTIVITY**: equal encodings force equal pairs, so a keccak of this encoding collides across
+distinct `(uint256, bytes)` pairs only by a KECCAK collision. There is no cheaper encoding-level
+route. (At the pin `c67894b9` this was the bundle hash's preimage.) -/
 theorem abiEncode_inj {c c' : ℕ} {b b' : List UInt8}
     (hc : c < 256 ^ 32) (hb : b.length < 256 ^ 32)
     (hc' : c' < 256 ^ 32) (hb' : b'.length < 256 ^ 32)

@@ -3,20 +3,9 @@ import EraSpec.Contracts.BridgedStandardERC20.Specs.ReinitializationStrong
 /-!
 # BridgedStandardERC20: the deployed token's runs, labelled call by call
 
-Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`,
-`l1-contracts/contracts/bridge/BridgedStandardERC20.sol` (cited as `:N`). At the current heads
-`b17415d20` (draft/v0.35.0) and `70096e2ea` (main) the file has the same code with rewritten
-comments, so the cited lines move:
-
-| cited here, at `c67894b9` | at `b17415d20` and `70096e2ea` |
-|---|---|
-| `onlyNTV` :52-64; reads and tests the vault slot :53-54 | :49-61; :50-51 |
-| its legacy branch :54-61 | :51-58 |
-| in it: vault write :56, asset-id write :57-60, `L1_CHAIN_ID()` :58 | :53, :54-57, :55 |
-| `require(msg.sender == ntv)` :62 | :59 |
-| `bridgeInitialize` :85-139; `nativeTokenVault = msg.sender` :90 | :82-130; :87 |
-| `reinitializeToken` :148-164 | :139-155 |
-| `bridgeMint` :170-173, `bridgeBurn` :179-182 | :158-161, :164-167 |
+Source: era-contracts `draft/v0.35.0` head `b17415d20`,
+`l1-contracts/contracts/bridge/BridgedStandardERC20.sol` (cited as `:N`). The token has the same code
+at the old interop pin `c67894b9` and at `main` `70096e2ea`, with rewritten comments there.
 
 **This file is definitions only.** Statements are in
 `EraSpec.Contracts.BridgedStandardERC20.Properties.ReinitializationFaithful` and are proved in
@@ -26,7 +15,7 @@ comments, so the cited lines move:
 
 `Specs/Reinitialization.lean` counts calls along `StorageRun`, whose `bridgeMint` and `bridgeBurn`
 are only the nonlegacy branch of `onlyNTV`: on a zero vault slot it has no bridge call, where the
-deployed token runs the legacy branch (:54-61). `Specs/ReinitializationStrong.lean` adds that
+deployed token runs the legacy branch (:51-58). `Specs/ReinitializationStrong.lean` adds that
 branch (`DeployedStorageStep`, `DeployedStorageReach`) and restates the identity results over it.
 The counting results (`VersionCountsInitializations`, `LifetimeVersionCallBound`,
 `LifetimeBoundIsTight`, `BridgeInitializeAtMostOnce`) remain statements about `StorageRun`. This
@@ -37,11 +26,11 @@ take the legacy branch, can be stated over them.
 
 * `DeployedStorageCall` records the entry point of a successful call and, for `bridgeMint` and
   `bridgeBurn`, the branch of `onlyNTV` it took. The branch is decided by the vault slot when the
-  call starts (`address ntv = nativeTokenVault; if (ntv == address(0))`, :53-54), so the label of
+  call starts (`address ntv = nativeTokenVault; if (ntv == address(0))`, :50-51), so the label of
   a bridge call is a function of the storage it starts from (`deployedBridgeCallLabel`).
 * A step labelled `legacyBridgeCall` is a successful call that ran the legacy branch: it called
-  `L2NativeTokenVault(L2_NATIVE_TOKEN_VAULT_ADDR).L1_CHAIN_ID()` (:58), and its writes to the vault
-  and asset-id slots (:56-60) were committed with it. A call that reverts is not a step and has no
+  `L2NativeTokenVault(L2_NATIVE_TOKEN_VAULT_ADDR).L1_CHAIN_ID()` (:55), and its writes to the vault
+  and asset-id slots (:53-57) were committed with it. A call that reverts is not a step and has no
   label: its writes are rolled back (`VM-REVERT`, `MODEL-COMMIT`).
 * `DeployedStorageCall.entryPoint` drops the branch and maps the three ledger labels to
   `StorageCall.ledger`, so `versionCalls` and `initializeCalls` (`Specs/Reinitialization.lean`)
@@ -63,15 +52,15 @@ namespace Contracts.BridgedStandardERC20
 /-- The entry point of one successful call of the deployed token and, for `bridgeMint` and
 `bridgeBurn`, the branch of `onlyNTV` it took. -/
 inductive DeployedStorageCall
-  /-- `bridgeInitialize` (:85-139). -/
+  /-- `bridgeInitialize` (:82-130). -/
   | bridgeInitialize
-  /-- `reinitializeToken` (:148-164). -/
+  /-- `reinitializeToken` (:139-155). -/
   | reinitializeToken
-  /-- `bridgeMint` (:170-173) or `bridgeBurn` (:179-182) started on a nonzero vault slot:
-  `onlyNTV` only checks the caller (:62). -/
+  /-- `bridgeMint` (:158-161) or `bridgeBurn` (:164-167) started on a nonzero vault slot:
+  `onlyNTV` only checks the caller (:59). -/
   | bridgeCall
   /-- `bridgeMint` or `bridgeBurn` started on a zero vault slot: `onlyNTV`'s legacy branch
-  (:54-61) ran, calling `L1_CHAIN_ID()` and writing the vault and asset-id slots. -/
+  (:51-58) ran, calling `L1_CHAIN_ID()` and writing the vault and asset-id slots. -/
   | legacyBridgeCall
   /-- `transfer`, which does not pass through `onlyNTV`. Its arbitrary owner also covers the
   ledger effect of `transferFrom`. -/
@@ -79,7 +68,7 @@ inductive DeployedStorageCall
 deriving DecidableEq
 
 /-- The label of a successful `bridgeMint` or `bridgeBurn` that starts on storage `s`: the legacy
-branch exactly when the vault slot is zero (:53-54). -/
+branch exactly when the vault slot is zero (:50-51). -/
 def deployedBridgeCallLabel (s : TokenStorage) : DeployedStorageCall :=
   if s.token.config.vault = 0 then .legacyBridgeCall else .bridgeCall
 

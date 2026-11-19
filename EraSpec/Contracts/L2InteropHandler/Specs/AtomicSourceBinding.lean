@@ -1,52 +1,42 @@
 import Mathlib.Tactic
 
 
-/- EXTRACTED from contracts-formal-verification (`specs/specs/AttackVectors/AtomicSourceBinding.lean`) — protocol-level,
-   no EVM semantics.  The sibling copy is still the one that repo builds against; see
-   PROVENANCE.md for the pending migration and the drift risk it carries. -/
+/-!
+# Spec: where the atomic path's source binding comes from (abstract)
 
-/-
-  WHERE THE ATOMIC PATH'S SOURCE BINDING COMES FROM.
+Source: era-contracts `draft/v0.35.0` head `b17415d20`, `l1-contracts/contracts/interop/interop-handler/`
+(`IHB` is `InteropHandlerBase.sol`, `L2` is `L2InteropHandler.sol`).
 
-  Both execution paths call the same validator:
+Both handlers call the same validator (`IHB:390-410`):
 
-      function _validateBundleDestinationContext(bytes32 bundleHash, InteropBundle memory b, uint256 proofChainId) {
-          require(b.sourceChainId == proofChainId, WrongSourceChainId(...));         // (1)
-          require(b.destinationChainId == block.chainid, WrongDestinationChainId(...));
-          require(b.destinationBaseTokenAssetId == _expectedDestinationBaseTokenAssetId(), ...);
-      }
+    function _validateBundleDestinationContext(bytes32 bundleHash, InteropBundle memory b, uint256 proofChainId) {
+        require(b.sourceChainId == proofChainId, WrongSourceChainId(...));            // (1)
+        require(b.destinationChainId == block.chainid, WrongDestinationChainId(...));
+        require(b.destinationBaseTokenAssetId == _getExpectedDestinationBaseTokenAssetId(), ...);
+    }
 
-  On the PUBLIC path `proofChainId` is the chain of the L1 message inclusion proof, so (1) is a genuine
-  cross-check: a chain vouched for the message, and the bundle's declared origin must match it.
+On the L1 handler's path `proofChainId` is the chain of the L1 message inclusion proof
+(`_validateVerifiable`, `IHB:306-314`, called with `_proof.chainId`), so (1) is a genuine
+cross-check. On the L2 atomic path the argument is the bundle's own field, in `executeAtomicBundle`
+(`L2:69`) and in `verifyAtomicBundle` (`L2:88`, through `_validateVerifiable`):
 
-  On the ATOMIC path the argument is the bundle's own field:
+    _validateBundleDestinationContext(bundleHash, interopBundle, interopBundle.sourceChainId);
 
-      _validateBundleDestinationContext(bundleHash, interopBundle, interopBundle.sourceChainId);
+so (1) reads `x == x` and decides nothing. The source comment says why (`L2:66-68`): "`proofChainId`
+is the bundle's own `sourceChainId` (self-binding), so the source-chain sub-check is a no-op;
+source-chain authenticity is instead established by `requireFlowFinalized` below."
 
-  so (1) reads `x == x` and decides nothing.  The source comment says why, and is accurate:
+The field matters: `_executeCalls` passes it into
+`sender: InteroperableAddress.formatEvmV1(_sourceChainId, interopCall.from)` (`IHB:378`), the caller
+identity the recipient contract sees and authorises against. A bundle that could lie about its
+source chain would be a cross-chain impersonation.
 
-      "An atomic bundle is never published to L1, so its source chain id is the bundle's own field; the
-       cross-chain binding comes from the IMT inclusion proof (the atomicity gate) below."
-
-  This file traces that binding to its end, because the field matters: `_executeCalls` passes
-  `interopBundle.sourceChainId` into `sender: InteroperableAddress.formatEvmV1(_sourceChainId, from)` —
-  the CALLER IDENTITY the recipient contract sees and authorises against.  A bundle that could lie
-  about its source chain would be a cross-chain impersonation, so it is worth knowing exactly what
-  stops it.
-
-  The answer: the atomic path's source binding is EXACTLY the inclusion-self-binding argument of
-  `ProofPolarity`, and therefore rests entirely on `HonestInsertion` (up to keccak collisions on
-  named preimages).  Nothing else on that path constrains the field.  This file and its properties
-  only state that answer; topic `AtomicSourceBindingStrong` derives it from the validator, the hash
-  computation, the flow gate and the honest insertion of the one tree that vouched, and topic
-  `SourceBindingReduced` from the vouching chain's whole source run.
-
-  THREAT MODEL.  `_verifyBundle`'s comment states the premise plainly — "Asset correctness across
-  chains is guaranteed by ZK proofs (assuming proofs are correct and CHAINS ARE NOT MALICIOUS)".  Under
-  that premise this is sound and there is no defect here.  What this file adds is that the premise is
-  load-bearing in a DIFFERENT place than the comment sits: it is written on the public path, which also
-  has check (1) as an independent binding, while the atomic path — which has only the IMT argument —
-  carries no such note.
+This topic states, over three free symbols, that the atomic path's source binding is exactly the
+inclusion self-binding argument: it rests on each chain's tree holding only commit values of bundles
+that declare that chain. It derives nothing from the code; its headline restates its premise. The
+pin-era derivations from the code (`AtomicSourceBindingStrong`, `SourceBindingReduced`,
+`AtomicSourceBindingFaithful`) are records of `c67894b9` under `History/`; at `b17415d20` the bundle
+hash is `keccak256(_bundle)` (`IHB:231`), with no outer chain-id word.
 -/
 
 namespace AttackVectors.AtomicSourceBinding
@@ -57,12 +47,12 @@ variable {Chain Value Hash : Type*}
 
 /-! The pieces, named after the deployed quantities:
 
-* `declared h` — the `sourceChainId` field baked into bundle hash `h`.  Taking it as a function of
-  `h` presupposes that `bundleHash = keccak(abi.encode(sourceChainId, bundleBytes))` determines the
-  field: the encoding half is `BundleHashEncoding.abiEncode_inj`, but the hash half would be global
-  keccak injectivity, which no map into `bytes32` has (topic `BundleHashPinned`).  Topic
-  `AtomicSourceBindingStrong` uses the decoded field of the presented bytes instead, with keccak
-  collisions on named preimages.
+* `declared h` — the `sourceChainId` field of the bundle whose hash is `h`.  Taking it as a function
+  of `h` presupposes that `bundleHash = keccak(bundleBytes)` (`IHB:231`) determines the field: the
+  bytes carry it at bytes 64..96 (`InteropDataEncoding` topic `BundleHashAtV35`), but the hash half
+  would be global keccak injectivity, which no map into `bytes32` has (topic `BundleHashPinned`).  The
+  History topic `AtomicSourceBindingStrong` (`c67894b9`) used the decoded field of the presented
+  bytes instead, with keccak collisions on named preimages.
 * `commit h` — `commitValue(flowId, h)`, the value the IMT proof is checked against.
 * `tree c` — chain `c`'s authenticated IMT leaf set. -/
 
@@ -74,8 +64,8 @@ bundle hash declares that chain.  It is meant as `ProofPolarity.HonestInsertion`
 `declared ∘ (commit⁻¹)`, and `LocalHonesty` as what reduces it to "every chain runs this code";
 neither composition is proved here.  Quantified over every chain and hash, it is the conclusion of
 `atomic_source_bound` itself.  The per-tree premise the code needs is
-`AtomicSourceBindingStrong.TreeHoldsOwnLegs`, which a deployed center discharges
-(`CenterRunTreeHoldsOwnLegs`). -/
+`History.TreeHoldsOwnLegs` (topic `AtomicSourceBindingStrong`, a record of `c67894b9`), which a
+deployed center of that pin discharges (`History.Properties.CenterRunTreeHoldsOwnLegs`). -/
 def HonestCommits : Prop := ∀ (c : Chain) (h : Hash), commit h ∈ tree c → declared h = c
 
 

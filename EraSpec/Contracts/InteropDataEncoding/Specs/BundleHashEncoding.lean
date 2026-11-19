@@ -1,41 +1,23 @@
 import Mathlib.Tactic
 
 
-/- EXTRACTED from contracts-formal-verification (`specs/specs/AttackVectors/BundleHashEncoding.lean`) — protocol-level,
-   no EVM semantics.  The sibling copy is still the one that repo builds against; see
-   PROVENANCE.md for the pending migration and the drift risk it carries. -/
+/-!
+# Spec: the ABI byte layer shared by the encoding topics
 
-/-
-  THE BUNDLE-HASH ENCODING — no ambiguity below keccak.
+This file models byte encodings from the Solidity ABI specification, not a contract function, so
+it cites no era-contracts line. It is the shared vocabulary of the corpus's byte-level models:
+big-endian words (`toBytesBE`, `fromBytesBE`, `word`), right padding (`pad32`), the head-and-tail
+encoding `abi.encode(uint256, bytes)` (`abiEncode`) with its decoder, and the packed form
+`abi.encodePacked(uint256, bytes)` (`packed`). The properties show that these encodings add no
+collisions of their own (`abiEncode_inj`, `packed_inj`, `packed_fixed_inj`,
+`packed_addr_salt_inj`).
 
-  Every binding result in this corpus that keys off a bundle hash assumes the hash DETERMINES the pair
-  it was built from.  The deployed derivation is a single library function, and all four call sites go
-  through it:
+At era-contracts `b17415d20` the bundle hash is `keccak256(abi.encode(bundle))`
+(`interop/InteropDataEncoding.sol:14-16`), modelled by topic `BundleHashAtV35`. At the old interop
+pin `c67894b9` it was `keccak256(abi.encode(_sourceChainId, _bundle))`, which is `abiEncode`; that
+use is recorded under `History/` (`History/Specs/BundleHashPinned.lean`).
 
-      library InteropDataEncoding {
-          function encodeInteropBundleHash(uint256 _sourceChainId, bytes memory _bundle)
-              internal pure returns (bytes32)
-          {
-              return keccak256(abi.encode(_sourceChainId, _bundle));
-          }
-      }
-
-      InteropCenter.sol:644                encodeInteropBundleHash(block.chainid, interopBundleBytes)
-      InteropHandlerBase.sol:249           encodeInteropBundleHash(interopBundle.sourceChainId, _bundle)
-      AtomicFlowManager.sol:167            encodeInteropBundleHash(bundle.sourceChainId, _bundle)
-
-  That assumption has two halves.  Keccak injectivity is the half this corpus already tracks (see
-  `KeccakDeterminism` and the derived-counterparts note).  The OTHER half is that the ARGUMENT of
-  keccak determines the pair — i.e. that the encoding step contributes no collisions of its own.  A
-  collision there would need no hash break at all, so it is the cheaper attack, and nothing in the
-  corpus checked it.
-
-  This file closes that half, by exhibiting a DECODER and proving round-trip.  A left inverse gives
-  injectivity and says more besides: the pair is recoverable, not merely determined.
-
-  Scope: this is a byte-level model of `abi.encode(uint256, bytes)`, not the deployed Yul.  It shows the
-  ENCODING SHAPE is unambiguous; that the compiler emits this shape is the standard ABI spec, and the
-  concrete `abi_encode_*` specs under `specs/L1AssetRouter/` are where the emitted memory is checked.
+Scope: a byte-level model of the encodings, not the Yul solc emits (`SOL-ABI`).
 -/
 
 namespace AttackVectors.BundleHashEncoding
@@ -67,7 +49,8 @@ def pad32 (b : List UInt8) : List UInt8 :=
   b ++ List.replicate ((32 - b.length % 32) % 32) 0
 
 
-/-- `abi.encode(_sourceChainId, _bundle)`. -/
+/-- `abi.encode(uint256, bytes)`: at the pin `c67894b9`, `abi.encode(_sourceChainId, _bundle)`, the bundle
+hash's keccak input. -/
 def abiEncode (c : ℕ) (b : List UInt8) : List UInt8 :=
   word c ++ (word 0x40 ++ (word b.length ++ pad32 b))
 

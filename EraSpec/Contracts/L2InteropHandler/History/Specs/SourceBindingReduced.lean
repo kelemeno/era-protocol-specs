@@ -2,6 +2,18 @@ import EraSpec.Contracts.InteropCenter.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 import EraSpec.Protocol.InteropAtomicity.Specs.OncePerLeg
 
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:69`) is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
+
 /-!
 # Model: the atomic path's source binding, traced to the vouching chain's code
 
@@ -116,7 +128,7 @@ make a send one step. The indirect sender called inside it (`InteropCenter.sol:7
   for that.
 -/
 
-namespace Contracts.SourceBinding
+namespace Contracts.SourceBinding.History
 
 open AttackVectors.BundleHashEncoding (abiEncode word HashCollision)
 open Contracts.InteropCenter (Params Address Word Bundle Dispatch FormedBy Validated bundleHash
@@ -248,7 +260,7 @@ def SentinelHit (cv : CommitValue) (f h : Word) : Prop := cv f h = 0
 presented `(f, h)` and on the `(flowId, bundleHash)` of an obligation in the chain's own append
 log. For the deployed commit value this is a keccak collision on the two named
 `abi.encode(TAG, flowId, bundleHash)` preimages
-(`Contracts.SourceBinding.Properties.CommitClashIsKeccakClash`). -/
+(`Contracts.SourceBinding.History.Properties.CommitClashIsKeccakClash`). -/
 def LoggedCommitClash (P : Params) (cv : CommitValue) (S : SourceState) (f h : Word) : Prop :=
   ∃ o ∈ appendLog P S.center.log, CommitClash cv ⟨f, h, P.chainId⟩ o
 
@@ -288,4 +300,4 @@ def KeccakEvent (P : Params) (tag : List UInt8) (S : SourceState) (dec : List UI
         HashCollision P.keccak (commitPreimage tag f h) (commitPreimage tag o.flowId o.bundleHash))
     ∨ LoggedBundleClash P S dec x f h
 
-end Contracts.SourceBinding
+end Contracts.SourceBinding.History

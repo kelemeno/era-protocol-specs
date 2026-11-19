@@ -1,6 +1,18 @@
-import EraSpec.Contracts.L2InteropHandler.Properties.AtomicSourceBindingStrong
+import EraSpec.Contracts.L2InteropHandler.History.Properties.AtomicSourceBindingStrong
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import Mathlib.Tactic
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:69`) is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
 
 /-!
 # Proofs: the atomic path's source binding, derived from one tree and named collisions
@@ -14,7 +26,7 @@ hashes come from equal bundle-hash preimages or a named collision; equal preimag
 which needs no length bound).
 -/
 
-namespace AttackVectors.AtomicSourceBinding
+namespace AttackVectors.AtomicSourceBinding.History
 
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision word pad32 toBytesBE
   length_toBytesBE)
@@ -225,4 +237,4 @@ theorem AtomicSourceBindingStrongWitness : Properties.AtomicSourceBindingStrongW
     simp only [List.map_cons, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at hu hw
     rcases hu with rfl | rfl <;> rcases hw with rfl | rfl <;> rfl
 
-end AttackVectors.AtomicSourceBinding
+end AttackVectors.AtomicSourceBinding.History

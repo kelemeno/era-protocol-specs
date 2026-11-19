@@ -1,7 +1,19 @@
-import EraSpec.Contracts.L2InteropHandler.Properties.AtomicSourceBindingFaithful
+import EraSpec.Contracts.L2InteropHandler.History.Properties.AtomicSourceBindingFaithful
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
-import EraSpec.Contracts.L2InteropHandler.Proofs.SourceBindingReduced
+import EraSpec.Contracts.L2InteropHandler.History.Proofs.SourceBindingReduced
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:69`) is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
 
 /-!
 # Proofs: the atomic path's source binding, over `executeAtomicBundle`
@@ -28,7 +40,7 @@ deployed send run on chain `324`; they are proved for every keccak whose commit 
 is nonzero, and instantiated with topic `Dispatch`'s toy keccak `lastWord`.
 -/
 
-namespace Contracts.L2InteropHandler.AtomicSourceFaithful
+namespace Contracts.L2InteropHandler.AtomicSourceFaithful.History
 
 open AttackVectors.BundleHashEncoding
 open Contracts.InteropCenter (Address Bundle)
@@ -549,20 +561,20 @@ theorem HonestVouchingSplitWitness : Properties.HonestVouchingSplitWitness := by
 /-- A value the verifier accepts on the vouching chain is the sentinel, or the commit value of an
 atomic dispatch of the run, which is validated and formed on that chain. -/
 theorem accepted_of_deployedRun {D : Dest} {P : Contracts.InteropCenter.Params}
-    {S : Contracts.SourceBinding.SourceState} (hk : P.keccak = D.keccak)
-    (hr : Contracts.SourceBinding.SourceReach Contracts.InteropCenter.deployed P
-      (commitValue P.keccak) Contracts.SourceBinding.sourceGenesis S)
+    {S : Contracts.SourceBinding.History.SourceState} (hk : P.keccak = D.keccak)
+    (hr : Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P
+      (commitValue P.keccak) Contracts.SourceBinding.History.sourceGenesis S)
     (hacc : AcceptsOnlyKeysOf D P.chainId S)
     {p : ImtProof} {v deadline sl : UInt256} (hpc : p.sourceChainId = P.chainId)
     (hver : D.verifyInclusion p v deadline sl) :
     v = 0 ∨ ∃ d ∈ S.center.log, d.isAtomic = true ∧ Contracts.InteropCenter.Validated d.bundle ∧
       Contracts.InteropCenter.FormedBy P d ∧
       v = (⟨d.atomicSend.flowId, P.enc d.bundle⟩ : CommittedLeg).value D.keccak P.chainId := by
-  rcases (Contracts.SourceBinding.SourceKeysAreDispatchedCommitValues P (commitValue P.keccak) S hr
+  rcases (Contracts.SourceBinding.History.SourceKeysAreDispatchedCommitValues P (commitValue P.keccak) S hr
       v).mp (hacc p v deadline sl hpc hver) with h0 | ⟨d, hd, hat, hv⟩
   · exact Or.inl h0
   · have hI : Contracts.InteropCenter.Inv Contracts.InteropCenter.deployed P S.center :=
-      Contracts.InteropCenter.inv_reach (Contracts.SourceBinding.sourceReach_center hr)
+      Contracts.InteropCenter.inv_reach (Contracts.SourceBinding.History.sourceReach_center hr)
     refine Or.inr ⟨d, hd, hat, hI.validated rfl d hd hat, hI.formed d hd, ?_⟩
     rw [← hk]
     exact hv.symm
@@ -600,7 +612,7 @@ theorem AtomicExecutionRunsTheDispatchedBundleOrBreak :
         rw [hbytes.2, hdec d hd] at h1
         exact (Option.some.inj h1).symm
       have hform : Contracts.InteropCenter.FormedBy P d :=
-        (Contracts.InteropCenter.inv_reach (Contracts.SourceBinding.sourceReach_center hr)).formed
+        (Contracts.InteropCenter.inv_reach (Contracts.SourceBinding.History.sourceReach_center hr)).formed
           d hd
       have hvalb : Contracts.InteropCenter.Validated b := by rw [hb]; exact hval
       refine Or.inl ⟨hb, hbytes.2, hf, hvalb, hs, fun x hxd => ?_⟩
@@ -608,7 +620,7 @@ theorem AtomicExecutionRunsTheDispatchedBundleOrBreak :
       obtain ⟨k, hk', hxs, hxf, hxv⟩ := mem_deliveries hxd
       refine ⟨hxs.trans hs, hxv.trans (hvalb k hk'), ?_⟩
       rw [hb] at hk'
-      obtain ⟨cs, hcs, hfc⟩ := Contracts.SourceBinding.forall₂_mem_right hform.calls k hk'
+      obtain ⟨cs, hcs, hfc⟩ := Contracts.SourceBinding.History.forall₂_mem_right hform.calls k hk'
       rw [hxf]
       cases hind : cs.callAttributes.indirectCall
       · exact Or.inl (hfc.direct hind).2.2
@@ -649,7 +661,7 @@ def drDispatch (k : List UInt8 → UInt256) : Contracts.InteropCenter.Dispatch :
 
 /-- Chain `324`'s send side after the dispatch: the leg committed, and its commit value inserted
 into the tree seeded at genesis. -/
-def drState (k : List UInt8 → UInt256) : Contracts.SourceBinding.SourceState :=
+def drState (k : List UInt8 → UInt256) : Contracts.SourceBinding.History.SourceState :=
   ⟨Contracts.InteropCenter.init.afterSend (drParams k) (drDispatch k),
     Contracts.InteropCommitmentTree.insert Contracts.InteropCommitmentTree.setup
       (commitValue k (drFlowId k) (drHash k)) 0⟩
@@ -675,9 +687,9 @@ theorem drBundle_validated (k : List UInt8 → UInt256) :
   rfl
 
 theorem drReach (k : List UInt8 → UInt256) (hpos : 0 < commitValue k (drFlowId k) (drHash k)) :
-    Contracts.SourceBinding.SourceReach Contracts.InteropCenter.deployed (drParams k)
-      (commitValue (drParams k).keccak) Contracts.SourceBinding.sourceGenesis (drState k) :=
-  .tail .refl (Contracts.SourceBinding.SourceStep.sendAtomic (drDispatch k) 0 0 rfl (fun _ => rfl)
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed (drParams k)
+      (commitValue (drParams k).keccak) Contracts.SourceBinding.History.sourceGenesis (drState k) :=
+  .tail .refl (Contracts.SourceBinding.History.SourceStep.sendAtomic (drDispatch k) 0 0 rfl (fun _ => rfl)
     ⟨rfl, rfl, List.Forall₂.cons (Contracts.InteropCenter.formsCall_direct 1 0) List.Forall₂.nil⟩
     (fun _ => drBundle_validated k) ⟨rfl, insertSucceeds_setup hpos⟩)
 
@@ -756,7 +768,7 @@ theorem commitValue_lastWord (f h : UInt256) :
 /-- Under the toy keccak the witness bundle hashes to its user salt, `1`. -/
 theorem drHash_lastWord : drHash Contracts.InteropCenter.lastWord = 1 := by
   simp only [drHash, wsHash, drBytes, drParams]
-  rw [Contracts.SourceBinding.lastWord_abiEncode_saltWords]
+  rw [Contracts.SourceBinding.History.lastWord_abiEncode_saltWords]
   rfl
 
 theorem drLastWord_pos :
@@ -771,4 +783,4 @@ theorem AtomicSenderBindingWitness : Properties.AtomicSenderBindingWitness :=
 theorem DeployedRunExecutionWitness : Properties.DeployedRunExecutionWitness :=
   deployedRunExecutionWitness_of Contracts.InteropCenter.lastWord drLastWord_pos
 
-end Contracts.L2InteropHandler.AtomicSourceFaithful
+end Contracts.L2InteropHandler.AtomicSourceFaithful.History

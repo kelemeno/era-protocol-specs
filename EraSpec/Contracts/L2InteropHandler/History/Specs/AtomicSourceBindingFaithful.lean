@@ -1,6 +1,18 @@
 import EraSpec.Contracts.InteropCenter.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
-import EraSpec.Contracts.L2InteropHandler.Specs.SourceBindingReduced
+import EraSpec.Contracts.L2InteropHandler.History.Specs.SourceBindingReduced
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:69`) is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
 
 /-!
 # Model: where the atomic path's source chain comes from, over `executeAtomicBundle` itself
@@ -179,7 +191,7 @@ a leg-source registration revert to the gate loop (`_checkLegSourceAllowed`,
 `AtomicFlowManager.sol:201`); neither is modelled, and neither weakens the binding.
 -/
 
-namespace Contracts.L2InteropHandler.AtomicSourceFaithful
+namespace Contracts.L2InteropHandler.AtomicSourceFaithful.History
 
 open AttackVectors.BundleHashEncoding (abiEncode word HashCollision)
 open Contracts.InteropCenter (Address Bundle)
@@ -486,8 +498,8 @@ tree. This is the verifier half of `HonestVouching` alone. It idealizes Merkle-p
 root authentication (not modelled here), and reads every batch-end tree the verifier can
 authenticate for chain `c` as holding no key that `S`'s tree lacks. The tree half is derived from
 `S`'s run (`Properties.DeployedRunVouchesHonestly`). -/
-def AcceptsOnlyKeysOf (D : Dest) (c : UInt256) (S : Contracts.SourceBinding.SourceState) : Prop :=
+def AcceptsOnlyKeysOf (D : Dest) (c : UInt256) (S : Contracts.SourceBinding.History.SourceState) : Prop :=
   ∀ (p : ImtProof) (v deadline sl : UInt256), p.sourceChainId = c →
     D.verifyInclusion p v deadline sl → v ∈ keys (toAbs S.tree)
 
-end Contracts.L2InteropHandler.AtomicSourceFaithful
+end Contracts.L2InteropHandler.AtomicSourceFaithful.History

@@ -9,7 +9,7 @@ in `EraSpec.Contracts.BridgedStandardERC20.Proofs.ReinitializationStrong`.
 `InitializedIdentityIsFixed` and `FreshProxyLifecycle` (`Properties/Reinitialization.lean`) are
 stated over `StorageReach`, whose bridge calls all revert on a zero vault. With a zero vault they
 hold only for that reason: on the deployed token the L2 vault's first `bridgeMint` or `bridgeBurn`
-there takes the legacy branch of `onlyNTV` (:54-61) and rewrites the vault and the asset id. This
+there takes the legacy branch of `onlyNTV` (:51-58) and rewrites the vault and the asset id. This
 file states them over the deployed token's runs (`DeployedStorageReach`), which add that branch.
 
 ## What holds

@@ -16,12 +16,15 @@ Groups, in order:
 * The register facts. The two premises of `distinct_sends_distinct_hashes` cannot hold at
   `Hash = UInt256`.
 * The abstract layer, with the original's signature.
-* The keccak layer, in which the bundle is its ABI bytes and both collisions are keccak collisions
-  on named byte strings.
+* Two byte-level facts about `abi.encode(InteropBundle)`: where its salt sits, and that a salt
+  collision lets two sends emit the same bytes.
 
-Where the content lies. Given equal bundle hashes, a collision disjunct on the two bundles (or on
-the two keccak preimages) only restates that those inputs differ. The content is in the salt
-disjunct. Equal bundles, or equal preimages, force a salt-hash collision on two distinct packed
+The keccak layer over the pin's bundle hash `keccak(abi.encode(chainId, B))` is History
+(`History/Properties/BundleHashPinned.lean`); its `b17415d20` form is topic `BundleHashAtV35`.
+
+Where the content lies. Given equal bundle hashes, a collision disjunct on the two bundles only
+restates that those inputs differ. The content is in the salt
+disjunct. Equal bundles force a salt-hash collision on two distinct packed
 preimages: the salt is a field of the bundle (a fixed slot of its bytes), and
 `abi.encodePacked(address, bytes32)` is injective. `Properties.DistinctSendsDistinctBundlesOrSaltCollision`
 states that content on its own.
@@ -71,8 +74,8 @@ their salt fields would be equal. Then `saltHash` would agree on `packedSalt a s
 the pairs differ.
 
 Premises: the EVM width bounds for an address and a `bytes32`; each bundle's salt field is the salt
-hash of its own sender and salt (`InteropCenter.sol:507`); and the two `(sender, salt)` pairs
-differ, which is what the salt guard at `InteropCenter.sol:479-483` provides for two sends. -/
+hash of its own sender and salt (`InteropCenter.sol:638` at `b17415d20`); and the two `(sender, salt)`
+pairs differ, which is what the salt guard at `InteropCenter.sol:562-566` provides for two sends. -/
 def Properties.DistinctSendsDistinctBundlesOrSaltCollision : Prop :=
   ∀ {Bundle : Type u} {Hash : Type v} (saltHash : List UInt8 → Hash) (saltField : Bundle → Hash)
     (a a' : ℕ) (s s' : List UInt8) (b b' : Bundle),
@@ -120,10 +123,11 @@ def Properties.DistinctSendsDistinctHashesOn : Prop :=
 One instance with `Hash = UInt256` satisfies every premise of the three properties above, including
 both bounded injectivity premises. On it, neither collision disjunct holds and the hashes differ.
 
-The instance is the deployed composition with a stand-in for keccak:
+The instance is the `b17415d20` composition with a stand-in for keccak:
 
 * a bundle is its ABI bytes;
-* `bundleHashOf` is `bundleHashOfBytes` for chain `324`;
+* `bundleHashOf` is that stand-in applied to the bytes, as `encodeInteropBundleHash` applies keccak
+  at `b17415d20` (`InteropDataEncoding.sol:14-16`);
 * `saltField` reads the salt slot.
 
 Sender 1 and sender 2 both use the zero salt. -/
@@ -176,7 +180,7 @@ def Properties.BundleCollisionDisjunctNeeded : Prop :=
     ∧ bundleHashOf b = bundleHashOf b'
     ∧ ¬ HashCollision saltHash (packedSalt a s) (packedSalt a' s')
 
-/-! ## The keccak layer: the bundle is its bytes, and the hash is one keccak -/
+/-! ## The bundle bytes -/
 
 /-- **THE SALT SLOT IS WHERE `abi.encode` PUTS `interopBundleSalt`.** Whatever the other fields and
 the dynamic tail are, the salt slot of an `InteropBundle` encoding laid out as `bundleEncoding`
@@ -187,126 +191,13 @@ def Properties.SaltSlotOfBundleEncoding : Prop :=
     bundleSaltSlot (bundleEncoding version sourceChainId destinationChainId baseTokenAssetId salt
       callsOffset attributesOffset tail) = word salt
 
-/-- **THE BUNDLE HASH'S PREIMAGE CARRIES THE SALT.** In `abi.encode(chainId, abi.encode(bundle))`,
-the keccak input of the bundle hash, the bundle's salt word sits at bytes 256..288
-(`preimageSaltSlot`). So two equal preimages carry equal salts. -/
-def Properties.PreimageCarriesSalt : Prop :=
-  ∀ (c : ℕ) (version : UInt8) (sourceChainId destinationChainId baseTokenAssetId salt callsOffset
-      attributesOffset : ℕ) (tail : List UInt8),
-    preimageSaltSlot (abiEncode c (bundleEncoding version sourceChainId destinationChainId
-      baseTokenAssetId salt callsOffset attributesOffset tail)) = word salt
-
-/-- **DISTINCT SENDS, DISTINCT BUNDLE HASHES, OR A KECCAK COLLISION ON NAMED BYTES.** This is the
-headline at the level of the code.
-
-Each send is given by:
-
-* a chain id `c`;
-* a sender `a` and a user salt `s`;
-* bundle bytes `B` whose salt slot holds the word `keccak(abi.encodePacked(a, s))`
-  (`InteropCenter.sol:507`, laid out by `abi.encode(_bundle)` at `:643`).
-
-The bundle hashes `keccak(abi.encode(c, B))` (`:644`) of two sends with distinct `(sender, salt)`
-pairs differ, unless one of these holds:
-
-* keccak collides on the two keccak preimages `abiEncode c B`, `abiEncode c' B'`;
-* keccak collides on the two packed preimages `packedSalt a s`, `packedSalt a' s'`.
-
-Nothing is assumed about `keccak`, and `B` is any byte string with that slot, so non-canonical
-encodings are covered too. -/
-def Properties.SendsDistinctBundleHashesOrKeccakCollision : Prop :=
-  ∀ (keccak : List UInt8 → UInt256) (c c' a a' : ℕ) (s s' B B' : List UInt8),
-    a < 256 ^ 20 → a' < 256 ^ 20 → s.length = 32 → s'.length = 32 →
-    bundleSaltSlot B = word (keccak (packedSalt a s)).val →
-    bundleSaltSlot B' = word (keccak (packedSalt a' s')).val →
-    ¬ (a = a' ∧ s = s') →
-      bundleHashOfBytes keccak c B ≠ bundleHashOfBytes keccak c' B'
-      ∨ HashCollision keccak (abiEncode c B) (abiEncode c' B')
-      ∨ HashCollision keccak (packedSalt a s) (packedSalt a' s')
-
-/-- **DISTINCT SENDS, DISTINCT BUNDLE HASHES, BOUNDED.** The keccak headline with its two collision
-disjuncts turned into premises: keccak is injective on the two named keccak preimages and on the two
-named packed preimages. This is the "explicitly bounded no-collision premise for the values the
-proof compares" that ASSUMPTIONS.md asks for. -/
-def Properties.SendsDistinctBundleHashesOn : Prop :=
-  ∀ (keccak : List UInt8 → UInt256) (c c' a a' : ℕ) (s s' B B' : List UInt8),
-    a < 256 ^ 20 → a' < 256 ^ 20 → s.length = 32 → s'.length = 32 →
-    bundleSaltSlot B = word (keccak (packedSalt a s)).val →
-    bundleSaltSlot B' = word (keccak (packedSalt a' s')).val →
-    ¬ (a = a' ∧ s = s') →
-    Set.InjOn keccak {abiEncode c B, abiEncode c' B'} →
-    Set.InjOn keccak {packedSalt a s, packedSalt a' s'} →
-      bundleHashOfBytes keccak c B ≠ bundleHashOfBytes keccak c' B'
-
-/-- **ACROSS CHAINS TOO: THE CHAIN ID KEEPS A REUSED SALT APART.** Every chain runs its own
-`InteropCenter` with its own salt guard. So one sender may use one salt on two chains, and both
-bundles then carry the same `interopBundleSalt`. The salt cannot separate those two bundles. The
-chain id does: `encodeInteropBundleHash` hashes `abi.encode(block.chainid, B)`
-(`InteropCenter.sol:644`).
-
-For two sends whose `(chain, sender, salt)` triples differ, the bundle hashes differ, unless keccak
-collides on the two named keccak preimages, or on the two named packed preimages. A destination
-needs this form, because it keys `bundleStatus` by the bundle hash alone, whatever the source chain
-(`InteropHandlerBase.sol:249-250`).
-
-The chain-id bounds are the `uint256` width of `block.chainid`. The premise treats two chains with
-one chain id as one chain; that chain ids are unique is a registry fact outside this model. -/
-def Properties.SendsDistinctBundleHashesAcrossChainsOrKeccakCollision : Prop :=
-  ∀ (keccak : List UInt8 → UInt256) (c c' a a' : ℕ) (s s' B B' : List UInt8),
-    c < 256 ^ 32 → c' < 256 ^ 32 →
-    a < 256 ^ 20 → a' < 256 ^ 20 → s.length = 32 → s'.length = 32 →
-    bundleSaltSlot B = word (keccak (packedSalt a s)).val →
-    bundleSaltSlot B' = word (keccak (packedSalt a' s')).val →
-    ¬ (c = c' ∧ a = a' ∧ s = s') →
-      bundleHashOfBytes keccak c B ≠ bundleHashOfBytes keccak c' B'
-      ∨ HashCollision keccak (abiEncode c B) (abiEncode c' B')
-      ∨ HashCollision keccak (packedSalt a s) (packedSalt a' s')
-
-/-- **THE CROSS-CHAIN PREMISES ARE SATISFIABLE WITH ONE SENDER AND ONE SALT ON TWO CHAINS.** This is
-the case the salt guard cannot separate. One sender uses one salt on two chains, so the two packed
-preimages are the same and the salt-collision disjunct is false. The two bundles differ only in
-their source chain id. The keccak-preimage disjunct is false too, and the bundle hashes differ. -/
-def Properties.SendsAcrossChainsWitness : Prop :=
-  ∃ (keccak : List UInt8 → UInt256) (c c' a : ℕ) (s B B' : List UInt8),
-    c < 256 ^ 32 ∧ c' < 256 ^ 32 ∧ a < 256 ^ 20 ∧ s.length = 32
-    ∧ bundleSaltSlot B = word (keccak (packedSalt a s)).val
-    ∧ bundleSaltSlot B' = word (keccak (packedSalt a s)).val
-    ∧ c ≠ c'
-    ∧ (∃ (v : UInt8) (dst base oc oa : ℕ) (tail : List UInt8),
-        B = bundleEncoding v c dst base (keccak (packedSalt a s)).val oc oa tail
-        ∧ B' = bundleEncoding v c' dst base (keccak (packedSalt a s)).val oc oa tail)
-    ∧ ¬ HashCollision keccak (abiEncode c B) (abiEncode c' B')
-    ∧ bundleHashOfBytes keccak c B ≠ bundleHashOfBytes keccak c' B'
-
-/-- **THE KECCAK-LAYER PREMISES ARE SATISFIABLE, AND ITS DISJUNCTS ARE NOT TAUTOLOGIES.** One
-instance satisfies every premise of the two properties above, with both sends on the same chain `c`.
-In it:
-
-* the bundle bytes of both sends are `bundleEncoding` layouts;
-* the bounded injectivity premises hold;
-* neither collision disjunct holds;
-* the two bundle hashes differ. -/
-def Properties.SendsDistinctBundleHashesWitness : Prop :=
-  ∃ (keccak : List UInt8 → UInt256) (c a a' : ℕ) (s s' B B' : List UInt8),
-    a < 256 ^ 20 ∧ a' < 256 ^ 20 ∧ s.length = 32 ∧ s'.length = 32
-    ∧ bundleSaltSlot B = word (keccak (packedSalt a s)).val
-    ∧ bundleSaltSlot B' = word (keccak (packedSalt a' s')).val
-    ∧ ¬ (a = a' ∧ s = s')
-    ∧ (∃ (v : UInt8) (dst base oc oa : ℕ) (tail : List UInt8),
-        B = bundleEncoding v c dst base (keccak (packedSalt a s)).val oc oa tail
-        ∧ B' = bundleEncoding v c dst base (keccak (packedSalt a' s')).val oc oa tail)
-    ∧ Set.InjOn keccak {abiEncode c B, abiEncode c B'}
-    ∧ Set.InjOn keccak {packedSalt a s, packedSalt a' s'}
-    ∧ ¬ HashCollision keccak (abiEncode c B) (abiEncode c B')
-    ∧ ¬ HashCollision keccak (packedSalt a s) (packedSalt a' s')
-    ∧ bundleHashOfBytes keccak c B ≠ bundleHashOfBytes keccak c B'
-
 /-- **UNDER A SALT COLLISION, TWO DISTINCT SENDS CAN EMIT THE SAME BUNDLE BYTES.** There is a keccak,
 two sends with distinct `(sender, salt)` pairs, and one byte string `B` whose salt slot meets the
-premise of both sends. Taking `B` as the bundle bytes of both sends, their bundle hashes on one chain
-are the hash of one preimage, so they are equal and the keccak-preimage disjunct is false. So the
-salt disjunct of `SendsDistinctBundleHashesOrKeccakCollision` cannot be dropped, and it describes a
-real failure: the destination cannot tell the two bundles apart. (In the proof, `B` is a
+premise of both sends. Taking `B` as the bundle bytes of both sends, any hash of the bytes (at
+`b17415d20`, `keccak(B)`) gives them one bundle hash, and a collision disjunct on the two byte strings
+is false. So the salt disjunct of `SendsDistinctBundleHashesOrKeccakCollisionV35` (topic
+`BundleHashAtV35`) cannot be dropped, and it describes a real failure: the destination cannot tell
+the two bundles apart. (In the proof, `B` is a
 `bundleEncoding` layout.) -/
 def Properties.SaltCollisionMakesBundlesIdentical : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (a a' : ℕ) (s s' B : List UInt8),
@@ -315,21 +206,5 @@ def Properties.SaltCollisionMakesBundlesIdentical : Prop :=
     ∧ bundleSaltSlot B = word (keccak (packedSalt a' s')).val
     ∧ ¬ (a = a' ∧ s = s')
     ∧ HashCollision keccak (packedSalt a s) (packedSalt a' s')
-
-/-- **THE PREIMAGE DISJUNCT CANNOT BE DROPPED.** There is an instance with both sends on one chain
-satisfying every premise of `SendsDistinctBundleHashesOrKeccakCollision`, in which:
-
-* the bundle hashes are equal;
-* keccak does not collide on the two packed preimages.
-
-So only the keccak-preimage disjunct holds. -/
-def Properties.PreimageCollisionDisjunctNeeded : Prop :=
-  ∃ (keccak : List UInt8 → UInt256) (c a a' : ℕ) (s s' B B' : List UInt8),
-    a < 256 ^ 20 ∧ a' < 256 ^ 20 ∧ s.length = 32 ∧ s'.length = 32
-    ∧ bundleSaltSlot B = word (keccak (packedSalt a s)).val
-    ∧ bundleSaltSlot B' = word (keccak (packedSalt a' s')).val
-    ∧ ¬ (a = a' ∧ s = s')
-    ∧ bundleHashOfBytes keccak c B = bundleHashOfBytes keccak c B'
-    ∧ ¬ HashCollision keccak (packedSalt a s) (packedSalt a' s')
 
 end AttackVectors.BundleHashEncoding

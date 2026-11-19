@@ -1,4 +1,16 @@
-import EraSpec.Contracts.L2InteropHandler.Specs.AtomicSourceBindingFaithful
+import EraSpec.Contracts.L2InteropHandler.History.Specs.AtomicSourceBindingFaithful
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:69`) is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
 
 /-!
 # Properties: the atomic path's source binding, over `executeAtomicBundle`
@@ -42,7 +54,7 @@ Groups, in order:
   (`AtomicExecutionRunsTheDispatchedBundleOrBreak`). Witness: `DeployedRunExecutionWitness`.
 -/
 
-namespace Contracts.L2InteropHandler.AtomicSourceFaithful
+namespace Contracts.L2InteropHandler.AtomicSourceFaithful.History
 
 open AttackVectors.BundleHashEncoding (abiEncode word HashCollision)
 open Contracts.InteropCenter (Address Bundle)
@@ -336,10 +348,10 @@ chain, only keys of `S`'s tree, then the chain vouches honestly against the legs
 dispatched. The tree half of `HonestVouching` is `SourceBindingReduced`'s
 `SourceKeysAreDispatchedCommitValues`; the verifier half is the premise. -/
 def Properties.DeployedRunVouchesHonestly : Prop :=
-  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.SourceState),
+  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.History.SourceState),
     P.keccak = D.keccak →
-    Contracts.SourceBinding.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
-      Contracts.SourceBinding.sourceGenesis S →
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+      Contracts.SourceBinding.History.sourceGenesis S →
     AcceptsOnlyKeysOf D P.chainId S →
       HonestVouching D P.chainId (dispatchLegs P S.center)
 
@@ -355,10 +367,10 @@ Then one of:
 * some atomic dispatch `d` of that run clashes with the executing leg on a named pair of preimages;
 * the executing leg's commit value is the sentinel `0`. -/
 def Properties.AtomicExecutionRunsADispatchedBundleOrBreak : Prop :=
-  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.SourceState),
+  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.History.SourceState),
     P.keccak = D.keccak →
-    Contracts.SourceBinding.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
-      Contracts.SourceBinding.sourceGenesis S →
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+      Contracts.SourceBinding.History.sourceGenesis S →
     AcceptsOnlyKeysOf D P.chainId S →
     ∀ (st st' : HandlerState) (caller : Address) (B : List UInt8) (fin : AtomicFinalityProof)
       (b : Bundle) (ds : List Delivery),
@@ -385,10 +397,10 @@ indirect sender contract one of `d`'s indirect starters named (`:739`). So the i
 `formatEvmV1(sourceChainId, from)` each recipient sees is an account on the vouching chain that took
 part in the send. -/
 def Properties.AtomicExecutionRunsTheDispatchedBundleOrBreak : Prop :=
-  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.SourceState),
+  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.History.SourceState),
     P.keccak = D.keccak →
-    Contracts.SourceBinding.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
-      Contracts.SourceBinding.sourceGenesis S →
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+      Contracts.SourceBinding.History.sourceGenesis S →
     AcceptsOnlyKeysOf D P.chainId S →
     (∀ d ∈ S.center.log, D.decode (P.enc d.bundle) = some d.bundle) →
     (∀ d ∈ S.center.log, (P.enc d.bundle).length < 256 ^ 32) →
@@ -416,12 +428,12 @@ the keys of that tree and decodes the dispatched bytes back. Every premise of
 chain `324`, the executing commit value is not `0`, neither clash holds on the dispatch, and the
 executed bundle is the dispatched one. -/
 def Properties.DeployedRunExecutionWitness : Prop :=
-  ∃ (P : Contracts.InteropCenter.Params) (D : Dest) (S : Contracts.SourceBinding.SourceState)
+  ∃ (P : Contracts.InteropCenter.Params) (D : Dest) (S : Contracts.SourceBinding.History.SourceState)
     (st st' : HandlerState) (caller : Address) (B : List UInt8) (fin : AtomicFinalityProof)
     (b : Bundle) (ds : List Delivery) (p : ImtProof) (d : Contracts.InteropCenter.Dispatch),
     P.keccak = D.keccak ∧
-    Contracts.SourceBinding.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
-      Contracts.SourceBinding.sourceGenesis S ∧
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+      Contracts.SourceBinding.History.sourceGenesis S ∧
     AcceptsOnlyKeysOf D P.chainId S ∧
     (∀ d' ∈ S.center.log, D.decode (P.enc d'.bundle) = some d'.bundle) ∧
     (∀ d' ∈ S.center.log, (P.enc d'.bundle).length < 256 ^ 32) ∧
@@ -433,4 +445,4 @@ def Properties.DeployedRunExecutionWitness : Prop :=
       ⟨d.atomicSend.flowId, P.enc d.bundle⟩ ∧
     ¬ BundlePreimageClash D.keccak B b P.chainId ⟨d.atomicSend.flowId, P.enc d.bundle⟩
 
-end Contracts.L2InteropHandler.AtomicSourceFaithful
+end Contracts.L2InteropHandler.AtomicSourceFaithful.History

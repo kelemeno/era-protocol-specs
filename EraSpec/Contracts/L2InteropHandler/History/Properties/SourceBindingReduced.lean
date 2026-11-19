@@ -1,4 +1,16 @@
-import EraSpec.Contracts.L2InteropHandler.Specs.SourceBindingReduced
+import EraSpec.Contracts.L2InteropHandler.History.Specs.SourceBindingReduced
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:69`) is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
 
 /-!
 # Properties: the atomic path's source binding, from the vouching chain's code
@@ -68,7 +80,7 @@ chain `325`, and there is no break of any kind. `Properties.GateSourceBindingWit
 gate form's premises with the inclusion break and the source-binding break both false.
 -/
 
-namespace Contracts.SourceBinding
+namespace Contracts.SourceBinding.History
 
 open MerkleSpec IMTAbstract
 open AttackVectors.BundleHashEncoding (HashCollision)
@@ -368,4 +380,4 @@ def Properties.GateSourceBindingWitness : Prop :=
         ∧ ¬ InclusionBreak hN z0 hl Sys leg.chain (ev leg).1 (ev leg).2
         ∧ ¬ SourceBindingBreak ⟨leg.chain, center, enc, keccak⟩ cv S dec x F.flowId leg.bundleHash
 
-end Contracts.SourceBinding
+end Contracts.SourceBinding.History

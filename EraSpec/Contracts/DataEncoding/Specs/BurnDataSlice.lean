@@ -5,7 +5,7 @@ import EraSpec.Codegen.VaultPreparationSlice.Specs.Correspondence
 # Spec: the burn data here and in the vault's codegen slice
 
 This topic adds no definitions. It compares two independently written transcriptions of the
-same two library functions (`common/libraries/DataEncoding.sol:35-60`):
+same two library functions (`common/libraries/DataEncoding.sol:35-60` at era-contracts `b17415d20`):
 
 * here (`Specs/TxDataHash.lean`): `encodeNtvBurnData`, built from the type-directed ABI heads
   `encWord` / `encAddr`, and `decodeNtvBurnData`, the length check plus the address range

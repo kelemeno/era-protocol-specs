@@ -3,8 +3,9 @@ import EraSpec.Contracts.BridgedStandardERC20.Specs.Model
 /-!
 # Fresh-proxy initialization, token-state projection
 
-Locally specified from `bridgeInitialize` and the top-level post-construction
-OpenZeppelin v4 initializer branch at source pin c67894b970a0dac6fe9144d8ebf4b0806e15a9af.
+Locally specified from `bridgeInitialize` (`bridge/BridgedStandardERC20.sol:82-130` at era-contracts
+`draft/v0.35.0` head `b17415d20`; the same code at the old pin `c67894b9`) and the top-level
+post-construction OpenZeppelin v4 initializer branch.
 The implementation constructor disables its own initialization (version 255);
 fresh proxy storage starts at version zero. Constructor-only/nested initializer
 cases, metadata contents, events, permit/allowance fields, and proxy execution
