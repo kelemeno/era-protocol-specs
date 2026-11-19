@@ -22,9 +22,9 @@ words). This topic is a coarser view of the same code that the protocol topic
 keys and timestamps in `ℕ`, and an admission predicate `ok` on the imported tuples.
 `Properties/Refinement.lean` proves that every successful call of the canonical model, read
 through `toModel` (`Specs/Refinement.lean`), is a `Step ok` of this model for any `ok` its imports
-meet, so the results here hold of the canonical model's runs. This topic was first written at `c67894b9`, where the
-contract has no `latestInteropRootTimestamp`; the checks and the write it models are the same at
-`b17415d20`.
+meet, so the results here hold of the canonical model's runs. This topic was first written at
+`c67894b9`, where the contract has no `latestInteropRootTimestamp`; the checks and the write it
+models are the same at `b17415d20`.
 
 ## The code
 
