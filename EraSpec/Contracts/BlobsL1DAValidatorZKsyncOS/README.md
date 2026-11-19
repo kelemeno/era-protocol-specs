@@ -1,8 +1,34 @@
 # BlobsL1DAValidatorZKsyncOS
 
-Source: `l1-contracts/contracts/state-transition/data-availability/BlobsL1DAValidatorZKsyncOS.sol`
-and `DAConstants.sol:28,31` at era-contracts `draft/v0.35.0` commit **`b17415d20`**. Main at
-`70096e2ea` has the same logic in `da-contracts/contracts/BlobsL1DAValidatorZKsyncOS.sol`.
+The L1 DA validator of ZKsync OS chains under the `BLOBS_ZKSYNC_OS` scheme,
+`BlobsL1DAValidatorZKsyncOS`, at era-contracts `draft/v0.35.0` `b17415d20`.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+"Reachable" means reached from a fresh deployment by `publishBlobs` calls and block advances. The
+transaction's `blobhash` values and keccak are arbitrary; no statement takes a hash premise.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| `publishBlobs` sets `publishedBlobs[v]` to the current block for exactly the transaction's attached hashes, and changes nothing else | None | `BlobsPublishWritesExactlyAttached` |
+| `checkDA` returns iff the input is whole 32-byte entries, every nonzero entry is available, the transaction's blob hashes `0 … z - 1` are nonzero and hash `z` is zero (`z` the number of zero entries), and keccak of the resolved hashes is the commitment; the output is always empty | None (any `blobhash`) | `BlobsCheckDAAcceptsIff` |
+| On a transaction with nonzero versioned hashes, `checkDA` accepts iff some resolved list keeps every nonzero entry and fills the zero entries with exactly the attached blobs, in order | The transaction's versioned hashes are nonzero (as on Ethereum) | `BlobsCheckDAAcceptsIffWellFormed` |
+| An accepted input uses every attached blob, in order | The transaction's versioned hashes are nonzero | `BlobsAcceptedUsesEveryAttachedBlob` |
+| A hash is available iff a logged `publishBlobs` call wrote it at a nonzero block at most `BLOB_EXPIRATION_BLOCKS` ago | Reachable state | `BlobsAvailableIffLoggedInWindow` |
+| Every resolved hash of an accepted input is a blob of the checking transaction or was published in the window | Reachable state | `BlobsAcceptedHashesFresh` |
+| An input accepted for the commitment `keccak(vs)` resolves to `vs`, or keccak collides on the two named concatenations | None | `BlobsAcceptedBindsOrCollision` |
+
+Witnesses (`@[witness]`): `BlobsAcceptanceWitness`, `BlobsBindingWitness`,
+`BlobsTwoInputsOneListWitness`. Countermodels (`@[countermodel]`):
+`BlobsExtraBlobCheckLoadBearing`, `BlobsWindowCheckLoadBearing`. The other statements are
+supporting lemmas.
+
+## Source
+
+`l1-contracts/contracts/state-transition/data-availability/BlobsL1DAValidatorZKsyncOS.sol`
+and `DAConstants.sol:28,31` at era-contracts `draft/v0.35.0` commit **`b17415d20`**; every
+`file:line` is at that commit.
 
 This is the L1 DA validator of ZKsync OS chains under the `BLOBS_ZKSYNC_OS` scheme. For such a chain
 the committer discards the validator's output (see `../../Protocol/ZKsyncOSDA/`), so what `checkDA`

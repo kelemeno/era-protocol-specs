@@ -1,9 +1,36 @@
 # Diamond
 
-Source: era-contracts `draft/v0.35.0` at **`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, paths
-under `l1-contracts/contracts/`. The model was first written against
-`d9f678900e1bc8286412b78f56d4a9f443983c29`; every file listed below is byte-identical at the
-two commits, so each `file:line` holds at both.
+The chain diamond proxy at era-contracts `draft/v0.35.0` `b17415d20`: dispatch, the freeze flag,
+facet cuts and the init call, over runs of every entry point that writes diamond storage.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+"Reachable" means a successful constructor followed by any run of calls through the proxy, by any
+callers, for any facet behaviour. A cut's init is in the `InitRun` class: nested
+`Diamond.diamondCut` calls without an init of their own, then a revert or return data. Init code
+that writes diamond storage directly is outside the model (`MODEL-DIAMOND-PROXY`).
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| The three routing structures agree position by position, and all selectors of a facet share one freezability | Reachable state | `ReachableInvariant` |
+| `isFacetFreezable` and `isFunctionFreezable` report the freezability the proxy enforces, and a call on a routed selector reaches its facet exactly when the diamond is unfrozen or the facet is not freezable | Reachable state | `ReachableGettersMatchDispatch` |
+| The fallback delegatecalls `f` iff the calldata is empty or at least 4 bytes, `msg.sig` is routed to `f`, and the diamond is unfrozen or the route is not freezable | None | `DispatchExact` |
+| Only a call by `s.chainTypeManager` flips `isFrozen`, and that call changes no routing; no cut changes the flag | None | `OnlyCtmTogglesFreeze` |
+| A call flips `isFrozen` iff the caller is the CTM and the proxy dispatches it to `freezeDiamond` (unfrozen) or `unfreezeDiamond` (frozen) | None | `FreezeToggleExact` |
+| A frozen diamond whose cut entry points and `unfreezeDiamond` are all routed freezable never changes again | None | `FreezableEntrypointsMakeFreezePermanent` |
+| A successful `diamondCut` leaves `isFrozen` unchanged, and either had no init and empty calldata, or its init returned exactly the 32 bytes of `DIAMOND_INIT_SUCCESS_RETURN_VALUE` | None | `InitReturnChecked` |
+| On reachable storage, and on what further facet cuts make of it, the CTM's live-routing count check against well-formed release rows passes exactly when the storage routes exactly the release's rows | Reachable state; release rows nonempty and duplicate-free (what `CTMRelease.validate()` checks) | `ReachableCountCheckExact` |
+
+Witnesses (`@[witness]`): `ProxyRunWitness`, `FreezePermanentWitness`, `CutEnablednessWitness`,
+`InitCallWitness`, `ReachableCountCheckWitness`. Countermodels (`@[countermodel]`):
+`ReplaceWithSameFacetAccepted`, `ReturnDataCheckLoadBearing`, `FreezabilityCheckLoadBearing`,
+`FacetExistsCheckLoadBearing`. The other statements are supporting lemmas.
+
+## Source
+
+era-contracts `draft/v0.35.0` at **`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, paths under
+`l1-contracts/contracts/`; every `file:line` is at that commit.
 
 - `state-transition/libraries/Diamond.sol`: storage, `diamondCut`, Add/Replace/Remove, the init call;
 - `state-transition/chain-deps/DiamondProxy.sol`: constructor and `fallback`;
@@ -25,8 +52,8 @@ the same name without the `Properties` segment.
 
 ## Reuse of the ChainTypeManager model
 
-`Diamond.sol`, `DiamondProxy.sol` and `DiamondInit.sol` are also byte-identical at `e561b9cc2`,
-the commit [`ChainTypeManager/Specs/DiamondStorage.lean`](../ChainTypeManager/Specs/DiamondStorage.lean)
+`Diamond.sol`, `DiamondProxy.sol` and `DiamondInit.sol` are byte-identical at `b17415d20` and at
+`e561b9cc2`, the commit [`ChainTypeManager/Specs/DiamondStorage.lean`](../ChainTypeManager/Specs/DiamondStorage.lean)
 transcribes. This folder imports that model unchanged: the routing storage, the three actions,
 the facet-cut loop, and the invariant `DiamondOk`, with its preservation proofs
 (`DiamondCutPreservesOk`) and routing lemmas (`AddFunctionsRoutes`, …). It does not restate them.

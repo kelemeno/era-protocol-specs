@@ -1,7 +1,44 @@
 # ChainAssetHandler
 
-Source: era-contracts `draft/v0.35.0` at commit
-**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, under `l1-contracts/contracts/`:
+Chains migrating between settlement layers through the chain asset handlers (L1's and every
+settlement layer's) at era-contracts `draft/v0.35.0` `b17415d20`, with their bridgehubs, CTMs,
+diamonds and pause switches.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+"Reachable" means reached from a fresh deployment by any interleaving of the model's steps, for one
+fixed `World` (whitelists, CTM registries and owners). Message delivery is the environment's
+guarantee (`PROTO-CAH-DELIVERY`: an L1 → L2 transaction executes once with a truthful status that
+L1 consumes once; an L2 → L1 message is finalized at most once). Reject-only checks are omitted,
+so the safety results cover the source; at `b17415d20` `CHAIN_MIGRATIONS_ENABLED` is `false`, so
+the migration results describe the kept machinery.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A chain registered on L1 has exactly one holder: one hub whose own bridgehub says it settles there, or one live migration message; an unregistered chain has none | Reachable state | `ExactlyOneSettlementLayer` |
+| L1's `migrationNumber[c]` changes only 0 → 1 (L1 burn), 1 → 2 (L1 mint) or 1 → 0 (failed-deposit confirmation) | None (one step) | `L1MigrationNumberTransitions` |
+| A chain completes at most one L1 → settlement layer → L1 round trip, however many failed attempts | Starts from a reachable state | `AtMostOneRoundTrip` |
+| Right after an L1 burn, the deposit's failure and L1's confirmation are steps, and they restore every field of every hub | Starts from a reachable state; the L1 asset router's and nullifier's pauses and the status proof are not modelled | `FailedMigrationRecoveryRestoresSource` |
+| L1's `isMigrationInProgress[c]` is set exactly while an L1-originated message for `c` is unconfirmed | Reachable state | `InProgressTracksUnconfirmedDeparture` |
+| With `CHAIN_MIGRATIONS_ENABLED = false` (the value at `b17415d20`) no message exists and every chain registered on L1 stays there | Reachable state | `MigrationsDisabledFreezeSettlement` |
+| A pending message out of L1 is minted by its settlement layer on a fresh diamond | Reachable state; migrations enabled; that layer's three switches off for the asset's CTM there; that CTM nonzero; the carried version is its version | `GatewayAcceptsArrival` |
+| A pending message into L1 is minted by L1, reusing the chain's L1 diamond | Reachable state; migrations enabled; L1's three switches off; the CTM nonzero; L1's diamond at its own CTM's version | `L1AcceptsReturn` |
+| A failed deposit out of L1 can be confirmed, with no pause switch or release flag | Reachable state; L1's diamond at the version the burn data carries | `FailedDepositConfirmable` |
+| Every burn and mint on a hub needs migrations enabled and that hub's `paused()`, ecosystem pause and CTM pause off | None | `PauseBlocksMigrationSteps` |
+| Only a CTM's owner toggles its pause, only the handler owner the ecosystem pause | Any run | `OnlyOwnersTogglePauses` |
+| L1's confirmation of a failed deposit reads no pause switch and no release flag | None | `RecoveryIgnoresPauses` |
+
+Witnesses (`@[witness]`): `CahRoundTripWitness`, `CahInFlightWitness`, `CahGatewayWitness`,
+`CahFailedAttemptWitness`, `CahReturnedChainWitness`, `CahDisabledWitness`, `CahArrivalWitness`,
+`CahReturnInFlightWitness`, `CahRecoveryWitness`, `CahCTMPauseWitness`, `CahPausedHubWitness`,
+`CahPauseHoldsWitness`. Countermodel (`@[countermodel]`):
+`CahMismatchedRegistryReadsAnotherPause`. The other statements are supporting lemmas.
+
+## Source
+
+era-contracts `draft/v0.35.0` at commit **`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, under
+`l1-contracts/contracts/`; every `file:line` is at that commit:
 
 - `core/chain-asset-handler/ChainAssetHandlerBase.sol` (`CAH`), `L1ChainAssetHandler.sol`
   (`L1CAH`), `L2ChainAssetHandler.sol` (`L2CAH`)
@@ -10,9 +47,7 @@ Source: era-contracts `draft/v0.35.0` at commit
   (`CTM`), `state-transition/chain-deps/DiamondInit.sol` (`DI`), the diamond's `Migrator` and
   `Admin` facets (`MIG`, `ADM`), `common/Config.sol` (`CFG`)
 
-The model was first written at `d9f678900e1bc8286412b78f56d4a9f443983c29`. Every cited file is
-byte-identical at the two commits, so every `file:line` in the specs holds at both. At `main`
-`70096e2ea` these files differ: among other changes the handler there has a single
+At `main` `70096e2ea` these files differ: among other changes the handler there has a single
 `migrationPaused` switch and no per-CTM pause, and L1's handler has an owner-only writer of
 interval 0 (`setHistoricalMigrationInterval`). The model describes `draft/v0.35.0` only.
 
@@ -122,4 +157,6 @@ properties whose premises it instantiates; together they cover every property.
 - Storage, ABI and call correspondence.
 
 The `ChainTypeManager` folder's `ChainMigration` topic models the same `bridgeMint` reuse of a
-diamond for routing (`ChainAssetHandlerBase.sol:397-417`); the two models are not composed.
+diamond for routing (`ChainAssetHandlerBase.sol:397-417`), and `../L1ChainAssetHandler/` models
+the same burn, mint and confirmation code for one chain with its batch numbers and migration
+intervals. Neither state is a projection of this one; the models are not composed.

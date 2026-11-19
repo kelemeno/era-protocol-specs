@@ -1,13 +1,47 @@
 # ExecutorFacet
 
-Source: the batch pipeline of one ZK chain's diamond at era-contracts `draft/v0.35.0`
+The batch pipeline of one ZK chain's diamond (commit, prove, execute, revert) at era-contracts
+`draft/v0.35.0` `b17415d20`.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+"Reachable" means reached from a chain right after `DiamondInit` by any interleaving of the
+model's eleven calls, for any `Env` (verifier, DA validator results, dependency roots). No
+statement assumes a hash injective: "unless a collision was submitted" means unless the run logged
+a hash break, and the first logged break is a concrete collision of two `StoredBatchInfo` values
+(`LoggedHashBreaksAreCollisions`). The return of a migration (`forwardedBridgeMint`) is not a step.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| `executed ≤ verified ≤ committed` | Reachable state | `CountersOrdered` |
+| Nothing lowers the executed count; only a revert or priority-mode activation lowers committed or verified | None (any state, one call) | `OnlyRevertMovesCountersBack` |
+| `_revertBatches(n)` succeeds exactly when `executed ≤ n ≤ committed`, and changes only the committed and verified counts and the upgrade batch number | None | `RevertBatchesEffect` |
+| Commit, prove and execute run on the settlement layer, by a validator outside priority mode or the permissionless validator in it; a priority-mode batch carries priority transactions only | None (one call) | `OnlySettlersSettle` |
+| The executed batches are exactly `1, 2, …, executed`, each once, in order | Reachable state | `ExecutedExactlyOnceInOrder` |
+| The executed log only grows and the log roots of executed batches never change | A run from a reachable state | `ExecutedIsFinal` |
+| Every executed batch is the `StoredBatchInfo` this chain committed for that number and was covered by a proof the verifier accepted | Reachable state; unless a collision was submitted | `ExecutedBatchesWereCommittedAndProved` |
+| The verifier accepted every logged proof, and every verified, unexecuted batch has an accepted proof for its current contents | Reachable state; the second part unless a collision was submitted | `VerifiedBatchesHaveAcceptedProofs` |
+| The priority operations consumed are exactly those of executed batches; each batch's items match its count and rolling hash; they are the first operations pushed, in order | Reachable state; the last part unless a Merkle break was logged (a proof `processBatch` accepted for items that are not the pushed ones) | `PriorityOpsConsumedInOrder` |
+| A pending L2 upgrade transaction is in batch `executed + 1` and in no other unexecuted batch, and nothing is committed past it without it | Reachable state; unless a collision was submitted | `UpgradeTxInFirstUnexecutedBatch` |
+| The next honest commit, on top of the last committed batch, by an admitted caller, is enabled | Reachable state with no hash break logged; on the settlement layer; the omitted reject-only checks can still reject it in the source | `HonestCommitEnabled` |
+
+Witnesses (`@[witness]`): `PipelineWitness`, `RevertRecommitWitness`, `PriorityModeWitness`,
+`HonestProgressWitness`, `AdminWitness`. Countermodels (`@[countermodel]`):
+`WithoutCommittedCheckProofsOutrunCommits`, `WithoutProvenCheckExecutionOutrunsProofs`,
+`WithoutExecutedCheckRevertRewritesAnExecutedBatch`, `UpgradeWithoutExecutedCheckSkipsABatch`,
+`CollisionRewritesAnExecutedBatch`, `MerkleBreakConsumesAnUnpushedOp`. The other statements are
+supporting lemmas.
+
+## Source
+
+The batch pipeline of one ZK chain's diamond at era-contracts `draft/v0.35.0`
 commit **`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, under `l1-contracts/contracts/`:
 `CommitterFacet.commitBatchesSharedBridge`, `ExecutorFacet`'s `proveBatchesSharedBridge`,
 `executeBatchesSharedBridge` and `revertBatchesSharedBridge`, `ZKChainBase._revertBatches`,
 `PriorityTree`, the priority-mode entry points and `setValidator` of `AdminFacet`, the L2
 upgrade-transaction write of `BaseZkSyncUpgrade`, and the settlement-layer writes of a
-migration's start and failure (`MigratorFacet`). The model was written at `d9f6789`; every
-file it cites is identical at `b17415d20`, so the `file:line` citations hold at both.
+migration's start and failure (`MigratorFacet`). Every `file:line` is at that commit.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the
 guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence for those

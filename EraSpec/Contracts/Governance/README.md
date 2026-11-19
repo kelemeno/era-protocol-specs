@@ -1,8 +1,33 @@
 # Governance
 
-A local model of the owner/security-council timelock `Governance.sol`, with its inherited
-OpenZeppelin `Ownable2Step`, including what an operation's calls can do by calling back into
-Governance. It is an abstract specification and does not establish Solidity correspondence.
+The owner and security-council timelock `Governance.sol`, with its OpenZeppelin `Ownable2Step`, at
+era-contracts `draft/v0.35.0` `b17415d20`, including what an operation's calls can do by calling
+back into Governance.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). Every
+statement quantifies over every target behaviour (a finite tree of calls back into Governance, as
+any caller but Governance, at any depth), every self-call decoder, every operation hash `H` and
+every budget; none assumes `H` injective. "The log" is the committed log of the transactions.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| No operation id is executed twice, and no call of an id is delivered twice | Any state, any sequence of transactions | `OnceOnly` |
+| Every call Governance makes belongs to an execution that was `executeInstant` (council only) or whose last schedule had a delay at least the `minDelay` then in force and was made at least that delay before | The sequence starts with nothing pending (the constructor's state does) | `OutgoingCallsWaitedOrInstant` |
+| Every `execute` follows a schedule of its id whose delay was at least the `minDelay` then in force and which was made at least that delay before | The sequence starts with nothing pending | `OwnerPathWaited` |
+| An executed operation hashes to its id, and a transparent schedule's published payload hashes to the same id (equal, or a logged hash collision) | The sequence starts with nothing pending | `TransparentBinding` |
+| An operation with a nonzero predecessor runs only after the predecessor's execution, or the predecessor was already `Done` | Every block time is at least `2` (the sentinel `1` means `Done`) | `PredecessorDone` |
+| If an operation's calls execute its own id re-entrantly, the outer execution reverts | None | `ReentrantReexecutionReverts` |
+| A transaction that changes `minDelay` or the security council is an `execute` or `executeInstant` whose log ends with that execution | None | `ConfigChangesNeedExecution` |
+| A new nonzero owner accepted a nomination made by the owner with no nomination or transfer in between, or was the pending owner at the start | None | `NewOwnerWasNominated` |
+| A ready operation whose predecessor is zero or done is executed by the owner's or the council's `execute` | Its calls all go to other contracts that return without calling back; enough budget | `ReadyIsExecutable` |
+| Each entry point's guard and write (owner for schedule and cancel; owner or council for `execute`; council for `executeInstant`; Governance itself for `updateDelay` and `updateSecurityCouncil`; the `Ownable2Step` rules) | None | `EntryGuards` |
+
+Witnesses (`@[witness]`): every `…Witness` statement of `Properties/Timelock.lean`. Countermodels
+(`@[countermodel]`): `WithoutRecheckReexecutes`, `WithoutRecheckAnyOpRunsTwice`,
+`TransparentCollisionExecutesAnotherOp`, `SentinelCollision`, `InFlightCancelIneffective`,
+`DelayRaiseNotRetroactive`. The other statements are supporting lemmas.
 
 ## Sources
 
@@ -12,10 +37,8 @@ Governance. It is an abstract specification and does not establish Solidity corr
 | `l1-contracts/contracts/governance/IGovernance.sol`, `Common.sol` (types and events) | same |
 | `contracts/access/Ownable.sol`, `contracts/access/Ownable2Step.sol` | submodule `lib/openzeppelin-contracts-v4` at `dc44c9f1a4c3b10af99492eed84f83ed244203f6` (release v4.9.6) |
 
-The three era-contracts files are byte-identical at the interop pin `c67894b9`, at `e561b9cc2`
-(the commit `../ChainTypeManager/` models), at `draft/v0.35.0` `d9f67890` and at `main` `3605e82`
-and `70096e2ea`, so every line number in the spec holds at each of them. All of these commits record
-the same OpenZeppelin gitlink.
+Every line number in the spec is at `b17415d20`. The model is an abstract specification and does
+not establish Solidity correspondence.
 
 Review it alongside the [assumption register](../../../ASSUMPTIONS.md): `MODEL-GOVERNANCE`, plus
 `VM-CALL` (no outside caller is Governance), `VM-REVERT` (a failing call reverts the execution,

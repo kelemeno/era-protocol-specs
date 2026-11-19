@@ -1,10 +1,42 @@
 # L1Nullifier
 
-Source: era-contracts branch `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, under
-`l1-contracts/contracts/`. The model was first written against
-`d9f678900e1bc8286412b78f56d4a9f443983c29` on the same branch; every file it cites is
-byte-identical at the two commits (the list is in the header of `Specs/Model.lean`), so the line
-numbers hold at both. The files:
+`L1Nullifier` and the L1 asset router's deposit-record paths at era-contracts `draft/v0.35.0`
+`b17415d20`.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). "A run
+of the source" is any sequence of successful top-level calls of the fifteen modelled labels, with
+every source check, from any start storage and an empty ghost log. The hash and the status prover
+are arbitrary (`Env`); no statement assumes the hash injective.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A deposit key is cleared (confirmed or recovered) at most once, so never both | The key is recorded with a nonzero value at most once in the run, counting a record already in the start storage (`PROTO-TXHASH-FRESH`); no clear of it carries a triple hashing to zero | `AtMostOneClearPerDeposit` |
+| Every clear follows a bridgehub deposit at its key whose triple has the same hash, and, absent a collision among the run's deposit triples at that key, exactly the claimed `(depositSender, assetId, assetData)` | The run ends with the nullifier's `l1AssetRouter` unset or the router; the key was empty at the start; the claimed hash is nonzero | `ClearCarriesDepositTriple` |
+| Every clear carries the real status of its L2 transaction | The status prover accepts only real statuses (`PROTO-TX-STATUS`) | `ClearStatusIsTrue` |
+| A deposit whose L2 transaction succeeded is never cleared as failed, and no key is cleared with both statuses | The same sound prover | `NoFailureClearOfSucceededDeposit` |
+| An unclaimed deposit can be recovered by any caller | At the end both contracts are unpaused, the nullifier's `l1AssetRouter` is the router, the deposit's hash is nonzero and the prover accepts the failure query; enabledness of the two modelled contracts only (the asset handler's checks are not modelled) | `UnclaimedDepositRecoverable` |
+| The router calls an asset handler only inside a clear | None | `NoHandlerCallWithoutClear` |
+| A claim whose callback calls back into the two contracts, at any depth, is a flat run (the delete precedes the external call) | Any checks | `NestedRunIsFlatRun` |
+| `AtMostOneClearPerDeposit` holds with callbacks | As `AtMostOneClearPerDeposit` | `NestedAtMostOneClearPerDeposit` |
+| `l1AssetRouter`, `l1NativeTokenVault` and `l1InteropHandler` are set once | Any run, any checks | `ConfigSetOnce` |
+| The deprecated slots (the old withdrawal map, the legacy-bridge and Era-upgrade slots, the old admin pair) never change | Any run, any checks | `DeprecatedSlotsFrozen` |
+
+Witnesses (`@[witness]`): `LedgerRunWitness`, `SameKeyClearedTwiceWitness`,
+`RecordLeavesOnlyByPreimageWitness`, `UnclaimedDepositRecoverableWitness`, `LedgerStepWitness`,
+`InitializeOnlyOnceWitness`, `RouterPausedStepWitness`, `ConfigSetOnceWitness`,
+`PausedOwnerlessReachable`, `NestedRunWitness`. Countermodels (`@[countermodel]`):
+`HashCheckLoadBearing`, `ProofCheckLoadBearing`, `DepositExistsLoadBearing`,
+`OnlyNullifierLoadBearing`, `TxHashFreshnessLoadBearing`, `SoundProverLoadBearing`,
+`RouterConfiguredLoadBearing`, `ZeroHashClaimClearsEmptySlot`, `RepeatedKeyAccepted`,
+`CallFirstClearsOneDepositTwice`. The other statements are supporting lemmas.
+
+## Source
+
+era-contracts branch `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, under
+`l1-contracts/contracts/`. Every `file:line` is at that commit (the file list is in the header of
+`Specs/Model.lean`). The files:
 
 - `bridge/L1Nullifier.sol` (all of it);
 - `bridge/asset-router/L1AssetRouter.sol`: `bridgehubDeposit`, `bridgehubConfirmL2Transaction`,

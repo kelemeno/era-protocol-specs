@@ -1,7 +1,38 @@
 # L1ChainAssetHandler
 
-Source: era-contracts `draft/v0.35.0` at commit
-**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, under `l1-contracts/contracts/`:
+`L1ChainAssetHandler.isValidSettlementLayer` at era-contracts `draft/v0.35.0` `b17415d20`, against
+the layer that actually executed each batch of one migrating chain.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+"Reachable" means reached by any run of the ten modelled steps from a start state: a chain that
+settles on L1, has never migrated, and whose two L1 counters agree. "The real environment" is
+`ValEnv.real`: L1 executes only sealed layer batches (`sealedOnly`), and the return message is
+finalized only after the layer batch containing the burn was executed on L1
+(`finalizedAfterExec`). Reject-only checks are dropped, so the model admits more runs than the
+contracts.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| `isValidSettlementLayer` never reverts | Reachable state; any environment and world | `ReachableNeverReverts` |
+| For an executed batch, the call accepts `(X, k)` iff `X` is the layer that executed it and, off L1, `k` is at least interval 1's lower bound and, once the interval is closed, at most its upper bound | Reachable state; chain id 0 not whitelisted; any environment | `ExecutedBatchAnswer` |
+| An accepted claim for an executed batch names the layer that executed it | Reachable state; chain id 0 not whitelisted; any environment | `ExecutedBatchSound` |
+| The call accepts the executing layer with the layer batch open at execution and every later one up to the upper bound | Reachable state; chain id 0 not whitelisted; the real environment | `ExecutedBatchComplete` |
+| A batch executed off L1 ran on interval 1's layer, inside `(migrateToGWBatchNumber, migrateFromGWBatchNumber]`, with the layer-batch bounds under each environment switch | Reachable state; any world (the two layer-batch bounds each need their switch) | `SLBatchWithinBounds` |
+| After a confirmed migration failure the call accepts exactly the claims naming L1 | Any state | `FailureClassifiesAllOnL1` |
+| With migrations disabled (as at `b17415d20`), every accepted claim naming a layer other than L1 was already accepted at the start of the run | Any start state; `CHAIN_MIGRATIONS_ENABLED = false` | `MigrationsDisabledOnlyHistoricalIntervals` |
+
+Witnesses (`@[witness]`): `RoundTripWitness`, `FailedMigrationWitness`, `MigrationsDisabledWitness`.
+Countermodels (`@[countermodel]`): `CompletenessNeedsSealedOnly`,
+`CompletenessNeedsFinalizedAfterExec`, `SoundnessNeedsNonzeroLayerIds`,
+`ClaimBelowFirstContainingBatchAccepted`. The other statements are supporting lemmas, among them
+the comparison with `main`'s loop (`LegacyIndexZero`, `MainAgreesWithoutLegacyInterval`).
+
+## Source
+
+era-contracts `draft/v0.35.0` at commit **`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, under
+`l1-contracts/contracts/`; every `file:line` is at that commit:
 
 - `core/chain-asset-handler/L1ChainAssetHandler.sol`: `isValidSettlementLayer` (`:218-267`), the
   interval recorders (`:277-320`), the failure branch of `bridgeConfirmTransferResult`
@@ -102,3 +133,6 @@ equal.
 - Other chains, except through a layer's batches and L1's counter of them; a whitelist that
   changes during a run; settlement layers that do not run this code.
 - Storage, ABI and call correspondence (`MODEL-SL-VALIDATION` in [ASSUMPTIONS.md](../../../ASSUMPTIONS.md)).
+- The other hubs, the pauses and the migration numbers of other chains: `../ChainAssetHandler/` models
+  the same burn, mint and confirmation code across every hub, without batch numbers. The two models
+  are not composed.

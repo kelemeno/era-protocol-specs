@@ -1,11 +1,41 @@
 # ChainAdminOwnable
 
-Source: `l1-contracts/contracts/governance/ChainAdminOwnable.sol` at era-contracts
+`ChainAdminOwnable` at era-contracts `draft/v0.35.0` `b17415d20`: the calls it makes, who controls
+it, and the diamond and Bridgehub admin roles it holds.
+
+## Headline guarantees
+
+The folder's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)). A "run"
+is any derivation of the execution relation `Sem`: any calls, by any address other than the
+`ChainAdminOwnable` and zero, with unknown code that may call anything at any depth, including
+inside a `multicall`. "Well-formed configuration" (`Config.WF`) means the `ChainAdminOwnable` is
+nonzero, is not the Bridgehub, and neither it nor the Bridgehub is a diamond. Diamonds keep the
+`b17415d20` code (a cut only leaves the admin pair arbitrary); the Bridgehub's code is fixed.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| Every call the `ChainAdminOwnable` makes is an element of a `multicall` entered by the owner of that moment, or exactly `t.setTokenMultiplier(n, d)` with value zero entered by the setter of that moment | Any run | `CallsAreOwnersOrSetters` |
+| Every successful call a diamond or the Bridgehub receives from the `ChainAdminOwnable` is one of those calls | Any run | `ReceivedCallsAreOwnersOrSetters` |
+| The setter changes only by the owner's `setTokenMultiplierSetter` | Any run | `SetterChangesOnlyByOwner` |
+| The owner changes only by the nominee's `acceptOwnership` or the owner's `renounceOwnership`; the nominee only by the owner's `transferOwnership` or to zero | Any run | `OwnerChangesOnlyByAcceptOrRenounce` |
+| From a constructed contract, once the owner is zero no write commits again and every later call it makes is a `setTokenMultiplier` call for the frozen setter | Well-formed configuration; the runs start from the constructor's storage, and the owner is zero at a point between calls | `ConstructedThenOwnerlessIsPermanent` |
+| A renounced `ChainAdminOwnable` that is a diamond's admin keeps exactly that admin pair | Well-formed configuration; no owner and no nominee; the diamond has no pending admin; the run cuts no diamond | `RenouncedCaoKeepsDiamondAdmin` |
+| A renounced `ChainAdminOwnable` calls diamonds only with selector `0x235d9eb5` (`setTokenMultiplier`) and never calls the Bridgehub successfully | Well-formed configuration; no owner and no nominee | `RenouncedCaoReachesOnlySetTokenMultiplier` |
+| Whatever the `ChainAdminOwnable`'s state, the Bridgehub's owner makes any actor the Bridgehub's admin in two transactions | The owner and the target are nonzero, not the `ChainAdminOwnable` and not the Bridgehub proxy's admin | `BridgehubAdminRecoverable` |
+| No `setTokenMultiplier` call of the setter reaches the Bridgehub (it has no such function and no fallback) | Well-formed configuration | `NoSetterCallReachesBridgehub` |
+
+Witnesses (`@[witness]`): `AuthorityWitness`, `ZeroSetterWitness`, `RenounceWitness`,
+`AdminRolesWitness`, `SetterReachesDiamondNotBridgehub`. Countermodels (`@[countermodel]`):
+`MulticallOutlivesRenounce`, `PendingDiamondAdminEscapes`, `CtmCutMovesRenouncedAdmin`,
+`AdminRoleLiveBeforeRenounce`. The other statements are supporting lemmas.
+
+## Source
+
+`l1-contracts/contracts/governance/ChainAdminOwnable.sol` at era-contracts
 `draft/v0.35.0` head **`b17415d20`**, with the OpenZeppelin v4.9 `Ownable2Step` it inherits, the
 `Admin` facet functions that move a ZK chain's admin (`state-transition/chain-deps/facets/Admin.sol`)
 and the Bridgehub's admin and ownership functions (`core/bridgehub/BridgehubBase.sol`). Every
-`file:line` in the specs is at `b17415d20`. `ChainAdminOwnable.sol` is byte-identical at main
-`70096e2ea`.
+`file:line` in the specs is at `b17415d20`.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for the guarantees and
 their hypotheses. `Proofs/` contains the Lean-checked evidence for those exact named propositions.
