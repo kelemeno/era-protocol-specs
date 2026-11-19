@@ -1,11 +1,12 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsOrder
 
 /-!
-# Model: when the `e561b9cc2` rows apply, and in which orders
+# Model: when the rows apply, and in which orders (`b17415d20`)
 
-Source: `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` at commit
-**`e561b9cc2`**, the commit `Specs/RowsCurrent.lean` is pinned to. Every `file:line` below is
-in that file at that commit.
+Source: `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on
+era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**, the commit
+`Specs/RowsCurrent.lean` is pinned to (first written at `e561b9cc2`). Every `file:line` below is
+in that file at `b17415d20`.
 
 **This file adds no new operation.** It reuses the model of `Specs/RowsCurrent.lean` unchanged
 (`ApplyRow`, `ApplyLoop`, `ApplyRows`, `swap`, `ReinitFrames`, `RowInert`, ...), and the
@@ -21,7 +22,7 @@ permutations of the same rows agree, under `ReinitFrames`. `Properties/RowsOrder
 whether a permutation of a successful call succeeds. Validation and `ReinitFrames` are not
 enough (`ReinitReadBreaksOrder`: a reinitializer can read where another proxy is, for example
 through the `ProxyAdmin`'s `getProxyImplementation` view, which the library itself calls,
-`:127`, `:143`). `ReinitFrames` and `ReinitReadsOwnProxy` for every row of the configuration
+`:112`, `:136`). `ReinitFrames` and `ReinitReadsOwnProxy` for every row of the configuration
 are (`DistinctRowsApplyInAnyOrder`).
 
 This file adds two things.
@@ -30,7 +31,7 @@ This file adds two things.
   with local swaps, a call succeeds iff `requireRowCode` passes and every row applies on its
   own from the state the call starts from.
 * **A per-row premise.** `LocalSwap` asks only of the rows in the call that the row's swap
-  (`:134-139`, reinitializer included) moves only the row's proxy, to an implementation that
+  (`:119-124`, reinitializer included) moves only the row's proxy, to an implementation that
   does not depend on the rest of the mapping. The two configuration-wide premises of
   `DistinctRowsApplyInAnyOrder` give it for every row.
 -/
@@ -38,7 +39,7 @@ This file adds two things.
 namespace Contracts.ProxyUpgradeCurrent
 
 /-- **THE ROW'S SWAP IS LOCAL.** There is one implementation `c` such that, from every mapping,
-the swap at `:134-139` (`upgrade`, or `upgradeAndCall` with the reinitializer) leaves the
+the swap at `:119-124` (`upgrade`, or `upgradeAndCall` with the reinitializer) leaves the
 row's proxy at `c` and every other proxy where it was. A row without a reinitializer has it
 with `c = implNew`, and so does an inert one (`RowInert`). A reinitializer has it if it moves at
 most its own proxy and what it leaves there does not depend on the other proxies.
@@ -48,9 +49,9 @@ def LocalSwap (C : Config) (r : Row) : Prop :=
   ∃ c : Address, ∀ I : Impl, swap C r I = upd I r.proxy c
 
 /-- **THE ROW APPLIES ON ITS OWN FROM `I`.** Its loop iteration succeeds from `I` and leaves its
-proxy at `implNew`, so the row passes its own check in the verification pass (`:142-147`).
-Either the proxy is already at `implNew` (`:128-130`); or the applier owns `_admin`, the
-proxy is at `expectedOldImpl` (`:131-133`), and the swap leaves it at `implNew`. -/
+proxy at `implNew`, so the row passes its own check in the verification pass (`:133-141`).
+Either the proxy is already at `implNew` (`:113-115`); or the applier owns `_admin`, the
+proxy is at `expectedOldImpl` (`:116-118`), and the swap leaves it at `implNew`. -/
 def RowApplies (C : Config) (I : Impl) (r : Row) : Prop :=
   I r.proxy = r.implNew ∨
     (C.adminOwner = C.self ∧ I r.proxy = r.expectedOldImpl ∧ swap C r I r.proxy = r.implNew)

@@ -1,4 +1,4 @@
-import EraSpec.Contracts.ProxyUpgradeRowLib.Properties.Rows
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Properties.Rows
 
 /-!
 # Proofs: the registry upgrade's proxy rows
@@ -12,7 +12,7 @@ independence are all corollaries of the pair.
 The countermodels are computations: three rows, one proxy, and `decide`.
 -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 /-! ## One row -/
 
@@ -134,11 +134,11 @@ lemma applyRows_idem {C : Config} {I J : Impl} {rows : List Row}
       · exact ApplyRow.leftToAdmin hl
       · exact ApplyRow.alreadyAtTarget hl (key r List.mem_cons_self hl)
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History
 
 /-! ## The countermodels -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 lemma cm_owned (r : Row) (h : r.admin = 0) : ¬ LeftToAdministrator cmConfig r := by
   rintro ⟨hz, _⟩; exact hz h
@@ -177,11 +177,11 @@ lemma fgn_gate_fails : ¬ RowsApplied cmImpl [fgnRow] := by
   intro hall
   exact absurd (hall fgnRow (by simp)) (by decide)
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History
 
 /-! ## The inventory -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 lemma mem_toRows {slots : List Row} {r : Row} : r ∈ toRows slots ↔ r ∈ slots ∧ r.implNew ≠ 0 := by
   simp [toRows, dropInertSlots, List.mem_filter]
@@ -189,11 +189,11 @@ lemma mem_toRows {slots : List Row} {r : Row} : r ∈ toRows slots ↔ r ∈ slo
 lemma toRows_sublist (slots : List Row) : (toRows slots).Sublist slots :=
   List.filter_sublist
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History
 
 /-! ## Certificates -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 theorem OnlyTheNamedEdge : Properties.OnlyTheNamedEdge := by
   intro C I J r h
@@ -277,4 +277,4 @@ theorem InertSlotNeverUpgraded : Properties.InertSlotNeverUpgraded := by
   intro t ht hq
   exact absurd (hother t (mem_toRows.mp ht).1 hq) (mem_toRows.mp ht).2
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History

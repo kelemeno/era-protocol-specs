@@ -1,12 +1,14 @@
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Specs.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle
 
 /-!
 # Properties: the stage guards exactly, and abandonment as a live escape hatch
 
-Strengthenings of `EraSpec.Contracts.EcosystemUpgradeExecutor.Properties.Lifecycle`, over the
-same model (`EraSpec.Contracts.EcosystemUpgradeExecutor.Specs.Lifecycle`, source commit
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
+Strengthenings of `EraSpec.Contracts.EcosystemUpgradeExecutor.History.Properties.Lifecycle`, over the
+same model (`EraSpec.Contracts.EcosystemUpgradeExecutor.History.Specs.Lifecycle`, source commit
 `afa407085`; the coordinator is deleted at `e561b9cc2`). Proofs are in
-`EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong`.
+`EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.LifecycleStrong`.
 
 **What this repairs.** `StageGuards` states necessary conditions only, and
 `StagesMoveForward` is a safety statement. Both still hold for a variant of the model in
@@ -61,7 +63,7 @@ manifest (`CTMUpgradeExecutor.sol:166-182`) the model omits. Refusals (`¬ ∃ s
 are unaffected by these omissions, which only add runs.
 -/
 
-namespace Contracts.EcosystemUpgradeExecutor
+namespace Contracts.EcosystemUpgradeExecutor.History
 
 /-! ## The guards, exactly -/
 
@@ -221,4 +223,4 @@ def Properties.LifecycleOwnerCanAlwaysReturnToIdleSatisfiable : Prop :=
   Idle w0 ∧ ∃ s, Run wK w0 [.stage0 2, .forwardRelease] s ∧ ¬ Idle s ∧
     ∀ (l : Label) (s' : Sys), Step wK s l s' → ¬ Idle s'
 
-end Contracts.EcosystemUpgradeExecutor
+end Contracts.EcosystemUpgradeExecutor.History

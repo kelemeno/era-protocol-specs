@@ -1,5 +1,5 @@
-import EraSpec.Contracts.ProxyUpgradeRowLib.Properties.RowsStrong
-import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Properties.RowsStrong
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.Rows
 
 /-!
 # Proofs: when the `612a71ccc` rows apply, and in which orders
@@ -15,7 +15,7 @@ Order independence of executability is then a corollary. The right-hand side of
 succeeds, and `OrderIndependent` (`Proofs/Rows.lean`) says the two final states agree.
 -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 /-! ## One row -/
 
@@ -89,11 +89,11 @@ lemma rowsStrong_upd_comm (f : Impl) {p q : Address} (h : p ≠ q) (v w : Addres
       simp [upd, hp]
     · simp [upd, hp, hq]
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History
 
 /-! ## Certificates -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 theorem RowStepIffEnabled : Properties.RowStepIffEnabled :=
   fun _ _ _ => rowsStrong_step_iff
@@ -152,4 +152,4 @@ theorem RowsStrongWitness : Properties.RowsStrongWitness := by
   · rintro ⟨J, h⟩
     exact hstale (rowsStrong_enabled_of_run h hd rowBC (by simp))
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History

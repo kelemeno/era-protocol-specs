@@ -1,14 +1,12 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrent
 
 /-!
-# Model: the rows at `e561b9cc2`, read through the proxies' admin dispatch
+# Model: the rows at `b17415d20`, read through the proxies' admin dispatch
 
 Source: `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on
-branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at commit
-**`e561b9cc2`**, the commit `Specs/RowsCurrent.lean` is pinned to. Library line numbers are at
-that commit, and were checked against the library at `e561b9cc2` directly. The library as it
-first appears on era-contracts `draft/v0.35.0`, at commit `ccf00623c` (#2525, 2026-10-19), has
-every library line cited here at the same number.
+era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**, the commit
+`Specs/RowsCurrent.lean` is pinned to. Library line numbers are at that commit. The model was
+first written at `e561b9cc2`; the last section says what changed.
 
 The proxy code the library calls is OpenZeppelin Contracts v4.9.6: the submodule
 `lib/openzeppelin-contracts-v4` at `dc44c9f`, remapped as `@openzeppelin/contracts-v4/`
@@ -32,7 +30,7 @@ sub-namespace, so a file that uses both models should write them qualified rathe
 ## What `RowsCurrent` reads as one mapping
 
 `RowsCurrent` has one mapping, `Impl`. It stands both for what `applyRows` reads,
-`_admin.getProxyImplementation(proxy)` (`ProxyUpgradeRowLib.sol:127`, `:143`), and for the
+`_admin.getProxyImplementation(proxy)` (`ProxyUpgradeRowLib.sol:112`, `:136`), and for the
 implementation each proxy runs, and `Config.reinit` changes only that mapping. In the
 OpenZeppelin code these are two storage slots of the proxy, related through its admin
 dispatch:
@@ -53,7 +51,7 @@ dispatch:
   new implementation by `delegatecall`, in the proxy's own storage
   (`ERC1967/ERC1967Upgrade.sol:59-64`). Code running there can write any slot of that proxy,
   the admin slot included.
-* Both passes of `applyRows` read through `_admin` (`ProxyUpgradeRowLib.sol:127`, `:143`).
+* Both passes of `applyRows` read through `_admin` (`ProxyUpgradeRowLib.sol:112`, `:136`).
 
 ## The refinement
 
@@ -94,22 +92,19 @@ dispatch:
 * `KeepsAdmin`: the reinitializer does not write its own proxy's admin slot. This is an
   assumption about the new implementation's code, which `RowsCurrent` builds in.
 * `Administered`: when the call starts, `_admin` is the admin of every row's proxy. This is
-  the source's "administers every proxy of its domain" (`ProxyUpgradeRowLib.sol:116-117`),
-  which `RowsCurrent` also builds in (`Specs/RowsCurrent.lean:66-69`).
+  the source's "administers every proxy of its domain" (`ProxyUpgradeRowLib.sol:100-102`),
+  which `RowsCurrent` also builds in (`Specs/RowsCurrent.lean`, "Modelling choices").
 
 `lift` embeds each `RowsCurrent` configuration, and `Config.project` reads a configuration at
 a fixed admin mapping as a `RowsCurrent` one. `RowsCurrent` is the fragment of this model in
 which reinitializers keep every admin slot and `_admin` administers every row's proxy
 (`LiftedCallIsRowsCurrentCall`, `ApplyRowsCorrespond`).
 
-## At the current `draft/v0.35.0` head `b17415d20`
-
-The library now lives on era-contracts `draft/v0.35.0` (`ProxyUpgradeRowLib.sol` at
-`b17415d20`):
+## What changed since `e561b9cc2`
 
 * `applyRows` is `:106-128`. `requireRowCode` (`:107`), the loop (`:109-126`, read at `:112`)
-  and the two `ProxyAdmin` calls (`:119-124`) are as at `e561b9cc2`. The verification pass is
-  now the function `requireRowsApplied` (`:133-141`, read at `:136`), called at `:127`, with
+  and the two `ProxyAdmin` calls (`:119-124`) are as at `e561b9cc2`. The verification pass, inline at
+  `e561b9cc2`, is now the function `requireRowsApplied` (`:133-141`, read at `:136`), called at `:127`, with
   the same loop body. The bound-admin sentence and the `@dev` on the separate pass are at
   `:100-105`, with the same text. So `ApplyRows` also describes `applyRows` at that head. The
   new `@dev` at `:28-32` is about applying a transition again and changes no code.
@@ -119,8 +114,9 @@ The library now lives on era-contracts `draft/v0.35.0` (`ProxyUpgradeRowLib.sol`
   (`engines/DefaultProxyUpgradeEngine.sol:41-44`). After the engine returns, the executor
   compares the holders of its domain, which in a CTM domain include `getProxyAdmin` of the
   CTM and ServerNotifier proxies (`ProxyUpgradeExecutorBase.sol:96-98`, `:118-148`), and
-  calls `requireRowsApplied` again (`:99-103`). `ApplyTransition` describes `e561b9cc2` only;
-  executors and engines are not modelled here.
+  calls `requireRowsApplied` again (`:99-103`). `ApplyTransition` is the object checks
+  followed by the default engine's `applyRows`, as in `Specs/RowsCurrent.lean`; the rest of
+  the executor and engine is not modelled here.
 -/
 
 namespace Contracts.ProxyUpgradeCurrent.AdminSlot
@@ -168,17 +164,17 @@ current implementation answers. `none`: the call reverts. -/
 def read (C : Config) (S : Slots) (p : Address) : Option Address :=
   if S.admin p = C.proxyAdmin then some (S.impl p) else C.fwdRead S p
 
-/-- The swap at `:134-139` when `_admin` is the proxy's admin: `_upgradeTo` sets the
+/-- The swap at `:119-124` when `_admin` is the proxy's admin: `_upgradeTo` sets the
 implementation slot, then `upgradeAndCall` delegatecalls the reinitializer
 (`ERC1967/ERC1967Upgrade.sol:59-64`). -/
 def swap (C : Config) (r : Row) (S : Slots) : Slots :=
   if r.callInitializeUpgrade then C.reinit r (S.setImpl r.proxy r.implNew)
   else S.setImpl r.proxy r.implNew
 
-/-- One iteration of the first loop (`:124-141`). `v` is `liveImpl`. A mismatch has no
+/-- One iteration of the loop (`:109-126`). `v` is `liveImpl`. A mismatch has no
 constructor: the call reverts. -/
 inductive ApplyRow (C : Config) : Slots → Row → Slots → Prop
-  /-- `liveImpl == newImpl`: skipped (`:128-130`). -/
+  /-- `liveImpl == newImpl`: skipped (`:113-115`). -/
   | alreadyAtTarget {S r} : read C S r.proxy = some r.implNew → ApplyRow C S r S
   /-- The edge, with `_admin` as the proxy's admin: the proxy dispatches the swap itself.
   `ProxyAdmin`'s `onlyOwner` needs the applier to own `_admin`. -/
@@ -190,30 +186,32 @@ inductive ApplyRow (C : Config) : Slots → Row → Slots → Prop
       v ≠ r.implNew → v = r.expectedOldImpl → S.admin r.proxy ≠ C.proxyAdmin →
       C.fwdCall r S = some S' → ApplyRow C S r S'
 
-/-- The first loop of `applyRows` (`:124-141`), in order. -/
+/-- The loop of `applyRows` (`:109-126`), in order. -/
 inductive ApplyLoop (C : Config) : Slots → List Row → Slots → Prop
   | nil {S} : ApplyLoop C S [] S
   | cons {S K J r rs} : ApplyRow C S r K → ApplyLoop C K rs J → ApplyLoop C S (r :: rs) J
 
-/-- The verification pass (`:142-147`): every row's proxy reads as its `implNew` through
+/-- The verification pass `requireRowsApplied` (`:127`, `:133-141`): every row's proxy reads as its `implNew` through
 `_admin`. -/
 def RowsRead (C : Config) (S : Slots) (rows : List Row) : Prop :=
   ∀ r ∈ rows, read C S r.proxy = some r.implNew
 
-/-- `requireRowCode` (`:89-95`). -/
+/-- `requireRowCode` (`:93-98`). -/
 def RowCode (C : Config) (rows : List Row) : Prop :=
   ∀ r ∈ rows, C.hasCode r.implNew
 
-/-- A successful `applyRows(_admin, rows)` (`:121-148`) from `S` ending in `J`. -/
+/-- A successful `applyRows(_admin, rows)` (`:106-128`) from `S` ending in `J`. -/
 structure ApplyRows (C : Config) (S : Slots) (rows : List Row) (J : Slots) : Prop where
-  /-- `requireRowCode(_rows)` (`:122`). -/
+  /-- `requireRowCode(_rows)` (`:107`). -/
   code : RowCode C rows
   /-- The first loop. -/
   loop : ApplyLoop C S rows J
   /-- The second loop. -/
   verified : RowsRead C J rows
 
-/-- A successful `applyTransition(_admin, T, d)` (`:102-113`), at `e561b9cc2` only. -/
+/-- `ApplyTransition` of `Specs/RowsCurrent.lean` on the slots: the object checks of a leg
+(`executors/ProxyUpgradeExecutorBase.sol:57-61`) followed by the default engine's `applyRows`
+(`applyTransition` at `e561b9cc2`). -/
 def ApplyTransition (C : Config) (d : Domain) (T : Transition) (S J : Slots) : Prop :=
   C.hasCode T.addr ∧ T.domain = d ∧ ApplyRows C S T.rows J
 

@@ -1,10 +1,12 @@
-import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.Rows
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.Rows
 
 /-!
 # Properties: the registry upgrade's proxy rows
 
-Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.Rows`.  Proofs are in
-`EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows`.
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
+Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.Rows`.  Proofs are in
+`EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.Rows`.
 
 ## What the library claims, and what is actually true
 
@@ -42,7 +44,7 @@ not a theorem about this library — anything holding the relevant `ProxyAdmin` 
 move a proxy — so it is stated as a hypothesis rather than quietly assumed.
 -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 /-! ## The edge semantics -/
 
@@ -212,4 +214,4 @@ def Properties.InertSlotNeverUpgraded : Prop :=
     (∀ t ∈ slots, t.proxy = s.proxy → t.implNew = 0) →
     ApplyRows C I (toRows slots) J → J s.proxy = I s.proxy
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History

@@ -1,7 +1,7 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrentStrong
 
 /-!
-# Properties: when the `e561b9cc2` rows apply, and in which orders
+# Properties: when the rows apply, and in which orders (`b17415d20`)
 
 Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrentStrong`, which is the
 `RowsCurrent` model plus `LocalSwap`, `RowApplies` and witness data, and reuses the

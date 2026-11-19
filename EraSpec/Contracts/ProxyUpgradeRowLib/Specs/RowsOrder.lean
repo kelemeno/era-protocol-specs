@@ -1,12 +1,12 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsUnvalidated
 
 /-!
-# Model: which row orders succeed (`e561b9cc2`)
+# Model: which row orders succeed (`b17415d20`)
 
-Source: `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on branch
-`feat/upgrade-simplification` of the zksync-era `contracts` repository at commit
-**`e561b9cc2`**, the commit `Specs/RowsCurrent.lean` is pinned to. Every `file:line` below is
-at that commit.
+Source: `l1-contracts/contracts/upgrades/registry/libraries/ProxyUpgradeRowLib.sol` on
+era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**, the commit
+`Specs/RowsCurrent.lean` is pinned to (first written at `e561b9cc2`, where `applyRows` read and
+swapped the same way). Every `file:line` below is at `b17415d20`.
 
 **This file adds no new operation.** It reuses the `RowsCurrent` model unchanged (`ApplyRows`,
 `ReinitFrames`, the witness rows) and the witness configuration `wLeakNamed` of
@@ -17,9 +17,9 @@ at that commit.
 
 ## Why the order can decide whether the call reverts
 
-`applyRows` (`:121-148`) runs the swaps in row order (`:124-141`) and verifies every row
-afterwards (`:142-147`). A reinitializer runs inside the first loop, right after its own
-row's swap and before the swaps of every later row (`:134-136`). `OrderIndependent`
+`applyRows` (`:106-128`) runs the swaps in row order (`:109-126`) and verifies every row
+afterwards (`requireRowsApplied`, `:127`, `:133-141`). A reinitializer runs inside the loop,
+right after its own row's swap and before the swaps of every later row (`:119-121`). `OrderIndependent`
 (`Properties/RowsCurrent.lean`) compares two calls that both succeeded; it does not say that
 one order succeeds when the other does.
 

@@ -15,8 +15,9 @@ exception and cite branch `draft/v0.35.0` of era-contracts at commit `b17415d20`
 there; `ExecutorEngineAtV35`, `ProofGateAtV35` and `UpgradeTimingAtV35` (below); and
 `L2Derivation`, `L2Convergence`, `CommittedEdgeExecutable`, `UpgradeTxNonces` and
 `PendingL2UpgradeAtV35` (their sections say which of the shared models they re-read there).
-`../ProxyUpgradeRowLib/` models the row library at an older snapshot (`Rows`) and at this
-commit (`RowsCurrent`, and `RowsUnvalidated` for rows no `validateRows` has checked); the
+`../ProxyUpgradeRowLib/` models the row library at `b17415d20`, where `applyRows` reads and
+swaps as at this commit (`RowsCurrent`, and `RowsUnvalidated` for rows no `validateRows` has
+checked; its `History/` keeps the older snapshot `Rows`); the
 `ExecutorForward` topic below uses `RowsCurrent`, and `ExecutorRowsUnvalidated` uses
 `RowsUnvalidated`.
 
@@ -824,8 +825,8 @@ Witnesses: `VersionRegistryWitness`, `ChainRoutingWitness`, `BootstrapResetWitne
 its own above.
 
 Related folders: `../RegistryBootstrapMigration/` (who holds the CTM's authority across the
-bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgradeExecutor/`
-(the staged coordinator and its timer, at the earlier commit `afa407085`; deleted by
+bootstrap, and what a `forward` does to it, same commit) and `../EcosystemUpgradeExecutor/History/`
+(the record of the staged coordinator and its timer, at the earlier commit `afa407085`; deleted by
 `e561b9cc2`).
 
 ## Model boundaries

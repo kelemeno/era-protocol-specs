@@ -4,10 +4,18 @@ import EraSpec.Core.Word
 /-!
 # Model: who holds the CTM domain's authority across the registry bootstrap
 
-Source: branch `feat/upgrade-simplification` of the zksync-era `contracts` repository,
-pinned for this model at commit `e561b9cc2` (2026-10-19), the same commit as
-`EraSpec.Contracts.ChainTypeManager`. The branch moves; every `file:line` below is at that
-commit. Paths are relative to `l1-contracts/contracts/upgrades/registry/`.
+Source: era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**
+(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). Every `file:line` below is at that commit. Paths
+are relative to `l1-contracts/contracts/upgrades/registry/`.
+
+The model was first written at `e561b9cc2` (2026-10-19, branch `feat/upgrade-simplification`).
+`RegistryBootstrapMigration.sol`, `RegistryBootstrapSequence.sol`, `RegistryAuthorityLib.sol`
+and the parts of `CTMUpgradeExecutor.sol` and `ChainTypeManager.sol` transcribed below make
+the same checks and calls at `b17415d20`: the manifest's engine field is now
+`chainUpgradeEngine` (a reject-only code check, omitted), and the line numbers moved. One
+difference is outside this file: at `b17415d20` both domain executors also run **engine
+legs** (a delegatecall into the engine a transition pins). The labels below do not include
+them; `Specs/AuthorityEngineV35.lean` adds them on an extension of this state.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.RegistryBootstrapMigration.Properties.Authority` and are proved in
@@ -21,13 +29,13 @@ commit. Paths are relative to `l1-contracts/contracts/upgrades/registry/`.
     ///      transaction. Governance transfers ownership in, the migration executes, and ownership
     ///      leaves to the executors before the call returns.
 
-and `validateApplied` (:197-217), whose comment at :213-215 reads "the accept inside
+and `validateApplied` (:200-220), whose comment at :216-218 reads "the accept inside
 `migrate()` completed, nothing is parked on this spent object".
 
 **"Parked", as the source uses it** (`ParkedOnMigration`): some authority the edge drives
 rests with the spent migration object — it owns the CTM, it is the CTM's `Ownable2Step`
 nominee, or it owns the CTM-domain `ProxyAdmin`. A spent migration has no function left
-that could act with that authority (`migrate` refuses a second run, :263-265, and the
+that could act with that authority (`migrate` refuses a second run, :266-268, and the
 contract has no other state-changing entry point), so authority parked there is stuck.
 `validateApplied` additionally requires that **no nomination is outstanding** on the CTM
 (`RegistryAuthorityLib.requireNoNomination`, `libraries/RegistryAuthorityLib.sol:109-114`,
@@ -38,30 +46,30 @@ called at :55); the model tracks that separately (`AState.ctmPending`).
 * The CTM is `Ownable2Step`: `owner` and `pendingOwner`. `transferOwnership(x)` (owner
   only) sets `pendingOwner = x`; `acceptOwnership()` requires `msg.sender == pendingOwner`,
   makes it the owner and clears `pendingOwner`.
-* The CTM-domain `ProxyAdmin` is plain `Ownable` (`:294-295`: "The ProxyAdmin is plain
+* The CTM-domain `ProxyAdmin` is plain `Ownable` (`:297-298`: "The ProxyAdmin is plain
   `Ownable`, so its transfer lands immediately"); `transferOwnership(x)` requires `x != 0`.
 
-## `migrate()` (:262-304)
+## `migrate()` (:265-307)
 
-    if (executed) { revert BootstrapAlreadyExecuted(); }                          // :263-265
-    executed = true;                                                               // :266
-    if (Ownable2Step(m.ctm).pendingOwner() == address(this)) {                     // :271
-        Ownable2Step(m.ctm).acceptOwnership(); }                                   // :272
-    validate();                                                                    // :274
-    ProxyUpgradeRowLib.applyRows(m.ctmProxyAdmin, ...);                            // :276-279
+    if (executed) { revert BootstrapAlreadyExecuted(); }                          // :266-268
+    executed = true;                                                               // :269
+    if (Ownable2Step(m.ctm).pendingOwner() == address(this)) {                     // :274
+        Ownable2Step(m.ctm).acceptOwnership(); }                                   // :275
+    validate();                                                                    // :277
+    ProxyUpgradeRowLib.applyRows(m.ctmProxyAdmin, ...);                            // :279-282
     ctm.setNewVersionUpgrade({... _oldProtocolVersion: m.expectedProtocolVersion,
-                              _newRelease: m.currentRelease });                    // :287-292
-    Ownable2Step(m.ctm).transferOwnership(m.ctmExecutor);                          // :299
-    m.ctmProxyAdmin.transferOwnership(m.ctmExecutor);                              // :300
-    CTMUpgradeExecutor(payable(m.ctmExecutor)).acceptCTMOwnership();               // :301
+                              _newRelease: m.currentRelease });                    // :290-295
+    Ownable2Step(m.ctm).transferOwnership(m.ctmExecutor);                          // :302
+    m.ctmProxyAdmin.transferOwnership(m.ctmExecutor);                              // :303
+    CTMUpgradeExecutor(payable(m.ctmExecutor)).acceptCTMOwnership();               // :304
 
-`validate()` (:149-186) requires, among reject-only code checks:
+`validate()` (:152-189) requires, among reject-only code checks:
 
-    if (ctmOwner != address(this)) { revert BootstrapAuthorityNotHeld(...); }      // :153-156
-    if (proxyAdminOwner != address(this)) { revert BootstrapAuthorityNotHeld(...); } // :157-160
-    RegistryAuthorityLib.requireExecutorAuthorities(authority);                    // :163
-    if (liveVersion != m.expectedProtocolVersion) { revert OutdatedProtocolVersion(...); } // :166-169
-    RegistryAuthorityLib.requireNotifierHandedOver(authority);                     // :171
+    if (ctmOwner != address(this)) { revert BootstrapAuthorityNotHeld(...); }      // :156-159
+    if (proxyAdminOwner != address(this)) { revert BootstrapAuthorityNotHeld(...); } // :160-163
+    RegistryAuthorityLib.requireExecutorAuthorities(authority);                    // :166
+    if (liveVersion != m.expectedProtocolVersion) { revert OutdatedProtocolVersion(...); } // :169-172
+    RegistryAuthorityLib.requireNotifierHandedOver(authority);                     // :174
 
 and `requireExecutorAuthorities` (`libraries/RegistryAuthorityLib.sol:70-86`) checks the
 executors **by their answers to getters**: code present (:71-72), `owner() == governance`
@@ -75,12 +83,12 @@ A genuine `CTMUpgradeExecutor.acceptCTMOwnership` (`executors/CTMUpgradeExecutor
     if (msg.sender != owner() && msg.sender != ctm.owner()) { revert Unauthorized(msg.sender); } // :57-59
     ctm.acceptOwnership();                                                         // :60
 
-## `validateApplied()` (:197-217)
+## `validateApplied()` (:200-220)
 
-    if (!executed) { revert BootstrapNotYetExecuted(); }                           // :198-200
-    if (liveVersion != derivedNewProtocolVersion) { revert OutdatedProtocolVersion(...); } // :204-207
-    if (liveRelease != m.currentRelease) { revert BootstrapReleaseNotInstalled(...); } // :208-211
-    RegistryAuthorityLib.requireRegistryAuthority(_authority(m));                  // :216
+    if (!executed) { revert BootstrapNotYetExecuted(); }                           // :201-203
+    if (liveVersion != derivedNewProtocolVersion) { revert OutdatedProtocolVersion(...); } // :207-210
+    if (liveRelease != m.currentRelease) { revert BootstrapReleaseNotInstalled(...); } // :211-214
+    RegistryAuthorityLib.requireRegistryAuthority(_authority(m));                  // :219
 
 where `requireRegistryAuthority` (`libraries/RegistryAuthorityLib.sol:50-62`) requires the
 CTM owned by the CTM executor (:51-54), no CTM nomination (:55), the `ProxyAdmin` owned by
@@ -88,25 +96,25 @@ the CTM executor (:56-59), and the executor and notifier checks again (:60-61).
 
 ## The bundle
 
-`RegistryBootstrapSequence.actions()` (`bootstrap/RegistryBootstrapSequence.sol:68-134`)
+`RegistryBootstrapSequence.actions()` (`bootstrap/RegistryBootstrapSequence.sol:71-137`)
 derives the governance bundle; its last four calls are:
 
-    Ownable2Step.transferOwnership(MIGRATION)   on m.ctm            // :106-110
-    Ownable.transferOwnership(MIGRATION)        on m.ctmProxyAdmin  // :111-119
-    RegistryBootstrapMigration.migrate()                            // :120-124
-    RegistryBootstrapMigration.validateApplied()                    // :125-133
+    Ownable2Step.transferOwnership(MIGRATION)   on m.ctm            // :109-113
+    Ownable.transferOwnership(MIGRATION)        on m.ctmProxyAdmin  // :114-122
+    RegistryBootstrapMigration.migrate()                            // :123-127
+    RegistryBootstrapMigration.validateApplied()                    // :128-136
 
-"one bundle ending with the completion check, so a failing check reverts the whole
-bootstrap" is the design (`validateApplied`'s notice, :192-193). `Label.bundle` is those
+"The last call of the bootstrap bundle, so a failing check reverts the whole edge" is the
+design (`validateApplied`'s notice, `RegistryBootstrapMigration.sol:195-196`). `Label.bundle` is those
 four calls executed atomically; the earlier calls (notifier accept, ecosystem `ProxyAdmin`
 handover, core leg) are summarised by the configuration flags `coreHeld` and `notifierOk`.
 
 ## Modelling choices
 
 * **A revert is the absence of a step.** Reject-only checks that read nothing modelled are
-  omitted: code existence of the engine, composer and release (:173-178), published L2
-  bytecodes (:181-184), `release.validate()` (:185), the proxy rows' own checks
-  (:276-279), and the deadline. Omitting them only adds runs.
+  omitted: code existence of the engine, composer and release (:176-181), published L2
+  bytecodes (:184-187), `release.validate()` (:188), the proxy rows' own checks
+  (:279-282), and the deadline. Omitting them only adds runs.
 * **Executors are their getters** (`ExecView`), fixed for the run, plus one bit saying
   whether `acceptCTMOwnership()` runs the genuine logic or returns without effect. The
   migration's own address answers no executor getter: `RegistryBootstrapMigration`
@@ -115,11 +123,11 @@ handover, core leg) are summarised by the configuration flags `coreHeld` and `no
   move the `ProxyAdmin`, or move the CTM's version; any nominee other than the migration
   may accept. The migration acts only inside `migrate`. Over-approximating the others
   only adds runs.
-* **The CTM implementation swap** applied by the rows (:276-279) keeps the `Ownable2Step`
+* **The CTM implementation swap** applied by the rows (:279-282) keeps the `Ownable2Step`
   storage. The model assumes the new implementation reads the same owner slots.
-* **Versions are `ℕ`**; the registry `setNewVersionUpgrade` (`ChainTypeManager.sol:799-818`)
+* **Versions are `ℕ`**; the registry `setNewVersionUpgrade` (`ChainTypeManager.sol:794-813`)
   requires the old version to be the live one and the new one (the release's own) to be
-  larger (`_commitVersionEdge`, :531-539), and installs the release (:817).
+  larger (`_commitVersionEdge`, :526-534), and installs the release (:812).
 -/
 
 namespace Contracts.RegistryBootstrapMigration
@@ -207,17 +215,17 @@ def ExecutorAuthorities (K : Config) : Prop :=
     e.owner = K.m.G ∧ e.pending = 0 ∧ c.owner = K.m.G ∧ c.pending = 0 ∧
     e.ctmBinding = K.m.ctm ∧ e.paBinding = K.m.pa ∧ K.coreHeld = true
 
-/-- The claim at :271-273: accept a nomination of the migration. -/
+/-- The claim at :274-276: accept a nomination of the migration. -/
 def claim (K : Config) (s : AState) : AState :=
   if s.ctmPending = K.M then { s with ctmOwner := K.M, ctmPending := 0 } else s
 
-/-- The state after :287-300, before the executor's accept: the version edge is committed,
+/-- The state after :290-303, before the executor's accept: the version edge is committed,
 the CTM's executor is nominated and the `ProxyAdmin` is the executor's. -/
 def handOn (K : Config) (s : AState) : AState :=
   { s with executed := true, ctmPv := K.m.newPv, ctmRel := K.m.release,
            ctmPending := K.m.E, paOwner := K.m.E }
 
-/-- `acceptCTMOwnership()` at :301. The genuine logic's caller check passes (the caller,
+/-- `acceptCTMOwnership()` at :304. The genuine logic's caller check passes (the caller,
 the migration, is the CTM's owner), and its `acceptOwnership()` passes (the executor is
 the nominee), so it makes the executor the owner and clears the nomination. -/
 def executorAccept (K : Config) (s : AState) : AState :=
@@ -227,10 +235,10 @@ def executorAccept (K : Config) (s : AState) : AState :=
 
 /-- One successful `migrate()`. -/
 inductive MigrateStep (K : Config) : AState → AState → Prop
-  /-- The guards, in order: not yet executed (:263-265); after the claim, the CTM is the
-  migration's (:153-156); the `ProxyAdmin` is the migration's (:157-160); the executors'
-  getters (:163); the departing version (:166-169); the notifier handover (:171); the
-  registry CTM's version edge (`ChainTypeManager.sol:537-539`, also the constructor's
+  /-- The guards, in order: not yet executed (:266-268); after the claim, the CTM is the
+  migration's (:156-159); the `ProxyAdmin` is the migration's (:160-163); the executors'
+  getters (:166); the departing version (:169-172); the notifier handover (:174); the
+  registry CTM's version edge (`ChainTypeManager.sol:532-534`, also the constructor's
   `requireValidEdge`, :86-92); a nonzero executor (constructor, :65). -/
   | mk {s : AState} :
       s.executed = false →
@@ -243,7 +251,7 @@ inductive MigrateStep (K : Config) : AState → AState → Prop
       K.m.E ≠ 0 →
       MigrateStep K s (executorAccept K (handOn K (claim K s)))
 
-/-- `validateApplied()` passes (:197-217). -/
+/-- `validateApplied()` passes (:200-220). -/
 def ValidateAppliedPasses (K : Config) (s : AState) : Prop :=
   s.executed = true ∧ s.ctmPv = K.m.newPv ∧ s.ctmRel = K.m.release ∧
     s.ctmOwner = K.m.E ∧ s.ctmPending = 0 ∧ s.paOwner = K.m.E ∧
@@ -266,7 +274,7 @@ inductive Label
   | legacyMove (v : ℕ) (r : Address)
   /-- Anyone calls `migrate()`. -/
   | migrate
-  /-- Governance runs the bundle's last four calls (:106-133) in one transaction. -/
+  /-- Governance runs the bundle's last four calls (:109-136) in one transaction. -/
   | bundle
 deriving DecidableEq
 
@@ -282,7 +290,7 @@ inductive AStep (K : Config) : AState → Label → AState → Prop
   | legacyMove {s : AState} {v : ℕ} {r : Address} :
       s.ctmOwner ≠ K.M → AStep K s (.legacyMove v r) { s with ctmPv := v, ctmRel := r }
   | migrate {s s' : AState} : MigrateStep K s s' → AStep K s .migrate s'
-  /-- The bundle's calls at `RegistryBootstrapSequence.sol:106-133` in one transaction, sent
+  /-- The bundle's calls at `RegistryBootstrapSequence.sol:109-136` in one transaction, sent
   by the owner of both authorities: nominate the migration on the CTM, hand it the
   `ProxyAdmin` (a nonzero address, `Config.migNonzero`), `migrate()`, `validateApplied()`.
   A revert anywhere reverts all four. -/

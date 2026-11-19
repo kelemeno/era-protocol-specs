@@ -1,11 +1,13 @@
-import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsStrong
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.RowsStrong
 
 /-!
 # Properties: when the `612a71ccc` rows apply, and in which orders
 
-Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsStrong`, which is the model of
+**History: the record of an older commit, not a claim about era-contracts `b17415d20`.**
+
+Statements about `EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.RowsStrong`, which is the model of
 `Specs/Rows.lean` plus `RowEnabled` and witness data. Proofs are in
-`EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong`.
+`EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.RowsStrong`.
 
 ## Liveness: when `applyRows` succeeds
 
@@ -37,7 +39,7 @@ both orders to one state that moves both proxies and passes the gate. A row left
 administrator is enabled, and a stale row is not.
 -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 /-! ## One row -/
 
@@ -112,4 +114,4 @@ def Properties.RowsStrongWitness : Prop :=
     [rowP6, rowBC].Pairwise (fun a b => a.proxy ≠ b.proxy) ∧
     ¬ ∃ J, ApplyRows cmConfig cmImpl [rowP6, rowBC] J
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History
