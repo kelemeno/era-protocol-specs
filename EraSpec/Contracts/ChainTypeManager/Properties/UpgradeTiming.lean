@@ -153,7 +153,7 @@ def Properties.ExecutorPathIgnoresNotifier : Prop :=
 /-! ## The chain's own schedule -/
 
 /-- **THE CHAIN'S ADMIN AND ITS CTM SKIP THE CHAIN'S OWN SCHEDULE.** For a direct call by
-either, replacing the notifier's schedule changes nothing (`Admin.sol:546`). -/
+either, replacing the notifier's schedule changes nothing (`Admin.sol:577`). -/
 def Properties.AdminAndCtmSkipTheNotifier : Prop :=
   ∀ (T : TimedConfig) (s : TimedSys) (id : ChainId) (v : ℕ) (caller : Address) (τ : ℕ)
     (n : ChainId → ℕ → ℕ) (sys' : Sys),
@@ -165,7 +165,7 @@ def Properties.AdminAndCtmSkipTheNotifier : Prop :=
 /-- **EVERY OTHER CALLER NEEDS THE CHAIN'S OWN SCHEDULE.** A direct upgrade by a caller that
 is neither the chain's admin nor its CTM is by one of the chain's validators, and only once
 the notifier's entry for the chain and the departing version is set and reached
-(`Admin.sol:546-554`). -/
+(`Admin.sol:577-585`). -/
 def Properties.OtherCallersNeedTheNotifier : Prop :=
   ∀ (T : TimedConfig) (s s' : TimedSys) (id : ChainId) (v : ℕ) (caller : Address) (τ : ℕ),
     TimedStep T s (.upgrade id (.direct v) caller τ) s' →
@@ -187,20 +187,20 @@ def Properties.NotifierWrittenOnlyByItsChainAdmin : Prop :=
 
 /-- **THE MANIFEST'S TIMESTAMP GATES EVERY UPGRADE.** Whatever the path and the caller, a
 chain at version `v` that is upgraded at time `τ` has `τ` at least the `upgradeTimestamp` of
-the transition committed at `v` (`BaseZkSyncUpgrade.sol:76-78`). -/
+the transition committed at `v` (`BaseZkSyncUpgrade.sol:82-84`). -/
 def Properties.ManifestTimestampGates : Prop :=
   ∀ (T : TimedConfig) (s s' : TimedSys) (id : ChainId) (path : UpgradePath) (caller : Address)
     (τ : ℕ), TimedStep T s (.upgrade id path caller τ) s' →
     ∃ c, s.sys.chains id = some c ∧ (T.sched (s.sys.ctm.ut c.pv)).upgradeTimestamp ≤ τ
 
-/-- **EVERY PATH NEEDS EVERY COMMITTED BATCH EXECUTED** (`DefaultUpgrade.sol:31`). -/
+/-- **EVERY PATH NEEDS EVERY COMMITTED BATCH EXECUTED** (`DefaultUpgrade.sol:30`). -/
 def Properties.EveryPathNeedsExecutedBatches : Prop :=
   ∀ (T : TimedConfig) (s s' : TimedSys) (id : ChainId) (path : UpgradePath) (caller : Address)
     (τ : ℕ), TimedStep T s (.upgrade id path caller τ) s' →
     (s.aux id).committed = (s.aux id).executed
 
 /-- **EVERY PATH NEEDS THE SETTLEMENT LAYER AHEAD.** A chain that settles on a layer at version
-`w` can only be upgraded to a version at most `w` (`BaseZkSyncUpgrade.sol:83-88`). -/
+`w` can only be upgraded to a version at most `w` (`BaseZkSyncUpgrade.sol:89-94`). -/
 def Properties.EveryPathNeedsTheSettlementLayerAhead : Prop :=
   ∀ (T : TimedConfig) (s s' : TimedSys) (id : ChainId) (path : UpgradePath) (caller : Address)
     (τ w : ℕ), TimedStep T s (.upgrade id path caller τ) s' → (s.aux id).slVersion = some w →
@@ -268,7 +268,7 @@ def Properties.UpgradeChainIsNotTimeIndependent : Prop :=
       ∃ s', TimedStep T s (.upgrade id (.executor t) (s.aux id).admin τ') s'
 
 /-- **THE TIME GATE FOLLOWS THE SLOT, AND A REPLACEMENT CAN CLOSE IT AGAIN.** A replacement
-must keep the departing version's deadline (`ChainTypeManager.sol:488-494`) but not the upgrade
+must keep the departing version's deadline (`ChainTypeManager.sol:483-489`) but not the upgrade
 timestamp, and the engine reads the timestamp of whatever the slot holds when the chain
 upgrades. In the state of `NotAtAnyTime`, the owner can upgrade chain `0` through `300` at time
 `12`. `replaceUpgradeTransition(300, 400)` succeeds; `400` has a valid schedule, the same

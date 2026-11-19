@@ -4,10 +4,14 @@ import EraSpec.Contracts.ChainTypeManager.Specs.Enabledness
 /-!
 # Model: the departing version's deadline along timed runs
 
-Source: branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at
-commit `e561b9cc2` (2026-10-19), as for `EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTiming`,
-whose timed system this topic reads. The branch moves; every `file:line` below is at that
-commit. Paths are relative to `l1-contracts/contracts/`.
+Source: era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**, as for
+`EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTiming`, whose timed system this topic reads.
+Every `file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`.
+This topic was first written against `e561b9cc2` (branch `feat/upgrade-simplification` of the
+zksync-era `contracts` repository) and re-read at `b17415d20` by diffing each cited file from
+`ccf00623c`, the squash-merge of that code into `draft/v0.35.0`. The code it cites is unchanged
+there apart from line numbers, except that `CTMTransition.validate()` now names the engine
+`chainUpgradeEngine` (was `upgradeEngine`); it still checks only that code is present.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.UpgradeTimingStrong` and are proved in
@@ -33,11 +37,11 @@ step that exists.
 ## Where a slot's schedule comes from
 
 The CTM never checks that a schedule is valid. `setNewVersionUpgradeFromTransition` and
-`replaceUpgradeTransition` (`state-transition/ChainTypeManager.sol:408-448`) read the object's
-getters, and the transition's `validate()`, which `_requireExecutable` calls (:454-457), checks
-only that its engine and composer have code (`upgrades/registry/objects/CTMTransition.sol:227-233`).
+`replaceUpgradeTransition` (`state-transition/ChainTypeManager.sol:403-443`) read the object's
+getters, and the transition's `validate()`, which `_requireExecutable` calls (:449-452), checks
+only that its engine and composer have code (`upgrades/registry/objects/CTMTransition.sol:248-254`).
 The transition is the one governance approved, and "its construction is verified off-chain, not
-here" (`ChainTypeManager.sol:405-407`). Every `CTMTransition` constructor runs
+here" (`ChainTypeManager.sol:400-402`). Every `CTMTransition` constructor runs
 `requireValidEdge` (`upgrades/registry/objects/CTMTransition.sol:91-97`), so every
 `CTMTransition` object has a `ValidSchedule`. `Op.CommitsValidSchedule` says this of the
 transition a writer puts in a slot: the committed transition, or the replacement. Like
@@ -45,14 +49,14 @@ transition a writer puts in a slot: the committed transition, or the replacement
 
 ## The same-deadline check
 
-`replaceUpgradeTransition` runs `_requireSameDeadline(_expectedTransition, _replacement)` (:443,
-defined at :488-494):
+`replaceUpgradeTransition` runs `_requireSameDeadline(_expectedTransition, _replacement)` (:438,
+defined at :483-489):
 
     uint256 deadline = _expectedTransition.oldProtocolVersionDeadline();
     uint256 replacementDeadline = _replacement.oldProtocolVersionDeadline();
     if (replacementDeadline != deadline) { revert TransitionDeadlineMismatch(deadline, replacementDeadline); }
 
-"Deadline changes use {setProtocolVersionDeadline} explicitly" (:485). `CStep.replace` omits this
+"Deadline changes use {setProtocolVersionDeadline} explicitly" (:480). `CStep.replace` omits this
 check: `Specs/VersionRegistry.lean` models no deadline. `Op.KeepsDeadline` states the check, and
 it is a premise of the results that need it.
 
@@ -60,7 +64,7 @@ it is a premise of the results that need it.
 
 `TimedLabel.InstallsWf` lifts `Label.InstallsWf` (`Specs/Enabledness.lean`) to timed labels: the
 release a CTM writer installs passed `validate()`'s duplicate-selector check, as
-`_setCurrentRelease` requires (`ChainTypeManager.sol:310`).
+`_setCurrentRelease` requires (`ChainTypeManager.sol:305`).
 
 ## Dead time
 
@@ -76,8 +80,8 @@ namespace Contracts.ChainTypeManager
 
 /-- The transition a CTM writer records in `upgradeTransition` passed `requireValidEdge`'s
 schedule checks (`VersionEdgeLib.sol:55-62`), as every `CTMTransition` does at construction
-(`CTMTransition.sol:91-97`). A commit records its transition (`ChainTypeManager.sol:421`). A
-replacement records the replacement (:447). The legacy writers record no transition. -/
+(`CTMTransition.sol:91-97`). A commit records its transition (`ChainTypeManager.sol:416`). A
+replacement records the replacement (:442). The legacy writers record no transition. -/
 def Op.CommitsValidSchedule (T : TimedConfig) : Op → Prop
   | .commit t => ValidSchedule T t
   | .replace _ r => ValidSchedule T r
@@ -96,7 +100,7 @@ def TimedLabel.CommitsValidSchedule (T : TimedConfig) : TimedLabel → Prop
   | .base l => l.CommitsValidSchedule T
   | _ => True
 
-/-- `_requireSameDeadline` (`ChainTypeManager.sol:488-494`): a replacement pins the same
+/-- `_requireSameDeadline` (`ChainTypeManager.sol:483-489`): a replacement pins the same
 `oldProtocolVersionDeadline()` as the transition it replaces. The other writers replace
 nothing. -/
 def Op.KeepsDeadline (T : TimedConfig) : Op → Prop

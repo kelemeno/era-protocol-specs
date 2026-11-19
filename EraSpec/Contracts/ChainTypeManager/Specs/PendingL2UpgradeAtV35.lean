@@ -11,8 +11,9 @@ at that commit, and paths are relative to `l1-contracts/contracts/`. The earlier
 line cited.
 
 This topic reuses `ChainRouting`'s routing system and `VersionRegistry`'s CTM writers, both
-pinned at `e561b9cc2`, and `UpgradeTiming`'s timed steps (also `e561b9cc2`). The gates of those
-timed steps were re-read at `b17415d`; see below.
+first written at `e561b9cc2` (their own Specs headers give their pin), and `UpgradeTiming`'s timed
+steps, which were first written at `e561b9cc2` and are now pinned at `b17415d` too. The gates of
+those timed steps are listed below at `b17415d`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.PendingL2UpgradeAtV35` and are proved in
@@ -34,8 +35,8 @@ chain's batch counters at any time. `UpgradeTimingStrong`'s headline
 
 ## The timed gates at `b17415d`
 
-Each gate of `TimedStep` (the code `Specs/UpgradeTiming.lean` quotes at `e561b9cc2`) is present
-at `b17415d` with the same logic, at these lines:
+Each gate of `TimedStep` (the code `Specs/UpgradeTiming.lean` quotes) is present at `b17415d`
+with the logic it had at `e561b9cc2`, at these lines:
 * `Admin.upgradeChainFromVersion` (`state-transition/chain-deps/facets/Admin.sol:559-590`): the cut
   lookup (:566-568), the version check (:570-572), the notifier gate for callers other than the
   admin and the CTM (:577-585), the cut (:586) and the version increase (:587-589). The caller
@@ -258,7 +259,7 @@ structure BatchAux where
 structure PendingSys where
   /-- The timed system of `UpgradeTiming`. -/
   ts : TimedSys
-  /-- `protocolVersionDeadlines` (`ChainTypeManager.sol:545-558`); zero is "not set". -/
+  /-- `protocolVersionDeadlines` (`ChainTypeManager.sol:97`, read at :546); zero is "not set". -/
   dl : ℕ → ℕ
   /-- Each chain's `BatchAux`; meaningful where a chain is registered. -/
   bx : ChainId → BatchAux

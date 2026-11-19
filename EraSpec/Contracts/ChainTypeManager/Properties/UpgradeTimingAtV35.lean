@@ -13,7 +13,8 @@ like one of `UpgradeTiming` is that statement over the v35 system.
 For a chain that does not require its second proof system, yes. For a chain that does, an
 upgrade has one more condition.
 
-* A v35 timed step is the `e561b9cc2` timed step plus `TimedGateHolds`
+* A v35 timed step is the `UpgradeTiming` timed step (first written at `e561b9cc2`; it
+  omits the proof-system checks) plus `TimedGateHolds`
   (`TimedStepIsTheE561StepPlusTheGate`). For a chain that does not require its second proof
   system, the gate is vacuous and an upgrade succeeds at v35 exactly when it does in
   `UpgradeTiming`, with the same effect on the timed state (`UnflaggedChainsUpgradeAsAtE561`).
@@ -33,7 +34,7 @@ upgrade has one more condition.
   the state of `OwnerCannotUpgradeARequiringChainToAPlonkRelease`, every condition of
   `UpgradeTiming`'s repaired statement holds for the owner from time 10 on, yet no upgrade of
   the chain exists, by any path, for any caller, at any block time.
-* **The repaired statement at v35** is `UpgradeChainEnabledIffTimed`: `e561b9cc2`'s eight
+* **The repaired statement at v35** is `UpgradeChainEnabledIffTimed`: `UpgradeTiming`'s eight
   conditions plus "if the chain requires its second proof system, the verifier of the
   transition's new release reports multi-proof mode with nothing disabled". As in
   `UpgradeTiming`, it is exact for the model; in the source these conditions are necessary, not
@@ -73,7 +74,7 @@ open Contracts.ChainTypeManager.ProofGateAtV35
 
 /-! ## The v35 timed step and run -/
 
-/-- **EVERY v35 TIMED STEP IS THE `e561b9cc2` TIMED STEP PLUS THE PROOF GATE.** For every
+/-- **EVERY v35 TIMED STEP IS THE `UpgradeTiming` TIMED STEP PLUS THE PROOF GATE.** For every
 `UpgradeTiming` label `l` and timed state `t'`, a v35 step labelled `l` that leaves `t'` exists,
 with some proof-system fields, iff `UpgradeTiming`'s step `l` to `t'` exists and `TimedGateHolds`
 holds before it. -/
