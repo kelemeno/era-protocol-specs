@@ -21,7 +21,7 @@ legSourceChainIds[i]`) "adds nothing" under honest insertion.  With the declared
   `AttackVectors.StaleSnapshotBranches.BeginBranchNeedsBeginIsPrevEnd`,
   `AttackVectors.StaleSnapshotBranches.EndBranchNeedsLaterBatchesLate`) and sound IMT
   proofs, and the latter fail at `c67894b9` by the padding forgery
-  (`Contracts.InteropCommitmentTree.CThreeLeafWitness`,
+  (`Contracts.InteropCommitmentTree.History.CThreeLeafWitness`,
   `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).
 * **Check A is NOT redundant at the pin, even under honest insertion.**  Per leg:
   without check A, leg `v` passes the unchecked finality check and passes
@@ -94,7 +94,7 @@ proofs, and for them exclusivity further needs the timeout premises
 `AttackVectors.StaleSnapshotBranches.BeginBranchNeedsBeginIsPrevEnd`,
 `AttackVectors.StaleSnapshotBranches.EndBranchNeedsLaterBatchesLate`) and sound IMT
 proofs; the latter fail at `c67894b9` by the padding forgery
-(`Contracts.InteropCommitmentTree.CThreeLeafWitness`,
+(`Contracts.InteropCommitmentTree.History.CThreeLeafWitness`,
 `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`). -/
 def Properties.CheckedGatesExclusive : Prop :=
   ∀ (Chain Value : Type) (decl : Value → Chain) (tree : Chain → Set Value) (legs : List Value)

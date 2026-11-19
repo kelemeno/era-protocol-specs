@@ -44,7 +44,7 @@ The padding constant of the underlying `FullMerkle` tree is the hash of the gene
 
 Order theory over `Finset AbsLeaf`, as in `Model`.  Whether the padding leaf's hash is accepted
 under a published root is the Merkle-level question, answered for the deployed tree by
-`Contracts.InteropCommitmentTree.Properties.PaddingCollisionRefundsDeliveredLeg`
+`Contracts.InteropCommitmentTree.History.Properties.PaddingCollisionRefundsDeliveredLeg`
 (`../../L2InteropCommitmentTree/Properties/TreeRoot.lean`).
 -/
 

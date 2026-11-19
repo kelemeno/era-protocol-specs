@@ -220,7 +220,7 @@ error imports. No property takes a hash premise; `keccak` is an arbitrary functi
 `HintSearchAtHead` re-models `InitOnce` at the current heads (`main` `70096e2`,
 `draft/v0.35.0` `b17415d`; the two cited files are unchanged since `3605e82` and `d9f6789`).
 There `insert`'s low-leaf walk has no hop bound (`b8cc61203`, `IndexedMerkleTree.sol:90-93`),
-read as "some finite number of hops" (`WalkSucceedsAtHead`); gas is not modelled. No hash
+read as "some finite number of hops" (`WalkExitsAtV35`); gas is not modelled. No hash
 premise.
 - On a valid tree the walk is the search with `leafCount` hops, exits, and is deterministic
   (`WalkAtHeadIsLeafCountSearch`, `WalkAtHeadTerminates`, `WalkAtHeadDeterministic`); a head

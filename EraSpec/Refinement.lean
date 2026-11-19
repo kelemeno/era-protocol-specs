@@ -2,6 +2,7 @@ import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Protocol.Spec
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.TreeRoot
+import EraSpec.Contracts.L2InteropCommitmentTree.History.Proofs.PaddingForgeryPinned
 import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
 import EraSpec.Protocol.InteropAtomicity.Proofs.Timeout
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
@@ -90,7 +91,7 @@ over `leafHashes` of the new state. `RootAfterInsert` fixes that target exactly.
 *A hypothesis that is false at the pin.* `HashAssumptions.padNotLeaf` says the
 `FullMerkle` padding constant is not a leaf hash. The pinned
 `IndexedMerkleTree.setup` pads with `hashLeaf({0,0,0})`, so it is one, and
-`Contracts.InteropCommitmentTree.Properties.PaddingCollisionRefundsDeliveredLeg`
+`Contracts.InteropCommitmentTree.History.Properties.PaddingCollisionRefundsDeliveredLeg`
 shows the consequence on a real contract run: an accepted `verifyNonInclusion` for
 a delivered value. Later era-contracts revisions pad with `IMT_EMPTY_LEAF_HASH`.
 When the pin moves, re-check this first.
@@ -235,7 +236,7 @@ abbrev root_guarantee := @Contracts.InteropCommitmentTree.ProofsExclusive
 /-- The countermodel that makes `HashAssumptions.padNotLeaf` load-bearing: with
 `hashLeaf({0,0,0})` as the padding constant, a delivered leg has an accepted
 absence proof. -/
-abbrev padding_necessity := @Contracts.InteropCommitmentTree.PaddingCollisionRefundsDeliveredLeg
+abbrev padding_necessity := @Contracts.InteropCommitmentTree.History.PaddingCollisionRefundsDeliveredLeg
 
 /-- The hash side, with no hash premise: if one value has both an accepted inclusion
 proof and an accepted non-inclusion proof against a valid tree's root, a located

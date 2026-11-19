@@ -107,7 +107,7 @@ constant, not only on the hash: `IndexedMerkleTree.setup` pads with `z0 = hashLe
 `ℓ = ⟨0,0,0⟩` for every `hl`.  The padding forgery is exactly that failure and needs no
 collision: its located break is `TreeRootBreak.paddingHit`, and of `TreeRootStrongLogSafe`'s
 clauses it fails only `padNotPresented` when the tree's own log has no node-hash collision
-(`Properties.TreeRootStrongPinForgeryFailsOnlyPadding`; instances: `Properties.CThreeLeafWitness`,
+(`Properties.TreeRootStrongPinForgeryFailsOnlyPadding`; instances: `History.Properties.CThreeLeafWitness`,
 `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`,
 `AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).  So a result premised
 on `HashAssumptions`, vacuous anyway, says nothing about the deployed absence check under any

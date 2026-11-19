@@ -193,27 +193,4 @@ def Properties.HThreeRunWitness : Prop :=
       ∧ (hThreeRun a b 2).tree.leafCount = 3
       ∧ (hThreeRun a b 2).tree.leafCount < 2 ^ (hThreeRun a b 2).height
 
-/-- **THE PADDING FORGERY IS LIVE AT THE SOURCE'S OWN HEIGHT.**  `threeLeafTree a b` is
-published at height 2 by the source's own growth rule, not by a choice of the
-statement.  With the extraction-pin padding `hl ⟨0,0,0⟩`, against `hThree a b`'s root at
-its own height, `a` has an accepted honest inclusion proof (leaf 1) with no located break
-AND an accepted non-inclusion proof (slot 3), whose located break is exactly
-`paddingHit`.  So clause 3 of `ProofsExclusiveOrBreakAtOwnHeight` has its premises met on
-a reached state, and its first break disjunct is false there.  `hThree a b` is step 2
-of `hThreeRun a b`, so the same holds for `RunRootsExclusiveOrBreakAtOwnHeight`. -/
-def Properties.PaddingForgeryAtOwnHeight : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
-    HReaches hSetup (hThree a b) ∧ hThreeRun a b 2 = hThree a b ∧ (hThree a b).height = 2
-      ∧ InclusionAccepted h hl ((hThree a b).root h (hl ⟨0, 0, 0⟩) hl) a
-          ((hThree a b).tree.leaf 1) 1
-          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (hThree a b).tree) 1) (hThree a b).height
-      ∧ NonInclusionAccepted h hl ((hThree a b).root h (hl ⟨0, 0, 0⟩) hl) a ⟨0, 0, 0⟩ 3
-          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (hThree a b).tree) 3) (hThree a b).height
-      ∧ ¬ TreeRootBreak h (hl ⟨0, 0, 0⟩) hl (hThree a b).tree (hThree a b).height
-          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (hThree a b).tree) 1) (hThree a b).height 1
-          ((hThree a b).tree.leaf 1)
-      ∧ TreeRootBreakExactly h (hl ⟨0, 0, 0⟩) hl (hThree a b).tree (hThree a b).height
-          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (hThree a b).tree) 3) (hThree a b).height 3
-          ⟨0, 0, 0⟩ .paddingHit
-
 end Contracts.InteropCommitmentTree

@@ -278,4 +278,47 @@ def Properties.PaddingForgeryAtV35Witness : Prop :=
       ∧ TreeRootBreakExactly h (hl ⟨0, 0, 0⟩) hl (chainTree 6) 3
           (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (chainTree 6)) 7) 3 7 ⟨0, 0, 0⟩ .paddingHit
 
+/-! ## The list-state projection, and what follows from it
+
+`HintSearchAtHead` states the v35 contract's transactions on the list state alone
+(`TxStepAtHead`, with the same `InsertChecksAtV35`).  The canonical machine `CTxStepAtV35` projects
+onto it, so the head results hold of the canonical machine's list state. -/
+
+/-- **THE CANONICAL MACHINE PROJECTS TO THE LIST-STATE MACHINE.**  For every node hash, leaf hash
+and padding constant, every run of `CTxRunAtV35` (any start state) is, on its list state, a run of
+`HintSearchAtHead`'s `TxRunAtHead` with the same trace. -/
+def Properties.CTxRunAtV35ProjectsToTxRunAtHead : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
+    CTxRunAtV35 h hl zE K R tx → TxRunAtHead K (fun n => (R n).tree) tx
+
+/-- **RECLAIMABLE EXACTLY WHEN ABSENT, ON THE CANONICAL MACHINE.**  For every node hash, leaf hash
+and padding constant, at every initialized step of every run from the predeploy's storage, a
+nonzero value is straddled by a leaf of the tree (a leaf `W` with `W.key < v` and `v` below
+`W.nextKey`, or `W.nextKey = 0`) exactly when it is not a key.  The straddling leaf is a genuine
+leaf of the list state; what the deployed `verifyNonInclusion` accepts against `root()` is
+`CTxRunAtV35ContractProofsAtStoredRoot`'s statement, not this one. -/
+def Properties.CTxRunAtV35ReclaimableIffAbsent : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
+    CTxRunAtV35 h hl zE K R tx → R 0 = cPredeployAtV35 →
+    ∀ (n : ℕ) (v : UInt256), Initialized (R n).tree → v ≠ 0 →
+      ((∃ W ∈ toAbs (R n).tree, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey))
+        ↔ v ∉ keys (toAbs (R n).tree))
+
+/-- **THE KEY SET NEVER SHRINKS, ON THE CANONICAL MACHINE.**  For every node hash, leaf hash and
+padding constant, along every run from any start state, a key of the list state at step `m` is a
+key at every later step. -/
+def Properties.CTxRunAtV35KeysMono : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
+    CTxRunAtV35 h hl zE K R tx →
+    ∀ m n : ℕ, m ≤ n → keys (toAbs (R m).tree)
+      ⊆ keys (toAbs (R n).tree)
+
+/-- **AT MOST ONE `initL2()` SUCCEEDS, ON THE CANONICAL MACHINE.**  For every node hash, leaf hash
+and padding constant, along every run from any start state, two successful `initL2()` calls are
+the same step. -/
+def Properties.CTxRunAtV35InitL2AtMostOnce : Prop :=
+  ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
+    CTxRunAtV35 h hl zE K R tx →
+    ∀ (m n : ℕ) (cm cn : Caller), tx m = some (cm, .initL2) → tx n = some (cn, .initL2) → m = n
+
 end Contracts.InteropCommitmentTree

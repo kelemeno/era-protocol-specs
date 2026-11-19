@@ -55,7 +55,7 @@ it, at shifted lines:
 `lowSearch T v n i` (`Specs/Model.lean`) runs the loop from `i` with at most `n` hops.  It
 returns `none` only when the loop would need more hops.  A successful transaction ran the
 `while` loop finitely often.  A loop that never exits runs out of gas, and the transaction
-reverts, which is no step.  So `WalkSucceedsAtHead T v hint low`, "some number of hops `n`
+reverts, which is no step.  So `WalkExitsAtV35 T v hint low`, "some number of hops `n`
 makes `lowSearch T v n hint` return `low`", is exactly "the loop exits, at `low`".  Which `n`
 does not matter: once the walk exits, more hops do not change its result
 (`Contracts.InteropCommitmentTree.Properties.WalkAtHeadDeterministic`; on a valid tree
@@ -116,29 +116,11 @@ namespace Contracts.InteropCommitmentTree
 
 open IMTAbstract
 
-/-! ## The walk and the insert checks at head -/
+/-! ## The walk and the insert checks
 
-/-- **THE HEAD'S `while` LOOP EXITS AT `low`** (`IndexedMerkleTree.sol:90-93`): some finite
-number of hops from `hint` ends on `low`.  See the module header for why this is the loop. -/
-def WalkSucceedsAtHead (T : Tree) (v : UInt256) (hint low : ℕ) : Prop :=
-  ∃ hops : ℕ, lowSearch T v hops hint = some low
-
-/-- What a successful `insert(v, hint)` has checked at head before it writes, at the index
-`low` the walk lands on (`IndexedMerkleTree.sol:65-93`).  The first five fields are
-`InitOnce.InsertChecks`'s, and only `walk` differs from it. -/
-structure InsertChecksAtHead (T : Tree) (v : UInt256) (hint low : ℕ) : Prop where
-  /-- `leafNumber == 0` reverts with `IMTNotInitialized` (`:71-73`). -/
-  initialized : Initialized T
-  /-- `_value == 0` reverts with `IMTValueZero` (`:74-76`). -/
-  nonzero : v ≠ 0
-  /-- `valueToIndex[_value] != 0` reverts with `IMTValueAlreadyExists` (`:77-79`). -/
-  unregistered : T.valueToIndex v = 0
-  /-- `_lowLeafIndex >= leafNumber` reverts with `IMTLowLeafIndexOutOfBounds` (`:80-82`). -/
-  hintInBounds : hint < T.leafCount
-  /-- `lowLeaf.value >= _value` reverts with `IMTLowLeafValueTooLarge` (`:84-88`). -/
-  hintBelow : (T.leaf hint).value < v
-  /-- The unbounded walk (`:90-93`) exits at `low`. -/
-  walk : WalkSucceedsAtHead T v hint low
+The unbounded walk and the checks a successful insert has passed are the canonical
+`WalkExitsAtV35` and `InsertChecksAtV35` (`Specs/HintSearch.lean`), shared with
+`CommitmentTreeAtV35` and `UnboundedSearchAtV35`. -/
 
 /-! ## Transactions at head -/
 
@@ -155,7 +137,7 @@ inductive TxStepAtHead (K : Roles) : Tree → Caller → Call → Tree → Prop
   /-- `insert(v, hint)`: the appender check, the head's checks and walk, then the writes at
   the landing index. -/
   | insert {T : Tree} {c : Caller} {v : UInt256} {hint low : ℕ} :
-      c = K.appender → InsertChecksAtHead T v hint low →
+      c = K.appender → InsertChecksAtV35 T v hint low →
       TxStepAtHead K T c (.insert v hint) (insert T v low)
 
 /-- A run of the tree contract at head (`RunOf`, from `InitOnce`). -/

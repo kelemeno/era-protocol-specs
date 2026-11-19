@@ -202,7 +202,7 @@ no leaf at all.)
 a genuine leaf.  At `c67894b9` the deployed `verifyNonInclusion` can also accept the sentinel
 `{0,0,0}` at an empty slot: at step 3 of `genesisRun a b`, a run from the predeploy, the key `a`
 has an accepted non-inclusion proof at the root the source publishes
-(`Properties.StoredRootWitness`; `Properties.CThreeLeafWitness` at the stored root). -/
+(`Properties.StoredRootWitness`; `History.Properties.CThreeLeafWitness` at the stored root). -/
 def Properties.PredeployRunReclaimableIffAbsent : Prop :=
   ∀ (K : Roles) (R : ℕ → Tree) (tx : Trace), TxRun K R tx →
     R 0 = predeploy →

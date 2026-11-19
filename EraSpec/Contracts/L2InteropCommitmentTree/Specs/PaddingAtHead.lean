@@ -127,26 +127,6 @@ namespace Contracts.InteropCommitmentTree
 open MerkleSpec MerkleSpec.Verifier
 open AttackVectors.BundleHashEncoding (word HashCollision)
 
-/-! ## `setup` with an independent padding constant -/
-
-/-- `IndexedMerkleTree.setup` on fresh storage, padding with `ze`
-(`MAIN/common/libraries/IndexedMerkleTree.sol:46-54`): `tree.setup(ze)`, then
-`tree.pushNewLeaf(hashLeaf({0,0,0}))`, with the sentinel list state.  At `main`, `ze` is
-`IMT_EMPTY_LEAF_HASH` (`imtEmptyLeafHash`).  With `ze = hashLeaf({0,0,0})` this is the pin's
-`cSetup` (`Properties.PinSetupIsPadAtZeroLeafHash`). -/
-def cSetupPad (h : Hash) (hl : LeafHash) (ze : UInt256) : Option CState :=
-  (FullMerkle.pushNewLeaf h (FullMerkle.setup FullMerkle.FullTree.empty ze).1 (hl ⟨0, 0, 0⟩)).map
-    fun r => ⟨setup, r.1⟩
-
-/-- States reached from `cSetupPad h hl ze` by guarded inserts that do not revert.  This is
-`CachedRoot`'s `CReaches` with the padding constant as a parameter; the insert step is the same
-`cInsert`. -/
-inductive CReachesPad (h : Hash) (hl : LeafHash) (ze : UInt256) : CState → Prop
-  | init {S : CState} : cSetupPad h hl ze = some S → CReachesPad h hl ze S
-  | insert {S S' : CState} {v : UInt256} {low : ℕ} {r : UInt256} :
-      CReachesPad h hl ze S → InsertGuard S.tree v low → cInsert h hl S v low = some (S', r) →
-      CReachesPad h hl ze S'
-
 /-! ## keccak, at the byte level -/
 
 /-- `abi.encode(_leaf.value, _leaf.nextIndex, _leaf.nextValue)`, the preimage `hashLeaf` hashes
