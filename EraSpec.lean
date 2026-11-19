@@ -311,6 +311,7 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
 -- domain-holder check around a proxy-upgrade engine leg (ProxyUpgradeExecutorBase)
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.DomainHoldersV35
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.History.Proofs.DomainHoldersD9
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.CoreLegRefinement
 
 -- Second proof system (draft/v0.35.0 at b17415d20): one diamond's requirement flag and ZiSK
 -- switch, and who may move them

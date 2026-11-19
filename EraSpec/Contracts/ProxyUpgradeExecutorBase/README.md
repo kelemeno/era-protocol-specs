@@ -26,6 +26,10 @@ arbitrary call trace) and for every hash function standing in for `keccak256(abi
 - `Contracts.ProxyUpgradeExecutorV35.CoreLeg.Properties.DefaultCoreLegReplayIsNoop`: premise:
   the transition pins `DefaultProxyUpgradeEngine`. Then applying a successfully applied
   transition again succeeds and changes nothing.
+- `Contracts.CoreLegRefinement.Properties.CoreLegIsDomainHoldersLeg`: premise: a
+  DomainHoldersV35 engine does, on the embedded world, what the Core leg's engine does. Then the
+  CoreLegV35 leg in the Core domain and the canonical DomainHoldersV35 leg give the same result,
+  reverts included, so the DomainHoldersV35 results above apply to the Core leg.
 - `Contracts.EngineLegV35.Properties.LegKeepsExecutorOwnership` and
   `Contracts.EngineLegV35.Properties.LegLandsEveryRow`: every successful leg keeps the
   executor's owner and pending owner, had an inventory of its domain's length, and leaves
@@ -63,14 +67,21 @@ delegatecalls the engine the transition pins and then checks what the engine did
 | EngineLegV35 | `Contracts.EngineLegV35` | [Specs/EngineLegV35.lean](Specs/EngineLegV35.lean) | [Properties/EngineLegV35.lean](Properties/EngineLegV35.lean) | [Proofs/EngineLegV35.lean](Proofs/EngineLegV35.lean) |
 | ExecutorOwnerCallsV35 | `Contracts.ExecutorOwnerCallsV35` | [Specs/ExecutorOwnerCallsV35.lean](Specs/ExecutorOwnerCallsV35.lean) | [Properties/ExecutorOwnerCallsV35.lean](Properties/ExecutorOwnerCallsV35.lean) | [Proofs/ExecutorOwnerCallsV35.lean](Proofs/ExecutorOwnerCallsV35.lean) |
 | NotifierBindingV35 | `Contracts.NotifierBindingV35` | [Specs/NotifierBindingV35.lean](Specs/NotifierBindingV35.lean) | [Properties/NotifierBindingV35.lean](Properties/NotifierBindingV35.lean) | [Proofs/NotifierBindingV35.lean](Proofs/NotifierBindingV35.lean) |
+| CoreLegRefinement | `Contracts.CoreLegRefinement` | [Specs/CoreLegRefinement.lean](Specs/CoreLegRefinement.lean) | [Properties/CoreLegRefinement.lean](Properties/CoreLegRefinement.lean) | [Proofs/CoreLegRefinement.lean](Proofs/CoreLegRefinement.lean) |
 | History: DomainHoldersD9 | `Contracts.DomainHoldersV35.History` | [History/Specs/DomainHoldersD9.lean](History/Specs/DomainHoldersD9.lean) | [History/Properties/DomainHoldersD9.lean](History/Properties/DomainHoldersD9.lean) | [History/Proofs/DomainHoldersD9.lean](History/Proofs/DomainHoldersD9.lean) |
 
 `History/` is the record of the older commit `d9f678900`, not a claim about `b17415d20`: the
 leg before `9775be946` (#2669) added the CTM-admin check and widened `_domainHolders`, compared
 with the current leg on the same engines (`AliasingPassesAtD9CaughtAtB17`).
 
-The five topics are five separate models of the same leg; no theorem relates them yet (see
-"Related topics" under NotifierBindingV35, and `handoff/2026-11-19/consolidation/upgrade.md`).
+The five topics are five models of the same leg. DomainHoldersV35's `leg` is the canonical one
+(both domains). CoreLegRefinement embeds CoreLegV35's world into it and proves the Core leg is
+the canonical leg in the Core domain (`CoreLegIsDomainHoldersLeg`: equal results, reverts
+included, for engines that agree up to the embedding), and derives the `ProxyAdmin`-owner part
+of `CoreLegChecks` from `PassingLegKeepsHolderReads` through it
+(`CoreLegKeepsPAOwnerViaDomainHolders`). EngineLegV35, ExecutorOwnerCallsV35 and
+NotifierBindingV35 are not yet related to it by a theorem (see "Related topics" under
+NotifierBindingV35, and `handoff/2026-11-19/consolidation/upgrade.md`).
 Statements are `<namespace>.Properties.*`; each certificate has the same name without the
 `Properties` segment.
 

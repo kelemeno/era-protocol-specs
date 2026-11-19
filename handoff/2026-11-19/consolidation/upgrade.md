@@ -21,13 +21,20 @@ Source: `upgrades/registry/executors/ProxyUpgradeExecutorBase.sol`, the two doma
 
 | Topic | Commit (verified) | Model | Imports / importers | Decision |
 |---|---|---|---|---|
-| CoreLegV35 | `b17415d20` (first `d9f678900`) | `CoreLeg.World` (executor owner and pending owner, `ProxyAdmin` owner, per-proxy implementation and admin slots), `Exec`, `EngineSem`, `applyProxyUpgradeTransition`; Core domain only, CTM branch opaque | imports `ProxyUpgradeRowLib` `RowsCurrent` (Specs, Proofs); no importers | re-pin (citations checked; no change needed) |
+| CoreLegV35 | `b17415d20` (first `d9f678900`) | `CoreLeg.World` (executor owner and pending owner, `ProxyAdmin` owner, per-proxy implementation and admin slots), `Exec`, `EngineSem`, `applyProxyUpgradeTransition`; Core domain only, CTM branch opaque | imports `ProxyUpgradeRowLib` `RowsCurrent` (Specs, Proofs); importer: CoreLegRefinement | re-pin (citations checked; no change needed); refinement lemma onto DomainHoldersV35 |
 | DomainHoldersV35 | `b17415d20`; contains the `d9f678900` leg as `D9` | `World` (executor ownership, `ProxyAdmin` owner, per-proxy `Tup`, implementation answers, CTM and notifier fields), `Bindings`, `Engine`, `leg`; both domains | none / none | **canonical leg model**; the `D9` namespace is a pin record of `d9f678900` and moves to `History` with the properties that use it |
 | EngineLegV35 | `b17415d20` (first `d9f6789`) | abstract `Env σ κ` (arbitrary getters, `CallRun`), `Leg`; concrete `WState`/`WStep` world | imports `RowsCurrent`, `InteropDataEncoding` `BundleHashEncoding`/`BundleHashPinned`; no importers | re-pin (checked); step 2 deferred, see below |
 | ExecutorOwnerCallsV35 | `b17415d20` (first `d9f6789`) | CTM executor `State`, `Frame`, `FwdStep`, `EngStep` over `ChainTypeManager` `VersionRegistry` | imports `ChainTypeManager` `VersionRegistry`; no importers | re-pin (checked); step 2 deferred |
 | NotifierBindingV35 | `b17415d20` | `State` (CTM store, notifier stores), `Step`, `Run`, `DomainRun`, `LegAccepted` | imports `ChainTypeManager` `UpgradeTiming` (`e561b9cc2`, CTM unit); no importers | re-pin (checked); step 2 deferred |
 
-Step 2 for this contract is **not done** in this wave. The five models differ in what they make
+Step 2 for this contract is **done for CoreLegV35 only**. The new topic CoreLegRefinement embeds
+a CoreLegV35 world into a DomainHoldersV35 world and proves `CoreLegIsDomainHoldersLeg`: for every
+DomainHoldersV35 engine that agrees with the CoreLeg engine up to the embedding, the embedded
+result of the CoreLeg leg in the Core domain equals the DomainHoldersV35 leg's result (reverts
+included). `CoreLegKeepsPAOwnerViaDomainHolders` derives the `ProxyAdmin`-owner part of
+`CoreLegChecks` from `PassingLegKeepsHolderReads` through it. CoreLegV35's own model stays: its
+results about reinitializers and world-dependent implementation answers have no counterpart in
+DomainHoldersV35. For the other three topics step 2 is **not done** in this wave. The five models differ in what they make
 state (CoreLeg: Core domain, world-dependent implementation answers, reinitializers that write
 both slots; DomainHolders: both domains, per-proxy answers; EngineLeg: an arbitrary getter
 environment plus call traces; ExecutorOwnerCalls: the CTM's version state and `forward`;
