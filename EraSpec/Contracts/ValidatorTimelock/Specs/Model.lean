@@ -16,9 +16,7 @@ import EraSpec.Core.Word
   at `2d081f24` that `b17415d20` pins: `access/Ownable2StepUpgradeable.sol` (`O2`),
   `access/OwnableUpgradeable.sol` (`OW`), `proxy/utils/Initializable.sol` (`IN`).
 
-`VT`, `AC`, `LibMap.sol` and `Config.sol:334` are the same at the earlier v35 pin `d9f6789`, and
-`VT` and `AC` are byte-identical there and at `e561b9cc2`, so every line cited below is also a
-line of those trees. `main` (`70096e2ea`) and the interop pin `c67894b9` carry an older
+Every line cited below is at `b17415d20`. `main` (`70096e2ea`) and the interop pin `c67894b9` carry an older
 `ValidatorTimelock.sol` (one ecosystem-wide delay with no upper bound, no per-chain delay, a
 `precommitSharedBridge` entry point). That version is not modelled.
 

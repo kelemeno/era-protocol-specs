@@ -4,7 +4,7 @@ import EraSpec.Contracts.Bridgehub.Specs.Registry
 # Properties: `L1Bridgehub`
 
 Statements about `EraSpec.Contracts.Bridgehub.Specs.Registry` (`draft/v0.35.0` at
-`b17415d20`, identical to `d9f6789` for every cited file). Proofs are in
+`b17415d20`). Proofs are in
 `EraSpec.Contracts.Bridgehub.Proofs.Registry`. Every run-level statement quantifies over
 `Run`, so over every entry point of the model and every interleaving of callers. All of them
 are about the model: the external calls are inputs or assumed not to revert or write the

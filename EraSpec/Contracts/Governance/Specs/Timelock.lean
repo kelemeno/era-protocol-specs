@@ -6,11 +6,9 @@ import EraSpec.Core.Word
 
 Source: era-contracts `draft/v0.35.0` at commit `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`,
 `l1-contracts/contracts/governance/Governance.sol`, with `IGovernance.sol` and `Common.sol` from
-the same directory. The three files are byte-identical at the interop pin `c67894b9`, at
-`e561b9cc2` (the commit `../ChainTypeManager/` models), at `d9f67890` and at `main` `3605e82` and
-`70096e2ea`, so every line number below holds at each of them. `Ownable` and `Ownable2Step` are OpenZeppelin
+the same directory. `Ownable` and `Ownable2Step` are OpenZeppelin
 `lib/openzeppelin-contracts-v4` at the gitlink `dc44c9f1a4c3b10af99492eed84f83ed244203f6`
-(release v4.9.6) that all of these commits record, read from a checkout of that commit. Line
+(release v4.9.6) that `b17415d20` records, read from a checkout of that commit. Line
 numbers are `Governance.sol` unless another file is named.
 
 **This file is definitions only.** The results are in
