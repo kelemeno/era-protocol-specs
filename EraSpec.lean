@@ -20,7 +20,7 @@ import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistration
 -- Registry-driven upgrades: the proxy row state machine (a snapshot of a moving
 -- branch outside the pinned era-contracts tree; see PROVENANCE.md), at 612a71ccc and at
 -- e561b9cc2
-import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.Rows
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.Rows
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrent
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsAdminSlot
 
@@ -36,8 +36,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorEngineAtV35
 -- Registry-driven upgrades: who holds the CTM domain's authority across the bootstrap edge
 -- (e561b9cc2), and the staged coordinator with its timer (afa407085; deleted by e561b9cc2)
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.Authority
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.LifecycleStrong
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.LifecycleStrong
 
 -- AtomicFlowManager: abstract lifecycle, canonical flows, recovery limits
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
@@ -237,7 +237,7 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
 
 -- Strengthened row-application liveness and parked-CTM exits (ProxyUpgradeRowLib, RegistryBootstrapMigration)
-import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.RowsStrong
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsCurrentStrong
 import EraSpec.Contracts.RegistryBootstrapMigration.Proofs.AuthorityStrong
 
@@ -310,6 +310,7 @@ import EraSpec.Contracts.NativeTokenVaultBase.Proofs.EscrowLedgerAtHead
 -- Registry-driven upgrades at draft/v0.35.0 b17415d (d9f6789 kept for comparison): the
 -- domain-holder check around a proxy-upgrade engine leg (ProxyUpgradeExecutorBase)
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Proofs.DomainHoldersV35
+import EraSpec.Contracts.ProxyUpgradeExecutorBase.History.Proofs.DomainHoldersD9
 
 -- Second proof system (draft/v0.35.0 at b17415d20): one diamond's requirement flag and ZiSK
 -- switch, and who may move them

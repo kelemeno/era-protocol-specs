@@ -1,4 +1,4 @@
-import EraSpec.Contracts.EcosystemUpgradeExecutor.Properties.Lifecycle
+import EraSpec.Contracts.EcosystemUpgradeExecutor.History.Properties.Lifecycle
 
 /-!
 # Proofs: the coordinator's lifecycle, and what its timer guarantees
@@ -10,7 +10,7 @@ after `preparedAt`. `run_hist` ties `preparedAt` to the `stage0` in the run that
 pending operation. The headline is then `deadline ≤ now` from `checkDeadline`.
 -/
 
-namespace Contracts.EcosystemUpgradeExecutor
+namespace Contracts.EcosystemUpgradeExecutor.History
 
 lemma upd_eq {α β : Type} [DecidableEq α] (f : α → β) (a : α) (b : β) : upd f a b a = b := by
   simp [upd]
@@ -446,4 +446,4 @@ theorem TimerBoundIsTight : Properties.TimerBoundIsTight := by
     show (startEffect wK w0 8).deadline 8 ≠ 0 ∧ (startEffect wK w0 8).deadline 8 ≤ 110
     rw [w2_deadline]; decide
 
-end Contracts.EcosystemUpgradeExecutor
+end Contracts.EcosystemUpgradeExecutor.History

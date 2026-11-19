@@ -1,12 +1,12 @@
-import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.Rows
+import EraSpec.Contracts.ProxyUpgradeRowLib.History.Specs.Rows
 
 /-!
 # Model: when the `612a71ccc` rows apply
 
 **This file adds no new operation.** It reuses the model of `Specs/Rows.lean` unchanged
 (`ApplyRow`, `ApplyRows`, `RowsApplied`, ...) and adds one predicate, `RowEnabled`, and witness
-data. The results are in `EraSpec.Contracts.ProxyUpgradeRowLib.Properties.RowsStrong` and are
-proved in `EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsStrong`.
+data. The results are in `EraSpec.Contracts.ProxyUpgradeRowLib.History.Properties.RowsStrong` and are
+proved in `EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.RowsStrong`.
 
 ## Why
 
@@ -24,7 +24,7 @@ the three succeeding constructors of `ApplyRow`, and it reads the mapping only a
 own proxy. That is what makes the loop's success order-free on distinct proxies.
 -/
 
-namespace Contracts.ProxyUpgrade
+namespace Contracts.ProxyUpgrade.History
 
 /-- **THE ROW HAS A STEP FROM `I`.** One of the three succeeding outcomes of the loop body is
 available: the row is left to a foreign administrator (logged and skipped); or its proxy is
@@ -47,4 +47,4 @@ def rowP6 : Row := ⟨6, 10, 12, false, 0⟩
 proxy `6` at `12`, every other proxy at `10`. -/
 def pairFinal : Impl := upd (upd cmImpl 5 11) 6 12
 
-end Contracts.ProxyUpgrade
+end Contracts.ProxyUpgrade.History

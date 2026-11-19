@@ -15,8 +15,8 @@ ancestor of `e561b9cc2`) on branch `feat/upgrade-simplification` of the zksync-e
 `l1-contracts/contracts/`.
 
 **This file is definitions only.** The results are in
-`EraSpec.Contracts.EcosystemUpgradeExecutor.Properties.Lifecycle` and are proved in
-`EraSpec.Contracts.EcosystemUpgradeExecutor.Proofs.Lifecycle`.
+`EraSpec.Contracts.EcosystemUpgradeExecutor.History.Properties.Lifecycle` and are proved in
+`EraSpec.Contracts.EcosystemUpgradeExecutor.History.Proofs.Lifecycle`.
 
 ## The coordinator (`upgrades/registry/executors/EcosystemUpgradeExecutor.sol`)
 
@@ -126,7 +126,7 @@ can call the CTM executor's `onlyCoordinator` functions directly, and, when
   `legAppliedAt op` is when the CTM leg (`applyOperation`) last ran with `op` reserved.
 -/
 
-namespace Contracts.EcosystemUpgradeExecutor
+namespace Contracts.EcosystemUpgradeExecutor.History
 
 open Clear
 
@@ -329,4 +329,4 @@ def wK : Config := ⟨10, wOpTimer, wTimer⟩
 /-- Idle at time `100`, no timer started. -/
 def w0 : Sys := ⟨100, 0, .none, fun _ => 0, fun _ => 0, 0, 0, fun _ => none⟩
 
-end Contracts.EcosystemUpgradeExecutor
+end Contracts.EcosystemUpgradeExecutor.History
