@@ -1,7 +1,7 @@
 import EraSpec.Contracts.InteropHandlerBase.Properties.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import Mathlib.Tactic
 
 /-!
@@ -346,26 +346,26 @@ lemma abiEncode_chain_eq {c c' : UInt256} {x y : List UInt8}
   exact Fin.ext hm
 
 /-- A valid proof for an atomic leg's bundle hash lands in one of the two named clashes. -/
-lemma published_atomic_hash_clashes {P : Contracts.InteropCenter.Params}
-    {S : Contracts.InteropCenter.State}
-    (hreach : Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init S)
+lemma published_atomic_hash_clashes {P : Contracts.InteropCenter.History.Params}
+    {S : Contracts.InteropCenter.History.State}
+    (hreach : Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init S)
     (henc : Contracts.InteropCenter.EncInjOn P.enc
-      (S.log.map Contracts.InteropCenter.Dispatch.bundle))
+      (S.log.map Contracts.InteropCenter.History.Dispatch.bundle))
     {pubs : List (UInt256 × List UInt8)} (hpubs : PublishesOnlyPublicDispatches P S.log pubs)
-    {d : Contracts.InteropCenter.Dispatch} (hd : d ∈ S.log) (hat : d.isAtomic = true)
-    (hpub : PublishedHash P.keccak pubs (Contracts.InteropCenter.bundleHash P d.bundle)) :
-    (∃ d' ∈ S.log, d'.isAtomic = false ∧ Contracts.InteropCenter.CrossSenderSaltClash P d d')
-      ∨ (∃ p ∈ pubs, HashCollision P.keccak (Contracts.InteropCenter.bundlePreimage P d.bundle)
+    {d : Contracts.InteropCenter.History.Dispatch} (hd : d ∈ S.log) (hat : d.isAtomic = true)
+    (hpub : PublishedHash P.keccak pubs (Contracts.InteropCenter.History.bundleHash P d.bundle)) :
+    (∃ d' ∈ S.log, d'.isAtomic = false ∧ Contracts.InteropCenter.History.CrossSenderSaltClash P d d')
+      ∨ (∃ p ∈ pubs, HashCollision P.keccak (Contracts.InteropCenter.History.bundlePreimage P d.bundle)
             (abiEncode p.1.val p.2)) := by
   obtain ⟨p, hp, hph⟩ := hpub
-  by_cases hpre : Contracts.InteropCenter.bundlePreimage P d.bundle = abiEncode p.1.val p.2
+  by_cases hpre : Contracts.InteropCenter.History.bundlePreimage P d.bundle = abiEncode p.1.val p.2
   · left
     have hpre' : abiEncode P.chainId.val (P.enc d.bundle) = abiEncode p.1.val p.2 := hpre
     have hc : P.chainId = p.1 := abiEncode_chain_eq hpre'
     have hx : P.enc d.bundle = p.2 := Contracts.InteropCenter.abiEncode_right_inj hpre'
     obtain ⟨d', hd', hpub', hx'⟩ := hpubs p hp hc.symm
-    rcases Contracts.InteropCenter.AtomicBytesNeverPublished P S hreach henc d hd hat d' hd'
+    rcases Contracts.InteropCenter.History.AtomicBytesNeverPublished P S hreach henc d hd hat d' hd'
         hpub' with hne | hclash
     · exact absurd (hx.trans hx') hne
     · exact ⟨d', hd', hpub', hclash⟩
@@ -375,12 +375,12 @@ theorem AtomicLegStaysAtomicAtDestinationOrClash :
     Properties.AtomicLegStaysAtomicAtDestinationOrClash := by
   intro P S hreach henc pubs hpubs d hd hat s txs hs hsound
   by_cases hclash :
-      (∃ d' ∈ S.log, d'.isAtomic = false ∧ Contracts.InteropCenter.CrossSenderSaltClash P d d')
-      ∨ (∃ p ∈ pubs, HashCollision P.keccak (Contracts.InteropCenter.bundlePreimage P d.bundle)
+      (∃ d' ∈ S.log, d'.isAtomic = false ∧ Contracts.InteropCenter.History.CrossSenderSaltClash P d d')
+      ∨ (∃ p ∈ pubs, HashCollision P.keccak (Contracts.InteropCenter.History.bundlePreimage P d.bundle)
             (abiEncode p.1.val p.2))
   · exact Or.inr hclash
   · left
-    have hnp : NoProofRun (Contracts.InteropCenter.bundleHash P d.bundle) txs := by
+    have hnp : NoProofRun (Contracts.InteropCenter.History.bundleHash P d.bundle) txs := by
       intro t ht e he
       have hsnd := hsound t ht e he
       cases e with
@@ -408,40 +408,40 @@ theorem AtomicLegStaysAtomicAtDestinationOrClash :
     rwa [hs] at h
 
 theorem AtomicLegAtDestinationWitness : Properties.AtomicLegAtDestinationWitness := by
-  have hlog : Contracts.InteropCenter.wS3.log =
-      [Contracts.InteropCenter.wD1, Contracts.InteropCenter.wD2] := rfl
+  have hlog : Contracts.InteropCenter.History.wS3.log =
+      [Contracts.InteropCenter.History.wD1, Contracts.InteropCenter.History.wD2] := rfl
   have h12 : (1 : UInt256) ≠ 2 := by decide
-  refine ⟨Contracts.InteropCenter.wReach, ?_, ?_, by rw [hlog]; simp, rfl, rfl, ?_, ?_, ?_, ?_,
+  refine ⟨Contracts.InteropCenter.History.wReach, ?_, ?_, by rw [hlog]; simp, rfl, rfl, ?_, ?_, ?_, ?_,
     ?_, ?_⟩
   · rw [hlog]
-    exact Contracts.InteropCenter.encInjOn_pair Contracts.InteropCenter.wEnc_ne
+    exact Contracts.InteropCenter.encInjOn_pair Contracts.InteropCenter.History.wEnc_ne
   · intro p hp _
     simp only [List.mem_singleton] at hp
     subst hp
-    exact ⟨Contracts.InteropCenter.wD2, by rw [hlog]; simp, rfl, rfl⟩
+    exact ⟨Contracts.InteropCenter.History.wD2, by rw [hlog]; simp, rfl, rfl⟩
   · intro t ht e he
     simp only [wDestRun, List.mem_cons, List.not_mem_nil, or_false] at ht
     rcases ht with rfl | rfl
     · rw [tx_mentions_nil rfl he]
       intro _
       refine ⟨_, List.mem_singleton_self _, ?_⟩
-      exact Contracts.InteropCenter.wHash2.symm
+      exact Contracts.InteropCenter.History.wHash2.symm
     · rw [tx_mentions_nil rfl he]
       trivial
   · intro hnp
     have := hnp _ List.mem_cons_self (.verifyBundle ⟨2, 1⟩ true) (Or.inl rfl)
-      Contracts.InteropCenter.wHash2.symm
+      Contracts.InteropCenter.History.wHash2.symm
     exact absurd this (by decide)
-  · rw [Contracts.InteropCenter.wHash1]; decide
-  · rw [Contracts.InteropCenter.wHash2]; decide
+  · rw [Contracts.InteropCenter.History.wHash1]; decide
+  · rw [Contracts.InteropCenter.History.wHash2]; decide
   · rintro ⟨hsalt, -, -⟩
     exact absurd hsalt (by decide)
   · rintro ⟨-, hk⟩
-    have hk' : Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams
-        Contracts.InteropCenter.wD1.bundle =
-        Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams
-        Contracts.InteropCenter.wD2.bundle := hk
-    rw [Contracts.InteropCenter.wHash1, Contracts.InteropCenter.wHash2] at hk'
+    have hk' : Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams
+        Contracts.InteropCenter.History.wD1.bundle =
+        Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams
+        Contracts.InteropCenter.History.wD2.bundle := hk
+    rw [Contracts.InteropCenter.History.wHash1, Contracts.InteropCenter.History.wHash2] at hk'
     exact h12 hk'
 
 theorem StatusMachineStrongWitness : Properties.StatusMachineStrongWitness := by

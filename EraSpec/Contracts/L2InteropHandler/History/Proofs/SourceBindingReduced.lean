@@ -1,5 +1,5 @@
 import EraSpec.Contracts.L2InteropHandler.History.Properties.SourceBindingReduced
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
 import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
@@ -26,7 +26,7 @@ the run's atomic dispatches (`sourceReach_steps`). The headline then chains thre
 
 * `Contracts.AppendPath.KeyPinsAppendedLegOrClash`: a nonzero key is a logged leg's commit value,
   or clashes with one;
-* `Contracts.InteropCenter.inv_reach`: every logged dispatch was formed on this chain;
+* `Contracts.InteropCenter.History.inv_reach`: every logged dispatch was formed on this chain;
 * the two halves of `abi.encode(uint256, bytes)`'s injectivity: the head word
   (`abiEncode_head_inj`, from the decoder's first component) and the bytes
   (`Contracts.InteropCenter.abiEncode_right_inj`).
@@ -43,6 +43,7 @@ namespace Contracts.SourceBinding.History
 open MerkleSpec IMTAbstract
 open AttackVectors.BundleHashEncoding
 open Contracts.InteropCenter
+open Contracts.InteropCenter.History
 open Contracts.AtomicFlowManager (Manager LegState AppendGuard AuthorizeGuard ClaimGuard)
 open Contracts.Atomicity (CommitValue FlowHash System Flow FlowLeg GateEvidence ExecutedViaBy
   InclusionBreak Wf)

@@ -1,5 +1,5 @@
 import EraSpec.Contracts.InteropCenter.Properties.SendAtHead
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 
 /-!
@@ -535,7 +535,7 @@ theorem PinSendMessageDroppedAtomicBundle : Properties.PinSendMessageDroppedAtom
     exact Option.some_ne_none _
   · intro attrs _ _
     refine ⟨rfl, fun P S d hd => ?_⟩
-    simp [Contracts.InteropCenter.State.afterSend, Contracts.InteropCenter.Dispatch.isAtomic, hd,
+    simp [Contracts.InteropCenter.History.State.afterSend, Contracts.InteropCenter.History.Dispatch.isAtomic, hd,
       pinSendMessageAtomicSend]
 
 theorem PinFindingRejectedAtHead : Properties.PinFindingRejectedAtHead := by

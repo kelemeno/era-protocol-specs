@@ -1,4 +1,4 @@
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 import EraSpec.Protocol.InteropAtomicity.Specs.OncePerLeg
 
@@ -71,15 +71,15 @@ they cover every byte string a caller can submit, canonical or not.
 
 Chain `c` runs the deployed code. Its send side is one state, `SourceState`. It holds the
 center's salt flags, the flow manager's `_state`, the ghost dispatch log
-(`Contracts.InteropCenter.State`, topic `Dispatch`), and the commitment tree's list state
+(`Contracts.InteropCenter.History.State`, topic `Dispatch`), and the commitment tree's list state
 (`Contracts.InteropCommitmentTree.Tree`). One step is one transaction:
 
 * `sendAtomic` / `sendPublic` — `InteropCenter._sendBundle` through `_dispatchBundle`
-  (`interop/InteropCenter.sol:464-586, 639-659`), as in `Contracts.InteropCenter.Step.send`. In
+  (`interop/InteropCenter.sol:464-586, 639-659`), as in `Contracts.InteropCenter.History.Step.send`. In
   the atomic branch it also makes `AtomicFlowManager.append`'s tree insert
   (`AtomicFlowManager.sol:97-99`): `Contracts.AppendPath.AppendSucceeds` is the manager's `Unset`
   guard (`:93`) plus every check of `IndexedMerkleTree.insert`, with the deployed five-hop search
-  (`common/libraries/IndexedMerkleTree.sol:60-106`). `Contracts.InteropCenter.Step` omitted that
+  (`common/libraries/IndexedMerkleTree.sol:60-106`). `Contracts.InteropCenter.History.Step` omitted that
   insert as a reject-only check. Here it is tracked, because the tree is what the destination
   reads.
 * `authorize` / `claim` — `authorizeRefund` and `claimRefund` on one leg
@@ -132,8 +132,8 @@ make a send one step. The indirect sender called inside it (`InteropCenter.sol:7
 namespace Contracts.SourceBinding.History
 
 open AttackVectors.BundleHashEncoding (abiEncode word HashCollision)
-open Contracts.InteropCenter (Params Address Word Bundle Dispatch FormedBy Validated bundleHash
-  bundlePreimage Checks)
+open Contracts.InteropCenter (Address Word Bundle Validated)
+open Contracts.InteropCenter.History (Params Dispatch FormedBy bundleHash bundlePreimage Checks)
 open Contracts.AtomicFlowManager (AuthorizeGuard ClaimGuard LegState)
 open Contracts.Atomicity (CommitValue)
 open Contracts.Refund (Obligation CommitClash)
@@ -147,7 +147,7 @@ them, and the commitment tree the manager inserts into. -/
 structure SourceState where
   /-- `isInteropBundleSaltUsed` (`InteropCenter.sol:129`), the manager's `_state`
   (`AtomicFlowManager.sol:53`), and the ghost log of successful dispatches, oldest first. -/
-  center : Contracts.InteropCenter.State
+  center : Contracts.InteropCenter.History.State
   /-- The commitment tree's list state (`L2InteropCommitmentTree.sol:33`,
   `IndexedMerkleTree.sol:30-34`). -/
   tree : Tree
@@ -158,7 +158,7 @@ def SourceState.toChain (S : SourceState) : ChainState := ⟨S.center.manager, S
 
 /-- After the genesis upgrade: fresh center and manager storage, and the tree seeded by
 `initL2` with the `{0, 0, 0}` sentinel (`IndexedMerkleTree.sol:42-51`). -/
-def sourceGenesis : SourceState := ⟨Contracts.InteropCenter.init, setup⟩
+def sourceGenesis : SourceState := ⟨Contracts.InteropCenter.History.init, setup⟩
 
 /-- The obligation an atomic dispatch commits. `append(flowId, bundleHash, ..)` runs on the chain
 that dispatched, so the obligation's chain is that chain's `block.chainid`. -/
@@ -171,7 +171,7 @@ def appendLog (P : Params) (log : List Dispatch) : List Obligation :=
   ((log.filter Dispatch.isAtomic).map (dispatchObligation P)).reverse
 
 /-- **ONE TRANSACTION ON THE VOUCHING CHAIN.** `K` says which of the guards are in place;
-the deployed code is `Contracts.InteropCenter.deployed`. -/
+the deployed code is `Contracts.InteropCenter.History.deployed`. -/
 inductive SourceStep (K : Checks) (P : Params) (cv : CommitValue) : SourceState → SourceState → Prop
   /-- `sendBundle` / `sendMessage` of a public bundle: the salt is marked
   (`InteropCenter.sol:479-483`) and the bundle is published to L1 (`InteropCenter.sol:657`). The
@@ -233,7 +233,7 @@ inductive SourceReach (K : Checks) (P : Params) (cv : CommitValue) (S : SourceSt
 /-- **WHAT THE HANDLER HASHES FOR THE BYTES `x`** (`InteropHandlerBase.sol:247-249`):
 `abi.encode(interopBundle.sourceChainId, _bundle)`, where `interopBundle = abi.decode(_bundle)`
 is `dec x`. `claimRefund` hashes the same bytes the same way (`AtomicFlowManager.sol:166-167`,
-`Contracts.InteropCenter.claimPreimage`). -/
+`Contracts.InteropCenter.History.claimPreimage`). -/
 def executedPreimage (dec : List UInt8 → Bundle) (x : List UInt8) : List UInt8 :=
   abiEncode (dec x).sourceChainId.val x
 

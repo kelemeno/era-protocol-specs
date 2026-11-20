@@ -1,5 +1,5 @@
-import EraSpec.Contracts.InteropCenter.Properties.ClaimBinding
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Properties.ClaimBinding
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 
 /-!
 # Proofs: a claimed bundle is a dispatched bundle
@@ -23,7 +23,7 @@ The witnesses and countermodels are concrete runs on O1's two witness chains: th
 first honest step. Their data lives in the `ClaimBinding` namespace.
 -/
 
-namespace Contracts.InteropCenter
+namespace Contracts.InteropCenter.History
 
 open AttackVectors.BundleHashEncoding
 open Contracts.AtomicFlowManager (Manager LegState AppendGuard AuthorizeGuard ClaimGuard)
@@ -1268,4 +1268,4 @@ theorem ClaimBindingTwoClaimsWitness : Properties.ClaimBindingTwoClaimsWitness :
     · exact absurd hs (by decide)
     · exact hsend rfl
 
-end Contracts.InteropCenter
+end Contracts.InteropCenter.History

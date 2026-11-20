@@ -1,4 +1,4 @@
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryTargets
 import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachine
 
@@ -19,8 +19,8 @@ that the upgrade models pin, not a successor of the pin), cited as `UPG/…`. Th
 (`draft/v0.35.0` `b17415d20`, `main` `70096e2ea`) have the same two checks.
 
 **This file is definitions only.** The results are in
-`EraSpec.Contracts.InteropCenter.Properties.AtomicRouting` and are proved in
-`EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting`.
+`EraSpec.Contracts.InteropCenter.History.Properties.AtomicRouting` and are proved in
+`EraSpec.Contracts.InteropCenter.History.Proofs.AtomicRouting`.
 
 ## The code
 
@@ -143,7 +143,7 @@ The refund (`AtomicFlowManager.sol:165-180, 219-230`) calls `IAtomicRecoverable(
   source. The results speak of handler statuses and leg states, not of balances.
 -/
 
-namespace Contracts.InteropCenter.AtomicRouting
+namespace Contracts.InteropCenter.History.AtomicRouting
 
 open Contracts.AtomicFlowManager (LegState AppendGuard AuthorizeGuard ClaimGuard)
 open Contracts.AtomicFlowManager.RecoveryTargets (Code CallSem recoverStep claimRefund)
@@ -519,4 +519,4 @@ def arEnv : Env Unit where
   flowLegs := arFlowLegs
   absentElsewhere := fun _ _ => False
 
-end Contracts.InteropCenter.AtomicRouting
+end Contracts.InteropCenter.History.AtomicRouting

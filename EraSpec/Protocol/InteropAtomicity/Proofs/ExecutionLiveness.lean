@@ -2,7 +2,7 @@ import EraSpec.Protocol.InteropAtomicity.Properties.ExecutionLiveness
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import EraSpec.Protocol.InteropAtomicity.Proofs.Refund
 import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
@@ -44,8 +44,8 @@ open Contracts.InteropHandler (State Entry Callee Frame Tx Bundle BundleHash Eff
   AlwaysReverts mentions_headD mentions_tail)
 open AttackVectors.BundleStatusMachine (Status CallStatus)
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision)
-open Contracts.InteropCenter (Params Dispatch CrossSenderSaltClash EncInjOn bundleHash
-  bundlePreimage)
+open Contracts.InteropCenter (EncInjOn)
+open Contracts.InteropCenter.History (Params Dispatch CrossSenderSaltClash bundleHash bundlePreimage)
 open MerkleSpec (Hash)
 open Contracts.InteropCommitmentTree (LeafHash)
 open Contracts.Atomicity (CommitValue FlowHash System Wf Flow FlowLeg GateEvidence ExecutedViaBy)
@@ -297,9 +297,9 @@ theorem AtomicLegWithRevertingCallNeverExecutes :
 
 /-- A run whose valid proofs are all for published hashes presents none for an atomic leg's hash,
 unless one of the two named clashes. -/
-lemma noProofRun_of_sound {P : Params} {S : Contracts.InteropCenter.State}
-    (hreach : Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init S)
+lemma noProofRun_of_sound {P : Params} {S : Contracts.InteropCenter.History.State}
+    (hreach : Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init S)
     (henc : EncInjOn P.enc (S.log.map Dispatch.bundle))
     {pubs : List (UInt256 × List UInt8)} (hpubs : PublishesOnlyPublicDispatches P S.log pubs)
     {d : Dispatch} (hd : d ∈ S.log) (hat : d.isAtomic = true) {txs : List Tx}
@@ -642,23 +642,23 @@ theorem RevertingLegWitness : Properties.RevertingLegWitness := by
       · exact .reverts
 
 theorem RevertingLegFromSourceWitness : Properties.RevertingLegFromSourceWitness := by
-  have hlog : Contracts.InteropCenter.wS3.log =
-      [Contracts.InteropCenter.wD1, Contracts.InteropCenter.wD2] := rfl
+  have hlog : Contracts.InteropCenter.History.wS3.log =
+      [Contracts.InteropCenter.History.wD1, Contracts.InteropCenter.History.wD2] := rfl
   have h12 : (1 : UInt256) ≠ 2 := by decide
-  refine ⟨Contracts.InteropCenter.wReach, ?_, ?_, by rw [hlog]; simp, rfl,
-    Contracts.InteropCenter.wHash1, rfl, ?_, ?_, by decide, ?_, ?_⟩
+  refine ⟨Contracts.InteropCenter.History.wReach, ?_, ?_, by rw [hlog]; simp, rfl,
+    Contracts.InteropCenter.History.wHash1, rfl, ?_, ?_, by decide, ?_, ?_⟩
   · rw [hlog]
-    exact Contracts.InteropCenter.encInjOn_pair Contracts.InteropCenter.wEnc_ne
+    exact Contracts.InteropCenter.encInjOn_pair Contracts.InteropCenter.History.wEnc_ne
   · intro p hp _
     simp only [List.mem_singleton] at hp
     subst hp
-    exact ⟨Contracts.InteropCenter.wD2, by rw [hlog]; simp, rfl, rfl⟩
+    exact ⟨Contracts.InteropCenter.History.wD2, by rw [hlog]; simp, rfl, rfl⟩
   · intro t ht e he
     simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
     rcases ht with rfl | rfl
     · rw [Contracts.InteropHandler.tx_mentions_nil rfl he]
       intro _
-      exact ⟨_, List.mem_singleton_self _, Contracts.InteropCenter.wHash2.symm⟩
+      exact ⟨_, List.mem_singleton_self _, Contracts.InteropCenter.History.wHash2.symm⟩
     · rcases he with rfl | ⟨c, hc, hm⟩
       · trivial
       · simp only [wRevertingAttempt, List.mem_singleton] at hc
@@ -681,9 +681,9 @@ theorem RevertingLegFromSourceWitness : Properties.RevertingLegFromSourceWitness
   · rintro ⟨p, hp, -, hk⟩
     simp only [List.mem_singleton] at hp
     subst hp
-    have hk' : bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle =
-        bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD2.bundle := hk
-    rw [Contracts.InteropCenter.wHash1, Contracts.InteropCenter.wHash2] at hk'
+    have hk' : bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle =
+        bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD2.bundle := hk
+    rw [Contracts.InteropCenter.History.wHash1, Contracts.InteropCenter.History.wHash2] at hk'
     exact h12 hk'
 
 theorem EscapeWitness : Properties.EscapeWitness := by

@@ -1,5 +1,5 @@
 import Mathlib.Tactic
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.Specs.Common
 
 /-!
 # Model: `InteropCenter` fee state at draft/v0.35.0 — balances, fee ledgers, claims, fee

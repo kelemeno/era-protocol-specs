@@ -222,7 +222,7 @@ is the payment of call value, fees, or the router's `indirectCallMessageValue`.
 
 ## AtomicRouting
 
-Namespace `Contracts.InteropCenter.AtomicRouting` (`c67894b9`). It composes this chain's
+Namespace `Contracts.InteropCenter.History.AtomicRouting` (`c67894b9`). It composes this chain's
 center and manager (`Dispatch`'s state), a ghost log of each send's entry point and
 `atomicBundle` attribute, the source chain's code map and world for the refund loop
 (`AtomicFlowManager` topic `RecoveryTargets`), and every destination's `bundleStatus`.

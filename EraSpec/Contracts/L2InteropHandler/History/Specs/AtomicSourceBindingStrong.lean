@@ -1,5 +1,5 @@
 import EraSpec.Contracts.L2InteropHandler.Specs.AtomicSourceBinding
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 
 /-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
@@ -81,14 +81,15 @@ On the source chain `c`, `AtomicFlowManager.append` inserts `commitValue(flowId,
   that center computed. For a chain running the deployed center it follows from the tree/manager
   link (`TreeBackedByManager`, LocalHonesty's links 1–2, which
   `Contracts.AppendPath.RunKeysAreLoggedCommitValues` proves for the append-path model) and
-  `Contracts.InteropCenter.CommittedLegsAreValidatedDispatches` (link 3):
+  `Contracts.InteropCenter.History.CommittedLegsAreValidatedDispatches` (link 3):
   `Properties.CenterRunTreeHoldsOwnLegs`.
 -/
 
 namespace AttackVectors.AtomicSourceBinding.History
 
 open AttackVectors.BundleHashEncoding (abiEncode word)
-open Contracts.InteropCenter (Params Dispatch Word bundleHash)
+open Contracts.InteropCenter (Word)
+open Contracts.InteropCenter.History (Params Dispatch bundleHash)
 open Contracts.AtomicFlowManager (LegState)
 
 /-! ## The validator and its two call sites -/
@@ -149,7 +150,7 @@ def TreeHoldsOwnLegs (P : Params) (tag : Word) (log : List Dispatch) (T : Set Wo
 value of a leg that chain `P`'s flow manager has moved out of `Unset`: the tree's only inserter is
 the manager (`L2InteropCommitmentTree.sol:54`), which inserts only in `append`, right after
 committing the leg (`AtomicFlowManager.sol:95-99`). -/
-def TreeBackedByManager (P : Params) (tag : Word) (S : Contracts.InteropCenter.State)
+def TreeBackedByManager (P : Params) (tag : Word) (S : Contracts.InteropCenter.History.State)
     (T : Set Word) : Prop :=
   ∀ v ∈ T, v = 0 ∨ ∃ f h, S.manager.legState f h ≠ .Unset ∧ v = commitValue P.keccak tag f h
 
@@ -174,8 +175,8 @@ def wTag : Word := 5
 
 /-- Chain `324`'s tree after `wD1`'s `append`: the sentinel and `wD1`'s commit value. -/
 def wTree : Set Word :=
-  {v | v = 0 ∨ v = commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-    (bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle)}
+  {v | v = 0 ∨ v = commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+    (bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle)}
 
 /-- Bytes declaring source chain `325`, presented to the destination. -/
 def wForeignBytes : List UInt8 := word 5
@@ -184,9 +185,9 @@ def wForeignBytes : List UInt8 := word 5
 computed with source chain `325` — what a chain not running an unmodified deployment could
 insert. -/
 def wForeignTree : Set Word :=
-  {v | v = 0 ∨ v = commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-      (bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle) ∨
-    v = commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-      (destBundleHash Contracts.InteropCenter.wParams.keccak 325 wForeignBytes)}
+  {v | v = 0 ∨ v = commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+      (bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle) ∨
+    v = commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+      (destBundleHash Contracts.InteropCenter.History.wParams.keccak 325 wForeignBytes)}
 
 end AttackVectors.AtomicSourceBinding.History

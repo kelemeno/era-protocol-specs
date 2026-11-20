@@ -1,5 +1,5 @@
-import EraSpec.Contracts.InteropCenter.Properties.AtomicRouting
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Properties.AtomicRouting
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
 
 /-!
@@ -15,7 +15,7 @@ bytes behind a status or a claim have the dispatched bundle's own preimage (`abi
 if so they are its bytes, otherwise there is a pinned keccak collision.
 -/
 
-namespace Contracts.InteropCenter.AtomicRouting
+namespace Contracts.InteropCenter.History.AtomicRouting
 
 open Contracts.AtomicFlowManager (LegState Manager AppendGuard AuthorizeGuard ClaimGuard)
 open Contracts.AtomicFlowManager.RecoveryTargets (Code CallSem VmCall NoRecovererAt recoverStep
@@ -1037,4 +1037,4 @@ theorem AttributeRoutingByEntryPointWitness : Properties.AttributeRoutingByEntry
     ⟨arS1, by rw [arSends]; simp, rfl, rfl, rfl⟩, ⟨arSL, by rw [arSends]; simp, rfl, rfl, rfl⟩,
     ⟨arSW, by rw [arSends]; simp, rfl, rfl, rfl⟩, ⟨arSMA, by rw [arQSends]; simp, rfl, rfl, rfl⟩⟩
 
-end Contracts.InteropCenter.AtomicRouting
+end Contracts.InteropCenter.History.AtomicRouting

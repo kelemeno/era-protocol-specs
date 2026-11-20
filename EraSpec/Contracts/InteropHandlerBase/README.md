@@ -99,7 +99,7 @@ never-published premise for bundles published by other chains is outside both th
 on overflow).
 
 `BundleStatusMachine`'s atomic sub-machine relies on atomic bundles never being published
-to L1. This chain's half of that fact is `Contracts.InteropCenter.AtomicBytesNeverPublished`
+to L1. This chain's half of that fact is `Contracts.InteropCenter.History.AtomicBytesNeverPublished`
 (under `EncInjOn`, except a pinned cross-sender salt clash).
 
 Three topics restate statements of the original topics that, as written, are facts about

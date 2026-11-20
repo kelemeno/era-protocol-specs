@@ -349,9 +349,9 @@ chain, only keys of `S`'s tree, then the chain vouches honestly against the legs
 dispatched. The tree half of `HonestVouching` is `SourceBindingReduced`'s
 `SourceKeysAreDispatchedCommitValues`; the verifier half is the premise. -/
 def Properties.DeployedRunVouchesHonestly : Prop :=
-  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.History.SourceState),
+  ∀ (D : Dest) (P : Contracts.InteropCenter.History.Params) (S : Contracts.SourceBinding.History.SourceState),
     P.keccak = D.keccak →
-    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.History.deployed P (commitValue P.keccak)
       Contracts.SourceBinding.History.sourceGenesis S →
     AcceptsOnlyKeysOf D P.chainId S →
       HonestVouching D P.chainId (dispatchLegs P S.center)
@@ -368,9 +368,9 @@ Then one of:
 * some atomic dispatch `d` of that run clashes with the executing leg on a named pair of preimages;
 * the executing leg's commit value is the sentinel `0`. -/
 def Properties.AtomicExecutionRunsADispatchedBundleOrBreak : Prop :=
-  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.History.SourceState),
+  ∀ (D : Dest) (P : Contracts.InteropCenter.History.Params) (S : Contracts.SourceBinding.History.SourceState),
     P.keccak = D.keccak →
-    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.History.deployed P (commitValue P.keccak)
       Contracts.SourceBinding.History.sourceGenesis S →
     AcceptsOnlyKeysOf D P.chainId S →
     ∀ (st st' : HandlerState) (caller : Address) (B : List UInt8) (fin : AtomicFinalityProof)
@@ -381,7 +381,7 @@ def Properties.AtomicExecutionRunsADispatchedBundleOrBreak : Prop :=
           d.bundle.sourceChainId = P.chainId ∧
           ((b.sourceChainId = P.chainId ∧ (∀ x ∈ ds, x.sourceChainId = P.chainId) ∧
               d.atomicSend.flowId = fin.flow.flowId ∧
-              executedPreimage B b = Contracts.InteropCenter.bundlePreimage P d.bundle)
+              executedPreimage B b = Contracts.InteropCenter.History.bundlePreimage P d.bundle)
             ∨ CommitPreimageClash D.keccak fin.flow.flowId (executedHash D B b) P.chainId
                 ⟨d.atomicSend.flowId, P.enc d.bundle⟩
             ∨ BundlePreimageClash D.keccak B b P.chainId ⟨d.atomicSend.flowId, P.enc d.bundle⟩))
@@ -398,9 +398,9 @@ indirect sender contract one of `d`'s indirect starters named (`:739`). So the i
 `formatEvmV1(sourceChainId, from)` each recipient sees is an account on the vouching chain that took
 part in the send. -/
 def Properties.AtomicExecutionRunsTheDispatchedBundleOrBreak : Prop :=
-  ∀ (D : Dest) (P : Contracts.InteropCenter.Params) (S : Contracts.SourceBinding.History.SourceState),
+  ∀ (D : Dest) (P : Contracts.InteropCenter.History.Params) (S : Contracts.SourceBinding.History.SourceState),
     P.keccak = D.keccak →
-    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.History.deployed P (commitValue P.keccak)
       Contracts.SourceBinding.History.sourceGenesis S →
     AcceptsOnlyKeysOf D P.chainId S →
     (∀ d ∈ S.center.log, D.decode (P.enc d.bundle) = some d.bundle) →
@@ -429,11 +429,11 @@ the keys of that tree and decodes the dispatched bytes back. Every premise of
 chain `324`, the executing commit value is not `0`, neither clash holds on the dispatch, and the
 executed bundle is the dispatched one. -/
 def Properties.DeployedRunExecutionWitness : Prop :=
-  ∃ (P : Contracts.InteropCenter.Params) (D : Dest) (S : Contracts.SourceBinding.History.SourceState)
+  ∃ (P : Contracts.InteropCenter.History.Params) (D : Dest) (S : Contracts.SourceBinding.History.SourceState)
     (st st' : HandlerState) (caller : Address) (B : List UInt8) (fin : AtomicFinalityProof)
-    (b : Bundle) (ds : List Delivery) (p : ImtProof) (d : Contracts.InteropCenter.Dispatch),
+    (b : Bundle) (ds : List Delivery) (p : ImtProof) (d : Contracts.InteropCenter.History.Dispatch),
     P.keccak = D.keccak ∧
-    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P (commitValue P.keccak)
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.History.deployed P (commitValue P.keccak)
       Contracts.SourceBinding.History.sourceGenesis S ∧
     AcceptsOnlyKeysOf D P.chainId S ∧
     (∀ d' ∈ S.center.log, D.decode (P.enc d'.bundle) = some d'.bundle) ∧

@@ -142,14 +142,14 @@ def Properties.PinParserIsHeadParser : Prop :=
 `atomicBundle` is accepted by the pin's parser under `CallAndBundleAttributes`, the restriction the
 pin's `sendMessage` parsed under (pin :222-225). For every such list, the `AtomicSend` the pin's
 `sendMessage` passed is the constant non-atomic one (pin :246-252), and in the pin model a send with
-that `AtomicSend` leaves the manager unchanged (`Contracts.InteropCenter.State.afterSend`; at the pin
+that `AtomicSend` leaves the manager unchanged (`Contracts.InteropCenter.History.State.afterSend`; at the pin
 the bundle was published instead, pin :657). -/
 def Properties.PinSendMessageDroppedAtomicBundle : Prop :=
   (∃ attrs, HasAtomicBundle attrs ∧ pinParseAttributes attrs .callAndBundleAttributes ≠ none) ∧
   ∀ attrs, HasAtomicBundle attrs → pinParseAttributes attrs .callAndBundleAttributes ≠ none →
     (pinSendMessageAtomicSend attrs).isAtomic = false ∧
-    ∀ (P : Contracts.InteropCenter.Params) (S : Contracts.InteropCenter.State)
-      (d : Contracts.InteropCenter.Dispatch), d.atomicSend = pinSendMessageAtomicSend attrs →
+    ∀ (P : Contracts.InteropCenter.History.Params) (S : Contracts.InteropCenter.History.State)
+      (d : Contracts.InteropCenter.History.Dispatch), d.atomicSend = pinSendMessageAtomicSend attrs →
       (S.afterSend P d).manager = S.manager
 
 /-- **THE PIN'S FINDING IS REJECTED AT HEAD.** For every attribute list carrying `atomicBundle` that
@@ -330,7 +330,7 @@ def Properties.WithoutSaltCheckABundleRepeats : Prop :=
 code commits an atomic leg whose bundle has a call carrying native value, and whose
 `totalBurnedCallsValue` (the call value `_ensureCorrectTotalValue` burns or deposits, :433-449) is
 nonzero. The conclusion `Validated` of the pin's
-`Contracts.InteropCenter.Properties.CommittedLegsAreValidatedDispatches` (and of
+`Contracts.InteropCenter.History.Properties.CommittedLegsAreValidatedDispatches` (and of
 `AtomicDispatchesCarryNoValue`) fails on it, and so does the pin's `AtomicDispatchBurnsNothing`. -/
 def Properties.ValueLegCommitsAtHead : Prop :=
   ∃ (P : Params) (S : State), Reach deployed P init S ∧
@@ -502,7 +502,7 @@ def Properties.LoggedRunBundleHashesUnique : Prop :=
 /-- **AN APPENDED BUNDLE IS NEVER PUBLISHED TO L1.** Along any run, with or without the checks, if
 the encoder separates the run's bundles, no appended dispatch's `BUNDLE_IDENTIFIER ++
 abi.encode(bundle)` is among the center's L1 messages. At the pin the deployed form needed a
-cross-sender salt-clash disjunct (`Contracts.InteropCenter.Properties.AtomicBytesNeverPublished`);
+cross-sender salt-clash disjunct (`Contracts.InteropCenter.History.Properties.AtomicBytesNeverPublished`);
 at head `_dispatchBundle` publishes exactly the bundles whose destination is L1 and appends the
 others. -/
 def Properties.AtomicBytesNeverPublished : Prop :=
@@ -612,7 +612,7 @@ third dispatches the withdrawal, a `sendBundle` without the attribute and non-at
 branch, `CallLevelAtomicBundleReverts`, `NonAtomicL2SendRevertsInAppend`), and is also a step of
 `withPinSendMessage` (`PinConstantMakesSendMessageUnusable`). A `sendMessage` dispatch without the
 attribute exists (`SendMessageWithoutAttributeReverts`), and the pin model's public witness dispatch
-`Contracts.InteropCenter.wD2` carries the pin's `sendMessage` constant (the dispatch premise of
+`Contracts.InteropCenter.History.wD2` carries the pin's `sendMessage` constant (the dispatch premise of
 `PinSendMessageDroppedAtomicBundle`). -/
 def Properties.SendAtHeadStepWitness : Prop :=
   Step deployed headParams init headS1 ∧ headS1.log = init.log ++ [headMsg] ∧
@@ -625,7 +625,7 @@ def Properties.SendAtHeadStepWitness : Prop :=
     headWithdrawal.atomicSend.isAtomic = false ∧
     Step withPinSendMessage headParams headS2 headS3 ∧
     (∃ d : Dispatch, d.entry = .sendMessage ∧ ¬ HasAtomicBundle d.attrs) ∧
-    Contracts.InteropCenter.wD2.atomicSend = pinSendMessageAtomicSend headMsg.attrs
+    Contracts.InteropCenter.History.wD2.atomicSend = pinSendMessageAtomicSend headMsg.attrs
 
 /-- **`ClaimedBundleIsDispatchedOrCollision`'S PREMISES HOLD, WITH ITS FIRST DISJUNCT.** On the
 honest run, `headDec` inverts the encoder on the run's bundles, and the leg `claimRefund(7, x)` reads,

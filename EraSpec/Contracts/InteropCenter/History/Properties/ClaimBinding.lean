@@ -1,13 +1,13 @@
-import EraSpec.Contracts.InteropCenter.Specs.ClaimBinding
-import EraSpec.Contracts.InteropCenter.Properties.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.ClaimBinding
+import EraSpec.Contracts.InteropCenter.History.Properties.Dispatch
 
 /-!
 # Properties: a claimed bundle is a dispatched bundle
 
 Statements about what `claimRefund(f, x)` (AtomicFlowManager.sol:165-180) recovers, on the dispatch
-model of `EraSpec.Contracts.InteropCenter.Specs.Dispatch`, with the claim-side names of
-`EraSpec.Contracts.InteropCenter.Specs.ClaimBinding`. Proofs are in
-`EraSpec.Contracts.InteropCenter.Proofs.ClaimBinding`. Every run starts from fresh storage
+model of `EraSpec.Contracts.InteropCenter.History.Specs.Dispatch`, with the claim-side names of
+`EraSpec.Contracts.InteropCenter.History.Specs.ClaimBinding`. Proofs are in
+`EraSpec.Contracts.InteropCenter.History.Proofs.ClaimBinding`. Every run starts from fresh storage
 (`init`) on one chain; `deployed` is the code with all three of its checks. The source is the pin
 `c67894b9`; `Specs/ClaimBinding.lean` lists what differs at the current heads.
 
@@ -144,7 +144,7 @@ need the salt check or the value check (`ClaimBindingIndependentOfSaltAndValueCh
   `CollisionLetsAClaimRecoverUndispatchedCalls`.
 -/
 
-namespace Contracts.InteropCenter
+namespace Contracts.InteropCenter.History
 
 open Contracts.AtomicFlowManager (LegState)
 
@@ -549,7 +549,7 @@ code, each with two atomic dispatches at different log positions:
 The second run is on `collidingParams`, a constant keccak, and works through O1 (c)'s
 cross-sender salt clash (`clashLeg7`, `clashLeg8`). On a chain where keccak separates the salt
 preimages, equal canonical bytes already force equal positions
-(`Contracts.InteropCenter.Properties.DistinctDispatchesDistinctBundles` with the round trip), so
+(`Contracts.InteropCenter.History.Properties.DistinctDispatchesDistinctBundles` with the round trip), so
 the flow match is needed only because the statement takes no hash premise. -/
 def Properties.ClaimIdentifiesOneDispatchNeedsBothMatches : Prop :=
   (∃ (P : Params) (S : State), Reach deployed P init S ∧
@@ -658,4 +658,4 @@ def Properties.ClaimBindingTwoClaimsWitness : Prop :=
     ¬ ClaimHashCollision P dec S₂.log f' x' ∧
     ¬ ∃ d ∈ S₂.log, ∃ d' ∈ S₂.log, CrossSenderSaltClash P d d'
 
-end Contracts.InteropCenter
+end Contracts.InteropCenter.History

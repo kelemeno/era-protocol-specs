@@ -1,5 +1,5 @@
 import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryLimits
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 
 /-!
 # Model: the refund loop's external call, at the pin and at `draft/v0.35.0`
@@ -77,11 +77,11 @@ checks for that destination are modelled in `AssetRouterBase/Specs/AtomicRecover
 * **Not modelled.** Gas: a call that runs out of gas is one more `reverted`. Events. Re-entry into
   the manager from a recovery call: the manager's storage is not part of the world `W`
   (`MODEL-AFM-NESTED` models re-entry). The proof checks of `authorizeRefund`:
-  `Contracts.InteropCenter.Step.authorize` omits them, so the witness leg reaches `Revertable` in
+  `Contracts.InteropCenter.History.Step.authorize` omits them, so the witness leg reaches `Revertable` in
   that model only. Which bundle bytes a claimant presents: the claim is stated for the bundle
   presented. Bytes other than the leg's own reach the leg's key only through a keccak collision on
   the bundle-hash preimage, as `RecoveryLimitsStrong` records (`Specs/RecoveryLimitsStrong.lean`;
-  the center model's form is `Contracts.InteropCenter.ClaimedBundleValidatedOrCollision`). What the
+  the center model's form is `Contracts.InteropCenter.History.ClaimedBundleValidatedOrCollision`). What the
   code at any target does beyond its answer. At `b17415d`: the send side (including
   `AtomicBundleToL1NotSupported`, `IndirectCallOnlyToAssetRouter` and
   `IndirectCallCannotCarryValue`, `InteropCenter.sol:553, 659-678`), the bundle hash, which no
@@ -256,20 +256,20 @@ def wDirectCall : InteropCall := ⟨5, 1, 0, []⟩
 
 /-- The two-call leg. Sender `1`, salt `3`, flow `7`: the router's deposit call and the direct
 call. -/
-def mixD : Contracts.InteropCenter.Dispatch :=
+def mixD : Contracts.InteropCenter.History.Dispatch :=
   ⟨1, [Contracts.InteropCenter.wIndirect, Contracts.InteropCenter.wDirect 0],
-    Contracts.InteropCenter.wBundle Contracts.InteropCenter.wParams 1 3 [wRouterCall, wDirectCall],
+    Contracts.InteropCenter.History.wBundle Contracts.InteropCenter.History.wParams 1 3 [wRouterCall, wDirectCall],
     ⟨7, 0, 100, true⟩⟩
 
 /-- After the send: the two-call leg is `Committed`. -/
-def mixS1 : Contracts.InteropCenter.State :=
-  Contracts.InteropCenter.init.afterSend Contracts.InteropCenter.wParams mixD
+def mixS1 : Contracts.InteropCenter.History.State :=
+  Contracts.InteropCenter.History.init.afterSend Contracts.InteropCenter.History.wParams mixD
 
 /-- After `authorizeRefund`: the two-call leg is `Revertable`. -/
-def mixS2 : Contracts.InteropCenter.State :=
+def mixS2 : Contracts.InteropCenter.History.State :=
   { mixS1 with
     manager := (mixS1.manager.set 7
-      (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle) .Revertable) }
+      (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle) .Revertable) }
 
 /-- A source chain on which code runs only at the router `9`, for any world type. The router
 answers `true` to its deposit bytes and `false` to anything else, and changes nothing.

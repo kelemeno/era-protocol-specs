@@ -1,12 +1,12 @@
 import EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 
 /-!
 # Model additions: the bundle status machine, read off the handler model
 
 Source: era-contracts at the pin `c67894b9`, as in `Specs/Reentrancy.lean` and
-`../../InteropCenter/Specs/Dispatch.lean`. Paths are relative to
+`../../InteropCenter/History/Specs/Dispatch.lean`. Paths are relative to
 `l1-contracts/contracts/interop/interop-handler/` unless they name another file.
 
 **This file is definitions only.** The results are in
@@ -110,8 +110,8 @@ def PublishedHash (keccak : List UInt8 → UInt256) (pubs : List (UInt256 × Lis
 `pubs` from chain `P.chainId` is `abi.encode(bundle)` of a non-atomic dispatch in chain `P`'s
 center log: `_sendBundleToL1` (`InteropCenter.sol:657`) is reached only on the non-atomic branch
 of `_dispatchBundle`, and it is the center's only bundle publication. -/
-def PublishesOnlyPublicDispatches (P : Contracts.InteropCenter.Params)
-    (log : List Contracts.InteropCenter.Dispatch) (pubs : List (UInt256 × List UInt8)) : Prop :=
+def PublishesOnlyPublicDispatches (P : Contracts.InteropCenter.History.Params)
+    (log : List Contracts.InteropCenter.History.Dispatch) (pubs : List (UInt256 × List UInt8)) : Prop :=
   ∀ p ∈ pubs, p.1 = P.chainId → ∃ d' ∈ log, d'.isAtomic = false ∧ p.2 = P.enc d'.bundle
 
 /-! ## Witness data -/

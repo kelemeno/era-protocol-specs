@@ -1,6 +1,6 @@
 import EraSpec.Protocol.InteropAtomicity.Properties.DispatchLiveness
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 
 /-!
 # Proofs: an informed sender's atomic dispatch is enabled, unless a pinned clash
@@ -33,8 +33,8 @@ open Contracts.InteropCommitmentTree (Tree Valid lowSearch InsertGuard maxLowInd
   registered_is_key insert_preserves_valid reaches_valid setup_valid search_yields_guard
   insert_leafCount)
 open Contracts.AppendPath (ChainState AppendSucceeds InsertSucceeds reseed)
-open Contracts.InteropCenter (Params Dispatch FormedBy Validated bundleHash markSalt
-  CrossSenderSaltClash BundleClash SaltClash Address Word wParams collidingParams)
+open Contracts.InteropCenter (Validated markSalt Address Word)
+open Contracts.InteropCenter.History (Params Dispatch FormedBy bundleHash CrossSenderSaltClash BundleClash SaltClash wParams collidingParams)
 open Contracts.AtomicFlowManager (LegState AppendGuard AuthorizeGuard ClaimGuard)
 open Contracts.Atomicity (Chain CommitValue)
 open Contracts.Refund (Obligation CommitClash)
@@ -470,31 +470,31 @@ lemma legOf_eq {P : Params} {d d' : Dispatch} :
 /-- The center's view of one step: a deployed center step, or no change. -/
 lemma step_center {P : Params} {cv : CommitValue} {Y Z : State} (hs : Step P cv Y Z) :
     Z.center = Y.center ∨
-      Contracts.InteropCenter.Step Contracts.InteropCenter.deployed P Y.center Z.center := by
+      Contracts.InteropCenter.History.Step Contracts.InteropCenter.History.deployed P Y.center Z.center := by
   cases hs with
   | sendPublic d hat hsalt hform =>
     right
     have heq : (Y.afterPublic d).center = Y.center.afterSend P d := by
-      simp [State.center, State.afterPublic, Contracts.InteropCenter.State.afterSend, hat]
+      simp [State.center, State.afterPublic, Contracts.InteropCenter.History.State.afterSend, hat]
     rw [heq]
-    refine Contracts.InteropCenter.Step.send d (fun _ => hsalt) hform ?_ ?_
+    refine Contracts.InteropCenter.History.Step.send d (fun _ => hsalt) hform ?_ ?_
     · intro h; rw [hat] at h; exact absurd h (by decide)
     · intro h; rw [hat] at h; exact absurd h (by decide)
   | sendAtomic d low hat hsalt hform hval happ =>
     right
     have heq : (Y.afterAtomic P cv d low).center = Y.center.afterSend P d := by
-      simp [State.center, State.afterAtomic, Contracts.InteropCenter.State.afterSend, hat]
+      simp [State.center, State.afterAtomic, Contracts.InteropCenter.History.State.afterSend, hat]
     rw [heq]
-    exact Contracts.InteropCenter.Step.send d (fun _ => hsalt) hform
+    exact Contracts.InteropCenter.History.Step.send d (fun _ => hsalt) hform
       (fun _ _ => hval) (fun _ => happ.legUnset)
-  | authorize f hh hg => exact Or.inr (Contracts.InteropCenter.Step.authorize f hh hg)
-  | claim f hh hg => exact Or.inr (Contracts.InteropCenter.Step.claim f hh hg)
+  | authorize f hh hg => exact Or.inr (Contracts.InteropCenter.History.Step.authorize f hh hg)
+  | claim f hh hg => exact Or.inr (Contracts.InteropCenter.History.Step.claim f hh hg)
   | initL2 _ => exact Or.inl rfl
 
 /-- The center's view of a run is a deployed center run. -/
 theorem reach_center {P : Params} {cv : CommitValue} {X : State} (h : Reach P cv genesis X) :
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init X.center := by
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init X.center := by
   induction h with
   | refl => exact .refl
   | tail _ hs ih =>
@@ -537,17 +537,17 @@ theorem DispatchRunProjectsToAppendPath : Properties.DispatchRunProjectsToAppend
 logged dispatch `d'` and a dispatch `d` whose salt is unused, formed as `_sendBundle` forms it,
 with equal bundle hashes: their bundles are equal through a cross-sender salt clash, or they are
 two different bundles with one hash. -/
-lemma shared_hash_clash {P : Params} {S : Contracts.InteropCenter.State}
-    (hr : Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init S)
+lemma shared_hash_clash {P : Params} {S : Contracts.InteropCenter.History.State}
+    (hr : Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init S)
     {d d' : Dispatch} (hd' : d' ∈ S.log) (hsalt : S.saltUsed d.sender d.salt = false)
     (hform : FormedBy P d) (hh : bundleHash P d'.bundle = bundleHash P d.bundle) :
     CrossSenderSaltClash P d d' ∨ BundleClash P d.bundle d'.bundle := by
-  have hI := Contracts.InteropCenter.inv_reach hr
+  have hI := Contracts.InteropCenter.History.inv_reach hr
   have hused : S.saltUsed d'.sender d'.salt = true := (hI.salt _ _).mpr ⟨d', hd', rfl, rfl⟩
   by_cases hb : d.bundle = d'.bundle
   · left
-    have hsalteq : d.salt = d'.salt := by simp [Contracts.InteropCenter.Dispatch.salt, hb]
+    have hsalteq : d.salt = d'.salt := by simp [Contracts.InteropCenter.History.Dispatch.salt, hb]
     have hsender : d.sender ≠ d'.sender := by
       intro hs
       rw [hs, hsalteq, hused] at hsalt
@@ -566,7 +566,7 @@ theorem FreshDispatchPassesManagerGuardOrClash :
   · exact Or.inl hu
   · right
     obtain ⟨d', hd', hat', hf, hh⟩ :=
-      (Contracts.InteropCenter.inv_reach hr).legs rfl _ _ hu
+      (Contracts.InteropCenter.History.inv_reach hr).legs rfl _ _ hu
     exact ⟨d', hd', hat', hf, hh, shared_hash_clash hr hd' hsalt hform hh⟩
 
 /-- **A KEY OF THE TREE IS EXPLAINED BY THE LOG.** On a reachable state, if the commit value of
@@ -684,7 +684,7 @@ theorem AtomicDispatchBlockedIffClash : Properties.AtomicDispatchBlockedIffClash
   · rintro ⟨d', hd', hat', hcl⟩ i ⟨low, happ⟩
     rcases hcl with ⟨hleg, -⟩ | hcl
     · -- the leg is already committed, so the manager's guard fails
-      have hstay := Contracts.InteropCenter.AppendedLegsStayCommitted _ P _ (reach_center h)
+      have hstay := Contracts.InteropCenter.History.AppendedLegsStayCommitted _ P _ (reach_center h)
         d' hd' hat'
       obtain ⟨hf, hh⟩ := legOf_eq.mp hleg
       have hu : X.chain.mgr.legState d.atomicSend.flowId (bundleHash P d.bundle) = .Unset :=
@@ -709,12 +709,12 @@ lemma atomicDispatch_formed (P : Params) (s : Address) (salt : Word) (hint : ℕ
 lemma atomicDispatch_validated (P : Params) (s : Address) (salt : Word) (hint : ℕ) :
     Validated (atomicDispatch P s salt hint).bundle := by
   intro c hc
-  simp only [atomicDispatch, Contracts.InteropCenter.wBundle, List.mem_singleton] at hc
+  simp only [atomicDispatch, Contracts.InteropCenter.History.wBundle, List.mem_singleton] at hc
   subst hc; rfl
 
 lemma atomicDispatch_hash (s : Address) (salt : Word) (hint : ℕ) :
     bundleHash wParams (atomicDispatch wParams s salt hint).bundle = salt :=
-  Contracts.InteropCenter.bundleHash_wParams _
+  Contracts.InteropCenter.History.bundleHash_wParams _
 
 /-- The first append of every witness run: the value `1` through the sentinel. -/
 lemma first_append (cv : CommitValue) (f b : UInt256) (h1 : cv f b = 1) :
@@ -891,14 +891,14 @@ theorem CommitClashBlocksHonestDispatch : Properties.CommitClashBlocksHonestDisp
 /-- Under the constant keccak: sender `s`, salt `3`, one indirect call through `9`. -/
 def sharingDispatch (s : Address) : Dispatch :=
   ⟨s, [Contracts.InteropCenter.wIndirect],
-    Contracts.InteropCenter.wBundle collidingParams s 3 [⟨5, 9, 0, []⟩], ⟨7, 0, 100, true⟩⟩
+    Contracts.InteropCenter.History.wBundle collidingParams s 3 [⟨5, 9, 0, []⟩], ⟨7, 0, 100, true⟩⟩
 
 lemma sharingDispatch_formed (s : Address) : FormedBy collidingParams (sharingDispatch s) :=
   ⟨rfl, rfl, List.Forall₂.cons (Contracts.InteropCenter.formsCall_indirect s) List.Forall₂.nil⟩
 
 lemma sharingDispatch_validated (s : Address) : Validated (sharingDispatch s).bundle := by
   intro c hc
-  simp only [sharingDispatch, Contracts.InteropCenter.wBundle, List.mem_singleton] at hc
+  simp only [sharingDispatch, Contracts.InteropCenter.History.wBundle, List.mem_singleton] at hc
   subst hc; rfl
 
 theorem LegClashBlocksHonestDispatch : Properties.LegClashBlocksHonestDispatch := by

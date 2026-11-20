@@ -1,5 +1,5 @@
 import Mathlib.Tactic
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 
 /-!
 # Model: `InteropCenter` send path at head — every L2→L2 send is atomic
@@ -685,9 +685,9 @@ def bundleEncodings (P : Params) (log : List Dispatch) : List (List UInt8) :=
 /-! ## The pin's `sendMessage`, for comparison -/
 
 /-- The `AtomicSend` the pin's `sendMessage` passed to `_sendBundle`, in the pin's layout
-(`Contracts.InteropCenter.AtomicSend`): `AtomicSend({flowId: bytes32(0), lowNullifierIndex: 0,
+(`Contracts.InteropCenter.History.AtomicSend`): `AtomicSend({flowId: bytes32(0), lowNullifierIndex: 0,
 deadline: 0, isAtomic: false})` (pin `InteropCenter.sol:246-252`), whatever the attributes. -/
-def pinSendMessageAtomicSend (_attrs : List Attribute) : Contracts.InteropCenter.AtomicSend :=
+def pinSendMessageAtomicSend (_attrs : List Attribute) : Contracts.InteropCenter.History.AtomicSend :=
   ⟨0, 0, 0, false⟩
 
 /-! ## Witness data

@@ -51,8 +51,8 @@ the claim is stated for the bundle presented.
 namespace Contracts.AtomicFlowManager.RecoveryLimitsFaithful
 
 open AttackVectors.RecoveryLimits (Outcome ClaimAccepted)
-open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter Dispatch FormsCall
-  FormedBy)
+open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter FormsCall)
+open Contracts.InteropCenter.History (Dispatch FormedBy)
 
 /-! ## One call -/
 
@@ -190,7 +190,7 @@ center formed (`FormedBy`) with a direct call starter. If the starter's recipien
 on the source chain, every pinned `claimRefund` of the dispatch's bundle reverts, from every leg
 state and in every world. Witnessed by `DirectCallWithoutSourceCodeBlocksClaimWitness`. -/
 def Properties.DirectCallWithoutSourceCodeBlocksClaim : Prop :=
-  ∀ (P : Contracts.InteropCenter.Params) (d : Dispatch) (cs : CallStarter) (W : Type)
+  ∀ (P : Contracts.InteropCenter.History.Params) (d : Dispatch) (cs : CallStarter) (W : Type)
     (S : SourceChain W),
     FormedBy P d → cs ∈ d.starters → cs.callAttributes.indirectCall = false →
     NeverRunsCode S cs.target →
@@ -203,11 +203,11 @@ leg from the router's indirect starter and a direct starter with value `0`, and 
 `_validateAtomicBundle`. On `wSource` the direct starter's recipient never runs code; the router
 call recovers and the direct call reverts, and every claim of the leg's bundle reverts. -/
 def Properties.DirectCallWithoutSourceCodeBlocksClaimWitness : Prop :=
-  Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.init mixS2
+  Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.init mixS2
   ∧ mixS2.manager.legState mixD.atomicSend.flowId
-      (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle) = .Revertable
-  ∧ FormedBy Contracts.InteropCenter.wParams mixD
+      (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle) = .Revertable
+  ∧ FormedBy Contracts.InteropCenter.History.wParams mixD
   ∧ Contracts.InteropCenter.wDirect 0 ∈ mixD.starters
   ∧ (Contracts.InteropCenter.wDirect 0).callAttributes.indirectCall = false
   ∧ Contracts.InteropCenter.Validated mixD.bundle
@@ -259,13 +259,13 @@ deployed center model, so the deployed center and manager reach a state in which
 def Properties.PinnedClaimStepWitness : Prop :=
   claimRefundPinned wSourceConforming
       (mixS2.manager.legState 7
-        (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle))
+        (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle))
       () mixD.bundle = some (.Reverted, ())
-  ∧ Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.init
+  ∧ Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.init
       { mixS2 with
         manager := mixS2.manager.set 7
-          (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle)
+          (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle)
           .Reverted }
 
 /-! ## The loop at `draft/v0.35.0` (b17415d) -/

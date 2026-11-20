@@ -179,19 +179,19 @@ used one salt and keccak collides on their packed preimages (the clash of
 `InteropCenter.AtomicBytesNeverPublished`, with a public dispatch), or keccak collides on `d`'s
 bundle-hash preimage and that of a named published message. -/
 def Properties.AtomicLegStaysAtomicAtDestinationOrClash : Prop :=
-  ∀ (P : Contracts.InteropCenter.Params) (S : Contracts.InteropCenter.State),
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init S →
-    Contracts.InteropCenter.EncInjOn P.enc (S.log.map Contracts.InteropCenter.Dispatch.bundle) →
+  ∀ (P : Contracts.InteropCenter.History.Params) (S : Contracts.InteropCenter.History.State),
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init S →
+    Contracts.InteropCenter.EncInjOn P.enc (S.log.map Contracts.InteropCenter.History.Dispatch.bundle) →
     ∀ (pubs : List (UInt256 × List UInt8)), PublishesOnlyPublicDispatches P S.log pubs →
     ∀ d ∈ S.log, d.isAtomic = true →
     ∀ (s : State) (txs : List Tx),
-      s.bundle (Contracts.InteropCenter.bundleHash P d.bundle) = .Unreceived →
+      s.bundle (Contracts.InteropCenter.History.bundleHash P d.bundle) = .Unreceived →
       SoundProofRun (PublishedHash P.keccak pubs) txs →
       AtomicReach .Unreceived
-          ((submitAll .deployed s txs).1.bundle (Contracts.InteropCenter.bundleHash P d.bundle))
-      ∨ (∃ d' ∈ S.log, d'.isAtomic = false ∧ Contracts.InteropCenter.CrossSenderSaltClash P d d')
-      ∨ (∃ p ∈ pubs, HashCollision P.keccak (Contracts.InteropCenter.bundlePreimage P d.bundle)
+          ((submitAll .deployed s txs).1.bundle (Contracts.InteropCenter.History.bundleHash P d.bundle))
+      ∨ (∃ d' ∈ S.log, d'.isAtomic = false ∧ Contracts.InteropCenter.History.CrossSenderSaltClash P d d')
+      ∨ (∃ p ∈ pubs, HashCollision P.keccak (Contracts.InteropCenter.History.bundlePreimage P d.bundle)
             (abiEncode p.1.val p.2))
 
 /-- **THE CROSS-CONTRACT PREMISES HOLD ON A NONTRIVIAL RUN, AND BOTH CLASHES ARE FALSE ON IT.** On
@@ -202,33 +202,33 @@ the honest InteropCenter witness chain (`wParams`, run `wS3`: atomic leg `wD1`, 
 not a no-proof run for that hash — and it ends with `wD1`'s hash `FullyExecuted` and `wD2`'s
 `Verified`. Neither clash disjunct holds. -/
 def Properties.AtomicLegAtDestinationWitness : Prop :=
-  Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.init Contracts.InteropCenter.wS3 ∧
-    Contracts.InteropCenter.EncInjOn Contracts.InteropCenter.wParams.enc
-      (Contracts.InteropCenter.wS3.log.map Contracts.InteropCenter.Dispatch.bundle) ∧
-    PublishesOnlyPublicDispatches Contracts.InteropCenter.wParams Contracts.InteropCenter.wS3.log
-      [(Contracts.InteropCenter.wParams.chainId,
-        Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD2.bundle)] ∧
-    Contracts.InteropCenter.wD1 ∈ Contracts.InteropCenter.wS3.log ∧
-    Contracts.InteropCenter.wD1.isAtomic = true ∧
-    init.bundle (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.wD1.bundle) = .Unreceived ∧
-    SoundProofRun (PublishedHash Contracts.InteropCenter.wParams.keccak
-      [(Contracts.InteropCenter.wParams.chainId,
-        Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD2.bundle)]) wDestRun ∧
-    ¬ NoProofRun (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.wD2.bundle) wDestRun ∧
-    (submitAll .deployed init wDestRun).1.bundle (Contracts.InteropCenter.bundleHash
-      Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle) = .FullyExecuted ∧
-    (submitAll .deployed init wDestRun).1.bundle (Contracts.InteropCenter.bundleHash
-      Contracts.InteropCenter.wParams Contracts.InteropCenter.wD2.bundle) = .Verified ∧
-    ¬ Contracts.InteropCenter.CrossSenderSaltClash Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.wD1 Contracts.InteropCenter.wD2 ∧
-    ¬ HashCollision Contracts.InteropCenter.wParams.keccak
-      (Contracts.InteropCenter.bundlePreimage Contracts.InteropCenter.wParams
-        Contracts.InteropCenter.wD1.bundle)
-      (abiEncode Contracts.InteropCenter.wParams.chainId.val
-        (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD2.bundle))
+  Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.init Contracts.InteropCenter.History.wS3 ∧
+    Contracts.InteropCenter.EncInjOn Contracts.InteropCenter.History.wParams.enc
+      (Contracts.InteropCenter.History.wS3.log.map Contracts.InteropCenter.History.Dispatch.bundle) ∧
+    PublishesOnlyPublicDispatches Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wS3.log
+      [(Contracts.InteropCenter.History.wParams.chainId,
+        Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD2.bundle)] ∧
+    Contracts.InteropCenter.History.wD1 ∈ Contracts.InteropCenter.History.wS3.log ∧
+    Contracts.InteropCenter.History.wD1.isAtomic = true ∧
+    init.bundle (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.wD1.bundle) = .Unreceived ∧
+    SoundProofRun (PublishedHash Contracts.InteropCenter.History.wParams.keccak
+      [(Contracts.InteropCenter.History.wParams.chainId,
+        Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD2.bundle)]) wDestRun ∧
+    ¬ NoProofRun (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.wD2.bundle) wDestRun ∧
+    (submitAll .deployed init wDestRun).1.bundle (Contracts.InteropCenter.History.bundleHash
+      Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle) = .FullyExecuted ∧
+    (submitAll .deployed init wDestRun).1.bundle (Contracts.InteropCenter.History.bundleHash
+      Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD2.bundle) = .Verified ∧
+    ¬ Contracts.InteropCenter.History.CrossSenderSaltClash Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.wD1 Contracts.InteropCenter.History.wD2 ∧
+    ¬ HashCollision Contracts.InteropCenter.History.wParams.keccak
+      (Contracts.InteropCenter.History.bundlePreimage Contracts.InteropCenter.History.wParams
+        Contracts.InteropCenter.History.wD1.bundle)
+      (abiEncode Contracts.InteropCenter.History.wParams.chainId.val
+        (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD2.bundle))
 
 /-- **THE PREMISES OF (a) AND (b) ARE SATISFIABLE.** `wStaleCalls` (bundle `3` `Verified` with
 call 0 already `Executed`) meets the premises of `CallStatusDoesNotStopWholeBundleRedelivery`

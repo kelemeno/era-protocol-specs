@@ -197,7 +197,7 @@ The proof is a case split on `x = B`, with no derived content. What the statemen
 modelling fact that the center and both receivers apply the one function `bundleHashV35` to the
 bytes, with no decoded field in the comparison. At the pin the receivers hashed
 `abi.encode(decoded sourceChainId, x)` and the center `abi.encode(block.chainid, B)`: relating the
-two needs `abiEncode_right_inj` (`InteropCenter/Proofs/Dispatch.lean`), and the collision is then
+two needs `abiEncode_right_inj` (`InteropCenter/History/Proofs/Dispatch.lean`), and the collision is then
 on the two `abi.encode` preimages. -/
 @[headline] def Properties.SourceAndDestinationAgreeOrCollisionV35 : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (B x : List UInt8),

@@ -1,5 +1,5 @@
 import EraSpec.Protocol.InteropAtomicity.Specs.OncePerLeg
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 
 /-!
 # Model: when an atomic dispatch is enabled (liveness of the send path)
@@ -46,8 +46,8 @@ strictly between the hint's value and `v`: the sorted walk has to pass every one
 
 ## One chain's send path, composed
 
-`Contracts.InteropCenter.State` has the center's salt flags and the manager, but no tree: its
-`send` step omits the tree insertion inside `append` (`Contracts/InteropCenter/Specs/Dispatch.lean`,
+`Contracts.InteropCenter.History.State` has the center's salt flags and the manager, but no tree: its
+`send` step omits the tree insertion inside `append` (`Contracts/InteropCenter/History/Specs/Dispatch.lean`,
 "Checks that only reject ... are omitted"). `Contracts.AppendPath.ChainState` has the manager and
 the tree, but no center: its `append` step admits any `(flowId, bundleHash)`. A liveness
 statement needs both, because the hint is the dispatch's own `lowNullifierIndex`
@@ -72,7 +72,7 @@ statement needs both, because the hint is the dispatch's own `lowNullifierIndex`
 
 `State` below is the product: the salt flags, `Contracts.AppendPath.ChainState` (manager and
 tree), and the center's ghost dispatch log. Its steps are the deployed code only (all three
-checks of `Contracts.InteropCenter.deployed`):
+checks of `Contracts.InteropCenter.History.deployed`):
 
 * `sendPublic`: a non-atomic `_sendBundle` (salt check and write, `FormedBy`, log).
 * `sendAtomic`: an atomic `_sendBundle`: the salt check, `FormedBy`, `_validateAtomicBundle`, and
@@ -83,7 +83,7 @@ checks of `Contracts.InteropCenter.deployed`):
 * `initL2`: `L2InteropCommitmentTree.initL2` (`atomic-interop/L2InteropCommitmentTree.sol:47-50`),
   which `IndexedMerkleTree.setup` lets through only on an empty tree (`IndexedMerkleTree.sol:43-45`).
 
-The `foreignAppend` step of `Contracts.InteropCenter.Step` is absent: under `deployed` its two
+The `foreignAppend` step of `Contracts.InteropCenter.History.Step` is absent: under `deployed` its two
 premises (`caller ≠ center` and `caller = center`) contradict, so it never fires. The two
 projections (`Properties.DispatchRunProjectsToCenter`, `Properties.DispatchRunProjectsToAppendPath`)
 carry every result of both component models to this one.
@@ -138,8 +138,8 @@ open IMTAbstract
 open Contracts.InteropCommitmentTree (Tree Valid lowSearch InsertGuard maxLowIndexSearchAttempts
   chainTree Reaches Initialized toAbs setup)
 open Contracts.AppendPath (ChainState AppendSucceeds InsertSucceeds reseed)
-open Contracts.InteropCenter (Params Dispatch FormedBy Validated bundleHash markSalt
-  CrossSenderSaltClash BundleClash Address Word)
+open Contracts.InteropCenter (Validated markSalt Address Word)
+open Contracts.InteropCenter.History (Params Dispatch FormedBy bundleHash CrossSenderSaltClash BundleClash)
 open Contracts.AtomicFlowManager (LegState AppendGuard AuthorizeGuard ClaimGuard)
 open Contracts.Atomicity (Chain CommitValue)
 open Contracts.Refund (Obligation CommitClash)
@@ -194,7 +194,7 @@ nothing dispatched. -/
 def genesis : State := ⟨fun _ _ => false, Contracts.AppendPath.genesis, []⟩
 
 /-- The center's view of the state: what `Contracts.InteropCenter` reasons about. -/
-def State.center (X : State) : Contracts.InteropCenter.State := ⟨X.saltUsed, X.chain.mgr, X.log⟩
+def State.center (X : State) : Contracts.InteropCenter.History.State := ⟨X.saltUsed, X.chain.mgr, X.log⟩
 
 /-- The obligation an atomic dispatch commits on the chain `P.chainId` that ran it. -/
 def legOf (P : Params) (d : Dispatch) : Obligation :=
@@ -279,7 +279,7 @@ def withHint (d : Dispatch) (i : ℕ) : Dispatch :=
 
 /-! ## Witness data
 
-Chain `324` with the honest toy keccak of `Contracts.InteropCenter.wParams` (the last 32 bytes as a
+Chain `324` with the honest toy keccak of `Contracts.InteropCenter.History.wParams` (the last 32 bytes as a
 word), so that a bundle's hash is its user salt. -/
 
 /-- Commit value `fun _ b => b`: the leg's commit value is its bundle hash. -/
@@ -291,19 +291,19 @@ def constCv : CommitValue := fun _ _ => 1
 /-- Sender `s`, salt `s`: an atomic leg of flow `7` with one direct zero-value call, hint `hint`. -/
 def atomicDispatch (P : Params) (s : Address) (salt : Word) (hint : ℕ) : Dispatch :=
   ⟨s, [Contracts.InteropCenter.wDirect 0],
-    Contracts.InteropCenter.wBundle P s salt [⟨5, s, 0, []⟩], ⟨7, hint, 100, true⟩⟩
+    Contracts.InteropCenter.History.wBundle P s salt [⟨5, s, 0, []⟩], ⟨7, hint, 100, true⟩⟩
 
 /-- The honest send-path run: sender `1` dispatches an atomic leg (salt `1`, hint `0`). -/
 def wX1 : State :=
-  genesis.afterAtomic Contracts.InteropCenter.wParams bundleCv
-    (atomicDispatch Contracts.InteropCenter.wParams 1 1 0) 0
+  genesis.afterAtomic Contracts.InteropCenter.History.wParams bundleCv
+    (atomicDispatch Contracts.InteropCenter.History.wParams 1 1 0) 0
 
 /-- The next honest dispatch: sender `2`, salt `2`, with the exact hint `1` (the leaf holding `1`). -/
-def wNext : Dispatch := atomicDispatch Contracts.InteropCenter.wParams 2 2 1
+def wNext : Dispatch := atomicDispatch Contracts.InteropCenter.History.wParams 2 2 1
 
 /-- The same dispatch with the hint sender `2` read at genesis: the sentinel `0`, then the exact
 hint for its commit value. -/
-def wStaleNext : Dispatch := atomicDispatch Contracts.InteropCenter.wParams 2 2 0
+def wStaleNext : Dispatch := atomicDispatch Contracts.InteropCenter.History.wParams 2 2 0
 
 /-- `setup` after one insert of the value `1` through the sentinel. -/
 def wOneInsertTree : Tree := Contracts.InteropCommitmentTree.insert setup 1 0

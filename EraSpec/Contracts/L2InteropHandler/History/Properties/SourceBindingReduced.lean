@@ -85,8 +85,8 @@ namespace Contracts.SourceBinding.History
 
 open MerkleSpec IMTAbstract
 open AttackVectors.BundleHashEncoding (HashCollision)
-open Contracts.InteropCenter (Params Address Word Bundle Dispatch FormedBy Validated bundleHash
-  Checks deployed withoutOnlyInteropCenter KeccakInjOn bundlePreimages)
+open Contracts.InteropCenter (Address Word Bundle Validated KeccakInjOn)
+open Contracts.InteropCenter.History (Params Dispatch FormedBy bundleHash Checks deployed withoutOnlyInteropCenter bundlePreimages)
 open Contracts.AtomicFlowManager (LegState)
 open Contracts.Atomicity (CommitValue FlowHash System Flow FlowLeg GateEvidence ExecutedViaBy
   InclusionBreak Wf)
@@ -96,12 +96,12 @@ open Contracts.InteropCommitmentTree (toAbs LeafHash)
 /-! ## The composed run refines both component models -/
 
 /-- **A RUN OF THE VOUCHING CHAIN IS A RUN OF THE CENTER MODEL.** Forget the tree. Then every
-step is a `Contracts.InteropCenter.Step` with the same checks, or leaves the center unchanged
+step is a `Contracts.InteropCenter.History.Step` with the same checks, or leaves the center unchanged
 (`initL2`). So every result of topic `Dispatch` holds of the center half: salt uniqueness,
 validated atomic dispatches, and distinct bundle hashes up to pinned clashes. -/
 def Properties.SourceRunProjectsToCenterReach : Prop :=
   ∀ (K : Checks) (P : Params) (cv : CommitValue) (S T : SourceState),
-    SourceReach K P cv S T → Contracts.InteropCenter.Reach K P S.center T.center
+    SourceReach K P cv S T → Contracts.InteropCenter.History.Reach K P S.center T.center
 
 /-- **A RUN OF THE VOUCHING CHAIN IS A RUN OF THE APPEND PATH.** With `onlyInteropCenter` in place
 (whatever the other two checks), forget the salt flags and the dispatch log. Then a run from
