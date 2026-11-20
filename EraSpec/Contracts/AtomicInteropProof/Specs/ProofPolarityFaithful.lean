@@ -33,7 +33,7 @@ Paths are under `l1-contracts/contracts/`.
 
 Both gates pin the proof to the DECLARED chain `legSourceChainIds[i]`; the real source chain
 (`block.chainid` at dispatch, inside `bundleHash`) is a different value, and `append` is what ties
-them.  The source comment at `AtomicFlowManager.sol:192-194` ("defense-in-depth here (inclusion
+them.  The source comment at `AtomicFlowManager.sol:191-192` ("defense-in-depth here (inclusion
 self-binds via the chain-specific commit value)") reads the two as one, which `append`'s binding
 makes true on trees it wrote.
 

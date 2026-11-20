@@ -114,11 +114,13 @@ Witness for the premise, with a leg each side accepts and one it rejects:
 `honest_polarity_model_exists`.
 
 **Correction (ProofPolarityFaithful).**  The statement fixes the declared chain to `srcOf v`, so
-it is true but does not establish the label for the pinned contract: there the flow's declared
-chain is a separate value that the pinned `append` does not bind to the committing chain, and
-with it kept apart check A is load-bearing even under honest insertion
-(`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
-`History.PinnedMisdeclaredDoubleMint`). -/
+it is true but does not by itself establish the label: the flow's declared chain is a separate
+value, and with it kept apart check A is load-bearing exactly for misdeclared legs
+(`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`).  At `b17415d20`
+`append` binds the declared chain to the committing one (`AtomicFlowManager.sol:140-146`), which
+excludes misdeclared legs on trees it writes (`UpgradeExcludesMisdeclared`); the append of the
+extraction pin `c67894b9` did not, and there check A was load-bearing even under honest insertion
+(`History.PinnedMisdeclaredDoubleMint`, History). -/
 abbrev Properties.unchecked_inclusion_gate_iff_checked (h : HonestInsertion srcOf tree) (v : Value) :=
   (∃ c, UncheckedInclusionGate tree c v) ↔ (∃ c, CheckedInclusionGate tree (srcOf v) c v)
 

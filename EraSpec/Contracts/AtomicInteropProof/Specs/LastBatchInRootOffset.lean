@@ -31,7 +31,7 @@ checked in `append`, `requireFlowFinalized` and `authorizeRefund`), so the end b
 chain tree.  `L1Bridgehub.createNewChain` calls `addNewChain(_chainId, 0)` and then
 `seedGenesisRoot` (`core/bridgehub/L1Bridgehub.sol:134-135`) for every chain it creates, so such
 a chain has `f = 0`.  A chain registered by `registerAlreadyDeployedZKChain` gets
-`addNewChain(_chainId, getTotalBatchesExecuted())` (`:300`, `:316`) and no genesis leaf, so its
+`addNewChain(_chainId, getTotalBatchesExecuted())` (`:302`, `:316`) and no genesis leaf, so its
 first pushed batch is later: there `f > 0`, and the offset form is the one that applies.  (At the
 extraction pin `c67894b9` every atomic-interop source chain was a genesis-created ZKsync OS chain,
 with `f = 0` on L1, as earlier rounds recorded.)

@@ -202,7 +202,7 @@ def readHop (E : Env) (w : Proof) : Option HopPath :=
       (md.proofStartIndex + md.logLeafProofLen + 2 + md.batchLeafProofLen)).bind fun sibs =>
   some ⟨mask, sibs⟩
 
-/-! ## The verifier and the two `_authenticateRoot`s -/
+/-! ## The verifier and `_authenticateRoot` at b17415d20 -/
 
 /-- `L2_MESSAGE_VERIFICATION.proveL2LeafInclusionShared` as it runs on an L2
 (`common/MessageVerification.sol:35-73`, `interop/L2MessageVerification.sol:18-56`).

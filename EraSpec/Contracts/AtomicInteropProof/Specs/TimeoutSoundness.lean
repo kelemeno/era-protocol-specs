@@ -13,9 +13,9 @@ import EraSpec.Core.Word
   era-contracts `b17415d20`.  `AtomicInteropProof`'s library header (`atomic-interop/libraries/
   AtomicInteropProof.sol:27-31`) points to `protocol-docs/atomicity/proofs.md` for why a timeout
   proof cannot be produced for a leg that actually finalized.  For the BEGIN branch the argument
-  there (`proofs.md:86-89`) is: the value is absent from the batch-begin IMT root (leaf 2); the tree
+  there (`proofs.md:87-89`) is: the value is absent from the batch-begin IMT root (leaf 2); the tree
   is append-only and `begin(N) == end(N-1)`, so absence at the begin of a late batch means absence
-  from every batch with `t <= deadline`.  The soundness paragraph (`proofs.md:102-113`) adds that
+  from every batch with `t <= deadline`.  The soundness paragraph (`proofs.md:104-113`) adds that
   "batch order follows aggregation-time order".  (At the extraction pin `c67894b9` the same argument
   was the library's own header.)  The gate itself is `verifyTimeoutAbsence` (`:77-124`).
 

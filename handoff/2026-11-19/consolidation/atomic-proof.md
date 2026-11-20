@@ -148,6 +148,28 @@ Moved under `EraSpec/Contracts/AtomicInteropProof/History/{Specs,Properties,Proo
   IndexedMerkleTree `Properties/Model`, Protocol `LocalHonesty`, `FlowAtomicity`, MultichainGate
   `Specs/Model`, `Properties/Model`, Examples/BurnMintBridge `Specs/EndBranch`.
 
+## Review fixes (verdict "fix")
+
+* `ASSUMPTIONS.md` `Protocol` `MultichainGate` results row: the moved countermodel is cited as
+  `AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg` (id unchanged).
+  `git grep -nw PaddingReclaimRedeemsDeliveredLeg` now finds no reference without the `History`
+  segment outside the History module and the README's short name.
+* `ASSUMPTIONS.md` LastLeafFaithful row: the outer chain-id hop now points to
+  `AuthenticateRootAtV35` (`EndBranchTwoHopLastLeafOrBreakV35`) instead of "not modelled".
+* b17415d20 line citations: L1Bridgehub `getTotalBatchesExecuted()` `:302`; AtomicFlowManager
+  `requireFlowFinalized` comment `:191-192`, `authorizeRefund` comment `:220-222`;
+  `proofs.md:87-89` (begin branch) and `:104-113` (Soundness).
+* Stale section heading in `Specs/AuthenticateRootAtV35` renamed.
+* `Properties/ProofPolarity`, `Proofs/ProofPolarity` and `Properties/ProofPolarityStrong` headers
+  aligned with the re-pinned Specs: at `b17415d20` `append` binds the declared chain
+  (`AtomicFlowManager.sol:140-146`); the non-binding append is the `c67894b9` History record.
+* Docstring/comment-only changes; no Properties def renamed, so `renames/atomic-proof.json` and the
+  tag plan are unchanged. Build 4035 jobs; audit 0 NOT clean, 0 axioms, 0 tag findings,
+  `FOLDER Contracts.AtomicInteropProof : 10 / 6 / 9 / 113`.
+* Left to the integrator: `StaleWitnessNotRedeemableOrBreak` / `…OrCollision` stay headlines with
+  the abstract pin `D < t (j+1)` as an explicit Lean hypothesis stated in the docstrings and README
+  (no composed headline over the deployed branches yet).
+
 ## Not done
 
 * The `AttackVectors.*` / `MerkleSpec.LastLeaf*` namespaces and the `…AtV35` / `…Faithful` topic

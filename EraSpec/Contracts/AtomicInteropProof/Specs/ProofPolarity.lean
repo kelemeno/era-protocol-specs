@@ -16,11 +16,11 @@ import Mathlib.Tactic
 
   and labels the two uses differently, on purpose:
 
-      requireFlowFinalized (:192-194): "The per-proof source-chain check is defense-in-depth here
+      requireFlowFinalized (:191-192): "The per-proof source-chain check is defense-in-depth here
                              (inclusion self-binds via the chain-specific commit value) but
                              load-bearing on the symmetric refund path."
 
-      authorizeRefund (:221-223): "a commit value is trivially absent from any OTHER chain's tree,
+      authorizeRefund (:220-222): "a commit value is trivially absent from any OTHER chain's tree,
                              so an unbound proof would allow a double-mint refund of a finalized flow."
 
   (The extraction pin `c67894b9` carried the same two checks with longer comments.)
