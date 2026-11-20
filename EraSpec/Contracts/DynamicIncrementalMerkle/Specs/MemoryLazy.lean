@@ -7,15 +7,16 @@ import EraSpec.Contracts.DynamicIncrementalMerkle.Specs.Model
 its arrays are allocated once by `createTree(depth)` and their logical lengths are kept in two
 counters.  It adds a **lazy push**, which returns right after the first saved side without
 writing the root slot and sets `_needsRootRecalculation`, and `_recalculateRoot`, which `root()`
-runs when that flag is set.  Its only caller at the pin is
-`L2MessageRoot.getEmptyMultichainBatchRoot` (L2MessageRoot.sol:78-90), which runs
+runs when that flag is set.  Its only caller at `b17415d20` is
+`L2MessageRoot.getEmptyMultichainBatchRoot` (L2MessageRoot.sol:79-91), which runs
 `createTree(1)` and `setup` and uses the value `setup` returns.
 
-Source: `contracts/common/libraries/DynamicIncrementalMerkleMemory.sol` at era-contracts
-`c67894b9`.  The file is unchanged on `main` (`70096e2`).  On `draft/v0.35.0` (`b17415d20`)
-`push` declares its parameters over four lines and `push` and `pushLazy` name their returned
-index `leafIndex`; the code is otherwise the same, and every cited line from :150 on is 3 lines
-later there.  `getEmptyMultichainBatchRoot` is the same at both heads (:79-91).
+Source: `l1-contracts/contracts/common/libraries/DynamicIncrementalMerkleMemory.sol` at
+era-contracts `draft/v0.35.0` `b17415d20` (identical at `d9f6789`).  It was first transcribed at
+the interop pin `c67894b9`, where it is unchanged on `main` (`70096e2`): there `push` is declared
+on one line and `push`/`pushLazy` name their returned index `index`, so every line from :150 on is
+3 lines earlier; the code is otherwise the same.  `getEmptyMultichainBatchRoot` is
+`L2MessageRoot.sol:79-91` at `b17415d20`.
 
     struct Bytes32PushTree { uint256 _nextLeafIndex; bytes32[] _sides; bytes32[] _zeros;
         uint256 _sidesLengthMemory; uint256 _zerosLengthMemory; bool _needsRootRecalculation;
@@ -31,16 +32,16 @@ later there.  `getEmptyMultichainBatchRoot` is the same at both heads (:79-91).
   the first left turn (`isLeft && !updatedSides`, :114) it saves the side and, **if lazy**, sets
   `_needsRootRecalculation = true` and returns `(leafIndex, bytes32(0))` at once (:117-122).
   Otherwise it ends with `_sides[levels] = currentLevelHash; _needsRootRecalculation = false;`
-  (:137-138).  `push` (:149-151) is the eager call, `pushLazy` (:161-163) the lazy one.
-* `_recalculateRoot()` (:191-220): `0` when empty; otherwise it walks from the last leaf
+  (:137-138).  `push` (:149-154) is the eager call, `pushLazy` (:164-166) the lazy one.
+* `_recalculateRoot()` (:194-223): `0` when empty; otherwise it walks from the last leaf
   `_nextLeafIndex - 1`, starting from `_sides[0]` if that index is even and from `_lastLeafValue`
   if odd, hashing with `_sides[i]` at a right child and `_zeros[i]` at a left one.
-* `root()` (:225-234): if the flag is set, recalculate, store the result in the root slot and
+* `root()` (:228-237): if the flag is set, recalculate, store the result in the root slot and
   clear the flag; return the root slot.  It writes to the memory struct.
-* `height()` (:239-241): `_sidesLengthMemory - 1`.
+* `height()` (:242-244): `_sidesLengthMemory - 1`.
 
-Not modelled: `extendUntilEnd()` (:169-185) and `index()` (:246-248).  No contract at the pin or
-at the current heads calls either.
+Not modelled: `extendUntilEnd()` (:172-188) and `index()` (:249-251).  No contract at `b17415d20` (or at the
+interop pin) calls either.
 
 ## How the transcription treats the language
 
@@ -162,31 +163,31 @@ def mPushInner (h : Hash) (T : MemPushTree) (leaf : UInt256) (lazy : Bool) :
 def mPush (h : Hash) (T : MemPushTree) (leaf : UInt256) : Option (MemPushTree × ℕ × UInt256) :=
   mPushInner h T leaf false
 
-/-- `pushLazy(leaf)` (:161-163): the new tree and `index`. -/
+/-- `pushLazy(leaf)` (:164-166): the new tree and `index`. -/
 def mPushLazy (h : Hash) (T : MemPushTree) (leaf : UInt256) : Option (MemPushTree × ℕ) :=
   (mPushInner h T leaf true).map fun r => (r.1, r.2.1)
 
-/-! ## `_recalculateRoot`, `root`, `height` (DynamicIncrementalMerkleMemory.sol:191-241) -/
+/-! ## `_recalculateRoot`, `root`, `height` (DynamicIncrementalMerkleMemory.sol:194-244) -/
 
-/-- `_recalculateRoot`'s loop (:208-217), at level `i` with `k` iterations left. -/
+/-- `_recalculateRoot`'s loop (:211-220), at level `i` with `k` iterations left. -/
 def mRecalcLoop (h : Hash) (zs sd : List UInt256) : ℕ → ℕ → ℕ → UInt256 → Option UInt256
   | 0, _, _, cur => some cur
   | k + 1, i, ci, cur =>
       if ci % 2 = 0 then (zs[i]?).bind fun zi => mRecalcLoop h zs sd k (i + 1) (ci / 2) (h cur zi)
       else (sd[i]?).bind fun si => mRecalcLoop h zs sd k (i + 1) (ci / 2) (h si cur)
 
-/-- `_recalculateRoot()` (:191-220). -/
+/-- `_recalculateRoot()` (:194-223). -/
 def recalculateRoot (h : Hash) (T : MemPushTree) : Option UInt256 :=
-  -- `uint256 levels = self._zerosLengthMemory - 1;` (:192)
+  -- `uint256 levels = self._zerosLengthMemory - 1;` (:195)
   if T.zerosLen = 0 then none
-  -- `if (leafCount == 0) return bytes32(0);` (:195-197)
+  -- `if (leafCount == 0) return bytes32(0);` (:198-200)
   else if T.next = 0 then some 0
   else
     -- start from the last leaf: `_sides[0]` at an even index, `_lastLeafValue` at an odd one
     ((if (T.next - 1) % 2 = 0 then T.sides[0]? else some T.lastLeaf)).bind fun cur =>
       mRecalcLoop h T.zeros T.sides (T.zerosLen - 1) 0 (T.next - 1) cur
 
-/-- `root()` (:225-234): the root, and the tree as `root()` leaves it (it writes the recalculated
+/-- `root()` (:228-237): the root, and the tree as `root()` leaves it (it writes the recalculated
 root into the root slot and clears the flag). -/
 def mRoot (h : Hash) (T : MemPushTree) : Option (MemPushTree × UInt256) :=
   if T.needsRecalc then
@@ -197,7 +198,7 @@ def mRoot (h : Hash) (T : MemPushTree) : Option (MemPushTree × UInt256) :=
   else if T.sidesLen = 0 then none
   else (T.sides[T.sidesLen - 1]?).map fun r => (T, r)
 
-/-- `height()` (:239-241). -/
+/-- `height()` (:242-244). -/
 def mHeight (T : MemPushTree) : Option ℕ :=
   if T.sidesLen = 0 then none else some (T.sidesLen - 1)
 

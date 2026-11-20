@@ -22,10 +22,13 @@ import Mathlib.Tactic
   preserved, from a genesis tree, for any number of pushes.  So `hcap` is not merely plausible — the
   growth rule is provably the right one.
 
-  WHAT REMAINS, and it is not nothing: that the DEPLOYED code implements this rule.  That is a
-  statement about `FullMerkle.push`'s compiled form, which this corpus does not model.  What changes is
-  the shape of the residual obligation — from "does the invariant hold at all?" to "does the contract
-  implement the rule proved here?".  Axiom-free.
+  Source: era-contracts `draft/v0.35.0` `b17415d20`, `common/libraries/FullMerkle.sol`:
+  `index = _leafNumber++` (:43) and the growth branch `index == 1 << _height` (:45-52).  The
+  statement-by-statement transcription of `pushNewLeaf` (topic `CachedNodes`) moves
+  `(_leafNumber, _height)` by `push` below (`Properties.PushNewLeafComputesRoot`).  What is not
+  proved is that compiled code executes that transcription.  The `uint256` wrap of
+  `1 << _height` (from `_height = 256`, more than `2^255` leaves) does not change the growth
+  test's outcome (`CachedNodes`'s model boundary).  Axiom-free.
 -/
 
 namespace AttackVectors.CapacityInvariant

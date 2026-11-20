@@ -24,7 +24,7 @@ internal lemma of `../Proofs/RootForgeryPinned.lean`, stated here as a property)
 restricted to that shape, and proves that within capacity, equal roots with no collision on
 any committed path happen exactly for padding extensions.
 
-## What the source does (era-contracts `c67894b9`)
+## What the source does (era-contracts `draft/v0.35.0` `b17415d20`)
 
 `l1-contracts/contracts/common/libraries/FullMerkle.sol`:
 
@@ -36,9 +36,11 @@ any committed path happen exactly for padding extensions.
 An absent right sibling at level `i` is read as `_zeros[i]`, the zero cascade above `zero`.  A
 real leaf whose hash is `zero` therefore hashes exactly like an absent slot, and so does any
 run of such leaves at the end of the list.  The NatSpec (:25-26) asks for a `zero` "that is not
-expected to be part of the tree".  `IndexedMerkleTree.setup` (`IndexedMerkleTree.sol:47-50`)
-passes `hashLeaf({0,0,0})` as `zero` and pushes the same hash as its sentinel leaf at index 0,
-so in the commitment tree the padding constant is also a real leaf.
+expected to be part of the tree".  `IndexedMerkleTree.setup` passes the dedicated
+`IMT_EMPTY_LEAF_HASH` as `zero` (`IndexedMerkleTree.sol:51`, `common/Config.sol:141`) and pushes
+`hashLeaf({0,0,0})` as its sentinel leaf (`:52`).  At the interop pin `c67894b9` it passed
+`hashLeaf({0,0,0})` as both, so there the padding constant was also a real leaf (the H2 record,
+`../../IndexedMerkleTree/History/`).  The FullMerkle lines are the same at `c67894b9`.
 
 ## Model boundary
 

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Merkle.Specs.RootPaths
+import EraSpec.Core.Headline
 
 /-!
 # Properties: `Merkle.calculateRootPaths` is complete, sound up to a located break, and in place
@@ -32,8 +33,12 @@ open Clear MerkleSpec MerkleSpec.Verifier MerkleSpec.Pinned
 
 /-- **(d) THE EXACT SET OF ACCEPTED ARGUMENTS.** The call returns (does not revert) exactly
 when the two paths have the same length `P < 256`, there is at least one item, and the range
-`[s, s + n)` ends at or below `2 ^ P`. -/
-def Properties.RootPathsAcceptIff : Prop :=
+`[s, s + n)` ends at or below `2 ^ P`.
+
+Premises, in plain words: none beyond the model: any node hash, any two paths, start index and
+item list (`rootPaths` transcribes `Merkle.calculateRootPaths`, `Merkle.sol:79-122`, with the path
+lengths and indices as `ℕ`). -/
+@[headline] def Properties.RootPathsAcceptIff : Prop :=
   ∀ (h : Hash) (sp ep : List UInt256) (s : ℕ) (items : List UInt256),
     rootPaths h sp ep s items ≠ none ↔
       (sp.length = ep.length ∧ sp.length < 256 ∧ 0 < items.length
@@ -166,8 +171,14 @@ of the tree over `L` at height `pathLength`, then the items are the tree's level
 `[s, s + n)` (the padding `z0` at indices `≥ L.length`), or for some item `i` its walk
 (`RootPathsIsItemWalks`) exhibits a `PathCollision`: at a named level the loop hashed a pair
 different from the tree's pair at that position (`RootPathsWalkPairsAreLoopPairs`), with the
-same hash. No hash premise. -/
-def Properties.RootPathsSoundOrCollision : Prop :=
+same hash. No hash premise.
+
+Premises, in plain words: any node hash `h` and padding `z0`; the call `calculateRootPaths(sp, ep,
+s, items)` returns the `FullMerkle` fold of `L` at height `sp.length` (the path length, which
+`PriorityTree.processBatch` does not compare with the tree's height; `RootPathsAnyLengthOrBreak`
+covers other heights). That the priority tree's recorded root is that fold is
+`PROTO-PRIORITY-ROOTS`. -/
+@[headline] def Properties.RootPathsSoundOrCollision : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sp ep : List UInt256) (s : ℕ)
     (items : List UInt256),
     rootPaths h sp ep s items = some (rootOf h z0 L sp.length) →
@@ -239,7 +250,7 @@ returns the tree's root, which is `183` (the premises of `RootPathsIsItemWalks`,
 `RootPathsSiblingsPinnedOrCollision` and `RootPathsAnyLengthOrBreak`, with `H = 2` the path
 length), the items are `[20, 7]`, and no item's walk exhibits a
 `PathCollision`. (`n = 2` also meets the premise `1 ≤ n` of `RootPathsReadsInBounds`.) -/
-def Properties.RootPathsHonestWitness : Prop :=
+@[witness] def Properties.RootPathsHonestWitness : Prop :=
   1 ≤ 2 ∧ 1 + 2 ≤ 2 ^ 2 ∧ 2 < 256
     ∧ 1 % 2 = 1 ∧ (1 + 2 - 1) % 2 = 0 ∧ ([10, 20] : List UInt256).length < 1 + 2
     ∧ guard (honestPath rangeToyHash 7 [10, 20] 1 2) (honestPath rangeToyHash 7 [10, 20] 2 2) 1
@@ -260,7 +271,7 @@ def Properties.RootPathsHonestWitness : Prop :=
 of the tree `[1, 2, 3, 4]` at height 2, return that tree's root, though the tree's entries
 `[0, 2)` are `[1, 2]`. `RootPathsSoundOrCollision` locates it as a `PathCollision` on item 0's
 walk: at level 0 that walk hashes `(2, 1)`, where the tree hashes `(1, 2)`. -/
-def Properties.RootPathsCollisionFires : Prop :=
+@[countermodel] def Properties.RootPathsCollisionFires : Prop :=
   rootPaths sumHash (honestPath sumHash 0 [1, 2, 3, 4] 0 2) (honestPath sumHash 0 [1, 2, 3, 4] 1 2)
       0 [2, 1] = some (rootOf sumHash 0 [1, 2, 3, 4] 2)
     ∧ ([2, 1] : List UInt256) ≠ treeSegment 0 [1, 2, 3, 4] 0 2

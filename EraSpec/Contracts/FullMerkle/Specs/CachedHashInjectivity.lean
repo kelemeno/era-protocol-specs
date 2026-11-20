@@ -26,6 +26,9 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
 
   The unrestricted theorems are derived from the restricted ones as the `P := True` instances, so
   this is a generalization rather than a parallel development.  Axiom-free.
+
+  Source: era-contracts `draft/v0.35.0` `b17415d20`: the tree is `FullMerkle.sol`'s (`levels`/`rootOf`,
+  `../Specs/Model.lean`), `h` is `Merkle.efficientHash` (`Merkle.sol:125-131`).
 -/
 
 namespace Clear.MerkleCachedInj

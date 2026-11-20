@@ -48,12 +48,13 @@ these predicates follows from the mere existence of collisions (`exists_pair_col
 The properties file checks each is false on the honest instance for every hash, and false
 on a fixed instance even under a hash for which EVERY pair collides.
 
-## What the source does (era-contracts `c67894b9`)
+## What the source does (era-contracts `draft/v0.35.0` `b17415d20`)
 
 `l1-contracts/contracts/common/libraries/Merkle.sol`, the copy that `FullMerkle.sol:6` and
 `IndexedMerkleTree.sol:17` import and whose `calculateRootMemory` `IndexedMerkleTree`'s
-`verifyInclusion` / `verifyNonInclusion` call (`IndexedMerkleTree.sol:144`, `:170`).  Line
-numbers below are that file's:
+`verifyInclusion` / `verifyNonInclusion` call (`IndexedMerkleTree.sol:145`, `:171`).  Line
+numbers below are that file's (the same at the interop pin `c67894b9`, where these results were
+first written):
 
     function calculateRootMemory(                                     // :53-70
         bytes32[] memory _path, uint256 _index, bytes32 _itemHash     // :54-56
@@ -78,12 +79,10 @@ numbers below are that file's:
 The loop's iteration `i` hashes exactly `walkPair h sibs 0 j x i` (`walkPure` is the loop,
 `walkStep` one iteration), with `h = efficientHash`.
 
-The same pin also has `system-contracts/contracts/libraries/Merkle.sol`, used there only by a
-test contract.  Its loop is the same, at other lines (validate `:52`, loop `:55` written
-`i = i.uncheckedInc()`, branches `:57`/`:58`, `efficientHash` `:112-118`), and its
-`_validatePathLengthForSingleProof` (`:120-130`) also reverts `MerklePathEmpty` on an empty
-path (`:121-123`).  The l1-contracts copy accepts an empty path at index 0 and returns the
-leaf; `walkPure` with `k = 0` models that copy.
+The `b17415d20` tree has no `system-contracts/` directory.  (The interop pin's
+`system-contracts/contracts/libraries/Merkle.sol`, used there only by a test contract, also
+reverted `MerklePathEmpty` on an empty path.)  The l1-contracts copy accepts an empty path at
+index 0 and returns the leaf; `walkPure` with `k = 0` models it.
 
 `l1-contracts/contracts/common/libraries/FullMerkle.sol`:
 

@@ -80,6 +80,10 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
 
   No new axioms, no `sorry`.  Pure list/arithmetic reasoning on top of
   `MerkleSpec`; no EVM semantics.
+
+  Source: era-contracts `draft/v0.35.0` `b17415d20`: the walk is `Merkle.sol`'s loop (:36-41,
+  :62-67), the tree and the append are `FullMerkle.sol`'s (`pushNewLeaf`, :41-66), `h` is
+  `Merkle.efficientHash` (:125-131).
 -/
 
 namespace AttackVectors.RootForgery

@@ -52,6 +52,13 @@ pair-injectivity is a hypothesis where used, as throughout the corpus.
 Ported from the `claude/proof-attempt-4f3778` line, where it was the Core module
 `EraSpec/Core/MerkleVerifier.lean`. It models `Merkle.calculateRootMemory`, so it
 lives with the `Merkle` library here. Results: `../Properties/Verifier.lean`.
+
+Source: era-contracts `draft/v0.35.0` `b17415d20`, `common/libraries/Merkle.sol`:
+`calculateRootMemory` (:53-70), its checks `_validatePathLengthForSingleProof` (:133-140), and
+`efficientHash` (:125-131); `calculateRoot` (:27-44) is the same walk over calldata.
+`honestSibs` is what `FullMerkle.merklePath` (`FullMerkle.sol:107-126`) returns for an occupied
+index, proved so in
+`../../FullMerkle/` topic `CachedNodes` (`MerklePathIsHonest`).
 -/
 
 namespace MerkleSpec.Verifier

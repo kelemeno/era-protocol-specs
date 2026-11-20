@@ -1,0 +1,50 @@
+[
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.PinPaddingIsEmptyPre",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.PinPaddingIsEmptyPre",
+    "kind": "history",
+    "justification": "byte fact about the interop pin's IMT padding preimage; moved unchanged to History."
+  },
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.HashAssumptionsFieldsUpToCollision",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.HashAssumptionsFieldsUpToCollision",
+    "kind": "history",
+    "justification": "TreeRoot.HashAssumptions instantiated at the interop pin's padding hashLeaf({0,0,0}); moved unchanged to History (the padding-independent fields are covered by TreeRootBreakIsKeccakCollision, which stays)."
+  },
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.HashAssumptionsFieldsWitness",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.HashAssumptionsFieldsWitness",
+    "kind": "history",
+    "justification": "witness for HashAssumptionsFieldsUpToCollision at the interop pin's padding; moved unchanged to History."
+  },
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.TreeRootBreakIsKeccakCollisionAtPin",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.TreeRootBreakIsKeccakCollisionAtPin",
+    "kind": "history",
+    "justification": "the root-check reduction at the interop pin's padding; moved unchanged to History (b17415d20 form: TreeRootBreakIsKeccakCollision)."
+  },
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.ProofsExclusiveOrKeccakBreakAtPin",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.ProofsExclusiveOrKeccakBreakAtPin",
+    "kind": "history",
+    "justification": "H2 record at the interop pin's padding; moved unchanged to History (b17415d20 form: ProofsExclusiveOrKeccakBreak)."
+  },
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.InclusionSoundOrKeccakBreakAtPin",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.InclusionSoundOrKeccakBreakAtPin",
+    "kind": "history",
+    "justification": "single-proof form at the interop pin's padding; moved unchanged to History (b17415d20 form: InclusionSoundOrKeccakBreak)."
+  },
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.NonInclusionSoundOrKeccakBreakAtPin",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.NonInclusionSoundOrKeccakBreakAtPin",
+    "kind": "history",
+    "justification": "single-proof form at the interop pin's padding, keeping the padding forgery; moved unchanged to History (b17415d20 form: NonInclusionSoundOrKeccakBreak)."
+  },
+  {
+    "old": "MerkleSpec.DomainSeparation.Properties.PaddingForgeryIsTheOnlyKeccakFreeBreak",
+    "new": "MerkleSpec.DomainSeparation.History.Properties.PaddingForgeryIsTheOnlyKeccakFreeBreak",
+    "kind": "history",
+    "justification": "countermodel of the H2 padding forgery at the interop pin's padding; moved unchanged to History."
+  }
+]

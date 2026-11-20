@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Merkle.Specs.RootForgeryPinned
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the global-injectivity Merkle results, restated with a located collision
@@ -88,8 +89,12 @@ Two leaf lists whose roots at `height` are equal agree at every index `i < 2^hei
 included: `getD` with the padding constant), or the two trees hash different pairs to the
 same value at a named level of `i`'s path.  No length, capacity or hash premise: a list
 longer than `2^height` has entries its root does not commit, and `i < 2^height` says which
-entries it does.  The tree-versus-tree counterpart of `AcceptPinsEntryOrCollision`. -/
-def Properties.RootPinsEntryOrCollision : Prop :=
+entries it does.  The tree-versus-tree counterpart of `AcceptPinsEntryOrCollision`.
+
+Premises, in plain words: any node hash `h` and padding `z0`; two leaf lists whose `FullMerkle`
+folds at `height` are equal; an index `i` below `2^height`. (That a published root is that fold is
+obligation O7, proved for the transcribed `FullMerkle` storage in topic `CachedNodes`.) -/
+@[headline] def Properties.RootPinsEntryOrCollision : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256) (height i : ℕ),
     i < 2 ^ height → rootOf h z0 L₁ height = rootOf h z0 L₂ height →
       L₁.getD i z0 = L₂.getD i z0 ∨ TreeCollision h z0 L₁ L₂ height i
@@ -505,7 +510,7 @@ instance, which decides what the instance can look like:
 
 /-- `RootPinsEntryOrCollision`: met by two DIFFERENT trees with the same root, at an index where
 no collision is located (the instance of `RootPinsEntryPinnedToPath`). -/
-def Properties.RootPinsEntryOrCollisionSatisfiable : Prop :=
+@[witness] def Properties.RootPinsEntryOrCollisionSatisfiable : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (L₁ L₂ : List UInt256) (height i : ℕ),
     i < 2 ^ height ∧ rootOf h z0 L₁ height = rootOf h z0 L₂ height
       ∧ L₁ ≠ L₂ ∧ ¬ TreeCollision h z0 L₁ L₂ height i

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Merkle.Specs.PathCollision
+import EraSpec.Core.Headline
 
 /-!
 # Properties: an accepted path opens the tree, or the theorem locates a collision
@@ -26,8 +27,15 @@ def Properties.WalkPinsOrCollision : Prop :=
 
 /-- **ROOT FORM.**  A walk of length `k` from any index `j < 2^k`, accepted against the
 root at height `k`, opens the level-0 entry at `j` (padding included), or locates a
-collision on the submitted path. -/
-def Properties.AcceptPinsEntryOrCollision : Prop :=
+collision on the submitted path.
+
+Premises, in plain words: any node hash `h` and padding `z0`; the submitted index is below `2^k`
+for the path length `k` (the check `Merkle.calculateRootMemory` makes, `Merkle.sol:137`); the walk
+`calculateRootMemory` runs from the claimed leaf `x` equals the root of the tree at height `k`;
+the root it is checked against is the `FullMerkle` fold `rootOf` of the tree's level-0 entries
+(the stored tree, by obligation O7; proved for the transcribed storage in `FullMerkle` topic
+`CachedNodes`). -/
+@[headline] def Properties.AcceptPinsEntryOrCollision : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k j : ℕ) (x : UInt256),
     j < 2 ^ k → walkPure h sibs 0 k j x = rootOf h z0 L k →
       L.getD j z0 = x ∨ PathCollision h z0 L sibs 0 k j x
@@ -35,7 +43,7 @@ def Properties.AcceptPinsEntryOrCollision : Prop :=
 /-- **NON-TRIVIALITY.**  `PathCollision` is not a tautology: on the honest path (the
 tree's own siblings and leaf) the verifier hashes exactly the tree's pairs, so no
 collision is located, for every hash function. -/
-def Properties.HonestWalkNoCollision : Prop :=
+@[witness] def Properties.HonestWalkNoCollision : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (height j : ℕ),
     ¬ PathCollision h z0 L (honestSibs h z0 L j) 0 height j (L.getD j z0)
 
@@ -49,8 +57,14 @@ leaf is ANY node hash") cannot hold. -/
 any length `k`, accepted against the root at any `height`, has `k = height`, or
 exhibits a `HeightBreak` (an interior node presented as the leaf, a level-0 entry
 that is the node hash of the verifier's own pair, or a `PathCollision` on the
-re-anchored / split walk). -/
-def Properties.AcceptForcesHeightOrBreak : Prop :=
+re-anchored / split walk).
+
+Premises, in plain words: any node hash `h` and padding `z0`; the submitted index is below `2^k`
+for the path length `k`; the walk from the claimed leaf equals the root of the tree at some
+`height`; the root it is checked against is the `FullMerkle` fold `rootOf` of the tree's level-0
+entries (the stored tree, by obligation O7; proved for the transcribed storage in `FullMerkle`
+topic `CachedNodes`). -/
+@[headline] def Properties.AcceptForcesHeightOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
     (x : UInt256),
     j < 2 ^ k → walkPure h sibs 0 k j x = rootOf h z0 L height →
@@ -83,7 +97,7 @@ presenting the root itself as the leaf, is accepted against any tree of positive
 height (`calculateRootMemory` with an empty path returns the item hash), and the
 break located is `shortInteriorLeaf`: the "leaf" is the node hash of the tree's top
 pair. -/
-def Properties.ZeroLengthPathAcceptsRoot : Prop :=
+@[countermodel] def Properties.ZeroLengthPathAcceptsRoot : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (height : ℕ), 0 < height →
     (0 < 2 ^ 0 ∧ walkPure h sibs 0 0 0 (rootOf h z0 L height) = rootOf h z0 L height)
       ∧ HeightBreak h z0 L sibs 0 height 0 (rootOf h z0 L height)

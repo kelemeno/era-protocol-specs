@@ -10,17 +10,16 @@ batch tree an aggregation root is built from.  It takes the tree's leaves and it
 data, and two facts as fields: `upToLast` (the root holds leaves `0 … upTo c`, so the last leaf
 index is `upTo c`) and `capacity` (the leaves fit the height).  `LastBatchAccepted` then asks for
 a batch-leaf path whose walk recomputes `rootOf ze leaves height` and whose right siblings are the
-zero cascade wherever the path turns left (`_verifyLastBatchInRoot`, AtomicInteropProof.sol:217-230
-at `c67894b9`).
+zero cascade wherever the path turns left (`_verifyLastBatchInRoot`, AtomicInteropProof.sol:130-143
+at era-contracts `draft/v0.35.0` `b17415d20`, the commit every line below refers to).
 
-At `c67894b9` the chain trees are `DynamicIncrementalMerkle` trees (`chainTree[chainId]`,
-MessageRootBase.sol:69).  The source writes them in two places only: `_addNewChain` (:339-358)
-runs `setup(CHAIN_TREE_EMPTY_ENTRY_HASH)` (:350), and `_pushChainBatchRoot` (:247-271) pushes one
-batch leaf (:257-259).  `_addNewChain` is reached from `_initialize` (:162-166) and from
-`addNewChain` (:170-175), which reverts on a registered chain; `_pushChainBatchRoot` from
-`addChainBatchRootV32` (:217-224) and `seedGenesisRoot` (:364-387).  At the current heads these
-are still the only writes, with the lines moved (`main` `70096e2`: setup :294, push :216-218;
-`draft/v0.35.0` `b17415d20`: setup :285, push :207-209).
+The chain trees are `DynamicIncrementalMerkle` trees (`chainTree[chainId]`,
+MessageRootBase.sol:69).  The source writes them in two places only: `_addNewChain` (:275-292)
+runs `setup(CHAIN_TREE_EMPTY_ENTRY_HASH)` (:285), and `_pushChainBatchRoot` (:201-221) pushes one
+batch leaf (:207-209).  `_addNewChain` is reached from `_initialize` (:138-142) and from
+`addNewChain` (:145-150), which reverts on a registered chain; `_pushChainBatchRoot` from
+`addChainBatchRootV32` (:173-180) and `seedGenesisRoot` (:296-314).  (The interop pin `c67894b9`,
+where this topic was first written, has the same writes at other lines.)
 
 `ChainTrees` below takes each chain's storage to be a DIM run (`Specs/Model.lean`, `Run`):
 `setup(ze)` on fresh storage, then pushes.  That those two writes produce such runs is read from
@@ -32,14 +31,11 @@ fold it authenticates against is the value `root()` returns for the chain's stor
 Two acceptance forms are used.  `LastBatchAccepted` (Timeout) fixes the walk's length to the
 tree's height and the index to an occupied leaf, and leaves the siblings free.  The deployed check
 also leaves the length and the mask free: `batchLeafProofLen` is a metadata byte
-(MessageHashing.sol:131), the mask is read from the proof (:201), `Merkle.sol` checks only
+(MessageHashing.sol:129), the mask is read from the proof (:198), `Merkle.sol` checks only
 `_pathLength < 256` and `_index < 1 << _pathLength` (:133-140), and `_verifyLastBatchInRoot` runs
 its zero check over the submitted siblings (`levels = _path.batchLeafSiblings.length`,
-AtomicInteropProof.sol:220), starting from `CHAIN_TREE_EMPTY_ENTRY_HASH` (:219), the value the
-`MessageRoot` sets each chain tree up with (MessageRootBase.sol:350).  At the current heads the
-cited lines read the same, at moved line numbers: MessageHashing.sol:130 and :199 on `main`
-(`70096e2`), :129 and :198 on `draft/v0.35.0` (`b17415d20`); Merkle.sol:133-140 and
-AtomicInteropProof.sol:132-133 on both.
+AtomicInteropProof.sol:133), starting from `CHAIN_TREE_EMPTY_ENTRY_HASH` (:132), the value the
+`MessageRoot` sets each chain tree up with (MessageRootBase.sol:285).
 `MerkleSpec.LastLeafFaithful` models that acceptance; `Properties.DimAcceptedLastLeafAnyLengthOrBreak`
 reads it against the `root()` of DIM storage.  Where a statement needs a concrete path it uses the
 honest sibling stream of the tree (`MerkleSpec.Verifier.honestSibs`), read from the tree's levels;
@@ -56,11 +52,10 @@ the DIM library itself has no `merklePath` function.
   (`Chain = UInt256`) and its `upToLast` forces a leaf for each, so a chain that is not
   registered, or has nothing pushed, has no place in a `ChainTrees`.  The DIM root of an empty
   tree is `bytes32(0)`, not the fold (`Properties.DimEmptyRootIsZero`,
-  `Properties.EmptyRootIsNotTheFold`), so the backing could not cover it anyway.  At the pin
-  `seedGenesisRoot` pushes a batch-0 leaf for a freshly created ZKsync OS chain and returns early
-  for any other chain (:369-371); at `b17415d20` it has no such early return (:296-314).  The
-  NatSpec of `_addNewChain` (:334-337) says a chain added with a nonzero starting batch must
-  settle a batch on this layer before it can be registered for interop; that is not checked here.
+  `Properties.EmptyRootIsNotTheFold`), so the backing could not cover it anyway.
+  `seedGenesisRoot` (:296-314) pushes a batch-0 leaf only for a registered chain with nothing
+  recorded yet (`currentChainBatchNumber == 0`, no batch-0 root); every other chain's tree starts
+  empty after `_addNewChain`.
 * The leaf values are arbitrary words: the batch-leaf encoding (`MessageHashing.batchLeafHash`) is
   not modelled.
 -/

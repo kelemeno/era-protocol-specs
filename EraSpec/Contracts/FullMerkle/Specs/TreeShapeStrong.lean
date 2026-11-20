@@ -31,15 +31,17 @@ second pinned to the first followed by padding leaves, and located: a `PaddingHi
 `TreeCollision` on any path, for every hash.  It also says for which lists it occurs: exactly the
 lists below capacity.
 
-## What the source does (era-contracts `c67894b9`)
+## What the source does (era-contracts `draft/v0.35.0` `b17415d20`)
 
 `l1-contracts/contracts/common/libraries/FullMerkle.sol`: `setup(zero)` stores `zero` as
 `_zeros[0]` (:29-35); `pushNewLeaf` grows `_zeros` by `efficientHash(topZero, topZero)` (:45-52);
 `updateLeaf` reads an absent right sibling at level `i` as `_zeros[i]` (:82-85); `root()` is
 `_nodes[_height][0]` (:99-101).  The NatSpec (:25-26) asks for a `zero` "not expected to be part
-of the tree"; nothing in the library checks it.  `IndexedMerkleTree.setup` passes
-`hashLeaf({0,0,0})` as `zero` and pushes the same hash as its sentinel leaf at index 0
-(`IndexedMerkleTree.sol:47-50`).
+of the tree"; nothing in the library checks it.  `IndexedMerkleTree.setup` passes the dedicated
+`IMT_EMPTY_LEAF_HASH` as `zero` (`IndexedMerkleTree.sol:51`, `common/Config.sol:141`) and pushes
+`hashLeaf({0,0,0})` as its sentinel leaf at index 0 (`:52`).  (At the interop pin `c67894b9` it
+passed `hashLeaf({0,0,0})` as both, so there the padding constant was also a real leaf; that
+record is `../../IndexedMerkleTree/History/`.)  The FullMerkle lines are the same at `c67894b9`.
 
 ## Model boundary
 
