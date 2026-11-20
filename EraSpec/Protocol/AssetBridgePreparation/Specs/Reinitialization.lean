@@ -5,12 +5,15 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.Initialization
 /-!
 # The preparation trace, with reinitializations of the tracked token
 
-Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`,
-`l1-contracts/contracts/bridge/BridgedStandardERC20.sol:141-164` (`reinitializeToken`) and the
-vault's preparation branch (`bridge/ntv/NativeTokenVaultBase.sol:315-444`), as modelled in
+Source: era-contracts `draft/v0.35.0` head `b17415d20`,
+`l1-contracts/contracts/bridge/BridgedStandardERC20.sol:139-155` (`reinitializeToken`) and the
+vault's preparation branch (`bridge/ntv/NativeTokenVaultBase.sol:294-318`, `:361-457`), as
+modelled in
 `BridgedStandardERC20/Specs/Reinitialization.lean`,
 `NativeTokenVaultBase/Specs/RepresentationPreparation.lean` and
-`NativeTokenVaultBase/Specs/Reinitialization.lean`.
+`NativeTokenVaultBase/Specs/Reinitialization.lean`, all three at `b17415d20`. First written at the
+pin `c67894b9` (`BridgedStandardERC20.sol:141-164`, `NativeTokenVaultBase.sol:315-444` there);
+only the line numbers moved.
 
 **This file is definitions only.** The results are in
 `EraSpec.Protocol.AssetBridgePreparation.Properties.Reinitialization` and are proved in
@@ -25,7 +28,7 @@ happen to the tracked token in between: a successful `reinitializeToken` by whoe
 reports as its owner, with any arguments. To say what that call does, the trace state carries the
 token's initializer version and metadata as well (`TokenTrace`), and a preparation step reads the
 metadata through `MetaHooks` at the token's current metadata (`hooks.toHooks s.metadata`), since
-the source's metadata read calls the token's getters (`NativeTokenVaultBase.sol:432-444`,
+the source's metadata read calls the token's getters (`NativeTokenVaultBase.sol:412-423`,
 `BridgeHelper.sol:20-50`).
 
 The reinitialization step writes the call's resulting ledger-and-identity state back into the

@@ -17,6 +17,33 @@ run-universal results cover more runs than the contracts allow; the enabledness 
 (`ExecuteNeverRevertsInMessageRoot`, `ExecuteEnabledIffSynced`, `HonestArrivalsAccepted`) are
 relative to the checks the model keeps (`MODEL-BATCH-COUNTERS` in `ASSUMPTIONS.md`).
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. They are stated for every hub configuration (`HubConfig`, migrations enabled or
+not) unless a premise says otherwise; `b17415d20` has `CHAIN_MIGRATIONS_ENABLED = false`
+(`common/Config.sol:320`). "The invariant" is `HubInv`: the message root and the bridgehub register
+the same chains, an unregistered chain has no batch root, no batch after `currentChainBatchNumber`
+has a root, and every nonzero batch root is the diamond's `l2LogsRootHashes` entry. The
+[MigrationContinuity](Properties/MigrationContinuity.lean) results describe migrations, which
+`b17415d20` disables, so they are not classified as headlines.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| Every layer reachable from the empty one satisfies the invariant; no batch after `currentChainBatchNumber` has a root | The layer is reached from the empty one | `ReachableHubsSatisfyInv` |
+| A nonzero `chainBatchRoots[c][n]` never changes | None | `BatchRootsWriteOnce` |
+| Every executed batch has its logs root recorded, nonzero, in the message root and in the diamond, for good | The run starts from a layer satisfying the invariant | `ExecutedRootsRecorded` |
+| With migrations disabled, every chain of a reachable layer has its two counters equal | Migrations disabled (as at `b17415d20`); the layer is reached from the empty one | `ReachableHeadHubsSynced` |
+| An execute step exists exactly when the message root's counter equals the diamond's executed count | The layer satisfies the invariant; the call passes the executor's own modelled checks (`ExecGuard`); no logs root is zero | `ExecuteEnabledIffSynced` |
+| An append list containing a zero logs root is refused, so no execute of it exists | None | `ZeroLogsRootRefused` |
+| With migrations disabled, a chain whose counters disagree keeps both counters and never executes again | Migrations disabled (as at `b17415d20`); the chain's counters disagree at the start of the run | `DriftPersistsAtHead` |
+
+Witnesses (`@[witness]`): `HubSyncWitness` and `HubUpgradeRevertWitness` (runs from the empty
+layer through creation, registration, commit, prove, execute, revert and upgrade),
+`LegacySavedChainExecutes` (a synced chain whose execute passes), `LegacyUnsavedChainIsWedged` (a
+layer satisfying the invariant with a chain whose counters disagree), and
+`ZeroLogsRootRefusedOnSyncedChain`.
+
 ## MessageRootSync: one layer
 
 Steps are every writer of the modelled fields at `b17415d20`: `createNewChain`,

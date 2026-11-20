@@ -1,4 +1,5 @@
 import EraSpec.Protocol.L2BridgeConfig.Specs.Consistency
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the L2 bridge configuration words stay consistent
@@ -75,7 +76,7 @@ storage, then its sender is `L2_FORCE_DEPLOYER_ADDR`, the state is `ConfigConsis
 input's `l1ChainId`, base asset id and the created WETH proxy, the base id is routed to the
 vault, and the vault holds the input's origin chain and origin token for it.  Premise: the
 base-token system contract address is nonzero. -/
-def Properties.GenesisEstablishesConfigConsistent : Prop :=
+@[headline] def Properties.GenesisEstablishesConfigConsistent : Prop :=
   ∀ (E : ConfigEnv) (s : Address) (c : Chain) (u : UpgradeInput) (w : ConfigWorld),
     E.baseTokenAddr ≠ 0 →
     configExec E s ConfigWorld.fresh (.upgrade (.genesis c u)) = some w →
@@ -89,7 +90,7 @@ address and some input, whose L1 chain id and base-token origin chain differ fro
 and whose base asset id is the vault id of its origin token, make the genesis transaction
 succeed.  The environment's encoding is a toy (chain plus sender plus data); no property of
 keccak is used. -/
-def Properties.GenesisEstablishesConfigConsistentWitness : Prop :=
+@[witness] def Properties.GenesisEstablishesConfigConsistentWitness : Prop :=
   ∃ (E : ConfigEnv) (c : Chain) (u : UpgradeInput) (w : ConfigWorld),
     E.baseTokenAddr ≠ 0 ∧
     configExec E E.forceDeployer ConfigWorld.fresh (.upgrade (.genesis c u)) = some w ∧
@@ -100,8 +101,15 @@ def Properties.GenesisEstablishesConfigConsistentWitness : Prop :=
 
 /-- **EVERY STEP PRESERVES THE INVARIANT.**  From a `ConfigConsistent` state, every successful
 call that meets `ConfigCall.Admissible` for the base id leaves a `ConfigConsistent` state with
-the same ids and WETH. -/
-def Properties.StepPreservesConfigConsistent : Prop :=
+the same ids and WETH.
+`ConfigCall.Admissible` for `a`: the upgrader `L2_COMPLEX_UPGRADER_ADDR` makes no direct call (its
+calls are the upgrade helper's), and no logged vault registration registers a token whose vault
+asset id on this chain is `a`. `ConfigConsistent` (all copies agree): every L1 chain id word is the
+same nonzero `l1`; every base asset id copy is the same nonzero `a`; both ETH asset ids are derived
+from `l1`; the vault's WETH is the nonzero `weth`; the vault maps `a` to the base-token system
+contract and back; every built-in is initialized; the router's recorded deployment trackers are zero
+or the vault; and the base-token system contract address is nonzero. -/
+@[headline] def Properties.StepPreservesConfigConsistent : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (c : ConfigCall) (w' : ConfigWorld),
     ConfigConsistent E l1 a weth w → c.Admissible E a →
@@ -109,8 +117,13 @@ def Properties.StepPreservesConfigConsistent : Prop :=
 
 /-- **A DEFAULT UPGRADE SUCCEEDS ONLY WITH THE STORED IDS.**  From a `ConfigConsistent` state, a
 successful default upgrade carries the stored L1 chain id and base asset id.  No other
-premise. -/
-def Properties.DefaultUpgradeKeepsL1AndBaseIds : Prop :=
+premise.
+`ConfigConsistent` (all copies agree): every L1 chain id word is the same nonzero `l1`; every base
+asset id copy is the same nonzero `a`; both ETH asset ids are derived from `l1`; the vault's WETH is
+the nonzero `weth`; the vault maps `a` to the base-token system contract and back; every built-in is
+initialized; the router's recorded deployment trackers are zero or the vault; and the base-token
+system contract address is nonzero. -/
+@[headline] def Properties.DefaultUpgradeKeepsL1AndBaseIds : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (s : Address) (u : UpgradeInput) (w' : ConfigWorld),
     ConfigConsistent E l1 a weth w →
@@ -135,8 +148,13 @@ def Properties.DefaultUpgradeAdoptsAnyBaseOrigin : Prop :=
       w'.router.l1AssetRouter = u.l1AssetRouter
 
 /-- **GENESIS DOES NOT RUN AGAIN.**  On a `ConfigConsistent` state every genesis transaction
-reverts (the message root's lock is set). -/
-def Properties.GenesisRevertsOnConsistentState : Prop :=
+reverts (the message root's lock is set).
+`ConfigConsistent` (all copies agree): every L1 chain id word is the same nonzero `l1`; every base
+asset id copy is the same nonzero `a`; both ETH asset ids are derived from `l1`; the vault's WETH is
+the nonzero `weth`; the vault maps `a` to the base-token system contract and back; every built-in is
+initialized; the router's recorded deployment trackers are zero or the vault; and the base-token
+system contract address is nonzero. -/
+@[headline] def Properties.GenesisRevertsOnConsistentState : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (s : Address) (c : Chain) (u : UpgradeInput),
     ConfigConsistent E l1 a weth w →
@@ -145,8 +163,13 @@ def Properties.GenesisRevertsOnConsistentState : Prop :=
 /-- **THE BASE ID STAYS ROUTED TO THE VAULT EXCEPT THROUGH THE COUNTERPART.**  From a
 `ConfigConsistent` state whose router points `a` at the vault, every successful call other than
 the counterpart's `setAssetHandlerAddress` at `a` leaves `a` pointed at the vault.  Any sender,
-no run premise. -/
-def Properties.BaseRouteMovesOnlyByCounterpart : Prop :=
+no run premise.
+`ConfigConsistent` (all copies agree): every L1 chain id word is the same nonzero `l1`; every base
+asset id copy is the same nonzero `a`; both ETH asset ids are derived from `l1`; the vault's WETH is
+the nonzero `weth`; the vault maps `a` to the base-token system contract and back; every built-in is
+initialized; the router's recorded deployment trackers are zero or the vault; and the base-token
+system contract address is nonzero. -/
+@[headline] def Properties.BaseRouteMovesOnlyByCounterpart : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (c : ConfigCall) (w' : ConfigWorld),
     ConfigConsistent E l1 a weth w → BaseRoutedToVault E a w →
@@ -160,7 +183,7 @@ def Properties.BaseRouteMovesOnlyByCounterpart : Prop :=
 `L2_FORCE_DEPLOYER_ADDR`, or a direct `initL2`/`updateL2` call whose sender is
 `L2_COMPLEX_UPGRADER_ADDR`.  The modelled calls include every writer of these words found at
 `b17415d20` (see the Specs header). -/
-def Properties.OnlyUpgraderWritesScalarConfig : Prop :=
+@[headline] def Properties.OnlyUpgraderWritesScalarConfig : Prop :=
   ∀ (E : ConfigEnv) (s : Address) (w : ConfigWorld) (op : ConfigOp) (w' : ConfigWorld),
     configExec E s w op = some w' → w'.scalars ≠ w.scalars →
     ((∃ p, op = .upgrade p) ∧ s = E.forceDeployer) ∨ ((∃ d, op = .direct d) ∧ s = E.upgrader)
@@ -187,8 +210,15 @@ def Properties.BaseEntriesWritersFromConsistent : Prop :=
 nonzero base-token address), along every run whose calls meet `ConfigCall.Admissible` for the
 genesis base id: the final state is `ConfigConsistent` with the genesis ids and the created
 WETH; every logged default upgrade carries the genesis ids; and if no logged call is the
-counterpart's write at the base id, that id is still routed to the vault. -/
-def Properties.ConfigConsistentAlongRuns : Prop :=
+counterpart's write at the base id, that id is still routed to the vault.
+`ConfigCall.Admissible` for `a`: the upgrader `L2_COMPLEX_UPGRADER_ADDR` makes no direct call (its
+calls are the upgrade helper's), and no logged vault registration registers a token whose vault
+asset id on this chain is `a`. `ConfigConsistent` (all copies agree): every L1 chain id word is the
+same nonzero `l1`; every base asset id copy is the same nonzero `a`; both ETH asset ids are derived
+from `l1`; the vault's WETH is the nonzero `weth`; the vault maps `a` to the base-token system
+contract and back; every built-in is initialized; the router's recorded deployment trackers are zero
+or the vault; and the base-token system contract address is nonzero. -/
+@[headline] def Properties.ConfigConsistentAlongRuns : Prop :=
   ∀ (E : ConfigEnv) (s : Address) (c : Chain) (u : UpgradeInput) (w0 : ConfigWorld)
     (cs : List ConfigCall) (w : ConfigWorld),
     E.baseTokenAddr ≠ 0 →
@@ -224,7 +254,7 @@ default upgrade carrying the genesis origin data: a default upgrade sent by the 
 that changes the router's L1 asset router; a vault registration; a bridged-token deployment; a
 counterpart write; a fallback write.  The scalar words differ between the start and the end of
 the run. -/
-def Properties.ConfigRunWitness : Prop :=
+@[witness] def Properties.ConfigRunWitness : Prop :=
   ∃ (E : ConfigEnv) (c : Chain) (u : UpgradeInput) (w0 : ConfigWorld) (cs : List ConfigCall)
     (w : ConfigWorld),
     E.baseTokenAddr ≠ 0 ∧
@@ -249,7 +279,7 @@ id, a nonzero governance and a nonzero L1 asset router is refused by the deploye
 succeeds with the vault's base-id freeze (`NTV/L2NativeTokenVault.sol:152-155`) removed.  Then
 the router and the vault hold the new id, the tracker and WETH the old one, and the state is
 `ConfigConsistent` for no ids. -/
-def Properties.NoBaseFreezeLeavesTrackerOnOldBase : Prop :=
+@[countermodel] def Properties.NoBaseFreezeLeavesTrackerOnOldBase : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (u : UpgradeInput),
     ConfigConsistent E l1 a weth w →
@@ -267,7 +297,7 @@ succeeds with the vault's L1 freeze (`NTV/L2NativeTokenVault.sol:148`) removed. 
 message root, bridgehub, router, vault and chain asset handler hold the new id, the tracker,
 interop center, base token and flow manager the old one, and the state is `ConfigConsistent`
 for no ids. -/
-def Properties.NoL1FreezeLeavesTrackerOnOldL1 : Prop :=
+@[countermodel] def Properties.NoL1FreezeLeavesTrackerOnOldL1 : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (u : UpgradeInput),
     ConfigConsistent E l1 a weth w →
@@ -287,7 +317,7 @@ router succeeds in the model; the result is still `ConfigConsistent` with the sa
 and the vault's native test for the base token (read by the tracker too) is now true.  So
 `ConfigConsistent` does not pin the origin data; `BaseOriginPinnedAlongRuns` is the form that
 does, under its premise on the upgrade data. -/
-def Properties.SameBaseOriginRewriteFlipsNativeTest : Prop :=
+@[countermodel] def Properties.SameBaseOriginRewriteFlipsNativeTest : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (u : UpgradeInput),
     ConfigConsistent E l1 a weth w → ¬ BaseNativeHere E w →
@@ -300,7 +330,7 @@ def Properties.SameBaseOriginRewriteFlipsNativeTest : Prop :=
 `ConfigConsistent` state, `L2AssetRouter.updateL2(l1, r, a')` called directly by
 `L2_COMPLEX_UPGRADER_ADDR` with a nonzero `r` and `a' ≠ a` succeeds.  Then the router holds `a'`
 while the vault and the tracker hold `a`, and the state is `ConfigConsistent` for no ids. -/
-def Properties.RouterUpdateOutsideHelperDivergesBase : Prop :=
+@[countermodel] def Properties.RouterUpdateOutsideHelperDivergesBase : Prop :=
   ∀ (E : ConfigEnv) (l1 : Chain) (a : AssetId) (weth : Address) (w : ConfigWorld)
     (r : Address) (a' : AssetId),
     ConfigConsistent E l1 a weth w → r ≠ 0 → a' ≠ a →

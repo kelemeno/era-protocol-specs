@@ -34,6 +34,44 @@ separate `OPS-PROGRESS` boundary.
 | Terminality against full restoration, exact refund, enabledness, pause, the prepared-bundle headline, three countermodels | [Properties/FullRecovery.lean](Properties/FullRecovery.lean) |
 | Checked full-recovery derivations and witnesses | [Proofs/FullRecovery.lean](Proofs/FullRecovery.lean) |
 
+## Pin and headline guarantees
+
+The area composes contract models at two pins:
+
+- **`b17415d20`.** [Model](Specs/Model.lean), [Initialization](Properties/Initialization.lean),
+  [RegistryCorrespondence](Specs/RegistryCorrespondence.lean) and
+  [Reinitialization](Specs/Reinitialization.lean) compose the `NativeTokenVaultBase` and
+  `BridgedStandardERC20` models, which are at `b17415d20`.
+- **`c67894b9` records.** [Resolution](Specs/Resolution.lean) cites the `c67894b9` delivery and
+  refund paths (`L2InteropHandler.executeAtomicBundle`, `AtomicFlowManager.claimRefund`) for the two
+  local records it models. [ResolutionEvidence](Specs/ResolutionEvidence.lean) instantiates the gate
+  with `Protocol/InteropAtomicity` and `Protocol/MultichainGate`, and
+  [FullRecovery](Specs/FullRecovery.lean) builds on `AssetRouterBase` `AtomicRecovery` /
+  `RecoveryLimits`; all of these model `c67894b9`. `b17415d20`'s `AtomicFlowManager` differs, and
+  these files have not been re-modelled against it. Their results build on `c67894b9` records and
+  are not claims about `b17415d20`, so none is a headline.
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)).
+A run is any sequence of successful vault preparations of the tracked token (the `bridgeBurn`
+branch), ordinary token transfers and `reinitializeToken` calls by the beacon owner, for any
+accounting and metadata hooks. "Well-formed" (`WellFormed`): the token's ledger is well formed
+(balances sum to the supply, the supply is below `2^256`, the zero address holds nothing), and the
+token's vault and asset id and the vault's registry entries for it agree with the vault's
+configuration. The pending list is ghost trace bookkeeping, not vault storage.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| Along any run the vault stays well-formed, supply plus pending value is constant, and neither the vault's configuration nor the token's identity changes | The vault is well-formed at the start | `ReinitTraceConservation` |
+| Every pending obligation keeps naming the token's starting asset id and origin token | The vault is well-formed and every pending obligation names the token's asset id and origin token at the start | `PendingObligationsKeepTheirAsset` |
+
+Witness (`@[witness]`): `ReinitTraceWitness` (a registration, funding, two preparations and a
+reinitialization between them). The [Model](Properties/Model.lean) statements
+`reachable_conservation`, `pending_backed_by_initial_supply` and `prepared_data_persists` are the
+same facts without reinitialization and stay untagged. `ReinitTracePreparedDataPersists` (the
+pending list only grows at its end) is untagged too: the pending list is ghost bookkeeping that
+the trace's steps are defined to append to (a preparation) or copy unchanged (a transfer, a
+reinitialization), so it describes how the model is built, not `b17415d20`.
+
 ## Allowed trace and context
 
 A trace step either performs a successful vault preparation and appends its exact

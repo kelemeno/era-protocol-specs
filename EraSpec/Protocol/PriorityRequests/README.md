@@ -67,3 +67,28 @@ transaction encodings. Chain migrations are disabled at the pin (`CHAIN_MIGRATIO
 `common/Config.sol:317-320`; per `core/chain-asset-handler/IChainAssetHandler.sol:81-83` the
 release requires every chain to settle on L1), so the relay half is latent; the model allows chains
 that settle elsewhere.
+
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. The run-level ones (B1 to B4) carry the same premises: the run starts from an
+`Init` state (no push logged, the Bridgehub's registration-sender and chain-asset-handler roles are
+the genuine contracts, the state well formed), has no role write, every step is an L1 transaction
+agreeing with the accounts, and the account premises hold (nobody acts as
+`SETTLEMENT_LAYER_RELAY_SENDER` or `SERVICE_TRANSACTION_SENDER`, no account acts at
+`L2_INTEROP_CENTER_ADDR` on L1, and nobody holds a key for the registration sender's alias).
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A user request on a diamond pushes one leaf there, plus one relay leaf into its settlement layer's diamond when it settles elsewhere; nothing else changes | The call succeeds | `UserCallRelaysIffSettled` |
+| The same for a service request | The call succeeds | `ServiceCallRelaysIffSettled` |
+| A leaf from `SETTLEMENT_LAYER_RELAY_SENDER` forwards the hash pushed just before it, by a diamond of the named chain, in the same L1 transaction | The run-level premises | `RelayLeavesForwardTheirHash` |
+| A leaf from `SERVICE_TRANSACTION_SENDER` allows a peer, deregisters a chain, or requests a gateway deposit pause | The run-level premises | `ServiceLeavesHaveFixedPurpose` |
+| A leaf from the registration sender's alias registers a peer | The run-level premises | `AliasedRegistrationLeavesRegister` |
+| No user request has a privileged sender | The run-level premises | `UserLeavesNeverPrivileged` |
+
+Witnesses (`@[witness]`): `RelayWitness` (both request paths, settled here and on a gateway) and
+`PrivilegedSendersWitness` (a run with every kind of privileged leaf). Countermodel
+(`@[countermodel]`): `RedirectedRoleBreaksServicePurpose` (with role writes, a service leaf loses
+its shape).
+

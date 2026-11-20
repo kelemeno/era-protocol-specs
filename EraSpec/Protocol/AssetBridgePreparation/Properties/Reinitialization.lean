@@ -1,4 +1,5 @@
 import EraSpec.Protocol.AssetBridgePreparation.Specs.Reinitialization
+import EraSpec.Core.Headline
 
 /-!
 # Properties: reinitializations do not disturb the preparation trace
@@ -54,8 +55,15 @@ def Properties.TraceRunsEmbed : Prop :=
 /-- **CONSERVATION SURVIVES REINITIALIZATIONS.** From a `WellFormed` vault state, along any run of
 preparations, transfers and reinitializations, the vault stays `WellFormed`, supply plus total
 pending value is constant, and neither the vault's configuration nor the token's identity
-changes. -/
-def Properties.ReinitTraceConservation : Prop :=
+changes.
+`WellFormed`: the tracked token's ledger is well formed (balances sum to the supply, the supply is
+below `2^256`, the zero address holds nothing), and the token's vault and asset id, and the vault's
+registry entries for the token and its asset id, agree with the vault's configuration. A run is any
+sequence of successful vault preparations of the tracked token (the `bridgeBurn` branch), ordinary
+token transfers and `reinitializeToken` calls by the beacon owner, for any accounting and metadata
+hooks. The pending list is ghost trace bookkeeping (one entry per successful preparation), not vault
+storage. -/
+@[headline] def Properties.ReinitTraceConservation : Prop :=
   ∀ {Accounting : Type} (hooks : NativeTokenVaultBase.MetaHooks Accounting)
     (s t : TokenTrace Accounting),
     NativeTokenVaultBase.WellFormed s.ledger.vault → ReinitReach hooks s t →
@@ -66,7 +74,11 @@ def Properties.ReinitTraceConservation : Prop :=
     t.ledger.vault.token.config = s.ledger.vault.token.config
 
 /-- **PREPARED DATA PERSISTS.** Along any run, the pending list only grows at its end: no
-reinitialization, preparation or transfer replaces previously prepared data. -/
+reinitialization, preparation or transfer replaces previously prepared data.
+A run is any sequence of successful vault preparations of the tracked token (the `bridgeBurn`
+branch), ordinary token transfers and `reinitializeToken` calls by the beacon owner, for any
+accounting and metadata hooks. The pending list is ghost trace bookkeeping (one entry per successful
+preparation), not vault storage. No other premise. -/
 def Properties.ReinitTracePreparedDataPersists : Prop :=
   ∀ {Accounting : Type} (hooks : NativeTokenVaultBase.MetaHooks Accounting)
     (s t : TokenTrace Accounting), ReinitReach hooks s t →
@@ -75,8 +87,15 @@ def Properties.ReinitTracePreparedDataPersists : Prop :=
 /-- **PENDING OBLIGATIONS KEEP THEIR ASSET.** From a `WellFormed` vault state in which every
 pending obligation names the token's asset id and origin token, along any run, every pending
 obligation still names the token's asset id and origin token, and those are the ones at the
-start. -/
-def Properties.PendingObligationsKeepTheirAsset : Prop :=
+start.
+`WellFormed`: the tracked token's ledger is well formed (balances sum to the supply, the supply is
+below `2^256`, the zero address holds nothing), and the token's vault and asset id, and the vault's
+registry entries for the token and its asset id, agree with the vault's configuration. A run is any
+sequence of successful vault preparations of the tracked token (the `bridgeBurn` branch), ordinary
+token transfers and `reinitializeToken` calls by the beacon owner, for any accounting and metadata
+hooks. The pending list is ghost trace bookkeeping (one entry per successful preparation), not vault
+storage. -/
+@[headline] def Properties.PendingObligationsKeepTheirAsset : Prop :=
   ∀ {Accounting : Type} (hooks : NativeTokenVaultBase.MetaHooks Accounting)
     (s t : TokenTrace Accounting),
     NativeTokenVaultBase.WellFormed s.ledger.vault → PendingNamesToken s.ledger →
@@ -116,7 +135,7 @@ witness registration succeeds; a funding run mints ten units to account `4`, lea
 `13` reinitializes the token to version 2 named `[0x42]`, and the same request prepares again. At
 the end two obligations are pending, with metadata bytes the old name `[0x41]` and the new name
 `[0x42]`, both naming asset `5` and origin token `9`; four units circulate and six are pending. -/
-def Properties.ReinitTraceWitness : Prop :=
+@[witness] def Properties.ReinitTraceWitness : Prop :=
   ∃ (registered : NativeTokenVaultBase.Registered Unit)
     (funded : BridgedStandardERC20.TokenStorage) (t : TokenTrace Unit),
     NativeTokenVaultBase.registerFreshBranch wRegHooks wRegStart 9 = some registered ∧

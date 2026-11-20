@@ -1,4 +1,5 @@
 import EraSpec.Protocol.L1WithdrawalProvenance.Specs.Provenance
+import EraSpec.Core.Headline
 
 /-!
 # Properties: L1 withdrawal provenance, from the L1 gate to the modelled source chains
@@ -49,8 +50,13 @@ verification `v` checked the encoding of a bundle `w` that the modelled center o
 `v.proof.chainId` dispatched to L1 (`v.bytes = abi.encode(w)`, `v.bundle = w`, and `w` has
 `WithdrawalShape`, the guard of the model's `withdrawal` step), or `BUNDLE_IDENTIFIER ++ v.bytes` and
 `BUNDLE_IDENTIFIER ++ abi.encode(w)` differ and have the same keccak, for a dispatched `w` of that
-chain. -/
-def Properties.ProvenBundlesAreDispatchedOrCollide : Prop :=
+chain.
+The four joining premises, each only for the chains named by the run's committed verifications: the
+chain's output is that of a run from genesis of the modelled L2 code (`ChainsRunTheModelOn`); its
+messenger hooks behave as documented (`HooksAsDocumentedOn`); `abi.decode` inverts `abi.encode` on
+its dispatched bundles (`DispatchRoundTripOn`); and every committed verification's queried message
+log is in that chain's output (`InclusionSoundOn`, the evidence premise). -/
+@[headline] def Properties.ProvenBundlesAreDispatchedOrCollide : Prop :=
   ∀ (P : Params) (Q : ℕ → ChainParams) (H : ℕ → HookSem) (runs : ℕ → L2State) (s : State)
     (txs : List Tx),
     ChainsRunTheModelOn P.codec Q H runs (submitAll P s txs).2 →
@@ -67,8 +73,13 @@ L2 run of every chain, and every sequence of L1 transactions from fresh storage,
 premises (each on the chains the run's committed verifications name): every committed delivery `d` is
 `DispatchedWithdrawal` (its one-call shape comes from `WithdrawalShape`, the guard of the model's
 `withdrawal` step), or the delivered bytes collide under keccak with a committed verification's bytes,
-or a committed verification's queried message collides with a message the center of its chain sent. -/
-def Properties.DeliveredWithdrawalWasDispatchedOrCollision : Prop :=
+or a committed verification's queried message collides with a message the center of its chain sent.
+The four joining premises, each only for the chains named by the run's committed verifications: the
+chain's output is that of a run from genesis of the modelled L2 code (`ChainsRunTheModelOn`); its
+messenger hooks behave as documented (`HooksAsDocumentedOn`); `abi.decode` inverts `abi.encode` on
+its dispatched bundles (`DispatchRoundTripOn`); and every committed verification's queried message
+log is in that chain's output (`InclusionSoundOn`, the evidence premise). -/
+@[headline] def Properties.DeliveredWithdrawalWasDispatchedOrCollision : Prop :=
   ∀ (P : Params) (Q : ℕ → ChainParams) (H : ℕ → HookSem) (runs : ℕ → L2State) (txs : List Tx),
     ChainsRunTheModelOn P.codec Q H runs (submitAll P init txs).2 →
     HooksAsDocumentedOn P.codec H (submitAll P init txs).2 →
@@ -85,7 +96,7 @@ account sends a message, a direct hook call naming the center records nothing, a
 L1 run `[wExecOne]` from fresh storage commits one verification, naming chain `270`, whose run
 dispatched one bundle; the four joining premises hold for that run; it delivers one call, and that call
 is `DispatchedWithdrawal`. -/
-def Properties.ProvenanceEndToEndWitness : Prop :=
+@[witness] def Properties.ProvenanceEndToEndWitness : Prop :=
   (verifications (submitAll wParams init [wExecOne]).2).map (·.proof.chainId) = [270] ∧
     (wRuns wGatedHooks 270).dispatched.length = 1 ∧
     ChainsRunTheModelOn wCodec wQ (fun _ => wGatedHooks) (wRuns wGatedHooks)
@@ -105,7 +116,7 @@ transaction `2` and then unbundles both of its calls: `ChainsRunTheModelOn`, `Di
 `InclusionSoundOn` hold, and `HooksAsDocumentedOn` fails. The run delivers two calls, and no delivery
 satisfies any disjunct of `DeliveredWithdrawalWasDispatchedOrCollision`. With `wGatedHooks` the same L1
 run fails `InclusionSoundOn`. -/
-def Properties.UngatedHookDeliversUndispatchedCalls : Prop :=
+@[countermodel] def Properties.UngatedHookDeliversUndispatchedCalls : Prop :=
   ChainsRunTheModelOn wCodec wQ (fun _ => wUngatedHooks) (wRuns wUngatedHooks)
       (submitAll wParams init [wVerifyTx2, wUnbundleTwo]).2 ∧
     DispatchRoundTripOn wCodec (wRuns wUngatedHooks)

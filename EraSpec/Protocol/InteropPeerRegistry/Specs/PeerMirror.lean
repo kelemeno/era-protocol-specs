@@ -83,8 +83,9 @@ the entry is consumed.
 `CHAIN_MIGRATIONS_ENABLED = false` (`common/Config.sol:320`), and the chain asset handler's
 `bridgeBurn` and `bridgeMint` are `whenMigrationsEnabled` (`CAH:151-156`, `:201`, `:365`); only the
 failure confirmation is not (`core/chain-asset-handler/L1ChainAssetHandler.sol:119-120`). The model
-keeps the migration steps anyway, so the presence results below are about that disabled path; all
-other results hold with the migration steps enabled.
+keeps the migration steps anyway, so the presence results below are about that disabled path: at
+`b17415d20` their premise (`p` settles on `c`) can hold only for a chain that moved onto `c` before
+v35. All other results hold with the migration steps enabled.
 
 * **Out to a settlement layer `c`** (`CAH.bridgeBurn` on L1, `CAH:188-254`): the L1 Bridgehub's
   `forwardedBridgeBurnSetSettlementLayer` requires `settlementLayer[p] == block.chainid` and writes

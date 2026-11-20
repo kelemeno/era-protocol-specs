@@ -1,4 +1,5 @@
 import EraSpec.Protocol.NativeValueLegs.Specs.LegConservation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: a native-value atomic leg returns exactly what it collected, to its payer, in its asset
@@ -48,8 +49,11 @@ bundle formed by sender `u` under the deployed checks, with `u` not the router: 
 router carries value `0` and `finalizeDeposit` data on an asset other than the bundle's
 destination base-token asset `A`; every call not from the router is from `u`; every base-token
 refund `_recoverBundle` requests is to `u`; and their amounts sum to `collected starters`, the
-`totalBurnedCallsValue` the send collected. -/
-def Properties.ValueCallsComeFromTheSender : Prop :=
+`totalBurnedCallsValue` the send collected.
+"Under the deployed checks": every starter passes `InteropCenter`'s deployed checks on indirect
+starters (an indirect call goes only to the asset router and carries no value,
+`InteropCenter.sol:659-678`), and the calls are the ones the send forms from the starters. -/
+@[headline] def Properties.ValueCallsComeFromTheSender : Prop :=
   ∀ (cfg : Config) (A : AssetId) (u : Address) (starters : List Starter) (calls : List Call),
     u ≠ cfg.router →
     (∀ s ∈ starters, StarterPasses deployed cfg s) →
@@ -63,7 +67,7 @@ def Properties.ValueCallsComeFromTheSender : Prop :=
 /-- **WITNESS FOR (1).**  A bundle with a direct value call and a router-produced call, formed by a
 sender other than the router under the deployed checks, requests one refund, of `collected > 0`, to
 its sender. -/
-def Properties.ValueCallsWitness : Prop :=
+@[witness] def Properties.ValueCallsWitness : Prop :=
   ∃ (cfg : Config) (A : AssetId) (u : Address) (starters : List Starter) (calls : List Call),
     u ≠ cfg.router ∧ (∀ s ∈ starters, StarterPasses deployed cfg s) ∧
       List.Forall₂ (FormsCall cfg A u) starters calls ∧
@@ -73,7 +77,7 @@ def Properties.ValueCallsWitness : Prop :=
 /-- **THE SENDER PREMISE IS LOAD-BEARING.**  If the router itself were the sender, its direct value
 call would be dispatched to `recoverAtomicCall` and refund nothing: the value is collected from the
 router, and a successful refund leaves the leg's footprint unchanged. -/
-def Properties.RouterSenderValueIsNotRefunded : Prop :=
+@[countermodel] def Properties.RouterSenderValueIsNotRefunded : Prop :=
   ∃ (P : Params) (u : Address) (starters : List Starter) (B : Bundle) (w₀ w₁ w₂ : World),
     u = P.cfg.router ∧ (∀ s ∈ starters, StarterPasses deployed P.cfg s) ∧
       List.Forall₂ (FormsCall P.cfg B.destBaseAsset u) starters B.calls ∧
@@ -91,8 +95,11 @@ destination base-token asset `A`.  If the code recovering router-produced calls 
 in the tracker, then every successful `claimRefund` of the bundle moves `collected starters` of `A`
 to `u` (`Shifted … u (collected starters)`): out of the holder for the base token, out of the
 vault's escrow for a token native here (crediting the tracker's `chainBalance` by the same amount),
-or minted for a bridged token; the L1 counters do not move. -/
-def Properties.ClaimReturnsCollected : Prop :=
+or minted for a bridged token; the L1 counters do not move.
+"Under the deployed checks": every starter passes `InteropCenter`'s deployed checks on indirect
+starters (an indirect call goes only to the asset router and carries no value,
+`InteropCenter.sol:659-678`), and the calls are the ones the send forms from the starters. -/
+@[headline] def Properties.ClaimReturnsCollected : Prop :=
   ∀ (P : Params) (u : Address) (starters : List Starter) (B : Bundle) (w w' : World),
     u ≠ P.cfg.router →
     (∀ s ∈ starters, StarterPasses deployed P.cfg s) →
@@ -106,7 +113,7 @@ def Properties.ClaimReturnsCollected : Prop :=
 /-- **WITNESS FOR (2), DIFFERENT BASE TOKEN.**  Every premise of `ClaimReturnsCollected` holds, with a
 router-produced call recovered by code that mints another asset, a value call of `collected > 0` in a
 token native to the source chain, and the refund succeeds. -/
-def Properties.ClaimWitnessNativeToken : Prop :=
+@[witness] def Properties.ClaimWitnessNativeToken : Prop :=
   ∃ (P : Params) (u : Address) (starters : List Starter) (B : Bundle) (w : World),
     u ≠ P.cfg.router ∧ (∀ s ∈ starters, StarterPasses deployed P.cfg s) ∧
       List.Forall₂ (FormsCall P.cfg B.destBaseAsset u) starters B.calls ∧
@@ -117,7 +124,7 @@ def Properties.ClaimWitnessNativeToken : Prop :=
 
 /-- **WITNESS FOR (2), SAME BASE TOKEN.**  Every premise of `ClaimReturnsCollected` holds with the
 source chain's base token as the asset, a value call of `collected > 0`, and the refund succeeds. -/
-def Properties.ClaimWitnessBaseToken : Prop :=
+@[witness] def Properties.ClaimWitnessBaseToken : Prop :=
   ∃ (P : Params) (u : Address) (starters : List Starter) (B : Bundle) (w : World),
     u ≠ P.cfg.router ∧ (∀ s ∈ starters, StarterPasses deployed P.cfg s) ∧
       List.Forall₂ (FormsCall P.cfg B.destBaseAsset u) starters B.calls ∧
@@ -162,7 +169,7 @@ native to the source chain that the tracker has not registered, under the frame 
 refund succeeds and is not `Shifted … u (collected starters)`: the tracker's first registration of
 the token sets its `chainBalance` to `MAX_TOKEN_BALANCE` minus the vault's holding
 (`L2AssetTracker.sol:246-251`), and the refund then credits `collected starters`. -/
-def Properties.UnregisteredNativeRefundSetsChainBalance : Prop :=
+@[countermodel] def Properties.UnregisteredNativeRefundSetsChainBalance : Prop :=
   ∃ (P : Params) (u : Address) (starters : List Starter) (B : Bundle) (w w' : World),
     u ≠ P.cfg.router ∧ (∀ s ∈ starters, StarterPasses deployed P.cfg s) ∧
       List.Forall₂ (FormsCall P.cfg B.destBaseAsset u) starters B.calls ∧
@@ -269,7 +276,7 @@ def Properties.RoundTripWitness : Prop :=
 check off, a bundle with one indirect starter carrying value `v > 0`, formed by a sender other than
 the router, collects `v` from the sender, and a successful refund returns nothing of the asset:
 the call's `from` is the router, so it is dispatched to `recoverAtomicCall`. -/
-def Properties.WithoutIndirectValueBanValueIsNotRefunded : Prop :=
+@[countermodel] def Properties.WithoutIndirectValueBanValueIsNotRefunded : Prop :=
   ∃ (P : Params) (u : Address) (starters : List Starter) (B : Bundle) (w₀ w₁ w₂ : World),
     u ≠ P.cfg.router ∧ (∀ s ∈ starters, StarterPasses withoutIndirectValueBan P.cfg s) ∧
       List.Forall₂ (FormsCall P.cfg B.destBaseAsset u) starters B.calls ∧

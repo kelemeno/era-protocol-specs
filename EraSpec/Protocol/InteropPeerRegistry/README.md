@@ -20,6 +20,29 @@ Namespace `Contracts.InteropPeerRegistry`. Statements are
 `Contracts.InteropPeerRegistry.Properties.*`; each certificate has the same name without the
 `Properties` segment. No result takes a hash premise.
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. Every one is about states reached from fresh storage by the deployed code (each
+chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for any
+deployment constants. The model keeps the migration steps that `b17415d20` disables, so the
+statements cover more runs than the target commit has.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A chain's `isPeerAllowed[p]` equals L1's `interopPeerAllowed[c][p]` | No entry writing it is pending in the chain's queue, and the last executed one succeeded (or none ran) | `PeerFlagMirrorsWhenLastEntrySucceeded` |
+| No chain allows itself or L1 as a peer | None | `PeerFlagsOnlyForProperPeers` |
+| Every chain's `baseTokenAssetId[p]` is `0` or L1's | None | `L2BaseTokenEntryIsZeroOrL1Value` |
+| L1's `baseTokenAssetId[p]` never changes once nonzero | None | `L1BaseTokenFixedOnceSet` |
+| A registered chain's entry for a chain settling on it is L1's, and nonzero | The chain is registered and records `p` as settling on it. Only a migration of `p` onto the chain sets that record, so at `b17415d20` (migrations disabled) it can hold only for a chain that moved there before v35 | `SettledChainEntryIsL1Value` |
+| That entry does not change, and a `true` `isPeerAllowed[p]` stays `true`, while `p` stays settled there | The chain is registered and records `p` as settling on it before and after the step. Only a migration of `p` onto the chain sets that record, so at `b17415d20` (migrations disabled) it can hold only for a chain that moved there before v35 | `SettledEntryNeverChanges` |
+
+Witnesses (`@[witness]`): `MirrorAfterFailedServiceEntryWitness`, `BaseTokenEntryWitness` and
+`SettledEntryWitness`. Countermodels (`@[countermodel]`): `FailedServiceEntryLeavesPeerFlagBehind`,
+`WithoutFifoPeerFlagDesyncs`, `PendingArrivalEntryMayBeZero`,
+`WithoutDeregSettlementCheckSettledEntryCleared`, `WithoutFifoSettledEntryCleared` and
+`SettledPeerFlagCanTurnOn`.
+
 ## What is modelled
 
 One state for the ecosystem: the sender's `interopPeerAllowed`; the L1 Bridgehub's registration,
@@ -32,7 +55,8 @@ run `_checkPeerPair`), the retired consent-free registration, other requests, th
 queue's head with success or failure, and the migration path (out to a settlement layer, arrival,
 start back, finalization on L1, confirmation of a failed arrival). Migrations are disabled at
 `b17415d20` (`CHAIN_MIGRATIONS_ENABLED = false`); the model keeps them, so the presence results
-are about that latent path. Runs start from fresh storage, and every step kind is enabled for the
+are about that latent path: at `b17415d20` their premise (`c` records `p` as settling on `c`) can
+hold only for a chain that moved onto `c` before v35. Runs start from fresh storage, and every step kind is enabled for the
 whole run. Two mechanisms are switches: FIFO execution, and the `settlementLayer(p) == c` clause
 of `_checkPeerPair` in `deregisterInteropPairs`. Boundary: `MODEL-PEER-MIRROR` in
 [ASSUMPTIONS.md](../../../ASSUMPTIONS.md).
@@ -81,7 +105,10 @@ of `_checkPeerPair` in `deregisterInteropPairs`. Boundary: `MODEL-PEER-MIRROR` i
   (`L1BaseTokenFixedOnceSet`). This is proved, not assumed. So after `p` is created with asset id
   `a`, every chain's entry for `p` stays `0` or `a` (`L2BaseTokenEntryIsZeroOrCreationValue`).
 
-**(c) Presence while `p` settles on `c` (latent).**
+**(c) Presence while `p` settles on `c` (latent).** Only a migration of `p` onto `c` makes `c`
+record `p` as settling on it. Migrations are disabled at `b17415d20`, so there the premises of this
+group can hold only for a chain that moved onto `c` before v35; the model reaches them through its
+kept migration steps (as `SettledEntryWitness` does).
 
 - While `c`'s `L2Bridgehub` records `p` as settling on `c`, its entry for `p` is L1's, which is
   nonzero (`SettledChainEntryIsL1Value`). While `p`'s withdrawal from `c` is in flight, `c`'s entry

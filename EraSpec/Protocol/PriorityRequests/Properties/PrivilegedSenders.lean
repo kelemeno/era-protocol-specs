@@ -1,4 +1,5 @@
 import EraSpec.Protocol.PriorityRequests.Specs.PrivilegedSenders
+import EraSpec.Core.Headline
 
 /-!
 # Properties: who appends priority operations on L1, and the two privileged senders
@@ -87,7 +88,7 @@ by `D` when `D` settles here, and otherwise that push followed by one relay push
 layer's diamond, which is a different diamond whose total grows by one; the relay transaction calls
 `forwardTransactionOnGateway(D.chainId, h, 0)` for `D`'s leaf `h`. Every other diamond is
 unchanged. -/
-def Properties.UserCallRelaysIffSettled : Prop :=
+@[headline] def Properties.UserCallRelaysIffSettled : Prop :=
   ∀ (P : SysParams) (S : System) (env : Env) (D : Address) (req : Request) (S' : System),
     userCall P S env D req = some S' →
       ∃ dD, S.diamonds D = some dD ∧
@@ -106,7 +107,7 @@ def Properties.UserCallRelaysIffSettled : Prop :=
 by `G` when `G` settles here, and otherwise that push followed by one relay push into the
 settlement layer's diamond calling `forwardTransactionOnGateway(G.chainId, h, 0)` for `G`'s leaf
 `h`. Every diamond other than `G` and its settlement layer is unchanged. -/
-def Properties.ServiceCallRelaysIffSettled : Prop :=
+@[headline] def Properties.ServiceCallRelaysIffSettled : Prop :=
   ∀ (P : SysParams) (S : System) (env : Env) (G caller target : Address) (data : Bytes)
     (S' : System),
     serviceCall P S env G caller target data = some S' →
@@ -143,8 +144,15 @@ def Properties.EveryLeafIsASerializedTransaction : Prop :=
 the account premises, a logged push whose transaction is from `SETTLEMENT_LAYER_RELAY_SENDER` was
 made by the free path, and is a free transaction to `L2_INTEROP_CENTER_ADDR` calling
 `forwardTransactionOnGateway(c, h, 0)`, where the push immediately before it in the log was made in
-the same L1 transaction, not by the hash-only path, by a diamond of chain `c`, with leaf `h`. -/
-def Properties.RelayLeavesForwardTheirHash : Prop :=
+the same L1 transaction, not by the hash-only path, by a diamond of chain `c`, with leaf `h`.
+The premises: the run starts from a start state (`Init`: no push logged yet, the Bridgehub's
+registration-sender and chain-asset-handler roles are the genuine contracts, the state is well
+formed); no role write occurs in it; every step is an L1 transaction whose sender agrees with the
+accounts; and the account premises hold (`AccountPremises`: nobody can act as
+`SETTLEMENT_LAYER_RELAY_SENDER` or `SERVICE_TRANSACTION_SENDER`, no account acts at
+`L2_INTEROP_CENTER_ADDR` on L1, and the registration sender is a contract whose alias nobody holds a
+key for). -/
+@[headline] def Properties.RelayLeavesForwardTheirHash : Prop :=
   ∀ (P : SysParams) (A : Accounts) (S0 S : System), Init P S0 → AccountPremises P A →
     Reach P A false S0 S →
       ∀ (i : ℕ) (hi : i < S.log.length) (tx : L2Tx), S.log[i].tx = some tx →
@@ -154,8 +162,15 @@ def Properties.RelayLeavesForwardTheirHash : Prop :=
 premises, a logged push whose transaction is from `SERVICE_TRANSACTION_SENDER` was made by the free
 path and is a free transaction calling `allowInteropPeer(p, a)` with `a ≠ 0` or
 `deregisterChainForInterop(p)` on the L2 Bridgehub, or `requestPauseDepositsForChainOnGateway(c)` on
-the L2 chain asset handler. -/
-def Properties.ServiceLeavesHaveFixedPurpose : Prop :=
+the L2 chain asset handler.
+The premises: the run starts from a start state (`Init`: no push logged yet, the Bridgehub's
+registration-sender and chain-asset-handler roles are the genuine contracts, the state is well
+formed); no role write occurs in it; every step is an L1 transaction whose sender agrees with the
+accounts; and the account premises hold (`AccountPremises`: nobody can act as
+`SETTLEMENT_LAYER_RELAY_SENDER` or `SERVICE_TRANSACTION_SENDER`, no account acts at
+`L2_INTEROP_CENTER_ADDR` on L1, and the registration sender is a contract whose alias nobody holds a
+key for). -/
+@[headline] def Properties.ServiceLeavesHaveFixedPurpose : Prop :=
   ∀ (P : SysParams) (A : Accounts) (S0 S : System), Init P S0 → AccountPremises P A →
     Reach P A false S0 S →
       ∀ p ∈ S.log, ∀ tx, p.tx = some tx → tx.fromAddr = serviceSender →
@@ -164,8 +179,15 @@ def Properties.ServiceLeavesHaveFixedPurpose : Prop :=
 /-- **HEADLINE (B3): LEAVES FROM THE ALIASED REGISTRATION SENDER REGISTER A PEER.** Along every run
 under the account premises, a logged push whose transaction is from the alias of the genuine
 `ChainRegistrationSender` was made by the user path and calls `allowInteropPeer(p, a)` with `a ≠ 0`
-on the L2 Bridgehub. -/
-def Properties.AliasedRegistrationLeavesRegister : Prop :=
+on the L2 Bridgehub.
+The premises: the run starts from a start state (`Init`: no push logged yet, the Bridgehub's
+registration-sender and chain-asset-handler roles are the genuine contracts, the state is well
+formed); no role write occurs in it; every step is an L1 transaction whose sender agrees with the
+accounts; and the account premises hold (`AccountPremises`: nobody can act as
+`SETTLEMENT_LAYER_RELAY_SENDER` or `SERVICE_TRANSACTION_SENDER`, no account acts at
+`L2_INTEROP_CENTER_ADDR` on L1, and the registration sender is a contract whose alias nobody holds a
+key for). -/
+@[headline] def Properties.AliasedRegistrationLeavesRegister : Prop :=
   ∀ (P : SysParams) (A : Accounts) (S0 S : System), Init P S0 → AccountPremises P A →
     Reach P A false S0 S →
       ∀ p ∈ S.log, ∀ tx, p.tx = some tx → tx.fromAddr = applyL1ToL2Alias P.crs →
@@ -173,8 +195,15 @@ def Properties.AliasedRegistrationLeavesRegister : Prop :=
 
 /-- **HEADLINE (B4): NO USER REQUEST HAS A PRIVILEGED SENDER.** Along every run under the account
 premises, no push made by the user path has a transaction from `SETTLEMENT_LAYER_RELAY_SENDER` or
-`SERVICE_TRANSACTION_SENDER`. -/
-def Properties.UserLeavesNeverPrivileged : Prop :=
+`SERVICE_TRANSACTION_SENDER`.
+The premises: the run starts from a start state (`Init`: no push logged yet, the Bridgehub's
+registration-sender and chain-asset-handler roles are the genuine contracts, the state is well
+formed); no role write occurs in it; every step is an L1 transaction whose sender agrees with the
+accounts; and the account premises hold (`AccountPremises`: nobody can act as
+`SETTLEMENT_LAYER_RELAY_SENDER` or `SERVICE_TRANSACTION_SENDER`, no account acts at
+`L2_INTEROP_CENTER_ADDR` on L1, and the registration sender is a contract whose alias nobody holds a
+key for). -/
+@[headline] def Properties.UserLeavesNeverPrivileged : Prop :=
   ∀ (P : SysParams) (A : Accounts) (S0 S : System), Init P S0 → AccountPremises P A →
     Reach P A false S0 S →
       ∀ p ∈ S.log, p.kind = .user → ∀ tx, p.tx = some tx →
@@ -239,7 +268,7 @@ def Properties.RegistrationLeafStepFacts : Prop :=
 an `Init` state under the account premises in which a service leaf does not have `ServiceShape` (in
 the proof: the owner sets `chainRegistrationSender` to an ordinary contract, which sends calldata
 `[9]` to the L2 Bridgehub, a byte string none of the witness encoders produces). -/
-def Properties.RedirectedRoleBreaksServicePurpose : Prop :=
+@[countermodel] def Properties.RedirectedRoleBreaksServicePurpose : Prop :=
   ∃ (P : SysParams) (A : Accounts) (S0 S : System), Init P S0 ∧ AccountPremises P A ∧
     Reach P A true S0 S ∧
       ∃ p ∈ S.log, ∃ tx, p.tx = some tx ∧ tx.fromAddr = serviceSender ∧ ¬ ServiceShape P tx
@@ -249,7 +278,7 @@ def Properties.RedirectedRoleBreaksServicePurpose : Prop :=
 /-- **WITNESS FOR (A).** From the witness start state, a user request and a service request both
 succeed on chain `20`'s diamond, which settles on the gateway (two pushes each), and on chain
 `30`'s diamond, which settles here (one push each). -/
-def Properties.RelayWitness : Prop :=
+@[witness] def Properties.RelayWitness : Prop :=
   (∃ S', userCall wsParams wsInit wEnv wsD20 (wRequest wContract) = some S' ∧ S'.log.length = 2) ∧
   (∃ S', userCall wsParams wsInit wEnv wsD30 (wRequest wContract) = some S' ∧ S'.log.length = 1) ∧
   (∃ S', serviceCall wsParams wsInit wEnv wsD20 wsCrs l2BridgehubAddr [2] = some S' ∧
@@ -282,7 +311,7 @@ def Properties.StepFactsWitness : Prop :=
 log holds at least two relay leaves, three service leaves (a registration, a deregistration and a
 pause request), one leaf from the aliased registration sender and one user leaf from an aliased
 contract. -/
-def Properties.PrivilegedSendersWitness : Prop :=
+@[witness] def Properties.PrivilegedSendersWitness : Prop :=
   ∃ (P : SysParams) (A : Accounts) (S0 S : System), Init P S0 ∧ AccountPremises P A ∧
     Reach P A false S0 S ∧
     2 ≤ (S.log.filter fun p => (p.tx.map L2Tx.fromAddr) = some relaySender).length ∧

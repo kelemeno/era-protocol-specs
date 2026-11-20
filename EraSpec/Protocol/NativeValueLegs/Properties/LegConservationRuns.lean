@@ -1,4 +1,5 @@
 import EraSpec.Protocol.NativeValueLegs.Specs.LegConservationRuns
+import EraSpec.Core.Headline
 
 /-!
 # Properties: along every run, each refund is bound to the send that committed its leg
@@ -28,8 +29,16 @@ namespace Contracts.NativeValueLegs
 /-- **EVERY SUCCESSFUL REFUND IS BOUND TO ITS SEND, OR TO A PINNED KECCAK COLLISION.**  Along every run
 from fresh manager storage over any world: if the abstract code satisfies `CodeFrames`, no logged
 send is from the router, and the decoder inverts the encoder on every logged bundle, then every
-logged claim satisfies `ClaimMatches` against the run's sends. -/
-def Properties.EveryClaimRefundsItsSenderOrCollision : Prop :=
+logged claim satisfies `ClaimMatches` against the run's sends.
+`CodeFrames`: router-call recovery leaves every asset its data does not name alone (footprint and
+tracker registration), and neither it nor a custom handler's burn clears a tracker registration.
+`ClaimMatches`: the claim consumed the leg of a logged send `s` (same flow id and leg hash), and
+either the claimant passed `s`'s own bytes, decoding to `s`'s bundle, and the claim moved exactly
+what `s` collected of `s`'s asset to `s`'s sender, or the claimant passed other bytes with the same
+keccak. One case is left out of the exact-amount clause: a send that collected something through a
+handler other than the vault, in a token native to the source chain and not registered in the
+tracker before the claim (`UnregisteredNativeRefundSetsChainBalance`). -/
+@[headline] def Properties.EveryClaimRefundsItsSenderOrCollision : Prop :=
   ∀ (R : RunParams) (w₀ : World) (S : State),
     Reach R (State.init w₀) S → CodeFrames R.toParams →
     (∀ s ∈ S.sent, s.sender ≠ R.cfg.router) →
@@ -38,7 +47,7 @@ def Properties.EveryClaimRefundsItsSenderOrCollision : Prop :=
 
 /-- **WITNESS FOR THE HEADLINE.**  A run satisfying every premise in which a claim passes the bytes of
 a logged send that collected `collected > 0` through the vault. -/
-def Properties.RunClaimWitness : Prop :=
+@[witness] def Properties.RunClaimWitness : Prop :=
   ∃ (R : RunParams) (w₀ : World) (S : State),
     Reach R (State.init w₀) S ∧ CodeFrames R.toParams ∧
       (∀ s ∈ S.sent, s.sender ≠ R.cfg.router) ∧
@@ -47,14 +56,16 @@ def Properties.RunClaimWitness : Prop :=
         0 < collected s.starters
 
 /-- **EACH LEG IS COMMITTED BY ONE SEND.**  Along every run, the leg keys of the logged sends are
-pairwise distinct. -/
-def Properties.EachLegSentOnce : Prop :=
+pairwise distinct.
+Reachable from fresh manager storage over any world; no other premise. -/
+@[headline] def Properties.EachLegSentOnce : Prop :=
   ∀ (R : RunParams) (w₀ : World) (S : State),
     Reach R (State.init w₀) S → (S.sent.map (Sent.key R)).Nodup
 
 /-- **EACH LEG IS CONSUMED BY AT MOST ONE CLAIM.**  Along every run, the leg keys of the logged
-claims are pairwise distinct. -/
-def Properties.EachLegClaimedAtMostOnce : Prop :=
+claims are pairwise distinct.
+Reachable from fresh manager storage over any world; no other premise. -/
+@[headline] def Properties.EachLegClaimedAtMostOnce : Prop :=
   ∀ (R : RunParams) (w₀ : World) (S : State),
     Reach R (State.init w₀) S → (S.claimed.map (Claimed.key R)).Nodup
 

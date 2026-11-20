@@ -1,4 +1,5 @@
 import EraSpec.Protocol.InteropPeerRegistry.Specs.PeerMirror
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the peer whitelist's mirror, and the `baseTokenAssetId` entries on each chain
@@ -53,7 +54,9 @@ nonzero (`SettledChainEntryIsL1Value`); while `p`'s withdrawal from `c` is in fl
 the carried asset id are L1's (`ReturningChainEntryIsL1Value`, `ReturnCarriesL1BaseToken`). While `p`'s
 arrival on `c` is queued, the queued data carries L1's value and no deregistration of `p` on `c` is
 queued after it (`PendingArrivalCarriesL1Value`), but `c`'s entry itself may still be `0`
-(`PendingArrivalEntryMayBeZero`): the presence claim does not extend to that window.
+(`PendingArrivalEntryMayBeZero`): the presence claim does not extend to that window. Only a
+migration onto `c` makes `c` record `p` as settling on it, so at `b17415d20`, where migrations are
+disabled, these premises can hold only for a chain that moved onto `c` before v35.
 `_checkPeerPair`'s NatSpec (`CRS:170-171`) says such an entry must never change. `baseTokenAssetId[p]`
 does not, through any step, the re-submission included, and a `true` `isPeerAllowed[p]` stays
 `true` (`SettledEntryNeverChanges`). A `false` one can turn on: after a failed service entry, a
@@ -99,8 +102,12 @@ namespace Contracts.InteropPeerRegistry
 /-- **HEADLINE (a): `isPeerAllowed` MIRRORS L1 ONCE ITS LAST ENTRY SUCCEEDED.** On every reachable
 state, for every chain `c` and peer `p`: if no entry writing `isPeerAllowed[p]` is pending in `c`'s
 queue, and the last executed one succeeded (or none was executed), then `c`'s
-`isPeerAllowed[p]` equals the sender's `interopPeerAllowed[c][p]`. -/
-def Properties.PeerFlagMirrorsWhenLastEntrySucceeded : Prop :=
+`isPeerAllowed[p]` equals the sender's `interopPeerAllowed[c][p]`.
+Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
+(each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
+any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
+covers more runs than the target commit has. No other premise. -/
+@[headline] def Properties.PeerFlagMirrorsWhenLastEntrySucceeded : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P S →
     ∀ c p : ChainId, NoPendingPeerEntry p (S.queue c) → lastPeerEntryOk p (S.done c) = true →
       (S.hub c).peer p = S.l1.allowed c p
@@ -118,7 +125,7 @@ def Properties.PeerFlagMirrorsWhenServiceEntriesSucceed : Prop :=
 /-- **A FAILED SERVICE ENTRY LEAVES THE FLAG BEHIND.** A reachable state in which `c`'s queue is
 empty, the sender allows `(c, p)`, and `c`'s `isPeerAllowed[p]` is `false`. In the run behind it,
 the service transaction of `allowInteropPeer(c, p)` failed. -/
-def Properties.FailedServiceEntryLeavesPeerFlagBehind : Prop :=
+@[countermodel] def Properties.FailedServiceEntryLeavesPeerFlagBehind : Prop :=
   ∃ (P : Params) (S : State) (c p : ChainId), Reach deployed P S ∧ S.queue c = [] ∧
     S.l1.allowed c p = true ∧ (S.hub c).peer p = false
 
@@ -192,27 +199,39 @@ def Properties.DisallowedPeerFlagFrozenWhileOnLayer : Prop :=
 /-- **WITHOUT FIFO EXECUTION THE MIRROR BREAKS.** With the queue executed out of order, a reachable
 state in which `c`'s queue is empty, every executed entry succeeded, and `c`'s `isPeerAllowed[p]`
 differs from `interopPeerAllowed[c][p]`. -/
-def Properties.WithoutFifoPeerFlagDesyncs : Prop :=
+@[countermodel] def Properties.WithoutFifoPeerFlagDesyncs : Prop :=
   ∃ (P : Params) (S : State) (c p : ChainId), Reach withoutFifo P S ∧ S.queue c = [] ∧
     (∀ e ∈ S.done c, e.2 = true) ∧ (S.hub c).peer p ≠ S.l1.allowed c p
 
 /-- **NO FLAG FOR THE CHAIN ITSELF OR FOR L1.** On every reachable state, if the sender allows
-`(c, p)` or `c`'s `isPeerAllowed[p]` is `true`, then `p ≠ c` and `p` is not L1. -/
-def Properties.PeerFlagsOnlyForProperPeers : Prop :=
+`(c, p)` or `c`'s `isPeerAllowed[p]` is `true`, then `p ≠ c` and `p` is not L1.
+Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
+(each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
+any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
+covers more runs than the target commit has. No other premise. -/
+@[headline] def Properties.PeerFlagsOnlyForProperPeers : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P S → ∀ c p : ChainId,
     (S.l1.allowed c p = true ∨ (S.hub c).peer p = true) → p ≠ c ∧ p ≠ P.l1
 
 /-! ## (b) The value of `baseTokenAssetId[p]` -/
 
 /-- **HEADLINE (b): EVERY CHAIN'S ENTRY IS `0` OR L1'S.** On every reachable state, every chain's
-`baseTokenAssetId[p]` is `0` or the L1 Bridgehub's `baseTokenAssetId[p]`. -/
-def Properties.L2BaseTokenEntryIsZeroOrL1Value : Prop :=
+`baseTokenAssetId[p]` is `0` or the L1 Bridgehub's `baseTokenAssetId[p]`.
+Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
+(each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
+any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
+covers more runs than the target commit has. No other premise. -/
+@[headline] def Properties.L2BaseTokenEntryIsZeroOrL1Value : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P S → ∀ c p : ChainId,
     (S.hub c).bta p = 0 ∨ (S.hub c).bta p = S.l1.bt p
 
 /-- **L1'S ENTRY NEVER CHANGES ONCE NONZERO.** Every step from a reachable state leaves a nonzero
-L1 `baseTokenAssetId[p]` unchanged. -/
-def Properties.L1BaseTokenFixedOnceSet : Prop :=
+L1 `baseTokenAssetId[p]` unchanged.
+Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
+(each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
+any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
+covers more runs than the target commit has. No other premise. -/
+@[headline] def Properties.L1BaseTokenFixedOnceSet : Prop :=
   ∀ (P : Params) (S S' : State) (a : Action), Reach deployed P S → Step deployed P S a S' →
     ∀ p : ChainId, S.l1.bt p ≠ 0 → S'.l1.bt p = S.l1.bt p
 
@@ -226,8 +245,15 @@ def Properties.L2BaseTokenEntryIsZeroOrCreationValue : Prop :=
 
 /-- **HEADLINE (c): A SETTLED CHAIN'S ENTRY IS L1'S.** On every reachable state, if chain `c` is
 registered and `c`'s `L2Bridgehub` records `p` as settling on `c`, then `c`'s `baseTokenAssetId[p]`
-is L1's, and it is nonzero. -/
-def Properties.SettledChainEntryIsL1Value : Prop :=
+is L1's, and it is nonzero.
+Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
+(each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
+any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
+covers more runs than the target commit has. `c` records `p` as settling on it only after a
+migration of `p` onto `c` (in the model, the arrival entry of the kept migration path). Migrations
+are disabled at `b17415d20`, so there the premise can hold only for a chain that moved onto `c`
+before v35; this is the latent case of (c). No other premise. -/
+@[headline] def Properties.SettledChainEntryIsL1Value : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P S → ∀ c p : ChainId,
     S.l1.registered c = true → (S.hub c).sl p = c →
       (S.hub c).bta p = S.l1.bt p ∧ S.l1.bt p ≠ 0
@@ -257,14 +283,21 @@ def Properties.PendingArrivalCarriesL1Value : Prop :=
 /-- **THE LITERAL PRESENCE CLAIM FAILS WHILE THE ARRIVAL IS QUEUED.** A reachable state in which
 L1 records `p` as settling on the registered chain `c`, `p`'s arrival on `c` is queued, and `c`'s
 `baseTokenAssetId[p]` is `0`. -/
-def Properties.PendingArrivalEntryMayBeZero : Prop :=
+@[countermodel] def Properties.PendingArrivalEntryMayBeZero : Prop :=
   ∃ (P : Params) (S : State) (p c : ChainId), Reach deployed P S ∧ S.l1.registered c = true ∧
     S.mig p = .minting c ∧ S.l1.sl p = c ∧ (S.hub c).bta p = 0
 
 /-- **A SETTLED CHAIN'S ENTRY NEVER CHANGES** (`_checkPeerPair`'s NatSpec, `CRS:170-171`). For every
 step from a reachable state that keeps `p` recorded as settling on the registered chain `c`, `c`'s
-`baseTokenAssetId[p]` is unchanged, and a `true` `isPeerAllowed[p]` stays `true`. -/
-def Properties.SettledEntryNeverChanges : Prop :=
+`baseTokenAssetId[p]` is unchanged, and a `true` `isPeerAllowed[p]` stays `true`.
+Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
+(each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
+any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
+covers more runs than the target commit has. `c` records `p` as settling on it only after a
+migration of `p` onto `c` (in the model, the arrival entry of the kept migration path). Migrations
+are disabled at `b17415d20`, so there the premise can hold only for a chain that moved onto `c`
+before v35; this is the latent case of (c). No other premise. -/
+@[headline] def Properties.SettledEntryNeverChanges : Prop :=
   ∀ (P : Params) (S S' : State) (a : Action) (c p : ChainId), Reach deployed P S →
     Step deployed P S a S' → S.l1.registered c = true → (S.hub c).sl p = c → (S'.hub c).sl p = c →
       (S'.hub c).bta p = (S.hub c).bta p ∧ ((S.hub c).peer p = true → (S'.hub c).peer p = true)
@@ -274,7 +307,7 @@ recorded as settling on the registered chain `c` and turns `c`'s `isPeerAllowed[
 to `true`. In the run behind it, the service transaction of `allowInteropPeer(c, p)` failed before
 `p` migrated onto `c`, and the step executes a re-submission, which does not run
 `_checkPeerPair`. -/
-def Properties.SettledPeerFlagCanTurnOn : Prop :=
+@[countermodel] def Properties.SettledPeerFlagCanTurnOn : Prop :=
   ∃ (P : Params) (S S' : State) (a : Action) (c p : ChainId), Reach deployed P S ∧
     Step deployed P S a S' ∧ S.l1.registered c = true ∧ (S.hub c).sl p = c ∧ (S'.hub c).sl p = c ∧
     (S.hub c).peer p = false ∧ (S'.hub c).peer p = true
@@ -292,7 +325,7 @@ def Properties.SettledPeerFlagTurnsOnByResubmission : Prop :=
 /-- **WITHOUT THE SETTLEMENT CLAUSE, A SETTLED CHAIN'S ENTRY IS CLEARED.** With
 `deregisterInteropPairs` not checking `settlementLayer(p) == c`, a reachable state in which `c`
 records `p` as settling on `c` and `c`'s `baseTokenAssetId[p]` is `0`. -/
-def Properties.WithoutDeregSettlementCheckSettledEntryCleared : Prop :=
+@[countermodel] def Properties.WithoutDeregSettlementCheckSettledEntryCleared : Prop :=
   ∃ (P : Params) (S : State) (c p : ChainId), Reach withoutDeregSettlementCheck P S ∧
     S.l1.registered c = true ∧ (S.hub c).sl p = c ∧ (S.hub c).bta p = 0
 
@@ -307,7 +340,7 @@ def Properties.WithoutDeregSettlementCheckL1BaseTokenRewritten : Prop :=
 order, a reachable state in which `c` records `p` as settling on `c` and `c`'s
 `baseTokenAssetId[p]` is `0`. In the run behind it, a deregistration queued before the arrival
 executes after it. -/
-def Properties.WithoutFifoSettledEntryCleared : Prop :=
+@[countermodel] def Properties.WithoutFifoSettledEntryCleared : Prop :=
   ∃ (P : Params) (S : State) (c p : ChainId), Reach withoutFifo P S ∧
     S.l1.registered c = true ∧ (S.hub c).sl p = c ∧ (S.hub c).bta p = 0
 
@@ -338,7 +371,7 @@ def Properties.ReturnedPeerEntryCanBeCleared : Prop :=
 /-- **WITNESS FOR (a).** A reachable state meeting the premises of
 `PeerFlagMirrorsWhenLastEntrySucceeded`: `c`'s queue is empty and its last entry for `p` succeeded,
 after a failed service entry and a successful re-submission; both flags are `true`. -/
-def Properties.MirrorAfterFailedServiceEntryWitness : Prop :=
+@[witness] def Properties.MirrorAfterFailedServiceEntryWitness : Prop :=
   ∃ (P : Params) (S : State) (c p : ChainId), Reach deployed P S ∧ S.queue c = [] ∧
     lastPeerEntryOk p (S.done c) = true ∧
     (∃ e ∈ S.done c, e.1.isService = true ∧ (e.1.peerWrite p).isSome = true ∧ e.2 = false) ∧
@@ -366,7 +399,7 @@ def Properties.DisallowedPeerFlagFrozenWitness : Prop :=
     (S.hub c).peer p = true ∧ (S.hub c).sl p ≠ c ∧ (S'.hub c).sl p = c
 
 /-- **WITNESS FOR (b).** A reachable state with a nonzero entry on a chain other than `p`. -/
-def Properties.BaseTokenEntryWitness : Prop :=
+@[witness] def Properties.BaseTokenEntryWitness : Prop :=
   ∃ (P : Params) (S : State) (c p : ChainId), Reach deployed P S ∧ c ≠ p ∧
     (S.hub c).bta p ≠ 0 ∧ (S.hub c).bta p = S.l1.bt p
 
@@ -386,7 +419,7 @@ def Properties.L1BaseTokenRewriteWitness : Prop :=
 /-- **WITNESS FOR (c), A RE-SUBMISSION WHILE `p` SETTLES ON `c`.** A reachable state in which `c`
 records `p` as settling on `c`, `c`'s queue holds exactly a re-submitted `allowInteropPeer(p, …)`
 (sent without `_checkPeerPair`), and a step executing it successfully keeps `p` settling on `c`. -/
-def Properties.SettledEntryWitness : Prop :=
+@[witness] def Properties.SettledEntryWitness : Prop :=
   ∃ (P : Params) (S S' : State) (c p : ChainId), Reach deployed P S ∧ S.l1.registered c = true ∧
     (S.hub c).sl p = c ∧ S.queue c = [.allow p (S.l1.bt p) false] ∧
     Step deployed P S (.execute c 0 true) S' ∧ (S'.hub c).sl p = c ∧ (S.hub c).peer p = true
