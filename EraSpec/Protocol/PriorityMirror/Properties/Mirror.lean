@@ -44,7 +44,7 @@ copy's `processBatch` advanced over the leaf; L2 execution is not modelled.
 
 namespace Protocol.PriorityMirror
 
-open Contracts.MailboxFacet
+open Contracts.PriorityTree.Library
 
 /-! ## The L1 copy during the move to the gateway -/
 

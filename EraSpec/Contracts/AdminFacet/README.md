@@ -1,9 +1,51 @@
 # AdminFacet
 
-Source: era-contracts `draft/v0.35.0` at commit
-**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, under `l1-contracts/contracts/`. The model was
-first written against `d9f678900e1bc8286412b78f56d4a9f443983c29`; every file listed below is
-byte-identical at the two commits, so each `file:line` holds at both.
+The chain diamond's `AdminFacet` at era-contracts `draft/v0.35.0` `b17415d20`: access control, the
+freeze switch, priority mode, protocol upgrades and fee inputs.
+
+## Headline guarantees
+
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. "A run"
+is any interleaving of calls (any sender, any block time), environment changes and writes by the
+other facets; "without cuts" excludes the three entries that run a diamond cut
+(`upgradeChainFromVersion`, `executeUpgrade`, `genesisUpgrade`), whose effect is arbitrary code.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A successful call to any of the 25 state-changing entries came from an address in that entry's role (admin, pending admin, CTM, validator, or the Bridgehub owner for disabling a required second proof system); `activatePriorityMode` has none | None | `EveryEntryChecksItsRole` |
+| A validator's `upgradeChainFromVersion(_, v)` waits for the `ServerNotifier` timestamp of `v`, which is set and reached | The caller is neither the admin nor the CTM | `ValidatorUpgradeWaitsForSchedule` |
+| A changed admin sent `acceptAdmin` itself and was pending at the start or nominated by `setPendingAdmin` in the run | A run without cuts; no call from the zero address | `AdminChangesOnlyByAcceptance` |
+| Every changed validator bit was written to its final value by the CTM's `setValidator`; the CTM address is fixed | A run without cuts | `ValidatorsChangeOnlyByCTM` |
+| `freezeDiamond` succeeds iff the caller is the CTM and the diamond is unfrozen; `unfreezeDiamond` iff the caller is the CTM, the diamond is frozen and its selector is not freezable; each writes only the flag | None | `FreezeUnfreezeExact` |
+| `Stage1Inv` (active priority mode implies allowed and permanent rollup; allowed implies L1-transaction filtering off and the governance-set filterer) holds on every chain where priority mode is neither allowed nor active, and every run keeps it | A run without cuts | `Stage1InvHoldsAlongRuns` |
+| Once `activatePriorityMode` succeeds at `τ`, no later call undoes it: priority mode is active, or activation succeeds for every caller at every `τ' ≥ τ` | A run without cuts; the other facets' writes keep the chain on its settlement layer, keep the first unprocessed priority transaction stamped at `t ≠ 0` with `t + 4 days ≤ τ`, and keep executed ≤ committed; the selector is not freezable or the CTM sends none of the run's calls | `NoFacetCallBlocksDueActivation` |
+| Permanent rollup, required second proof system and allowed priority mode are never cleared; once priority mode is allowed the pricing mode and three capacity fields never change | A run without cuts | `OneWayFlagsAlongRuns` |
+| `activatePriorityMode` succeeds exactly under its eight conditions and reverts all unexecuted batches | The model omits `nonReentrant` and overflow reverts, which only remove successes | `ActivatePriorityModeExact` |
+| `upgradeChainFromVersion(_, v)` succeeds iff the caller has the role, the chain is at `v`, the validator schedule passes, running the cut the CTM returns for `v` succeeds, the second-proof recheck passes and the version rises; the caller supplies no cut | The cut is the CTM's `upgradeCutForVersion` answer (an oracle here) | `UpgradeRunsExactlyTheCommittedCut` |
+| The final version is at least the initial version plus the number of `upgradeChainFromVersion` calls | The CTM's genesis address holds the genuine `L1GenesisUpgrade`; no `executeUpgrade` in the run (cuts otherwise allowed) | `VersionRisesAlongRuns` |
+| After a successful `genesisUpgrade`, no later `genesisUpgrade` succeeds | Genuine genesis code; its transaction hash is nonzero; no later foreign write clears the L2 upgrade transaction hash; no `upgradeChainFromVersion` or `executeUpgrade` later | `GenesisRunsOnce` |
+| Fee updates (`changeFeeParams`, `setTokenMultiplier`) are at least `PRICE_UPDATE_INTERVAL` (1 day) apart | The first update was at a nonzero time; a run without cuts | `FeeUpdatesAtLeastADayApart` |
+| A fee update keeps the derived L2 gas price within a factor 13/10 of the price before | Priority mode is allowed; not the exempt case of price 0 with no unprocessed priority transaction | `StageOneFeeUpdateWithinPriceBound` |
+
+Witnesses: `EveryEntrySucceedsSomewhere`, `ValidatorUpgradeWitness`,
+`AdminHandoverWitness`, `ValidatorChangeWitness`, `FreezeWitness`, `StrandedChainWitness`,
+`PriorityModeWitness`, `PriorityModeActivationRevertsBatchesWitness`,
+`PriorityModeDeactivationWitness`, `OneWayFlagsWitness`, `DueActivationSurvivesWitness`,
+`UpgradeWitness`, `GenesisRunsOnceWitness`, `PricingModeChangeWitness`, `FeeUpdatesWitness`,
+`StageOneFeeUpdateWitness`, `StageOneFeeInputsWitness`. Countermodels:
+`CTMFreezeBlocksActivation`, `ActivationNeedsPermanentRollup`, `UnguardedFiltererBreaksStage1`,
+`UnguardedL1FilteringBreaksStage1`, `ExecuteUpgradeCanLowerVersion`,
+`UpgradePostCheckIsLoadBearing`, `GenesisRerunsAfterFinalization`, `FeeUpdateAtTimeZeroNotSpaced`,
+`PriceBoundNeedsPriorityModeAllowed`, `PricingModeMovesPriceWithoutPriorityMode`. The other
+statements are supporting lemmas, among them `RevertBatchesAgreesWithExecutorModel`: this model's
+`_revertBatches` and the one of `../ExecutorFacet/` succeed together and write the same counters.
+
+## Source
+
+era-contracts `draft/v0.35.0` at commit **`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, under
+`l1-contracts/contracts/`; every `file:line` is at that commit.
 
 - `state-transition/chain-deps/facets/Admin.sol` (the facet, all 709 lines);
 - `state-transition/chain-deps/facets/ZKChainBase.sol` (modifiers `:46-146`, `_getProofMode`
@@ -27,6 +69,7 @@ certificate has the same name without the `Properties` segment.
 | PriorityMode | [Specs/AdminFacet.lean](Specs/AdminFacet.lean), [Specs/Mutants.lean](Specs/Mutants.lean) | [Properties/PriorityMode.lean](Properties/PriorityMode.lean) | [Proofs/PriorityMode.lean](Proofs/PriorityMode.lean) |
 | Upgrade | [Specs/AdminFacet.lean](Specs/AdminFacet.lean), [Specs/Mutants.lean](Specs/Mutants.lean) | [Properties/Upgrade.lean](Properties/Upgrade.lean) | [Proofs/Upgrade.lean](Proofs/Upgrade.lean) |
 | Fees | [Specs/AdminFacet.lean](Specs/AdminFacet.lean) | [Properties/Fees.lean](Properties/Fees.lean) | [Proofs/Fees.lean](Proofs/Fees.lean) |
+| ExecutorBridge | [Specs/AdminFacet.lean](Specs/AdminFacet.lean), [../ExecutorFacet/Specs/Pipeline.lean](../ExecutorFacet/Specs/Pipeline.lean) | [Properties/ExecutorBridge.lean](Properties/ExecutorBridge.lean) | [Proofs/ExecutorBridge.lean](Proofs/ExecutorBridge.lean) |
 
 `Proofs/Basic.lean` holds auxiliary frame lemmas only (which entry can change which field).
 

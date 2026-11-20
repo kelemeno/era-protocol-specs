@@ -6,9 +6,7 @@ import EraSpec.Core.Word
 Source: era-contracts branch `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`. Paths
 are relative to `l1-contracts/contracts/`; `N` is `bridge/L1Nullifier.sol`, `R` is
 `bridge/asset-router/L1AssetRouter.sol`, `RB` is `bridge/asset-router/AssetRouterBase.sol`,
-`BH` is `core/bridgehub/L1Bridgehub.sol`. The model was first written against
-`d9f678900e1bc8286412b78f56d4a9f443983c29` on the same branch. Every file cited here is
-byte-identical at the two commits, so every line number holds at both: these four,
+`BH` is `core/bridgehub/L1Bridgehub.sol`. Every line number is at that commit. The files cited are these four,
 `bridge/interfaces/IL1Nullifier.sol`, `common/Messaging.sol`, `common/ReentrancyGuard.sol`,
 `common/libraries/DataEncoding.sol`, `common/interfaces/IMessageVerification.sol`,
 `core/message-root/IMessageRoot.sol`, `bridge/asset-router/IAssetRouterBase.sol` and

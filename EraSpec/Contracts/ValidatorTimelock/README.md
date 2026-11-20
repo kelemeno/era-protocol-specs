@@ -1,14 +1,53 @@
 # ValidatorTimelock
 
-Source: `l1-contracts/contracts/state-transition/validators/ValidatorTimelock.sol`, its base
+The `ValidatorTimelock` proxy at era-contracts `draft/v0.35.0` `b17415d20`: per-chain roles, the
+execution delay, ownership and the packed commit timestamps.
+
+## Headline guarantees
+
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. A "run"
+is any sequence of successful calls of the proxy's state-changing entry points, by any senders.
+External reads (`getChainId`, `getAdmin`, `getZKChain`, block time, whether the forwarded call
+succeeds) are a per-call environment, fixed within a call and unrelated between calls. No result
+takes a hash premise.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| An execute of a range containing batch `i` of chain `c` runs at least `D` after the last commit of `i` through the timelock, `D` the delay enforced for `c` when the execute runs | The commit's time is below `2^32`; no call in between commits batch `i` of `c` again (the calls in between may change the delay) | `ExecutionWaitsForTheDelay` |
+| The same, for every earlier commit of `i` | Every re-commit in between runs at a time at least the first commit's and below `2^32` | `ExecutionWaitsForEveryEarlierCommit` |
+| The same, with `D` the delay enforced at commit time | No `initialize`, `setExecutionDelay` or `setChainExecutionDelay` in between | `ExecutionWaitsForTheCommitTimeDelay` |
+| Every delay stays at most 30 days and every stored timestamp fits a `uint32` | A run from fresh storage (or any `Bounded` state) | `BoundedRuns` |
+| The delay check cannot block an executor once every batch's stored timestamp is 30 days old | A `Bounded` state; the caller has `EXECUTOR_ROLE` of the chain; the range is valid; the forwarded call succeeds | `ExecuteNotBlockedAfterMaxDelay` |
+| The five forwarding entry points succeed exactly when the caller has that entry's role on the chain, the forwarded call succeeds and (commit, execute) the range is valid and (execute) the delay has passed | None | `ForwardingGuardsExact` |
+| A chain's non-empty role registry was written by a call sent by the chain's verified admin (the chain reported an id the Bridgehub maps to it, and its `getAdmin()` returned the sender) | A run from a state where the chain's registry is empty (fresh storage is one) | `RolesTraceToAVerifiedChainAdmin` |
+| The timelock forwards to an address only after a call by that address's verified admin wrote its registry | A run from fresh storage | `ForwardsOnlyToOnceRegisteredChains` |
+| Calls on other chains can neither enable nor block anything on a chain: removing them leaves a successful run that agrees on that chain and the shared fields | None | `OtherChainsCannotInterfere` |
+| `initialize` succeeds at most once | Any run | `InitializeAtMostOnce` |
+| The owner changes only by `initialize`, the pending owner's `acceptOwnership`, or the owner's `renounceOwnership` | None (one call) | `OwnerChangesOnlyByHandover` |
+| After a renounce, the owner stays `0` and every enforced delay only rises | Initialized storage with owner and pending owner `0`; no call is sent by address `0` | `RenouncedTimelockOnlyRaisesDelays` |
+| The bit-level `LibMap` storage represents the model's commit timestamps along every run | The packed storage represents the start state (all-zero storage represents fresh storage) | `PackedTimestampsRefineRuns` |
+
+Witnesses: `ExecutionWaitsForTheDelayWitness`, `RecommitWitness`,
+`DelayBoundIsTight`, `DelayWritersWitness`, `MaxDelayIsAttained`, `IsolationWitness`,
+`RoleDelegationWitness`, `HandoverWitness`, `RenounceWitness`, `RotationWrappersRun`,
+`PackedTimestampsWitness`, `LibMapWitness`. Countermodels:
+`OwnerCanShortenAPendingDelay`, `ClockPast2106SkipsTheDelay`, `RecommitAtAnEarlierClock`,
+`UnrecordedBatchIsNotDelayed`, `UncheckedExecuteRunsEarly`, `UncheckedIncreaseLowersTheDelay`,
+`StoredComparisonAdmitsNoRaise`, `UncheckedLookupGrantsOnUnregisteredChain`,
+`ZeroSenderActsAsRenouncedOwner`. The other statements are supporting lemmas.
+
+## Source
+
+`l1-contracts/contracts/state-transition/validators/ValidatorTimelock.sol`, its base
 `state-transition/AccessControlEnumerablePerChainAddressUpgradeable.sol`, the packed map
 `state-transition/libraries/LibMap.sol`, `common/Config.sol:334`
 (`MAX_VALIDATOR_TIMELOCK_EXECUTION_DELAY`), and OpenZeppelin `contracts-upgradeable` v4.9.6
 (`Ownable2StepUpgradeable`, `OwnableUpgradeable`, `Initializable`; the submodule at `2d081f24`).
 
 The model is pinned at era-contracts `draft/v0.35.0` **`b17415d20`**
-(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). `ValidatorTimelock.sol` and the access-control
-base are byte-identical at the earlier v35 pin `d9f6789` and at `e561b9cc2`. `main`
+(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). `main`
 (`70096e2ea`) and the interop pin `c67894b9` carry an older `ValidatorTimelock.sol` (one
 unbounded ecosystem delay, no per-chain delay, a `precommitSharedBridge` entry point), which is
 not modelled. Every `file:line` in the spec is at `b17415d20`.

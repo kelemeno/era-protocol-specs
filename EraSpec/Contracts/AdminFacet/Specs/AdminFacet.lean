@@ -3,10 +3,8 @@ import Mathlib.Data.Nat.Notation
 /-!
 # Model: the chain diamond's `AdminFacet`
 
-Source: era-contracts `draft/v0.35.0` at commit `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`. The
-model was first written against `d9f678900e1bc8286412b78f56d4a9f443983c29`; every file cited
-below is byte-identical at the two commits, so each `file:line` holds at both. Paths are relative
-to `l1-contracts/contracts/`; `Admin.sol` is `state-transition/chain-deps/facets/Admin.sol` and
+Source: era-contracts `draft/v0.35.0` at commit `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`; every
+`file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`; `Admin.sol` is `state-transition/chain-deps/facets/Admin.sol` and
 `ZKChainBase.sol` is `state-transition/chain-deps/facets/ZKChainBase.sol`.
 
 **This file is definitions only.** Statements are in

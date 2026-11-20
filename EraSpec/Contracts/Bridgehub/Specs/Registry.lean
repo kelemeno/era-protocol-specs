@@ -6,13 +6,12 @@ import EraSpec.Core.Word
 
 Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, files
 `l1-contracts/contracts/core/bridgehub/BridgehubBase.sol` (written `BB:` below) and
-`l1-contracts/contracts/core/bridgehub/L1Bridgehub.sol` (written `L1:` below). The model was
-first written at `d9f678900e1bc8286412b78f56d4a9f443983c29`; both files, and every other file
-cited here (`Config.sol`, `DataEncoding.sol`, `AddressAliasHelper.sol`, `ReentrancyGuard.sol`,
-`Messaging.sol`, `CTMDeploymentTracker.sol`, `ChainAssetHandlerBase.sol`,
-`MessageRootBase.sol`), are byte-identical at the two commits, so every `file:line` holds at
-both. OpenZeppelin is v4.9.6, at the submodule commits `b17415d2` pins
-(`openzeppelin-contracts-v4` `dc44c9f1`, `openzeppelin-contracts-upgradeable-v4` `2d081f24`).
+`l1-contracts/contracts/core/bridgehub/L1Bridgehub.sol` (written `L1:` below). Every `file:line`
+here, in these two files and the others cited (`Config.sol`, `DataEncoding.sol`,
+`AddressAliasHelper.sol`, `ReentrancyGuard.sol`, `Messaging.sol`, `CTMDeploymentTracker.sol`,
+`ChainAssetHandlerBase.sol`, `MessageRootBase.sol`), is at that commit. OpenZeppelin is
+v4.9.6, at the submodule commits `b17415d2` pins (`openzeppelin-contracts-v4` `dc44c9f1`,
+`openzeppelin-contracts-upgradeable-v4` `2d081f24`).
 
 **This file is definitions only.** The guarantees are stated in
 `EraSpec.Contracts.Bridgehub.Properties.Registry` and proved in

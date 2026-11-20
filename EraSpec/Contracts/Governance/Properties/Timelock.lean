@@ -4,8 +4,7 @@ import EraSpec.Contracts.Governance.Specs.Timelock
 # Properties: what the `Governance` timelock guarantees, across re-entrant execution
 
 Statements about `EraSpec.Contracts.Governance.Specs.Timelock` (source `Governance.sol` at
-`draft/v0.35.0` `b17415d2`, byte-identical at `c67894b9`, `e561b9cc2`, `d9f67890` and `main`
-`3605e82` and `70096e2ea`; OpenZeppelin v4.9.6 `Ownable2Step`). Proofs are in
+`draft/v0.35.0` `b17415d2`; OpenZeppelin v4.9.6 `Ownable2Step`). Proofs are in
 `EraSpec.Contracts.Governance.Proofs.Timelock`.
 
 Every general result quantifies over every target behaviour (`Callee` trees: re-entrant calls
