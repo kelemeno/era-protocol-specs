@@ -8,19 +8,26 @@ import Mathlib.Tactic
 /-
   THE BUNDLE STATUS MACHINE — one delivery per bundle, by two routes that exclude each other.
 
-  `InteropHandlerBase` spreads its transitions across four functions, each with its own guard:
+  Source: era-contracts `draft/v0.35.0` at `b17415d20`, `l1-contracts/contracts/interop/interop-handler/`
+  (`IHB` = `InteropHandlerBase.sol`, `L2` = `L2InteropHandler.sol`, `L1` = `L1InteropHandler.sol`).
+  The handlers spread the bundle-status transitions across their entry points, each with its own guard:
 
-      verifyBundle        require(status == Unreceived)                      -> Verified
-      executeBundle       require(status == Unreceived || status == Verified) -> FullyExecuted
-      unbundleBundle      require(status == Verified  || status == Unbundled) -> Unbundled
-      executeAtomicBundle require(status == Unreceived)                      -> FullyExecuted
+      L1 verifyBundle / L2 verifyAtomicBundle   require(status == Unreceived) -> Verified
+                                                (IHB:313 in _validateVerifiable; write IHB:318)
+      L1 executeBundle / L2 executeAtomicBundle require(status == Unreceived || status == Verified)
+                                                -> FullyExecuted (IHB:282-287; write IHB:326)
+      unbundleBundle                            require(status == Verified || status == Unbundled)
+                                                -> Unbundled (IHB:139; write IHB:147)
+
+  `Step` has one constructor per edge. `executeFresh` and `executeAtomic` are the same pair of states
+  (`Unreceived → FullyExecuted`): at `b17415d20` the second is the L2 entry point's fresh case, the
+  first the L1 one's. The pin `c67894b9`'s `executeAtomicBundle` admitted `Unreceived` only; its
+  atomic sub-machine is in `History/Specs/BundleStatusMachine.lean`.
 
   Read one at a time these are guards; read together they are a state machine, and the safety property
   is a REACHABILITY claim no single function states: a bundle is delivered at most once, and the
   whole-bundle route and the per-call unbundled route cannot both happen.  That matters because each
   route delivers the same calls -- doing both would deliver twice.
-
-  The file also names a cross-contract dependency that the guards make load-bearing but do not state.
 -/
 
 namespace AttackVectors.BundleStatusMachine
@@ -85,9 +92,9 @@ The two sides handle the SAME field.  At send, `InteropCenter` accumulates
 
     totalBurnedCallsValue += _callStarters[i].callAttributes.interopCallValue;
 
-over every call, and `_handleValueCollection` requires those tokens to have been received.  The call
-that lands in the bundle carries that same number (`InteropCenter.sol:738`,
-`value: _callStarter.callAttributes.interopCallValue`), and at the destination `_executeCalls` releases
+over every call (`InteropCenter.sol:681`), and `_ensureCorrectTotalValue` (`:420-452`) requires those
+tokens to have been received.  The call that lands in the bundle carries that same number (`InteropCenter.sol:768`,
+`value: _callStarters[i].callAttributes.interopCallValue`), and at the destination `_executeCalls` releases
 exactly `interopCall.value` — but only for calls it executes.
 
 So the source collects over ALL calls and the destination releases over the EXECUTED ones.  Two things
@@ -115,44 +122,6 @@ def releasedSum : Ledger → ℕ
 def collectedSum : Ledger → ℕ
   | [] => 0
   | (v, _) :: rest => v + collectedSum rest
-
-
-/-! ## The atomic sub-machine — a stronger guarantee, not a weaker one
-
-Applying the same scope question to `routes_exclusive`: is it non-trivial for ATOMIC bundles?  It is
-not, and the reason turns out to strengthen the atomic case rather than weaken it.
-
-An atomic bundle cannot reach `Verified`: that edge is `verifyBundle`, which requires an L1 message
-inclusion proof, and atomic bundles are never published to L1.  `unbundleBundle` requires
-`Verified || Unbundled`.  So `Unbundled` is unreachable for an atomic bundle — it has exactly ONE
-route, and `routes_exclusive` is satisfied vacuously for it.
-
-That means the two machines divide by path:
-
-* ATOMIC bundles — one route, so delivery-once follows from bundle-status terminality ALONE
-  (`reach_from_fullyExecuted`).  The per-call machine is not needed: `executeAtomicBundle` writes every
-  call `Executed` in one transaction, and there is no second transaction to worry about.
-* PUBLIC bundles — two routes, so delivery-once genuinely needs BOTH machines, as recorded above.
-
-So the earlier composition is not wrong for atomic bundles, it is more than they require.  Worth
-knowing which half is load-bearing where.
-
-The argument above is prose: `AtomicStep` below builds it into a definition.  Topic
-`BundleStatusMachineStrong` proves it over the handler model, up to named clashes. -/
-
-/-- **TAKEN AS A DEFINITION.**  The transitions available to an ATOMIC bundle, on the premise that
-`verify` is unreachable for it (no L1 proof exists), and with it every edge that needs `Verified`.
-That premise is assumed here, not proved: any one-edge relation gives the results stated about this
-one.  Topic `BundleStatusMachineStrong` derives the sub-machine from the handler's guards
-(`NoProofKeepsBundleInAtomicMachine`) and the premise from the source chain
-(`AtomicLegStaysAtomicAtDestinationOrClash`). -/
-inductive AtomicStep : Status → Status → Prop
-  | executeAtomic : AtomicStep .Unreceived .FullyExecuted
-
-
-inductive AtomicReach : Status → Status → Prop
-  | refl (s : Status) : AtomicReach s s
-  | tail {a b c : Status} : AtomicReach a b → AtomicStep b c → AtomicReach a c
 
 
 end AttackVectors.BundleStatusMachine

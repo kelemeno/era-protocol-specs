@@ -88,6 +88,8 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthority
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineFaithful
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ValueLedgerFaithful
+import EraSpec.Contracts.InteropHandlerBase.History.Proofs.BundleStatusMachine
+import EraSpec.Contracts.InteropHandlerBase.History.Proofs.BundleStatusMachineFaithful
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
 import EraSpec.Contracts.L2InteropHandler.History.Proofs.AtomicSourceBindingFaithful
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
@@ -239,7 +241,7 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 
 -- Strengthened handler statements (InteropHandlerBase, L2InteropHandler)
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
-import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.History.Proofs.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
 import EraSpec.Contracts.L2InteropHandler.History.Proofs.AtomicSourceBindingStrong
 

@@ -79,7 +79,8 @@ the gate and one failing it.
 namespace Contracts.ExecutionLiveness
 
 open Contracts.InteropHandler (State Entry Callee Frame Tx Bundle BundleHash Effect exec submit
-  submitAll toExecute NoProofRun SoundProofRun PublishedHash PublishesOnlyPublicDispatches)
+  submitAll toExecute NoProofRun SoundProofRun)
+open Contracts.InteropHandler.History (PublishedHash PublishesOnlyPublicDispatches)
 open AttackVectors.BundleStatusMachine (Status CallStatus)
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision)
 open MerkleSpec (Hash)

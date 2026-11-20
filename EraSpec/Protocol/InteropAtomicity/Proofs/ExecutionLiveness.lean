@@ -1,5 +1,5 @@
 import EraSpec.Protocol.InteropAtomicity.Properties.ExecutionLiveness
-import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.History.Proofs.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
@@ -13,7 +13,7 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 `Unbundled`, and with the proof bit `false`, every guard fails.
 
 **(e)** One induction on the budget, over every frame kind, in the style of
-`Contracts.InteropHandler.exec_atomicPart` (topic `BundleStatusMachineStrong`), with two
+`Contracts.InteropHandler.History.exec_atomicPart` (topic `BundleStatusMachineStrong`), with two
 hypotheses carried down: no entry-point call of the frame presents a valid proof for `h`
 (`Frame.Mentions`), and every atomic attempt on `h` in it meets an always-reverting target
 (`FrameEvery`). A committed frame started with `h` `Unreceived` then ends with `h` `Unreceived` and
@@ -21,7 +21,7 @@ commits no effect of `h` (`exec_keeps_unreceived`): an atomic attempt on `h` wou
 (`Contracts.InteropHandler.AlwaysRevertingTargetRevertsTheExecution`), so a committed one is on
 another hash, and every other route to `h` needs a valid proof or a status `h` does not have. The
 source-run form discharges the no-proof premise with
-`Contracts.InteropHandler.published_atomic_hash_clashes`, as
+`Contracts.InteropHandler.History.published_atomic_hash_clashes`, as
 `AtomicLegStaysAtomicAtDestinationOrClash` does.
 
 **(f)** A call reaching `executeAtomicBundle` at the pin is direct
@@ -33,15 +33,17 @@ the gate's self disjunct is false, which leaves the attribute comparison. The re
 (`markCalls_accepts`, by induction on the request), and a loop whose targets accept delivers every
 listed call (`Contracts.InteropHandler.exec_calls_returns`). The atomic route stays open because
 a no-proof run keeps the hash in the atomic sub-machine
-(`Contracts.InteropHandler.submitAll_atomicPart`).
+(`Contracts.InteropHandler.History.submitAll_atomicPart`).
 -/
 
 namespace Contracts.ExecutionLiveness
 
 open Contracts.InteropHandler (State Entry Callee Frame Tx Bundle BundleHash Effect exec submit
   submitAll toExecute markCalls commit init Variant beforeCalls afterCalls afterUnbundle
-  writesCallsFirst NoProofRun SoundProofRun PublishedHash PublishesOnlyPublicDispatches
-  AlwaysReverts mentions_headD mentions_tail)
+  writesCallsFirst NoProofRun SoundProofRun
+  AlwaysReverts)
+open Contracts.InteropHandler.History (PublishedHash PublishesOnlyPublicDispatches mentions_headD
+  mentions_tail)
 open AttackVectors.BundleStatusMachine (Status CallStatus)
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision)
 open Contracts.InteropCenter (Params Dispatch CrossSenderSaltClash EncInjOn bundleHash
@@ -318,7 +320,7 @@ lemma noProofRun_of_sound {P : Params} {S : Contracts.InteropCenter.State}
       exfalso
       have hpub := hsnd rfl
       rw [hbh] at hpub
-      exact hclash (Contracts.InteropHandler.published_atomic_hash_clashes hreach henc hpubs hd hat
+      exact hclash (Contracts.InteropHandler.History.published_atomic_hash_clashes hreach henc hpubs hd hat
         hpub)
   | verifyBundle b ok =>
     intro hbh
@@ -328,7 +330,7 @@ lemma noProofRun_of_sound {P : Params} {S : Contracts.InteropCenter.State}
       exfalso
       have hpub := hsnd rfl
       rw [hbh] at hpub
-      exact hclash (Contracts.InteropHandler.published_atomic_hash_clashes hreach henc hpubs hd hat
+      exact hclash (Contracts.InteropHandler.History.published_atomic_hash_clashes hreach henc hpubs hd hat
         hpub)
   | unbundleBundle _ _ => trivial
   | executeAtomicBundle _ _ => trivial
@@ -588,7 +590,7 @@ lemma exec_atomic_accepting {s : State} {b : Bundle} (hu : s.bundle b.hash = .Un
 
 theorem AtomicRouteStaysEnabled : Properties.AtomicRouteStaysEnabled := by
   intro b txs hnp
-  rcases Contracts.InteropHandler.submitAll_atomicPart b.hash init txs hnp (Or.inl rfl)
+  rcases Contracts.InteropHandler.History.submitAll_atomicPart b.hash init txs hnp (Or.inl rfl)
     with hu | hfe
   · right
     refine ⟨hu, fun cs hcs => ?_⟩
@@ -656,7 +658,7 @@ theorem RevertingLegFromSourceWitness : Properties.RevertingLegFromSourceWitness
   · intro t ht e he
     simp only [List.mem_cons, List.not_mem_nil, or_false] at ht
     rcases ht with rfl | rfl
-    · rw [Contracts.InteropHandler.tx_mentions_nil rfl he]
+    · rw [Contracts.InteropHandler.History.tx_mentions_nil rfl he]
       intro _
       exact ⟨_, List.mem_singleton_self _, Contracts.InteropCenter.wHash2.symm⟩
     · rcases he with rfl | ⟨c, hc, hm⟩
@@ -697,7 +699,7 @@ theorem EnablednessWitness : Properties.EnablednessWitness := by
   · intro t ht e he
     simp only [List.mem_singleton] at ht
     subst ht
-    rw [Contracts.InteropHandler.tx_mentions_nil rfl he]
+    rw [Contracts.InteropHandler.History.tx_mentions_nil rfl he]
     intro h3
     exact absurd h3 (by decide)
   · intro hnp

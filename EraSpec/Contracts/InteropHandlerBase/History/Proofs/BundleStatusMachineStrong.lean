@@ -1,8 +1,22 @@
-import EraSpec.Contracts.InteropHandlerBase.Properties.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.History.Properties.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import Mathlib.Tactic
+import EraSpec.Contracts.InteropHandlerBase.History.Proofs.BundleStatusMachine
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This topic composes the re-entrant engine (topic `Reentrancy`) with the pin's atomic entry point
+(`executeAtomicBundle` admitting `Unreceived` only, gate always run), the pin's source-chain
+`InteropCenter` model (`Contracts.InteropCenter` `Dispatch`) and the pin's bundle-hash preimage
+(`BundleHashPinned`'s History layer). At `b17415d20` `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) admits a `Verified` bundle and skips
+`requireFlowFinalized` for it, the new `verifyAtomicBundle` (`:83-92`) verifies an atomic bundle,
+and the bundle hash is `keccak256(_bundle)` (`interop/interop-handler/InteropHandlerBase.sol:231`).
+So the atomic sub-machine derived here does not describe `b17415d20`. The engine statements of
+section (a) (`WholeBundleWriteIgnoresCallStatus`, `CallStatusDoesNotStopWholeBundleRedelivery`,
+`AdmittedBundleHasOnlyUnprocessedCalls`) moved with the topic; the `b17415d20` re-entrancy results
+are in topic `Reentrancy`. Namespaces carry a `History` segment. -/
 
 /-!
 # Proofs: the bundle status machine, derived from the handler's guards
@@ -22,9 +36,10 @@ chain, which `PublishesOnlyPublicDispatches` makes a public dispatch and
 `InteropCenter.AtomicBytesNeverPublished` excludes but for the cross-sender salt clash.
 -/
 
-namespace Contracts.InteropHandler
+namespace Contracts.InteropHandler.History
 
 open AttackVectors.BundleStatusMachine
+open AttackVectors.BundleStatusMachine.History (AtomicStep AtomicReach atomic_reach_two_states)
 open AttackVectors.BundleHashEncoding (HashCollision abiEncode length_toBytesBE)
 
 /-! ## (a) The whole-bundle write -/
@@ -118,7 +133,7 @@ theorem AtomicMachineIsDeployedMachineWithoutVerify :
     Properties.AtomicMachineIsDeployedMachineWithoutVerify := by
   refine ⟨fun a b h => by cases h; exact Step.executeAtomic, fun t => ⟨fun h => ?_, fun h => ?_⟩⟩
   · have h2 := atomic_reach_two_states h
-    unfold Properties.atomic_reach_two_states at h2
+    unfold AttackVectors.BundleStatusMachine.History.Properties.atomic_reach_two_states at h2
     refine ⟨?_, ?_, ?_⟩
     · rcases h2 with rfl | rfl
       · exact .refl _
@@ -449,4 +464,4 @@ theorem StatusMachineStrongWitness : Properties.StatusMachineStrongWitness := by
   intro hc
   rcases hc 3 0 (by decide) with h | h <;> exact absurd h (by decide)
 
-end Contracts.InteropHandler
+end Contracts.InteropHandler.History

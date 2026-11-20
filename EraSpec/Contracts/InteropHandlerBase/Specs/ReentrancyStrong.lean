@@ -3,8 +3,9 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy
 /-!
 # Model additions: a delivered call's target that reverts, read semantically
 
-Source: era-contracts at the pin `c67894b9`, as in `Specs/Reentrancy.lean` (paths relative to
-`l1-contracts/contracts/interop/interop-handler/`).
+Source: era-contracts `draft/v0.35.0` at `b17415d20`, as in `Specs/Reentrancy.lean` (paths relative
+to `l1-contracts/contracts/interop/interop-handler/`). These are engine statements; their
+`b17415d20` forms are in `Properties/ReentrancyAtV35.lean` (`…AtV35`).
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.InteropHandlerBase.Properties.ReentrancyStrong` and are proved in
@@ -16,9 +17,8 @@ Source: era-contracts at the pin `c67894b9`, as in `Specs/Reentrancy.lean` (path
 (topic `Reentrancy`) take the premise `Callee.reverts ∈ cs.take b.calls`: one of the bundle's
 targets is the LEAF `Callee.reverts`. That is a syntactic test on the top-level callee list. It
 misses every target that reverts after doing something, which is the case the source comment
-at `InteropHandlerBase.sol:135-136` is about ("if either of the calls fail, the
-`_executeCalls` will fail as well, thus making the whole flow revert, no changes will be
-applied to the state"):
+at `InteropHandlerBase.sol:322-324` is about (with `_executeAllCalls = true`, "any failing call
+reverts the whole flow, leaving no state changes"):
 
 * a target that re-enters the handler, commits a nested execution in its own frame, and then
   reverts (`wRevertsAfterWork` below);
@@ -39,7 +39,7 @@ This file names the two semantic readings of "the target of call `k` reverts":
 namespace Contracts.InteropHandler
 
 /-- **A TARGET THAT REVERTS FROM EVERY STATE.** Run as the target of a delivered call
-(`IERC7786Recipient(to).receiveMessage`, `:282-286`), `c` reverts in the order `v` whatever the
+(`IERC7786Recipient(to).receiveMessage`, `InteropHandlerBase.sol:374-380`), `c` reverts in the order `v` whatever the
 state and the budget. -/
 def AlwaysReverts (v : Variant) (c : Callee) : Prop :=
   ∀ (m : ℕ) (t : State), exec v m (.target c) t = none

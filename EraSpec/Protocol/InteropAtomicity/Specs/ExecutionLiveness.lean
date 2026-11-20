@@ -1,4 +1,4 @@
-import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.History.Specs.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Specs.ReentrancyStrong
 import EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthorityFaithful
 import EraSpec.Protocol.InteropAtomicity.Specs.Refund

@@ -15,9 +15,9 @@ claims but does not state:
   sender of the outer message for a relayed call — if and only if every branch that self-calls
   a gated entry point checks its attribute against the parsed sender first. This is the
   sentence of the topic header, as a theorem over all tables.
-* **The deployed table is such a table** (`DeployedSelfCallRelaysOriginalSenderAuthority`): an
-  admitted relayed call's attribute names the original sender, `(sourceChainId, from)` of the
-  delivered call.
+* **The deployed tables are such tables** (`DeployedSelfCallRelaysOriginalSenderAuthority` for L1,
+  `DeployedL2SelfCallRelaysOriginalSenderAuthority` for L2, at `b17415d20`): an admitted relayed
+  call's attribute names the original sender, `(sourceChainId, from)` of the delivered call.
 * **What it rests on.** An `executeAtomicBundle` branch added without its check widens authority
   (`UncheckedAtomicBranchWidensAuthority`, the "inert disjunct" of the topic header). The relay
   also needs `parseEvmV1Calldata ∘ formatEvmV1` to be the identity on the relayed pair
@@ -41,10 +41,11 @@ def Properties.SelfCallRelaySoundIffEveryGatedBranchChecked : Prop :=
       ∀ br ∈ dispatch, br.target.isGated = true → br.checked = true
 
 /-- **THE DEPLOYED RELAY HANDS ON THE ORIGINAL SENDER'S AUTHORITY.** For every handler, bundle
-attributes and call admitted under the deployed dispatch (`InteropHandlerBase.sol:351-358`) —
+attributes and call admitted under the deployed L1 dispatch (`InteropHandlerBase.sol:202-210` with `L1InteropHandler.sol:117-160`) —
 direct, or relayed with the ERC-7930 round trip on its pair — the entry point's attribute allows
 the call's principal. For a relayed call that principal is the original sender of the outer
-message, the outer bundle's `sourceChainId` and the delivered call's `from` (`:284`): an
+message, the outer bundle's `sourceChainId` and the delivered call's `from`
+(`InteropHandlerBase.sol:378`): an
 attribute `some (ch, addr)` admits the relayed call only if `addr` is that `from` and `ch` is
 that chain or the wildcard `0`. -/
 def Properties.DeployedSelfCallRelaysOriginalSenderAuthority : Prop :=
@@ -55,9 +56,27 @@ def Properties.DeployedSelfCallRelaysOriginalSenderAuthority : Prop :=
     RoundTripOn H src fromAddr → Admitted H deployedDispatch A (.relayed src fromAddr br) →
     gateAttr br.target A = some (ch, addr) → addr = fromAddr ∧ (ch = src ∨ ch = 0)
 
+/-- **THE DEPLOYED L2 RELAY HANDS ON THE ORIGINAL SENDER'S AUTHORITY** (`b17415d20`). For every
+handler, bundle attributes and call admitted under the deployed L2 dispatch
+(`InteropHandlerBase.sol:202-210` with `L2InteropHandler.sol:99-142`, whose execute arm self-calls
+`executeAtomicBundle` after `_requireRescueExecutionAllowed`) — direct, or relayed with the ERC-7930
+round trip on its pair — the entry point's attribute allows the call's principal; and for a relayed
+call, an attribute `some (ch, addr)` admits it only if `addr` is the delivered call's `from` and `ch`
+is the outer bundle's source chain or the wildcard `0`. Premises: the round trip
+`parseEvmV1Calldata(formatEvmV1(src, from)) = (src, from)` on the relayed pair, and the model's
+inventory of the calls that reach a gate (a direct call from an account other than the handler, or
+a self-call of one `receiveMessage` arm). -/
+def Properties.DeployedL2SelfCallRelaysOriginalSenderAuthority : Prop :=
+  (∀ (Sender : Type) (H : Handler Sender) (A : BundleAttrs) (c : GateCall),
+      RelayRoundTrips H c → Admitted H deployedDispatchL2 A c → Authorized H A c) ∧
+  ∀ (Sender : Type) (H : Handler Sender) (A : BundleAttrs) (src fromAddr : ℕ) (br : Branch)
+    (ch addr : ℕ),
+    RoundTripOn H src fromAddr → Admitted H deployedDispatchL2 A (.relayed src fromAddr br) →
+    gateAttr br.target A = some (ch, addr) → addr = fromAddr ∧ (ch = src ∨ ch = 0)
+
 /-- **AN `executeAtomicBundle` BRANCH ADDED WITHOUT ITS CHECK WOULD WIDEN AUTHORITY.** With the
 deployed table plus an unchecked branch for `executeAtomicBundle` — whose gate has the same
-self-call disjunct (`L2InteropHandler.sol:66-75`) — a relayed call from the original sender
+self-call disjunct (`InteropHandlerBase.sol:246-248`) — a relayed call from the original sender
 `(1, 9)` reaches `executeAtomicBundle` of a bundle whose executor is `(1, 7)`: it is admitted,
 its principal is not authorised, and the table fails the check of
 `SelfCallRelaySoundIffEveryGatedBranchChecked`. -/

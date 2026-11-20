@@ -72,8 +72,8 @@ correction note in their docstrings.
   reaches a permission gate (`Reaches`): for any dispatch table, delegation is sound iff every arm
   checks the attribute its target's gate reads (`DelegationSoundIffMatched`). The pin's table is
   sound (`PinnedDelegationSound`), and so are both `e561b9cc2` tables, whose L2 execute arm
-  self-calls `executeAtomicBundle` (`UpgradeDelegationSound`,
-  `AtomicSelfDisjunctLiveAndCheckedAtUpgrade`; at the pin that disjunct is dead,
+  self-calls `executeAtomicBundle` (`DelegationSoundAtV35`,
+  `AtomicSelfDisjunctLiveAndCheckedAtV35`; at the pin that disjunct is dead,
   `AtomicSelfDisjunctDeadAtPin`). The original hypothesis `checked` is established at every pinned
   self-call (`RelayEstablishesTheOriginalHypothesis`). Countermodels:
   `UncheckedAtomicArmWidensAuthority`, `MiswiredCheckWidensAuthority`.

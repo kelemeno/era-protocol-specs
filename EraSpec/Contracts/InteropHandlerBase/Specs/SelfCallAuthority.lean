@@ -31,11 +31,16 @@ import Mathlib.Tactic
   contracts-formal-verification repository (not of this package), tests that it still holds.
   Verified at the time of writing:
 
-      InteropHandlerBase.sol:391   this.executeBundle     preceded by the executionAddress check
-      InteropHandlerBase.sol:401   this.verifyBundle      permissionless by design, no check needed
-      InteropHandlerBase.sol:425   this.unbundleBundle    preceded by the unbundlerAddress check
+      L1InteropHandler.sol:148     this.executeBundle        preceded by the executionAddress check (:140-146)
+      L2InteropHandler.sol:130     this.executeAtomicBundle  preceded by the executionAddress check (:122-128)
+      L1InteropHandler.sol:159     this.verifyBundle         permissionless by design, no check needed
+      L2InteropHandler.sol:141     this.verifyAtomicBundle   permissionless by design, no check needed
+      InteropHandlerBase.sol:432   this.unbundleBundle       preceded by the unbundlerAddress check (:427-430)
 
-  and `receiveMessage` dispatches on exactly three selectors, one per site.
+  (at era-contracts `b17415d20`; at the pin `c67894b9` the three sites were in `InteropHandlerBase.sol`)
+
+  and `receiveMessage` (`InteropHandlerBase.sol:188-213`) dispatches on exactly three selectors,
+  one per site of its layer.
 -/
 
 namespace AttackVectors.SelfCallAuthority

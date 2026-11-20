@@ -14,18 +14,18 @@ by the bundle hash, and so do the statements. Where a result says "both layers",
 `L2InteropHandler` (`execute` = `executeAtomicBundle`, `verify` = `verifyAtomicBundle`) and for
 `L1InteropHandler` (`executeBundle`, `verifyBundle`).
 
-## (a) The v35 handlers are the pin model, translated
+## (a) The v35 handlers are the engine, translated
 
 * `ExecMatchesPinAtV35`: in the deployed order on both layers, in the order `callWriteAfterCalls`
   on both layers, and in every order on L1, a v35 frame runs exactly as its translation does in the
-  pin model `Contracts.InteropHandler.exec`: same state, same committed log, same revert.
+  engine `Contracts.InteropHandler.exec`: same state, same committed log, same revert.
   `SubmitAllMatchesPinAtV35` lifts this to sequences of transactions.
 * `LateStatusWriteSeparatesL2FromPinAtV35`: the excluded case is a real difference.
 * `PinMatchWitnessAtV35`: both cases of the premise, on runs that commit nested work.
 
 ## (b) Nothing runs twice, on both layers, in the deployed order
 
-The pin's results, restated over `submitAllAtV35`/`execAtV35` and proved through (a):
+The engine's results, restated over `submitAllAtV35`/`execAtV35` and proved through (a):
 `NoEffectCommittedTwiceAtV35` (headline), `CommittedEffectsWereOpenAtV35`,
 `WholeBundleExecutionRunsEachCallOnceAtV35`, `StatusRecordsExactlyTheCommittedEffectsAtV35`,
 `NestedExecutionFollowsTheStatusMachineAtV35`, and `ReentryForAnExecutingBundleRevertsAtV35`, the
@@ -47,7 +47,7 @@ revert is undone alone).
 * `DeliveryNeedsTheGateAtV35` (headline for the gate): a bundle hash none of whose entry-point
   calls carries a passing verdict stays `Unreceived` and has no committed effect. On L2 the only
   verdict is `requireFlowFinalized`'s, so no premise about inclusion proofs is needed, unlike the
-  pin's `NeverPublishedBundleNeedsTheFlowGate`.
+  History record `NeverPublishedBundleNeedsTheFlowGate` (pin `c67894b9`).
 * `GateRoutesWitnessAtV35`: the three L2 routes, the partial execution after unbundling, and the
   gate premise on a run that commits.
 * `ReceiveFilterIsReadAtTheGateAtV35` and `ReceiveFilterWitnessAtV35`: the receive filter decides
@@ -73,9 +73,9 @@ with `ℓ = l1` or `v ≠ statusWriteAfterCalls` (so: the deployed order on both
 `callWriteAfterCalls` on both layers, every order on L1), from every state and at every budget,
 running a v35 frame gives exactly what running its translation `FrameAtV35.toPin` gives in the pin
 model: the same final state and committed log, or a revert on both sides. The translation sends
-`execute` to the pin's `executeBundle`, `verify` to `verifyBundle` and `unbundleBundle` to itself,
-recursively through every target. On L1 `execute` is the pin's `executeBundle` step for step; on
-L2 it skips the pin's `Verified` write, which `beforeCalls` overwrites with `FullyExecuted` in both
+`execute` to the engine's `executeBundle`, `verify` to `verifyBundle` and `unbundleBundle` to itself,
+recursively through every target. On L1 `execute` is the engine's `executeBundle` step for step; on
+L2 it skips the engine `executeBundle`'s `Verified` write, which `beforeCalls` overwrites with `FullyExecuted` in both
 of these orders before any call runs. -/
 def Properties.ExecMatchesPinAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (v : Variant), (ℓ = .l1 ∨ v ≠ .statusWriteAfterCalls) →
@@ -83,7 +83,7 @@ def Properties.ExecMatchesPinAtV35 : Prop :=
 
 /-- **AND SO DOES EVERY SEQUENCE OF TRANSACTIONS.** Under the same condition on `ℓ` and `v`, from
 every state, a sequence of v35 transactions leaves the state and committed log that the sequence
-of their translations leaves in the pin model. -/
+of their translations leaves in the engine. -/
 def Properties.SubmitAllMatchesPinAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (v : Variant), (ℓ = .l1 ∨ v ≠ .statusWriteAfterCalls) →
     ∀ (s : State) (txs : List (TxAtV35 ℓ)),
@@ -326,7 +326,7 @@ On L2 the verdict is `requireFlowFinalized`'s, consulted by `verifyAtomicBundle`
 `executeAtomicBundle` of an `Unreceived` bundle. So every route that delivers a call of an L2
 bundle from such a state (atomic execution; verification then execution; verification then
 unbundling) has the flow gate accept a proof for it in some entry-point call of the run, possibly
-one in a frame that later reverted. Unlike the pin's `NeverPublishedBundleNeedsTheFlowGate`, this
+one in a frame that later reverted. Unlike the History record `NeverPublishedBundleNeedsTheFlowGate` (pin `c67894b9`), this
 needs no premise about inclusion proofs: L2 has no entry point that consults one at v35. -/
 def Properties.DeliveryNeedsTheGateAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (h : BundleHash) (txs : List (TxAtV35 ℓ)),

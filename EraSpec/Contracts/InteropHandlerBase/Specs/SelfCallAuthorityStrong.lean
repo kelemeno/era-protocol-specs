@@ -3,8 +3,8 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthority
 /-!
 # Model: the self-call relay, from the entry point back to the original sender
 
-Source: era-contracts at the pin `c67894b9`, `l1-contracts/contracts/interop/interop-handler/`
-(`InteropHandlerBase.sol` unless another file is named), and
+Source: era-contracts `draft/v0.35.0` at `b17415d20`, `l1-contracts/contracts/interop/interop-handler/`
+(`IHB` = `InteropHandlerBase.sol`, `L1` = `L1InteropHandler.sol`, `L2` = `L2InteropHandler.sol`), and
 `l1-contracts/contracts/vendor/draft-InteroperableAddress.sol`.
 
 **This file is definitions only.** The results are in
@@ -20,26 +20,34 @@ inner gate, the self-call, or the original sender. This file models the path the
 
 ## The code
 
-Three entry points have a permission gate with a self-call disjunct:
+Two entry points of each handler have a permission gate with a self-call disjunct:
 
-    executeBundle        :103-111   msg.sender == address(this) || ((executionChainId == block.chainid
-                                    || executionChainId == 0) && executionAddress == msg.sender)
-    unbundleBundle       :176-184   the same with unbundlerChainId / unbundlerAddress
-    executeAtomicBundle  L2InteropHandler.sol:66-75, as executeBundle
+    execute (L1 executeBundle, L2 executeAtomicBundle)
+                         _requireExecutionAllowed, IHB:239-255: msg.sender == address(this) ||
+                         ((executionChainId == block.chainid || executionChainId == 0)
+                          && executionAddress == msg.sender)   (IHB:246-248)
+    unbundleBundle       IHB:124-126, the same with unbundlerChainId / unbundlerAddress
+    verify (L1 verifyBundle, L2 verifyAtomicBundle)   no permission gate
 
 `msg.sender == address(this)` holds only for calls the handler's own code makes. The handler
-calls its own entry points only from `receiveMessage` (`:334-362`), which runs when a delivered
+calls its own entry points only from `receiveMessage` (`IHB:188-213`), which runs when a delivered
 call of an outer bundle targets the handler: `_executeCalls` passes
-`sender: InteroperableAddress.formatEvmV1(_sourceChainId, interopCall.from)` (`:284`), the outer
+`sender: InteroperableAddress.formatEvmV1(_sourceChainId, interopCall.from)` (`IHB:378`), the outer
 bundle's source chain and the call's `from`. `receiveMessage` requires `msg.sender ==
-address(this)` (`:341`), reads the pair back with `parseEvmV1Calldata(sender)` (`:347`), and
-dispatches on the payload's selector (`:351-358`):
+address(this)` (`IHB:194`), reads the pair back with `parseEvmV1Calldata(sender)` (`IHB:200`), and
+dispatches on the payload's selector (`IHB:202-210`):
 
-    executeBundle   _handleExecuteBundle   :378-389 check executionAddress against the parsed pair
-                                           :391     this.executeBundle(bundle, proof)
-    verifyBundle    _handleVerifyBundle    :401     this.verifyBundle(bundle, proof)   (no gate)
-    unbundleBundle  _handleUnbundleBundle  :415-423 check unbundlerAddress against the parsed pair
-                                           :425     this.unbundleBundle(bundle, providedCallStatus)
+    execute selector  _receiveExecuteBundle   L1:127-149 / L2:109-131: _requireRescueExecutionAllowed
+                                              (IHB:261-278) checks executionAddress against the pair,
+                                              then this.executeBundle (L1:148) / this.executeAtomicBundle (L2:130)
+    verify selector   _receiveVerifyBundle    L1:152-160 / L2:134-142: this.verifyBundle (L1:159) /
+                                              this.verifyAtomicBundle (L2:141), no check
+    unbundleBundle    _handleUnbundleBundle   IHB:413-433: checks unbundlerAddress against the pair
+                                              (IHB:427-430), then this.unbundleBundle (IHB:432)
+
+`deployedDispatch` is L1's table and `deployedDispatchL2` L2's. The model's `Gated.verifyBundle`
+stands for the layer's verify entry point (`verifyAtomicBundle` on L2), which has no gate. At the
+pin `c67894b9` the table was L1's on both layers.
 
 ## Modelling choices
 
@@ -50,14 +58,14 @@ dispatches on the payload's selector (`:351-358`):
   A checked branch is assumed to check its OWN target's attribute (`gateAttr br.target`), so
   "every table" means every table of that shape: a branch that checks the wrong attribute (say
   `unbundlerAddress` before `this.executeBundle`) is not expressible. The deployed table has
-  that shape (`:378-391`, `:413-425` each check their own target's attribute).
+  that shape (`L1:127-149`, `L2:109-131`, `IHB:413-433` each check their own target's attribute).
 * **A call reaching a gate is either direct or relayed** (`GateCall`). Direct: `msg.sender` is any
   account other than the handler, on this chain. Relayed: `receiveMessage`, on a delivered call
   of an outer bundle from chain `src` with `from = fromAddr`, took one branch of the table.
 * **The two ERC-7930 functions are parameters** (`Handler.fmt`, `Handler.parse`). The results that
   need `parseEvmV1Calldata(formatEvmV1(src, from)) = (src, from)` take it for the one pair the
   relay carries (`RoundTripOn`); it is an encoding fact of the library (`SOL-ABI`).
-* **The unbundler attribute.** `unbundleBundle` always parses `unbundlerAddress` (`:170-172`), which
+* **The unbundler attribute.** `unbundleBundle` always parses `unbundlerAddress` (`IHB:118-120`), which
   reverts on an empty one, while the model's `none` allows everyone. Allowing more only adds
   admitted calls, so the soundness results hold a fortiori.
 * **What is left out.** Which bundle a relayed call names, the proof and the call statuses: the
@@ -75,12 +83,12 @@ inductive Gated
   deriving DecidableEq
 
 /-- Whether the entry point has a permission gate: all but `verifyBundle`, which is
-permissionless (`:150-161`). -/
+permissionless (`L1:103-110`, `L2:83-92`). -/
 def Gated.isGated : Gated → Bool
   | .verifyBundle => false
   | _ => true
 
-/-- The two permission attributes of a bundle (`BundleAttributes`, `common/Messaging.sol:241-246`),
+/-- The two permission attributes of a bundle (`BundleAttributes`, `common/Messaging.sol:224-229`),
 parsed: `executionAddress` and `unbundlerAddress`. `none` is an empty attribute. -/
 structure BundleAttrs where
   execution : Attr
@@ -101,16 +109,22 @@ structure Branch where
   checked : Bool
   deriving DecidableEq
 
-/-- **THE DEPLOYED DISPATCH** (`:351-358`): `executeBundle` after `_handleExecuteBundle`'s check,
-`verifyBundle` with none, `unbundleBundle` after `_handleUnbundleBundle`'s check. No branch
-reaches `executeAtomicBundle`. -/
+/-- **THE DEPLOYED L1 DISPATCH** (`IHB:202-210` with `L1:117-160`): `executeBundle` after
+`_receiveExecuteBundle`'s check, `verifyBundle` with none, `unbundleBundle` after
+`_handleUnbundleBundle`'s check. No branch reaches `executeAtomicBundle`. -/
 def deployedDispatch : List Branch :=
   [⟨.executeBundle, true⟩, ⟨.verifyBundle, false⟩, ⟨.unbundleBundle, true⟩]
 
+/-- **THE DEPLOYED L2 DISPATCH** (`IHB:202-210` with `L2:99-142`): `executeAtomicBundle` after
+`_receiveExecuteBundle`'s check (`L2:122-128`), `verifyAtomicBundle` (here `.verifyBundle`) with
+none, `unbundleBundle` after `_handleUnbundleBundle`'s check. -/
+def deployedDispatchL2 : List Branch :=
+  [⟨.executeAtomicBundle, true⟩, ⟨.verifyBundle, false⟩, ⟨.unbundleBundle, true⟩]
+
 /-- The handler's deployment: `block.chainid`, `address(this)`, and the ERC-7930 functions of the
 relay — `formatEvmV1(chainid, addr)` (`InteroperableAddress.sol:48-51`), with which
-`_executeCalls` builds `sender` (`:284`), and `parseEvmV1Calldata` (`:168-172`), with which
-`receiveMessage` reads it (`:347`). -/
+`_executeCalls` builds `sender` (`IHB:378`), and `parseEvmV1Calldata` (`:168-172`), with which
+`receiveMessage` reads it (`IHB:200`). -/
 structure Handler (Sender : Type) where
   chainId : ℕ
   self : ℕ

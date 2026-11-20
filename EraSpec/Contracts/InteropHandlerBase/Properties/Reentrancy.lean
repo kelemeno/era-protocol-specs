@@ -6,13 +6,18 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy
 Statements about `EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy`. Proofs are in
 `EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy`.
 
+These are the **engine** statements (namespace `Contracts.InteropHandler`): supporting lemmas over
+the engine's four entry points (see the Specs header for how they map to `b17415d20`). The topic's
+`b17415d20` statements and headlines are in `Properties/ReentrancyAtV35.lean`, proved from these
+through the refinement `ExecMatchesPinAtV35`.
+
 Every result below quantifies over every target behaviour (`Callee` trees, so re-entrant
 calls to any entry point at any depth, caught or not) and every budget. None takes a hash
 premise: the handler keys its state by the bundle hash, and so do the statements.
 
 ## (a) Nothing runs twice, in the deployed order
 
-* **No effect is committed twice** (`NoEffectCommittedTwice`, the headline). In the
+* **No effect is committed twice** (`NoEffectCommittedTwice`). In the
   committed log of any sequence of transactions, from any state, no call is delivered twice
   and no bundle hash completes a whole-bundle execution twice. Each logged effect was not yet
   spent when the sequence started, and is spent at its end (`CommittedEffectsWereOpen`).
@@ -29,7 +34,7 @@ premise: the handler keys its state by the bundle hash, and so do the statements
   So `routes_exclusive` and the terminality results of that file apply across re-entrant
   frames too.
 * **The source's own argument** (`ReentryForAnExecutingBundleReverts`, for
-  `L2InteropHandler.sol:45-46`): a whole-bundle execution's calls run with its bundle
+  `L2InteropHandler.sol:55-58` at `b17415d20`): a whole-bundle execution's calls run with its bundle
   `FullyExecuted`, nothing committed undoes that, and every entry point refuses such a
   bundle.
 * `ReentrantExecutionWitness`: a target that executes another bundle re-entrantly commits
@@ -125,7 +130,7 @@ def Properties.NestedExecutionFollowsTheStatusMachine : Prop :=
     ∀ h i, CallReach (s.call h i) ((submitAll .deployed s txs).1.call h i)
 
 /-- **A RE-ENTRANT CALL FOR AN EXECUTING BUNDLE HITS THE STATUS CHECK** (the claim at
-`L2InteropHandler.sol:45-46`). In the deployed order: the calls of a whole-bundle execution of
+`L2InteropHandler.sol:55-58` at `b17415d20`). In the deployed order: the calls of a whole-bundle execution of
 `b` run from a state in which `b.hash` is `FullyExecuted`; everything committed from such a
 state keeps it so; and from such a state every entry point called on a bundle with that hash
 reverts, whichever of the four it is. -/

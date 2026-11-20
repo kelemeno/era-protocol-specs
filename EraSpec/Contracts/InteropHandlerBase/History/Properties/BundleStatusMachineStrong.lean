@@ -1,4 +1,17 @@
-import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachineStrong
+import EraSpec.Contracts.InteropHandlerBase.History.Specs.BundleStatusMachineStrong
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This topic composes the re-entrant engine (topic `Reentrancy`) with the pin's atomic entry point
+(`executeAtomicBundle` admitting `Unreceived` only, gate always run), the pin's source-chain
+`InteropCenter` model (`Contracts.InteropCenter` `Dispatch`) and the pin's bundle-hash preimage
+(`BundleHashPinned`'s History layer). At `b17415d20` `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) admits a `Verified` bundle and skips
+`requireFlowFinalized` for it, the new `verifyAtomicBundle` (`:83-92`) verifies an atomic bundle,
+and the bundle hash is `keccak256(_bundle)` (`interop/interop-handler/InteropHandlerBase.sol:231`).
+So the atomic sub-machine derived here does not describe `b17415d20`. The engine statements of
+section (a) (`WholeBundleWriteIgnoresCallStatus`, `CallStatusDoesNotStopWholeBundleRedelivery`,
+`AdmittedBundleHasOnlyUnprocessedCalls`) moved with the topic; the `b17415d20` re-entrancy results
+are in topic `Reentrancy`. Namespaces carry a `History` segment. -/
 
 /-!
 # Properties: the bundle status machine, derived from the handler's guards
@@ -47,10 +60,11 @@ the abstract relations alone.
   honest witness chain, with a valid proof in the run, and both clashes false.
 -/
 
-namespace Contracts.InteropHandler
+namespace Contracts.InteropHandler.History
 
 open AttackVectors.BundleStatusMachine (Status CallStatus Step Reach CallStep CallReach
-  AtomicStep AtomicReach)
+  )
+open AttackVectors.BundleStatusMachine.History (AtomicStep AtomicReach)
 open AttackVectors.BundleHashEncoding (HashCollision abiEncode)
 
 /-! ## (a) The whole-bundle write does not read the call status -/
@@ -249,4 +263,4 @@ def Properties.StatusMachineStrongWitness : Prop :=
     (submitAll .deployed init [wVerifyC, wExecuteC]).2 = [.delivered 3 0, .executed 3] ∧
     (submitAll .deployed init [wVerifyC, wRunC]).2 = []
 
-end Contracts.InteropHandler
+end Contracts.InteropHandler.History
