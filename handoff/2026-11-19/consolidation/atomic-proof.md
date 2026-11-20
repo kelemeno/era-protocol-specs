@@ -123,3 +123,42 @@ Moved under `EraSpec/Contracts/AtomicInteropProof/History/{Specs,Properties,Proo
   `Properties/PaddingAtHead`; IndexedMerkleTree `Properties/Model`; Protocol `LocalHonesty`,
   `FlowAtomicity`, MultichainGate `Specs/Model`, `Properties/Model`; Examples/BurnMintBridge
   `Specs/EndBranch`. Each gains the `History` segment only.
+
+## Outcome
+
+* **Step 1.** Every Specs header in the folder cites `b17415d20` `file:line` (checked against the
+  extracted tree); pin facts survive only as marked "at the extraction pin `c67894b9`" notes or in
+  History. Logic differences stated: the binding `append` (H1 fixed), the `IMT_EMPTY_LEAF_HASH`
+  padding (H2 fixed), the positional `_authenticateRoot`, the shorter `_verifyLastBatchInRoot`
+  NatSpec (the argument moved to `protocol-docs/atomicity/proofs.md`), and, for
+  `LastBatchInRootOffset`, that at `b17415d20` a chain registered by
+  `registerAlreadyDeployedZKChain` has a first pushed batch above 0. Six statements moved to History
+  (`renames/atomic-proof.json`, all `history`, checked with `ListProperties` before and after).
+* **Step 2.** No second model of the same state exists in the folder (four layers, above). New
+  bridge statements `ProofPolarityFaithful.Properties.HonestInsertionAgrees`,
+  `StaleSnapshotBranches.Properties.BeginIsPrevEndProjects` and `OutsideRootLateIffNat`. No
+  statement was weakened or removed.
+* **Step 3.** 10 headlines, 6 witnesses, 9 countermodels (3 of them History); audit
+  `FOLDER Contracts.AtomicInteropProof : 10 / 6 / 9 / 113`. The README lists the 10 headlines.
+  Headline docstrings gained a "Premises" paragraph where a premise was only implicit.
+* **Outside the folder:** `EraSpec.lean` (three History modules); `ASSUMPTIONS.md` results rows
+  for LastBatchInRootOffset, LastLeafFaithful, ProofPolarityFaithful, StaleSnapshotFaithful,
+  StaleSnapshotBranches (commit labels, moved names; ids unchanged); docstring-only name updates
+  (`History` segment) in L2InteropCommitmentTree `Specs/TreeRoot`, `Properties/PaddingAtHead`,
+  IndexedMerkleTree `Properties/Model`, Protocol `LocalHonesty`, `FlowAtomicity`, MultichainGate
+  `Specs/Model`, `Properties/Model`, Examples/BurnMintBridge `Specs/EndBranch`.
+
+## Not done
+
+* The `AttackVectors.*` / `MerkleSpec.LastLeaf*` namespaces and the `…AtV35` / `…Faithful` topic
+  names are kept (external references; the imt unit kept its names for the same reason).
+* `TimeoutSoundness{,Strong}`, `LastBatchInRoot{,Offset}`, `LastLeaf`, `StaleSnapshot`,
+  `Timestamps`, `ProofPolarity{,Strong}` are untagged: their statements are over abstract
+  histories or idealised hashes whose model premises are not all Lean hypotheses.
+* No formal refinement from `LastBatchInRoot.RightEmpty` (index level) to the hash-level
+  `zeroCheck`; `LastLeaf` covers that argument in collision form.
+* `ASSUMPTIONS.md` rows `PROTO-BATCH-SNAPSHOT` and `PROTO-CONTIGUOUS-PUSH` still describe
+  `c67894b9` lines (true as statements about the pin); re-citing them belongs with the Protocol unit
+  or the ASSUMPTIONS split.
+* Prose elsewhere (Protocol/InteropAtomicity) that still calls these models "pinned `c67894b9`" is
+  left to the Protocol unit.

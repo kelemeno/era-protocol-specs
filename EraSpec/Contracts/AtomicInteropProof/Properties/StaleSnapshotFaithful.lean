@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.Specs.StaleSnapshotFaithful
 
 /-!
@@ -90,8 +91,14 @@ RECLAIM PROOF CARRIES A LOCATED BREAK.**  Along any contract run from `setup`, w
 monotone settlement timestamps, if `verifyNonInclusion` accepts an absence proof for
 `v` against snapshot `j`'s published root (at any height, any index, any path length)
 and `j` is deadline-pinned (`D < t (j+1)`), then `v` is a key of no on-time snapshot,
-or the submitted proof carries a `TreeRootBreak` against snapshot `j`'s root. -/
-def Properties.StaleWitnessNotRedeemableOrBreak : Prop :=
+or the submitted proof carries a `TreeRootBreak` against snapshot `j`'s root.
+
+Premises: any node hash, leaf hash and padding constant `z0` (at `b17415d20`,
+`IMT_EMPTY_LEAF_HASH`); `R` is a commitment-tree run from `setup` with published heights `ht`;
+settlement times `t` are monotone; and `D < t (j+1)` is the abstract pin, `StaleSnapshot`'s model
+of the deadline gate, which the deployed gate does not check (its two branches reach it under
+`StaleSnapshotBranches`' premises). -/
+@[headline] def Properties.StaleWitnessNotRedeemableOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → Tree) (ht : ℕ → ℕ) (t : ℕ → UInt256)
     (D v : UInt256),
     Run R → R 0 = setup → Monotone t →
@@ -120,8 +127,11 @@ this is a preimage problem; at the extraction pin `z0 = hl ⟨0,0,0⟩` and it f
 sentinel preimage): no coexistence, or the reclaim proof
 exhibits a genuine collision — a wrong path length (`HeightBreak`), a path collision
 at the tree's height, or an occupied slot holding a different leaf with the same leaf
-hash. -/
-def Properties.StaleWitnessNotRedeemableOrCollision : Prop :=
+hash.
+
+Premises: those of `StaleWitnessNotRedeemableOrBreak` (a run from `setup`, monotone times, the
+abstract pin `D < t (j+1)`, an accepted absence proof), and `hl ℓ ≠ z0`. -/
+@[headline] def Properties.StaleWitnessNotRedeemableOrCollision : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → Tree) (ht : ℕ → ℕ) (t : ℕ → UInt256)
     (D v : UInt256),
     Run R → R 0 = setup → Monotone t →
@@ -142,7 +152,7 @@ snapshot `j = 1`, which meets the pin and is itself on time.  Every premise of
 `StaleWitnessNotRedeemableOrCollision` holds, the proof carries no `TreeRootBreak`, and
 the first disjunct holds for `1`.  A nonzero value (`2`) is a key of an on-time
 snapshot, so that disjunct is false for it: on this run it is not true of every value. -/
-def Properties.StaleWitnessOrCollisionSatisfiable : Prop :=
+@[witness] def Properties.StaleWitnessOrCollisionSatisfiable : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → Tree) (ht : ℕ → ℕ) (t : ℕ → UInt256)
     (D v : UInt256) (j : ℕ) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
     Run R ∧ R 0 = setup ∧ Monotone t ∧ D < t (j + 1)

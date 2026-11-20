@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.History.Specs.StaleSnapshotFaithful
 
 /-!
@@ -26,7 +27,7 @@ The accepted low leaf `⟨0,0⟩` is not a leaf of the snapshot, so
 reclaim, and the located break is exactly `paddingHit`.  "Deadline-pinned" is the
 abstract pin `D < t (j+1)`; the deployed timeout branches are not part of this
 statement (see the module docstring). -/
-def Properties.PaddingReclaimRedeemsDeliveredLeg : Prop :=
+@[countermodel] def Properties.PaddingReclaimRedeemsDeliveredLeg : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
     Run (paddedRun a b) ∧ paddedRun a b 0 = setup ∧ Monotone paddedRunTime
       ∧ (∀ n, (paddedRun a b n).leafCount ≤ 2 ^ paddedRunHeight n)

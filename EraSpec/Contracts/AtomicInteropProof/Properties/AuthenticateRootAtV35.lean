@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.Specs.AuthenticateRootAtV35
 
 /-!
@@ -84,7 +85,7 @@ def Properties.ReadHopIsFoldedPathV35 : Prop :=
 `readAggregationHopPath` returns on it. So its final-node revert (`MessageHashing.sol:254-256`) is
 unreachable from `verifyTimeoutAbsence`, because `_authenticateRoot` already rejected final nodes
 (`AtomicInteropProof.sol:177-179`). -/
-def Properties.HopReadTotalAfterAuthV35 : Prop :=
+@[headline] def Properties.HopReadTotalAfterAuthV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (src batch leafIndex imtRoot : UInt256)
     (w : Proof) (sl : SLRef),
     authenticateRootV35 E roots src batch leafIndex imtRoot w = some sl →
@@ -187,7 +188,7 @@ inner walk's root and `sp` the outer hop's path (`slHopPath`), one of these hold
   `HeightBreak` on `sp` against the shared tree.
 
 Every break is located on the instance. -/
-def Properties.EndBranchTwoHopLastLeafOrBreakV35 : Prop :=
+@[headline] def Properties.EndBranchTwoHopLastLeafOrBreakV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch imtRoot : UInt256)
     (w : Proof) (sl : SLRef) (hop : HopPath)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))
@@ -220,7 +221,7 @@ three paths in the proof. If `_authenticateRoot` accepts the claimed root `imtRo
 * an `SLHopBreak` on the outer hop.
 
 Every break is located on the instance. -/
-def Properties.AuthenticateRootSoundV35 : Prop :=
+@[headline] def Properties.AuthenticateRootSoundV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch leafIndex imtRoot : UInt256)
     (w : Proof) (sl : SLRef)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))
@@ -249,7 +250,7 @@ that passes up to the last-batch check (`EndBranchPassesV35`, leaf index 3) has 
 * a `LastLeafAnyLengthBreak` on the batch-leaf path;
 * an `AuthBreak` on the first hop or the batch-leaf hop;
 * an `SLHopBreak` on the outer hop. -/
-def Properties.EndBranchSoundV35 : Prop :=
+@[headline] def Properties.EndBranchSoundV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch imtRoot : UInt256)
     (w : Proof) (sl : SLRef) (hop : HopPath)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))
@@ -286,7 +287,7 @@ transcribed parser `parseMeta`, the deployed default-leaf constant, toy hashes) 
   the premises of `EndBranchTwoHopLastLeafOrBreakV35`, `AuthenticateRootSoundV35` and
   `EndBranchSoundV35`);
 * no `SLHopBreak` and no `AuthBreak` holds, so neither break predicate is always true. -/
-def Properties.EndBranchV35Satisfiable : Prop :=
+@[witness] def Properties.EndBranchV35Satisfiable : Prop :=
   ∃ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch imtRoot : UInt256)
     (w : Proof) (sl : SLRef) (hop : HopPath)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))

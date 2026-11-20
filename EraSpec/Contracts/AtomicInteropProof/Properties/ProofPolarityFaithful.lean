@@ -1,4 +1,6 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.Specs.ProofPolarityFaithful
+import EraSpec.Contracts.AtomicInteropProof.Specs.ProofPolarity
 
 /-!
 # Properties: proof polarity with the declared chain kept apart
@@ -163,8 +165,13 @@ def Properties.UpgradeCheckARedundant : Prop :=
 
 /-- **UNDER THE BINDING `append`, DECLARED = REAL ON COMMITTED VALUES.**  In every `UpgradeReach`
 state, every committed value's declared chain is its real source chain, which is the
-identification `ProofPolarity` makes everywhere. -/
-def Properties.UpgradeExcludesMisdeclared : Prop :=
+identification `ProofPolarity` makes everywhere.
+
+Premises: the state is reached from empty trees by the `b17415d20` `append` only
+(`UpgradeReach`: each insert by chain `c` of a value whose real source chain `srcOf v` and
+declared chain `decl v` are both `c`, `AtomicFlowManager.sol:140-146`); `srcOf` and `decl` are
+abstract functions of the commit value (the Specs explain when that is faithful). -/
+@[headline] def Properties.UpgradeExcludesMisdeclared : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value)
     (c : Chain) (v : Value),
     UpgradeReach srcOf decl tree → v ∈ tree c → decl v = srcOf v
@@ -172,7 +179,7 @@ def Properties.UpgradeExcludesMisdeclared : Prop :=
 /-- **THE UPGRADE PREMISES ARE SATISFIABLE, NON-VACUOUSLY.**  The leg declared on its
 real source chain is committed by the binding `append`, and the one-leg flow is
 finalized with check A (so the premise of `UpgradeCheckARedundant` holds). -/
-def Properties.UpgradeFinalitySatisfiable : Prop :=
+@[witness] def Properties.UpgradeFinalitySatisfiable : Prop :=
   UpgradeReach cmSrc cmSrc cmTree ∧ FlowFinalizedUnchecked cmTree [()] cmSrc
     ∧ FlowFinalizedChecked cmSrc cmTree [()] cmSrc
 
@@ -181,5 +188,12 @@ declared on its real source chain (`decl = cmSrc`), the state `cmTree` satisfies
 `DeclaredInsertion` and the one-leg flow is finalized without check A. -/
 def Properties.UncheckedExclusiveUnderDeclaredSatisfiable : Prop :=
   DeclaredInsertion cmSrc cmTree ∧ FlowFinalizedUnchecked cmTree [()] cmSrc
+
+/-- **THE TWO HONEST-INSERTION PREMISES ARE ONE.**  This file's `HonestInsertion` and
+`AttackVectors.ProofPolarity.HonestInsertion` (every value in chain `c`'s tree has source chain
+`c`) are the same proposition, so results of the two topics compose on one premise. -/
+def Properties.HonestInsertionAgrees : Prop :=
+  ∀ (Chain Value : Type) (srcOf : Value → Chain) (tree : Chain → Set Value),
+    HonestInsertion srcOf tree ↔ AttackVectors.ProofPolarity.HonestInsertion srcOf tree
 
 end AttackVectors.ProofPolarityFaithful

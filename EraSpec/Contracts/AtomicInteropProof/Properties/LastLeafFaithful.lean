@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.Specs.LastLeafFaithful
 
 /-!
@@ -51,8 +52,15 @@ open MerkleSpec MerkleSpec.Verifier MerkleSpec.LastLeaf
 BREAK.**  If the submitted path passes the deployed checks (`j < 2^k`, it recomputes
 chain `c`'s root, the zero check over its `k` levels), then it has the tree's height,
 `j` is the last occupied leaf and `x` is that leaf's entry — or a
-`LastLeafAnyLengthBreak` is exhibited. -/
-def Properties.AcceptedLastLeafAnyLengthOrBreak : Prop :=
+`LastLeafAnyLengthBreak` is exhibited.
+
+Premises: the chain tree `L` fits its height (`L.length ≤ 2 ^ height`); the path is accepted
+(`LastBatchPathAccepted`), whose `authenticated` field (the walk reaches chain `c`'s own tree
+root) is on chain the conclusion of the outer chain-id hop, taken here as a premise (both hops:
+`AuthenticateRootAtV35.Properties.EndBranchTwoHopLastLeafOrBreakV35`); the claimed leaf hash `x`
+is free (on chain a 128-byte batch-leaf preimage).  Any node hash `h` and empty-entry constant
+`z0` (at `b17415d20`, `CHAIN_TREE_EMPTY_ENTRY_HASH`); no hash premise. -/
+@[headline] def Properties.AcceptedLastLeafAnyLengthOrBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
     (x : UInt256),
     L.length ≤ 2 ^ height → LastBatchPathAccepted h z0 L height sibs k j x →
@@ -70,7 +78,7 @@ The path has `k = 0`, so the zero check and the `PathCollision` conjunct range o
 level.  In the model the leaf hash `x` is free; on chain it is the batch-leaf hash of a
 128-byte preimage, so this instance needs such a preimage of the chain root, a node hash
 (the keccak of 64 bytes).  It is excluded only by hash domain separation, not by a check. -/
-def Properties.WrongLengthLastLeafAccepted : Prop :=
+@[countermodel] def Properties.WrongLengthLastLeafAccepted : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
     (x : UInt256),
     L.length ≤ 2 ^ height ∧ LastBatchPathAccepted h z0 L height sibs k j x ∧ k ≠ height
@@ -88,7 +96,7 @@ In the model the leaf hash `x` is free; on chain it is the batch-leaf hash of a 
 preimage, so this instance needs such a preimage of the empty-entry constant (itself the
 keccak of 96 zero bytes): excluded only by hash domain separation, not by a check.  One leaf at
 height 2 is not a shape a deployed chain tree has (one leaf sits at height 0). -/
-def Properties.PaddedIndexLastLeafAccepted : Prop :=
+@[countermodel] def Properties.PaddedIndexLastLeafAccepted : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
     (x : UInt256),
     L.length ≤ 2 ^ height ∧ LastBatchPathAccepted h z0 L height sibs k j x
@@ -187,7 +195,7 @@ fires (and passes) at level 0, at the tree's height no `HeightBreak` is located,
 hashed, five pairs).  So `AcceptedLastLeafNoHeightBreakOn` and
 `AcceptedLastLeafNoHeightBreakOrBreak` are not vacuous.  Three leaves at height 2 is a shape
 a deployed chain tree has (`DynamicIncrementalMerkle.push` puts three leaves at height 2). -/
-def Properties.AcceptedLastLeafNoHeightBreakOnSatisfiable : Prop :=
+@[witness] def Properties.AcceptedLastLeafNoHeightBreakOnSatisfiable : Prop :=
   ∃ (h : Hash) (z0 : UInt256) (L : List UInt256) (sibs : ℕ → UInt256) (k height j : ℕ)
     (x : UInt256),
     L.length ≤ 2 ^ height ∧ LastBatchPathAccepted h z0 L height sibs k j x

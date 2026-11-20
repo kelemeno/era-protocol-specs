@@ -225,4 +225,13 @@ theorem BeginBranchNotRedeemableSatisfiable : Properties.BeginBranchNotRedeemabl
 theorem EndBranchNotRedeemableSatisfiable : Properties.EndBranchNotRedeemableSatisfiable :=
   end_branch_not_redeemable_satisfiable
 
+theorem BeginIsPrevEndProjects : Properties.BeginIsPrevEndProjects := by
+  intro H h n
+  show keys (H.beginS (n + 1)) = keys (H.endS n)
+  rw [h n]
+
+theorem OutsideRootLateIffNat : Properties.OutsideRootLateIffNat := by
+  intro inRoot t T
+  exact Iff.rfl
+
 end AttackVectors.StaleSnapshotBranches

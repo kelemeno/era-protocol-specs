@@ -163,4 +163,7 @@ theorem UncheckedExclusiveUnderDeclaredSatisfiable :
     Properties.UncheckedExclusiveUnderDeclaredSatisfiable :=
   ⟨(upgradeReach_declared upgrade_finality_satisfiable.1).2, upgrade_finality_satisfiable.2.1⟩
 
+theorem HonestInsertionAgrees : Properties.HonestInsertionAgrees :=
+  fun _ _ _ _ => Iff.rfl
+
 end AttackVectors.ProofPolarityFaithful

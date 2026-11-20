@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.Specs.StaleSnapshotBranches
 import EraSpec.Contracts.AtomicInteropProof.Specs.LastBatchInRootOffset
 
@@ -58,8 +59,15 @@ def Properties.EndBranchGivesPin : Prop :=
 /-- **`StaleSnapshot`'S HEADLINE ON THE DEPLOYED BEGIN BRANCH.**  Along an evolution
 from a sound base, with monotone batch timestamps and `BeginIsPrevEnd`, a genuine
 begin-branch witness for `v` means `v` is a key of no on-time end snapshot.  (For
-`L = 0` this is monotonicity alone: no batch is on time.) -/
-def Properties.BeginBranchNotRedeemable : Prop :=
+`L = 0` this is monotonicity alone: no batch is on time.)
+
+Premises: `H` is an abstract batch history of IMT snapshots (`IMTAbstract` leaf sets) whose end
+snapshots evolve by inserts from a sound base; batch timestamps are monotone; `begin(n+1) =
+end(n)` (`PROTO-BATCH-SNAPSHOT`, which no on-chain check establishes); and the begin branch of
+`verifyTimeoutAbsence` passes at batch `L` (`l1BatchTimestamp > D`, root time `T > D`) with an
+absence witness `W` that is a genuine leaf of batch `L`'s begin snapshot.  An accepted IMT proof
+that is not a genuine leaf is covered by `StaleSnapshotFaithful`. -/
+@[headline] def Properties.BeginBranchNotRedeemable : Prop :=
   ∀ (H : BatchSnapshots) (D T v : UInt256) (L : ℕ) (W : AbsLeaf),
     Evolution H.endS → SoundState (H.endS 0) → Monotone H.t → BeginIsPrevEnd H →
     BeginBranch H D T v L W → ∀ i, H.t i ≤ D → v ∉ keys (H.endS i)
@@ -68,8 +76,15 @@ def Properties.BeginBranchNotRedeemable : Prop :=
 a sound base, with `LaterBatchesLate B H.t T` (every batch numbered after `B` settles no
 earlier than the root time `T`), a genuine end-branch witness at batch `B` for `v` means
 `v` is a key of no on-time end snapshot.  No timestamp monotonicity is used, and batches
-before `B` (including batches never pushed into any root) are unconstrained. -/
-def Properties.EndBranchNotRedeemable : Prop :=
+before `B` (including batches never pushed into any root) are unconstrained.
+
+Premises: `H` is an abstract batch history of IMT snapshots whose end snapshots evolve by
+inserts from a sound base; `LaterBatchesLate B H.t T` (from `PROTO-AGGREGATES` at the root's
+last batch of the chain; not checked on chain); and the end branch passes at batch `B`
+(`l1BatchTimestamp ≤ D`, root time `T > D`) with an absence witness `W` that is a genuine leaf of
+batch `B`'s end snapshot.  An accepted IMT proof that is not a genuine leaf is covered by
+`StaleSnapshotFaithful`. -/
+@[headline] def Properties.EndBranchNotRedeemable : Prop :=
   ∀ (H : BatchSnapshots) (D T v : UInt256) (B : ℕ) (W : AbsLeaf),
     Evolution H.endS → SoundState (H.endS 0) → LaterBatchesLate B H.t T →
     EndBranch H D T v B W → ∀ i, H.t i ≤ D → v ∉ keys (H.endS i)
@@ -96,7 +111,7 @@ def Properties.OutsideRootLateGivesLaterBatchesLate : Prop :=
 snapshots and monotone timestamps but begin snapshots stuck at genesis; the begin branch
 passes at batch 2 with the genesis leaf as a genuine member of the begin snapshot, while
 `1` was committed in batch 1 and is in batch 1's end snapshot, on time. -/
-def Properties.BeginBranchNeedsBeginIsPrevEnd : Prop :=
+@[countermodel] def Properties.BeginBranchNeedsBeginIsPrevEnd : Prop :=
   Evolution unlinkedHistory.endS ∧ SoundState (unlinkedHistory.endS 0)
     ∧ Monotone unlinkedHistory.t ∧ ¬ BeginIsPrevEnd unlinkedHistory
     ∧ BeginBranch unlinkedHistory 0 1 1 2 ⟨0, 0⟩
@@ -107,7 +122,7 @@ and has monotone timestamps; a root created at time 1 whose last batch is batch 
 the end branch pass at batch 0 with a genuine witness, while `1` is in batch 1's end
 snapshot and batch 1 settled on time.  Batch 1 > 0 settled at time 0 < 1, so
 `LaterBatchesLate 0` fails. -/
-def Properties.EndBranchNeedsLaterBatchesLate : Prop :=
+@[countermodel] def Properties.EndBranchNeedsLaterBatchesLate : Prop :=
   Evolution staleRootHistory.endS ∧ SoundState (staleRootHistory.endS 0)
     ∧ Monotone staleRootHistory.t ∧ BeginIsPrevEnd staleRootHistory
     ∧ ¬ LaterBatchesLate 0 staleRootHistory.t 1
@@ -122,12 +137,12 @@ def Properties.PinBoundsOnTime : Prop :=
 
 /-- **WHAT THE PIN DOES NOT SAY.**  `D < t (j+1)` with monotone `t` does not make `j`
 on time, so it does not pin `j` as "the last on-time snapshot". -/
-def Properties.PinDoesNotMakeSnapshotOnTime : Prop :=
+@[countermodel] def Properties.PinDoesNotMakeSnapshotOnTime : Prop :=
   ∃ (t : ℕ → UInt256) (D : UInt256) (j : ℕ), Monotone t ∧ D < t (j + 1) ∧ D < t j
 
 /-- **ON THE BEGIN BRANCH THE PINNED SNAPSHOT CAN BE LATE.**  A begin-branch pass at batch
 `L = 1` under `BeginIsPrevEnd` whose pinned snapshot `j = L - 1 = 0` is itself late. -/
-def Properties.BeginBranchPinMayBeLate : Prop :=
+@[countermodel] def Properties.BeginBranchPinMayBeLate : Prop :=
   ∃ (H : BatchSnapshots) (D T v : UInt256) (L : ℕ) (W : AbsLeaf),
     BeginIsPrevEnd H ∧ BeginBranch H D T v L W ∧ 0 < L ∧ D < H.t (L - 1)
 
@@ -137,7 +152,7 @@ time for deadline `0`), the begin branch passes at the late batch `L = 2` with t
 genuine leaf `⟨0, 2⟩` of its begin snapshot as witness for `v = 1`: every premise of
 `BeginBranchNotRedeemable` holds.  Batch 1 is on time and holds `2`, so the headline's
 conclusion, which these premises give for `1`, is false for `2`. -/
-def Properties.BeginBranchNotRedeemableSatisfiable : Prop :=
+@[witness] def Properties.BeginBranchNotRedeemableSatisfiable : Prop :=
   Evolution richSnapshots.endS ∧ SoundState (richSnapshots.endS 0) ∧ Monotone richSnapshots.t
     ∧ BeginIsPrevEnd richSnapshots ∧ BeginBranch richSnapshots 0 1 1 2 ⟨0, 2⟩
     ∧ richSnapshots.t 1 ≤ 0 ∧ (2 : UInt256) ∈ keys (richSnapshots.endS 1)
@@ -152,10 +167,27 @@ these premises give for `1`, is false for `2`.
 Read as an abstract chain whose first pushed batch is 1, the root holds batch 1 only;
 batch 0 is then in no root and settled at time 0, so the unrestricted `OutsideRootLate`
 with `inRoot = (· = 1)` is false here while `LaterBatchesLate 1` holds. -/
-def Properties.EndBranchNotRedeemableSatisfiable : Prop :=
+@[witness] def Properties.EndBranchNotRedeemableSatisfiable : Prop :=
   Evolution richSnapshots.endS ∧ SoundState (richSnapshots.endS 0)
     ∧ LaterBatchesLate 1 richSnapshots.t 1 ∧ EndBranch richSnapshots 0 1 1 1 ⟨0, 2⟩
     ∧ ¬ OutsideRootLate (· = 1) richSnapshots.t 1
     ∧ richSnapshots.t 1 ≤ 0 ∧ (2 : UInt256) ∈ keys (richSnapshots.endS 1)
+
+/-- **THE LEAF-SET `BeginIsPrevEnd` PROJECTS TO THE VALUE-SET ONE.**  If a snapshot history
+satisfies `begin(n+1) = end(n)` on leaf sets, then its key projection (begin and end sets of
+values, times as natural numbers) satisfies `AttackVectors.TimeoutSoundness.BeginIsPrevEnd`.  So
+the premise `PROTO-BATCH-SNAPSHOT` of this topic gives that of `TimeoutSoundness`. -/
+def Properties.BeginIsPrevEndProjects : Prop :=
+  ∀ H : BatchSnapshots, BeginIsPrevEnd H →
+    AttackVectors.TimeoutSoundness.BeginIsPrevEnd
+      ⟨fun n => keys (H.beginS n), fun n => keys (H.endS n), fun n => (H.t n).val⟩
+
+/-- **THE TWO `OutsideRootLate`s AGREE.**  This topic's `OutsideRootLate` on the `UInt256`
+clock is `AttackVectors.LastBatchInRoot.OutsideRootLate` on the same clock read as natural
+numbers. -/
+def Properties.OutsideRootLateIffNat : Prop :=
+  ∀ (inRoot : ℕ → Prop) (t : ℕ → UInt256) (T : UInt256),
+    OutsideRootLate inRoot t T
+      ↔ AttackVectors.LastBatchInRoot.OutsideRootLate inRoot (fun n => (t n).val) T.val
 
 end AttackVectors.StaleSnapshotBranches

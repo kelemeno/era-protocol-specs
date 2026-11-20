@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.History.Specs.ProofPolarityFaithful
 
 /-!
@@ -34,7 +35,7 @@ check A removed the one-leg flow is finalized (proof against chain `true`) AND r
 (absence at chain `false`); with check A present, finality fails for every choice of
 proof chains.  So the "defense-in-depth" reading of the finality-side check is false
 of the pinned contract. -/
-def Properties.PinnedMisdeclaredDoubleMint : Prop :=
+@[countermodel] def Properties.PinnedMisdeclaredDoubleMint : Prop :=
   PinnedReach cmSrc cmTree ∧ HonestInsertion cmSrc cmTree ∧ ¬ DeclaredInsertion cmDecl cmTree
     ∧ () ∈ cmTree (cmSrc ()) ∧ cmDecl () ≠ cmSrc ()
     ∧ FlowFinalizedUnchecked cmTree [()] cmSrc ∧ FlowRefunded cmDecl cmTree [()]
@@ -45,7 +46,7 @@ In the same reachable pinned state, the leg is committed on its real source chai
 absence proof is pinned to the leg's declared chain (check B passes), and the leg is
 absent there.  This is the case `ProofPolarity.refund_blocked_when_chain_pinned`
 excludes by writing the pin as `c = srcOf v`. -/
-def Properties.RefundNotBlockedWhenPinnedToDeclared : Prop :=
+@[countermodel] def Properties.RefundNotBlockedWhenPinnedToDeclared : Prop :=
   PinnedReach cmSrc cmTree ∧ () ∈ cmTree (cmSrc ()) ∧ RefundChecked cmDecl cmTree () (cmDecl ())
 
 end AttackVectors.ProofPolarityFaithful.History
