@@ -1,4 +1,4 @@
-# Current handoff — 2026-11-20
+# Current handoff — 2026-11-20 (updated after wave 2, part 1)
 
 Continue from **`claude/proof-round-9`**. Round 9 started from `claude/proof-round-8` (`35d2eb9`) and works on
 the round-8 handoff's Priority 1, **consolidation**. That note is kept verbatim in
@@ -11,11 +11,11 @@ PRs, or publishing anything about a possible upstream (era-contracts) issue.
 ## State of `claude/proof-round-9`
 
 - **Toolchain:** Lean v4.35.0 + Mathlib v4.35.0, unchanged.
-- **Build:** `lake build EraSpec` builds 4011 jobs.
+- **Build:** `lake build EraSpec` builds 4026 jobs.
 - **Audit** (`lake env lean scripts/Audit.lean`):
-  - 28522 theorems and 4528 properties, each with its full named theorem;
+  - 28543 theorems and 4535 properties, each with its full named theorem;
   - 0 axioms, 0 NOT clean, 0 tag findings;
-  - 291 headline, 310 witness and 233 countermodel properties, plus 3694 untagged supporting lemmas;
+  - 340 headline, 340 witness and 270 countermodel properties, plus 3585 untagged supporting lemmas;
   - a per-folder line for each contract and Protocol area.
 - **One target commit.** Every model is being moved to era-contracts v35 `b17415d20` (`draft/v0.35.0` head).
   Records of older pins live in `History/` folders with a `History` namespace segment.
@@ -43,23 +43,39 @@ Every unit was independently and adversarially reviewed before merging. Reviewer
 | smalls-enc | DataEncoding, InteropDataEncoding, MessageHashing, L1Messenger, L1InteropHandler, L2InteropHandler | Re-pinned. The c67894b9 source-binding and bundle-hash results are History, with no b17415d20 counterpart yet. |
 | ctm | ChainTypeManager (26 topics) | Every topic pinned to `b17415d20`. The `…AtV35` re-models are folded into the base topics where they model the same code. GenesisWriters now models the second-proof-system check. **Partial:** see `handoff/2026-11-19/consolidation/ctm.md`. |
 | tagging | all merged folders | Tags applied from each unit's plan. Model-bridge statements are untagged, and missing premises were added to headline docstrings. |
+| atomic-flow | AtomicFlowManager | Re-pinned. `FlowCanonicalAtV35` is the canonical entry-point model. `FlowCanonicalAtHead` is linked to it by refinement lemmas but not merged, because Protocol `FlowBindingAtHead` builds on its types. `FlowCanonical` is the neighbour-check vocabulary both share. RecoveryLimitsStrong and the pin half of RecoveryLimitsFaithful are History. RecoveryLimits and RecoveryTargets still model only `c67894b9`; they stay at their paths, untagged, until their importers move. RecoveryLimits is imported by AssetRouterBase, InteropCenter `Send` and Protocol/AssetBridgePreparation. RecoveryTargets is now imported only by InteropCenter History, so it can move. |
+| handler-base | InteropHandlerBase | Re-pinned. One stack: the status machine, the `Reentrancy` engine, its `b17415d20` layer (`ReentrancyAtV35`, folded into topic `Reentrancy` but still in its own files) and the dispatch tables. The pin-only parts of BundleStatusMachine and BundleStatusMachineFaithful, and all of BundleStatusMachineStrong, are History. SelfCallAuthorityFaithful and SelfCallAuthorityStrong stay two models of the same dispatch, with no refinement lemma yet. **Partial:** see `handler-base.md`. |
+| interop-center | InteropCenter | The shared vocabulary is in `Specs/Common.lean`, at `b17415d20`. Dispatch, ClaimBinding and AtomicRouting moved to History (`c67894b9`). SendAtHead became topic `Send`, at `b17415d20`. **Partial:** `Send` and FeeState/FeeReentry are not linked into one model. |
 
 - **Per-unit notes:** `handoff/2026-11-19/consolidation/<unit>.md`. Each note records the inventory, the
   decisions, and what was not done.
-- **Renames:** `handoff/2026-11-19/renames/<unit>.json`, 157 entries. They map every removed or renamed
+- **Renames:** `handoff/2026-11-19/renames/<unit>.json`, 332 entries. They map every removed or renamed
   property to its replacement.
 
 ## What is left
 
-1. **Wave 2 (not started).** Six units were launched, but the session ended before any of them committed:
-   - InteropCenter;
-   - InteropHandlerBase;
-   - AtomicFlowManager (timeout refund only; the PR 2642 expiry refund is not at v35);
-   - AtomicInteropProof (the H1 countermodels go to History);
-   - the Merkle libraries (Merkle, FullMerkle, DynamicIncrementalMerkle);
-   - AssetRouterBase (the M1 countermodels go to History).
+1. **Wave 2 (part 1 merged).** AtomicFlowManager, InteropHandlerBase and InteropCenter are merged. AtomicInteropProof
+   (the H1 countermodels go to History), the Merkle libraries (Merkle, FullMerkle, DynamicIncrementalMerkle)
+   and AssetRouterBase (the M1 countermodels go to History) are in progress. They may or may not land before
+   the usage limit; check `git log` and the audit's folder lines. Start any that did not land fresh from
+   `claude/proof-round-9`.
 
-   Start them fresh from `claude/proof-round-9`. These folders show `0` headlines in the audit.
+   **Wave-2 remainder** (from `atomic-flow.md`, `handler-base.md`, `interop-center.md`):
+   - move RecoveryLimits and RecoveryTargets to History once their importers move, and add their renames;
+   - merge FlowCanonicalAtHead into FlowCanonicalAtV35, with the Protocol unit;
+   - AssetRouterBase `AtomicRecovery` and RecoveryLimitsFaithful model the pin loop over different call
+     types, with no refinement between them (`MODEL-ATOMIC-RECOVERY`);
+   - restate `ValueLedgerFaithful` and three bundle-status engine statements (`WholeBundleWriteIgnoresCallStatus`,
+     `CallStatusDoesNotStopWholeBundleRedelivery`, `AdmittedBundleHasOnlyUnprocessedCalls`) on the
+     `b17415d20` layer;
+   - a refinement lemma between SelfCallAuthorityStrong and SelfCallAuthorityFaithful;
+   - merge the `ReentrancyAtV35` files into `Reentrancy` (needs ReentrancyStrong and the
+     BundleStatusMachineFaithful gate lemmas merged too; no statement change);
+   - update `scripts/check-interop-handler-inventory.sh`, which still checks the pin layout;
+   - link InteropCenter `Send` and FeeState/FeeReentry into one model;
+   - re-check the line numbers of the InteropCenter History records against `c67894b9`;
+   - `Protocol/InteropAtomicity/ExecutionLiveness` and `Protocol/DestinationCapstone` now import History
+     records; the Protocol unit re-pins them.
 2. **Protocol areas.** These come after wave 2, since they compose the contracts: `Protocol/InteropAtomicity`
    (537 properties, 17 Specs files still citing older pins) and the other areas. All Protocol areas are
    untagged.
