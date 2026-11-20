@@ -1,6 +1,6 @@
 import EraSpec.Contracts.InteropDataEncoding.Properties.BundleHashAtV35
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 
 /-!
 # Proofs at draft/v0.35.0: distinct sends give distinct bundle hashes, or a named collision
@@ -15,7 +15,7 @@ For `sendMessage` bytes the salt word is not needed: equal bytes have equal tail
 head, the tail splits into the call and the attributes (the attributes' length does not depend on the
 sender), and the call's `from` word and the attributes' salt bytes read back the sender and the salt.
 
-The pin relation uses `abiEncode_right_inj` (`InteropCenter/Proofs/Dispatch.lean`) in one direction
+The pin relation uses `abiEncode_right_inj` (`InteropCenter/History/Proofs/Dispatch.lean`) in one direction
 and the source slot in the other.
 
 The chain-reference facts use Mathlib's `Nat.log` bounds. The comparison with an independent ABI

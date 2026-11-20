@@ -1,11 +1,14 @@
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 import EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimits
 
 /-!
 # Properties: what a dispatch guarantees
 
-Statements about `EraSpec.Contracts.InteropCenter.Specs.Dispatch`. Proofs are in
-`EraSpec.Contracts.InteropCenter.Proofs.Dispatch`. Every run starts from fresh storage (`init`) on
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
+Statements about `EraSpec.Contracts.InteropCenter.History.Specs.Dispatch`. Proofs are in
+`EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch`. Every run starts from fresh storage (`init`) on
 one chain; `deployed` is the code with all three of its checks.
 
 ## (a) A sender's salt dispatches at most once
@@ -64,7 +67,7 @@ clash predicates false on it; `StepWitness` meets the per-step premises on the s
 two senders dispatch one bundle.
 -/
 
-namespace Contracts.InteropCenter
+namespace Contracts.InteropCenter.History
 
 open Contracts.AtomicFlowManager (LegState)
 
@@ -275,14 +278,6 @@ def Properties.AtomicBytesNeverPublished : Prop :=
 
 /-! ## Non-vacuity -/
 
-/-- **THE ENCODER PREMISE IS SATISFIABLE FOR EVERY LIST OF BUNDLES.** -/
-def Properties.EncInjOnSatisfiable : Prop :=
-  ∀ L : List Bundle, ∃ enc : Bundle → List UInt8, EncInjOn enc L
-
-/-- **THE KECCAK PREMISE IS SATISFIABLE FOR EVERY LIST NO LONGER THAN THE WORD SPACE.** -/
-def Properties.KeccakInjOnSatisfiable : Prop :=
-  ∀ L : List (List UInt8), L.length ≤ UInt256.size → ∃ k : List UInt8 → Word, KeccakInjOn k L
-
 /-- **THE HEADLINES' PREMISES HOLD ON A NONTRIVIAL RUN, AND THE CLASHES ARE FALSE ON IT.** On the
 honest witness chain: sender `1` dispatches an atomic leg of flow `7`, sender `2` dispatches a public
 bundle whose call carries value `9`, and the leg is authorized. Every premise of the (b) and (c)
@@ -329,4 +324,4 @@ def Properties.SaltClashLetsTwoSendersShareABundle : Prop :=
     ∃ (i j : ℕ) (hi : i < S.log.length) (hj : j < S.log.length), i ≠ j ∧
       S.log[i].bundle = S.log[j].bundle ∧ CrossSenderSaltClash P S.log[i] S.log[j]
 
-end Contracts.InteropCenter
+end Contracts.InteropCenter.History

@@ -1,10 +1,13 @@
-import EraSpec.Contracts.InteropCenter.Specs.AtomicRouting
+import EraSpec.Contracts.InteropCenter.History.Specs.AtomicRouting
 
 /-!
 # Properties: where an atomic leg's calls point, and an atomic leg sent to L1
 
-Statements about `EraSpec.Contracts.InteropCenter.Specs.AtomicRouting`. Proofs are in
-`EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting`. A bare `:N` is a line of
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
+Statements about `EraSpec.Contracts.InteropCenter.History.Specs.AtomicRouting`. Proofs are in
+`EraSpec.Contracts.InteropCenter.History.Proofs.AtomicRouting`. A bare `:N` is a line of
 `interop/InteropCenter.sol` at the pin. Every run starts from fresh storage (`sysInit`). `pin` is
 the pinned code; `upgradeTree` adds the two checks of `e561b9cc2` that decide where the
 `atomicBundle` attribute goes (`Guards`).
@@ -62,7 +65,7 @@ exercises every case of `AttributeRoutingByEntryPoint`, and `AtomicToL1StrandedW
 logged send to L1, the premise of (a).
 -/
 
-namespace Contracts.InteropCenter.AtomicRouting
+namespace Contracts.InteropCenter.History.AtomicRouting
 
 open Contracts.AtomicFlowManager (LegState)
 open Contracts.AtomicFlowManager.RecoveryTargets (CallSem VmCall NoRecovererAt recoverStep
@@ -341,4 +344,4 @@ def Properties.AttributeHonouredOrRejectedWitness : Prop :=
     (∃ s ∈ S.sends, s.entry = .sendMessage ∧ s.dispatch.isAtomic = false) ∧
     (∃ s ∈ S.sends, s.dest = E.l1ChainId)
 
-end Contracts.InteropCenter.AtomicRouting
+end Contracts.InteropCenter.History.AtomicRouting

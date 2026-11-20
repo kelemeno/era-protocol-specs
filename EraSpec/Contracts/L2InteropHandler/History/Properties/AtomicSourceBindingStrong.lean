@@ -56,7 +56,8 @@ the hash and the recipient's `sender`, and the flow-gate reading; its premise ab
 namespace AttackVectors.AtomicSourceBinding.History
 
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision)
-open Contracts.InteropCenter (Params Dispatch Word bundleHash bundlePreimage KeccakInjOn)
+open Contracts.InteropCenter (Word KeccakInjOn)
+open Contracts.InteropCenter.History (Params Dispatch bundleHash bundlePreimage)
 
 /-- **CHECK (1) BY CALL SITE.** On the atomic site (`L2InteropHandler.sol:57`) the validator is
 exactly its destination-chain and base-token checks: its first check compares the bundle's
@@ -119,11 +120,11 @@ def Properties.AtomicSourceBoundOn : Prop :=
 `InteropCenter` on chain `P` from fresh storage, a tree backed by the manager (every key the
 sentinel or the commit value of a leg not `Unset`) holds only the center's own legs: link 3, the
 center's sole `append` call site computing the bundle hash with `block.chainid`
-(`Contracts.InteropCenter.CommittedLegsAreValidatedDispatches`). -/
+(`Contracts.InteropCenter.History.CommittedLegsAreValidatedDispatches`). -/
 def Properties.CenterRunTreeHoldsOwnLegs : Prop :=
-  ∀ (P : Params) (S : Contracts.InteropCenter.State) (tag : Word) (T : Set Word),
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init S →
+  ∀ (P : Params) (S : Contracts.InteropCenter.History.State) (tag : Word) (T : Set Word),
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init S →
     TreeBackedByManager P tag S T → TreeHoldsOwnLegs P tag S.log T
 
 /-- **THE BINDING ON A DEPLOYED CENTER RUN.** As the headline, for the tree of a chain running the
@@ -131,10 +132,10 @@ deployed center, with the tree/manager link as the only premise about that tree.
 also carries no native value (`_validateAtomicBundle`) and was built with
 `sourceChainId = block.chainid` (`InteropCenter.sol:500`). -/
 def Properties.AtomicSourceBoundOnCenterRunOrLoggedClash : Prop :=
-  ∀ (P : Params) (S : Contracts.InteropCenter.State) (tag : Word) (T : Set Word) (f src : Word)
+  ∀ (P : Params) (S : Contracts.InteropCenter.History.State) (tag : Word) (T : Set Word) (f src : Word)
     (x : List UInt8),
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init S →
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init S →
     TreeBackedByManager P tag S T →
     commitValue P.keccak tag f (destBundleHash P.keccak src x) ∈ T →
     (src = P.chainId ∧ ∃ d ∈ S.log, d.isAtomic = true ∧ d.atomicSend.flowId = f ∧
@@ -172,21 +173,21 @@ sender chain is `325`, and keccak collides on no named pair of preimages. So all
 the headline fail, and the tree fails `TreeHoldsOwnLegs`. On the atomic path nothing else looks at
 the declared chain: check (1) compares it to itself. -/
 def Properties.ForeignCommitInTreeUnbindsSource : Prop :=
-  commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-      (destBundleHash Contracts.InteropCenter.wParams.keccak 325 wForeignBytes) ∈ wForeignTree ∧
-    commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-      (destBundleHash Contracts.InteropCenter.wParams.keccak 325 wForeignBytes) ≠ 0 ∧
-    (325 : Word) ≠ Contracts.InteropCenter.wParams.chainId ∧
-    (∀ d ∈ Contracts.InteropCenter.wS1.log, d.isAtomic = true →
-      ¬ HashCollision Contracts.InteropCenter.wParams.keccak
+  commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+      (destBundleHash Contracts.InteropCenter.History.wParams.keccak 325 wForeignBytes) ∈ wForeignTree ∧
+    commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+      (destBundleHash Contracts.InteropCenter.History.wParams.keccak 325 wForeignBytes) ≠ 0 ∧
+    (325 : Word) ≠ Contracts.InteropCenter.History.wParams.chainId ∧
+    (∀ d ∈ Contracts.InteropCenter.History.wS1.log, d.isAtomic = true →
+      ¬ HashCollision Contracts.InteropCenter.History.wParams.keccak
           (commitPreimage wTag 7
-            (destBundleHash Contracts.InteropCenter.wParams.keccak 325 wForeignBytes))
+            (destBundleHash Contracts.InteropCenter.History.wParams.keccak 325 wForeignBytes))
           (commitPreimage wTag d.atomicSend.flowId
-            (bundleHash Contracts.InteropCenter.wParams d.bundle)) ∧
-        ¬ HashCollision Contracts.InteropCenter.wParams.keccak
+            (bundleHash Contracts.InteropCenter.History.wParams d.bundle)) ∧
+        ¬ HashCollision Contracts.InteropCenter.History.wParams.keccak
           (abiEncode (325 : Word).val wForeignBytes)
-          (bundlePreimage Contracts.InteropCenter.wParams d.bundle)) ∧
-    ¬ TreeHoldsOwnLegs Contracts.InteropCenter.wParams wTag Contracts.InteropCenter.wS1.log
+          (bundlePreimage Contracts.InteropCenter.History.wParams d.bundle)) ∧
+    ¬ TreeHoldsOwnLegs Contracts.InteropCenter.History.wParams wTag Contracts.InteropCenter.History.wS1.log
       wForeignTree
 
 /-- **EVERY PREMISE HOLDS ON THE HONEST RUN, AND THE COLLISIONS ARE FALSE ON IT.** On chain `324`
@@ -196,49 +197,49 @@ with decoded source chain `324`, and the flow gate passes for them with that leg
 chain `324`; the commit value is in the tree and nonzero; keccak collides on no named pair of
 preimages; and the two bounded injectivity premises of `AtomicSourceBoundOn` hold. -/
 def Properties.AtomicSourceBindingStrongWitness : Prop :=
-  Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.init Contracts.InteropCenter.wS1 ∧
-    TreeBackedByManager Contracts.InteropCenter.wParams wTag Contracts.InteropCenter.wS1 wTree ∧
-    TreeHoldsOwnLegs Contracts.InteropCenter.wParams wTag Contracts.InteropCenter.wS1.log wTree ∧
-    FlowGatePassed Contracts.InteropCenter.wParams.keccak wTag
-      (fun c => if c = Contracts.InteropCenter.wParams.chainId then wTree else ∅) 7
-      [(bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle,
-        Contracts.InteropCenter.wParams.chainId)]
-      (destBundleHash Contracts.InteropCenter.wParams.keccak
-        Contracts.InteropCenter.wParams.chainId
-        (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD1.bundle)) ∧
-    commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-        (destBundleHash Contracts.InteropCenter.wParams.keccak
-          Contracts.InteropCenter.wParams.chainId
-          (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD1.bundle)) ∈ wTree ∧
-    commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-        (destBundleHash Contracts.InteropCenter.wParams.keccak
-          Contracts.InteropCenter.wParams.chainId
-          (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD1.bundle)) ≠ 0 ∧
-    (∀ d ∈ Contracts.InteropCenter.wS1.log, d.isAtomic = true →
-      ¬ HashCollision Contracts.InteropCenter.wParams.keccak
+  Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.init Contracts.InteropCenter.History.wS1 ∧
+    TreeBackedByManager Contracts.InteropCenter.History.wParams wTag Contracts.InteropCenter.History.wS1 wTree ∧
+    TreeHoldsOwnLegs Contracts.InteropCenter.History.wParams wTag Contracts.InteropCenter.History.wS1.log wTree ∧
+    FlowGatePassed Contracts.InteropCenter.History.wParams.keccak wTag
+      (fun c => if c = Contracts.InteropCenter.History.wParams.chainId then wTree else ∅) 7
+      [(bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle,
+        Contracts.InteropCenter.History.wParams.chainId)]
+      (destBundleHash Contracts.InteropCenter.History.wParams.keccak
+        Contracts.InteropCenter.History.wParams.chainId
+        (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD1.bundle)) ∧
+    commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+        (destBundleHash Contracts.InteropCenter.History.wParams.keccak
+          Contracts.InteropCenter.History.wParams.chainId
+          (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD1.bundle)) ∈ wTree ∧
+    commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+        (destBundleHash Contracts.InteropCenter.History.wParams.keccak
+          Contracts.InteropCenter.History.wParams.chainId
+          (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD1.bundle)) ≠ 0 ∧
+    (∀ d ∈ Contracts.InteropCenter.History.wS1.log, d.isAtomic = true →
+      ¬ HashCollision Contracts.InteropCenter.History.wParams.keccak
           (commitPreimage wTag 7
-            (destBundleHash Contracts.InteropCenter.wParams.keccak
-              Contracts.InteropCenter.wParams.chainId
-              (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD1.bundle)))
+            (destBundleHash Contracts.InteropCenter.History.wParams.keccak
+              Contracts.InteropCenter.History.wParams.chainId
+              (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD1.bundle)))
           (commitPreimage wTag d.atomicSend.flowId
-            (bundleHash Contracts.InteropCenter.wParams d.bundle)) ∧
-        ¬ HashCollision Contracts.InteropCenter.wParams.keccak
-          (abiEncode Contracts.InteropCenter.wParams.chainId.val
-            (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD1.bundle))
-          (bundlePreimage Contracts.InteropCenter.wParams d.bundle)) ∧
-    KeccakInjOn Contracts.InteropCenter.wParams.keccak
+            (bundleHash Contracts.InteropCenter.History.wParams d.bundle)) ∧
+        ¬ HashCollision Contracts.InteropCenter.History.wParams.keccak
+          (abiEncode Contracts.InteropCenter.History.wParams.chainId.val
+            (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD1.bundle))
+          (bundlePreimage Contracts.InteropCenter.History.wParams d.bundle)) ∧
+    KeccakInjOn Contracts.InteropCenter.History.wParams.keccak
       (commitPreimage wTag 7
-          (destBundleHash Contracts.InteropCenter.wParams.keccak
-            Contracts.InteropCenter.wParams.chainId
-            (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD1.bundle)) ::
-        (Contracts.InteropCenter.wS1.log.filter Dispatch.isAtomic).map
+          (destBundleHash Contracts.InteropCenter.History.wParams.keccak
+            Contracts.InteropCenter.History.wParams.chainId
+            (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD1.bundle)) ::
+        (Contracts.InteropCenter.History.wS1.log.filter Dispatch.isAtomic).map
           (fun d => commitPreimage wTag d.atomicSend.flowId
-            (bundleHash Contracts.InteropCenter.wParams d.bundle))) ∧
-    KeccakInjOn Contracts.InteropCenter.wParams.keccak
-      (abiEncode Contracts.InteropCenter.wParams.chainId.val
-          (Contracts.InteropCenter.wParams.enc Contracts.InteropCenter.wD1.bundle) ::
-        (Contracts.InteropCenter.wS1.log.filter Dispatch.isAtomic).map
-          (fun d => bundlePreimage Contracts.InteropCenter.wParams d.bundle))
+            (bundleHash Contracts.InteropCenter.History.wParams d.bundle))) ∧
+    KeccakInjOn Contracts.InteropCenter.History.wParams.keccak
+      (abiEncode Contracts.InteropCenter.History.wParams.chainId.val
+          (Contracts.InteropCenter.History.wParams.enc Contracts.InteropCenter.History.wD1.bundle) ::
+        (Contracts.InteropCenter.History.wS1.log.filter Dispatch.isAtomic).map
+          (fun d => bundlePreimage Contracts.InteropCenter.History.wParams d.bundle))
 
 end AttackVectors.AtomicSourceBinding.History

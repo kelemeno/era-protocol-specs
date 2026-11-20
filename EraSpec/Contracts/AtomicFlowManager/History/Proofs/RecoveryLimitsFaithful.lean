@@ -25,8 +25,8 @@ returned (`:736`). The bundles are `Contracts.InteropCenter`'s, at the pin (`MOD
 namespace Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History
 
 open AttackVectors.RecoveryLimits (Outcome LoopCompletes ClaimAccepted recoveredCount)
-open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter Dispatch FormsCall
-  FormedBy)
+open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter FormsCall)
+open Contracts.InteropCenter.History (Dispatch FormedBy)
 
 variable {W : Type}
 
@@ -382,7 +382,7 @@ theorem ConformingTargetsRefundSatisfiable : Properties.ConformingTargetsRefundS
   · decide
   · decide
 
-theorem mixD_formed : FormedBy Contracts.InteropCenter.wParams mixD :=
+theorem mixD_formed : FormedBy Contracts.InteropCenter.History.wParams mixD :=
   ⟨rfl, rfl, List.Forall₂.cons
     (⟨rfl, fun _ => rfl, fun h => absurd h (by decide)⟩ :
       FormsCall 1 Contracts.InteropCenter.wIndirect wRouterCall)
@@ -395,37 +395,37 @@ theorem mixD_validated : Contracts.InteropCenter.Validated mixD.bundle := by
   rcases hc with rfl | rfl <;> rfl
 
 theorem mixStep1 :
-    Contracts.InteropCenter.Step Contracts.InteropCenter.deployed Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.init mixS1 :=
-  Contracts.InteropCenter.Step.send mixD (fun _ => rfl) mixD_formed
+    Contracts.InteropCenter.History.Step Contracts.InteropCenter.History.deployed Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.init mixS1 :=
+  Contracts.InteropCenter.History.Step.send mixD (fun _ => rfl) mixD_formed
     (fun _ _ => mixD_validated) (fun _ => rfl)
 
 theorem mixS1_leg :
     mixS1.manager.legState 7
-      (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle)
+      (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle)
       = .Committed := by
-  rw [mixS1, Contracts.InteropCenter.afterSend_legState, ite_eq_left ⟨rfl, rfl, rfl⟩]
+  rw [mixS1, Contracts.InteropCenter.History.afterSend_legState, ite_eq_left ⟨rfl, rfl, rfl⟩]
 
 theorem mixStep2 :
-    Contracts.InteropCenter.Step Contracts.InteropCenter.deployed Contracts.InteropCenter.wParams
+    Contracts.InteropCenter.History.Step Contracts.InteropCenter.History.deployed Contracts.InteropCenter.History.wParams
       mixS1 mixS2 :=
-  Contracts.InteropCenter.Step.authorize 7
-    (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle) mixS1_leg
+  Contracts.InteropCenter.History.Step.authorize 7
+    (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle) mixS1_leg
 
 theorem mixS2_leg :
     mixS2.manager.legState 7
-      (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle)
+      (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle)
       = .Revertable := by
   show (mixS1.manager.set 7
-      (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle)
+      (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle)
         .Revertable).legState 7
-      (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle)
+      (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle)
       = .Revertable
   rw [Contracts.InteropCenter.legState_set, ite_eq_left ⟨rfl, rfl⟩]
 
 theorem mixS2_reach :
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed Contracts.InteropCenter.wParams
-      Contracts.InteropCenter.init mixS2 :=
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed Contracts.InteropCenter.History.wParams
+      Contracts.InteropCenter.History.init mixS2 :=
   .tail (.tail .refl mixStep1) mixStep2
 
 theorem DirectCallWithoutSourceCodeBlocksClaimWitness :
@@ -438,12 +438,12 @@ theorem DirectCallWithoutSourceCodeBlocksClaimWitness :
 theorem PinnedClaimStepWitness : Properties.PinnedClaimStepWitness := by
   have hc : claimRefundPinned wSourceConforming
       (mixS2.manager.legState 7
-        (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle))
+        (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle))
       () mixD.bundle = some (.Reverted, ()) := by
     rw [mixS2_leg]
     exact ConformingTargetsRefundSatisfiable.2.2.2.2
-  exact ⟨hc, .tail mixS2_reach (Contracts.InteropCenter.Step.claim 7
-    (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle) mixS2_leg)⟩
+  exact ⟨hc, .tail mixS2_reach (Contracts.InteropCenter.History.Step.claim 7
+    (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle) mixS2_leg)⟩
 
 theorem DirectTargetCodeDecidesOnlyThePinnedClaim :
     Properties.DirectTargetCodeDecidesOnlyThePinnedClaim := by

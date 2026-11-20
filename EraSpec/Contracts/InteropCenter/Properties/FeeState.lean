@@ -1,4 +1,5 @@
 import EraSpec.Contracts.InteropCenter.Specs.FeeState
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the `InteropCenter` fee state at draft/v0.35.0
@@ -83,14 +84,14 @@ def Properties.NativeBalanceIsFeesPlusForced : Prop :=
 /-- **HEADLINE (1a): ACCRUED PROTOCOL FEES ARE BACKED.** Along any run from fresh storage of code
 with the `msg.value` equalities, the sum of all `accumulatedProtocolFees` is at most the center's
 native balance. -/
-def Properties.ProtocolFeesBacked : Prop :=
+@[headline] def Properties.ProtocolFeesBacked : Prop :=
   ∀ (K : Checks) (P : Params) (S : State), K.valueCheck = true → Reach K P init S →
     (∑ c : Address, S.protocolFees c) ≤ S.bal
 
 /-- **HEADLINE (1b): ACCRUED ZK FEES ARE BACKED.** Under the standard-token premise, along any run
 from fresh storage (either switch on or off): while `zkToken` is unset every `accumulatedZKFees`
 entry is `0`, and the sum of all entries is at most the center's balance in the cached ZK token. -/
-def Properties.ZkFeesBacked : Prop :=
+@[headline] def Properties.ZkFeesBacked : Prop :=
   ∀ (K : Checks) (P : Params) (S : State), StandardTokens P → Reach K P init S →
     (S.zkToken = 0 → ∀ c, S.zkFees c = 0) ∧ (∑ c : Address, S.zkFees c) ≤ zkBalance S
 
@@ -111,7 +112,7 @@ witness chain, after `initL2`, a fee setting and one fully paid send, coinbase `
 accrued and the balance is `6`. The deployed code rejects an L2→L1 withdrawal that forwards `6`
 to the asset router with `msg.value = 0`; the code without the equalities accepts it, leaving a
 balance below the accrued fees, and the coinbase's claim then reverts. -/
-def Properties.WithoutValueCheckFeesFundAWithdrawal : Prop :=
+@[countermodel] def Properties.WithoutValueCheckFeesFundAWithdrawal : Prop :=
   ∃ S S', Reach deployed wP init S ∧ Reach withoutValueCheck wP init S ∧
     S.protocolFees 0x77 = 6 ∧
     exec deployed wP (.send wSendUnderpaid) S = none ∧
@@ -122,7 +123,7 @@ def Properties.WithoutValueCheckFeesFundAWithdrawal : Prop :=
 /-- **WITH A TOKEN THAT DOES NOT CREDIT, THE ZK FEES ARE UNBACKED.** On the witness chain with the
 token at `wZk` crediting nothing on `transferFrom`, a fixed-fee send of the deployed code accrues
 a nonzero ZK fee while the center's ZK balance stays below the accrued sum. -/
-def Properties.NonStandardZkTokenUnbacked : Prop :=
+@[countermodel] def Properties.NonStandardZkTokenUnbacked : Prop :=
   ∃ S, Reach deployed wPBadZk init S ∧ zkBalance S < ∑ c : Address, S.zkFees c
 
 /-! ## (2) One send -/
@@ -233,7 +234,7 @@ def Properties.ClaimZkFeesExact : Prop :=
 /-- **(4a) ONLY THE BOOTLOADER SETS THE PROTOCOL FEE.** Every successful transaction leaves
 `interopProtocolFee` unchanged, or is `setInteropFee(f)` called by the bootloader and sets it to
 `f`. -/
-def Properties.ProtocolFeeSetOnlyByBootloader : Prop :=
+@[headline] def Properties.ProtocolFeeSetOnlyByBootloader : Prop :=
   ∀ (K : Checks) (P : Params) (tx : Tx) (S S' : State), exec K P tx S = some S' →
     S'.interopProtocolFee = S.interopProtocolFee ∨
       ∃ f, tx = .setInteropFee P.bootloader f ∧ S'.interopProtocolFee = f
@@ -251,7 +252,7 @@ def Properties.InitFieldsOnlyByInitL2 : Prop :=
 /-- **(4c) `initL2` RUNS AT MOST ONCE, AND BEFORE EVERY SEND AND CLAIM.** In every run from fresh
 storage, at most one transaction is an `initL2`, and every send or claim of the run comes after
 it. -/
-def Properties.InitL2AtMostOnceAndFirst : Prop :=
+@[headline] def Properties.InitL2AtMostOnceAndFirst : Prop :=
   ∀ (K : Checks) (P : Params) (txs : List Tx) (S : State), run K P txs init = some S →
     (txs.filter Tx.isInitL2).length ≤ 1 ∧
     ∀ (i : ℕ) (hi : i < txs.length), txs[i].isSendOrClaim = true →
@@ -271,7 +272,7 @@ def Properties.PausedNeverWritten : Prop :=
 /-- **(4f) THE OWNER HAS NO POWER OVER THE FEE STATE.** The three ownership entry points change
 nothing but the owner and pending owner; every other transaction except `initL2` has the same
 outcome whoever the owner and pending owner are, and does not change them. -/
-def Properties.OwnerHasNoFeePower : Prop :=
+@[headline] def Properties.OwnerHasNoFeePower : Prop :=
   (∀ (K : Checks) (P : Params) (tx : Tx) (S S' : State), tx.isOwnership = true →
     exec K P tx S = some S' → ∃ o p, S' = S.withOwners o p) ∧
   (∀ (K : Checks) (P : Params) (tx : Tx) (S : State) (o p : Address),
@@ -302,7 +303,7 @@ def Properties.EveryLeafCounted : Prop :=
 `onlyInteropCenter`, along any run the log and the leaf list are extended, and the counter grows by
 exactly the summed call count of the run's L2→L2 sends, which equals the summed call count of the
 leaves the run appends. (The bootloader's saturating `end - begin` is therefore exact.) -/
-def Properties.FeeUnitsAreL2Calls : Prop :=
+@[headline] def Properties.FeeUnitsAreL2Calls : Prop :=
   ∀ (K : Checks) (P : Params) (txs : List Tx) (S S' : State), K.onlyInteropCenter = true →
     run K P txs S = some S' →
     ∃ (new : List SendRecord) (newLeaves : List ℕ), S'.log = S.log ++ new ∧
@@ -326,7 +327,7 @@ def Properties.FeeUnitsSlotSeparate : Prop :=
 /-- **WITHOUT `onlyInteropCenter`, A LEAF WITH CALLS IS UNCOUNTED.** A run of the code without the
 `append` gate in which another account appends a leaf for a bundle with `3` calls and the counter
 stays `0`. -/
-def Properties.WithoutOnlyInteropCenterUncountedLeaf : Prop :=
+@[countermodel] def Properties.WithoutOnlyInteropCenterUncountedLeaf : Prop :=
   ∃ S, Reach withoutOnlyInteropCenter wP init S ∧ S.leaves = [3] ∧ S.feeUnits = 0
 
 /-! ## Non-vacuity -/
@@ -335,7 +336,7 @@ def Properties.WithoutOnlyInteropCenterUncountedLeaf : Prop :=
 paying a protocol fee, a fixed-fee L2→L2 send, an L2→L1 withdrawal, a forced inflow) succeeds on a
 chain meeting the standard-token premise, ending with protocol fees `6`, ZK fees `10e18`, forced
 value `2`, balance `8`, counter `3` over two leaves, and one L1 send logged. -/
-def Properties.FeeStateWitness : Prop :=
+@[witness] def Properties.FeeStateWitness : Prop :=
   ∃ S, run deployed wP wTxs init = some S ∧ StandardTokens wP ∧
     S.bal = 8 ∧ (∑ c : Address, S.protocolFees c) = 6 ∧ S.forcedIn = 2 ∧
     (∑ c : Address, S.zkFees c) = defaultZkInteropFee ∧ zkBalance S = defaultZkInteropFee ∧
@@ -347,7 +348,7 @@ def Properties.FeeStateWitness : Prop :=
 /-- The three sends of the witness run meet the per-send premises non-trivially: the first pays a
 protocol fee `6` and both a forward and a burn, the second takes the fixed-fee path with a different
 base token and a deposit, the third goes to L1. -/
-def Properties.SendWitness : Prop :=
+@[witness] def Properties.SendWitness : Prop :=
   ∃ S2 S3 S4 S5, run deployed wP [wInit, wSetFee] init = some S2 ∧
     exec deployed wP (.send wSendA) S2 = some S3 ∧
     exec deployed wP (.send wSendB) S3 = some S4 ∧
@@ -360,7 +361,7 @@ def Properties.SendWitness : Prop :=
 
 /-- From the witness state both claims succeed and pay nonzero amounts; the ZK claim runs with
 `zkToken` already set. -/
-def Properties.ClaimWitness : Prop :=
+@[witness] def Properties.ClaimWitness : Prop :=
   ∃ S S' S'', run deployed wP wTxs init = some S ∧
     exec deployed wP (.claimProtocolFees 0x77 0x88) S = some S' ∧ S.protocolFees 0x77 = 6 ∧
     exec deployed wP (.claimZKFees 0x77 0x88 0) S' = some S'' ∧
@@ -368,13 +369,13 @@ def Properties.ClaimWitness : Prop :=
 
 /-- `initL2` by the upgrader and `setInteropFee` by the bootloader succeed from fresh storage and
 write their fields. -/
-def Properties.WriterWitness : Prop :=
+@[witness] def Properties.WriterWitness : Prop :=
   ∃ S1 S2, exec deployed wP wInit init = some S1 ∧ exec deployed wP wSetFee S1 = some S2 ∧
     S1.l1ChainId = 1 ∧ S1.zkTokenAssetId = 0x2a ∧ S1.zkInteropFee = defaultZkInteropFee ∧
     S1.lock = 1 ∧ S2.interopProtocolFee = 3
 
 /-- From the witness state the owner nominates `0xaa`, which accepts. -/
-def Properties.OwnershipWitness : Prop :=
+@[witness] def Properties.OwnershipWitness : Prop :=
   ∃ S S' S'', run deployed wP wTxs init = some S ∧ S.owner = 0x99 ∧
     exec deployed wP (.transferOwnership 0x99 0xaa) S = some S' ∧
     exec deployed wP (.acceptOwnership 0xaa) S' = some S'' ∧ S''.owner = 0xaa

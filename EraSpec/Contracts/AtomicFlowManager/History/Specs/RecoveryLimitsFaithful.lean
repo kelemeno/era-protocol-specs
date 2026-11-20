@@ -85,14 +85,14 @@ def AlwaysRecovers (S : SourceChain W) (a : Address) (dest : Word) (data : List 
 /-! ## Witness data -/
 
 /-- After the send: the two-call leg is `Committed`. -/
-def mixS1 : Contracts.InteropCenter.State :=
-  Contracts.InteropCenter.init.afterSend Contracts.InteropCenter.wParams mixD
+def mixS1 : Contracts.InteropCenter.History.State :=
+  Contracts.InteropCenter.History.init.afterSend Contracts.InteropCenter.History.wParams mixD
 
 /-- After `authorizeRefund`: the two-call leg is `Revertable`. -/
-def mixS2 : Contracts.InteropCenter.State :=
+def mixS2 : Contracts.InteropCenter.History.State :=
   { mixS1 with
     manager := (mixS1.manager.set 7
-      (Contracts.InteropCenter.bundleHash Contracts.InteropCenter.wParams mixD.bundle) .Revertable) }
+      (Contracts.InteropCenter.History.bundleHash Contracts.InteropCenter.History.wParams mixD.bundle) .Revertable) }
 
 /-- The same chain with code at `5` that answers `false`, as `IAtomicRecoverable.sol:13-15` asks of
 an implementation that does not recognise the call. -/

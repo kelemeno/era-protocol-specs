@@ -27,8 +27,8 @@ no code). No property takes a hash premise: the claim is stated for the bundle p
 namespace Contracts.AtomicFlowManager.RecoveryLimitsFaithful
 
 open AttackVectors.RecoveryLimits (Outcome ClaimAccepted)
-open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter Dispatch FormsCall
-  FormedBy)
+open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter FormsCall)
+open Contracts.InteropCenter.History (Dispatch FormedBy)
 
 /-! ## One call -/
 

@@ -63,7 +63,7 @@ as L2→L1 messages from the interop center (`InteropHandlerBase.sol:86-123, 296
 `L1InteropHandler.sol:68-77`), and unbundles only verified ones (`InteropHandlerBase.sol:195`).
 An atomic bundle is never sent as such a message: the only `sendToL1` of a bundle is on the
 non-atomic branch (`InteropCenter.sol:626, 657`).  This chain's half of that is already proved in
-the center's model, as `Contracts.InteropCenter.Properties.AtomicBytesNeverPublished`: along a run
+the center's model, as `Contracts.InteropCenter.History.Properties.AtomicBytesNeverPublished`: along a run
 whose encoder separates its bundles (`EncInjOn`), the bytes of an atomic dispatch differ from the
 bytes of every public dispatch, unless the two dispatches are a cross-sender salt clash
 (`CrossSenderSaltClash`).  No result of this topic uses it.  What stays argued from source is the

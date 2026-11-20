@@ -1,10 +1,16 @@
 import Mathlib.Tactic
-import EraSpec.Core.Word
+import EraSpec.Contracts.InteropCenter.Specs.Common
 import EraSpec.Contracts.AtomicFlowManager.Specs.Model
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashEncoding
 
 /-!
 # Model: `InteropCenter` — sender salts, the atomic-value check, and the only `append`
+
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+The words, the bundle and call structures, `saltPreimage`, `totalBurnedCallsValue`, `FormsCall`,
+`markSalt` and the run-local premises were moved out of this file unchanged into `Specs/Common.lean`,
+which cites them at `b17415d20`; the line numbers below are the pin's.
 
 Source: `l1-contracts/contracts/interop/InteropCenter.sol` in the pinned era-contracts tree
 (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), together with `atomic-interop/AtomicFlowManager.sol`,
@@ -12,8 +18,8 @@ Source: `l1-contracts/contracts/interop/InteropCenter.sol` in the pinned era-con
 of `InteropCenter.sol`.
 
 **This file is definitions only.** The results are in
-`EraSpec.Contracts.InteropCenter.Properties.Dispatch` and are proved in
-`EraSpec.Contracts.InteropCenter.Proofs.Dispatch`.
+`EraSpec.Contracts.InteropCenter.History.Properties.Dispatch` and are proved in
+`EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch`.
 
 ## The code
 
@@ -120,67 +126,12 @@ branches (:738, :747). A direct call copies the starter's recipient and data and
   `send` takes the `AtomicSend` that reaches `_dispatchBundle`, so this is a non-atomic dispatch.
 -/
 
-namespace Contracts.InteropCenter
+namespace Contracts.InteropCenter.History
 
 open AttackVectors.BundleHashEncoding (toBytesBE fromBytesBE abiEncode)
 open Contracts.AtomicFlowManager (Manager LegState AppendGuard AuthorizeGuard ClaimGuard)
 
-/-! ## Words, addresses and the bundle -/
-
-/-- `bytes32` and `uint256` words: salts, hashes, chain ids, asset ids, flow ids. -/
-abbrev Word := UInt256
-
-/-- An `address`: 20 bytes. -/
-abbrev Address := Fin (256 ^ 20)
-
-/-- `InteropCall` (`common/Messaging.sol:257-264`), without the constant `version` and the
-reserved `shadowAccount`. -/
-structure InteropCall where
-  /-- `to`: the contract called on the destination. -/
-  target : Address
-  /-- `from`: the original sender, or the indirect sender contract for an indirect call. -/
-  fromAddr : Address
-  /-- `value`: base token sent with the call on the destination. -/
-  value : ℕ
-  /-- `data`: the calldata. -/
-  data : List UInt8
-deriving DecidableEq
-
-/-- `BundleAttributes` (`Messaging.sol:241-246`). -/
-structure BundleAttributes where
-  executionAddress : List UInt8
-  unbundlerAddress : List UInt8
-  useFixedFee : Bool
-  /-- The user-provided salt, from the `interopBundleSalt` attribute (:855-863); `0` if absent. -/
-  salt : Word
-deriving DecidableEq
-
-/-- `InteropBundle` (`Messaging.sol:288-296`), without the constant `version`. -/
-structure Bundle where
-  sourceChainId : Word
-  destinationChainId : Word
-  destinationBaseTokenAssetId : Word
-  /-- `keccak256(abi.encodePacked(sender, salt))` (:507). -/
-  interopBundleSalt : Word
-  calls : List InteropCall
-  /-- The bundle carries the attributes, user salt included (:509). -/
-  bundleAttributes : BundleAttributes
-deriving DecidableEq
-
-/-- `CallAttributes` (`Messaging.sol:217-221`). -/
-structure CallAttributes where
-  interopCallValue : ℕ
-  indirectCallMessageValue : ℕ
-  indirectCall : Bool
-deriving DecidableEq
-
-/-- `InteropCallStarterInternal` (`Messaging.sol:208-212`): a parsed call starter. -/
-structure CallStarter where
-  /-- `to`: the recipient, or the indirect sender for an indirect call. -/
-  target : Address
-  data : List UInt8
-  callAttributes : CallAttributes
-deriving DecidableEq
+/-! ## The pin's `AtomicSend` -/
 
 /-- `IInteropCenter.AtomicSend` (`IInteropCenter.sol:16-21`): the out-of-band atomic metadata. It
 is not part of the bundle, so the bundle hash does not depend on the flow id (:634-638). -/
@@ -205,11 +156,6 @@ structure Params where
   /-- `keccak256`. -/
   keccak : List UInt8 → Word
 
-/-- `abi.encodePacked(msg.sender, _bundleAttributes.salt)` (:507): 20 address bytes, then the 32
-salt bytes. -/
-def saltPreimage (sender : Address) (salt : Word) : List UInt8 :=
-  toBytesBE 20 sender.val ++ toBytesBE 32 salt.val
-
 /-- `abi.encode(block.chainid, abi.encode(bundle))`: what `encodeInteropBundleHash` (:644,
 `InteropDataEncoding.sol:11-13`) hashes. `abiEncode` is the byte model of
 `abi.encode(uint256, bytes)` from `InteropDataEncoding/Specs/BundleHashEncoding.lean`. -/
@@ -220,30 +166,7 @@ def bundlePreimage (P : Params) (b : Bundle) : List UInt8 :=
 def bundleHash (P : Params) (b : Bundle) : Word :=
   P.keccak (bundlePreimage P b)
 
-/-- `_validateAtomicBundle(b)` (:670-677) does not revert: no call carries native value. -/
-def Validated (b : Bundle) : Prop := ∀ c ∈ b.calls, c.value = 0
-
-instance (b : Bundle) : Decidable (Validated b) := by
-  unfold Validated; infer_instance
-
-/-- `_totalBurnedCallsValue` (:513, :541): the base token `_ensureCorrectTotalValue` burns through
-the `BaseTokenHolder` (:429-434) or deposits through `bridgehubDepositBaseToken` (:440-447) when it
-is nonzero. -/
-def totalBurnedCallsValue (starters : List CallStarter) : ℕ :=
-  (starters.map fun cs => cs.callAttributes.interopCallValue).sum
-
 /-! ## Forming the bundle -/
-
-/-- `_processCallStarter(cs, _, sender)` (:701-751) may return `c`. -/
-structure FormsCall (sender : Address) (cs : CallStarter) (c : InteropCall) : Prop where
-  /-- Both branches: `value: _callStarter.callAttributes.interopCallValue` (:738, :747). -/
-  value : c.value = cs.callAttributes.interopCallValue
-  /-- Indirect: `from: recipientAddress` (:739); recipient and data are what the indirect sender
-  returned (:714-716, :732), so free. -/
-  indirect : cs.callAttributes.indirectCall = true → c.fromAddr = cs.target
-  /-- Direct: the starter's recipient and data, `from: _sender` (:742-749). -/
-  direct : cs.callAttributes.indirectCall = false →
-    c.target = cs.target ∧ c.data = cs.data ∧ c.fromAddr = sender
 
 /-- One successful `_sendBundle`, as the ghost log records it. -/
 structure Dispatch where
@@ -289,10 +212,6 @@ structure State where
 
 /-- Fresh storage: no salt used, every leg `Unset`, nothing dispatched. -/
 def init : State := ⟨fun _ _ => false, Contracts.AtomicFlowManager.empty, []⟩
-
-/-- `isInteropBundleSaltUsed[a][s] = true` (:483). -/
-def markSalt (u : Address → Word → Bool) (a : Address) (s : Word) : Address → Word → Bool :=
-  fun a' s' => if a' = a ∧ s' = s then true else u a' s'
 
 /-- The state after a successful `_sendBundle` of `d`: the salt is marked; in the atomic branch the
 leg `(flowId, bundleHash)` is `Committed` (AtomicFlowManager.sol:95); the log records `d`. -/
@@ -387,16 +306,6 @@ covers an ambiguity of the encoder and a keccak collision alike, and names the t
 def BundleClash (P : Params) (b b' : Bundle) : Prop :=
   b ≠ b' ∧ bundleHash P b = bundleHash P b'
 
-/-- keccak is injective on the explicit finite list `L` of preimages. -/
-def KeccakInjOn (k : List UInt8 → Word) (L : List (List UInt8)) : Prop :=
-  ∀ x ∈ L, ∀ y ∈ L, k x = k y → x = y
-
-/-- The encoder separates the bundles of the explicit finite list `L`. `abi.encode` of a value is
-decodable (`claimRefund` decodes these very bytes, AtomicFlowManager.sol:166), so it separates any
-two bundles; the results ask it only of the bundles a run dispatched (`SOL-ABI`). -/
-def EncInjOn (enc : Bundle → List UInt8) (L : List Bundle) : Prop :=
-  ∀ b ∈ L, ∀ b' ∈ L, enc b = enc b' → b = b'
-
 /-- The salt preimages a run hashed, one per dispatch. -/
 def saltPreimages (log : List Dispatch) : List (List UInt8) :=
   log.map fun d => saltPreimage d.sender d.salt
@@ -410,28 +319,11 @@ def bundlePreimages (P : Params) (log : List Dispatch) : List (List UInt8) :=
 A toy keccak that reads the last 32 bytes as a word, and a toy encoder that writes the bundle's two
 salt words. Together they separate every preimage the witness runs hash. -/
 
-/-- The last 32 bytes of `l`, as a word. -/
-def lastWord (l : List UInt8) : Word := Fin.ofNat _ (fromBytesBE l)
-
-/-- The two salt words of the bundle. -/
-def saltWordsEncoder (b : Bundle) : List UInt8 :=
-  toBytesBE 32 b.interopBundleSalt.val ++ toBytesBE 32 b.bundleAttributes.salt.val
-
 /-- The honest witness chain: chain `324`, center `0x8010`. -/
 def wParams : Params := ⟨324, 0x8010, saltWordsEncoder, lastWord⟩
 
 /-- The colliding witness chain: as `wParams`, but keccak is constant. -/
 def collidingParams : Params := ⟨324, 0x8010, saltWordsEncoder, fun _ => 0⟩
-
-/-- Bundle attributes with the given salt. The unbundler is a nonempty placeholder: `sendBundle`
-would put a formatted ERC-7930 address there (:314-316), and no result reads it. -/
-def wAttrs (s : Word) : BundleAttributes := ⟨[], [1], false, s⟩
-
-/-- A direct call starter to contract `5` with base-token value `v`. -/
-def wDirect (v : ℕ) : CallStarter := ⟨5, [], ⟨v, 0, false⟩⟩
-
-/-- An indirect call starter through the indirect sender `9` (say, the asset router). -/
-def wIndirect : CallStarter := ⟨9, [], ⟨0, 0, true⟩⟩
 
 /-- The bundle `sender` forms on chain `P` with salt `s` and the calls `cs`, to chain `325`. -/
 def wBundle (P : Params) (sender : Address) (s : Word) (cs : List InteropCall) : Bundle :=
@@ -456,4 +348,4 @@ def wS2 : State := wS1.afterSend wParams wD2
 def wS3 : State :=
   { wS2 with manager := wS2.manager.set 7 (bundleHash wParams wD1.bundle) .Revertable }
 
-end Contracts.InteropCenter
+end Contracts.InteropCenter.History

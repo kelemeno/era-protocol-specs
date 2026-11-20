@@ -210,7 +210,7 @@ on the asset's local token and origin chain.
 
 That L1 never executes an unpublished atomic bundle is argued from source, not
 modelled here. This chain's half of it, that the bytes of an atomic dispatch are never
-the bytes of a bundle published to L1, is `Contracts.InteropCenter.AtomicBytesNeverPublished`
+the bytes of a bundle published to L1, is `Contracts.InteropCenter.History.AtomicBytesNeverPublished`
 (under `EncInjOn`, except a pinned cross-sender salt clash). The L1 side rests on
 message-inclusion soundness (`PROTO-EVIDENCE`). That `append` accepts such a leg, and
 the step that moves it to `Revertable`, are argued from source too.

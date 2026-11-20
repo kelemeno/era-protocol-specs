@@ -1,5 +1,5 @@
 import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryLimits
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 
 /-!
 # Model: the refund loop's external call at `draft/v0.35.0`
@@ -189,9 +189,9 @@ def wDirectCall : InteropCall := ⟨5, 1, 0, []⟩
 
 /-- The two-call leg. Sender `1`, salt `3`, flow `7`: the router's deposit call and the direct
 call. -/
-def mixD : Contracts.InteropCenter.Dispatch :=
+def mixD : Contracts.InteropCenter.History.Dispatch :=
   ⟨1, [Contracts.InteropCenter.wIndirect, Contracts.InteropCenter.wDirect 0],
-    Contracts.InteropCenter.wBundle Contracts.InteropCenter.wParams 1 3 [wRouterCall, wDirectCall],
+    Contracts.InteropCenter.History.wBundle Contracts.InteropCenter.History.wParams 1 3 [wRouterCall, wDirectCall],
     ⟨7, 0, 100, true⟩⟩
 
 /-- A source chain on which code runs only at the router `9`, for any world type. The router

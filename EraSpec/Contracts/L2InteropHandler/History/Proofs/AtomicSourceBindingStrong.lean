@@ -1,5 +1,5 @@
 import EraSpec.Contracts.L2InteropHandler.History.Properties.AtomicSourceBindingStrong
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import Mathlib.Tactic
 
 /-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
@@ -31,7 +31,8 @@ namespace AttackVectors.AtomicSourceBinding.History
 
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision word pad32 toBytesBE
   length_toBytesBE)
-open Contracts.InteropCenter (Params Dispatch Word bundleHash bundlePreimage KeccakInjOn)
+open Contracts.InteropCenter (Word KeccakInjOn)
+open Contracts.InteropCenter.History (Params Dispatch bundleHash bundlePreimage)
 
 /-! ## Words -/
 
@@ -104,7 +105,7 @@ theorem CenterRunTreeHoldsOwnLegs : Properties.CenterRunTreeHoldsOwnLegs := by
   rcases hT v hv with h0 | ⟨f, h, hne, rfl⟩
   · exact Or.inl h0
   · obtain ⟨d, hd, hat, hf, hh, -, -⟩ :=
-      Contracts.InteropCenter.CommittedLegsAreValidatedDispatches P S hr f h hne
+      Contracts.InteropCenter.History.CommittedLegsAreValidatedDispatches P S hr f h hne
     exact Or.inr ⟨d, hd, hat, by rw [hf, hh]⟩
 
 theorem AtomicSourceBoundOnCenterRunOrLoggedClash :
@@ -114,9 +115,9 @@ theorem AtomicSourceBoundOnCenterRunOrLoggedClash :
       (CenterRunTreeHoldsOwnLegs P S tag T hr hT) hmem with
     ⟨hsrc, d, hd, hat, hf, hx⟩ | h | h
   · left
-    have hinv := Contracts.InteropCenter.inv_reach hr
+    have hinv := Contracts.InteropCenter.History.inv_reach hr
     exact ⟨hsrc, d, hd, hat, hf, hx,
-      Contracts.InteropCenter.AtomicDispatchesCarryNoValue P S hr d hd hat,
+      Contracts.InteropCenter.History.AtomicDispatchesCarryNoValue P S hr d hd hat,
       (hinv.formed d hd).source⟩
   · exact Or.inr (Or.inl h)
   · exact Or.inr (Or.inr h)
@@ -150,23 +151,23 @@ lemma foreign_hash :
 
 /-- `wD1`'s commit value on the witness chain is its bundle hash, `1`. -/
 lemma wD1_commit :
-    commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-      (bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle) = 1 := by
+    commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+      (bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle) = 1 := by
   show commitValue Contracts.InteropCenter.lastWord wTag 7 _ = 1
-  rw [commitValue_lastWord, Contracts.InteropCenter.wHash1]
+  rw [commitValue_lastWord, Contracts.InteropCenter.History.wHash1]
 
 /-- The foreign commit value is `5`. -/
 lemma foreign_commit :
-    commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-      (destBundleHash Contracts.InteropCenter.wParams.keccak 325 wForeignBytes) = 5 := by
+    commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+      (destBundleHash Contracts.InteropCenter.History.wParams.keccak 325 wForeignBytes) = 5 := by
   show commitValue Contracts.InteropCenter.lastWord wTag 7
     (destBundleHash Contracts.InteropCenter.lastWord 325 wForeignBytes) = 5
   rw [foreign_hash, commitValue_lastWord]
 
-lemma wS1_log : Contracts.InteropCenter.wS1.log = [Contracts.InteropCenter.wD1] := rfl
+lemma wS1_log : Contracts.InteropCenter.History.wS1.log = [Contracts.InteropCenter.History.wD1] := rfl
 
 lemma wS1_filter :
-    Contracts.InteropCenter.wS1.log.filter Dispatch.isAtomic = [Contracts.InteropCenter.wD1] :=
+    Contracts.InteropCenter.History.wS1.log.filter Dispatch.isAtomic = [Contracts.InteropCenter.History.wD1] :=
   rfl
 
 theorem ForeignCommitInTreeUnbindsSource : Properties.ForeignCommitInTreeUnbindsSource := by
@@ -177,18 +178,18 @@ theorem ForeignCommitInTreeUnbindsSource : Properties.ForeignCommitInTreeUnbinds
     subst hd
     refine ⟨fun hc => ?_, fun hc => ?_⟩
     · obtain ⟨-, hk⟩ := hc
-      have hk' : commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-            (destBundleHash Contracts.InteropCenter.wParams.keccak 325 wForeignBytes) =
-          commitValue Contracts.InteropCenter.wParams.keccak wTag
-            Contracts.InteropCenter.wD1.atomicSend.flowId
-            (bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle) := hk
-      rw [foreign_commit, show Contracts.InteropCenter.wD1.atomicSend.flowId = 7 from rfl,
+      have hk' : commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+            (destBundleHash Contracts.InteropCenter.History.wParams.keccak 325 wForeignBytes) =
+          commitValue Contracts.InteropCenter.History.wParams.keccak wTag
+            Contracts.InteropCenter.History.wD1.atomicSend.flowId
+            (bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle) := hk
+      rw [foreign_commit, show Contracts.InteropCenter.History.wD1.atomicSend.flowId = 7 from rfl,
         wD1_commit] at hk'
       exact h15 hk'
     · obtain ⟨-, hk⟩ := hc
       have hk' : destBundleHash Contracts.InteropCenter.lastWord 325 wForeignBytes =
-          bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle := hk
-      rw [foreign_hash, Contracts.InteropCenter.wHash1] at hk'
+          bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle := hk
+      rw [foreign_hash, Contracts.InteropCenter.History.wHash1] at hk'
       exact h15 hk'
   · intro hT
     rcases hT _ (Or.inr (Or.inr rfl)) with h0 | ⟨d, hd, _, hv⟩
@@ -196,33 +197,33 @@ theorem ForeignCommitInTreeUnbindsSource : Properties.ForeignCommitInTreeUnbinds
       exact absurd h0 (by decide)
     · rw [wS1_log, List.mem_singleton] at hd
       subst hd
-      rw [foreign_commit, show Contracts.InteropCenter.wD1.atomicSend.flowId = 7 from rfl,
+      rw [foreign_commit, show Contracts.InteropCenter.History.wD1.atomicSend.flowId = 7 from rfl,
         wD1_commit] at hv
       exact h15 hv
 
 theorem AtomicSourceBindingStrongWitness : Properties.AtomicSourceBindingStrongWitness := by
-  have hreach : Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed
-      Contracts.InteropCenter.wParams Contracts.InteropCenter.init Contracts.InteropCenter.wS1 :=
-    .tail .refl Contracts.InteropCenter.wStep1
-  have hbacked : TreeBackedByManager Contracts.InteropCenter.wParams wTag
-      Contracts.InteropCenter.wS1 wTree := by
+  have hreach : Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed
+      Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.init Contracts.InteropCenter.History.wS1 :=
+    .tail .refl Contracts.InteropCenter.History.wStep1
+  have hbacked : TreeBackedByManager Contracts.InteropCenter.History.wParams wTag
+      Contracts.InteropCenter.History.wS1 wTree := by
     intro v hv
     rcases hv with h0 | rfl
     · exact Or.inl h0
     · refine Or.inr ⟨7, _, ?_, rfl⟩
-      rw [Contracts.InteropCenter.wS1_leg]
+      rw [Contracts.InteropCenter.History.wS1_leg]
       exact Contracts.AtomicFlowManager.LegState.noConfusion
   refine ⟨hreach, hbacked, CenterRunTreeHoldsOwnLegs _ _ _ _ hreach hbacked,
     ⟨⟨_, List.mem_singleton.2 rfl⟩, ?_⟩, Or.inr rfl, ?_, ?_, ?_, ?_⟩
   · intro p hp
     rw [List.mem_singleton] at hp
     subst hp
-    show _ ∈ (if Contracts.InteropCenter.wParams.chainId = Contracts.InteropCenter.wParams.chainId
+    show _ ∈ (if Contracts.InteropCenter.History.wParams.chainId = Contracts.InteropCenter.History.wParams.chainId
       then wTree else ∅)
     simp only [↓reduceIte]
     exact Or.inr rfl
-  · show commitValue Contracts.InteropCenter.wParams.keccak wTag 7
-      (bundleHash Contracts.InteropCenter.wParams Contracts.InteropCenter.wD1.bundle) ≠ 0
+  · show commitValue Contracts.InteropCenter.History.wParams.keccak wTag 7
+      (bundleHash Contracts.InteropCenter.History.wParams Contracts.InteropCenter.History.wD1.bundle) ≠ 0
     rw [wD1_commit]
     decide
   · intro d hd _

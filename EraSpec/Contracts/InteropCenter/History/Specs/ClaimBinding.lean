@@ -1,7 +1,10 @@
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 
 /-!
 # Model: the bytes `claimRefund` is given, and the calls `_recoverBundle` makes
+
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
 
 Source: `l1-contracts/contracts/atomic-interop/AtomicFlowManager.sol` in the pinned era-contracts
 tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), with `interop/InteropDataEncoding.sol`,
@@ -10,10 +13,10 @@ tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), with `interop/InteropDataEnco
 `AtomicFlowManager.sol`.
 
 **This file is definitions only.** It adds no state and no step to
-`EraSpec.Contracts.InteropCenter.Specs.Dispatch`: it names what one `claimRefund` transaction
+`EraSpec.Contracts.InteropCenter.History.Specs.Dispatch`: it names what one `claimRefund` transaction
 computes from its arguments. The results are in
-`EraSpec.Contracts.InteropCenter.Properties.ClaimBinding` and are proved in
-`EraSpec.Contracts.InteropCenter.Proofs.ClaimBinding`.
+`EraSpec.Contracts.InteropCenter.History.Properties.ClaimBinding` and are proved in
+`EraSpec.Contracts.InteropCenter.History.Proofs.ClaimBinding`.
 
 ## The code
 
@@ -115,7 +118,7 @@ the code it models differs:
   pin's hash and recovery, does not use that check (`ClaimBindingIndependentOfSaltAndValueChecks`).
 -/
 
-namespace Contracts.InteropCenter
+namespace Contracts.InteropCenter.History
 
 /-- The bundle hash `claimRefund(_flowId, x)` computes from the bytes `x` it is given (:166-167):
 `keccak256(abi.encode(bundle.sourceChainId, x))` with `bundle = abi.decode(x)`. The leg the claim
@@ -166,4 +169,4 @@ def ClaimHashCollision (P : Params) (dec : List UInt8 → Bundle) (log : List Di
     claimPreimage dec x ≠ bundlePreimage P d.bundle ∧
     claimRefundHash P dec x = bundleHash P d.bundle
 
-end Contracts.InteropCenter
+end Contracts.InteropCenter.History

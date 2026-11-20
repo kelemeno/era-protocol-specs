@@ -188,7 +188,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTxNonces
 import EraSpec.Contracts.ChainTypeManager.Proofs.PendingL2UpgradeAtV35
 import EraSpec.Contracts.FullMerkle.Proofs.CachedNodes
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.Proofs.Common
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import EraSpec.Contracts.InteropCenter.Proofs.FeeState
 import EraSpec.Contracts.InteropCenter.Proofs.FeeReentry
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
@@ -304,7 +305,8 @@ import EraSpec.Contracts.ChainBatchRootTree.Proofs.LogConfinement
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.MessageRootLink
 
 -- Head-pinned send path: InteropCenter at main 3605e82 (= 70096e2ea) and draft/v0.35.0 b17415d20
-import EraSpec.Contracts.InteropCenter.Proofs.SendAtHead
+import EraSpec.Contracts.InteropCenter.Proofs.Send
+import EraSpec.Contracts.InteropCenter.History.Proofs.SendMessageFinding
 
 -- Mailbox request paths and the privileged L2 senders (draft/v0.35.0 at b17415d20)
 import EraSpec.Contracts.MailboxFacet.Proofs.RequestPaths
@@ -362,7 +364,7 @@ import EraSpec.Contracts.SecondProofSystem.Proofs.UpgradeGateV35
 
 -- Recovery targets on the source chain and atomic-attribute routing (AtomicFlowManager, InteropCenter)
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
-import EraSpec.Contracts.InteropCenter.Proofs.AtomicRouting
+import EraSpec.Contracts.InteropCenter.History.Proofs.AtomicRouting
 
 -- Re-pin to draft/v0.35.0 (b17415d20): the vault preparation slice on L1 with the per-chain
 -- balance cap's accounting hook, and the cap's own run model
@@ -396,7 +398,7 @@ import EraSpec.Contracts.DataEncoding.Proofs.BurnDataSlice
 import EraSpec.Contracts.Governance.Proofs.Timelock
 
 -- What `claimRefund` recovers: a claimed bundle is a dispatched bundle (InteropCenter, on O1's model)
-import EraSpec.Contracts.InteropCenter.Proofs.ClaimBinding
+import EraSpec.Contracts.InteropCenter.History.Proofs.ClaimBinding
 
 -- L1 withdrawal finalization gate at draft/v0.35.0 head b17415d20: the L1 handler, the L2→L1 sender
 -- keying it relies on, and their composition

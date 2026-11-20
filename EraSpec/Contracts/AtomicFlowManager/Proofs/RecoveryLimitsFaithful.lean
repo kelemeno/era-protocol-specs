@@ -1,5 +1,5 @@
 import EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimitsFaithful
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 
 /-!
 # Proofs: the refund loop's external call at `draft/v0.35.0`
@@ -12,8 +12,8 @@ proved in `History/Proofs/RecoveryLimitsFaithful.lean`.
 namespace Contracts.AtomicFlowManager.RecoveryLimitsFaithful
 
 open AttackVectors.RecoveryLimits (Outcome LoopCompletes ClaimAccepted recoveredCount)
-open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter Dispatch FormsCall
-  FormedBy)
+open Contracts.InteropCenter (Address Word InteropCall Bundle CallStarter FormsCall)
+open Contracts.InteropCenter.History (Dispatch FormedBy)
 
 variable {W : Type}
 

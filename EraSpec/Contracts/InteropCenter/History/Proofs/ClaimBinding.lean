@@ -1,8 +1,11 @@
-import EraSpec.Contracts.InteropCenter.Properties.ClaimBinding
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Properties.ClaimBinding
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 
 /-!
 # Proofs: a claimed bundle is a dispatched bundle
+
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
 
 The headline is O1's argument carried one step further. O1's run invariant (`inv_reach`, its `legs`
 field, which needs only `onlyInteropCenter`; it is the fact behind
@@ -23,7 +26,7 @@ The witnesses and countermodels are concrete runs on O1's two witness chains: th
 first honest step. Their data lives in the `ClaimBinding` namespace.
 -/
 
-namespace Contracts.InteropCenter
+namespace Contracts.InteropCenter.History
 
 open AttackVectors.BundleHashEncoding
 open Contracts.AtomicFlowManager (Manager LegState AppendGuard AuthorizeGuard ClaimGuard)
@@ -1268,4 +1271,4 @@ theorem ClaimBindingTwoClaimsWitness : Properties.ClaimBindingTwoClaimsWitness :
     · exact absurd hs (by decide)
     · exact hsend rfl
 
-end Contracts.InteropCenter
+end Contracts.InteropCenter.History

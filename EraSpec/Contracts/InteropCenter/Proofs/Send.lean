@@ -1,22 +1,21 @@
-import EraSpec.Contracts.InteropCenter.Properties.SendAtHead
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.Properties.Send
+import EraSpec.Contracts.InteropCenter.Proofs.Common
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 
 /-!
-# Proofs: the head send path
+# Proofs: the send path at `b17415d20`
 
 Three facts carry everything. `parseAtomicSend` is atomic exactly on lists carrying `atomicBundle`
 and is the zero struct otherwise (`parseAtomicSend_isAtomic_iff`, `parseAtomicSend_of_not_has`); a
 non-atomic send cannot take the L2 branch, because the zero struct's flow has no leg
 (`nonatomic_toL1`); and the gate plus `_ensureL2ToL2` then pin every `sendMessage` to the atomic L2
 branch. Two run invariants, `Inv` (each field under the check it needs) and `LegInv` (no check),
-carry the restated pin results; the proofs follow `Proofs/Dispatch.lean`, with the head's bundle
-hash `keccak(abi.encode(bundle))` and the head's `CallsChecked` in place of `Validated`. The pin's
-parser loop and the head's differ only in the restriction table, which agrees on the seven indices
-(`MaskTableIsPinTable`, then `pinParseFrom_eq_parseFrom`).
+carry the results restated from the `c67894b9` record; the proofs follow
+`History/Proofs/Dispatch.lean`, with the bundle hash `keccak(abi.encode(bundle))` and `CallsChecked` in
+place of `Validated`.
 -/
 
-namespace Contracts.InteropCenter.SendAtHead
+namespace Contracts.InteropCenter.Send
 
 open AttackVectors.BundleHashEncoding
 open Contracts.AtomicFlowManager (Manager LegState AuthorizeGuard ClaimGuard)
@@ -142,31 +141,9 @@ theorem AtomicBundleIsABundleAttribute : Properties.AtomicBundleIsABundleAttribu
   · exact parseAttributes_single_atomic pre lni _ (by decide)
   · exact parseAttributes_single_atomic pre lni _ (by decide)
 
-theorem MaskTableIsPinTable : Properties.MaskTableIsPinTable := by
-  intro i hi r
-  interval_cases i <;> cases r <;> rfl
-
 /-- A supported selector's index is one of the seven table entries. -/
 theorem Attribute.index_lt_seven {a : Attribute} {i : ℕ} (h : a.index = some i) : i < 7 := by
   cases a <;> simp only [Attribute.index, Option.some.injEq, reduceCtorEq] at h <;> omega
-
-/-- The two loops agree from any state: they differ only in the restriction table, and the tables
-agree on the seven indices (`MaskTableIsPinTable`). -/
-theorem pinParseFrom_eq_parseFrom (r : Restriction) :
-    ∀ (attrs : List Attribute) (used : List ℕ) (x : CallAttributes × BundleAttributes),
-      pinParseFrom r used x attrs = parseFrom r used x attrs
-  | [], _, _ => rfl
-  | a :: rest, used, x => by
-    have ih := pinParseFrom_eq_parseFrom r rest
-    rw [pinParseFrom, parseFrom]
-    cases hi : a.index with
-    | none => rfl
-    | some i =>
-      simp only
-      rw [MaskTableIsPinTable i (Attribute.index_lt_seven hi) r, ih]
-
-theorem PinParserIsHeadParser : Properties.PinParserIsHeadParser := fun attrs r =>
-  pinParseFrom_eq_parseFrom r attrs [] _
 
 /-! ## One step that logs a dispatch is that dispatch's send -/
 
@@ -526,24 +503,6 @@ theorem PinConstantMakesSendMessageUnusable : Properties.PinConstantMakesSendMes
   have hna : d.atomicSend.isAtomic = false := by rw [ha]; rfl
   exact happ (hshape.nonAtomicToL1 rfl hna)
 
-/-! ## 1. The pin's `sendMessage` finding, pin and head -/
-
-theorem PinSendMessageDroppedAtomicBundle : Properties.PinSendMessageDroppedAtomicBundle := by
-  refine ⟨⟨headMsgAttrs, ⟨_, _, List.mem_cons_self⟩, ?_⟩, ?_⟩
-  · rw [show pinParseAttributes headMsgAttrs .callAndBundleAttributes
-      = some (noCallAttributes, ⟨[], [], false, 1⟩) by rfl]
-    exact Option.some_ne_none _
-  · intro attrs _ _
-    refine ⟨rfl, fun P S d hd => ?_⟩
-    simp [Contracts.InteropCenter.State.afterSend, Contracts.InteropCenter.Dispatch.isAtomic, hd,
-      pinSendMessageAtomicSend]
-
-theorem PinFindingRejectedAtHead : Properties.PinFindingRejectedAtHead := by
-  intro attrs hhas _
-  refine ⟨(parseAtomicSend_isAtomic_iff attrs).mpr hhas, fun P S S' d hs hlog he hattrs => ?_⟩
-  obtain ⟨-, h2, -, -, -, h6, h7⟩ := SendMessageAlwaysAtomic P S S' d hs hlog he
-  exact ⟨hattrs ▸ h2, h6, h7⟩
-
 /-! ## 3. The `atomicBundle` NatSpec -/
 
 theorem AtomicBundleAttributeMeansAppended : Properties.AtomicBundleAttributeMeansAppended := by
@@ -639,7 +598,7 @@ theorem EachSaltDispatchesOnce : Properties.EachSaltDispatchesOnce := by
   intro P S hr
   exact (inv_reach hr).keys rfl
 
-/-! ## 4(b). Validation at head -/
+/-! ## 4(b). Validation at `b17415d20` -/
 
 theorem CommittedLegsAreCheckedDispatches : Properties.CommittedLegsAreCheckedDispatches := by
   intro P S hr f h hne
@@ -968,7 +927,7 @@ theorem not_has_salt_only (s : Word) : ¬ HasAtomicBundle [Attribute.interopBund
   rintro ⟨_, _, h⟩
   simp at h
 
-theorem SendAtHeadWitness : Properties.SendAtHeadWitness := by
+theorem SendWitness : Properties.SendWitness := by
   have h12 : (1 : Word) ≠ 2 := by decide
   refine ⟨headReach, headS4_log, ?_, ?_, ?_, rfl, ⟨_, _, List.mem_cons_self⟩, ?_, rfl, ?_, ?_,
     by decide, not_has_salt_only 3, rfl, ?_, ?_⟩
@@ -1004,12 +963,12 @@ theorem SendAtHeadWitness : Properties.SendAtHeadWitness := by
     rw [headMsg_hash, headValueLeg_hash] at hk'
     exact h12 hk'
 
-theorem SendAtHeadStepWitness : Properties.SendAtHeadStepWitness := by
+theorem SendStepWitness : Properties.SendStepWitness := by
   refine ⟨headStep1, rfl, rfl, ⟨_, _, List.mem_cons_self⟩, ?_, rfl, ?_, by rfl, headStep2,
     headStep3 _ (fun _ => by rfl), rfl, rfl, not_has_salt_only 3, rfl,
-    headStep3 _ (fun _ => by rfl), ⟨{ headMsg with attrs := [] }, rfl, ?_⟩, rfl⟩
-  · show pinParseAttributes headMsgAttrs .callAndBundleAttributes ≠ none
-    rw [show pinParseAttributes headMsgAttrs .callAndBundleAttributes
+    headStep3 _ (fun _ => by rfl), ⟨{ headMsg with attrs := [] }, rfl, ?_⟩⟩
+  · show parseAttributes headMsgAttrs .callAndBundleAttributes ≠ none
+    rw [show parseAttributes headMsgAttrs .callAndBundleAttributes
       = some (noCallAttributes, ⟨[], [], false, 1⟩) by rfl]
     exact Option.some_ne_none _
   · rw [headS1_legState]
@@ -1033,7 +992,7 @@ theorem headDec_msg : headDec (headParams.enc headMsg.bundle) = headMsg.bundle :
     else headMsg.bundle) = headMsg.bundle
   rw [ite_eq_right headEnc_ne_12, ite_eq_right headEnc_ne_13]
 
-theorem SendAtHeadClaimWitness : Properties.SendAtHeadClaimWitness := by
+theorem SendClaimWitness : Properties.SendClaimWitness := by
   refine ⟨?_, ?_, headDec_msg⟩
   · intro d hd
     rw [headS4_log] at hd
@@ -1052,7 +1011,7 @@ theorem SendAtHeadClaimWitness : Properties.SendAtHeadClaimWitness := by
     rfl
 
 theorem ValueLegCommitsAtHead : Properties.ValueLegCommitsAtHead := by
-  obtain ⟨hr, hlog, -, -, -, -, -, -, hat, hnv, hc, -⟩ := SendAtHeadWitness
+  obtain ⟨hr, hlog, -, -, -, -, -, -, hat, hnv, hc, -⟩ := SendWitness
   exact ⟨headParams, headS4, hr, headValueLeg, by rw [hlog]; simp, hat, hnv, by decide, hc⟩
 
 /-! ### Countermodels to the checks -/
@@ -1176,7 +1135,7 @@ theorem RouterSenderValueIsNotRefunded : Properties.RouterSenderValueIsNotRefund
     routerValueLeg, by simp [State.afterSend], rfl, rfl, by decide, by decide⟩
 
 /-- Sender `2`'s atomic `sendBundle` with an indirect call through contract `8` (not the router)
-carrying value `5`: allowed only without :658-677. -/
+carrying value `5`: allowed only without :659-678. -/
 def foreignIndirectAttrs : List Attribute := [.atomicBundle (oneLegFlow 11 7) 0, .interopBundleSalt 7]
 
 def foreignIndirectLeg : Dispatch :=
@@ -1568,4 +1527,4 @@ theorem BundleHashCollisionJoinsTwoFlows : Properties.BundleHashCollisionJoinsTw
   · rw [jointS2_legState]; rfl
   · rw [jointS2_legState]; rfl
 
-end Contracts.InteropCenter.SendAtHead
+end Contracts.InteropCenter.Send

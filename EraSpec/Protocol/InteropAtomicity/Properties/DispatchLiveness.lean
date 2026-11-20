@@ -73,8 +73,8 @@ open IMTAbstract
 open Contracts.InteropCommitmentTree (Tree Valid lowSearch InsertGuard maxLowIndexSearchAttempts
   chainTree Reaches Initialized toAbs setup)
 open Contracts.AppendPath (ChainState AppendSucceeds InsertSucceeds)
-open Contracts.InteropCenter (Params Dispatch FormedBy Validated bundleHash
-  CrossSenderSaltClash BundleClash wParams collidingParams)
+open Contracts.InteropCenter (Validated)
+open Contracts.InteropCenter.History (Params Dispatch FormedBy bundleHash CrossSenderSaltClash BundleClash wParams collidingParams)
 open Contracts.AtomicFlowManager (AppendGuard)
 open Contracts.Atomicity (CommitValue)
 open Contracts.Refund (CommitClash)
@@ -173,8 +173,8 @@ def Properties.HopsNeededUnbounded : Prop :=
 `Contracts.InteropCenter.Properties` (topic `Dispatch`) holds of the composed model. -/
 def Properties.DispatchRunProjectsToCenter : Prop :=
   ∀ (P : Params) (cv : CommitValue) (X : State), Reach P cv genesis X →
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P
-      Contracts.InteropCenter.init X.center
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P
+      Contracts.InteropCenter.History.init X.center
 
 /-- **THE MANAGER-AND-TREE HALF IS AN APPEND-PATH RUN, WITH THE ATOMIC DISPATCHES AS ITS LOG.**
 So every result of `Contracts.AppendPath.Properties` (topic `OncePerLeg`) holds of the composed
@@ -191,8 +191,8 @@ CLASH.** In `Contracts.InteropCenter`'s deployed model, from fresh storage: a di
 `(flowId, bundleHash)` and the two are tied by a cross-sender salt clash (one bundle) or by a
 bundle-hash clash (two bundles, one hash). -/
 def Properties.FreshDispatchPassesManagerGuardOrClash : Prop :=
-  ∀ (P : Params) (S : Contracts.InteropCenter.State),
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed P Contracts.InteropCenter.init S →
+  ∀ (P : Params) (S : Contracts.InteropCenter.History.State),
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed P Contracts.InteropCenter.History.init S →
     ∀ d : Dispatch, S.saltUsed d.sender d.salt = false → FormedBy P d →
       AppendGuard S.manager d.atomicSend.flowId (bundleHash P d.bundle) ∨
         ∃ d' ∈ S.log, d'.isAtomic = true ∧ d'.atomicSend.flowId = d.atomicSend.flowId ∧
@@ -286,8 +286,8 @@ def Properties.HonestDispatchWitness : Prop :=
       wNext.atomicSend.lowNullifierIndex ∧
     Step wParams bundleCv wX1 (wX1.afterAtomic wParams bundleCv wNext 1) ∧
     ¬ DispatchClash wParams bundleCv wX1.log wNext ∧
-    Contracts.InteropCenter.Reach Contracts.InteropCenter.deployed wParams
-      Contracts.InteropCenter.init wX1.center ∧
+    Contracts.InteropCenter.History.Reach Contracts.InteropCenter.History.deployed wParams
+      Contracts.InteropCenter.History.init wX1.center ∧
     FormedBy wParams (withHint wNext 0) ∧
     (withHint wNext 0).atomicSend.lowNullifierIndex < wX1.chain.tree.leafCount ∧
     (wX1.chain.tree.leaf (withHint wNext 0).atomicSend.lowNullifierIndex).value

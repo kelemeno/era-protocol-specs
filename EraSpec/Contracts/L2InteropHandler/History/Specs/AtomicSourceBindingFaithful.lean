@@ -1,4 +1,4 @@
-import EraSpec.Contracts.InteropCenter.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
 import EraSpec.Contracts.L2InteropHandler.History.Specs.SourceBindingReduced
 
@@ -488,9 +488,9 @@ def BundlePreimageClash (keccak : List UInt8 → UInt256) (B : List UInt8) (b : 
 
 /-- The legs a chain's center appended: one per atomic dispatch in the `Dispatch` ghost log, with
 the flow id passed to `append` and the bytes `abi.encode(bundle)` hashed at `InteropCenter.sol:643-644`. -/
-def dispatchLegs (P : Contracts.InteropCenter.Params) (C : Contracts.InteropCenter.State) :
+def dispatchLegs (P : Contracts.InteropCenter.History.Params) (C : Contracts.InteropCenter.History.State) :
     List CommittedLeg :=
-  (C.log.filter Contracts.InteropCenter.Dispatch.isAtomic).map fun d =>
+  (C.log.filter Contracts.InteropCenter.History.Dispatch.isAtomic).map fun d =>
     ⟨d.atomicSend.flowId, P.enc d.bundle⟩
 
 /-- **ON PROOFS NAMING CHAIN `c`, THE VERIFIER ACCEPTS ONLY KEYS OF `S`'S TREE.** `S` is chain `c`'s

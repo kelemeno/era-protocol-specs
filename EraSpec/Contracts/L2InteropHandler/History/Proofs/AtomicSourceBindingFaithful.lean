@@ -1,6 +1,6 @@
 import EraSpec.Contracts.L2InteropHandler.History.Properties.AtomicSourceBindingFaithful
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
-import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
+import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 import EraSpec.Contracts.L2InteropHandler.History.Proofs.SourceBindingReduced
 
 /-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
@@ -561,21 +561,21 @@ theorem HonestVouchingSplitWitness : Properties.HonestVouchingSplitWitness := by
 
 /-- A value the verifier accepts on the vouching chain is the sentinel, or the commit value of an
 atomic dispatch of the run, which is validated and formed on that chain. -/
-theorem accepted_of_deployedRun {D : Dest} {P : Contracts.InteropCenter.Params}
+theorem accepted_of_deployedRun {D : Dest} {P : Contracts.InteropCenter.History.Params}
     {S : Contracts.SourceBinding.History.SourceState} (hk : P.keccak = D.keccak)
-    (hr : Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed P
+    (hr : Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.History.deployed P
       (commitValue P.keccak) Contracts.SourceBinding.History.sourceGenesis S)
     (hacc : AcceptsOnlyKeysOf D P.chainId S)
     {p : ImtProof} {v deadline sl : UInt256} (hpc : p.sourceChainId = P.chainId)
     (hver : D.verifyInclusion p v deadline sl) :
     v = 0 ∨ ∃ d ∈ S.center.log, d.isAtomic = true ∧ Contracts.InteropCenter.Validated d.bundle ∧
-      Contracts.InteropCenter.FormedBy P d ∧
+      Contracts.InteropCenter.History.FormedBy P d ∧
       v = (⟨d.atomicSend.flowId, P.enc d.bundle⟩ : CommittedLeg).value D.keccak P.chainId := by
   rcases (Contracts.SourceBinding.History.SourceKeysAreDispatchedCommitValues P (commitValue P.keccak) S hr
       v).mp (hacc p v deadline sl hpc hver) with h0 | ⟨d, hd, hat, hv⟩
   · exact Or.inl h0
-  · have hI : Contracts.InteropCenter.Inv Contracts.InteropCenter.deployed P S.center :=
-      Contracts.InteropCenter.inv_reach (Contracts.SourceBinding.History.sourceReach_center hr)
+  · have hI : Contracts.InteropCenter.History.Inv Contracts.InteropCenter.History.deployed P S.center :=
+      Contracts.InteropCenter.History.inv_reach (Contracts.SourceBinding.History.sourceReach_center hr)
     refine Or.inr ⟨d, hd, hat, hI.validated rfl d hd hat, hI.formed d hd, ?_⟩
     rw [← hk]
     exact hv.symm
@@ -612,8 +612,8 @@ theorem AtomicExecutionRunsTheDispatchedBundleOrBreak :
         have h1 := hx.checks.decoded
         rw [hbytes.2, hdec d hd] at h1
         exact (Option.some.inj h1).symm
-      have hform : Contracts.InteropCenter.FormedBy P d :=
-        (Contracts.InteropCenter.inv_reach (Contracts.SourceBinding.History.sourceReach_center hr)).formed
+      have hform : Contracts.InteropCenter.History.FormedBy P d :=
+        (Contracts.InteropCenter.History.inv_reach (Contracts.SourceBinding.History.sourceReach_center hr)).formed
           d hd
       have hvalb : Contracts.InteropCenter.Validated b := by rw [hb]; exact hval
       refine Or.inl ⟨hb, hbytes.2, hf, hvalb, hs, fun x hxd => ?_⟩
@@ -639,12 +639,12 @@ The run is proved for an arbitrary keccak `k` whose commit value on the run's on
 the bundle hash, so the leg's commit value is `1`. -/
 
 /-- Chain `324` (center `0x8010`) with the toy encoder of topic `Dispatch` and keccak `k`. -/
-def drParams (k : List UInt8 → UInt256) : Contracts.InteropCenter.Params :=
+def drParams (k : List UInt8 → UInt256) : Contracts.InteropCenter.History.Params :=
   ⟨324, 0x8010, Contracts.InteropCenter.saltWordsEncoder, k⟩
 
 /-- Sender `1`, salt `1`, one zero-value direct call to `5`, to chain `325`. -/
 def drBundle (k : List UInt8 → UInt256) : Bundle :=
-  Contracts.InteropCenter.wBundle (drParams k) 1 1 [⟨5, 1, 0, []⟩]
+  Contracts.InteropCenter.History.wBundle (drParams k) 1 1 [⟨5, 1, 0, []⟩]
 
 /-- Its bytes `abi.encode(bundle)`, under the toy encoder. -/
 def drBytes (k : List UInt8 → UInt256) : List UInt8 := (drParams k).enc (drBundle k)
@@ -657,13 +657,13 @@ def drFlowId (k : List UInt8 → UInt256) : UInt256 :=
   (wsFlow k (drHash k) (drParams k).chainId).flowId
 
 /-- The atomic dispatch of that bundle under that flow id. -/
-def drDispatch (k : List UInt8 → UInt256) : Contracts.InteropCenter.Dispatch :=
+def drDispatch (k : List UInt8 → UInt256) : Contracts.InteropCenter.History.Dispatch :=
   ⟨1, [Contracts.InteropCenter.wDirect 0], drBundle k, ⟨drFlowId k, 0, 100, true⟩⟩
 
 /-- Chain `324`'s send side after the dispatch: the leg committed, and its commit value inserted
 into the tree seeded at genesis. -/
 def drState (k : List UInt8 → UInt256) : Contracts.SourceBinding.History.SourceState :=
-  ⟨Contracts.InteropCenter.init.afterSend (drParams k) (drDispatch k),
+  ⟨Contracts.InteropCenter.History.init.afterSend (drParams k) (drDispatch k),
     Contracts.InteropCommitmentTree.insert Contracts.InteropCommitmentTree.setup
       (commitValue k (drFlowId k) (drHash k)) 0⟩
 
@@ -683,12 +683,12 @@ theorem insertSucceeds_setup {v : UInt256} (hv : 0 < v) :
 theorem drBundle_validated (k : List UInt8 → UInt256) :
     Contracts.InteropCenter.Validated (drBundle k) := by
   intro x hx
-  simp only [drBundle, Contracts.InteropCenter.wBundle, List.mem_singleton] at hx
+  simp only [drBundle, Contracts.InteropCenter.History.wBundle, List.mem_singleton] at hx
   subst hx
   rfl
 
 theorem drReach (k : List UInt8 → UInt256) (hpos : 0 < commitValue k (drFlowId k) (drHash k)) :
-    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.deployed (drParams k)
+    Contracts.SourceBinding.History.SourceReach Contracts.InteropCenter.History.deployed (drParams k)
       (commitValue (drParams k).keccak) Contracts.SourceBinding.History.sourceGenesis (drState k) :=
   .tail .refl (Contracts.SourceBinding.History.SourceStep.sendAtomic (drDispatch k) 0 0 rfl (fun _ => rfl)
     ⟨rfl, rfl, List.Forall₂.cons (Contracts.InteropCenter.formsCall_direct 1 0) List.Forall₂.nil⟩
@@ -714,7 +714,7 @@ theorem drBytes_lt (k : List UInt8 → UInt256) : (drBytes k).length < 256 ^ 32 
   rw [drBytes_length]; norm_num
 
 theorem drBundle_calls_ne_nil (k : List UInt8 → UInt256) : (drBundle k).calls ≠ [] := by
-  simp [drBundle, Contracts.InteropCenter.wBundle]
+  simp [drBundle, Contracts.InteropCenter.History.wBundle]
 
 /-- The witness execution: the dispatched bytes, under the one-leg flow of their hash. -/
 theorem drExecutes (k : List UInt8 → UInt256) (hpos : 0 < commitValue k (drFlowId k) (drHash k)) :
