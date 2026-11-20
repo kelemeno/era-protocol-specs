@@ -31,6 +31,10 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
   Only (1) is established here.  Stating it separately is worth doing anyway: it
   shows the cryptographic content of root binding is exactly M-D, and that (2) and
   (3) are model-correspondence work rather than further cryptography.
+
+  Source: era-contracts `draft/v0.35.0` `b17415d20`: `rootOf` is the tree `FullMerkle.sol` stores
+  (`../../FullMerkle/Specs/Model.lean`), `h` is `Merkle.efficientHash` (`Merkle.sol:125-131`).
+  (2) is now proved for a transcription of the storage: `../../FullMerkle/` topic `CachedNodes`.
 -/
 
 namespace AttackVectors.RootBinding

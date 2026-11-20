@@ -44,6 +44,15 @@ import EraSpec.Core.Word
     downstream from keccak injectivity (R6).
 
   Pure list/arithmetic reasoning — no EVM semantics, no extra axioms.
+
+  Source: era-contracts `draft/v0.35.0` `b17415d20`,
+  `l1-contracts/contracts/common/libraries/FullMerkle.sol`.  `levels`/`rootOf` is the tree that
+  `setup` (:29-35), `pushNewLeaf` (:41-66) and `updateLeaf` (:73-94) maintain in `_nodes`/`_zeros`,
+  with `root()` (:99-101) its head: the frontier right sibling is `_zeros[i]` (:84), and a new level
+  is `efficientHash(topZero, topZero)` (:48-49).  `walkPure` is the loop of
+  `Merkle.calculateRoot`/`calculateRootMemory` (`Merkle.sol:36-41`, `:62-67`) and of `updateLeaf`.
+  `h` is `Merkle.efficientHash` (`Merkle.sol:125-131`).  That the storage holds this fold is
+  proved for a statement-by-statement transcription in `CachedNodes`.
 -/
 
 namespace MerkleSpec

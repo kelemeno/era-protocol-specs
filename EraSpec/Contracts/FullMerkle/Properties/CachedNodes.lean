@@ -1,5 +1,6 @@
 import EraSpec.Contracts.FullMerkle.Specs.CachedNodes
 import EraSpec.Contracts.Merkle.Specs.Verifier
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the cached-node algorithm computes the fold
@@ -96,16 +97,23 @@ def Properties.MerklePathIsHonest : Prop :=
 
 /-- **`merklePath` OUTSIDE THE OCCUPIED RANGE REVERTS.**  For any storage, an index
 `≥ _leafNumber` reverts (`MerkleNothingToProve` on an empty tree, `MerkleWrongIndex`
-otherwise).  The library never hands out a proof for a padded slot. -/
-def Properties.MerklePathOutOfRangeReverts : Prop :=
+otherwise).  The library never hands out a proof for a padded slot.
+
+Premises, in plain words: any storage, and an index at or above `_leafNumber`. Scope: the
+transcription of `FullMerkle.sol` (`MODEL-FULLMERKLE`). -/
+@[headline] def Properties.MerklePathOutOfRangeReverts : Prop :=
   ∀ (S : FullTree) (i : ℕ), S.leafNumber ≤ i → merklePath S i = none
 
 /-- **THE CONTRACT'S OWN PATH VERIFIES AGAINST ITS OWN ROOT.**  On storage caching the
 tree over `leaves`, for an occupied `i`: `merklePath(i)` returns a path `p` of length
 `_height` with `i < 2 ^ p.length` (the `MerkleIndexOutOfBounds` check of
 `calculateRoot`), and walking it from leaf `i` (`Merkle.calculateRoot(p, i, leaf_i)`)
-gives `root()`. -/
-def Properties.ContractPathVerifies : Prop :=
+gives `root()`.
+
+Premises, in plain words: any node hash and zero value; the storage represents `leaves` (every
+reachable storage does, `ReachableRepresents`); the index `i` is occupied. Scope: the
+transcription of `FullMerkle.sol` (`MODEL-FULLMERKLE`). -/
+@[headline] def Properties.ContractPathVerifies : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (leaves : List UInt256) (S : FullTree) (i : ℕ),
     Represents h z0 leaves S → i < leaves.length →
     ∃ (p : List UInt256) (R : UInt256), merklePath S i = some p ∧ root S = some R
@@ -137,8 +145,13 @@ def Properties.ReachableRepresents : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (S : FullTree), Reachable h z0 S →
     Represents h z0 (leavesOf S) S ∧ S.height = (push^[S.leafNumber] ⟨0, 0⟩).height
 
-/-- **ON EVERY REACHABLE STORAGE, `root()` IS THE FOLD OF ITS LEAVES.** -/
-def Properties.ReachableRootIsFold : Prop :=
+/-- **ON EVERY REACHABLE STORAGE, `root()` IS THE FOLD OF ITS LEAVES.**
+
+Premises, in plain words: any node hash `h` (`Merkle.efficientHash`) and zero value `z0`; the
+storage is reached from fresh storage by `setup(z0)` and successful `pushNewLeaf`/`updateLeaf`
+calls (the transcription of `FullMerkle.sol`, `MODEL-FULLMERKLE`). Scope: fewer than `2^255`
+leaves (the `uint256` wraps are not modelled); a second `setup` on used storage is not a run. -/
+@[headline] def Properties.ReachableRootIsFold : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (S : FullTree), Reachable h z0 S →
     root S = some (rootOf h z0 (leavesOf S) S.height)
 
@@ -158,7 +171,7 @@ are occupied, so this meets the premises of `UpdateLeafComputesRoot`,
 `MerklePathIsHonest`, `ContractPathVerifies` and `CacheEntries`; a further
 `updateLeaf(0, c)` from it succeeds, which meets the premise of
 `CallsReturnTheStoredRoot`. -/
-def Properties.ThreePushesWitness : Prop :=
+@[witness] def Properties.ThreePushesWitness : Prop :=
   ∀ (h : Hash) (z0 a b c : UInt256), ∃ S : FullTree,
     threePushes h z0 a b c = some S ∧ Reachable h z0 S ∧ Represents h z0 [a, b, c] S
       ∧ S.height = 2 ∧ S.leafNumber = 3

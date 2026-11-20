@@ -26,6 +26,10 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
 
   This is the exact converse of `MerkleSpec.walkPure_levels`, and it is what makes root binding a
   statement about ATTACKER-SUPPLIED proofs.  Axiom-free.
+
+  Source: era-contracts `draft/v0.35.0` `b17415d20`, `common/libraries/Merkle.sol`: the walk is the loop
+  of `calculateRoot` (:36-41) and `calculateRootMemory` (:62-67), `h` is `efficientHash` (:125-131);
+  the tree is `FullMerkle.sol`'s (`../../FullMerkle/Specs/Model.lean`).
 -/
 
 namespace Clear.MerkleProofSound

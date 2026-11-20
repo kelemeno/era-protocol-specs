@@ -1,10 +1,11 @@
 import EraSpec.Contracts.DynamicIncrementalMerkle.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the storage `DynamicIncrementalMerkle` computes the fold at its minimal height
 
 Statements about `EraSpec.Contracts.DynamicIncrementalMerkle.Specs.Model`, the transcription of
-`DynamicIncrementalMerkle.sol` at `c67894b9`.  Proofs are in
+`DynamicIncrementalMerkle.sol` at `b17415d20`.  Proofs are in
 `EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.Model`.
 
 The invariant is `Represents h z L H S`: `_nextLeafIndex = |L|`, `|L| ≤ 2^H`,
@@ -62,12 +63,12 @@ def Properties.DimEmptyRootIsZero : Prop :=
 /-- **THE EMPTY ROOT IS NOT THE FOLD.**  For every hash and every nonzero zero value `z`, the
 freshly set-up tree (height 0) reports `0` while the fold over no leaves at height 0 is `z`.  So
 "`root()` is `rootOf h z leaves height`" does not hold for an empty tree. -/
-def Properties.EmptyRootIsNotTheFold : Prop :=
+@[countermodel] def Properties.EmptyRootIsNotTheFold : Prop :=
   ∀ (h : Hash) (z : UInt256), z ≠ 0 →
     rootOf h z [] 0 = z ∧ root (setup PushTree.empty z).1 ≠ some (rootOf h z [] 0)
 
-/-- **AT THE PIN'S CONSTANT.**  A `MessageRoot` chain tree right after `_addNewChain`'s
-`setup(CHAIN_TREE_EMPTY_ENTRY_HASH)` (MessageRootBase.sol:350) reports root `0`, not the fold,
+/-- **AT THE `MessageRoot`'S CONSTANT.**  A `MessageRoot` chain tree right after `_addNewChain`'s
+`setup(CHAIN_TREE_EMPTY_ENTRY_HASH)` (MessageRootBase.sol:285) reports root `0`, not the fold,
 for every hash. -/
 def Properties.ChainTreeEmptyRootIsNotTheFold : Prop :=
   ∀ h : Hash,
@@ -155,8 +156,11 @@ def Properties.MisplacedGuardBreaksRoot : Prop :=
 
 /-- **EVERY RUN SITS AT THE MINIMAL HEIGHT.**  Storage reached by `setup(z)` and pushes of `L`
 represents `L` at `dimHeight |L| = Nat.clog 2 |L|`, its `height()` is that, and it is the least
-`H` with `|L| ≤ 2^H`. -/
-def Properties.ReachableHeightMinimal : Prop :=
+`H` with `|L| ≤ 2^H`.
+
+Premises, in plain words: as for `RunRootIsFold`: any node hash and zero value; storage reached by
+`setup(z)` on fresh storage and `push`es of `L` (`MODEL-DIM`), with fewer than `2^255` leaves. -/
+@[headline] def Properties.ReachableHeightMinimal : Prop :=
   ∀ (h : Hash) (z : UInt256) (L : List UInt256) (S : PushTree), Run h z L S →
     Represents h z L (dimHeight L.length) S ∧ height S = some (dimHeight L.length)
       ∧ ∀ H', L.length ≤ 2 ^ H' → dimHeight L.length ≤ H'
@@ -173,8 +177,14 @@ def Properties.RootIsFold : Prop :=
   ∀ (h : Hash) (z : UInt256) (L : List UInt256) (H : ℕ) (S : PushTree),
     Represents h z L H S → root S = some (dimRoot h z L H) ∧ height S = some H
 
-/-- **ALONG RUNS, `root()` IS THE FOLD AT THE MINIMAL HEIGHT** (`0` while empty). -/
-def Properties.RunRootIsFold : Prop :=
+/-- **ALONG RUNS, `root()` IS THE FOLD AT THE MINIMAL HEIGHT** (`0` while empty).
+
+Premises, in plain words: any node hash `h` (`Merkle.efficientHash`) and zero value `z`; the
+storage is reached from fresh storage by `setup(z)` and successful `push`es of the leaves `L` (the
+transcription of `DynamicIncrementalMerkle.sol`, `MODEL-DIM`). Scope: fewer than `2^255` leaves
+(the `uint256` wraps are not modelled); storage written directly, as
+`PriorityTree.initFromCommitment` does, is not a run. -/
+@[headline] def Properties.RunRootIsFold : Prop :=
   ∀ (h : Hash) (z : UInt256) (L : List UInt256) (S : PushTree), Run h z L S →
     root S = some (dimRoot h z L (dimHeight L.length))
 
@@ -253,7 +263,7 @@ def Properties.TwoPushWitness : Prop :=
 /-- **THREE PUSHES.**  The third push grows the tree to height 2 and saves `c` at level 0; the
 root is `h (h a b) (h c z)`.  The storage is a run and represents `[a, b, c]` at height 2: bits
 0 and 1 of 3 are set, and the sides there are the completed left nodes `c` and `h a b`. -/
-def Properties.ThreePushWitness : Prop :=
+@[witness] def Properties.ThreePushWitness : Prop :=
   ∀ (h : Hash) (z a b c : UInt256),
     pushAll h (setup PushTree.empty z).1 [a, b, c]
         = some ⟨3, [c, h a b, h (h a b) (h c z)], [z, h z z, h (h z z) (h z z)]⟩

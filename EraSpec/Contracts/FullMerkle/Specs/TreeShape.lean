@@ -93,6 +93,10 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
     (B) above).
 
   No new axioms, no `sorry`.  Pure list reasoning on top of `MerkleSpec`.
+
+  Source: era-contracts `draft/v0.35.0` `b17415d20`, `common/libraries/FullMerkle.sol`: the padding
+  `zero` of `setup` (:29-35, NatSpec :25-26), the frontier read `_zeros[i]` (:84) and the growth
+  rule (:45-52).
 -/
 
 namespace AttackVectors.TreeShape

@@ -3,10 +3,9 @@ import EraSpec.Contracts.FullMerkle.Specs.Model
 /-!
 # Model: `DynamicIncrementalMerkle` (storage), transcribed
 
-At `c67894b9`, every chain tree in the `MessageRoot` (`chainTree[chainId]`, MessageRootBase.sol:69,
-pushed at :257-259, set up at :350) and the priority tree (PriorityTree.sol:32, 54, 60) are
-`DynamicIncrementalMerkle.Bytes32PushTree`s; `Specs/ChainTreeBacking.lean` gives the lines at the
-current heads.  The chain-tree models elsewhere in this repository
+At `b17415d20`, every chain tree in the `MessageRoot` (`chainTree[chainId]`, MessageRootBase.sol:69,
+pushed at :207-209, set up at :285) and the priority tree (PriorityTree.sol:32, 54, 60) are
+`DynamicIncrementalMerkle.Bytes32PushTree`s; `Specs/ChainTreeBacking.lean` gives the call sites.  The chain-tree models elsewhere in this repository
 take a chain tree's root to be the `FullMerkle`-shaped fold `rootOf h z leaves height` at a height
 they are given (`Contracts.Timeout.RootBacking`).  Three features of the library matter for that
 reading, all visible below:
@@ -22,18 +21,17 @@ reading, all visible below:
 This file transcribes the storage struct and its seven functions as pure Lean functions.  The
 statements are in `Properties/Model.lean`.
 
-Source: `contracts/common/libraries/DynamicIncrementalMerkle.sol` at era-contracts `c67894b9`.
-At the current heads the file is unchanged on `main` (`70096e2`).  On `draft/v0.35.0`
-(`b17415d20`) it differs in one line: `reset` (:68) reads `return setup(self, zero);`, which
-returns the same `bytes32(0)` as the pin's unassigned `initialRoot`, so `reset` below models
-both.  Every other cited line is the same at both heads.
+Source: `l1-contracts/contracts/common/libraries/DynamicIncrementalMerkle.sol` at era-contracts
+`draft/v0.35.0` `b17415d20` (identical at `d9f6789`).  It was first transcribed at the interop pin
+`c67894b9`, where it is unchanged on `main` (`70096e2`) and differs in one line: there `reset`
+(:68) does not return `setup`'s value but its never-assigned named return `initialRoot`.  Both
+return `bytes32(0)`, so `reset` below models both.  Every other cited line is the same.
 
     struct Bytes32PushTree { uint256 _nextLeafIndex; bytes32[] _sides; bytes32[] _zeros; }
 
 * `setup(zero)` (:53-58): `_nextLeafIndex = 0; _zeros.push(zero); _sides.push(bytes32(0));
   return bytes32(0);`.  There is no guard: a second `setup` pushes a second entry onto each array.
-* `reset(zero)` (:66-69) is `clear(); setup(zero);` and returns its never-assigned named return
-  `initialRoot`, i.e. `bytes32(0)`.  `clear()` (:74-84) zeroes `_nextLeafIndex` and pops both
+* `reset(zero)` (:66-69) is `clear(); return setup(zero);`, i.e. `bytes32(0)`.  `clear()` (:74-84) zeroes `_nextLeafIndex` and pops both
   arrays empty.
 * `push(leaf)` (:93-137): `levels = _zeros.length - 1`; `index = _nextLeafIndex++`.  If
   `index == 1 << levels` the tree grows (:102-108): it pushes `efficientHash(zero, zero)` with
@@ -47,8 +45,8 @@ both.  Every other cited line is the same at both heads.
   writes `_sides[0] = currentZero` if the tree is empty (:145-147), then reads
   `currentSide = _sides[_sides.length - 1]` and, for `i` from `_sides.length` to `finalDepth - 1`,
   pushes `currentZero := h(currentZero, currentZero)` and `currentSide := h(currentSide, currentZero)`
-  (the old `currentZero`) onto the two arrays.  At the pin and at both heads no contract calls it
-  except the test contract `dev-contracts/test/IncrementalMerkleTest.sol`.
+  (the old `currentZero`) onto the two arrays.  At `b17415d20` no contract calls it except the test
+  contract `dev-contracts/test/IncrementalMerkleTest.sol`.
 * `root()` (:161-163) is `_sides[_sides.length - 1]`; `height()` (:168-170) is `_sides.length - 1`.
 
 ## How the transcription treats the language
@@ -81,7 +79,7 @@ both.  Every other cited line is the same at both heads.
   `_nextLeafIndex++` reverts at `2^256 - 1`; both need more than `2^255` leaves.  The loop counter
   `uint32 i` would overflow only past `2^32` levels.
 * `Run` starts from `setup` on fresh storage.  `PriorityTree.initFromCommitment`
-  (PriorityTree.sol:116-132, the same at both heads) writes `_nextLeafIndex`, `_sides` and
+  (PriorityTree.sol:116-132) writes `_nextLeafIndex`, `_sides` and
   `_zeros` directly from a commitment.  `Run` does not cover storage written that way; whether it
   meets `Represents` depends on the commitment's values.
 * That compiled code executes these functions is the transcription's own correspondence
@@ -116,8 +114,8 @@ def setup (S : PushTree) (zero : UInt256) : PushTree × UInt256 :=
 /-- `clear()` (:74-84): `_nextLeafIndex = 0`, then pop `_zeros` and `_sides` once per entry. -/
 def clear (_S : PushTree) : PushTree := PushTree.empty
 
-/-- `reset(zero)` (:66-69): `clear(self); setup(self, zero);`.  The named return `initialRoot`
-is never assigned, so the call returns `bytes32(0)`. -/
+/-- `reset(zero)` (:66-69): `clear(self); return setup(self, zero);`, which returns `bytes32(0)`
+(at the interop pin the named return `initialRoot`, never assigned, also `bytes32(0)`). -/
 def reset (S : PushTree) (zero : UInt256) : PushTree × UInt256 :=
   ((setup (clear S) zero).1, 0)
 
@@ -287,7 +285,7 @@ def pushAll (h : Hash) (S : PushTree) (L : List UInt256) : Option PushTree :=
 
 /-- `CHAIN_TREE_EMPTY_ENTRY_HASH` (IMessageRoot.sol:9-11), the zero value every `MessageRoot`
 chain tree is set up with (`chainTree[_chainId].setup(CHAIN_TREE_EMPTY_ENTRY_HASH)`,
-MessageRootBase.sol:350).  The source comment (:8) says it is the hash of `new bytes(96)`. -/
+MessageRootBase.sol:285).  The source comment (:8) says it is the hash of `new bytes(96)`. -/
 def chainTreeEmptyEntryHash : UInt256 :=
   0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21
 

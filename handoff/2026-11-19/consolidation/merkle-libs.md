@@ -122,3 +122,45 @@ the same at `b17415d20`.
   replacement in `RootForgeryPinned`/`PathCollision`.
 * `DomainSeparation.L2Log` is a third copy of the `L2Log` struct (with `ChainBatchRootTree` and
   `MessageHashing`); merging them is the `roots.md` follow-up.
+
+## Done in this unit
+
+* **Step 1.** Every non-History Specs module of the three folders cites `b17415d20` with lines checked
+  against the extracted tree (the formerly uncited abstract layers now name the code they model).
+  `DomainSeparation`'s length table, constants and tree writes, `ChainTreeBacking`'s MessageRootBase /
+  MessageHashing / AtomicInteropProof lines and `MemoryLazy`'s lines from `:150` (+3) were re-cited;
+  the IMT-padding sentences of `RootForgeryPinnedStrong` and `TreeShapeStrong` now describe
+  `b17415d20` (dedicated padding, sentinel `hashLeaf({0,0,0})`) and mark the pin's padding as the
+  pin's. The stale "deployed growth rule not modelled" remark of `CapacityInvariant` is replaced by
+  the pointer to `CachedNodes`.
+* **History.** The eight `DomainSeparation` statements above moved to
+  `Merkle/History/{Properties,Proofs}/DomainSeparationPinned.lean` (namespace
+  `MerkleSpec.DomainSeparation.History`), statements and proofs unchanged.
+  `PaddingForgeryIsTheOnlyKeccakFreeBreak` is tagged `@[countermodel]` there.
+* **Step 2.** New topic `DynamicIncrementalMerkle/PriorityTreeBridge`: within the `uint256` range
+  the `PriorityTree` folder's `push` equals this folder's `push` on storage and returned root, and
+  `setup`/`root` agree (`PriorityTreePushIsDimPush`, `PriorityTreeSetupIsDimSetup`,
+  `PriorityTreeRootIsDimRoot`, witness `PriorityTreePushIsDimPushWitness`; untagged model bridges).
+  No other duplicate transcription exists; no model was deleted.
+* **Headlines.** Merkle 7, FullMerkle 3, DynamicIncrementalMerkle 3, each docstring with a
+  "Premises, in plain words" paragraph and listed first in the README; witnesses
+  (`HonestWalkRoot`, `HonestWalkNoCollision`, `RootPinsEntryOrCollisionSatisfiable`,
+  `RootPathsHonestWitness`, `ProofsExclusiveOrKeccakBreakSatisfiable`,
+  `DeployedLastBatchCheckWitness`, `ThreePushesWitness`, `ThreePushWitness`, `LazyRunWitness`) and
+  countermodels (`ZeroLengthPathAcceptsRoot`, `RootPathsCollisionFires`, `EmptyRootIsNotTheFold`).
+* **ASSUMPTIONS.md**, minimal: `MODEL-FULLMERKLE` and `MODEL-DIM` name `b17415d20` and its lines;
+  the `FullMerkle CachedNodes` and `Merkle DomainSeparation` coverage rows name `b17415d20`, say which
+  forms are History, and no longer say the chain trees have no transcription. No id changed.
+* **Outside the folders:** only `EraSpec.lean` (two imports) and `ASSUMPTIONS.md`.
+* Renames: `handoff/2026-11-19/renames/merkle-libs.json` (8 entries, all `history`), checked by
+  diffing `scripts/ListProperties.lean` before/after: every removed name is an `old`, every `new`
+  exists.
+
+## Not done
+
+* The scope premises of the storage headlines (fewer than `2^255` leaves; the transcription is
+  executed by the compiled code) are stated in the docstrings and READMEs, not as Lean hypotheses:
+  adding them would weaken the statements, and the models keep the counters in `ℕ`.
+* `ChainTreeBacking` still builds on `Protocol/InteropAtomicity`'s `Timeout.RootBacking` (a
+  `c67894b9` Protocol model, the later Protocol unit's).
+* The `global-hinj` results and the `L2Log` copy, as above.

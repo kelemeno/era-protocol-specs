@@ -1,10 +1,11 @@
 import EraSpec.Contracts.DynamicIncrementalMerkle.Specs.MemoryLazy
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the memory tree and its lazy push
 
 Statements about `EraSpec.Contracts.DynamicIncrementalMerkle.Specs.MemoryLazy`, the transcription
-of `DynamicIncrementalMerkleMemory.sol` at `c67894b9`.  Proofs are in
+of `DynamicIncrementalMerkleMemory.sol` at `b17415d20`.  Proofs are in
 `EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.MemoryLazy`.
 
 * **The empty chain tree.**  The chain tree `L2MessageRoot.getEmptyMultichainBatchRoot` builds,
@@ -38,12 +39,12 @@ open MerkleSpec
 /-! ## The empty chain tree -/
 
 /-- **THE EMPTY CHAIN TREE'S ROOT IS `bytes32(0)` IN BOTH LIBRARIES.**
-`L2MessageRoot.getEmptyMultichainBatchRoot` (L2MessageRoot.sol:78-90) builds its chain tree with
+`L2MessageRoot.getEmptyMultichainBatchRoot` (L2MessageRoot.sol:79-91) builds its chain tree with
 `createTree(1); setup(CHAIN_TREE_EMPTY_ENTRY_HASH)` and hashes the value `setup` returns into the
-chain-id leaf (:86-87).  That value is `0`, the tree represents the empty tree at height 0, and
+chain-id leaf (:87-88).  That value is `0`, the tree represents the empty tree at height 0, and
 its `root()` is `0`.  A storage chain tree right after `_addNewChain`'s `setup`
-(MessageRootBase.sol:350) also reports `root()` `0`; `_addNewChain` hashes `bytes32(0)` into its
-chain-id leaf (:352).  For every hash. -/
+(MessageRootBase.sol:285) also reports `root()` `0`; `_addNewChain` hashes `bytes32(0)` into its
+chain-id leaf (:287).  For every hash. -/
 def Properties.EmptyChainTreeRootsAgree : Prop :=
   ∀ h : Hash, ∃ T : MemPushTree,
     msetup (createTree MemPushTree.fresh 1) chainTreeEmptyEntryHash = some (T, 0)
@@ -108,8 +109,14 @@ def Properties.LazyFlagMeansNotFull : Prop :=
 
 /-- **THE MEMORY TREE MATCHES THE STORAGE TREE.**  Over the same leaves, a memory run (eager and
 lazy pushes in any order) and a storage run report the same `root()` and `height()`, and an eager
-memory push returns the index and root the storage push returns. -/
-def Properties.MemoryMatchesStorage : Prop :=
+memory push returns the index and root the storage push returns.
+
+Premises, in plain words: any node hash and zero value; a memory tree reached by
+`createTree(depth)`, `setup(z)` and eager or lazy pushes of `L`, and a storage tree reached by
+`setup(z)` on fresh storage and pushes of the same `L` (the transcriptions of
+`DynamicIncrementalMerkleMemory.sol` and `DynamicIncrementalMerkle.sol`, `MODEL-DIM`, which leaves
+`extendUntilEnd` and `index` of the memory library out). -/
+@[headline] def Properties.MemoryMatchesStorage : Prop :=
   ∀ (h : Hash) (z : UInt256) (depth : ℕ) (L : List UInt256) (T : MemPushTree) (S : PushTree),
     MemRun h z depth L T → Run h z L S →
       (mRoot h T).map (·.2) = root S ∧ mHeight T = height S
@@ -123,7 +130,7 @@ depth-3 tree form a memory run whose last push left the flag set; the tree repre
 at height 2.  `root()` recomputes `h (h a b) (h c z)`, the value `ThreePushWitness` gives for the
 storage run over the same leaves, and an eager fourth push returns index 3 and
 `h (h a b) (h c d)`, the value `FourthPushWitness` gives for the storage push. -/
-def Properties.LazyRunWitness : Prop :=
+@[witness] def Properties.LazyRunWitness : Prop :=
   ∀ (h : Hash) (z a b c d : UInt256), ∃ T : MemPushTree,
     lazyRun h z 3 [a, b, c] = some T ∧ MemRun h z 3 [a, b, c] T ∧ T.needsRecalc = true
       ∧ MemRepresents h z [a, b, c] 2 T

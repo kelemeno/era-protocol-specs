@@ -21,22 +21,21 @@ an abstract leaf hash, and an abstract padding constant. Its domain hypotheses a
 
 In the source these hypotheses rest only on **preimage lengths** and, inside one length, on the
 first word. Every hash below is one function, `keccak256`, applied to byte strings of these
-lengths. Paths are relative to `l1-contracts/contracts/` at era-contracts `c67894b9` (the interop
-pin); the `Constants.sol` row is `system-contracts/contracts/` at the same commit, and rows marked
-UPG are the upgrade-system pin `e561b9cc2`.
+lengths. Paths are relative to `l1-contracts/contracts/` at era-contracts `draft/v0.35.0`
+`b17415d20`.
 
 | keccak input | length | source |
 |---|---|---|
 | internal node `efficientHash(l, r)` | 64 | `common/libraries/Merkle.sol:125-131` |
-| L2 log leaf `getLeafHashFromLog` | 88 | `common/libraries/MessageHashing.sol:64-69` |
-| logs-tree padding `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH` | 88 | `Constants.sol:99-106` |
-| `chainIdLeafHash` | 96 | `MessageHashing.sol:89-91` |
-| IMT `hashLeaf` | 96 | `common/libraries/IndexedMerkleTree.sol:123-125` |
-| empty entry `new bytes(96)` | 96 | `core/message-root/IMessageRoot.sol:8-16`, `common/libraries/ChainBatchRootTree.sol:50-55` |
-| `commitValue` | 96 | `atomic-interop/libraries/AtomicInteropProof.sol:100-102` |
-| `batchLeafHash` | 128 | `MessageHashing.sol:78-84` |
+| L2 log leaf `getLeafHashFromLog` | 88 | `common/libraries/MessageHashing.sol:64-68` |
+| logs-tree padding `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH` | 88 | `common/Config.sol:23-27` |
+| `chainIdLeafHash` | 96 | `MessageHashing.sol:87-89` |
+| IMT `hashLeaf` | 96 | `common/libraries/IndexedMerkleTree.sol:124-126` |
+| empty entry `new bytes(96)` | 96 | `core/message-root/IMessageRoot.sol:8-16`, `common/libraries/ChainBatchRootTree.sol:32-35` |
+| `commitValue` | 96 | `atomic-interop/libraries/AtomicInteropProof.sol:34-36` |
+| `batchLeafHash` | 128 | `MessageHashing.sol:76-82` |
 | `ZERO_LEAF_HASH = keccak256("")` | 0 | `state-transition/libraries/PriorityTree.sol:22` |
-| UPG `IMT_EMPTY_LEAF_HASH` | 34 | UPG `common/Config.sol:131-134` |
+| IMT padding `IMT_EMPTY_LEAF_HASH` | 34 | `common/Config.sol:138-141` |
 
 So two hashes of different-length inputs can be equal only through a keccak collision on two
 **named** byte strings: `HashCollision keccak x y` (`InteropDataEncoding/Specs/BundleHashPinned.lean`),
@@ -44,7 +43,7 @@ with `x` and `y` read off the instance. Within the 96-byte family the inputs are
 their first word (a padding tag, a leaf value, or zero), except for an IMT leaf whose value is one
 of the other first words (group (b) of `../Properties/DomainSeparation.lean`). Three source
 constants are one literal, documented as `keccak256` of 96 zero bytes: `EMPTY_IMT_ROOT =
-CHAIN_TREE_EMPTY_ENTRY_HASH = SHARED_ROOT_TREE_EMPTY_HASH`; and the pin's padding
+CHAIN_TREE_EMPTY_ENTRY_HASH = SHARED_ROOT_TREE_EMPTY_HASH`; and the IMT's sentinel leaf
 `hashLeaf({0,0,0})` hashes those same 96 bytes.
 
 This file defines the byte encoders, the keccak instantiation of the abstract hashes, and the
@@ -53,59 +52,38 @@ reductions; `../Proofs/DomainSeparation.lean` proves them.
 
 ## The trees, and what separates their levels
 
-* **IMT** (`IndexedMerkleTree`, a `FullMerkle`): leaves `hashLeaf` (96), nodes 64. Padding at the pin
-  is `hashLeaf({0,0,0})` (`IndexedMerkleTree.sol:47-48`): the padding preimage IS a leaf preimage,
-  which is the known forged-absence bug (`History.PaddingCollisionRefundsDeliveredLeg`, not re-reported here).
-  At UPG the padding is `keccak256("zkSync:IndexedMerkleTree:emptyLeaf")` (UPG
-  `IndexedMerkleTree.sol:44-53`), a 34-byte preimage.
+* **IMT** (`IndexedMerkleTree`, a `FullMerkle`): leaves `hashLeaf` (96), nodes 64, padding
+  `IMT_EMPTY_LEAF_HASH = keccak256("zkSync:IndexedMerkleTree:emptyLeaf")`, a 34-byte preimage
+  (`IndexedMerkleTree.sol:51`, `common/Config.sol:141`). The sentinel leaf at index 0 is
+  `hashLeaf({0,0,0})` (`:52`). At the interop pin `c67894b9` the padding was `hashLeaf({0,0,0})`
+  itself, a leaf preimage: the H2 padding finding. Its Merkle-level record is
+  `../History/Properties/DomainSeparationPinned.lean`.
 * **Chain tree** (per chain, a `DynamicIncrementalMerkle`, `core/message-root/MessageRootBase.sol:69`):
-  leaves `batchLeafHash` (128, pushed at `:257-259`), empty entry `CHAIN_TREE_EMPTY_ENTRY_HASH` (96,
-  `:350`), nodes 64. Fully length-separated.
+  leaves `batchLeafHash` (128, pushed at `:207-209`), empty entry `CHAIN_TREE_EMPTY_ENTRY_HASH` (96,
+  `:285`), nodes 64. Fully length-separated.
 * **Shared tree** (a `FullMerkle`, `MessageRootBase.sol:64`): leaves `chainIdLeafHash` (96, pushed at
-  `:352` and updated at `:264-265`), empty entry `SHARED_ROOT_TREE_EMPTY_HASH` (96, `:164`), nodes 64.
+  `:287` and updated at `:213-214`), empty entry `SHARED_ROOT_TREE_EMPTY_HASH` (96, `:140`), nodes 64.
   Leaf and empty entry have the same length and differ in their first word,
   `CHAIN_ID_LEAF_PADDING` versus zero.
 * **L2 logs tree**: leaves 88, padding `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH`, documented as
-  `keccak256(new bytes(88))` (`Constants.sol:103-106`), nodes 64. The padding preimage is the
-  all-zero log's preimage (`Properties.LogDefaultIsZeroLog`); `_getProofData` rejects that leaf hash
-  outright (`MessageHashing.sol:165-169`).
-* **Chain batch root tree** (`ChainBatchRootTree`, height 3): its leaves are used directly
-  (`ChainBatchRootTree.sol:17`), so it has no leaf/node separation at all; the fixed depth, which
-  `_authenticateRoot` checks (`AtomicInteropProof.sol:261-262`), carries that role. Not modelled
+  `keccak256(new bytes(L2_TO_L1_LOG_SERIALIZE_SIZE))` with that size 88 (`common/Config.sol:23-27`),
+  nodes 64. The padding preimage is the all-zero log's preimage (`Properties.LogDefaultIsZeroLog`);
+  `_getProofData` rejects that leaf hash outright (`MessageHashing.sol:165-167`).
+* **Chain batch root tree** (`ChainBatchRootTree`, height 3): `compute` hashes its leaves directly
+  (`ChainBatchRootTree.sol:49-62`), so it has no leaf/node separation at all; the fixed depth, which
+  `_authenticateRoot` checks (`AtomicInteropProof.sol:160-161`), carries that role. Not modelled
   here.
 * **Priority tree**: zero `keccak256("")` (0 bytes) versus nodes (64). Its leaves are canonical
   transaction hashes, whose preimages are not modelled.
 
-## Current heads
+## Other commits
 
-Re-read at era-contracts `main` `70096e2ea` and `draft/v0.35.0` `b17415d20` (line numbers are given
-as `main` / `draft/v0.35.0`; the lines cited elsewhere in this file are the pins'):
-
-* `common/libraries/Merkle.sol`, `common/MessageVerification.sol` and
-  `state-transition/libraries/PriorityTree.sol` are unchanged from `c67894b9`;
-  `DynamicIncrementalMerkle.sol` is unchanged on `main` and, on `draft/v0.35.0`, differs only in
-  `reset` returning `setup`'s root (`:68`);
-* `common/libraries/IndexedMerkleTree.sol` is identical to UPG's (padding `IMT_EMPTY_LEAF_HASH`,
-  `common/Config.sol:90` / `:141`);
-* the three `MessageHashing` preimages are unchanged (`getLeafHashFromLog` `:64-69` / `:64-68`,
-  `batchLeafHash` `:77-83` / `:76-82`, `chainIdLeafHash` `:88-90` / `:87-89`), and so is
-  `struct L2Log` (`common/Messaging.sol:27-34`);
-* the three empty-entry literals (`IMessageRoot.sol:8-16`, `ChainBatchRootTree.sol:35`),
-  `ATOMIC_COMMIT_LEAF_TAG` (`IAtomicInterop.sol:82`) and `commitValue`
-  (`AtomicInteropProof.sol:34-36`) are unchanged in content, and `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH`
-  is the same literal (system-contracts `Constants.sol:106` / l1-contracts `common/Config.sol:26-27`,
-  documented there as `keccak256(new bytes(L2_TO_L1_LOG_SERIALIZE_SIZE))`);
-* `MessageRootBase` writes its two trees as at the pin (shared-tree setup `:149` / `:140`, batch-leaf
-  push `:216-218` / `:207-209`, chain-id leaf update `:222-223` / `:213-214`, chain-tree setup and
-  first chain-id leaf `:294-296` / `:285-287`); `_verifyLastBatchInRoot` is unchanged
-  (`AtomicInteropProof.sol:130-143` at both); and the commitment tree's one inserted value is still
-  `commitValue` (`AtomicFlowManager.sol:167-169` / `:168-170`).
-
-So the statements below that do not mention the IMT padding describe those heads as they describe
-the pin, line numbers aside. The `…AtPin` forms describe the pin's IMT padding, which those heads
-replaced by UPG's; the IMT statements that take a padding preimage of any length other than 64 and
-96 apply to those heads' 34-byte padding preimage as they apply to UPG's, over the pin's list-state
-model (see "Model boundaries"). This file is not re-pinned to them.
+The keccak inputs, constants and tree writes above were first read at the interop pin `c67894b9`
+(with the IMT padding of the upgrade-system pin `e561b9cc2`, marked "UPG" in some statement names
+and docstrings, which is `b17415d20`'s). At `b17415d20` they are the same in content, at the lines
+given here; `Merkle.sol`, `FullMerkle.sol`, `DynamicIncrementalMerkle.sol` (up to `reset`'s return
+statement) and `PriorityTree.sol` are byte-identical at `d9f6789` and `main` `70096e2ea`. The one
+content difference is the IMT padding (above).
 
 ## Model boundaries
 
@@ -132,20 +110,20 @@ model (see "Model boundaries"). This file is not re-pinned to them.
   as everywhere in `Merkle`, at any height and over any entry list. That the contracts' stored
   roots are that fold is obligation O7 (`Refinement.lean`). For `FullMerkle` storage (the IMT, the
   shared tree) a statement-by-statement transcription is proved to compute it (`FullMerkle` topic
-  `CachedNodes`); the chain trees' `DynamicIncrementalMerkle` has no transcription here. One
-  difference is visible in the source: with no batch pushed, its `root()` is `bytes32(0)`
-  (`setup`, `DynamicIncrementalMerkle.sol:53-57`), not the fold, and `_addNewChain` pushes the new
-  chain's chain-id leaf with `chainIdRoot = bytes32(0)` (`MessageRootBase.sol:350-352`); the
-  chain-tree statements here are about the fold. The logs tree is built on L2 and is not modelled
+  `CachedNodes`); for the chain trees' `DynamicIncrementalMerkle` storage, `../../DynamicIncrementalMerkle/`
+  topic `Model` proves it for every run with at least one push (`RunRootIsFold`). One difference
+  is visible in the source: with no batch pushed, its `root()` is `bytes32(0)` (`setup`,
+  `DynamicIncrementalMerkle.sol:53-57`), not the fold, and `_addNewChain` pushes the new chain's
+  chain-id leaf with `chainIdRoot = bytes32(0)` (`MessageRootBase.sol:285-287`); the chain-tree
+  statements here are about the fold. The logs tree is built on L2 and is not modelled
   beyond its leaf and padding preimages.
-* The IMT statements use the pin's list-state model (`Contracts.InteropCommitmentTree.Tree`,
-  `Valid`) and quantify over every `Valid` state (some take no `Valid` premise at all). At UPG
-  `insert`'s low-leaf search is unbounded instead of bounded by `MAX_LOW_INDEX_SEARCH_ATTEMPTS`
-  (`IndexedMerkleTree.sol:85-89` at the pin). The model's `Run` admits any low leaf meeting
-  `InsertGuard`, and `run_valid` keeps `Valid` along it; that UPG's search, when it does not revert,
-  returns such a low leaf is a reading of the source, not proved here. Only the witnesses use
-  `insert`, to build `threeLeafTree` by two inserts given their correct low leaf, where the two
-  searches do not iterate.
+* The IMT statements use the indexed list state of `../../L2InteropCommitmentTree/`
+  (`Contracts.InteropCommitmentTree.Tree`, `Valid`) and quantify over every `Valid` state (some take
+  no `Valid` premise at all). At `b17415d20` `insert`'s low-leaf search is unbounded
+  (`IndexedMerkleTree.sol:90-93`); that a v35 history is a `Run` of guarded inserts, so `Valid`
+  along it, is `L2InteropCommitmentTree` topic `UnboundedSearchAtV35` (`RunCallIsRunV35`). Only the
+  witnesses use `insert`, to build `threeLeafTree` by two inserts given their correct low leaf,
+  where the two searches do not iterate.
 -/
 
 namespace MerkleSpec.DomainSeparation
@@ -169,7 +147,7 @@ abbrev w32 (x : UInt256) : List UInt8 := word x.val
 Every internal node of every tree in the corpus is this hash: `Merkle.calculateRootMemory`
 (`Merkle.sol:62-67`), `FullMerkle` (`FullMerkle.sol:49, 82-87`), `DynamicIncrementalMerkle`
 (`DynamicIncrementalMerkle.sol:104, 126-128, 150-151`), the last-batch zero cascade
-(`AtomicInteropProof.sol:228`), and `ChainBatchRootTree.compute` (`ChainBatchRootTree.sol:78-84`,
+(`AtomicInteropProof.sol:141`), and `ChainBatchRootTree.compute` (`ChainBatchRootTree.sol:55-61`,
 `keccak256(bytes.concat(l, r))`, the same 64 bytes). -/
 def nodePre (a b : UInt256) : List UInt8 := w32 a ++ w32 b
 
@@ -193,12 +171,11 @@ structure L2Log where
 def boolByte (b : Bool) : UInt8 := if b then 1 else 0
 
 /-- **THE L2 LOG LEAF PREIMAGE, 88 BYTES.** `MessageHashing.getLeafHashFromLog`
-(`MessageHashing.sol:64-69`):
+(`MessageHashing.sol:64-68`):
 
     keccak256(abi.encodePacked(l2ShardId, isService, txNumberInBatch, sender, key, value))
 
-1 + 1 + 2 + 20 + 32 + 32 = 88 bytes, the `L2_TO_L1_LOG_SERIALIZE_SIZE` of system-contracts
-`Constants.sol:99-101`. -/
+1 + 1 + 2 + 20 + 32 + 32 = 88 bytes, `L2_TO_L1_LOG_SERIALIZE_SIZE` (`common/Config.sol:23-24`). -/
 def logPre (log : L2Log) : List UInt8 :=
   [log.l2ShardId] ++ [boolByte log.isService] ++ toBytesBE 2 log.txNumberInBatch
     ++ toBytesBE 20 log.sender ++ w32 log.key ++ w32 log.value
@@ -207,13 +184,13 @@ def logPre (log : L2Log) : List UInt8 :=
 def zeroLog : L2Log := ⟨0, false, 0, 0, 0, 0⟩
 
 /-- **THE LOGS-TREE PADDING PREIMAGE, 88 BYTES.** `L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH` is a hex
-literal, documented as "Actually equal to the `keccak256(new bytes(L2_TO_L1_LOG_SERIALIZE_SIZE))`"
-(system-contracts `Constants.sol:103-106`). The model takes the padding to be keccak of these
-bytes, as documented; Lean cannot check the literal. -/
+literal, documented as "`keccak256(new bytes(L2_TO_L1_LOG_SERIALIZE_SIZE))`"
+(`common/Config.sol:26-27`). The model takes the padding to be keccak of these bytes, as
+documented; Lean cannot check the literal. -/
 def logDefaultPre : List UInt8 := List.replicate 88 0
 
 /-- **THE CHAIN-ID LEAF PREIMAGE, 96 BYTES.** `MessageHashing.chainIdLeafHash`
-(`MessageHashing.sol:89-91`):
+(`MessageHashing.sol:87-89`):
 
     keccak256(abi.encodePacked(CHAIN_ID_LEAF_PADDING, chainIdRoot, chainId))
 
@@ -222,7 +199,7 @@ def chainIdPre (padC chainIdRoot chainId : UInt256) : List UInt8 :=
   w32 padC ++ w32 chainIdRoot ++ w32 chainId
 
 /-- **THE BATCH LEAF PREIMAGE, 128 BYTES.** `MessageHashing.batchLeafHash`
-(`MessageHashing.sol:78-84`):
+(`MessageHashing.sol:76-82`):
 
     keccak256(abi.encodePacked(BATCH_LEAF_PADDING, batchRoot, batchNumber, l1Timestamp))
 
@@ -230,17 +207,17 @@ def chainIdPre (padC chainIdRoot chainId : UInt256) : List UInt8 :=
 def batchPre (padB batchRoot batchNumber l1Timestamp : UInt256) : List UInt8 :=
   w32 padB ++ w32 batchRoot ++ w32 batchNumber ++ w32 l1Timestamp
 
-/-- **THE IMT LEAF PREIMAGE, 96 BYTES.** `IndexedMerkleTree.hashLeaf` (`IndexedMerkleTree.sol:123-125`):
+/-- **THE IMT LEAF PREIMAGE, 96 BYTES.** `IndexedMerkleTree.hashLeaf` (`IndexedMerkleTree.sol:124-126`):
 
     keccak256(abi.encode(_leaf.value, _leaf.nextIndex, _leaf.nextValue))
 
-The comment at `:120-121` asks that "the preimage for each leaf is not 64 bytes long". -/
+The comment at `:121-122` asks that "the preimage for each leaf is not 64 bytes long". -/
 def imtPre (ℓ : Leaf) : List UInt8 := w32 ℓ.value ++ word ℓ.nextIndex ++ w32 ℓ.nextValue
 
 /-- **THE EMPTY-ENTRY PREIMAGE: 96 ZERO BYTES.** "We use hash of `new bytes(96)` as the hash of an
 empty leaf" (`IMessageRoot.sol:8, 13`), for both `CHAIN_TREE_EMPTY_ENTRY_HASH` and
 `SHARED_ROOT_TREE_EMPTY_HASH`; and `EMPTY_IMT_ROOT` is "the keccak256 of 96 zero bytes"
-(`ChainBatchRootTree.sol:50-55`). -/
+(`ChainBatchRootTree.sol:32-35`). -/
 def emptyPre : List UInt8 := List.replicate 96 0
 
 /-- **THE PRIORITY TREE'S ZERO PREIMAGE: THE EMPTY STRING.** `ZERO_LEAF_HASH = keccak256("")`
@@ -248,21 +225,22 @@ def emptyPre : List UInt8 := List.replicate 96 0
 def zeroLeafPre : List UInt8 := []
 
 /-- **THE COMMIT-VALUE PREIMAGE, 96 BYTES.** `AtomicInteropProof.commitValue`
-(`AtomicInteropProof.sol:100-102`):
+(`AtomicInteropProof.sol:34-36`):
 
     uint256(keccak256(abi.encode(ATOMIC_COMMIT_LEAF_TAG, _flowId, _specHash)))
 
-`ATOMIC_COMMIT_LEAF_TAG` is a `bytes4` (`IAtomicInterop.sol:94`), so `abi.encode` puts its four
+`ATOMIC_COMMIT_LEAF_TAG` is a `bytes4` (`IAtomicInterop.sol:82`), so `abi.encode` puts its four
 bytes first in a 32-byte slot and pads the slot with 28 zero bytes on the right. `tag` is that
 four-byte value, read big-endian. -/
 def commitPre (tag : ℕ) (flowId specHash : UInt256) : List UInt8 :=
   (toBytesBE 4 tag ++ List.replicate 28 0) ++ w32 flowId ++ w32 specHash
 
-/-- The pin's IMT padding preimage: `setup` pads with `hashLeaf(IMTLeaf({0, 0, 0}))`
-(`IndexedMerkleTree.sol:47-48`). -/
+/-- The preimage of the IMT's sentinel leaf `hashLeaf(IMTLeaf({0, 0, 0}))`, which `setup` pushes at
+index 0 (`IndexedMerkleTree.sol:52`). At the interop pin `c67894b9` `setup` also padded with it
+(the H2 record, `../History/`); at `b17415d20` the padding is `imtEmptyLeafPre`. -/
 def pinPaddingPre : List UInt8 := imtPre ⟨0, 0, 0⟩
 
-/-- **THE UPG IMT PADDING PREIMAGE, 34 BYTES.** UPG `common/Config.sol:131-134`:
+/-- **THE IMT PADDING PREIMAGE, 34 BYTES.** `common/Config.sol:138-141` (as at UPG `e561b9cc2`):
 `IMT_EMPTY_LEAF_HASH = keccak256("zkSync:IndexedMerkleTree:emptyLeaf")`, "deliberately NOT a valid
 `hashLeaf(IMTLeaf)` output". These are the 34 ASCII bytes of that string, written out because Lean
 does not reduce `String.toUTF8` in proofs. -/
@@ -287,8 +265,8 @@ def efficientHash (keccak : Keccak) : Hash := fun a b => keccak (nodePre a b)
 /-- `IndexedMerkleTree.hashLeaf`. -/
 def hashLeaf (keccak : Keccak) : LeafHash := fun ℓ => keccak (imtPre ℓ)
 
-/-- The pin's IMT padding constant, `hashLeaf({0, 0, 0})` (`IndexedMerkleTree.sol:47-48`). This is
-the `z0` that `ProofsExclusiveOrBreakSatisfiable` and the padding countermodel use. -/
+/-- The IMT sentinel leaf's hash `hashLeaf({0, 0, 0})` (`IndexedMerkleTree.sol:52`), which was also
+the IMT padding at the interop pin `c67894b9` (`../History/`). -/
 def imtPadding (keccak : Keccak) : UInt256 := hashLeaf keccak ⟨0, 0, 0⟩
 
 /-- `MessageHashing.chainIdLeafHash`. -/
@@ -312,7 +290,7 @@ def CHAIN_TREE_EMPTY_ENTRY_HASH : UInt256 :=
 def SHARED_ROOT_TREE_EMPTY_HASH : UInt256 :=
   0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21
 
-/-- `ChainBatchRootTree.EMPTY_IMT_ROOT` (`ChainBatchRootTree.sol:50-55`). -/
+/-- `ChainBatchRootTree.EMPTY_IMT_ROOT` (`ChainBatchRootTree.sol:32-35`). -/
 def EMPTY_IMT_ROOT : UInt256 :=
   0x46700b4d40ac5c35af2c22dda2787a91eb567b06c924a8fb8ae9a05b20c08c21
 
@@ -336,8 +314,8 @@ def entryPre (pre : ℕ → List UInt8) (n : ℕ) (zPre : List UInt8) (m : ℕ) 
 
 /-- **LEAF/NODE DOMAIN SEPARATION BY LENGTH.** No entry preimage, no padding preimage, and no claimed
 leaf preimage `xPre` is 64 bytes long. This is what the `hashLeaf` comment
-(`IndexedMerkleTree.sol:120-121`) and the "no length check needed" comment
-(`MessageVerification.sol:94-96`) rely on. -/
+(`IndexedMerkleTree.sol:121-122`) and the "no length check needed" comment
+(`common/MessageVerification.sol:93-95`) rely on. -/
 def LeafDomain (pre : ℕ → List UInt8) (n : ℕ) (zPre xPre : List UInt8) : Prop :=
   (∀ m < n, (pre m).length ≠ 64) ∧ zPre.length ≠ 64 ∧ xPre.length ≠ 64
 
@@ -348,7 +326,7 @@ def EntryDomain (pre : ℕ → List UInt8) (n : ℕ) (zPre : List UInt8) : Prop 
   ∀ m < n, pre m ≠ zPre
 
 /-- The fields of a chain-tree leaf: `batchLeafHash(batchRoot, batchNumber, l1Timestamp)` as pushed
-by `MessageRootBase._pushChainBatchRoot` (`MessageRootBase.sol:257-259`). -/
+by `MessageRootBase._pushChainBatchRoot` (`MessageRootBase.sol:207-209`). -/
 structure BatchLeaf where
   batchRoot : UInt256
   batchNumber : UInt256
@@ -359,7 +337,7 @@ def chainTreePre (padB : UInt256) (B : ℕ → BatchLeaf) : ℕ → List UInt8 :
   fun m => batchPre padB (B m).batchRoot (B m).batchNumber (B m).l1Timestamp
 
 /-- The fields of a shared-tree leaf: `chainIdLeafHash(chainIdRoot, chainId)`
-(`MessageRootBase.sol:264-265, 352`). -/
+(`MessageRootBase.sol:213-214, 287`). -/
 structure ChainIdLeaf where
   chainIdRoot : UInt256
   chainId : UInt256
@@ -498,9 +476,10 @@ each case turned into a collision on named byte strings:
 * `paddingCollision`: the opened index is empty, and the presented leaf's preimage and the padding
   preimage hash equal.
 
-At the pin `zPre = pinPaddingPre = imtPre ⟨0, 0, 0⟩`, so for the presented leaf `⟨0, 0, 0⟩` the
-`paddingCollision` strings are EQUAL and the case is not a collision: that is the forged-absence
-bug, which the theorems keep as a separate, keccak-free disjunct. -/
+At `b17415d20` `zPre = imtEmptyLeafPre` (34 bytes), which no leaf preimage equals. At the interop
+pin `c67894b9` it was `pinPaddingPre = imtPre ⟨0, 0, 0⟩`, so for the presented leaf `⟨0, 0, 0⟩` the
+`paddingCollision` strings were EQUAL and the case was not a collision: the forged-absence bug,
+which the History statements keep as a separate, keccak-free disjunct. -/
 inductive ImtKeccakBreak (keccak : Keccak) (zPre : List UInt8) (T : Tree) (height : ℕ)
     (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf) : Prop
   | wrongLength :
@@ -543,7 +522,7 @@ witnesses use it as the value of `padC`. -/
 def chainIdLeafPaddingValue : UInt256 :=
   0x39bc69363bb9e26cf14240de4e22569e95cf175cfbcf1ade1a47a253b4bf7f61
 
-/-- `ATOMIC_COMMIT_LEAF_TAG = bytes4(keccak256("AtomicInterop.commit.v1"))` (`IAtomicInterop.sol:94`),
+/-- `ATOMIC_COMMIT_LEAF_TAG = bytes4(keccak256("AtomicInterop.commit.v1"))` (`IAtomicInterop.sol:82`),
 read big-endian, as `cast keccak` computes it outside Lean. Nothing in Lean ties this literal to
 the string; the witnesses use it as the value of `tag`. -/
 def atomicCommitLeafTagValue : ℕ := 0x3445134c

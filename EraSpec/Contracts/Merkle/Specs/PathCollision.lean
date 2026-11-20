@@ -21,6 +21,12 @@ checks that it is false on the honest path.
 * `walkPair h sibs lvl j x i` — that pair at step `i` of the walk from `(lvl, j, x)`.
 * `treePair h z0 L l idx` — the two tree entries under the node above index `idx`
   at level `l` (padding read as the level's zero, as `FullMerkle` stores it).
+
+Source: era-contracts `draft/v0.35.0` `b17415d20`, `common/libraries/Merkle.sol`: one iteration of
+the loop of `calculateRoot` (:36-41) and `calculateRootMemory` (:62-67) hashes `walkStep`'s pair
+with `efficientHash` (:125-131); `_validatePathLengthForSingleProof` (:133-140) checks only
+`pathLength < 256` and `index < 2^pathLength`.  The tree pairs are `FullMerkle.sol`'s
+(`updateLeaf`, :80-92).
 -/
 
 namespace MerkleSpec.Verifier

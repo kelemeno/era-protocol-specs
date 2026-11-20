@@ -16,7 +16,9 @@ This file transcribes the library's storage and its five functions, statement by
 statement, as pure Lean functions, so that the cached algorithm can be compared with the
 fold.  The comparison is stated in `Properties/CachedNodes.lean`.
 
-Source: `contracts/common/libraries/FullMerkle.sol` at era-contracts `c67894b9`.
+Source: `l1-contracts/contracts/common/libraries/FullMerkle.sol` at era-contracts `draft/v0.35.0`
+`b17415d20` (the file is identical at `main` `70096e2ea` and `d9f6789`; it was first transcribed at
+the interop pin `c67894b9`, with the same lines).
 
     struct FullTree { uint256 _height; uint256 _leafNumber; bytes32[][] _nodes; bytes32[] _zeros; }
 
@@ -67,7 +69,7 @@ Source: `contracts/common/libraries/FullMerkle.sol` at era-contracts `c67894b9`.
   Runs here (`Reachable`) start with `setup` on `FullTree.empty`, the fresh storage;
   the other results assume `Represents`, which a second `setup` breaks.
   `IndexedMerkleTree.setup` guards the call with `_leafNumber != 0` and pushes a leaf
-  straight after (IndexedMerkleTree.sol:42-51).
+  straight after (IndexedMerkleTree.sol:46-54).
 * That compiled code executes these functions is the transcription's own correspondence
   obligation (`VM-STORAGE`, `SOL-ARITH`, `BUILD-PRESERVATION`).  It is not proved here.
 -/

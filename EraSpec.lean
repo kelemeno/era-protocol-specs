@@ -106,6 +106,7 @@ import EraSpec.Contracts.Merkle.Proofs.RootForgery
 import EraSpec.Contracts.Merkle.Proofs.Verifier
 import EraSpec.Contracts.Merkle.Proofs.PathCollision
 import EraSpec.Contracts.Merkle.Proofs.DomainSeparation
+import EraSpec.Contracts.Merkle.History.Proofs.DomainSeparationPinned
 
 -- L2 log leaves and the L1 status proof (MessageHashing, MessageVerification; v0.35.0 b17415d20)
 import EraSpec.Contracts.MessageHashing.Proofs.LogLeafSeparation
@@ -118,6 +119,7 @@ import EraSpec.Contracts.MessageVerification.Proofs.Refinement
 import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.Model
 import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.MemoryLazy
 import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.ChainTreeBacking
+import EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.PriorityTreeBridge
 
 -- Guarantees that compose several contracts or source chains
 import EraSpec.Protocol.Spec

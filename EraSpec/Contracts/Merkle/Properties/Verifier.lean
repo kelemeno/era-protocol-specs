@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Merkle.Specs.Verifier
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the deployed verifier, with no range or height hypothesis
@@ -19,7 +20,7 @@ open Clear MerkleSpec
 /-- **THE HONEST WALK RECOMPUTES THE ROOT, AT EVERY INDEX BELOW CAPACITY.**  For an
 occupied index the accumulator is the leaf hash; for a padded one it is the padding
 constant `z0`. -/
-def Properties.HonestWalkRoot : Prop :=
+@[witness] def Properties.HonestWalkRoot : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (height j : ℕ), j < 2 ^ height →
     walkPure h (honestSibs h z0 L j) 0 height j (L.getD j z0) = rootOf h z0 L height
 

@@ -39,9 +39,9 @@ are in `EraSpec.Contracts.DynamicIncrementalMerkle.Proofs.ChainTreeBacking`.
   stream.  `ContractPathLastIffSatisfiable` meets the premises on the storage `setup(0)` and three
   pushes leave under a colliding hash, with both sides of the iff occurring.
 
-The break witnesses choose words the model leaves free.  On chain (`c67894b9`) the claimed leaf
-hash is a batch-leaf hash, a keccak of 128 bytes (MessageHashing.sol:78-84, :195-199), and the
-tree's leaves are pushed batch-leaf hashes (MessageRootBase.sol:257-259).  So the wrong-length
+The break witnesses choose words the model leaves free.  On chain (`b17415d20`) the claimed leaf
+hash is a batch-leaf hash, a keccak of 128 bytes (MessageHashing.sol:76-82), and the tree's leaves
+are pushed batch-leaf hashes (MessageRootBase.sol:207-209).  So the wrong-length
 instance needs a claimed batch-leaf hash equal to a node hash, the padded-entry instance a claimed
 one equal to `CHAIN_TREE_EMPTY_ENTRY_HASH`, the pinned instance a pushed one equal to that
 constant, and the path-collision instance a collision of the node hash on the path, which the toy
