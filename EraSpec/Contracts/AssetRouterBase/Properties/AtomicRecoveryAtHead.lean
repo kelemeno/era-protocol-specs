@@ -5,8 +5,7 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 # Properties: atomic recovery at head — forged refunds and the custom-handler lock are gone
 
 Statements about `EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecoveryAtHead` (era-contracts
-`draft/v0.35.0` `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`; the modelled functions are the same at
-`main` `70096e2ea`, see the Specs header).  Proofs are in
+`draft/v0.35.0` `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`).  Proofs are in
 `EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryAtHead`.
 
 The pin model (`AtomicRecovery`, `c67894b9`) found that the refund always went to the vault and
@@ -553,8 +552,8 @@ a nonzero value is the L1 counterpart's `setAssetHandlerAddress(_, a, _)`, the i
 itself, `NativeTokenVaultBase.sol:495-498`).  No other account rotates a route: the guard
 `msg.sender == assetDeploymentTracker[assetId]` (`AssetRouterBase.sol:73`) would let a custom
 deployment tracker re-register its asset, but no L2 run records one
-(`AllWriters.L2OnlyVaultRegisters`).  No hash premise.  The writers are modelled at the pin; they are
-the same at head (see the Specs header). -/
+(`AllWriters.L2OnlyVaultRegisters`).  No hash premise.  The writers are modelled in `AllWriters`, at
+`b17415d20` (see the Specs header). -/
 def Properties.L2RotationOnlyByCounterpartSeedOrVault : Prop :=
   ∀ (K : AllWriters.Cfg), K.side = .l2 →
     ∀ (ops : List AllWriters.Op) (R R' : Router) (op : AllWriters.Op) (a : AssetId),

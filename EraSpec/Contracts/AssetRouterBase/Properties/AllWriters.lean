@@ -1,12 +1,12 @@
 import EraSpec.Contracts.AssetRouterBase.Specs.AllWriters
 
 /-!
-# Properties: the router with every writer at the pin
+# Properties: the router with every writer
 
 Statements about `EraSpec.Contracts.AssetRouterBase.Specs.AllWriters`.  Proofs are in
 `EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters`.
 
-## (a) `RunValid` fails at the pin
+## (a) `RunValid` fails on the deployed routers
 
 `HandlerRegistration.RunValid` says every live route has a nonzero deployment
 tracker.  With every writer, it is false.  The first deposit of any token the
@@ -77,7 +77,7 @@ in the `VaultMintGate` topic (`VaultModelDischargesMintPremise`).
 
 namespace Contracts.AssetRouter.AllWriters
 
-/-! ## (a) `RunValid` fails at the pin -/
+/-! ## (a) `RunValid` fails on the deployed routers -/
 
 /-- **ONE FALLBACK DEPOSIT BREAKS `Valid`, ON EVERY DEPLOYMENT.**  From any router state
 in which an id has neither handler nor tracker, a `finalizeDeposit` for that id that the
@@ -301,7 +301,7 @@ def Properties.NoHijackOnExceptCounterpartWitness : Prop :=
 outright.  On every L2 router, from every state, `setAssetHandlerAddress` succeeds for
 every id and every handler, the zero address included, and sets exactly that handler.
 Its only check on L2 is the caller (`onlyAssetRouterCounterpart`,
-`AR/L2AssetRouter.sol:91-102`). -/
+`AR/L2AssetRouter.sol:96-107`). -/
 def Properties.CounterpartRepointsAnyRoute : Prop :=
   ∀ (K : Cfg) (R : Router) (a : AssetId) (h : Address), K.side = .l2 →
     ∃ R', AStep K (.counterpartSet a h) R R' ∧ R'.handler a = h ∧
@@ -312,7 +312,7 @@ made explicit.  On an L2 router with a well-behaved vault, a run from fresh stor
 no counterpart write leaves a vault route whose tracker is the vault.  One
 `setAssetHandlerAddress` then points that id at a nonzero handler other than the vault.
 No collision is involved: the counterpart's id is an argument, not a hash of its
-caller.  This is the L2 router taken alone.  With trackers that behave as at the pin
+caller.  This is the L2 router taken alone.  With trackers that behave as deployed
 (`VaultApprovals`), the L1 router would not send that message for a vault triple's id
 unless its own log holds a clash (`CounterpartGate.L1CounterpartAtVaultIdOrLoggedClash`). -/
 def Properties.CounterpartRepointsVaultRoute : Prop :=

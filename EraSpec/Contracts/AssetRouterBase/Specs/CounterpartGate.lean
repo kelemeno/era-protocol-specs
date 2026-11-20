@@ -4,7 +4,7 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AllWriters
 /-!
 # Model: the L1 side of the counterpart path
 
-Source: the pinned era-contracts tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), paths
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, paths
 relative to `l1-contracts/contracts/`, with `bridge/asset-router/` shortened to `AR/` and
 `bridge/ntv/` to `NTV/`.
 
@@ -16,31 +16,31 @@ relative to `l1-contracts/contracts/`, with `bridge/asset-router/` shortened to 
 
 `AllWriters` treats `L2AssetRouter.setAssetHandlerAddress` as a trusted exception: on L2
 its only check is that the caller is the aliased L1 asset router
-(`AR/L2AssetRouter.sol:91-102, 200-206`).  This file models what the L1 router checks
+(`AR/L2AssetRouter.sol:96-107, 198-204`).  This file models what the L1 router checks
 before it sends that call, which narrows the exception.
 
 ## The L1 side
 
 The L1 router builds that L2 call in exactly one place, `_setAssetHandlerAddressOnCounterpart`
-(`AR/L1AssetRouter.sol:182-206`).  It is reached from `bridgehubDeposit` when the data's
-first byte is `SET_ASSET_HANDLER_COUNTERPART_ENCODING_VERSION` (:236-248).  Every other
+(`AR/L1AssetRouter.sol:158-183`).  It is reached from `bridgehubDeposit` when the data's
+first byte is `SET_ASSET_HANDLER_COUNTERPART_ENCODING_VERSION` (:216-227).  Every other
 L2 call the L1 router builds is a `finalizeDeposit`:
 
     IL1AssetDeploymentTracker(assetDeploymentTracker[_assetId]).bridgeCheckCounterpartAddress(
-        _chainId, _assetId, _originalCaller, _assetHandlerAddressOnCounterpart);     // :188-193
+        _chainId, _assetId, _originalCaller, _assetHandlerAddressOnCounterpart);     // :165-170
     bytes memory l2Calldata = abi.encodeCall(IL2AssetRouter.setAssetHandlerAddress,
-        (block.chainid, _assetId, _assetHandlerAddressOnCounterpart));                // :195-198
+        (block.chainid, _assetId, _assetHandlerAddressOnCounterpart));                // :172-175
 
 So the id's tracker *in the L1 router's state* decides, and the L1 router's state is an
-`AllWriters` run on the L1 side.  The trackers at the pin:
+`AllWriters` run on the L1 side.  The trackers:
 
-* `L1NativeTokenVault.bridgeCheckCounterpartAddress` (`NTV/L1NativeTokenVault.sol:146-153`)
+* `L1NativeTokenVault.bridgeCheckCounterpartAddress` (`NTV/L1NativeTokenVault.sol:313-320`)
   lets through only `L2_NATIVE_TOKEN_VAULT_ADDR`.
 * `CTMDeploymentTracker.bridgeCheckCounterpartAddress`
-  (`core/ctm-deployment/CTMDeploymentTracker.sol:140-149`) lets through only
+  (`core/ctm-deployment/CTMDeploymentTracker.sol:139-148`) lets through only
   `L2_CHAIN_ASSET_HANDLER_ADDR`, and only for its owner.
 * Any other tracker is whatever the owner recorded with `setAssetDeploymentTracker`.
-* A zero tracker reverts.  `IL1AssetDeploymentTracker` declares the function with no
+* A zero tracker reverts (`AR/L1AssetRouter.sol:164`).  `IL1AssetDeploymentTracker` declares the function with no
   return values (`bridge/interfaces/IL1AssetDeploymentTracker.sol:8-13`), so Solidity
   checks that the target has code (`SOL-CONTROL`, `VM-CALL`).
 
@@ -58,7 +58,7 @@ for id `a` and handler `h`, returns.  `VaultApprovals` is what the narrowing nee
 * No code at `L2_NATIVE_TOKEN_VAULT_ADDR` (`0x10004`) on L1 is assumed in
   `VaultApprovals.vaultAddr`.  On L1, that address can be a tracker only if the owner
   records it.  A registration by the L1 vault hashes as that address
-  (`senderOf`, `AR/AssetRouterBase.sol:78-80`), so the two share an id space.
+  (`senderOf`, `AR/AssetRouterBase.sol:70-72`), so the two share an id space.
 -/
 
 namespace Contracts.AssetRouter.AllWriters
@@ -68,7 +68,7 @@ says the call to tracker `t`, for id `a` and handler `h`, returns without revert
 abbrev Approvals := Address → AssetId → Address → Prop
 
 /-- The L1 router, in state `R1`, can send `setAssetHandlerAddress(block.chainid, a, h)`
-to L2: the id's L1 tracker lets `h` through (`AR/L1AssetRouter.sol:188-193`). -/
+to L2: the id's L1 tracker lets `h` through (`AR/L1AssetRouter.sol:164-170`). -/
 def L1Emits (approves : Approvals) (R1 : Router) (a : AssetId) (h : Address) : Prop :=
   approves (R1.tracker a) a h
 
@@ -77,7 +77,7 @@ structure VaultApprovals (K1 : Cfg) (approves : Approvals) : Prop where
   /-- A zero tracker has no code, so the call reverts. -/
   zero : ∀ a h, ¬ approves 0 a h
   /-- The L1 vault lets through only `L2_NATIVE_TOKEN_VAULT_ADDR`
-  (`NTV/L1NativeTokenVault.sol:146-153`). -/
+  (`NTV/L1NativeTokenVault.sol:313-320`). -/
   vault : ∀ a h, approves K1.ntv a h → h = K1.ntvAddr
   /-- Whatever sits at `L2_NATIVE_TOKEN_VAULT_ADDR` on L1 lets nothing else through.  (No
   contract is expected there on L1, in which case the call reverts.) -/

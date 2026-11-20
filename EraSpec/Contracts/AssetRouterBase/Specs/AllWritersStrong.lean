@@ -3,7 +3,7 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AllWriters
 /-!
 # Model: where each deployment tracker came from, pinned to the run's log
 
-Source: the pinned era-contracts tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`).
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.
 Paths are relative to `l1-contracts/contracts/`; `bridge/asset-router/` is shortened to
 `AR/`.
 
@@ -29,9 +29,9 @@ ties `d` to the run.
 
 The definitions below let the results name the call behind each tracker instead.
 
-## The two tracker writers at the pin
+## The two tracker writers
 
-    // AR/AssetRouterBase.sol:78-83   (_setAssetHandlerAddressThisChain: the `register` step)
+    // AR/AssetRouterBase.sol:70-75   (_setAssetHandlerAddressThisChain: the `register` step)
     bool senderIsNTV = msg.sender == _nativeTokenVault;
     address sender = senderIsNTV ? L2_NATIVE_TOKEN_VAULT_ADDR : msg.sender;
     bytes32 assetId = DataEncoding.encodeAssetId(block.chainid, _assetRegistrationData, sender);
@@ -39,11 +39,11 @@ The definitions below let the results name the call behind each tracker instead.
     _setAssetHandler(assetId, _assetHandlerAddress);
     assetDeploymentTracker[assetId] = msg.sender;
 
-    // AR/L1AssetRouter.sol:163-164   (setAssetDeploymentTracker, onlyOwner: the `setTracker` step)
+    // AR/L1AssetRouter.sol:139-140   (setAssetDeploymentTracker, onlyOwner: the `setTracker` step)
     bytes32 assetId = DataEncoding.encodeAssetId(block.chainid, _assetRegistrationData, _assetDeploymentTracker);
     assetDeploymentTracker[assetId] = _assetDeploymentTracker;
 
-No other code at the pin writes `assetDeploymentTracker` (`Specs/AllWriters.lean` lists the
+No other code writes `assetDeploymentTracker` (`Specs/AllWriters.lean` lists the
 writers).  Each of the two writes one value at the id of the one triple the call itself
 hashes (`Op.triple`).  The value depends only on the call's caller and arguments, and reads
 no storage.  The `require` at `:81` decides whether the call succeeds, not what it writes.
@@ -63,9 +63,9 @@ namespace Contracts.AssetRouter.AllWriters
 records there.
 
 * A registration records `msg.sender` at `(block.chainid, normalised caller, d)`
-  (`AR/AssetRouterBase.sol:79-83`).
+  (`AR/AssetRouterBase.sol:71-75`).
 * An owner tracker write records `t` at `(block.chainid, t, d)`
-  (`AR/L1AssetRouter.sol:163-164`).
+  (`AR/L1AssetRouter.sol:139-140`).
 * The fallback, the seed and the counterpart write the handler only.
 
 The triple is the call's `Op.triple`. -/

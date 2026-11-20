@@ -4,6 +4,11 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 /-!
 # Properties: a paused vault blocks the atomic refund, and unpausing restores it
 
+**History.**  This topic is the record of the pin `c67894b9`, not a claim about `b17415d20`: it is
+stated on the pin's refund loop (`AtomicRecovery`'s `c67894b9` record).  At `b17415d20` the refund
+is `AtomicRecoveryAtHead`'s; the vault's refund still starts with `whenNotPaused`
+(`bridge/ntv/NativeTokenVaultBase.sol:199`).  Line numbers below are the pin's.
+
 Statements about `EraSpec.Contracts.AssetRouterBase.History.Specs.PausedRecovery`.  Proofs are in
 `EraSpec.Contracts.AssetRouterBase.History.Proofs.PausedRecovery`.
 

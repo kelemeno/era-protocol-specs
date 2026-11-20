@@ -259,8 +259,8 @@ def Properties.LoggedRunKeepsVaultRoutes : Prop :=
 
 /-- **AS DEPLOYED, A ROUTE THE VAULT HOLDS POINTS AT THE VAULT.**  No hash premise, and not
 even the guard: if every vault call in the run names the vault itself as handler — the one
-vault call site at the pin, `_unsafeRegisterNativeToken`, passes `address(this)`
-(`NativeTokenVaultBase.sol:518-521`) — and every id the vault holds at the start routes to
+vault call site, `_unsafeRegisterNativeToken`, passes `address(this)`
+(`NativeTokenVaultBase.sol:495-498`) — and every id the vault holds at the start routes to
 the vault (fresh storage: there are none), then at the end every id whose tracker is the
 vault routes to the vault.  With `VaultTrackerIsPermanent`, a route the deployed vault
 installed therefore stays the vault's in every run, hash or no hash; the premise of
@@ -302,7 +302,7 @@ def Properties.OnlyVaultActsFromEmpty : Prop :=
 
 /-- **…AND ON L2 THAT STAYS SO WITH THE OTHER WRITERS INTERLEAVED.**  Along any run from
 fresh storage that interleaves guarded calls with arbitrary writes leaving the tracker
-mapping alone — which is what every other L2 writer at the pin does (see the Specs header)
+mapping alone — which is what every other L2 writer does (see the Specs header)
 — every guarded call is by the vault.  So on L2 the non-vault half of `NoHijack` has no
 instances: custom assets get their L2 routes through the counterpart path, not this one. -/
 def Properties.OnlyVaultActsAmidOtherWriters : Prop :=

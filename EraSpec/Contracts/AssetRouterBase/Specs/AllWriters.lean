@@ -2,9 +2,9 @@ import Mathlib.Tactic
 import EraSpec.Contracts.AssetRouterBase.Specs.HandlerRegistration
 
 /-!
-# Model: every writer of the router's two mappings at the pin
+# Model: every writer of the router's two mappings
 
-Source: the pinned era-contracts tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`).
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.
 Paths are relative to `l1-contracts/contracts/`; `bridge/asset-router/` is shortened to
 `AR/` and `bridge/ntv/` to `NTV/`.
 
@@ -17,25 +17,25 @@ Paths are relative to `l1-contracts/contracts/`; `bridge/asset-router/` is short
 `HandlerRegistration` models one writer, `_setAssetHandlerAddressThisChain`, and proves
 `RunValid` ("a live route has an accountable tracker") for runs of that writer alone.
 The deployed routers have more writers.  This file adds every other write to
-`assetHandlerAddress` and `assetDeploymentTracker` at the pin, so that `RunValid` can be
+`assetHandlerAddress` and `assetDeploymentTracker`, so that `RunValid` can be
 tested against the deployed routers and the invariant that does hold can be stated.
 
 ## The writers
 
-A grep of `_setAssetHandler(` and `assetDeploymentTracker[` over the whole pinned tree
-finds these, all in `AR/` (no contract inherits from either router):
+A grep of `_setAssetHandler(` and `assetDeploymentTracker[` over the whole `b17415d20` tree
+(tests excluded) finds these, all in `AR/` (no other contract inherits from either router):
 
 | `Op` | Source | Router | Writes | Who can call |
 |---|---|---|---|---|
-| `register` | `_setAssetHandlerAddressThisChain`, `AR/AssetRouterBase.sol:73-85` | both | handler := `h` and tracker := caller, at an id hashed from the caller | the vault, or the id's recorded tracker (:81) |
-| `finalize` | `_finalizeDeposit`'s `else` branch, `AR/AssetRouterBase.sol:285-291` | both | handler := vault, at the deposit's id, only if unset | whoever may call `finalizeDeposit` (below) |
-| `seed` | L1 `setNativeTokenVault`, `AR/L1AssetRouter.sol:140-145` (write :144); L2 `initL2`, `AR/L2AssetRouter.sol:157-168` (write :167) | both | handler := vault, at `ETH_TOKEN_ASSET_ID` (L1) / `_baseTokenAssetId` (L2) | L1 owner; L2 complex upgrader |
-| `counterpartSet` | `setAssetHandlerAddress`, `AR/L2AssetRouter.sol:200-206` | L2 | handler := any `h` (zero included), at any id | the aliased L1 asset router (`onlyAssetRouterCounterpart`, :91-102) |
-| `setTracker` | `setAssetDeploymentTracker`, `AR/L1AssetRouter.sol:159-166` | L1 | tracker := `t`, at `encodeAssetId(block.chainid, d, t)` | owner |
+| `register` | `_setAssetHandlerAddressThisChain`, `AR/AssetRouterBase.sol:65-77` | both | handler := `h` and tracker := caller, at an id hashed from the caller | the vault, or the id's recorded tracker (:73) |
+| `finalize` | `_finalizeDeposit`'s `else` branch, `AR/AssetRouterBase.sol:277-282` | both | handler := vault, at the deposit's id, only if unset | whoever may call `finalizeDeposit` (below) |
+| `seed` | L1 `setNativeTokenVault`, `AR/L1AssetRouter.sol:116-121` (write :120); L2 `initL2`, `AR/L2AssetRouter.sol:154-163` (write :162) | both | handler := vault, at `ETH_TOKEN_ASSET_ID` (L1) / `_baseTokenAssetId` (L2) | L1 owner; L2 complex upgrader |
+| `counterpartSet` | `setAssetHandlerAddress`, `AR/L2AssetRouter.sol:198-204` | L2 | handler := any `h` (zero included), at any id | the aliased L1 asset router (`onlyAssetRouterCounterpart`, :96-107) |
+| `setTracker` | `setAssetDeploymentTracker`, `AR/L1AssetRouter.sol:135-142` | L1 | tracker := `t`, at `encodeAssetId(block.chainid, d, t)` | owner |
 
 The quoted bodies:
 
-    // AR/AssetRouterBase.sol:281-291                     (_finalizeDeposit)
+    // AR/AssetRouterBase.sol:273-282                     (_finalizeDeposit)
     address assetHandler = assetHandlerAddress[_assetId];
     if (assetHandler != address(0)) {
         IAssetHandler(assetHandler).bridgeMint{value: msg.value}(_sourceChainId, _assetId, _transferData);
@@ -44,13 +44,13 @@ The quoted bodies:
         ... IAssetHandler(_nativeTokenVault).bridgeMint{value: msg.value}(_sourceChainId, _assetId, _transferData);
     }
 
-    // AR/L2AssetRouter.sol:200-206
+    // AR/L2AssetRouter.sol:198-204
     function setAssetHandlerAddress(uint256 _sourceChainId, bytes32 _assetId, address _assetHandlerAddress)
         external override onlyAssetRouterCounterpart(_sourceChainId) {
         _setAssetHandler(_assetId, _assetHandlerAddress);
     }
 
-    // AR/L1AssetRouter.sol:159-166
+    // AR/L1AssetRouter.sol:135-142
     function setAssetDeploymentTracker(bytes32 _assetRegistrationData, address _assetDeploymentTracker)
         external onlyOwner {
         bytes32 assetId = DataEncoding.encodeAssetId(block.chainid, _assetRegistrationData, _assetDeploymentTracker);
@@ -58,7 +58,7 @@ The quoted bodies:
         ...
     }
 
-    // AR/L1AssetRouter.sol:144 and AR/L2AssetRouter.sol:167
+    // AR/L1AssetRouter.sol:120 and AR/L2AssetRouter.sol:162
     _setAssetHandler(ETH_TOKEN_ASSET_ID, address(_nativeTokenVault));
     _setAssetHandler(_baseTokenAssetId, L2_NATIVE_TOKEN_VAULT_ADDR);
 
@@ -67,18 +67,21 @@ Only `register` writes the tracker alongside the handler.  `finalize`, `seed` an
 them a live route can have tracker zero.  `finalize` is the common case: the first
 deposit of every token the destination has not seen takes it.
 
-`_burn` (`AR/AssetRouterBase.sol:313-346`) is not a writer: when the handler is unset it
-calls the vault's `tryRegisterTokenFromBurnData`, which registers through
-`setAssetHandlerAddressThisChain` with the vault as caller (`NTV/NativeTokenVaultBase.sol:515-522`),
-which is a `register` step.  The comment at `AR/AssetRouterBase.sol:332-333` says so.
+`_burn` (`AR/AssetRouterBase.sol:303-331`) is not a writer: when the handler is unset it
+calls the vault's `tryRegisterTokenFromBurnData` (`NTV/NativeTokenVaultBase.sol:321-335`), which
+registers through `_registerToken` and `_unsafeRegisterNativeToken`, that is through
+`setAssetHandlerAddressThisChain` with the vault as caller (`NTV/NativeTokenVaultBase.sol:492-499`),
+which is a `register` step.  The comment at `AR/AssetRouterBase.sol:319` says so.
 
 ## Who reaches `_finalizeDeposit`
 
-`L2AssetRouter.finalizeDeposit` (`AR/L2AssetRouter.sol:265-274`) admits the aliased L1
-asset router or the router itself (the interop self-call from `receiveMessage`,
-`AR/AssetRouterBase.sol:215-256`), and rejects `BASE_TOKEN_ASSET_ID` (:270).
-`L1AssetRouter.finalizeDeposit` (`AR/L1AssetRouter.sol:288-295`) admits only the
-self-call.  The model does not track callers for `finalize`: the fallback's write does
+`L2AssetRouter.finalizeDeposit` (`AR/L2AssetRouter.sol:253-262`) admits the aliased L1
+asset router or the router itself (`onlyAssetRouterCounterpartOrSelf`, :111-126; the interop
+self-call from `receiveMessage`, `AR/AssetRouterBase.sol:213-251`), and rejects
+`BASE_TOKEN_ASSET_ID` (:258).  `L1AssetRouter.finalizeDeposit` (`AR/L1AssetRouter.sol:291-299`)
+admits only the self-call, and first runs the v35 handler gate `_checkAssetHandlerAllowed`
+(:276-288), which lets an unset handler through, so it never stops the fallback; it can only
+remove runs (`HandlerGateAtV35` models it).  The model does not track callers for `finalize`: the fallback's write does
 not depend on who called, and admitting every caller only adds runs.  The L2
 base-token check is kept, as `finalize`'s side condition.
 
@@ -89,17 +92,19 @@ whole call reverts (`VM-REVERT`), which the model represents as the absence of a
 `Cfg.ntvMints` is the set of ids for which that `bridgeMint` can succeed, in some vault
 state.  The property file assumes (as `MintsOnlyNtvIds`) that every such id is a vault
 id, `encodeNTVAssetId(c, t) = encodeAssetId(c, t, L2_NATIVE_TOKEN_VAULT_ADDR)`
-(`common/libraries/DataEncoding.sol:126-128, 151-153`).  The reason, at the pin:
+(`common/libraries/DataEncoding.sol:125-127, 150-152`).  The reason:
 
-* `bridgeMint` → `_bridgeMintToken` (`NTV/NativeTokenVaultBase.sol:193-205, 240-267`).  An id
+* `bridgeMint` → `_bridgeMintToken` (`NTV/NativeTokenVaultBase.sol:180-189, 220-247`).  An id
   the vault has not seen has `originChainId = 0 ≠ block.chainid` and `tokenAddress = 0`,
-  so it takes `_ensureAndSaveTokenDeployed` (:253-255), whose `assetIdCheck` (:580;
-  `DataEncoding.sol:208-214`) reverts unless the id is `encodeNTVAssetId(origin, originToken)`.
-* An id the vault has seen was written by `_setNewTokenStorage` (:588-598), from
-  `_unsafeRegisterNativeToken` (id `encodeNTVAssetId(block.chainid, token)`, :516) or from
-  `_ensureAndSaveTokenDeployedInner` (checked at :580).  The one other registry write,
-  `L2NativeTokenVault.updateL2`'s base-token entry (`NTV/L2NativeTokenVault.sol:170-172`),
-  is unchecked, but `L2AssetRouter.finalizeDeposit` rejects that id (:270).  This is the
+  so it takes `_ensureAndSaveTokenDeployed` (:233-235), whose `assetIdCheck` (:557;
+  `DataEncoding.sol:207-213`) reverts unless the id is `encodeNTVAssetId(origin, originToken)`.
+* An id the vault has seen was written by `_setNewTokenStorage` (:565-575), from
+  `_unsafeRegisterNativeToken` (id `encodeNTVAssetId(block.chainid, token)`, :493) or from
+  `_ensureAndSaveTokenDeployedInner` (checked at :557).  The one other registry write,
+  `L2NativeTokenVault.updateL2`'s base-token entry (`NTV/L2NativeTokenVault.sol:165-167`),
+  is unchecked, but `L2AssetRouter.finalizeDeposit` rejects that id (:258), given that the
+  router's and the vault's `BASE_TOKEN_ASSET_ID` slots hold the same value (both written by
+  the upgrader's `updateL2`; `OPS-CONFIG`).  This is the
   `idShape` field of `Contracts.NativeTokenVault.Valid` (`Specs/RegistryAndEscrow.lean`).
   The `VaultMintGate` topic proves that field along every vault run with no hash premise,
   and derives `MintsOnlyNtvIds` from it.
@@ -111,20 +116,21 @@ vault calls the router only from registration, which is a separate `register` st
 
 * **The counterpart is trusted.**  On L2, `setAssetHandlerAddress` can point any id at
   any handler.  Its only check on L2 is the caller.  On L1 the message is built by
-  `_setAssetHandlerAddressOnCounterpart` (`AR/L1AssetRouter.sol:182-206`), which asks the
-  id's L1 tracker to approve (:188-193; the vault approves only
-  `L2_NATIVE_TOKEN_VAULT_ADDR`, `NTV/L1NativeTokenVault.sol:146-153`).  This model's L2
+  `_setAssetHandlerAddressOnCounterpart` (`AR/L1AssetRouter.sol:158-183`), which asks the
+  id's L1 tracker to approve (:164-170; the vault approves only
+  `L2_NATIVE_TOKEN_VAULT_ADDR`, `NTV/L1NativeTokenVault.sol:313-320`).  This model's L2
   step does not see that check.  The `CounterpartGate` topic models it and narrows the
   exception to ids that are not vault triples' ids.
 * **The seeded id.**  On L1 it is `ETH_TOKEN_ASSET_ID = encodeNTVAssetId(block.chainid,
-  ETH_TOKEN_ADDRESS)` (`AR/L1AssetRouter.sol:125`), a vault id by construction.  On L2 it
+  ETH_TOKEN_ADDRESS)` (`AR/L1AssetRouter.sol:101`), a vault id by construction.  On L2 it
   is the upgrader's `_baseTokenAssetId`; that it is a vault id is a premise on the
   upgrade's input (`OPS-CONFIG`).
-* **One-shot initializers are repeatable here.**  `seed` may fire any number of times.
-  That only adds runs.
+* **One-shot initializers are repeatable here.**  `seed` may fire any number of times
+  (`setNativeTokenVault` requires an unset vault, `AR/L1AssetRouter.sol:117`; `initL2` is an
+  initializer).  That only adds runs.
 * **The vault address is fixed.**  On L2 it is the constant `L2_NATIVE_TOKEN_VAULT_ADDR`,
   so `ntv = ntvAddr`.  On L1, `nativeTokenVault` is zero until `setNativeTokenVault`
-  sets it once (:141-143).  Before that the L1 router is this model with `ntv = 0`
+  sets it once (:117-119).  Before that the L1 router is this model with `ntv = 0`
   (`senderIsNTV` is then always false, and `bridgeMint` on address zero reverts).
   `WeakValid` at `ntv = 0` implies `WeakValid` at any vault address
   (`Contracts.AssetRouter.AllWriters.Properties.WeakValidAtZeroVault`), so the invariant
@@ -157,17 +163,17 @@ structure Cfg where
   /-- `block.chainid`. -/
   thisChain : Chain
   /-- The router's native token vault: the constant `L2_NATIVE_TOKEN_VAULT_ADDR` on L2
-  (`_nativeTokenVaultAddr`, `AR/L2AssetRouter.sol:72-74`), the stored `nativeTokenVault`
+  (`_getNativeTokenVaultAddr`, `AR/L2AssetRouter.sol:79-81`), the stored `nativeTokenVault`
   on L1 (`AR/L1AssetRouter.sol:59`). -/
   ntv : Address
   /-- `L2_NATIVE_TOKEN_VAULT_ADDR`, the sender every vault id is hashed from
-  (`common/l2-helpers/L2ContractAddresses.sol:99`, `0x10004`). -/
+  (`common/l2-helpers/L2ContractAddresses.sol:89`, `0x10004`). -/
   ntvAddr : Address
   /-- Which router this is. -/
   side : Side
   /-- The id the initializer points at the vault: `ETH_TOKEN_ASSET_ID` on L1
-  (`AR/L1AssetRouter.sol:125`), `_baseTokenAssetId` on L2, which `updateL2` also stores
-  as `BASE_TOKEN_ASSET_ID` (`AR/L2AssetRouter.sol:167, 189`). -/
+  (`AR/L1AssetRouter.sol:101`), `_baseTokenAssetId` on L2, which `updateL2` also stores
+  as `BASE_TOKEN_ASSET_ID` (`AR/L2AssetRouter.sol:162, 182`). -/
   seedId : AssetId
   /-- The ids for which the vault's `bridgeMint`, called from the fallback, can succeed
   in some vault state.  See the header for why the properties may assume these are
@@ -189,12 +195,12 @@ inductive Op where
   /-- `L1AssetRouter.setAssetDeploymentTracker(d, t)` by the owner. -/
   | setTracker (d : AssetData) (t : Address)
 
-/-- `_setAssetHandler(a, h)` alone (`AR/AssetRouterBase.sol:298-301`): the handler moves,
+/-- `_setAssetHandler(a, h)` alone (`AR/AssetRouterBase.sol:289-292`): the handler moves,
 the tracker does not. -/
 def pointAt (R : Router) (a : AssetId) (h : Address) : Router :=
   { R with handler := upd R.handler a h }
 
-/-- `setAssetDeploymentTracker(d, t)`'s write (`AR/L1AssetRouter.sol:163-164`): the
+/-- `setAssetDeploymentTracker(d, t)`'s write (`AR/L1AssetRouter.sol:139-140`): the
 tracker of the id hashed from `t` itself becomes `t`.  No zero check on `t`. -/
 def recordTracker (K : Cfg) (R : Router) (d : AssetData) (t : Address) : Router :=
   { R with tracker := upd R.tracker (K.enc K.thisChain t d) t }
@@ -205,8 +211,8 @@ inductive AStep (K : Cfg) : Op → Router → Router → Prop
   | register {R : Router} {caller : Address} {d : AssetData} {h : Address} :
       SetGuard K.enc K.thisChain K.ntv K.ntvAddr R caller d →
       AStep K (.register caller d h) R (setHandler K.enc K.thisChain K.ntv K.ntvAddr R caller d h)
-  /-- The fallback: the handler was unset (:283), the vault's `bridgeMint` succeeded,
-  and on L2 the id is not the base token (`AR/L2AssetRouter.sol:270`). -/
+  /-- The fallback: the handler was unset (:275), the vault's `bridgeMint` succeeded,
+  and on L2 the id is not the base token (`AR/L2AssetRouter.sol:258`). -/
   | finalize {R : Router} {a : AssetId} :
       R.handler a = 0 → K.ntvMints a → (K.side = .l2 → a ≠ K.seedId) →
       AStep K (.finalize a) R (pointAt R a K.ntv)
@@ -229,7 +235,7 @@ inductive ARun (K : Cfg) : Router → List Op → Router → Prop
 
 /-- `a` is a vault id: `encodeNTVAssetId(c, d) = encodeAssetId(c, d,
 L2_NATIVE_TOKEN_VAULT_ADDR)` for some chain `c` and token `d`
-(`common/libraries/DataEncoding.sol:126-128, 151-153`).  The chain is the token's
+(`common/libraries/DataEncoding.sol:125-127, 150-152`).  The chain is the token's
 origin chain, not necessarily this one.
 
 This is existential.  For a keccak-like encoding over full 256-bit words, nearly every

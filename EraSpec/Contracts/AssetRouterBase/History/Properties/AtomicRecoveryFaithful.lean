@@ -4,6 +4,11 @@ import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 /-!
 # Properties: the router-produced call by destination, and the stranded L2→L1 atomic leg
 
+**History.**  This topic is the record of the pin `c67894b9`, not a claim about `b17415d20`.  At
+`b17415d20` an atomic bundle to L1 is rejected at send (`interop/InteropCenter.sol:552-553`) and
+`L2AssetRouter.recoverAtomicCall` rejects an L1 destination (`bridge/asset-router/L2AssetRouter.sol:275`).
+Line numbers below are the pin's.
+
 Statements about `EraSpec.Contracts.AssetRouterBase.History.Specs.AtomicRecoveryFaithful`.  Proofs are in
 `EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecoveryFaithful`.
 

@@ -3,6 +3,11 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
 /-!
 # Model: an atomic refund while the source vault is paused
 
+**History.**  This topic is the record of the pin `c67894b9`, not a claim about `b17415d20`: it is
+stated on the pin's refund loop (`AtomicRecovery`'s `c67894b9` record).  At `b17415d20` the refund
+is `AtomicRecoveryAtHead`'s; the vault's refund still starts with `whenNotPaused`
+(`bridge/ntv/NativeTokenVaultBase.sol:199`).  Line numbers below are the pin's.
+
 Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`
 (`contracts/` below is `l1-contracts/contracts/`).
 

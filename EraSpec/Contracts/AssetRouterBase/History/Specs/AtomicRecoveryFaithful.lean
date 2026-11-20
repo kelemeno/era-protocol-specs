@@ -3,6 +3,11 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
 /-!
 # Model: the router-produced bundle call's target depends on its destination
 
+**History.**  This topic is the record of the pin `c67894b9`, not a claim about `b17415d20`.  At
+`b17415d20` an atomic bundle to L1 is rejected at send (`interop/InteropCenter.sol:552-553`) and
+`L2AssetRouter.recoverAtomicCall` rejects an L1 destination (`bridge/asset-router/L2AssetRouter.sol:275`).
+Line numbers below are the pin's.
+
 Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (`contracts/` below is
 `l1-contracts/contracts/`).  One check is read from another tree, `e561b9cc2`, the snapshot of
 `feat/upgrade-simplification` that this repository's upgrade models pin.  That tree is not a

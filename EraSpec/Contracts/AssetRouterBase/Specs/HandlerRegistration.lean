@@ -4,6 +4,10 @@ import EraSpec.Core.Word
 /-!
 # Model: `AssetRouter` — who may point an asset at a handler
 
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`l1-contracts/contracts/bridge/asset-router/AssetRouterBase.sol:65-77`; the body quoted below is
+`:70-75`).
+
 The asset router is the routing table of the bridge: `assetHandlerAddress[assetId]`
 is where funds for an asset are locked, and `_burn` / `_finalizeDeposit` send every
 transfer to whatever that mapping says.  So the question worth settling is who can
@@ -15,8 +19,8 @@ write it.
 
 ## The mechanism
 
-`_setAssetHandlerAddressThisChain` is the writer modelled here (others exist at the pin and are
-not modelled; see this folder's README), and its shape is unusual —
+`_setAssetHandlerAddressThisChain` is the writer modelled here (the router's other writers are in
+`AllWriters`), and its shape is unusual —
 the caller is folded into the *key*:
 
     bool senderIsNTV = msg.sender == _nativeTokenVault;
