@@ -6,8 +6,8 @@ import EraSpec.Contracts.AtomicFlowManager.Specs.Model
 
 Definitions for `EraSpec.Contracts.AtomicFlowManager.Properties.ModelStrong`; the proofs are in
 `EraSpec.Contracts.AtomicFlowManager.Proofs.ModelStrong`.  Source:
-`contracts/atomic-interop/AtomicFlowManager.sol` at era-contracts
-`c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (`l1-contracts/`).
+`contracts/atomic-interop/AtomicFlowManager.sol` at era-contracts `draft/v0.35.0`
+`b17415d20` (`l1-contracts/`).
 
 ## Why this file exists
 
@@ -23,16 +23,17 @@ claims need, without changing the machine.
   `Reach M N ↔ ∃ es, LegRun M es N`, so a trace only keeps what `Reach` forgets.
 
 * **Reentrant claims.**  `NestedRun` runs manager calls one after another.  During each `claimRefund`, the
-  bundle's recovery calls (`_recoverBundle`, `:219-230`) may call back into the manager, to any depth.  The order
+  bundle's recovery calls (`_recoverBundle`, `:292-325`) may call back into the manager, to any depth.  The order
   of `claimRefund`'s write relative to those calls is a parameter.  `writeFirst` is the deployed code: the write at
-  `:175` comes before `_recoverBundle` at `:177`.  `writeAfter` is the counterfactual that the source comment at
-  `:171-174` rules out.
+  `:260` comes before `_recoverBundle` at `:262`.  `writeAfter` is the counterfactual that the source comment at
+  `:258-259` rules out.
 
 As everywhere in this folder, only successful calls are modelled.  A call that reverts leaves no trace.  A
 reverting outer call takes its callback down with it, so such an execution is simply absent.  Whether
-`_recoverBundle` recovers at least one call (`:229`) is not modelled here.  Any claim may complete, which allows
-more executions than the source does.  That is the safe direction for an upper bound on payouts.  The
-counterfactual executions below need only claims that complete, which a bundle with one recovering call achieves.
+`_recoverBundle` reverts (an L1 destination, `:299`, or a reverting router or base-token refund, `:312-323`) is
+not modelled here.  Any claim may complete, which allows more executions than the source does.  That is the safe
+direction for an upper bound on payouts.  The counterfactual executions below need only claims that complete,
+which a bundle to an L2 destination with no call that reverts achieves.
 -/
 
 namespace Contracts.AtomicFlowManager.ModelStrong
@@ -40,8 +41,8 @@ namespace Contracts.AtomicFlowManager.ModelStrong
 
 /-! ## Traces -/
 
-/-- The three operations that write `_state`: `append` (`:95`), one leg of `authorizeRefund`'s loop (`:159`), and
-`claimRefund` (`:175`). -/
+/-- The three operations that write `_state`: `append` (`:166`), one leg of `authorizeRefund`'s loop (`:244`), and
+`claimRefund` (`:260`). -/
 inductive LegOp
   | append
   | authorize
@@ -49,14 +50,14 @@ inductive LegOp
 deriving DecidableEq, Repr
 
 
-/-- The state an operation requires of its leg: its guard (`:93`, `:158`, `:170`). -/
+/-- The state an operation requires of its leg: its guard (`:162-164`, `:241-243`, `:254-257`). -/
 def LegOp.needs : LegOp → LegState
   | .append => .Unset
   | .authorize => .Committed
   | .claim => .Revertable
 
 
-/-- The state an operation writes to its leg (`:95`, `:159`, `:175`). -/
+/-- The state an operation writes to its leg (`:166`, `:244`, `:260`). -/
 def LegOp.writes : LegOp → LegState
   | .append => .Committed
   | .authorize => .Revertable
@@ -136,10 +137,10 @@ def witness₄ : Manager := witness₃.set 0 0 .Reverted
 
 /-- Where `claimRefund` writes the leg's new state, relative to `_recoverBundle`'s external calls. -/
 inductive ClaimOrder
-  /-- The deployed order: `_state[_flowId][bundleHash] = LegState.Reverted` (`:175`), then
-  `_recoverBundle` (`:177`). -/
+  /-- The deployed order: `_state[_flowId][bundleHash] = LegState.Reverted` (`:260`), then
+  `_recoverBundle` (`:262`). -/
   | writeFirst
-  /-- The order the source comment at `:171-174` rules out: `_recoverBundle` first, then the write. -/
+  /-- The order the source comment at `:258-259` rules out: `_recoverBundle` first, then the write. -/
   | writeAfter
 deriving DecidableEq, Repr
 
@@ -152,11 +153,12 @@ abbrev LegKey := UInt256 × UInt256
 ordered as `o`.  `log` lists the legs whose `claimRefund` completed, one entry per completed claim (so one per
 payout), in the order the claims completed.
 
-`append` (`:87-102`) and `authorizeRefund` (`:134-162`, one leg at a time as in `Step`) make no call that can
-re-enter the manager and write state.  `append`'s only external call is the commitment tree's `insert`, a
-system contract.  `authorizeRefund`'s proof checks (`libraries/AtomicInteropProof.sol`) are `view`, so their
-calls to the system's root storage and message verifier cannot write.  `claimRefund` (`:165-180`) does make such
-calls.  Its `callback` is whatever nested
+`append` (`:104-173`) and `authorizeRefund` (`:216-247`, one leg at a time as in `Step`) make no call that can
+re-enter the manager and write state.  Before its write `append` makes only `view` calls (the root storage,
+`:120-122`; the bridgehub, `:157`); after it, its only external call is the commitment tree's `insert`
+(`:170`), a system contract.  `authorizeRefund`'s checks (`_checkLegSourceAllowed`, `:338-344`, and
+`libraries/AtomicInteropProof.sol`) are `view`, so their calls cannot write.  `claimRefund` (`:250-265`) does
+make such calls.  Its `callback` is whatever nested
 sequence of manager calls the bundle's targets make during `_recoverBundle`, itself a `NestedRun`.  `rest` is what
 runs after the claim returns. -/
 inductive NestedRun (o : ClaimOrder) : Manager → List LegKey → Manager → Prop

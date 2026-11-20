@@ -1,4 +1,4 @@
-import EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimitsStrong
+import EraSpec.Contracts.AtomicFlowManager.History.Properties.RecoveryLimitsStrong
 import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
@@ -7,7 +7,7 @@ import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
 /-!
 # Proofs: recovery limits, on the manager's runs and across retries
 
-Proofs of `EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimitsStrong`.
+Proofs of `EraSpec.Contracts.AtomicFlowManager.History.Properties.RecoveryLimitsStrong`.
 
 Limit 1 has two parts.  A successful `claimRefund` came through the `Revertable` branch and returned `Reverted`
 (`claimRefund_some`).  `AtomicRecovery.claimSucceedsIffAccepted` turns that success into `ClaimAccepted` of the
@@ -16,7 +16,7 @@ threaded outcomes.  Terminality is `reverted_absorbing`, plus the guard at the t
 travels along the run, and the retry system carries it, together with the leg's `Revertable`, as one invariant.
 -/
 
-namespace Contracts.AtomicFlowManager.RecoveryLimitsStrong
+namespace Contracts.AtomicFlowManager.RecoveryLimitsStrong.History
 
 open Contracts.AssetRouter.AtomicRecovery
   (World Call CallData claimRefund recoverBundle outcomes recoverBundle_eq_none_of_blocking
@@ -284,4 +284,4 @@ theorem blocked_retry_witness : Properties.blocked_retry_witness := by
     exact absurd this (by decide)
 
 
-end Contracts.AtomicFlowManager.RecoveryLimitsStrong
+end Contracts.AtomicFlowManager.RecoveryLimitsStrong.History

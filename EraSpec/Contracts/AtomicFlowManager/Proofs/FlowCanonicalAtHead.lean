@@ -2,10 +2,10 @@ import EraSpec.Contracts.AtomicFlowManager.Properties.FlowCanonicalAtHead
 import EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonical
 
 /-!
-# Proofs: what `_validateAndComputeFlowId` accepts, at head (`3605e82`)
+# Proofs: what `_validateAndComputeFlowId` accepts, at `b17415d20`
 
 `validate_eq_some_iff` unfolds the four `if`s once; everything else reads off it, or off
-the pin's `AttackVectors.FlowCanonical` theorems about `Valid`. The countermodels and the
+the `AttackVectors.FlowCanonical` theorems about `Valid`. The countermodels and the
 witness are closed by `decide` on concrete preimages.
 -/
 
@@ -79,7 +79,7 @@ theorem checkFlowId_of_accepted (enc : PreimageHash) {P : FlowPreimage} (hP : Pr
 
 /-! ## `Valid`, necessary and sufficient -/
 
-/-- An accepted preimage is the pin's `Valid`. -/
+/-- An accepted preimage passes `Valid`. -/
 theorem PreimageAccepted.valid {P : FlowPreimage} (hP : PreimageAccepted P) : Valid P.arrays :=
   ⟨hP.sorted, hP.lengths⟩
 
@@ -278,5 +278,26 @@ theorem FlowCanonicalAtHeadWitness : Properties.FlowCanonicalAtHeadWitness := by
     checkFlowId_of_accepted (fun _ => 0) twoLegPreimage_accepted,
     checkFlowId_of_accepted (fun _ => 0) twoLegPreimageLater_accepted,
     ⟨by decide, rfl⟩, by decide, ⟨by decide, rfl⟩⟩
+
+/-! ## The refinement onto `Contracts.FlowCanonicalAtV35` -/
+
+theorem ToV35Bijective : Properties.ToV35Bijective :=
+  ⟨fun P => by cases P; rfl, fun p => by cases p; rfl⟩
+
+theorem ValidateAgreesWithV35 : Properties.ValidateAgreesWithV35 := by
+  intro enc P
+  cases P
+  rfl
+
+theorem CheckFlowIdAgreesWithV35 : Properties.CheckFlowIdAgreesWithV35 := by
+  intro enc F
+  unfold CheckFlowId Contracts.FlowCanonicalAtV35.CheckFlowIdV35
+  rw [ValidateAgreesWithV35]
+  rfl
+
+theorem AcceptedIffAcceptedV35 : Properties.AcceptedIffAcceptedV35 := by
+  intro P
+  cases P
+  exact ⟨fun ⟨a, b, c, d⟩ => ⟨a, b, c, d⟩, fun ⟨a, b, c, d⟩ => ⟨a, b, c, d⟩⟩
 
 end Contracts.FlowCanonicalAtHead

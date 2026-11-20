@@ -9,9 +9,9 @@ Statements about `EraSpec.Contracts.AtomicFlowManager.Specs.FlowCanonicalAtV35` 
 premise: the results hold for every hash `enc`, and each witness names its hash.
 
 * **Acceptance.** `AcceptedV35Iff` is the exact acceptance condition: version byte `0x01`, at most
-  eight legs, and the pin's `Valid`. `ValidateV35SomeIff` and `CheckFlowIdV35Iff` tie the
-  transcription of `AtomicFlowManager.sol:348-379` to it. The pin's `Valid` is still necessary
-  (`AcceptedV35ImpliesValid`), so the pin's results of the form `Valid f → …` apply to every
+  eight legs, and `Valid`. `ValidateV35SomeIff` and `CheckFlowIdV35Iff` tie the
+  transcription of `AtomicFlowManager.sol:348-379` to it. `Valid` is still necessary
+  (`AcceptedV35ImpliesValid`), so `FlowCanonical`.s results of the form `Valid f → …` apply to every
   preimage v35 accepts; three are restated over `AcceptedV35` (`AcceptedV35NoDuplicateLeg`,
   `AcceptedV35UniquePerLegSet`, `AcceptedV35PairingFunctional`). It is no longer sufficient
   (`ValidNotSufficientVersionV35`, `ValidNotSufficientLegCapV35`).
@@ -19,7 +19,7 @@ premise: the results hold for every hash `enc`, and each witness names its hash.
   (`TooManyLegsRejectedV35`), and so make the transcribed `append`, `requireFlowFinalized` and
   `authorizeRefund` revert from every state (`TooManyLegsRevertsEveryEntryPointV35`).
 * **The leg writes** (`runV35`; model boundary `MODEL-AFM-V35`). `AppendV35SomeIff` says exactly
-  when the transcribed `append` succeeds and what it writes. Every run is a run of the pin's leg
+  when the transcribed `append` succeeds and what it writes. Every run is a run of the `Model` leg
   machine (`RunV35IsPinLegRun`), so legs only move forward (`RunV35LegRankMonotone`); a run
   claims each leg at most once and appends each leg at most once
   (`RunV35ClaimsEachLegAtMostOnce`, `RunV35AppendsEachLegAtMostOnce`).
@@ -56,27 +56,27 @@ open Contracts.AtomicFlowManager (Manager LegState)
 
 /-- **THE EXACT ACCEPTANCE CONDITION.** A preimage passes the four checks of
 `_validateAndComputeFlowId` (`AtomicFlowManager.sol:360-377`) if and only if its version byte is
-`0x01`, it has at most eight legs, and it is the pin's `Valid` (strictly ascending bundle hashes,
+`0x01`, it has at most eight legs, and it is `Valid` (strictly ascending bundle hashes,
 as many source chains as legs). -/
 def Properties.AcceptedV35Iff : Prop :=
   ∀ p : PreimageV35, AcceptedV35 p ↔
     p.version = ATOMIC_FLOW_PREIMAGE_VERSION_V35
       ∧ p.legBundleHashes.length ≤ MAX_ATOMIC_FLOW_LEGS_V35 ∧ Valid p.arrays
 
-/-- **`Valid` IS STILL NECESSARY.** Every preimage v35 accepts passes the pin's two checks
+/-- **`Valid` IS STILL NECESSARY.** Every preimage v35 accepts passes the sort and length checks
 (`AtomicFlowManager.sol:370-377`). -/
 def Properties.AcceptedV35ImpliesValid : Prop :=
   ∀ p : PreimageV35, AcceptedV35 p → Valid p.arrays
 
 /-- **`Valid` IS NOT SUFFICIENT: THE VERSION BYTE.** Some preimage with at most eight legs passes
-the pin's checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for every hash
+the sort and length checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for every hash
 (`:361-363`). -/
 def Properties.ValidNotSufficientVersionV35 : Prop :=
   ∃ p : PreimageV35, Valid p.arrays ∧ p.legBundleHashes.length ≤ MAX_ATOMIC_FLOW_LEGS_V35
     ∧ ¬ AcceptedV35 p ∧ ∀ enc : PreimageHashV35, validateV35 enc p = none
 
 /-- **`Valid` IS NOT SUFFICIENT: THE LEG CAP.** Some preimage with version byte `0x01` and nine
-legs passes the pin's checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for
+legs passes the sort and length checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for
 every hash (`:367-369`). -/
 def Properties.ValidNotSufficientLegCapV35 : Prop :=
   ∃ p : PreimageV35, Valid p.arrays ∧ p.version = ATOMIC_FLOW_PREIMAGE_VERSION_V35
@@ -115,7 +115,7 @@ def Properties.TooManyLegsRevertsEveryEntryPointV35 : Prop :=
         stepV35 enc chainId M (.requireFinalized e ⟨id, p⟩) = none ∧
         stepV35 enc chainId M (.authorizeRefund ⟨id, p⟩ k) = none
 
-/-! ## The pin's canonicity results, over v35's acceptance -/
+/-! ## The `FlowCanonical` canonicity results, over v35's acceptance -/
 
 /-- **NO DUPLICATED LEG.** Distinct positions of an accepted preimage carry distinct bundle
 hashes: the neighbour scan (`:370-374`) lifts to all pairs. -/
@@ -150,8 +150,8 @@ def Properties.AppendV35SomeIff : Prop :=
         M.legState (enc p) h = .Unset ∧ M' = M.set (enc p) h .Committed
 
 /-- **EVERY RUN IS A RUN OF THE PIN'S LEG MACHINE.** For every hash, chain, starting state `M₀`
-and successful run ending in `M`, `M` is reachable from `M₀` in the pin's
-`Contracts.AtomicFlowManager.Reach`. So every result of the pin's `Model` topic that takes a
+and successful run ending in `M`, `M` is reachable from `M₀` in
+`Contracts.AtomicFlowManager.Reach`. So every result of the `Model` topic that takes a
 `Reach` premise (`reach_rank_mono`, `reverted_absorbing`, `no_double_claim`,
 `no_double_append`) applies to every run here, with the run's start and end states as the two
 ends of that `Reach`. -/
@@ -161,7 +161,7 @@ def Properties.RunV35IsPinLegRun : Prop :=
 
 /-- **NO LEG MOVES BACKWARD IN A RUN.** For every hash, chain, starting state `M₀` and successful
 run ending in `M`, every leg's rank (`Unset` 0, `Committed` 1, `Revertable` 2, `Reverted` 3) in
-`M` is at least its rank in `M₀` (the pin's `reach_rank_mono`, through `RunV35IsPinLegRun`). -/
+`M` is at least its rank in `M₀` (`Model`.s `reach_rank_mono`, through `RunV35IsPinLegRun`). -/
 def Properties.RunV35LegRankMonotone : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35),
     runV35 enc chainId M₀ calls = some M → ∀ id h : UInt256,

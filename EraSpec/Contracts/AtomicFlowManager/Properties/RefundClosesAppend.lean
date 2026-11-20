@@ -14,7 +14,7 @@ takes a hash premise; the countermodels and the witness each exhibit one configu
 
 ## Runs
 
-A run is its calls run in order (`ChainRunIffRunCalls`), and its leg map moves as the pinned
+A run is its calls run in order (`ChainRunIffRunCalls`), and its leg map moves as the
 abstract manager `Contracts.AtomicFlowManager.Reach` (`ChainRunLegsReach`), so that machine's
 results apply to the leg map of every run here.
 
@@ -87,7 +87,7 @@ def Properties.ChainRunIffRunCalls : Prop :=
     ChainRun P K S cs S' ↔ runCalls P K S cs = some S'
 
 /-- **THE LEG MAP MOVES AS THE ABSTRACT MANAGER.**  For any checks, the leg map at the end of a
-run is reachable from the one at its start in `Contracts.AtomicFlowManager.Reach` (the pinned
+run is reachable from the one at its start in `Contracts.AtomicFlowManager.Reach` (the
 lifecycle machine of `Specs/Model.lean`): each `append` is one `append` step, each
 `authorizeRefund` one `authorize` step per leg it marks, each `claimRefund` one `claim` step, and
 the other calls leave the leg map alone. -/

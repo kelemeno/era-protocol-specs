@@ -6,8 +6,14 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
 /-!
 # Contract spec: `AtomicFlowManager` recovery limits, on the manager's own state and across retries
 
-Definitions for `EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimitsStrong`; the proofs are in
-`EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimitsStrong`.  Source:
+**History.** This topic is the record of the loop at era-contracts `c67894b9`, which calls
+`recoverAtomicCall` on every call's `to` and reverts unless one call recovers. It is not a claim
+about `draft/v0.35.0` `b17415d20`, whose `_recoverBundle` (`AtomicFlowManager.sol:292-325`) calls
+only the asset router, discards its answer and counts nothing. The current model of that loop is
+`Contracts.AtomicFlowManager.RecoveryLimitsFaithful` (`claimRefundV35`).
+
+Definitions for `EraSpec.Contracts.AtomicFlowManager.History.Properties.RecoveryLimitsStrong`; the proofs are in
+`EraSpec.Contracts.AtomicFlowManager.History.Proofs.RecoveryLimitsStrong`.  Source:
 `contracts/atomic-interop/AtomicFlowManager.sol` at era-contracts
 `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (`l1-contracts/`), `claimRefund` (`:165-180`) and
 `_recoverBundle` (`:219-230`).
@@ -31,7 +37,7 @@ definitions, adding no second model of the loop, and adds:
   moves other legs, and the leg itself can be claimed only through `legClaimRefund` with its own bundle.
 -/
 
-namespace Contracts.AtomicFlowManager.RecoveryLimitsStrong
+namespace Contracts.AtomicFlowManager.RecoveryLimitsStrong.History
 
 open Contracts.AssetRouter.AtomicRecovery (World Call claimRefund)
 
@@ -87,4 +93,4 @@ inductive RetryStep (step : World X → Call → Option (World X × Bool)) (Env 
       RetryStep step Env f b calls (M, w) (M', w')
 
 
-end Contracts.AtomicFlowManager.RecoveryLimitsStrong
+end Contracts.AtomicFlowManager.RecoveryLimitsStrong.History

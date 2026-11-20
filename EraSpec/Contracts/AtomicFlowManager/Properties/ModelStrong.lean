@@ -175,7 +175,7 @@ abbrev Properties.reach_nestedRun (o : ClaimOrder) {M N : Manager} (h : Reach M 
 /-- **(i) UNDER THE DEPLOYED ORDER, A CLAIM'S CALLBACK CANNOT CLAIM THE SAME LEG.**  Take `claimRefund(f, b)` on a
 claimable leg.  Its callback runs from the state the claim wrote.  Nothing the callback does, nested to any depth,
 completes a claim of `(f, b)`, and the leg is still `Reverted` when the callback returns.  This is the formal
-content of the comment at `AtomicFlowManager.sol:171-174`. -/
+content of the comment at `AtomicFlowManager.sol:258-259` (`b17415d20`). -/
 abbrev Properties.writeFirst_callback_never_reclaims {M N₁ : Manager} {f b : UInt256}
     {callback : List LegKey} (hg : ClaimGuard M f b)
     (hcb : NestedRun .writeFirst (M.set f b .Reverted) callback N₁) :=

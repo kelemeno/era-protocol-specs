@@ -7,6 +7,17 @@ import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
 The per-leg state machine of the flow manager, and the refund guarantees that
 follow from its shape alone.
 
+Source: era-contracts `draft/v0.35.0` at `b17415d20`, `l1-contracts/contracts/atomic-interop/`.
+`_state` is `AtomicFlowManager.sol:61` and `LegState` is `IAtomicInterop.sol:10-15`. The guards
+and writes: `append` requires `Unset` (`:162-164`) and writes `Committed` (`:166`);
+`authorizeRefund`'s loop moves each `Committed` leg of the flow to `Revertable` and skips the
+others (`:238-246`); `claimRefund` requires `Revertable` (`:254-257`) and writes `Reverted`
+(`:260`). No other statement writes `_state`. Every other check of the three entry points only
+reverts, so leaving it out only adds runs: `Step` over-approximates the deployed calls. The
+transcription of the entry points with their flow-id and leg checks is
+`Contracts.FlowCanonicalAtV35` (`Specs/FlowCanonicalAtV35.lean`), whose every run is a `Reach`
+run here (`Contracts.FlowCanonicalAtV35.Properties.RunV35IsPinLegRun`).
+
 ## What this file is about
 
 `AtomicFlowManager` holds one piece of mutable state per leg:
@@ -48,7 +59,7 @@ namespace Contracts.AtomicFlowManager
 
 /-! ## State -/
 
-/-- `LegState` from `IAtomicInterop.sol`. -/
+/-- `LegState` (`IAtomicInterop.sol:10-15`). -/
 inductive LegState
   | Unset
   | Committed
@@ -90,18 +101,18 @@ adds nothing to the results below.  It is recorded as an obligation in
 `EraSpec.Refinement` instead, where the concrete repo's `#37`-style call-site
 enumeration discharges it. -/
 
-/-- `append`: `ManagerLegAlreadyCommitted` unless the leg is `Unset`. -/
+/-- `append`: `ManagerLegAlreadyCommitted` unless the leg is `Unset` (`:162-164`). -/
 def AppendGuard (M : Manager) (f b : UInt256) : Prop := M.legState f b = .Unset
 
 
 /-- `authorizeRefund`, per leg: the loop `continue`s unless the leg is
-`Committed`, so only committed legs move.  Legs committed on other chains are
+`Committed` (`:241-243`), so only committed legs move.  Legs committed on other chains are
 absent from this manager and are silently skipped — that is what makes the
 per-leg formulation faithful. -/
 def AuthorizeGuard (M : Manager) (f b : UInt256) : Prop := M.legState f b = .Committed
 
 
-/-- `claimRefund`: `ManagerLegNotRevertable` unless the leg is `Revertable`. -/
+/-- `claimRefund`: `ManagerLegNotRevertable` unless the leg is `Revertable` (`:254-257`). -/
 def ClaimGuard (M : Manager) (f b : UInt256) : Prop := M.legState f b = .Revertable
 
 

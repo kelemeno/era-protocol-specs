@@ -8,13 +8,21 @@ import Mathlib.Tactic
 /-
   THE FLOW IS CANONICAL — what the adjacent-only check actually buys.
 
-  `_checkFlowId` guards every delivery and every reclaim, and its ordering check is a NEIGHBOUR scan:
+  Source: era-contracts `draft/v0.35.0` at `b17415d20`, `l1-contracts/contracts/atomic-interop/`.
+  `_validateAndComputeFlowId` (`AtomicFlowManager.sol:360-379`) runs on every `append` (`:109`) and,
+  through `_checkFlowId` (`:348-353`), on every `requireFlowFinalized` (`:182`) and `authorizeRefund`
+  (`:217`).  Its ordering check is a NEIGHBOUR scan, followed by the length check:
 
-      uint256 n = _flow.legBundleHashes.length;
-      for (uint256 i = 1; i < n; ++i) {
-          if (_flow.legBundleHashes[i] <= _flow.legBundleHashes[i - 1]) revert ManagerBundleHashesNotSorted();
+      uint256 n = _preimage.legBundleHashes.length;
+      for (uint256 i = 1; i < n; ++i) {                                                 // :370-374
+          if (_preimage.legBundleHashes[i] <= _preimage.legBundleHashes[i - 1]) revert ManagerBundleHashesNotSorted();
       }
-      if (_flow.legSourceChainIds.length != n) revert ManagerLegSourceChainIdsLengthMismatch(...);
+      if (_preimage.legSourceChainIds.length != n) revert ManagerLegSourceChainIdsLengthMismatch(...);  // :375-377
+
+  These two checks read the same at the older pin `c67894b9`, where they made up all of `_checkFlowId`.
+  At `b17415d20` two more checks come first, the version byte and the eight-leg cap (`:361-369`).  So
+  `Valid` below is the conjunction of two of the four checks: necessary for acceptance, not sufficient.
+  The exact acceptance condition is `Contracts.FlowCanonicalAtV35.Properties.AcceptedV35Iff`.
 
   Group #37 proves the GUARD over the compiled blocks: each adjacent pair must be strictly ascending,
   and the lengths must match.  What #37 records but does not prove is the CONSEQUENCE, in its own words:
@@ -53,7 +61,9 @@ structure Flow (α β : Type*) where
   chains : List β
 
 
-/-- An accepted flow: what `_checkFlowId` lets through. -/
+/-- The sort check and the length check both pass (`AtomicFlowManager.sol:370-377`). At `b17415d20`
+this is necessary for `_validateAndComputeFlowId` to accept, not sufficient: the version byte and the leg
+cap are checked too (`Contracts.FlowCanonicalAtV35.AcceptedV35`). -/
 def Valid {β : Type*} (f : Flow α β) : Prop :=
   Ascending f.legs ∧ f.chains.length = f.legs.length
 

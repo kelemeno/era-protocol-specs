@@ -3,6 +3,14 @@ import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryTargets
 /-!
 # Properties: what `_recoverBundle` finds at each call's `to`
 
+**Pin record, kept in place.** This topic is the record of `claimRefund`'s loop at era-contracts
+`c67894b9`, not a claim about `draft/v0.35.0` `b17415d20`. At `b17415d20` `_recoverBundle`
+(`AtomicFlowManager.sol:292-325`) calls `recoverAtomicCall` only on `c.from`, and only when that is
+the asset router, discards the answer, and counts nothing; that loop is modelled in
+`Contracts.AtomicFlowManager.RecoveryLimitsFaithful` (`claimRefundV35`). The file stays at this
+path, outside `History/`, only because InteropCenter's pinned topic `AtomicRouting` uses its names;
+its statements are untagged.
+
 Statements about `EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryTargets`. Proofs are in
 `EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets`. A bare `:N` is a line of
 `atomic-interop/AtomicFlowManager.sol` at the pin.

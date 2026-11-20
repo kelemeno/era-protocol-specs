@@ -12,6 +12,16 @@ set_option linter.unusedVariables false
 /-
   TIMEOUT RECOVERY — the exact shape of "best-effort".
 
+  **Pin record, kept in place.**  This topic is the record of the loop at era-contracts `c67894b9`
+  (`AtomicFlowManager.sol:165-180`, `:219-230` there), not a claim about `draft/v0.35.0` `b17415d20`.
+  At `b17415d20` `_recoverBundle` (`AtomicFlowManager.sol:292-325`) calls `recoverAtomicCall` only
+  on calls sent by the asset router, discards the answer, refunds other calls' base-token value
+  through the router, and has no `recovered == 0` revert; that loop is modelled in
+  `Contracts.AtomicFlowManager.RecoveryLimitsFaithful` (`claimRefundV35`).  The file stays at this
+  path, outside `History/`, only because other folders' pinned models (AssetRouterBase
+  `AtomicRecovery`, InteropCenter `Dispatch`, Protocol `AssetBridgePreparation`) use its names;
+  its statements are untagged.  Line numbers below are at the pin.
+
   The source is candid that refund recovery is partial:
 
       "timeout recovery is best-effort (see {AtomicFlowManager._recoverBundle})"
@@ -36,14 +46,14 @@ set_option linter.unusedVariables false
        sibling repository's name, not a theorem here.  So the declining calls' funds are stranded
        PERMANENTLY, by a transaction that reported success.  The statements below record the two
        halves separately.  Tied together on the real loop and the manager's runs, they are
-       `Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.partial_stranding_is_terminal`
-       (`Properties/RecoveryLimitsStrong.lean`; `RecoveryLimitsStrong` below means that namespace).
+       `Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.partial_stranding_is_terminal`
+       (`History/Properties/RecoveryLimitsStrong.lean`; `RecoveryLimitsStrong` below means that namespace).
 
     2. The call is raw — no `try/catch`.  A target that REVERTS rather than returning `false` aborts
        the whole claim, including the calls that would have recovered.  Retrying re-enters the same
        loop and hits the same target, so recovery stays unavailable while any target reverts.  The
        outcome lists below are fixed, so that retry argument is not formalized here.  Over a world
-       that changes between attempts it is `RecoveryLimitsStrong.Properties.blocked_retry_reverts`
+       that changes between attempts it is `RecoveryLimitsStrong.History.Properties.blocked_retry_reverts`
        and `blocked_leg_stays_revertable`.
 
   Fact 2 is the one that does not fit the docstring's framing.  "The flow author's responsibility" is a
@@ -77,8 +87,8 @@ abbrev Properties.accepted_below_full_recovery :=
 `AtomicFlowManager.Layout.refunded_leg_cannot_refund_again` is in the sibling repository, not here.
 Terminality on the manager's runs is `Contracts.AtomicFlowManager.no_double_claim`.  Tied to the claim the
 recovery loop accepted, it is
-`Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.legClaim_success_closes_leg`.  The copy is the
-manager's state renamed (`RecoveryLimitsStrong.Properties.leg_copy_is_model_leg`). -/
+`Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.legClaim_success_closes_leg`.  The copy is the
+manager's state renamed (`RecoveryLimitsStrong.History.Properties.leg_copy_is_model_leg`). -/
 abbrev Properties.no_second_claim :=
   ¬ claimEnabled afterClaim
 
@@ -87,7 +97,7 @@ abbrev Properties.no_second_claim :=
 recoveries than calls, and `afterClaim` does not enable a claim.  The last conjunct does not mention `os`,
 because `afterClaim` is a constant.  So this is exactly `accepted_below_full_recovery` together with
 `no_second_claim`, and it does not tie the closed gate to the claim that was accepted, or to any run.  The
-tied statement is `Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.partial_stranding_is_terminal`.
+tied statement is `Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.partial_stranding_is_terminal`.
 There, the real loop
 accepts a claim with fewer recoveries than calls, on a leg reached from fresh storage.  From the state that
 claim leaves, no run of the manager lets any claim of that leg succeed.  So the unrecovered calls get no
@@ -117,12 +127,12 @@ abbrev Properties.revert_anywhere_blocks (pre post : List Outcome) :=
 `¬ LoopCompletes os` denies the first conjunct of `ClaimAccepted os`, so this adds nothing to
 `revert_anywhere_blocks`.  No retry is modelled.  The outcome list is fixed, so a second attempt against
 targets whose state has changed is not covered here.  That version is
-`Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.blocked_retry_reverts`: if some call reverts in
+`Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.blocked_retry_reverts`: if some call reverts in
 every world that keeps a
 stated invariant, then every retry reverts in every later world that keeps it.
-`RecoveryLimitsStrong.Properties.blocked_leg_stays_revertable` adds that the leg stays `Revertable` along
+`RecoveryLimitsStrong.History.Properties.blocked_leg_stays_revertable` adds that the leg stays `Revertable` along
 every run in which the world changes and other legs move.  Without that condition, "fails identically" is
-false: `RecoveryLimitsStrong.Properties.retry_succeeds_once_blocker_clears` is a claim that reverts and
+false: `RecoveryLimitsStrong.History.Properties.retry_succeeds_once_blocker_clears` is a claim that reverts and
 then succeeds once the blocking target's state changes. -/
 abbrev Properties.retry_does_not_help (os : List Outcome) (h : ¬ LoopCompletes os) :=
   ¬ ClaimAccepted os

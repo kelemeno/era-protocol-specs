@@ -7,10 +7,8 @@ import EraSpec.Contracts.AtomicFlowManager.Specs.Model
 
 Source: matter-labs/era-contracts, branch `draft/v0.35.0` at commit `b17415d20`
 (`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`). Paths are relative to `l1-contracts/contracts/` at
-that commit. The topic was first written against `d9f678900`; no file under `atomic-interop/`
-changed between the two commits, so every line cited here reads the same at both. The pin models
-(`Specs/FlowCanonical.lean` and `Specs/Model.lean`, era-contracts `c67894b9`) are not changed;
-this file models the v35 code next to them.
+that commit. This is the contract's canonical entry-point model; it reuses the leg machine of
+`Specs/Model.lean` (`Manager`, `LegState`) and the neighbour check of `Specs/FlowCanonical.lean`.
 
 **This file is definitions only.** Statements are in
 `EraSpec.Contracts.AtomicFlowManager.Properties.FlowCanonicalAtV35`, proofs in
@@ -54,10 +52,7 @@ this file models the v35 code next to them.
 call comes before every other check of the body. `claimRefund` (`:250-265`) calls neither: it
 acts on the `(flowId, bundleHash)` it is given, if that leg is `Revertable`.
 
-The two functions read the same on `main` (`70096e2ea`, and `3605e82`), at `:346-365` and
-`:334-339`.
-
-## What changed from the pin
+## What changed from the older pin
 
 At `c67894b9` (`AtomicFlowManager.sol:247-259`) `_checkFlowId` ran the neighbour sort check and
 the length check, then hashed
@@ -70,31 +65,30 @@ the length check, then hashed
 3. the sort check and the length check are unchanged (`:370-377`);
 4. one function serves all three entry points, `append` included.
 
-So the pin's `Valid` is still necessary for acceptance but no longer sufficient. The pin
-docstring's pairing with `BundleHashEncoding.abiEncode_inj` does not cover the new layout: that
-lemma is about `abi.encode(uint256, bytes)`, and no `abi.encode` injectivity for the v35 struct is
-proved here. The whole composite `keccak256 ∘ abi.encode` is the free parameter `enc`, and
+So `Valid` is still necessary for acceptance but no longer sufficient. No `abi.encode`
+injectivity for the v35 struct is proved here (`BundleHashEncoding.abiEncode_inj` is about
+`abi.encode(uint256, bytes)`). The whole composite `keccak256 ∘ abi.encode` is the free parameter `enc`, and
 binding results name a `PreimageClashV35` on two given preimages instead of assuming
 injectivity (see `CRYPTO-ID` in `ASSUMPTIONS.md`).
 
 ## Modelling choices
 
 * `bytes1 version` is `UInt8`; `bytes32`/`uint256` words are `UInt256`; `uint64 deadline` is `ℕ`,
-  as in the pin's `Contracts.Atomicity.Flow`. The `uint64` bound is not modelled: statements
+  as in `Contracts.Atomicity.Flow`. The `uint64` bound is not modelled: statements
   quantify over a superset of the decodable preimages, and every witness uses deadlines below
   `2^64`.
 * `bytes32` values are compared with `<=` (`:371`), which orders them as big-endian unsigned
   integers: the order of `UInt256`.
 * A revert is `none`. Which error is raised is not modelled.
-* The sort check is `AttackVectors.FlowCanonical.Ascending`, the pin's transcription of the same
-  neighbour loop; the two arrays form the pin's `AttackVectors.FlowCanonical.Flow`.
+* The sort check is `AttackVectors.FlowCanonical.Ascending`, the transcription of the neighbour
+  loop; the two arrays form an `AttackVectors.FlowCanonical.Flow`.
 
 ## The leg writes (`MODEL-AFM-V35` in `ASSUMPTIONS.md`)
 
 `_state` (`AtomicFlowManager.sol:61`) is written by three entry points only: `append` (`:166`),
 `authorizeRefund` (`:244`) and `claimRefund` (`:260`). Below, each entry point that takes a flow
-preimage or writes `_state` is a function on the pin's `Contracts.AtomicFlowManager.Manager`, the
-same mapping. `requireFlowFinalized` is among them although it does not read `_state`; the
+preimage or writes `_state` is a function on `Contracts.AtomicFlowManager.Manager`
+(`Specs/Model.lean`), the same mapping. `requireFlowFinalized` is among them although it does not read `_state`; the
 `legState` view (`:268-270`), a pure read of `_state`, is left out.
 Each function transcribes, in source order, the flow-id check, the checks that pick out legs of
 the presented preimage, the `_state` guard and the write; its docstring lists the checks it
@@ -110,9 +104,7 @@ after the write of the call it re-entered, and a call that reverts is absent fro
 together with every call it made. These two sentences are a reading of the source, not a
 theorem.
 
-The hash `enc` and this chain's `block.chainid` are fixed for a run. The transcribed parts of
-the four entry points read the same on `main` `70096e2ea`, at other lines; there
-`requireFlowFinalized` and `authorizeRefund` have no receive filter, a check left out here.
+The hash `enc` and this chain's `block.chainid` are fixed for a run.
 -/
 
 namespace Contracts.FlowCanonicalAtV35
@@ -153,7 +145,7 @@ def MAX_ATOMIC_FLOW_LEGS_V35 : ℕ := 8
 /-- `keccak256(abi.encode(preimage))` (`AtomicFlowManager.sol:378`), kept abstract. -/
 abbrev PreimageHashV35 := PreimageV35 → UInt256
 
-/-- The two arrays of a preimage, as the pin's `AttackVectors.FlowCanonical.Flow`. -/
+/-- The two arrays of a preimage, as an `AttackVectors.FlowCanonical.Flow`. -/
 def PreimageV35.arrays (p : PreimageV35) : Flow UInt256 UInt256 :=
   ⟨p.legBundleHashes, p.legSourceChainIds⟩
 

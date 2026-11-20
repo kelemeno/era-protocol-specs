@@ -8,6 +8,16 @@ import Mathlib.Tactic
 /-
   TIMEOUT RECOVERY — the exact shape of "best-effort".
 
+  **Pin record, kept in place.**  This topic is the record of the loop at era-contracts `c67894b9`
+  (`AtomicFlowManager.sol:165-180`, `:219-230` there), not a claim about `draft/v0.35.0` `b17415d20`.
+  At `b17415d20` `_recoverBundle` (`AtomicFlowManager.sol:292-325`) calls `recoverAtomicCall` only
+  on calls sent by the asset router, discards the answer, refunds other calls' base-token value
+  through the router, and has no `recovered == 0` revert; that loop is modelled in
+  `Contracts.AtomicFlowManager.RecoveryLimitsFaithful` (`claimRefundV35`).  The file stays at this
+  path, outside `History/`, only because other folders' pinned models (AssetRouterBase
+  `AtomicRecovery`, InteropCenter `Dispatch`, Protocol `AssetBridgePreparation`) use its names;
+  its statements are untagged.  Line numbers below are at the pin.
+
   The source is candid that refund recovery is partial:
 
       "timeout recovery is best-effort (see {AtomicFlowManager._recoverBundle})"
@@ -32,14 +42,14 @@ import Mathlib.Tactic
        sibling repository's name, not a theorem here.  So the declining calls' funds are stranded
        PERMANENTLY, by a transaction that reported success.  The properties file records the two
        halves separately.  Tied together on the real loop and the manager's runs, they are
-       `Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.partial_stranding_is_terminal`
-       (`Properties/RecoveryLimitsStrong.lean`; `RecoveryLimitsStrong` below means that namespace).
+       `Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.partial_stranding_is_terminal`
+       (`History/Properties/RecoveryLimitsStrong.lean`; `RecoveryLimitsStrong` below means that namespace).
 
     2. The call is raw — no `try/catch`.  A target that REVERTS rather than returning `false` aborts
        the whole claim, including the calls that would have recovered.  Retrying re-enters the same
        loop and hits the same target, so recovery stays unavailable while any target reverts.  The
        outcome lists here are fixed, so that retry argument is not formalized in this file.  Over a
-       world that changes between attempts it is `RecoveryLimitsStrong.Properties.blocked_retry_reverts`
+       world that changes between attempts it is `RecoveryLimitsStrong.History.Properties.blocked_retry_reverts`
        and `blocked_leg_stays_revertable`.
 
   Fact 2 is the one that does not fit the docstring's framing.  "The flow author's responsibility" is a
@@ -90,7 +100,7 @@ later claim sees the post-state.  This file only names that post-state.  The con
 consequence.  The reentrant case is
 `Contracts.AtomicFlowManager.ModelStrong.Properties.writeFirst_callback_never_reclaims`.  The later-claim
 case on the manager's runs is
-`Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.legClaim_success_closes_leg`. -/
+`Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.legClaim_success_closes_leg`. -/
 abbrev afterClaim : LegState := LegState.Reverted
 
 
