@@ -89,7 +89,7 @@ import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineFaithful
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ValueLedgerFaithful
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
-import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingFaithful
+import EraSpec.Contracts.L2InteropHandler.History.Proofs.AtomicSourceBindingFaithful
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
 
 -- Solidity Merkle libraries: capacity, padding, root authentication, and the verifier
@@ -191,6 +191,7 @@ import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.InteropCenter.Proofs.FeeState
 import EraSpec.Contracts.InteropCenter.Proofs.FeeReentry
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashPinned
+import EraSpec.Contracts.InteropDataEncoding.History.Proofs.BundleHashPinned
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashAtV35
 import EraSpec.Contracts.InteropHandlerBase.Proofs.Reentrancy
 import EraSpec.Contracts.L2InteropCommitmentTree.Proofs.CachedRoot
@@ -220,7 +221,7 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
 -- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
 import EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery
-import EraSpec.Contracts.L2InteropHandler.Proofs.SourceBindingReduced
+import EraSpec.Contracts.L2InteropHandler.History.Proofs.SourceBindingReduced
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Pause
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.FullRecovery
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.Resolution
@@ -240,7 +241,7 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.ResetAndZeroStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachineStrong
 import EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityStrong
-import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBindingStrong
+import EraSpec.Contracts.L2InteropHandler.History.Proofs.AtomicSourceBindingStrong
 
 -- Strengthened row-application liveness and parked-CTM exits (ProxyUpgradeRowLib, RegistryBootstrapMigration)
 import EraSpec.Contracts.ProxyUpgradeRowLib.History.Proofs.RowsStrong
@@ -386,7 +387,7 @@ import EraSpec.Codegen.VaultPreparationSlice.Proofs.L1TrackerHooks
 -- with the router and vault id results restated in keccak-collision form
 import EraSpec.Contracts.DataEncoding.Proofs.AssetId
 import EraSpec.Contracts.DataEncoding.Proofs.AssetIdRuns
-import EraSpec.Contracts.DataEncoding.Proofs.AssetIdRecovery
+import EraSpec.Contracts.DataEncoding.History.Proofs.AssetIdRecovery
 import EraSpec.Contracts.DataEncoding.Proofs.TxDataHash
 import EraSpec.Contracts.DataEncoding.Proofs.BurnDataSlice
 
@@ -399,6 +400,7 @@ import EraSpec.Contracts.InteropCenter.Proofs.ClaimBinding
 -- L1 withdrawal finalization gate at draft/v0.35.0 head b17415d20: the L1 handler, the L2→L1 sender
 -- keying it relies on, and their composition
 import EraSpec.Contracts.L1InteropHandler.Proofs.WithdrawalGate
+import EraSpec.Contracts.L1InteropHandler.Proofs.MessageLog
 import EraSpec.Contracts.L1Messenger.Proofs.SenderKeying
 import EraSpec.Protocol.L1WithdrawalProvenance.Proofs.Provenance
 

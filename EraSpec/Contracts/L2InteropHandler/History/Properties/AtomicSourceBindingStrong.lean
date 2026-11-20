@@ -1,4 +1,17 @@
-import EraSpec.Contracts.L2InteropHandler.Specs.AtomicSourceBindingStrong
+import EraSpec.Contracts.L2InteropHandler.History.Specs.AtomicSourceBindingStrong
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:70` at `b17415d20`)
+is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
 
 /-!
 # Properties: the atomic path's source binding, derived from one tree and named collisions
@@ -40,7 +53,7 @@ the hash and the recipient's `sender`, and the flow-gate reading; its premise ab
 `TreeHoldsOwnLegs` for that one tree.
 -/
 
-namespace AttackVectors.AtomicSourceBinding
+namespace AttackVectors.AtomicSourceBinding.History
 
 open AttackVectors.BundleHashEncoding (abiEncode HashCollision)
 open Contracts.InteropCenter (Params Dispatch Word bundleHash bundlePreimage KeccakInjOn)
@@ -228,4 +241,4 @@ def Properties.AtomicSourceBindingStrongWitness : Prop :=
         (Contracts.InteropCenter.wS1.log.filter Dispatch.isAtomic).map
           (fun d => bundlePreimage Contracts.InteropCenter.wParams d.bundle))
 
-end AttackVectors.AtomicSourceBinding
+end AttackVectors.AtomicSourceBinding.History

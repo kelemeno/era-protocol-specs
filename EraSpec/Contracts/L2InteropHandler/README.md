@@ -1,94 +1,51 @@
 # L2InteropHandler
 
-Source: `contracts/interop/interop-handler/L2InteropHandler.sol` in the pinned
-era-contracts tree.
+## Headline guarantees
 
-Review `Specs/` for state, operations, and assumptions; review `Properties/` for
-the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
-for those exact named propositions, plus auxiliary lemmas. Some spec modules
-only import a shared specification when the topic needs no additional definitions.
+None yet at era-contracts `draft/v0.35.0` head `b17415d20`. The folder's current topic,
+`AtomicSourceBinding`, is abstract and its main statement restates its premise; the derivations from
+the handler's code were made for the old interop pin `c67894b9` and are kept under `History/`. A
+model of `executeAtomicBundle` and `verifyAtomicBundle` at `b17415d20` is open work. Bundle replay
+and self-call permission properties are under `../InteropHandlerBase/`.
+
+## The current topic (`AtomicSourceBinding`)
 
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
 | AtomicSourceBinding | [Specs/AtomicSourceBinding.lean](Specs/AtomicSourceBinding.lean) | [Properties/AtomicSourceBinding.lean](Properties/AtomicSourceBinding.lean) | [Proofs/AtomicSourceBinding.lean](Proofs/AtomicSourceBinding.lean) |
-| AtomicSourceBindingStrong | [Specs/AtomicSourceBindingStrong.lean](Specs/AtomicSourceBindingStrong.lean) | [Properties/AtomicSourceBindingStrong.lean](Properties/AtomicSourceBindingStrong.lean) | [Proofs/AtomicSourceBindingStrong.lean](Proofs/AtomicSourceBindingStrong.lean) |
-| SourceBindingReduced | [Specs/SourceBindingReduced.lean](Specs/SourceBindingReduced.lean) | [Properties/SourceBindingReduced.lean](Properties/SourceBindingReduced.lean) | [Proofs/SourceBindingReduced.lean](Proofs/SourceBindingReduced.lean) |
-| AtomicSourceBindingFaithful | [Specs/AtomicSourceBindingFaithful.lean](Specs/AtomicSourceBindingFaithful.lean) | [Properties/AtomicSourceBindingFaithful.lean](Properties/AtomicSourceBindingFaithful.lean) | [Proofs/AtomicSourceBindingFaithful.lean](Proofs/AtomicSourceBindingFaithful.lean) |
 
-`AtomicSourceBinding.atomic_source_bound` restates its premise `HonestCommits`. Two topics derive
-the binding instead:
-- `SourceBindingReduced` (namespace `Contracts.SourceBinding`) derives it from a run of the
-  pinned source code on the vouching chain (below).
-- `AtomicSourceBindingStrong` (namespace `AttackVectors.AtomicSourceBinding`) derives it from the
-  honest insertion of the one tree that vouched (`TreeHoldsOwnLegs`, discharged on a deployed
-  center run by `CenterRunTreeHoldsOwnLegs`). It also models the validator by call site
-  (`DestContextCheckBySite`: on the atomic site, check (1) compares the field with itself) and the
-  flow gate (`ExecutingBundleSenderChainIsItsLegChainOrLoggedClash`).
-Each holds up to the sentinel and keccak collisions on named preimages. In
-`AtomicSourceBindingStrong`, a tree with one foreign commit value breaks the binding with no
-collision (`ForeignCommitInTreeUnbindsSource`).
+At `b17415d20` both atomic entry points check the bundle's declared source chain against itself:
+`executeAtomicBundle` (`interop/interop-handler/L2InteropHandler.sol:70`) and `verifyAtomicBundle`
+(`:86`, through `_validateVerifiable`) pass `interopBundle.sourceChainId` as the proof chain to
+`_validateBundleDestinationContext` (`InteropHandlerBase.sol:390-410`). The source comment
+(`L2InteropHandler.sol:67-69`) says that source-chain authenticity comes from `requireFlowFinalized`
+instead. The declared chain is what `_executeCalls` hands every recipient as the caller's chain
+(`InteropHandlerBase.sol:378`).
 
-## Source binding from the vouching chain's code (`SourceBindingReduced`)
+The topic states this over three free symbols (`declared`, `commit`, `tree`): the binding holds when
+each chain's tree holds only commit values of bundles that declare that chain (`HonestCommits`).
+`atomic_source_bound` is that premise instantiated, so it derives nothing about the code;
+`atomic_source_unbound_without_honest` shows the premise is not trivially true.
+`Protocol/DestinationCapstone.lean` uses it.
 
-One source chain's send side in one state: the `InteropCenter` model of topic `Dispatch`
-(salt flags, the manager's leg state, a ghost dispatch log) with the commitment tree's list
-state, an atomic send being `_sendBundle`'s modelled checks plus the composed `append` of
-`Protocol/InteropAtomicity` `OncePerLeg`. A run projects to both
-(`SourceRunProjectsToCenterReach`, `SourceRunProjectsToAppendPath`), and every key of the
-tree is `0` or the commit value of one of the chain's atomic dispatches
-(`SourceKeysAreDispatchedCommitValues`: links 1 and 2 of `LocalHonesty.lean`, proved for this
-model). Keccak, the encoder, the decoder and the commit value are universally quantified.
-No result takes a hash premise. The one trust premise is that the vouching chain `c` runs
-this code from genesis (`SourceReach deployed`, `PROTO-EVIDENCE` for that chain only); no
-other chain is assumed.
+## History
 
-| Result | Statement |
-|---|---|
-| `AtomicSourceBoundOrBreak` (headline) | Chain `c` runs the pinned code; the destination hashes the presented bytes `x` to `h` as `_getBundleData` does; the leg's commit value `cv f h` is a key of `c`'s tree. Then `x` declares source chain `c`, which is the chain `_executeCalls` hands every recipient, or a `SourceBindingBreak` holds: the commit value is the sentinel `0`, or it clashes with a leg `c` appended, or keccak collides on the handler's preimage of `x` and the center's preimage of the dispatch that committed `(f, h)`. |
-| `ExecutedBytesAreDispatchedOrBreak` | Same premises: `x` is `abi.encode` of the bundle of an atomic dispatch of `c` that committed exactly `(f, h)`, formed by `_sendBundle` and validated, or a break. |
-| `ExecutedCallersAreSourceSendersOrBreak` | Adding the decoder round trip on `c`'s own dispatched bundles (`SOL-ABI`): every executed call carries no value, and its `from` is the dispatch's sender or an indirect sender contract it called through, or a break. |
-| `AtomicSourceBoundOn` | Bounded form: a nonzero commit value, `CommitValueInjOn` on the presented leg and `c`'s append log, and `KeccakInjOn` on the handler's preimage and `c`'s bundle-hash preimages; then the binding holds. |
-| `CommitClashIsKeccakClash`, `BreakIsKeccakEvent`, `AtomicSourceBoundOrKeccakEvent` | For the commit value `keccak(abi.encode(TAG, flowId, bundleHash))`, every break is a keccak preimage of `0` or a keccak collision on two named preimages. |
-| `CommitValueOnlyInItsSourceTreeOrBreak` | Two chains running the pinned code with one keccak, encoder, center address and commit value: if a dispatch of `c` has its commit value in `c'`'s tree, then `c' = c` or a break holds against `c'`'s run. |
-| `GateBindsExecutingSourceOrBreak` | Gate form: a leg executes through `ExecutedViaBy` on a fixed history, and the tree of the batch its proof cites equals a state of a run of the pinned code on the leg's chain (a premise, the operational link). Then the bundle declares the leg's chain, or that proof carries an `InclusionBreak`, or a `SourceBindingBreak` holds. |
+`History/` is a record of an older commit, not a claim about `b17415d20`. Three topics derived the
+binding from the code of the old interop pin `c67894b9`. Three differences matter at `b17415d20`:
 
-Witnesses: `SourceBindingWitness` (an honest run of chain `324` with the `keccak(abi.encode(TAG,
-…))` commit-value shape meets every premise, including the bounded and round-trip ones, with
-every break and keccak event false), `SentinelBreakFires`, `CommitClashBreakFires` and
-`BundleClashBreakFires` (each break kind holding alone with a different declared source),
-`CommitValueOnlyInItsSourceTreeWitness` (the firing case only: two chains, one commit value,
-the break is a commit-value clash), and `GateSourceBindingWitness` (both breaks false, under
-the constant commit value `1`, not the keccak shape). Countermodel:
-`WithoutOnlyInteropCenterSourceUnbound` (without `onlyInteropCenter`, chain `324`'s tree
-vouches for bytes declaring chain `325` with no break), so the trust premise is load-bearing.
+- the destination's bundle hash is `keccak256(_bundle)` (`InteropHandlerBase.sol:231`), where the
+  pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; the History models use the pin's
+  preimage;
+- `executeAtomicBundle` (`L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+  `requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+  bundle `Verified`; the History entry-point model has neither;
+- the source side is the pin's `InteropCenter` `Dispatch` model.
 
-Boundaries (`MODEL-SOURCE-BINDING`): only the executing bundle's own leg is bound, not the
-other legs' chains; the `initL2` step cannot fire after genesis; the encoder, decoder and
-keccak are abstract.
+| History topic (namespace) | What it derived at `c67894b9` | Files |
+|---|---|---|
+| SourceBindingReduced (`Contracts.SourceBinding.History`) | the binding from a run of the vouching chain's send-side code, up to the tree sentinel and keccak collisions on named preimages (`AtomicSourceBoundOrBreak`, `ExecutedBytesAreDispatchedOrBreak`, `ExecutedCallersAreSourceSendersOrBreak`; countermodel `WithoutOnlyInteropCenterSourceUnbound`) | [Specs](History/Specs/SourceBindingReduced.lean), [Properties](History/Properties/SourceBindingReduced.lean), [Proofs](History/Proofs/SourceBindingReduced.lean) |
+| AtomicSourceBindingStrong (`AttackVectors.AtomicSourceBinding.History`) | the binding from the honest insertion of the one tree that vouched (`AtomicSourceBoundToVouchingTreeOrLoggedClash`, `CenterRunTreeHoldsOwnLegs`; countermodel `ForeignCommitInTreeUnbindsSource`) | [Specs](History/Specs/AtomicSourceBindingStrong.lean), [Properties](History/Properties/AtomicSourceBindingStrong.lean), [Proofs](History/Proofs/AtomicSourceBindingStrong.lean) |
+| AtomicSourceBindingFaithful (`Contracts.L2InteropHandler.AtomicSourceFaithful.History`) | the binding over the pin's `executeAtomicBundle` itself: a successful execution locates its vouching leg and delivers every call with the declared source (`AtomicExecutionLocatesVouchingLeg`, `DeliveriesCarryDeclaredSource`, `AtomicSenderIsVouchingChainOrBreak`, `AtomicExecutionRunsTheDispatchedBundleOrBreak`; countermodel `MisbehavingLegChainImpersonates`) | [Specs](History/Specs/AtomicSourceBindingFaithful.lean), [Properties](History/Properties/AtomicSourceBindingFaithful.lean), [Proofs](History/Proofs/AtomicSourceBindingFaithful.lean) |
 
-`AtomicSourceBindingFaithful` (namespace `Contracts.L2InteropHandler.AtomicSourceFaithful`, pin
-`c67894b9`) states the binding over the entry point itself: every check of `executeAtomicBundle`,
-every revert of `requireFlowFinalized`, and the calls `_executeCalls` makes (`ExecutesAtomic`). With
-no premise beyond the model, a successful execution locates its one vouching leg and delivers every
-call with the bundle's own `sourceChainId` (`AtomicExecutionLocatesVouchingLeg`, `VouchingLegUnique`,
-which uses the model's `FlowGateAccepts`, `DeliveriesCarryDeclaredSource`). If the leg's declared chain vouches honestly (`HonestVouching`),
-every call is delivered with that chain, or the leg's commit value is the tree sentinel `0`, or
-keccak collides on a named preimage pair (`AtomicSenderIsVouchingChainOrBreak`). Honest vouching is
-derived from the vouching chain's deployed run in `SourceBindingReduced`'s model, with the
-verifier's soundness for that run's tree as the remaining premise (`DeployedRunVouchesHonestly`).
-On such a run, with the ABI decoder inverting the encoder, the executed bundle is a dispatched one
-and every recipient sees a sender on the vouching chain that took part in the send and receives no
-base-token value, up to the same breaks (`AtomicExecutionRunsTheDispatchedBundleOrBreak`). These
-run-level results recompose `SourceBindingReduced`'s headline (`ExecutedCallersAreSourceSendersOrBreak`,
-`ExecutedBytesAreDispatchedOrBreak`) at the entry point; what is new is the entry-point model and
-the `AcceptsOnlyKeysOf` link. Without
-honest vouching any chain impersonates any other, for every keccak
-(`MisbehavingLegChainImpersonates`); each break disjunct can hold alone (`SentinelCommitFires`,
-`CommitPreimageClashFires`, `BundlePreimageClashFires`).
-
-Bundle replay and self-call permission properties are under `../InteropHandlerBase/`.
-The insertion authorization chain crosses contracts and is modeled in
-`../../Protocol/LocalHonesty.lean`. In the model, up to the breaks above, the executed bytes
-are the bytes the vouching chain dispatched (`ExecutedBytesAreDispatchedOrBreak`). A compiled
-proof that successful `executeAtomicBundle` passed every flow gate and executed the committed
-bytes remains a separate obligation.
+Their assumptions are `MODEL-SOURCE-BINDING` and `MODEL-ATOMIC-ENTRY` (ASSUMPTIONS.md). The insertion
+authorization chain crosses contracts and is modelled in `../../Protocol/LocalHonesty.lean`.

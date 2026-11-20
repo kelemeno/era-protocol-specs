@@ -84,15 +84,15 @@ and `abi.encode(c, s, bytes32(uint256(uint160(t))))` are one byte string. -/
 def Properties.OverloadPreimagesCoincide : Prop :=
   ∀ (c : UInt256) (s t : Addr), assetIdPreimageOfToken c s t = assetIdPreimage c s (addrAsBytes32 t)
 
-/-- **(c) THE TWO `encodeAssetId` OVERLOADS COINCIDE** (`DataEncoding.sol:126-128` and
-`:135-137`): `encodeAssetId(c, t, s) = encodeAssetId(c, bytes32(uint256(uint160(t))), s)` for
+/-- **(c) THE TWO `encodeAssetId` OVERLOADS COINCIDE** (`DataEncoding.sol:125-127` and
+`:134-136`): `encodeAssetId(c, t, s) = encodeAssetId(c, bytes32(uint256(uint160(t))), s)` for
 every keccak, because the keccak inputs are equal. -/
 def Properties.EncodeAssetIdOverloadsCoincide : Prop :=
   ∀ (keccak : Keccak) (c : UInt256) (t s : Addr),
     encodeAssetIdOfToken keccak c t s = encodeAssetId keccak c (addrAsBytes32 t) s
 
 /-- **(c) THE VAULT'S ID IS THE ROUTER'S ID WITH THE VAULT AS SENDER.** Both
-`encodeNTVAssetId` overloads (`DataEncoding.sol:143-145`, `:151-153`) are `encodeAssetId`
+`encodeNTVAssetId` overloads (`DataEncoding.sol:142-144`, `:150-152`) are `encodeAssetId`
 with sender `L2_NATIVE_TOKEN_VAULT_ADDR`:
 
 * `encodeNTVAssetId(c, t) = encodeAssetId(c, bytes32(uint256(uint160(t))), L2_NTV)` for an
@@ -106,10 +106,10 @@ def Properties.OverloadsCoincide : Prop :=
     ∧ (∀ d : UInt256, encodeNTVAssetId keccak c d = encodeAssetId keccak c d l2NtvAddr)
 
 /-- **NATIVE REGISTRATION KEYS THE VAULT AND THE ROUTER BY ONE ID.** On chain `c`,
-`_unsafeRegisterNativeToken(t)` (`NativeTokenVaultBase.sol:515-522`) stores the token under
+`_unsafeRegisterNativeToken(t)` (`NativeTokenVaultBase.sol:492-499`) stores the token under
 `encodeNTVAssetId(c, t)` and calls the router with data `bytes32(uint256(uint160(t)))`. The
 router's caller is the vault `ntv`, so it hashes the sender as `L2_NATIVE_TOKEN_VAULT_ADDR`
-(`AssetRouterBase.sol:78-80`). Here that is the router model's `writtenId` for the caller
+(`AssetRouterBase.sol:70-72`). Here that is the router model's `writtenId` for the caller
 `ntv`, with `routerEnc keccak` and the normalised vault address `widen L2_NTV`. The two ids
 are equal for every keccak and every vault address `ntv`. -/
 def Properties.NativeRegistrationIdsAgree : Prop :=
@@ -118,13 +118,13 @@ def Properties.NativeRegistrationIdsAgree : Prop :=
       = encodeNTVAssetIdOfToken keccak c t
 
 /-- **THE ROUTER MODEL'S INSTANCE IS THE LIBRARY ON REAL ADDRESSES.** For a 160-bit sender,
-`routerEnc keccak c (widen s) d` is `encodeAssetId(c, d, s)` (`DataEncoding.sol:126-128`). -/
+`routerEnc keccak c (widen s) d` is `encodeAssetId(c, d, s)` (`DataEncoding.sol:125-127`). -/
 def Properties.RouterModelIsLibrary : Prop :=
   ∀ (keccak : Keccak) (c : UInt256) (s : Addr) (d : UInt256),
     routerEnc keccak c (addrAsBytes32 s) d = encodeAssetId keccak c d s
 
 /-- **THE VAULT MODEL'S INSTANCE IS THE LIBRARY ON REAL TOKENS.** For a 160-bit token,
-`vaultEnc keccak c (widen t)` is `encodeNTVAssetId(c, t)` (`DataEncoding.sol:151-153`), the id
+`vaultEnc keccak c (widen t)` is `encodeNTVAssetId(c, t)` (`DataEncoding.sol:150-152`), the id
 `_unsafeRegisterNativeToken` and `assetIdCheck` compute. -/
 def Properties.VaultModelIsLibrary : Prop :=
   ∀ (keccak : Keccak) (c : UInt256) (t : Addr),
@@ -133,9 +133,9 @@ def Properties.VaultModelIsLibrary : Prop :=
 /-- **THE `ntvId` IDENTITY HOLDS AT BYTE LEVEL.** `AssetRouterBase/Specs/AtomicRecovery.lean`
 defines the vault's id from the router's encoding, `ntvId enc cfg c t = enc c cfg.ntv t`, as a
 model choice. At byte level it is a theorem: with the vault's configured address the
-normalised `L2_NATIVE_TOKEN_VAULT_ADDR` (what `_nativeTokenVaultAddr()` returns,
-`L2AssetRouter.sol:72-74`; the getter is `virtual`, and nothing in the pinned tree overrides
-it), `ntvId (routerEnc keccak) cfg` is the vault model's instance `vaultEnc keccak`,
+normalised `L2_NATIVE_TOKEN_VAULT_ADDR` (what `_getNativeTokenVaultAddr()` returns,
+`L2AssetRouter.sol:79-81` at `b17415d20`; the getter is `virtual`, and only a test harness
+overrides it), `ntvId (routerEnc keccak) cfg` is the vault model's instance `vaultEnc keccak`,
 on every pair of words. -/
 def Properties.VaultModelIsRouterModelAtNtv : Prop :=
   ∀ (keccak : Keccak) (cfg : AssetRouter.AtomicRecovery.Config),

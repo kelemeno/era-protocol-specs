@@ -23,7 +23,7 @@ in `EraSpec.Contracts.BridgedStandardERC20.Proofs.Reinitialization`.
 * **The version counter** rises by exactly one (`ReinitVersionIncreasesByOne`), a used version
   cannot be replayed (`ReinitVersionIsSpent`), and `bridgeInitialize` stays closed
   (`ReinitKeepsInitializationClosed`).
-* **The NatSpec at :146-147** ("the governor can not accidentally disable future
+* **The NatSpec at :137-138** ("the governor can not accidentally disable future
   reinitialization"): a successful reinitialization leaves no further one possible exactly
   when it started from version 254 (`OnlyTheStepFrom254DisablesReinitialization`). The
   `onlyNextVersion` modifier is what makes this true: without it, OpenZeppelin's
@@ -35,7 +35,7 @@ in `EraSpec.Contracts.BridgedStandardERC20.Proofs.Reinitialization`.
   changes (`InitializedIdentityIsFixed`). From a fresh proxy, the identity is for ever the one
   `bridgeInitialize` bound (`FreshProxyLifecycle`). On a zero vault these two identity statements
   hold only because `StorageReach` has no bridge call there: on the deployed token the L2 vault's
-  first bridge call takes the legacy branch (:54-61) and rewrites the vault and the asset id. For
+  first bridge call takes the legacy branch (:51-58) and rewrites the vault and the asset id. For
   the deployed token's runs they need a nonzero vault, respectively a nonzero initializer caller;
   `Properties/ReinitializationStrong.lean` proves them in that form, and the countermodels without
   those premises.
@@ -56,7 +56,7 @@ in `EraSpec.Contracts.BridgedStandardERC20.Proofs.Reinitialization`.
   stays zero, so the L2 vault's first bridge call takes the legacy branch and installs the
   fallback configuration (`DeployedReinitOnFreshProxyIdentity` in
   `Properties/ReinitializationStrong.lean`). The vault rules this out by deploying
-  and initializing in one call (`NativeTokenVaultBase.sol:629-630`, a `BeaconProxy` built with
+  and initializing in one call (`NativeTokenVaultBase.sol:606-607`, a `BeaconProxy` built with
   empty data, `OZ BeaconProxy.sol:30-32`); the token's own guards do not.
 
 `ReinitWitness` and `LastVersionWitness` show the premises are satisfiable.
@@ -214,7 +214,7 @@ def Properties.RunsPreserveLedger : Prop :=
 /-- **ONCE INITIALIZED, THE IDENTITY IS FIXED, ALONG `StorageReach`.** From any state with a
 nonzero version, along any `StorageReach` run, the vault, the asset id and the origin token never
 change, and the version stays nonzero. No ledger premise. `StorageReach` omits the legacy branch of
-`onlyNTV` (:54-61), so on a state with a zero vault this holds only because the model's bridge
+`onlyNTV` (:51-58), so on a state with a zero vault this holds only because the model's bridge
 calls all revert there; on the deployed token the L2 vault's first bridge call rewrites the vault
 and the asset id (`Properties.DeployedZeroVaultIdentityRewritten`,
 `Properties.DeployedIdentityNotFixedWithoutVault`). For the deployed token's runs it needs a
@@ -227,7 +227,7 @@ def Properties.InitializedIdentityIsFixed : Prop :=
 `StorageReach`.** After a successful `bridgeInitialize` on a fresh proxy and any `StorageReach` run
 after it, the vault is that call's caller, the asset id and origin token are its arguments, the
 ledger is `WellFormed`, and no `bridgeInitialize` can succeed. For caller `0` this holds only
-because `StorageReach` omits the legacy branch of `onlyNTV` (:54-61): on the deployed token the L2
+because `StorageReach` omits the legacy branch of `onlyNTV` (:51-58): on the deployed token the L2
 vault's next bridge call replaces the vault and the asset id
 (`Properties.DeployedFreshProxyZeroCallerRewritten`,
 `Properties.DeployedFreshProxyLifecycleNeedsNonzeroCaller`). With a nonzero caller (the vault, in
@@ -281,10 +281,10 @@ def Properties.BridgeInitializeAtMostOnce : Prop :=
 beacon can call `reinitializeToken(…, 1)` on a fresh proxy, since version 1 is the next one.
 It succeeds, and along every `StorageReach` run after it the identity stays zero,
 `bridgeInitialize` never succeeds, and no modelled `bridgeMint` or `bridgeBurn` succeeds. (The
-real token would then reach the legacy zero-vault branch of `onlyNTV`, :54-61, which
+real token would then reach the legacy zero-vault branch of `onlyNTV`, :51-58, which
 `StorageReach` does not model: there the L2 vault's first bridge call succeeds and installs the
 fallback configuration, `Properties.DeployedReinitOnFreshProxyIdentity`.) The vault
-avoids this by initializing in the deploying call (`NativeTokenVaultBase.sol:629-630`). -/
+avoids this by initializing in the deploying call (`NativeTokenVaultBase.sol:606-607`). -/
 def Properties.ReinitializeOnFreshProxyBlocksBridgeInitialize : Prop :=
   ∀ (owner : Address) (getters : Getters) (name symbol : Text),
     ∃ t, reinitializeToken (some owner) freshStorage owner getters name symbol 1 = some t ∧

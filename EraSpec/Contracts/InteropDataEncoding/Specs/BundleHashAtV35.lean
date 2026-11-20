@@ -17,9 +17,9 @@ numbers are the same at both. The change from the interop pin `c67894b9` came in
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.InteropDataEncoding.Properties.BundleHashAtV35` and the proofs in
-`EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashAtV35`. The pin's model
-(`Specs/BundleHashPinned.lean`, `Specs/BundleHashEncoding.lean`) is unchanged and still describes
-the pin.
+`EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashAtV35`. The pin's keccak layer is
+recorded in `History/Specs/BundleHashPinned.lean`; the shared byte vocabulary is
+`Specs/BundleHashEncoding.lean` and `Specs/BundleHashPinned.lean`.
 
 ## The code at v35
 
@@ -51,7 +51,7 @@ The bundle layout (`common/Messaging.sol:268-276`) is unchanged from the pin, fi
 
 So `bundleEncoding` and `bundleSaltSlot` from `BundleHashPinned` still describe `abi.encode(bundle)`,
 and they now index the keccak preimage directly. The salt sits at bytes 160..192 of the preimage,
-not 256..288 (`preimageSaltSlot` is the pin's offset). The source chain id sits at bytes 64..96
+not 256..288 (`History.preimageSaltSlot` is the pin's offset). The source chain id sits at bytes 64..96
 (`bundleSourceSlotV35`) and the destination at 96..128 (`bundleDestSlotV35`).
 
 The salt derivation and guard are unchanged in substance:

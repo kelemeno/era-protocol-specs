@@ -378,7 +378,7 @@ theorem VaultModelIsRouterModelAtNtv : Properties.VaultModelIsRouterModelAtNtv :
 
 /-- The configuration of `VaultModelIsRouterModelAtNtvWitness`: chain `324`, the router at
 `L2_ASSET_ROUTER_ADDR = 0x10003`, the vault at `L2_NATIVE_TOKEN_VAULT_ADDR = 0x10004` and the
-flow manager at `L2_ATOMIC_FLOW_MANAGER_ADDR = 0x10014` (`L2ContractAddresses.sol:94, 99, 150`). -/
+flow manager at `L2_ATOMIC_FLOW_MANAGER_ADDR = 0x10014` (`L2ContractAddresses.sol:84, 89, 142` at `b17415d20`). -/
 def assetIdL2Config : AssetRouter.AtomicRecovery.Config :=
   ⟨324, addrAsBytes32 0x10003, addrAsBytes32 l2NtvAddr, addrAsBytes32 0x10014, fun _ => some 1⟩
 

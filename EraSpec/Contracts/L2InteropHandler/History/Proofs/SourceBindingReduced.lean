@@ -1,8 +1,21 @@
-import EraSpec.Contracts.L2InteropHandler.Properties.SourceBindingReduced
+import EraSpec.Contracts.L2InteropHandler.History.Properties.SourceBindingReduced
 import EraSpec.Contracts.InteropCenter.Proofs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Proofs.BundleHashEncoding
 import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
 import EraSpec.Protocol.InteropAtomicity.Proofs.Atomicity
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This model transcribes the pin's atomic path. Three differences at `b17415d20` matter for it:
+the destination's bundle hash is `keccak256(_bundle)` with no chain-id word
+(`interop/interop-handler/InteropHandlerBase.sol:231`, `interop/InteropDataEncoding.sol:14-16`),
+where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) accepts a `Verified` bundle and then skips
+`requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
+bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
+self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
+`L2InteropHandler.sol:70` at `b17415d20`)
+is the same at both. See the folder README. Namespaces carry a `History`
+segment. -/
 
 /-!
 # Proofs: the atomic path's source binding, from the vouching chain's code
@@ -25,7 +38,7 @@ chain's dispatched bytes presented. The gate form adds
 The witnesses reuse topic `Dispatch`'s honest run (`wD1`, `wD2`, `wS3`) with the tree attached.
 -/
 
-namespace Contracts.SourceBinding
+namespace Contracts.SourceBinding.History
 
 open MerkleSpec IMTAbstract
 open AttackVectors.BundleHashEncoding
@@ -681,4 +694,4 @@ theorem GateSourceBindingWitness : Properties.GateSourceBindingWitness := by
     subst hd'
     exact hne rfl
 
-end Contracts.SourceBinding
+end Contracts.SourceBinding.History

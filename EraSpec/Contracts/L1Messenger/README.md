@@ -1,10 +1,26 @@
 # L1Messenger
 
-Source: `contracts/l2-system/zksync-os/L1Messenger.sol` (ZKsync OS, deployed at `0x8008`), with the L1
-branch of `interop/InteropCenter.sol`'s `_dispatchBundle`, the hook addresses of
-`common/l2-helpers/L2ContractAddresses.sol`, and `protocol-docs/system/system-hooks.md`, at era-contracts
-`draft/v0.35.0` head `b17415d20`. At main `70096e2ea` the messenger is `L1MessengerZKOS.sol` with the
-same body.
+## Headline guarantees
+
+About the ZKsync OS messenger `l2-system/zksync-os/L1Messenger.sol` (at `0x8008`) and the L1 branch of
+`InteropCenter._dispatchBundle`, at era-contracts `draft/v0.35.0` head `b17415d20`.
+
+| Guarantee | Premises | Lean name |
+|---|---|---|
+| On one chain, the L2 → L1 logs attributed to the messenger and keyed by `L2_INTEROP_CENTER_ADDR` are exactly the message logs of the center's L1 dispatches, one per dispatch, in order; every dispatched bundle is a one-call, zero-value withdrawal from `L2_ASSET_ROUTER_ADDR` | the ZKsync OS hooks behave as `protocol-docs/system/system-hooks.md` documents them (`HooksAsDocumented`: the messenger hook records only for the messenger, and records the message log of the 20-byte sender prefix and the message; the leaf hook records only for the commitment tree, and its log is not a messenger log keyed by the center); the run starts at genesis; the model's steps are every source of L2 → L1 logs (`MODEL-L2-MESSAGE-KEYING`). No hash premise | `Contracts.L1MessengerKeying.Properties.CenterKeyedLogsAreItsWithdrawals` |
+
+Witness (`@[witness]`): `SenderKeyingWitness` (documented hooks on a run with a withdrawal, another
+account's message, a rejected direct hook call and a leaf insert). Countermodel
+(`@[countermodel]`): `UngatedHookForgesACenterKeyedLog` (a messenger hook that records for every
+caller lets an account with no role forge a center-keyed log of a bundle the center never sent).
+The hooks are ZKsync OS code outside this repository; the premise is not proved here.
+
+## Source and scope
+
+Source: `contracts/l2-system/zksync-os/L1Messenger.sol`, with the L1 branch of
+`interop/InteropCenter.sol`'s `_dispatchBundle`, the hook addresses of
+`common/l2-helpers/L2ContractAddresses.sol`, and `protocol-docs/system/system-hooks.md`, at
+`b17415d20`.
 
 Review `Specs/` for state, operations, and assumptions; review `Properties/` for
 the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence

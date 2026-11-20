@@ -3,9 +3,11 @@ import EraSpec.Core.Word
 /-!
 # BridgedStandardERC20: initialized representation-token ledger
 
-Locally authored behavioral specification, reviewed against era-contracts
-`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`, `bridge/BridgedStandardERC20.sol`
-and inherited OpenZeppelin v4 `ERC20Upgradeable` mint/burn/transfer logic.
+Locally authored behavioral specification, reviewed against era-contracts `draft/v0.35.0` head
+`b17415d20`, `l1-contracts/contracts/bridge/BridgedStandardERC20.sol` (`bridgeMint` `:158-161`,
+`bridgeBurn` `:164-167`, the nonzero-vault branch of `onlyNTV` `:49-61`), and inherited OpenZeppelin
+v4 `ERC20Upgradeable` mint/burn/transfer logic. The token has the same code at the old interop pin
+`c67894b9`, where this model was first reviewed.
 
 Scope: the nonzero configured-vault branch of `onlyNTV`, empty inherited hooks,
 and token-ledger effects. This is not a compiled-code proof. Legacy zero-vault

@@ -1,6 +1,16 @@
 import EraSpec.Contracts.DataEncoding.Specs.AssetId
 import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
 
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This topic instantiates the router's atomic-recovery model (`AssetRouterBase` `AtomicRecovery`),
+which transcribes `L2AssetRouter.recoverAtomicCall` at `c67894b9`, where a recovered
+`finalizeDeposit` call always went to the vault. At `b17415d20` `recoverAtomicCall`
+(`bridge/asset-router/L2AssetRouter.sol:269-303`) reverts for an L1 destination, reads the asset's
+registered handler, reverts when there is none, and calls that handler's
+`bridgeRecoverFailedTransfer`, so a custom asset's refund no longer reaches the vault. The library
+side (`assetIdCheck`, `DataEncoding.sol:207-213` at `b17415d20`) is unchanged and is modelled in the
+current `Specs/AssetId.lean`. Namespace `Contracts.DataEncoding.History`. -/
+
 /-!
 # Spec: atomic recovery of a custom asset, with keccak as the id hash
 

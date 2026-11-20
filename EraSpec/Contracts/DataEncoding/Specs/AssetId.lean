@@ -22,67 +22,52 @@ about keccak on named byte strings.
 `EraSpec.Contracts.DataEncoding.Properties.AssetId`, proofs in
 `EraSpec.Contracts.DataEncoding.Proofs.AssetId`.
 
-## Source (pinned tree `c67894b9`, `l1-contracts/contracts/`)
+## Source (era-contracts `draft/v0.35.0` head `b17415d20`, `l1-contracts/contracts/`)
 
 `common/libraries/DataEncoding.sol`:
 
-    126  function encodeAssetId(uint256 _chainId, bytes32 _assetData, address _sender) ... {
-    127      return keccak256(abi.encode(_chainId, _sender, _assetData));
-    135  function encodeAssetId(uint256 _chainId, address _tokenAddress, address _sender) ... {
-    136      return keccak256(abi.encode(_chainId, _sender, _tokenAddress));
-    143  function encodeNTVAssetId(uint256 _chainId, bytes32 _assetData) ... {
-    144      return keccak256(abi.encode(_chainId, L2_NATIVE_TOKEN_VAULT_ADDR, _assetData));
-    151  function encodeNTVAssetId(uint256 _chainId, address _tokenAddress) ... {
-    152      return keccak256(abi.encode(_chainId, L2_NATIVE_TOKEN_VAULT_ADDR, _tokenAddress));
-    208  function assetIdCheck(uint256 _tokenOriginChainId, bytes32 _assetId, address _originToken) ... {
-    209      bytes32 expectedAssetId = encodeNTVAssetId(_tokenOriginChainId, _originToken);
-    210      if (_assetId != expectedAssetId) {
-    212          revert AssetIdMismatch(expectedAssetId, _assetId);
+    125  function encodeAssetId(uint256 _chainId, bytes32 _assetData, address _sender) ... {
+    126      return keccak256(abi.encode(_chainId, _sender, _assetData));
+    134  function encodeAssetId(uint256 _chainId, address _tokenAddress, address _sender) ... {
+    135      return keccak256(abi.encode(_chainId, _sender, _tokenAddress));
+    142  function encodeNTVAssetId(uint256 _chainId, bytes32 _assetData) ... {
+    143      return keccak256(abi.encode(_chainId, L2_NATIVE_TOKEN_VAULT_ADDR, _assetData));
+    150  function encodeNTVAssetId(uint256 _chainId, address _tokenAddress) ... {
+    151      return keccak256(abi.encode(_chainId, L2_NATIVE_TOKEN_VAULT_ADDR, _tokenAddress));
+    207  function assetIdCheck(uint256 _tokenOriginChainId, bytes32 _assetId, address _originToken) ... {
+    208      bytes32 expectedAssetId = encodeNTVAssetId(_tokenOriginChainId, _originToken);
+    209      if (_assetId != expectedAssetId) {
+    211          revert AssetIdMismatch(expectedAssetId, _assetId);
 
 Note the argument order: every encoder hashes `(chainId, sender, data)`, while the first
 `encodeAssetId` overload takes `(chainId, data, sender)`.
 
 `L2_NATIVE_TOKEN_VAULT_ADDR = address(BUILT_IN_CONTRACTS_OFFSET + 0x04)` with
-`BUILT_IN_CONTRACTS_OFFSET = 0x10000` (`common/l2-helpers/L2ContractAddresses.sol:12, 99`).
+`BUILT_IN_CONTRACTS_OFFSET = 0x10000` (`common/l2-helpers/L2ContractAddresses.sol:12, 89`).
 
 The call sites that make the overloads matter:
 
-* `bridge/asset-router/AssetRouterBase.sol:78-80` (`_setAssetHandlerAddressThisChain`): the
-  router keys a registration by the `bytes32` overload, with the vault caller normalised to
-  `L2_NATIVE_TOKEN_VAULT_ADDR`.
-* `bridge/ntv/NativeTokenVaultBase.sol:515-522` (`_unsafeRegisterNativeToken`): the vault
+* `bridge/asset-router/AssetRouterBase.sol:65-76` (`_setAssetHandlerAddressThisChain`): the
+  router keys a registration by the `bytes32` overload (`:72`), with the vault caller normalised
+  to `L2_NATIVE_TOKEN_VAULT_ADDR` (`:70-71`).
+* `bridge/ntv/NativeTokenVaultBase.sol:492-499` (`_unsafeRegisterNativeToken`): the vault
   stores the token under `encodeNTVAssetId(block.chainid, _nativeToken)` (the `address`
-  overload) and asks the router to register
+  overload) and asks the router, reached through `_getAssetRouter()`, to register
   `setAssetHandlerAddressThisChain(bytes32(uint256(uint160(_nativeToken))), address(this))`,
   which the router hashes with the `bytes32` overload. The two halves of one registration
   are keyed by the same id only if the two overloads agree on these arguments.
-* `bridge/ntv/NativeTokenVaultBase.sol:580` (`_ensureAndSaveTokenDeployedInner`): a bridged
-  token is registered only after `assetIdCheck` passes.
-* Also `bridge/asset-router/L1AssetRouter.sol:163` (`setAssetDeploymentTracker`) and
-  `core/bridgehub/BridgehubBase.sol:290` (the CTM asset id) use the `bytes32` overload.
+* `bridge/ntv/NativeTokenVaultBase.sol:557` (`_ensureAndSaveTokenDeployedInner`, `:550`): a
+  bridged token is registered only after `assetIdCheck` passes.
+* Also `bridge/asset-router/L1AssetRouter.sol:139` (`setAssetDeploymentTracker`) and
+  `core/bridgehub/BridgehubBase.sol:289` (the CTM asset id, over `_getL1ChainId()`) use the
+  `bytes32` overload.
+* The L2 router's vault getter `_getNativeTokenVaultAddr()` (`bridge/asset-router/L2AssetRouter.sol:79-81`,
+  cited by `Properties.VaultModelIsRouterModelAtNtv`) returns `L2_NATIVE_TOKEN_VAULT_ADDR`; it is
+  `virtual`, and only a test harness overrides it.
 
-## Later trees
-
-Re-read at `e561b9cc2`, draft/v0.35.0 (`d9f6789`, `b17415d20`) and main (`3605e82`,
-`70096e2ea`). The five functions, the two constants and the hashing at the call sites above are
-unchanged. On v0.35.0 and `e561b9cc2` two internal getters are renamed:
-`_unsafeRegisterNativeToken` reaches the router through `_getAssetRouter()`, and
-`BridgehubBase` hashes `_getL1ChainId()` (`_assetRouter()` and `_l1ChainId()` at the pin and on
-main). Line numbers move:
-
-* `DataEncoding.sol`: the same lines on main; one line earlier on v0.35.0 and `e561b9cc2`
-  (`encodeAssetId` `:125-127` and `:134-136`, `encodeNTVAssetId` `:142-144` and `:150-152`,
-  `assetIdCheck` `:207-213`);
-* `L2ContractAddresses.sol:89` (v0.35.0, `e561b9cc2`) and `:104` (main) for
-  `L2_NATIVE_TOKEN_VAULT_ADDR`; `BUILT_IN_CONTRACTS_OFFSET` stays at `:12`;
-* `AssetRouterBase.sol:70-72` and `NativeTokenVaultBase.sol:492-499` and `:557` on every
-  later tree; `L1AssetRouter.sol:139` (v0.35.0; `:138` at `e561b9cc2`) and `:162` (main);
-  `BridgehubBase.sol:289` (v0.35.0, `e561b9cc2`) and `:290` (main);
-* the L2 router's vault getter (`L2AssetRouter.sol:72-74` at the pin, cited by
-  `Properties.VaultModelIsRouterModelAtNtv`) is at `:79-81` on every later tree, named
-  `_getNativeTokenVaultAddr()` on v0.35.0 and `e561b9cc2`; it still returns
-  `L2_NATIVE_TOKEN_VAULT_ADDR`, and only a test harness overrides it
-  (`test/foundry/l1/unit/concrete/atomic-interop/AtomicRecoveryForgery.t.sol`).
+The modelled functions and call sites are the same at the earlier pins (`c67894b9`, `e561b9cc2`),
+at other line numbers; only the getter names `_getAssetRouter()`, `_getL1ChainId()` and
+`_getNativeTokenVaultAddr()` differ there.
 
 ## The ABI layout
 
@@ -156,44 +141,44 @@ def encAddr (a : Addr) : List UInt8 := List.replicate 12 0 ++ toBytesBE 20 a.val
 the bits, so this is the zero extension `widen` of the vault models. -/
 abbrev addrAsBytes32 (t : Addr) : UInt256 := Contracts.NativeTokenVaultBase.widen t
 
-/-- `L2_NATIVE_TOKEN_VAULT_ADDR = address(0x10000 + 0x04)` (`L2ContractAddresses.sol:12, 99`). The
-router normalises the vault caller to it on every chain (`AssetRouterBase.sol:79`), and both
+/-- `L2_NATIVE_TOKEN_VAULT_ADDR = address(0x10000 + 0x04)` (`L2ContractAddresses.sol:12, 89`). The
+router normalises the vault caller to it on every chain (`AssetRouterBase.sol:71`), and both
 `encodeNTVAssetId` overloads hash it as the sender. -/
 def l2NtvAddr : Addr := 0x10004
 
 /-! ## The library -/
 
 /-- `abi.encode(_chainId, _sender, _assetData)` with `_assetData : bytes32`
-(`DataEncoding.sol:127`, and `:144` with `_sender = L2_NATIVE_TOKEN_VAULT_ADDR`). -/
+(`DataEncoding.sol:126`, and `:143` with `_sender = L2_NATIVE_TOKEN_VAULT_ADDR`). -/
 def assetIdPreimage (c : UInt256) (s : Addr) (d : UInt256) : List UInt8 :=
   encWord c ++ encAddr s ++ encWord d
 
 /-- `abi.encode(_chainId, _sender, _tokenAddress)` with `_tokenAddress : address`
-(`DataEncoding.sol:136`, and `:152` with `_sender = L2_NATIVE_TOKEN_VAULT_ADDR`). -/
+(`DataEncoding.sol:135`, and `:151` with `_sender = L2_NATIVE_TOKEN_VAULT_ADDR`). -/
 def assetIdPreimageOfToken (c : UInt256) (s : Addr) (t : Addr) : List UInt8 :=
   encWord c ++ encAddr s ++ encAddr t
 
 /-- `encodeAssetId(uint256 _chainId, bytes32 _assetData, address _sender)`
-(`DataEncoding.sol:126-128`). -/
+(`DataEncoding.sol:125-127`). -/
 def encodeAssetId (keccak : Keccak) (c : UInt256) (d : UInt256) (s : Addr) : UInt256 :=
   keccak (assetIdPreimage c s d)
 
 /-- `encodeAssetId(uint256 _chainId, address _tokenAddress, address _sender)`
-(`DataEncoding.sol:135-137`). -/
+(`DataEncoding.sol:134-136`). -/
 def encodeAssetIdOfToken (keccak : Keccak) (c : UInt256) (t : Addr) (s : Addr) : UInt256 :=
   keccak (assetIdPreimageOfToken c s t)
 
-/-- `encodeNTVAssetId(uint256 _chainId, bytes32 _assetData)` (`DataEncoding.sol:143-145`). -/
+/-- `encodeNTVAssetId(uint256 _chainId, bytes32 _assetData)` (`DataEncoding.sol:142-144`). -/
 def encodeNTVAssetId (keccak : Keccak) (c : UInt256) (d : UInt256) : UInt256 :=
   keccak (assetIdPreimage c l2NtvAddr d)
 
-/-- `encodeNTVAssetId(uint256 _chainId, address _tokenAddress)` (`DataEncoding.sol:151-153`).
-This is the overload the vault uses: `_unsafeRegisterNativeToken` (`NativeTokenVaultBase.sol:516`)
-and `assetIdCheck` (`DataEncoding.sol:209`). -/
+/-- `encodeNTVAssetId(uint256 _chainId, address _tokenAddress)` (`DataEncoding.sol:150-152`).
+This is the overload the vault uses: `_unsafeRegisterNativeToken` (`NativeTokenVaultBase.sol:493`)
+and `assetIdCheck` (`DataEncoding.sol:208`). -/
 def encodeNTVAssetIdOfToken (keccak : Keccak) (c : UInt256) (t : Addr) : UInt256 :=
   keccak (assetIdPreimageOfToken c l2NtvAddr t)
 
-/-- `assetIdCheck(_tokenOriginChainId, _assetId, _originToken)` (`DataEncoding.sol:208-214`):
+/-- `assetIdCheck(_tokenOriginChainId, _assetId, _originToken)` (`DataEncoding.sol:207-213`):
 `some ()` when it returns, `none` when it reverts with `AssetIdMismatch`. -/
 def assetIdCheck (keccak : Keccak) (c : UInt256) (a : UInt256) (t : Addr) : Option Unit :=
   if a = encodeNTVAssetIdOfToken keccak c t then some () else none

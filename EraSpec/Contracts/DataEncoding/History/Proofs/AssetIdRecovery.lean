@@ -1,6 +1,16 @@
-import EraSpec.Contracts.DataEncoding.Properties.AssetIdRecovery
+import EraSpec.Contracts.DataEncoding.History.Properties.AssetIdRecovery
 import EraSpec.Contracts.DataEncoding.Proofs.AssetIdRuns
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This topic instantiates the router's atomic-recovery model (`AssetRouterBase` `AtomicRecovery`),
+which transcribes `L2AssetRouter.recoverAtomicCall` at `c67894b9`, where a recovered
+`finalizeDeposit` call always went to the vault. At `b17415d20` `recoverAtomicCall`
+(`bridge/asset-router/L2AssetRouter.sol:269-303`) reverts for an L1 destination, reads the asset's
+registered handler, reverts when there is none, and calls that handler's
+`bridgeRecoverFailedTransfer`, so a custom asset's refund no longer reaches the vault. The library
+side (`assetIdCheck`, `DataEncoding.sol:207-213` at `b17415d20`) is unchanged and is modelled in the
+current `Specs/AssetId.lean`. Namespace `Contracts.DataEncoding.History`. -/
 
 /-!
 # Proofs: atomic recovery of a custom asset, with keccak as the id hash
@@ -15,7 +25,7 @@ registered on this chain (chain `7`, sender `9`, data `1`) instead of that model
 chain `0`.
 -/
 
-namespace Contracts.DataEncoding
+namespace Contracts.DataEncoding.History
 
 open AttackVectors.BundleHashEncoding (HashCollision)
 open AssetRouter.AtomicRecovery (Config Hooks World MintData recoverAtomicCall burnHandler
@@ -195,4 +205,4 @@ theorem CustomHandlerDepositRefundRevertsOrKeccakCollisionWitness :
   · exact ⟨(1, 9), (NativeTokenVault.MemRegisteredPairs _ _ _).mpr
       ⟨AssetRouter.AtomicRecovery.wOp, List.mem_cons_self, rfl⟩⟩
 
-end Contracts.DataEncoding
+end Contracts.DataEncoding.History

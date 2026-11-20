@@ -1,0 +1,380 @@
+[
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.AtomicSourceBindingStrongWitness",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.AtomicSourceBindingStrongWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.AtomicSourceBoundOn",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.AtomicSourceBoundOn",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.AtomicSourceBoundOnCenterRunOrLoggedClash",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.AtomicSourceBoundOnCenterRunOrLoggedClash",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.AtomicSourceBoundToVouchingTreeOrLoggedClash",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.AtomicSourceBoundToVouchingTreeOrLoggedClash",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.CenterRunTreeHoldsOwnLegs",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.CenterRunTreeHoldsOwnLegs",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.DestContextCheckBySite",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.DestContextCheckBySite",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.ExecutingBundleSenderChainIsItsLegChainOrLoggedClash",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.ExecutingBundleSenderChainIsItsLegChainOrLoggedClash",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.AtomicSourceBinding.Properties.ForeignCommitInTreeUnbindsSource",
+  "new": "AttackVectors.AtomicSourceBinding.History.Properties.ForeignCommitInTreeUnbindsSource",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingStrong models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingStrong.lean)."
+ },
+ {
+  "old": "AttackVectors.BundleHashEncoding.Properties.PreimageCarriesSalt",
+  "new": "AttackVectors.BundleHashEncoding.History.Properties.PreimageCarriesSalt",
+  "kind": "history",
+  "justification": "Keccak-layer statement over the c67894b9 bundle hash keccak(abi.encode(chainId, abi.encode(bundle))); moved unchanged to History (History/Properties/BundleHashPinned.lean). The b17415d20 counterpart is the …V35 statement of topic BundleHashAtV35 (SaltSlotOfBundleEncoding for PreimageCarriesSalt)."
+ },
+ {
+  "old": "AttackVectors.BundleHashEncoding.Properties.PreimageCollisionDisjunctNeeded",
+  "new": "AttackVectors.BundleHashEncoding.History.Properties.PreimageCollisionDisjunctNeeded",
+  "kind": "history",
+  "justification": "Keccak-layer statement over the c67894b9 bundle hash keccak(abi.encode(chainId, abi.encode(bundle))); moved unchanged to History (History/Properties/BundleHashPinned.lean). The b17415d20 counterpart is the …V35 statement of topic BundleHashAtV35 (SaltSlotOfBundleEncoding for PreimageCarriesSalt)."
+ },
+ {
+  "old": "AttackVectors.BundleHashEncoding.Properties.SendsAcrossChainsWitness",
+  "new": "AttackVectors.BundleHashEncoding.History.Properties.SendsAcrossChainsWitness",
+  "kind": "history",
+  "justification": "Keccak-layer statement over the c67894b9 bundle hash keccak(abi.encode(chainId, abi.encode(bundle))); moved unchanged to History (History/Properties/BundleHashPinned.lean). The b17415d20 counterpart is the …V35 statement of topic BundleHashAtV35 (SaltSlotOfBundleEncoding for PreimageCarriesSalt)."
+ },
+ {
+  "old": "AttackVectors.BundleHashEncoding.Properties.SendsDistinctBundleHashesAcrossChainsOrKeccakCollision",
+  "new": "AttackVectors.BundleHashEncoding.History.Properties.SendsDistinctBundleHashesAcrossChainsOrKeccakCollision",
+  "kind": "history",
+  "justification": "Keccak-layer statement over the c67894b9 bundle hash keccak(abi.encode(chainId, abi.encode(bundle))); moved unchanged to History (History/Properties/BundleHashPinned.lean). The b17415d20 counterpart is the …V35 statement of topic BundleHashAtV35 (SaltSlotOfBundleEncoding for PreimageCarriesSalt)."
+ },
+ {
+  "old": "AttackVectors.BundleHashEncoding.Properties.SendsDistinctBundleHashesOn",
+  "new": "AttackVectors.BundleHashEncoding.History.Properties.SendsDistinctBundleHashesOn",
+  "kind": "history",
+  "justification": "Keccak-layer statement over the c67894b9 bundle hash keccak(abi.encode(chainId, abi.encode(bundle))); moved unchanged to History (History/Properties/BundleHashPinned.lean). The b17415d20 counterpart is the …V35 statement of topic BundleHashAtV35 (SaltSlotOfBundleEncoding for PreimageCarriesSalt)."
+ },
+ {
+  "old": "AttackVectors.BundleHashEncoding.Properties.SendsDistinctBundleHashesOrKeccakCollision",
+  "new": "AttackVectors.BundleHashEncoding.History.Properties.SendsDistinctBundleHashesOrKeccakCollision",
+  "kind": "history",
+  "justification": "Keccak-layer statement over the c67894b9 bundle hash keccak(abi.encode(chainId, abi.encode(bundle))); moved unchanged to History (History/Properties/BundleHashPinned.lean). The b17415d20 counterpart is the …V35 statement of topic BundleHashAtV35 (SaltSlotOfBundleEncoding for PreimageCarriesSalt)."
+ },
+ {
+  "old": "AttackVectors.BundleHashEncoding.Properties.SendsDistinctBundleHashesWitness",
+  "new": "AttackVectors.BundleHashEncoding.History.Properties.SendsDistinctBundleHashesWitness",
+  "kind": "history",
+  "justification": "Keccak-layer statement over the c67894b9 bundle hash keccak(abi.encode(chainId, abi.encode(bundle))); moved unchanged to History (History/Properties/BundleHashPinned.lean). The b17415d20 counterpart is the …V35 statement of topic BundleHashAtV35 (SaltSlotOfBundleEncoding for PreimageCarriesSalt)."
+ },
+ {
+  "old": "Contracts.DataEncoding.Properties.CustomAssetRecoveryRevertsOrKeccakCollision",
+  "new": "Contracts.DataEncoding.History.Properties.CustomAssetRecoveryRevertsOrKeccakCollision",
+  "kind": "history",
+  "justification": "Instantiates the c67894b9 AssetRouterBase AtomicRecovery model; at b17415d20 recoverAtomicCall (L2AssetRouter.sol:269-303) calls the asset's registered handler. Moved unchanged to History (History/Properties/AssetIdRecovery.lean)."
+ },
+ {
+  "old": "Contracts.DataEncoding.Properties.CustomAssetRecoveryRevertsOrKeccakCollisionWitness",
+  "new": "Contracts.DataEncoding.History.Properties.CustomAssetRecoveryRevertsOrKeccakCollisionWitness",
+  "kind": "history",
+  "justification": "Instantiates the c67894b9 AssetRouterBase AtomicRecovery model; at b17415d20 recoverAtomicCall (L2AssetRouter.sol:269-303) calls the asset's registered handler. Moved unchanged to History (History/Properties/AssetIdRecovery.lean)."
+ },
+ {
+  "old": "Contracts.DataEncoding.Properties.CustomHandlerDepositRefundRevertsOrKeccakCollision",
+  "new": "Contracts.DataEncoding.History.Properties.CustomHandlerDepositRefundRevertsOrKeccakCollision",
+  "kind": "history",
+  "justification": "Instantiates the c67894b9 AssetRouterBase AtomicRecovery model; at b17415d20 recoverAtomicCall (L2AssetRouter.sol:269-303) calls the asset's registered handler. Moved unchanged to History (History/Properties/AssetIdRecovery.lean)."
+ },
+ {
+  "old": "Contracts.DataEncoding.Properties.CustomHandlerDepositRefundRevertsOrKeccakCollisionWitness",
+  "new": "Contracts.DataEncoding.History.Properties.CustomHandlerDepositRefundRevertsOrKeccakCollisionWitness",
+  "kind": "history",
+  "justification": "Instantiates the c67894b9 AssetRouterBase AtomicRecovery model; at b17415d20 recoverAtomicCall (L2AssetRouter.sol:269-303) calls the asset's registered handler. Moved unchanged to History (History/Properties/AssetIdRecovery.lean)."
+ },
+ {
+  "old": "Contracts.DataEncoding.Properties.FailsAssetIdCheckIsLibraryRevert",
+  "new": "Contracts.DataEncoding.History.Properties.FailsAssetIdCheckIsLibraryRevert",
+  "kind": "history",
+  "justification": "Instantiates the c67894b9 AssetRouterBase AtomicRecovery model; at b17415d20 recoverAtomicCall (L2AssetRouter.sol:269-303) calls the asset's registered handler. Moved unchanged to History (History/Properties/AssetIdRecovery.lean)."
+ },
+ {
+  "old": "Contracts.DataEncoding.Properties.FailsAssetIdCheckIsLibraryRevertWitness",
+  "new": "Contracts.DataEncoding.History.Properties.FailsAssetIdCheckIsLibraryRevertWitness",
+  "kind": "history",
+  "justification": "Instantiates the c67894b9 AssetRouterBase AtomicRecovery model; at b17415d20 recoverAtomicCall (L2AssetRouter.sol:269-303) calls the asset's registered handler. Moved unchanged to History (History/Properties/AssetIdRecovery.lean)."
+ },
+ {
+  "old": "Contracts.DataEncoding.Properties.KeccakCollisionLetsVaultMintCustomAsset",
+  "new": "Contracts.DataEncoding.History.Properties.KeccakCollisionLetsVaultMintCustomAsset",
+  "kind": "history",
+  "justification": "Instantiates the c67894b9 AssetRouterBase AtomicRecovery model; at b17415d20 recoverAtomicCall (L2AssetRouter.sol:269-303) calls the asset's registered handler. Moved unchanged to History (History/Properties/AssetIdRecovery.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.AtomicExecutesCommittedBytesOrBreak",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.AtomicExecutesCommittedBytesOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.AtomicExecutionLocatesVouchingLeg",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.AtomicExecutionLocatesVouchingLeg",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.AtomicExecutionRunsADispatchedBundleOrBreak",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.AtomicExecutionRunsADispatchedBundleOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.AtomicExecutionRunsTheDispatchedBundleOrBreak",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.AtomicExecutionRunsTheDispatchedBundleOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.AtomicSenderBindingWitness",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.AtomicSenderBindingWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.AtomicSenderIsVouchingChainOn",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.AtomicSenderIsVouchingChainOn",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.AtomicSenderIsVouchingChainOrBreak",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.AtomicSenderIsVouchingChainOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.BundlePreimageClashFires",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.BundlePreimageClashFires",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.CommitPreimageClashFires",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.CommitPreimageClashFires",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.DeclaredOfHashForcesBundleBlindHash",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.DeclaredOfHashForcesBundleBlindHash",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.DeclaredOfHashWitness",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.DeclaredOfHashWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.DeclaredSourceSeenOnlyThroughHash",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.DeclaredSourceSeenOnlyThroughHash",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.DeclaredSourceSeenOnlyThroughHashWitness",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.DeclaredSourceSeenOnlyThroughHashWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.DeliveriesCarryDeclaredSource",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.DeliveriesCarryDeclaredSource",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.DeployedRunExecutionWitness",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.DeployedRunExecutionWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.DeployedRunVouchesHonestly",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.DeployedRunVouchesHonestly",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.HonestVouchingOfSoundVerifier",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.HonestVouchingOfSoundVerifier",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.HonestVouchingSplitWitness",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.HonestVouchingSplitWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.IdealVerifierSound",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.IdealVerifierSound",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.MisbehavingLegChainImpersonates",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.MisbehavingLegChainImpersonates",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.SentinelCommitFires",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.SentinelCommitFires",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.L2InteropHandler.AtomicSourceFaithful.Properties.VouchingLegUnique",
+  "new": "Contracts.L2InteropHandler.AtomicSourceFaithful.History.Properties.VouchingLegUnique",
+  "kind": "history",
+  "justification": "L2InteropHandler topic AtomicSourceBindingFaithful models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/AtomicSourceBindingFaithful.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.AtomicSourceBoundOn",
+  "new": "Contracts.SourceBinding.History.Properties.AtomicSourceBoundOn",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.AtomicSourceBoundOrBreak",
+  "new": "Contracts.SourceBinding.History.Properties.AtomicSourceBoundOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.AtomicSourceBoundOrKeccakEvent",
+  "new": "Contracts.SourceBinding.History.Properties.AtomicSourceBoundOrKeccakEvent",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.BreakIsKeccakEvent",
+  "new": "Contracts.SourceBinding.History.Properties.BreakIsKeccakEvent",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.BundleClashBreakFires",
+  "new": "Contracts.SourceBinding.History.Properties.BundleClashBreakFires",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.CommitClashBreakFires",
+  "new": "Contracts.SourceBinding.History.Properties.CommitClashBreakFires",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.CommitClashIsKeccakClash",
+  "new": "Contracts.SourceBinding.History.Properties.CommitClashIsKeccakClash",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.CommitValueOnlyInItsSourceTreeOrBreak",
+  "new": "Contracts.SourceBinding.History.Properties.CommitValueOnlyInItsSourceTreeOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.CommitValueOnlyInItsSourceTreeWitness",
+  "new": "Contracts.SourceBinding.History.Properties.CommitValueOnlyInItsSourceTreeWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.ExecutedBytesAreDispatchedOrBreak",
+  "new": "Contracts.SourceBinding.History.Properties.ExecutedBytesAreDispatchedOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.ExecutedCallersAreSourceSendersOrBreak",
+  "new": "Contracts.SourceBinding.History.Properties.ExecutedCallersAreSourceSendersOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.GateBindsExecutingSourceOrBreak",
+  "new": "Contracts.SourceBinding.History.Properties.GateBindsExecutingSourceOrBreak",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.GateSourceBindingWitness",
+  "new": "Contracts.SourceBinding.History.Properties.GateSourceBindingWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.SentinelBreakFires",
+  "new": "Contracts.SourceBinding.History.Properties.SentinelBreakFires",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.SourceBindingWitness",
+  "new": "Contracts.SourceBinding.History.Properties.SourceBindingWitness",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.SourceKeysAreDispatchedCommitValues",
+  "new": "Contracts.SourceBinding.History.Properties.SourceKeysAreDispatchedCommitValues",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.SourceRunProjectsToAppendPath",
+  "new": "Contracts.SourceBinding.History.Properties.SourceRunProjectsToAppendPath",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.SourceRunProjectsToCenterReach",
+  "new": "Contracts.SourceBinding.History.Properties.SourceRunProjectsToCenterReach",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ },
+ {
+  "old": "Contracts.SourceBinding.Properties.WithoutOnlyInteropCenterSourceUnbound",
+  "new": "Contracts.SourceBinding.History.Properties.WithoutOnlyInteropCenterSourceUnbound",
+  "kind": "history",
+  "justification": "L2InteropHandler topic SourceBindingReduced models the c67894b9 atomic path (bundle hash keccak(abi.encode(sourceChainId, bytes)), pin executeAtomicBundle); at b17415d20 the hash is keccak(bytes) and executeAtomicBundle skips the gate for Verified bundles. Moved unchanged to History (History/Properties/SourceBindingReduced.lean)."
+ }
+]

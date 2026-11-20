@@ -42,7 +42,7 @@ deployed run, with the calls counted through `DeployedStorageCall.entryPoint`:
 * From a fresh proxy the bound of two is reached (`DeployedLegacyBranchTwiceFromFreshProxy`): the
   version premise of `DeployedLegacyBranchCountExact` cannot be dropped. That run calls the token
   before `bridgeInitialize` and initializes it with caller `0`; the vault's deploy-and-initialize
-  (`NativeTokenVaultBase.sol:629-630`) does neither.
+  (`NativeTokenVaultBase.sol:606-607`) does neither.
 
 `DeployedCountingWitness` meets the premises above with a run on each branch of `onlyNTV`. Its
 legacy run ends at a storage that `StorageReach` does not reach from the run's start.
@@ -109,7 +109,7 @@ def Properties.DeployedBridgeInitializeAtMostOnce : Prop :=
 Along any labelled deployed run, from any storage, the number of calls that take `onlyNTV`'s legacy
 branch is at most the number of `bridgeInitialize` calls in the run, plus one if the vault slot is
 zero at the start. A legacy call leaves a nonzero vault slot, and only `bridgeInitialize` (with
-caller `0`, :90) writes it back to zero. With `DeployedBridgeInitializeAtMostOnce`, no run has more
+caller `0`, :87) writes it back to zero. With `DeployedBridgeInitializeAtMostOnce`, no run has more
 than two legacy calls; `DeployedLegacyBranchTwiceFromFreshProxy` has two. -/
 def Properties.DeployedLegacyBranchBound : Prop :=
   ∀ (env : LegacyEnv) (s : TokenStorage) (calls : List DeployedStorageCall) (t : TokenStorage),
@@ -138,11 +138,11 @@ deployed run from a fresh proxy makes a call on the legacy branch, then `bridgeI
 call on the legacy branch again, and ends at version 1 with the identity
 `fallbackConfig env ⟨0, 9, 5⟩` and nothing in circulation. The proof's run: the L2 vault's
 `bridgeMint` of one unit to account `4`, `bridgeInitialize` by caller `0` with asset id `5` and
-origin token `9` (which writes the vault slot back to zero, :90), and the L2 vault's `bridgeBurn`
+origin token `9` (which writes the vault slot back to zero, :87), and the L2 vault's `bridgeBurn`
 of that unit. Two committed calls of the run read `L1_CHAIN_ID()`, and the model gives both the
 same value. So the version premise of `DeployedLegacyBranchCountExact` cannot be dropped, and
 `DeployedLegacyBranchBound` is reached. The vault's deploy-and-initialize
-(`NativeTokenVaultBase.sol:629-630`) makes no call before `bridgeInitialize` and makes that call
+(`NativeTokenVaultBase.sol:606-607`) makes no call before `bridgeInitialize` and makes that call
 itself, so its caller is the vault, not `0`. -/
 def Properties.DeployedLegacyBranchTwiceFromFreshProxy : Prop :=
   ∀ env : LegacyEnv, ∃ t : TokenStorage,
