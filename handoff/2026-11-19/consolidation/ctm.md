@@ -125,3 +125,18 @@ table below, to be applied with `attribute [headline] Properties.X` lines once t
 | UpgradeTimingStrong | - | `ValidScheduleAloneLeavesDeadTime`, `NoDeadTimeNeedsItsOtherPremises` | `ReplacementDeadlineWitness`, `NoDeadTimeWitness` |
 | UpgradeTxNonces | `UpgradeTxNoncesStrictlyIncrease` | `LaggingReturnRepeatsNonce`, `ReturnAheadSkipsAnL2Upgrade` | `ExactLandingWitness`, `UpgradeTxNoncesWitness` |
 | VersionRegistry | `CurrentReleaseIsVersionsRelease`, `VersionsIncreaseAlongRuns`, `CommitWritesEachSlotOnce`, `TransitionsChain` | `NonGenuineReplacementBreaksSlotVersion` | `VersionRegistryWitness` |
+
+## Review round 1 fixes
+
+* `ASSUMPTIONS.md` `MODEL-CTM-ROUTING` re-pinned to `draft/v0.35.0` `b17415d20` (first written at
+  `e561b9cc2`). It now names `GenesisWriters`' model of `Admin._executeDiamondCut`'s
+  second-proof-system check (`Admin.sol:121-126`, `AppStorage.secondProofSystemRequired`,
+  `Env.multiProofOf`) and says chain migrations are disabled at the pin (`common/Config.sol:320`).
+* Result-table rows for `ChainTypeManager` (upgrade system), `LiveRouting`/`DiamondStorage`/
+  `DuplicateSelectorScan`, `UpgradeTiming`, `Enabledness`/`DuplicateSelectorCheck`,
+  `ExecutorUpgradeChain`, `EngineGettersFaithful`, `LegacyCrossingFaithful` (c67894b9 note kept),
+  `GenesisWriters` and `RowsUnvalidated`/`ExecutorRowsUnvalidated` relabelled
+  `b17415d20, first written at e561b9cc2`. `ProofGateAtV35` row now says "the gate-free
+  statements of these names".
+* `Properties/GenesisWriters.lean` header: a section on the second-proof-system check and the
+  resulting vacuity of arbitrary-state safety statements when the flag is set (doc only).

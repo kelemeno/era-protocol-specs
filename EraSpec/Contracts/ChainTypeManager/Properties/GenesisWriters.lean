@@ -52,6 +52,14 @@ Statements about `EraSpec.Contracts.ChainTypeManager.Specs.GenesisWriters`. Proo
 * **`validate()`'s nonempty rows.** The flattened step admits a release with a selector-less
   facet row, which the code refuses (`SelectorlessRowRevertsCreation`). So the step
   over-approximates creation, and exactness needs `ReleaseWf`.
+
+## The second-proof-system check
+
+`adminGenesisUpgrade` is `executeDiamondCut`: the cut, then `Admin._executeDiamondCut`'s check
+(`Admin.sol:121-126`). So a safety statement here over an arbitrary `ChainState` holds vacuously
+on states with `secondProofSystemRequired = true` and a verifier not in multi-proof mode, since
+the genesis upgrade reverts there. On the creation paths this changes nothing: the flag is false
+after `DiamondInit` (`DiamondInitInstallsTheRelease`).
 -/
 
 namespace Contracts.ChainTypeManager.GenesisWriters
