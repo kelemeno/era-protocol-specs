@@ -381,7 +381,11 @@ def Properties.L2OnlyCounterpartTouchesNonVaultIds : Prop :=
 
 /-- **`L2OnlyCounterpartTouchesNonVaultIds`'s PREMISES HOLD, WITH A HANDLER THAT CHANGES.**
 On an L2 router with a well-behaved vault, after the seed, the vault's registration of its
-own token changes a handler. -/
+own token changes a handler.
+
+It is also the `@[witness]` for the headline `L2OnlyVaultRegisters`: its premises (the L2 side
+and a run `ops` from fresh storage) hold here, with a further step that changes a handler.  The
+`register` it exercises is that further step `op`, not a logged `register` inside `ops`. -/
 @[witness] def Properties.L2OnlyCounterpartTouchesNonVaultIdsWitness : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router) (op : Op) (R' : Router) (x : AssetId),
     K.side = .l2 ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧

@@ -73,14 +73,16 @@ start empty.
 - `Contracts.AssetRouter.AtomicRecoveryAtHead.Properties.RevertingCallBlocksClaimAtHead`: one call
   that reverts in every reachable world blocks the claim of its whole bundle, in every leg state.
   Premises: an invariant the bundle's returning calls keep, under which that call reverts; the
-  refund model's boundary.
+  refund model's boundary. It holds for every per-call behaviour `step` the manager's loop is
+  given, not only the head router's `recoverCallAtHead`.
 - `Contracts.AssetRouter.AtomicRecoveryAtHead.Properties.DirectBundleClaimIsNoOpAtHead`: a bundle of
   zero-value calls none of which is from the router is claimed as a no-op: the leg is `Reverted` and
-  the world unchanged, whatever data the calls carry. Premises: a non-L1 destination; the refund
-  model's boundary.
+  the world unchanged, whatever data the calls carry. Premises: a `Revertable` leg; a non-L1
+  destination; the refund model's boundary.
 - `Contracts.AssetRouter.AtomicRecoveryAtHead.Properties.L1DestinationClaimRevertsAtHead`: a claim
-  with an L1 destination reverts. Premises: the destination is `L1_CHAIN_ID`; the refund model's
-  boundary.
+  with an L1 destination reverts, in every leg state and world. Premises: the destination is
+  `L1_CHAIN_ID`; the refund model's boundary. It holds for every per-call behaviour `step` the
+  manager's loop is given, not only the head router's `recoverCallAtHead`.
 
 Each headline has a `@[witness]` showing its premises can hold. The `@[countermodel]`s show that
 each premise is needed or that a stronger reading is false: `RunValid` fails after one deposit

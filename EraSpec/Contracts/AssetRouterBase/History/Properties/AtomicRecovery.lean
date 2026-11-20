@@ -240,8 +240,8 @@ burned amount to the depositor `r.depositor`, not to the remote receiver — on 
 the asset, unpaused, once the tracker hook returns.  `routerCall` is the call the router really
 produces only for a destination other than L1.  For an L1 destination the real call targets
 `L1_ASSET_ROUTER` and its refund does not reach the router: see
-`AtomicRecoveryFaithful.Properties.PreparedBurnRefundFailsToL1` and the case split
-`AtomicRecoveryFaithful.Properties.PreparedBurnRefundByDestination`. -/
+`AtomicRecoveryFaithful.History.Properties.PreparedBurnRefundFailsToL1` and the case split
+`AtomicRecoveryFaithful.History.Properties.PreparedBurnRefundByDestination`. -/
 def Properties.PreparedBurnRefundsDepositor : Prop :=
   ∀ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
     (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc),

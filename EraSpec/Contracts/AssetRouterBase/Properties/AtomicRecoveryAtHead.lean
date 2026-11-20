@@ -54,7 +54,7 @@ that a direct call was refunded like a burn.  At head:
   `UnrecognisedRouterCallConsumedAtHead`, and against the pin `PinRejectsNothingRecoverableHeadAccepts`).
 * **(e) An L1 destination is refused at claim time**, in every leg state, world and per-call
   behaviour (`L1DestinationClaimRevertsAtHead`).  The pin's stranded L1 leg
-  (`AtomicRecoveryFaithful.AdmittedAtomicL1LegNeverRefunded`) needs an atomic bundle to L1, which
+  (`AtomicRecoveryFaithful.History.Properties.AdmittedAtomicL1LegNeverRefunded`) needs an atomic bundle to L1, which
   `_sendBundle` rejects at head (`InteropCenter.sol:552-553`; the send is not modelled here).
 
 No statement takes a global hash premise.  The only hash premises are in the two `…LoggedOn` forms:
@@ -161,8 +161,8 @@ the world exactly as it was — no mint and no unlock, whatever `finalizeDeposit
 The pin's forged refund (`AtomicRecovery.History.DirectCallIsRefunded`, `DirectCallMintsUnbacked`) is a
 bundle of this kind.
 
-Premises: a non-L1 destination; no call of the bundle is from the router and none carries value.
-No hash premise. Model boundary (`MODEL-ATOMIC-RECOVERY-HEAD`): call and mint data are typed (`SOL-ABI`); the
+Premises: a `Revertable` leg; a non-L1 destination; no call of the bundle is from the router and
+none carries value. No hash premise. Model boundary (`MODEL-ATOMIC-RECOVERY-HEAD`): call and mint data are typed (`SOL-ABI`); the
 router's, manager's and tracker's `L1_CHAIN_ID` slots are one value and the vault's and tracker's
 `BASE_TOKEN_ASSET_ID` slots another (`OPS-CONFIG`); the vault's hooks and the base-token holder
 write only the rest of the world (`DEP-FRAME`); the code at every handler other than the vault

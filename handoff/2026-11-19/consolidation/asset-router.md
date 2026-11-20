@@ -131,3 +131,20 @@ Abbreviations: `ARB` = `bridge/asset-router/AssetRouterBase.sol`, `L1AR` = `L1As
 - `AtomicRecovery`'s remaining statements (`VaultRejectsUnknownAsset`, …) are about `ntvRecover`,
   which is the `b17415d20` vault refund off an L2's base token; they are untagged supporting lemmas.
 - `scripts/audit-selftest.sh` was not re-run (the audit script is unchanged).
+
+## Review round 1 fixes
+
+- `ASSUMPTIONS.md` row "`AssetRouterBase` `AtomicRecovery` History": `CustomIdUnknownAlongLoggedRunsOn`
+  taken out of the History list and listed as the current (b17415d20 vault registry) statement it
+  is (`Contracts.AssetRouter.AtomicRecovery.Properties`). Row id and other cells unchanged.
+- Docstrings: `AtomicRecoveryAtHead` (e) and History `PreparedBurnRefundsDepositor` now name the
+  moved `AtomicRecoveryFaithful.History.Properties.*` statements.
+- `L2OnlyCounterpartTouchesNonVaultIdsWitness` docstring says it is also the witness of
+  `L2OnlyVaultRegisters`, and that its `register` is the further step, not a logged op in `ops`
+  (name kept: no renames this round).
+- README headlines: `DirectBundleClaimIsNoOpAtHead` lists the `Revertable` leg premise (also in its
+  Lean docstring's premise line); `RevertingCallBlocksClaimAtHead` and
+  `L1DestinationClaimRevertsAtHead` say they hold for every per-call behaviour `step`.
+- Not changed (deferred as before): the c67894b9 record definitions in `Specs/AtomicRecovery.lean`;
+  bare topic names in NativeTokenVaultBase and Protocol prose (still accurate as topic names; left
+  to the Protocol unit). No Properties def added, removed or renamed; renames JSON unchanged.
