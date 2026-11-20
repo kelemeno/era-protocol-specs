@@ -9,10 +9,9 @@ Source: era-contracts draft/v0.35.0 head **`b17415d20`**, `l1-contracts/contract
 (a bare `:N` is a line of that file), with `common/ReentrancyGuard.sol`, `common/Config.sol`,
 `atomic-interop/AtomicFlowManager.sol`, `atomic-interop/L2InteropCommitmentTree.sol`,
 `l2-system/BaseTokenHolder.sol`, `bridge/asset-router/L2AssetRouter.sol` and
-`bridge/ntv/L2NativeTokenVault.sol` from the same commit. The pin model of the send path is `Specs/Dispatch.lean` (`c67894b9`), which omits every
-field below; this file reuses its `CallStarter` and `totalBurnedCallsValue`
-(`InteropCallStarterInternal` and `CallAttributes` are unchanged at `b17415d20`,
-`common/Messaging.sol:199-214`).
+`bridge/ntv/L2NativeTokenVault.sol` from the same commit. The send model of this folder (`Specs/Send.lean`) omits every
+field below; both reuse `CallStarter` and `totalBurnedCallsValue` from `Specs/Common.lean`
+(`InteropCallStarterInternal` and `CallAttributes`, `common/Messaging.sol:199-214`).
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.InteropCenter.Properties.FeeState` and are proved in
@@ -129,7 +128,7 @@ if it differs, the owner.
   (`FlatIsNestedWithoutCalls`).
 * **Reject-only checks that read nothing the fee state depends on are omitted**: the ERC-7930
   parsing and nonzero-recipient checks, attribute parsing, the destination registration and
-  `isPeerAllowed` checks (:696-704), the salt check (modelled in `Dispatch`), the atomicity flag
+  `isPeerAllowed` checks (:696-704), the salt check (modelled in `Send`), the atomicity flag
   check (:552-556; the destination alone decides the branch), `IndirectCallValueMismatch`
   (:796-802), every check inside `append`, the token side of `bridgehubDepositBaseToken` and the
   sender's ZK allowance, and the overflow checks of the fee products and ledgers (amounts are

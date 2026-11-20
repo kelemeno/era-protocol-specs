@@ -3,6 +3,9 @@ import EraSpec.Contracts.InteropCenter.History.Specs.AtomicRouting
 /-!
 # Properties: where an atomic leg's calls point, and an atomic leg sent to L1
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 Statements about `EraSpec.Contracts.InteropCenter.History.Specs.AtomicRouting`. Proofs are in
 `EraSpec.Contracts.InteropCenter.History.Proofs.AtomicRouting`. A bare `:N` is a line of
 `interop/InteropCenter.sol` at the pin. Every run starts from fresh storage (`sysInit`). `pin` is

@@ -4,6 +4,9 @@ import EraSpec.Contracts.InteropCenter.History.Properties.Dispatch
 /-!
 # Properties: a claimed bundle is a dispatched bundle
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 Statements about what `claimRefund(f, x)` (AtomicFlowManager.sol:165-180) recovers, on the dispatch
 model of `EraSpec.Contracts.InteropCenter.History.Specs.Dispatch`, with the claim-side names of
 `EraSpec.Contracts.InteropCenter.History.Specs.ClaimBinding`. Proofs are in

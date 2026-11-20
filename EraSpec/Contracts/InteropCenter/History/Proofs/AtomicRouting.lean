@@ -5,6 +5,9 @@ import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryTargets
 /-!
 # Proofs: where an atomic leg's calls point, and an atomic leg sent to L1
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 The source component of every system run is a run of `Specs/Dispatch.lean`'s deployed code
 (`sysReach_src`), so `Dispatch`'s invariants and `AtomicBytesNeverPublished` apply. One more
 invariant, `SysInv`, carries the rest: the ghost send log matches the dispatch log and every

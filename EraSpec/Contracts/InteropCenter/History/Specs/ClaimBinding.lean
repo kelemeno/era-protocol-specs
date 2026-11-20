@@ -3,6 +3,9 @@ import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 /-!
 # Model: the bytes `claimRefund` is given, and the calls `_recoverBundle` makes
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 Source: `l1-contracts/contracts/atomic-interop/AtomicFlowManager.sol` in the pinned era-contracts
 tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), with `interop/InteropDataEncoding.sol`,
 `interop/InteropCenter.sol`, `atomic-interop/IAtomicFlowManager.sol` and

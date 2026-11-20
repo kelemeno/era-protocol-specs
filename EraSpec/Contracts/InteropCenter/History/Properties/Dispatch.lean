@@ -4,6 +4,9 @@ import EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimits
 /-!
 # Properties: what a dispatch guarantees
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 Statements about `EraSpec.Contracts.InteropCenter.History.Specs.Dispatch`. Proofs are in
 `EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch`. Every run starts from fresh storage (`init`) on
 one chain; `deployed` is the code with all three of its checks.

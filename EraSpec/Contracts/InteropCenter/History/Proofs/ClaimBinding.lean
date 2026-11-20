@@ -4,6 +4,9 @@ import EraSpec.Contracts.InteropCenter.History.Proofs.Dispatch
 /-!
 # Proofs: a claimed bundle is a dispatched bundle
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 The headline is O1's argument carried one step further. O1's run invariant (`inv_reach`, its `legs`
 field, which needs only `onlyInteropCenter`; it is the fact behind
 `CommittedLegsAreValidatedDispatches`) names the logged atomic dispatch `d` behind the leg the claim

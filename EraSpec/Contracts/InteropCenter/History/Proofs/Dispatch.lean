@@ -5,6 +5,9 @@ import EraSpec.Contracts.InteropCenter.Proofs.Common
 /-!
 # Proofs: what a dispatch guarantees
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 One run invariant, `Inv`, carries (a) and (b): the salt flags are exactly the logged keys, every
 logged bundle was formed by `_sendBundle`, every atomic one was validated, the keys are distinct,
 and every leg that is not `Unset` is explained by an atomic logged dispatch. Each field is

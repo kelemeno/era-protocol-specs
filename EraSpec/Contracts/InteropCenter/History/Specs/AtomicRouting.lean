@@ -5,6 +5,9 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachine
 /-!
 # Model: where an atomic leg's calls point, and what happens to an atomic leg sent to L1
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+
 Source: the pinned era-contracts tree (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`),
 `l1-contracts/contracts/`:
 

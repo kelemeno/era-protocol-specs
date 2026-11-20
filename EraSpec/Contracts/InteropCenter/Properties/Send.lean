@@ -2,23 +2,23 @@ import EraSpec.Contracts.InteropCenter.Specs.Send
 import EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimits
 
 /-!
-# Properties: the head send path (main `3605e82` = `70096e2ea`, `draft/v0.35.0` `b17415d20`)
+# Properties: the send path at `draft/v0.35.0` (`b17415d20`)
 
 Statements about `EraSpec.Contracts.InteropCenter.Specs.Send`. Proofs are in
 `EraSpec.Contracts.InteropCenter.Proofs.Send`. Every run starts from fresh storage (`init`)
-on one chain; `deployed` is main's code with all six of its switchable checks. No result takes a
+on one chain; `deployed` is the `b17415d20` code with all six of its switchable checks. "Head" in
+statement names (`ValueLegCommitsAtHead`, …) means `b17415d20`, as opposed to the `c67894b9` record
+under `History/`. No result takes a
 global hash or encoding premise: the hash premises are run-local (`EncInjOn`, `KeccakInjOn` on the
 run's own inputs) or a collision pinned to two named byte strings or bundles. "Committed" below is
 the manager's leg state; the commitment-tree insert that follows it in `append` is not modelled.
 
-## 1. The pin's `sendMessage` finding, at the attribute level
+## 1. The attribute parser
 
-At the pin, `sendMessage` parsed its attributes under `CallAndBundleAttributes`, which accepts
-`atomicBundle`, and then dispatched non-atomically (`PinSendMessageDroppedAtomicBundle`, stated on
-a transcription of the pin's parser). The pin's parser and the head's agree on every decoded list
-(`PinParserIsHeadParser`; the tables, `MaskTableIsPinTable`). At head, `parseAtomicSend` returns
-exactly the attribute's payload (`ParseAtomicSendIsTheAttribute`), and every deployed `sendMessage`
-step with such a list is atomic and commits its leg (`PinFindingRejectedAtHead`).
+`parseAtomicSend` returns exactly the attribute's payload (`ParseAtomicSendIsTheAttribute`), and
+`atomicBundle` is a bundle-level attribute (`AtomicBundleIsABundleAttribute`). The `c67894b9`
+`sendMessage` dropped the attribute; that record, and the agreement of the old parser with this
+one, are `History/Properties/SendMessageFinding.lean`.
 
 ## 2. `sendMessage` is always atomic
 
@@ -26,8 +26,8 @@ Every successful `sendMessage` carries `atomicBundle`, sends to a chain other th
 leg and sends nothing to L1 (`SendMessageAlwaysAtomic`; along runs
 `SendMessagesAreAtomicAlongRuns`); without the attribute no step dispatches it
 (`SendMessageWithoutAttributeReverts`). This rests on `_ensureL2ToL2`
-(`WithoutL2ToL2CheckSendMessagePublishes`) and on `parseAtomicSend`: with the pin's constant in its
-place the head's gate leaves `sendMessage` no step at all (`PinConstantMakesSendMessageUnusable`).
+(`WithoutL2ToL2CheckSendMessagePublishes`) and on `parseAtomicSend`: with the `c67894b9` constant non-atomic
+`AtomicSend` in its place the gate leaves `sendMessage` no step at all (`PinConstantMakesSendMessageUnusable`).
 
 ## 3. The `atomicBundle` NatSpec (IERC7786Attributes.sol:27-31), in the model
 
@@ -45,13 +45,13 @@ goes to L1, because `append` rejects its empty flow (`NonAtomicL2SendRevertsInAp
 `AtomicBundleToL1NotSupported` is load-bearing for the NatSpec
 (`WithoutAtomicityGateAttributeBundleIsPublished`).
 
-## 4. The pin model's (`Dispatch`) results, restated at head
+## 4. The `c67894b9` record's (`History/Dispatch`) results, restated at `b17415d20`
 
 * **(a) Salts**: unchanged (`SaltFlagRecordsDispatches`, `SaltFlagsNeverCleared`,
   `UsedSaltHasNoDispatch`, `EachSaltDispatchesOnce`; countermodel
   `WithoutSaltCheckABundleRepeats`).
-* **(b) The value check is gone, so the pin's (b) is false at head**: a value-carrying leg is
-  committed by the deployed code (`ValueLegCommitsAtHead`; the pin's `Validated` fails on it). Its
+* **(b) The value check is gone, so the record's (b) is false at `b17415d20`**: a value-carrying leg
+  is committed by the deployed code (`ValueLegCommitsAtHead`; `Validated` fails on it). Its
   repaired form: every committed leg comes from an atomic dispatch of this chain whose value-carrying
   calls have the sender as `from` and whose other calls are zero-value calls from the asset router
   (`CommittedLegsAreCheckedDispatches`, per step `OnlyADispatchCommitsALeg`, funnel `SolePath`,
@@ -66,12 +66,12 @@ goes to L1, because `append` rejects its empty flow (`NonAtomicL2SendRevertsInAp
   (`CollisionLetsAForeignBundleMatchACommittedLeg`). Legs: `AppendedLegsStayCommitted`,
   `EachLegAppendedOnce`, `WithoutOnlyInteropCenterUnbackedLegCommits`, `BurnedTotalIsCallValues`.
 * **(c) Distinct dispatches**: `DistinctDispatchesDistinctBundles` (no hash premise),
-  `DistinctDispatchesDistinctBundleHashes`, `LoggedRunBundleHashesUnique` with the head's preimage
+  `DistinctDispatchesDistinctBundleHashes`, `LoggedRunBundleHashesUnique` with the bundle-hash preimage
   `abi.encode(bundle)`; firing `SaltClashLetsTwoSendersShareABundle` and
-  `BundleHashClashFiresAlone`. `AtomicBytesNeverPublished` is stronger than at the pin: no salt-clash
-  disjunct, any checks.
-* **(d) One flow per bundle hash** (not stated for the pin model; the flow is passed outside the
-  bundle, :714-718): two legs that are not `Unset` and share a bundle hash share the flow id, or two
+  `BundleHashClashFiresAlone`. `AtomicBytesNeverPublished` is stronger than in the record: no
+  salt-clash disjunct, any checks.
+* **(d) One flow per bundle hash** (not stated in the record; the flow is passed outside the
+  bundle, :720-724): two legs that are not `Unset` and share a bundle hash share the flow id, or two
   logged dispatches clash (`BundleHashCommittedUnderOneFlowOrClash`; run-local
   `BundleHashCommittedUnderOneFlow`). Without the salt check one bundle is committed under two flows
   while every run-local hash premise holds (`WithoutSaltCheckABundleJoinsTwoFlows`); the clash
@@ -87,7 +87,7 @@ false on its two atomic dispatches. `SendStepWitness` meets the per-step premise
 with two different flow ids; on a deployed run that meets the premises of
 `BundleHashCommittedUnderOneFlow` the two legs can only be one leg (that is the result), as on
 `SendWitness`. The run-local premises
-`EncInjOn` and `KeccakInjOn` are the pin model's: `EncInjOn` is satisfiable for every list of bundles
+`EncInjOn` and `KeccakInjOn` (`Specs/Common.lean`) are satisfiable: `EncInjOn` for every list of bundles
 (`Contracts.InteropCenter.EncInjOnSatisfiable`), `KeccakInjOn` for every list of byte strings no
 longer than the word space (`Contracts.InteropCenter.KeccakInjOnSatisfiable`).
 -/
@@ -109,9 +109,9 @@ def Properties.ParseAtomicSendIsTheAttribute : Prop :=
     (¬ HasAtomicBundle attrs → parseAtomicSend attrs = AtomicSend.empty)
 
 /-- **`atomicBundle` IS A BUNDLE-LEVEL ATTRIBUTE.** `parseAttributes` rejects every list carrying it
-under `OnlyCallAttributes` (the per-call restriction of `sendBundle`, :501-504) and under
+under `OnlyCallAttributes` (the per-call restriction of `sendBundle`, :503-506) and under
 `OnlyInteropCallValue`; it accepts the attribute alone under `OnlyBundleAttributes` (`sendBundle`'s
-bundle attributes, :513) and `CallAndBundleAttributes` (`sendMessage`, :206-209), writing no field. -/
+bundle attributes, :514) and `CallAndBundleAttributes` (`sendMessage`, :209-212), writing no field. -/
 def Properties.AtomicBundleIsABundleAttribute : Prop :=
   (∀ attrs, HasAtomicBundle attrs →
     parseAttributes attrs .onlyCallAttributes = none ∧
@@ -139,7 +139,7 @@ def Properties.SendMessageAlwaysAtomic : Prop :=
       S'.l1Messages = S.l1Messages
 
 /-- **A `sendMessage` WITHOUT `atomicBundle` HAS NO STEP.** No step of the deployed code dispatches
-it (`NonAtomicSendUnsupported`, :554, against `_ensureL2ToL2`, :204). -/
+it (`NonAtomicSendUnsupported`, :555, against `_ensureL2ToL2`, :207). -/
 def Properties.SendMessageWithoutAttributeReverts : Prop :=
   ∀ (P : Params) (S S' : State) (d : Dispatch), d.entry = .sendMessage →
     ¬ HasAtomicBundle d.attrs → Step deployed P S S' → S'.log ≠ S.log ++ [d]
@@ -153,14 +153,14 @@ def Properties.SendMessagesAreAtomicAlongRuns : Prop :=
       HasAtomicBundle d.attrs ∧ d.atomicSend.isAtomic = true ∧ d.appends P ∧
         S.manager.legState (flowIdOf P d.atomicSend.flowPreimage) (bundleHash P d.bundle) ≠ .Unset
 
-/-- **`parseAtomicSend` IS WHAT KEEPS `sendMessage` LIVE.** With the pin's constant non-atomic
-`AtomicSend` in place of `parseAtomicSend` (pin :246-252) and the head's other checks, no step
-dispatches a `sendMessage` at all: the gate (:554) wants L1, `_ensureL2ToL2` (:204) forbids it. -/
+/-- **`parseAtomicSend` IS WHAT KEEPS `sendMessage` LIVE.** With the `c67894b9` constant non-atomic
+`AtomicSend` in place of `parseAtomicSend` (pin :246-252) and the other checks, no step
+dispatches a `sendMessage` at all: the gate (:555) wants L1, `_ensureL2ToL2` (:207) forbids it. -/
 def Properties.PinConstantMakesSendMessageUnusable : Prop :=
   ∀ (P : Params) (S S' : State) (d : Dispatch), Step withPinSendMessage P S S' →
     S'.log = S.log ++ [d] → d.entry ≠ .sendMessage
 
-/-- **WITHOUT `_ensureL2ToL2`, A `sendMessage` IS PUBLISHED.** A run of the code without :204 in
+/-- **WITHOUT `_ensureL2ToL2`, A `sendMessage` IS PUBLISHED.** A run of the code without :207 in
 which a `sendMessage` without `atomicBundle` goes to L1, non-atomically, and is the run's only L1
 message. (In the witness it is an indirect zero-value call to the asset router.) -/
 def Properties.WithoutL2ToL2CheckSendMessagePublishes : Prop :=
@@ -179,7 +179,7 @@ leg declares this chain as its source ("requires this bundle's hash to be one of
 `(keccak(abi.encode(preimage)), bundleHash)` moves from `Unset` to `Committed` with no other change
 to the manager, and nothing is sent to L1. That is the model's form of "appends the bundle's commit
 value to the interop IMT instead of publishing it to L1": the tree insert after the write
-(AtomicFlowManager.sol:167-169) is not modelled. Otherwise `d` has the zero `AtomicSend` and
+(AtomicFlowManager.sol:168-170) is not modelled. Otherwise `d` has the zero `AtomicSend` and
 destination L1, the manager is unchanged, and `BUNDLE_IDENTIFIER ++ abi.encode(bundle)` is sent to
 L1. -/
 def Properties.AtomicBundleAttributeMeansAppended : Prop :=
@@ -212,16 +212,16 @@ def Properties.EveryL2SendIsAtomic : Prop :=
 
 /-- **`NonAtomicSendUnsupported` IS DEFENSE IN DEPTH.** Whatever the checks, a step that dispatches a
 non-atomic `d` sends it to L1: its `AtomicSend` is the zero struct, whose flow has no leg, so
-`append` would revert (AtomicFlowManager.sol:137-139; in the code `_validateAndComputeFlowId`
-already rejects the zero version, :347-349, as `ATOMIC_FLOW_PREIMAGE_VERSION` is `0x01`,
+`append` would revert (AtomicFlowManager.sol:138-140; in the code `_validateAndComputeFlowId`
+already rejects the zero version, :361-363, as `ATOMIC_FLOW_PREIMAGE_VERSION` is `0x01`,
 `IAtomicInterop.sol:91`). -/
 def Properties.NonAtomicL2SendRevertsInAppend : Prop :=
   ∀ (K : Checks) (P : Params) (S S' : State) (d : Dispatch), Step K P S S' →
     S'.log = S.log ++ [d] → d.atomicSend.isAtomic = false → d.bundle.destinationChainId = P.l1ChainId
 
 /-- **WITHOUT `AtomicBundleToL1NotSupported`, THE NATSPEC FAILS.** A run of the code without the
-gate (:551-555) in which a `sendBundle` carrying `atomicBundle`, atomic, goes to L1, is the run's
-only L1 message, and no leg is committed: `_dispatchBundle` branches on the destination (:727). -/
+gate (:552-556) in which a `sendBundle` carrying `atomicBundle`, atomic, goes to L1, is the run's
+only L1 message, and no leg is committed: `_dispatchBundle` branches on the destination (:733). -/
 def Properties.WithoutAtomicityGateAttributeBundleIsPublished : Prop :=
   ∃ (P : Params) (S : State), Reach withoutAtomicityGate P init S ∧
     ∃ d ∈ S.log, d.entry = .sendBundle ∧ HasAtomicBundle d.attrs ∧ d.atomicSend.isAtomic = true ∧
@@ -240,8 +240,8 @@ def Properties.PublishedMessagesAreL1Dispatches : Prop :=
 run, a logged dispatch to L1 is a `sendBundle` without `atomicBundle` and with the zero `AtomicSend`,
 of one call, whose `from` is the asset router and whose value is zero, and its
 `totalBurnedCallsValue` is zero, so `_ensureCorrectTotalValue` burns or deposits no call value
-(:433-449). The source-side value the router receives for an indirect call
-(`indirectCallMessageValue`, :779-781) is not modelled. -/
+(:436-452). The source-side value the router receives for an indirect call
+(`indirectCallMessageValue`, :788-790) is not modelled. -/
 def Properties.PublishedMessagesAreWithdrawals : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P init S →
     ∀ d ∈ S.log, d.bundle.destinationChainId = P.l1ChainId →
@@ -249,7 +249,7 @@ def Properties.PublishedMessagesAreWithdrawals : Prop :=
       d.bundle.calls.length = 1 ∧ (∀ c ∈ d.bundle.calls, c.fromAddr = P.assetRouter ∧ c.value = 0) ∧
       totalBurnedCallsValue d.starters = 0
 
-/-! ## 4(a). Sender salts, as at the pin -/
+/-! ## 4(a). Sender salts, as in the `c67894b9` record -/
 
 /-- **THE SALT FLAG RECORDS EXACTLY THE DISPATCHED KEYS** (any checks). -/
 def Properties.SaltFlagRecordsDispatches : Prop :=
@@ -261,7 +261,7 @@ def Properties.SaltFlagsNeverCleared : Prop :=
   ∀ (K : Checks) (P : Params) (S S' : State), Step K P S S' →
     ∀ (a : Address) (s : Word), S.saltUsed a s = true → S'.saltUsed a s = true
 
-/-- **A USED SALT HAS NO FURTHER DISPATCH** (:561-564). -/
+/-- **A USED SALT HAS NO FURTHER DISPATCH** (:562-565). -/
 def Properties.UsedSaltHasNoDispatch : Prop :=
   ∀ (P : Params) (S S' : State) (d : Dispatch), S.saltUsed d.sender d.salt = true →
     Step deployed P S S' → S'.log ≠ S.log ++ [d]
@@ -279,14 +279,14 @@ def Properties.WithoutSaltCheckABundleRepeats : Prop :=
       S.log[i].bundle = S.log[j].bundle ∧
       bundleHash P S.log[i].bundle = bundleHash P S.log[j].bundle
 
-/-! ## 4(b). Validation at head -/
+/-! ## 4(b). Validation at `b17415d20` -/
 
 /-- **THE PIN'S (b) IS FALSE AT HEAD: A VALUE-CARRYING LEG IS COMMITTED.** A run of the deployed head
 code commits an atomic leg whose bundle has a call carrying native value, and whose
-`totalBurnedCallsValue` (the call value `_ensureCorrectTotalValue` burns or deposits, :433-449) is
-nonzero. The conclusion `Validated` of the pin's
+`totalBurnedCallsValue` (the call value `_ensureCorrectTotalValue` burns or deposits, :436-452) is
+nonzero. The conclusion `Validated` of the `c67894b9` record's
 `Contracts.InteropCenter.History.Properties.CommittedLegsAreValidatedDispatches` (and of
-`AtomicDispatchesCarryNoValue`) fails on it, and so does the pin's `AtomicDispatchBurnsNothing`. -/
+`AtomicDispatchesCarryNoValue`) fails on it, and so does the `c67894b9` record's `AtomicDispatchBurnsNothing`. -/
 def Properties.ValueLegCommitsAtHead : Prop :=
   ∃ (P : Params) (S : State), Reach deployed P init S ∧
     ∃ d ∈ S.log, d.atomicSend.isAtomic = true ∧ ¬ Contracts.InteropCenter.Validated d.bundle ∧
@@ -314,16 +314,16 @@ def Properties.OnlyADispatchCommitsALeg : Prop :=
       ∃ d, S'.log = S.log ++ [d] ∧ d.atomicSend.isAtomic = true ∧ d.appends P ∧
         flowIdOf P d.atomicSend.flowPreimage = f ∧ bundleHash P d.bundle = h ∧ CallsChecked P d
 
-/-- **THE BURNED TOTAL IS THE CALLS' VALUES** (any checks; :680 and :811, :820). -/
+/-- **THE BURNED TOTAL IS THE CALLS' VALUES** (any checks; :681 and :819, :828). -/
 def Properties.BurnedTotalIsCallValues : Prop :=
   ∀ (K : Checks) (P : Params) (S : State), Reach K P init S →
     ∀ d ∈ S.log, totalBurnedCallsValue d.starters = (d.bundle.calls.map InteropCall.value).sum
 
 /-- **THE BASE-TOKEN REFUNDS OF A LEG GO TO ITS SENDER AND ADD UP TO ITS CALL VALUE.** Along any
 deployed run, for every logged dispatch whose sender is not the asset router, the base-token refunds
-`_recoverBundle` would make for its bundle (`baseTokenRefunds`, AtomicFlowManager.sol:313-320) all go
+`_recoverBundle` would make for its bundle (`baseTokenRefunds`, AtomicFlowManager.sol:316-323) all go
 to the sender and add up to `totalBurnedCallsValue`. In the code the sender is the payer of that
-total (`msg.value`, or the destination base token through `bridgehubDepositBaseToken`, :429-449); the
+total (`msg.value`, or the destination base token through `bridgehubDepositBaseToken`, :432-452); the
 payment is not modelled. -/
 def Properties.AtomicValueIsRefundedToPayer : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P init S →
@@ -334,17 +334,17 @@ def Properties.AtomicValueIsRefundedToPayer : Prop :=
 /-- **THE ROUTER-SENDER PREMISE IS NEEDED.** A deployed run in which the asset router itself is the
 sender of an atomic dispatch with nonzero `totalBurnedCallsValue` whose bundle gets no base-token
 refund: `_recoverBundle` treats every call `from == L2_ASSET_ROUTER_ADDR` as a router call
-(AtomicFlowManager.sol:309-313). The source comment there assumes the router never initiates a
-direct send (AtomicFlowManager.sol:301-305). -/
+(AtomicFlowManager.sol:312-316). The source comment there assumes the router never initiates a
+direct send (AtomicFlowManager.sol:304-308). -/
 def Properties.RouterSenderValueIsNotRefunded : Prop :=
   ∃ (P : Params) (S : State), Reach deployed P init S ∧
     ∃ d ∈ S.log, d.sender = P.assetRouter ∧ d.atomicSend.isAtomic = true ∧
       totalBurnedCallsValue d.starters ≠ 0 ∧ baseTokenRefunds P d.bundle = []
 
 /-- **WITHOUT THE INDIRECT-CALL RESTRICTION, A REFUND MISSES THE SENDER.** A run of the code without
-:658-677 with an atomic dispatch, whose sender is not the asset router, one of whose base-token
+:659-678 with an atomic dispatch, whose sender is not the asset router, one of whose base-token
 refunds goes to an address other than the sender. (In the witness: an indirect call through contract
-`8` carrying value, refunded to `8`, the reason given at :668-672.) -/
+`8` carrying value, refunded to `8`, the reason given at :669-673.) -/
 def Properties.WithoutIndirectRestrictionRefundMissesPayer : Prop :=
   ∃ (P : Params) (S : State), Reach withoutIndirectRestriction P init S ∧
     ∃ d ∈ S.log, d.atomicSend.isAtomic = true ∧ d.sender ≠ P.assetRouter ∧
@@ -369,7 +369,7 @@ def Properties.ValidationUnbypassableDischarged : Prop :=
 
 /-- **THE BYTES `claimRefund` HASHES ARE A LOGGED ATOMIC DISPATCH'S, OR KECCAK COLLIDES.** Along any
 deployed run whose decoder inverts the encoder on the run's bundles (`SOL-ABI`): if the leg
-`(f, keccak(x))` that `claimRefund(f, x)` reads (AtomicFlowManager.sol:249-251) is not `Unset`, then
+`(f, keccak(x))` that `claimRefund(f, x)` reads (AtomicFlowManager.sol:252-254) is not `Unset`, then
 some logged atomic, appended, `CallsChecked` dispatch has flow id `f`, and either `x` is that
 dispatch's `abi.encode(bundle)` and decodes to its bundle — the bundle `_recoverBundle` is then given,
 whose destination is not the center's `L1_CHAIN_ID` — or keccak collides on `x` and that encoding.
@@ -413,13 +413,13 @@ def Properties.AppendedLegsStayCommitted : Prop :=
       S.manager.legState (flowIdOf P d.atomicSend.flowPreimage) (bundleHash P d.bundle) ≠ .Unset
 
 /-- **EACH LEG IS APPENDED AT MOST ONCE** (any checks): the legs of a run's appended dispatches are
-pairwise distinct (AtomicFlowManager.sol:161-163). -/
+pairwise distinct (AtomicFlowManager.sol:162-164). -/
 def Properties.EachLegAppendedOnce : Prop :=
   ∀ (K : Checks) (P : Params) (S : State), Reach K P init S →
     ((S.log.filter fun d => decide (d.appends P)).map (legOf P)).Nodup
 
 /-- **WITHOUT `onlyInteropCenter`, A LEG BACKED BY NO DISPATCH IS COMMITTED.** A run of the code
-without AtomicFlowManager.sol:87-92 that dispatches nothing yet ends with a `Committed` leg. -/
+without AtomicFlowManager.sol:88-93 that dispatches nothing yet ends with a `Committed` leg. -/
 def Properties.WithoutOnlyInteropCenterUnbackedLegCommits : Prop :=
   ∃ (P : Params) (S : State) (f h : Word), Reach withoutOnlyInteropCenter P init S ∧
     S.log = [] ∧ S.manager.legState f h = .Committed
@@ -435,7 +435,7 @@ def Properties.DistinctDispatchesDistinctBundles : Prop :=
       S.log[i].bundle ≠ S.log[j].bundle ∨ CrossSenderSaltClash P S.log[i] S.log[j]
 
 /-- **(c), BUNDLE HASHES.** If the encoder separates the run's bundles, two dispatches' bundle hashes
-differ, or the cross-sender salt clash, or keccak collides on their two encodings — the head's
+differ, or the cross-sender salt clash, or keccak collides on their two encodings — the
 bundle-hash preimages. -/
 def Properties.DistinctDispatchesDistinctBundleHashes : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P init S →
@@ -456,9 +456,9 @@ def Properties.LoggedRunBundleHashesUnique : Prop :=
 
 /-- **AN APPENDED BUNDLE IS NEVER PUBLISHED TO L1.** Along any run, with or without the checks, if
 the encoder separates the run's bundles, no appended dispatch's `BUNDLE_IDENTIFIER ++
-abi.encode(bundle)` is among the center's L1 messages. At the pin the deployed form needed a
+abi.encode(bundle)` is among the center's L1 messages. In the `c67894b9` record the deployed form needed a
 cross-sender salt-clash disjunct (`Contracts.InteropCenter.History.Properties.AtomicBytesNeverPublished`);
-at head `_dispatchBundle` publishes exactly the bundles whose destination is L1 and appends the
+at `b17415d20` `_dispatchBundle` publishes exactly the bundles whose destination is L1 and appends the
 others. -/
 def Properties.AtomicBytesNeverPublished : Prop :=
   ∀ (K : Checks) (P : Params) (S : State), Reach K P init S →
@@ -490,7 +490,7 @@ def Properties.BundleHashClashFiresAlone : Prop :=
 whose encoder separates its bundles: if two legs `(f, h)` and `(f', h)` with one bundle hash are not
 `Unset`, then `f = f'`, or two logged dispatches with flow ids `f` and `f'` and bundle hash `h` are a
 cross-sender salt clash or keccak collides on their two encodings. The flow is not part of the
-bundle (:714-718), so it is the salt check that keeps a bundle out of a second flow
+bundle (:720-724), so it is the salt check that keeps a bundle out of a second flow
 (`WithoutSaltCheckABundleJoinsTwoFlows`). -/
 def Properties.BundleHashCommittedUnderOneFlowOrClash : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P init S →
@@ -512,7 +512,7 @@ def Properties.BundleHashCommittedUnderOneFlow : Prop :=
     ∀ (f f' h : Word), S.manager.legState f h ≠ .Unset → S.manager.legState f' h ≠ .Unset → f = f'
 
 /-- **WITHOUT THE SALT CHECK, ONE BUNDLE IS COMMITTED UNDER TWO FLOWS.** A run of the code without
-:561-564 whose encoder separates its bundles and whose keccak is injective on its salt preimages and
+:562-565 whose encoder separates its bundles and whose keccak is injective on its salt preimages and
 bundle encodings, with two `Committed` legs that share a bundle hash and have different flow ids.
 (In the witness one sender dispatches one bundle twice, with two flow preimages that both list its
 hash. So the salt-preimage list and the encoding list each hold one value twice, and injectivity
@@ -537,7 +537,7 @@ def Properties.BundleHashCollisionJoinsTwoFlows : Prop :=
 
 /-- **THE RUN-LEVEL PREMISES HOLD ON A NONTRIVIAL DEPLOYED RUN, AND THE CLASHES ARE FALSE ON IT.** On
 the witness chain: sender `1`'s atomic `sendMessage` (leg authorized, so `Revertable`), sender `2`'s
-atomic `sendBundle` whose direct call carries value `9` (committed; not `Validated` in the pin's
+atomic `sendBundle` whose direct call carries value `9` (committed; not `Validated` in the `c67894b9` record's
 sense; its one base-token refund would go to sender `2`), and sender `3`'s L1 withdrawal without
 `atomicBundle` (published). The encoder separates the bundles, keccak is injective on the run's salt
 preimages and encodings, and no salt or bundle-hash clash holds between the two atomic dispatches. -/

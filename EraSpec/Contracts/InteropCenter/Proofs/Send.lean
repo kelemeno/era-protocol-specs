@@ -3,17 +3,16 @@ import EraSpec.Contracts.InteropCenter.Proofs.Common
 import EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimits
 
 /-!
-# Proofs: the head send path
+# Proofs: the send path at `b17415d20`
 
 Three facts carry everything. `parseAtomicSend` is atomic exactly on lists carrying `atomicBundle`
 and is the zero struct otherwise (`parseAtomicSend_isAtomic_iff`, `parseAtomicSend_of_not_has`); a
 non-atomic send cannot take the L2 branch, because the zero struct's flow has no leg
 (`nonatomic_toL1`); and the gate plus `_ensureL2ToL2` then pin every `sendMessage` to the atomic L2
 branch. Two run invariants, `Inv` (each field under the check it needs) and `LegInv` (no check),
-carry the restated pin results; the proofs follow `Proofs/Dispatch.lean`, with the head's bundle
-hash `keccak(abi.encode(bundle))` and the head's `CallsChecked` in place of `Validated`. The pin's
-parser loop and the head's differ only in the restriction table, which agrees on the seven indices
-(`MaskTableIsPinTable`, then `pinParseFrom_eq_parseFrom`).
+carry the results restated from the `c67894b9` record; the proofs follow
+`History/Proofs/Dispatch.lean`, with the bundle hash `keccak(abi.encode(bundle))` and `CallsChecked` in
+place of `Validated`.
 -/
 
 namespace Contracts.InteropCenter.Send
@@ -599,7 +598,7 @@ theorem EachSaltDispatchesOnce : Properties.EachSaltDispatchesOnce := by
   intro P S hr
   exact (inv_reach hr).keys rfl
 
-/-! ## 4(b). Validation at head -/
+/-! ## 4(b). Validation at `b17415d20` -/
 
 theorem CommittedLegsAreCheckedDispatches : Properties.CommittedLegsAreCheckedDispatches := by
   intro P S hr f h hne
@@ -1136,7 +1135,7 @@ theorem RouterSenderValueIsNotRefunded : Properties.RouterSenderValueIsNotRefund
     routerValueLeg, by simp [State.afterSend], rfl, rfl, by decide, by decide⟩
 
 /-- Sender `2`'s atomic `sendBundle` with an indirect call through contract `8` (not the router)
-carrying value `5`: allowed only without :658-677. -/
+carrying value `5`: allowed only without :659-678. -/
 def foreignIndirectAttrs : List Attribute := [.atomicBundle (oneLegFlow 11 7) 0, .interopBundleSalt 7]
 
 def foreignIndirectLeg : Dispatch :=

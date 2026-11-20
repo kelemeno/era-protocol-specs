@@ -6,6 +6,12 @@ import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashEncoding
 /-!
 # Model: `InteropCenter` — sender salts, the atomic-value check, and the only `append`
 
+**History: the record of the old interop pin `c67894b9`, not a claim about `b17415d20`.** The
+`b17415d20` send model is `Specs/Send.lean` (namespace `Contracts.InteropCenter.Send`).
+The words, the bundle and call structures, `saltPreimage`, `totalBurnedCallsValue`, `FormsCall`,
+`markSalt` and the run-local premises were moved out of this file unchanged into `Specs/Common.lean`,
+which cites them at `b17415d20`; the line numbers below are the pin's.
+
 Source: `l1-contracts/contracts/interop/InteropCenter.sol` in the pinned era-contracts tree
 (`c67894b970a0dac6fe9144d8ebf4b0806e15a9af`), together with `atomic-interop/AtomicFlowManager.sol`,
 `common/Messaging.sol` and `interop/IInteropCenter.sol` from the same tree. A bare `:N` is a line
