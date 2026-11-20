@@ -110,4 +110,15 @@ theorem SelfCallRelayWitness : Properties.SelfCallRelayWitness := by
     simp only [wHandler, gateAttr, wAttrs42, attrAllows, id] at h
     exact absurd h.2.1 (by decide)
 
+
+theorem DeployedL2SelfCallRelayWitness : Properties.DeployedL2SelfCallRelayWitness := by
+  refine ⟨rfl, ⟨by simp [deployedDispatchL2], fun _ => ?_, Or.inl rfl⟩,
+    ⟨by simp [deployedDispatchL2], fun _ => ?_, Or.inl rfl⟩, ?_⟩
+  · simp [wHandler, gateAttr, wAttrs7, attrAllows]
+  · simp [wHandler, gateAttr, wAttrs7, attrAllows]
+  · rintro ⟨-, hck, -⟩
+    have h := hck rfl
+    simp only [wHandler, gateAttr, wAttrs7, attrAllows, id] at h
+    exact absurd h.2.1 (by decide)
+
 end AttackVectors.SelfCallAuthority

@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthorityFaithful
 
 /-!
@@ -66,7 +67,7 @@ dispatch (`L1InteropHandler.sol:117-160`): every call that passes an entry point
 carries a principal the bundle's attribute admits. Premise (the model boundary): the calls that reach
 a gate are the ones `Reaches` lists, a direct call by an account other than the handler, or the
 self-call of one `receiveMessage` arm; the Specs header lists the `b17415d20` sites this rests on. -/
-def Properties.DelegationSoundAtV35 : Prop :=
+@[headline] def Properties.DelegationSoundAtV35 : Prop :=
   DelegationSound l2TableAtV35 ∧ DelegationSound l1TableAtV35
 
 /-- **A DIRECT CALL IS GATED EXACTLY.** For every caller other than the handler, every gate passes if
@@ -116,7 +117,7 @@ def Properties.AtomicSelfDisjunctDeadAtPin : Prop :=
 `1` receives a self-call into `executeAtomicBundle` acting for `(1, 7)`, the principal the bundle's
 execution attribute names; the same request from `(1, 9)` is refused by the arm's check
 (`_requireRescueExecutionAllowed`) before any self-call. -/
-def Properties.AtomicSelfDisjunctLiveAndCheckedAtV35 : Prop :=
+@[witness] def Properties.AtomicSelfDisjunctLiveAndCheckedAtV35 : Prop :=
   Reaches l2TableAtV35 0 1 ⟨.executeAtomicBundle, wAttrs, 0, (1, 7)⟩ ∧
     dispatch l2TableAtV35 0 0 wAtomicMsgOk = some ⟨.executeAtomicBundle, wAttrs, (1, 7)⟩ ∧
     dispatch l2TableAtV35 0 0 wAtomicMsg = none
@@ -125,7 +126,7 @@ def Properties.AtomicSelfDisjunctLiveAndCheckedAtV35 : Prop :=
 self-calls `executeAtomicBundle` without a check, the delegation is unsound: the handler at `0` on
 chain `1` passes `executeAtomicBundle`'s gate for `(1, 9)`, whom the bundle's execution attribute
 (naming `(1, 7)`) does not admit. -/
-def Properties.UncheckedAtomicArmWidensAuthority : Prop :=
+@[countermodel] def Properties.UncheckedAtomicArmWidensAuthority : Prop :=
   ¬ DelegationSound uncheckedAtomicTable ∧
     Reaches uncheckedAtomicTable 0 1 ⟨.executeAtomicBundle, wAttrs, 0, (1, 9)⟩ ∧
     InnerGate 0 1 Gate.execution wAttrs 0 ∧ ¬ Admits .execution wAttrs (1, 9)
@@ -133,7 +134,7 @@ def Properties.UncheckedAtomicArmWidensAuthority : Prop :=
 /-- **SO WOULD A MISWIRED CHECK.** If the execute arm checked the unbundler attribute instead, the
 delegation is unsound: `(1, 9)`, the bundle's unbundler, gets `executeBundle` past its gate although
 the execution attribute names `(1, 7)`. -/
-def Properties.MiswiredCheckWidensAuthority : Prop :=
+@[countermodel] def Properties.MiswiredCheckWidensAuthority : Prop :=
   ¬ DelegationSound miswiredTable ∧
     Reaches miswiredTable 0 1 ⟨.executeBundle, wAttrs, 0, (1, 9)⟩ ∧
     InnerGate 0 1 Gate.execution wAttrs 0 ∧ ¬ Admits .execution wAttrs (1, 9)

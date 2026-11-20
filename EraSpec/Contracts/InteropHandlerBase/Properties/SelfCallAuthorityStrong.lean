@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthorityStrong
 
 /-!
@@ -40,15 +41,18 @@ def Properties.SelfCallRelaySoundIffEveryGatedBranchChecked : Prop :=
         RelayRoundTrips H c → Admitted H dispatch A c → Authorized H A c) ↔
       ∀ br ∈ dispatch, br.target.isGated = true → br.checked = true
 
-/-- **THE DEPLOYED RELAY HANDS ON THE ORIGINAL SENDER'S AUTHORITY.** For every handler, bundle
-attributes and call admitted under the deployed L1 dispatch (`InteropHandlerBase.sol:202-210` with `L1InteropHandler.sol:117-160`) —
+/-- **THE DEPLOYED L1 RELAY HANDS ON THE ORIGINAL SENDER'S AUTHORITY** (`b17415d20`). For every
+handler, bundle attributes and call admitted under the deployed L1 dispatch (`InteropHandlerBase.sol:202-210` with `L1InteropHandler.sol:117-160`) —
 direct, or relayed with the ERC-7930 round trip on its pair — the entry point's attribute allows
 the call's principal. For a relayed call that principal is the original sender of the outer
 message, the outer bundle's `sourceChainId` and the delivered call's `from`
 (`InteropHandlerBase.sol:378`): an
 attribute `some (ch, addr)` admits the relayed call only if `addr` is that `from` and `ch` is
-that chain or the wildcard `0`. -/
-def Properties.DeployedSelfCallRelaysOriginalSenderAuthority : Prop :=
+that chain or the wildcard `0`. Premises: the round trip
+`parseEvmV1Calldata(formatEvmV1(src, from)) = (src, from)` on the relayed pair, and the model's
+inventory of the calls that reach a gate (a direct call from an account other than the handler, or
+a self-call of one `receiveMessage` arm). -/
+@[headline] def Properties.DeployedSelfCallRelaysOriginalSenderAuthority : Prop :=
   (∀ (Sender : Type) (H : Handler Sender) (A : BundleAttrs) (c : GateCall),
       RelayRoundTrips H c → Admitted H deployedDispatch A c → Authorized H A c) ∧
   ∀ (Sender : Type) (H : Handler Sender) (A : BundleAttrs) (src fromAddr : ℕ) (br : Branch)
@@ -66,7 +70,7 @@ is the outer bundle's source chain or the wildcard `0`. Premises: the round trip
 `parseEvmV1Calldata(formatEvmV1(src, from)) = (src, from)` on the relayed pair, and the model's
 inventory of the calls that reach a gate (a direct call from an account other than the handler, or
 a self-call of one `receiveMessage` arm). -/
-def Properties.DeployedL2SelfCallRelaysOriginalSenderAuthority : Prop :=
+@[headline] def Properties.DeployedL2SelfCallRelaysOriginalSenderAuthority : Prop :=
   (∀ (Sender : Type) (H : Handler Sender) (A : BundleAttrs) (c : GateCall),
       RelayRoundTrips H c → Admitted H deployedDispatchL2 A c → Authorized H A c) ∧
   ∀ (Sender : Type) (H : Handler Sender) (A : BundleAttrs) (src fromAddr : ℕ) (br : Branch)
@@ -80,7 +84,7 @@ self-call disjunct (`InteropHandlerBase.sol:246-248`) — a relayed call from th
 `(1, 9)` reaches `executeAtomicBundle` of a bundle whose executor is `(1, 7)`: it is admitted,
 its principal is not authorised, and the table fails the check of
 `SelfCallRelaySoundIffEveryGatedBranchChecked`. -/
-def Properties.UncheckedAtomicBranchWidensAuthority : Prop :=
+@[countermodel] def Properties.UncheckedAtomicBranchWidensAuthority : Prop :=
   RoundTripOn wHandler 1 9 ∧
     Admitted wHandler withUncheckedAtomicBranch wAttrs7
       (.relayed 1 9 ⟨.executeAtomicBundle, false⟩) ∧
@@ -91,7 +95,7 @@ def Properties.UncheckedAtomicBranchWidensAuthority : Prop :=
 deployed table admits a relayed `executeBundle` from the original sender `(1, 9)` of a bundle whose
 executor is `(1, 7)`: the check passes against the misread pair, and the original sender is not
 authorised. -/
-def Properties.MisparsedSenderBreaksTheRelay : Prop :=
+@[countermodel] def Properties.MisparsedSenderBreaksTheRelay : Prop :=
   ¬ RoundTripOn wMisparsingHandler 1 9 ∧
     Admitted wMisparsingHandler deployedDispatch wAttrs7 (.relayed 1 9 ⟨.executeBundle, true⟩) ∧
     ¬ Authorized wMisparsingHandler wAttrs7 (.relayed 1 9 ⟨.executeBundle, true⟩)
@@ -105,7 +109,7 @@ def Properties.MisparsedSenderBreaksTheRelay : Prop :=
 * for a bundle naming `(0, 42)`, the gate's self-call disjunct passes although the attribute
   allows neither the handler nor `(1, 7)` — and the relayed call from `(1, 7)` is not admitted:
   `_handleExecuteBundle`'s check rejects it. -/
-def Properties.SelfCallRelayWitness : Prop :=
+@[witness] def Properties.SelfCallRelayWitness : Prop :=
   RoundTripOn wHandler 1 7 ∧
     Admitted wHandler deployedDispatch wAttrs7 (.relayed 1 7 ⟨.executeBundle, true⟩) ∧
     Admitted wHandler deployedDispatch wAttrs7 (.relayed 1 7 ⟨.unbundleBundle, true⟩) ∧
@@ -118,5 +122,16 @@ def Properties.SelfCallRelayWitness : Prop :=
       wHandler.self ∧
     ¬ Authorized wHandler wAttrs42 (.relayed 1 7 ⟨.executeBundle, true⟩) ∧
     ¬ Admitted wHandler deployedDispatch wAttrs42 (.relayed 1 7 ⟨.executeBundle, true⟩)
+
+
+/-- **THE L2 RELAY'S PREMISES ARE SATISFIABLE.** On `wHandler` (chain `1`, address `99`, the round
+trip holding): a relayed `executeAtomicBundle` from the original sender `(1, 7)` of a bundle naming
+`(1, 7)` is admitted under the deployed L2 dispatch, and so is a relayed `unbundleBundle`; a relayed
+`executeAtomicBundle` from `(1, 9)` is not. -/
+@[witness] def Properties.DeployedL2SelfCallRelayWitness : Prop :=
+  RoundTripOn wHandler 1 7 ∧
+    Admitted wHandler deployedDispatchL2 wAttrs7 (.relayed 1 7 ⟨.executeAtomicBundle, true⟩) ∧
+    Admitted wHandler deployedDispatchL2 wAttrs7 (.relayed 1 7 ⟨.unbundleBundle, true⟩) ∧
+    ¬ Admitted wHandler deployedDispatchL2 wAttrs7 (.relayed 1 9 ⟨.executeAtomicBundle, true⟩)
 
 end AttackVectors.SelfCallAuthority

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.InteropHandlerBase.Proofs.BundleStatusMachine
+import EraSpec.Contracts.InteropHandlerBase.History.Proofs.BundleStatusMachine
 import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
 
 /- EXTRACTED from contracts-formal-verification (`specs/specs/AttackVectors/DestinationCapstone.lean`) — protocol-level,
@@ -30,6 +31,8 @@ import EraSpec.Contracts.L2InteropHandler.Proofs.AtomicSourceBinding
 namespace AttackVectors.DestinationCapstone
 
 open AttackVectors.BundleStatusMachine
+-- The atomic sub-machine is the pin `c67894b9` record (History); see InteropHandlerBase/README.md.
+open AttackVectors.BundleStatusMachine.History
 
 /-- **DELIVERED-ONCE, ATOMIC PATH.**  An atomic bundle reaches only `Unreceived` or `FullyExecuted`,
 and `FullyExecuted` is terminal — so the delivery that writes every call `Executed` happens once, and

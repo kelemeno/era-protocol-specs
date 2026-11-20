@@ -60,3 +60,44 @@ The contract's model is one stack:
 - `Protocol/InteropAtomicity/{Specs,Properties,Proofs}/ExecutionLiveness.lean`: imports and names of
   the History moves only.
 - `ASSUMPTIONS.md`: only rows naming moved statements, ids unchanged.
+
+## Outcome
+
+- **Step 1 (one commit).** Every non-History Specs file of the folder cites `b17415d20`; the pin
+  records are in `History/` (three topics' worth: the atomic sub-machine, the labelled pin machine
+  with the never-published statements, and BundleStatusMachineStrong). The engine's fourth entry
+  (`executeAtomicBundle`, the pin's L2 entry) is kept and documented as such: the `b17415d20` layer
+  never produces it, so it only adds runs.
+- **Step 2 (one model).** One stack, as above. `ReentrancyAtV35` is part of topic `Reentrancy` in the
+  README and the Specs headers but stays in its own files: its proofs use `ReentrancyStrong` and the
+  gate lemmas of `BundleStatusMachineFaithful`, which import `Proofs/Reentrancy.lean`, so merging the
+  proof files would need those two topics merged into `Reentrancy` too (follow-up, no statement
+  change). The run-mention vocabulary (`Callee.Mentions`, `Frame.Mentions`, `Tx.Mentions`,
+  `Entry.NoProofFor`, `NoProofRun`, `Entry.ProofSound`, `SoundProofRun`) moved from
+  BundleStatusMachineStrong into the engine Specs, unchanged, so `Protocol/InteropAtomicity` keeps
+  its names.
+- **Added:** `DeployedL2SelfCallRelaysOriginalSenderAuthority` (the `b17415d20` L2 dispatch,
+  `deployedDispatchL2`) and its witness `DeployedL2SelfCallRelayWitness`.
+- **Step 3 (headlines).** 13 headlines, 7 witnesses, 10 countermodels (audit FOLDER line
+  `Contracts.InteropHandlerBase : 13 / 7 / 10 / 85`); README lists the 13.
+- **Renames:** `handoff/2026-11-19/renames/handler-base.json`, 26 entries (24 `history`,
+  2 `renamed`), checked with `ListProperties` before/after.
+- **Edits outside the folder:** `EraSpec.lean` (module list);
+  `Protocol/InteropAtomicity/{Specs,Properties,Proofs}/ExecutionLiveness.lean` (History import paths,
+  `open Contracts.InteropHandler.History (…)`, and the History prefix on four qualified names);
+  `Protocol/DestinationCapstone.lean` (History import and `open`); `ASSUMPTIONS.md` (seven rows kept
+  true: `MODEL-HANDLER-REENTRY` scope, History markers, renamed names, headline marks, L2 relay).
+
+## Not done (follow-ups)
+
+- Restate on the `b17415d20` layer the engine statements that have no `…AtV35` form yet:
+  `ValueLedgerFaithful` (ledger), and the three engine statements that moved to History with
+  BundleStatusMachineStrong (`WholeBundleWriteIgnoresCallStatus`,
+  `CallStatusDoesNotStopWholeBundleRedelivery`, `AdmittedBundleHasOnlyUnprocessedCalls`).
+- A refinement lemma between SelfCallAuthorityStrong's `GateCall`/`Admitted` and
+  SelfCallAuthorityFaithful's `Reaches`.
+- `scripts/check-interop-handler-inventory.sh` still checks the pin layout; the `b17415d20` inventory
+  was checked by hand.
+- Physical merge of the `ReentrancyAtV35` files into `Reentrancy` (see Step 2).
+- `Protocol/InteropAtomicity/ExecutionLiveness` and `Protocol/DestinationCapstone` now import History
+  records; they are the Protocol unit's to re-pin.

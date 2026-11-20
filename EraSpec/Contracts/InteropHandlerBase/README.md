@@ -1,178 +1,106 @@
 # InteropHandlerBase
 
-Source: `contracts/interop/interop-handler/InteropHandlerBase.sol` and its L1/L2
-variants in the pinned era-contracts tree.
-Topics named `…AtHead` or `…AtV35` are pinned to a later era-contracts commit instead, as
-their sections say.
+## Headline guarantees
 
-Review `Specs/` for state, operations, and assumptions; review `Properties/` for
-the guarantees and their hypotheses. `Proofs/` contains the Lean-checked evidence
-for those exact named propositions, plus auxiliary lemmas. Some spec modules
-only import a shared specification when the topic needs no additional definitions.
+About `interop/interop-handler/InteropHandlerBase.sol` and its two handlers `L2InteropHandler.sol`
+(`executeAtomicBundle`, `verifyAtomicBundle`) and `L1InteropHandler.sol` (`executeBundle`,
+`verifyBundle`), with the shared `unbundleBundle` and `receiveMessage`, at era-contracts
+`draft/v0.35.0` head `b17415d20`. "Every run" means every sequence of transactions, on one layer,
+with every behaviour of every delivered call's target at every depth (re-entrant calls to any of the
+layer's entry points, caught or not), every budget and every proof verdict, in the deployed write
+order. No headline takes a hash premise: the handler keys its state by the bundle hash, and so do the
+statements.
+
+The re-entrancy headlines share the model premises `MODEL-HANDLER-REENTRY-V35`: execution re-enters
+the handler only through a delivered call's target; `requireFlowFinalized`, `_proveInclusion` and
+`BASE_TOKEN_ASSET_ID()` are static calls and `_handleCallValue` reaches no entry point (argued in
+the Specs header, not proved); each entry-point call carries its proof verdict as an input; a bundle
+is its hash and its call count; a reverted frame's writes and logs are undone (`VM-REVERT`). The
+dispatch headlines share the premise that the calls reaching a permission gate are a direct call by
+an account other than the handler, or the self-call of one `receiveMessage` arm (the self-call
+inventory, checked by hand at `b17415d20`).
+
+| Guarantee | Premises | Lean name |
+|---|---|---|
+| No call is delivered twice and no bundle completes twice, across whole-bundle execution and unbundling, in one transaction or several | every run, any start state; model premises | `Contracts.InteropHandlerAtV35.Properties.NoEffectCommittedTwiceAtV35` |
+| Every committed effect was open when the run started and is spent at its end | every run, any start state; model premises | `…Properties.CommittedEffectsWereOpenAtV35` |
+| A successful `execute` commits exactly its own bundle's calls `0..n-1` in order, then `BundleExecuted`, and leaves it `FullyExecuted` | any state, targets and verdict; model premises | `…Properties.WholeBundleExecutionRunsEachCallOnceAtV35` |
+| `callStatus` is `Executed` exactly for delivered calls, `bundleStatus` is `FullyExecuted` exactly for executed bundles | the run starts from fresh storage; model premises | `…Properties.StatusRecordsExactlyTheCommittedEffectsAtV35` |
+| Nested execution moves every bundle and call status along `BundleStatusMachine`'s edges | the start state has processed calls only for closed bundles (fresh storage does); model premises | `…Properties.NestedExecutionFollowsTheStatusMachineAtV35` |
+| A re-entrant call for an executing bundle reverts (the CEI claim at `L2InteropHandler.sol:55-58`) | model premises | `…Properties.ReentryForAnExecutingBundleRevertsAtV35` |
+| A target that reverts from every state reverts the whole `execute` | that target is one of the bundle's first `calls` targets; any write order; model premises | `…Properties.AlwaysRevertingTargetRevertsTheExecutionAtV35` |
+| A target that reverts from the state the call loop reaches it in reverts the whole `execute` | the loop over the earlier calls commits to that state; any write order; model premises | `…Properties.TargetRevertingWhereReachedRevertsTheExecutionAtV35` |
+| A failed attempt leaves the state as it was, and a retry whose targets return executes the bundle | the bundle is `Unreceived`; one target always reverts; both attempts carry a passing verdict; on L1 a one-call bundle to `L1_ASSET_ROUTER` (omitted reject-only checks); model premises | `…Properties.FailedAttemptCanBeRetriedAtV35` |
+| A bundle hash none of whose entry-point calls (any depth) carries a passing verdict stays `Unreceived` with no committed effect; on L2 the verdict is the flow gate's | the hash is `Unreceived` at the start; model premises | `…Properties.DeliveryNeedsTheGateAtV35` |
+| Every call passing a permission gate carries a principal the bundle's attribute admits, under both `b17415d20` dispatch tables | the self-call inventory | `AttackVectors.SelfCallAuthority.Faithful.Properties.DelegationSoundAtV35` |
+| An admitted relayed call on L1 acts for the original sender `(sourceChainId, from)`, whom the attribute must name | ERC-7930 round trip on the relayed pair; the self-call inventory | `AttackVectors.SelfCallAuthority.Properties.DeployedSelfCallRelaysOriginalSenderAuthority` |
+| The same on L2, whose execute arm self-calls `executeAtomicBundle` | ERC-7930 round trip on the relayed pair; the self-call inventory | `AttackVectors.SelfCallAuthority.Properties.DeployedL2SelfCallRelaysOriginalSenderAuthority` |
+
+Witnesses (`@[witness]`): `ReentrantExecutionWitnessAtV35`, `RevertingTargetWitnessAtV35`,
+`CaughtReentrantRevertWitnessAtV35`, `GateRoutesWitnessAtV35`, `AtomicSelfDisjunctLiveAndCheckedAtV35`,
+`SelfCallRelayWitness`, `DeployedL2SelfCallRelayWitness`.
+Countermodels (`@[countermodel]`): `VerifiedBundleExecutesWithoutTheGateAtV35` (a `Verified` bundle
+executes with a failing verdict), `ReceiveFilterIsReadAtTheGateAtV35` (the receive filter is read at
+the gate only), the four write-order countermodels `StatusWriteAfterCalls…AtV35` /
+`CallWriteAfterCalls…AtV35` (the deployed order is necessary), `UncheckedAtomicArmWidensAuthority`,
+`MiswiredCheckWidensAuthority`, `UncheckedAtomicBranchWidensAuthority`,
+`MisparsedSenderBreaksTheRelay` (the round trip is necessary).
+
+## The model: one stack
+
+Every non-History file cites `b17415d20`. `History/` is the record of the interop pin `c67894b9`, not
+a claim about `b17415d20`.
+
+| Layer | Files | Namespace |
+|---|---|---|
+| Status vocabulary and guard machine (abstract) | `BundleStatusMachine` | `AttackVectors.BundleStatusMachine` |
+| Re-entrant execution engine: four entry points, every target tree, every depth | `Reentrancy`, `ReentrancyStrong`, `BundleStatusMachineFaithful` (gate predicates), `ValueLedgerFaithful` (base-token ledger) | `Contracts.InteropHandler` |
+| The `b17415d20` layer: each handler's entry points (`EntryAtV35 ℓ`), linked to the engine by `ExecMatchesPinAtV35`/`SubmitAllMatchesPinAtV35` | `ReentrancyAtV35` (part of topic `Reentrancy`) | `Contracts.InteropHandlerAtV35` |
+| The `receiveMessage` dispatch and its self-call relay | `SelfCallAuthority`, `SelfCallAuthorityFaithful` (tables), `SelfCallAuthorityStrong` (relay) | `AttackVectors.SelfCallAuthority` |
+
+The engine's `executeBundle`, `verifyBundle` and `unbundleBundle` are `b17415d20`'s L1 entry points;
+the translation sends L2's `executeAtomicBundle`/`verifyAtomicBundle` to them with the flow gate's
+verdict. The engine's fourth entry `executeAtomicBundle` is the pin's L2 entry (admits `Unreceived`
+only); the translation never produces it, so it only adds runs. The engine statements are
+untagged supporting lemmas: the headlines are the `b17415d20` layer's, proved through the
+translation. `ReentrancyAtV35` is kept as its own file because its proofs use the engine's
+`ReentrancyStrong` and gate lemmas, which come after `Proofs/Reentrancy.lean`.
 
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
-| BundleStatusMachine | [Specs/BundleStatusMachine.lean](Specs/BundleStatusMachine.lean) | [Properties/BundleStatusMachine.lean](Properties/BundleStatusMachine.lean) | [Proofs/BundleStatusMachine.lean](Proofs/BundleStatusMachine.lean) |
-| SelfCallAuthority | [Specs/SelfCallAuthority.lean](Specs/SelfCallAuthority.lean) | [Properties/SelfCallAuthority.lean](Properties/SelfCallAuthority.lean) | [Proofs/SelfCallAuthority.lean](Proofs/SelfCallAuthority.lean) |
-| Reentrancy | [Specs/Reentrancy.lean](Specs/Reentrancy.lean) | [Properties/Reentrancy.lean](Properties/Reentrancy.lean) | [Proofs/Reentrancy.lean](Proofs/Reentrancy.lean) |
-| BundleStatusMachineStrong | [Specs/BundleStatusMachineStrong.lean](Specs/BundleStatusMachineStrong.lean) | [Properties/BundleStatusMachineStrong.lean](Properties/BundleStatusMachineStrong.lean) | [Proofs/BundleStatusMachineStrong.lean](Proofs/BundleStatusMachineStrong.lean) |
-| SelfCallAuthorityStrong | [Specs/SelfCallAuthorityStrong.lean](Specs/SelfCallAuthorityStrong.lean) | [Properties/SelfCallAuthorityStrong.lean](Properties/SelfCallAuthorityStrong.lean) | [Proofs/SelfCallAuthorityStrong.lean](Proofs/SelfCallAuthorityStrong.lean) |
-| ReentrancyStrong | [Specs/ReentrancyStrong.lean](Specs/ReentrancyStrong.lean) | [Properties/ReentrancyStrong.lean](Properties/ReentrancyStrong.lean) | [Proofs/ReentrancyStrong.lean](Proofs/ReentrancyStrong.lean) |
-| BundleStatusMachineFaithful | [Specs/BundleStatusMachineFaithful.lean](Specs/BundleStatusMachineFaithful.lean) | [Properties/BundleStatusMachineFaithful.lean](Properties/BundleStatusMachineFaithful.lean) | [Proofs/BundleStatusMachineFaithful.lean](Proofs/BundleStatusMachineFaithful.lean) |
-| SelfCallAuthorityFaithful | [Specs/SelfCallAuthorityFaithful.lean](Specs/SelfCallAuthorityFaithful.lean) | [Properties/SelfCallAuthorityFaithful.lean](Properties/SelfCallAuthorityFaithful.lean) | [Proofs/SelfCallAuthorityFaithful.lean](Proofs/SelfCallAuthorityFaithful.lean) |
-| ValueLedgerFaithful | [Specs/ValueLedgerFaithful.lean](Specs/ValueLedgerFaithful.lean) | [Properties/ValueLedgerFaithful.lean](Properties/ValueLedgerFaithful.lean) | [Proofs/ValueLedgerFaithful.lean](Proofs/ValueLedgerFaithful.lean) |
-| ReentrancyAtV35 | [Specs/ReentrancyAtV35.lean](Specs/ReentrancyAtV35.lean) | [Properties/ReentrancyAtV35.lean](Properties/ReentrancyAtV35.lean) | [Proofs/ReentrancyAtV35.lean](Proofs/ReentrancyAtV35.lean) |
+| BundleStatusMachine | [Specs](Specs/BundleStatusMachine.lean) | [Properties](Properties/BundleStatusMachine.lean) | [Proofs](Proofs/BundleStatusMachine.lean) |
+| Reentrancy (engine) | [Specs](Specs/Reentrancy.lean) | [Properties](Properties/Reentrancy.lean) | [Proofs](Proofs/Reentrancy.lean) |
+| Reentrancy (`b17415d20` layer) | [Specs](Specs/ReentrancyAtV35.lean) | [Properties](Properties/ReentrancyAtV35.lean) | [Proofs](Proofs/ReentrancyAtV35.lean) |
+| ReentrancyStrong | [Specs](Specs/ReentrancyStrong.lean) | [Properties](Properties/ReentrancyStrong.lean) | [Proofs](Proofs/ReentrancyStrong.lean) |
+| BundleStatusMachineFaithful | [Specs](Specs/BundleStatusMachineFaithful.lean) | [Properties](Properties/BundleStatusMachineFaithful.lean) | [Proofs](Proofs/BundleStatusMachineFaithful.lean) |
+| ValueLedgerFaithful | [Specs](Specs/ValueLedgerFaithful.lean) | [Properties](Properties/ValueLedgerFaithful.lean) | [Proofs](Proofs/ValueLedgerFaithful.lean) |
+| SelfCallAuthority | [Specs](Specs/SelfCallAuthority.lean) | [Properties](Properties/SelfCallAuthority.lean) | [Proofs](Proofs/SelfCallAuthority.lean) |
+| SelfCallAuthorityFaithful | [Specs](Specs/SelfCallAuthorityFaithful.lean) | [Properties](Properties/SelfCallAuthorityFaithful.lean) | [Proofs](Proofs/SelfCallAuthorityFaithful.lean) |
+| SelfCallAuthorityStrong | [Specs](Specs/SelfCallAuthorityStrong.lean) | [Properties](Properties/SelfCallAuthorityStrong.lean) | [Proofs](Proofs/SelfCallAuthorityStrong.lean) |
 
-`Reentrancy` (namespace `Contracts.InteropHandler`) covers what happens inside a
-transaction. The target of every delivered call is an arbitrary finite tree of re-entrant
-calls to `executeBundle`/`executeAtomicBundle`/`verifyBundle`/`unbundleBundle`, each
-failure caught or propagated; rollback is `Option`. In the deployed write order, with no
-hash premise:
-- no call is delivered twice and no bundle completes twice, across routes and
-  transactions (`NoEffectCommittedTwice`); a whole-bundle execution commits exactly its
-  calls in order and `BundleExecuted` (`WholeBundleExecutionRunsEachCallOnce`), and the
-  status mappings record exactly the committed effects
-  (`StatusRecordsExactlyTheCommittedEffects`, `CommittedEffectsWereOpen`);
-- nested frames follow `BundleStatusMachine` (`NestedExecutionFollowsTheStatusMachine`),
-  and re-entry for an executing bundle reverts (`ReentryForAnExecutingBundleReverts`,
-  the NatSpec at `L2InteropHandler.sol:45-46`);
-- a target that reverts immediately reverts the whole execution, and the bundle can be
-  retried
-  (`RevertingCallRevertsTheExecution`, `FailedAttemptCanBeRetried`);
-- moving either replay write after `_executeCalls` admits double execution
-  (`StatusWriteAfterCallsRunsAnyBundleTwice`, `CallWriteAfterCallsRunsAnyCallTwice`).
+Notes on the supporting topics:
+- `BundleStatusMachine`'s statements are about the abstract edge relation; its "no inflation" results
+  are list identities, tied to the handler by `ValueLedgerFaithful` (`ReleaseIsTheHandlerLedger`,
+  `HandlerReleasesAtMostCollected`, under the run-local binding premise `NamesOnly`, which is
+  satisfiable (`LedgerWitness`) and load-bearing (`SharedHashBreaksTheLedger`)). Restating the
+  ledger on the `b17415d20` layer is a follow-up.
+- `SelfCallAuthority.selfCall_relays_authority` is a tautology
+  (`selfCall_relays_authority_conclusion_always_holds`); `SelfCallAuthorityFaithful` and
+  `SelfCallAuthorityStrong` state the claim. `pinnedTable` (the pin's dispatch) is, as a list, the
+  `b17415d20` L1 table, so its statements also hold for the `b17415d20` L1 handler.
+- Open items: the self-call inventory and the static-call facts are argued, not derived;
+  `scripts/check-interop-handler-inventory.sh` checks the pin's layout only; the bytes-to-hash
+  binding behind `NamesOnly` is `InteropDataEncoding`'s obligation; values are naturals.
 
-Witnesses: `ReentrantExecutionWitness`, `FailedAttemptRetryWitness`,
-`CaughtReentrantRevertWitness`. The model assumes re-entry only at the target's
-`receiveMessage` (`InteropHandlerBase.sol:282-286`): that `_proveInclusion` and
-`requireFlowFinalized` are static calls and that `_handleCallValue` reaches no entry point
-are argued in the Specs header, not proved. Reject-only checks are omitted.
+## History (`c67894b9`)
 
-### Faithfulness repairs
+- `History/*/BundleStatusMachine.lean` (`AttackVectors.BundleStatusMachine.History`): the atomic
+  sub-machine `AtomicStep`/`AtomicReach`, which assumed an atomic bundle never reaches `Verified`.
+  At `b17415d20` `verifyAtomicBundle` (`L2InteropHandler.sol:83-92`) verifies it.
+- `History/*/BundleStatusMachineFaithful.lean`: the labelled machine of the pin's edges, the
+  never-published statements (`NeverPublishedBundleNeedsTheFlowGate`) and their countermodels.
+- `History/*/BundleStatusMachineStrong.lean` (`Contracts.InteropHandler.History`): the atomic
+  sub-machine derived from the pin's guards and the pin's `InteropCenter`/bundle-hash models.
 
-Three of the original abstract models say less than their docstrings claim. The `…Faithful`
-modules restate them against the source at `c67894b9`, in the re-entrant model where a run is
-involved, and link back to the original statements. The originals are kept unchanged, with a
-correction note in their docstrings.
-
-- **`BundleStatusMachineFaithful`.** The original's prose says that publishing atomic bundles to L1
-  would "brick" them. In the source it is the other way round: a `Verified` bundle is delivered by
-  `executeBundle` or `unbundleBundle` consulting no check, and neither consults the flow gate. The
-  labelled machine `LStep` names the entry point and check of each edge, and is exactly `Step` with
-  labels (`lstep_refines_step`). Every route from `Unreceived` consults an inclusion proof or the
-  flow gate (`route_consults_inclusion_or_flowGate`); removing the inclusion-proof edges leaves
-  `AtomicReach` (`no_inclusion_paths_are_atomic`). Operationally, with every target behaviour at
-  every depth: a hash with no accepted inclusion proof and no passing flow gate is never delivered
-  (`DeliveryNeedsInclusionOrFlowGate`), and under the never-published premise alone, delivery needs
-  the flow gate (`NeverPublishedBundleNeedsTheFlowGate`, headline). Without the premise the gate is
-  bypassed (`ProvableBytesBypassTheFlowGate`, `VerifiedBundleRunsWithoutAnyGate`). Witness:
-  `FlowGateRoutesWitness`.
-- **`SelfCallAuthorityFaithful`.** The original `selfCall_relays_authority` is a tautology
-  (`selfCall_relays_authority_conclusion_always_holds`). The repair quantifies over every call that
-  reaches a permission gate (`Reaches`): for any dispatch table, delegation is sound iff every arm
-  checks the attribute its target's gate reads (`DelegationSoundIffMatched`). The pin's table is
-  sound (`PinnedDelegationSound`), and so are both `e561b9cc2` tables, whose L2 execute arm
-  self-calls `executeAtomicBundle` (`DelegationSoundAtV35`,
-  `AtomicSelfDisjunctLiveAndCheckedAtV35`; at the pin that disjunct is dead,
-  `AtomicSelfDisjunctDeadAtPin`). The original hypothesis `checked` is established at every pinned
-  self-call (`RelayEstablishesTheOriginalHypothesis`). Countermodels:
-  `UncheckedAtomicArmWidensAuthority`, `MiswiredCheckWidensAuthority`.
-- **`ValueLedgerFaithful`.** The original "no inflation" results are about an arbitrary list. The
-  repair derives the ledger from the handler's state and measures release at `_handleCallValue`.
-  From fresh storage, under the run-local binding premise `NamesOnly b` (every entry-point call
-  naming `b.hash` names `b`): released equals `releasedSum` of the handler's ledger, and its
-  `collectedSum` is what the source collected for `b` (`collectedFor`, the sum of its call values,
-  which is the send's `totalBurnedCallsValue`) (`ReleaseIsTheHandlerLedger`);
-  so release is at most collection (`HandlerReleasesAtMostCollected`), with equality once the bundle
-  executes whole (`ExecutedBundleReleasesAllCollected`). Every release is for a call of `b`
-  (`ReleasesAreTheBundlesCalls`, from any state). The premise is satisfiable (`LedgerWitness`, with
-  a strict inequality) and load-bearing (`SharedHashBreaksTheLedger`).
-
-Boundary: each model enumerates the source sites it relies on (the self-call sites and dispatch
-arms, the call sites of `requireFlowFinalized`, `_verifyBundle` and `_proveInclusion`, and the
-base-token release sites). `scripts/check-interop-handler-inventory.sh [ERA_CONTRACTS_ROOT]` checks
-that inventory against a tree and passes only on the layout of `c67894b9` (it fails at `e561b9cc2`, whose
-upgrade tables are transcribed by hand in `SelfCallAuthorityFaithful`). Open items: the
-never-published premise for bundles published by other chains is outside both this model and
-`InteropCenter`'s; the bytes-to-hash binding behind `NamesOnly` and the value function is
-`InteropDataEncoding`'s obligation; values are naturals (the source's checked `uint256` sum reverts
-on overflow).
-
-`BundleStatusMachine`'s atomic sub-machine relies on atomic bundles never being published
-to L1. This chain's half of that fact is `Contracts.InteropCenter.AtomicBytesNeverPublished`
-(under `EncInjOn`, except a pinned cross-sender salt clash).
-
-Three topics restate statements of the original topics that, as written, are facts about
-abstract relations or repackage their premise (their docstrings now say so):
-- `BundleStatusMachineStrong` (namespace `Contracts.InteropHandler`, over the `Reentrancy`
-  model). The whole-bundle write ignores the call statuses it overwrites
-  (`WholeBundleWriteIgnoresCallStatus`), so only the bundle status stops a second payment
-  (`CallStatusDoesNotStopWholeBundleRedelivery`). The deployed guards never reach a state where
-  that matters (`AdmittedBundleHasOnlyUnprocessedCalls`). A `Verified` hash is never executed
-  atomically, while `executeBundle` stays open (`VerifiedBundleNeverExecutesAtomically`). The atomic
-  sub-machine is derived from the guards under a named no-proof premise
-  (`NoProofKeepsBundleInAtomicMachine`). That premise is load-bearing
-  (`ProofForAtomicHashOpensUnbundledRoute`) and is discharged from the source chain's center,
-  up to a cross-sender salt clash or a keccak collision on named preimages
-  (`AtomicLegStaysAtomicAtDestinationOrClash`, witnessed with both clashes false).
-- `SelfCallAuthorityStrong` (namespace `AttackVectors.SelfCallAuthority`). It models
-  `receiveMessage`'s dispatch table. For every table, every admitted call is authorised for its
-  principal (for a relayed call, the original sender `(sourceChainId, from)`) if and only if
-  every gated branch checks first, given the ERC-7930 round trip on the relayed pair
-  (`SelfCallRelaySoundIffEveryGatedBranchChecked`). The deployed table is such a table
-  (`DeployedSelfCallRelaysOriginalSenderAuthority`). The countermodels are an unchecked
-  `executeAtomicBundle` branch and a parser that breaks the ERC-7930 round trip.
-- `ReentrancyStrong`. A target that reverts from every state
-  (`AlwaysRevertingTargetRevertsTheExecution`), or reverts where the loop reaches it
-  (`TargetRevertingWhereReachedRevertsTheExecution`), reverts the execution, and the attempt can be
-  retried (`FailedAttemptWithAlwaysRevertingTargetCanBeRetried`). This covers more than the leaf
-  `Callee.reverts`: for example, targets that revert after nested work.
-
-### At draft/v0.35.0 (`ReentrancyAtV35`)
-
-`ReentrancyAtV35` (namespace `Contracts.InteropHandlerAtV35`) models both handlers at
-`draft/v0.35.0` `b17415d20` (first written against `d9f6789`; every cited file is identical at
-both). Public L2→L2 interop is gone: L2 has `executeAtomicBundle` and `verifyAtomicBundle`, L1 has
-`executeBundle` and `verifyBundle`, and `unbundleBundle` is shared. `verifyAtomicBundle` is new, so
-an atomic bundle can be verified, then unbundled; and `executeAtomicBundle` now admits a `Verified`
-bundle and skips the flow gate for it. The entry points of one layer form one type,
-`EntryAtV35 ℓ`, so a call tree holds one layer's entry points only.
-- **The translation.** A v35 frame runs as its translation in the pin model `exec`, in the deployed
-  order and `callWriteAfterCalls` on both layers and in every order on L1 (`ExecMatchesPinAtV35`,
-  `SubmitAllMatchesPinAtV35`).
-  Both layers' `execute` maps to the pin's `executeBundle`; on L2 the pin's extra `Verified` write is
-  overwritten by `FullyExecuted` before any call runs. On L2 in the order `statusWriteAfterCalls`
-  the two differ (`LateStatusWriteSeparatesL2FromPinAtV35`).
-- **Nothing runs twice**, on both layers, proved through the translation:
-  `NoEffectCommittedTwiceAtV35` (headline), `CommittedEffectsWereOpenAtV35`,
-  `WholeBundleExecutionRunsEachCallOnceAtV35`, `StatusRecordsExactlyTheCommittedEffectsAtV35`,
-  `NestedExecutionFollowsTheStatusMachineAtV35`, and `ReentryForAnExecutingBundleRevertsAtV35`
-  (the NatSpec at `L2InteropHandler.sol:55-58`).
-- **Rollback**, in every order, for targets that revert from every state or where the loop reaches
-  them: `AlwaysRevertingTargetRevertsTheExecutionAtV35`,
-  `TargetRevertingWhereReachedRevertsTheExecutionAtV35`, `FailedAttemptCanBeRetriedAtV35`.
-- **The gate.** A `Verified` bundle executes with a failing verdict
-  (`VerifiedBundleExecutesWithoutTheGateAtV35`). A hash none of whose entry-point calls, at any
-  depth, carries a passing verdict stays `Unreceived` with no committed effect
-  (`DeliveryNeedsTheGateAtV35`). On L2 the verdict is the flow gate's, and the statement needs no
-  never-published premise: L2 has no entry point that consults an inclusion proof at v35. The
-  receive filter (`L2Bridgehub.isPeerAllowed`) is read at the gate only: a bundle verified before
-  its source peer is removed still executes (`ReceiveFilterIsReadAtTheGateAtV35`, as
-  `protocol-docs/interop-gating.md:195-197` documents).
-- Witnesses: `PinMatchWitnessAtV35`, `ReentrantExecutionWitnessAtV35`, `RevertingTargetWitnessAtV35`,
-  `CaughtReentrantRevertWitnessAtV35`, `GateRoutesWitnessAtV35` (the three L2 routes, and a bundle
-  left partly executed by unbundling), `ReceiveFilterWitnessAtV35`. Countermodels:
-  `LateStatusWriteSeparatesL2FromPinAtV35`, `StatusWriteAfterCallsRunsTwiceAtV35`,
-  `CallWriteAfterCallsRunsTwiceAtV35`, `StatusWriteAfterCallsRunsAnyBundleTwiceAtV35`,
-  `CallWriteAfterCallsRunsAnyCallTwiceAtV35`.
-
-The model boundary is `MODEL-HANDLER-REENTRY-V35`. The handlers at main `70096e2` differ from
-`b17415d20` only by three internal getters' names (two also `view` instead of `pure`) and
-`L2InteropHandler.updateL2`, so `execAtV35` models them too; main has no receive filter. The pin topics above are unchanged and still describe `c67894b9`.
-
-The atomic path's source identity is reviewed separately under
-`../L2InteropHandler/`. Destination-wide composition is
-`../../Protocol/DestinationCapstone.lean`. Whole-program call-site enumeration, the
-static-call and no-callback facts above, and binding the actual executed bytes to
-authenticated bundle bytes are separate implementation obligations, not discharged by
-these abstract state machines.
+Destination-wide composition is `../../Protocol/DestinationCapstone.lean`; the atomic path's source
+identity is under `../L2InteropHandler/`.
