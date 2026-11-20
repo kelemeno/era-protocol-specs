@@ -13,19 +13,18 @@ Statements over `../Specs/StaleSnapshotFaithful.lean`.  Proofs:
   prover's: no on-time delivery coexists with an accepted reclaim at a snapshot that
   meets the abstract pin `D < t (j+1)`, or the reclaim proof carries a located
   `TreeRootBreak`.  No hash premise.
-* `PaddingReclaimRedeemsDeliveredLeg` is the countermodel to the original headline's
-  reading as a statement about the deployed absence check: at the extraction pin
-  (padding constant `hashLeaf({0,0,0})`), on a real run with monotone timestamps, a
-  value is delivered at an on-time snapshot AND an absence proof for it is accepted at a
-  snapshot that meets the abstract pin.  The accepted low leaf is not a leaf of the
-  snapshot, the original conclusion is false, and the break is exactly `paddingHit`.
-* `StaleWitnessNotRedeemableOrCollision` is what the upgrade's padding buys: once the
+* `StaleWitnessNotRedeemableOrCollision` is what a dedicated padding constant buys
+  (`b17415d20` pads with `IMT_EMPTY_LEAF_HASH`, `IndexedMerkleTree.sol:51`): once the
   presented leaf does not hash to the padding constant, the only remaining ways out
   are genuine hash collisions (a wrong path length, a path collision, a leaf-hash
   collision), never a free padding hit.  `StaleWitnessOrCollisionSatisfiable` shows its
   premises hold, with no break, on an honest refund in a run that commits a value on
   time, at a pinned snapshot that is itself on time, so the first disjunct is not true
   of every value there.
+
+History: at the extraction pin `c67894b9` (padding constant `hashLeaf({0,0,0})`) the original
+headline's reading as a statement about the deployed absence check was false
+(`History.Properties.PaddingReclaimRedeemsDeliveredLeg`, H2, break exactly `paddingHit`).
 
 Scope.  The pin `D < t (j+1)` is `StaleSnapshot`'s abstract model of the deadline gate,
 not a comparison the deployed gate makes.  The deployed branches are mapped onto it in
@@ -115,36 +114,10 @@ def Properties.PinningGateRejectsStaleWitnessOrBreak : Prop :=
       NonInclusionAccepted h hl (root h z0 hl (R j) (ht j)) v ℓ idx sibs k →
       ¬ D < t (j + 1) ∨ TreeRootBreak h z0 hl (R j) (ht j) sibs k idx ℓ
 
-/-- **COUNTERMODEL AT THE PIN: AN ACCEPTED, DEADLINE-PINNED RECLAIM OF A DELIVERED
-LEG.**  For every node hash and leaf hash, with the extraction-pin padding constant
-`hl ⟨0,0,0⟩`, and every `0 < a < b`: `paddedRun a b` is a run from `setup` within
-capacity, `paddedRunTime` is monotone, `a` is delivered at the on-time snapshot 2, and
-snapshot 2 is deadline-pinned for deadline `0`; yet `verifyNonInclusion` accepts
-`{0,0,0}` at the empty slot 3 as an absence proof for `a` against snapshot 2's root.
-The accepted low leaf `⟨0,0⟩` is not a leaf of the snapshot, so
-`StaleSnapshot.stale_witness_not_redeemable`'s conclusion fails for this accepted
-reclaim, and the located break is exactly `paddingHit`.  "Deadline-pinned" is the
-abstract pin `D < t (j+1)`; the deployed timeout branches are not part of this
-statement (see the module docstring). -/
-def Properties.PaddingReclaimRedeemsDeliveredLeg : Prop :=
-  ∀ (h : Hash) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
-    Run (paddedRun a b) ∧ paddedRun a b 0 = setup ∧ Monotone paddedRunTime
-      ∧ (∀ n, (paddedRun a b n).leafCount ≤ 2 ^ paddedRunHeight n)
-      ∧ paddedRunTime 2 ≤ 0 ∧ a ∈ keys (toAbs (paddedRun a b 2))
-      ∧ (0 : UInt256) < paddedRunTime (2 + 1)
-      ∧ NonInclusionAccepted h hl
-          (root h (hl ⟨0, 0, 0⟩) hl (paddedRun a b 2) (paddedRunHeight 2)) a ⟨0, 0, 0⟩ 3
-          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (paddedRun a b 2)) 3) (paddedRunHeight 2)
-      ∧ (⟨0, 0⟩ : AbsLeaf) ∉ toAbs (paddedRun a b 2)
-      ∧ ¬ (∀ i, paddedRunTime i ≤ 0 → a ∉ keys (toAbs (paddedRun a b i)))
-      ∧ TreeRootBreakExactly h (hl ⟨0, 0, 0⟩) hl (paddedRun a b 2) (paddedRunHeight 2)
-          (honestSibs h (hl ⟨0, 0, 0⟩) (leafHashes hl (paddedRun a b 2)) 3)
-          (paddedRunHeight 2) 3 ⟨0, 0, 0⟩ .paddingHit
-
-/-- **WHAT THE UPGRADE'S PADDING BUYS.**  As `StaleWitnessNotRedeemableOrBreak`, for a
-presented low leaf whose hash is not the padding constant (`hl ℓ ≠ z0`; at the
-extraction pin `z0 = hl ⟨0,0,0⟩`, so this fails for the sentinel preimage, and with
-`IMT_EMPTY_LEAF_HASH` it is a preimage problem): no coexistence, or the reclaim proof
+/-- **WHAT A DEDICATED PADDING CONSTANT BUYS.**  As `StaleWitnessNotRedeemableOrBreak`, for a
+presented low leaf whose hash is not the padding constant (`hl ℓ ≠ z0`; at `b17415d20` `z0 = IMT_EMPTY_LEAF_HASH`, so
+this is a preimage problem; at the extraction pin `z0 = hl ⟨0,0,0⟩` and it failed for the
+sentinel preimage): no coexistence, or the reclaim proof
 exhibits a genuine collision — a wrong path length (`HeightBreak`), a path collision
 at the tree's height, or an occupied slot holding a different leaf with the same leaf
 hash. -/

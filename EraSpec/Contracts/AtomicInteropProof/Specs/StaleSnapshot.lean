@@ -77,7 +77,7 @@ import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
   sentinel `{0,0,0}` at an empty slot (the tree's padding hashes like it), so
   a value delivered on time can have an accepted absence proof at a snapshot
   that meets `D < t (j+1)`
-  (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+  (`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`).
   Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`.
 
   Pure order theory over `IMTAbstract` — axiom-free, no EVM semantics.

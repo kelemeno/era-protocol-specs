@@ -80,7 +80,7 @@ the snapshot.  At `c67894b9` the deployed `verifyNonInclusion` also accepts the 
 `{0,0,0}` at an empty slot, whose padding hashes like it, and once a value is inserted the
 sentinel is not a leaf of the tree (`IndexedMerkleTree.sol:47-48`, `:153-171`).  So the deployed
 check accepts an absence proof for a value the tree holds
-(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`), and the timeout gate
+(`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`), and the timeout gate
 passes on it, on the BEGIN branch, for a leg committed on time
 (`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).  On a valid history a `GapWitness`
 excludes the value from its snapshot, so a refund on such a proof is not one of this model's,

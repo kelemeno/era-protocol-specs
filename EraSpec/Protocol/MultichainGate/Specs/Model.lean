@@ -48,7 +48,7 @@ accepts (modulo the Merkle path, which authenticates the leaf as belonging to
 **Correction (StaleSnapshotFaithful).**  At `c67894b9` the deployed check accepts more:
 `verifyNonInclusion` also accepts the sentinel `{0,0,0}` at an empty slot, whose padding
 hashes like it, and that sentinel is not a leaf of the tree
-(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`). -/
+(`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`). -/
 def AbsenceWitnessAt (P : Protocol) (c : Chain) (v : UInt256) : Prop :=
   ∃ W ∈ P.trees c, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)
 

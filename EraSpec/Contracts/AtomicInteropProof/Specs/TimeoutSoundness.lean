@@ -10,12 +10,14 @@ import EraSpec.Core.Word
 /-
   THE TIMEOUT PROTOCOL'S SOUNDNESS ARGUMENT, AS A THEOREM.
 
-  `AtomicInteropProof`'s library header states why a timeout proof cannot be produced for a leg that
-  actually finalized.  For the BEGIN branch the argument is (verbatim from the source):
-
-      the commit value is absent from the batch-BEGIN IMT root (leaf 2). The tree is append-only and
-      `begin(N) == end(N-1)`, so absence at the begin of a late batch means absence from every batch
-      with `t <= deadline` — the leg can never finalize.
+  era-contracts `b17415d20`.  `AtomicInteropProof`'s library header (`atomic-interop/libraries/
+  AtomicInteropProof.sol:27-31`) points to `protocol-docs/atomicity/proofs.md` for why a timeout
+  proof cannot be produced for a leg that actually finalized.  For the BEGIN branch the argument
+  there (`proofs.md:86-89`) is: the value is absent from the batch-begin IMT root (leaf 2); the tree
+  is append-only and `begin(N) == end(N-1)`, so absence at the begin of a late batch means absence
+  from every batch with `t <= deadline`.  The soundness paragraph (`proofs.md:102-113`) adds that
+  "batch order follows aggregation-time order".  (At the extraction pin `c67894b9` the same argument
+  was the library's own header.)  The gate itself is `verifyTimeoutAbsence` (`:77-124`).
 
   That is a real argument with real hypotheses, and it lives only in a comment.  This file states it
   over an abstract batch history and proves it.

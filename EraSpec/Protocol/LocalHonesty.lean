@@ -82,7 +82,7 @@ the standard elastic-chain one, not a new assumption introduced by the atomic-in
 **Correction (ProofPolarityFaithful).**  This gives `inclusion_self_binds`, not the
 "defense-in-depth" reading of it: even when every chain runs this code, the finality-side
 `sourceChainId` check is load-bearing at `c67894b9`
-(`AttackVectors.ProofPolarityFaithful.PinnedMisdeclaredDoubleMint`); see the section below. -/
+(`AttackVectors.ProofPolarityFaithful.History.PinnedMisdeclaredDoubleMint`); see the section below. -/
 theorem honestInsertion_of_guards_everywhere
     (g : ∀ c : Chain, Guards srcOf c (· ∈ tree c) (Inserted c) (Appended c)) :
     ∀ c v, v ∈ tree c → srcOf v = c :=
@@ -117,7 +117,7 @@ check (check A in `ProofPolarityFaithful`) compares the proof's chain with the f
 chain: a leg can be committed on chain `S` under a flow that declares `X ≠ S`.  So even when every
 chain runs an unmodified deployment (honest insertion holds), check A is load-bearing at the pin
 (`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
-`PinnedMisdeclaredDoubleMint`).  The self-binding in the first bullet is to the committing chain,
+`History.PinnedMisdeclaredDoubleMint`).  The self-binding in the first bullet is to the committing chain,
 and the label does not follow from it; and, against the second bullet, a leg's declared chain can
 differ from its committing chain while both run the deployment.  The upgrade's binding `append`
 (`e561b9cc2`) makes check A redundant on the states it reaches (`UpgradeCheckARedundant`). -/

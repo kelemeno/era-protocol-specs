@@ -9,16 +9,16 @@ Statements over `../Specs/LastBatchInRootOffset.lean`.  Proofs:
 * `EndBranchFromOnchainCheckOffset` — `LastBatchInRoot.end_branch_from_onchain_check`
   re-indexed: the zero-cascade check on the mask POSITION `p`, the batch NUMBER
   `B = batchAt f p` (first pushed batch `f`), and `OutsideRootLate` only for batches
-  after the root's last batch.  At `c67894b9` every atomic-interop source chain has
-  `f = 0` on L1 (see the Specs); there `B = p`, the time premise is equivalent to the
-  original `hout`, and the statement is the original one.  The offset form generalises
-  it.
+  after the root's last batch.  At `f = 0` (a chain created by `createNewChain`, genesis-seeded
+  on L1; see the Specs) `B = p`, the time premise is equivalent to the original `hout`, and
+  the statement is the original one.  At `b17415d20` a chain registered by
+  `registerAlreadyDeployedZKChain` has `f > 0`, and the offset form covers it.
 * `BatchNumberBoundOrCollision` — a definitional case split with no derived content:
   `B = batchAt f p`, or the two named preimages collide.  It takes no premise beyond the
   leaf equality; that the leaf at position `p` carries batch number `batchAt f p` at all
   is `PROTO-CONTIGUOUS-PUSH`.
-* `PositionAsBatchMisreads` — on an abstract chain whose first pushed batch is 1, which
-  no atomic-interop source chain has at `c67894b9`, the original statement's `hout` is
+* `PositionAsBatchMisreads` — on an abstract chain whose first pushed batch is 1, the
+  original statement's `hout` is
   false (and its conclusion, read with the position as the batch number, is false),
   while the re-indexed premise holds and the re-indexed absence correctly fails.
 * `EndBranchOffsetSatisfiable` — every premise of the re-indexed form holds together on
@@ -72,10 +72,9 @@ settled at time 0); its conclusion is false too (value `1` is in batch 1's end s
 time).  The re-indexed `hout` holds, and the re-indexed absence premise (at batch
 `batchAt 1 0 = 1`) is false, as it must be.
 
-No atomic-interop source chain has `f > 0` at `c67894b9`: each is genesis-seeded with
-batch 0 on L1, where the original reading is exact while pushes are contiguous.  So this
-is the case the offset form generalises to, not a misreading of a chain the pinned end
-branch serves; the name is kept for continuity. -/
+A chain created by `createNewChain` is genesis-seeded with batch 0 on L1, where the original
+reading is exact while pushes are contiguous; at `b17415d20` a chain registered by
+`registerAlreadyDeployedZKChain` starts later (`f > 0`, see the Specs). -/
 def Properties.PositionAsBatchMisreads : Prop :=
   AppendOnly offsetHistory ∧ (0 : ℕ) < 1 ∧ (0 : ℕ) < 1 ∧ 1 ≤ 2 ^ 0 ∧ RightEmpty 0 1 0
     ∧ (1 : UInt256) ∉ offsetHistory.endSet 0
@@ -85,8 +84,7 @@ def Properties.PositionAsBatchMisreads : Prop :=
     ∧ (1 : UInt256) ∈ offsetHistory.endSet (batchAt 1 0)
 
 /-- **THE RE-INDEXED PREMISES ARE SATISFIABLE, AND THE HEADLINE DOES WORK.**  On
-`richOffsetHistory`, read with first pushed batch `f = 1` (an abstract instance; no
-atomic-interop source chain has `f > 0` at `c67894b9`): batches 1, 2 and 3 in the root
+`richOffsetHistory`, read with first pushed batch `f = 1` (an abstract instance): batches 1, 2 and 3 in the root
 at positions 0, 1 and 2, the proof at position 2 (batch 3), root time `T = 1`, deadline
 `D = 0`, value `v = 1`.  Every premise of `EndBranchFromOnchainCheckOffset` holds.
 `RightEmpty` (the index content of the zero-cascade check) holds for position 2 of three

@@ -29,7 +29,8 @@ Statements over `../Specs/StaleSnapshotBranches.lean`.  Proofs:
   premise of each headline holds together on `richSnapshots`, which commits value `2` on
   time, so neither headline is vacuous and each conclusion, which the premises give for
   the refunded value `1`, is false for `2`.  Read as an abstract chain whose first pushed
-  batch is 1 (no atomic-interop source chain has one at `c67894b9`), the end-branch
+  batch is 1 (at `b17415d20`, for example, a chain registered by
+  `registerAlreadyDeployedZKChain`; see `LastBatchInRootOffset`), the end-branch
   instance also has the unrestricted `OutsideRootLate` false while `LaterBatchesLate`
   holds.
 -/
@@ -150,8 +151,7 @@ these premises give for `1`, is false for `2`.
 
 Read as an abstract chain whose first pushed batch is 1, the root holds batch 1 only;
 batch 0 is then in no root and settled at time 0, so the unrestricted `OutsideRootLate`
-with `inRoot = (· = 1)` is false here while `LaterBatchesLate 1` holds.  No
-atomic-interop source chain has a first pushed batch above 0 at `c67894b9`. -/
+with `inRoot = (· = 1)` is false here while `LaterBatchesLate 1` holds. -/
 def Properties.EndBranchNotRedeemableSatisfiable : Prop :=
   Evolution richSnapshots.endS ∧ SoundState (richSnapshots.endS 0)
     ∧ LaterBatchesLate 1 richSnapshots.t 1 ∧ EndBranch richSnapshots 0 1 1 1 ⟨0, 2⟩

@@ -68,6 +68,9 @@ import EraSpec.Contracts.AtomicInteropProof.Proofs.ProofPolarityFaithful
 import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshotBranches
 import EraSpec.Contracts.AtomicInteropProof.Proofs.StaleSnapshotFaithful
 import EraSpec.Contracts.AtomicInteropProof.Proofs.AuthenticateRootAtV35
+import EraSpec.Contracts.AtomicInteropProof.History.Proofs.AuthenticateRootAtV35
+import EraSpec.Contracts.AtomicInteropProof.History.Proofs.ProofPolarityFaithful
+import EraSpec.Contracts.AtomicInteropProof.History.Proofs.StaleSnapshotFaithful
 
 -- IndexedMerkleTree: abstract list model and insertion requirements
 import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model

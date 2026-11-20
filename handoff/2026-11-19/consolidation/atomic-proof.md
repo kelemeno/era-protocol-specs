@@ -41,9 +41,9 @@ DynamicIncrementalMerkle `ChainTreeBacking` and Merkle `DomainSeparation` import
   `common/Config.sol:141`). At the pin it padded with `hashLeaf({0,0,0})` (the H2 record in
   `StaleSnapshotFaithful`). `verifyNonInclusion` (`:154-172`) is unchanged.
 * `MessageRootBase`: `_addNewChain` (`:275-293`) starts an empty chain tree at
-  `_startingBatchNumber`; `_recordChainBatchRoot` (`:183-196`) makes numbers consecutive;
+  `_startingBatchNumber`; `_recordChainBatchRoot` (`:183-197`) makes numbers consecutive;
   `_pushChainBatchRoot` (`:201-214`) appends `batchLeafHash(root, number, l1Timestamp)`;
-  `seedGenesisRoot` (`:296-315`) pushes batch 0 for a fresh chain with a nonzero genesis root.
+  `seedGenesisRoot` (`:296-314`) pushes batch 0 for a fresh chain with a nonzero genesis root.
   `L1Bridgehub.createNewChain` calls `addNewChain(_chainId, 0)` then `seedGenesisRoot`
   (`L1Bridgehub.sol:134-135`) for every new chain (no ZKsync OS gate at this commit);
   `registerAlreadyDeployedZKChain` calls `addNewChain(_chainId, getTotalBatchesExecuted())`

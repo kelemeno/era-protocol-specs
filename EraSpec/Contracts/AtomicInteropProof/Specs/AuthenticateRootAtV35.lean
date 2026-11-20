@@ -5,13 +5,13 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.LastLeafFaithful
 
 era-contracts `draft/v0.35.0` at commit `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
 (`b17415d20`). Every `file:line` here is at `b17415d20` and relative to `l1-contracts/contracts/`,
-unless it is marked `@c67894b9` (the extraction pin the older models in this folder describe).
-The files cited here are the same blobs at the earlier `draft/v0.35.0` head `d9f6789`, so every
+unless it is marked `@c67894b9` (the extraction pin; such lines are as earlier rounds recorded
+them, since `c67894b9` is not in the local clone). The files cited here are the same blobs at the earlier `draft/v0.35.0` head `d9f6789`, so every
 citation holds there too. `AtomicInteropProof.sol` is also the same blob (`40a6c702`) on main
 `3605e82` and `70096e2ea`. There `MessageHashing.sol` differs from `b17415d20` only in comments
 and one `solhint` line (`:66`), which moves its later lines down by one.
 
-## What changed between the pin and v35
+## What the v35 code does (and what changed from the pin)
 
 `AtomicInteropProof._authenticateRoot` (`atomic-interop/libraries/AtomicInteropProof.sol:155-189`)
 authenticates a claimed IMT root as leaf 2 or 3 of a source chain's batch root, then returns the
@@ -42,10 +42,12 @@ The word layout, transcribed:
   (`none`) when `i` is out of range. `slice w l r` is `extractSlice` (`MessageHashing.sol:306-315`).
 * `getProofData` is `_getProofData` (`MessageHashing.sol:152-236`), one hop, every revert included.
 * `readSL` and `readHop` are the two positional accessors (`MessageHashing.sol:285-299` and
-  `:252-262`). `readHopPin` is the pin's `readAggregationHopPath`.
+  `:252-262`). The pin's `readAggregationHopPath` (`readHopPin`) is in
+  `../History/Specs/AuthenticateRootAtV35.lean`.
 * `proveShared` is `proveL2LeafInclusionShared` on an L2: depth 0, then at most one recursive hop
   (`L2MessageVerification.sol:26-55`).
-* `authenticateRootV35` and `authenticateRootPin` are the two versions of `_authenticateRoot`.
+* `authenticateRootV35` is `_authenticateRoot`. The pin's version (`authenticateRootPin`) and the
+  comparison with it are History (`../History/`).
 * `LastBatchCheck` is the loop of `_verifyLastBatchInRoot` (`AtomicInteropProof.sol:130-143`).
 * `slHopPath` is the Merkle path of the recursive (settlement-layer) hop, `SharedTreeBacking`
   describes the settlement layer's shared tree behind an imported root
@@ -200,15 +202,6 @@ def readHop (E : Env) (w : Proof) : Option HopPath :=
       (md.proofStartIndex + md.logLeafProofLen + 2 + md.batchLeafProofLen)).bind fun sibs =>
   some ⟨mask, sibs⟩
 
-/-- The pin's `readAggregationHopPath` (`MessageHashing.sol:258-265@c67894b9`): the same reads,
-without the final-node check. -/
-def readHopPin (E : Env) (w : Proof) : Option HopPath :=
-  (E.parse w).bind fun md =>
-  (word w (md.proofStartIndex + md.logLeafProofLen + 1)).bind fun mask =>
-  (slice w (md.proofStartIndex + md.logLeafProofLen + 2)
-      (md.proofStartIndex + md.logLeafProofLen + 2 + md.batchLeafProofLen)).bind fun sibs =>
-  some ⟨mask, sibs⟩
-
 /-! ## The verifier and the two `_authenticateRoot`s -/
 
 /-- `L2_MESSAGE_VERIFICATION.proveL2LeafInclusionShared` as it runs on an L2
@@ -249,19 +242,6 @@ def authenticateRootV35 (E : Env) (roots : UInt256 → UInt256 → UInt256)
   if md.finalProofNode then none else
   readSL E w
 
-/-- **`_authenticateRoot` at the pin** (`AtomicInteropProof.sol:256-290@c67894b9`). It is the same
-up to the verifier (`:260-272@c67894b9`), then re-runs `_getProofData` with the same arguments
-(`:276-282@c67894b9`) and rejects a final node on the result (`:285@c67894b9`). -/
-def authenticateRootPin (E : Env) (roots : UInt256 → UInt256 → UInt256)
-    (src batch leafIndex imtRoot : UInt256) (w : Proof) : Option SLRef :=
-  (E.parse w).bind fun md =>
-  if md.logLeafProofLen ≠ treeDepth then none else
-  (proveShared E roots src batch leafIndex imtRoot w).bind fun ok =>
-  if ok = false then none else
-  (getProofData E src batch leafIndex imtRoot w).bind fun pd =>
-  if pd.finalProofNode then none else
-  some ⟨pd.slBatchNumber, pd.slChainId, pd.l1BatchTimestamp⟩
-
 /-! ## The end branch, up to the last-batch check -/
 
 /-- The loop of `_verifyLastBatchInRoot` (`AtomicInteropProof.sol:130-143`) does not revert. At
@@ -285,14 +265,6 @@ structure EndBranchPassesV35 (E : Env) (roots : UInt256 → UInt256 → UInt256)
     (src batch imtRoot : UInt256) (w : Proof) (sl : SLRef) (hop : HopPath) : Prop where
   auth : authenticateRootV35 E roots src batch imtEndLeafIndex imtRoot w = some sl
   hop_eq : readHop E w = some hop
-  last : LastBatchCheck E.node z0 hop
-
-/-- The same at the pin (`AtomicInteropProof.sol:152-206@c67894b9`): the pin's `_authenticateRoot`
-and the pin's `readAggregationHopPath`. -/
-structure EndBranchPassesPin (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 : UInt256)
-    (src batch imtRoot : UInt256) (w : Proof) (sl : SLRef) (hop : HopPath) : Prop where
-  auth : authenticateRootPin E roots src batch imtEndLeafIndex imtRoot w = some sl
-  hop_eq : readHopPin E w = some hop
   last : LastBatchCheck E.node z0 hop
 
 /-! ## The outer hop

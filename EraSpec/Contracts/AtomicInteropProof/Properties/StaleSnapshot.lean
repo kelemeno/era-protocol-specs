@@ -81,7 +81,7 @@ set_option linter.unusedVariables false
   sentinel `{0,0,0}` at an empty slot (the tree's padding hashes like it), so
   a value delivered on time can have an accepted absence proof at a snapshot
   that meets `D < t (j+1)`
-  (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+  (`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`).
   Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`.
 
   Pure order theory over `IMTAbstract` — axiom-free, no EVM semantics.
@@ -129,7 +129,7 @@ bounds every on-time snapshot by `j`
 `W ∈ S j`.  At `c67894b9` the deployed absence check also accepts the
 sentinel `{0,0,0}` at an empty slot, so a value delivered on time can have
 an accepted absence proof at a snapshot that meets `D < t (j+1)`
-(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+(`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`).
 Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`. -/
 abbrev Properties.stale_witness_not_redeemable {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)
@@ -150,7 +150,7 @@ condition it can never satisfy.  Contrapositive packaging of
 **Correction (StaleSnapshotFaithful).**  The witness here is a genuine leaf
 `W ∈ S j`; for an absence proof the deployed check accepts, the pin can pass
 on a value delivered on time
-(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+(`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`).
 Over accepted proofs the statement is `PinningGateRejectsStaleWitnessOrBreak`. -/
 abbrev Properties.pinning_gate_rejects_stale_witness {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)

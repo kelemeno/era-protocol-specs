@@ -188,13 +188,6 @@ theorem read_hop_is_folded_path_v35 : Properties.ReadHopIsFoldedPathV35 := by
   simp only [readHop, hmd, Option.bind_some, hmf, hbm, hbp]
   rfl
 
-/-- On a proof whose parsed metadata is not a final node, the v35 hop read is the pin's. -/
-theorem authV35_readHop_eq_pin {E : Env} {w : Proof} {md : Metadata}
-    (hmd : E.parse w = some md) (hmf : md.finalProofNode = false) :
-    readHop E w = readHopPin E w := by
-  simp only [readHop, readHopPin, hmd, Option.bind_some, hmf]
-  rfl
-
 /-! ## `_authenticateRoot` -/
 
 /-- The v35 `_authenticateRoot` accepted: the metadata, the depth, the verifier and the read. -/
@@ -244,55 +237,11 @@ theorem authV35_accepted {E : Env} {roots : UInt256 → UInt256 → UInt256}
   rw [hread] at hsl
   exact ⟨pd, hpd, hpf, Option.some.inj hsl, rest⟩
 
-theorem authenticate_root_refactor_exact_v35 : Properties.AuthenticateRootRefactorExactV35 := by
-  intro E roots src batch leafIndex imtRoot w
-  unfold authenticateRootV35 authenticateRootPin
-  cases hmd : E.parse w with
-  | none => rfl
-  | some md =>
-    simp only [Option.bind_some]
-    by_cases hd : md.logLeafProofLen ≠ treeDepth
-    · rw [ite_eq_left hd, ite_eq_left hd]
-    rw [ite_eq_right hd, ite_eq_right hd]
-    cases hok : proveShared E roots src batch leafIndex imtRoot w with
-    | none => rfl
-    | some ok =>
-      simp only [Option.bind_some]
-      by_cases hk : ok = false
-      · rw [ite_eq_left hk, ite_eq_left hk]
-      rw [ite_eq_right hk, ite_eq_right hk]
-      have hok' : ok = true := by simpa using hk
-      subst hok'
-      obtain ⟨pd, hpd, -⟩ := authV35_proveShared_true hok
-      obtain ⟨md', hmd', hfeq⟩ := authV35_getProofData_final_eq hpd
-      rw [hmd] at hmd'
-      cases hmd'
-      rw [hpd, Option.bind_some]
-      by_cases hf : md.finalProofNode = true
-      · rw [ite_eq_left hf, ite_eq_left (hfeq.trans hf)]
-      · have hpf : pd.finalProofNode = false := by simpa [hfeq] using hf
-        rw [ite_eq_right hf, ite_eq_right (by simpa using hpf)]
-        exact read_sl_eq_parsed_v35 E src batch leafIndex imtRoot w pd hpd hpf
-
 theorem hop_read_total_after_auth_v35 : Properties.HopReadTotalAfterAuthV35 := by
   intro E roots src batch leafIndex imtRoot w sl h
   obtain ⟨pd, hpd, hpf, -⟩ := authV35_accepted h
   obtain ⟨hop, hhop, -⟩ := read_hop_is_folded_path_v35 E src batch leafIndex imtRoot w pd hpd hpf
   exact ⟨hop, hhop⟩
-
-theorem end_branch_refactor_exact_v35 : Properties.EndBranchRefactorExactV35 := by
-  intro E roots z0 src batch imtRoot w sl hop
-  constructor
-  · rintro ⟨hauth, hhop, hlast⟩
-    obtain ⟨md, hmd, -, hmf, -⟩ := authV35_auth_some hauth
-    refine ⟨?_, ?_, hlast⟩
-    · rw [← authenticate_root_refactor_exact_v35]; exact hauth
-    · rw [← authV35_readHop_eq_pin hmd hmf]; exact hhop
-  · rintro ⟨hauth, hhop, hlast⟩
-    have hauth' : authenticateRootV35 E roots src batch imtEndLeafIndex imtRoot w = some sl := by
-      rw [authenticate_root_refactor_exact_v35]; exact hauth
-    obtain ⟨md, hmd, -, hmf, -⟩ := authV35_auth_some hauth'
-    exact ⟨hauth', by rw [authV35_readHop_eq_pin hmd hmf]; exact hhop, hlast⟩
 
 /-! ## The walks -/
 
@@ -575,12 +524,6 @@ theorem end_branch_v35_satisfiable : Properties.EndBranchV35Satisfiable := by
 theorem ReadSLEqParsedV35 : Properties.ReadSLEqParsedV35 := read_sl_eq_parsed_v35
 
 theorem ReadHopIsFoldedPathV35 : Properties.ReadHopIsFoldedPathV35 := read_hop_is_folded_path_v35
-
-theorem AuthenticateRootRefactorExactV35 : Properties.AuthenticateRootRefactorExactV35 :=
-  authenticate_root_refactor_exact_v35
-
-theorem EndBranchRefactorExactV35 : Properties.EndBranchRefactorExactV35 :=
-  end_branch_refactor_exact_v35
 
 theorem HopReadTotalAfterAuthV35 : Properties.HopReadTotalAfterAuthV35 :=
   hop_read_total_after_auth_v35

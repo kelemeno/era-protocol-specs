@@ -6,17 +6,17 @@ import EraSpec.Protocol.MultichainGate.Specs.Model
 /-!
 # Spec: `AtomicFlowManager`'s two proof gates, with and without the source-chain comparison
 
-Source, in the pinned era-contracts tree (`c67894b9`):
-`contracts/atomic-interop/AtomicFlowManager.sol`.  Both gates compare the proof's chain with the
+Source: era-contracts `b17415d20`, `l1-contracts/contracts/atomic-interop/AtomicFlowManager.sol`
+(the same two checks as at the extraction pin `c67894b9`).  Both gates compare the proof's chain with the
 leg's DECLARED source chain before verifying the proof against that chain's tree:
 
-    // requireFlowFinalized, per leg i
-    if (_finality.proofs[i].sourceChainId != flow.legSourceChainIds[i]) revert ProofSourceChainMismatch(...);
-    AtomicInteropProof.verifyInclusion(_finality.proofs[i], value, flow.deadline, ...);
+    // requireFlowFinalized, per leg i (:197-211)
+    if (_finality.proofs[i].sourceChainId != preimage.legSourceChainIds[i]) revert ProofSourceChainMismatch(...);
+    AtomicInteropProof.verifyInclusion(_finality.proofs[i], value, preimage.deadline, ...);
 
-    // authorizeRefund, for the missing leg
+    // authorizeRefund, for the missing leg (:227-234)
     if (_absence.sourceChainId != missingLegChainId) revert ProofSourceChainMismatch(...);
-    AtomicInteropProof.verifyTimeoutAbsence(_absence, value, _flow.deadline, ...);
+    AtomicInteropProof.verifyTimeoutAbsence(_absence, value, preimage.deadline, ...);
 
 `ProofPolarity` states the consequences of `HonestInsertion` as set facts (`v ∈ tree c` /
 `v ∉ tree c`).  None of its statements mentions a gate, so the claims about what the comparison
@@ -39,11 +39,14 @@ concrete family of states: no nonzero key sits in the tree of a chain other than
 It is not a hash premise.
 
 **Correction (StaleSnapshotFaithful).**  The two gates labelled "as deployed" below are so in
-their chain comparison; the absence gates' absence half is the set fact `v ∉ tree c`.  At
-`c67894b9` the deployed `verifyNonInclusion` accepts more: it also accepts the sentinel
-`{0,0,0}` at an empty slot, whose padding hashes like it, so a live leg can pass the absence
-check on its own chain (`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`,
-`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+their chain comparison; the absence gates' absence half is the set fact `v ∉ tree c`.  The deployed
+`verifyNonInclusion` accepts an IMT proof, which can also carry a located break
+(`AttackVectors.StaleSnapshotFaithful.Properties.StaleWitnessNotRedeemableOrBreak`).  At the
+extraction pin `c67894b9` it accepted the sentinel `{0,0,0}` at an empty slot, whose padding hashed
+like it, so a live leg could pass the absence check on its own chain
+(`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`,
+`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`); at `b17415d20`
+the padding is `IMT_EMPTY_LEAF_HASH` (`common/libraries/IndexedMerkleTree.sol:51`).
 -/
 
 namespace AttackVectors.ProofPolarity

@@ -28,7 +28,7 @@ chain.  At the pin the flow's declared chain is a separate value that the pinned
 does not bind to the committing chain, and with it kept apart the comparison is
 load-bearing even under honest insertion
 (`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
-`PinnedMisdeclaredDoubleMint`).
+`History.PinnedMisdeclaredDoubleMint`).
 
 This file states the asymmetry against the gates of `Specs/ProofPolarityStrong.lean`, with
 non-vacuity witnesses, and lifts it to commitment-tree states.
@@ -118,7 +118,7 @@ it is true but does not establish the label for the pinned contract: there the f
 chain is a separate value that the pinned `append` does not bind to the committing chain, and
 with it kept apart check A is load-bearing even under honest insertion
 (`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
-`PinnedMisdeclaredDoubleMint`). -/
+`History.PinnedMisdeclaredDoubleMint`). -/
 abbrev Properties.unchecked_inclusion_gate_iff_checked (h : HonestInsertion srcOf tree) (v : Value) :=
   (∃ c, UncheckedInclusionGate tree c v) ↔ (∃ c, CheckedInclusionGate tree (srcOf v) c v)
 

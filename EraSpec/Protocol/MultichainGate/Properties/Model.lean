@@ -47,7 +47,7 @@ real without it; `bound_gate_excludes_delivered` shows the check is sufficient.
 **Correction (StaleSnapshotFaithful).**  Sufficient for a genuine absence witness, a leaf of
 the tree (`AbsenceWitnessAt`).  At `c67894b9` the deployed `verifyNonInclusion` also accepts
 the sentinel `{0,0,0}` at an empty slot, so a delivered leg can pass the refund gate on its
-declared source chain (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`,
+declared source chain (`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`,
 `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).
 
 ## What is assumed

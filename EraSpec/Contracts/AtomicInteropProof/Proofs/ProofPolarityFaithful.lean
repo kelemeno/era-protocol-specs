@@ -9,16 +9,6 @@ variable {Chain Value : Type}
 
 /-! ## Reachable states -/
 
-theorem pinnedReach_honest {srcOf : Value → Chain} {tree : Chain → Set Value}
-    (h : PinnedReach srcOf tree) : HonestInsertion srcOf tree := by
-  induction h with
-  | genesis => intro c v hv; simp at hv
-  | @append tree c v _ hsrc ih =>
-    intro c' w hw
-    rcases hw with hw | ⟨rfl, rfl⟩
-    · exact ih c' w hw
-    · exact hsrc
-
 theorem upgradeReach_declared {srcOf decl : Value → Chain} {tree : Chain → Set Value}
     (h : UpgradeReach srcOf decl tree) : HonestInsertion srcOf tree ∧ DeclaredInsertion decl tree := by
   induction h with
@@ -128,29 +118,6 @@ theorem cm_not_mem_false : () ∉ cmTree false := by
   · simp at h
   · simp at h
 
-theorem cm_pinnedReach : PinnedReach cmSrc cmTree :=
-  PinnedReach.append true () PinnedReach.genesis rfl
-
-theorem pinned_misdeclared_double_mint : Properties.PinnedMisdeclaredDoubleMint := by
-  refine ⟨cm_pinnedReach, pinnedReach_honest cm_pinnedReach, ?_, cm_mem_true, ?_, ?_, ?_, ?_⟩
-  · intro hDI
-    have h := hDI true () cm_mem_true
-    simp [cmDecl] at h
-  · simp [cmDecl, cmSrc]
-  · intro v _
-    cases v
-    exact cm_mem_true
-  · exact ⟨(), List.mem_singleton_self _, false, rfl, cm_not_mem_false⟩
-  · intro pc h
-    obtain ⟨hpc, hmem⟩ := h () (List.mem_singleton_self _)
-    have hpc' : pc () = false := hpc
-    rw [hpc'] at hmem
-    exact cm_not_mem_false hmem
-
-theorem refund_not_blocked_when_pinned_to_declared :
-    Properties.RefundNotBlockedWhenPinnedToDeclared :=
-  ⟨cm_pinnedReach, cm_mem_true, rfl, cm_not_mem_false⟩
-
 theorem upgrade_finality_satisfiable : Properties.UpgradeFinalitySatisfiable := by
   refine ⟨UpgradeReach.append true () UpgradeReach.genesis rfl rfl, ?_, ?_⟩
   · intro v _
@@ -161,9 +128,6 @@ theorem upgrade_finality_satisfiable : Properties.UpgradeFinalitySatisfiable := 
     exact ⟨rfl, cm_mem_true⟩
 
 /-! ## Certificates -/
-
-theorem PinnedReachHonest : Properties.PinnedReachHonest :=
-  fun _ _ _ _ h => pinnedReach_honest h
 
 theorem UpgradeReachDeclared : Properties.UpgradeReachDeclared :=
   fun _ _ _ _ _ h => upgradeReach_declared h
@@ -176,12 +140,6 @@ theorem UncheckedDoubleMintIffMisdeclared : Properties.UncheckedDoubleMintIffMis
 
 theorem FlowDoubleMintIffSomeMisdeclared : Properties.FlowDoubleMintIffSomeMisdeclared :=
   fun _ _ _ _ _ _ hHI => flow_double_mint_iff_some_misdeclared hHI
-
-theorem PinnedMisdeclaredDoubleMint : Properties.PinnedMisdeclaredDoubleMint :=
-  pinned_misdeclared_double_mint
-
-theorem RefundNotBlockedWhenPinnedToDeclared : Properties.RefundNotBlockedWhenPinnedToDeclared :=
-  refund_not_blocked_when_pinned_to_declared
 
 theorem RefundBlockedIffDeclaredIsSource : Properties.RefundBlockedIffDeclaredIsSource :=
   fun _ _ _ _ _ _ hHI hlive => refund_blocked_iff_declared_is_source hHI hlive

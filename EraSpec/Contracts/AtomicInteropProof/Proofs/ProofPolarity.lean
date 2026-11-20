@@ -37,7 +37,7 @@ import Mathlib.Tactic
   `legSourceChainIds[i]`, which the pinned `append` does not bind to the committing chain.  With
   the two kept apart the finality-side check is load-bearing:
   `AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared` (per leg),
-  `FlowDoubleMintIffSomeMisdeclared` (per flow) and `PinnedMisdeclaredDoubleMint` (a state the
+  `FlowDoubleMintIffSomeMisdeclared` (per flow) and `History.PinnedMisdeclaredDoubleMint` (a state the
   pinned `append` reaches, with honest insertion).  The set facts here stay true; reading them as
   "the check adds nothing on the inclusion path" does not.
 -/
@@ -70,7 +70,7 @@ equality check adds nothing on this path — the "defense-in-depth" reading.
 compares the proof's chain with the flow's DECLARED chain, which at the pin need not be the
 committing chain `srcOf v`, so it is load-bearing even under honest insertion
 (`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
-`PinnedMisdeclaredDoubleMint`). -/
+`History.PinnedMisdeclaredDoubleMint`). -/
 theorem inclusion_self_binds (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hmem : v ∈ tree c) :
     Properties.inclusion_self_binds (h := h) (c := c) (v := v) (hmem := hmem) := by
@@ -122,7 +122,7 @@ committed leg leaves no absence witness — the refund gate cannot pass.
 
 **Correction (ProofPolarityFaithful).**  The premise pins to `srcOf v`, not to the declared chain
 the contract pins to.  Pinned to the declared chain, a committed leg can still have an absence
-witness (`AttackVectors.ProofPolarityFaithful.RefundNotBlockedWhenPinnedToDeclared`), and a live
+witness (`AttackVectors.ProofPolarityFaithful.History.RefundNotBlockedWhenPinnedToDeclared`), and a live
 leg fails `authorizeRefund` as the missing leg exactly when its declared chain is `srcOf v`
 (`RefundBlockedIffDeclaredIsSource`).  Absence here is the set fact
 (Correction (StaleSnapshotFaithful) in `Specs/ProofPolarityStrong.lean`). -/
@@ -146,7 +146,7 @@ different amounts of trust, which the comment does not say.
 
 Correction (ProofPolarityFaithful).  Honest insertion is not enough for the label either: with
 the flow's declared chain kept apart from the committing chain, the check is load-bearing even
-when every chain inserts honestly (`AttackVectors.ProofPolarityFaithful.PinnedMisdeclaredDoubleMint`
+when every chain inserts honestly (`AttackVectors.ProofPolarityFaithful.History.PinnedMisdeclaredDoubleMint`
 satisfies `HonestInsertion`).  The label holds in the states the upgrade's binding `append`
 (`e561b9cc2`) reaches (`UpgradeCheckARedundant`). -/
 
