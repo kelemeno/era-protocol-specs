@@ -1,4 +1,5 @@
 import EraSpec.Contracts.InteropCenter.Specs.FeeReentry
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the fee backing with nested calls
@@ -52,7 +53,7 @@ open Contracts.InteropCenter (Word Address CallStarter totalBurnedCallsValue)
 With the `msg.value` equalities and with `claimProtocolFees` either writing before it pays or
 holding the lock, every successful call from every state, including all calls nested in it,
 leaves `bal - Σ accumulatedProtocolFees` at least as large. -/
-def Properties.NestedBackingNeverShrinks : Prop :=
+@[headline] def Properties.NestedBackingNeverShrinks : Prop :=
   ∀ (G : Guards) (K : Checks) (P : Params), K.valueCheck = true →
     (G.writeFirst = true ∨ G.claimLock = true) →
     ∀ (t : NTx) (S S' : State), execN G K P t S = some S' →
@@ -80,7 +81,7 @@ same setup in all three codes (coinbases `0x77` and `0x78` each accrue `6`, the 
 coinbase `0x77` claims to a receiver that re-enters `claimProtocolFees` once. The deployed code
 reverts the claim; with the write first and no lock it pays `6` once; with neither it pays `6`
 twice, leaving a balance below the accrued fees. -/
-def Properties.NoLockNoWriteFirstDrainsFees : Prop :=
+@[countermodel] def Properties.NoLockNoWriteFirstDrainsFees : Prop :=
   ∃ S S1 S2, ReachN deployedGuards deployed wP init S ∧
     ReachN withoutClaimLock deployed wP init S ∧ ReachN withoutClaimLockPayFirst deployed wP init S ∧
     S.bal = 12 ∧ S.protocolFees 0x77 = 6 ∧ S.protocolFees 0x78 = 6 ∧
@@ -109,7 +110,7 @@ def Properties.HeldLockBlocksSendsAndClaims : Prop :=
 `6`, a send whose indirect call re-enters `claimProtocolFees` for `0x77`: the deployed code reverts
 it; without the claims' lock the nested claim pays `6` and the send succeeds, ending with accrued
 fees `6` and a balance `6`. -/
-def Properties.NestedClaimInsideSendWitness : Prop :=
+@[witness] def Properties.NestedClaimInsideSendWitness : Prop :=
   ∃ S S', ReachN deployedGuards deployed wP init S ∧ ReachN withoutClaimLock deployed wP init S ∧
     S.protocolFees 0x77 = 6 ∧
     execN deployedGuards deployed wP wSendWithNestedClaim S = none ∧
@@ -128,7 +129,7 @@ receiver makes the L2→L2 send `wSendA` instead (`wClaimWithNestedSend`), the c
 whose receiver makes `wSendA` succeeds; the log then holds two sends, each crediting coinbase `0x77`
 with a protocol fee of `6`, `0x77`'s entry is `0`, the balance is `6`, one claim is logged, and the
 end state is reachable from fresh storage. -/
-def Properties.PayFirstClaimLockNestedWitness : Prop :=
+@[witness] def Properties.PayFirstClaimLockNestedWitness : Prop :=
   (∃ S S1, ReachN payFirst deployed wP init S ∧ S.protocolFees 0x77 = 6 ∧ S.bal = 6 ∧
     execN payFirst deployed wP wClaimWithNestedInflow S = some S1 ∧
     S1.protocolFees 0x77 = 0 ∧ S1.bal = 1 ∧ S1.forcedIn = 1 ∧ S1.claims.length = 1 ∧

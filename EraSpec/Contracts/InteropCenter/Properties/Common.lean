@@ -1,4 +1,5 @@
 import EraSpec.Contracts.InteropCenter.Specs.Common
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the run-local hash and encoder premises can hold
@@ -14,11 +15,11 @@ word space some function into words is injective on it.
 namespace Contracts.InteropCenter
 
 /-- **THE ENCODER PREMISE IS SATISFIABLE FOR EVERY LIST OF BUNDLES.** -/
-def Properties.EncInjOnSatisfiable : Prop :=
+@[witness] def Properties.EncInjOnSatisfiable : Prop :=
   ∀ L : List Bundle, ∃ enc : Bundle → List UInt8, EncInjOn enc L
 
 /-- **THE KECCAK PREMISE IS SATISFIABLE FOR EVERY LIST NO LONGER THAN THE WORD SPACE.** -/
-def Properties.KeccakInjOnSatisfiable : Prop :=
+@[witness] def Properties.KeccakInjOnSatisfiable : Prop :=
   ∀ L : List (List UInt8), L.length ≤ UInt256.size → ∃ k : List UInt8 → Word, KeccakInjOn k L
 
 end Contracts.InteropCenter
