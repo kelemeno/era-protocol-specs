@@ -3,6 +3,8 @@ import EraSpec.Core.Word
 import EraSpec.Core.FinBits
 import EraSpec.Core.PreparedApplication
 import EraSpec.Core.Simulation
+-- Headline / witness / countermodel tags for property statements (read by scripts/Audit.lean)
+import EraSpec.Core.Headline
 
 -- Asset bridge: locally specified initialized representation-token ledger
 import EraSpec.Contracts.BridgedStandardERC20.Proofs.Model

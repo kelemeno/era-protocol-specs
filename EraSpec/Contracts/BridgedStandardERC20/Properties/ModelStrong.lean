@@ -1,4 +1,5 @@
 import EraSpec.Contracts.BridgedStandardERC20.Specs.Model
+import EraSpec.Core.Headline
 
 -- Preconditions are retained as statement parameters for the full-proof audit.
 set_option linter.unusedVariables false
@@ -25,6 +26,12 @@ nothing, and for one that credits the wrong account. This file adds what they le
 * **Non-vacuity** (`transfer_moves_value_witness`): after the vault's one-unit mint to `a`, a
   one-unit transfer from `a` to a distinct nonzero `b` succeeds and changes the ledger, and the
   vault can then burn the unit from `b`, back to the empty ledger.
+
+Classification (`EraSpec.Core.Headline`): `transfer_succeeds_iff` and `transfer_exact` are
+`@[headline]`s, `transfer_moves_value_witness` is their `@[witness]`, and `transfer_balances_exact`
+is a supporting lemma. `transfer` does not pass through `onlyNTV`, so the deployed token's transfer
+is this one on a legacy token too (`LegacyStep.transfer` in `Specs/LegacyFallback.lean`), and the
+two headlines need no vault premise.
 -/
 
 namespace Contracts.BridgedStandardERC20
@@ -32,8 +39,9 @@ namespace Contracts.BridgedStandardERC20
 /-- **WHEN A TRANSFER SUCCEEDS.** Exactly when the owner and the recipient are nonzero and the
 owner's balance covers the amount (`TransferAllowed`, OpenZeppelin `_transfer`'s two zero-address
 checks and its balance check). The model has no other guard: no caller, vault or supply
-condition. -/
-abbrev Properties.transfer_succeeds_iff (s : State) (owner recipient : Address)
+condition. This is the ERC20 `transfer` call with `owner = msg.sender`; `transferFrom` and
+allowances are not modelled, and `transferFrom` also needs an allowance. -/
+@[headline] abbrev Properties.transfer_succeeds_iff (s : State) (owner recipient : Address)
     (amount : UInt256) :=
   (∃ t, transfer s owner recipient amount = some t) ↔
     owner ≠ 0 ∧ recipient ≠ 0 ∧ amount.val ≤ s.balances owner
@@ -42,7 +50,7 @@ abbrev Properties.transfer_succeeds_iff (s : State) (owner recipient : Address)
 from `owner` to a different `recipient`: both were nonzero, the owner's balance fell by exactly
 the amount, the recipient's rose by exactly the amount, every other balance is unchanged, and so
 are the total supply and the vault, origin token and asset id. No ledger premise. -/
-abbrev Properties.transfer_exact {s t : State} {owner recipient : Address} {amount : UInt256}
+@[headline] abbrev Properties.transfer_exact {s t : State} {owner recipient : Address} {amount : UInt256}
     (hne : owner ≠ recipient) (h : transfer s owner recipient amount = some t) :=
   owner ≠ 0 ∧ recipient ≠ 0 ∧
   t.balances owner + amount.val = s.balances owner ∧
@@ -65,7 +73,7 @@ succeeds; then a one-unit transfer from `a` to `b` succeeds, to a `WellFormed` l
 the one before it, in which `a` holds nothing, `b` holds the unit and the supply is one; and the
 vault's one-unit burn from `b` then returns exactly the empty ledger. This meets the premises of
 `transfer_exact` and `transfer_balances_exact` with a nonzero amount. -/
-abbrev Properties.transfer_moves_value_witness (config : Config) (a b : Address)
+@[witness] abbrev Properties.transfer_moves_value_witness (config : Config) (a b : Address)
     (hv : config.vault ≠ 0) (ha : a ≠ 0) (hb : b ≠ 0) (hab : a ≠ b) :=
   ∃ funded moved : State,
     mint (empty config) config.vault a 1 = some funded ∧

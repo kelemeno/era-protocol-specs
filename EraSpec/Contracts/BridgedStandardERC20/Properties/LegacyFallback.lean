@@ -1,4 +1,5 @@
 import EraSpec.Contracts.BridgedStandardERC20.Specs.LegacyFallback
+import EraSpec.Core.Headline
 
 -- Preconditions are retained as statement parameters for the full-proof audit.
 set_option linter.unusedVariables false
@@ -34,6 +35,15 @@ in `EraSpec.Contracts.BridgedStandardERC20.Proofs.LegacyFallback`.
 
 `legacy_branch_witness` meets the premises of the legacy-branch statements for every
 environment and origin token, including a successful call the nonlegacy model refuses.
+
+**Headlines.** The folder's bridge-call headlines are stated here, about the deployed calls
+`bridgeMint` / `bridgeBurn` and the deployed runs `LegacyReach`, each with the explicit premise
+that the token's configured vault is nonzero (`nonlegacy_unauthorized_bridge_calls`,
+`nonlegacy_bridge_mint_exact`, `nonlegacy_bridge_burn_exact`, `nonlegacy_reachable_ledger`;
+witness `nonlegacy_one_unit_roundtrip`). The `Properties/Model.lean` statements they rest on are
+about the nonlegacy model's `mint` / `burn` / `Reach`, which refuse every bridge call on a zero
+vault where the deployed token does not, so those are supporting lemmas, not headlines. The
+legacy-branch statements of this file are not classified yet.
 
 Whether the id the fallback writes is the vault's id for the token is a question about the
 vault's registry, which the fallback does not read. It is answered in
@@ -178,6 +188,74 @@ changes. -/
 abbrev Properties.legacy_reachable_ledger (env : LegacyEnv) {s t : State} (hw : WellFormed s)
     (h : LegacyReach env s t) :=
   WellFormed t ∧ t.config.originToken = s.config.originToken
+
+/-! ## Headlines: the deployed bridge calls on a nonlegacy token
+
+Each statement below is about the deployed calls (`bridgeMint` / `bridgeBurn`, both `onlyNTV`
+branches) and carries the premise `hv : s.config.vault ≠ 0`: the token is not a legacy token. The
+zero-vault branch is the legacy statements above. -/
+
+/-- **ONLY THE CONFIGURED VAULT CAN BRIDGE-MINT OR BRIDGE-BURN.** Premises: the token's configured
+vault is nonzero (it is not a legacy token), and the caller is not that vault. Then the deployed
+`bridgeBurn` and `bridgeMint` revert, for every account and amount and whatever `L1_CHAIN_ID` and
+the asset-id encoder return. On a legacy token the L2 native token vault may call them instead
+(`legacy_bridge_mint_enabled`); every other caller is refused there too
+(`legacy_unauthorized_bridge_calls`). -/
+@[headline] abbrev Properties.nonlegacy_unauthorized_bridge_calls (env : LegacyEnv) {s : State}
+    {caller : Address} (hv : s.config.vault ≠ 0) (hc : caller ≠ s.config.vault)
+    (account : Address) (amount : UInt256) :=
+  bridgeBurn env s caller account amount = none ∧ bridgeMint env s caller account amount = none
+
+/-- **A BRIDGE MINT ADDS EXACTLY THE AMOUNT TO ONE BALANCE AND TO THE SUPPLY.** Premises: the
+token's configured vault is nonzero (it is not a legacy token), and the deployed `bridgeMint` of
+`amount` to `recipient` succeeded (no ledger premise). Then the caller was the configured vault;
+`recipient`'s balance and the total supply each rose by exactly `amount`; every other balance and
+the vault, origin token and asset id are unchanged. -/
+@[headline] abbrev Properties.nonlegacy_bridge_mint_exact (env : LegacyEnv) {s t : State}
+    {caller recipient : Address} {amount : UInt256} (hv : s.config.vault ≠ 0)
+    (h : bridgeMint env s caller recipient amount = some t) :=
+  caller = s.config.vault ∧
+  t.balances recipient = s.balances recipient + amount.val ∧
+  t.totalSupply = s.totalSupply + amount.val ∧
+  (∀ other, other ≠ recipient → t.balances other = s.balances other) ∧
+  t.config = s.config
+
+/-- **A BRIDGE BURN REMOVES EXACTLY THE AMOUNT FROM ONE BALANCE AND FROM THE SUPPLY.** Premises:
+the token's configured vault is nonzero (it is not a legacy token), the ledger is `WellFormed`, and
+the deployed `bridgeBurn` of `amount` from `owner` succeeded. Then the caller was the configured
+vault; `owner`'s balance and the total supply each fell by exactly `amount`; every other balance
+and the vault, origin token and asset id are unchanged. No allowance is required. -/
+@[headline] abbrev Properties.nonlegacy_bridge_burn_exact (env : LegacyEnv) {s t : State}
+    {caller owner : Address} {amount : UInt256} (hv : s.config.vault ≠ 0) (hw : WellFormed s)
+    (h : bridgeBurn env s caller owner amount = some t) :=
+  caller = s.config.vault ∧
+  t.balances owner + amount.val = s.balances owner ∧
+  t.totalSupply + amount.val = s.totalSupply ∧
+  (∀ other, other ≠ owner → t.balances other = s.balances other) ∧
+  t.config = s.config
+
+/-- **THE LEDGER STAYS CONSISTENT ACROSS EVERY SEQUENCE OF CALLS.** Premises: the starting token's
+configured vault is nonzero (it is not a legacy token), the starting ledger is `WellFormed`, and
+some finite sequence of successful deployed `bridgeMint`s, `bridgeBurn`s and `transfer`s, by any
+callers in any order, leads from it to `t` (`LegacyReach`). Then `t` is `WellFormed` (balances sum
+to the supply, the supply fits a uint256, the zero address holds nothing) and has the same vault,
+origin token and asset id. From a legacy token the vault and asset id are rewritten once
+(`legacy_run_config`) and the ledger part still holds (`legacy_reachable_ledger`). -/
+@[headline] abbrev Properties.nonlegacy_reachable_ledger (env : LegacyEnv) {s t : State}
+    (hv : s.config.vault ≠ 0) (hw : WellFormed s) (h : LegacyReach env s t) :=
+  WellFormed t ∧ t.config = s.config
+
+/-- **Witness** for the four headlines above. For every environment, every configuration with a
+nonzero vault and every nonzero account: the empty ledger is `WellFormed`, the vault's deployed
+one-unit `bridgeMint` to the account succeeds to a `WellFormed` ledger reached by a deployed run,
+and the vault's deployed one-unit `bridgeBurn` from it returns exactly the empty ledger. Caller `0`
+is not the vault, so the premises of `nonlegacy_unauthorized_bridge_calls` hold too. -/
+@[witness] abbrev Properties.nonlegacy_one_unit_roundtrip (env : LegacyEnv) (config : Config)
+    (account : Address) (hv : config.vault ≠ 0) (ha : account ≠ 0) :=
+  WellFormed (empty config) ∧
+  ∃ funded, bridgeMint env (empty config) config.vault account 1 = some funded ∧
+    LegacyReach env (empty config) funded ∧ WellFormed funded ∧ funded.config.vault ≠ 0 ∧
+    bridgeBurn env funded config.vault account 1 = some (empty config)
 
 /-! ## Non-vacuity -/
 

@@ -9,7 +9,8 @@
 #
 # For each case this script compiles the fragment into a scratch directory and runs
 # scripts/Audit.lean over it. The audit runs verbatim, except that its `import EraSpec`
-# is replaced by `import Lean` and the case's modules. A defect case passes only if
+# is replaced by `import Lean`, `import EraSpec.Core.Headline` (the real tag attributes, which
+# the audit reads and fixtures may use) and the case's modules. A defect case passes only if
 # the audit exits nonzero AND prints that case's finding, so it cannot pass by failing
 # for another reason. `Accept` holds valid declarations of the shapes the stricter
 # checks inspect, and the audit must accept it with its property count.
@@ -35,6 +36,16 @@ BODY="$WORK/AuditBody.lean"
 awk 'body || !/^import / { body = 1; print }' "$AUDIT" > "$BODY"
 grep -q 'run_cmd' "$BODY" || { echo "FAIL: no audit found in $AUDIT"; exit 1; }
 
+# The real tag attributes, compiled from the package source. The audit refers to them, so
+# every case imports this module; fixtures that tag properties import it too.
+mkdir -p "$WORK/EraSpec/Core"
+if ! LEAN_PATH="$WORK" "$LEAN" -R "$ROOT" -o "$WORK/EraSpec/Core/Headline.olean" \
+    "$ROOT/EraSpec/Core/Headline.lean" > "$WORK/compile.log" 2>&1; then
+  cat "$WORK/compile.log"
+  echo "FAIL: EraSpec/Core/Headline.lean does not compile"
+  exit 1
+fi
+
 # Compile fixture module $1 into $WORK, after the fixture modules it imports.
 compile() {
   local mod=$1 rel=${1//.//}
@@ -58,8 +69,9 @@ audit_case() {
   local case=$1 src mod
   local test="$WORK/Audit$case.lean"
   [ -d "$CASES/$case" ] || { echo "FAIL: no fixture directory for case $case"; exit 1; }
-  echo "import Lean" > "$test"
-  for src in "$CASES/$case"/*.lean; do
+  printf 'import Lean\nimport EraSpec.Core.Headline\n' > "$test"
+  # Every module of the case, nested folders included (a History/ folder, for example).
+  for src in $(find "$CASES/$case" -name '*.lean' | sort); do
     mod=${src#"$FIXTURES/"}
     mod=${mod%.lean}
     mod=${mod//\//.}
@@ -88,18 +100,26 @@ reject() {
   failed=1
 }
 
-# The audit must accept case $1, and its output must contain $2.
+# The audit must accept case $1, and its output must contain each of $2, $3, ...
 accept() {
-  ran+=("$1")
-  if ! audit_case "$1"; then
-    echo "REJECTED:     $1 (a valid control)"
-  elif ! grep -qF -- "$2" "$WORK/$1.out"; then
-    echo "WRONG COUNT:  $1 (accepted, but the output lacks: $2)"
+  local case=$1 want
+  shift
+  ran+=("$case")
+  if ! audit_case "$case"; then
+    echo "REJECTED:     $case (a valid control)"
   else
-    echo "accepted:     $1"
+    for want in "$@"; do
+      if ! grep -qF -- "$want" "$WORK/$case.out"; then
+        echo "WRONG COUNT:  $case (accepted, but the output lacks: $want)"
+        sed 's/^/    /' "$WORK/$case.out"
+        failed=1
+        return 0
+      fi
+    done
+    echo "accepted:     $case"
     return 0
   fi
-  sed 's/^/    /' "$WORK/$1.out"
+  sed 's/^/    /' "$WORK/$case.out"
   failed=1
 }
 
@@ -123,6 +143,11 @@ reject OpaqueProperty \
   "$T.OpaqueProperty.Properties.Unproved in EraSpec.$T.OpaqueProperty.Properties is opaque"
 reject TheoremInProperties \
   "$T.TheoremInProperties.Properties.Smuggled in EraSpec.$T.TheoremInProperties.Properties (theorem)"
+# Private declarations, whose `_private` prefix makes them look like Lean auxiliaries
+reject PrivateProperty \
+  "$T.PrivateProperty.Properties.Unproved in EraSpec.$T.PrivateProperty.Properties (def) is private"
+reject PrivateTheorem \
+  "$T.PrivateTheorem.Properties.Smuggled in EraSpec.$T.PrivateTheorem.Properties (theorem) is private"
 
 # The earlier checks
 reject SorryTheorem "UNCLEAN $T.SorryTheorem.bad : [sorryAx]"
@@ -133,8 +158,22 @@ reject SpecialCase \
 reject Restated "theorem $T.Restated.Q does not reference statement $T.Restated.Properties.Q"
 reject NotProp "property $T.NotProp.Properties.Q is not a proposition"
 
+# Headline / witness / countermodel tags (EraSpec.Core.Headline)
+reject TagOnSpecsDef \
+  "MISPLACED TAG $T.TagOnSpecsDef.helper (def in EraSpec.$T.TagOnSpecsDef.Specs) carries @[headline]"
+reject TagOnTheorem \
+  "MISPLACED TAG $T.TagOnTheorem.Q (theorem in EraSpec.$T.TagOnTheorem.Proofs) carries @[witness]"
+reject DoubleTag "DOUBLE TAG $T.DoubleTag.Properties.Q carries 2 of"
+reject HistoryHeadline \
+  "HISTORY HEADLINE $T.HistoryHeadline.History.Properties.Q in EraSpec.$T.HistoryHeadline.History.Properties"
+reject HeadlineNoDocstring \
+  "HEADLINE WITHOUT DOCSTRING $T.HeadlineNoDocstring.Properties.Q in EraSpec.$T.HeadlineNoDocstring.Properties"
+
 # The control
-accept Accept "properties proved    : 5 "
+accept Accept "properties proved    : 6 " \
+  "headline properties  : 1 " "witness properties   : 1 " "countermodel props   : 2 " \
+  "untagged properties  : 2 " "tag findings         : 0 " \
+  "FOLDER AuditSelfTest.Accept : 1 / 1 / 2 / 2"
 
 # A fixture directory that no line above runs would be a test that never runs.
 for dir in "$CASES"/*/; do

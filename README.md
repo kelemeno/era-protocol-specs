@@ -260,6 +260,11 @@ never failed has never been tested:
   called them all clean; the environment found 471 at that point — it was silently missing 144,
   every `private lemma` among them. It also asserts EraSpec declares no axioms and checks that every separated
   property has a named theorem proving its full universally quantified statement.
+  It reports the `@[headline]` (real guarantees about `b17415d20`), `@[witness]` and
+  `@[countermodel]` properties separately from the untagged supporting lemmas, in total and per
+  contract folder and protocol area. It rejects misplaced or doubled tags, a `@[headline]` in a
+  History record or without a docstring, and a `private` declaration in a Properties module; see
+  [CONSOLIDATION.md](CONSOLIDATION.md).
 - **`scripts/check-word-fidelity.sh`** checks the local word declarations against
   `scripts/word-baseline.json`. It needs no older checkout. Changes to word
   definitions require review and a deliberate baseline update; the fingerprint
