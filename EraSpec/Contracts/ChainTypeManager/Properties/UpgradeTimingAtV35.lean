@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTimingAtV35
+import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTimingStrong
 
 /-!
 # Properties: who may upgrade a chain, and when, at `draft/v0.35.0`
@@ -13,12 +14,13 @@ like one of `UpgradeTiming` is that statement over the v35 system.
 For a chain that does not require its second proof system, yes. For a chain that does, an
 upgrade has one more condition.
 
-* A v35 timed step is the `e561b9cc2` timed step plus `TimedGateHolds`
-  (`TimedStepIsTheE561StepPlusTheGate`). For a chain that does not require its second proof
+* A v35 timed step is the `UpgradeTiming` timed step (first written at `e561b9cc2`; it
+  omits the proof-system checks) plus `TimedGateHolds`
+  (`TimedStepIsTheUngatedStepPlusTheGate`). For a chain that does not require its second proof
   system, the gate is vacuous and an upgrade succeeds at v35 exactly when it does in
-  `UpgradeTiming`, with the same effect on the timed state (`UnflaggedChainsUpgradeAsAtE561`).
+  `UpgradeTiming`, with the same effect on the timed state (`UnflaggedChainsUpgradeAsUngated`).
   Every `UpgradeTiming` run is the timed image of a v35 run in which no chain requires it
-  (`E561TimedRunsAreRunsWithoutTheRequirement`).
+  (`UngatedTimedRunsAreRunsWithoutTheRequirement`).
 * Every necessary condition `UpgradeTiming` proves for a timed run still binds, because the
   timed image of every v35 timed run is an `UpgradeTiming` run (`TimedRunIsATimedRun`). That
   covers `ManifestTimestampGates`, `EveryPathNeedsExecutedBatches`,
@@ -33,11 +35,22 @@ upgrade has one more condition.
   the state of `OwnerCannotUpgradeARequiringChainToAPlonkRelease`, every condition of
   `UpgradeTiming`'s repaired statement holds for the owner from time 10 on, yet no upgrade of
   the chain exists, by any path, for any caller, at any block time.
-* **The repaired statement at v35** is `UpgradeChainEnabledIffTimed`: `e561b9cc2`'s eight
+* **The repaired statement at v35** is `UpgradeChainEnabledIffTimed`: `UpgradeTiming`'s eight
   conditions plus "if the chain requires its second proof system, the verifier of the
   transition's new release reports multi-proof mode with nothing disabled". As in
   `UpgradeTiming`, it is exact for the model; in the source these conditions are necessary, not
   sufficient, since further reject-only checks are omitted.
+
+## `UpgradeTiming`'s other step results at v35
+
+Restated over v35 timed steps, under the same names: `UpgradeIsATransition` (a
+`ProofGateAtV35` transition), `ManifestTimestampGates`, `EveryPathNeedsExecutedBatches`,
+`EveryPathNeedsTheSettlementLayerAhead`, `OtherCallersNeedTheNotifier`,
+`NotifierWrittenOnlyByItsChainAdmin`, `CtmPathIsADiamondCallByTheCtm`,
+`ExecutorPathIsACtmCallByTheExecutor`, `AdminAndCtmSkipTheNotifier` and
+`UpgradeStaysEnabledLater`. `UpgradeTimingStrong`'s headline is restated as
+`ValidatedTimedRunsHaveNoDeadTime`, with the gate on the arriving release's verifier as one more
+premise, which `OwnerCannotUpgradeARequiringChainToAPlonkRelease` shows cannot be dropped.
 
 ## The proof-system guarantees along timed runs
 
@@ -61,8 +74,8 @@ The caller of `setProofSystemStatus` is not modelled; its mask write is arbitrar
 is upgraded through `upgradeChain` by its admin; it meets the premises of the run-level results
 and of `ProofGateBindsEveryPath`. `TimedRequirementWritersWitness` is the setup's successful
 `permanentlyRequireSecondProofSystem` by the admin, which a validator's call cannot replace.
-`UnflaggedUpgradeWitness` meets the premises of `E561TimedRunsAreRunsWithoutTheRequirement` and
-`UnflaggedChainsUpgradeAsAtE561` with an upgrade that exists on both sides.
+`UnflaggedUpgradeWitness` meets the premises of `UngatedTimedRunsAreRunsWithoutTheRequirement` and
+`UnflaggedChainsUpgradeAsUngated` with an upgrade that exists on both sides.
 `NotAtAnyTime` and `OwnerCannotUpgradeARequiringChainToAPlonkRelease` are the countermodels.
 -/
 
@@ -73,11 +86,11 @@ open Contracts.ChainTypeManager.ProofGateAtV35
 
 /-! ## The v35 timed step and run -/
 
-/-- **EVERY v35 TIMED STEP IS THE `e561b9cc2` TIMED STEP PLUS THE PROOF GATE.** For every
+/-- **EVERY v35 TIMED STEP IS THE `UpgradeTiming` TIMED STEP PLUS THE PROOF GATE.** For every
 `UpgradeTiming` label `l` and timed state `t'`, a v35 step labelled `l` that leaves `t'` exists,
 with some proof-system fields, iff `UpgradeTiming`'s step `l` to `t'` exists and `TimedGateHolds`
 holds before it. -/
-def Properties.TimedStepIsTheE561StepPlusTheGate : Prop :=
+def Properties.TimedStepIsTheUngatedStepPlusTheGate : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s : TimedSys35) (l : TimedLabel) (t' : TimedSys),
     (∃ pr', TimedStep35 T P s (.timed l) ⟨t', pr'⟩) ↔
       (TimedStep T s.timed l t' ∧ TimedGateHolds T P s l)
@@ -91,7 +104,7 @@ def Properties.TimedRunIsATimedRun : Prop :=
 /-- **EVERY `UpgradeTiming` RUN IS A v35 RUN IN WHICH NO CHAIN REQUIRES ITS SECOND PROOF
 SYSTEM.** Starting from any proof-system fields with the requirement off everywhere, the same
 labels run at v35 to the same timed state, and the requirement is still off everywhere. -/
-def Properties.E561TimedRunsAreRunsWithoutTheRequirement : Prop :=
+def Properties.UngatedTimedRunsAreRunsWithoutTheRequirement : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys) (ls : List TimedLabel)
     (pr : ChainId → ProofState), TimedRun T s ls s' → (∀ id, (pr id).required = false) →
     ∃ pr', TimedRun35 T P ⟨s, pr⟩ (ls.map TimedLabel35.timed) ⟨s', pr'⟩ ∧
@@ -100,7 +113,7 @@ def Properties.E561TimedRunsAreRunsWithoutTheRequirement : Prop :=
 /-- **FOR A CHAIN THAT DOES NOT REQUIRE ITS SECOND PROOF SYSTEM, AN UPGRADE SUCCEEDS AT v35 EXACTLY
 WHEN IT DOES IN `UpgradeTiming`**, by every path, for every caller and at every time, with the
 same effect on the timed state. -/
-def Properties.UnflaggedChainsUpgradeAsAtE561 : Prop :=
+def Properties.UnflaggedChainsUpgradeAsUngated : Prop :=
   ∀ (T : TimedConfig) (P : ProofWorld) (s : TimedSys35) (id : ChainId) (path : UpgradePath)
     (caller : Address) (τ : ℕ) (t' : TimedSys), (s.proof id).required = false →
     ((∃ pr', TimedStep35 T P s (.timed (.upgrade id path caller τ)) ⟨t', pr'⟩) ↔
@@ -217,6 +230,162 @@ def Properties.UpgradeChainEnabledIffTimed : Prop :=
         ∃ sys', Step T.X.W s.timed.sys (.transition id) sys') ∧
       ((s.proof id).required = true → P.multi (P.relVerifier (T.X.W.tr t).newRel) 0 = true))
 
+/-! ## `UpgradeTiming`'s step results over v35 timed steps
+
+Each statement below is the `UpgradeTiming` statement of the same name, over `TimedStep35`. The
+necessary conditions transfer through the projection of a v35 timed step to its `UpgradeTiming`
+step; the equivalences transfer because the gate an upgrade adds (`TimedGateHolds`) reads only the
+chain, its proof-system fields and the routing state, never the path, the caller, the block time
+or the notifier. -/
+
+/-- **AN UPGRADE BY ANY PATH IS A v35 TRANSITION.** A v35 upgrade of chain `id`, by any path,
+caller and time, is a `ProofGateAtV35` transition of `id` on the routing view, and writes neither
+`DiamondAux` nor the notifier. -/
+def Properties.UpgradeIsATransition : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (path : UpgradePath)
+    (caller : Address) (τ : ℕ), TimedStep35 T P s (.timed (.upgrade id path caller τ)) s' →
+    Step35 T.X.W P s.routing (.routing (.transition id)) s'.routing ∧
+      s'.timed.aux = s.timed.aux ∧ s'.timed.notifier = s.timed.notifier
+
+/-- **NO v35 UPGRADE BEFORE THE MANIFEST'S TIME.** As
+`Contracts.ChainTypeManager.Properties.ManifestTimestampGates`, over v35 timed steps: every
+upgrade, by any path, happens at or after the `upgradeTimestamp` of the transition committed at
+the chain's version. -/
+def Properties.ManifestTimestampGates : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (path : UpgradePath)
+    (caller : Address) (τ : ℕ), TimedStep35 T P s (.timed (.upgrade id path caller τ)) s' →
+    ∃ c, s.timed.sys.chains id = some c ∧
+      (T.sched (s.timed.sys.ctm.ut c.pv)).upgradeTimestamp ≤ τ
+
+/-- **EVERY v35 UPGRADE NEEDS ALL COMMITTED BATCHES EXECUTED.** As
+`Contracts.ChainTypeManager.Properties.EveryPathNeedsExecutedBatches`, over v35 timed steps. -/
+def Properties.EveryPathNeedsExecutedBatches : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (path : UpgradePath)
+    (caller : Address) (τ : ℕ), TimedStep35 T P s (.timed (.upgrade id path caller τ)) s' →
+    (s.timed.aux id).committed = (s.timed.aux id).executed
+
+/-- **EVERY v35 UPGRADE NEEDS THE SETTLEMENT LAYER AHEAD.** As
+`Contracts.ChainTypeManager.Properties.EveryPathNeedsTheSettlementLayerAhead`, over v35 timed
+steps: if the chain records a settlement-layer version `w`, the edge's new version is at most
+`w`. -/
+def Properties.EveryPathNeedsTheSettlementLayerAhead : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (path : UpgradePath)
+    (caller : Address) (τ w : ℕ), TimedStep35 T P s (.timed (.upgrade id path caller τ)) s' →
+    (s.timed.aux id).slVersion = some w →
+    ∃ c, s.timed.sys.chains id = some c ∧ (s.timed.sys.edge T.X.W c.pv).new ≤ w
+
+/-- **AT v35 A VALIDATOR'S DIRECT UPGRADE NEEDS THE NOTIFIER.** As
+`Contracts.ChainTypeManager.Properties.OtherCallersNeedTheNotifier`, over v35 timed steps: a
+direct `upgradeChainFromVersion` by a caller that is neither the chain's admin nor the CTM is by
+one of the chain's validators, at or after a nonzero time the notifier holds for the version. -/
+def Properties.OtherCallersNeedTheNotifier : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (v : ℕ)
+    (caller : Address) (τ : ℕ), TimedStep35 T P s (.timed (.upgrade id (.direct v) caller τ)) s' →
+    caller ≠ (s.timed.aux id).admin → caller ≠ T.X.ctmProxy →
+    (s.timed.aux id).validators caller = true ∧ s.timed.notifier id v ≠ 0 ∧
+      s.timed.notifier id v ≤ τ
+
+/-- **AT v35 ONLY THE CHAIN'S ADMIN WRITES ITS NOTIFIER ENTRY.** As
+`Contracts.ChainTypeManager.Properties.NotifierWrittenOnlyByItsChainAdmin`, over v35 timed steps
+of every label, the two proof-system writers included: a step that changes the notifier's entry
+for chain `id` and version `v` is the chain admin's `setUpgradeTimestamp` for the chain's current
+version with a nonzero time, which it writes, or a swap of the notifier. -/
+def Properties.NotifierWrittenOnlyByItsChainAdmin : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (l : TimedLabel35) (id : ChainId)
+    (v : ℕ), TimedStep35 T P s l s' → s'.timed.notifier id v ≠ s.timed.notifier id v →
+    (∃ caller ts c, l = .timed (.setUpgradeTimestamp id caller ts) ∧
+      caller = (s.timed.aux id).admin ∧ s.timed.sys.chains id = some c ∧ c.pv = v ∧ ts ≠ 0 ∧
+      s'.timed.notifier id v = ts) ∨
+    ∃ n, l = .timed (.swapNotifier n)
+
+/-- **AT v35 THE CTM PATH IS A DIAMOND CALL BY THE CTM.** As
+`Contracts.ChainTypeManager.Properties.CtmPathIsADiamondCallByTheCtm`, over v35 timed steps: the
+CTM owner's `upgradeChainFromVersion` on the CTM succeeds, with a given effect on the timed state
+and on the proof-system fields, iff the caller is the CTM owner and the CTM's direct call on the
+diamond does. -/
+def Properties.CtmPathIsADiamondCallByTheCtm : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (v : ℕ)
+    (caller : Address) (τ : ℕ),
+    TimedStep35 T P s (.timed (.upgrade id (.ctm v) caller τ)) s' ↔
+      caller = T.ctmOwner ∧ TimedStep35 T P s (.timed (.upgrade id (.direct v) T.X.ctmProxy τ)) s'
+
+/-- **AT v35 THE EXECUTOR PATH IS A CTM CALL BY THE EXECUTOR.** As
+`Contracts.ChainTypeManager.Properties.ExecutorPathIsACtmCallByTheExecutor`, over v35 timed
+steps: `upgradeChain(t, id)` succeeds, with a given effect, iff the caller is the executor's owner
+or the chain's admin, `t` is committed at its old version, and the executor's call of the CTM
+path with that version does. -/
+def Properties.ExecutorPathIsACtmCallByTheExecutor : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (t caller : Address)
+    (τ : ℕ),
+    TimedStep35 T P s (.timed (.upgrade id (.executor t) caller τ)) s' ↔
+      (caller = T.execOwner ∨ caller = (s.timed.aux id).admin) ∧
+      s.timed.sys.ctm.ut (T.X.W.tr t).old = t ∧
+      TimedStep35 T P s (.timed (.upgrade id (.ctm (T.X.W.tr t).old) T.X.rc.self τ)) s'
+
+/-- **AT v35 THE CHAIN'S ADMIN AND THE CTM SKIP THE NOTIFIER.** As
+`Contracts.ChainTypeManager.Properties.AdminAndCtmSkipTheNotifier`, over v35 timed steps: for a
+direct upgrade by the chain's admin or by the CTM, replacing the whole notifier changes neither
+whether the call succeeds nor its effect on the routing state and the proof-system fields. -/
+def Properties.AdminAndCtmSkipTheNotifier : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s : TimedSys35) (id : ChainId) (v : ℕ)
+    (caller : Address) (τ : ℕ) (n : ChainId → ℕ → ℕ) (sys' : Sys) (pr' : ChainId → ProofState),
+    (caller = (s.timed.aux id).admin ∨ caller = T.X.ctmProxy) →
+    (TimedStep35 T P s (.timed (.upgrade id (.direct v) caller τ))
+        ⟨{ s.timed with sys := sys' }, pr'⟩ ↔
+      TimedStep35 T P ⟨{ s.timed with notifier := n }, s.proof⟩
+        (.timed (.upgrade id (.direct v) caller τ))
+        ⟨{ s.timed with notifier := n, sys := sys' }, pr'⟩)
+
+/-- **A v35 UPGRADE STAYS ENABLED LATER.** As
+`Contracts.ChainTypeManager.Properties.UpgradeStaysEnabledLater`, over v35 timed steps: an
+upgrade that succeeds at time `τ` succeeds, with the same effect, at every later time. -/
+def Properties.UpgradeStaysEnabledLater : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (s s' : TimedSys35) (id : ChainId) (path : UpgradePath)
+    (caller : Address) (τ τ' : ℕ), TimedStep35 T P s (.timed (.upgrade id path caller τ)) s' →
+    τ ≤ τ' → TimedStep35 T P s (.timed (.upgrade id path caller τ')) s'
+
+/-- **NO DEAD TIME AT v35, GIVEN THE GATE** (`UpgradeTimingStrong`'s
+`ValidatedTimedRunsHaveNoDeadTime`, over v35 timed runs). Along a v35 timed run with no
+break-glass cut, from an invariant state whose recorded releases are well-formed and whose
+committed slots have valid schedules, in which every timed transaction installs only well-formed
+releases and commits only valid schedules: take a registered chain whose version has a committed
+edge and no deadline override, with every committed batch executed and, if it records a
+settlement-layer version, the edge's new version at most that. If the chain requires its second
+proof system, assume the arriving release's verifier reports multi-proof mode with nothing
+disabled. Then at every block time the chain's version is active or both its admin's direct call
+and the CTM owner's call upgrade it across the edge; at the edge's upgrade time the version is
+still active and both calls succeed. The successful upgrade crosses the edge and installs the
+arriving release's verifier. Without the gate premise the conclusion fails
+(`OwnerCannotUpgradeARequiringChainToAPlonkRelease`). -/
+def Properties.ValidatedTimedRunsHaveNoDeadTime : Prop :=
+  ∀ (T : TimedConfig) (P : ProofWorld) (d : ℕ → ℕ) (s s' : TimedSys35)
+    (ls : List TimedLabel35),
+    SysInv T.X.W s.timed.sys → RecordedReleasesWf T.X.W s.timed.sys.ctm →
+    SlotSchedulesValid T s.timed.sys.ctm → TimedRun35 T P s ls s' →
+    (∀ l ∈ ls, ¬ l.isArbitrary) → (∀ l ∈ ls.flatMap TimedLabel35.timedSteps, l.InstallsWf T.X.W) →
+    (∀ l ∈ ls.flatMap TimedLabel35.timedSteps, l.CommitsValidSchedule T) →
+    ∀ id c, s'.timed.sys.chains id = some c → s'.timed.sys.ctm.ut c.pv ≠ 0 → d c.pv = 0 →
+      (s'.timed.aux id).committed = (s'.timed.aux id).executed →
+      (∀ w, (s'.timed.aux id).slVersion = some w → (s'.timed.sys.edge T.X.W c.pv).new ≤ w) →
+      ((s'.proof id).required = true → P.multi (arrivingVerifier T.X.W P s'.timed.sys c) 0 = true) →
+      (∀ τ, ProtocolVersionActive T d s'.timed.sys.ctm c.pv τ ∨
+        (TimedStep35 T P s' (.timed (.upgrade id (.direct c.pv) (s'.timed.aux id).admin τ))
+          ⟨{ s'.timed with sys := s'.timed.sys.crossEdge T.X.W id c },
+          upd s'.proof id ((s'.proof id).install (arrivingVerifier T.X.W P s'.timed.sys c))⟩ ∧
+         TimedStep35 T P s' (.timed (.upgrade id (.ctm c.pv) T.ctmOwner τ))
+          ⟨{ s'.timed with sys := s'.timed.sys.crossEdge T.X.W id c },
+          upd s'.proof id ((s'.proof id).install (arrivingVerifier T.X.W P s'.timed.sys c))⟩)) ∧
+      ProtocolVersionActive T d s'.timed.sys.ctm c.pv
+        (T.sched (s'.timed.sys.ctm.ut c.pv)).upgradeTimestamp ∧
+      TimedStep35 T P s' (.timed (.upgrade id (.direct c.pv) (s'.timed.aux id).admin
+          (T.sched (s'.timed.sys.ctm.ut c.pv)).upgradeTimestamp))
+        ⟨{ s'.timed with sys := s'.timed.sys.crossEdge T.X.W id c },
+          upd s'.proof id ((s'.proof id).install (arrivingVerifier T.X.W P s'.timed.sys c))⟩ ∧
+      TimedStep35 T P s' (.timed (.upgrade id (.ctm c.pv) T.ctmOwner
+          (T.sched (s'.timed.sys.ctm.ut c.pv)).upgradeTimestamp))
+        ⟨{ s'.timed with sys := s'.timed.sys.crossEdge T.X.W id c },
+          upd s'.proof id ((s'.proof id).install (arrivingVerifier T.X.W P s'.timed.sys c))⟩
+
 /-! ## Not at any time, at v35 -/
 
 /-- **NOBODY CAN UPGRADE BEFORE THE MANIFEST'S TIME, AT v35** (refutes `ICTMUpgradeExecutor.sol:48-49`
@@ -305,9 +474,9 @@ def Properties.TimedRequirementWritersWitness : Prop :=
 
 /-- **AN UPGRADE OF A CHAIN THAT DOES NOT REQUIRE ITS SECOND PROOF SYSTEM, ON BOTH SIDES.** For
 every proof world: the `UpgradeTiming` run `wTimingSetup` from `wTimingSys0`, with the all-off
-fields of `wTimingSys35`, meets the premises of `E561TimedRunsAreRunsWithoutTheRequirement`, and
+fields of `wTimingSys35`, meets the premises of `UngatedTimedRunsAreRunsWithoutTheRequirement`, and
 its v35 counterpart reaches a state whose timed part is the `UpgradeTiming` one and in which no
-chain requires its second proof system (the premise of `UnflaggedChainsUpgradeAsAtE561`). There
+chain requires its second proof system (the premise of `UnflaggedChainsUpgradeAsUngated`). There
 `upgradeChain(300, 0)` by the executor's owner `2` at time `10` is both an `UpgradeTiming` step and
 a v35 step. -/
 def Properties.UnflaggedUpgradeWitness : Prop :=

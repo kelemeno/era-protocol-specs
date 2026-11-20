@@ -587,4 +587,12 @@ theorem SupplierWitness : Properties.SupplierWitness := by
     rcases hx with rfl | rfl <;> decide
   · decide
 
+theorem RequireValidEdgeIsL2TablesValidEdge : Properties.RequireValidEdgeIsL2TablesValidEdge := by
+  intro old new deadline upgradeTs hasL2Side
+  rw [EdgeShapeIsTheChainVersionCheck.1]
+  simp only [EdgeVersionShape, VersionWf, majorOf, minorOf, edgeUnpackSemVer, edgeToUint32,
+    L2Tables.ValidEdge, L2Tables.majorOf, L2Tables.minorOf, Nat.shiftRight_eq_div_pow,
+    MAX_ALLOWED_MINOR_VERSION_DELTA]
+  tauto
+
 end Contracts.ChainTypeManager.EdgeChecks

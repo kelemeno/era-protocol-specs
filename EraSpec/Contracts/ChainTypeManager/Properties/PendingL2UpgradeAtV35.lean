@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.PendingL2UpgradeAtV35
+import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTimingAtV35
 
 /-!
 # Properties: the pending L2 upgrade transaction, at `draft/v0.35.0`
@@ -61,6 +62,23 @@ a routing step (it is an upgrade, a notifier write or a `DiamondAux` write), or 
 def Properties.PendingRunIsATimedRun : Prop :=
   ∀ (C : PendingConfig) (s s' : PendingSys) (ls : List PLabel), PRun C s ls s' →
     ∃ ls' : List TimedLabel, TimedRun C.T s.ts ls' s'.ts ∧
+      ∀ l' ∈ ls', (∀ l, l' ≠ .base l) ∨ ∃ l, l' = .base l ∧ PLabel.base l ∈ ls
+
+/-- **WITHOUT THE SECOND-PROOF-SYSTEM REQUIREMENT, EVERY RUN OF THIS MODEL IS A GATED v35 RUN.**
+This model omits the second-proof-system checks (Specs). Composing `PendingRunIsATimedRun` with
+`UpgradeTimingAtV35.Properties.UngatedTimedRunsAreRunsWithoutTheRequirement`: for every proof
+world and proof-system fields with the requirement off everywhere, every run of this model is the
+timed image of a run of `UpgradeTimingAtV35`'s gated system (`TimedRun35`) between the same timed
+states, in which no chain ever requires its second proof system, and whose timed labels relate to
+the run's labels as in `PendingRunIsATimedRun`. So the results here describe `b17415d20` runs
+of chains that do not require their second proof system; for a chain that does, an upgrade has
+the extra gate of `UpgradeTimingAtV35`, which only rejects. -/
+def Properties.PendingRunIsAGatedRunWithoutTheRequirement : Prop :=
+  ∀ (C : PendingConfig) (P : ProofGateAtV35.ProofWorld) (s s' : PendingSys) (ls : List PLabel)
+    (pr : ChainId → ProofGateAtV35.ProofState), PRun C s ls s' → (∀ id, (pr id).required = false) →
+    ∃ (ls' : List TimedLabel) (pr' : ChainId → ProofGateAtV35.ProofState),
+      UpgradeTimingAtV35.TimedRun35 C.T P ⟨s.ts, pr⟩ (ls'.map UpgradeTimingAtV35.TimedLabel35.timed)
+        ⟨s'.ts, pr'⟩ ∧ (∀ id, (pr' id).required = false) ∧
       ∀ l' ∈ ls', (∀ l, l' ≠ .base l) ∨ ∃ l, l' = .base l ∧ PLabel.base l ∈ ls
 
 /-- **NO UPGRADE BATCH NUMBER WITHOUT A PENDING TRANSACTION.** `PendingInv` holds at the end of

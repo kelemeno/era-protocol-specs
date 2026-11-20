@@ -78,8 +78,10 @@ settlement layer that is
   `_getUpgradeTxType()` is the constant `ZKSYNC_OS_SYSTEM_UPGRADE_L2_TX_TYPE`
   (`state-transition/chain-deps/facets/ZKChainBase.sol:200-202`).
 * `upgradeStoragePart` is `_upgrade` without its time gate (:82-84), its settlement-layer order
-  check for a chain off its settlement layer (:89-94) and the verifier installation (:97-99).
-  Those are not what the commit-time checks are about; `UpgradeTiming` models the time gate.
+  check for a chain off its settlement layer (:89-94) and the verifier installation (:97-99;
+  `_setVerifier` there also refuses a verifier outside multi-proof mode on a chain that requires
+  its second proof system, :143-148). Those are not what the commit-time checks are about;
+  `UpgradeTiming` models the time gate and `ProofGateAtV35` the second-proof check.
 * `CTMUpgradeComposer.buildL2UpgradeTxFromPlan`
   (`upgrades/registry/libraries/CTMUpgradeComposer.sol:83-113`) is `buildL2UpgradeTxFromPlan`, with
   `L2CanonicalTransactionLib.emptyL2CanonicalTransaction` and `upgradeTransaction`
@@ -682,9 +684,9 @@ def SupplierOp.IsPublish : SupplierOp → Prop
 
 `Specs/VersionRegistry.lean` was written at `e561b9cc2`. At `b17415d20`,
 `setNewVersionUpgradeFromTransition` (`state-transition/ChainTypeManager.sol:403-418`) and
-`replaceUpgradeTransition` (:424-445) make the same checks on the values `CStep` tracks: the
-departure release (:405-408, :472-479), `_commitVersionEdge` (:523-537), `_recordTransition`
-(:459-467), `_requireOnwardDestination` (:498-522) and `_setCurrentRelease` (:300-320).
+`replaceUpgradeTransition` (:424-443) make the same checks on the values `CStep` tracks: the
+departure release (:405-408, :472-478), `_commitVersionEdge` (:523-537), `_recordTransition`
+(:459-467), `_requireOnwardDestination` (:498-518) and `_setCurrentRelease` (:300-318).
 `_requireExecutable` and `_requireSameDeadline` are additional reverts `CStep` omits. -/
 
 /-- The constructed object behind each transition address, and the plan it stored. -/

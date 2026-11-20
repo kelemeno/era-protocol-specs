@@ -4,8 +4,15 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ChainLocalExecutor
 /-!
 # Model: the getters the chain-side engine reads, apart from the ones the CTM checks
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for the rest of this folder. Paths
-are relative to `l1-contracts/contracts/`.
+Source: era-contracts branch `draft/v0.35.0` at commit `b17415d20`. Paths are relative to
+`l1-contracts/contracts/`, and every `file:line` below is at `b17415d20`. The topic was first
+written at `e561b9cc2` (branch `feat/upgrade-simplification`) and re-read at `b17415d20`: the
+engine (`DefaultUpgrade`, `BaseZkSyncUpgrade`), the transition object's getters and the CTM's
+replacement checks it cites are unchanged apart from line numbers. Two changes on the path do
+not touch the modelled values: `TransitionManifest.upgradeEngine` is renamed
+`chainUpgradeEngine` (the cut's init target, not a getter this file reads), and the chain's
+`_setVerifier` and `_executeDiamondCut` gained the second-proof-system gate, which only
+rejects (`ProofGateAtV35`).
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.EngineGettersFaithful` and are proved in
@@ -18,19 +25,19 @@ In `VersionRegistry` a transition object is the four getters the CTM reads (`Tra
 `oldProtocolVersion()`, `newProtocolVersion()`, `fromRelease()`, `newRelease()`. `ChainRouting`'s
 `Step.transition` then applies the cuts derived from `(fromRelease, newRelease)` and lands the chain
 on `newProtocolVersion()`. The engine the chain runs reads two other getters
-(`upgrades/DefaultUpgrade.sol:30-44, 66-67`):
+(`upgrades/DefaultUpgrade.sol:29-43, 65-66`):
 
-    _applyDerivedFacetCuts(transition.facetCuts());                                       // :41
-    (uint256 newProtocolVersion, uint256 upgradeTimestamp, address newRelease) = _object.upgradeTarget(); // :67
+    _applyDerivedFacetCuts(transition.facetCuts());                                       // :40
+    (uint256 newProtocolVersion, uint256 upgradeTimestamp, address newRelease) = _object.upgradeTarget(); // :66
 
 `_applyDerivedFacetCuts` runs whatever cuts it is handed through `Diamond.diamondCut`
-(`upgrades/BaseZkSyncUpgrade.sol:118-123`). `_setNewProtocolVersion` checks only that the version
-increases, plus semver bounds (`BaseZkSyncUpgrade.sol:204-238`). Nothing ties either value to the
+(`upgrades/BaseZkSyncUpgrade.sol:124-129`). `_setNewProtocolVersion` checks only that the version
+increases, plus semver bounds (`BaseZkSyncUpgrade.sol:218-252`). Nothing ties either value to the
 CTM's checks. Only `CTMTransition` does: `facetCuts()` returns the cuts derived at construction,
 and `upgradeTarget()` returns `derivedNewProtocolVersion` (`upgrades/registry/objects/CTMTransition.sol:114-121,
-202-209`). `replaceUpgradeTransition` checks the replacement's `validate()` and `l2Plan()`
+223-230`). `replaceUpgradeTransition` checks the replacement's `validate()` and `l2Plan()`
 (`_requireExecutable`), `fromRelease()`, `oldProtocolVersionDeadline()`, `newProtocolVersion()` and
-`newRelease()` (`state-transition/ChainTypeManager.sol:429-448, 454-457, 477-523`). It does not check
+`newRelease()` (`state-transition/ChainTypeManager.sol:424-443, 449-452, 472-518`). It does not check
 `facetCuts()` or `upgradeTarget()`.
 
 `ChainRouting` records this as a model boundary ("A transition's cuts are its derived cuts ... a
@@ -53,8 +60,8 @@ countermodel.
   affect the timing gate and the verifier, which this routing model does not track.
 * **Everything else is `ExecutorUpgradeChain`'s model.** Only the transition step changes
   (`EStep.transition`). The guard still reads `fromRelease()`, the engine applies `G.cuts t`, and
-  the chain lands on `G.target t`, which must exceed its version (`Admin.sol:556-558`, and
-  `BaseZkSyncUpgrade.sol:209-211`). The step is used everywhere the original model crosses an edge:
+  the chain lands on `G.target t`, which must exceed its version (`Admin.sol:587-589`, and
+  `BaseZkSyncUpgrade.sol:223-225`). The step is used everywhere the original model crosses an edge:
   * the executor's `upgradeChain` (`EUStep.upgradeChain`);
   * the chain admin's direct call (`EUStep.adminUpgrade`);
   * a forwarded `CTM.upgradeChainFromVersion` (`EFStep.sys`).
@@ -108,7 +115,7 @@ structure Engine where
   target : Address → ℕ
 
 /-- **Transition `t` returns what a `CTMTransition` returns** (`CTMTransition.sol:114-121,
-202-209`): its cuts are derived from its `fromRelease()` and `newRelease()`, and `upgradeTarget()`
+223-230`): its cuts are derived from its `fromRelease()` and `newRelease()`, and `upgradeTarget()`
 lands on `newProtocolVersion()`. -/
 def EngineDerived (W : World) (G : Engine) (t : Address) : Prop :=
   G.cuts t = derivedCuts (W.relRows (W.tr t).fromRel) (W.relRows (W.tr t).newRel) ∧
@@ -127,9 +134,9 @@ inductive EStep (W : World) (G : Engine) : Sys → Label → Sys → Prop
   | base {s : Sys} {l : Label} {s' : Sys} :
       (∀ id, l ≠ .transition id) → Step W s l s' → EStep W G s l s'
   /-- `Admin.upgradeChainFromVersion` across `upgradeTransition[c.pv]`, run by `DefaultUpgrade`
-  (`upgrades/DefaultUpgrade.sol:30-44`). The guard reads `fromRelease()` (:37), the cuts are
-  `facetCuts()` (:41), and the chain lands on the version `upgradeTarget()` returns (:67), which
-  must exceed the chain's version (`Admin.sol:556-558`). -/
+  (`upgrades/DefaultUpgrade.sol:29-43`). The guard reads `fromRelease()` (:36), the cuts are
+  `facetCuts()` (:40), and the chain lands on the version `upgradeTarget()` returns (:66), which
+  must exceed the chain's version (`Admin.sol:587-589`). -/
   | transition {s : Sys} {id : ChainId} {c : Chain} {ρ : Routing} :
       s.chains id = some c →
       s.ctm.ut c.pv ≠ 0 →

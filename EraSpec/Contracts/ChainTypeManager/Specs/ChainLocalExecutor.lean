@@ -4,11 +4,15 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorForward
 /-!
 # Model: the per-chain headline across the CTM executor's transactions
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for
+Source: era-contracts branch `draft/v0.35.0` at commit `b17415d20`, as for
 `EraSpec.Contracts.ChainTypeManager.Specs.ExecutorForward`, whose executor model this file
-reuses unchanged. It adds no step and no state: it names the routing steps each executor
-transaction takes and the transactions that leave the CTM's own code in place. Paths are
-relative to `l1-contracts/contracts/`.
+reuses unchanged (first written at `e561b9cc2`, branch `feat/upgrade-simplification`; every
+`file:line` below is at `b17415d20`, and the code it cites is unchanged apart from line
+numbers). As there, an infrastructure step is the leg of a transition that pins
+`DefaultProxyUpgradeEngine`; a leg of any other engine can make every call a `forward` can
+(`ExecutorEngineAtV35`), and is not covered here. It adds no step and no state: it names the
+routing steps each executor transaction takes and the transactions that leave the CTM's own
+code in place. Paths are relative to `l1-contracts/contracts/`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ChainLocalExecutor` and are proved in
@@ -18,12 +22,13 @@ relative to `l1-contracts/contracts/`.
 
 The CTM owner is the `CTMUpgradeExecutor`. Its fixed entry points are
 `applyInfrastructureUpgrade`, `applyCTMUpgrade` and `upgradeChain`
-(`upgrades/registry/executors/CTMUpgradeExecutor.sol:64-102`); the break-glass
-`ChainTypeManager.executeUpgrade` (`state-transition/ChainTypeManager.sol:631-633`, `onlyOwner`)
-is reachable only through the owner-gated `forward` (`governance/UpgradeExecutorBase.sol:32-46`;
+(`upgrades/registry/executors/CTMUpgradeExecutor.sol:64-107`); the break-glass
+`ChainTypeManager.executeUpgrade` (`state-transition/ChainTypeManager.sol:626-628`, `onlyOwner`)
+is reachable only through the owner-gated `forward` (`governance/UpgradeExecutorBase.sol:35-55`,
+or at `b17415d20` from inside an engine leg, see above;
 "Every other owner operation of the CTM ... goes through the owner-gated, event-logged
-`forward`", `CTMUpgradeExecutor.sol:25-29`; the authority matrix lists `executeUpgrade` as
-"`forward` only", `docs/registry-driven-upgrades.md:412` at the repository root). So every
+`forward`", `CTMUpgradeExecutor.sol:26-29`; the authority matrix lists `executeUpgrade` as
+"`forward` only", `docs/registry-driven-upgrades.md:494` at the repository root). So every
 break-glass cut, and every repair, is a forwarded call. As in `ChainLocal`, the CTM's call then
 enters the chain's diamond through the diamond's own dispatch
 (`state-transition/chain-deps/DiamondProxy.sol:32-36`), which the model does not check. So a

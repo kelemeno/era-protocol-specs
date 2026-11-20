@@ -3,9 +3,17 @@ import EraSpec.Contracts.ChainTypeManager.Specs.VersionRegistry
 /-!
 # Model: the facet routing of the chains on a `ChainTypeManager`
 
-Source: branch `feat/upgrade-simplification` at `e561b9cc2`, as for
+Source: branch `draft/v0.35.0` of `matter-labs/era-contracts`, commit `b17415d20`, as for
 `EraSpec.Contracts.ChainTypeManager.Specs.VersionRegistry`, whose CTM state this model
-extends. Paths are relative to `l1-contracts/contracts/`.
+extends. Every `file:line` below is at that commit. Paths are relative to
+`l1-contracts/contracts/`.
+
+First written against `e561b9cc2` (see `VersionRegistry`) and re-read at `b17415d20`. On the
+modelled paths only names and lines changed: the transition getter `upgradeEngine()` is now
+`chainUpgradeEngine()`, and `Admin._executeDiamondCut` and `BaseZkSyncUpgrade._setVerifier`
+gained the second-proof-system check, which only rejects (see the modelling choices).
+`DiamondInit.sol`, `BootstrapUpgrade.sol`, `Diamond.sol`, `LiveRoutingReader.sol` and
+`TransitionDerivationLib.sol` are unchanged.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ChainRouting` and are proved in
@@ -17,8 +25,8 @@ version state together with its chains.
 
 ## The ways a chain's routing changes
 
-1. **Genesis.** `createNewChain` (`state-transition/ChainTypeManager.sol:708-716`) deploys
-   a diamond whose init is `DiamondInit.initialize` (:679-697). That init reads the CTM's
+1. **Genesis.** `createNewChain` (`state-transition/ChainTypeManager.sol:703-711`) deploys
+   a diamond whose init is `DiamondInit.initialize` (:674-692). That init reads the CTM's
    `protocolVersion` and installs the CTM's `currentRelease`'s facets:
 
         uint256 protocolVersion = ctm.protocolVersion();                         // DiamondInit.sol:58
@@ -28,10 +36,10 @@ version state together with its chains.
         s.protocolVersion = protocolVersion;                                      // :110
 
    The chain id must be free: `if (getZKChain(_chainId) != address(0)) { revert ChainAlreadyLive(); }`
-   (`ChainTypeManager.sol:680-683`).
-2. **Migration in.** `forwardedBridgeMint` (:751-763) checks
-   `if (_protocolVersion != protocolVersion) { revert OutdatedProtocolVersion(...); }` (:759-761)
-   and then deploys exactly as genesis does (:762).
+   (`ChainTypeManager.sol:675-678`).
+2. **Migration in.** `forwardedBridgeMint` (:746-758) checks
+   `if (_protocolVersion != protocolVersion) { revert OutdatedProtocolVersion(...); }` (:754-756)
+   and then deploys exactly as genesis does (:757).
 3. **Bootstrap reset.** A pre-registry chain crosses the bootstrap edge through the legacy
    cut, whose engine (`upgrades/BootstrapUpgrade.sol:29-44`) removes the whole live
    routing and installs the release the committed migration names:
@@ -41,20 +49,20 @@ version state together with its chains.
         _applyDerivedFacetCuts(ReleaseFacetReader.newChainInstallations(ICTMRelease(genesisRelease))); // :41
 
 4. **Transition.** The chain's `Admin.upgradeChainFromVersion(_, old)`
-   (`state-transition/chain-deps/facets/Admin.sol:528-559`) reads the cut its CTM derives
-   from `upgradeTransition[old]` (:535-537, `ChainTypeManager.sol:606-612`), requires
-   `s.protocolVersion == old` (:539-541), executes it (:555), and requires the version to
-   have increased (:556-558). The cut's init is `DefaultUpgrade.upgradeFromTransition`
-   (`upgrades/DefaultUpgrade.sol:30-44`):
+   (`state-transition/chain-deps/facets/Admin.sol:559-590`) reads the cut its CTM derives
+   from `upgradeTransition[old]` (:566-568, `ChainTypeManager.sol:601-607`), requires
+   `s.protocolVersion == old` (:570-572), executes it (:586), and requires the version to
+   have increased (:587-589). The cut's init is `DefaultUpgrade.upgradeFromTransition`
+   (`upgrades/DefaultUpgrade.sol:29-43`):
 
-        LiveRoutingReader.requireReleaseRouting(ICTMRelease(transition.fromRelease())); // :37
-        _applyDerivedFacetCuts(transition.facetCuts());                                  // :41
+        LiveRoutingReader.requireReleaseRouting(ICTMRelease(transition.fromRelease())); // :36
+        _applyDerivedFacetCuts(transition.facetCuts());                                  // :40
 
    and `transition.facetCuts()` are `TransitionDerivationLib.deriveFacetCuts(fromRelease,
    newRelease)` frozen at construction (`CTMTransition.sol:114-121`): nothing if the two
    routings are byte-identical (`TransitionDerivationLib.sol:56-58`), otherwise one
    `Remove` per departing row and one `Add` per arriving row (:64-79) — a full reinstall.
-5. **Break-glass.** The CTM owner's `executeUpgrade(chainId, cut)` (`ChainTypeManager.sol:631-633`)
+5. **Break-glass.** The CTM owner's `executeUpgrade(chainId, cut)` (`ChainTypeManager.sol:626-628`)
    runs an arbitrary cut, with an arbitrary init. Crossing an opaque legacy edge is the
    same from the chain's point of view. Both are `Label.arbitraryCut`.
 
@@ -76,20 +84,22 @@ version state together with its chains.
   `CTMRelease`'s constructor) that is when the encoded rows are equal.
 * **A transition's cuts are its derived cuts**, and the version `upgradeTarget()` lands a
   chain on is `newProtocolVersion()`. Both are what `CTMTransition` returns
-  (`CTMTransition.sol:202-209`); a non-`CTMTransition` object could return anything.
+  (`CTMTransition.sol:223-230`); a non-`CTMTransition` object could return anything.
 * **The engine is `DefaultUpgrade` / `BootstrapUpgrade`.** The committed cut delegatecalls
-  `transition.upgradeEngine()` (`CTMUpgradeComposer.sol:37-43`), which governance names
+  `transition.chainUpgradeEngine()` (`CTMUpgradeComposer.sol:37-43`), which governance names
   in the manifest. The model gives every engine the logic of `DefaultUpgrade.upgradeFromTransition`
   (and `BootstrapUpgrade.upgradeFromBootstrap` for the bootstrap cut). A versioned engine
   that overrides those functions is outside the model.
-* **The only routing writers** at this commit are the ones above: `Admin.sol:555`
-  (transition), `:563` (`executeUpgrade`), `:577` (`genesisUpgrade`, whose cut has no
+* **The only routing writers** at this commit are the ones above: `Admin.sol:586`
+  (transition), `:594` (`executeUpgrade`), `:608` (`genesisUpgrade`, whose cut has no
   facet cuts), and the `DiamondProxy` constructor running `DiamondInit`. Code delegatecalled
   by an engine or an init could write diamond storage too; that is the engine boundary
   above.
 * **Checks that only reject are omitted** (facet code existence, empty selector lists,
   `_requireAllBatchesExecuted`, the upgrade timestamp, the settlement-layer order, the
-  caller checks). Omitting a rejecting check only adds runs.
+  caller checks, and the second-proof-system check `_executeDiamondCut` runs after every cut
+  of a chain with `secondProofSystemRequired`, `Admin.sol:119-126`). Omitting a rejecting
+  check only adds runs.
 * **Migration out** changes neither the leaving diamond's routing nor its version, so it
   is no step. Chains on other CTMs are not modelled.
 -/
@@ -226,7 +236,7 @@ inductive Run (W : World) : Sys → List Label → Sys → Prop
   | cons {s s' s'' : Sys} {l : Label} {ls : List Label} :
       Step W s l s' → Run W s' ls s'' → Run W s (l :: ls) s''
 
-/-- The transition step **without** the guard of `DefaultUpgrade.sol:37`: the engine as it
+/-- The transition step **without** the guard of `DefaultUpgrade.sol:36`: the engine as it
 would be if it applied the derived cuts to whatever routing it finds. -/
 def UnguardedCrossing (W : World) (s : Sys) (id : ChainId) (ρ : Routing) : Prop :=
   ∃ c, s.chains id = some c ∧ s.ctm.ut c.pv ≠ 0 ∧

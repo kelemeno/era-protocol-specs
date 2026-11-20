@@ -78,7 +78,7 @@ satisfies `SysInv`, and its reinitializers satisfy `ReinitFrames`. Run `wRecutRu
 
 1. One `forward` of `setUpgradeDiamondCut(cut, 0)` (`Op.legacyRecut 0`) re-commits the bootstrap
    edge with a cut the model cannot see. This is the legacy fix-up of
-   `ChainTypeManager.sol:835-855`. The forward is `Tame`, and `SysInv` still holds after it.
+   `ChainTypeManager.sol:830-850`. The forward is `Tame`, and `SysInv` still holds after it.
 2. Chain `5`'s admin crosses that edge on its own diamond, landing at version 1 with routing
    `bgExtra`.
 

@@ -20,7 +20,7 @@ Statements about `EraSpec.Contracts.ChainTypeManager.Specs.GenesisWriters`. Proo
   `Diamond.DiamondStorage`, the version, the CTM binding, the admin and the verifier as they
   were, and writes only the L2 upgrade transaction hash (`GenesisUpgradeWritesNoDiamondStorage`).
   This holds on any diamond. The genesis upgrade goes through the shared
-  `BaseZkSyncUpgrade._upgrade`, which could in principle write diamond storage; at `e561b9cc2`
+  `BaseZkSyncUpgrade._upgrade`, which could in principle write diamond storage; at `b17415d20`
   it writes only the version (back to its own value) and that hash.
 * **The diamond library's `Add` cuts are `ChainRouting`'s `addAll`.** A successful list of
   `Add` facet cuts changes the routing exactly as `addAll` of its flattened rows does
@@ -52,6 +52,14 @@ Statements about `EraSpec.Contracts.ChainTypeManager.Specs.GenesisWriters`. Proo
 * **`validate()`'s nonempty rows.** The flattened step admits a release with a selector-less
   facet row, which the code refuses (`SelectorlessRowRevertsCreation`). So the step
   over-approximates creation, and exactness needs `ReleaseWf`.
+
+## The second-proof-system check
+
+`adminGenesisUpgrade` is `executeDiamondCut`: the cut, then `Admin._executeDiamondCut`'s check
+(`Admin.sol:121-126`). So a safety statement here over an arbitrary `ChainState` holds vacuously
+on states with `secondProofSystemRequired = true` and a verifier not in multi-proof mode, since
+the genesis upgrade reverts there. On the creation paths this changes nothing: the flag is false
+after `DiamondInit` (`DiamondInitInstallsTheRelease`).
 -/
 
 namespace Contracts.ChainTypeManager.GenesisWriters
@@ -90,7 +98,9 @@ def Properties.DiamondInitWrites : Prop :=
 proxy, if address zero has no code: after a successful `DiamondInit.initialize(id, admin)`, the
 diamond routes exactly the current release's flattened rows. That routing is the result of
 `ChainRouting`'s `addAll` on the empty routing. The diamond is not frozen. The chain is at the
-CTM's version and bound to the CTM, and the fields the genesis upgrade checks are still zero. -/
+CTM's version and bound to the CTM, the fields the genesis upgrade checks are still zero, and the
+chain does not require its second proof system, so the check `_executeDiamondCut` makes after the
+genesis upgrade's cut (`Admin.sol:121-126`) passes. -/
 def Properties.DiamondInitInstallsTheRelease : Prop :=
   ∀ (E : Env) (c : CTM) (id : ChainId) (admin : Address) (st : ChainState),
     E.code 0 = .none →
@@ -99,7 +109,8 @@ def Properties.DiamondInitInstallsTheRelease : Prop :=
     st.diamond.routing = rowsRouting (releaseRows E c.cur) ∧ st.diamond.isFrozen = false ∧
     st.app.protocolVersion = c.pv ∧ st.app.chainTypeManager = E.ctm ∧
     st.app.settlementLayer = 0 ∧ st.app.l2SystemContractsUpgradeTxHash = 0 ∧
-    st.app.l2SystemContractsUpgradeBatchNumber = 0 ∧ st.app.pausedDepositsTimestamp = 0
+    st.app.l2SystemContractsUpgradeBatchNumber = 0 ∧ st.app.pausedDepositsTimestamp = 0 ∧
+    st.app.secondProofSystemRequired = false
 
 /-- **DIAMONDINIT CANNOT RUN TWICE IN ONE DIAMOND.** With the lock set, which the first run does
 (`DiamondInitWrites`), `initialize` reverts `SlotOccupied` (`ReentrancyGuard.sol:59-62`), so a
@@ -111,7 +122,7 @@ def Properties.DiamondInitCannotRerun : Prop :=
 /-! ## The genesis upgrade -/
 
 /-- **THE GENESIS UPGRADE'S CUT HAS NO FACET CUTS.** `Admin.genesisUpgrade` builds
-`{facetCuts: emptyArray, initAddress: l1GenesisUpgrade, ...}` (`Admin.sol:570-575`), with the
+`{facetCuts: emptyArray, initAddress: l1GenesisUpgrade, ...}` (`Admin.sol:601-606`), with the
 current release's genesis upgrade as init. -/
 def Properties.GenesisUpgradeCutIsEmpty : Prop :=
   ∀ (E : Env) (c : CTM),
@@ -274,7 +285,7 @@ entry points, and its rows are unchanged. `Step.genesis` exists on the fresh sys
 `createNewChain` reverts for every id, admin and timestamp, at the cut with no selectors
 (`NoFunctionsForDiamondCut`, `Diamond.sol:120-122`). So the converse of
 `CodeCreationIsAStep` needs `ReleaseWf`, whose nonempty-selectors part is
-`CTMRelease.validate()`'s refusal (`CTMRelease.sol:121-123`). -/
+`CTMRelease.validate()`'s refusal (`CTMRelease.sol:134-136`). -/
 def Properties.SelectorlessRowRevertsCreation : Prop :=
   eEnv.code 0 = .none ∧ GenuineRelease eEnv eWorld 100 ∧
   RoutesTo eEnv 100 selGenesisUpgrade .adminFacet ∧ RoutesTo eEnv 100 selPauseDeposits .migratorFacet ∧

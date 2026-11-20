@@ -10,10 +10,13 @@ Source: era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**, as for
 This model was first written against `d9f6789`. Between `d9f6789` and `b17415d20` the files it
 cites are byte-identical except `governance/UpgradeExecutorBase.sol`, whose `forward` gained the
 check named below, and `upgrades/registry/executors/ProxyUpgradeExecutorBase.sol`, whose
-infrastructure path is not modelled here. As in `ProofGateAtV35`, the comparison with the `e561b9cc2` model is
-taken from `ccf00623c`, the squash-merge of the registry code into `draft/v0.35.0` (#2525), at
-which the functions below sit at the lines `UpgradeTiming` gives. `l1-contracts/contracts` is
-byte-identical at `ccf00623c` and `e561b9cc2`, so that comparison is exact.
+infrastructure path is not modelled here. As in `ProofGateAtV35`, the comparison with the
+`e561b9cc2` code `UpgradeTiming` was first written against is taken from `ccf00623c`, the
+squash-merge of the registry code into `draft/v0.35.0` (#2525); the "was" lines below are at
+`ccf00623c`. `l1-contracts/contracts` is byte-identical at `ccf00623c` and `e561b9cc2`, so that
+comparison is exact. `UpgradeTiming` itself has since been re-pinned to `b17415d20`: it cites
+the lines given here and lists the proof-system checks below among its omitted reject-only
+checks. This file is that model with those checks added.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.UpgradeTimingAtV35` and are proved in
@@ -24,7 +27,7 @@ byte-identical at `ccf00623c` and `e561b9cc2`, so that comparison is exact.
 
 `upgrades/registry/executors/ICTMUpgradeExecutor.sol` is byte-identical at `ccf00623c` and
 `b17415d20`. So the NatSpec `UpgradeTiming` checks is the same text at the same lines
-(`:47-56`):
+(`:47-54`):
 
     /// @dev Callers:
     ///      - the OWNER may upgrade any chain at any time;

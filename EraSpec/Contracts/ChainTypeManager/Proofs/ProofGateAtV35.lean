@@ -8,8 +8,8 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
 
 A v35 step is a `ChainRouting` step plus a `ProofEffect`, and the only condition a
 `ProofEffect` adds is `GateHolds` (`proofEffect_gate`, `gate_proofEffect`). So the routing results are
-the `e561b9cc2` theorems applied to the run's projection (`RunIsARun`). The enabledness
-results are the `e561b9cc2` ones plus the gate. The invariant `ProofInv` is an induction in
+the `ChainRouting` and `ChainLocal` theorems applied to the run's projection (`RunIsARun`). The enabledness
+results are `Enabledness`'s plus the gate. The invariant `ProofInv` is an induction in
 which only `permanentlyRequireSecondProofSystem` needs `DisablingNeverEnablesMultiProof`. The
 countermodels are concrete runs on the `ChainRouting` witness world.
 -/
@@ -56,7 +56,7 @@ lemma gate_proofEffect {W : World} {P : ProofWorld} {s : Sys35} {l : Label} {sys
   | arbitraryCut _ _ _ =>
       exact ⟨_, ProofEffect.arbitraryCut (p := ⟨false, 0, 0⟩) (fun h => absurd h (by decide))⟩
 
-theorem StepIsTheE561StepPlusTheGate : Properties.StepIsTheE561StepPlusTheGate := by
+theorem StepIsTheUngatedStepPlusTheGate : Properties.StepIsTheUngatedStepPlusTheGate := by
   intro W P s l sys'
   constructor
   · rintro ⟨pr', h⟩
@@ -133,8 +133,8 @@ lemma lift_proofEffect {W : World} {P : ProofWorld} {s : Sys} {l : Label} {sys' 
       intro h
       exact absurd ((hpr id).symm.trans h) (by decide)
 
-theorem E561RunsAreRunsWithoutTheRequirement :
-    Properties.E561RunsAreRunsWithoutTheRequirement := by
+theorem UngatedRunsAreRunsWithoutTheRequirement :
+    Properties.UngatedRunsAreRunsWithoutTheRequirement := by
   intro W P s s' ls pr h hpr
   induction h generalizing pr with
   | nil => exact ⟨pr, Run35.nil, hpr⟩
@@ -167,7 +167,7 @@ theorem TransitionEnabledIff : Properties.TransitionEnabledIff := by
   have e561 := Contracts.ChainTypeManager.TransitionEnabledIff W s.sys id c hC hc
   constructor
   · rintro ⟨⟨sys', pr'⟩, h⟩
-    obtain ⟨hs, hg⟩ := (StepIsTheE561StepPlusTheGate W P s _ sys').mp ⟨pr', h⟩
+    obtain ⟨hs, hg⟩ := (StepIsTheUngatedStepPlusTheGate W P s _ sys').mp ⟨pr', h⟩
     exact ⟨e561.mp ⟨sys', hs⟩, hg c hc⟩
   · rintro ⟨hcond, hgate⟩
     obtain ⟨sys', hs⟩ := e561.mpr hcond
@@ -176,7 +176,7 @@ theorem TransitionEnabledIff : Properties.TransitionEnabledIff := by
       rw [hc] at hc'
       cases hc'
       exact hgate hreq
-    obtain ⟨pr', h⟩ := (StepIsTheE561StepPlusTheGate W P s _ sys').mpr ⟨hs, hg⟩
+    obtain ⟨pr', h⟩ := (StepIsTheUngatedStepPlusTheGate W P s _ sys').mpr ⟨hs, hg⟩
     exact ⟨_, h⟩
 
 theorem UpgradesStayEnabled : Properties.UpgradesStayEnabled := by
@@ -459,7 +459,7 @@ theorem GateStrandsRequiringChain : Properties.GateStrandsRequiringChain := by
       (RunIsARun wWorld wProofPlonk _ _ _ hrun) (routing_no_arbitrary gSetup_noArb) 0 _ rfl
       (by decide) xNodup200
   · rintro ⟨⟨sys', pr'⟩, h⟩
-    obtain ⟨_, hg⟩ := (StepIsTheE561StepPlusTheGate wWorld wProofPlonk
+    obtain ⟨_, hg⟩ := (StepIsTheUngatedStepPlusTheGate wWorld wProofPlonk
       ⟨gSys, gProof wProofPlonk⟩ _ sys').mp ⟨pr', h⟩
     exact absurd (hg _ rfl rfl) (by decide)
   · exact ⟨_, Step35.routing (gSys_transition 1 (Or.inr rfl))
@@ -670,11 +670,157 @@ theorem PerChainHeadlineAtV35Witness : Properties.PerChainHeadlineAtV35Witness :
     ⟨_, rfl, rfl, by decide, ?_⟩⟩
   exact fun h => absurd (congrFun h 9) (by decide)
 
-theorem E561RunLiftWitness : Properties.E561RunLiftWitness := by
+theorem UngatedRunLiftWitness : Properties.UngatedRunLiftWitness := by
   refine ⟨rfl, fun _ => rfl, gEndSys, RunIsARun wWorld wProofMulti _ _ _ gRun_multi, ?_⟩
   intro id hid
   interval_cases id
   · exact ⟨_, rfl, rfl⟩
   · exact ⟨_, rfl, rfl⟩
+
+/-! ## `ChainRouting`, `Enabledness` and `ChainLocal` step results over v35 steps -/
+
+/-- The routing step of a v35 routing step. -/
+lemma step35_step {W : World} {P : ProofWorld} {s s' : Sys35} {l : Label}
+    (h : Step35 W P s (.routing l) s') : Step W s.sys l s'.sys := by
+  cases h with
+  | routing hs _ => exact hs
+
+theorem StepPreservesSysInvariant : Properties.StepPreservesSysInvariant := by
+  intro W P s s' l hI h hl
+  cases h with
+  | routing hs _ => exact Contracts.ChainTypeManager.StepPreservesSysInvariant W _ _ _ hI hs hl
+  | requireSecondProofSystem _ _ _ => exact hI
+  | setProofSystems _ => exact hI
+
+theorem TransitionStartsAndLandsOnRelease : Properties.TransitionStartsAndLandsOnRelease := by
+  intro W P s s' id c hC hc h
+  have hbase := Contracts.ChainTypeManager.TransitionStartsAndLandsOnRelease W s.sys s'.sys id c
+    hC hc (step35_step h)
+  refine ⟨hbase.1, hbase.2.1, hbase.2.2, ?_⟩
+  cases h with
+  | routing _ he =>
+      cases he with
+      | @transition _ c' hc' _ =>
+          rw [hc] at hc'
+          cases hc'
+          simp [ProofState.install]
+
+theorem DriftBlocksTransition : Properties.DriftBlocksTransition := by
+  rintro W P s id c hC hc hd ⟨s', h⟩
+  exact Contracts.ChainTypeManager.DriftBlocksTransition W s.sys id c hC hc hd ⟨_, step35_step h⟩
+
+theorem RepeatedSelectorBlocksTheEdge : Properties.RepeatedSelectorBlocksTheEdge := by
+  rintro W P s id c hc hne hdup ⟨s', h⟩
+  exact Contracts.ChainTypeManager.RepeatedSelectorBlocksTheEdge W s.sys id c hc hne hdup
+    ⟨_, step35_step h⟩
+
+theorem NewChainEnabledIff : Properties.NewChainEnabledIff := by
+  intro W P s id
+  obtain ⟨hg, hm⟩ := Contracts.ChainTypeManager.NewChainEnabledIff W s.sys id
+  constructor
+  · constructor
+    · rintro ⟨s', h⟩
+      exact hg.mp ⟨_, step35_step h⟩
+    · intro hcond
+      obtain ⟨sys', hs⟩ := hg.mpr hcond
+      exact ⟨_, Step35.routing hs ProofEffect.genesis⟩
+  · constructor
+    · rintro ⟨s', h⟩
+      exact hm.mp ⟨_, step35_step h⟩
+    · intro hcond
+      obtain ⟨sys', hs⟩ := hm.mpr hcond
+      exact ⟨_, Step35.routing hs ProofEffect.migrateIn⟩
+
+theorem BootstrapResetEnabledIff : Properties.BootstrapResetEnabledIff := by
+  intro W P s id c hC hc
+  have hbase := Contracts.ChainTypeManager.BootstrapResetEnabledIff W s.sys id c hC hc
+  constructor
+  · rintro ⟨s', h⟩
+    cases h with
+    | routing hs he =>
+        obtain ⟨R, hl, hwf⟩ := hbase.mp ⟨_, hs⟩
+        exact ⟨R, hl, hwf, fun hr => proofEffect_gate (s := s) he c R hc hl hr⟩
+  · rintro ⟨R, hl, hwf, hgate⟩
+    obtain ⟨sys', hs⟩ := hbase.mpr ⟨R, hl, hwf⟩
+    exact ⟨_, Step35.routing hs (ProofEffect.bootstrapReset hc hl hgate)⟩
+
+theorem ChainsStayOnWfReleases : Properties.ChainsStayOnWfReleases := by
+  intro W P s s' ls hI hW h hl
+  exact Contracts.ChainTypeManager.ChainsStayOnWfReleases W s.sys s'.sys _ hI hW
+    (RunIsARun W P s s' ls h) (routing_no_arbitrary hl)
+
+theorem StepsElsewhereKeepChainOk : Properties.StepsElsewhereKeepChainOk := by
+  intro W P s s' l id hok h hw
+  cases h with
+  | @routing l' _ _ hs _ =>
+      exact Contracts.ChainTypeManager.StepsElsewhereKeepChainOk W _ _ l' id hok hs
+        (hw l' (List.mem_singleton_self _))
+  | requireSecondProofSystem _ _ _ => exact hok
+  | setProofSystems _ => exact hok
+
+theorem NonCutWriteLandsOnRelease : Properties.NonCutWriteLandsOnRelease := by
+  intro W P s s' l id hC h hw hl
+  exact Contracts.ChainTypeManager.NonCutWriteLandsOnRelease W s.sys s'.sys l id hC
+    (step35_step h) hw hl
+
+theorem NewChainRunsItsVersionsRelease : Properties.NewChainRunsItsVersionsRelease := by
+  intro W P s s' ls id hC hn h hlast
+  exact Contracts.ChainTypeManager.NewChainRunsItsVersionsRelease W s.sys s'.sys _ id hC hn
+    (RunIsARun W P s s' ls h) hlast
+
+theorem RepairCutRestoresChainOk : Properties.RepairCutRestoresChainOk := by
+  intro W P s id v hC hreg hv
+  obtain ⟨⟨sys', hs⟩, hall⟩ := Contracts.ChainTypeManager.RepairCutRestoresChainOk W s.sys id v hC
+    hreg hv
+  refine ⟨?_, fun s' h => hall s'.sys (step35_step h)⟩
+  obtain ⟨pr', he⟩ := gate_proofEffect (P := P) (s := s) hs (by unfold repairCut; trivial)
+  exact ⟨_, Step35.routing hs he⟩
+
+theorem OnlyRepairCutsLandOnARelease : Properties.OnlyRepairCutsLandOnARelease := by
+  intro W P s s' id v ρ h hland
+  exact Contracts.ChainTypeManager.OnlyRepairCutsLandOnARelease W s.sys s'.sys id v ρ
+    (step35_step h) hland
+
+/-- A break-glass cut is of a registered chain. -/
+private lemma arbitraryCut_registered {W : World} {s sys' : Sys} {id : ChainId} {v : ℕ}
+    {ρ : Routing} (h : Step W s (.arbitraryCut id v ρ) sys') : ∃ c, s.chains id = some c := by
+  cases h with
+  | arbitraryCut _ _ hc => exact ⟨_, hc⟩
+
+theorem RepairEnablesTransition : Properties.RepairEnablesTransition := by
+  intro W P s s' id v hC hv h hut hn1 hn2 hgate
+  have hs := step35_step h
+  obtain ⟨s'', hstep, hland⟩ := Contracts.ChainTypeManager.RepairEnablesTransition W s.sys s'.sys
+    id v hC hv hs hut hn1 hn2
+  obtain ⟨hctm, -, c0, hc0, hpv, -⟩ :=
+    (Contracts.ChainTypeManager.RepairCutRestoresChainOk W s.sys id v hC
+      (arbitraryCut_registered hs) hv).2 s'.sys hs
+  have harr : arrivingVerifier W P s'.sys c0 = P.relVerifier (s.sys.edge W v).newRel := by
+    simp only [arrivingVerifier, Sys.edge, hctm, hpv]
+  refine ⟨⟨s'', _⟩, Step35.routing hstep (ProofEffect.transition hc0 ?_), hland⟩
+  intro hreq
+  show P.multi (arrivingVerifier W P s'.sys c0) 0 = true
+  rw [harr]
+  exact hgate hreq
+
+theorem LastWriteDecidesTheRouting : Properties.LastWriteDecidesTheRouting := by
+  intro W P s s₁ s₂ s' pre post l id hC hpre hs hpost hw hpost' hl
+  exact Contracts.ChainTypeManager.LastWriteDecidesTheRouting W s.sys s₁.sys s₂.sys s'.sys _ _ l
+    id hC (RunIsARun W P s s₁ pre hpre) (step35_step hs) (RunIsARun W P s₂ s' post hpost) hw
+    hpost' hl
+
+theorem BehindChainsCanCatchUp : Properties.BehindChainsCanCatchUp := by
+  intro W P s s' ls hI hR hD hA h hl hwf id c hc hlt hgate hboot
+  rcases Contracts.ChainTypeManager.BehindChainsCanCatchUp W s.sys s'.sys _ hI hR hD hA
+      (RunIsARun W P s s' ls h) (routing_no_arbitrary hl) hwf id c hc hlt with
+    hstep | ⟨R, hleg, s'', hs⟩ | ⟨hop, hnt, hnb⟩
+  · exact Or.inl (Step35.routing hstep (ProofEffect.transition hc hgate))
+  · exact Or.inr (Or.inl ⟨R, hleg, _,
+      Step35.routing hs (ProofEffect.bootstrapReset hc hleg (fun hr => hboot hr R hleg))⟩)
+  · refine Or.inr (Or.inr ⟨hop, ?_, ?_⟩)
+    · rintro ⟨s'', h⟩
+      exact hnt ⟨_, step35_step h⟩
+    · rintro ⟨s'', h⟩
+      exact hnb ⟨_, step35_step h⟩
 
 end Contracts.ChainTypeManager.ProofGateAtV35

@@ -10,14 +10,17 @@ every `file:line` below is at `b17415d20` unless another commit is named. This f
 written against `d9f6789` (2026-11-06) and then re-read at `b17415d20`; the section "Re-read at
 `b17415d20`" lists what changed in the code it models.
 
-The rest of this folder is pinned to `feat/upgrade-simplification` at `e561b9cc2`. This file
-extends the `ExecutorForward` model (`Specs/ExecutorForward.lean`, at `e561b9cc2`), which it
-imports unchanged, and reuses the row library model `ProxyUpgradeCurrent` (`e561b9cc2`).
-`RowsCurrent`'s transcription of `applyRows` matches `b17415d20`'s `applyRows` and
-`requireRowsApplied` (`upgrades/registry/libraries/ProxyUpgradeRowLib.sol:106-128, 133-141`);
-the second loop has moved into `requireRowsApplied`. The CTM, its chains and its release and
-transition objects are `ExecutorForward`'s `e561b9cc2` model and were not re-read at
-`b17415d20`.
+This file extends the `ExecutorForward` model (`Specs/ExecutorForward.lean`), which it imports
+unchanged. `ExecutorForward` was written at `e561b9cc2` (branch `feat/upgrade-simplification`)
+and is re-read at `b17415d20` in its own header: its infrastructure step `XStep.infra`, called
+"the `e561b9cc2` infrastructure step" below, is the row library's `applyRows` on the
+transition's rows, which at `b17415d20` is the leg of a transition that pins
+`DefaultProxyUpgradeEngine`. This file reuses the row library model `ProxyUpgradeCurrent`
+(written at `e561b9cc2`). `RowsCurrent`'s transcription of `applyRows` matches `b17415d20`'s
+`applyRows` and `requireRowsApplied`
+(`upgrades/registry/libraries/ProxyUpgradeRowLib.sol:106-128, 133-141`); the second loop has
+moved into `requireRowsApplied`. The CTM, its chains and its release and transition objects are
+`ChainRouting`'s model, through `ExecutorForward`.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ExecutorEngineAtV35` and are proved in
