@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicFlowManager.History.Specs.RecoveryLimitsFaithful
 
 /-!
@@ -230,7 +231,7 @@ def Properties.PinnedClaimStepWitness : Prop :=
 TARGET.** `wSource` and `wSourceConforming` agree at the router `9` and differ at `5`. The pinned
 claims of the two-call bundle differ. The `draft/v0.35.0` claims agree, for every base-token
 refund. -/
-def Properties.DirectTargetCodeDecidesOnlyThePinnedClaim : Prop :=
+@[witness] def Properties.DirectTargetCodeDecidesOnlyThePinnedClaim : Prop :=
   (∀ w, wSource.runsCode w 9 = wSourceConforming.runsCode w 9)
   ∧ (∀ w dest data, wSource.exec w 9 dest data = wSourceConforming.exec w 9 dest data)
   ∧ wSource.runsCode () 5 ≠ wSourceConforming.runsCode () 5

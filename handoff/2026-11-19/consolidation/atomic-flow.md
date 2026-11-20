@@ -54,3 +54,30 @@ move both topics to `History/` (namespace segment `History`) and add their renam
 - `EraSpec.lean` (module list, for the History modules).
 - `ASSUMPTIONS.md`: rows `MODEL-AFM-NESTED`, `MODEL-AFM-CALL`, `MODEL-FLOW-HEAD` and the summary rows
   for this folder, only where a statement moved or a commit claim became false; ids unchanged.
+
+## Outcome
+
+- **Step 1.** Model, ModelStrong, FlowCanonical, FlowCanonicalAtHead, FlowCanonicalAtV35 and
+  RefundClosesAppend cite `b17415d20` only (FlowCanonicalAtHead notes once that it was first
+  written at `main` `3605e82`, the same text). RecoveryLimitsStrong (8 statements) and the pin half
+  of RecoveryLimitsFaithful (17 statements) are History; renames in `renames/atomic-flow.json`
+  (25 entries, all `history`, checked with `ListProperties` before and after).
+- **Step 2.** New refinement lemmas `FlowCanonicalAtHead.Properties.ToV35Bijective`,
+  `ValidateAgreesWithV35`, `CheckFlowIdAgreesWithV35`, `AcceptedIffAcceptedV35`. No statement was
+  weakened or removed.
+- **Step 3.** 17 headlines, 11 witnesses, 9 countermodels (audit `FOLDER Contracts.AtomicFlowManager
+  : 17 / 11 / 9 / 136`); the README lists the 17 headlines with their premises.
+- **Outside the folder:** `EraSpec.lean` (two History modules), `ASSUMPTIONS.md` rows
+  `MODEL-FLOW-HEAD`, `MODEL-AFM-NESTED`, `MODEL-AFM-CALL` and the two summary rows for ModelStrong /
+  RecoveryLimitsStrong and RecoveryLimitsFaithful (commit claims and moved names only; ids unchanged).
+
+## Not done
+
+- RecoveryLimits and RecoveryTargets are `c67894b9` records kept in place (see above).
+- FlowCanonicalAtHead is a second, bridged transcription, not merged into FlowCanonicalAtV35: the
+  Protocol topic `FlowBindingAtHead` builds on its types. Merge it with the Protocol unit.
+- Model, FlowCanonical and FlowCanonicalAtHead are untagged. Model's `Reach` results reach the
+  deployed code through `RunV35IsPinLegRun`; the run-level forms over `runV35` are the headlines.
+- AssetRouterBase `AtomicRecovery` and this folder's `RecoveryLimitsFaithful` still model the loop
+  over different call types with no refinement between them (`MODEL-ATOMIC-RECOVERY`), now only
+  for the pin loop.

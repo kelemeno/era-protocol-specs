@@ -1,0 +1,152 @@
+[
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.ClaimSuccessNeedsCodeAtEveryTarget",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.ClaimSuccessNeedsCodeAtEveryTarget",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.CodelessTargetBlocksClaim",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.CodelessTargetBlocksClaim",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.CodelessTargetBlocksClaimWitness",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.CodelessTargetBlocksClaimWitness",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.CodelessTargetBlocksEveryClaim",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.CodelessTargetBlocksEveryClaim",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.CodelessTargetReverts",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.CodelessTargetReverts",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.ConformingTargetsRefund",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.ConformingTargetsRefund",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.ConformingTargetsRefundSatisfiable",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.ConformingTargetsRefundSatisfiable",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.DirectCallWithoutSourceCodeBlocksClaim",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.DirectCallWithoutSourceCodeBlocksClaim",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.DirectCallWithoutSourceCodeBlocksClaimWitness",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.DirectCallWithoutSourceCodeBlocksClaimWitness",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.DirectTargetCodeDecidesOnlyThePinnedClaim",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.DirectTargetCodeDecidesOnlyThePinnedClaim",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.NonAnsweringTargetBlocksEveryClaim",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.NonAnsweringTargetBlocksEveryClaim",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.NonAnsweringTargetWitness",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.NonAnsweringTargetWitness",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.PinnedCallRevertsIff",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.PinnedCallRevertsIff",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.PinnedClaimIsAManagerClaimStep",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.PinnedClaimIsAManagerClaimStep",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.PinnedClaimStepWitness",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.PinnedClaimStepWitness",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.PinnedClaimSucceedsIffAccepted",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.PinnedClaimSucceedsIffAccepted",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.Properties.PinnedRevertAnywhereBlocks",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsFaithful.History.Properties.PinnedRevertAnywhereBlocks",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsFaithful: this statement is about the c67894b9 loop (pinnedProbe/recoverLoop/claimRefundPinned over each call's `to`, with the recovered == 0 revert), which b17415d20 does not have; moved unchanged to History (History/Properties/RecoveryLimitsFaithful.lean). The call/decoder model and the b17415d20 loop statements stay under the old namespace."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.blocked_leg_stays_revertable",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.blocked_leg_stays_revertable",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.blocked_retry_reverts",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.blocked_retry_reverts",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.blocked_retry_witness",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.blocked_retry_witness",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.legClaim_success_closes_leg",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.legClaim_success_closes_leg",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.legClaim_success_is_step",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.legClaim_success_is_step",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.leg_copy_is_model_leg",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.leg_copy_is_model_leg",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.partial_stranding_is_terminal",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.partial_stranding_is_terminal",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ },
+ {
+  "old": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.Properties.retry_succeeds_once_blocker_clears",
+  "new": "Contracts.AtomicFlowManager.RecoveryLimitsStrong.History.Properties.retry_succeeds_once_blocker_clears",
+  "kind": "history",
+  "justification": "AtomicFlowManager topic RecoveryLimitsStrong models the c67894b9 refund loop (a call to every call's `to`, at least one recovery required, over AssetRouterBase AtomicRecovery); at b17415d20 _recoverBundle (AtomicFlowManager.sol:292-325) calls only the asset router and counts nothing. Moved unchanged to History (History/Properties/RecoveryLimitsStrong.lean)."
+ }
+]

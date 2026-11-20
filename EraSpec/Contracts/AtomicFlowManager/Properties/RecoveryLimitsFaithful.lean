@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryLimitsFaithful
 
 /-!
@@ -61,14 +62,14 @@ def Properties.DecodeBoolWitness : Prop :=
 /-! ## The loop at `draft/v0.35.0` (b17415d) -/
 
 /-- **THE `draft/v0.35.0` CLAIM READS THE SOURCE CHAIN'S CODE AT THE ROUTER ONLY.** Two source
-chains that agree at the router give the same claim, whatever the source-chain parameter `S` runs
-at any other address. That includes every call's `to`, and the `from` of every call not sent by the
-router. The base-token refund step `baseRecover` is held fixed: in the contract it calls further
-contracts (the base token, the asset tracker), and this statement says nothing about them. The
-independence from `S` off the router holds by how `v35Step` is built. Witnessed by
-`V35ClaimSucceedsOnMixedBundle` (any `S'` agreeing with `wSource` at the router) and by the History
-witness `DirectTargetCodeDecidesOnlyThePinnedClaim`. -/
-def Properties.V35ClaimReadsOnlyRouterCode : Prop :=
+chains that agree at the router give the same claim result, whatever either runs at any other
+address, including every call's `to` and the `from` of every call not sent by the router.
+Premises: the two source chains agree at the router address on whether code runs and on what it
+returns, in every world. The base-token refund step `baseRecover` is held fixed (`MODEL-AFM-CALL`):
+in the contract it calls further contracts (the base token, the asset tracker), and this
+statement says nothing about them. Witnessed by the History witness
+`DirectTargetCodeDecidesOnlyThePinnedClaim` (two chains that differ off the router). -/
+@[headline] def Properties.V35ClaimReadsOnlyRouterCode : Prop :=
   ∀ (W : Type) (S S' : SourceChain W) (router : Address) (l1ChainId : Word)
     (baseRecover : W → Word → Word → Address → ℕ → Option W) (s : LegState) (w : W) (b : Bundle),
     (∀ w, S.runsCode w router = S'.runsCode w router) →
@@ -85,11 +86,15 @@ def Properties.V35SkipsZeroValueNonRouterCalls : Prop :=
     (c : InteropCall),
     c.fromAddr ≠ router → c.value = 0 → v35Step S router baseRecover dest baseAsset w c = some w
 
-/-- **CONFORMING CODE AT THE ROUTER IS ENOUGH AT `draft/v0.35.0`.** If the router's code runs and
-answers every call with a well-formed `bool`, the base-token refund never reverts, and the
-destination is not L1, the claim of a `Revertable` leg succeeds, whatever the bundle's calls and
-whatever runs at any other address. No call needs to recover. Witnessed by `V35ClaimWitness`. -/
-def Properties.V35ClaimSucceedsWithConformingRouter : Prop :=
+/-- **CONFORMING CODE AT THE ROUTER IS ENOUGH AT `draft/v0.35.0`.** `claimRefund` of a
+`Revertable` leg succeeds and leaves it `Reverted`, whatever the bundle's calls and whatever runs
+at any other address; no call needs to recover. Premises: the destination is not `L1_CHAIN_ID`;
+the code at the router address runs in every world and answers every `recoverAtomicCall` with a
+well-formed `bool` (`Conforms`, as `IAtomicRecoverable.sol:14-16` asks; the deployed router can
+also revert, for example on an unregistered asset); the base-token refund step `baseRecover`
+(`bridgehubRecoverBaseToken`, `:316-323`) never reverts. Model boundary (`MODEL-AFM-CALL`):
+`baseRecover` is abstract, so what it calls is outside the statement. -/
+@[headline] def Properties.V35ClaimSucceedsWithConformingRouter : Prop :=
   ∀ (W : Type) (S : SourceChain W) (router : Address) (l1ChainId : Word)
     (baseRecover : W → Word → Word → Address → ℕ → Option W) (w : W) (b : Bundle),
     b.destinationChainId ≠ l1ChainId → Conforms S router →
@@ -97,9 +102,12 @@ def Properties.V35ClaimSucceedsWithConformingRouter : Prop :=
       ∃ w', claimRefundV35 S router l1ChainId baseRecover .Revertable w b = some (.Reverted, w')
 
 /-- **THE `draft/v0.35.0` CLAIM REJECTS AN L1 DESTINATION** (`RecoverToL1NotSupported`,
-`AtomicFlowManager.sol:299` at `b17415d20`), from every leg state and in every world. Witnessed by
-`V35ClaimWitness`. -/
-def Properties.V35ClaimRejectsL1Destination : Prop :=
+`AtomicFlowManager.sol:299` at `b17415d20`): `claimRefund` of a bundle whose destination chain is
+the manager's `L1_CHAIN_ID` reverts, from every leg state, in every world, for every source chain,
+router address and base-token refund step. Premise: the bundle's `destinationChainId` equals
+`L1_CHAIN_ID`. Model boundary (`MODEL-AFM-CALL`): the claim is stated for the bundle presented;
+the external calls are the source-chain model `S` and the abstract `baseRecover`. -/
+@[headline] def Properties.V35ClaimRejectsL1Destination : Prop :=
   ∀ (W : Type) (S : SourceChain W) (router : Address) (l1ChainId : Word)
     (baseRecover : W → Word → Word → Address → ℕ → Option W) (s : LegState) (w : W) (b : Bundle),
     b.destinationChainId = l1ChainId → claimRefundV35 S router l1ChainId baseRecover s w b = none
@@ -109,7 +117,7 @@ counter of refunded base token. The router `9` conforms on `wSourceOver ℕ`, an
 refund adds its amount to the counter and never reverts. The bundle `wValueBundle` goes to chain
 `325`, not to L1. Its claim succeeds and refunds the direct call's value `3`. The zero-value direct
 call `wDirectCall` is skipped. The same bundle sent to L1 is rejected. -/
-def Properties.V35ClaimWitness : Prop :=
+@[witness] def Properties.V35ClaimWitness : Prop :=
   wValueBundle.destinationChainId ≠ wL1
   ∧ Conforms (wSourceOver ℕ) 9
   ∧ (∀ w dest asset receiver amount, (wBaseRecover w dest asset receiver amount).isSome = true)
@@ -124,7 +132,7 @@ def Properties.V35ClaimWitness : Prop :=
 base-token refund would do. The bundle carries no value, so that refund is never called. On the
 same source chain every claim of that bundle under the pin's loop reverts
 (`History.Properties.DirectCallWithoutSourceCodeBlocksClaimWitness`). -/
-def Properties.V35ClaimSucceedsOnMixedBundle : Prop :=
+@[witness] def Properties.V35ClaimSucceedsOnMixedBundle : Prop :=
   ∀ baseRecover : Unit → Word → Word → Address → ℕ → Option Unit,
     claimRefundV35 wSource 9 wL1 baseRecover .Revertable () mixD.bundle = some (.Reverted, ())
 

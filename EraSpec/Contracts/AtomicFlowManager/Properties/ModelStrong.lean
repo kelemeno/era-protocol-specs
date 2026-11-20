@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicFlowManager.Specs.ModelStrong
 
 -- Named propositions are transparent abbreviations; proofs reference these statements.
@@ -190,8 +191,15 @@ abbrev Properties.writeFirst_payouts_exact {M N : Manager} {log : List LegKey}
   log.count (f, b) = if M.legState f b ≠ .Reverted ∧ N.legState f b = .Reverted then 1 else 0
 
 
-/-- **…SO AT MOST ONCE.** -/
-abbrev Properties.writeFirst_payout_at_most_once {M N : Manager} {log : List LegKey}
+/-- **UNDER THE DEPLOYED ORDER, EACH LEG PAYS OUT AT MOST ONCE.**  In every execution of manager
+calls from any `_state`, however deeply `claimRefund`'s recovery calls re-enter the manager, each leg
+`(f, b)` has at most one completed `claimRefund`.  Premises: `claimRefund` writes `Reverted` before
+`_recoverBundle` (`AtomicFlowManager.sol:260`, `:262` at `b17415d20`; the `writeFirst` order).
+Model boundary (`MODEL-AFM-NESTED`): each manager call is its `_state` guard and write (`Step`),
+`append` and `authorizeRefund` make no call that re-enters the manager and writes state, and a
+recovery callback is any nested sequence of successful manager calls; reverting executions are
+absent. -/
+@[headline] abbrev Properties.writeFirst_payout_at_most_once {M N : Manager} {log : List LegKey}
     (h : NestedRun .writeFirst M log N) (f b : UInt256) :=
   log.count (f, b) ≤ 1
 
@@ -199,7 +207,7 @@ abbrev Properties.writeFirst_payout_at_most_once {M N : Manager} {log : List Leg
 /-- **(ii) UNDER THE REVERSED ORDER, ONE `Revertable` LEG PAYS OUT ANY NUMBER OF TIMES.**  Fix a claimable leg
 and any `k`.  Some execution completes `k` claims of it: each claim's callback re-enters `claimRefund(f, b)`.
 Each nested claim passes its guard, because the leg is still `Revertable` while the callback runs. -/
-abbrev Properties.writeAfter_unbounded_payouts {M : Manager} {f b : UInt256} (hg : ClaimGuard M f b)
+@[countermodel] abbrev Properties.writeAfter_unbounded_payouts {M : Manager} {f b : UInt256} (hg : ClaimGuard M f b)
     (k : ℕ) :=
   ∃ N, NestedRun .writeAfter M (List.replicate k (f, b)) N
 
@@ -207,7 +215,7 @@ abbrev Properties.writeAfter_unbounded_payouts {M : Manager} {f b : UInt256} (hg
 /-- **THE ORDER DECIDES WHETHER A LEG CAN BE PAID TWICE.**  Start from one claimable leg.  Under the deployed order
 no execution pays it twice.  Under the reversed order there is an execution that pays it twice: `claimRefund(f, b)`
 whose callback calls `claimRefund(f, b)` once. -/
-abbrev Properties.claim_order_decides_double_payout {M : Manager} {f b : UInt256} (hg : ClaimGuard M f b) :=
+@[countermodel] abbrev Properties.claim_order_decides_double_payout {M : Manager} {f b : UInt256} (hg : ClaimGuard M f b) :=
   (∀ log N, NestedRun .writeFirst M log N → log.count (f, b) ≤ 1) ∧
     ∃ N, NestedRun .writeAfter M [(f, b), (f, b)] N
 
@@ -216,7 +224,7 @@ abbrev Properties.claim_order_decides_double_payout {M : Manager} {f b : UInt256
 makes legs `(0, 0)` and `(0, 1)` claimable.  Then, under the deployed order, `claimRefund(0, 0)`'s callback claims
 leg `(0, 1)`, a different leg, which the source comment calls "independent and equally guarded".  Each leg pays
 once.  So the nesting in the deployed-order results above does real work. -/
-abbrev Properties.nestedRun_witness :=
+@[witness] abbrev Properties.nestedRun_witness :=
   ∃ M N₁ N, Reach empty M ∧ ClaimGuard M 0 0 ∧ ClaimGuard M 0 1 ∧
     NestedRun .writeFirst (M.set 0 0 .Reverted) [(0, 1)] N₁ ∧
     NestedRun .writeFirst M [(0, 1), (0, 0)] N ∧
