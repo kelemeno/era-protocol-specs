@@ -1,4 +1,4 @@
-# Current handoff — 2026-11-20 (updated after wave 2, part 1)
+# Current handoff — 2026-11-20 (end of round-9 run)
 
 Continue from **`claude/proof-round-9`**. Round 9 started from `claude/proof-round-8` (`35d2eb9`) and works on
 the round-8 handoff's Priority 1, **consolidation**. That note is kept verbatim in
@@ -11,11 +11,11 @@ PRs, or publishing anything about a possible upstream (era-contracts) issue.
 ## State of `claude/proof-round-9`
 
 - **Toolchain:** Lean v4.35.0 + Mathlib v4.35.0, unchanged.
-- **Build:** `lake build EraSpec` builds 4026 jobs.
+- **Build:** `lake build EraSpec` builds 4042 jobs.
 - **Audit** (`lake env lean scripts/Audit.lean`):
-  - 28543 theorems and 4535 properties, each with its full named theorem;
+  - 28588 theorems and 4544 properties, each with its full named theorem;
   - 0 axioms, 0 NOT clean, 0 tag findings;
-  - 340 headline, 340 witness and 270 countermodel properties, plus 3585 untagged supporting lemmas;
+  - 428 headline, 398 witness and 324 countermodel properties, plus 3394 untagged supporting lemmas;
   - a per-folder line for each contract and Protocol area.
 - **One target commit.** Every model is being moved to era-contracts v35 `b17415d20` (`draft/v0.35.0` head).
   Records of older pins live in `History/` folders with a `History` namespace segment.
@@ -46,25 +46,29 @@ Every unit was independently and adversarially reviewed before merging. Reviewer
 | atomic-flow | AtomicFlowManager | Re-pinned. `FlowCanonicalAtV35` is the canonical entry-point model. `FlowCanonicalAtHead` is linked to it by refinement lemmas but not merged, because Protocol `FlowBindingAtHead` builds on its types. `FlowCanonical` is the neighbour-check vocabulary both share. RecoveryLimitsStrong and the pin half of RecoveryLimitsFaithful are History. RecoveryLimits and RecoveryTargets still model only `c67894b9`; they stay at their paths, untagged, until their importers move. RecoveryLimits is imported by AssetRouterBase, InteropCenter `Send` and Protocol/AssetBridgePreparation. RecoveryTargets is now imported only by InteropCenter History, so it can move. |
 | handler-base | InteropHandlerBase | Re-pinned. One stack: the status machine, the `Reentrancy` engine, its `b17415d20` layer (`ReentrancyAtV35`, folded into topic `Reentrancy` but still in its own files) and the dispatch tables. The pin-only parts of BundleStatusMachine and BundleStatusMachineFaithful, and all of BundleStatusMachineStrong, are History. SelfCallAuthorityFaithful and SelfCallAuthorityStrong stay two models of the same dispatch, with no refinement lemma yet. **Partial:** see `handler-base.md`. |
 | interop-center | InteropCenter | The shared vocabulary is in `Specs/Common.lean`, at `b17415d20`. Dispatch, ClaimBinding and AtomicRouting moved to History (`c67894b9`). SendAtHead became topic `Send`, at `b17415d20`. **Partial:** `Send` and FeeState/FeeReentry are not linked into one model. |
+| atomic-proof | AtomicInteropProof | Re-pinned. Four layers of one library, not competing models: the `b17415d20` proof-word transcription (`AuthenticateRootAtV35`), batch-leaf path acceptance (`LastLeafFaithful`), the index level, and the abstract gates. New bridge lemmas join the duplicate definitions (`HonestInsertionAgrees`, `BeginIsPrevEndProjects`, `OutsideRootLateIffNat`). The H1 (`PinnedReach`) and H2 (padding) records and the pin `_authenticateRoot` transcription are History; 6 statements moved. 10 headlines. |
+| merkle-libs | Merkle, FullMerkle, DynamicIncrementalMerkle | Re-pinned; every library line re-checked at `b17415d20`. The eight pin-padding statements of `DomainSeparation` are History. New topic `DynamicIncrementalMerkle/PriorityTreeBridge`: within the `uint256` range the PriorityTree folder's `push`, `setup` and `root` equal this folder's. New headline `ContractPathVerifiesInRange` carries the `2^255` bound. 14 headlines. The vacuous `global-hinj` results stay untagged. |
+| asset-router | AssetRouterBase | Re-pinned. 59 statements moved to History: 31 of AtomicRecovery, all of AtomicRecoveryFaithful and PausedRecovery; the M1 countermodels are tagged there. New refinement lemma `VaultRefundRefinesResolution` onto the canonical NativeTokenVaultBase refund. 15 headlines. The `c67894b9` record definitions in `Specs/AtomicRecovery.lean` stay in place for their importers. |
+| protocol-smalls | ten small Protocol areas: AssetBridgePreparation (Reinitialization), BatchCounters, CtmRecord, InteropPeerRegistry, L1WithdrawalProvenance, L2BridgeConfig, NativeValueLegs, PriorityMirror, PriorityRequests, ZKsyncOSDA | Tags and READMEs only; no statement changed, so no renames file. AssetBridgePreparation Reinitialization re-cited at `b17415d20` (only line numbers moved). 49 headlines. MultichainGate, FlowAtomicityPerChain and the AssetBridgePreparation Resolution, ResolutionEvidence and FullRecovery files model `c67894b9`; their READMEs say so, and they stay untagged. No per-unit note; see the merge commit `834bf13`. |
 
 - **Per-unit notes:** `handoff/2026-11-19/consolidation/<unit>.md`. Each note records the inventory, the
   decisions, and what was not done.
-- **Renames:** `handoff/2026-11-19/renames/<unit>.json`, 332 entries. They map every removed or renamed
+- **Renames:** `handoff/2026-11-19/renames/<unit>.json`, 405 entries. They map every removed or renamed
   property to its replacement.
 
 ## What is left
 
-1. **Wave 2 (part 1 merged).** AtomicFlowManager, InteropHandlerBase and InteropCenter are merged. AtomicInteropProof
-   (the H1 countermodels go to History), the Merkle libraries (Merkle, FullMerkle, DynamicIncrementalMerkle)
-   and AssetRouterBase (the M1 countermodels go to History) are in progress. They may or may not land before
-   the usage limit; check `git log` and the audit's folder lines. Start any that did not land fresh from
-   `claude/proof-round-9`.
-
-   **Wave-2 remainder** (from `atomic-flow.md`, `handler-base.md`, `interop-center.md`):
+1. **Wave-2 remainder.** Wave 2 is complete: every contract folder is consolidated and tagged. What the
+   units deferred (from `atomic-flow.md`, `handler-base.md`, `interop-center.md`, `atomic-proof.md`,
+   `merkle-libs.md`, `asset-router.md`):
    - move RecoveryLimits and RecoveryTargets to History once their importers move, and add their renames;
+   - move the `c67894b9` record definitions in AssetRouterBase `Specs/AtomicRecovery.lean`
+     (`recoverAtomicCall`, `recoverBundle`, `claimRefund`, …) to History with their importers
+     (AtomicRecoveryAtHead's pin-against-head statements, RecoveryTargets, Protocol `FullRecovery`);
    - merge FlowCanonicalAtHead into FlowCanonicalAtV35, with the Protocol unit;
    - AssetRouterBase `AtomicRecovery` and RecoveryLimitsFaithful model the pin loop over different call
      types, with no refinement between them (`MODEL-ATOMIC-RECOVERY`);
+   - restate the PausedRecovery results (History only) on `AtomicRecoveryAtHead`;
    - restate `ValueLedgerFaithful` and three bundle-status engine statements (`WholeBundleWriteIgnoresCallStatus`,
      `CallStatusDoesNotStopWholeBundleRedelivery`, `AdmittedBundleHasOnlyUnprocessedCalls`) on the
      `b17415d20` layer;
@@ -74,11 +78,22 @@ Every unit was independently and adversarially reviewed before merging. Reviewer
    - update `scripts/check-interop-handler-inventory.sh`, which still checks the pin layout;
    - link InteropCenter `Send` and FeeState/FeeReentry into one model;
    - re-check the line numbers of the InteropCenter History records against `c67894b9`;
+   - AtomicInteropProof: no formal refinement from `LastBatchInRoot.RightEmpty` (index level) to the
+     hash-level `zeroCheck`; `ASSUMPTIONS.md` rows `PROTO-BATCH-SNAPSHOT` and `PROTO-CONTIGUOUS-PUSH`
+     still cite `c67894b9` lines;
+   - DynamicIncrementalMerkle `ChainTreeBacking` still builds on `Protocol/InteropAtomicity`'s
+     `Timeout.RootBacking`, a `c67894b9` model;
    - `Protocol/InteropAtomicity/ExecutionLiveness` and `Protocol/DestinationCapstone` now import History
      records; the Protocol unit re-pins them.
-2. **Protocol areas.** These come after wave 2, since they compose the contracts: `Protocol/InteropAtomicity`
-   (537 properties, 17 Specs files still citing older pins) and the other areas. All Protocol areas are
-   untagged.
+   - **Open judgement: the AtomicInteropProof stale-witness headlines.** `StaleWitnessNotRedeemableOrBreak`
+     and `StaleWitnessNotRedeemableOrCollision` are headlines, but they take the abstract pin
+     `D < t (j+1)` as a hypothesis. The deployed gate never checks that comparison. Their docstrings and
+     the README say so plainly. There is no composed headline over the deployed branches yet. Decide
+     whether they stay headlines or are untagged until one exists.
+2. **Protocol areas: the next big item.** `Protocol/InteropAtomicity` (537 properties, all untagged, 17
+   Specs files still citing older pins) is next. MultichainGate, FlowAtomicityPerChain and the
+   AssetBridgePreparation Resolution, ResolutionEvidence and FullRecovery files model `c67894b9`
+   and stay untagged until re-modelled at `b17415d20`. The ten small areas are tagged (protocol-smalls).
 3. **Cross-contract model bridges.** The handoff's step 2 across contracts is not done for:
    - ChainTypeManager ↔ ProxyUpgradeExecutorBase / SecondProofSystem (listed in `ctm.md`);
    - MessageRoot Aggregation onto the canonical MessageRoot model (`roots.md`);
@@ -88,7 +103,8 @@ Every unit was independently and adversarially reviewed before merging. Reviewer
    - `GenuineReplacementsKeepUpgradeChainLive` is not restated over the engine model;
    - there is no gated pending model;
    - the duplicate transcriptions are bridged but not merged.
-5. **Old-pin mentions.** 187 non-History Specs files still mention an older commit. Many of these
+5. **Old-pin mentions.** 178 non-History Specs files still mention an older commit (a `git grep` for the
+   older pin hashes). Many of these
    legitimately say "byte-identical at …" or cite pre-v35 code a v35 path still talks to (for example the
    v34 Admin facet in the legacy crossing). Each should be checked; this is the final citation re-check in
    the round-8 plan.
