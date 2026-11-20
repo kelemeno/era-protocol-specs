@@ -1,6 +1,7 @@
 import EraSpec.Contracts.AssetRouterBase.Specs.HandlerRegistration
 import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryLimits
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.ModelCorrespondence
+import EraSpec.Contracts.NativeTokenVaultBase.Specs.Resolution
 
 /-!
 # Model: the vault's refund of an atomic leg, and the pin's router refund
@@ -253,6 +254,24 @@ def ntvRecover (enc : AssetIdOf) (cfg : Config) (hk : Hooks X) (w : World X)
     (m : Option MintData) : Option (World X) :=
   (vaultRefund enc cfg hk w.vault w.paused w.rest caller msgValue chainId a m).map
     fun p => { w with vault := p.1, rest := p.2 }
+
+/-! ## The canonical vault model as the vault's hooks -/
+
+/-- The canonical per-token vault model (`Contracts.NativeTokenVaultBase`, `Specs/Resolution.lean`)
+as `vaultRefund`'s hooks, with the whole per-token state as the rest of the world: the tracker hook
+is the resolution hook `rh.fromChain` on the pre-mint token snapshot, and the mint is
+`BridgedStandardERC20.mint` with the vault as caller on the one tracked token.  Withdrawal and
+deployment fail: the canonical recovery covers only the registered bridged branch, where
+`vaultRefund` calls neither.  `VaultRefundRefinesResolution` links the two models through these
+hooks. -/
+def resolutionHooks {Accounting : Type} (rh : NativeTokenVaultBase.ResolutionHooks Accounting) :
+    Hooks (NativeTokenVaultBase.State Accounting) where
+  fromChain x c a amt := (rh.fromChain x.accounting x.token c a amt).map
+    fun acc => { x with accounting := acc }
+  withdraw _ _ _ _ _ := none
+  deploy _ _ _ _ := none
+  mint x _ rcv amt := (BridgedStandardERC20.mint x.token x.config.vault rcv amt).map
+    fun t => { x with token := t }
 
 /-! ## The router's refund -/
 

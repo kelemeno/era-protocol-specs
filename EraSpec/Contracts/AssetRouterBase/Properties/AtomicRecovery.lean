@@ -86,4 +86,28 @@ def Properties.VaultRefundOnlyByRouter : Prop :=
     (caller : Address) (v : UInt256) (chainId : Chain) (a : AssetId) (m : Option MintData),
     caller ≠ cfg.router → ntvRecover enc cfg hk w caller v chainId a m = none
 
+/-! ## Refinement onto the canonical vault model -/
+
+/-- **THE VAULT REFUND REFINES THE CANONICAL VAULT MODEL'S RECOVERY.**  On the registered bridged
+branch of the canonical per-token model (`NativeTokenVaultBase.RegisteredBridged`), with the
+registry entry of the call's asset the tracked token and origin chain, the router address and
+this chain the per-token configuration's, and the canonical hooks as `vaultRefund`'s hooks
+(`resolutionHooks`): `vaultRefund` on the call's caller, value, chain, asset and mint data is
+`NativeTokenVaultBase.bridgeRecoverFailedTransfer` on the same call, for every call (the
+guards agree too), leaving the registry unchanged.  No hash premise.  So the canonical model's
+recovery results hold of this file's vault refund on that branch. -/
+def Properties.VaultRefundRefinesResolution : Prop :=
+  ∀ (Accounting : Type) (enc : AssetIdOf) (cfg : Config)
+    (rh : NativeTokenVaultBase.ResolutionHooks Accounting)
+    (s : NativeTokenVaultBase.State Accounting) (V : NativeTokenVault.Vault)
+    (c : NativeTokenVaultBase.ResolutionCall),
+    cfg.router = NativeTokenVaultBase.widen s.config.router →
+    cfg.thisChain = s.config.chainId →
+    V.originChain c.assetId = s.config.originChainId →
+    V.token c.assetId = NativeTokenVaultBase.widen s.config.tokenAddress →
+    NativeTokenVaultBase.RegisteredBridged s c →
+      vaultRefund enc cfg (resolutionHooks rh) V s.paused s (NativeTokenVaultBase.widen c.caller)
+          c.msgValue c.chain c.assetId (some c.data)
+        = (NativeTokenVaultBase.bridgeRecoverFailedTransfer rh s c).map fun s' => (V, s')
+
 end Contracts.AssetRouter.AtomicRecovery

@@ -507,6 +507,37 @@ theorem VaultRefundOnlyByRouter : Properties.VaultRefundOnlyByRouter := by
   rw [vaultRefund_guard (Or.inr (Or.inl h))]
   rfl
 
+theorem VaultRefundRefinesResolution : Properties.VaultRefundRefinesResolution := by
+  intro Accounting enc cfg rh s V c hR hC hO hT hReg
+  obtain ⟨_, _, hne, _, htok⟩ := hReg
+  have hguard : (c.msgValue ≠ 0 ∨ NativeTokenVaultBase.widen c.caller ≠ cfg.router ∨
+      s.paused = true) ↔ ¬ NativeTokenVaultBase.ResolveEntryAllowed s c := by
+    unfold NativeTokenVaultBase.ResolveEntryAllowed
+    rw [hR]
+    have hw : NativeTokenVaultBase.widen c.caller ≠ NativeTokenVaultBase.widen s.config.router ↔
+        c.caller ≠ s.config.router := by rw [Ne, NativeTokenVaultBase.widen_inj]
+    rw [hw]
+    cases s.paused <;> simp
+    tauto
+  unfold vaultRefund NativeTokenVaultBase.bridgeRecoverFailedTransfer
+  by_cases hE : NativeTokenVaultBase.ResolveEntryAllowed s c
+  · have hng : ¬ (c.msgValue ≠ 0 ∨ NativeTokenVaultBase.widen c.caller ≠ cfg.router ∨
+        s.paused = true) := fun h => (hguard.mp h) hE
+    have hnat : ¬ V.originChain c.assetId = cfg.thisChain := by rw [hO, hC]; exact hne
+    have htk : V.token c.assetId ≠ 0 := by
+      rw [hT, Ne, NativeTokenVaultBase.widen_eq_zero]; exact htok
+    rw [ite_eq_right hng, ite_eq_left ⟨hE, ⟨‹_›, ‹_›, hne, ‹_›, htok⟩⟩]
+    simp only [resolutionHooks, NativeTokenVaultBase.hookThenMint]
+    rcases h1 : rh.fromChain s.accounting s.token c.chain c.assetId c.data.amount with _ | acc
+    · simp
+    · simp only [Option.map_some, ite_eq_right hnat, ite_eq_left htk]
+      rcases h2 : BridgedStandardERC20.mint s.token s.config.vault c.data.originalCaller
+          c.data.amount with _ | t
+      · simp
+      · simp
+  · rw [ite_eq_left (hguard.mpr hE), ite_eq_right (fun h => hE h.1)]
+    rfl
+
 /-! ## Concrete instances
 
 Chain `7`; router `3`, vault `4`, manager `5`; every metadata decodes to origin chain `1`.
