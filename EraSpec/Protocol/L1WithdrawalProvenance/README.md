@@ -10,6 +10,21 @@ Composition of `Contracts/L1InteropHandler` `WithdrawalGate` (the L1 handler) wi
 
 Namespace `Contracts.L1WithdrawalProvenance`.
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. Both carry the four joining premises below, each only for the chains the run's
+committed verifications name.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| Every committed verification checked a bundle its chain's interop center dispatched to L1, or a message hash collides | Any L1 start state and transactions; the four joining premises | `ProvenBundlesAreDispatchedOrCollide` |
+| Every committed delivery is a dispatched withdrawal, or a hash collides | L1 starts from fresh storage; the four joining premises | `DeliveredWithdrawalWasDispatchedOrCollision` |
+
+Witness (`@[witness]`): `ProvenanceEndToEndWitness`. Countermodel (`@[countermodel]`):
+`UngatedHookDeliversUndispatchedCalls` (without the messenger hook's caller gate, L1 delivers calls
+no center dispatched).
+
 ## Joining premises
 
 Each constrains only the chains that the L1 run's committed verifications name (as the proof's chain

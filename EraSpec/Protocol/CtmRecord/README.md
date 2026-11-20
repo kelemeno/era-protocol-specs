@@ -26,6 +26,29 @@ any layer, and the chain asset handler's `bridgeBurn`, `bridgeMint` and L1
 | Invariant, corollaries (gates, admitted CTM, settlement layer's CTM), witnesses, countermodels, repaired mint, weakest per-call conditions for registrations and mints, runs without a mint, tracker-level discipline | [Properties/Agreement.lean](Properties/Agreement.lean) |
 | Checked proofs and concrete runs | [Proofs/Agreement.lean](Proofs/Agreement.lean) |
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. A "disciplined run" is one in which every `setCTMAssetAddress(d, y)` keeps that
+layer's two asset maps a partial bijection (`NoRebind`: the asset id is nonzero, not already mapped
+to another CTM, and the CTM is not already mapped to another asset id); every other call is
+unrestricted. The disciplined and pair-discipline results allow `bridgeMint`, which `b17415d20`
+never lets succeed (`CHAIN_MIGRATIONS_ENABLED = false`), so they cover more runs than the target
+commit has; `CtmRecordAgreesWithoutMints` is the one that needs no discipline.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| Every registered chain's Bridgehub record is its diamond's CTM, on every layer | The run starts from fresh storage and has no `bridgeMint` call (every run at `b17415d20`) | `CtmRecordAgreesWithoutMints` |
+| Every registered chain's Bridgehub record is its diamond's CTM, on every layer | The run starts from fresh storage and is disciplined | `CtmRecordAgreesWithDiamond` |
+| A CTM passes a diamond's `onlyChainTypeManager` gate exactly when it is the Bridgehub's record for that chain | The run starts from fresh storage and is disciplined | `CtmRecordNamesAdmittedCtm` |
+| Every registered chain's Bridgehub record is its diamond's CTM, on every layer | The run starts from fresh storage; its registrations satisfy `PairDiscipline` (on each layer, additional data and CTM determine each other, and the registered words' asset ids are nonzero and do not collide) | `CtmRecordAgreesUnderPairDiscipline` |
+| A registration keeps the two asset maps mutually inverse exactly when it is `NoRebind` | The maps are mutually inverse on their nonzero entries before the call (`AssetBij`); the call succeeds | `CtmRecordNoRebindIffKeepsBijection` |
+
+Witnesses (`@[witness]`): `CtmRecordDisciplinedRoundTripWitness`, `CtmRecordAgreesWithoutMintsWitness`,
+`CtmRecordPairDisciplineWitness` and `CtmRecordNoRebindIffKeepsBijectionWitness`. Countermodels
+(`@[countermodel]`): `CtmRecordUndisciplinedRoundTripDrifts` and `CtmRecordDriftAdmitsForeignLayer`
+(without the discipline, a run with a mint drifts the record).
+
 ## Results
 
 | Result | Statement |

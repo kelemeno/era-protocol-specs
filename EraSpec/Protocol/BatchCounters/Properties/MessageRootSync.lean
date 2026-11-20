@@ -1,4 +1,5 @@
 import EraSpec.Protocol.BatchCounters.Specs.MessageRootSync
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the message root's counter tracks each diamond's executed count
@@ -58,20 +59,24 @@ def Properties.EmptyHubInv : Prop := HubInv emptyHub
 
 /-- **EVERY LAYER REACHABLE FROM THE EMPTY ONE SATISFIES THE INVARIANT**; in particular no batch
 after `currentChainBatchNumber` has a root (`MessageRootBase.sol:89`). -/
-def Properties.ReachableHubsSatisfyInv : Prop :=
+@[headline] def Properties.ReachableHubsSatisfyInv : Prop :=
   ∀ (cfg : HubConfig) (ls : List HubLabel) (h : Hub), HubRun cfg emptyHub ls h →
     HubInv h ∧ ∀ c n, h.mr.cur c < n → h.mr.roots c n = 0
 
 /-- **BATCH ROOTS ARE WRITE-ONCE.** No step changes a nonzero `chainBatchRoots[c][n]`. -/
-def Properties.BatchRootsWriteOnce : Prop :=
+@[headline] def Properties.BatchRootsWriteOnce : Prop :=
   ∀ (cfg : HubConfig) (h h' : Hub) (l : HubLabel) (c n : ℕ), HubStep cfg h l h' →
     h.mr.roots c n ≠ 0 → h'.mr.roots c n = h.mr.roots c n
 
 /-- **EXECUTED BATCHES ARE RECORDED FOR GOOD.** Along any run from a layer satisfying the
 invariant, for every batch info `b` of an `execute c infos` step of the run, at the end of the
 run the message root holds `b`'s logs root as chain `c`'s root of batch `b.batchNumber`, and
-so does `c`'s diamond as its `l2LogsRootHashes` entry. -/
-def Properties.ExecutedRootsRecorded : Prop :=
+so does `c`'s diamond as its `l2LogsRootHashes` entry.
+The invariant (`HubInv`): the message root and the bridgehub register the same chains, an
+unregistered chain has no batch root, no batch after `currentChainBatchNumber` has a root, and every
+nonzero batch root is the diamond's `l2LogsRootHashes` entry. It holds on every layer reachable from
+the empty one (`ReachableHubsSatisfyInv`). No other premise, for every configuration. -/
+@[headline] def Properties.ExecutedRootsRecorded : Prop :=
   ∀ (cfg : HubConfig) (h h' : Hub) (ls : List HubLabel) (c : ChainId) (infos : List BatchInfo)
     (b : BatchInfo),
     HubInv h → HubRun cfg h ls h' → HubLabel.execute c infos ∈ ls → b ∈ infos →
@@ -102,7 +107,7 @@ def Properties.HeadRunsKeepSync : Prop :=
 /-- **EVERY CHAIN OF A LAYER REACHABLE AT `b17415d20` IS SYNCED.** With migrations disabled,
 every layer reachable from the empty one satisfies the invariant and has every chain's two
 counters equal. -/
-def Properties.ReachableHeadHubsSynced : Prop :=
+@[headline] def Properties.ReachableHeadHubsSynced : Prop :=
   ∀ (cfg : HubConfig) (ls : List HubLabel) (h : Hub), cfg.migrationsEnabled = false →
     HubRun cfg emptyHub ls h → HubInv h ∧ ∀ c, Synced h c
 
@@ -121,15 +126,21 @@ def Properties.ExecuteNeverRevertsInMessageRoot : Prop :=
 
 /-- **A ZERO LOGS ROOT IS REFUSED.** Whatever the state, the message root refuses an append
 list containing a zero logs root (`MessageRootBase.sol:187`), so no execute of it exists. -/
-def Properties.ZeroLogsRootRefused : Prop :=
+@[headline] def Properties.ZeroLogsRootRefused : Prop :=
   ∀ (cfg : HubConfig) (h : Hub) (c : ChainId) (infos : List BatchInfo),
     (∃ b ∈ infos, b.logsRoot = 0) →
     appendAll h.mr c infos = none ∧ ∀ h', ¬ HubStep cfg h (.execute c infos) h'
 
 /-- **EXECUTION IS ENABLED IFF THE COUNTERS AGREE.** On a layer satisfying the invariant, for an
 execute call that passes the executor's own modelled checks with no zero logs root, the step
-exists exactly when `currentChainBatchNumber[c]` equals the diamond's `totalBatchesExecuted`. -/
-def Properties.ExecuteEnabledIffSynced : Prop :=
+exists exactly when `currentChainBatchNumber[c]` equals the diamond's `totalBatchesExecuted`.
+The invariant (`HubInv`): the message root and the bridgehub register the same chains, an
+unregistered chain has no batch root, no batch after `currentChainBatchNumber` has a root, and every
+nonzero batch root is the diamond's `l2LogsRootHashes` entry.
+The executor's own modelled checks (`ExecGuard`): a nonempty list, a diamond settling here,
+consecutive batch numbers after `totalBatchesExecuted`, each info hashing to the stored hash at its
+number, and no more batches than are verified. No other premise, for every configuration. -/
+@[headline] def Properties.ExecuteEnabledIffSynced : Prop :=
   ∀ (cfg : HubConfig) (h : Hub) (c : ChainId) (d : Diamond) (infos : List BatchInfo),
     HubInv h → h.chains c = some d → ExecGuard cfg.hash d infos →
     (∀ b ∈ infos, b.logsRoot ≠ 0) →
@@ -147,7 +158,7 @@ def Properties.DriftBlocksExecute : Prop :=
 /-- **DRIFT IS PERMANENT AT `b17415d20`.** With migrations disabled, along any run from a layer
 where chain `c`'s counters disagree, both counters keep their values and the run executes no
 batch of `c`. -/
-def Properties.DriftPersistsAtHead : Prop :=
+@[headline] def Properties.DriftPersistsAtHead : Prop :=
   ∀ (cfg : HubConfig) (h h' : Hub) (ls : List HubLabel) (c : ChainId) (d : Diamond),
     cfg.migrationsEnabled = false → HubRun cfg h ls h' → h.chains c = some d →
     h.mr.cur c ≠ d.executed →
@@ -159,7 +170,7 @@ def Properties.DriftPersistsAtHead : Prop :=
 root. The layer satisfies the invariant; the call executing batch 6 passes the executor's own
 checks and has a nonzero logs root, yet no execute step exists; and along every run with the
 `b17415d20` configuration chain `7` executes nothing. -/
-def Properties.LegacyUnsavedChainIsWedged : Prop :=
+@[witness] def Properties.LegacyUnsavedChainIsWedged : Prop :=
   HubInv wLegacyHub ∧ ExecGuard headL1.hash wLegacyDiamond [wInfo 6] ∧ (wInfo 6).logsRoot ≠ 0 ∧
     (∀ h', ¬ HubStep headL1 wLegacyHub (.execute 7 [wInfo 6]) h') ∧
     ∀ (ls : List HubLabel) (h' : Hub), HubRun headL1 wLegacyHub ls h' → execNumbers 7 ls = []
@@ -168,7 +179,7 @@ def Properties.LegacyUnsavedChainIsWedged : Prop :=
 set to `5` (what `saveV31UpgradeChainBatchNumber` at `main` `70096e2ea` writes for this
 diamond), the layer satisfies the invariant, chain `7` is synced, and executing batch 6
 succeeds, leaving both counters at `6` and batch 6's root recorded in both places. -/
-def Properties.LegacySavedChainExecutes : Prop :=
+@[witness] def Properties.LegacySavedChainExecutes : Prop :=
   let h : Hub := { wLegacyHub with mr := { wLegacyHub.mr with cur := upd (fun _ => 0) 7 5 } }
   HubInv h ∧ Synced h 7 ∧
     ∃ h', HubStep headL1 h (.execute 7 [wInfo 6]) h' ∧ h'.mr.cur 7 = 6 ∧
@@ -180,7 +191,7 @@ the stand-in hash of the info `b` whose logs root is `0`. The layer satisfies th
 chain `7` is synced, and the call executing `b` passes the executor's own modelled checks, yet no
 execute step exists: the `logsRoot ≠ 0` premise of `ExecuteNeverRevertsInMessageRoot` cannot be
 dropped. -/
-def Properties.ZeroLogsRootRefusedOnSyncedChain : Prop :=
+@[witness] def Properties.ZeroLogsRootRefusedOnSyncedChain : Prop :=
   let b : BatchInfo := { batchNumber := 6, logsRoot := 0, rest := 0 }
   let d : Diamond := { wLegacyDiamond with batchHash := upd (fun _ => 0) 6 (wHash b) }
   let h : Hub := { mr := { wLegacyHub.mr with cur := upd (fun _ => 0) 7 5 },
@@ -198,7 +209,7 @@ At the end both chains are synced, chain `1`'s counter is `2` and chain `2`'s is
 and the run's executed batch numbers of chain `1` are `[1, 2]`. Registration by a mint is in
 `RoundTripWitness` (`MigrationContinuity`); a revert and an upgrade are in
 `HubUpgradeRevertWitness`. -/
-def Properties.HubSyncWitness : Prop :=
+@[witness] def Properties.HubSyncWitness : Prop :=
   ∃ (ls : List HubLabel) (h : Hub), HubRun headL1 emptyHub ls h ∧
     execNumbers 1 ls = [1, 2] ∧ execNumbers 2 ls = [8] ∧
     HubInv h ∧ Synced h 1 ∧ Synced h 2 ∧ h.mr.cur 1 = 2 ∧ h.mr.cur 2 = 8 ∧
@@ -217,7 +228,7 @@ invariant, chain `1` is synced with counter `1`, its diamond has one batch execu
 root of batch 1 is `21` in the message root and in the diamond, its stored hash of batch 1 is
 that of `wInfo 1` and not that of `wInfoReverted` (under the witness hash `wHash`), and its upgrade
 fields are `88` and `0`. -/
-def Properties.HubUpgradeRevertWitness : Prop :=
+@[witness] def Properties.HubUpgradeRevertWitness : Prop :=
   ∃ h₁ h₂ h₃ h : Hub,
     HubRun headL1 emptyHub [.createChain 1 13 12 77, .commit 1 wInfo0 wInfoReverted] h₁ ∧
     (∃ d, h₁.chains 1 = some d ∧ d.committed = 1 ∧ d.upgradeTxHash = 77 ∧ d.upgradeBatch = 1) ∧

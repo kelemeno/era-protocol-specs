@@ -1,4 +1,5 @@
 import EraSpec.Protocol.CtmRecord.Specs.Agreement
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the Bridgehub's CTM record agrees with the CTM the chain's diamond obeys
@@ -74,8 +75,12 @@ def Properties.CtmRecordInvReachable : Prop :=
 
 /-- **HEADLINE.** In every state a disciplined run reaches from fresh storage, on every layer
 `h`, every chain `c` that layer's `zkChainMap` holds has `chainTypeManager[c]` equal to its
-diamond's `s.chainTypeManager`. -/
-def Properties.CtmRecordAgreesWithDiamond : Prop :=
+diamond's `s.chainTypeManager`.
+A disciplined run is one in which every `setCTMAssetAddress(d, y)` call keeps that layer's two asset
+maps a partial bijection (`NoRebind`: the asset id is nonzero, it is not already mapped to another
+CTM, and the CTM is not already mapped to another asset id); every other call, mints included, is
+unrestricted. No other premise. -/
+@[headline] def Properties.CtmRecordAgreesWithDiamond : Prop :=
   ∀ (W : World) (s : Sys), DReach W s →
     ∀ h c D, s.diamond h c = some D → s.bhCtm h c = D
 
@@ -111,8 +116,12 @@ def Properties.CtmRecordMintGatesAreDiamondCtm : Prop :=
 
 /-- In every state a disciplined run reaches, on every layer `h`, for every chain `c` that
 layer's `zkChainMap` holds, a CTM `X` passes the diamond's `onlyChainTypeManager` gate exactly
-when `X` is the Bridgehub's record `chainTypeManager[c]`. -/
-def Properties.CtmRecordNamesAdmittedCtm : Prop :=
+when `X` is the Bridgehub's record `chainTypeManager[c]`.
+A disciplined run is one in which every `setCTMAssetAddress(d, y)` call keeps that layer's two asset
+maps a partial bijection (`NoRebind`: the asset id is nonzero, it is not already mapped to another
+CTM, and the CTM is not already mapped to another asset id); every other call, mints included, is
+unrestricted. No other premise. -/
+@[headline] def Properties.CtmRecordNamesAdmittedCtm : Prop :=
   ∀ (W : World) (s : Sys), DReach W s → ∀ h c, s.diamond h c ≠ none →
     ∀ X, diamondAdmits s h c X ↔ X = s.bhCtm h c
 
@@ -139,7 +148,7 @@ its layer-`2` diamond is under `20`, and the returning mint's pause and version 
 `s₂` chain `3` settles on L1 again, its record and diamond are `10` on L1 and `20` on layer
 `2`, and on both layers the asset id a burn of chain `3` must carry is `e 10` and its pause
 CTM is that layer's diamond CTM. -/
-def Properties.CtmRecordDisciplinedRoundTripWitness : Prop :=
+@[witness] def Properties.CtmRecordDisciplinedRoundTripWitness : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
     ∃ s₁ s₂, Run (wWorld e) (Disciplined (wWorld e)) Sys.init (wSetup ++ wRegs ++ wOut e) s₁ ∧
       Step (wWorld e) s₁ (.bridgeMint (wReturnMsg e)) s₂ ∧ DReach (wWorld e) s₂ ∧
@@ -171,7 +180,7 @@ id `e 10` there) violates `NoRebind`. The disciplined `wOut e` then sends chain 
 (`ctmAssetIdFromAddress[20] = e 11`). The mint of that message is gated by CTM `11`'s pause
 while checking CTM `10`'s version, the repaired mint's check rejects it, and it succeeds:
 afterwards L1's record for chain `3` is `11` while its L1 diamond's CTM is `10`. -/
-def Properties.CtmRecordUndisciplinedRoundTripDrifts : Prop :=
+@[countermodel] def Properties.CtmRecordUndisciplinedRoundTripDrifts : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
     ∃ s₀ s₁ s₂ s₃, Run (wWorld e) (Disciplined (wWorld e)) Sys.init wSetup s₀ ∧
       ¬ Disciplined (wWorld e) s₀ cmRebind ∧ Step (wWorld e) s₀ cmRebind s₁ ∧
@@ -189,7 +198,7 @@ disciplined calls `wOut e`, the mint of `cmReturnMsg e` and `createNewChain(4, 1
 state `s₄` that fails `RecordAgrees`: L1 records chain `3` under `11`, while its diamond there
 admits `10` and not `11`. Chain `4`'s L1 diamond admits `11`, and the burn of chain `4` on L1
 towards `3` succeeds, so `CtmRecordBurnTargetsSameCtmLayer`'s conclusion fails at `s₄`. -/
-def Properties.CtmRecordDriftAdmitsForeignLayer : Prop :=
+@[countermodel] def Properties.CtmRecordDriftAdmitsForeignLayer : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
     ∃ s₀ s₁ s₄ s₅, Run (wWorld e) (Disciplined (wWorld e)) Sys.init wSetup s₀ ∧
       ¬ Disciplined (wWorld e) s₀ cmRebind ∧ Step (wWorld e) s₀ cmRebind s₁ ∧
@@ -283,8 +292,11 @@ def Properties.CtmRecordMintKeepsAgreementIffWitness : Prop :=
 
 /-- **WEAKEST PER-CALL CONDITION.** From a state satisfying `AssetBij`, a successful
 `setCTMAssetAddress(d, y)` on layer `h` ends in a state satisfying `AssetBij` exactly when it
-satisfies `NoRebind`. -/
-def Properties.CtmRecordNoRebindIffKeepsBijection : Prop :=
+satisfies `NoRebind`.
+`AssetBij`: on every layer the two asset maps are mutually inverse on their nonzero entries.
+`NoRebind`: the call's asset id is nonzero, it is not already mapped to another CTM, and the CTM is
+not already mapped to another asset id. -/
+@[headline] def Properties.CtmRecordNoRebindIffKeepsBijection : Prop :=
   ∀ (W : World) (s s' : Sys) (h : ChainId) (d : Word) (y : Address),
     AssetBij s → Step W s (.setCTMAssetAddress h d y) s' → (NoRebind W s h d y ↔ AssetBij s')
 
@@ -293,7 +305,7 @@ def Properties.CtmRecordNoRebindIffKeepsBijection : Prop :=
 disciplined `wSetup` satisfies `AssetBij`. From `s₀`, the registration `11 ↦ 21` on layer `2`
 succeeds, satisfies `NoRebind` and ends in a state satisfying `AssetBij`; `cmRebind`
 (`11 ↦ 20`) succeeds, violates `NoRebind` and ends in a state that does not. -/
-def Properties.CtmRecordNoRebindIffKeepsBijectionWitness : Prop :=
+@[witness] def Properties.CtmRecordNoRebindIffKeepsBijectionWitness : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
     ∃ s₀ s₁ s₂, Run (wWorld e) (Disciplined (wWorld e)) Sys.init wSetup s₀ ∧ AssetBij s₀ ∧
       Step (wWorld e) s₀ (.setCTMAssetAddress 2 11 21) s₁ ∧ NoRebind (wWorld e) s₀ 2 11 21 ∧
@@ -308,7 +320,7 @@ registration discipline, every registered chain's record on every layer is its d
 At `b17415d20`, `CHAIN_MIGRATIONS_ENABLED = false` (`CFG:320`) makes every `bridgeMint` revert
 (`CAH:365` with `:151-156`); at `70096e2ea` the constant is `false` too
 (`common/Config.sol:306`). -/
-def Properties.CtmRecordAgreesWithoutMints : Prop :=
+@[headline] def Properties.CtmRecordAgreesWithoutMints : Prop :=
   ∀ (W : World) (ops : List Op) (s : Sys), Run W AnyCall Sys.init ops s →
     (∀ m, Op.bridgeMint m ∉ ops) → ∀ h c D, s.diamond h c = some D → s.bhCtm h c = D
 
@@ -317,7 +329,7 @@ def Properties.CtmRecordAgreesWithoutMints : Prop :=
 `3` from L1 towards layer `2` is a run from fresh storage with no mint. In its final state
 layer `2`'s maps are not mutually inverse (`e 10 ↦ 20` but `20 ↦ e 11`), the chain is away
 from L1, and its L1 record and diamond are both `10`. -/
-def Properties.CtmRecordAgreesWithoutMintsWitness : Prop :=
+@[witness] def Properties.CtmRecordAgreesWithoutMintsWitness : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
     ∃ s, Run (wWorld e) AnyCall Sys.init (wSetup ++ [cmRebind, .bridgeBurn 1 3 2]) s ∧
       (∀ m, Op.bridgeMint m ∉ wSetup ++ [cmRebind, .bridgeBurn 1 3 2]) ∧
@@ -333,8 +345,11 @@ def Properties.CtmRecordPairDisciplineGivesNoRebind : Prop :=
     PairDiscipline W ops → Run W (Disciplined W) Sys.init ops s
 
 /-- Along every run from fresh storage whose registrations satisfy `PairDiscipline`, every
-registered chain's record on every layer is its diamond's CTM. -/
-def Properties.CtmRecordAgreesUnderPairDiscipline : Prop :=
+registered chain's record on every layer is its diamond's CTM.
+`PairDiscipline`: on each layer, across the run's registrations, the additional data and the CTM
+determine each other, and the asset ids of the registered words are nonzero and do not collide. No
+other premise; mints are allowed. -/
+@[headline] def Properties.CtmRecordAgreesUnderPairDiscipline : Prop :=
   ∀ (W : World) (ops : List Op) (s : Sys), Run W AnyCall Sys.init ops s →
     PairDiscipline W ops → ∀ h c D, s.diamond h c = some D → s.bhCtm h c = D
 
@@ -343,7 +358,7 @@ and distinct, on `wWorld e`: the calls of the disciplined round trip form a run 
 storage and satisfy `PairDiscipline` (layer `2` registers `10 ↦ 20`, `11 ↦ 21`, and `10 ↦ 20`
 again), while the calls of the drifting run, whose layer `2` registers `20` under both `10`
 and `11`, do not. -/
-def Properties.CtmRecordPairDisciplineWitness : Prop :=
+@[witness] def Properties.CtmRecordPairDisciplineWitness : Prop :=
   ∀ e : Word → AssetId, e 10 ≠ 0 → e 11 ≠ 0 → e 10 ≠ e 11 →
     (∃ s, Run (wWorld e) AnyCall Sys.init
         (wSetup ++ wRegs ++ wOut e ++ [.bridgeMint (wReturnMsg e)]) s) ∧
