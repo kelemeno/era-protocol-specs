@@ -204,10 +204,13 @@ package entry point:
   the reference bridge (`EndBranch`). Pause flags on the atomic path leave the safety
   results unchanged (`InteropAtomicity` `Pause`). An operational model, in which calls cite
   only settled batches, projects every run to a fixed history and carries the `…OrBreak`
-  results over (`Operational`). The atomic path's source binding is derived from the
-  vouching chain's code up to pinned breaks (`L2InteropHandler` `SourceBindingReduced`).
+  results over (`Operational`). For the old interop pin `c67894b9`, the atomic path's source
+  binding is derived from the vouching chain's code up to pinned breaks (`L2InteropHandler`
+  `SourceBindingReduced`, now under `History/`); no such derivation exists yet at `b17415d20`.
 - **Hash premises.** The remaining global-injectivity bundle-hash and Merkle results
-  are restated in pinned form (`SendsDistinctBundleHashesOrKeccakCollision`,
+  are restated in pinned form (`SendsDistinctBundleHashesOrKeccakCollision`, now History at
+  `c67894b9`; at `b17415d20` see
+  `AttackVectors.BundleHashEncoding.AtV35.Properties.SendsDistinctBundleHashesOrKeccakCollisionV35`;
   `Merkle` `RootForgeryPinned`, `PublishedRootCommitsOrCollision`), and
   `SharedCommitmentYieldsCollision` is restated at run level (`SharedCommitment`:
   `SharedCommitmentCoexistsIffCrossChain`).
