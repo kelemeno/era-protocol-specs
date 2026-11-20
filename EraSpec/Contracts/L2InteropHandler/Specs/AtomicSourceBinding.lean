@@ -18,11 +18,11 @@ Both handlers call the same validator (`IHB:390-410`):
 On the L1 handler's path `proofChainId` is the chain of the L1 message inclusion proof
 (`_validateVerifiable`, `IHB:306-314`, called with `_proof.chainId`), so (1) is a genuine
 cross-check. On the L2 atomic path the argument is the bundle's own field, in `executeAtomicBundle`
-(`L2:69`) and in `verifyAtomicBundle` (`L2:88`, through `_validateVerifiable`):
+(`L2:70`) and in `verifyAtomicBundle` (`L2:86`, through `_validateVerifiable`):
 
     _validateBundleDestinationContext(bundleHash, interopBundle, interopBundle.sourceChainId);
 
-so (1) reads `x == x` and decides nothing. The source comment says why (`L2:66-68`): "`proofChainId`
+so (1) reads `x == x` and decides nothing. The source comment says why (`L2:67-69`): "`proofChainId`
 is the bundle's own `sourceChainId` (self-binding), so the source-chain sub-check is a no-op;
 source-chain authenticity is instead established by `requireFlowFinalized` below."
 

@@ -12,7 +12,8 @@ where the pin hashed `abi.encode(interopBundle.sourceChainId, _bundle)`; `execut
 `requireFlowFinalized`, and the new `verifyAtomicBundle` (`:83-92`) runs that gate and marks the
 bundle `Verified`; and the source side is the pin's `InteropCenter` `Dispatch` model. The
 self-binding destination check (`_validateBundleDestinationContext(…, interopBundle.sourceChainId)`,
-`L2InteropHandler.sol:69`) is the same at both. See the folder README. Namespaces carry a `History`
+`L2InteropHandler.sol:70` at `b17415d20`)
+is the same at both. See the folder README. Namespaces carry a `History`
 segment. -/
 
 /-!

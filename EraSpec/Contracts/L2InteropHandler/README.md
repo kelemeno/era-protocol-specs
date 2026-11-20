@@ -15,10 +15,10 @@ and self-call permission properties are under `../InteropHandlerBase/`.
 | AtomicSourceBinding | [Specs/AtomicSourceBinding.lean](Specs/AtomicSourceBinding.lean) | [Properties/AtomicSourceBinding.lean](Properties/AtomicSourceBinding.lean) | [Proofs/AtomicSourceBinding.lean](Proofs/AtomicSourceBinding.lean) |
 
 At `b17415d20` both atomic entry points check the bundle's declared source chain against itself:
-`executeAtomicBundle` (`interop/interop-handler/L2InteropHandler.sol:69`) and `verifyAtomicBundle`
-(`:88`, through `_validateVerifiable`) pass `interopBundle.sourceChainId` as the proof chain to
+`executeAtomicBundle` (`interop/interop-handler/L2InteropHandler.sol:70`) and `verifyAtomicBundle`
+(`:86`, through `_validateVerifiable`) pass `interopBundle.sourceChainId` as the proof chain to
 `_validateBundleDestinationContext` (`InteropHandlerBase.sol:390-410`). The source comment
-(`L2InteropHandler.sol:66-68`) says that source-chain authenticity comes from `requireFlowFinalized`
+(`L2InteropHandler.sol:67-69`) says that source-chain authenticity comes from `requireFlowFinalized`
 instead. The declared chain is what `_executeCalls` hands every recipient as the caller's chain
 (`InteropHandlerBase.sol:378`).
 
