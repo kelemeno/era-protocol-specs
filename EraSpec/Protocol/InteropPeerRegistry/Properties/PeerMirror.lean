@@ -54,7 +54,9 @@ nonzero (`SettledChainEntryIsL1Value`); while `p`'s withdrawal from `c` is in fl
 the carried asset id are L1's (`ReturningChainEntryIsL1Value`, `ReturnCarriesL1BaseToken`). While `p`'s
 arrival on `c` is queued, the queued data carries L1's value and no deregistration of `p` on `c` is
 queued after it (`PendingArrivalCarriesL1Value`), but `c`'s entry itself may still be `0`
-(`PendingArrivalEntryMayBeZero`): the presence claim does not extend to that window.
+(`PendingArrivalEntryMayBeZero`): the presence claim does not extend to that window. Only a
+migration onto `c` makes `c` record `p` as settling on it, so at `b17415d20`, where migrations are
+disabled, these premises can hold only for a chain that moved onto `c` before v35.
 `_checkPeerPair`'s NatSpec (`CRS:170-171`) says such an entry must never change. `baseTokenAssetId[p]`
 does not, through any step, the re-submission included, and a `true` `isPeerAllowed[p]` stays
 `true` (`SettledEntryNeverChanges`). A `false` one can turn on: after a failed service entry, a
@@ -247,7 +249,10 @@ is L1's, and it is nonzero.
 Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
 (each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
 any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
-covers more runs than the target commit has. No other premise. -/
+covers more runs than the target commit has. `c` records `p` as settling on it only after a
+migration of `p` onto `c` (in the model, the arrival entry of the kept migration path). Migrations
+are disabled at `b17415d20`, so there the premise can hold only for a chain that moved onto `c`
+before v35; this is the latent case of (c). No other premise. -/
 @[headline] def Properties.SettledChainEntryIsL1Value : Prop :=
   ∀ (P : Params) (S : State), Reach deployed P S → ∀ c p : ChainId,
     S.l1.registered c = true → (S.hub c).sl p = c →
@@ -288,7 +293,10 @@ step from a reachable state that keeps `p` recorded as settling on the registere
 Reachable: reached from fresh storage everywhere, with nothing queued, by the deployed code's steps
 (each chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for
 any deployment constants. The model keeps the migration steps that `b17415d20` disables, so this
-covers more runs than the target commit has. No other premise. -/
+covers more runs than the target commit has. `c` records `p` as settling on it only after a
+migration of `p` onto `c` (in the model, the arrival entry of the kept migration path). Migrations
+are disabled at `b17415d20`, so there the premise can hold only for a chain that moved onto `c`
+before v35; this is the latent case of (c). No other premise. -/
 @[headline] def Properties.SettledEntryNeverChanges : Prop :=
   ∀ (P : Params) (S S' : State) (a : Action) (c p : ChainId), Reach deployed P S →
     Step deployed P S a S' → S.l1.registered c = true → (S.hub c).sl p = c → (S'.hub c).sl p = c →

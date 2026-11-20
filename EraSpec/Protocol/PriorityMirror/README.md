@@ -106,16 +106,17 @@ items to the tree (`calculateRootPaths`, the validity proof) is outside the mode
 These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
 about `b17415d20`. `b17415d20` has `CHAIN_MIGRATIONS_ENABLED = false`
 (`common/Config.sol:320`); the model keeps the migration path, and the results about the migration
-window (`MirrorPrefix`, `RelayDropsIffFrozen`, the return checks, …) describe that disabled path, so
-they are not classified as headlines.
+window (`InProgressIffInFlight`, `MirrorPrefix`, `RelayDropsIffFrozen`, the return checks, …)
+describe that disabled path, so they are not classified as headlines. With migrations disabled,
+`isMigrationInProgress` is never set and no migration is ever in flight
+(`MigrationsDisabledKeepL1Settling`), so `InProgressIffInFlight` holds at `b17415d20` only as
+`false ↔ false`.
 
 | Guarantee | Premises | Statement |
 |---|---|---|
 | With migrations disabled, the chain always settles on L1 with no migration in progress, no gateway copy and no queued relay | Migrations disabled (as at `b17415d20`); any steps from the initial state | `MigrationsDisabledKeepL1Settling` |
 | Every L1 priority operation is processed at most once, in order: the processed leaves are a prefix of L1's | Honest steps from the initial state: batches process only leaves their copy holds, and no relay executes on a frozen gateway copy before the L1 mint; any constants | `ExecutedIsL1Prefix` |
-| `isMigrationInProgress` is set exactly between an L1 burn and its confirmation | Any steps from the initial state; any constants | `InProgressIffInFlight` |
 
-Witnesses (`@[witness]`): `MigrationsDisabledKeepL1SettlingWitness`, `ExecutedIsL1PrefixWitness` and
-`InProgressIffInFlightWitness`. Countermodel (`@[countermodel]`): `DroppedRelayCountermodel` (without
+Witnesses (`@[witness]`): `MigrationsDisabledKeepL1SettlingWitness` and `ExecutedIsL1PrefixWitness`. Countermodel (`@[countermodel]`): `DroppedRelayCountermodel` (without
 FREEZE-ORDER an operation is dropped).
 

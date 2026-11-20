@@ -62,13 +62,15 @@ configuration. The pending list is ghost trace bookkeeping, not vault storage.
 | Guarantee | Premises | Statement |
 |---|---|---|
 | Along any run the vault stays well-formed, supply plus pending value is constant, and neither the vault's configuration nor the token's identity changes | The vault is well-formed at the start | `ReinitTraceConservation` |
-| The pending list only grows at its end: nothing replaces prepared data | None | `ReinitTracePreparedDataPersists` |
 | Every pending obligation keeps naming the token's starting asset id and origin token | The vault is well-formed and every pending obligation names the token's asset id and origin token at the start | `PendingObligationsKeepTheirAsset` |
 
 Witness (`@[witness]`): `ReinitTraceWitness` (a registration, funding, two preparations and a
 reinitialization between them). The [Model](Properties/Model.lean) statements
 `reachable_conservation`, `pending_backed_by_initial_supply` and `prepared_data_persists` are the
-same facts without reinitialization and stay untagged.
+same facts without reinitialization and stay untagged. `ReinitTracePreparedDataPersists` (the
+pending list only grows at its end) is untagged too: the pending list is ghost bookkeeping that
+the trace's steps are defined to append to (a preparation) or copy unchanged (a transfer, a
+reinitialization), so it describes how the model is built, not `b17415d20`.
 
 ## Allowed trace and context
 

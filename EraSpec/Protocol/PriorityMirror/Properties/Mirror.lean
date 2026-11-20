@@ -53,7 +53,7 @@ open Contracts.PriorityTree.Library
 asset handler's flag for the chain is set exactly between an L1 burn and its confirmation.
 Reachable from the initial state by any steps, for any deployment constants, migrations enabled or
 not. No other premise. -/
-@[headline] def Properties.InProgressIffInFlight : Prop :=
+def Properties.InProgressIffInFlight : Prop :=
   ∀ (P : Params) (s : St), Reach P Unrestricted s → (s.inProgress = true ↔ s.phase.InFlight)
 
 /-- **THE L1 COPY IS FROZEN BETWEEN THE BURN AND ITS CONFIRMATION.** In every reachable state
@@ -264,7 +264,7 @@ Reachable from the initial state by any steps; the only premise is the flag, whi
 /-- **WITNESS FOR `InProgressIffInFlight`.** With `wParams`, a reachable state with the flag set
 (the gateway transaction in flight) and a later one with it clear after a successful
 confirmation. -/
-@[witness] def Properties.InProgressIffInFlightWitness : Prop :=
+def Properties.InProgressIffInFlightWitness : Prop :=
   ∃ s s' : St, Reach wParams Unrestricted s ∧ s.inProgress = true ∧ s.phase.InFlight
     ∧ Reach wParams Unrestricted s' ∧ s'.inProgress = false ∧ s'.phase = .onGW
 

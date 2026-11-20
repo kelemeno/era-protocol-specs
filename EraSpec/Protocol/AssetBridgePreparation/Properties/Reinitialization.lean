@@ -79,7 +79,7 @@ A run is any sequence of successful vault preparations of the tracked token (the
 branch), ordinary token transfers and `reinitializeToken` calls by the beacon owner, for any
 accounting and metadata hooks. The pending list is ghost trace bookkeeping (one entry per successful
 preparation), not vault storage. No other premise. -/
-@[headline] def Properties.ReinitTracePreparedDataPersists : Prop :=
+def Properties.ReinitTracePreparedDataPersists : Prop :=
   ∀ {Accounting : Type} (hooks : NativeTokenVaultBase.MetaHooks Accounting)
     (s t : TokenTrace Accounting), ReinitReach hooks s t →
     ∃ later, t.ledger.pending = s.ledger.pending ++ later
