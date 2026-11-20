@@ -58,7 +58,7 @@ Statements about `EraSpec.Protocol.InteropAtomicity.Specs.Pause`.  Proofs are in
    reachable state, at most one `unpause` followed by the claim is a run
    (`Properties.UnpauseReEnablesClaim`).  That the concrete claim then succeeds is a property of
    the bundle's calls, not of the pause: see
-   `Contracts.AssetRouter.PausedRecovery` for the router-and-vault refund itself.
+   `Contracts.AssetRouter.PausedRecovery.History` for the router-and-vault refund itself.
 
 ## Witnesses
 

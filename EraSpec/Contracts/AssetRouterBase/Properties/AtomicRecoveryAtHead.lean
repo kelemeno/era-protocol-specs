@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecoveryAtHead
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 
@@ -158,8 +159,15 @@ vault hooks and handler code: if no call of the bundle is from the router and no
 claim of a `Revertable` leg with a non-L1 destination succeeds, marks the leg `Reverted`, and leaves
 the world exactly as it was — no mint and no unlock, whatever `finalizeDeposit` data the calls carry.
 The pin's forged refund (`AtomicRecovery.History.DirectCallIsRefunded`, `DirectCallMintsUnbacked`) is a
-bundle of this kind. -/
-def Properties.DirectBundleClaimIsNoOpAtHead : Prop :=
+bundle of this kind.
+
+Premises: a non-L1 destination; no call of the bundle is from the router and none carries value.
+No hash premise. Model boundary (`MODEL-ATOMIC-RECOVERY-HEAD`): call and mint data are typed (`SOL-ABI`); the
+router's, manager's and tracker's `L1_CHAIN_ID` slots are one value and the vault's and tracker's
+`BASE_TOKEN_ASSET_ID` slots another (`OPS-CONFIG`); the vault's hooks and the base-token holder
+write only the rest of the world (`DEP-FRAME`); the code at every handler other than the vault
+is arbitrary (`HandlerCode`); `nonReentrant`, events and the bundle decoding are omitted. -/
+@[headline] def Properties.DirectBundleClaimIsNoOpAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (w : World X) (b : HeadBundle),
     b.destChain ≠ cfg.l1Chain → (∀ c ∈ b.calls, c.sender ≠ cfg.router ∧ c.value = 0) →
@@ -342,8 +350,16 @@ evolve by any run of the writers, for any writers' configuration `K` (in particu
 from `burnRouter cfg R a` to the claim-time maps, and no call of the run rotates `a` away from the
 burn handler.  Then, for a non-L1 destination and a nonzero vault address, the claim's iteration on
 that call is exactly the burn handler's `bridgeRecoverFailedTransfer` (`handlerRecover`) on the call's
-destination, the asset and the burn's own bytes, followed by `return true`. -/
-def Properties.RouterLegReachesBurnHandler : Prop :=
+destination, the asset and the burn's own bytes, followed by `return true`.
+
+Premises: a non-L1 destination; a nonzero vault address; between burn and claim the router maps
+evolve only by a run of the map writers (`AllWriters`) from the post-burn maps, with no call that
+rotates `a` away from the burn handler.  No hash premise. Model boundary (`MODEL-ATOMIC-RECOVERY-HEAD`): call and mint data are typed (`SOL-ABI`); the
+router's, manager's and tracker's `L1_CHAIN_ID` slots are one value and the vault's and tracker's
+`BASE_TOKEN_ASSET_ID` slots another (`OPS-CONFIG`); the vault's hooks and the base-token holder
+write only the rest of the world (`DEP-FRAME`); the code at every handler other than the vault
+is arbitrary (`HandlerCode`); `nonReentrant`, events and the bundle decoding are omitted. -/
+@[headline] def Properties.RouterLegReachesBurnHandler : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (K : AllWriters.Cfg) (R : Router) (ops : List AllWriters.Op)
     (w : World X) (dest : Chain) (base : AssetId) (a : AssetId) (mintBytes : Bytes),
@@ -423,8 +439,19 @@ between the burn and the claim the maps evolve by a run of the writers, for any 
 configuration `K`, from `burnRouter cfg R a` to the claim-time maps, with no call rotating the asset
 away from the vault.  The other premises are `PreparedBurnRefundsDepositorAtHead`'s.  Then the claim's
 iteration on the router call is the mint hook on the vault's token, to the request's depositor, of
-the request's amount. -/
-def Properties.VaultBurnRefundsDepositorAfterRunAtHead : Prop :=
+the request's amount.
+
+Premises: the burn is the vault's preparation from a `WellFormed` vault state; the bundle call's
+bytes decode to the burn's mint data; a non-L1 destination; a nonzero vault address; the burn ran
+on the vault; between burn and claim the maps evolve only by a run of the map writers with no call
+rotating the asset away from the vault; the asset is not this chain's base token; the vault is not
+paused, knows the asset as bridged with a nonzero local token, and its tracker hook returns.  No
+hash premise. Model boundary (`MODEL-ATOMIC-RECOVERY-HEAD`): call and mint data are typed (`SOL-ABI`); the
+router's, manager's and tracker's `L1_CHAIN_ID` slots are one value and the vault's and tracker's
+`BASE_TOKEN_ASSET_ID` slots another (`OPS-CONFIG`); the vault's hooks and the base-token holder
+write only the rest of the world (`DEP-FRAME`); the code at every handler other than the vault
+is arbitrary (`HandlerCode`); `nonReentrant`, events and the bundle decoding are omitted. -/
+@[headline] def Properties.VaultBurnRefundsDepositorAfterRunAtHead : Prop :=
   ∀ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
     (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc),
     NativeTokenVaultBase.WellFormed s → NativeTokenVaultBase.prepare prepHooks s r = some out →
@@ -506,7 +533,7 @@ world, the leg becomes `Reverted` and the mint data's `originalCaller` is re-cre
 leg `Reverted`, which enables no second claim, and the world apart from the router's maps — the
 `originalCaller`'s balance included — is unchanged (known issue 5,
 `protocol-docs/atomicity/security.md:149-156`, "silently no-op (consuming the claim)"). -/
-def Properties.RotationToNoOpHandlerStrandsBurn : Prop :=
+@[countermodel] def Properties.RotationToNoOpHandlerStrandsBurn : Prop :=
   ∃ (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks (Addr160 → ℕ))
     (code : HandlerCode (Addr160 → ℕ)) (K : AllWriters.Cfg) (w : World (Addr160 → ℕ))
     (R' : Router) (dest : Chain) (base : AssetId) (a : AssetId) (mintBytes : Bytes)
@@ -528,7 +555,7 @@ with a new handler whose `bridgeRecoverFailedTransfer` reverts.  After the rotat
 so the leg stays `Revertable`.  After a second counterpart call points the asset back at the vault,
 the claim re-credits the mint data's `originalCaller` its (positive) `amount` ("blocking the refund
 until rotated back", known issue 5). -/
-def Properties.RotationToRevertingHandlerBlocksClaim : Prop :=
+@[countermodel] def Properties.RotationToRevertingHandlerBlocksClaim : Prop :=
   ∃ (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks (Addr160 → ℕ))
     (code : HandlerCode (Addr160 → ℕ)) (K : AllWriters.Cfg) (w : World (Addr160 → ℕ))
     (R' R'' : Router) (dest : Chain) (base : AssetId) (a : AssetId) (mintBytes : Bytes)
@@ -580,8 +607,15 @@ def Properties.ClaimSucceedsIffLoopCompletesAtHead : Prop :=
 uncaught.  For any per-call behaviour: if an invariant holds of the claim-time world and is kept by
 every call of the bundle that returns, and some call of the bundle reverts in every world satisfying
 it, the claim reverts, whatever the leg state.  So the leg stays `Revertable` and no call of the
-bundle — those that would have been refunded included — is refunded. -/
-def Properties.RevertingCallBlocksClaimAtHead : Prop :=
+bundle — those that would have been refunded included — is refunded.
+
+Premises: an invariant of the claim-time world that every returning call of the bundle keeps, and
+a call of the bundle that reverts in every world satisfying it.  No hash premise. Model boundary (`MODEL-ATOMIC-RECOVERY-HEAD`): call and mint data are typed (`SOL-ABI`); the
+router's, manager's and tracker's `L1_CHAIN_ID` slots are one value and the vault's and tracker's
+`BASE_TOKEN_ASSET_ID` slots another (`OPS-CONFIG`); the vault's hooks and the base-token holder
+write only the rest of the world (`DEP-FRAME`); the code at every handler other than the vault
+is arbitrary (`HandlerCode`); `nonReentrant`, events and the bundle decoding are omitted. -/
+@[headline] def Properties.RevertingCallBlocksClaimAtHead : Prop :=
   ∀ (X : Type) (cfg : HeadConfig)
     (step : Chain → AssetId → World X → HeadCall → Option (World X × Bool)) (st : LegState)
     (w : World X) (b : HeadBundle) (Inv : World X → Prop) (Blocks : HeadCall → Prop),
@@ -665,8 +699,14 @@ def Properties.PinRejectsNothingRecoverableHeadAccepts : Prop :=
 /-- **AN L1 DESTINATION IS REFUSED AT CLAIM TIME.**  For any per-call behaviour, leg state and world,
 the claim of a bundle whose destination is `L1_CHAIN_ID` reverts (`AtomicFlowManager.sol:299`,
 `RecoverToL1NotSupported`) before any call is attempted.  At send, `_sendBundle` rejects an atomic
-bundle to L1 (`InteropCenter.sol:552-553`); the send is not modelled here. -/
-def Properties.L1DestinationClaimRevertsAtHead : Prop :=
+bundle to L1 (`InteropCenter.sol:552-553`); the send is not modelled here.
+
+Premises: the bundle's destination is `L1_CHAIN_ID`.  No hash premise. Model boundary (`MODEL-ATOMIC-RECOVERY-HEAD`): call and mint data are typed (`SOL-ABI`); the
+router's, manager's and tracker's `L1_CHAIN_ID` slots are one value and the vault's and tracker's
+`BASE_TOKEN_ASSET_ID` slots another (`OPS-CONFIG`); the vault's hooks and the base-token holder
+write only the rest of the world (`DEP-FRAME`); the code at every handler other than the vault
+is arbitrary (`HandlerCode`); `nonReentrant`, events and the bundle decoding are omitted. -/
+@[headline] def Properties.L1DestinationClaimRevertsAtHead : Prop :=
   ∀ (X : Type) (cfg : HeadConfig)
     (step : Chain → AssetId → World X → HeadCall → Option (World X × Bool)) (st : LegState)
     (w : World X) (b : HeadBundle),
@@ -723,7 +763,7 @@ def Properties.VaultRecoverAtHeadOffBaseSatisfiable : Prop :=
 
 /-- **HEADLINE (a)'S PREMISES ARE SATISFIABLE**, on a nonempty bundle whose call names the router and
 carries `finalizeDeposit` data. -/
-def Properties.DirectBundleClaimIsNoOpSatisfiable : Prop :=
+@[witness] def Properties.DirectBundleClaimIsNoOpSatisfiable : Prop :=
   ∃ (cfg : HeadConfig) (b : HeadBundle) (src : Chain) (a : AssetId) (data : Bytes)
     (sender : Address),
     b.destChain ≠ cfg.l1Chain ∧ (∀ c ∈ b.calls, c.sender ≠ cfg.router ∧ c.value = 0)
@@ -812,7 +852,7 @@ def Properties.LoggedRoutingPremisesSatisfiable : Prop :=
 
 /-- **HEADLINE (b)'S PREMISES ARE SATISFIABLE**, on a nonempty run from the post-burn maps of a
 custom-handler asset, with a refund that returns. -/
-def Properties.RouterLegReachesBurnHandlerSatisfiable : Prop :=
+@[witness] def Properties.RouterLegReachesBurnHandlerSatisfiable : Prop :=
   ∃ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (K : AllWriters.Cfg) (R : Router) (ops : List AllWriters.Op)
     (w : World X) (dest : Chain) (base : AssetId) (a : AssetId) (mintBytes : Bytes),
@@ -840,7 +880,7 @@ def Properties.PreparedBurnRefundAtHeadSatisfiable : Prop :=
 
 /-- **`VaultBurnRefundsDepositorAfterRunAtHead`'S PREMISES ARE JOINTLY SATISFIABLE**, on a nonempty
 run between burn and claim that moves another asset's route, with a refund that returns. -/
-def Properties.VaultBurnRefundAfterRunSatisfiable : Prop :=
+@[witness] def Properties.VaultBurnRefundAfterRunSatisfiable : Prop :=
   ∃ (Acc : Type) (prepHooks : NativeTokenVaultBase.Hooks Acc) (s : NativeTokenVaultBase.State Acc)
     (r : NativeTokenVaultBase.Request) (out : NativeTokenVaultBase.Result Acc)
     (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
@@ -872,7 +912,7 @@ def Properties.ZeroedHandlerReachableByCounterpart : Prop :=
 
 /-- **HEADLINE (d)'S PREMISES ARE JOINTLY SATISFIABLE**, on a two-call bundle whose other call would be
 refunded on its own. -/
-def Properties.RevertingCallBlocksClaimSatisfiable : Prop :=
+@[witness] def Properties.RevertingCallBlocksClaimSatisfiable : Prop :=
   ∃ (X : Type) (cfg : HeadConfig)
     (step : Chain → AssetId → World X → HeadCall → Option (World X × Bool))
     (w : World X) (b : HeadBundle) (Inv : World X → Prop) (Blocks : HeadCall → Prop),
@@ -908,7 +948,7 @@ def Properties.NothingRecoveredSatisfiable : Prop :=
 /-- **`L1DestinationClaimRevertsAtHead`'S PREMISE IS SATISFIABLE, AND IT IS THE DESTINATION THAT
 BLOCKS:** a `Revertable` leg whose bundle is one router-produced call: with the L1 destination the
 claim reverts; with another destination the same call is refunded. -/
-def Properties.L1DestinationClaimRevertsSatisfiable : Prop :=
+@[witness] def Properties.L1DestinationClaimRevertsSatisfiable : Prop :=
   ∃ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X) (code : HandlerCode X)
     (w : World X) (base : AssetId) (a : AssetId) (mintBytes : Bytes) (dest : Chain),
     dest ≠ cfg.l1Chain

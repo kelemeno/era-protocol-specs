@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 
@@ -90,7 +91,7 @@ handler other than the vault.  The vault's registry is the end of any logged reg
 `encodeAssetId` is injective on the custom triple paired with each logged pair and with the pair
 decoded from the call.  Then the source burn went to the custom handler, and the refund of the
 call reverts. -/
-def Properties.CustomHandlerDepositRefundReverts : Prop :=
+@[countermodel] def Properties.CustomHandlerDepositRefundReverts : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : Config) (hk : Hooks X) (w : World X)
     (log : List NativeTokenVault.Op) (audit : NativeTokenVault.Audit)
     (dest src c₀ : Chain) (s : Address) (d : AssetData) (m : Option MintData),
@@ -168,7 +169,7 @@ state the model reaches — the claim of any bundle containing a router call on 
 triple paired with each logged pair and with the pair decoded from each of the bundle's router
 calls on that asset, and other targets that leave its registry entry alone.  So the leg stays
 `Revertable`, and none of its calls — vault-asset calls included — is ever refunded. -/
-def Properties.CustomHandlerBundleNeverRefunded : Prop :=
+@[countermodel] def Properties.CustomHandlerBundleNeverRefunded : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : Config) (hk : Hooks X)
     (other : Address → World X → Chain → CallData → Option (World X × Bool))
     (dest : Chain) (w : World X) (log : List NativeTokenVault.Op) (audit : NativeTokenVault.Audit)
@@ -271,7 +272,7 @@ unpaused, hooks returning), any account can put one direct call to the router in
 bundle, with mint data of its choosing.  The bundle passes `_validateAtomicBundle`, and once the
 leg is `Revertable` the claim succeeds by minting `md.amount` to `md.originalCaller` — although a
 direct starter burns nothing at the source. -/
-def Properties.DirectCallIsRefunded : Prop :=
+@[countermodel] def Properties.DirectCallIsRefunded : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : Config) (hk : Hooks X)
     (other : Address → World X → Chain → CallData → Option (World X × Bool))
     (dest src : Chain) (w : World X) (sender : Address) (a : AssetId) (md : MintData) (x₁ x₂ : X),
@@ -428,7 +429,7 @@ of two router-produced calls with zero value (so `_validateAtomicBundle` admits 
 a custom-handler asset, burned by its handler, and a deposit of a vault asset, burned by the
 vault.  The vault-asset call alone would be refunded, but the bundle's claim reverts in every
 world reachable by steps that leave the custom asset's registry entry alone. -/
-def Properties.CustomHandlerBundleIsStranded : Prop :=
+@[countermodel] def Properties.CustomHandlerBundleIsStranded : Prop :=
   ∃ (X : Type) (enc : AssetIdOf) (cfg : Config) (hk : Hooks X)
     (other : Address → World X → Chain → CallData → Option (World X × Bool))
     (dest : Chain) (w : World X) (aCustom aVault : AssetId) (mdCustom mdVault : MintData),
@@ -444,7 +445,7 @@ def Properties.CustomHandlerBundleIsStranded : Prop :=
 the bridged token's ledger.  A bundle of one direct call by `attacker` to the router — no
 router-produced call, nothing burned — passes `_validateAtomicBundle`, and its claim raises the
 attacker's balance from `0` to a positive amount. -/
-def Properties.DirectCallMintsUnbacked : Prop :=
+@[countermodel] def Properties.DirectCallMintsUnbacked : Prop :=
   ∃ (enc : AssetIdOf) (cfg : Config) (hk : Hooks (Addr160 → ℕ))
     (other : Address → World (Addr160 → ℕ) → Chain → CallData → Option (World (Addr160 → ℕ) × Bool))
     (dest src : Chain) (w : World (Addr160 → ℕ)) (attacker : Address) (a : AssetId)

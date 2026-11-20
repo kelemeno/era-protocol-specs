@@ -80,3 +80,54 @@ Abbreviations: `ARB` = `bridge/asset-router/AssetRouterBase.sol`, `L1AR` = `L1As
   InteropCenter `History/Properties/AtomicRouting`, NativeTokenVaultBase `Properties/TrackerHooks`,
   Protocol `AssetBridgePreparation/Specs/FullRecovery`, Protocol `InteropAtomicity/Properties/Pause`.
 - `ASSUMPTIONS.md`: only rows naming moved statements, ids unchanged.
+
+## Outcome
+
+- **Step 1 (one commit).** Every non-History Specs file of the folder cites `b17415d20`, with every
+  line checked: HandlerRegistration, HandlerRegistrationRuns, AllWriters, AllWritersStrong,
+  CounterpartGate, VaultMintGate (re-cited), HandlerGateAtV35 and AtomicRecoveryAtHead (stale
+  `d9f6789`/`3605e82`/`70096e2ea`/`e561b9cc2` sentences removed), AtomicRecovery (current parts
+  re-cited; the pin router/loop/send definitions marked **`c67894b9` record** and kept in place for
+  their importers). New notes in AllWriters/VaultMintGate: the router's and the vault's
+  `BASE_TOKEN_ASSET_ID` are one value (`OPS-CONFIG`), on which the fallback's base-token exclusion
+  relies; `setNativeTokenVault` is one-shot at `b17415d20` (the model's repeatable seed only adds
+  runs); the v35 gate on L1 `finalizeDeposit` never stops the fallback.
+- **History.** 59 statements moved unchanged (31 of AtomicRecovery, all 19 of
+  AtomicRecoveryFaithful, all 9 of PausedRecovery), under `History/{Specs,Properties,Proofs}` with a
+  `History` namespace segment. The M1 countermodels and the forged-refund countermodels are tagged
+  `@[countermodel]` there.
+- **Step 2 (one model).** As above. Added `AtomicRecovery.Properties.VaultRefundRefinesResolution`
+  (with `resolutionHooks`): on the registered bridged branch the vault refund `vaultRefund` is the
+  canonical NativeTokenVaultBase `bridgeRecoverFailedTransfer`, guards included, for every call. No
+  statement was weakened or removed.
+- **Step 3 (headlines).** 15 headlines, 15 witnesses, 18 countermodels (5 of them History); audit
+  `FOLDER Contracts.AssetRouterBase : 15 / 15 / 18 / 209`. The README lists the 15 with their
+  premises; each headline docstring ends with a Premises paragraph naming the model boundary.
+- **Renames:** `renames/asset-router.json`, 59 entries, all `history`; checked with
+  `ListProperties` before (`1ad0078`) and after: every removed name is an `old`, every `new` exists.
+  The only added property is `VaultRefundRefinesResolution`.
+- **Edits outside the folder:** `EraSpec.lean` (module list); AtomicFlowManager
+  `Proofs/RecoveryTargets.lean` (History import, two certificate names) and
+  `Properties/RecoveryTargets.lean` (docstring names); DataEncoding
+  `History/Proofs/AssetIdRecovery.lean` (History import, three certificate names); InteropCenter
+  `History/Properties/AtomicRouting.lean` (docstring names); Protocol
+  `AssetBridgePreparation/Specs/FullRecovery.lean`, `InteropAtomicity/Properties/RefundStrong.lean`,
+  `InteropAtomicity/Properties/Pause.lean` (docstring names); `ASSUMPTIONS.md` rows
+  `MODEL-ATOMIC-RECOVERY`, `MODEL-ATOMIC-RECOVERY-DEST` and four summary rows (History markers and
+  moved names; ids unchanged).
+
+## Not done (follow-ups)
+
+- The `c67894b9` record definitions in `Specs/AtomicRecovery.lean` (`recoverAtomicCall`,
+  `recoverCall`, `recoverBundle`, `claimRefund`, `outcomes`, `outcomeOf`, `routerCall`, `directCall`,
+  `AtomicBundleValid`, `RouterCallsOnFail`, `HasRouterCallOn`, `OthersLeaveAlone`) stay in place:
+  AtomicRecoveryAtHead's pin-against-head statements, AtomicFlowManager `RecoveryTargets` (itself a
+  kept pin record) and Protocol `AssetBridgePreparation/FullRecovery` use them. Move them to
+  `History/` with those importers (the Protocol unit).
+- PausedRecovery is History only; restating the paused-vault results on `AtomicRecoveryAtHead` (the
+  vault keeps `whenNotPaused`, `NativeTokenVaultBase.sol:199`) is open.
+- Topic names `HandlerGateAtV35` and `AtomicRecoveryAtHead` keep their suffixes (renaming would rename
+  about 80 properties for no statement change); the README says they are the `b17415d20` topics.
+- `AtomicRecovery`'s remaining statements (`VaultRejectsUnknownAsset`, …) are about `ntvRecover`,
+  which is the `b17415d20` vault refund off an L2's base token; they are untagged supporting lemmas.
+- `scripts/audit-selftest.sh` was not re-run (the audit script is unchanged).

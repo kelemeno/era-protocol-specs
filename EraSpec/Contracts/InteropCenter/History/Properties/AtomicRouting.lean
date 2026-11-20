@@ -129,7 +129,7 @@ with the decoder inverting the encoder on the run's bundles: for an atomic dispa
 any bytes `x` that `claimRefund` hashes to `d`'s bundle hash, the claim of `x` reverts in every
 world and for every leg state, or `x`'s hash preimage differs from `d`'s (two named preimages with
 one keccak). For the bundle the center forms, that no claim succeeds is already
-`AssetRouterBase`'s `Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.AdmittedAtomicL1LegNeverRefunded`
+`AssetRouterBase`'s `Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.AdmittedAtomicL1LegNeverRefunded`
 (its last conjunct); what is new here is the statement over every run's logged dispatches, with
 the claim decoded from bytes. -/
 def Properties.AtomicToL1ClaimReverts : Prop :=
@@ -160,7 +160,7 @@ on this L2, the publication premise and the run-local decoding premise: for ever
 clash, or a keccak collision with bytes L1's handler accepted; and (2) its leg is not `Reverted`, or
 a keccak collision with the bytes of a logged successful claim. It holds in every reachable state
 that meets the premises. Part (2) is the run-level form, with the ghost claim log, of what
-`Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.AdmittedAtomicL1LegNeverRefunded` states
+`Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.AdmittedAtomicL1LegNeverRefunded` states
 for the formed bundle; part (1), the L1 status, is new. That L1 credits a withdrawal only by executing or unbundling its bundle is
 argued from source in the Specs header. -/
 def Properties.AtomicToL1Stranded : Prop :=

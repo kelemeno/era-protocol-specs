@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AssetRouterBase.Specs.HandlerGateAtV35
 
 /-!
@@ -92,8 +93,15 @@ HANDLER.**  Take any v35 run and split its log around an event `e` that moves as
 chain `c` (a gated entry point, or the fallback).  Then `e` ran from the state `U` that the
 log's prefix reached, and the handler it moved `a` through (`Ev.through`) is the router's
 vault, or `U`'s chain asset handler, or `c` was interop-enabled in `U`.  No premise on the
-run. -/
-def Properties.MovementsUseExemptHandlerOrEnabledChain : Prop :=
+run.
+
+Premises: a v35 L1 run from any state.  No hash premise. Model boundary (`MODEL-ROUTER-GATE-V35`): a v35 run is a sequence of `AllWriters`' L1 writer
+calls, the four gated entry points (`bridgehubDepositBaseToken`, `bridgehubDeposit`,
+`finalizeDeposit`, `bridgeConfirmTransferResult`) as events that move an asset through its
+handler, `L1MessageRoot.enableInterop` and `L1Bridgehub.setAddresses`; the handlers' own calls
+are taken to succeed and the entry points' other checks are not modelled, so an event "has a
+step" when the gate and the handler-set check let it through. -/
+@[headline] def Properties.MovementsUseExemptHandlerOrEnabledChain : Prop :=
   ∀ (K : Cfg) (S T : St) (evs₁ evs₂ : List Ev) (e : Ev),
     RunV35 K S (evs₁ ++ e :: evs₂) T →
     ∀ (c : Chain) (a : AssetId), e.gatedAt = some (c, a) →
@@ -104,7 +112,7 @@ def Properties.MovementsUseExemptHandlerOrEnabledChain : Prop :=
 run from fresh storage splits around an event that moves an asset at chain `c`, and further
 events follow it.  The asset's handler, in the state the prefix reached, is custom.  `c` is not
 interop-enabled at the start, and an `enableInterop(c)` in the prefix turned it on. -/
-def Properties.CustomMovementAtEnabledChainWitness : Prop :=
+@[witness] def Properties.CustomMovementAtEnabledChainWitness : Prop :=
   ∃ (K : Cfg) (E : Env) (T U : St) (evs₁ evs₂ : List Ev) (e : Ev) (c : Chain) (a : AssetId),
     K.side = .l1 ∧ RunV35 K ⟨empty, E⟩ (evs₁ ++ e :: evs₂) T ∧ evs₂ ≠ [] ∧
     e.gatedAt = some (c, a) ∧ RunV35 K ⟨empty, E⟩ evs₁ U ∧
@@ -206,8 +214,16 @@ def Properties.MovementsAtDisabledChainWitness : Prop :=
 `S`: `a`'s handler is custom and `c` is not interop-enabled.  Take a v35 run from `S` whose log
 has no call that `Ev.MayUnstrand` lists: `enableInterop(c)`, `setAddresses`, a registration whose
 derived id is `a`, or `setNativeTokenVault` when `a` is the seeded id.  Then `(c, a)` is
-stranded at the end, and no event of the log moves `a` at `c` (`gatedAt ≠ some (c, a)`). -/
-def Properties.StrandedUntilListedCall : Prop :=
+stranded at the end, and no event of the log moves `a` at `c` (`gatedAt ≠ some (c, a)`).
+
+Premises: `(c, a)` is stranded in the start state; the run has no call `Ev.MayUnstrand` lists.
+No hash premise. Model boundary (`MODEL-ROUTER-GATE-V35`): a v35 run is a sequence of `AllWriters`' L1 writer
+calls, the four gated entry points (`bridgehubDepositBaseToken`, `bridgehubDeposit`,
+`finalizeDeposit`, `bridgeConfirmTransferResult`) as events that move an asset through its
+handler, `L1MessageRoot.enableInterop` and `L1Bridgehub.setAddresses`; the handlers' own calls
+are taken to succeed and the entry points' other checks are not modelled, so an event "has a
+step" when the gate and the handler-set check let it through. -/
+@[headline] def Properties.StrandedUntilListedCall : Prop :=
   ∀ (K : Cfg) (S T : St) (evs : List Ev) (c : Chain) (a : AssetId),
     Stranded K S c a → RunV35 K S evs T → (∀ e ∈ evs, ¬ e.MayUnstrand K c a) →
       Stranded K T c a ∧ ∀ e ∈ evs, e.gatedAt ≠ some (c, a)
@@ -229,7 +245,7 @@ def Properties.StrandedAlongRun : Prop :=
 fresh storage, a state where an asset is stranded at a chain.  A further run with no listed call
 moves another asset at that chain, takes a fallback there, enables a second chain, and moves the
 stranded asset at the second chain. -/
-def Properties.StrandedUntilListedCallWitness : Prop :=
+@[witness] def Properties.StrandedUntilListedCallWitness : Prop :=
   ∃ (K : Cfg) (E : Env) (evs₀ evs : List Ev) (S T : St) (c c' : Chain) (a : AssetId),
     K.side = .l1 ∧ RunV35 K ⟨empty, E⟩ evs₀ S ∧ Stranded K S c a ∧ RunV35 K S evs T ∧
     (∀ e ∈ evs, ¬ e.MayUnstrand K c a) ∧ c' ≠ c ∧ Ev.enableInterop c' ∈ evs ∧
@@ -263,8 +279,16 @@ Then along every v35 run from `S` whose log has no `setAddresses` and no call th
 `a`'s handler (`Ev.RewritesHandler`), `a`'s handler at the end is its handler in `S`, and every
 gated entry point at `(c, a)` has a step at the end.  So along such runs neither the gate nor
 the handler-set check stops the confirmation or refund of a deposit of `a` to `c` that the gate
-let through, or a later deposit or withdrawal of `a` at `c`. -/
-def Properties.OpenGateStaysOpen : Prop :=
+let through, or a later deposit or withdrawal of `a` at `c`.
+
+Premises: a gated entry point at `(c, a)` has a step in the start state; the run has no
+`setAddresses` and no call that can rewrite `a`'s handler.  No hash premise. Model boundary (`MODEL-ROUTER-GATE-V35`): a v35 run is a sequence of `AllWriters`' L1 writer
+calls, the four gated entry points (`bridgehubDepositBaseToken`, `bridgehubDeposit`,
+`finalizeDeposit`, `bridgeConfirmTransferResult`) as events that move an asset through its
+handler, `L1MessageRoot.enableInterop` and `L1Bridgehub.setAddresses`; the handlers' own calls
+are taken to succeed and the entry points' other checks are not modelled, so an event "has a
+step" when the gate and the handler-set check let it through. -/
+@[headline] def Properties.OpenGateStaysOpen : Prop :=
   ∀ (K : Cfg) (S T : St) (evs : List Ev) (g : Gated) (c : Chain) (a : AssetId),
     StepV35 K (.gated g c a) S S → RunV35 K S evs T →
     (∀ e ∈ evs, ¬ e.RewritesHandler K a ∧ ¬ e.IsSetAddresses) →
@@ -274,7 +298,7 @@ def Properties.OpenGateStaysOpen : Prop :=
 fresh storage, a deposit of a custom-handler asset has a step.  The later run has a tracker
 write, a registration and an `enableInterop`, with no `setAddresses` and no call that can
 rewrite the first asset's handler. -/
-def Properties.OpenGateStaysOpenWitness : Prop :=
+@[witness] def Properties.OpenGateStaysOpenWitness : Prop :=
   ∃ (K : Cfg) (E : Env) (evs₀ evs : List Ev) (S T : St) (c : Chain) (a : AssetId),
     K.side = .l1 ∧ RunV35 K ⟨empty, E⟩ evs₀ S ∧ StepV35 K (.gated .deposit c a) S S ∧
     Custom K S.env (S.router.handler a) ∧ RunV35 K S evs T ∧
@@ -289,7 +313,7 @@ storage in which a custom-handler deposit to an interop-enabled chain has a step
 chain's flag, and the confirmation of that deposit then has no step.  `setAddresses` is
 `onlyOwnerOrUpgrader` (`core/bridgehub/L1Bridgehub.sol:274`, `BridgehubBase.sol:146-151`): this is
 a reconfiguration by the owner or the upgrader only (`OPS-CONFIG`). -/
-def Properties.SetAddressesClosesOpenGate : Prop :=
+@[countermodel] def Properties.SetAddressesClosesOpenGate : Prop :=
   ∃ (K : Cfg) (E : Env) (evs₀ : List Ev) (S T : St) (c : Chain) (a : AssetId) (cah : Address)
     (ie : Chain → Bool),
     K.side = .l1 ∧ RunV35 K ⟨empty, E⟩ evs₀ S ∧ StepV35 K (.gated .deposit c a) S S ∧
@@ -303,7 +327,7 @@ to the chain asset handler has a deposit step to a chain without interop, a regi
 the asset's recorded tracker, which can rewrite the asset's handler and is not `setAddresses`,
 leaves the asset with a custom handler, and the confirmation of that deposit then has no
 step. -/
-def Properties.RepointingClosesOpenGate : Prop :=
+@[countermodel] def Properties.RepointingClosesOpenGate : Prop :=
   ∃ (K : Cfg) (E : Env) (evs₀ : List Ev) (S T : St) (c : Chain) (a : AssetId) (e : Ev),
     K.side = .l1 ∧ RunV35 K ⟨empty, E⟩ evs₀ S ∧ StepV35 K (.gated .deposit c a) S S ∧
     S.router.handler a = S.env.cah ∧ S.env.ie c = false ∧

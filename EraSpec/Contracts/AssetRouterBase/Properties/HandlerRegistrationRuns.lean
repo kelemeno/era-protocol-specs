@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AssetRouterBase.Specs.HandlerRegistrationRuns
 
 /-!
@@ -118,8 +119,13 @@ exactly what the LAST logged call hashing `q` set (its `_assetHandlerAddress` an
 `msg.sender`), or what `R₀` held there if no logged call hashed `q`.  So no call hashing a
 different triple — a different sender, different data, or a different chain — changed that
 route.  Applied to the prefixes of the run (`ReachLogAppend`; a prefix's triples are among
-the run's) it says the same at every point of the run. -/
-def Properties.LoggedRouteIsLastOwnWrite : Prop :=
+the run's) it says the same at every point of the run.
+
+Premises: the run is a sequence of successful registrations (`_setAssetHandlerAddressThisChain`)
+only, with no other map writer between them, from any router state (`ReachLog`); `encodeAssetId`
+is injective on the triples the run's calls hashed together with `q`.  The runs of every writer
+are `AllWriters`'. -/
+@[headline] def Properties.LoggedRouteIsLastOwnWrite : Prop :=
   ∀ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R₀ R : Router)
     (log : List Call),
     ReachLog enc thisChain ntv ntvAddr R₀ R log →
@@ -324,7 +330,7 @@ premise is strictly weaker than any global one (which no encoding meets anyway,
 whitelisting state, with a vault call and a non-vault call, and a triple `q` whose last
 logged call was followed by other calls and whose route is live at the end, under an
 encoding injective on the run's triples and `q` that collides off them. -/
-def Properties.LoggedRouteIsLastOwnWriteSatisfiable : Prop :=
+@[witness] def Properties.LoggedRouteIsLastOwnWriteSatisfiable : Prop :=
   ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (R₀ R : Router)
     (log : List Call) (q : Chain × Address × AssetData),
     ReachLog enc thisChain ntv ntvAddr R₀ R log
@@ -455,7 +461,7 @@ handler `h`; then the vault registers token data `d` — which anyone can make i
 live route at the vault, records the vault as its tracker, and `s` can no longer re-point
 its own asset.  The colliding triples are the two the run hashed, so it is exactly the
 run-local premise that fails (last conjunct). -/
-def Properties.LoggedCollisionTakesOverLiveRoute : Prop :=
+@[countermodel] def Properties.LoggedCollisionTakesOverLiveRoute : Prop :=
   ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr s : Address) (d d' : AssetData)
     (h : Address) (R₀ S R : Router),
     s ≠ ntv ∧ s ≠ ntvAddr ∧ h ≠ 0 ∧ h ≠ ntv
@@ -476,7 +482,7 @@ hash the same one).  With the guard that second call is rejected (last conjunct)
 `NtvRouteSurvivesNonVaultCalls` is the guard's result, not the hash's.  (On L2 the vault IS
 at `ntvAddr`; on L1 it is not, and nobody holds `ntvAddr` there, but no hash property rules
 the call out.) -/
-def Properties.HashAloneDoesNotProtectVaultRoutes : Prop :=
+@[countermodel] def Properties.HashAloneDoesNotProtectVaultRoutes : Prop :=
   ∃ (enc : AssetIdOf) (thisChain : Chain) (ntv ntvAddr : Address) (d : AssetData)
     (h : Address),
     ntvAddr ≠ ntv ∧ h ≠ ntv

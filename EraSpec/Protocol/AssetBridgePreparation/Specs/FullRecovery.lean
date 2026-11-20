@@ -73,7 +73,7 @@ router-produced bundle call, and the router is the target of every such call to 
 router-produced call to L1 carries the same data but targets `L1_ASSET_ROUTER`
 (`bridge/asset-router/L2AssetRouter.sol:336`).  Unless that address equals
 `L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`), it is not a deposit call in this sense and this topic
-does not cover it; see `Contracts.AssetRouter.AtomicRecoveryFaithful`.  The call's
+does not cover it; see `Contracts.AssetRouter.AtomicRecoveryFaithful.History`.  The call's
 sender and value are left free, because the refund reads neither
 (`Contracts.AssetRouter.AtomicRecovery.History.Properties.RefundIgnoresCallSender`).
 
