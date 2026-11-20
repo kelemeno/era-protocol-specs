@@ -4,9 +4,10 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthority
 /-!
 # Model: the self-call delegation, with the dispatch and every caller of a gate
 
-Source: era-contracts at the pin `c67894b9`,
-`l1-contracts/contracts/interop/interop-handler/`; a bare `:N` is a line of
-`InteropHandlerBase.sol` there. The two upgrade tables cite the same directory at `e561b9cc2`.
+Source: era-contracts `draft/v0.35.0` at `b17415d20`, `l1-contracts/contracts/interop/interop-handler/`
+(`IHB` = `InteropHandlerBase.sol`, `L1` = `L1InteropHandler.sol`, `L2` = `L2InteropHandler.sol`). The
+pin `c67894b9`'s table (`pinnedTable`) is kept with its own line numbers: as a list it equals the
+`b17415d20` L1 table.
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.InteropHandlerBase.Properties.SelfCallAuthorityFaithful` and are proved in
@@ -21,59 +22,61 @@ What the delegation argument is about is not in it: the gates' `msg.sender == ad
 disjunct, `receiveMessage`'s dispatch, and which calls can carry `msg.sender = address(this)` at
 all. This file models those three things.
 
-## The code (pin)
+## The code (`b17415d20`)
 
 The permission gates, each with the self disjunct:
 
-    executeBundle         if (executionAddress.length != 0) {                          // :95
-                            (chainId, addr) = parseEvmV1(executionAddress);            // :96-98
-                            require(msg.sender == address(this) ||
-                                    ((chainId == block.chainid || chainId == 0) && addr == msg.sender)) } // :103-111
-    unbundleBundle          (chainId, addr) = parseEvmV1(unbundlerAddress);            // :170-172
-                            require(msg.sender == address(this) ||
-                                    ((chainId == block.chainid || chainId == 0) && addr == msg.sender))   // :176-184
-    executeAtomicBundle   as executeBundle                                             // L2InteropHandler.sol:62-75
-    verifyBundle          no permission gate                                           // :150-161
+    execute (L1 executeBundle L1:81-98, L2 executeAtomicBundle L2:61-78)
+                          _requireExecutionAllowed (IHB:239-255):
+                          if (executionAddress.length == 0) return;                    // IHB:240-242
+                          (chainId, addr) = parseEvmV1(executionAddress);              // IHB:243-245
+                          require(msg.sender == address(this) ||
+                                  ((chainId == block.chainid || chainId == 0) && addr == msg.sender)) // IHB:246-254
+    unbundleBundle        (chainId, addr) = parseEvmV1(unbundlerAddress);              // IHB:118-120
+                          require(msg.sender == address(this) ||
+                                  ((chainId == block.chainid || chainId == 0) && addr == msg.sender))   // IHB:124-132
+    verify (L1 verifyBundle L1:103-110, L2 verifyAtomicBundle L2:83-92)   no permission gate
 
 `parseEvmV1` reverts on bytes that are not an EVM ERC-7930 address, including empty bytes
 (`vendor/draft-InteroperableAddress.sol:159-163`, `:95-101`); a chain id of `0` is the wildcard.
 
-`receiveMessage` (:334-362):
+`receiveMessage` (IHB:188-213):
 
-    require(msg.sender == address(this));                                              // :341
-    require(payload.length >= 4);  selector = bytes4(payload[:4]);                     // :344-345
-    (senderChainId, senderAddress) = parseEvmV1Calldata(sender);                       // :347
-    if      (selector == this.executeBundle.selector)  _handleExecuteBundle(...)       // :351-352
-    else if (selector == this.verifyBundle.selector)   _handleVerifyBundle(...)        // :353-354
-    else if (selector == this.unbundleBundle.selector) _handleUnbundleBundle(...)      // :355-356
-    else revert InvalidSelector(selector);                                             // :357-358
+    require(msg.sender == address(this));                                              // IHB:194
+    require(payload.length >= 4);  selector = bytes4(payload[:4]);                     // IHB:197-198
+    (senderChainId, senderAddress) = parseEvmV1Calldata(sender);                       // IHB:200
+    if      (selector == _getExecuteBundleSelector()) _receiveExecuteBundle(...)       // IHB:202-203
+    else if (selector == _getVerifyBundleSelector())  _receiveVerifyBundle(...)        // IHB:204-205
+    else if (selector == this.unbundleBundle.selector) _handleUnbundleBundle(...)      // IHB:206-207
+    else revert InvalidSelector(selector);                                             // IHB:208-209
 
-    _handleExecuteBundle   if (executionAddress.length != 0) {
-                             require((chainId == senderChainId || chainId == 0) && addr == senderAddress) } // :379-389
-                           this.executeBundle(bundle, proof);                          // :391
-    _handleVerifyBundle    this.verifyBundle(bundle, proof);                           // :401
-    _handleUnbundleBundle  require((chainId == senderChainId || chainId == 0) && addr == senderAddress) // :415-423
-                           this.unbundleBundle(bundle, providedCallStatus);            // :425
+    _receiveExecuteBundle  _requireRescueExecutionAllowed (IHB:261-278):
+                           if (executionAddress.length != 0)
+                             require((chainId == senderChainId || chainId == 0) && addr == senderAddress)
+                           then this.executeBundle (L1:148) / this.executeAtomicBundle (L2:130)
+    _receiveVerifyBundle   this.verifyBundle (L1:159) / this.verifyAtomicBundle (L2:141)
+    _handleUnbundleBundle  require((chainId == senderChainId || chainId == 0) && addr == senderAddress) // IHB:427-430
+                           this.unbundleBundle(bundle, providedCallStatus);            // IHB:432
 
-## The inventory `Reaches` rests on (checked against the pinned tree)
+## The inventory `Reaches` rests on (checked against `b17415d20` by hand)
 
 The handler is `msg.sender` of a call into itself only where its own code calls itself:
 
-* `this.executeBundle` (:391), `this.verifyBundle` (:401), `this.unbundleBundle` (:425) are the
-  only `this.<function>(` call sites in `interop-handler/*.sol`;
-* the only call to any recipient's `receiveMessage` is `_executeCalls`' (:282), which reaches the
-  handler's own `receiveMessage` when a delivered call's `to` is the handler, passing
-  `sender = formatEvmV1(_sourceChainId, interopCall.from)` (:284);
-* its other external calls go to other contracts: `_proveInclusion` (`L2InteropHandler.sol:105`,
-  `L1InteropHandler.sol:70`), `requireFlowFinalized` (`L2InteropHandler.sol:83`),
-  `BaseTokenHolder.give` (`L2InteropHandler.sol:118`, which pays the handler's `receive()` with the
-  holder as `msg.sender`) and `BASE_TOKEN_ASSET_ID()` (`L2InteropHandler.sol:124`).
+* `this.executeBundle` (`L1:148`), `this.verifyBundle` (`L1:159`), `this.executeAtomicBundle`
+  (`L2:130`), `this.verifyAtomicBundle` (`L2:141`) and `this.unbundleBundle` (`IHB:432`) are the
+  only `this.<function>(` call sites in `interop-handler/*.sol`, each inside a `receiveMessage` arm;
+* the only call to any recipient's `receiveMessage` is `_executeCalls`' (`IHB:374-380`), which
+  reaches the handler's own `receiveMessage` when a delivered call's target is the handler, passing
+  `sender = formatEvmV1(_sourceChainId, interopCall.from)` (`IHB:378`). On L1 the target is pinned to
+  `L1_ASSET_ROUTER` (`L1:189-192`), so the L1 handler never calls itself; `Reaches` over-approximates;
+* its other external calls go to other contracts: `_proveInclusion` (`L1:227-236`),
+  `requireFlowFinalized` (`L2:74`, `:89`), `BaseTokenHolder.give` (`L2:152`, which pays the handler's
+  `receive()` with the holder as `msg.sender`) and `BASE_TOKEN_ASSET_ID()` (`L2:158`).
 
-`scripts/check-interop-handler-inventory.sh` checks this inventory (and the dispatch's three
-selectors, the four `msg.sender == address(this)` occurrences, and the check before each
-self-call) against a vendored era-contracts tree; it passes on the pin and fails, listing every
-moved site, on any other layout (at `e561b9cc2` it fails). That inventory is the model boundary:
-`Reaches` has one constructor per kind of caller, and nothing in Lean derives it from the source.
+`scripts/check-interop-handler-inventory.sh` checks this inventory on the pin `c67894b9`'s layout
+only; at `b17415d20` it was checked by hand (the sites above). That inventory is the model
+boundary: `Reaches` has one constructor per kind of caller, and nothing in Lean derives it from the
+source.
 
 ## Modelling choices
 
@@ -83,9 +86,9 @@ moved site, on any other layout (at `e561b9cc2` it fails). That inventory is the
   `(senderChainId, senderAddress)` of the rescue message for a relayed one.
 * **The dispatch is a table** (`Table`): one `Branch` per `if` arm, in source order, naming the
   selector it matches, the attribute its handler checks against the message sender (`Gate`), and
-  the entry point it then self-calls. The first matching arm is taken (`branchFor`). Three tables
-  are given: the pin's, and the upgrade's L2 and L1 tables (`e561b9cc2`), where the execute and
-  verify arms moved behind per-layer hooks.
+  the entry point it then self-calls. The first matching arm is taken (`branchFor`). The tables
+  given are `b17415d20`'s L2 and L1 tables (`l2TableAtV35`, `l1TableAtV35`), where the execute and
+  verify arms sit behind per-layer hooks, and the pin's (`pinnedTable`, equal to `l1TableAtV35`).
 * **Reject-only steps are omitted**: payload decoding, `_getBundleData`'s emptiness and version
   checks, destination context, pause. Omitting a check that can only revert removes no passing
   gate call that the model would otherwise have to cover.
@@ -99,7 +102,7 @@ abbrev Principal := ℕ × ℕ
 /-- An ERC-7930 address attribute (`bundleAttributes.executionAddress` or `.unbundlerAddress`) as
 `InteroperableAddress.parseEvmV1` reads it. -/
 inductive AddrField
-  /-- Zero-length bytes. The execution gate skips its check (:95); `parseEvmV1` reverts on them. -/
+  /-- Zero-length bytes. The execution gate skips its check (`IHB:240-242`); `parseEvmV1` reverts on them. -/
   | empty
   /-- Non-empty bytes `tryParseEvmV1` rejects: `parseEvmV1` reverts. -/
   | malformed
@@ -117,21 +120,21 @@ structure GateAttrs where
 
 /-- Which attribute an entry point's permission gate reads. -/
 inductive Gate
-  /-- The execution gate (:95-112, `L2InteropHandler.sol:62-75`; upgrade `:239-255`). -/
+  /-- The execution gate (`_requireExecutionAllowed`, `IHB:239-255`). -/
   | execution
-  /-- The unbundler gate (:170-184; upgrade `:118-132`). -/
+  /-- The unbundler gate (`IHB:118-132`). -/
   | unbundler
-  /-- No permission gate (`verifyBundle`, :150-161; upgrade `verifyAtomicBundle`). -/
+  /-- No permission gate (`verifyBundle`, `L1:103-110`; `verifyAtomicBundle`, `L2:83-92`). -/
   | permissionless
   deriving DecidableEq, Repr
 
-/-- The handler entry points a self-call can reach, at the pin and at the upgrade. -/
+/-- The handler entry points a self-call can reach, at `b17415d20` (L1 and L2) and at the pin. -/
 inductive Entry
   | executeBundle
   | verifyBundle
   | unbundleBundle
   | executeAtomicBundle
-  /-- Only at the upgrade (`L2InteropHandler.sol:83-92` there). -/
+  /-- L2's verify entry point at `b17415d20` (`L2:83-92`); not at the pin. -/
   | verifyAtomicBundle
   deriving DecidableEq, Repr
 
@@ -144,8 +147,8 @@ def Entry.gate : Entry → Gate
   | .verifyAtomicBundle => .permissionless
 
 /-- `(chainId == p.1 || chainId == 0) && addr == p.2` on a parsed attribute: the comparison every
-gate makes, against `(block.chainid, msg.sender)` (:105, :178, `L2InteropHandler.sol:68`) or, on the
-rescue path, against `(senderChainId, senderAddress)` (:386, :421). An attribute that does not parse
+gate makes, against `(block.chainid, msg.sender)` (`IHB:246-248`, `:124-126`) or, on the
+rescue path, against `(senderChainId, senderAddress)` (`IHB:275`, `:428`). An attribute that does not parse
 names nobody. -/
 def AddrField.Names : AddrField → Principal → Prop
   | .evm ch a, p => (ch = p.1 ∨ ch = 0) ∧ a = p.2
@@ -158,8 +161,9 @@ instance AddrField.decNames : (f : AddrField) → (p : Principal) → Decidable 
   | .malformed, _ => isFalse fun h => h
 
 /-- **What the attribute permits**: the principals a gate of kind `g` is meant to let through. An
-empty execution address is permissionless (:94-95, `Messaging.sol`); the unbundler gate always
-parses its attribute. This is the check `_handleExecuteBundle` / `_handleUnbundleBundle` run against
+empty execution address is permissionless (`IHB:240-242`); the unbundler gate always
+parses its attribute. This is the check `_receiveExecuteBundle` (`L1:127-149` / `L2:109-131`) /
+`_handleUnbundleBundle` (`IHB:413`) run against
 the message sender, so it is also what a dispatch branch establishes. -/
 def Admits : Gate → GateAttrs → Principal → Prop
   | .permissionless, _, _ => True
@@ -195,14 +199,14 @@ inductive Selector
   | other (n : ℕ)
   deriving DecidableEq, Repr
 
-/-- A `receiveMessage(receiveId, sender, payload)` call (:334-338), as the dispatch reads it. -/
+/-- A `receiveMessage(receiveId, sender, payload)` call (`IHB:188-193`), as the dispatch reads it. -/
 structure Message where
-  /-- `parseEvmV1Calldata(sender)` (:347); `none` when it reverts. `_executeCalls`, the only caller
-  (see the header), passes `formatEvmV1(_sourceChainId, interopCall.from)` (:284). -/
+  /-- `parseEvmV1Calldata(sender)` (`IHB:200`); `none` when it reverts. `_executeCalls`, the only caller
+  (see the header), passes `formatEvmV1(_sourceChainId, interopCall.from)` (`IHB:378`). -/
   sender : Option Principal
-  /-- `bytes4(payload[:4])` (:345); `none` when `payload.length < 4` (:344). -/
+  /-- `bytes4(payload[:4])` (`IHB:198`); `none` when `payload.length < 4` (`IHB:197`). -/
   selector : Option Selector
-  /-- The gate attributes of the bundle the payload carries (`_getBundleData`, :376, :413). -/
+  /-- The gate attributes of the bundle the payload carries (`_getBundleData`, `L1:139`, `L2:121`, `IHB:421`). -/
   attrs : GateAttrs
   deriving DecidableEq, Repr
 
@@ -220,11 +224,13 @@ structure Branch where
 abbrev Table := List Branch
 
 /-- The arm `receiveMessage` takes on a selector: the first that matches, if any (none reverts with
-`InvalidSelector`, :357-358). -/
+`InvalidSelector`, `IHB:208-209`). -/
 def branchFor (tbl : Table) (sel : Entry) : Option Branch :=
   tbl.find? fun br => decide (br.selector = sel)
 
-/-- **The pin's dispatch** (:351-359). -/
+/-- **The pin `c67894b9`'s dispatch** (its `InteropHandlerBase.sol:351-359`; the line numbers in this
+definition are the pin's). As a list it is `l1TableAtV35`, the `b17415d20` L1 dispatch, so the
+statements about it are also statements about `b17415d20`'s L1 handler. -/
 def pinnedTable : Table :=
   [ -- :351-352 -> _handleExecuteBundle: check :379-389, `this.executeBundle` :391
     ⟨.executeBundle, .execution, .executeBundle⟩,
@@ -233,20 +239,21 @@ def pinnedTable : Table :=
     -- :355-356 -> _handleUnbundleBundle: check :415-423, `this.unbundleBundle` :425
     ⟨.unbundleBundle, .unbundler, .unbundleBundle⟩ ]
 
-/-- **The upgrade's L2 dispatch** (`e561b9cc2`, `InteropHandlerBase.sol:202-210` with
-`L2InteropHandler.sol:99-142`): the execute arm now self-calls `executeAtomicBundle`. -/
-def upgradeL2Table : Table :=
+/-- **The `b17415d20` L2 dispatch** (`IHB:202-210` with `L2:99-142`; first transcribed at
+`e561b9cc2`, every line re-checked at `b17415d20`): the execute arm self-calls
+`executeAtomicBundle`. -/
+def l2TableAtV35 : Table :=
   [ -- `_getExecuteBundleSelector()` = executeAtomicBundle (L2:99-101) -> `_receiveExecuteBundle`:
-    -- `_requireRescueExecutionAllowed` (L2:122-128, base :261-278), `this.executeAtomicBundle` L2:130
+    -- `_requireRescueExecutionAllowed` (L2:122-128, IHB:261-278), `this.executeAtomicBundle` L2:130
     ⟨.executeAtomicBundle, .execution, .executeAtomicBundle⟩,
     -- `_getVerifyBundleSelector()` = verifyAtomicBundle (L2:104-106) -> `this.verifyAtomicBundle` L2:141
     ⟨.verifyAtomicBundle, .permissionless, .verifyAtomicBundle⟩,
-    -- base :206-207 -> `_handleUnbundleBundle`: check :427-430, `this.unbundleBundle` :432
+    -- IHB:206-207 -> `_handleUnbundleBundle`: check IHB:427-430, `this.unbundleBundle` IHB:432
     ⟨.unbundleBundle, .unbundler, .unbundleBundle⟩ ]
 
-/-- **The upgrade's L1 dispatch** (`e561b9cc2`, `InteropHandlerBase.sol:202-210` with
-`L1InteropHandler.sol:117-160`). -/
-def upgradeL1Table : Table :=
+/-- **The `b17415d20` L1 dispatch** (`IHB:202-210` with `L1:117-160`; first transcribed at
+`e561b9cc2`, every line re-checked at `b17415d20`). -/
+def l1TableAtV35 : Table :=
   [ -- executeBundle (L1:117-119) -> `_requireRescueExecutionAllowed` (L1:140-146), `this.executeBundle` L1:148
     ⟨.executeBundle, .execution, .executeBundle⟩,
     -- verifyBundle (L1:122-124) -> `this.verifyBundle` L1:159
@@ -272,7 +279,7 @@ structure SelfCall where
   principal : Principal
   deriving DecidableEq, Repr
 
-/-- **`receiveMessage`** (:334-362) on the handler at `handler`, called by `caller`: the self-call it
+/-- **`receiveMessage`** (`IHB:188-213`) on the handler at `handler`, called by `caller`: the self-call it
 makes, or `none` when it reverts. -/
 def dispatch (tbl : Table) (handler caller : ℕ) (m : Message) : Option SelfCall :=
   if caller = handler then
@@ -299,8 +306,8 @@ structure GateCall where
 /-- **The inventory: every call the handler at `handler` on chain `thisChain` receives at an entry
 point.** Either an account other than the handler calls it, carrying `(thisChain, caller)`; or
 `receiveMessage`, called by anyone, makes the self-call of one of its arms, carrying the message's
-sender. `receiveMessage` itself refuses every caller but the handler (:341), so in the second case
-the caller is the handler delivering one of its bundles' calls (:282). -/
+sender. `receiveMessage` itself refuses every caller but the handler (`IHB:194`), so in the second case
+the caller is the handler delivering one of its bundles' calls (`IHB:374`). -/
 inductive Reaches (tbl : Table) (handler thisChain : ℕ) : GateCall → Prop
   | direct (e : Entry) (a : GateAttrs) (caller : ℕ) (hne : caller ≠ handler) :
       Reaches tbl handler thisChain ⟨e, a, caller, (thisChain, caller)⟩

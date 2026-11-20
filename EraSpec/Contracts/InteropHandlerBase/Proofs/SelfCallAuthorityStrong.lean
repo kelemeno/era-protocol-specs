@@ -65,6 +65,16 @@ theorem DeployedSelfCallRelaysOriginalSenderAuthority :
   simp only [Authorized, GateCall.entry, GateCall.principal, hattr, attrAllows] at hauth
   exact ⟨hauth.2.1, hauth.1⟩
 
+theorem DeployedL2SelfCallRelaysOriginalSenderAuthority :
+    Properties.DeployedL2SelfCallRelaysOriginalSenderAuthority := by
+  have hchk : ∀ br ∈ deployedDispatchL2, br.target.isGated = true → br.checked = true := by
+    decide
+  have hsound := (SelfCallRelaySoundIffEveryGatedBranchChecked deployedDispatchL2).2 hchk
+  refine ⟨hsound, fun Sender H A src fromAddr br ch addr hrt hadm hattr => ?_⟩
+  have hauth := hsound Sender H A (.relayed src fromAddr br) hrt hadm
+  simp only [Authorized, GateCall.entry, GateCall.principal, hattr, attrAllows] at hauth
+  exact ⟨hauth.2.1, hauth.1⟩
+
 theorem UncheckedAtomicBranchWidensAuthority :
     Properties.UncheckedAtomicBranchWidensAuthority := by
   refine ⟨rfl, ⟨List.mem_cons_self, fun h => absurd h (by decide), Or.inl rfl⟩, ?_, ?_⟩
@@ -98,6 +108,17 @@ theorem SelfCallRelayWitness : Properties.SelfCallRelayWitness := by
   · rintro ⟨-, hck, -⟩
     have h := hck rfl
     simp only [wHandler, gateAttr, wAttrs42, attrAllows, id] at h
+    exact absurd h.2.1 (by decide)
+
+
+theorem DeployedL2SelfCallRelayWitness : Properties.DeployedL2SelfCallRelayWitness := by
+  refine ⟨rfl, ⟨by simp [deployedDispatchL2], fun _ => ?_, Or.inl rfl⟩,
+    ⟨by simp [deployedDispatchL2], fun _ => ?_, Or.inl rfl⟩, ?_⟩
+  · simp [wHandler, gateAttr, wAttrs7, attrAllows]
+  · simp [wHandler, gateAttr, wAttrs7, attrAllows]
+  · rintro ⟨-, hck, -⟩
+    have h := hck rfl
+    simp only [wHandler, gateAttr, wAttrs7, attrAllows, id] at h
     exact absurd h.2.1 (by decide)
 
 end AttackVectors.SelfCallAuthority

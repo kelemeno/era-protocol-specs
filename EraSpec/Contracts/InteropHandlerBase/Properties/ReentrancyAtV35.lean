@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.InteropHandlerBase.Specs.ReentrancyAtV35
 
 /-!
@@ -14,18 +15,18 @@ by the bundle hash, and so do the statements. Where a result says "both layers",
 `L2InteropHandler` (`execute` = `executeAtomicBundle`, `verify` = `verifyAtomicBundle`) and for
 `L1InteropHandler` (`executeBundle`, `verifyBundle`).
 
-## (a) The v35 handlers are the pin model, translated
+## (a) The v35 handlers are the engine, translated
 
 * `ExecMatchesPinAtV35`: in the deployed order on both layers, in the order `callWriteAfterCalls`
   on both layers, and in every order on L1, a v35 frame runs exactly as its translation does in the
-  pin model `Contracts.InteropHandler.exec`: same state, same committed log, same revert.
+  engine `Contracts.InteropHandler.exec`: same state, same committed log, same revert.
   `SubmitAllMatchesPinAtV35` lifts this to sequences of transactions.
 * `LateStatusWriteSeparatesL2FromPinAtV35`: the excluded case is a real difference.
 * `PinMatchWitnessAtV35`: both cases of the premise, on runs that commit nested work.
 
 ## (b) Nothing runs twice, on both layers, in the deployed order
 
-The pin's results, restated over `submitAllAtV35`/`execAtV35` and proved through (a):
+The engine's results, restated over `submitAllAtV35`/`execAtV35` and proved through (a):
 `NoEffectCommittedTwiceAtV35` (headline), `CommittedEffectsWereOpenAtV35`,
 `WholeBundleExecutionRunsEachCallOnceAtV35`, `StatusRecordsExactlyTheCommittedEffectsAtV35`,
 `NestedExecutionFollowsTheStatusMachineAtV35`, and `ReentryForAnExecutingBundleRevertsAtV35`, the
@@ -47,7 +48,7 @@ revert is undone alone).
 * `DeliveryNeedsTheGateAtV35` (headline for the gate): a bundle hash none of whose entry-point
   calls carries a passing verdict stays `Unreceived` and has no committed effect. On L2 the only
   verdict is `requireFlowFinalized`'s, so no premise about inclusion proofs is needed, unlike the
-  pin's `NeverPublishedBundleNeedsTheFlowGate`.
+  History record `NeverPublishedBundleNeedsTheFlowGate` (pin `c67894b9`).
 * `GateRoutesWitnessAtV35`: the three L2 routes, the partial execution after unbundling, and the
   gate premise on a run that commits.
 * `ReceiveFilterIsReadAtTheGateAtV35` and `ReceiveFilterWitnessAtV35`: the receive filter decides
@@ -73,9 +74,9 @@ with `ℓ = l1` or `v ≠ statusWriteAfterCalls` (so: the deployed order on both
 `callWriteAfterCalls` on both layers, every order on L1), from every state and at every budget,
 running a v35 frame gives exactly what running its translation `FrameAtV35.toPin` gives in the pin
 model: the same final state and committed log, or a revert on both sides. The translation sends
-`execute` to the pin's `executeBundle`, `verify` to `verifyBundle` and `unbundleBundle` to itself,
-recursively through every target. On L1 `execute` is the pin's `executeBundle` step for step; on
-L2 it skips the pin's `Verified` write, which `beforeCalls` overwrites with `FullyExecuted` in both
+`execute` to the engine's `executeBundle`, `verify` to `verifyBundle` and `unbundleBundle` to itself,
+recursively through every target. On L1 `execute` is the engine's `executeBundle` step for step; on
+L2 it skips the engine `executeBundle`'s `Verified` write, which `beforeCalls` overwrites with `FullyExecuted` in both
 of these orders before any call runs. -/
 def Properties.ExecMatchesPinAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (v : Variant), (ℓ = .l1 ∨ v ≠ .statusWriteAfterCalls) →
@@ -83,7 +84,7 @@ def Properties.ExecMatchesPinAtV35 : Prop :=
 
 /-- **AND SO DOES EVERY SEQUENCE OF TRANSACTIONS.** Under the same condition on `ℓ` and `v`, from
 every state, a sequence of v35 transactions leaves the state and committed log that the sequence
-of their translations leaves in the pin model. -/
+of their translations leaves in the engine. -/
 def Properties.SubmitAllMatchesPinAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (v : Variant), (ℓ = .l1 ∨ v ≠ .statusWriteAfterCalls) →
     ∀ (s : State) (txs : List (TxAtV35 ℓ)),
@@ -119,15 +120,29 @@ def Properties.PinMatchWitnessAtV35 : Prop :=
 transactions, with every behaviour of every target at every depth, in the deployed order: the
 committed log has no repeated entry. No call `i` of a bundle hash `h` is delivered twice, whether by
 whole-bundle execution, unbundling or both, in one transaction or several; and no bundle hash
-completes a whole-bundle execution twice. -/
-def Properties.NoEffectCommittedTwiceAtV35 : Prop :=
+completes a whole-bundle execution twice.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.NoEffectCommittedTwiceAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (txs : List (TxAtV35 ℓ)),
     (submitAllAtV35 ℓ .deployed s txs).2.Nodup
 
 /-- **EACH COMMITTED EFFECT WAS OPEN, AND IS CLOSED, AT V35.** On both layers, in the deployed
 order: every effect in the committed log of a sequence of transactions was not `Spent` in the state
-the sequence started from, and is `Spent` in the state it ends in. -/
-def Properties.CommittedEffectsWereOpenAtV35 : Prop :=
+the sequence started from, and is `Spent` in the state it ends in.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.CommittedEffectsWereOpenAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (txs : List (TxAtV35 ℓ)) (e : Effect),
     e ∈ (submitAllAtV35 ℓ .deployed s txs).2 →
       ¬ Spent s e ∧ Spent (submitAllAtV35 ℓ .deployed s txs).1 e
@@ -136,8 +151,15 @@ def Properties.CommittedEffectsWereOpenAtV35 : Prop :=
 deployed order, from any state and with any targets: if `execute` of bundle `b` succeeds
 (`executeAtomicBundle` on L2, `executeBundle` on L1, whatever its verdict `ok`), the effects of
 `b.hash` in its committed log are exactly the deliveries of calls `0, …, n-1`, in order, then
-`BundleExecuted`; and `b.hash` ends `FullyExecuted`. -/
-def Properties.WholeBundleExecutionRunsEachCallOnceAtV35 : Prop :=
+`BundleExecuted`; and `b.hash` ends `FullyExecuted`.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.WholeBundleExecutionRunsEachCallOnceAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (n : ℕ) (b : Bundle) (ok : Bool) (cs : List (CalleeAtV35 ℓ))
     (s s' : State) (l : List Effect),
     execAtV35 ℓ .deployed n (.entry (.execute b ok) cs) s = some (s', l) →
@@ -148,8 +170,15 @@ def Properties.WholeBundleExecutionRunsEachCallOnceAtV35 : Prop :=
 /-- **THE REPLAY STATE IS THE COMMITTED HISTORY, AT V35.** On both layers, in the deployed order,
 after any sequence of transactions from fresh storage: call `i` of bundle hash `h` is recorded
 `Executed` if and only if the committed log delivered it, and `h` is `FullyExecuted` if and only if
-the log executed it. -/
-def Properties.StatusRecordsExactlyTheCommittedEffectsAtV35 : Prop :=
+the log executed it.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.StatusRecordsExactlyTheCommittedEffectsAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (txs : List (TxAtV35 ℓ)) (h : BundleHash) (i : ℕ),
     ((submitAllAtV35 ℓ .deployed init txs).1.call h i = .Executed ↔
         Effect.delivered h i ∈ (submitAllAtV35 ℓ .deployed init txs).2) ∧
@@ -159,8 +188,15 @@ def Properties.StatusRecordsExactlyTheCommittedEffectsAtV35 : Prop :=
 /-- **NESTED EXECUTION FOLLOWS THE STATUS MACHINE, AT V35.** Fresh storage satisfies `CallsClosed`.
 On both layers, in the deployed order, from any state satisfying it, along any sequence of
 transactions: it holds at the end, every bundle status moved along `BundleStatusMachine.Reach`,
-and every call status along `BundleStatusMachine.CallReach`. -/
-def Properties.NestedExecutionFollowsTheStatusMachineAtV35 : Prop :=
+and every call status along `BundleStatusMachine.CallReach`.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.NestedExecutionFollowsTheStatusMachineAtV35 : Prop :=
   CallsClosed init ∧
   ∀ (ℓ : LayerAtV35) (s : State) (txs : List (TxAtV35 ℓ)), CallsClosed s →
     CallsClosed (submitAllAtV35 ℓ .deployed s txs).1 ∧
@@ -173,8 +209,15 @@ reentrant call for this bundle hits the status check"). On both layers, in the d
 calls of `execute` of `b` run from a state in which `b.hash` is `FullyExecuted` (`beforeCalls`
 after the layer's proof write); every frame committed from a state where a hash is
 `FullyExecuted` leaves it so; and from such a state every entry point called on a bundle with that
-hash reverts, whichever of the three it is. -/
-def Properties.ReentryForAnExecutingBundleRevertsAtV35 : Prop :=
+hash reverts, whichever of the three it is.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.ReentryForAnExecutingBundleRevertsAtV35 : Prop :=
   (∀ (ℓ : LayerAtV35) (b : Bundle) (s : State),
       (beforeCalls .deployed b (proofWriteAtV35 ℓ b.hash s)).bundle b.hash = .FullyExecuted) ∧
   (∀ (ℓ : LayerAtV35) (n : ℕ) (f : FrameAtV35 ℓ) (h : BundleHash) (s s' : State)
@@ -192,7 +235,7 @@ once, with `wB`'s effects nested inside `wA`'s first delivery. The refusal is th
 state `wA`'s writes leave: `wA` is `FullyExecuted` there, and `executeAtomicBundle(wA)` reverts
 there. In `wNestedUncaughtAtV35` the target does not catch the refusal, and the whole transaction,
 `wB`'s nested execution included, reverts. -/
-def Properties.ReentrantExecutionWitnessAtV35 : Prop :=
+@[witness] def Properties.ReentrantExecutionWitnessAtV35 : Prop :=
   (submitAtV35 .l2 .deployed init wNestedAtV35).2 =
       [.delivered 1 0, .delivered 2 0, .executed 2, .delivered 1 1, .executed 1] ∧
     (submitAtV35 .l2 .deployed init wNestedAtV35).1.bundle 1 = .FullyExecuted ∧
@@ -210,8 +253,15 @@ def Properties.ReentrantExecutionWitnessAtV35 : Prop :=
 /-- **A TARGET THAT REVERTS FROM EVERY STATE REVERTS THE WHOLE EXECUTION, AT V35.** On both layers,
 in every write order, at every budget and from every state: if the target of one of bundle `b`'s
 first `b.calls` calls is `AlwaysRevertsAtV35`, then `execute` of `b` reverts, whatever the targets
-before it did and committed in their own frames. -/
-def Properties.AlwaysRevertingTargetRevertsTheExecutionAtV35 : Prop :=
+before it did and committed in their own frames.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.AlwaysRevertingTargetRevertsTheExecutionAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (v : Variant) (n : ℕ) (b : Bundle) (ok : Bool) (cs : List (CalleeAtV35 ℓ))
     (s : State),
     (∃ c ∈ cs.take b.calls, AlwaysRevertsAtV35 ℓ v c) →
@@ -222,8 +272,15 @@ layers, in every write order: let `k < b.calls` be a call whose target `cs[k]` i
 loop over the first `k` calls, run from the state `execute`'s writes leave (`beforeCalls` after the
 layer's proof write), commits to `t`, and `cs[k]` reverts from `t` at the budget the loop gives it,
 then `execute` of `b` reverts. Nothing is assumed about how `cs[k]` behaves from any other
-state. -/
-def Properties.TargetRevertingWhereReachedRevertsTheExecutionAtV35 : Prop :=
+state.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.TargetRevertingWhereReachedRevertsTheExecutionAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (v : Variant) (m : ℕ) (b : Bundle) (ok : Bool) (cs : List (CalleeAtV35 ℓ))
     (s : State) (k : ℕ) (hk : k < cs.length) (t : State) (l : List Effect), k < b.calls →
     execAtV35 ℓ v (m + 1 + k) (.calls b.hash (List.range k) (cs.take k))
@@ -242,8 +299,15 @@ calls `Executed`. On L1 the run exists only for a single-call bundle whose targe
 omits `executeBundle`'s `calls.length == 1` check (`L1InteropHandler.sol:85`) and
 `_interopCallTarget`'s target check (`L1InteropHandler.sol:189-192`), and on both layers the
 permission and destination-context checks (`MODEL-HANDLER-REENTRY-V35`), all of which only
-reject. -/
-def Properties.FailedAttemptCanBeRetriedAtV35 : Prop :=
+reject.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.FailedAttemptCanBeRetriedAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (b : Bundle) (fuel : ℕ) (cs : List (CalleeAtV35 ℓ)),
     s.bundle b.hash = .Unreceived → (∃ c ∈ cs.take b.calls, AlwaysRevertsAtV35 ℓ .deployed c) →
     submitAtV35 ℓ .deployed s ⟨fuel, .execute b true, cs⟩ = (s, []) ∧
@@ -263,7 +327,7 @@ order:
   target, which calls `executeAtomicBundle(wA)` without catching a failure, reverts from `t`,
   although from fresh storage it commits. The transaction commits nothing, and `wB` stays
   `Unreceived`. -/
-def Properties.RevertingTargetWitnessAtV35 : Prop :=
+@[witness] def Properties.RevertingTargetWitnessAtV35 : Prop :=
   (∀ v : Variant, AlwaysRevertsAtV35 .l2 v wRevertsAfterWorkAtV35) ∧
     (execAtV35 .l2 .deployed 5 (.entry (executeAtomicBundleAtV35 wB true) [])
       (beforeCalls .deployed wA (proofWriteAtV35 .l2 wA.hash init))).isSome = true ∧
@@ -288,7 +352,7 @@ def Properties.RevertingTargetWitnessAtV35 : Prop :=
 storage: in `wCaughtAtV35` the target of `wA`'s first call executes `wB` re-entrantly, `wB`'s only
 call reverts, and the target catches the failure. `wA` commits, `wB`'s status write is undone, and
 `wB` is executed later by `wRunBAtV35`. -/
-def Properties.CaughtReentrantRevertWitnessAtV35 : Prop :=
+@[witness] def Properties.CaughtReentrantRevertWitnessAtV35 : Prop :=
   (submitAllAtV35 .l2 .deployed init [wCaughtAtV35]).2 =
       [.delivered 1 0, .delivered 1 1, .executed 1] ∧
     (submitAllAtV35 .l2 .deployed init [wCaughtAtV35]).1.bundle 1 = .FullyExecuted ∧
@@ -308,7 +372,7 @@ omits `executeBundle`'s `calls.length == 1` check (`L1InteropHandler.sol:85`) an
 `_interopCallTarget`'s target check (`L1InteropHandler.sol:189-192`), and on both layers the
 permission and destination-context checks (`MODEL-HANDLER-REENTRY-V35`), all of which only
 reject. -/
-def Properties.VerifiedBundleExecutesWithoutTheGateAtV35 : Prop :=
+@[countermodel] def Properties.VerifiedBundleExecutesWithoutTheGateAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (b : Bundle), s.bundle b.hash = .Verified →
     (∀ (fuel : ℕ) (ok : Bool) (cs : List (CalleeAtV35 ℓ)),
         submitAtV35 ℓ .deployed s ⟨fuel, .verify b ok, cs⟩ = (s, [])) ∧
@@ -326,9 +390,16 @@ On L2 the verdict is `requireFlowFinalized`'s, consulted by `verifyAtomicBundle`
 `executeAtomicBundle` of an `Unreceived` bundle. So every route that delivers a call of an L2
 bundle from such a state (atomic execution; verification then execution; verification then
 unbundling) has the flow gate accept a proof for it in some entry-point call of the run, possibly
-one in a frame that later reverted. Unlike the pin's `NeverPublishedBundleNeedsTheFlowGate`, this
-needs no premise about inclusion proofs: L2 has no entry point that consults one at v35. -/
-def Properties.DeliveryNeedsTheGateAtV35 : Prop :=
+one in a frame that later reverted. Unlike the History record `NeverPublishedBundleNeedsTheFlowGate` (pin `c67894b9`), this
+needs no premise about inclusion proofs: L2 has no entry point that consults one at v35.
+
+Model premises (`MODEL-HANDLER-REENTRY-V35`): execution re-enters the handler only through a
+delivered call's target; `requireFlowFinalized`, `_proveInclusion` and `BASE_TOKEN_ASSET_ID()` are
+static calls and `_handleCallValue` reaches no entry point (argued in the Specs header, not proved);
+each entry-point call carries its proof verdict as an input; a bundle is its hash and its call count;
+a reverted frame's writes and logs are undone (`VM-REVERT`). The reject-only checks the model omits
+only remove runs. -/
+@[headline] def Properties.DeliveryNeedsTheGateAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (h : BundleHash) (txs : List (TxAtV35 ℓ)),
     s.bundle h = .Unreceived →
     (∀ t ∈ txs, TxAllAtV35 (fun e => ¬ PassesGateAtV35 h e) t) →
@@ -346,7 +417,7 @@ def Properties.DeliveryNeedsTheGateAtV35 : Prop :=
   can end partly executed (`protocol-docs/interop.md:256`).
 * The premise of `DeliveryNeedsTheGateAtV35` holds for hash 1 on `[wExecANoGateAtV35, wRunBAtV35]`:
   the attempt on `wA` carries a failing gate, and the run commits `wB`'s execution. -/
-def Properties.GateRoutesWitnessAtV35 : Prop :=
+@[witness] def Properties.GateRoutesWitnessAtV35 : Prop :=
   (submitAllAtV35 .l2 .deployed init [wRetryAtV35]).2 =
       [.delivered 1 0, .delivered 1 1, .executed 1] ∧
     (submitAllAtV35 .l2 .deployed init [wVerifyAAtV35, wExecANoGateAtV35]).2 =
@@ -381,7 +452,7 @@ Here the verdict is `gateVerdictAtV35`, the model's reading of `requireFlowFinal
 illustration: that the filter is read only at the gate (`unbundleBundle` and the `Verified` path
 never call `requireFlowFinalized`) is established by the call-site inventory in the Specs header,
 not by this statement. -/
-def Properties.ReceiveFilterIsReadAtTheGateAtV35 : Prop :=
+@[countermodel] def Properties.ReceiveFilterIsReadAtTheGateAtV35 : Prop :=
   ∀ (self : ℕ) (p : ℕ → Bool) (legs : List ℕ) (c : ℕ),
     legs.all (legSourceAllowedAtV35 self p) = true → c ∈ legs → c ≠ self →
     (∀ proofsOk : Bool, gateVerdictAtV35 self (deregisterAtV35 p c) legs proofsOk = false) ∧
@@ -431,7 +502,7 @@ storage, in the order `statusWriteAfterCalls`:
   commits `wC` twice (`_verifyBundle` already wrote `Verified`).
 In the deployed order the three runs that commit twice above commit nothing, and with the failure
 caught the first one commits one execution. -/
-def Properties.StatusWriteAfterCallsRunsTwiceAtV35 : Prop :=
+@[countermodel] def Properties.StatusWriteAfterCallsRunsTwiceAtV35 : Prop :=
   (submitAtV35 .l2 .statusWriteAfterCalls init (wReenterAtomicAtV35 true false)).2 =
       [.delivered 3 0, .delivered 3 0, .executed 3, .executed 3] ∧
     (submitAtV35 .l2 .statusWriteAfterCalls init (wReenterAtomicAtV35 false false)).2 = [] ∧
@@ -450,7 +521,7 @@ from fresh storage, after `verifyAtomicBundle(wC)`, in the order `callWriteAfter
 `unbundleBundle` of `wC` requesting its call, whose target makes the same request again, delivers
 the call twice in one committed transaction. In the deployed order that transaction commits
 nothing, and with the failure caught it commits the call once. -/
-def Properties.CallWriteAfterCallsRunsTwiceAtV35 : Prop :=
+@[countermodel] def Properties.CallWriteAfterCallsRunsTwiceAtV35 : Prop :=
   (submitAllAtV35 .l2 .callWriteAfterCalls init [wVerifyCAtV35, wReenterUnbundleAtV35 false]).2 =
       [.delivered 3 0, .delivered 3 0] ∧
     (submitAllAtV35 .l2 .deployed init [wVerifyCAtV35, wReenterUnbundleAtV35 false]).2 = [] ∧
@@ -464,7 +535,7 @@ verdict whose first call's target re-enters `execute(b)` with a passing verdict,
 failure, commits a log with a repeated effect. On L2, when `b` was `Unreceived`, the re-entry's
 verdict is consulted; the statement takes it passing, as the same check on the same proof would
 be. In the deployed order the same transaction commits nothing. -/
-def Properties.StatusWriteAfterCallsRunsAnyBundleTwiceAtV35 : Prop :=
+@[countermodel] def Properties.StatusWriteAfterCallsRunsAnyBundleTwiceAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (b : Bundle), 0 < b.calls →
     (s.bundle b.hash = .Unreceived ∨ s.bundle b.hash = .Verified) →
     ¬ (submitAtV35 ℓ .statusWriteAfterCalls s ⟨b.calls + 5, .execute b true,
@@ -477,7 +548,7 @@ bundle `b` with at least one call and every state where `unbundleBundle(b)` is a
 `Verified` or `Unbundled`) and call 0 is `Unprocessed`, in the order `callWriteAfterCalls`:
 `unbundleBundle(b)` requesting call 0 only, whose target makes the same request again, commits call
 0's delivery twice. In the deployed order the same transaction commits nothing. -/
-def Properties.CallWriteAfterCallsRunsAnyCallTwiceAtV35 : Prop :=
+@[countermodel] def Properties.CallWriteAfterCallsRunsAnyCallTwiceAtV35 : Prop :=
   ∀ (ℓ : LayerAtV35) (s : State) (b : Bundle), 0 < b.calls →
     (s.bundle b.hash = .Verified ∨ s.bundle b.hash = .Unbundled) →
     s.call b.hash 0 = .Unprocessed →

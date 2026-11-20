@@ -16,9 +16,11 @@ both.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.InteropHandlerBase.Properties.ReentrancyAtV35` and are proved in
-`EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyAtV35`. The pin model
-(`Specs/Reentrancy.lean`, era-contracts `c67894b9`) is left as it is; this file adds a model of
-the v35 code beside it, and `EntryAtV35.toPin` below translates the one into the other.
+`EraSpec.Contracts.InteropHandlerBase.Proofs.ReentrancyAtV35`. This is the `b17415d20` layer of
+topic `Reentrancy`; the engine it is translated into is `Specs/Reentrancy.lean`
+(`Contracts.InteropHandler`), and `EntryAtV35.toPin` below is the translation. (The `…Pin…` names
+of this file refer to that engine, whose fourth entry point is the pin `c67894b9`'s
+`executeAtomicBundle`.)
 
 **Main.** At main `70096e2` the three handler files are those of main `3605e82`. They differ
 from `b17415d20` only by the names of three internal getters (`_executeBundleSelector`,
@@ -47,34 +49,19 @@ other than the three handlers can differ at main.
   (`L2:91`). So an atomic bundle can take `Unreceived → Verified → Unbundled`, with calls
   executed or cancelled one by one (documented upstream at `protocol-docs/interop.md:256`).
 
-## The handler's replay state (unchanged; reused from the pin model)
+## The handler's replay state (the engine's)
 
     mapping(bytes32 => BundleStatus) public bundleStatus;                      // IHB:55
     mapping(bytes32 => mapping(uint256 => CallStatus)) public callStatus;      // IHB:58
     uint256[50] private __gap;                                                 // IHB:63
 
-The slots are the pin's (1 and 2). The gap is new and occupies slots 3-52. The enums are
-`common/Messaging.sol:283-288` (`BundleStatus`) and `:253-257` (`CallStatus`), with the same
-members in the same order. The writes to the two mappings in the three handler files are exactly
-`IHB:147`, `:155`, `:160`, `:318`, `:326` and `:330`. So this model reuses the pin model's `State`,
+The gap occupies slots 3-52. The writes to the two mappings in the three handler files are exactly
+`IHB:147`, `:155`, `:160`, `:318`, `:326` and `:330`. So this layer reuses the engine's `State`,
 `init`, `Bundle`, `Effect`, the state updates `setBundle`/`setCall`/`executeAll`/`executeEach`/
 `verifyIfUnreceived`, the unbundle loop `markCalls`/`toExecute`, the countermodel orders `Variant`
 and their write functions `beforeCalls`/`afterCalls`/`writesCallsFirst`/`afterUnbundle`, and the
-predicates `Spent`, `Recorded` and `CallsClosed`. Their docstrings cite the pin; at `b17415d20`
-the lines are:
-
-| pin model cite | v35 line |
-|---|---|
-| `bundleStatus :54`, `callStatus :57` | `IHB:55`, `IHB:58` |
-| `_getBundleData :242-251` (hash `:249`) | `IHB:224-233` (hash `:231`) |
-| executeBundle's writes `:126`, `:129-132` | `_markFullyExecutedAndRun` `IHB:326`, `:329-331` |
-| `_executeCalls(_executeAllCalls: true)` `:137-143`, `emit :146` | `IHB:333-339`, `:341` |
-| `verifyIfUnreceived` (`:123`, write `:312`) | L1 only: `L1:92-95`, `_markVerified` `IHB:318` |
-| unbundle status check `:195`, write `:198` | `IHB:139`, `IHB:147` |
-| unbundle first loop `:200-219` (`:207`, `:208`, `:212`) | `IHB:149-164` (`:154`, `:155`, `:158`) |
-| unbundle `_executeCalls` `:221-227` | `IHB:166-172` |
-| `_executeCalls :259-289`; skip `:268-274`; version `:276`; value `:279`; call `:282-287` | `IHB:350-383`; `:359-364`; `:366`; `:371`; `:374-381` |
-| `Messaging.sol:270-274`, `:303-308` | `common/Messaging.sol:253-257`, `:283-288` |
+predicates `Spent`, `Recorded` and `CallsClosed`, all cited at `b17415d20` in
+`Specs/Reentrancy.lean`.
 
 ## The entry points, per layer (none carries `nonReentrant`)
 
@@ -122,11 +109,11 @@ the lines are:
       require(selector == receiveMessage.selector)                     // IHB:381
 
 On L2, `executeAtomicBundle` writes nothing before `FullyExecuted`, while L1's `executeBundle`
-first writes `Verified` for an `Unreceived` bundle, as the pin's `executeBundle` does.
+first writes `Verified` for an `Unreceived` bundle, as the engine's `executeBundle` does.
 `_markFullyExecutedAndRun` overwrites that `Verified` with `FullyExecuted` before any call runs,
 so in the deployed order both layers' `execute` run their calls from the state the pin's
 `executeBundle` runs them from. That is why the translation below sends both layers' `execute` to
-the pin's `executeBundle`.
+the engine's `executeBundle`.
 
 ## Where execution can re-enter
 
@@ -153,7 +140,7 @@ external calls are static calls or reach no entry point:
   call back into the handler, and it reaches no entry point. On L1 `_handleCallValue` only checks
   the value is zero (`L1:175-177`). In this model its only effect is that it may revert.
 
-The target is arbitrary code, as in the pin model. On L1 the target is pinned to `L1_ASSET_ROUTER`
+The target is arbitrary code, as in the engine. On L1 the target is pinned to `L1_ASSET_ROUTER`
 (`_interopCallTarget`, `L1:189-192`); the arbitrary target over-approximates it. When the target
 is the handler itself, `receiveMessage` (`IHB:188-213`) requires `msg.sender == address(this)`,
 makes exactly one of the layer's execute, verify and unbundle self-calls (`L2:130`, `L2:141`,
@@ -172,7 +159,7 @@ makes exactly one of the layer's execute, verify and unbundle self-calls (`L2:13
   `requireFlowFinalized` on L2, `_verifyBundle`'s sender check and `_proveInclusion` on L1.
   `execute` consults it only when the bundle is `Unreceived`. The verdict is an input bit of each
   entry-point call, so two calls may get different verdicts, in one transaction or in two.
-* **Everything else is the pin model's**: `Callee` trees, fuel, `none` for a revert that leaves
+* **Everything else is the engine's**: `Callee` trees, fuel, `none` for a revert that leaves
   nothing, the committed log as the trace, a bundle as its hash and its number of calls.
 * **Reject-only checks are omitted**: the permission gates (`_requireExecutionAllowed`
   `IHB:239-255`, the unbundler gate `IHB:118-132`), the destination context (`IHB:390-410`), the
@@ -185,7 +172,7 @@ makes exactly one of the layer's execute, verify and unbundle self-calls (`L2:13
   guard and OpenZeppelin storage only. `updateL2` (`L2:38-43`, `onlyUpgrader`) does
   `sstore(101, 0)` (`interop/InteropConstants.sol:12`). Slot 101 is past the gap and is neither
   mapping's base slot; a mapping entry lives at a keccak image, which this model does not track.
-* **Countermodel orders** reuse the pin's `Variant`: `statusWriteAfterCalls` moves
+* **Countermodel orders** reuse the engine's `Variant`: `statusWriteAfterCalls` moves
   `_markFullyExecutedAndRun`'s `FullyExecuted` write (`IHB:326`) after `_executeCalls`;
   `callWriteAfterCalls` moves `unbundleBundle`'s `Executed` write (`IHB:155`) after it.
 * **Gate predicates.** `PassesGateAtV35 h e` says entry-point call `e` names a bundle with hash `h`
@@ -345,40 +332,40 @@ in the order `v` whatever the state and the budget (the v35 form of the pin's
 def AlwaysRevertsAtV35 (ℓ : LayerAtV35) (v : Variant) (c : CalleeAtV35 ℓ) : Prop :=
   ∀ (m : ℕ) (t : State), execAtV35 ℓ v m (.target c) t = none
 
-/-! ## The translation into the pin model
+/-! ## The translation into the engine
 
-A v35 entry is sent to the pin entry point with the same guard: `execute` to the pin's
+A v35 entry is sent to the engine entry point with the same guard: `execute` to the pin's
 `executeBundle` (not `executeAtomicBundle`, whose guard admits `Unreceived` only), `verify` to
 `verifyBundle`, `unbundleBundle` to itself. -/
 
-/-- The pin entry point with the same guard. -/
+/-- The engine entry point with the same guard. -/
 def EntryAtV35.toPin {ℓ : LayerAtV35} : EntryAtV35 ℓ → Contracts.InteropHandler.Entry
   | .execute b ok => .executeBundle b ok
   | .verify b ok => .verifyBundle b ok
   | .unbundleBundle b req => .unbundleBundle b req
 
 mutual
-/-- A v35 target, as a pin target. -/
+/-- A v35 target, as an engine target. -/
 def CalleeAtV35.toPin {ℓ : LayerAtV35} : CalleeAtV35 ℓ → Contracts.InteropHandler.Callee
   | .returns => .returns
   | .reverts => .reverts
   | .calls e inner caught next =>
       .calls e.toPin (CalleeAtV35.listToPin inner) caught (CalleeAtV35.toPin next)
 
-/-- A list of v35 targets, as pin targets. -/
+/-- A list of v35 targets, as engine targets. -/
 def CalleeAtV35.listToPin {ℓ : LayerAtV35} :
     List (CalleeAtV35 ℓ) → List Contracts.InteropHandler.Callee
   | [] => []
   | c :: cs => CalleeAtV35.toPin c :: CalleeAtV35.listToPin cs
 end
 
-/-- A v35 frame, as a pin frame. -/
+/-- A v35 frame, as an engine frame. -/
 def FrameAtV35.toPin {ℓ : LayerAtV35} : FrameAtV35 ℓ → Contracts.InteropHandler.Frame
   | .entry e cs => .entry e.toPin (CalleeAtV35.listToPin cs)
   | .calls h is cs => .calls h is (CalleeAtV35.listToPin cs)
   | .target c => .target c.toPin
 
-/-- A v35 transaction, as a pin transaction. -/
+/-- A v35 transaction, as an engine transaction. -/
 def TxAtV35.toPin {ℓ : LayerAtV35} (t : TxAtV35 ℓ) : Contracts.InteropHandler.Tx :=
   ⟨t.fuel, t.entry.toPin, CalleeAtV35.listToPin t.callees⟩
 
@@ -442,7 +429,7 @@ def allowAtV35 (isPeerAllowed : ℕ → Bool) (c : ℕ) : ℕ → Bool :=
 
 /-! ## Witness data
 
-The pin model's bundles: `wA` (hash 1, two calls), `wB` (hash 2, one call), `wC` (hash 3, one
+The engine's bundles: `wA` (hash 1, two calls), `wB` (hash 2, one call), `wC` (hash 3, one
 call). -/
 
 /-- A target that calls `e` (whose calls' targets return) and returns, catching a failure or

@@ -3,8 +3,9 @@ import EraSpec.Contracts.InteropHandlerBase.Specs.BundleStatusMachineFaithful
 /-!
 # Model: the base-token ledger, derived from the handler
 
-Source: era-contracts at the pin `c67894b9`, `l1-contracts/contracts/`; a bare `:N` is a line of
-`interop/interop-handler/InteropHandlerBase.sol` there.
+Source: era-contracts `draft/v0.35.0` at `b17415d20`, `l1-contracts/contracts/`; a bare `:N` is a
+line of `interop/interop-handler/InteropHandlerBase.sol` there. The statements are over the engine
+(topic `Reentrancy`), whose entry points the Reentrancy Specs header maps to `b17415d20`.
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.InteropHandlerBase.Properties.ValueLedgerFaithful` and are proved in
@@ -21,18 +22,20 @@ the ledger from the handler's own state, in the re-entrant model `Contracts.Inte
 
 ## The code
 
-    // _executeCalls (:259-289), for each call i it executes:
-    _handleCallValue(interopCall.value, _sourceChainId);                          // :279
-    selector = IERC7786Recipient(to).receiveMessage{value: interopCall.value}(...) // :282-286
-    require(selector == receiveMessage.selector);                                 // :287
-    // L2InteropHandler._handleCallValue (:115-120): if (_value > 0) L2_BASE_TOKEN_HOLDER.give(...)
+    // _executeCalls (:350-383), for each call i it executes:
+    _handleCallValue(interopCall.value, _sourceChainId);                          // :371
+    selector = IERC7786Recipient(_interopCallTarget(to)).receiveMessage{value: interopCall.value}(...) // :374-380
+    require(selector == receiveMessage.selector);                                 // :381
+    // L2InteropHandler._handleCallValue (:149-154): if (_value > 0) L2_BASE_TOKEN_HOLDER.give(...)
+    // L1InteropHandler._handleCallValue (:175-177): require(_value == 0)
 
-`_handleCallValue` has one call site (:279), `give` one (`L2InteropHandler.sol:118`), and the loop
+`_handleCallValue` has one call site (:371), `give` one (`L2InteropHandler.sol:152`), and the loop
 has no `try`: a call whose target fails reverts the whole frame, release included. So in a
 committed frame, call `i` of the bundle with hash `h` releases `interopCall.value` exactly when
 the Reentrancy model logs `Effect.delivered h i`, once per such entry. The source side is
-`InteropCenter.sol:541`, `totalBurnedCallsValue += interopCallValue` over every call, and the
-value placed in the bundle is that same field (:738, :747).
+`interop/InteropCenter.sol:681`, `totalBurnedCallsValue += interopCallValue` over every call, and
+the value placed in the bundle is that same field (`_processCallStarter` sets the call's `value` to it,
+`InteropCenter.sol:819` indirect / `:828` direct, and `:680` stores the call in the bundle).
 
 ## Modelling choices
 
@@ -47,8 +50,8 @@ value placed in the bundle is that same field (:738, :747).
   (`SharedHashBreaksTheLedger`).
 * **Values are naturals**, where the source sums `uint256` with checked arithmetic; an overflow
   reverts the send, so every collected sum the destination sees is a natural.
-* `scripts/check-interop-handler-inventory.sh` checks the two release call sites above against the
-  pinned tree.
+* The two release call sites above were checked by hand at `b17415d20`
+  (`scripts/check-interop-handler-inventory.sh` checks the pin `c67894b9` layout).
 -/
 
 namespace Contracts.InteropHandler.Faithful
@@ -59,19 +62,19 @@ open AttackVectors.BundleStatusMachine (Ledger CallStatus)
 abbrev CallValues := ℕ → ℕ
 
 /-- **What the handler releases** for bundle hash `h`, read off a committed log: the value of call
-`i` once per committed delivery of call `i` of `h` (`_handleCallValue`, :279). -/
+`i` once per committed delivery of call `i` of `h` (`_handleCallValue`, :371). -/
 def releasedFor (val : CallValues) (h : BundleHash) : List Effect → ℕ
   | [] => 0
   | .delivered h' i :: l => (if h' = h then val i else 0) + releasedFor val h l
   | .executed _ :: l => releasedFor val h l
 
 /-- **What the source collected** for bundle `b`: the value of every one of its calls
-(`InteropCenter.sol:541`). -/
+(`InteropCenter.sol:681`). -/
 def collectedFor (val : CallValues) (b : Bundle) : ℕ :=
   ((List.range b.calls).map val).sum
 
 /-- **The handler's ledger** for bundle `b` in state `s`: one entry per call of `b`, in index
-order, holding the call's value and its recorded `callStatus[bundleHash][i]` (:57). -/
+order, holding the call's value and its recorded `callStatus[bundleHash][i]` (:58). -/
 def handlerLedger (val : CallValues) (b : Bundle) (s : State) : Ledger :=
   (List.range b.calls).map fun i => (val i, s.call b.hash i)
 

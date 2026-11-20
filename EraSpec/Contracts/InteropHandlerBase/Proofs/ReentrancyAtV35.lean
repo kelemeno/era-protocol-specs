@@ -7,17 +7,17 @@ import Mathlib.Tactic
 /-!
 # Proofs: re-entrant execution in the v35 handlers
 
-The deployed results are transported from the pin model. `execAtV35_eq_exec` shows, by induction
+The deployed results are transported from the engine. `execAtV35_eq_exec` shows, by induction
 on the budget, that a v35 frame runs as its translation (`FrameAtV35.toPin`) in
 `Contracts.InteropHandler.exec`, whenever the layer is L1 or the order writes the bundle status
-before the calls. The one place the two semantics differ is L2's `execute`, which skips the pin
+before the calls. The one place the two semantics differ is L2's `execute`, which skips the engine
 `executeBundle`'s `Verified` write; `beforeCalls` overwrites the bundle status in those orders
 (`beforeCalls_proofWriteAtV35`). Lifted to transactions (`submitAllAtV35_eq_submitAll`), it turns
-the pin theorems of `Reentrancy` and `BundleStatusMachineFaithful` used here into their v35
+the engine theorems of `Reentrancy` and `BundleStatusMachineFaithful` used here into their v35
 forms.
 
 The rollback results hold in every order, including L2's `statusWriteAfterCalls`, where the
-translation fails, so they are proved on `execAtV35` directly, by the pin's loop lemmas redone for
+translation fails, so they are proved on `execAtV35` directly, by the engine's loop lemmas redone for
 v35 (`execAtV35_calls_alwaysReverts`, `execAtV35_calls_append`). The concrete witnesses and
 countermodels are evaluated by `decide`.
 -/
@@ -411,7 +411,7 @@ theorem VerifiedBundleExecutesWithoutTheGateAtV35 :
   | zero => simp [submitAtV35, execAtV35, commit]
   | succ n => simp [submitAtV35, execAtV35, hv, commit]
 
-/-- A v35 target all of whose entry-point calls satisfy `P` translates to a pin target all of whose
+/-- A v35 target all of whose entry-point calls satisfy `P` translates to an engine target all of whose
 entry-point calls satisfy `Q`, when `P e` gives `Q e.toPin`. -/
 private lemma calleeAll_toPin {ℓ : LayerAtV35} {P : EntryAtV35 ℓ → Prop} {Q : Entry → Prop}
     (hPQ : ∀ e, P e → Q e.toPin) {c : CalleeAtV35 ℓ} (hc : CalleeAllAtV35 P c) :

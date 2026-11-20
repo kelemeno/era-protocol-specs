@@ -1,7 +1,8 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthorityFaithful
 
 /-!
-# Properties: the self-call delegation relays authority, at the pin and at the upgrade
+# Properties: the self-call delegation relays authority, on both `b17415d20` handlers
 
 Statements about `EraSpec.Contracts.InteropHandlerBase.Specs.SelfCallAuthorityFaithful`. Proofs are
 in `EraSpec.Contracts.InteropHandlerBase.Proofs.SelfCallAuthorityFaithful`.
@@ -16,24 +17,25 @@ or miswired self-call site, and two of them exhibit such handlers.
   `receiveMessage` can take checks the attribute its target's gate reads (or the target has no
   gate). So soundness is exactly a property of the dispatch table, which the next two results
   decide for the deployed tables.
-* `PinnedDelegationSound`, `UpgradeDelegationSound`: the pin's table and both upgrade tables are
-  sound.
+* `DelegationSoundAtV35`: both `b17415d20` tables (L2 and L1) are sound. `PinnedDelegationSound`:
+  so is the pin's table, which as a list is the `b17415d20` L1 table.
 * `DirectCallsAreGatedExactly`: for every caller other than the handler, the gate passes exactly
   when the attribute admits `(block.chainid, msg.sender)`. `SelfDisjunctPassesWhateverTheAttribute`:
   for the handler itself it passes whenever the attribute parses, which is why the dispatch has to
   check. `RelayedCallActsForTheMessageSender`: what a relayed call carries.
-* `RelayEstablishesTheOriginalHypothesis`: at the pin, every self-call into a gated entry point has
+* `RelayEstablishesTheOriginalHypothesis`: under `pinnedTable` (the L1 table), every self-call into a gated entry point has
   the original file's hypothesis `checked : attrAllows a senderChain senderChain senderAddr`
   established by the outer handler, for the bundle's own attribute.
-* `AtomicSelfDisjunctDeadAtPin`: at the pin no call reaches `executeAtomicBundle` with
-  `msg.sender = address(this)`. `AtomicSelfDisjunctLiveAndCheckedAtUpgrade`: at the upgrade one
-  does, and the arm that makes it checks first.
+* `AtomicSelfDisjunctDeadAtPin`: under `pinnedTable` (the pin's table, and the `b17415d20` L1
+  table) no call reaches `executeAtomicBundle` with `msg.sender = address(this)`.
+  `AtomicSelfDisjunctLiveAndCheckedAtV35`: under the `b17415d20` L2 table one does, and the arm
+  that makes it checks first.
 * Countermodels: `UncheckedAtomicArmWidensAuthority` (the fourth arm the pin's header warns about)
   and `MiswiredCheckWidensAuthority` (an execute arm checking the unbundler attribute) are unsound,
   each with a concrete principal the attribute does not admit.
 
 The inventory behind `Reaches` (no other way for the handler to call itself) is the model
-boundary; `scripts/check-interop-handler-inventory.sh` checks it against the pinned tree.
+boundary; it was checked by hand at `b17415d20` (Specs header).
 -/
 
 namespace AttackVectors.SelfCallAuthority.Faithful
@@ -46,20 +48,27 @@ target has no gate. -/
 def Properties.DelegationSoundIffMatched : Prop :=
   ∀ tbl : Table, DelegationSound tbl ↔ Matched tbl
 
-/-- **AT THE PIN, AUTHORITY IS RELAYED, NOT WIDENED.** For the handler at any address on any chain,
+/-- **UNDER THE PIN'S TABLE (THE `b17415d20` L1 TABLE), AUTHORITY IS RELAYED, NOT WIDENED.** For the
+handler at any address on any chain,
 every call that passes the gate of `executeBundle`, `unbundleBundle`, `executeAtomicBundle` or
 `verifyBundle` carries a principal the bundle's attribute admits: `(block.chainid, msg.sender)` for a
 direct call, the rescue message's `(senderChainId, senderAddress)` for one of the three self-calls
-(:391, :401, :425). -/
+(pin `InteropHandlerBase.sol:391`, `:401`, `:425`; at `b17415d20` L1's `L1:148`, `:159`,
+`InteropHandlerBase.sol:432`). -/
 def Properties.PinnedDelegationSound : Prop :=
   ∀ (handler thisChain : ℕ) (gc : GateCall), Reaches pinnedTable handler thisChain gc →
     InnerGate handler thisChain gc.entry.gate gc.attrs gc.sender →
       Admits gc.entry.gate gc.attrs gc.principal
 
-/-- **AND AT THE UPGRADE, ON BOTH LAYERS** (`e561b9cc2`): the L2 table, whose execute arm self-calls
-`executeAtomicBundle`, and the L1 table. -/
-def Properties.UpgradeDelegationSound : Prop :=
-  DelegationSound upgradeL2Table ∧ DelegationSound upgradeL1Table
+/-- **AT `b17415d20`, ON BOTH LAYERS, AUTHORITY IS RELAYED, NOT WIDENED.** For the handler at any
+address on any chain, with the L2 dispatch (`InteropHandlerBase.sol:202-210` with
+`L2InteropHandler.sol:99-142`, whose execute arm self-calls `executeAtomicBundle`) and with the L1
+dispatch (`L1InteropHandler.sol:117-160`): every call that passes an entry point's permission gate
+carries a principal the bundle's attribute admits. Premise (the model boundary): the calls that reach
+a gate are the ones `Reaches` lists, a direct call by an account other than the handler, or the
+self-call of one `receiveMessage` arm; the Specs header lists the `b17415d20` sites this rests on. -/
+@[headline] def Properties.DelegationSoundAtV35 : Prop :=
+  DelegationSound l2TableAtV35 ∧ DelegationSound l1TableAtV35
 
 /-- **A DIRECT CALL IS GATED EXACTLY.** For every caller other than the handler, every gate passes if
 and only if the bundle's attribute admits `(block.chainid, msg.sender)`. -/
@@ -85,7 +94,7 @@ def Properties.RelayedCallActsForTheMessageSender : Prop :=
         ∃ br, m.selector = some (.entry br.selector) ∧ branchFor tbl br.selector = some br ∧
           sc.target = br.target ∧ Admits br.check sc.attrs sc.principal
 
-/-- **THE ORIGINAL HYPOTHESIS, DISCHARGED.** At the pin, every self-call into a gated entry point
+/-- **THE ORIGINAL HYPOTHESIS, DISCHARGED.** Under `pinnedTable` (the L1 table), every self-call into a gated entry point
 satisfies `SelfCallAuthority`'s hypothesis `checked : attrAllows a senderChain senderChain senderAddr`
 for the bundle's own attribute `a` and the message's sender: for the execution gate `a` is the
 parsed execution address (`none` when empty), for the unbundler gate the parsed unbundler address. -/
@@ -97,26 +106,27 @@ def Properties.RelayEstablishesTheOriginalHypothesis : Prop :=
       (sc.target.gate = .unbundler → ∃ ch addr, sc.attrs.unbundler = .evm ch addr ∧
           attrAllows (some (ch, addr)) sc.principal.1 sc.principal.1 sc.principal.2)
 
-/-- **AT THE PIN, `executeAtomicBundle`'S SELF DISJUNCT IS DEAD.** No call reaches
-`executeAtomicBundle` with `msg.sender = address(this)`: no arm of the pin's dispatch targets it. -/
+/-- **UNDER THE PIN'S TABLE, `executeAtomicBundle`'S SELF DISJUNCT IS DEAD.** No call reaches
+`executeAtomicBundle` with `msg.sender = address(this)`: no arm of the pin's dispatch (as a list, the
+`b17415d20` L1 dispatch) targets it. -/
 def Properties.AtomicSelfDisjunctDeadAtPin : Prop :=
   ∀ (handler thisChain : ℕ) (gc : GateCall), Reaches pinnedTable handler thisChain gc →
     gc.entry = .executeAtomicBundle → gc.sender ≠ handler
 
-/-- **AT THE UPGRADE IT IS LIVE, AND CHECKED FIRST.** With the L2 table, the handler at `0` on chain
+/-- **AT `b17415d20` ON L2 IT IS LIVE, AND CHECKED FIRST.** With the L2 table, the handler at `0` on chain
 `1` receives a self-call into `executeAtomicBundle` acting for `(1, 7)`, the principal the bundle's
 execution attribute names; the same request from `(1, 9)` is refused by the arm's check
 (`_requireRescueExecutionAllowed`) before any self-call. -/
-def Properties.AtomicSelfDisjunctLiveAndCheckedAtUpgrade : Prop :=
-  Reaches upgradeL2Table 0 1 ⟨.executeAtomicBundle, wAttrs, 0, (1, 7)⟩ ∧
-    dispatch upgradeL2Table 0 0 wAtomicMsgOk = some ⟨.executeAtomicBundle, wAttrs, (1, 7)⟩ ∧
-    dispatch upgradeL2Table 0 0 wAtomicMsg = none
+@[witness] def Properties.AtomicSelfDisjunctLiveAndCheckedAtV35 : Prop :=
+  Reaches l2TableAtV35 0 1 ⟨.executeAtomicBundle, wAttrs, 0, (1, 7)⟩ ∧
+    dispatch l2TableAtV35 0 0 wAtomicMsgOk = some ⟨.executeAtomicBundle, wAttrs, (1, 7)⟩ ∧
+    dispatch l2TableAtV35 0 0 wAtomicMsg = none
 
 /-- **AN UNCHECKED FOURTH ARM WOULD WIDEN AUTHORITY.** With the pin's table plus an arm that
 self-calls `executeAtomicBundle` without a check, the delegation is unsound: the handler at `0` on
 chain `1` passes `executeAtomicBundle`'s gate for `(1, 9)`, whom the bundle's execution attribute
 (naming `(1, 7)`) does not admit. -/
-def Properties.UncheckedAtomicArmWidensAuthority : Prop :=
+@[countermodel] def Properties.UncheckedAtomicArmWidensAuthority : Prop :=
   ¬ DelegationSound uncheckedAtomicTable ∧
     Reaches uncheckedAtomicTable 0 1 ⟨.executeAtomicBundle, wAttrs, 0, (1, 9)⟩ ∧
     InnerGate 0 1 Gate.execution wAttrs 0 ∧ ¬ Admits .execution wAttrs (1, 9)
@@ -124,7 +134,7 @@ def Properties.UncheckedAtomicArmWidensAuthority : Prop :=
 /-- **SO WOULD A MISWIRED CHECK.** If the execute arm checked the unbundler attribute instead, the
 delegation is unsound: `(1, 9)`, the bundle's unbundler, gets `executeBundle` past its gate although
 the execution attribute names `(1, 7)`. -/
-def Properties.MiswiredCheckWidensAuthority : Prop :=
+@[countermodel] def Properties.MiswiredCheckWidensAuthority : Prop :=
   ¬ DelegationSound miswiredTable ∧
     Reaches miswiredTable 0 1 ⟨.executeBundle, wAttrs, 0, (1, 9)⟩ ∧
     InnerGate 0 1 Gate.execution wAttrs 0 ∧ ¬ Admits .execution wAttrs (1, 9)

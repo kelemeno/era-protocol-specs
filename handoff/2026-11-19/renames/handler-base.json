@@ -1,0 +1,158 @@
+[
+ {
+  "old": "AttackVectors.BundleStatusMachine.Faithful.Properties.atomic_entry_needs_unreceived",
+  "new": "AttackVectors.BundleStatusMachine.Faithful.History.Properties.atomic_entry_needs_unreceived",
+  "kind": "history",
+  "justification": "The labelled machine LStep labels the pin c67894b9's edges (inclusion-proof executeBundle on both layers, atomic entry admitting Unreceived only); b17415d20 has a flow-gated verifyAtomicBundle edge LStep lacks and an executeAtomicBundle admitting Verified. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Faithful.Properties.inclusion_routes_skip_flowGate",
+  "new": "AttackVectors.BundleStatusMachine.Faithful.History.Properties.inclusion_routes_skip_flowGate",
+  "kind": "history",
+  "justification": "The labelled machine LStep labels the pin c67894b9's edges (inclusion-proof executeBundle on both layers, atomic entry admitting Unreceived only); b17415d20 has a flow-gated verifyAtomicBundle edge LStep lacks and an executeAtomicBundle admitting Verified. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Faithful.Properties.lstep_refines_step",
+  "new": "AttackVectors.BundleStatusMachine.Faithful.History.Properties.lstep_refines_step",
+  "kind": "history",
+  "justification": "The labelled machine LStep labels the pin c67894b9's edges (inclusion-proof executeBundle on both layers, atomic entry admitting Unreceived only); b17415d20 has a flow-gated verifyAtomicBundle edge LStep lacks and an executeAtomicBundle admitting Verified. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Faithful.Properties.no_inclusion_paths_are_atomic",
+  "new": "AttackVectors.BundleStatusMachine.Faithful.History.Properties.no_inclusion_paths_are_atomic",
+  "kind": "history",
+  "justification": "The labelled machine LStep labels the pin c67894b9's edges (inclusion-proof executeBundle on both layers, atomic entry admitting Unreceived only); b17415d20 has a flow-gated verifyAtomicBundle edge LStep lacks and an executeAtomicBundle admitting Verified. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Faithful.Properties.route_consults_inclusion_or_flowGate",
+  "new": "AttackVectors.BundleStatusMachine.Faithful.History.Properties.route_consults_inclusion_or_flowGate",
+  "kind": "history",
+  "justification": "The labelled machine LStep labels the pin c67894b9's edges (inclusion-proof executeBundle on both layers, atomic entry admitting Unreceived only); b17415d20 has a flow-gated verifyAtomicBundle edge LStep lacks and an executeAtomicBundle admitting Verified. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Faithful.Properties.verified_runs_unchecked",
+  "new": "AttackVectors.BundleStatusMachine.Faithful.History.Properties.verified_runs_unchecked",
+  "kind": "history",
+  "justification": "The labelled machine LStep labels the pin c67894b9's edges (inclusion-proof executeBundle on both layers, atomic entry admitting Unreceived only); b17415d20 has a flow-gated verifyAtomicBundle edge LStep lacks and an executeAtomicBundle admitting Verified. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Properties.atomic_delivery_terminal",
+  "new": "AttackVectors.BundleStatusMachine.History.Properties.atomic_delivery_terminal",
+  "kind": "history",
+  "justification": "BundleStatusMachine's atomic sub-machine (AtomicStep/AtomicReach) encodes the pin c67894b9 premise that an atomic bundle never reaches Verified; at b17415d20 verifyAtomicBundle (L2InteropHandler.sol:83-92) verifies atomic bundles and the pin's no-value rule for atomic calls is gone. Moved unchanged to History/{Specs,Properties,Proofs}/BundleStatusMachine.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Properties.atomic_ledger_trivial",
+  "new": "AttackVectors.BundleStatusMachine.History.Properties.atomic_ledger_trivial",
+  "kind": "history",
+  "justification": "BundleStatusMachine's atomic sub-machine (AtomicStep/AtomicReach) encodes the pin c67894b9 premise that an atomic bundle never reaches Verified; at b17415d20 verifyAtomicBundle (L2InteropHandler.sol:83-92) verifies atomic bundles and the pin's no-value rule for atomic calls is gone. Moved unchanged to History/{Specs,Properties,Proofs}/BundleStatusMachine.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Properties.atomic_never_unbundled",
+  "new": "AttackVectors.BundleStatusMachine.History.Properties.atomic_never_unbundled",
+  "kind": "history",
+  "justification": "BundleStatusMachine's atomic sub-machine (AtomicStep/AtomicReach) encodes the pin c67894b9 premise that an atomic bundle never reaches Verified; at b17415d20 verifyAtomicBundle (L2InteropHandler.sol:83-92) verifies atomic bundles and the pin's no-value rule for atomic calls is gone. Moved unchanged to History/{Specs,Properties,Proofs}/BundleStatusMachine.lean."
+ },
+ {
+  "old": "AttackVectors.BundleStatusMachine.Properties.atomic_reach_two_states",
+  "new": "AttackVectors.BundleStatusMachine.History.Properties.atomic_reach_two_states",
+  "kind": "history",
+  "justification": "BundleStatusMachine's atomic sub-machine (AtomicStep/AtomicReach) encodes the pin c67894b9 premise that an atomic bundle never reaches Verified; at b17415d20 verifyAtomicBundle (L2InteropHandler.sol:83-92) verifies atomic bundles and the pin's no-value rule for atomic calls is gone. Moved unchanged to History/{Specs,Properties,Proofs}/BundleStatusMachine.lean."
+ },
+ {
+  "old": "AttackVectors.SelfCallAuthority.Faithful.Properties.AtomicSelfDisjunctLiveAndCheckedAtUpgrade",
+  "new": "AttackVectors.SelfCallAuthority.Faithful.Properties.AtomicSelfDisjunctLiveAndCheckedAtV35",
+  "kind": "renamed",
+  "justification": "Same statement; its tables (upgradeL2Table/upgradeL1Table, now l2TableAtV35/l1TableAtV35) were transcribed at e561b9cc2 and every cited line holds with the same content at b17415d20, so the 'Upgrade' name became the b17415d20 name."
+ },
+ {
+  "old": "AttackVectors.SelfCallAuthority.Faithful.Properties.UpgradeDelegationSound",
+  "new": "AttackVectors.SelfCallAuthority.Faithful.Properties.DelegationSoundAtV35",
+  "kind": "renamed",
+  "justification": "Same statement; its tables (upgradeL2Table/upgradeL1Table, now l2TableAtV35/l1TableAtV35) were transcribed at e561b9cc2 and every cited line holds with the same content at b17415d20, so the 'Upgrade' name became the b17415d20 name."
+ },
+ {
+  "old": "Contracts.InteropHandler.Faithful.Properties.FlowGateRoutesWitness",
+  "new": "Contracts.InteropHandler.Faithful.History.Properties.FlowGateRoutesWitness",
+  "kind": "history",
+  "justification": "Rests on the pin c67894b9's never-published argument and its atomic entry refusing Verified (or witnesses those); the b17415d20 gate results are Contracts.InteropHandlerAtV35.Properties.DeliveryNeedsTheGateAtV35 and VerifiedBundleExecutesWithoutTheGateAtV35. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "Contracts.InteropHandler.Faithful.Properties.NeverPublishedBundleNeedsTheFlowGate",
+  "new": "Contracts.InteropHandler.Faithful.History.Properties.NeverPublishedBundleNeedsTheFlowGate",
+  "kind": "history",
+  "justification": "Rests on the pin c67894b9's never-published argument and its atomic entry refusing Verified (or witnesses those); the b17415d20 gate results are Contracts.InteropHandlerAtV35.Properties.DeliveryNeedsTheGateAtV35 and VerifiedBundleExecutesWithoutTheGateAtV35. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "Contracts.InteropHandler.Faithful.Properties.ProvableBytesBypassTheFlowGate",
+  "new": "Contracts.InteropHandler.Faithful.History.Properties.ProvableBytesBypassTheFlowGate",
+  "kind": "history",
+  "justification": "Rests on the pin c67894b9's never-published argument and its atomic entry refusing Verified (or witnesses those); the b17415d20 gate results are Contracts.InteropHandlerAtV35.Properties.DeliveryNeedsTheGateAtV35 and VerifiedBundleExecutesWithoutTheGateAtV35. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "Contracts.InteropHandler.Faithful.Properties.VerifiedBundleRunsWithoutAnyGate",
+  "new": "Contracts.InteropHandler.Faithful.History.Properties.VerifiedBundleRunsWithoutAnyGate",
+  "kind": "history",
+  "justification": "Rests on the pin c67894b9's never-published argument and its atomic entry refusing Verified (or witnesses those); the b17415d20 gate results are Contracts.InteropHandlerAtV35.Properties.DeliveryNeedsTheGateAtV35 and VerifiedBundleExecutesWithoutTheGateAtV35. Moved unchanged to History/*/BundleStatusMachineFaithful.lean."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.AdmittedBundleHasOnlyUnprocessedCalls",
+  "new": "Contracts.InteropHandler.History.Properties.AdmittedBundleHasOnlyUnprocessedCalls",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.AtomicLegAtDestinationWitness",
+  "new": "Contracts.InteropHandler.History.Properties.AtomicLegAtDestinationWitness",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.AtomicLegStaysAtomicAtDestinationOrClash",
+  "new": "Contracts.InteropHandler.History.Properties.AtomicLegStaysAtomicAtDestinationOrClash",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.AtomicMachineIsDeployedMachineWithoutVerify",
+  "new": "Contracts.InteropHandler.History.Properties.AtomicMachineIsDeployedMachineWithoutVerify",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.CallStatusDoesNotStopWholeBundleRedelivery",
+  "new": "Contracts.InteropHandler.History.Properties.CallStatusDoesNotStopWholeBundleRedelivery",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.NoProofKeepsBundleInAtomicMachine",
+  "new": "Contracts.InteropHandler.History.Properties.NoProofKeepsBundleInAtomicMachine",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.ProofForAtomicHashOpensUnbundledRoute",
+  "new": "Contracts.InteropHandler.History.Properties.ProofForAtomicHashOpensUnbundledRoute",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.StatusMachineStrongWitness",
+  "new": "Contracts.InteropHandler.History.Properties.StatusMachineStrongWitness",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.VerifiedBundleNeverExecutesAtomically",
+  "new": "Contracts.InteropHandler.History.Properties.VerifiedBundleNeverExecutesAtomically",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ },
+ {
+  "old": "Contracts.InteropHandler.Properties.WholeBundleWriteIgnoresCallStatus",
+  "new": "Contracts.InteropHandler.History.Properties.WholeBundleWriteIgnoresCallStatus",
+  "kind": "history",
+  "justification": "Topic BundleStatusMachineStrong composes the engine with the pin c67894b9's atomic entry, InteropCenter Dispatch model and BundleHashPinned keccak layer (already History); at b17415d20 executeAtomicBundle admits Verified and verifyAtomicBundle exists. Whole topic moved unchanged to History/*/BundleStatusMachineStrong.lean (namespace Contracts.InteropHandler.History)."
+ }
+]

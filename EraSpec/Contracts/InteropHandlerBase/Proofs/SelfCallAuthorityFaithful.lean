@@ -120,9 +120,9 @@ lemma pinnedTable_matched : Matched pinnedTable := by decide
 theorem PinnedDelegationSound : Properties.PinnedDelegationSound :=
   (DelegationSoundIffMatched pinnedTable).2 pinnedTable_matched
 
-theorem UpgradeDelegationSound : Properties.UpgradeDelegationSound :=
-  ⟨(DelegationSoundIffMatched upgradeL2Table).2 (by decide),
-    (DelegationSoundIffMatched upgradeL1Table).2 (by decide)⟩
+theorem DelegationSoundAtV35 : Properties.DelegationSoundAtV35 :=
+  ⟨(DelegationSoundIffMatched l2TableAtV35).2 (by decide),
+    (DelegationSoundIffMatched l1TableAtV35).2 (by decide)⟩
 
 theorem SelfDisjunctPassesWhateverTheAttribute :
     Properties.SelfDisjunctPassesWhateverTheAttribute := by
@@ -194,9 +194,9 @@ theorem AtomicSelfDisjunctDeadAtPin : Properties.AtomicSelfDisjunctDeadAtPin := 
     have hno : ∀ b ∈ pinnedTable, b.target ≠ .executeAtomicBundle := by decide
     exact hno br hmem hatomic
 
-theorem AtomicSelfDisjunctLiveAndCheckedAtUpgrade :
-    Properties.AtomicSelfDisjunctLiveAndCheckedAtUpgrade := by
-  have hd : dispatch upgradeL2Table 0 0 wAtomicMsgOk = some ⟨.executeAtomicBundle, wAttrs, (1, 7)⟩ :=
+theorem AtomicSelfDisjunctLiveAndCheckedAtV35 :
+    Properties.AtomicSelfDisjunctLiveAndCheckedAtV35 := by
+  have hd : dispatch l2TableAtV35 0 0 wAtomicMsgOk = some ⟨.executeAtomicBundle, wAttrs, (1, 7)⟩ :=
     by decide
   exact ⟨Reaches.relayed 0 wAtomicMsgOk _ hd, hd, by decide⟩
 

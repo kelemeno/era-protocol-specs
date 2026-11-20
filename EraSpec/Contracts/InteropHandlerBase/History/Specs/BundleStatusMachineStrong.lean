@@ -1,6 +1,20 @@
 import EraSpec.Contracts.InteropHandlerBase.Specs.Reentrancy
 import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
+import EraSpec.Contracts.InteropHandlerBase.History.Specs.BundleStatusMachine
+
+/-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
+This topic composes the re-entrant engine (topic `Reentrancy`) with the pin's atomic entry point
+(`executeAtomicBundle` admitting `Unreceived` only, gate always run), the pin's source-chain
+`InteropCenter` model (`Contracts.InteropCenter` `Dispatch`) and the pin's bundle-hash preimage
+(`BundleHashPinned`'s History layer). At `b17415d20` `executeAtomicBundle`
+(`interop/interop-handler/L2InteropHandler.sol:61-78`) admits a `Verified` bundle and skips
+`requireFlowFinalized` for it, the new `verifyAtomicBundle` (`:83-92`) verifies an atomic bundle,
+and the bundle hash is `keccak256(_bundle)` (`interop/interop-handler/InteropHandlerBase.sol:231`).
+So the atomic sub-machine derived here does not describe `b17415d20`. The engine statements of
+section (a) (`WholeBundleWriteIgnoresCallStatus`, `CallStatusDoesNotStopWholeBundleRedelivery`,
+`AdmittedBundleHasOnlyUnprocessedCalls`) moved with the topic; the `b17415d20` re-entrancy results
+are in topic `Reentrancy`. Namespaces carry a `History` segment. -/
 
 /-!
 # Model additions: the bundle status machine, read off the handler model
@@ -47,56 +61,9 @@ writes, re-entrancy included. This file adds what is needed to state the three f
   fact of the same kind as `append`'s single call site.
 -/
 
-namespace Contracts.InteropHandler
+namespace Contracts.InteropHandler.History
 
 open AttackVectors.BundleStatusMachine (Status CallStatus)
-
-/-- **ENTRY-POINT CALL `e` OCCURS IN TARGET `c`.** `c` makes it, or one of the targets of the
-calls that frame delivers makes it, or `c`'s continuation does. -/
-inductive Callee.Mentions : Callee → Entry → Prop
-  /-- `c` calls `e` itself. -/
-  | here {e : Entry} {inner : List Callee} {caught : Bool} {next : Callee} :
-      Callee.Mentions (.calls e inner caught next) e
-  /-- A target of a call the frame of `c`'s call delivers makes it. -/
-  | nested {e e' : Entry} {inner : List Callee} {caught : Bool} {next c : Callee} :
-      c ∈ inner → Callee.Mentions c e' → Callee.Mentions (.calls e inner caught next) e'
-  /-- `c`'s continuation makes it. -/
-  | cont {e e' : Entry} {inner : List Callee} {caught : Bool} {next : Callee} :
-      Callee.Mentions next e' → Callee.Mentions (.calls e inner caught next) e'
-
-/-- Entry-point call `e'` occurs in frame `f`: it is the frame's own entry point, or occurs in
-one of the frame's targets. -/
-def Frame.Mentions : Frame → Entry → Prop
-  | .entry e cs, e' => e' = e ∨ ∃ c ∈ cs, c.Mentions e'
-  | .calls _ _ cs, e' => ∃ c ∈ cs, c.Mentions e'
-  | .target c, e' => c.Mentions e'
-
-/-- Entry-point call `e` occurs in transaction `t`. -/
-def Tx.Mentions (t : Tx) (e : Entry) : Prop := Frame.Mentions (.entry t.entry t.callees) e
-
-/-- **CALL `e` PRESENTS NO VALID INCLUSION PROOF FOR BUNDLE HASH `h`.** Only `executeBundle` and
-`verifyBundle` take a proof (`:86`, `:150`); their verdict is the carried boolean. -/
-def Entry.NoProofFor (h : BundleHash) : Entry → Prop
-  | .executeBundle b ok => b.hash = h → ok = false
-  | .verifyBundle b ok => b.hash = h → ok = false
-  | .unbundleBundle _ _ => True
-  | .executeAtomicBundle _ _ => True
-
-/-- **NO CALL OF A RUN PRESENTS A VALID PROOF FOR `h`**, at any depth of re-entry. -/
-def NoProofRun (h : BundleHash) (txs : List Tx) : Prop :=
-  ∀ t ∈ txs, ∀ e, t.Mentions e → e.NoProofFor h
-
-/-- **CALL `e` PRESENTS A VALID PROOF ONLY FOR A PUBLISHED HASH.** -/
-def Entry.ProofSound (published : BundleHash → Prop) : Entry → Prop
-  | .executeBundle b ok => ok = true → published b.hash
-  | .verifyBundle b ok => ok = true → published b.hash
-  | .unbundleBundle _ _ => True
-  | .executeAtomicBundle _ _ => True
-
-/-- **EVERY VALID PROOF A RUN PRESENTS IS FOR A PUBLISHED HASH** (soundness of the L1 message
-inclusion proofs), at any depth of re-entry. -/
-def SoundProofRun (published : BundleHash → Prop) (txs : List Tx) : Prop :=
-  ∀ t ∈ txs, ∀ e, t.Mentions e → e.ProofSound published
 
 /-- **A HASH THE DESTINATION CAN BE SHOWN A VALID PROOF FOR.** `pubs` lists the bundle messages
 published to L1, each as (source chain id, bundle bytes); the destination keys a bundle by
@@ -135,4 +102,4 @@ def wStaleCalls : State := (init.setBundle 3 .Verified).setCall 3 0 .Executed
 /-- `executeBundle` of `wC` with no valid proof, whose target returns. -/
 def wExecuteC : Tx := ⟨3, .executeBundle wC false, [.returns]⟩
 
-end Contracts.InteropHandler
+end Contracts.InteropHandler.History
