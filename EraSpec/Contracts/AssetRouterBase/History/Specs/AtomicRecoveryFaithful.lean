@@ -11,8 +11,8 @@ successor of the pin: the two diverge at `76f40b530`, with 20 commits only on th
 and the matching check in its `_recoverBundle`.
 
 **This file is definitions only.**  The results are in
-`EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecoveryFaithful` and proved in
-`EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryFaithful`.
+`EraSpec.Contracts.AssetRouterBase.History.Properties.AtomicRecoveryFaithful` and proved in
+`EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecoveryFaithful`.
 
 ## What `AtomicRecovery` merges
 
@@ -137,7 +137,7 @@ code at that address does (`L1LegRefundBypassesRouter`, `L1LegClaimOnlyByForeign
   leg to `Revertable` are not modelled.  The stranding results hold for every leg state.
 -/
 
-namespace Contracts.AssetRouter.AtomicRecoveryFaithful
+namespace Contracts.AssetRouter.AtomicRecoveryFaithful.History
 
 open Contracts.AssetRouter.AtomicRecovery
 
@@ -286,4 +286,4 @@ atomic send must not go to L1 (`AtomicBundleToL1NotSupported`), and a non-atomic
 def UpgradeAtomicityGuard (env : CenterEnv) (dest : Chain) (isAtomic : Bool) : Prop :=
   (isAtomic = true → dest ≠ env.l1Chain) ∧ (isAtomic = false → dest = env.l1Chain)
 
-end Contracts.AssetRouter.AtomicRecoveryFaithful
+end Contracts.AssetRouter.AtomicRecoveryFaithful.History

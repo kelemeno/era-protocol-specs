@@ -7,8 +7,8 @@ Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`
 (`contracts/` below is `l1-contracts/contracts/`).
 
 **This file is definitions only.**  The results are in
-`EraSpec.Contracts.AssetRouterBase.Properties.PausedRecovery` and proved in
-`EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery`.
+`EraSpec.Contracts.AssetRouterBase.History.Properties.PausedRecovery` and proved in
+`EraSpec.Contracts.AssetRouterBase.History.Proofs.PausedRecovery`.
 
 `Contracts.AssetRouter.AtomicRecovery` models `AtomicFlowManager.claimRefund`'s loop over a
 bundle's calls (`atomic-interop/AtomicFlowManager.sol:165-180, 219-230`), the router's
@@ -37,7 +37,7 @@ result that compares a paused claim with an unpaused one, `OthersIgnorePause` (t
 nor write it).
 -/
 
-namespace Contracts.AssetRouter.PausedRecovery
+namespace Contracts.AssetRouter.PausedRecovery.History
 
 open Contracts.AssetRouter.AtomicRecovery
 
@@ -75,4 +75,4 @@ def OthersIgnorePause (other : Address → World X → Chain → CallData → Op
   ∀ target w dest d (p : Bool), other target { w with paused := p } dest d
     = (other target w dest d).map (fun r => ({ r.1 with paused := p }, r.2))
 
-end Contracts.AssetRouter.PausedRecovery
+end Contracts.AssetRouter.PausedRecovery.History

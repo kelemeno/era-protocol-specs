@@ -158,7 +158,7 @@ def Properties.CallTargetIgnoredAtHead : Prop :=
 vault hooks and handler code: if no call of the bundle is from the router and none carries value, the
 claim of a `Revertable` leg with a non-L1 destination succeeds, marks the leg `Reverted`, and leaves
 the world exactly as it was — no mint and no unlock, whatever `finalizeDeposit` data the calls carry.
-The pin's forged refund (`AtomicRecovery.DirectCallIsRefunded`, `DirectCallMintsUnbacked`) is a
+The pin's forged refund (`AtomicRecovery.History.DirectCallIsRefunded`, `DirectCallMintsUnbacked`) is a
 bundle of this kind. -/
 def Properties.DirectBundleClaimIsNoOpAtHead : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
@@ -195,7 +195,7 @@ def Properties.SentDirectCallNeverRecoveredAtHead : Prop :=
 /-- **THE PIN'S UNBACKED-MINT INSTANCE IS REJECTED AT HEAD.**  One world, one ledger, one attacker.
 In the PIN model the claim of the attacker's direct call raises the balance of the `originalCaller`
 named in the attacker-written data from `0` to a positive amount (the countermodel
-`AtomicRecovery.DirectCallMintsUnbacked`).  In the HEAD model the claim of the same call — same
+`AtomicRecovery.History.DirectCallMintsUnbacked`).  In the HEAD model the claim of the same call — same
 target, sender and zero value, `finalizeDeposit` bytes that decode to the same mint data — succeeds
 and leaves the world as it was, so that balance stays `0`. -/
 def Properties.PinUnbackedMintRejectedAtHead : Prop :=
@@ -383,7 +383,7 @@ premise.  When the claim-time handler of asset `a` is set and is not the vault, 
 `bridgeRecoverFailedTransfer` returns, the refund of a `finalizeDeposit` call on `a` returns `true` with
 exactly that handler's effect: the vault and its `assetIdCheck` play no part.  (At the pin the same
 call went to the vault, and reverted under the premises of
-`AtomicRecovery.CustomHandlerDepositRefundReverts`.) -/
+`AtomicRecovery.History.CustomHandlerDepositRefundReverts`.) -/
 def Properties.CustomHandlerRecoveredByItsHandler : Prop :=
   ∀ (X : Type) (enc : AssetIdOf) (cfg : HeadConfig) (hk : HeadHooks X)
     (code : HandlerCode X) (w w' : World X) (dest src : Chain) (a : AssetId) (data : Bytes),

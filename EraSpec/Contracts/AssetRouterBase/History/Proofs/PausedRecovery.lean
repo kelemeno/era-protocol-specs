@@ -1,17 +1,17 @@
-import EraSpec.Contracts.AssetRouterBase.Properties.PausedRecovery
-import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Properties.PausedRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecovery
 
 /-!
 # Proofs: a paused vault blocks the atomic refund, and unpausing restores it
 
-Proofs of `EraSpec.Contracts.AssetRouterBase.Properties.PausedRecovery`.  The blocking result is
+Proofs of `EraSpec.Contracts.AssetRouterBase.History.Properties.PausedRecovery`.  The blocking result is
 `AtomicRecovery.recoverBundle_eq_none_of_blocking` with the invariant "the vault is paused":
 every returning call keeps it, and every router deposit reverts under it (`vaultRefund_guard`).
 The exactness result is an induction over the bundle that commutes setting the flag with each
 call.
 -/
 
-namespace Contracts.AssetRouter.PausedRecovery
+namespace Contracts.AssetRouter.PausedRecovery.History
 
 open Contracts.AssetRouter.AtomicRecovery
 open AttackVectors.RecoveryLimits (Outcome LegState ClaimAccepted)
@@ -190,7 +190,7 @@ theorem paused_prepared_burn_refund_delayed {Acc : Type}
     dsimp only
     rw [ite_eq_left rfl]
     exact recoverAtomicCall_paused_deposit rfl dest _ _ _
-  · exact PreparedBurnRefundsDepositor Acc prepHooks s r out hw hprep X enc cfg hk other dest
+  · exact AtomicRecovery.History.PreparedBurnRefundsDepositor Acc prepHooks s r out hw hprep X enc cfg hk other dest
       { w with paused := false } x₁ rfl hn ht hf
 
 /-! ## Witness -/
@@ -211,7 +211,7 @@ def otherTargetCall : Call := ⟨99, 99, 0, .other⟩
 theorem paused_recovery_witness : Properties.PausedRecoveryWitness := by
   have hvault : claimRefund (recoverCall wEnc wCfg okHooks pauseIgnoringOther 8) LegState.Revertable
       wWorld [routerCall wCfg 1 wMd] = some (LegState.Reverted, { wWorld with rest := () }) :=
-    (DirectCallIsRefunded Unit wEnc wCfg okHooks pauseIgnoringOther 8 wCfg.thisChain wWorld
+    (AtomicRecovery.History.DirectCallIsRefunded Unit wEnc wCfg okHooks pauseIgnoringOther 8 wCfg.thisChain wWorld
       wCfg.router 1 wMd () () rfl wVault_known_one.1 wVault_known_one.2 rfl rfl).2
   have hhas : HasRouterDeposit wCfg [routerCall wCfg 1 wMd] :=
     ⟨routerCall wCfg 1 wMd, List.mem_cons_self, rfl, wCfg.thisChain, 1, some wMd, rfl⟩
@@ -232,11 +232,11 @@ theorem paused_recovery_witness : Properties.PausedRecoveryWitness := by
   · rw [hother]; rfl
   · rw [hother]; rfl
 
-end Contracts.AssetRouter.PausedRecovery
+end Contracts.AssetRouter.PausedRecovery.History
 
 /-! ## Certificates -/
 
-namespace Contracts.AssetRouter.PausedRecovery
+namespace Contracts.AssetRouter.PausedRecovery.History
 
 open Contracts.AssetRouter.AtomicRecovery
 
@@ -271,4 +271,4 @@ theorem PausedPreparedBurnRefundDelayed : Properties.PausedPreparedBurnRefundDel
 
 theorem PausedRecoveryWitness : Properties.PausedRecoveryWitness := paused_recovery_witness
 
-end Contracts.AssetRouter.PausedRecovery
+end Contracts.AssetRouter.PausedRecovery.History

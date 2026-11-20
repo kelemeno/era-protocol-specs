@@ -1,0 +1,356 @@
+[
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.ClaimRevertsWithUnknownAssetCall",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.ClaimRevertsWithUnknownAssetCall",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.ClaimRevertsWithUnknownAssetCallSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.ClaimRevertsWithUnknownAssetCallSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.ClaimSucceedsIffAccepted",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.ClaimSucceedsIffAccepted",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CollisionLetsVaultMintCustomAsset",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CollisionLetsVaultMintCustomAsset",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CustomAssetRecoveryRevertsOrCollision",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CustomAssetRecoveryRevertsOrCollision",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CustomCollisionNotTautology",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CustomCollisionNotTautology",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CustomHandlerBundleIsStranded",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CustomHandlerBundleIsStranded",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CustomHandlerBundleNeverRefunded",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CustomHandlerBundleNeverRefunded",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CustomHandlerBundleNeverRefundedSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CustomHandlerBundleNeverRefundedSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CustomHandlerDepositRefundReverts",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CustomHandlerDepositRefundReverts",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.CustomHandlerDepositRefundRevertsSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.CustomHandlerDepositRefundRevertsSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.DirectCallIsRefunded",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.DirectCallIsRefunded",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.DirectCallMintsUnbacked",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.DirectCallMintsUnbacked",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.FramePremisesSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.FramePremisesSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.KnownAssetRefundSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.KnownAssetRefundSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.KnownBridgedAssetRefundsOriginalCaller",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.KnownBridgedAssetRefundsOriginalCaller",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.LegNeverRefunded",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.LegNeverRefunded",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.NativeAssetRefundSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.NativeAssetRefundSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.NativeAssetRefundsOriginalCaller",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.NativeAssetRefundsOriginalCaller",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.OtherClaimLeavesAlone",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.OtherClaimLeavesAlone",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.PreparedBurnRefundSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.PreparedBurnRefundSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.PreparedBurnRefundsDepositor",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.PreparedBurnRefundsDepositor",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.RecoveryCallsTheVault",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.RecoveryCallsTheVault",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.RecoveryIgnoresHandler",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.RecoveryIgnoresHandler",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.RecoveryOnlyByManager",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.RecoveryOnlyByManager",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.RefundIgnoresCallSender",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.RefundIgnoresCallSender",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.RefundIgnoresRemoteReceiver",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.RefundIgnoresRemoteReceiver",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.RefundOfOtherAssetLeavesAlone",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.RefundOfOtherAssetLeavesAlone",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.UnknownAssetOutcomeBlocksClaim",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.UnknownAssetOutcomeBlocksClaim",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.UnknownAssetRecoveryReverts",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.UnknownAssetRecoveryReverts",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecovery.Properties.VaultRejectsUnknownAssetSatisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecovery.History.Properties.VaultRejectsUnknownAssetSatisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 refund (recoverAtomicCall always calls the vault; the manager's loop over each call's target with the recovered == 0 revert); at b17415d20 the refund is AtomicRecoveryAtHead. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.AdmittedAtomicL1LegNeverRefunded",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.AdmittedAtomicL1LegNeverRefunded",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.AtomicL1LegIsStranded",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.AtomicL1LegIsStranded",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.CustomHandlerBundleIsStrandedToL2",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.CustomHandlerBundleIsStrandedToL2",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.L1LegClaimOnlyByForeignCode",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.L1LegClaimOnlyByForeignCode",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.L1LegForeignTrueClosesWithoutRefund",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.L1LegForeignTrueClosesWithoutRefund",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.L1LegNeverRefunded",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.L1LegNeverRefunded",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.L1LegRefundBypassesRouter",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.L1LegRefundBypassesRouter",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.L1LegRefundReverts",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.L1LegRefundReverts",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.PinAdmitsAtomicL1Leg",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.PinAdmitsAtomicL1Leg",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.PinAtomicityIrrelevantToL1",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.PinAtomicityIrrelevantToL1",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.PinL1SendIsRouterStarter",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.PinL1SendIsRouterStarter",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.PreparedBurnRefundByDestination",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.PreparedBurnRefundByDestination",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.PreparedBurnRefundFailsToL1",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.PreparedBurnRefundFailsToL1",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.PreparedBurnRefundToL2Satisfiable",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.PreparedBurnRefundToL2Satisfiable",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.PreparedBurnRefundsDepositorToL2",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.PreparedBurnRefundsDepositorToL2",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.RouterCallToL1RetargetsModelled",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.RouterCallToL1RetargetsModelled",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.RouterCallToL2IsModelled",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.RouterCallToL2IsModelled",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.RouterStarterFormsRouterCall",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.RouterStarterFormsRouterCall",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.UpgradeGuardRejectsAtomicL1",
+    "new": "Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.UpgradeGuardRejectsAtomicL1",
+    "kind": "history",
+    "justification": "The c67894b9 router-produced call to L1 and the pin send checks admitting an atomic L1 leg; at b17415d20 the send rejects it (InteropCenter.sol:552-553) and recoverAtomicCall rejects an L1 destination (L2AssetRouter.sol:275). Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PauseIrrelevantWithoutRouterDeposit",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PauseIrrelevantWithoutRouterDeposit",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PauseUnpauseRoundTrip",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PauseUnpauseRoundTrip",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PausedClaimRetriedAfterUnpause",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PausedClaimRetriedAfterUnpause",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PausedPreparedBurnRefundDelayed",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PausedPreparedBurnRefundDelayed",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PausedRecoveryWitness",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PausedRecoveryWitness",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PausedRouterDepositBlocksClaim",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PausedRouterDepositBlocksClaim",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PausedVaultBlocksClaim",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PausedVaultBlocksClaim",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.PausedVaultRevertsRouterDeposit",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.PausedVaultRevertsRouterDeposit",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  },
+  {
+    "old": "Contracts.AssetRouter.PausedRecovery.Properties.RouterRefundLeavesPause",
+    "new": "Contracts.AssetRouter.PausedRecovery.History.Properties.RouterRefundLeavesPause",
+    "kind": "history",
+    "justification": "The vault pause on the c67894b9 refund loop; at b17415d20 the loop is AtomicRecoveryAtHead's. Statement unchanged, moved to History."
+  }
+]

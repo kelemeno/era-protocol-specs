@@ -511,7 +511,7 @@ the deployed contracts.
 * `claimRefund` is its leg-state guard.  The recovery calls it makes can revert and leave
   the leg `Revertable`: under a paused source vault
   (`Contracts.InteropPause.Properties.PausedVaultKeepsLegRevertable`), or for good
-  (`Contracts.AssetRouter.AtomicRecovery.Properties.LegNeverRefunded`).  At `c67894b9` it
+  (`Contracts.AssetRouter.AtomicRecovery.History.Properties.LegNeverRefunded`).  At `c67894b9` it
   also reverts unless some call of the bundle reports a recovery
   (`AtomicFlowManager.sol:229`).
 * `_checkFlowId` is the hash comparison alone (`FlowIdChecked`); its sortedness and length

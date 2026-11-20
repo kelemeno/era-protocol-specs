@@ -159,7 +159,8 @@ import EraSpec.Codegen.VaultPreparationSlice.Proofs.AtMostOneStep
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWritersStrong
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
-import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryFaithful
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecoveryFaithful
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryAtHead
 import EraSpec.Contracts.AssetRouterBase.Proofs.CounterpartGate
 import EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistrationRuns
@@ -224,7 +225,7 @@ import EraSpec.Protocol.InteropAtomicity.Proofs.OncePerLeg
 import EraSpec.Protocol.InteropAtomicity.Proofs.RootImport
 
 -- Proof round 5, wave 2: B3, B4, B5, S2, S4, A5
-import EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.PausedRecovery
 import EraSpec.Contracts.L2InteropHandler.History.Proofs.SourceBindingReduced
 import EraSpec.Contracts.NativeTokenVaultBase.Proofs.Pause
 import EraSpec.Protocol.AssetBridgePreparation.Proofs.FullRecovery

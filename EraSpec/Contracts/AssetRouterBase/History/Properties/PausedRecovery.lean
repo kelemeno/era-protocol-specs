@@ -1,11 +1,11 @@
-import EraSpec.Contracts.AssetRouterBase.Specs.PausedRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Specs.PausedRecovery
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 
 /-!
 # Properties: a paused vault blocks the atomic refund, and unpausing restores it
 
-Statements about `EraSpec.Contracts.AssetRouterBase.Specs.PausedRecovery`.  Proofs are in
-`EraSpec.Contracts.AssetRouterBase.Proofs.PausedRecovery`.
+Statements about `EraSpec.Contracts.AssetRouterBase.History.Specs.PausedRecovery`.  Proofs are in
+`EraSpec.Contracts.AssetRouterBase.History.Proofs.PausedRecovery`.
 
 * **Every router deposit reverts while the vault is paused** (`PausedVaultRevertsRouterDeposit`).
   This holds whatever the asset, the data and the hooks.  The outcome is `reverts`, not
@@ -30,7 +30,7 @@ Statements about `EraSpec.Contracts.AssetRouterBase.Specs.PausedRecovery`.  Proo
 Every property with premises has a witness below (`PausedRecoveryWitness`).
 -/
 
-namespace Contracts.AssetRouter.PausedRecovery
+namespace Contracts.AssetRouter.PausedRecovery.History
 
 open Contracts.AssetRouter.AtomicRecovery
 open AttackVectors.RecoveryLimits (Outcome LegState ClaimAccepted)
@@ -116,7 +116,7 @@ def Properties.PausedClaimRetriedAfterUnpause : Prop :=
         ∧ claimRefund (recoverCall enc cfg hk other dest) st w₂ calls = some r
 
 /-- **A PREPARED BURN'S REFUND, PAUSED AND UNPAUSED.**  The setting of
-`Contracts.AssetRouter.AtomicRecovery.Properties.PreparedBurnRefundsDepositor`: the vault prepared
+`Contracts.AssetRouter.AtomicRecovery.History.Properties.PreparedBurnRefundsDepositor`: the vault prepared
 a burn, the refund world knows the asset as bridged, and its tracker hook returns.  While the
 vault is paused, the router call carrying the burn's mint data reverts.  On the same world
 unpaused, it re-mints exactly the burned amount to the depositor.  The call is `routerCall`, the
@@ -164,4 +164,4 @@ def Properties.PausedRecoveryWitness : Prop :=
       ∧ (claimRefund (recoverCall enc cfg hk other dest) LegState.Revertable w calls').isSome
           = true
 
-end Contracts.AssetRouter.PausedRecovery
+end Contracts.AssetRouter.PausedRecovery.History

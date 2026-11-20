@@ -75,7 +75,7 @@ router-produced call to L1 carries the same data but targets `L1_ASSET_ROUTER`
 `L2_ASSET_ROUTER_ADDR` (`OPS-CONFIG`), it is not a deposit call in this sense and this topic
 does not cover it; see `Contracts.AssetRouter.AtomicRecoveryFaithful`.  The call's
 sender and value are left free, because the refund reads neither
-(`Contracts.AssetRouter.AtomicRecovery.Properties.RefundIgnoresCallSender`).
+(`Contracts.AssetRouter.AtomicRecovery.History.Properties.RefundIgnoresCallSender`).
 
 ## The credits
 
