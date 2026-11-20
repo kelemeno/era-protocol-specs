@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2AssetTracker.Specs.Accounting
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what `chainBalance` means, the release cap, registration, and the round trip
@@ -159,7 +160,7 @@ def Properties.TokenReadsIgnoredOnceRegistered : Prop :=
 the upgrader's `initL2` and the vault's registration of a native asset as new, an inbound transfer
 of one unit from a chain that is not L1 reverts; after an outbound transfer of one unit to that
 chain, the same inbound transfer succeeds. -/
-def Properties.ChainBalanceGatesInflow : Prop :=
+@[countermodel] def Properties.ChainBalanceGatesInflow : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (reads : TokenReads) (c : ChainId) (a : AssetId)
     (sys₀ sys₁ sys₂ sys₃ : Sys),
     Inv cfg (Sys.fresh sl) ∧ Native cfg a ∧
@@ -233,7 +234,7 @@ def Properties.BaseFinalizeNeverCreditsChainBalance : Prop :=
 this chain (registered, with chain balance `MAX`) from which an outbound base transfer of one unit
 followed by an inbound one of one unit, from a chain that is not L1, both succeed and leave the
 chain balance at `MAX - 1`; `ChainBalanceSentinel` held before and fails after. -/
-def Properties.BaseTokenNativeAsymmetry : Prop :=
+@[countermodel] def Properties.BaseTokenNativeAsymmetry : Prop :=
   ∃ (cfg : Config) (sys₀ sys₁ sys₂ : Sys) (reads : TokenReads) (c : ChainId),
     Native cfg sys₀.st.baseTokenAssetId ∧
     sys₀.st.isAssetRegistered sys₀.st.baseTokenAssetId = true ∧
@@ -268,7 +269,7 @@ a run to a state where `initL2` has run and two distinct native assets `a` and `
 token address in the vault, are registered; `a` has nonzero outflow and inflow, `b` has nonzero
 outflow and a nonzero `E`; a chain `c` is not L1; and an inbound transfer of `b` from `c`
 succeeds for one amount and reverts for another. -/
-def Properties.AccountingRunSatisfiable : Prop :=
+@[witness] def Properties.AccountingRunSatisfiable : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (sys : Sys) (reads : TokenReads) (c : ChainId)
     (a b : AssetId) (small large : UInt256),
     Inv cfg (Sys.fresh sl) ∧ Reach cfg (Sys.fresh sl) sys ∧ sys.st.guardInitialized = true ∧
@@ -286,7 +287,7 @@ asset `a`: storage whose guard shows `initL2` has run, in which `a` is unregiste
 outbound call of a nonzero amount to a chain that is not L1 that succeeds (so it registers `a`);
 and storage whose guard shows `initL2` has run, in which `a` is registered, an outbound call to L1
 while settling on L1 that succeeds, and room in the deposit counter. -/
-def Properties.TrackerRoundTripSatisfiable : Prop :=
+@[witness] def Properties.TrackerRoundTripSatisfiable : Prop :=
   ∃ (cfg : Config) (st st' st₁ st₁' : Storage) (sl : ChainId) (reads : TokenReads)
     (c c' : ChainId) (a : AssetId) (amount : UInt256),
     Native cfg a ∧ st.guardInitialized = true ∧ st₁.guardInitialized = true ∧
@@ -302,7 +303,7 @@ def Properties.TrackerRoundTripSatisfiable : Prop :=
 state in which the base token is registered, and a successful
 `handleFinalizeBaseTokenBridgingOnL2` there, by the base-token holder, of a nonzero amount, that
 changes the storage. -/
-def Properties.BaseFinalizeSatisfiable : Prop :=
+@[witness] def Properties.BaseFinalizeSatisfiable : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (sys : Sys) (st' : Storage) (reads : TokenReads)
     (fromChain : ChainId) (amount : UInt256),
     Inv cfg (Sys.fresh sl) ∧ Reach cfg (Sys.fresh sl) sys ∧

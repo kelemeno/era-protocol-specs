@@ -1,4 +1,5 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.TrackerHooks
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the deployed chain-balance hooks discharge (or fail) the round-trip premise
@@ -242,7 +243,7 @@ state whose tracker has the asset registered, a successful preparation of a nonz
 while the chain settles on L1, and a successful recovery: the token ledger is restored, and both
 of the asset's L1 counters are higher by the amount, so the state is not; the L2 hooks do not
 satisfy `HooksCancel`. -/
-def Properties.L2L1DestinationCountersDiverge : Prop :=
+@[countermodel] def Properties.L2L1DestinationCountersDiverge : Prop :=
   ∃ (cfg : L2AssetTracker.Config) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (t : State L2Accounting),
     WellFormed s ∧ s.accounting.st.isAssetRegistered r.assetId = true ∧
@@ -262,7 +263,7 @@ def Properties.L2L1DestinationCountersDiverge : Prop :=
 moves to another settlement layer `gw` between the preparation and the recovery: the recovery
 succeeds and restores the token ledger, `totalWithdrawalsToL1` is higher by the (nonzero) amount
 and `totalSuccessfulDepositsFromL1` is unchanged, so the tracker storage is not restored. -/
-def Properties.L2SlSwitchBetweenPrepareAndRecover : Prop :=
+@[countermodel] def Properties.L2SlSwitchBetweenPrepareAndRecover : Prop :=
   ∃ (cfg : L2AssetTracker.Config) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (gw : UInt256)
     (t : State L2Accounting),
@@ -285,7 +286,7 @@ tracker has not registered the asset, a successful preparation to a chain that i
 successful recovery: the token ledger, configuration, registry and pause flag are restored, the
 tracker now has the asset registered, with the pre-burn supply (not the post-burn one) as its
 snapshot, and the state is not restored. -/
-def Properties.L2FirstLegacyBridgeLeavesRegistration : Prop :=
+@[countermodel] def Properties.L2FirstLegacyBridgeLeavesRegistration : Prop :=
   ∃ (cfg : L2AssetTracker.Config) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (t : State L2Accounting),
     WellFormed s ∧ s.accounting.st.isAssetRegistered r.assetId = false ∧
@@ -321,7 +322,7 @@ def Properties.L2FirstBridgeRegistersAsNew : Prop :=
 
 /-- **THE FIRST-BRIDGE PREMISES ARE SATISFIABLE**: an unregistered asset from another chain, the L2
 registration hook, and a successful first bridge of a nonzero amount. -/
-def Properties.L2FirstBridgeSatisfiable : Prop :=
+@[witness] def Properties.L2FirstBridgeSatisfiable : Prop :=
   ∃ (cfg : L2AssetTracker.Config) (reg : RegistrationHooks L2Accounting)
     (s : RegistrationState L2Accounting) (c : ResolutionCall) (t : State L2Accounting),
     reg.registerTracker = l2RegistrationHook cfg ∧
@@ -333,7 +334,7 @@ def Properties.L2FirstBridgeSatisfiable : Prop :=
 state whose ledger agrees with its configuration, from which a preparation, a destination mint
 and a recovery, each of a nonzero amount, succeed with the L1 hooks; and a native asset whose
 outbound hook changes the ledger and whose inbound hook rejects more than `bridgedOut`. -/
-def Properties.L1TrackerHooksSatisfiable : Prop :=
+@[witness] def Properties.L1TrackerHooksSatisfiable : Prop :=
   ∃ (thisChain : UInt256) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L1Ledger) (r : Request) (out : Result L1Ledger) (c c' : ResolutionCall)
     (t t' : State L1Ledger) (acc acc' : L1Ledger) (asset amount big : UInt256),
@@ -349,7 +350,7 @@ def Properties.L1TrackerHooksSatisfiable : Prop :=
 /-- **THE L2 HEADLINE'S PREMISES ARE SATISFIABLE, WITH A REGISTERED ASSET.**  A `WellFormed` state
 whose tracker has the asset registered and a successful preparation of a nonzero amount to a
 chain that is not L1. -/
-def Properties.AtomicRecoveryL2Satisfiable : Prop :=
+@[witness] def Properties.AtomicRecoveryL2Satisfiable : Prop :=
   ∃ (cfg : L2AssetTracker.Config) (metadata : BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting),
     WellFormed s ∧ s.accounting.st.isAssetRegistered r.assetId = true ∧

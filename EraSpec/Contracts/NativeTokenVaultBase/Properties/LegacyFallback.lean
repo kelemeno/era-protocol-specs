@@ -1,6 +1,7 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.LegacyFallback
 import EraSpec.Contracts.NativeTokenVaultBase.Properties.RegistryAndEscrow
 import EraSpec.Contracts.NativeTokenVaultBase.Properties.RepresentationPreparation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the legacy fallback's asset id against the vault's registry
@@ -126,7 +127,7 @@ token's own origin token (the O9 reading holds), and records an origin chain oth
 A well-formed legacy token's mint by the L2 vault succeeds and fires the fallback. Every premise
 of `LegacyAssetIdAgreesIffRecordedOn` holds, both sides of its iff are false, and the token's
 `assetId` is not the vault's id. -/
-def Properties.LegacyAssetIdMismatch : Prop :=
+@[countermodel] def Properties.LegacyAssetIdMismatch : Prop :=
   ∃ (e : NtvAssetId) (thisChain l1 : Chain) (W : World) (log : List Op) (T : Address)
     (s t : BridgedStandardERC20.State) (recipient : Address),
     thisChain ≠ 0 ∧ l1 ≠ thisChain ∧
@@ -254,7 +255,7 @@ id, with a well-formed ledger, and a request and hooks meeting every premise of
 `LegacyFirstPreparation` and `LegacyPreparationIsPreparation`. `prepare` fails on it,
 `prepareLegacy` succeeds, and the post-state is `WellFormed` with a nonlegacy token (the premise
 of `LegacyPreparationConservative`). -/
-def Properties.LegacyFirstPreparationWitness : Prop :=
+@[witness] def Properties.LegacyFirstPreparationWitness : Prop :=
   ∀ env : BridgedStandardERC20.LegacyEnv,
     ∃ (hooks : Hooks Unit) (s : State Unit) (r : Request) (out : Result Unit),
       s.config.vault = BridgedStandardERC20.l2NativeTokenVaultAddr ∧ s.token.config.vault = 0 ∧
@@ -268,7 +269,7 @@ id other than the fallback's, with a well-formed ledger, both registry maps agre
 tracked pair, and hooks meeting every premise of `LegacyFirstPreparation`. The deployed
 preparation succeeds, but afterwards `RepresentationConsistent` fails: the token's `assetId` is
 not the asset the vault has just burned it for. -/
-def Properties.LegacyPreparationMismatch : Prop :=
+@[countermodel] def Properties.LegacyPreparationMismatch : Prop :=
   ∀ env : BridgedStandardERC20.LegacyEnv,
     ∃ (hooks : Hooks Unit) (s : State Unit) (r : Request) (out : Result Unit),
       s.config.vault = BridgedStandardERC20.l2NativeTokenVaultAddr ∧ s.token.config.vault = 0 ∧
@@ -285,7 +286,7 @@ records exactly the legacy pair; a well-formed legacy token whose L2-vault mint 
 fires the fallback. Every premise of `LegacyAssetIdAgreesIffRecordedOn` and
 `LegacyAssetIdAgreesIffL1OriginOn` holds, both sides of the iff are true, and `LegacyIdBreak` is
 false. -/
-def Properties.LegacyAssetIdAgreementWitness : Prop :=
+@[witness] def Properties.LegacyAssetIdAgreementWitness : Prop :=
   ∃ (e : NtvAssetId) (thisChain l1 : Chain) (W : World) (log : List Op) (T : Address)
     (s t : BridgedStandardERC20.State) (recipient : Address),
     thisChain ≠ 0 ∧ l1 ≠ thisChain ∧
@@ -314,7 +315,7 @@ def Properties.LegacyIdCollisionAgreesWrongly : Prop :=
     LegacyIdBreak e V T l1 s.config.originToken
 
 /-- The premises of `UnregisteredLegacyTokenRegistersNative` hold on a `Valid` fresh vault. -/
-def Properties.UnregisteredLegacyTokenRegistersNativeSatisfiable : Prop :=
+@[witness] def Properties.UnregisteredLegacyTokenRegistersNativeSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (thisChain l1 : Chain) (W : World) (T ot : Address),
     thisChain ≠ 0 ∧ Valid e thisChain W.vault ∧
     T ≠ 0 ∧ vaultIdOf W.vault T = 0 ∧ l1 ≠ thisChain ∧
@@ -324,7 +325,7 @@ def Properties.UnregisteredLegacyTokenRegistersNativeSatisfiable : Prop :=
 fallback environment: a representation-model state with the L2 vault and a legacy tracked token,
 a run of the token that fires the fallback, `LedgerInvariant` before, and
 `RepresentationConsistent` after. -/
-def Properties.LegacyFallbackRepresentationWitness : Prop :=
+@[witness] def Properties.LegacyFallbackRepresentationWitness : Prop :=
   ∀ env : BridgedStandardERC20.LegacyEnv,
     ∃ (σ : State Unit) (t : BridgedStandardERC20.State),
       σ.config.vault = BridgedStandardERC20.l2NativeTokenVaultAddr ∧

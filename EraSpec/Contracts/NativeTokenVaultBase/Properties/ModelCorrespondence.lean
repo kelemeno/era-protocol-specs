@@ -1,6 +1,7 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.ModelCorrespondence
 import EraSpec.Contracts.NativeTokenVaultBase.Properties.Initialization
 import EraSpec.Contracts.NativeTokenVaultBase.Properties.RepresentationPreparation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: how the two native-token-vault models relate
@@ -166,7 +167,7 @@ than the one being registered; origin chain nonzero; and a successful
 (by `RegistrationGuardGap`, only `freshToken` can fail here).  In the corresponding
 registry vault `b` still points at the token while the token points at the new asset,
 and that vault is not `Valid`. -/
-def Properties.RepRegistrationRebindsLiveToken : Prop :=
+@[countermodel] def Properties.RepRegistrationRebindsLiveToken : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
     (V : Vault) (hooks : RegistrationHooks Unit) (s : RegistrationState Unit)
     (origin : Address) (out : Registered Unit) (b : UInt256),
@@ -189,7 +190,7 @@ def Properties.RepRegistrationRebindsLiveToken : Prop :=
 `RepRegistrationRebindsLiveToken`'s premises, but with a token address that is
 nonzero and unmapped, and origin chain `0`.  The corresponding registry vault has the
 new asset registered with origin chain `0`, and is not `Valid`. -/
-def Properties.RepRegistrationAcceptsZeroOriginChain : Prop :=
+@[countermodel] def Properties.RepRegistrationAcceptsZeroOriginChain : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
     (V : Vault) (hooks : RegistrationHooks Unit) (s : RegistrationState Unit)
     (origin : Address) (out : Registered Unit),
@@ -209,7 +210,7 @@ def Properties.RepRegistrationAcceptsZeroOriginChain : Prop :=
 configured token address `0`, so the successful registration deployed at `0`.  The
 corresponding registry vault maps the zero address to the new, nonzero asset id, and
 is not `Valid`. -/
-def Properties.RepRegistrationAcceptsZeroToken : Prop :=
+@[countermodel] def Properties.RepRegistrationAcceptsZeroToken : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
     (V : Vault) (hooks : RegistrationHooks Unit) (s : RegistrationState Unit)
     (origin : Address) (out : Registered Unit),
@@ -228,7 +229,7 @@ DOES.**  There is a `Valid` registry vault, with the hash premise on the pair
 involved, in which `RegisterBridgedGuard` holds for origin token `0` and the write
 keeps the vault `Valid`.  And no representation-model registration succeeds with an
 origin token that widens to `0`, for any hooks or state. -/
-def Properties.RegistryBridgedAcceptsZeroOriginToken : Prop :=
+@[countermodel] def Properties.RegistryBridgedAcceptsZeroOriginToken : Prop :=
   (∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
       (V : Vault) (a : UInt256) (t : NativeTokenVault.Address) (originChain : Chain),
       IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
@@ -244,7 +245,7 @@ def Properties.RegistryBridgedAcceptsZeroOriginToken : Prop :=
 /-- **THE REGISTRATION PREMISES ARE SATISFIABLE, NONTRIVIALLY.**  Every premise of
 `RegistrationPreservesValidOn`, on a registry vault that already holds an asset other
 than the one being registered. -/
-def Properties.CorrespondenceSatisfiable : Prop :=
+@[witness] def Properties.CorrespondenceSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
     (V : Vault) (hooks : RegistrationHooks Unit) (s : RegistrationState Unit)
     (origin : Address) (out : Registered Unit),
@@ -259,7 +260,7 @@ def Properties.CorrespondenceSatisfiable : Prop :=
 `PreparationIsForeignBridgeOut` and of `ValidRegistryHalvesAgree`, with the registry
 vault `Valid`, the representation state `WellFormed`, and the tracked asset
 registered. -/
-def Properties.PreparationCorrespondenceSatisfiable : Prop :=
+@[witness] def Properties.PreparationCorrespondenceSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (hooks : Hooks Unit) (s : State Unit)
     (r : Request) (out : Result Unit),
     Valid e thisChain W.vault ∧ Corr s thisChain W.vault ∧ WellFormed s

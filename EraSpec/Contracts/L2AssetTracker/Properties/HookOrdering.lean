@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2AssetTracker.Specs.HookOrdering
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the tracker hook precedes the token effect, so first-touch snapshots are pre-call
@@ -84,7 +85,7 @@ unregistered, such that in the reversed order (`runPathEffectFirst`, which no so
 outbound and the inbound path, from the same storage and token, both succeed and record different
 snapshots, neither equal to the pre-call one; in source order both paths succeed (and record the
 pre-call one, `FirstTouchSnapshotIsPreOp`). -/
-def Properties.HookAfterEffectSkews : Prop :=
+@[countermodel] def Properties.HookAfterEffectSkews : Prop :=
   ∃ (cfg : Config) (st : Storage) (sl : ChainId) (tok tokN : Contracts.BridgedStandardERC20.State)
     (chain : ChainId) (a aN : AssetId) (account : Address) (amount : UInt256)
     (st₁ st₂ st₃ st₄ : Storage) (tok₁ tok₂ tok₃ tok₄ : Contracts.BridgedStandardERC20.State),
@@ -123,7 +124,7 @@ def Properties.BaseNeverTakesLegacyPath : Prop :=
 /-- **ALL FOUR PATHS SUCCEED ON A FIRST TOUCH**, with a nonzero amount, from storage in which
 `initL2` has run: a bridged legacy asset through `bridgedOut` and `bridgedIn`, a native one
 through `nativeOut` and `nativeIn`. -/
-def Properties.FirstTouchSatisfiable : Prop :=
+@[witness] def Properties.FirstTouchSatisfiable : Prop :=
   ∃ (cfg : Config) (st : Storage) (sl : ChainId) (tok tokN : Contracts.BridgedStandardERC20.State)
     (chain : ChainId) (a aN : AssetId) (account : Address) (amount : UInt256)
     (x₁ x₂ x₃ x₄ : Storage × Contracts.BridgedStandardERC20.State),
@@ -137,7 +138,7 @@ def Properties.FirstTouchSatisfiable : Prop :=
 
 /-- **THE PREMISES OF `HookPrecedesEffect` ARE SATISFIABLE**: the vault is the tracker's caller,
 the state is `WellFormed`, and a preparation, a destination mint and a recovery succeed from it. -/
-def Properties.HookPrecedesEffectSatisfiable : Prop :=
+@[witness] def Properties.HookPrecedesEffectSatisfiable : Prop :=
   ∃ (cfg : Config) (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (c : ResolutionCall)
     (t : State L2Accounting) (c' : ResolutionCall) (t' : State L2Accounting),
@@ -147,7 +148,7 @@ def Properties.HookPrecedesEffectSatisfiable : Prop :=
 
 /-- **A NONTRIVIAL RUN FROM A POST-GENESIS STATE**: `initL2` has run, the base token is
 registered, and the run moves the base token out and back in. -/
-def Properties.BaseNeverLegacySatisfiable : Prop :=
+@[witness] def Properties.BaseNeverLegacySatisfiable : Prop :=
   ∃ (cfg : Config) (sys₀ sys₁ sys₂ : Sys) (reads : TokenReads) (c : ChainId),
     sys₀.st.guardInitialized = true ∧
     sys₀.st.isAssetRegistered sys₀.st.baseTokenAssetId = true ∧

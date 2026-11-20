@@ -91,7 +91,7 @@ def Properties.CallPreservesInvariants : Prop :=
 invariants, chain `10` enabled and 40 of asset `7` in the pool's deposits, from which
 `moveChainBalanceToInteropPool(10, 7)` succeeds and brings the pool's deposits to 160 (in the
 proof, the move adds `100 + 50 - 30 = 120`). -/
-def Properties.InvariantStepWitness : Prop :=
+@[witness] def Properties.InvariantStepWitness : Prop :=
   ∃ (l1 : ChainId) (s t : PoolSys),
     PoolFlagInv s ∧ PoolIdentity s ∧ PoolCovered s
       ∧ poolCall l1 (.move 10 7) s = some t
@@ -248,7 +248,7 @@ def Properties.PoolKeyedMeansEnabledDestination : Prop :=
 /-- Both sides of `PoolKeyedMeansEnabledDestination` occur: at the end state of
 `PostUpgradeRunWitness`, chains `10` and `20` are enabled, so a deposit to `10` of an asset from
 L1 (chain `1`) is credited to the pool, and one of an asset from `20` is not tracked. -/
-def Properties.PoolKeyedWitness : Prop :=
+@[witness] def Properties.PoolKeyedWitness : Prop :=
   ∃ (s : PoolSys) (c o o' : ChainId), c ≠ interopPoolChainId
     ∧ s.interop c = true ∧ s.interop o = false ∧ s.interop o' = true
     ∧ trackedBalance s c o = (true, interopPoolChainId)
@@ -267,7 +267,7 @@ needed: if `c` is not enabled, or the pair already has a nonzero backfill, both 
 amount: chain `10` enabled, with `chainTotalDeposited = 20`, `chainTotalWithdrawn = 25` and no
 backfill for asset `8`. Moving, then backfilling 9, adds `0 + (20 + 9 - 25) = 4` to the pool,
 which is what the other order adds. -/
-def Properties.MoveBackfillCommuteWitness : Prop :=
+@[witness] def Properties.MoveBackfillCommuteWitness : Prop :=
   ∃ (s u : PoolSys),
     s.interop 10 = true ∧ s.backfill 10 8 = 0 ∧ s.deposited 10 8 = 20 ∧ s.withdrawn 10 8 = 25
       ∧ (moveChainBalanceToInteropPool s 10 8).bind (fun m => setChainBalanceBackfill m 10 8 9)
@@ -315,7 +315,7 @@ backfill of `7` to 50, marks `10` backfilled and enables it. `L₂` deposits 40 
 both pairs, backfills `8` with 9 after its move, registers and enables `20`, deposits 5 of `7` to
 it, and withdraws 60 to `20` and 10 to `10`. So `165 = 45 + (100 + 50 - 30)` and
 `4 = 0 + (20 + 9 - 25)`. -/
-def Properties.PostUpgradeRunWitness : Prop :=
+@[witness] def Properties.PostUpgradeRunWitness : Prop :=
   ∃ (l1 : ChainId) (pre s₀ s t : PoolSys) (L₁ L₂ : List PoolCall),
     PreUpgrade pre ∧ initializeUpgrade pre = some s₀ ∧ PoolRun l1 s₀ L₁ s ∧ PoolRun l1 s L₂ t
       ∧ PoolRun l1 pre (PoolCall.initializeUpgrade :: (L₁ ++ L₂)) t
@@ -338,7 +338,7 @@ def Properties.PostUpgradeRunWitness : Prop :=
 eleven calls from its post-upgrade state, none naming `20` and one of them
 `moveChainBalanceToInteropPool(10, 7)`, then `20`'s registration: `20` is registered, not pending,
 not enabled, with zero total deposited and zero backfill for asset `7`. -/
-def Properties.LaterChainWitness : Prop :=
+@[witness] def Properties.LaterChainWitness : Prop :=
   ∃ (l1 : ChainId) (pre s₀ m t : PoolSys) (L : List PoolCall),
     PreUpgrade pre ∧ initializeUpgrade pre = some s₀ ∧ pre.registered 20 = false
       ∧ PoolRun l1 s₀ L m ∧ L.length = 11 ∧ (∀ call ∈ L, call.chainArg ≠ some 20)

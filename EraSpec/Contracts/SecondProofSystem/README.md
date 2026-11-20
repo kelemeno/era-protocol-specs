@@ -29,17 +29,18 @@ installed facets are those at `b17415d20`.
   verifier fails the gate, with nothing committed above). Then no upgrade step of that chain
   succeeds, by any path, caller or time.
 
-- `Contracts.SecondProofSystem.DiamondRefinement.Properties.DiamondStepRefines`: every
-  successful call on either of MigrationV35's two diamonds is a successful FlagAuthorityV35 call
-  of the same entry point on the projected diamond (a break-glass cut maps to an
-  arbitrary-init cut chosen per starting diamond). So FlagAuthorityV35's per-step results apply
-  to both diamonds; its run-level results carry over along runs that keep the projected CTM
-  and Bridgehub owner fixed. No premise.
-
 Witnesses: `FlagMonotoneRunWitness`, `AdminSideRunWitness`, `MultiProofKeptWitness`,
 `UpgradeGateV35Witness`, `ReleasePolicyWitness`. Countermodels: `InitClearsFlag`,
 `BreakGlassDropsSecondProof`, `LyingVerifierFlagsWithZiskOff`, `AdminOnlyRuleLetsAdminDrop`,
 `MaskMonotoneIsLoadBearing`, `ReleasePolicyIsLoadBearing`.
+
+Model bridge, not a headline: `Contracts.SecondProofSystem.DiamondRefinement.Properties.DiamondStepRefines`
+is a refinement between two Lean models, not a guarantee about `b17415d20` by itself. Every
+successful call on either of MigrationV35's two diamonds is a successful FlagAuthorityV35 call of
+the same entry point on the projected diamond (a break-glass cut maps to an arbitrary-init cut
+chosen per starting diamond). So FlagAuthorityV35's per-step results apply to both diamonds; its
+run-level results carry over along runs that keep the projected CTM and Bridgehub owner fixed. No
+premise.
 
 ## Source and layout
 

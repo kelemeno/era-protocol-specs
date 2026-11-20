@@ -99,7 +99,9 @@ a well-formed message, for every keccak. -/
 
 /-! ## (c) Pinned forms -/
 
-/-- **(c) EQUAL LEAF HASHES PIN THE LOG, OR KECCAK COLLIDES ON THE TWO NAMED PREIMAGES.** -/
+/-- **(c) EQUAL LEAF HASHES PIN THE LOG, OR KECCAK COLLIDES ON THE TWO NAMED PREIMAGES.**
+Premises: both logs are well-formed (`LogWellFormed log` and `LogWellFormed log'`), and their leaf
+hashes are equal.  Then the logs are equal, or keccak collides on their two preimages. -/
 @[headline] def Properties.LeafHashPinsLogOrCollision : Prop :=
   ∀ (keccak : Keccak) (log log' : L2Log), LogWellFormed log → LogWellFormed log' →
     logLeaf keccak log = logLeaf keccak log' →

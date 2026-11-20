@@ -1,5 +1,6 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.ModelCorrespondence
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.Resolution
+import EraSpec.Core.Headline
 
 /-!
 # Properties: resolution in the registry-wide vault model
@@ -47,7 +48,7 @@ def Properties.ResolutionIsForeignBridgeIn : Prop :=
 /-- **THE PREMISES ARE SATISFIABLE.** A `Valid` registry vault, a corresponding `WellFormed`
 representation state, and a call of nonzero amount on which both `bridgeMint` and
 `bridgeRecoverFailedTransfer` succeed. -/
-def Properties.ResolutionCorrespondenceSatisfiable : Prop :=
+@[witness] def Properties.ResolutionCorrespondenceSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (rh : ResolutionHooks Unit)
     (s t : State Unit) (c : ResolutionCall),
     Valid e thisChain W.vault ∧ Corr s thisChain W.vault ∧ WellFormed s ∧

@@ -158,7 +158,7 @@ def Properties.RunCanRecordZeroOriginToken : Prop :=
 from fresh storage, which is also a bounded run for a pair set with the bounded hash
 premise, that registers a native asset and a bridged (non-native) asset.  Covers the
 premises of `TightStepIsStep` and `TightRunOriginTokensNonzero`. -/
-def Properties.TightRegistrySatisfiable : Prop :=
+@[witness] def Properties.TightRegistrySatisfiable : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (W : World),
     IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Reach' e thisChain empty W
     ∧ ReachIn e thisChain S empty W
@@ -309,7 +309,7 @@ asset is already registered at another token; the registry guard then fails, and
 corresponding registry write breaks `Valid`.  In the source both callers test
 `tokenAddress[_assetId] == address(0)` first (`NativeTokenVaultBase.sol:233`, `:281`),
 which is `registerFreshBranch'`'s test. -/
-def Properties.InnerRegistrationNeedsFreshSlot : Prop :=
+@[countermodel] def Properties.InnerRegistrationNeedsFreshSlot : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
     (V : Vault) (hooks : RegistrationHooks Unit) (s : RegistrationState Unit)
     (origin : Address) (out : Registered Unit),
@@ -497,7 +497,7 @@ def Properties.LifecycleIdentityNotRegistryInvariant : Prop :=
 the origin chain comes from `_l1ChainId()`, and with a registration that succeeds in
 both the original and the tightened fresh branch.  Covers the premises of
 `SourceInputGivesRegistryOnlyGuards` and `UnifiedAgreesOnSourceInputs`. -/
-def Properties.SourceRegistrationInputSatisfiable : Prop :=
+@[witness] def Properties.SourceRegistrationInputSatisfiable : Prop :=
   ∃ (hooks : RegistrationHooks Unit) (s : RegistrationState Unit) (origin : Address)
     (out : Registered Unit) (decoded l1ChainId : UInt256),
     SourceRegistrationInput hooks s origin decoded l1ChainId ∧ decoded = 0
@@ -510,7 +510,7 @@ def Properties.SourceRegistrationInputSatisfiable : Prop :=
 `UnifiedRegistrationGuardsAgree`, with the tightened registration succeeding (so both
 sides of the iff hold), on a `Valid` vault that already holds an asset other than the
 one being registered. -/
-def Properties.UnifiedRegistrationSatisfiable : Prop :=
+@[witness] def Properties.UnifiedRegistrationSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)
     (V : Vault) (hooks : RegistrationHooks Unit) (s : RegistrationState Unit)
     (origin : Address) (out : Registered Unit),
@@ -548,7 +548,7 @@ def Properties.UnifiedGuardsAgreeBothFalse : Prop :=
 a representation-model step from them that changes the token's supply.  Covers the
 premises of `LifecycleRelIsSimulation`; those of `RegistrationEstablishesLifecycleRel`
 are covered by `UnifiedLifecycleSatisfiable`. -/
-def Properties.LifecycleRelSatisfiable : Prop :=
+@[witness] def Properties.LifecycleRelSatisfiable : Prop :=
   ∃ (hooks : Hooks Unit) (thisChain : Chain) (u u' : State Unit) (W : World),
     LifecycleRel thisChain u W ∧ RepStep hooks u u'
     ∧ u'.token.totalSupply ≠ u.token.totalSupply
@@ -557,7 +557,7 @@ def Properties.LifecycleRelSatisfiable : Prop :=
 `UnifiedLifecycleCorresponds` (hence of `RegistrationEstablishesLifecycleRel`), with a
 registry prefix that registers an asset, and a run that first gives the token a
 nonzero supply and then performs a successful preparation, ending in `t`. -/
-def Properties.UnifiedLifecycleSatisfiable : Prop :=
+@[witness] def Properties.UnifiedLifecycleSatisfiable : Prop :=
   ∃ (rhooks : RegistrationHooks Unit) (hooks : Hooks Unit) (s : RegistrationState Unit)
     (origin : Address) (reg : Registered Unit) (t : State Unit) (e : NtvAssetId)
     (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain) (W : World),

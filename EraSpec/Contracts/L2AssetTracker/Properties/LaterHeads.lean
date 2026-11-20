@@ -81,7 +81,9 @@ def Properties.HeadRunIsPinRun : Prop :=
     (sys₀.st.guardInitialized = false → sys₀.st.needBaseTokenTotalSupplyBackfill = false) →
     HeadReach cfg sys₀ sys → Reach cfg sys₀ sys
 
-/-- **THE INVARIANT HOLDS ALONG EVERY RUN AT THE HEADS.** -/
+/-- **THE INVARIANT HOLDS ALONG EVERY RUN AT THE HEADS.**  Premise: the starting state satisfies
+`Inv`.  Then every state reached from it by a run of steps at the heads (`HeadReach`) satisfies
+`Inv`. -/
 @[headline] def Properties.HeadAccountingInvariant : Prop :=
   ∀ (cfg : Config) (sys₀ sys : Sys), Inv cfg sys₀ → HeadReach cfg sys₀ sys → Inv cfg sys
 
@@ -233,7 +235,7 @@ tracker's base asset native here), and then yields the original vault state with
 asset registered, and a successful preparation of a nonzero amount to L1 while the chain settles
 on L1, after which the pin's recovery of the returned data succeeds with a state different from
 the original one, and the heads' recovery of the same call reverts. -/
-def Properties.HeadGuardRejectsPinDivergence : Prop :=
+@[countermodel] def Properties.HeadGuardRejectsPinDivergence : Prop :=
   ∃ (cfg : Config) (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (t : State L2Accounting),
     WellFormed s ∧ s.accounting.st.isAssetRegistered r.assetId = true ∧
@@ -250,7 +252,7 @@ satisfying `Inv`, a run at the heads through the heads' `initL2` to a state wher
 `a`, with a token address in the vault and a nonzero `E`, is registered with nonzero outflow and
 inflow; for a chain `c` that is not L1, an inbound transfer of `a` from `c` succeeds for one amount
 and reverts for another. -/
-def Properties.HeadRunSatisfiable : Prop :=
+@[witness] def Properties.HeadRunSatisfiable : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (sys : Sys) (reads : TokenReads) (c : ChainId) (a : AssetId)
     (small large : UInt256),
     Inv cfg (Sys.fresh sl) ∧ HeadReach cfg (Sys.fresh sl) sys ∧ sys.st.guardInitialized = true ∧
@@ -265,7 +267,7 @@ def Properties.HeadRunSatisfiable : Prop :=
 `initL2`, the vault's `registerNewTokenIfNeeded` of the base asset (the heads' genesis registration,
 `L2NTVH:118-123`), reaching a state where `initL2` has run and the base token is registered; then
 the run moves the base token out and back in. -/
-def Properties.HeadBaseNeverLegacySatisfiable : Prop :=
+@[witness] def Properties.HeadBaseNeverLegacySatisfiable : Prop :=
   ∃ (cfg : Config) (sl : ChainId) (sys₀ sys₁ sys₂ : Sys) (reads : TokenReads) (c : ChainId),
     Inv cfg (Sys.fresh sl) ∧ HeadReach cfg (Sys.fresh sl) sys₀ ∧
     sys₀.st.guardInitialized = true ∧
@@ -280,7 +282,7 @@ which the vault already holds a nonzero balance; a composed run at the heads to 
 which the vault's balance strictly exceeds `MAX - chainBalance`; at `e`, a depositor other than the
 vault holding a nonzero `amount` can move it out to a chain that is not L1, and an inbound transfer
 of `amount` from that chain to a nonzero receiver succeeds. -/
-def Properties.HeadNativeEscrowSatisfiable : Prop :=
+@[witness] def Properties.HeadNativeEscrowSatisfiable : Prop :=
   ∃ (cfg : Config) (a : AssetId) (sl : ChainId) (tok₀ : Contracts.BridgedStandardERC20.State)
     (e : EscrowSys) (chain : ChainId) (account receiver : Address) (amount : UInt256),
     Native cfg a ∧ cfg.thisChain ≠ 0 ∧ cfg.ntvTokenAddress a ≠ 0 ∧ cfg.ntv ≠ 0 ∧
@@ -299,7 +301,7 @@ def Properties.HeadNativeEscrowSatisfiable : Prop :=
 asset, a successful preparation of a nonzero amount that passes the guard, a settlement layer
 `sl₂` other than the one at the preparation, and a successful recovery by the heads after the
 change, whose tracker storage differs from the starting one. -/
-def Properties.HeadRecoverySatisfiable : Prop :=
+@[witness] def Properties.HeadRecoverySatisfiable : Prop :=
   ∃ (cfg : Config) (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (sl₂ : ChainId)
     (t : State L2Accounting),

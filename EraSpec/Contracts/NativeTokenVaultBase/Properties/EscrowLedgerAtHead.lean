@@ -109,7 +109,7 @@ backing holds, and so does the registry invariant `Valid`.  Populating the asset
 Afterwards `bridgedOut` exceeds the escrow, and an inflow of `held + 1` passes
 `InsufficientChainBalance` although the vault holds only `held`.  So the model's solvency
 needs `SolvencyAtHead`'s premise, which `populateBridgedOut` does not check. -/
-def Properties.UnbackedLegacyBreaksSolvencyAtHead : Prop :=
+@[countermodel] def Properties.UnbackedLegacyBreaksSolvencyAtHead : Prop :=
   ∀ (e : NtvAssetId) (thisChain : Chain), thisChain ≠ 0 →
     ∀ (t : Address), t ≠ 0 → e thisChain t ≠ 0 → ∀ held : ℕ,
       let W := upgradedVaultAtHead e thisChain t held
@@ -174,7 +174,7 @@ start, a pair set and a logged run meeting every premise of `LoggedRunSoundAtHea
 populates a native asset whose legacy amount is nonzero, bridges it out after the upgrade,
 and withdraws it, the withdrawal exceeding what was bridged out after the upgrade.  So the
 populated legacy term of the conclusion carries weight. -/
-def Properties.LoggedRunSoundAtHeadSatisfiable : Prop :=
+@[witness] def Properties.LoggedRunSoundAtHeadSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (legacy : LegacyAmounts) (S₀ : Set (Chain × Address))
     (W₀ W : WorldAtHead) (log : List OpAtHead),
     thisChain ≠ 0 ∧ UpgradeStartAtHead legacy W₀ ∧ Valid e thisChain W₀.world.vault
@@ -194,7 +194,7 @@ native inflow of `a` passes `InsufficientChainBalance`.  So the premises of `Sol
 the guard with or without the population; the case where the population matters for the
 guard (an inflow larger than the post-upgrade outflow) is carried by
 `LoggedRunSoundAtHeadSatisfiable` and `PopulateRestoresLegacyWithdrawalAtHead`. -/
-def Properties.EscrowLedgerAtHeadWitness : Prop :=
+@[witness] def Properties.EscrowLedgerAtHeadWitness : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (legacy : LegacyAmounts) (W₀ X W : WorldAtHead)
     (log : List OpAtHead) (a : AssetId),
     LedgerBackedAtHead legacy W₀ ∧ StepOpAtHead e thisChain legacy (.populate a) W₀ X

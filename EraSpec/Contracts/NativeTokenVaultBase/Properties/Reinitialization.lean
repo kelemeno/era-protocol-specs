@@ -1,4 +1,5 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.Reinitialization
+import EraSpec.Core.Headline
 
 /-!
 # Properties: reinitializing the tracked token leaves the vault's view of it alone
@@ -87,7 +88,7 @@ def Properties.ReinitChangesOnlyPreparedMetadata : Prop :=
 with the token at version 1 named `[0x41]`, the beacon owner `13` reinitializes it to version 2
 named `[0x42]`. The witness request prepares both before and after; the two results have the same
 vault state and amount, and their metadata bytes are the old and the new name. -/
-def Properties.VaultReinitWitness : Prop :=
+@[witness] def Properties.VaultReinitWitness : Prop :=
   ∃ (t : BridgedStandardERC20.TokenStorage) (out out' : Result Unit),
     WellFormed wVault ∧
     BridgedStandardERC20.reinitializeToken (some 13) (trackedStorage wVault 1 wMetadata) 13

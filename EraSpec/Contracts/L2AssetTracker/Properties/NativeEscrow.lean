@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2AssetTracker.Specs.NativeEscrow
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the chain balance of a native token and the vault's escrow of it
@@ -129,7 +130,7 @@ from a state satisfying `EscrowInv` reaches a state where a native asset is regi
 ledger then changes, still well-formed, so that the vault's balance falls (not a `TokenMove`),
 the tracker's hook accepts an inbound transfer of nonzero amount to a nonzero receiver that the
 vault's withdrawal cannot pay, so the inbound path fails. -/
-def Properties.EscrowNeedsVaultOnlyOutflow : Prop :=
+@[countermodel] def Properties.EscrowNeedsVaultOnlyOutflow : Prop :=
   ∃ (cfg : Config) (a : AssetId) (e₀ e : EscrowSys) (tok' : Contracts.BridgedStandardERC20.State)
     (chain : ChainId) (account : Address) (amount : UInt256) (st' : Storage),
     Native cfg a ∧ EscrowInv cfg a e₀ ∧ EscrowReach cfg a e₀ e ∧
@@ -147,7 +148,7 @@ registered, with nonzero outflow and inflow, and in which the vault's balance st
 `MAX - chainBalance`; at `e`, a depositor other than the vault holding a nonzero `amount` can
 move it out to a chain that is not L1, and an inbound transfer of `amount` from that chain to a
 nonzero receiver succeeds. -/
-def Properties.NativeEscrowSatisfiable : Prop :=
+@[witness] def Properties.NativeEscrowSatisfiable : Prop :=
   ∃ (cfg : Config) (a : AssetId) (sl : ChainId) (tok₀ : Contracts.BridgedStandardERC20.State)
     (e : EscrowSys) (chain : ChainId) (account receiver : Address) (amount : UInt256),
     Native cfg a ∧ cfg.thisChain ≠ 0 ∧ cfg.ntvTokenAddress a ≠ 0 ∧ cfg.ntv ≠ 0 ∧

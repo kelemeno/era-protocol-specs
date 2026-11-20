@@ -26,10 +26,6 @@ arbitrary call trace) and for every hash function standing in for `keccak256(abi
 - `Contracts.ProxyUpgradeExecutorV35.CoreLeg.Properties.DefaultCoreLegReplayIsNoop`: premise:
   the transition pins `DefaultProxyUpgradeEngine`. Then applying a successfully applied
   transition again succeeds and changes nothing.
-- `Contracts.CoreLegRefinement.Properties.CoreLegIsDomainHoldersLeg`: premise: a
-  DomainHoldersV35 engine does, on the embedded world, what the Core leg's engine does. Then the
-  CoreLegV35 leg in the Core domain and the canonical DomainHoldersV35 leg give the same result,
-  reverts included, so the DomainHoldersV35 results above apply to the Core leg.
 - `Contracts.EngineLegV35.Properties.LegKeepsExecutorOwnership` and
   `Contracts.EngineLegV35.Properties.LegLandsEveryRow`: every successful leg keeps the
   executor's owner and pending owner, had an inventory of its domain's length, and leaves
@@ -48,6 +44,12 @@ Witnesses: `MovedCtmCaughtWitness`, `MovedNotifierRevertsSatisfiable`, `CoreLegW
 `MovedCtmCollisionDisjunctLoadBearing`, `CtmAdminCheckLoadBearing`,
 `CorePAOwnerMoveUnderCollisionPasses`, `PreCheckIsLoadBearing`,
 `EngineOwnerCallsNotLoggedByExecutor`, `CallsOutsideLegsMoveTheBinding`.
+
+Model bridge, not a headline: `Contracts.CoreLegRefinement.Properties.CoreLegIsDomainHoldersLeg`
+is a refinement between two Lean models of the same code, not a guarantee about `b17415d20` by
+itself. Premise: a DomainHoldersV35 engine does, on the embedded world, what the Core leg's engine
+does. Then the CoreLegV35 leg in the Core domain and the canonical DomainHoldersV35 leg give the
+same result, reverts included, so the DomainHoldersV35 results above apply to the Core leg.
 
 ## Source and layout
 

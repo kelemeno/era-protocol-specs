@@ -25,7 +25,7 @@ engines `E`, transition `T`, world `W`, filler world `w₀` and `DomainHoldersV3
 `eng`, run on the embedded `W` with the context `DomainHoldersV35` builds, returns the embedding
 of what `T`'s engine returns on `W`, then the embedding of the Core leg's result on `W` is the
 `DomainHoldersV35` leg's result on the embedded `W`. -/
-@[headline] def Properties.CoreLegIsDomainHoldersLeg : Prop :=
+def Properties.CoreLegIsDomainHoldersLeg : Prop :=
   ∀ (X : CoreLeg.Exec) (E : CoreLeg.Engines) (T : CoreLeg.TransitionObj) (W : CoreLeg.World)
     (w₀ : DomainHoldersV35.World) (eng : DomainHoldersV35.Engine),
     eng X.self (DomainHoldersV35.buildContext (bindings X) T.addr (manifestMap T.manifest))

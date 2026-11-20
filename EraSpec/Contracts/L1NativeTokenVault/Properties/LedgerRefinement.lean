@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1NativeTokenVault.Specs.LedgerRefinement
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the `b17415d20` vault ledger refines the `bridgedOut`-only models
@@ -75,7 +76,7 @@ def Properties.PoolOtherCallsKeepBridgedOut : Prop :=
 /-- **COUNTERMODEL: the per-chain cap rejects what `L1Ledger` accepts.**  On agreeing ledgers,
 for an L1-native asset, the `L1Ledger` inbound hook succeeds for a nonzero amount while the
 `b17415d20` hook reverts (`ChainBalanceExceeded`, `L1NTV:452-454`).  So the refinement is one-way. -/
-def Properties.PerChainCapIsStricterThanL1Ledger : Prop :=
+@[countermodel] def Properties.PerChainCapIsStricterThanL1Ledger : Prop :=
   ∃ (l1 : ChainId) (s : PoolSys) (c a : ChainId) (x : UInt256)
     (acc : NativeTokenVaultBase.L1Ledger),
     L1LedgerMatches acc s ∧ acc.originChainId a = l1 ∧ x ≠ 0 ∧
@@ -84,7 +85,7 @@ def Properties.PerChainCapIsStricterThanL1Ledger : Prop :=
 
 /-- **The outbound refinement's premises, met non-trivially.**  Agreeing ledgers, an L1-native
 asset, a nonzero deposit that succeeds and changes `bridgedOut`. -/
-def Properties.LedgerRefinementWitness : Prop :=
+@[witness] def Properties.LedgerRefinementWitness : Prop :=
   ∃ (l1 : ChainId) (s s' : PoolSys) (c a : ChainId) (x : UInt256)
     (acc : NativeTokenVaultBase.L1Ledger),
     L1LedgerMatches acc s ∧ acc.originChainId a = l1 ∧ x ≠ 0 ∧

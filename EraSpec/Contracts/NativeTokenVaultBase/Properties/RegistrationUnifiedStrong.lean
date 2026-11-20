@@ -1,5 +1,6 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.RegistrationUnifiedStrong
 import EraSpec.Contracts.NativeTokenVaultBase.Properties.RegistrationUnified
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the lifecycle correspondence, tied to the logged run
@@ -191,7 +192,7 @@ that registers an asset, with a logged run whose prepared-or-burned and minted t
 are both one and whose matched registry log (chain `c` taken to be the origin chain) is
 one `bridgeIn` and then one `bridgeOut` towards some chain, each of one unit of the
 tracked asset.  The proof's run mints one unit and then prepares it. -/
-def Properties.UnifiedLifecycleTracedSatisfiable : Prop :=
+@[witness] def Properties.UnifiedLifecycleTracedSatisfiable : Prop :=
   ∃ (rhooks : RegistrationHooks Unit) (hooks : Hooks Unit) (s : RegistrationState Unit)
     (origin : Address) (reg : Registered Unit) (t : State Unit) (trace : List LifecycleOp)
     (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)

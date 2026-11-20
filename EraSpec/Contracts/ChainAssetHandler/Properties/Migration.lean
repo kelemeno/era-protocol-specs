@@ -56,7 +56,8 @@ its way back, accepted by L1 after L1's CTM and diamond were upgraded), `CahReco
 
 namespace Contracts.ChainAssetHandler
 
-/-- **EXACTLY ONE SETTLEMENT LAYER.** On every reachable state, a chain registered on L1 has
+/-- **EXACTLY ONE SETTLEMENT LAYER.** Premise: L1's chain id `W.l1` is nonzero (`block.chainid ≠ 0`
+on L1). Then on every reachable state, a chain registered on L1 has
 exactly one holder: a hub `h ≠ 0` with `settlementLayer[c] == h` on `h`'s own bridgehub, or a
 live (pending, or failed and unrecovered) migration message for it. A chain not registered
 on L1 has no holder. In particular no two hubs both treat the chain as settling on

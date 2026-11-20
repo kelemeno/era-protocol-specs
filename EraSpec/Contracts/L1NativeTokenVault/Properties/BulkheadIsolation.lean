@@ -206,7 +206,7 @@ disabled, not pending, with headroom at least 1 in the L1-native asset `a` and c
 chain `d` is still pending.  `d` then withdraws more than its own headroom in `a`; `c`'s counters
 and flag are unchanged, yet `c`'s withdrawal of 1 reverts.  In an asset `b` not native to L1, where
 `d` has no deposits and no backfill, every `uint256` amount `d` withdraws passes. -/
-def Properties.BulkheadPendingChainUncapped : Prop :=
+@[countermodel] def Properties.BulkheadPendingChainUncapped : Prop :=
   ∃ (s0 s t : CapState) (ls : List CapLabel) (c d a b x : ℕ),
     CapUpgradeState deployedCapConfig s0 ∧ CapRun deployedCapConfig s0 ls s ∧
     s.origin a = deployedCapConfig.l1 ∧ s.origin b ≠ deployedCapConfig.l1 ∧
@@ -230,7 +230,7 @@ nonzero backfill and `withdrawn > deposited + backfill` in an asset not native t
 stays disabled (and the asset's origin is not `c`) the amounts released for `(c, a)` are at most
 `deposited + backfill` at the end less the `withdrawn` total at `markBackfilled`, with the backfill
 unchanged. -/
-def Properties.BulkheadMarkBackfilledKeepsDeficit : Prop :=
+@[countermodel] def Properties.BulkheadMarkBackfilledKeepsDeficit : Prop :=
   (∀ (cfg : CapConfig) (s : CapState) (c : ℕ), s.pending c = true →
     capStep cfg (.markBackfilled c) s = some { s with pending := Function.update s.pending c false })
   ∧ ∃ (s0 s t : CapState) (ls : List CapLabel) (c a : ℕ),
@@ -258,7 +258,7 @@ run from the upgrade state reaches `s`, from which a run reaches `t`:
 * at `t`, for an asset `b` whose origin `d'` is neither L1 nor `c`, the registered, disabled,
   non-pending chain `c` has positive headroom, below `2^256` with its counters, and can withdraw
   all of it. -/
-def Properties.BulkheadCapWitness : Prop :=
+@[witness] def Properties.BulkheadCapWitness : Prop :=
   ∃ (s0 s u t : CapState) (ls ls' : List CapLabel) (c d d' a b x : ℕ),
     CapUpgradeState deployedCapConfig s0 ∧ CapRun deployedCapConfig s0 ls s ∧
     CapRun deployedCapConfig s (ls' ++ [.fromChain c a x]) t ∧
@@ -289,7 +289,7 @@ escrow; one chain's balance is in the pool with positive headroom, and the pool'
 positive; no chain is pending and no key is in deficit; the unmoved headrooms plus the pool's
 equal `bridgedOut` exactly (the escrow bound is tight); and a registered, disabled, non-pending
 chain `c` with positive headroom can withdraw all of it. -/
-def Properties.BulkheadLedgerWitness : Prop :=
+@[witness] def Properties.BulkheadLedgerWitness : Prop :=
   ∃ (s0 s : CapState) (ls : List CapLabel) (a c m : ℕ),
     CapUpgradeState deployedCapConfig s0 ∧ CapRun deployedCapConfig s0 ls s ∧
     s0.origin a = deployedCapConfig.l1 ∧ 0 < s0.bridgedOut a ∧ 0 < populatedIn a ls ∧

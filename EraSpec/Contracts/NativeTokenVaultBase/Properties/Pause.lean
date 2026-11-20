@@ -73,7 +73,7 @@ def Properties.DeliveryDelayedNotLost : Prop :=
 the accounting can be paused.  The recovery of its data then fails while paused, and after the
 unpause it restores the state exactly.  A destination mint that succeeds on the same unpaused
 state fails once it is paused. -/
-def Properties.VaultPauseWitness : Prop :=
+@[witness] def Properties.VaultPauseWitness : Prop :=
   ∃ (hooks : Hooks ℕ) (rh : ResolutionHooks ℕ) (s : State ℕ) (r : Request) (out : Result ℕ)
     (p : State ℕ) (c : ResolutionCall) (t : State ℕ),
     HooksCancel hooks rh ∧ WellFormed s ∧ prepare hooks s r = some out ∧ r.data.amount ≠ 0

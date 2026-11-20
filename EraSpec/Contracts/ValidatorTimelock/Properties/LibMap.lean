@@ -61,7 +61,7 @@ def Properties.PackedTimestampsRefine : Prop :=
 /-- **ALONG RUNS.** If packed storage `M` represents `s`, then after any run of successful calls
 from `s` to `s'`, the packed storage obtained by applying `packedStep` call by call represents
 `s'`. -/
-@[headline] def Properties.PackedTimestampsRefineRuns : Prop :=
+def Properties.PackedTimestampsRefineRuns : Prop :=
   ∀ (M : PackedTimestamps) (s s' : State) (ks : List Call), Represents M s → Run s ks s' →
     Represents (packedRun ks M) s'
 

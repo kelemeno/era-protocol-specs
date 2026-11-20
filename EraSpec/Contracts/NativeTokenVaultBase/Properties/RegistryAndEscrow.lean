@@ -174,7 +174,7 @@ of the full premise lists, on concrete nontrivial instances, is
 
 /-- **THE BOUNDED ASSUMPTION IS SATISFIABLE.**  For any finite set of pairs smaller
 than the id space, some encoding is injective and nonzero on it. -/
-def Properties.IdAssumptionsOnSatisfiable : Prop :=
+@[witness] def Properties.IdAssumptionsOnSatisfiable : Prop :=
   ∀ (S : Finset (Chain × Address)), S.card < UInt256.size →
     ∃ e : NtvAssetId, IdAssumptionsOn e ↑S
 
@@ -316,7 +316,7 @@ def Properties.UnguardedInflowUnbackedOn : Prop :=
 set and a run satisfying every premise of `RunValidOn` / `SolvencyOn` /
 `RunAuditedOn` / `LedgerIsNetFlowOn` / `NoInflationOn`, in which a native asset is
 registered and has been bridged both out and in. -/
-def Properties.RunOnSatisfiable : Prop :=
+@[witness] def Properties.RunOnSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (W : World),
     IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ ReachIn e thisChain S empty W
     ∧ ∃ a, Registered W.vault a ∧ Native thisChain W.vault a
@@ -325,7 +325,7 @@ def Properties.RunOnSatisfiable : Prop :=
 /-- **THE NATIVE-REGISTRATION PREMISES ARE SATISFIABLE**, on a vault that already
 holds an asset — every premise of `RegisterNativeIdFreshOn` and
 `RegisterNativePreservesValidOn`. -/
-def Properties.RegisterNativeOnSatisfiable : Prop :=
+@[witness] def Properties.RegisterNativeOnSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (V : Vault)
     (t : Address),
     IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
@@ -333,7 +333,7 @@ def Properties.RegisterNativeOnSatisfiable : Prop :=
 
 /-- **THE BRIDGED-REGISTRATION PREMISES ARE SATISFIABLE** — every premise of
 `RegisterBridgedPreservesValidOn`. -/
-def Properties.RegisterBridgedOnSatisfiable : Prop :=
+@[witness] def Properties.RegisterBridgedOnSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (S : Set (Chain × Address)) (thisChain : Chain) (V : Vault)
     (a : AssetId) (t ot : Address) (origin : Chain),
     IdAssumptionsOn e S ∧ thisChain ≠ 0 ∧ Valid e thisChain V ∧ PairsIn S V
@@ -397,14 +397,14 @@ recorded pair is one of the logged pairs. -/
 
 /-- **THE RUN-LOCAL ASSUMPTION IS SATISFIABLE FOR EVERY REALISTIC LOG.**  Any log
 shorter than the id space has an encoding injective and nonzero on its pairs. -/
-def Properties.LogAssumptionSatisfiable : Prop :=
+@[witness] def Properties.LogAssumptionSatisfiable : Prop :=
   ∀ (thisChain : Chain) (log : List Op), log.length < UInt256.size →
     ∃ e : NtvAssetId, IdAssumptionsOn e ↑(registeredPairs thisChain log)
 
 /-- **THE HEADLINE'S PREMISES HOLD ON A NONTRIVIAL RUN.**  An encoding and a logged
 run satisfying every premise of `LoggedRunSound`, in which two distinct pairs are
 registered and a native asset has been bridged both out and in. -/
-def Properties.LoggedRunSoundSatisfiable : Prop :=
+@[witness] def Properties.LoggedRunSoundSatisfiable : Prop :=
   ∃ (e : NtvAssetId) (thisChain : Chain) (W : World) (log : List Op),
     thisChain ≠ 0 ∧ ReachLog e thisChain empty W log
     ∧ IdAssumptionsOn e ↑(registeredPairs thisChain log)

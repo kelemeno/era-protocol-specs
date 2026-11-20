@@ -26,7 +26,6 @@ takes a hash premise.
 | `initialize` succeeds at most once | Any run | `InitializeAtMostOnce` |
 | The owner changes only by `initialize`, the pending owner's `acceptOwnership`, or the owner's `renounceOwnership` | None (one call) | `OwnerChangesOnlyByHandover` |
 | After a renounce, the owner stays `0` and every enforced delay only rises | Initialized storage with owner and pending owner `0`; no call is sent by address `0` | `RenouncedTimelockOnlyRaisesDelays` |
-| The bit-level `LibMap` storage represents the model's commit timestamps along every run | The packed storage represents the start state (all-zero storage represents fresh storage) | `PackedTimestampsRefineRuns` |
 
 Witnesses: `ExecutionWaitsForTheDelayWitness`, `RecommitWitness`,
 `DelayBoundIsTight`, `DelayWritersWitness`, `MaxDelayIsAttained`, `IsolationWitness`,
@@ -35,7 +34,10 @@ Witnesses: `ExecutionWaitsForTheDelayWitness`, `RecommitWitness`,
 `OwnerCanShortenAPendingDelay`, `ClockPast2106SkipsTheDelay`, `RecommitAtAnEarlierClock`,
 `UnrecordedBatchIsNotDelayed`, `UncheckedExecuteRunsEarly`, `UncheckedIncreaseLowersTheDelay`,
 `StoredComparisonAdmitsNoRaise`, `UncheckedLookupGrantsOnUnregisteredChain`,
-`ZeroSenderActsAsRenouncedOwner`. The other statements are supporting lemmas.
+`ZeroSenderActsAsRenouncedOwner`. The other statements are supporting lemmas, among them
+`PackedTimestampsRefineRuns` (the bit-level `LibMap` storage represents the model's commit
+timestamps along every run, from packed storage that represents the start state), a refinement
+between two Lean models of the same storage rather than a headline.
 
 ## Source
 

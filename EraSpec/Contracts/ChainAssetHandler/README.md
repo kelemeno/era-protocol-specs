@@ -17,7 +17,7 @@ the migration results describe the kept machinery.
 
 | Guarantee | Premises | Statement |
 |---|---|---|
-| A chain registered on L1 has exactly one holder: one hub whose own bridgehub says it settles there, or one live migration message; an unregistered chain has none | Reachable state | `ExactlyOneSettlementLayer` |
+| A chain registered on L1 has exactly one holder: one hub whose own bridgehub says it settles there, or one live migration message; an unregistered chain has none | Reachable state; L1's chain id is nonzero (`W.l1 ≠ 0`) | `ExactlyOneSettlementLayer` |
 | L1's `migrationNumber[c]` changes only 0 → 1 (L1 burn), 1 → 2 (L1 mint) or 1 → 0 (failed-deposit confirmation) | None (one step) | `L1MigrationNumberTransitions` |
 | A chain completes at most one L1 → settlement layer → L1 round trip, however many failed attempts | Starts from a reachable state | `AtMostOneRoundTrip` |
 | Right after an L1 burn, the deposit's failure and L1's confirmation are steps, and they restore every field of every hub | Starts from a reachable state; the L1 asset router's and nullifier's pauses and the status proof are not modelled | `FailedMigrationRecoveryRestoresSource` |

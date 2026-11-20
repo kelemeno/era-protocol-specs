@@ -305,7 +305,7 @@ that record outflow and inflow in two separate counters (the pattern of the L2 a
 223-228`, for an L1 destination while settling on L1) violate `HooksCancel`. On a `WellFormed`
 state a preparation and the router's recovery of its data both succeed; the token ledger is
 restored exactly, and the state is not. -/
-def Properties.RoundTripNeedsCancellingHooks : Prop :=
+@[countermodel] def Properties.RoundTripNeedsCancellingHooks : Prop :=
   ∃ (hooks : Hooks (ℕ × ℕ)) (rh : ResolutionHooks (ℕ × ℕ)) (s : State (ℕ × ℕ)) (r : Request)
     (out : Result (ℕ × ℕ)) (t : State (ℕ × ℕ)),
     ¬ HooksCancel hooks rh ∧ WellFormed s ∧ prepare hooks s r = some out ∧
@@ -481,7 +481,7 @@ hooks that satisfy `HooksCancel` and are not the identity, a successful preparat
 amount whose hook changes the accounting, the router's recovery of its data returning exactly
 the original state, and a successful `bridgeMint` of a nonzero amount to a receiver other than
 the depositor whose hook also changes the accounting. -/
-def Properties.ResolutionSatisfiable : Prop :=
+@[witness] def Properties.ResolutionSatisfiable : Prop :=
   ∃ (hooks : Hooks ℕ) (rh : ResolutionHooks ℕ) (s : State ℕ) (r : Request) (out : Result ℕ)
     (c : ResolutionCall) (t : State ℕ),
     HooksCancel hooks rh ∧ WellFormed s ∧ prepare hooks s r = some out ∧
@@ -495,7 +495,7 @@ def Properties.ResolutionSatisfiable : Prop :=
 preparation on a `WellFormed` state, the depositor transfers its whole remaining balance away
 (`SpendReach` by a transfer that changes the token), and the recovery hook succeeds there; and a
 destination `bridgeMint` of the returned data succeeds. -/
-def Properties.SpendingAndDeliverySatisfiable : Prop :=
+@[witness] def Properties.SpendingAndDeliverySatisfiable : Prop :=
   ∃ (hooks : Hooks ℕ) (rh : ResolutionHooks ℕ) (s : State ℕ) (r : Request) (out : Result ℕ)
     (u : State ℕ) (accounted : ℕ) (c : ResolutionCall) (d d' : State ℕ),
     WellFormed s ∧ prepare hooks s r = some out ∧ r.data.amount ≠ 0 ∧ SpendReach out.state u ∧
@@ -511,7 +511,7 @@ the call on the registered branch and makes `bridgeMint` fail, although its hook
 the accounting, which the commit then discards; changing only the accounting to `0` makes the
 hook fail and the call commit nothing; and on a `WellFormed` state whose supply is `2^256 - 1`
 the same branch overflows. -/
-def Properties.ResolutionRejectionsSatisfiable : Prop :=
+@[witness] def Properties.ResolutionRejectionsSatisfiable : Prop :=
   ∃ (rh : ResolutionHooks ℕ) (s : State ℕ) (c : ResolutionCall) (t : State ℕ) (x : Address),
     WellFormed s ∧ bridgeMint rh s c = some t ∧ bridgeRecoverFailedTransfer rh s c ≠ none ∧
     x ≠ s.config.router ∧
@@ -535,7 +535,7 @@ def Properties.ResolutionRejectionsSatisfiable : Prop :=
 address and a call on which the first bridge succeeds with a nonzero amount; and, one input
 away each, an origin token whose encoding does not match the call's asset id, and the zero
 receiver, on which the same first bridge fails. -/
-def Properties.FirstBridgeSatisfiable : Prop :=
+@[witness] def Properties.FirstBridgeSatisfiable : Prop :=
   ∃ (reg : RegistrationHooks ℕ) (rh : ResolutionHooks ℕ) (s : RegistrationState ℕ)
     (c : ResolutionCall) (t : State ℕ) (o : Address),
     s.config.tokenAddress ≠ 0 ∧ bridgeMintFirst reg rh s c = some t ∧ c.data.amount ≠ 0 ∧

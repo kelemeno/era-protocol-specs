@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1NativeTokenVault.Specs.BulkheadPoolSimulation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the bulkhead model's runs are `InteropPool` runs
@@ -77,7 +78,7 @@ both chains, enables interop on one and moves its balance, and deposits and with
 call meets the premises of `BulkheadStepIsPoolCall`.  Its end `s` has nonzero values: the pool
 holds 40 of asset `10` and has paid out 40, and chain `3`'s `deposited + backfill` is `65`.  The
 `InteropPool` calls of the run are its labels less the one `registerAsset`. -/
-def Properties.BulkheadPoolSimulationWitness : Prop :=
+@[witness] def Properties.BulkheadPoolSimulationWitness : Prop :=
   ∃ (s0 s : CapState) (ls : List CapLabel),
     deployedCapConfig.MatchesPool 1 ∧ CapUpgradeState deployedCapConfig s0 ∧
     (∀ a, s0.origin a < capWordBound) ∧ (∀ l ∈ ls, l.Words) ∧
