@@ -34,7 +34,8 @@ has no `try`: a call whose target fails reverts the whole frame, release include
 committed frame, call `i` of the bundle with hash `h` releases `interopCall.value` exactly when
 the Reentrancy model logs `Effect.delivered h i`, once per such entry. The source side is
 `interop/InteropCenter.sol:681`, `totalBurnedCallsValue += interopCallValue` over every call, and
-the value placed in the bundle is that same field (`InteropCenter.sol:768`).
+the value placed in the bundle is that same field (`_processCallStarter` sets the call's `value` to it,
+`InteropCenter.sol:819` indirect / `:828` direct, and `:680` stores the call in the bundle).
 
 ## Modelling choices
 

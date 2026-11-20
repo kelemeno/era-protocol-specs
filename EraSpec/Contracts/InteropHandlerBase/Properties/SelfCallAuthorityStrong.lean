@@ -108,7 +108,7 @@ authorised. -/
   address is not a direct call;
 * for a bundle naming `(0, 42)`, the gate's self-call disjunct passes although the attribute
   allows neither the handler nor `(1, 7)` — and the relayed call from `(1, 7)` is not admitted:
-  `_handleExecuteBundle`'s check rejects it. -/
+  `_receiveExecuteBundle`'s check (`L1:127-149` / `L2:109-131`) rejects it. -/
 @[witness] def Properties.SelfCallRelayWitness : Prop :=
   RoundTripOn wHandler 1 7 ∧
     Admitted wHandler deployedDispatch wAttrs7 (.relayed 1 7 ⟨.executeBundle, true⟩) ∧

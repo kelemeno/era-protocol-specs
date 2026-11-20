@@ -92,9 +92,10 @@ The two sides handle the SAME field.  At send, `InteropCenter` accumulates
 
     totalBurnedCallsValue += _callStarters[i].callAttributes.interopCallValue;
 
-over every call (`InteropCenter.sol:681`), and `_ensureCorrectTotalValue` (`:420-452`) requires those
-tokens to have been received.  The call that lands in the bundle carries that same number (`InteropCenter.sol:768`,
-`value: _callStarters[i].callAttributes.interopCallValue`), and at the destination `_executeCalls` releases
+over every call (`InteropCenter.sol:681`), and `_ensureCorrectTotalValue` (`:418-460`) requires those
+tokens to have been received.  The call that lands in the bundle (`bundle.calls[i] = interopCall`, `:680`) carries
+that same number: `_processCallStarter` builds it with `value: _callStarter.callAttributes.interopCallValue`
+(`InteropCenter.sol:819` for an indirect call, `:828` for a direct one), and at the destination `_executeCalls` releases
 exactly `interopCall.value` — but only for calls it executes.
 
 So the source collects over ALL calls and the destination releases over the EXECUTED ones.  Two things

@@ -162,7 +162,8 @@ instance AddrField.decNames : (f : AddrField) → (p : Principal) → Decidable 
 
 /-- **What the attribute permits**: the principals a gate of kind `g` is meant to let through. An
 empty execution address is permissionless (`IHB:240-242`); the unbundler gate always
-parses its attribute. This is the check `_handleExecuteBundle` / `_handleUnbundleBundle` run against
+parses its attribute. This is the check `_receiveExecuteBundle` (`L1:127-149` / `L2:109-131`) /
+`_handleUnbundleBundle` (`IHB:413`) run against
 the message sender, so it is also what a dispatch branch establishes. -/
 def Admits : Gate → GateAttrs → Principal → Prop
   | .permissionless, _, _ => True

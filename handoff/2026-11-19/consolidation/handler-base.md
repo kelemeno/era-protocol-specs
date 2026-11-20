@@ -101,3 +101,19 @@ The contract's model is one stack:
 - Physical merge of the `ReentrancyAtV35` files into `Reentrancy` (see Step 2).
 - `Protocol/InteropAtomicity/ExecutionLiveness` and `Protocol/DestinationCapstone` now import History
   records; they are the Protocol unit's to re-pin.
+
+## Review fixes (round 2)
+
+- Re-cited the bundle call's `interopCallValue` to `_processCallStarter` (`InteropCenter.sol:819`
+  indirect / `:828` direct, stored at `:680`) in `Specs/BundleStatusMachine` and
+  `Specs/ValueLedgerFaithful`; `_ensureCorrectTotalValue` is `:418-460`.
+- `Specs/BundleStatusMachineFaithful`: `ProvesInclusion` and `PassesFlowGate` docstrings now cite
+  `b17415d20` lines (`L1:92-95`, `L1:109`, `L1:203-224`, `L1:221`; `L2:74`, `L2:89`) and say that
+  `executeAtomicBundle` is the pin's constructor, which no `b17415d20` entry translates to.
+- `_handleExecuteBundle` -> `_receiveExecuteBundle` (`L1:127-149` / `L2:109-131`) in the
+  `Admits` and `SelfCallRelayWitness` docstrings.
+- ASSUMPTIONS row `BundleStatusMachineFaithful`: witness column names the never-published
+  statement's conclusion; the row label says `DeliveryNeedsInclusionOrFlowGate` is over the engine.
+- `ReceiveFilterWitnessAtV35` stays untagged: CONSOLIDATION.md defines `@[witness]` as a witness
+  for a headline, and `ReceiveFilterIsReadAtTheGateAtV35` is not a headline.
+- Docstring and notes changes only: no Properties def renamed, renames/handler-base.json unchanged.
