@@ -21,6 +21,31 @@ and router's other writers of the base id's registry entry and route.
 | Genesis, preservation, writers, runs, the origin-data repair, four countermodels, three witnesses | [Properties/Consistency.lean](Properties/Consistency.lean) |
 | Per-call characterizations, the two upgrade normal forms, the checked derivations and witnesses | [Proofs/Consistency.lean](Proofs/Consistency.lean) |
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. "Consistent" is `ConfigConsistent`: every L1 chain id word is the same
+nonzero `l1`, every base asset id copy is the same nonzero `a`, both ETH asset ids are derived
+from `l1`, the vault's WETH is the nonzero `weth`, the vault maps `a` to the base-token system
+contract and back, every built-in is initialized, and the router's recorded deployment trackers
+are zero or the vault. "Admissible" (`ConfigCall.Admissible`): the upgrader makes no direct call,
+and no logged vault registration registers a token whose vault asset id is `a`.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A successful genesis from all-zero storage is sent by the force deployer and leaves a consistent state, the base id routed to the vault with the input's origin data | The base-token system contract address is nonzero | `GenesisEstablishesConfigConsistent` |
+| Every successful admissible call keeps the state consistent with the same ids and WETH | The state is consistent; the call is admissible | `StepPreservesConfigConsistent` |
+| After genesis, along every admissible run the state stays consistent with the genesis ids, every default upgrade carries them, and the base id stays routed to the vault unless the counterpart rewrites it | A successful genesis from all-zero storage with a nonzero base-token address; every call admissible | `ConfigConsistentAlongRuns` |
+| Only the upgrader writes the scalar configuration words | None (any state) | `OnlyUpgraderWritesScalarConfig` |
+| Genesis never runs again | The state is consistent | `GenesisRevertsOnConsistentState` |
+| The base id stays routed to the vault except through the counterpart's `setAssetHandlerAddress` | The state is consistent and routes the base id to the vault; any sender | `BaseRouteMovesOnlyByCounterpart` |
+| A default upgrade succeeds only with the stored L1 chain id and base asset id | The state is consistent | `DefaultUpgradeKeepsL1AndBaseIds` |
+
+Witnesses (`@[witness]`): `GenesisEstablishesConfigConsistentWitness` and `ConfigRunWitness`.
+Countermodels (`@[countermodel]`): `NoBaseFreezeLeavesTrackerOnOldBase`,
+`NoL1FreezeLeavesTrackerOnOldL1`, `RouterUpdateOutsideHelperDivergesBase` (the premises are
+needed) and `SameBaseOriginRewriteFlipsNativeTest` (the origin data is not covered).
+
 ## The invariant
 
 `ConfigConsistent E l1 a weth w`: the nine L1 chain id words are `l1 ≠ 0`; the four base id

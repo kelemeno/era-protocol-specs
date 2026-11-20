@@ -26,6 +26,25 @@ certificate has the same name without the `Properties` segment.
 | LegConservationRuns | [Specs/LegConservationRuns.lean](Specs/LegConservationRuns.lean) | [Properties/LegConservationRuns.lean](Properties/LegConservationRuns.lean) | [Proofs/LegConservationRuns.lean](Proofs/LegConservationRuns.lean) |
 | RouterRecoveryFrame | [Specs/RouterRecoveryFrame.lean](Specs/RouterRecoveryFrame.lean) | [Properties/RouterRecoveryFrame.lean](Properties/RouterRecoveryFrame.lean) | [Proofs/RouterRecoveryFrame.lean](Proofs/RouterRecoveryFrame.lean) |
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. "Under the deployed checks": every starter passes `InteropCenter`'s checks on
+indirect starters (an indirect call goes only to the asset router and carries no value), and the
+calls are those the send forms from the starters.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A bundle's value calls are its sender's, and the base-token refunds `_recoverBundle` requests go to the sender and sum to `totalBurnedCallsValue` | The sender is not the router; the deployed checks | `ValueCallsComeFromTheSender` |
+| A successful refund moves exactly what was collected, in the collected asset, to the payer | The sender is not the router; the deployed checks; router-call recovery leaves the bundle's asset alone (`RecoveryFramesOthers`); if anything was collected, the asset is the base token or already registered in the tracker | `ClaimReturnsCollected` |
+| Every logged claim consumed the leg of a logged send and refunded exactly its collection to its sender, or a named keccak collision occurs (one case left out, see the docstring) | Run from fresh manager storage; router-call recovery and custom burns leave other assets and registrations alone (`CodeFrames`); no send from the router; the decoder inverts the encoder on every logged bundle | `EveryClaimRefundsItsSenderOrCollision` |
+| Each leg is committed by one send | Run from fresh manager storage | `EachLegSentOnce` |
+| Each leg is consumed by at most one claim | Run from fresh manager storage | `EachLegClaimedAtMostOnce` |
+
+Witnesses (`@[witness]`): `ValueCallsWitness`, `ClaimWitnessNativeToken`, `ClaimWitnessBaseToken`
+and `RunClaimWitness`. Countermodels (`@[countermodel]`): `RouterSenderValueIsNotRefunded`,
+`UnregisteredNativeRefundSetsChainBalance` and `WithoutIndirectValueBanValueIsNotRefunded`.
+
 ## LegConservation: one collection, one refund
 
 - **Bundle shape.** Under both indirect-starter checks (`IndirectCallOnlyToAssetRouter`,

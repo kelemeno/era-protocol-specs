@@ -1,4 +1,5 @@
 import EraSpec.Protocol.ZKsyncOSDA.Specs.CommitterDA
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the DA guarantee each validator leaves once the committer discards its output
@@ -68,7 +69,7 @@ open Contracts.ZKsyncOSBlobsDA (Bytes toB32 b32At DAOutput TxEnv encWords World 
 /-! ## The committer's check -/
 
 /-- **THE COMMITTER ACCEPTS AN OUTPUT IFF BOTH ARRAYS ARE EMPTY OR BOTH ARE SIXTEEN ZEROS.** -/
-def Properties.CommitterDACheckIff : Prop :=
+@[headline] def Properties.CommitterDACheckIff : Prop :=
   ∀ o : DAOutput, committerDACheck o = true ↔
     (o.blobsLinearHashes = [] ∧ o.blobsOpeningCommitments = [])
     ∨ (o.blobsLinearHashes = List.replicate TOTAL_BLOBS_IN_COMMITMENT 0
@@ -93,7 +94,7 @@ def Properties.RollupFormsAccepted : Prop :=
 
 /-- **EXACT ROLLUP ACCEPTANCE.** When keccak does not map the named first-blob preimage to zero,
 the rollup validator and the committer accept exactly the two shapes. -/
-def Properties.RollupAcceptedIff : Prop :=
+@[headline] def Properties.RollupAcceptedIff : Prop :=
   ∀ (K : Crypto) (env : TxEnv) (S : RollupState) (h : UInt256) (input : Bytes),
     K.keccak (firstBlobCommitmentPreimage env input) ≠ 0 →
       (RollupAccepted K env S h input
@@ -110,7 +111,7 @@ satisfies one of:
 * keccak collides on the validator's hashed prefix and the program's preimage;
 * keccak collides on the calldata branch's pubdata and `pub`;
 * keccak maps the named first-blob preimage to zero. -/
-def Properties.RollupPubdataPublishedOrCollision : Prop :=
+@[headline] def Properties.RollupPubdataPublishedOrCollision : Prop :=
   ∀ (K : Crypto) (env : TxEnv) (S : RollupState) (sd : UInt256) (lin : List UInt256)
     (pub input : Bytes),
     (pub ≠ [] → lin ≠ []) →
@@ -124,7 +125,7 @@ def Properties.RollupPubdataPublishedOrCollision : Prop :=
 state and pubdata `pub`: the commitment `keccak (l2Output sd (keccak pub) [])` is accepted from the
 66-byte input `l2Output sd (keccak pub) [] ++ [1]` by a transaction with no blob, and that input
 does not carry `pub` (`CalldataCarries`). -/
-def Properties.RollupZeroBlobAcceptsUnpublishedPubdata : Prop :=
+@[countermodel] def Properties.RollupZeroBlobAcceptsUnpublishedPubdata : Prop :=
   ∀ (K : Crypto) (S : RollupState) (sd : UInt256) (pub : Bytes),
     RollupAccepted K ⟨[]⟩ S (K.keccak (l2Output sd (K.keccak pub) []))
         (l2Output sd (K.keccak pub) [] ++ [1])
@@ -134,7 +135,7 @@ def Properties.RollupZeroBlobAcceptsUnpublishedPubdata : Prop :=
 /-- **THE PROGRAM PREMISE IS LOAD-BEARING.** There is a keccak, a nonempty pubdata and a zero-blob
 commitment to it that the rollup validator and the committer accept, for which every disjunct of
 the headline's conclusion is false. -/
-def Properties.RollupProgramPremiseLoadBearing : Prop :=
+@[countermodel] def Properties.RollupProgramPremiseLoadBearing : Prop :=
   ∃ (K : Crypto) (env : TxEnv) (S : RollupState) (sd : UInt256) (pub input : Bytes),
     pub ≠ []
       ∧ RollupAccepted K env S (K.keccak (l2Output sd (K.keccak pub) [])) input
@@ -148,7 +149,7 @@ nonempty pubdata, a commitment to it whose one linear hash is nonzero (so the pr
 and an input for which the rollup validator returns an output that passes the committer's length
 check (both arrays have 16 entries) but not its all-zero check, and for which every disjunct of the
 headline's conclusion is false. -/
-def Properties.CommitterZeroCheckLoadBearing : Prop :=
+@[countermodel] def Properties.CommitterZeroCheckLoadBearing : Prop :=
   ∃ (K : Crypto) (env : TxEnv) (S : RollupState) (sd x : UInt256) (pub input : Bytes)
     (o : DAOutput),
     x ≠ 0 ∧ pub ≠ []
@@ -166,7 +167,7 @@ def Properties.CommitterZeroCheckLoadBearing : Prop :=
 
 /-- **EXACT GATEWAY ACCEPTANCE.** The gateway validator and the committer accept, with relayed
 message `msg`, exactly the gateway shape. -/
-def Properties.RelayedAcceptedIff : Prop :=
+@[headline] def Properties.RelayedAcceptedIff : Prop :=
   ∀ (K : Crypto) (G : GatewayEnv) (caller chainId batchNumber h : UInt256) (input : Bytes)
     (msg : RelayMessage),
     RelayedAccepted K G caller chainId batchNumber h input msg
@@ -176,7 +177,7 @@ def Properties.RelayedAcceptedIff : Prop :=
 commitment `keccak (l2Output sd (keccak pub) lin)`, any `lin`, every accepted input relays `pub` to
 L1 for this chain and batch, or keccak collides on the hashed prefix and the program's preimage, or
 on the relayed pubdata and `pub`. -/
-def Properties.RelayedPubdataRelayedOrCollision : Prop :=
+@[headline] def Properties.RelayedPubdataRelayedOrCollision : Prop :=
   ∀ (K : Crypto) (G : GatewayEnv) (caller chainId batchNumber sd : UInt256) (lin : List UInt256)
     (pub input : Bytes) (msg : RelayMessage),
     RelayedAccepted K G caller chainId batchNumber (K.keccak (l2Output sd (K.keccak pub) lin))
@@ -191,7 +192,7 @@ def Properties.RelayedPubdataRelayedOrCollision : Prop :=
 /-- **VALIDIUM: ANY 32-BYTE INPUT, ANY COMMITMENT.** The validium validator and the committer accept
 exactly the 32-byte inputs; the commitment is not an argument of the model, because the source does
 not read it. -/
-def Properties.ValidiumAcceptedIff : Prop :=
+@[headline] def Properties.ValidiumAcceptedIff : Prop :=
   ∀ input : Bytes, ValidiumAccepted input ↔ input.length = 32
 
 /-! ## `BlobsL1DAValidatorZKsyncOS` -/
@@ -208,7 +209,7 @@ reachable state of the ZKsync OS blobs validator, let the commitment be keccak o
 of a list `vs`. For every input the validator and the committer accept, each hash of `vs` is a
 nonzero blob of the commit transaction or was written by a logged `publishBlobs` call in the window,
 or keccak collides on the input's resolved concatenation and that of `vs`. -/
-def Properties.BlobsCommittedHashesFreshOrCollision : Prop :=
+@[headline] def Properties.BlobsCommittedHashesFreshOrCollision : Prop :=
   ∀ (K : Crypto) (env : TxEnv) (W : World) (vs : List UInt256) (input : Bytes),
     W.Reachable → BlobsAccepted K env W.st (K.keccak (encWords vs)) input →
       (∀ v ∈ vs, (v ∈ env.blobs ∧ v ≠ 0) ∨ LoggedInWindow W v)
@@ -219,7 +220,7 @@ def Properties.BlobsCommittedHashesFreshOrCollision : Prop :=
 /-- **WITNESS** for the rollup headline: a nonempty pubdata and a commitment with nonempty `lin` (so
 the program premise holds with both sides nonempty), accepted from an input that carries the
 pubdata; neither named collision holds and the named first-blob preimage is not mapped to zero. -/
-def Properties.RollupHeadlineWitness : Prop :=
+@[witness] def Properties.RollupHeadlineWitness : Prop :=
   ∃ (K : Crypto) (env : TxEnv) (S : RollupState) (sd : UInt256) (lin : List UInt256)
     (pub input : Bytes),
     pub ≠ [] ∧ lin ≠ []
@@ -232,7 +233,7 @@ def Properties.RollupHeadlineWitness : Prop :=
 /-- **THE COLLISION DISJUNCT FIRES.** There is a keccak, a nonempty pubdata and a commitment with
 nonempty `lin` to it, accepted from an input that does not carry the pubdata, where the named prefix
 collision holds. (The proof uses the constant hash and a zero-blob input.) -/
-def Properties.RollupHeadlineCollisionFires : Prop :=
+@[countermodel] def Properties.RollupHeadlineCollisionFires : Prop :=
   ∃ (K : Crypto) (env : TxEnv) (S : RollupState) (sd : UInt256) (lin : List UInt256)
     (pub input : Bytes),
     pub ≠ [] ∧ lin ≠ []
@@ -243,7 +244,7 @@ def Properties.RollupHeadlineCollisionFires : Prop :=
 /-- **WITNESS** for `RollupAcceptedIff`: one keccak under which the named first-blob preimage of a
 zero-blob input and of a calldata input with nonempty pubdata are not mapped to zero, and both are
 accepted. -/
-def Properties.RollupFormsWitness : Prop :=
+@[witness] def Properties.RollupFormsWitness : Prop :=
   ∃ (K : Crypto) (S : RollupState) (h₁ h₂ : UInt256) (input₁ input₂ : Bytes),
     K.keccak (firstBlobCommitmentPreimage ⟨[]⟩ input₁) ≠ 0
       ∧ K.keccak (firstBlobCommitmentPreimage ⟨[]⟩ input₂) ≠ 0
@@ -253,7 +254,7 @@ def Properties.RollupFormsWitness : Prop :=
 
 /-- **WITNESS** for the gateway headline: a commitment with nonempty `lin` to a nonempty pubdata,
 accepted with the pubdata relayed, and neither named collision holding. -/
-def Properties.RelayedHeadlineWitness : Prop :=
+@[witness] def Properties.RelayedHeadlineWitness : Prop :=
   ∃ (K : Crypto) (G : GatewayEnv) (caller chainId batchNumber sd : UInt256) (lin : List UInt256)
     (pub input : Bytes) (msg : RelayMessage),
     pub ≠ [] ∧ lin ≠ []
@@ -266,7 +267,7 @@ def Properties.RelayedHeadlineWitness : Prop :=
 /-- **THE GATEWAY COLLISION DISJUNCT FIRES.** There is a keccak, a nonempty pubdata, a commitment
 with nonempty `lin` to it, and an accepted input that relays a different pubdata, where the named
 pubdata collision holds. (The proof uses the constant hash.) -/
-def Properties.RelayedCollisionFires : Prop :=
+@[countermodel] def Properties.RelayedCollisionFires : Prop :=
   ∃ (K : Crypto) (G : GatewayEnv) (caller chainId batchNumber sd : UInt256) (lin : List UInt256)
     (pub input : Bytes) (msg : RelayMessage),
     pub ≠ [] ∧ lin ≠ []
@@ -278,7 +279,7 @@ def Properties.RelayedCollisionFires : Prop :=
 /-- **WITNESS** for the ZKsync OS blobs headline: for every keccak, on a reachable world, a
 two-hash commitment accepted from a transaction that carries a blob; each committed hash is attached
 or fresh, and the named collision is false. -/
-def Properties.BlobsHeadlineWitness : Prop :=
+@[witness] def Properties.BlobsHeadlineWitness : Prop :=
   ∀ K : Crypto, ∃ (env : TxEnv) (W : World) (vs : List UInt256) (input : Bytes),
     W.Reachable ∧ vs.length = 2 ∧ env.blobs ≠ []
       ∧ BlobsAccepted K env W.st (K.keccak (encWords vs)) input

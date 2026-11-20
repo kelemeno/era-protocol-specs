@@ -20,6 +20,29 @@ Namespace `Contracts.InteropPeerRegistry`. Statements are
 `Contracts.InteropPeerRegistry.Properties.*`; each certificate has the same name without the
 `Properties` segment. No result takes a hash premise.
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. Every one is about states reached from fresh storage by the deployed code (each
+chain's queue executed in order, `deregisterInteropPairs` checking the settlement layer), for any
+deployment constants. The model keeps the migration steps that `b17415d20` disables, so the
+statements cover more runs than the target commit has.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| A chain's `isPeerAllowed[p]` equals L1's `interopPeerAllowed[c][p]` | No entry writing it is pending in the chain's queue, and the last executed one succeeded (or none ran) | `PeerFlagMirrorsWhenLastEntrySucceeded` |
+| No chain allows itself or L1 as a peer | None | `PeerFlagsOnlyForProperPeers` |
+| Every chain's `baseTokenAssetId[p]` is `0` or L1's | None | `L2BaseTokenEntryIsZeroOrL1Value` |
+| L1's `baseTokenAssetId[p]` never changes once nonzero | None | `L1BaseTokenFixedOnceSet` |
+| A registered chain's entry for a chain settling on it is L1's, and nonzero | The chain is registered and records `p` as settling on it | `SettledChainEntryIsL1Value` |
+| That entry does not change, and a `true` `isPeerAllowed[p]` stays `true`, while `p` stays settled there | The chain is registered and records `p` as settling on it before and after the step | `SettledEntryNeverChanges` |
+
+Witnesses (`@[witness]`): `MirrorAfterFailedServiceEntryWitness`, `BaseTokenEntryWitness` and
+`SettledEntryWitness`. Countermodels (`@[countermodel]`): `FailedServiceEntryLeavesPeerFlagBehind`,
+`WithoutFifoPeerFlagDesyncs`, `PendingArrivalEntryMayBeZero`,
+`WithoutDeregSettlementCheckSettledEntryCleared`, `WithoutFifoSettledEntryCleared` and
+`SettledPeerFlagCanTurnOn`.
+
 ## What is modelled
 
 One state for the ecosystem: the sender's `interopPeerAllowed`; the L1 Bridgehub's registration,

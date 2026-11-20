@@ -22,6 +22,26 @@ Namespace: `Contracts.ZKsyncOSCommitterDA`. Statements are
 earlier draft DA model and re-checked line by line against `b17415d20`; the ZKsync OS blobs validator is
 `../../Contracts/BlobsL1DAValidatorZKsyncOS/`.
 
+## Headline guarantees
+
+These are the area's `@[headline]` statements (see [CONSOLIDATION.md](../../../CONSOLIDATION.md)),
+about `b17415d20`. Keccak is abstract (`K`); collisions are named disjuncts, not assumptions.
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| The committer accepts a DA output exactly when both arrays are empty or both are sixteen zeros | None | `CommitterDACheckIff` |
+| The rollup validator and the committer accept exactly the zero-blob and the calldata shapes | Keccak does not map the named first-blob preimage to zero | `RollupAcceptedIff` |
+| A rollup acceptance carries the batch's pubdata in calldata, or the pubdata is empty, or a named keccak collision or zero hash occurs | The program premise: nonempty pubdata comes with a nonempty list of committed blobs | `RollupPubdataPublishedOrCollision` |
+| The gateway validator and the committer accept exactly the gateway shape | None | `RelayedAcceptedIff` |
+| The gateway validator relays the pubdata to L1 for this chain and batch, or a named keccak collision occurs | None | `RelayedPubdataRelayedOrCollision` |
+| The validium validator and the committer accept exactly the 32-byte inputs, whatever the commitment | None | `ValidiumAcceptedIff` |
+| Each committed blob hash is a nonzero blob of the commit transaction or was published in the window, or a named keccak collision occurs | The blobs validator's state is reachable | `BlobsCommittedHashesFreshOrCollision` |
+
+Witnesses (`@[witness]`): `RollupHeadlineWitness`, `RollupFormsWitness`, `RelayedHeadlineWitness`
+and `BlobsHeadlineWitness`. Countermodels (`@[countermodel]`):
+`RollupZeroBlobAcceptsUnpublishedPubdata`, `RollupProgramPremiseLoadBearing`,
+`CommitterZeroCheckLoadBearing`, `RollupHeadlineCollisionFires` and `RelayedCollisionFires`.
+
 ## What to check
 
 **The committer's check** passes exactly when both arrays are empty or both are sixteen zeros

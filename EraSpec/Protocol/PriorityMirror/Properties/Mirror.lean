@@ -1,4 +1,5 @@
 import EraSpec.Protocol.PriorityMirror.Specs.Mirror
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the gateway's priority tree mirrors L1's, and a migration out and back loses or
@@ -49,8 +50,10 @@ open Contracts.PriorityTree.Library
 /-! ## The L1 copy during the move to the gateway -/
 
 /-- **`isMigrationInProgress` MARKS EXACTLY THE WINDOW.** In every reachable state, the chain
-asset handler's flag for the chain is set exactly between an L1 burn and its confirmation. -/
-def Properties.InProgressIffInFlight : Prop :=
+asset handler's flag for the chain is set exactly between an L1 burn and its confirmation.
+Reachable from the initial state by any steps, for any deployment constants, migrations enabled or
+not. No other premise. -/
+@[headline] def Properties.InProgressIffInFlight : Prop :=
   ∀ (P : Params) (s : St), Reach P Unrestricted s → (s.inProgress = true ↔ s.phase.InFlight)
 
 /-- **THE L1 COPY IS FROZEN BETWEEN THE BURN AND ITS CONFIRMATION.** In every reachable state
@@ -138,8 +141,13 @@ def Properties.MirrorBreakPermanent : Prop :=
 reachable state, the sequence of leaves that `processBatch` of either copy advanced over, in
 processing order, is a prefix of the L1 tree's leaves. Whenever the L1 copy settles (before any
 migration, after a failed one, and after the return), that sequence is exactly the L1 leaves
-below the L1 tree's unprocessed index, and the rest of the L1 leaves are its unprocessed range. -/
-def Properties.ExecutedIsL1Prefix : Prop :=
+below the L1 tree's unprocessed index, and the rest of the L1 leaves are its unprocessed range.
+Honest: every step meets two premises. A batch processes only leaves its copy holds
+(`ConsistentProcessing`; the library's `processBatch` checks a root only), and until the L1 mint no
+relay executes on the gateway while the gateway copy is frozen (`FreezeOrder`). Reachable from the
+initial state, for any deployment constants, migrations enabled or not; at `b17415d20` they are
+disabled and `MigrationsDisabledKeepL1Settling` applies. -/
+@[headline] def Properties.ExecutedIsL1Prefix : Prop :=
   ∀ (P : Params) (s : St), Reach P Honest s →
     s.executed <+: s.log1
     ∧ (s.d1.settling = true →
@@ -224,7 +232,7 @@ that processes op `3` at gateway index `2` is not shown to be realizable on L2: 
 gateway copy advancing over op `3`. If the L2 refused op `3` at index `2`, the gateway copy could
 not reach `getSize = 0`, the gateway burn would be blocked, and op `2` would still never execute
 on either copy. -/
-def Properties.DroppedRelayCountermodel : Prop :=
+@[countermodel] def Properties.DroppedRelayCountermodel : Prop :=
   ∃ (s₀ s₁ s : St) (d : ChainDiamond) (c : ChainCommitment),
     Reach wParams ConsistentProcessing s₀
     ∧ s₀.d2 = some d ∧ d.frozen = true ∧ s₀.relays = [2]
@@ -243,8 +251,10 @@ def Properties.DroppedRelayCountermodel : Prop :=
 
 /-- **WITH MIGRATIONS DISABLED NOTHING LEAVES L1.** With `CHAIN_MIGRATIONS_ENABLED = false`, in
 every reachable state the chain settles on L1 with no migration in progress, no gateway copy and
-no queued relay. -/
-def Properties.MigrationsDisabledKeepL1Settling : Prop :=
+no queued relay.
+Reachable from the initial state by any steps; the only premise is the flag, which is `false` at
+`b17415d20` (`common/Config.sol:320`). -/
+@[headline] def Properties.MigrationsDisabledKeepL1Settling : Prop :=
   ∀ (P : Params) (s : St), P.migrationsEnabled = false → Reach P Unrestricted s →
     s.phase = .onL1 ∧ s.d1.settling = true ∧ s.inProgress = false ∧ s.d2 = none
     ∧ s.relays = []
@@ -254,7 +264,7 @@ def Properties.MigrationsDisabledKeepL1Settling : Prop :=
 /-- **WITNESS FOR `InProgressIffInFlight`.** With `wParams`, a reachable state with the flag set
 (the gateway transaction in flight) and a later one with it clear after a successful
 confirmation. -/
-def Properties.InProgressIffInFlightWitness : Prop :=
+@[witness] def Properties.InProgressIffInFlightWitness : Prop :=
   ∃ s s' : St, Reach wParams Unrestricted s ∧ s.inProgress = true ∧ s.phase.InFlight
     ∧ Reach wParams Unrestricted s' ∧ s'.inProgress = false ∧ s'.phase = .onGW
 
@@ -287,7 +297,7 @@ def Properties.MirrorPrefixWitness : Prop :=
 chain settling on L1 again: ops `1`, `2` were processed on the gateway (its unprocessed index is
 `3`), op `4` was requested during the return window, all five L1 operations are processed, and
 relay `4` was dropped on the frozen idle gateway copy after the L1 mint. -/
-def Properties.ExecutedIsL1PrefixWitness : Prop :=
+@[witness] def Properties.ExecutedIsL1PrefixWitness : Prop :=
   ∃ (s : St) (d : ChainDiamond), Reach wParams Honest s ∧ s.phase = .back
     ∧ s.d1.settling = true ∧ s.d2 = some d ∧ d.tree.unprocessedIndex = 3
     ∧ s.executed = [11, 1, 2, 3, 4] ∧ s.log1 = [11, 1, 2, 3, 4]
@@ -391,7 +401,7 @@ def Properties.MirrorBreakPermanentWitness : Prop :=
 /-- **WITNESS FOR `MigrationsDisabledKeepL1Settling`.** With `wParamsDisabled` (migrations
 disabled, as at this commit), a reachable state where one operation was pushed and processed and
 deposits are paused: every other modelled check of the L1 burn passes, and the burn reverts. -/
-def Properties.MigrationsDisabledKeepL1SettlingWitness : Prop :=
+@[witness] def Properties.MigrationsDisabledKeepL1SettlingWitness : Prop :=
   ∃ s : St, Reach wParamsDisabled Unrestricted s ∧ wParamsDisabled.migrationsEnabled = false
     ∧ s.log1 = [11] ∧ s.executed = [11] ∧ s.d1.tree.getSize = some 0
     ∧ inPausedWindow wParamsDisabled.migrationWindow s.d1.pausedTs s.now = true
