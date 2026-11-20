@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ValidatorTimelock.Specs.Isolation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: other chains cannot interfere with a chain
@@ -44,7 +45,7 @@ removed also succeeds from `s`, and ends in a state that agrees with `s'` on the
 and on `c`'s storage. (2) If a run of successful calls that all concern `c` goes from `s` to
 `s'`, then from any `t` agreeing with `s` on those, the same run succeeds and ends in a state
 agreeing with `s'`. -/
-def Properties.OtherChainsCannotInterfere : Prop :=
+@[headline] def Properties.OtherChainsCannotInterfere : Prop :=
   ∀ (c : Address),
     (∀ (s s' : State) (ks : List Call), Run s ks s' →
       ∃ t', Run s (ks.filter (fun k => decide (k.concerns c))) t' ∧ AgreeOn c s' t') ∧
@@ -58,7 +59,7 @@ on chain `100`. Validator `3`'s commit on chain `100` (which concerns it) succee
 and the results agree on chain `100`. The run of the setup's calls, `vtOtherChainCall` and the
 commit is successful, and without `vtOtherChainCall` it is the run of the setup and the
 commit. -/
-def Properties.IsolationWitness : Prop :=
+@[witness] def Properties.IsolationWitness : Prop :=
   ∃ s₀ s₁ s₂ s₃ : State,
     Run init vtSetupCalls s₀ ∧ step vtOtherChainCall s₀ = some s₁ ∧
     s₁.chainDelay vtFake ≠ s₀.chainDelay vtFake ∧ ¬ vtOtherChainCall.concerns vtChain ∧

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.RunHeight
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the capacity premise, discharged by the run
@@ -182,7 +183,7 @@ def Properties.RunRootsExclusiveOrBreakAtOwnHeight : Prop :=
 `0, 1, 2` (both inserts take the growing branch of `pushNewLeaf`, the `setup` push the
 non-growing one); every step is reached; and step 2 is `threeLeafTree a b` with three
 leaves at height 2, one slot below capacity. -/
-def Properties.HThreeRunWitness : Prop :=
+@[witness] def Properties.HThreeRunWitness : Prop :=
   ∀ a b : UInt256, 0 < a → a < b →
     HRun (hThreeRun a b) ∧ hThreeRun a b 0 = hSetup
       ∧ (∀ n, HReaches hSetup (hThreeRun a b n))

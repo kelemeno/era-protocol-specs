@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Diamond.Specs.DiamondProxy
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the diamond proxy's routing, freezing and init call
@@ -84,7 +85,7 @@ open Contracts.ChainTypeManager
 every state reached by a successful constructor followed by any run satisfies `DiamondOk` (the
 three routing structures agree position by position) and `FreezeUniform` (all selectors of a
 facet share one `isFreezable`). -/
-def Properties.ReachableInvariant : Prop :=
+@[headline] def Properties.ReachableInvariant : Prop :=
   ∀ (E : Env) (s : ProxyState), Reach E s → DiamondOk s.ds ∧ FreezeUniform s.ds
 
 /-- **IN EVERY REACHABLE STATE THE FREEZABILITY GETTERS ARE ACCURATE.** If a reachable state
@@ -92,7 +93,7 @@ routes `x` to `f` with freezability `b`, then `isFacetFreezable(f)` and
 `isFunctionFreezable(x)` both return `b`, `f` is in `facets`, `x` is in `f`'s selector list, and
 a call on `x` (with well-formed calldata) reaches `f` exactly when the diamond is unfrozen or
 `isFacetFreezable(f)` is false. -/
-def Properties.ReachableGettersMatchDispatch : Prop :=
+@[headline] def Properties.ReachableGettersMatchDispatch : Prop :=
   ∀ (E : Env) (s : ProxyState), Reach E s →
     ∀ (x : Selector) (f : Address) (b : Bool), s.ds.routing x = some (f, b) →
       isFacetFreezable s.ds f = b ∧ isFunctionFreezable s.ds x = b ∧ f ∈ s.ds.facets ∧
@@ -111,7 +112,7 @@ facet cuts makes of it: the storage a cut's delegatecalled init reads, as
 (`upgrades/DefaultUpgrade.sol:36`). This is `CountCheckIffExactRouting` with its `DiamondOk`
 premise discharged by `ReachableInvariant` and `DiamondCutPreservesOk`;
 `CorruptStorageFoolsCountCheck` shows the check is not exact on inconsistent storage. -/
-def Properties.ReachableCountCheckExact : Prop :=
+@[headline] def Properties.ReachableCountCheckExact : Prop :=
   ∀ (E : Env) (s : ProxyState) (cuts : List FacetCut) (d : DiamondStorage)
     (sel : Address → List Selector) (rows : List FacetRow),
     Reach E s → diamondCut s.ds cuts = some d → RowsWf sel rows →
@@ -124,7 +125,7 @@ row lists satisfy
 `RowsWf` under `proxyWitnessSelectors`. The check passes on `s₀` against
 `proxyWitnessGenesisRows`, and on `d` and on `s₃` against `proxyWitnessCutRows`; it fails on `d`
 against `proxyWitnessGenesisRows` (the cut added facet `23`). -/
-def Properties.ReachableCountCheckWitness : Prop :=
+@[witness] def Properties.ReachableCountCheckWitness : Prop :=
   ∃ (s₀ s₃ : ProxyState) (d : DiamondStorage), Reach proxyWitnessEnv s₀ ∧
     Reach proxyWitnessEnv s₃ ∧ diamondCut s₀.ds proxyWitnessFrozenCut.facetCuts = some d ∧
     RowsWf proxyWitnessSelectors proxyWitnessGenesisRows ∧
@@ -139,7 +140,7 @@ def Properties.ReachableCountCheckWitness : Prop :=
 /-- **THE PROXY ROUTES EXACTLY BY THE MAP.** In any state, the fallback delegatecalls `f`
 iff the calldata length is 0 or at least 4, `selectorToFacet[msg.sig]` routes to `f` with some
 freezability `b`, and the diamond is unfrozen or `b` is false. -/
-def Properties.DispatchExact : Prop :=
+@[headline] def Properties.DispatchExact : Prop :=
   ∀ (s : ProxyState) (cd : Calldata) (f : Address),
     fallbackTarget s cd = some f ↔
       (4 ≤ cd.len ∨ cd.len = 0) ∧
@@ -160,7 +161,7 @@ def Properties.FreezeBlocksExactlyFreezable : Prop :=
 changes `isFrozen` was made by `E.ctm` (`s.chainTypeManager`) and leaves the routing storage
 unchanged. In particular no cut changes `isFrozen` (with an init in the model's `InitRun`
 class). -/
-def Properties.OnlyCtmTogglesFreeze : Prop :=
+@[headline] def Properties.OnlyCtmTogglesFreeze : Prop :=
   ∀ (E : Env) (c : Address) (s s' : ProxyState), Step E c s s' →
     s'.isFrozen ≠ s.isFrozen → c = E.ctm ∧ s'.ds = s.ds
 
@@ -168,7 +169,7 @@ def Properties.OnlyCtmTogglesFreeze : Prop :=
 `c` is `E.ctm`, `s'` is `s` with the flag negated, and some calldata that the proxy dispatches in
 `s` (to some facet `f`) reaches `freezeDiamond` if `s` is unfrozen, `unfreezeDiamond` if it is
 frozen. -/
-def Properties.FreezeToggleExact : Prop :=
+@[headline] def Properties.FreezeToggleExact : Prop :=
   ∀ (E : Env) (c : Address) (s s' : ProxyState),
     (Step E c s s' ∧ s'.isFrozen ≠ s.isFrozen) ↔
       (c = E.ctm ∧ s' = { s with isFrozen := !s.isFrozen } ∧
@@ -212,7 +213,7 @@ def Properties.RunsWithoutCtmKeepFreeze : Prop :=
 routes every selector whose facet function is a cut entry point or `unfreezeDiamond` as
 freezable, then every run from it, by any callers, ends in that same state: no step of the model
 unfreezes it or changes its routing. -/
-def Properties.FreezableEntrypointsMakeFreezePermanent : Prop :=
+@[headline] def Properties.FreezableEntrypointsMakeFreezePermanent : Prop :=
   ∀ (E : Env) (cs : List Address) (s s' : ProxyState), s.isFrozen = true →
     (∀ (x : Selector) (f : Address) (b : Bool), s.ds.routing x = some (f, b) →
       (E.fn f x = .executeCut ∨ E.fn f x = .unfreeze) → b = true) →
@@ -223,7 +224,7 @@ facet as freezable (`proxyWitnessInit true`) is frozen by the CTM (`99`). The fr
 is reachable; calls still go through to the non-freezable Getters-like selector `7` (a run of two
 calls, by `77` and by the CTM, from `s₁` back to `s₁`); the proxy refuses the cut entry point `1`
 and `unfreezeDiamond` (`3`); and every run from `s₁`, by any callers, ends in `s₁`. -/
-def Properties.FreezePermanentWitness : Prop :=
+@[witness] def Properties.FreezePermanentWitness : Prop :=
   ∃ s₀ s₁ : ProxyState, construct 1 1 proxyWitnessCtorCut (proxyWitnessInit true) = some s₀ ∧
     Step proxyWitnessEnv 99 s₀ s₁ ∧ s₁.isFrozen = true ∧ Reach proxyWitnessEnv s₁ ∧
     Run proxyWitnessEnv [77, 99] s₁ s₁ ∧ fallbackTarget s₁ ⟨4, 7⟩ = some 24 ∧
@@ -300,7 +301,7 @@ def Properties.DiamondCutKeepsFreezeUniform : Prop :=
 /-- **`Replace` DOES NOT REQUIRE A DIFFERENT FACET.** Replacing selector `1` of facet `11` by
 facet `11` itself succeeds and flips its freezability (`11` has no other selector), and doing
 it again succeeds and changes no route. -/
-def Properties.ReplaceWithSameFacetAccepted : Prop :=
+@[countermodel] def Properties.ReplaceWithSameFacetAccepted : Prop :=
   ∃ d₀ d₁ d₂ : DiamondStorage, facetCut DiamondStorage.fresh ⟨11, .add, false, [1]⟩ = some d₀ ∧
     facetCut d₀ ⟨11, .replace, true, [1]⟩ = some d₁ ∧
     d₀.routing 1 = some (11, false) ∧ d₁.routing 1 = some (11, true) ∧
@@ -318,7 +319,7 @@ and `7` to `24` not freezable, and on it:
 * `Remove` of `[5, 7]` succeeds and of `[5, 5]` reverts;
 * a three-cut list (remove `7`, replace `5` by `22` as not freezable, add `7, 8` to `25` as
   freezable) succeeds. -/
-def Properties.CutEnablednessWitness : Prop :=
+@[witness] def Properties.CutEnablednessWitness : Prop :=
   ∃ s : ProxyState, Reach proxyWitnessEnv s ∧ DiamondOk s.ds ∧ FreezeUniform s.ds ∧
     s.ds.routing 5 = some (22, true) ∧ s.ds.routing 7 = some (24, false) ∧
     (∃ d, facetCut s.ds ⟨22, .add, true, [8]⟩ = some d) ∧
@@ -337,7 +338,7 @@ succeeds, then `isFrozen` is unchanged and the facet cuts succeeded with some st
 either there was no init (`initAddress == 0`) and the calldata was empty and the result is
 `d₁`, or the init's delegatecall succeeded returning exactly the 32 bytes of
 `DIAMOND_INIT_SUCCESS_RETURN_VALUE` and the result is what its nested cuts make of `d₁`. -/
-def Properties.InitReturnChecked : Prop :=
+@[headline] def Properties.InitReturnChecked : Prop :=
   ∀ (s s' : ProxyState) (c : CutData) (r : InitRun), diamondCutFull s c r = some s' →
     s'.isFrozen = s.isFrozen ∧
     ∃ d₁, diamondCut s.ds c.facetCuts = some d₁ ∧
@@ -350,7 +351,7 @@ the cut entry point `1` runs `proxyWitnessUpgradeCut` (remove `7`, then the init
 nested cut adds `7` and `9` to facet `26`, returning the magic value). The step succeeds, the
 result is reachable and routes `7` and `9` to `26`. The same cut reverts when the init returns
 32 zero bytes, when it has no code, and when it reverts. -/
-def Properties.InitCallWitness : Prop :=
+@[witness] def Properties.InitCallWitness : Prop :=
   ∃ s₀ s₁ : ProxyState, construct 1 1 proxyWitnessCtorCut (proxyWitnessInit false) = some s₀ ∧
     diamondCutFull s₀ proxyWitnessUpgradeCut proxyWitnessUpgradeInit = some s₁ ∧
     Step proxyWitnessEnv 99 s₀ s₁ ∧ Reach proxyWitnessEnv s₁ ∧
@@ -367,7 +368,7 @@ def Properties.InitCallWitness : Prop :=
 delegatecall to an address with no code (success, no data) is refused, while the variant
 without the checks accepts it; and a successful return of any other 32 bytes is refused, whatever
 nested cuts the init made. -/
-def Properties.ReturnDataCheckLoadBearing : Prop :=
+@[countermodel] def Properties.ReturnDataCheckLoadBearing : Prop :=
   ∀ (s : ProxyState) (init : Address) (cd : Bytes), init ≠ 0 →
     initializeDiamondCut s init cd codelessInit = none ∧
     initializeNoReturnCheck s init cd codelessInit = some s ∧
@@ -378,7 +379,7 @@ def Properties.ReturnDataCheckLoadBearing : Prop :=
 `2` to it as freezable reverts; without the check it succeeds, the facet is no longer
 freeze-uniform, `isFacetFreezable(11)` reports `false`, and yet a frozen proxy refuses `2` while
 serving `1`. -/
-def Properties.FreezabilityCheckLoadBearing : Prop :=
+@[countermodel] def Properties.FreezabilityCheckLoadBearing : Prop :=
   ∃ d₀ d₁ : DiamondStorage, addFunctions DiamondStorage.fresh 11 [1] false = some d₀ ∧
     addFunctions d₀ 11 [2] true = none ∧
     addFunctionsNoFrzCheck d₀ 11 [2] true = some d₁ ∧
@@ -388,7 +389,7 @@ def Properties.FreezabilityCheckLoadBearing : Prop :=
 /-- **THE `FacetExists` CHECK IS LOAD-BEARING.** Facet `11` routes `1`. Adding `1` to facet
 `12` reverts; without the check it succeeds, reroutes `1` to `12`, leaves `1` in `11`'s selector
 list, and breaks `DiamondOk`. -/
-def Properties.FacetExistsCheckLoadBearing : Prop :=
+@[countermodel] def Properties.FacetExistsCheckLoadBearing : Prop :=
   ∃ d₀ d₁ : DiamondStorage, addFunctions DiamondStorage.fresh 11 [1] false = some d₀ ∧
     addFunctions d₀ 12 [1] false = none ∧
     addFunctionsNoExistsCheck d₀ 12 [1] false = some d₁ ∧
@@ -404,7 +405,7 @@ and the getters report `22` freezable. The chain admin `77` then runs a cut thro
 non-freezable cut entry point, adding the freezable facet `23` routing `6`, and calls the getter
 (a run by `77` alone, `s₁` to `s₂`, which keeps the flag). The CTM unfreezes (`s₃`, reachable),
 after which `5` and `6` are served. -/
-def Properties.ProxyRunWitness : Prop :=
+@[witness] def Properties.ProxyRunWitness : Prop :=
   ∃ s₀ s₁ s₂ s₃ : ProxyState,
     construct 1 2 proxyWitnessCtorCut (proxyWitnessInit false) = none ∧
     construct 1 1 proxyWitnessCtorCut (proxyWitnessInit false) = some s₀ ∧

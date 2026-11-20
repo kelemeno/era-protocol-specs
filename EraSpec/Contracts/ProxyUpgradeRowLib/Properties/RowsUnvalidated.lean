@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsUnvalidated
+import EraSpec.Core.Headline
 
 /-!
 # Properties: rows that `validateRows` never checked (`b17415d20`)
@@ -83,7 +84,7 @@ same proxy, self-edges, zero fields), and reinitializers that move at most their
 after a successful `applyRows`, every proxy is either where it was, or was at some row's
 `expectedOldImpl` and is now at that row's `implNew`. This is `OnlyNamedEdgesAcrossCall`
 without its distinct-proxies premise. -/
-def Properties.OnlyNamedEdgesAcrossCallAnyRows : Prop :=
+@[headline] def Properties.OnlyNamedEdgesAcrossCallAnyRows : Prop :=
   ∀ (C : Config) (I J : Impl) (rows : List Row), ReinitFrames C → ApplyRows C I rows J →
     ∀ p, J p = I p ∨ ∃ r ∈ rows, r.proxy = p ∧ I p = r.expectedOldImpl ∧ J p = r.implNew
 
@@ -167,7 +168,7 @@ pair. Yet `rowB`'s iteration did not leave proxy `6` at `rowB`'s target. So, wit
 and `post = [rowB2]`, the conclusion of `ReinitMovesAreCaughtOnLastRow` fails without its
 premise on the later rows, and that of `ReinitMovesAreCaughtOnDistinctRows` without distinct
 proxies. -/
-def Properties.DuplicateRowHidesReinitMove : Prop :=
+@[countermodel] def Properties.DuplicateRowHidesReinitMove : Prop :=
   ReinitFrames wDetour ∧ ValidRows [rowB] ∧ ValidRows [rowB2] ∧
     ¬ [rowB, rowB2].Pairwise (fun a b => a.proxy ≠ b.proxy) ∧
     (¬ ∃ J, ApplyRows wDetour wImpl [rowB] J) ∧
@@ -213,7 +214,7 @@ proxy stays. `rowB` is not a self-edge and its proxy starts at its source. So th
 of `OnlyNamedEdgesAcrossCallAnyRows`, `OnlyNamedEdgesAcrossTransitionAnyRows`,
 `SourceIsNotAppliedAnyRows` and `FirstRowCarriesTheEdge` (with `pre = []`, `r = rowB`,
 `post = [rowB2]`) hold together, and the moving disjunct is the one that fires. -/
-def Properties.AnyRowsWitness : Prop :=
+@[witness] def Properties.AnyRowsWitness : Prop :=
   ReinitFrames wDetour ∧ ¬ wDupTransition.Genuine ∧
     ¬ wDupTransition.rows.Pairwise (fun a b => a.proxy ≠ b.proxy) ∧
     rowB ∈ wDupTransition.rows ∧ rowB.expectedOldImpl ≠ rowB.implNew ∧

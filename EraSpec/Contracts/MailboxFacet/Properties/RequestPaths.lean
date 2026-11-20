@@ -1,4 +1,5 @@
 import EraSpec.Contracts.MailboxFacet.Specs.RequestPaths
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what one request does to one diamond
@@ -76,7 +77,7 @@ diamond with total `k` is exactly one push: leaf `keccak256(abi.encode(tx))` at 
 timestamp `t` at `k` and nowhere else. The transaction has nonce `k`, `gasPerPubdataByteLimit =
 800`, empty `factoryDeps`, type `127`, and the request's target, calldata, L2 value, gas limit
 and mint value; the request's own `factoryDeps` were empty. -/
-def Properties.UserRequestExact : Prop :=
+@[headline] def Properties.UserRequestExact : Prop :=
   ∀ (P : Params) (d : Diamond) (env : Env) (req : Request) (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionSender P d env req = some (d', tx, h) →
       d' = d.pushLeaf h env.timestamp ∧ h = P.txHash tx ∧ tx.nonce = d.total ∧
@@ -89,7 +90,7 @@ def Properties.UserRequestExact : Prop :=
 diamond with total `k` is exactly one push of `keccak256(abi.encode(tx))` at index `k` with
 timestamp `t`. The transaction has nonce `k`, `maxFeePerGas = 0`, empty `factoryDeps`, type `127`,
 and copies the request's sender, target, calldata, values, gas fields and refund recipient. -/
-def Properties.FreeRequestExact : Prop :=
+@[headline] def Properties.FreeRequestExact : Prop :=
   ∀ (P : Params) (d : Diamond) (env : Env) (req : Request) (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionFree P d env req = some (d', tx, h) →
       d' = d.pushLeaf h env.timestamp ∧ h = P.txHash tx ∧ tx.nonce = d.total ∧
@@ -129,7 +130,7 @@ def Properties.RelayRequestShape : Prop :=
 
 /-- **THE GATEWAY PATH.** A successful `bridgehubRequestL2TransactionOnGateway(h, _)` at time `t`
 pushes `h` at the old total with timestamp `t`. -/
-def Properties.OnGatewayRequestExact : Prop :=
+@[headline] def Properties.OnGatewayRequestExact : Prop :=
   ∀ (d : Diamond) (env : Env) (h : Word) (d' : Diamond),
     requestOnGateway d env h = some d' → d' = d.pushLeaf h env.timestamp
 
@@ -138,7 +139,7 @@ def Properties.OnGatewayRequestExact : Prop :=
 /-- **HEADLINE (b), FEE FLOOR.** A successful user request derived a price `p =
 _deriveL2GasPrice(tx.gasprice, 800)`, its transaction's `maxFeePerGas` is `p`, and the mint value
 covers `p` times the gas limit. -/
-def Properties.UserRequestFeeFloor : Prop :=
+@[headline] def Properties.UserRequestFeeFloor : Prop :=
   ∀ (P : Params) (d : Diamond) (env : Env) (req : Request) (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionSender P d env req = some (d', tx, h) →
       ∃ p, deriveL2GasPrice d env.gasPrice requiredGasPerPubdata = some p ∧
@@ -147,7 +148,7 @@ def Properties.UserRequestFeeFloor : Prop :=
 /-- **HEADLINE (b), SENDER.** A successful user request's `from` is the request's sender when the
 sender is `tx.origin` or, on L1, an address the 7702 checker reports, and the sender's L1-to-L2
 alias otherwise. -/
-def Properties.UserRequestSender : Prop :=
+@[headline] def Properties.UserRequestSender : Prop :=
   ∀ (P : Params) (d : Diamond) (env : Env) (req : Request) (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionSender P d env req = some (d', tx, h) →
       tx.fromAddr =
@@ -158,7 +159,7 @@ def Properties.UserRequestSender : Prop :=
 accounts, the request's sender is one that can reach the Bridgehub (`CanSend`), and `C` is
 `Unreachable` (no key for `C`, no contract at `undoL1ToL2Alias C`), then a successful user request's
 `from` is not `C`. -/
-def Properties.UserRequestNeverReachesUnreachableSender : Prop :=
+@[headline] def Properties.UserRequestNeverReachesUnreachableSender : Prop :=
   ∀ (P : Params) (A : Accounts) (d : Diamond) (env : Env) (req : Request) (d' : Diamond)
     (tx : L2Tx) (h : Word) (C : Address),
     env.onL1 P → EnvAgrees A env → CanSend A env req.sender → Unreachable A C →
@@ -179,7 +180,7 @@ def Properties.RelayAndServiceUnreachableIff : Prop :=
 whose alias is `SERVICE_TRANSACTION_SENDER`, a user request from that contract succeeds on the
 witness diamond, every other premise of `UserRequestNeverReachesUnreachableSender` holds, and the
 transaction's `from` is `SERVICE_TRANSACTION_SENDER`. -/
-def Properties.AliasPreimageYieldsServiceSender : Prop :=
+@[countermodel] def Properties.AliasPreimageYieldsServiceSender : Prop :=
   ∃ (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionSender wParams wDiamond wEnvPreimage (wRequest wServicePreimage) =
       some (d', tx, h) ∧
@@ -194,7 +195,7 @@ def Properties.AliasPreimageYieldsServiceSender : Prop :=
 /-- **HEADLINE (c).** Along a run of an L1 diamond in which every request is made at a positive
 `block.timestamp`, the start index is unchanged, the total does not decrease, and every index from
 the run's initial total up to its current total has a nonzero request timestamp. -/
-def Properties.L1RequestTimestampsNonzero : Prop :=
+@[headline] def Properties.L1RequestTimestampsNonzero : Prop :=
   ∀ (P : Params) (d d' : Diamond),
     TreeRunL1 P (fun env => 0 < env.timestamp) d d' →
       d'.startIndex = d.startIndex ∧ d.total ≤ d'.total ∧
@@ -203,7 +204,7 @@ def Properties.L1RequestTimestampsNonzero : Prop :=
 /-- **THE PRIORITY-MODE TIMESTAMP IS PRESENT.** On such a run, if the first unprocessed operation is
 at or after the run's initial total and before the current total, its request timestamp is
 nonzero. -/
-def Properties.FirstUnprocessedTimestampNonzero : Prop :=
+@[headline] def Properties.FirstUnprocessedTimestampNonzero : Prop :=
   ∀ (P : Params) (d d' : Diamond),
     TreeRunL1 P (fun env => 0 < env.timestamp) d d' →
       d.total ≤ d'.firstUnprocessed → d'.firstUnprocessed < d'.total →
@@ -215,7 +216,7 @@ def Properties.FirstUnprocessedTimestampNonzero : Prop :=
 the contract `wContract` at time `1000` succeeds. Its index is `7`, its fee is `5` per gas (so
 `1_500_000` for the gas limit, below the mint value `2_000_000`), its `from` is the contract's alias,
 and every premise of `UserRequestNeverReachesUnreachableSender` holds for both constants. -/
-def Properties.UserRequestWitness : Prop :=
+@[witness] def Properties.UserRequestWitness : Prop :=
   ∃ (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionSender wParams wDiamond wEnv (wRequest wContract) = some (d', tx, h) ∧
     wDiamond.total = 7 ∧ tx.nonce = 7 ∧ wEnv.timestamp = 1000 ∧
@@ -227,14 +228,14 @@ def Properties.UserRequestWitness : Prop :=
 
 /-- **WITNESS: THE SENDER IS `tx.origin`.** The same request from `wOrigin` succeeds and keeps its
 sender. -/
-def Properties.UserRequestOriginWitness : Prop :=
+@[witness] def Properties.UserRequestOriginWitness : Prop :=
   ∃ (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionSender wParams wDiamond wEnv (wRequest wOrigin) = some (d', tx, h) ∧
     tx.fromAddr = wOrigin ∧ CanSend wAccounts wEnv wOrigin
 
 /-- **WITNESS: AN EIP-7702 SENDER.** On L1, a request whose sender `w7702` is not `tx.origin` but is
 reported by the 7702 checker succeeds and keeps its sender. -/
-def Properties.UserRequest7702Witness : Prop :=
+@[witness] def Properties.UserRequest7702Witness : Prop :=
   ∃ (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionSender wParams wDiamond wEnv7702 (wRequest w7702) = some (d', tx, h) ∧
     tx.fromAddr = w7702 ∧ w7702 ≠ wEnv7702.origin ∧ wEnv7702.is7702 w7702 = true ∧
@@ -242,12 +243,12 @@ def Properties.UserRequest7702Witness : Prop :=
 
 /-- **WITNESS: THE GATEWAY PATH.** `bridgehubRequestL2TransactionOnGateway(77, _)` on the witness diamond
 at time `1000` succeeds. -/
-def Properties.OnGatewayRequestWitness : Prop :=
+@[witness] def Properties.OnGatewayRequestWitness : Prop :=
   ∃ d', requestOnGateway wDiamond wEnv 77 = some d' ∧ d'.total = 8 ∧ wEnv.timestamp = 1000
 
 /-- **WITNESS: BOTH FREE PATHS.** On the witness diamond a service request to the L2 Bridgehub and a
 relay request for chain `325` succeed. -/
-def Properties.FreeRequestWitness : Prop :=
+@[witness] def Properties.FreeRequestWitness : Prop :=
   (∃ (d' : Diamond) (tx : L2Tx) (h : Word),
     requestL2TransactionFree wParams wDiamond wEnv (serviceRequest l2BridgehubAddr [0xCD]) =
       some (d', tx, h) ∧ tx.nonce = 7) ∧
@@ -259,7 +260,7 @@ def Properties.FreeRequestWitness : Prop :=
 index `6`), a user request and a service request at positive times and a processed batch of two
 operations give a diamond with total `9` whose first unprocessed index is `8`, inside the range
 `[7, 9)` that `L1RequestTimestampsNonzero` covers. -/
-def Properties.L1TimestampWitness : Prop :=
+@[witness] def Properties.L1TimestampWitness : Prop :=
   ∃ d', TreeRunL1 wParams (fun env => 0 < env.timestamp) wDiamond d' ∧
     d'.total = 9 ∧ d'.firstUnprocessed = 8 ∧ wDiamond.total ≤ d'.firstUnprocessed
 

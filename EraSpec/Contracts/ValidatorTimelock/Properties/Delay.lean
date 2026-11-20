@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ValidatorTimelock.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the execution delay
@@ -73,7 +74,7 @@ batch `i` of `c` again; then a successful `executeBatchesSharedBridge` (`ke`) of
 a range containing `i`. Then `t + D ≤ ke.env.now`, where `D` is the delay enforced for `c` in
 the state the execute runs on. Nothing else is assumed about the calls of `mid`; in particular
 they may change `D`. -/
-def Properties.ExecutionWaitsForTheDelay : Prop :=
+@[headline] def Properties.ExecutionWaitsForTheDelay : Prop :=
   ∀ (s s₁ s₂ s₃ : State) (kc ke : Call) (mid : List Call) (c : Address) (i lo hi : ℕ),
     step kc s = some s₁ → Run s₁ mid s₂ → step ke s₂ = some s₃ →
     kc.action.commits c i → (∀ k ∈ mid, ¬ k.action.commits c i) →
@@ -85,7 +86,7 @@ def Properties.ExecutionWaitsForTheDelay : Prop :=
 `setExecutionDelay` or `setChainExecutionDelay` (`Action.mayLowerDelay`). Then
 `t + D₀ ≤ ke.env.now`, where `D₀` is the delay enforced for `c` in the state the commit runs
 on. -/
-def Properties.ExecutionWaitsForTheCommitTimeDelay : Prop :=
+@[headline] def Properties.ExecutionWaitsForTheCommitTimeDelay : Prop :=
   ∀ (s s₁ s₂ s₃ : State) (kc ke : Call) (mid : List Call) (c : Address) (i lo hi : ℕ),
     step kc s = some s₁ → Run s₁ mid s₂ → step ke s₂ = some s₃ →
     kc.action.commits c i → (∀ k ∈ mid, ¬ k.action.commits c i) →
@@ -97,7 +98,7 @@ def Properties.ExecutionWaitsForTheCommitTimeDelay : Prop :=
 `ExecutionWaitsForTheDelay`, but the calls of `mid` may commit batch `i` of `c` again (after a
 revert, say), provided each such re-commit runs at a time at least `t` and below `2^32`. Then
 still `t + D ≤ ke.env.now`. With no re-commit in `mid` this is `ExecutionWaitsForTheDelay`. -/
-def Properties.ExecutionWaitsForEveryEarlierCommit : Prop :=
+@[headline] def Properties.ExecutionWaitsForEveryEarlierCommit : Prop :=
   ∀ (s s₁ s₂ s₃ : State) (kc ke : Call) (mid : List Call) (c : Address) (i lo hi : ℕ),
     step kc s = some s₁ → Run s₁ mid s₂ → step ke s₂ = some s₃ →
     kc.action.commits c i →
@@ -151,14 +152,14 @@ def Properties.DelayWriters : Prop :=
 
 /-- **EVERY DELAY STAYS AT MOST 30 DAYS AND EVERY TIMESTAMP FITS A `uint32`.** Fresh storage is
 `Bounded`, and every run of successful calls from a `Bounded` state ends in one. -/
-def Properties.BoundedRuns : Prop :=
+@[headline] def Properties.BoundedRuns : Prop :=
   Bounded init ∧ ∀ (s s' : State) (ks : List Call), Bounded s → Run s ks s' → Bounded s'
 
 /-- **THE DELAY CHECK CANNOT BLOCK AFTER 30 DAYS.** In a `Bounded` state, let the caller be a
 member of `EXECUTOR_ROLE` of chain `c`, the range valid and the forwarded call successful. If
 every batch of the range has a stored timestamp at least `MAX_EXECUTION_DELAY` (30 days)
 before `now`, the execute succeeds. -/
-def Properties.ExecuteNotBlockedAfterMaxDelay : Prop :=
+@[headline] def Properties.ExecuteNotBlockedAfterMaxDelay : Prop :=
   ∀ (s : State) (e : Env) (x c : Address) (lo hi : ℕ), Bounded s →
     s.members c EXECUTOR_ROLE x = true → validRange lo hi → e.forwardOk = true →
     (∀ i, lo ≤ i → i ≤ hi → s.committedAt c i + MAX_EXECUTION_DELAY ≤ e.now) →
@@ -171,7 +172,7 @@ validator `3` commits batch `1` of chain `100` at time `1000`; the owner then ca
 `setExecutionDelay(0)`; the execute of batch `1` succeeds at time `1000`, earlier than the
 commit time plus the delay enforced at commit. So the `mayLowerDelay` premise of
 `ExecutionWaitsForTheCommitTimeDelay` cannot be dropped. -/
-def Properties.OwnerCanShortenAPendingDelay : Prop :=
+@[countermodel] def Properties.OwnerCanShortenAPendingDelay : Prop :=
   ∃ s₀ s₁ s₂ s₃ : State,
     Run init vtSetupCalls s₀ ∧
     step (vtCall 1000 vtValidator (.commitBatches vtChain 1 1)) s₀ = some s₁ ∧
@@ -184,7 +185,7 @@ def Properties.OwnerCanShortenAPendingDelay : Prop :=
 validator `3` commits batch `1` of chain `100` at time `2^32 + 1000` and executes it at the same
 time: both succeed, though the execute comes before the commit time plus the enforced delay.
 So the `kc.env.now < UINT32` premise of `ExecutionWaitsForTheDelay` cannot be dropped. -/
-def Properties.ClockPast2106SkipsTheDelay : Prop :=
+@[countermodel] def Properties.ClockPast2106SkipsTheDelay : Prop :=
   ∃ s₀ s₁ s₂ : State,
     Run init vtSetupCalls s₀ ∧
     step (vtCall (UINT32 + 1000) vtValidator (.commitBatches vtChain 1 1)) s₀ = some s₁ ∧
@@ -197,7 +198,7 @@ setup (delay 100 seconds), batch `1` of chain `100` is committed at time `1000`,
 again by a call whose clock reads `500`, and executed at `600`: all three succeed, and
 `600 < 1000 + 100`. The model's clocks are per call and unrelated; this shows the clock premise
 of `ExecutionWaitsForEveryEarlierCommit` is needed in the model. -/
-def Properties.RecommitAtAnEarlierClock : Prop :=
+@[countermodel] def Properties.RecommitAtAnEarlierClock : Prop :=
   ∃ s₀ s₁ s₂ s₃ : State,
     Run init vtSetupCalls s₀ ∧
     step (vtCall 1000 vtValidator (.commitBatches vtChain 1 1)) s₀ = some s₁ ∧
@@ -208,7 +209,7 @@ def Properties.RecommitAtAnEarlierClock : Prop :=
 /-- **A BATCH NEVER COMMITTED THROUGH THE TIMELOCK IS NOT DELAYED.** After the witness setup
 (delay 100 seconds, no commit), batch `7` of chain `100` has stored timestamp `0`, and its
 execute by validator `3` succeeds at time `100`. -/
-def Properties.UnrecordedBatchIsNotDelayed : Prop :=
+@[countermodel] def Properties.UnrecordedBatchIsNotDelayed : Prop :=
   ∃ s₀ s₁ : State,
     Run init vtSetupCalls s₀ ∧ s₀.committedAt vtChain 7 = 0 ∧ enforcedDelay s₀ vtChain = 100 ∧
     step (vtCall 100 vtValidator (.executeBatches vtChain 7 7)) s₀ = some s₁
@@ -218,7 +219,7 @@ def Properties.UnrecordedBatchIsNotDelayed : Prop :=
 /-- **WITHOUT THE `TimeNotReached` CHECK, AN EXECUTE RUNS AT ITS COMMIT'S TIMESTAMP.** After
 the witness setup and a commit of batch `1` of chain `100` at time `1000`,
 `executeBatchesUnchecked` succeeds at time `1000`; the deployed execute reverts there. -/
-def Properties.UncheckedExecuteRunsEarly : Prop :=
+@[countermodel] def Properties.UncheckedExecuteRunsEarly : Prop :=
   ∃ s₀ s₁ : State,
     Run init vtSetupCalls s₀ ∧
     step (vtCall 1000 vtValidator (.commitBatches vtChain 1 1)) s₀ = some s₁ ∧
@@ -230,7 +231,7 @@ def Properties.UncheckedExecuteRunsEarly : Prop :=
 the chain admin's `increaseChainExecutionDelay(100, 300)`, `increaseChainExecutionDelayUnchecked`
 with `150` succeeds and lowers the delay enforced for chain `100` from `300` to `150`; the
 deployed call reverts there. -/
-def Properties.UncheckedIncreaseLowersTheDelay : Prop :=
+@[countermodel] def Properties.UncheckedIncreaseLowersTheDelay : Prop :=
   ∃ s₀ s₁ s₂ : State,
     Run init vtSetupCalls s₀ ∧
     step (vtCall 1 vtAdmin (.increaseChainExecutionDelay vtChain 300)) s₀ = some s₁ ∧
@@ -242,7 +243,7 @@ def Properties.UncheckedIncreaseLowersTheDelay : Prop :=
 witness setup (ecosystem delay 100, chain delay 0), `increaseChainExecutionDelayStored` with
 `50` succeeds and sets the chain delay to `50`, while the delay enforced for chain `100` stays
 `100`; the deployed call reverts there. -/
-def Properties.StoredComparisonAdmitsNoRaise : Prop :=
+@[countermodel] def Properties.StoredComparisonAdmitsNoRaise : Prop :=
   ∃ s₀ s₁ : State,
     Run init vtSetupCalls s₀ ∧
     increaseChainExecutionDelayStored (vtEnv 1) vtAdmin vtChain 50 s₀ = some s₁ ∧
@@ -257,7 +258,7 @@ def Properties.StoredComparisonAdmitsNoRaise : Prop :=
 with `vtDelayCommit`, `vtDelayMid` and `vtDelayExecute`. The run between them is non-empty,
 contains no owner setter, and raises the enforced delay from `100` (at commit) to `200` (at
 execute), and the execute comes exactly `200` seconds after the commit. -/
-def Properties.ExecutionWaitsForTheDelayWitness : Prop :=
+@[witness] def Properties.ExecutionWaitsForTheDelayWitness : Prop :=
   ∃ s₀ s₁ s₂ s₃ : State,
     Run init vtSetupCalls s₀ ∧ step vtDelayCommit s₀ = some s₁ ∧ Run s₁ vtDelayMid s₂ ∧
     step vtDelayExecute s₂ = some s₃ ∧
@@ -273,7 +274,7 @@ committed at `1000`, reverted at `1010` (the timestamps stay), committed again a
 executed at `1120`. Every premise of `ExecutionWaitsForEveryEarlierCommit` holds for batch `2`
 and the first commit, with a re-commit of batch `2` in the run between, and the execute comes
 `120` seconds after the first commit, which is at least the enforced delay of `100`. -/
-def Properties.RecommitWitness : Prop :=
+@[witness] def Properties.RecommitWitness : Prop :=
   ∃ s₀ s₁ s₂ s₃ : State,
     Run init vtSetupCalls s₀ ∧
     step (vtCall 1000 vtValidator (.commitBatches vtChain 1 3)) s₀ = some s₁ ∧
@@ -287,7 +288,7 @@ def Properties.RecommitWitness : Prop :=
 /-- **THE BOUND IS TIGHT, AT THE DELAY IN FORCE AT EXECUTION.** In the state the delay
 witness's execute runs on, the same execute one second earlier (time `1199`, already more than
 the commit-time delay of `100` seconds after the commit) reverts. -/
-def Properties.DelayBoundIsTight : Prop :=
+@[witness] def Properties.DelayBoundIsTight : Prop :=
   ∃ s₀ s₁ s₂ : State,
     Run init vtSetupCalls s₀ ∧ step vtDelayCommit s₀ = some s₁ ∧ Run s₁ vtDelayMid s₂ ∧
     step (vtCall 1199 vtValidator (.executeBatches vtChain 1 3)) s₂ = none ∧
@@ -298,7 +299,7 @@ delay from `0` to `100`), the owner's `setExecutionDelay(50)`, the chain admin's
 `increaseChainExecutionDelay(100, 200)` and the owner's `setChainExecutionDelay(100, 10)` all
 succeed, each changing the delay it writes; the delay enforced for chain `100` goes
 `100 → 50 → 200 → 50`. -/
-def Properties.DelayWritersWitness : Prop :=
+@[witness] def Properties.DelayWritersWitness : Prop :=
   ∃ s₀ s₁ s₂ s₃ : State,
     Run init vtSetupCalls s₀ ∧ s₀.executionDelay = 100 ∧
     step (vtCall 1 vtOwner (.setExecutionDelay 50)) s₀ = some s₁ ∧
@@ -312,7 +313,7 @@ def Properties.DelayWritersWitness : Prop :=
 delay to `MAX_EXECUTION_DELAY` and validator `3` commits batch `1` at time `1000`. In that
 (`Bounded`) state the execute succeeds at `1000 + MAX_EXECUTION_DELAY` and reverts one second
 earlier. -/
-def Properties.MaxDelayIsAttained : Prop :=
+@[witness] def Properties.MaxDelayIsAttained : Prop :=
   ∃ s₀ s₁ : State,
     Run init vtSetupCalls s₀ ∧
     Run s₀ [vtCall 1 vtAdmin (.increaseChainExecutionDelay vtChain MAX_EXECUTION_DELAY),

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.Pause
+import EraSpec.Core.Headline
 
 /-!
 # Properties: a vault pause freezes the vault, and unpausing returns it exactly
@@ -35,7 +36,7 @@ def Properties.VaultPauseTogglesOnlyTheFlag : Prop :=
 /-- **A PAUSED VAULT COMMITS NOTHING.**  On a paused vault, every attempted `bridgeBurn`,
 `bridgeMint` and `bridgeRecoverFailedTransfer` reverts.  So any sequence of attempts leaves the
 whole state unchanged: token, accounting, registry, configuration and flag. -/
-def Properties.PausedVaultCommitsNothing : Prop :=
+@[headline] def Properties.PausedVaultCommitsNothing : Prop :=
   ∀ (Accounting : Type) (hooks : Hooks Accounting) (rh : ResolutionHooks Accounting)
     (s : State Accounting) (calls : List VaultEntryCall),
     s.paused = true → commitVaultCalls hooks rh s calls = s

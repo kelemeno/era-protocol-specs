@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Specs.ExecutorOwnerCallsV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: which CTM executor frames make the CTM's owner calls, and what they log (v0.35)
@@ -99,7 +100,7 @@ frame that is not an infrastructure leg whose engine makes a CTM owner call
 executor log: by its own `CallForwarded`; or, for the commit of `t`, by
 `CTMUpgradeApplied(t, old, new)`; or, for `upgradeChainFromVersion(id, old)`, by
 `ChainUpgradeApplied(id, new)` (`LoggedByExecutor`). -/
-def Properties.OwnerCallsOutsideEngineLegsAreLogged : Prop :=
+@[headline] def Properties.OwnerCallsOutsideEngineLegsAreLogged : Prop :=
   ∀ (cfg : Config) (s s' : State) (caller : Address) (e : Entry) (tr : List Obs),
     Frame cfg s caller e s' tr → e.EngineQuiet →
     ∀ op, Obs.ctmCall op ∈ tr → LoggedByExecutor cfg.W tr op
@@ -108,7 +109,7 @@ def Properties.OwnerCallsOutsideEngineLegsAreLogged : Prop :=
 owner call of every successful frame is named in that frame's executor log
 (`LoggedByExecutor`). The frame of `EngineLegReplacesAndMovesDeadlineWithoutForward` is a
 counterexample. -/
-def Properties.EngineOwnerCallsNotLoggedByExecutor : Prop :=
+@[countermodel] def Properties.EngineOwnerCallsNotLoggedByExecutor : Prop :=
   ¬ ∀ (cfg : Config) (s s' : State) (caller : Address) (e : Entry) (tr : List Obs),
       Frame cfg s caller e s' tr → ∀ op, Obs.ctmCall op ∈ tr → LoggedByExecutor cfg.W tr op
 

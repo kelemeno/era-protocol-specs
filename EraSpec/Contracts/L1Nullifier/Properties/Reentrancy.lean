@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1Nullifier.Specs.Reentrancy
+import EraSpec.Core.Headline
 
 /-!
 # Properties: calls nested inside a claim
@@ -29,13 +30,13 @@ namespace Contracts.L1Nullifier
 `NestedRun` from `s` to `u` is a run of `Specs/Model.lean` from `s` to `u`: a claim whose callback
 calls back into the modelled contracts, to any depth, is the claim's step followed by the
 callback's steps. -/
-def Properties.NestedRunIsFlatRun : Prop :=
+@[headline] def Properties.NestedRunIsFlatRun : Prop :=
   ∀ (chk : Checks) (env : Env) (cfg : Cfg) (s u : Sys),
     NestedRun .deleteFirst chk env cfg s u → Reach chk env cfg s u
 
 /-- **A KEY RECORDED ONCE IS CLEARED AT MOST ONCE, WITH CALLBACKS.** The statement of
 `AtMostOneClearPerDeposit` over nested executions of the source order with every source check. -/
-def Properties.NestedAtMostOneClearPerDeposit : Prop :=
+@[headline] def Properties.NestedAtMostOneClearPerDeposit : Prop :=
   ∀ (env : Env) (cfg : Cfg) (s0 s : Sys) (c : ChainId) (h : Bytes32),
     s0.log = [] → NestedRun .deleteFirst Checks.source env cfg s0 s →
     s.log.countP (isNzWrite c h) + occupied s0.n c h ≤ 1 →
@@ -46,7 +47,7 @@ def Properties.NestedAtMostOneClearPerDeposit : Prop :=
 the call placed before the delete, and with `nonReentrant` absent, a nested execution from fresh
 storage records a key with a nonzero value at most once, has no zero-hash clear of it, and clears
 it twice (in the proof, the second time from inside the first claim's callback). -/
-def Properties.CallFirstClearsOneDepositTwice : Prop :=
+@[countermodel] def Properties.CallFirstClearsOneDepositTwice : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (c : ChainId) (h : Bytes32),
     s0.log = [] ∧ (∀ c' h', s0.n.depositHappened c' h' = 0) ∧
     NestedRun .callFirst Checks.source env cfg s0 s ∧
@@ -57,7 +58,7 @@ def Properties.CallFirstClearsOneDepositTwice : Prop :=
 execution in the source order whose log is a deposit, a clear of it, and a second deposit at
 another key (in the proof, made inside that claim's callback). At the first key the premises of
 `NestedAtMostOneClearPerDeposit` hold with one clear. -/
-def Properties.NestedRunWitness : Prop :=
+@[witness] def Properties.NestedRunWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (cl : Claim) (t : Triple) (h' : Bytes32),
     s0.log = [] ∧ (∀ c' h'', s0.n.depositHappened c' h'' = 0) ∧
     NestedRun .deleteFirst Checks.source env cfg s0 s ∧

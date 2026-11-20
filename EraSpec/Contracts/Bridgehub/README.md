@@ -5,9 +5,8 @@ bookkeeping and the two L1 → L2 request paths.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. A "run"
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`). A "run"
 is any sequence of successful calls of every non-view entry point, by any callers; "reachable"
 means a run from the state `initialize` leaves on a fresh proxy. External calls (CTM, diamond,
 asset router, second bridge, message root) are inputs or assumed not to revert or write the

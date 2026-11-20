@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.GenesisWriters
+import EraSpec.Core.Headline
 
 /-!
 # Properties: chain creation is `ChainRouting`'s genesis step
@@ -228,7 +229,7 @@ ROUTING.** If address zero has no code and every release the CTM has recorded at
 run is genuine: along any run from an invariant state that creates chains as the code does and
 uses no break-glass cut, every chain at a version `v` for which the CTM has a release `R_v`
 routes exactly `R_v`'s rows, and `R_v` is a release of version `v`. -/
-def Properties.CodeRunsKeepChainsOnTheirRelease : Prop :=
+@[headline] def Properties.CodeRunsKeepChainsOnTheirRelease : Prop :=
   ∀ (W : World) (E : Env) (s s' : Sys) (ls : List Label),
     E.code 0 = .none → SysInv W s → CodeRun W E s ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →
     (∀ w, s'.ctm.relAt w ≠ 0 → GenuineRelease E W (s'.ctm.relAt w)) →
@@ -244,7 +245,7 @@ environment with `foreignInit` at release `100`'s `diamondInit()` address. Every
 invariant, `createNewChain` succeeds. The new chain is at version 1, whose release is `100`,
 but it does not route release `100`'s rows. So the system no longer satisfies `SysInv`, and
 no `Step.genesis` leads to it. -/
-def Properties.ForeignDiamondInitBreaksGenesis : Prop :=
+@[countermodel] def Properties.ForeignDiamondInitBreaksGenesis : Prop :=
   fInitEnv.code 0 = .none ∧
   fInitEnv.code (fInitEnv.genesisUpgradeOf 100) = .l1GenesisUpgrade ∧
   (∀ f b, rowsRouting (releaseRows fInitEnv 100) selGenesisUpgrade = some (f, b) →
@@ -264,7 +265,7 @@ extra selector `9`. Every other part of `GenuineRelease` holds for release `100`
 fresh witness system `createNewChain` succeeds, and the new chain at version 1 routes selector
 `9`, which release `100` does not. So `SysInv` fails, and no `Step.genesis` leads to the
 result. -/
-def Properties.ForeignGenesisUpgradeBreaksGenesis : Prop :=
+@[countermodel] def Properties.ForeignGenesisUpgradeBreaksGenesis : Prop :=
   fUpgradeEnv.code 0 = .none ∧
   fUpgradeEnv.code (fUpgradeEnv.diamondInitOf 100) = .diamondInit ∧
   (∀ f b, rowsRouting (releaseRows fUpgradeEnv 100) selGenesisUpgrade = some (f, b) →
@@ -286,7 +287,7 @@ entry points, and its rows are unchanged. `Step.genesis` exists on the fresh sys
 (`NoFunctionsForDiamondCut`, `Diamond.sol:120-122`). So the converse of
 `CodeCreationIsAStep` needs `ReleaseWf`, whose nonempty-selectors part is
 `CTMRelease.validate()`'s refusal (`CTMRelease.sol:134-136`). -/
-def Properties.SelectorlessRowRevertsCreation : Prop :=
+@[countermodel] def Properties.SelectorlessRowRevertsCreation : Prop :=
   eEnv.code 0 = .none ∧ GenuineRelease eEnv eWorld 100 ∧
   RoutesTo eEnv 100 selGenesisUpgrade .adminFacet ∧ RoutesTo eEnv 100 selPauseDeposits .migratorFacet ∧
   releaseRows eEnv 100 = releaseRows gEnv 100 ∧
@@ -300,7 +301,7 @@ code, and release `100` is nonzero, genuine, validated, and routes the three ent
 installation cuts are all `Add` cuts and succeed on a new proxy. On the fresh CTM over release
 `100`, `DiamondInit` succeeds on a new proxy, and after the deployment the genesis upgrade
 succeeds. -/
-def Properties.GenesisWritersWitness : Prop :=
+@[witness] def Properties.GenesisWritersWitness : Prop :=
   gEnv.code 0 = .none ∧ (initState gWorld 100).cur = 100 ∧ GenuineRelease gEnv gWorld 100 ∧
   ReleaseWf gEnv 100 ∧ RoutesTo gEnv 100 selGenesisUpgrade .adminFacet ∧
   RoutesTo gEnv 100 selPauseDeposits .migratorFacet ∧
@@ -316,7 +317,7 @@ invariant: create chain `0` as the code does, commit `300` (1→2), upgrade chai
 chain `1`. The run uses no break-glass cut, and every release the CTM has recorded at the end
 is genuine. Both chains end at version 2 routing release `200`'s rows, which differ from
 release `100`'s. -/
-def Properties.CodeRunWitness : Prop :=
+@[witness] def Properties.CodeRunWitness : Prop :=
   gEnv.code 0 = .none ∧ SysInv gWorld gSys0 ∧
   ∃ s, CodeRun gWorld gEnv gSys0 [.genesis 0, .ctm (.commit 300), .transition 0, .genesis 1] s ∧
     (∀ w, s.ctm.relAt w ≠ 0 → GenuineRelease gEnv gWorld (s.ctm.relAt w)) ∧

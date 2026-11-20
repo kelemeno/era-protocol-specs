@@ -1,4 +1,5 @@
 import EraSpec.Contracts.IndexedMerkleTree.Specs.UnboundedSearchAtV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the unbounded low-leaf walk at draft/v0.35.0
@@ -144,7 +145,7 @@ absent `v` and ANY leaf of the set below `v` as the hint, a walk exits after exa
 number of hops, and the insert through it succeeds.  Gas is not modelled.  At the pin the same
 call reverted once the gap held more than five keys (`BoundedWalkRevertsIffGapExceedsV35` with
 `pinSearchAttemptsV35`). -/
-def Properties.HonestInsertNeverSearchRevertsV35 : Prop :=
+@[headline] def Properties.HonestInsertNeverSearchRevertsV35 : Prop :=
   ∀ (s : Finset AbsLeaf) (v : UInt256) (W₀ : AbsLeaf),
     SoundState s → v ≠ 0 → v ∉ keys s → W₀ ∈ s → W₀.key < v →
       ∃ (n : ℕ) (W : AbsLeaf), WalkV35 s v n W₀ W ∧ n = (gapKeysV35 s W₀.key v).card
@@ -169,7 +170,7 @@ def Properties.RunV35Sound : Prop :=
 /-- **STRADDLING DICHOTOMY AT v35.**  Along a v35 history from the genesis `{⟨0, 0⟩}`, a nonzero
 value has a leaf of `S j` straddling it iff it is absent from `S j`
 (`guardedEvolution_reclaimable_iff_absent`).  The witness ranges over leaves of `S j` only. -/
-def Properties.ReclaimableIffAbsentV35 : Prop :=
+@[headline] def Properties.ReclaimableIffAbsentV35 : Prop :=
   ∀ S : ℕ → Finset AbsLeaf, RunV35 S → S 0 = {⟨0, 0⟩} →
     ∀ (j : ℕ) (v : UInt256), v ≠ 0 →
       ((∃ W ∈ S j, W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)) ↔ v ∉ keys (S j))
@@ -178,7 +179,7 @@ def Properties.ReclaimableIffAbsentV35 : Prop :=
 with monotone settlement timestamps `t`, a value present at a snapshot `i` with `t i ≤ D` is
 present at every later snapshot, and at every snapshot `j` with `D < t (j + 1)` no leaf of `S j`
 below it straddles it (`guardedEvolution_delivered_available_forever`). -/
-def Properties.DeliveredAvailableForeverV35 : Prop :=
+@[headline] def Properties.DeliveredAvailableForeverV35 : Prop :=
   ∀ (S : ℕ → Finset AbsLeaf) (t : ℕ → UInt256) (D v : UInt256), RunV35 S → S 0 = {⟨0, 0⟩} →
     Monotone t → ∀ i, t i ≤ D → v ∈ keys (S i) →
       (∀ j, i ≤ j → v ∈ keys (S j))
@@ -188,7 +189,7 @@ def Properties.DeliveredAvailableForeverV35 : Prop :=
 /-- **EACH VALUE ENTERS ONCE AT v35.**  Along a v35 history from genesis, a nonzero value present
 at step `n` entered the key set at exactly one earlier step
 (`guardedEvolution_delivery_exactly_once`). -/
-def Properties.DeliveryExactlyOnceV35 : Prop :=
+@[headline] def Properties.DeliveryExactlyOnceV35 : Prop :=
   ∀ S : ℕ → Finset AbsLeaf, RunV35 S → S 0 = {⟨0, 0⟩} →
     ∀ (v : UInt256), v ≠ 0 → ∀ n, v ∈ keys (S n) →
       ∃! m, m < n ∧ v ∉ keys (S m) ∧ keys (S (m + 1)) = insert v (keys (S m))
@@ -260,7 +261,7 @@ keys, the v35 walk takes six hops to the tail `⟨6, 0⟩` and the insert succee
 loop with `MAX_LOW_INDEX_SEARCH_ATTEMPTS = 5` reverts and has no successful run.  The abstract
 counterpart of the pin's `HonestInsertRevertsAtDeployedFuel` (`chainSetV35 6` is the projection
 of its `chainTree 6`: `Contracts.InteropCommitmentTree.Properties.ChainTreeProjectsV35`). -/
-def Properties.PinBoundRevertsWhereV35InsertsV35 : Prop :=
+@[countermodel] def Properties.PinBoundRevertsWhereV35InsertsV35 : Prop :=
   SoundState (chainSetV35 6) ∧ (⟨0, 1⟩ : AbsLeaf) ∈ chainSetV35 6
     ∧ (7 : UInt256) ∉ keys (chainSetV35 6)
     ∧ (gapKeysV35 (chainSetV35 6) 0 7).card = 6
@@ -281,7 +282,7 @@ This instantiates every premise of the walk and insert statements, the pin-contr
 `SoundState`), `StraddlingLeafUniqueV35` (with `W₁ = W₂ = ⟨2, 0⟩`, which its conclusion forces),
 `WalkHintIndependentV35` and `InsertV35HintIndependent` (two different hints), and
 `HonestInsertNeverSearchRevertsV35`. -/
-def Properties.WalkPremisesSatisfiableV35 : Prop :=
+@[witness] def Properties.WalkPremisesSatisfiableV35 : Prop :=
   SoundState (chainSetV35 2) ∧ (3 : UInt256) ≠ 0 ∧ (3 : UInt256) ∉ keys (chainSetV35 2)
     ∧ (⟨0, 1⟩ : AbsLeaf) ∈ chainSetV35 2 ∧ (⟨0, 1⟩ : AbsLeaf).key < 3
     ∧ (⟨1, 2⟩ : AbsLeaf) ∈ chainSetV35 2 ∧ (⟨1, 2⟩ : AbsLeaf).key < 3
@@ -313,7 +314,7 @@ puts `7` in the tree.
 This instantiates the premises `RunV35 S` and `S 0 = {⟨0, 0⟩}` (hence `SoundState (S 0)`) of
 every history statement, and the step premises of `ValuesDetermineTreeV35` with
 `S = S' = chainRunV35` and `vals = chainValsV35`. -/
-def Properties.RunV35Satisfiable : Prop :=
+@[witness] def Properties.RunV35Satisfiable : Prop :=
   RunV35 chainRunV35 ∧ chainRunV35 0 = {⟨0, 0⟩}
     ∧ (∀ n, n < 7 → ∃ W₀ ∈ chainRunV35 n, W₀.key = 0
           ∧ InsertV35 (chainRunV35 n) ((n + 1 : ℕ) : UInt256) W₀ (chainRunV35 (n + 1)))
@@ -335,7 +336,7 @@ def Properties.RunV35Satisfiable : Prop :=
   key is `⟨5, 6⟩`, and the insert through `⟨5, 6⟩` succeeds.
 * For `ValuesDetermineTreeV35`, a second hint for step `6`: the insert of `7` through `⟨5, 6⟩`
   reaches the same snapshot `7` as the one through `⟨0, 1⟩` in `RunV35Satisfiable`. -/
-def Properties.RunV35PremisesMetV35 : Prop :=
+@[witness] def Properties.RunV35PremisesMetV35 : Prop :=
   Monotone chainClockV35 ∧ chainClockV35 7 ≤ 7 ∧ (7 : UInt256) < chainClockV35 (7 + 1)
     ∧ (7 : UInt256) ∈ keys (chainRunV35 7) ∧ (7 : UInt256) ∉ keys (chainRunV35 6)
     ∧ (⟨5, 0⟩ : AbsLeaf) ∈ chainRunV35 5 ∧ (⟨5, 0⟩ : AbsLeaf).key < 7

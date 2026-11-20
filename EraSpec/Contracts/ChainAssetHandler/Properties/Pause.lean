@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainAssetHandler.Specs.Migration
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the migration pauses
@@ -38,7 +39,7 @@ namespace Contracts.ChainAssetHandler
 /-- **PAUSES BLOCK MIGRATION STEPS.** A successful burn or mint on hub `h` whose asset id `h`'s
 registry maps to CTM `x` happens only with migrations enabled, `paused()` off on `h`, the
 ecosystem pause off on `h`, and `x`'s pause off on `h`. -/
-def Properties.PauseBlocksMigrationSteps : Prop :=
+@[headline] def Properties.PauseBlocksMigrationSteps : Prop :=
   ∀ (W : World) (s s' : Sys) (l : Label) (h : ChainId) (x : Address), Step W s l s' →
     l.movesUnder W h x →
     W.migrationsEnabled = true ∧ s.paused h = false ∧ s.ecoPaused h = false ∧
@@ -72,7 +73,7 @@ def Properties.PauseHoldsUntilUnpaused : Prop :=
 owner there; if the ecosystem pause on `h` ends different, some step was a pause or unpause
 sent by `h`'s handler owner. (`paused()` is written only by `pause()`/`unpause()`, both
 `onlyOwner`; that is not part of this statement.) -/
-def Properties.OnlyOwnersTogglePauses : Prop :=
+@[headline] def Properties.OnlyOwnersTogglePauses : Prop :=
   ∀ (W : World) (s s' : Sys) (ls : List Label) (h : ChainId), Run W s ls s' →
     (∀ x, s'.ctmPaused h x ≠ s.ctmPaused h x →
       W.ctmRegistered h x = true ∧ ∃ l ∈ ls, l.togglesCTMPause h x (W.ctmOwner h x)) ∧
@@ -90,7 +91,7 @@ asset handler is set and `CHAIN_MIGRATIONS_ENABLED` is `false`. The L1 asset rou
 L1 nullifier's own pauses, which the call passes through
 (`bridge/asset-router/L1AssetRouter.sol:312`, `bridge/L1Nullifier.sol:220`), are not
 modelled. -/
-def Properties.RecoveryIgnoresPauses : Prop :=
+@[headline] def Properties.RecoveryIgnoresPauses : Prop :=
   ∀ (W : World) (s s' : Sys) (i : ℕ) (c : ChainId) (failure : Bool),
     Step W s (.confirm i c failure) s' →
     Step { W with migrationsEnabled := false } (pauseAll s) (.confirm i c failure) (pauseAll s')
@@ -102,7 +103,7 @@ the state is reachable and the pause changed), L1's burn of chain `3` is not a s
 owner's `unpauseCTMMigration(7)` it is, and L1's registry maps CTM `7`'s asset id back to `7`.
 This instantiates `PauseBlocksMigrationSteps`, `PausedCTMChainsDoNotMove` (burn), and the CTM
 clause of `OnlyOwnersTogglePauses`. -/
-def Properties.CahCTMPauseWitness : Prop :=
+@[witness] def Properties.CahCTMPauseWitness : Prop :=
   ∃ s, Run cahWorld cahInit (cahSetup ++ [.pauseCTM 1 7 11]) s ∧ Reach cahWorld s ∧
     s.ctmPaused 1 7 = true ∧ cahInit.ctmPaused 1 7 = false ∧
     (¬ ∃ s', Step cahWorld s (.burn 1 3 2 5) s') ∧
@@ -116,7 +117,7 @@ set (a reachable state), the gateway's burn of chain `3` back to L1 is a step (a
 form a run in which no step unpauses L1, and at its end L1's mint of the returning chain is not
 a step. This instantiates `PauseHoldsUntilUnpaused` (the `paused()` clause, non-empty run),
 `PausesArePerHub` (a burn on the gateway) and the ecosystem clause of `OnlyOwnersTogglePauses`. -/
-def Properties.CahPausedHubWitness : Prop :=
+@[witness] def Properties.CahPausedHubWitness : Prop :=
   ∃ s, Run cahWorld cahInit (cahSetup ++ [.burn 1 3 2 5, .mint 2 0 3 5, .pause 1 10]) s ∧
     Reach cahWorld s ∧ s.paused 1 = true ∧
     ∃ s1 s', Step cahWorld s (.burn 2 3 1 5) s1 ∧ Label.movesOn 2 (.burn 2 3 1 5) ∧
@@ -132,7 +133,7 @@ and L1's owner pausing migrations there (a reachable state with both switches se
 of chain `3` is not a step. After L1's owner lifts the ecosystem pause the burn is still not a
 step, because CTM `7`'s pause holds; after CTM `7`'s owner lifts that too, it is. This
 instantiates the CTM and ecosystem clauses of `PauseHoldsUntilUnpaused` with a non-empty run. -/
-def Properties.CahPauseHoldsWitness : Prop :=
+@[witness] def Properties.CahPauseHoldsWitness : Prop :=
   ∃ s, Run cahWorld cahInit (cahSetup ++ [.pauseCTM 1 7 11, .pauseMigration 1 10]) s ∧
     Reach cahWorld s ∧ s.ctmPaused 1 7 = true ∧ s.ecoPaused 1 = true ∧
     ∃ s1, Run cahWorld s [.pause 2 10, .unpause 2 10] s1 ∧
@@ -147,7 +148,7 @@ def Properties.CahPauseHoldsWitness : Prop :=
 pausing it (a reachable state), chain `3` is under CTM `7`, CTM `7`'s pause is set, the
 registry premise of `PausedCTMChainsDoNotMove` fails for CTM `7`, and L1's burn of chain `3`
 is a step: the check reads CTM `8`'s pause. -/
-def Properties.CahMismatchedRegistryReadsAnotherPause : Prop :=
+@[countermodel] def Properties.CahMismatchedRegistryReadsAnotherPause : Prop :=
   ∃ s s', Run cahWorldMismatched cahInit (cahSetup ++ [.pauseCTM 1 7 11]) s ∧
     Reach cahWorldMismatched s ∧ s.ctm 1 3 = 7 ∧ s.ctmPaused 1 7 = true ∧
     cahWorldMismatched.ctmOfAsset 1 (cahWorldMismatched.assetOfCTM 1 7) ≠ 7 ∧

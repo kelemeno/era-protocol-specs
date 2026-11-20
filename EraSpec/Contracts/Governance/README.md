@@ -6,9 +6,8 @@ back into Governance.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. Every
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`). Every
 statement quantifies over every target behaviour (a finite tree of calls back into Governance, as
 any caller but Governance, at any depth), every self-call decoder, every operation hash `H` and
 every budget; none assumes `H` injective. "The log" is the committed log of the transactions.

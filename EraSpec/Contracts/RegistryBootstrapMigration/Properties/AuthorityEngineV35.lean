@@ -1,4 +1,5 @@
 import EraSpec.Contracts.RegistryBootstrapMigration.Specs.AuthorityEngineV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the authority results across engine legs (draft/v0.35.0)
@@ -312,7 +313,7 @@ Then nothing is parked on the migration at the end, or `RunLegCollides`: the run
 of its engine legs, and `H` collides on the holders that leg logs, from the state the run
 reaches before it to the state after it. The model's CTM keeps its entry points after a code
 swap (the Specs' model boundaries). -/
-def Properties.NoReparkingAcrossEngineLegs : Prop :=
+@[headline] def Properties.NoReparkingAcrossEngineLegs : Prop :=
   ∀ (K : Config) (H : DomainHolders → UInt256) (s s' : VState) (vs : List VLabel),
     s.a.executed = true → ¬ ParkedOnMigration K s.a → s.ctmAnswers = none →
     VSysRun K H s vs s' → (∀ v ∈ vs, v.Clean K) →
@@ -383,7 +384,7 @@ calls the CTM-domain `ProxyAdmin`'s `transferOwnership(7)`:
 * meets the premises of `EngineLegFrameOrCollision`;
 * for some `holdersHash` (a constant one), succeeds and moves the `ProxyAdmin` to `7`, so
   `LegAuthFrame` fails. -/
-def Properties.CollisionDisjunctNeeded : Prop :=
+@[countermodel] def Properties.CollisionDisjunctNeeded : Prop :=
   (∀ H : DomainHolders → UInt256,
       (∃ s', EngineLeg (wConfig true) H .ctm wPostV [⟨3, .fwd (.paTransferOwnership 7)⟩] s') ↔
         H (wPostV.holders (wConfig true) .ctm) = H (wPaMovedV.holders (wConfig true) .ctm)) ∧
@@ -400,7 +401,7 @@ the leg's other check (:93-95) and leaves the migration nominated, which is park
 migration can no longer accept, `MigrateIsOneShot`; the nomination alone is the parking.) With
 :96-98 the same leg succeeds exactly when `H` takes the same value on the two logged holder
 tuples, which differ. -/
-def Properties.NoHolderCheckReparks : Prop :=
+@[countermodel] def Properties.NoHolderCheckReparks : Prop :=
   wPostV.a.executed = true ∧ ¬ ParkedOnMigration (wConfig true) wPostV.a ∧
     EngineLegNoHolderCheck (wConfig true) .ctm wPostV [⟨3, .fwd (.ctmTransferOwnership 50)⟩]
       wNominatedV ∧
@@ -596,7 +597,7 @@ def Properties.EngineLegTransientWitness : Prop :=
   the CTM executor owns it, the premise of its second clause.
 * The constructor succeeds for governance `9` as initial owner: the premise of
   `ExecutorOwnerNeverZero`'s first clause. -/
-def Properties.EngineLegPremisesWitness : Prop :=
+@[witness] def Properties.EngineLegPremisesWitness : Prop :=
   wParkedV.a = wParked ∧ wParkedV.ctmAnswers = none ∧
     (∀ H : DomainHolders → UInt256,
       EngineLeg (wConfig false) H .ctm wParkedV wPaRoundTrip wParkedV) ∧

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.VersionRegistry
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the CTM's protocol version and transition registry
@@ -56,7 +57,7 @@ def Properties.StepPreservesInvariant : Prop :=
 /-- **THE CTM'S CURRENT VERSION IS ITS CURRENT RELEASE'S VERSION.** Along every run from
 an invariant state, `currentRelease` is nonzero and
 `ICTMRelease(currentRelease).protocolVersion() == protocolVersion`. -/
-def Properties.CurrentReleaseIsVersionsRelease : Prop :=
+@[headline] def Properties.CurrentReleaseIsVersionsRelease : Prop :=
   ∀ (W : World) (s s' : CTM) (ops : List Op), CtmInv W s → CRun W s ops s' →
     s'.cur ≠ 0 ∧ W.relVersion s'.cur = s'.pv
 
@@ -70,7 +71,7 @@ def Properties.VersionStrictlyIncreasesOnEdges : Prop :=
     s.pv ≤ s'.pv ∧ (op.isEdge = true → s.pv < s'.pv) ∧ (op.isEdge = false → s'.pv = s.pv)
 
 /-- **ALONG ANY RUN THE VERSION ONLY GOES UP, STRICTLY IF THE RUN CROSSES AN EDGE.** -/
-def Properties.VersionsIncreaseAlongRuns : Prop :=
+@[headline] def Properties.VersionsIncreaseAlongRuns : Prop :=
   ∀ (W : World) (s s' : CTM) (ops : List Op), CRun W s ops s' →
     s.pv ≤ s'.pv ∧ (ops.any Op.isEdge = true → s.pv < s'.pv)
 
@@ -86,7 +87,7 @@ def Properties.CommitWritesOnlyEmptySlots : Prop :=
 /-- **EACH SLOT IS COMMITTED AT MOST ONCE IN ANY RUN.** For every version `v`, at most one
 of a run's operations is a successful commit writing `upgradeTransition[v]`. No premise:
 a commit writes the slot of the current version and then moves past it. -/
-def Properties.CommitWritesEachSlotOnce : Prop :=
+@[headline] def Properties.CommitWritesEachSlotOnce : Prop :=
   ∀ (W : World) (s s' : CTM) (ops : List Op), CRun W s ops s' →
     ∀ v, ops.countP (fun op => decide (op.commitDeparture W = some v)) ≤ 1
 
@@ -113,7 +114,7 @@ def Properties.OnlyCommitOrReplaceWritesSlots : Prop :=
 
 The last clause is the chaining: a chain that crosses `v`'s edge is handed to `w`'s
 edge at the release that edge was derived from. -/
-def Properties.TransitionsChain : Prop :=
+@[headline] def Properties.TransitionsChain : Prop :=
   ∀ (W : World) (s : CTM), CtmInv W s → ∀ v, s.ut v ≠ 0 →
     (W.tr (s.ut v)).fromRel = s.relAt v ∧ W.relVersion (W.tr (s.ut v)).fromRel = v ∧
     v < (W.tr (s.ut v)).new ∧ (W.tr (s.ut v)).new ≤ s.pv ∧
@@ -151,7 +152,7 @@ slots are committed and chained (slot 1's transition lands on release `200`, fro
 slot 2's departs), slot 1 has been rewritten by the replacement, and the version is 3.
 This shows the premises of the properties above are met by real runs, and that the
 replacement rewrite in `OnlyCommitOrReplaceWritesSlots` is not dead. -/
-def Properties.VersionRegistryWitness : Prop :=
+@[witness] def Properties.VersionRegistryWitness : Prop :=
   ∃ s', CRun wWorld (initState wWorld 100) [.commit 300, .commit 600, .replace 300 400] s' ∧
     CtmInv wWorld (initState wWorld 100) ∧
     s'.pv = 3 ∧ s'.cur = 250 ∧ s'.ut 1 = 400 ∧ s'.ut 2 = 600 ∧
@@ -164,7 +165,7 @@ the same release `200`, but reports `oldProtocolVersion() = 7`. Every check of
 `replaceUpgradeTransition` passes, and slot `1` now holds a transition reporting
 departure `7`. So `SlotsDepartFromTheirVersion` needs its genuineness premise; the
 guarantee rests on `CTMTransition`'s constructor, not on the CTM. -/
-def Properties.NonGenuineReplacementBreaksSlotVersion : Prop :=
+@[countermodel] def Properties.NonGenuineReplacementBreaksSlotVersion : Prop :=
   ∃ s', CRun wWorld (initState wWorld 100) [.commit 300, .replace 300 500] s' ∧
     s'.ut 1 = 500 ∧ (wWorld.tr (s'.ut 1)).old ≠ 1 ∧ ¬ wWorld.Genuine 500
 

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.MessageHashing.Specs.LogLeafSeparation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: a status log's leaf preimage differs from every other log's
@@ -42,7 +43,7 @@ def Properties.LogPreimageInjective : Prop :=
 transaction number and hash; and without well-formedness the conclusion fails: transaction
 numbers `0` and `2^16` give the same packed preimage (`toBytesBE 2` keeps the low two bytes), which
 a `uint16` field cannot hold. -/
-def Properties.LogPreimageInjectiveWitness : Prop :=
+@[witness] def Properties.LogPreimageInjectiveWitness : Prop :=
   (∃ log log' : L2Log, LogWellFormed log ∧ LogWellFormed log' ∧ logPre log = logPre log'
       ∧ log.txNumberInBatch ≠ 0 ∧ log.key ≠ 0 ∧ log.sender = BOOTLOADER_ADDRESS)
     ∧ ∃ log log' : L2Log, log ≠ log' ∧ logPre log = logPre log'
@@ -65,7 +66,7 @@ def Properties.StatusPreimageInjective : Prop :=
 /-- **WITNESS FOR `StatusPreimageInjective`.** Its premises hold at transaction number 7 and hash 5
 (equal preimages need equal arguments, so both sides carry them); and the `uint16` bound is needed:
 transaction numbers `0` and `2^16` with the same hash and status give the same preimage. -/
-def Properties.StatusPreimageInjectiveWitness : Prop :=
+@[witness] def Properties.StatusPreimageInjectiveWitness : Prop :=
   (∃ (t t' : ℕ) (tx tx' : UInt256) (s s' : TxStatus), t < 256 ^ 2 ∧ t' < 256 ^ 2
       ∧ logPre (statusLog t tx s) = logPre (statusLog t' tx' s') ∧ t ≠ 0 ∧ tx ≠ 0)
     ∧ ∀ (tx : UInt256) (s : TxStatus),
@@ -91,7 +92,7 @@ def Properties.OtherSenderPreimageNeStatusPreimage : Prop :=
 
 /-- **WITNESS FOR `OtherSenderPreimageNeStatusPreimage`.** Its premises hold on a message log of
 a well-formed message, for every keccak. -/
-def Properties.OtherSenderPreimageWitness : Prop :=
+@[witness] def Properties.OtherSenderPreimageWitness : Prop :=
   ∀ keccak : Keccak, ∃ m : L2Message, MessageWellFormed m ∧ m.txNumberInBatch ≠ 0 ∧ m.sender ≠ 0
     ∧ LogWellFormed (messageLog keccak m)
     ∧ (messageLog keccak m).sender ≠ BOOTLOADER_ADDRESS
@@ -99,7 +100,7 @@ def Properties.OtherSenderPreimageWitness : Prop :=
 /-! ## (c) Pinned forms -/
 
 /-- **(c) EQUAL LEAF HASHES PIN THE LOG, OR KECCAK COLLIDES ON THE TWO NAMED PREIMAGES.** -/
-def Properties.LeafHashPinsLogOrCollision : Prop :=
+@[headline] def Properties.LeafHashPinsLogOrCollision : Prop :=
   ∀ (keccak : Keccak) (log log' : L2Log), LogWellFormed log → LogWellFormed log' →
     logLeaf keccak log = logLeaf keccak log' →
       log = log' ∨ HashCollision keccak (logPre log) (logPre log')
@@ -109,7 +110,7 @@ THE TWO NAMED 88-BYTE PREIMAGES.** For a status log `statusLog t tx Failure` wit
 and any well-formed log different from it (the Success log of the same transaction, another
 transaction's status log, a message log, any other log): if the two leaf hashes are equal, keccak
 collides on the two preimages. -/
-def Properties.FailureLeafOfOtherLogIsCollision : Prop :=
+@[headline] def Properties.FailureLeafOfOtherLogIsCollision : Prop :=
   ∀ (keccak : Keccak) (t : ℕ) (tx : UInt256) (log : L2Log), t < 256 ^ 2 → LogWellFormed log →
     log ≠ statusLog t tx .failure →
     logLeaf keccak log = logLeaf keccak (statusLog t tx .failure) →
@@ -117,14 +118,14 @@ def Properties.FailureLeafOfOtherLogIsCollision : Prop :=
 
 /-- **(c) A SUCCESS LEAF MEETS A FAILURE LEAF ONLY THROUGH A COLLISION**, for any transaction
 numbers and hashes; no well-formedness premise. -/
-def Properties.FailureLeafOfSuccessLogIsCollision : Prop :=
+@[headline] def Properties.FailureLeafOfSuccessLogIsCollision : Prop :=
   ∀ (keccak : Keccak) (t t' : ℕ) (tx tx' : UInt256),
     logLeaf keccak (statusLog t' tx' .success) = logLeaf keccak (statusLog t tx .failure) →
       HashCollision keccak (logPre (statusLog t' tx' .success)) (logPre (statusLog t tx .failure))
 
 /-- **(c) A MESSAGE LEAF MEETS A STATUS LEAF ONLY THROUGH A COLLISION**, for any message and any
 status log; no well-formedness premise. -/
-def Properties.StatusLeafOfMessageIsCollision : Prop :=
+@[headline] def Properties.StatusLeafOfMessageIsCollision : Prop :=
   ∀ (keccak : Keccak) (t : ℕ) (tx : UInt256) (s : TxStatus) (m : L2Message),
     messageLeaf keccak m = logLeaf keccak (statusLog t tx s) →
       HashCollision keccak (logPre (messageLog keccak m)) (logPre (statusLog t tx s))
@@ -132,7 +133,7 @@ def Properties.StatusLeafOfMessageIsCollision : Prop :=
 /-- **(c) EQUAL MESSAGE LEAVES PIN THE MESSAGE, OR KECCAK COLLIDES ON NAMED INPUTS.** Two
 well-formed messages with equal leaf hashes are equal, or keccak collides on their two 88-byte log
 preimages, or on their two bodies (the logs' value words are `keccak(data)`). -/
-def Properties.MessageLeafPinsMessageOrCollision : Prop :=
+@[headline] def Properties.MessageLeafPinsMessageOrCollision : Prop :=
   ∀ (keccak : Keccak) (m m' : L2Message), MessageWellFormed m → MessageWellFormed m' →
     messageLeaf keccak m = messageLeaf keccak m' →
       m = m' ∨ HashCollision keccak (logPre (messageLog keccak m)) (logPre (messageLog keccak m'))
@@ -151,7 +152,7 @@ strings of one length to one word:
 
 And the collision predicates are not forced: with `pointKeccak` of the Failure preimage, keccak
 does not collide on the Failure and Success preimages, nor on the Failure and message preimages. -/
-def Properties.StatusLeafCollisionWitness : Prop :=
+@[witness] def Properties.StatusLeafCollisionWitness : Prop :=
   let fail := statusLog 7 5 .failure
   let succ := statusLog 7 5 .success
   let m : L2Message := ⟨3, 0x1234, [1, 2, 3]⟩
@@ -171,7 +172,7 @@ COLLISION DISJUNCTS ARE NEEDED.** With `lengthKeccak`:
   bodies do not collide (equal bodies), and the 88-byte disjunct holds;
 * two well-formed messages differing only in their (equal-length) bodies have equal leaf hashes;
   their 88-byte log preimages are EQUAL, so only the body disjunct holds. -/
-def Properties.LeafPinningWitness : Prop :=
+@[witness] def Properties.LeafPinningWitness : Prop :=
   let a := statusLog 7 5 .success
   let b := statusLog 8 6 .success
   let m₁ : L2Message := ⟨3, 0x1234, [1, 2, 3]⟩

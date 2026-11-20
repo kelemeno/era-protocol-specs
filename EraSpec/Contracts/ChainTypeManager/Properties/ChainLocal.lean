@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ChainLocal
+import EraSpec.Core.Headline
 
 /-!
 # Properties: one chain at a time, and the break-glass repair
@@ -280,7 +281,7 @@ The run's break-glass steps, the repair included, exist because the model's brea
 has no precondition on the live routing (`RepairStepIgnoresLiveRouting`). The drift `bgExtra`
 keeps every selector of release `100` with its facet and freezability and only adds
 selector `9`. -/
-def Properties.ChainLocalWitness : Prop :=
+@[witness] def Properties.ChainLocalWitness : Prop :=
   ∃ s, Run wWorld wSys0 wLocalRun s ∧ SysInv wWorld wSys0 ∧ wSys0.chains 0 = none ∧
     (∃ l ∈ wLocalRun, l.isArbitrary) ∧
     LastWriteNotBreakGlass 0 wLocalRun ∧ ¬ LastWriteNotBreakGlass 1 wLocalRun ∧
@@ -296,7 +297,7 @@ commits `300` (1→2), which installs release `200` at version 2. The last write
 the cut, so the per-chain premise fails. Still, chain `0` ends consistent, at version 2 on
 release `200`. Consistency is not an invariant of chain `0` along this run: it fails after the
 cut and holds at the end. -/
-def Properties.ChainLocalPremiseNotNecessary : Prop :=
+@[countermodel] def Properties.ChainLocalPremiseNotNecessary : Prop :=
   ∃ s₁ s, Run wWorld wSys0 [.genesis 0, .arbitraryCut 0 2 (rowsRouting (wRows 200))] s₁ ∧
     Step wWorld s₁ (.ctm (.commit 300)) s ∧
     ¬ LastWriteNotBreakGlass 0
@@ -340,7 +341,7 @@ of `700`'s rows adds selector `1` twice. Repair it to version 2 with `700`'s rou
 premise of `RepairEnablesTransition` then holds except that `700` lists each selector once, and
 chain `0` cannot cross `900` either: the derived `Remove` of `700`'s rows removes selector `1`
 twice. -/
-def Properties.RepairNeedsUniqueSelectors : Prop :=
+@[countermodel] def Properties.RepairNeedsUniqueSelectors : Prop :=
   ∃ s s', Run wDupWorld wDupSys0 [.genesis 0, .ctm (.commit 800), .ctm (.commit 900)] s ∧
     SysInv wDupWorld wDupSys0 ∧ (¬ ∃ s'', Step wDupWorld s (.transition 0) s'') ∧
     CtmInv wDupWorld s.ctm ∧ s.ctm.relAt 2 = 700 ∧ s.ctm.ut 2 ≠ 0 ∧
@@ -364,7 +365,7 @@ that routes no selector at all, a cut whose facet cuts remove every selector.
 So the existence half of `RepairCutRestoresChainOk` is enabledness in the model only, and the
 repair steps of the witnesses exist without the model checking the dispatch. This is a
 statement about the model, not about the source. -/
-def Properties.RepairStepIgnoresLiveRouting : Prop :=
+@[countermodel] def Properties.RepairStepIgnoresLiveRouting : Prop :=
   ∃ s s', Run wWorld wSys0 [.genesis 0, .arbitraryCut 0 1 emptyRouting] s ∧
     (∃ c, s.chains 0 = some c ∧ ∀ x, c.routing x = none) ∧
     Step wWorld s (repairCut wWorld s 0 1) s' ∧

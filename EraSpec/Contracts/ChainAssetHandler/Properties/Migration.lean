@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainAssetHandler.Specs.Migration
+import EraSpec.Core.Headline
 
 /-!
 # Properties: where a chain settles, its migration number, and recovery
@@ -60,7 +61,7 @@ exactly one holder: a hub `h ≠ 0` with `settlementLayer[c] == h` on `h`'s own 
 live (pending, or failed and unrecovered) migration message for it. A chain not registered
 on L1 has no holder. In particular no two hubs both treat the chain as settling on
 themselves, and no hub does while the chain is in flight. -/
-def Properties.ExactlyOneSettlementLayer : Prop :=
+@[headline] def Properties.ExactlyOneSettlementLayer : Prop :=
   ∀ (W : World) (s : Sys), W.l1 ≠ 0 → Reach W s → ∀ c : ChainId,
     (s.reg W.l1 c = true → ∃ x, ∀ y, Holds s c y ↔ y = x) ∧
     (s.reg W.l1 c = false → ∀ y, ¬ Holds s c y)
@@ -99,7 +100,7 @@ def Properties.L1MigrationBookkeeping : Prop :=
 1 → 2, or a failed-deposit confirmation for `c` taking it 1 → 0. No other step, and no step
 on another hub, writes it. This is a statement about single steps; it needs no
 reachability premise. -/
-def Properties.L1MigrationNumberTransitions : Prop :=
+@[headline] def Properties.L1MigrationNumberTransitions : Prop :=
   ∀ (W : World) (s s' : Sys) (l : Label) (c : ChainId), Step W s l s' →
     s'.migNum W.l1 c ≠ s.migNum W.l1 c →
     (s.migNum W.l1 c = 0 ∧ s'.migNum W.l1 c = numToSL ∧ l.burnsOnL1 W c) ∨
@@ -119,7 +120,7 @@ def Properties.ReturnedChainStaysOnL1 : Prop :=
 mints of chain `c` plus one if `c` has already returned (L1 number 2) is at most one: a chain
 completes at most one L1 → settlement layer → L1 round trip, however many failed attempts it
 makes (the comment at `CAH:275-276`). -/
-def Properties.AtMostOneRoundTrip : Prop :=
+@[headline] def Properties.AtMostOneRoundTrip : Prop :=
   ∀ (W : World) (s s' : Sys) (ls : List Label) (c : ChainId), W.l1 ≠ 0 → Reach W s →
     Run W s ls s' →
     countL1Mints W c ls + (if s.migNum W.l1 c = numToL1 then 1 else 0) ≤ 1
@@ -132,7 +133,7 @@ on every hub — bridgehub, handler and diamond — is back to its value before 
 source the confirmation also needs the L1 asset router and nullifier unpaused
 (`bridge/asset-router/L1AssetRouter.sol:312`, `bridge/L1Nullifier.sol:220`) and a status
 proof, which the model does not represent. -/
-def Properties.FailedMigrationRecoveryRestoresSource : Prop :=
+@[headline] def Properties.FailedMigrationRecoveryRestoresSource : Prop :=
   ∀ (W : World) (s s1 : Sys) (c t : ChainId) (a : AssetId), W.l1 ≠ 0 →
     Reach W s → Step W s (.burn W.l1 c t a) s1 →
     ∃ s2 s3, Step W s1 (.failDeposit s.nMsgs) s2 ∧ Step W s2 (.confirm s.nMsgs c true) s3 ∧
@@ -146,7 +147,7 @@ def Properties.FailedMigrationRecoveryRestoresSource : Prop :=
 L1-originated migration message for `c` has not been consumed by
 `bridgeConfirmTransferResult`, whatever happened to the chain since; there is at most one such
 message per chain. -/
-def Properties.InProgressTracksUnconfirmedDeparture : Prop :=
+@[headline] def Properties.InProgressTracksUnconfirmedDeparture : Prop :=
   ∀ (W : World) (s : Sys), W.l1 ≠ 0 → Reach W s → ∀ c : ChainId,
     (s.inProgress c = true ↔
       ∃ i m, s.msgs i = some m ∧ m.src = W.l1 ∧ m.chain = c ∧ m.status ≠ .done) ∧
@@ -176,7 +177,7 @@ migration message, every migration number a hub keeps for another chain is 0, an
 registered on L1 has L1 as its only holder. A chain's own counter, kept by its own handler
 (`migrationNumber[block.chainid]`, incremented by `setSettlementLayerChainId` when the system
 context reports a change, `L2CAH:116-127`), is excluded. -/
-def Properties.MigrationsDisabledFreezeSettlement : Prop :=
+@[headline] def Properties.MigrationsDisabledFreezeSettlement : Prop :=
   ∀ (W : World) (s : Sys), W.l1 ≠ 0 → W.migrationsEnabled = false → Reach W s →
     (∀ i, s.msgs i = none) ∧ (∀ h c, h ≠ c → s.migNum h c = 0) ∧
     ∀ c, s.reg W.l1 c = true → ∀ y, Holds s c y ↔ y = .hub W.l1
@@ -213,7 +214,7 @@ the chain is not registered on `g`, so `g`'s `bridgeMint` of message `i` deploys
 it is a step, and after it `g` is the chain's only holder. So the fresh branch's other guards —
 the chain does not already settle on `g` (`BH:441-443`), is not registered there
 (`CAH:397-399`), and `g` is not L1 (`MIG:277-279`) — hold for every such message. -/
-def Properties.GatewayAcceptsArrival : Prop :=
+@[headline] def Properties.GatewayAcceptsArrival : Prop :=
   ∀ (W : World) (s : Sys) (i : ℕ) (m : Msg), W.l1 ≠ 0 → Reach W s →
     s.msgs i = some m → m.status = .pending → m.src = W.l1 →
     W.migrationsEnabled = true → s.paused m.dst = false → s.ecoPaused m.dst = false →
@@ -233,7 +234,7 @@ chain is 2 and L1 is its only holder. So the returning branch's other guards —
 the migration numbers (`CAH:374-383`) and of interval 1 (`L1CAH:309-314`), the chain not
 settling on L1 already (`BH:441-443`), its registration on L1, and the diamond's away check
 (`MIG:280-282`) — hold for every such message. -/
-def Properties.L1AcceptsReturn : Prop :=
+@[headline] def Properties.L1AcceptsReturn : Prop :=
   ∀ (W : World) (s : Sys) (i : ℕ) (m : Msg), W.l1 ≠ 0 → Reach W s →
     s.msgs i = some m → m.status = .pending → m.dst = W.l1 →
     W.migrationsEnabled = true → s.paused W.l1 = false → s.ecoPaused W.l1 = false →
@@ -251,7 +252,7 @@ is a step of the model; it needs no pause switch, release flag or CTM version
 L1's migration number of the chain is 0, and the chain is not in progress. As in
 `FailedMigrationRecoveryRestoresSource`, the L1 asset router's and nullifier's pauses and the
 status proof are outside the model. -/
-def Properties.FailedDepositConfirmable : Prop :=
+@[headline] def Properties.FailedDepositConfirmable : Prop :=
   ∀ (W : World) (s : Sys) (i : ℕ) (m : Msg), W.l1 ≠ 0 → Reach W s →
     s.msgs i = some m → m.src = W.l1 → m.status = .failed →
     s.dpv W.l1 m.chain = m.pv →
@@ -267,7 +268,7 @@ mint. It ends with one L1 mint of chain `3`, L1's number 2, chain `3` registered
 and L1 its only holder. This instantiates the premises of `AtMostOneRoundTrip` (its bound is
 reached), `L1MigrationNumberTransitions` (0 → 1 and 1 → 2), `VersionEqualityAtBurnAndMint`
 (both mint branches) and, at the end state, `ReturnedChainStaysOnL1`. -/
-def Properties.CahRoundTripWitness : Prop :=
+@[witness] def Properties.CahRoundTripWitness : Prop :=
   Init cahInit ∧ cahWorld.l1 ≠ 0 ∧
   ∃ s, Run cahWorld cahInit cahRoundTrip s ∧ Reach cahWorld s ∧
     countL1Mints cahWorld 3 cahRoundTrip = 1 ∧
@@ -280,7 +281,7 @@ L1 diamond is away, L1's number is 1 with interval 1 active for the gateway, and
 in progress. This instantiates `ExactlyOneSettlementLayer` with a message holder,
 `BridgehubAgreesWithDiamond` with both sides false, `L1MigrationBookkeeping` at 1, and
 `InProgressTracksUnconfirmedDeparture` with the flag set. -/
-def Properties.CahInFlightWitness : Prop :=
+@[witness] def Properties.CahInFlightWitness : Prop :=
   ∃ s, Run cahWorld cahInit (cahSetup ++ [.burn 1 3 2 5]) s ∧ Reach cahWorld s ∧
     s.reg cahWorld.l1 3 = true ∧ (∀ y, Holds s 3 y ↔ y = .msg 0) ∧
     s.sl cahWorld.l1 3 = 2 ∧ s.away cahWorld.l1 3 = true ∧
@@ -292,7 +293,7 @@ which is not L1, and L1's bridgehub records `2`; the gateway's diamond is regist
 `7` at that CTM's version, and the chain is still in progress on L1 (the deposit is not yet
 confirmed). This instantiates `ExactlyOneSettlementLayer` with a hub other than L1 and the hub
 clause of `L1SettlementLayerTracksHolder`. -/
-def Properties.CahGatewayWitness : Prop :=
+@[witness] def Properties.CahGatewayWitness : Prop :=
   ∃ s, Run cahWorld cahInit (cahSetup ++ [.burn 1 3 2 5, .mint 2 0 3 5]) s ∧
     Reach cahWorld s ∧ 2 ≠ cahWorld.l1 ∧
     (∀ y, Holds s 3 y ↔ y = .hub 2) ∧ s.sl cahWorld.l1 3 = 2 ∧
@@ -303,7 +304,7 @@ def Properties.CahGatewayWitness : Prop :=
 `cahFailedAttempt` ends with L1's number back to 0, chain `3` on L1, not in progress, and a
 second burn enabled. Its last step is a failed-deposit confirmation (L1's number goes
 1 → 0). -/
-def Properties.CahFailedAttemptWitness : Prop :=
+@[witness] def Properties.CahFailedAttemptWitness : Prop :=
   ∃ s0 s1, Run cahWorld cahInit cahSetup s0 ∧ Reach cahWorld s0 ∧
     Step cahWorld s0 (.burn cahWorld.l1 3 2 5) s1 ∧
     ∃ s, Run cahWorld cahInit cahFailedAttempt s ∧
@@ -314,7 +315,7 @@ def Properties.CahFailedAttemptWitness : Prop :=
 three-step run (a CTM upgrade, the diamond's catch-up upgrade, an ecosystem pause) is a run
 of `cahWorld`, and a further burn of chain `3` is not a step. This instantiates every premise of
 `ReturnedChainStaysOnL1` with a non-empty run. -/
-def Properties.CahReturnedChainWitness : Prop :=
+@[witness] def Properties.CahReturnedChainWitness : Prop :=
   ∃ s s', Run cahWorld cahInit cahRoundTrip s ∧ Reach cahWorld s ∧
     s.migNum cahWorld.l1 3 = numToL1 ∧
     Run cahWorld s [.ctmUpgrade 1 7 2, .diamondUpgrade 1 3 2, .pauseMigration 1 10] s' ∧
@@ -325,7 +326,7 @@ the setup is a run, so chain `3` is registered on L1 in a reachable state; there
 chain `3` is not a step, while in `cahWorld`, which differs only in the constant, the same burn
 from the same state is a step. This instantiates every premise of
 `MigrationsDisabledFreezeSettlement`, with a chain registered on L1. -/
-def Properties.CahDisabledWitness : Prop :=
+@[witness] def Properties.CahDisabledWitness : Prop :=
   cahWorldDisabled.migrationsEnabled = false ∧ cahWorldDisabled.l1 ≠ 0 ∧
   ∃ s, Run cahWorldDisabled cahInit cahSetup s ∧ Reach cahWorldDisabled s ∧
     s.reg cahWorldDisabled.l1 3 = true ∧
@@ -339,7 +340,7 @@ gateway's switches are off, chain `3` is not registered there, and the gateway's
 message `0` is a step. This instantiates every premise of `GatewayAcceptsArrival`, the mint
 half of `PausedCTMChainsDoNotMove` (`Properties/Pause.lean`), and `L1SettlementLayerTracksHolder`
 for a message out of L1 (L1's bridgehub records `2`). -/
-def Properties.CahArrivalWitness : Prop :=
+@[witness] def Properties.CahArrivalWitness : Prop :=
   cahWorld.l1 ≠ 0 ∧ cahWorld.migrationsEnabled = true ∧
   ∃ s, Run cahWorld cahInit (cahSetup ++ [.burn 1 3 2 5, .pause 1 10]) s ∧ Reach cahWorld s ∧
     s.paused 1 = true ∧ s.sl 1 3 = 2 ∧
@@ -359,7 +360,7 @@ records `2`; L1's switches are off and its diamond of chain `3` is at its CTM's 
 mint of message `1` is a step. This instantiates both disjuncts of
 `MessagesRunBetweenL1AndALayer`, the message clause of `L1SettlementLayerTracksHolder` for a
 message into L1, and every premise of `L1AcceptsReturn` after the CTM's version changed. -/
-def Properties.CahReturnInFlightWitness : Prop :=
+@[witness] def Properties.CahReturnInFlightWitness : Prop :=
   cahWorld.l1 ≠ 0 ∧ cahWorld.migrationsEnabled = true ∧
   ∃ s, Run cahWorld cahInit
       (cahSetup ++ [.burn 1 3 2 5, .mint 2 0 3 5, .confirm 0 3 false, .burn 2 3 1 5,
@@ -380,7 +381,7 @@ deposit's failure (a reachable state), message `0` is from L1 and failed, L1's d
 `3` is still at the version the message carries while CTM `7` is not, L1 is paused, and L1's
 confirmation of the failure is a step. This instantiates every premise of
 `FailedDepositConfirmable` and the premise of `RecoveryIgnoresPauses`. -/
-def Properties.CahRecoveryWitness : Prop :=
+@[witness] def Properties.CahRecoveryWitness : Prop :=
   cahWorld.l1 ≠ 0 ∧
   ∃ s, Run cahWorld cahInit
       (cahSetup ++ [.burn 1 3 2 5, .ctmUpgrade 1 7 2, .pause 1 10, .failDeposit 0]) s ∧

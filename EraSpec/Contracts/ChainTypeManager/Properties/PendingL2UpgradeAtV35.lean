@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.PendingL2UpgradeAtV35
 import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTimingAtV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the pending L2 upgrade transaction, at `draft/v0.35.0`
@@ -97,7 +98,7 @@ settlement layer, where the edge committed at its version changes the minor comp
 transaction is pending or an upgrade batch is recorded. Then no upgrade of the chain succeeds,
 through any entry point, by any caller, at any block time. Witness: `PendingUnbatched`, which
 `ExpiredPendingChainWitness` meets, contains every premise. -/
-def Properties.PendingTxBlocksEveryUpgrade : Prop :=
+@[headline] def Properties.PendingTxBlocksEveryUpgrade : Prop :=
   ∀ (C : PendingConfig) (s : PendingSys) (id : ChainId) (c : Chain),
     s.ts.sys.chains id = some c → (s.ts.aux id).slVersion = none →
     minorOf c.pv < minorOf (s.ts.sys.edge C.T.X.W c.pv).new →
@@ -131,7 +132,7 @@ before `25`. From there the run `pwIdle` succeeds and meets the run premises for
 and `25`: it overrides `0.1.0`'s deadline to `30`, sets chain `0`'s own upgrade time, and creates
 chain `1`, which commits a batch. At its end chain `0` is still `PendingUnbatched` and in dead
 time at `25`. -/
-def Properties.ExpiredPendingChainWitness : Prop :=
+@[witness] def Properties.ExpiredPendingChainWitness : Prop :=
   ∃ s1 s2, PRun pwConfig pwSys0 (pwSetup ++ [pwLateUpgrade]) s1 ∧
     PendingUnbatched pwConfig s1 0 ⟨v020, rowsRouting (pwRows 200)⟩ ∧
     versionDeadline pwTimed s1.dl s1.ts.sys.ctm v020 = some 20 ∧
@@ -153,7 +154,7 @@ def Properties.ExpiredPendingChainWitness : Prop :=
 * along every run from there with no break-glass cut, no `setProtocolVersionDeadline` at
   `0.2.0`, and every block time `25` or later, chain `0` is in dead time at every block time
   from `25` on. -/
-def Properties.LateUpgradeLandsInDeadTime : Prop :=
+@[countermodel] def Properties.LateUpgradeLandsInDeadTime : Prop :=
   ValidEdge pwConfig 300 ∧ ValidEdge pwConfig 600 ∧
     minorOf v010 < minorOf v020 ∧ minorOf v020 < minorOf v030 ∧
     pwConfig.hasL2 300 = true ∧ pwConfig.hasL2 600 = true ∧
@@ -193,7 +194,7 @@ succeed.
 
 The model omits further reject-only checks of an upgrade (see the Specs), so at the source these
 upgrades also need those checks to pass. -/
-def Properties.NoDeadTimeWithoutPendingTx : Prop :=
+@[headline] def Properties.NoDeadTimeWithoutPendingTx : Prop :=
   ∀ (C : PendingConfig) (s s' : PendingSys) (ls : List PLabel),
     SysInv C.T.X.W s.ts.sys → RecordedReleasesWf C.T.X.W s.ts.sys.ctm →
     SlotSchedulesValid C.T s.ts.sys.ctm → PendingInv s →
@@ -221,7 +222,7 @@ of `pwSetup` chain `0` is at `0.1.0` with `300` committed, no override, every ba
 batch committed yet: `committed = executed = 0`), on L1, and nothing pending; the edge `300` is
 not a patch. At `25`, `0.1.0` is not active and the chain's admin `3` upgrades it directly,
 landing on `PendingSys.crossed`. The chain is in dead time at no block time. -/
-def Properties.NoDeadTimeWithoutPendingTxWitness : Prop :=
+@[witness] def Properties.NoDeadTimeWithoutPendingTxWitness : Prop :=
   SysInv pwTimed.X.W pwSys0.ts.sys ∧ RecordedReleasesWf pwTimed.X.W pwSys0.ts.sys.ctm ∧
     SlotSchedulesValid pwTimed pwSys0.ts.sys.ctm ∧ PendingInv pwSys0 ∧
     (∀ l ∈ pwSetup, ¬ l.isArbitrary ∧ l.InstallsWf pwTimed.X.W ∧ l.CommitsValidSchedule pwTimed) ∧
@@ -244,7 +245,7 @@ The edge `700` is a patch
 and carries no L2 side. At `25`, `0.2.0` is not active and the chain's admin `3` upgrades it
 directly across the patch; the transaction stays pending. The chain is in dead time at no block
 time. -/
-def Properties.NoDeadTimeAcrossPatchWithPendingTx : Prop :=
+@[witness] def Properties.NoDeadTimeAcrossPatchWithPendingTx : Prop :=
   (∀ l ∈ pwPatchSetup ++ [pwLateUpgrade],
       ¬ l.isArbitrary ∧ l.InstallsWf pwTimed.X.W ∧ l.CommitsValidSchedule pwTimed) ∧
     ∃ s, PRun pwConfig pwSys0 (pwPatchSetup ++ [pwLateUpgrade]) s ∧
@@ -261,7 +262,7 @@ def Properties.NoDeadTimeAcrossPatchWithPendingTx : Prop :=
 /-- **THE PENDING-TRANSACTION PREMISE CANNOT BE DROPPED.** `NoDeadTimeWithoutPendingTx` with the
 premise "no transaction is pending, or the edge is a patch" removed, and every other premise
 kept, is false. -/
-def Properties.NoDeadTimeNeedsItsPendingTxPremise : Prop :=
+@[countermodel] def Properties.NoDeadTimeNeedsItsPendingTxPremise : Prop :=
   ¬ ∀ (C : PendingConfig) (s s' : PendingSys) (ls : List PLabel),
     SysInv C.T.X.W s.ts.sys → RecordedReleasesWf C.T.X.W s.ts.sys.ctm →
     SlotSchedulesValid C.T s.ts.sys.ctm → PendingInv s →

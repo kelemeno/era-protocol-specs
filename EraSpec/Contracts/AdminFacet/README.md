@@ -5,9 +5,8 @@ freeze switch, priority mode, protocol upgrades and fee inputs.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. "A run"
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`). "A run"
 is any interleaving of calls (any sender, any block time), environment changes and writes by the
 other facets; "without cuts" excludes the three entries that run a diamond cut
 (`upgradeChainFromVersion`, `executeUpgrade`, `genesisUpgrade`), whose effect is arbitrary code.

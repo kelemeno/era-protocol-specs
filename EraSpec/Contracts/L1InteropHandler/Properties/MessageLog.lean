@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1InteropHandler.Specs.MessageLog
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the gate's message log is MessageHashing's message log
@@ -33,7 +34,7 @@ message the gate checks, and every L1 → L2 transaction status log (`getL2LogFr
 keccak collides on the two named 88-byte leaf preimages. So a withdrawal message proof cannot be
 answered by a deposit-status leaf, or the reverse, without a keccak collision on those two inputs.
 No premise. -/
-def Properties.GateQueryLeafIsStatusLeafOnlyByCollision : Prop :=
+@[headline] def Properties.GateQueryLeafIsStatusLeafOnlyByCollision : Prop :=
   ∀ (C : Codec) (m : L2Message) (t : ℕ) (tx : UInt256) (s : MessageHashing.TxStatus),
     MessageHashing.logLeaf C.keccak (toHashingLog (msgToLog C m))
         = MessageHashing.logLeaf C.keccak (MessageHashing.statusLog t tx s) →

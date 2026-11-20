@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.InitOnce
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the tree is seeded once, and its history cannot be reset
@@ -220,7 +221,7 @@ state at step 0 is not initialized, those from step 1 on are, step 1 is `setup`,
 `threeLeafTree a b`, and `a` and `b` are keys at step 3. Its tail from step 1 is a run from
 a valid state and a `Run` from `setup`. And the upgrader's second `initL2()`, at step 1,
 has no step: `InitL2RevertsOnceInitialized` fires. -/
-def Properties.GenesisRunWitness : Prop :=
+@[witness] def Properties.GenesisRunWitness : Prop :=
   deployedRoles.upgrader ≠ deployedRoles.appender ∧
   ∀ (K : Roles) (a b : UInt256), 0 < a → a < b →
     TxRun K (genesisRun a b) (genesisTx K a b) ∧ genesisRun a b 0 = predeploy
@@ -251,7 +252,7 @@ premises this run meets apart from the guard. The state is not `Valid`, and the 
 projected from `setup` on is neither an `Evolution` nor a `GuardedEvolution`. The run's
 first state has index-0 value zero, so it also meets the premises of
 `GuardlessRunsKeepKeys`. -/
-def Properties.GuardlessReinitBreaksExclusivity : Prop :=
+@[countermodel] def Properties.GuardlessReinitBreaksExclusivity : Prop :=
   ∀ (K : Roles) (a : UInt256), a ≠ 0 →
     TxRunNoGuard K (reinitRun a) (reinitTx K a) ∧ reinitRun a 0 = predeploy
       ∧ ((reinitRun a 0).leaf 0).value = 0

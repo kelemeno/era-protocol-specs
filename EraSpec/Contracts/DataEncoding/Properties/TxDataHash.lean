@@ -1,4 +1,5 @@
 import EraSpec.Contracts.DataEncoding.Specs.TxDataHash
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the deposit record hash, the legacy format, and the burn data
@@ -103,7 +104,7 @@ def Properties.NewNeverLegacy : Prop :=
 claim's recomputed `encodeTxDataHash` equals a recorded one, the claim names the recorded
 `(sender, assetId, transferData)`, or keccak collides on the two record preimages. This is the
 binding the nullifier's claim check (`L1Nullifier.sol:234-247`) relies on. -/
-def Properties.TxDataHashBindsOrCollision : Prop :=
+@[headline] def Properties.TxDataHashBindsOrCollision : Prop :=
   ∀ (keccak : Keccak) (s s' : Addr) (a a' : UInt256) (d d' : List UInt8),
     d.length < 2 ^ 256 → d'.length < 2 ^ 256 →
     encodeTxDataHash keccak s a d = encodeTxDataHash keccak s' a' d' →
@@ -113,7 +114,7 @@ def Properties.TxDataHashBindsOrCollision : Prop :=
 /-- **(f) A RECORD HASH EQUALS A LEGACY HASH ONLY THROUGH A KECCAK COLLISION ON THE TWO NAMED
 PREIMAGES.** So a legacy record can be matched by a new-format claim only by a keccak collision
 between that record's preimage and the claim's. No premise. -/
-def Properties.NewHashMatchesLegacyOnlyByCollision : Prop :=
+@[headline] def Properties.NewHashMatchesLegacyOnlyByCollision : Prop :=
   ∀ (keccak : Keccak) (s : Addr) (a : UInt256) (d : List UInt8) (account token : Addr)
     (amount : UInt256),
     encodeTxDataHash keccak s a d = legacyTxDataHash keccak account token amount →
@@ -122,7 +123,7 @@ def Properties.NewHashMatchesLegacyOnlyByCollision : Prop :=
 /-- **(f) A ZERO RECORD HASH IS A ZERO PREIMAGE.** The nullifier reads `depositHappened == 0` as
 "no record" (`L1Nullifier.sol:160`) and deletes a claimed slot back to zero (`:247`). A record
 hash is zero only when keccak sends the named record preimage to zero. -/
-def Properties.TxDataHashZeroIsPreimageEvent : Prop :=
+@[headline] def Properties.TxDataHashZeroIsPreimageEvent : Prop :=
   ∀ (keccak : Keccak) (s : Addr) (a : UInt256) (d : List UInt8),
     encodeTxDataHash keccak s a d = 0 ↔ ZeroPreimage keccak (txDataPreimage s a d)
 
@@ -138,7 +139,7 @@ nonzero amount to a nonzero receiver, such that:
 
 (In the proof the keccak sends the deposit record's preimage to `1` and every other byte
 string to `2`; it is a stand-in, not a hash.) -/
-def Properties.TxDataHashWitness : Prop :=
+@[witness] def Properties.TxDataHashWitness : Prop :=
   ∃ (keccak : Keccak) (s : Addr) (a : UInt256) (b b' : NativeTokenVaultBase.BurnData)
     (token : Addr),
     s ≠ 0 ∧ a ≠ 0 ∧ b.amount ≠ 0 ∧ b.receiver ≠ 0 ∧ token ≠ 0
@@ -162,7 +163,7 @@ satisfies every premise of `TxDataHashBindsOrCollision` (both transfer data are 
 its first disjunct false, since the transfer data differ. The record hash also equals the
 legacy hash of the same sender, a nonzero token and the same amount, the premise of
 `NewHashMatchesLegacyOnlyByCollision`. -/
-def Properties.TxDataHashCollisionDisjunctNeeded : Prop :=
+@[countermodel] def Properties.TxDataHashCollisionDisjunctNeeded : Prop :=
   ∃ (keccak : Keccak) (s : Addr) (a : UInt256) (b b' : NativeTokenVaultBase.BurnData)
     (token : Addr),
     s ≠ 0 ∧ a ≠ 0 ∧ b.amount ≠ 0 ∧ b.receiver ≠ 0 ∧ token ≠ 0
@@ -180,7 +181,7 @@ def Properties.TxDataHashCollisionDisjunctNeeded : Prop :=
 `decodeNtvBurnData data` returns `b` iff `data` is `encodeNtvBurnData b`. So it accepts
 exactly the byte strings `encodeNtvBurnData` produces, and on those it returns the encoded
 value. -/
-def Properties.BurnDataDecodeIffEncode : Prop :=
+@[headline] def Properties.BurnDataDecodeIffEncode : Prop :=
   ∀ (data : List UInt8) (b : NativeTokenVaultBase.BurnData),
     decodeNtvBurnData data = some b ↔ data = encodeNtvBurnData b
 
@@ -221,7 +222,7 @@ and whose recomputed hash equals the record's. Then `s' = s`, `a' = a` and `b' =
 collides on the claim's record preimage and the deposit's. No premise on keccak.
 (`Specs/TxDataHash.lean` describes how the L1 vault uses these fields after the check: it pays
 the decoded amount to the claimed sender. That payment is not modelled here.) -/
-def Properties.NtvClaimNamesRecordedDepositOrCollision : Prop :=
+@[headline] def Properties.NtvClaimNamesRecordedDepositOrCollision : Prop :=
   ∀ (keccak : Keccak) (s s' : Addr) (a a' : UInt256) (b b' : NativeTokenVaultBase.BurnData)
     (d' : List UInt8),
     decodeNtvBurnData d' = some b' →
@@ -238,7 +239,7 @@ def Properties.NtvClaimNamesRecordedDepositOrCollision : Prop :=
   the first disjunct is reachable);
 * a keccak under which a claim whose burn data `b'` differs from `b` only in the amount meets
   both premises, so the first disjunct is false and keccak collides on the two preimages. -/
-def Properties.NtvClaimNamesRecordedDepositOrCollisionWitness : Prop :=
+@[witness] def Properties.NtvClaimNamesRecordedDepositOrCollisionWitness : Prop :=
   ∃ (s : Addr) (a : UInt256) (b b' : NativeTokenVaultBase.BurnData),
     s ≠ 0 ∧ a ≠ 0 ∧ b.amount ≠ 0 ∧ b.receiver ≠ 0
     ∧ b'.amount ≠ b.amount ∧ b'.receiver = b.receiver ∧ b'.tokenHint = b.tokenHint

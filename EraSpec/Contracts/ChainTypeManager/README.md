@@ -16,7 +16,8 @@ Several topics use a sub-namespace (`ProofGateAtV35`, `UpgradeTimingAtV35`, `Exe
 
 ## Headline guarantees
 
-Each item is a Lean statement about `b17415d20` behaviour. "In the model" means that reverts of the
+Each item names one or more Lean statements about `b17415d20` behaviour; the 24 items name 35
+statements in all, each tagged `@[headline]`. "In the model" means that reverts of the
 checks the model omits are not ruled out (see *Model boundaries*): an existence result is then a
 necessary condition at the source, while a safety result holds a fortiori.
 

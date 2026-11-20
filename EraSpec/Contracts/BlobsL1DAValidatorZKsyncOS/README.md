@@ -5,9 +5,8 @@ The L1 DA validator of ZKsync OS chains under the `BLOBS_ZKSYNC_OS` scheme,
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`).
 "Reachable" means reached from a fresh deployment by `publishBlobs` calls and block advances. The
 transaction's `blobhash` values and keccak are arbitrary; no statement takes a hash premise.
 

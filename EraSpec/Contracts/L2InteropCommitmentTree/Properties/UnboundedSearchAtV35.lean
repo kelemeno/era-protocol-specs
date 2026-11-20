@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.UnboundedSearchAtV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the v35 `insert` on the indexed list state
@@ -149,7 +150,7 @@ from `setup`) with the occupied hint `0` below `v = 7` and `7` fresh, two exits 
 walk of the projection, a v35 call, the history premises (`R 0 = setup`, and `setup` is `Valid`
 by `setup_valid`), and those of `OnceValidHintIndexStaysValidV35` with `i = 5`, `j = 6`, `h = 5`,
 `v = 7`. -/
-def Properties.ChainTreeRunCallsV35 : Prop :=
+@[witness] def Properties.ChainTreeRunCallsV35 : Prop :=
   RunCallV35 chainTreeRunV35 ∧ chainTreeRunV35 0 = setup
     ∧ (∀ n, n < 7 →
         InsertCallV35 (chainTreeRunV35 n) ((n + 1 : ℕ) : UInt256) 0 (chainTreeRunV35 (n + 1)))

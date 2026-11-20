@@ -1,5 +1,6 @@
 import EraSpec.Contracts.DataEncoding.Specs.AssetId
 import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
+import EraSpec.Core.Headline
 
 /-!
 # Properties: asset ids at byte level
@@ -58,7 +59,7 @@ argument is a fixed-width value of its type. So the encoding adds no collision o
 distinct argument triples with one id are a keccak collision on two distinct byte strings
 (stated for the model instances by `RouterIdClashIsNamedCollision` and
 `VaultIdClashIsNamedCollision`). -/
-def Properties.AssetIdPreimageInjective : Prop :=
+@[headline] def Properties.AssetIdPreimageInjective : Prop :=
   ∀ (c c' : UInt256) (s s' : Addr) (d d' : UInt256),
     assetIdPreimage c s d = assetIdPreimage c' s' d' → c = c' ∧ s = s' ∧ d = d'
 
@@ -100,7 +101,7 @@ with sender `L2_NATIVE_TOKEN_VAULT_ADDR`:
 * `encodeNTVAssetId(c, d) = encodeAssetId(c, d, L2_NTV)` for a `bytes32 d`.
 
 For every keccak: an identity of bytes, not an equality up to collision. -/
-def Properties.OverloadsCoincide : Prop :=
+@[headline] def Properties.OverloadsCoincide : Prop :=
   ∀ (keccak : Keccak) (c : UInt256),
     (∀ t : Addr, encodeNTVAssetIdOfToken keccak c t = encodeAssetId keccak c (addrAsBytes32 t) l2NtvAddr)
     ∧ (∀ d : UInt256, encodeNTVAssetId keccak c d = encodeAssetId keccak c d l2NtvAddr)
@@ -112,7 +113,7 @@ router's caller is the vault `ntv`, so it hashes the sender as `L2_NATIVE_TOKEN_
 (`AssetRouterBase.sol:70-72`). Here that is the router model's `writtenId` for the caller
 `ntv`, with `routerEnc keccak` and the normalised vault address `widen L2_NTV`. The two ids
 are equal for every keccak and every vault address `ntv`. -/
-def Properties.NativeRegistrationIdsAgree : Prop :=
+@[headline] def Properties.NativeRegistrationIdsAgree : Prop :=
   ∀ (keccak : Keccak) (c : UInt256) (ntv : AssetRouter.Address) (t : Addr),
     AssetRouter.writtenId (routerEnc keccak) c ntv (addrAsBytes32 l2NtvAddr) ntv (addrAsBytes32 t)
       = encodeNTVAssetIdOfToken keccak c t
@@ -193,7 +194,7 @@ def Properties.VaultIdClashIsNamedCollision : Prop :=
 distinct router triples on one nonzero chain, both with the normalised vault sender (two vault
 registrations of different data), get one nonzero id, and two distinct vault pairs on one
 nonzero chain get one nonzero id. -/
-def Properties.AssetIdClashPremisesSatisfiable : Prop :=
+@[witness] def Properties.AssetIdClashPremisesSatisfiable : Prop :=
   ∃ keccak : Keccak,
     (∃ p q : AssetRouter.Chain × AssetRouter.Address × AssetRouter.AssetData,
       p ≠ q ∧ p.1 = q.1 ∧ p.1 ≠ 0
@@ -217,7 +218,7 @@ def Properties.NonzeroIsPreimageEvent : Prop :=
 the vault id is injective (keccak has no collision among the two preimages) while one id is
 zero, so `IdAssumptionsOn` fails. So the zero-preimage disjunct of `VaultIdBreakOn` cannot
 be dropped: `nonzero` is a separate, preimage-type premise. -/
-def Properties.ZeroPreimageIndependentOfCollisions : Prop :=
+@[countermodel] def Properties.ZeroPreimageIndependentOfCollisions : Prop :=
   ∃ (keccak : Keccak) (S : Set (NativeTokenVault.Chain × NativeTokenVault.Address)),
     (¬ ∃ p ∈ S, ∃ q ∈ S, HashCollision keccak (vaultPreimage p.1 p.2) (vaultPreimage q.1 q.2))
     ∧ (∀ p ∈ S, ∀ q ∈ S, vaultEnc keccak p.1 p.2 = vaultEnc keccak q.1 q.2 → p = q)
@@ -228,7 +229,7 @@ def Properties.ZeroPreimageIndependentOfCollisions : Prop :=
 
 /-- **(e) `assetIdCheck` PASSES EXACTLY ON THE VAULT ID OF THE ORIGIN PAIR.**
 `assetIdCheck(c, a, t)` returns iff `a = encodeNTVAssetId(c, t)`, and reverts otherwise. -/
-def Properties.AssetIdCheckPassesIff : Prop :=
+@[headline] def Properties.AssetIdCheckPassesIff : Prop :=
   ∀ (keccak : Keccak) (c a : UInt256) (t : Addr),
     assetIdCheck keccak c a t = some () ↔ a = encodeNTVAssetIdOfToken keccak c t
 
@@ -252,7 +253,7 @@ def Properties.AssetIdCheckPassesIffRouterId : Prop :=
 `a` with origin pairs `(c, t)` and `(c', t')`, the pairs are equal, or keccak collides on their
 two preimages. So a bridged registration's id determines its origin chain and token unless
 keccak collides on those two named byte strings. -/
-def Properties.AssetIdCheckPinsOriginOrCollision : Prop :=
+@[headline] def Properties.AssetIdCheckPinsOriginOrCollision : Prop :=
   ∀ (keccak : Keccak) (a c c' : UInt256) (t t' : Addr),
     assetIdCheck keccak c a t = some () → assetIdCheck keccak c' a t' = some () →
       (c = c' ∧ t = t')
@@ -267,7 +268,7 @@ parts use nonzero origin chains and nonzero origin tokens.
 * There is a keccak and two distinct origin pairs for which `assetIdCheck` accepts one nonzero
   id for both (so both premises of `AssetIdCheckPinsOriginOrCollision` hold with its first
   disjunct false); keccak then collides on the two named preimages. -/
-def Properties.AssetIdCheckPinWitness : Prop :=
+@[witness] def Properties.AssetIdCheckPinWitness : Prop :=
   (∃ (keccak : Keccak) (c c' : UInt256) (t t' : Addr),
       c ≠ 0 ∧ c' ≠ 0 ∧ t ≠ 0 ∧ t' ≠ 0 ∧ ¬ (c = c' ∧ t = t')
       ∧ ¬ HashCollision keccak (assetIdPreimageOfToken c l2NtvAddr t)
@@ -295,14 +296,14 @@ def Properties.VaultEncodingsAreKeccakInstances : Prop :=
 
 /-- **NO ROUTER BREAK IS SATISFIABLE ON ANY SET THE ID SPACE CAN HOLD.** For every finite set of
 at most `2^256` triples some keccak has no collision among their preimages. -/
-def Properties.RouterNoBreakSatisfiable : Prop :=
+@[witness] def Properties.RouterNoBreakSatisfiable : Prop :=
   ∀ S : Finset (AssetRouter.Chain × AssetRouter.Address × AssetRouter.AssetData),
     S.card ≤ UInt256.size → ∃ keccak : Keccak, ¬ RouterIdBreakOn keccak ↑S
 
 /-- **NO VAULT EVENT IS SATISFIABLE ON ANY SET THE NONZERO IDS CAN HOLD.** For every finite set of
 fewer than `2^256` pairs some keccak neither collides on their preimages nor sends one to
 zero. -/
-def Properties.VaultNoBreakSatisfiable : Prop :=
+@[witness] def Properties.VaultNoBreakSatisfiable : Prop :=
   ∀ S : Finset (NativeTokenVault.Chain × NativeTokenVault.Address),
     S.card < UInt256.size → ∃ keccak : Keccak, ¬ VaultIdBreakOn keccak ↑S
 

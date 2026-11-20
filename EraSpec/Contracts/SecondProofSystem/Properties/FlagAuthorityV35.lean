@@ -1,4 +1,5 @@
 import EraSpec.Contracts.SecondProofSystem.Specs.FlagAuthorityV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the second-proof-system flag is one-way, and ZiSK-off is the Bridgehub owner's
@@ -104,7 +105,7 @@ def Properties.FlagMonotoneStep : Prop :=
 
 /-- **The flag is one-way** (`IAdmin.sol:137-140`). Along every run with no break-glass cut, a
 set flag stays set. -/
-def Properties.FlagMonotone : Prop :=
+@[headline] def Properties.FlagMonotone : Prop :=
   ∀ (E : Env) (s s' : St),
     Reach E NoBreakGlass s s' →
     s.secondProofSystemRequired = true → s'.secondProofSystemRequired = true
@@ -146,7 +147,7 @@ def Properties.DiamondCutRecheck : Prop :=
 init that writes the flag `false` succeeds on the flagged diamond `w1` (the re-check of
 `Admin.sol:121-126` reads the cleared flag and is skipped), and leaves it unflagged. So
 `FlagMonotoneStep` and `FlagMonotone` are false without their "no break-glass cut" premise. -/
-def Properties.InitClearsFlag : Prop :=
+@[countermodel] def Properties.InitClearsFlag : Prop :=
   (∃ s', step multiProofEnv w1.chainTypeManager (.executeUpgrade clearFlagInit) w1 = some s' ∧
       w1.secondProofSystemRequired = true ∧ s'.secondProofSystemRequired = false) ∧
   ¬ (∀ (E : Env) (c : Address) (call : Call) (s s' : St),
@@ -178,7 +179,7 @@ the verifier** (premises of `FlagMonotoneStep` and `FlagMonotone`). From `w1` th
 owner switches ZiSK off (`w3`), the admin switches it back on (`w1`), and the admin's genuine
 upgrade installs the verifier at `11` (`w2`). Each step is a successful call by the caller the
 source requires, and the flag is set at both ends. -/
-def Properties.FlagMonotoneRunWitness : Prop :=
+@[witness] def Properties.FlagMonotoneRunWitness : Prop :=
   step multiProofEnv w1.bridgehubOwner (.setProofSystemStatus .zisk false) w1 = some w3 ∧
   step multiProofEnv w3.admin (.setProofSystemStatus .zisk true) w3 = some w1 ∧
   step multiProofEnv w1.admin (.upgradeChainFromVersion (.genuine ⟨some 11⟩)) w1 = some w2 ∧
@@ -277,7 +278,7 @@ def Properties.OwnerDisablesOnFlagged : Prop :=
 not the Bridgehub owner, the admin's ZiSK-off succeeds and reaches a flagged diamond with ZiSK
 off, in a run allowed by `AdminSideHonest`; under the source's rule the same call reverts. So
 `AdminCannotDropSecondProof` and `AdminNeverReachesFlaggedZiskOff` rest on the rule. -/
-def Properties.AdminOnlyRuleLetsAdminDrop : Prop :=
+@[countermodel] def Properties.AdminOnlyRuleLetsAdminDrop : Prop :=
   w1.admin ≠ w1.bridgehubOwner ∧ w1.secondProofSystemRequired = true ∧ ziskOn w1 ∧
   stepWith adminOnlyRule multiProofEnv w1.admin (.setProofSystemStatus .zisk false) w1 = some w3 ∧
   FlaggedZiskOff w3 ∧
@@ -336,7 +337,7 @@ flagged with ZiSK on. No premise on the verifier. The installed facets stay thos
 `b17415d20`; a genuine upgrade here changes only the verifier. The result is about the stored
 flag and the mask's ZiSK bit; for the verifier's proof mode see `InteropGatePersists` and
 `DiamondCutRecheck`. -/
-def Properties.AdminCannotDropSecondProof : Prop :=
+@[headline] def Properties.AdminCannotDropSecondProof : Prop :=
   ∀ (E : Env) (s s' : St),
     Reach E AdminSide s s' →
     s.secondProofSystemRequired = true → ziskOn s →
@@ -382,7 +383,7 @@ flagged-with-ZiSK-off, to a state that is (the proof's run: the admin switches Z
 unflagged, then sets the flag). Under the genuine `MultiProofVerifier` the admin's ZiSK-off on
 `w0` gives `w4`, and setting the flag on `w4` reverts (PLONK mode). `AdminCannotDropSecondProof`
 is not contradicted: it starts from a flagged diamond. -/
-def Properties.LyingVerifierFlagsWithZiskOff : Prop :=
+@[countermodel] def Properties.LyingVerifierFlagsWithZiskOff : Prop :=
   ¬ FlaggedZiskOff w0 ∧ ¬ ReportsZisk lyingEnv w0.verifier ∧
   (∃ s', Reach lyingEnv AdminSide w0 s' ∧ FlaggedZiskOff s') ∧
   step multiProofEnv w0.admin (.setProofSystemStatus .zisk false) w0 = some w4 ∧
@@ -392,7 +393,7 @@ def Properties.LyingVerifierFlagsWithZiskOff : Prop :=
 init that sets the ZiSK bit succeeds on the flagged diamond `w1` (the re-check of
 `Admin.sol:121-126` asks `getProofMode(0)`, not the mask) and leaves it flagged with ZiSK off,
 with no `setProofSystemStatus` call at all. -/
-def Properties.BreakGlassDropsSecondProof : Prop :=
+@[countermodel] def Properties.BreakGlassDropsSecondProof : Prop :=
   w1.secondProofSystemRequired = true ∧ ziskOn w1 ∧
   step multiProofEnv w1.chainTypeManager (.executeUpgrade ziskOffInit) w1 = some w3 ∧
   FlaggedZiskOff w3 ∧
@@ -419,7 +420,7 @@ the admin `1` nominates `4`, `4` accepts, the Bridgehub owner becomes `5`, and t
 genuine upgrade installs the verifier at `11`, giving `w5`. The run is allowed by `AdminSide`.
 At `w5` the diamond is flagged with ZiSK on and the gate passes; the new admin's ZiSK-off
 reverts and the new owner's succeeds. -/
-def Properties.AdminSideRunWitness : Prop :=
+@[witness] def Properties.AdminSideRunWitness : Prop :=
   InteropSecondProofGate multiProofEnv w1 ∧ w1.disabledProofSystems = 0 ∧ ziskOn w1 ∧
   Reach multiProofEnv AdminSide w1 w5 ∧
   w5.admin ≠ w1.admin ∧ w5.bridgehubOwner ≠ w1.bridgehubOwner ∧ w5.verifier ≠ w1.verifier ∧

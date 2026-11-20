@@ -1,4 +1,5 @@
 import EraSpec.Contracts.SecondProofSystem.Specs.UpgradeGateV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the second-proof gate on every chain upgrade (draft/v0.35.0)
@@ -104,7 +105,7 @@ def Properties.FlagSurvivesAllButBreakGlass : Prop :=
 under some mask answers MULTI under mask `0` (`MaskMonotone`), then along any run from a state
 where every flagged chain's verifier passes the gate, every flagged chain's verifier passes it
 at the end. -/
-def Properties.FlaggedChainsStayMultiProof : Prop :=
+@[headline] def Properties.FlaggedChainsStayMultiProof : Prop :=
   ∀ (G : GateConfig) (s s' : GSys) (ls : List GLabel), MaskMonotone G → GateInv G s →
     GRun G s ls s' → GateInv G s'
 
@@ -122,7 +123,7 @@ def Properties.MaskMonotoneHoldsForDeployedVerifiers : Prop :=
 `ZKChainBase.sol:188-190`), the gate checks mask `0`. With a verifier answering MULTI under mask
 `ziskBit` and PLONK under `0`, one `permanentlyRequireSecondProofSystem` step from a state
 satisfying `GateInv` leaves a state that does not. -/
-def Properties.MaskMonotoneIsLoadBearing : Prop :=
+@[countermodel] def Properties.MaskMonotoneIsLoadBearing : Prop :=
   ∃ (G : GateConfig) (s s' : GSys) (id : ChainId) (caller : Address),
     GateInv G s ∧ GStep G s (.requireSecondProof id caller) s' ∧ ¬ GateInv G s'
 
@@ -225,7 +226,7 @@ def Properties.GatedRunIsATimedRun : Prop :=
 /-! ## Locked chains -/
 
 /-- **A LOCKED CHAIN CANNOT UPGRADE**, by any path, caller or block time. -/
-def Properties.LockedChainCannotUpgrade : Prop :=
+@[headline] def Properties.LockedChainCannotUpgrade : Prop :=
   ∀ (G : GateConfig) (s : GSys) (id : ChainId) (v : ℕ), Locked G s id v →
     ∀ path caller τ s', ¬ GStep G s (.upgrade id path caller τ) s'
 
@@ -366,7 +367,7 @@ chain `0` at its end `gLock`, except that the run's commit of `300` (release `10
 `700`, to release `200`, verifier `701`) fails the `protocol-ops` check; every other label of the
 run passes it. Chain `0` is flagged, its edge's verifier fails the gate, and it has no upgrade
 step by any path, caller or time. -/
-def Properties.ReleasePolicyIsLoadBearing : Prop :=
+@[countermodel] def Properties.ReleasePolicyIsLoadBearing : Prop :=
   MaskMonotone gCfg ∧ PolicyInv gCfg gSys0 ∧ ChainsOnWfReleases gWorld gSys0.ts.sys ∧
     GRun gCfg gSys0 gLockRun gLock ∧ (∀ l ∈ gLockRun, ¬ l.IsBreakGlass) ∧
     (∀ l ∈ gLockRun, l ≠ .other (.base (.ctm (.commit 300))) → l.PassesReleasePolicy gCfg) ∧
@@ -385,7 +386,7 @@ end `gLock`: the run's commit of `300` passes the check with both releases' veri
 MULTI, and chain `0` is flagged at version 1 with `300` committed there. `PolicyInv` holds at
 `gLock`, the edge's verifier passes the gate, and chain `0`'s admin upgrades it directly at time
 `10`, the edge's manifest `upgradeTimestamp`. -/
-def Properties.ReleasePolicyWitness : Prop :=
+@[witness] def Properties.ReleasePolicyWitness : Prop :=
   MaskMonotone gCfgMulti ∧ PolicyInv gCfgMulti gSys0 ∧ ChainsOnWfReleases gWorld gSys0.ts.sys ∧
     GRun gCfgMulti gSys0 gLockRun gLock ∧
     (∀ l ∈ gLockRun, ¬ l.IsBreakGlass ∧ l.PassesReleasePolicy gCfgMulti) ∧
@@ -446,7 +447,7 @@ def Properties.FlaggedChainCannotCrossNonMultiProofEdge : Prop :=
   at version 1 (`LockHoldsUntilAnEscape` on a nonempty run);
 * `gLock` is reached in `gCfgMulti` too, and there the flagged chain `0` upgrades and stays
   flagged, so `FlaggedCutsKeepMultiProof`'s hypotheses are met by a flagged chain. -/
-def Properties.UpgradeGateV35Witness : Prop :=
+@[witness] def Properties.UpgradeGateV35Witness : Prop :=
   GRun gCfg gSys0 gLockRun gLock ∧ Locked gCfg gLock 0 1 ∧
     GateInv gCfg gSys0 ∧ MaskMonotone gCfg ∧ GateInv gCfg gLock ∧
     CtmInv gWorld gLock.ts.sys.ctm ∧ Stuck gCfg gLock 0 1 ∧

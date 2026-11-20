@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1InteropHandler.Specs.WithdrawalGate
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the L1 withdrawal finalization gate
@@ -91,7 +92,7 @@ open AttackVectors.BundleStatusMachine (Status CallStatus)
 every sequence of transactions, with every target behaviour, caller and oracle verdict: for every
 committed delivery `d`, either a committed verification `v` of the same bytes satisfies
 `ProvenBy P v d`, or a committed verification's bytes differ from `d.bytes` and have the same keccak. -/
-def Properties.DeliveredCallIsProvenOrKeccakClash : Prop :=
+@[headline] def Properties.DeliveredCallIsProvenOrKeccakClash : Prop :=
   ∀ (P : Params) (txs : List Tx), ∀ d ∈ deliveries (submitAll P init txs).2,
     (∃ v ∈ verifications (submitAll P init txs).2, ProvenBy P v d) ∨
       ∃ v ∈ verifications (submitAll P init txs).2, KeccakClash P.codec v.bytes d.bytes
@@ -108,7 +109,7 @@ def Properties.VerificationsAreChecked : Prop :=
 keccak: from fresh storage, after `verifyBundle` of `[1]`, an `executeBundle` of `[3]` whose oracle
 verdict is `false` delivers `[3]`'s call, which names chain `999` as its sender's chain. No committed
 verification proves that delivery, and the delivered bytes clash with the verified ones. -/
-def Properties.CollisionDisjunctIsNeeded : Prop :=
+@[countermodel] def Properties.CollisionDisjunctIsNeeded : Prop :=
   (deliveries (submitAll wClashParams init [wVerify [1], wExecOther]).2).map
       (fun d => (d.bytes, d.senderChain)) = [([3], 999)] ∧
     (∀ d ∈ deliveries (submitAll wClashParams init [wVerify [1], wExecOther]).2,
@@ -121,7 +122,7 @@ def Properties.CollisionDisjunctIsNeeded : Prop :=
 /-- **PROVENANCE, ON RUNS.** From fresh storage, with `wParams`: `executeBundle` of `[1]` delivers one
 call, and verify-then-unbundle of `[2]` delivers two; in both runs every delivery is `ProvenBy` a
 committed verification of its own bytes. -/
-def Properties.ProvenanceWitness : Prop :=
+@[witness] def Properties.ProvenanceWitness : Prop :=
   (deliveries (submitAll wParams init [wExecOne]).2).length = 1 ∧
     (∀ d ∈ deliveries (submitAll wParams init [wExecOne]).2,
       ∃ v ∈ verifications (submitAll wParams init [wExecOne]).2, ProvenBy wParams v d) ∧
@@ -137,7 +138,7 @@ sequence of transactions, with every target behaviour: every committed delivery 
 its bytes decode to, with `to = L1_ASSET_ROUTER`, value `0`, call version `1` and no shadow account;
 the ERC-7786 sender is `(sourceChainId, from)` and the payload `data`; a delivery by `executeBundle` is
 of a one-call bundle; a delivery of a one-call bundle is call `0`, made while not paused). -/
-def Properties.DeliveriesAreCheckedRouterCalls : Prop :=
+@[headline] def Properties.DeliveriesAreCheckedRouterCalls : Prop :=
   ∀ (P : Params) (s : State) (txs : List Tx),
     ∀ d ∈ deliveries (submitAll P s txs).2, DeliveryWellFormed P d
 
@@ -145,7 +146,7 @@ def Properties.DeliveriesAreCheckedRouterCalls : Prop :=
 
 /-- **A PAUSED HANDLER STARTS NO DELIVERY.** From a paused state, `executeBundle` and `unbundleBundle`
 revert, for every budget, caller, input and target. -/
-def Properties.PausedHandlerStartsNoDelivery : Prop :=
+@[headline] def Properties.PausedHandlerStartsNoDelivery : Prop :=
   ∀ (P : Params) (n : ℕ) (s : State), s.paused = true →
     (∀ (caller : Address) (B : Bytes) (pf : InclusionProof) (incl : Bool) (cs : List Callee),
       exec P n (.entry (.executeBundle caller B pf incl) cs) s = none) ∧
@@ -174,7 +175,7 @@ a delivered call's target included): the final owner is the last owner written i
 the initial owner if none was; and for every committed `pauseSet c v`, the caller `c` is the owner the
 committed log gives just before it: the last owner written before it in the log, or the initial
 owner. -/
-def Properties.CommittedPauseWritesAreOwnerCalls : Prop :=
+@[headline] def Properties.CommittedPauseWritesAreOwnerCalls : Prop :=
   ∀ (P : Params) (s : State) (txs : List Tx),
     (submitAll P s txs).1.owner = (ownerWrites (submitAll P s txs).2).getLastD s.owner ∧
       ∀ (l₁ l₂ : List Effect) (c : Address) (v : Bool),
@@ -186,7 +187,7 @@ and `acceptOwnership` by `wUnbundler` hand ownership over. The old owner's `unpa
 nothing, and the new owner's commits. The committed log is exactly `initialized wOwner`, `ownerSet
 wOwner`, `pauseSet wOwner true`, `pendingSet wUnbundler`, `ownerSet wUnbundler`, `pauseSet wUnbundler
 false`, and the run ends unpaused with owner `wUnbundler`. -/
-def Properties.OwnerHandoverPauseWitness : Prop :=
+@[witness] def Properties.OwnerHandoverPauseWitness : Prop :=
   (submit wParams (submitAll wParams init (wHandoverRun.take 4)).1 (wAdmin .unpause)).2 = [] ∧
     (submitAll wParams init wHandoverRun).2 =
       [.initialized wOwner, .ownerSet wOwner, .pauseSet wOwner true, .pendingSet wUnbundler,
@@ -197,7 +198,7 @@ def Properties.OwnerHandoverPauseWitness : Prop :=
 /-- **`initialize` RUNS AT MOST ONCE.** From every state, along every sequence of transactions, with
 every target behaviour: the committed log holds at most one `initialize`, and none if the guard slot was
 already set. -/
-def Properties.InitializeRunsAtMostOnce : Prop :=
+@[headline] def Properties.InitializeRunsAtMostOnce : Prop :=
   ∀ (P : Params) (s : State) (txs : List Tx),
     initCount (submitAll P s txs).2 ≤ 1 ∧
       (s.guardSet = true → initCount (submitAll P s txs).2 = 0)
@@ -206,7 +207,7 @@ def Properties.InitializeRunsAtMostOnce : Prop :=
 pauses; `verifyBundle` of `[1]` then commits and the bundle is `Verified`, while `executeBundle` of
 `[1]` commits nothing; after `unpause`, the same `executeBundle` delivers the call, with the handler
 unpaused. -/
-def Properties.PauseGateWitness : Prop :=
+@[witness] def Properties.PauseGateWitness : Prop :=
   (submitAll wParams init [wInit wOwner wOwner, wAdmin .pause, wVerify [1]]).1.paused = true ∧
     (submitAll wParams init [wInit wOwner wOwner, wAdmin .pause, wVerify [1]]).1.replay.bundle
       (wKeccak [1]) = .Verified ∧
@@ -219,7 +220,7 @@ def Properties.PauseGateWitness : Prop :=
 /-- **`initialize` ONCE, ON A RUN.** From fresh storage: `initialize(wOwner)` then
 `initialize(wAnyone)`, both called by `wAnyone`, commit one `initialize`, and the owner is
 `wOwner`. -/
-def Properties.InitializeOnceWitness : Prop :=
+@[witness] def Properties.InitializeOnceWitness : Prop :=
   initCount (submitAll wParams init [wInit wAnyone wOwner, wInit wAnyone wAnyone]).2 = 1 ∧
     (submitAll wParams init [wInit wAnyone wOwner, wInit wAnyone wAnyone]).1.owner = wOwner
 
@@ -227,7 +228,7 @@ def Properties.InitializeOnceWitness : Prop :=
 initialized as owner and the two-call bundle `[2]` is verified; `unbundleBundle` of `[2]` by
 `wUnbundler`, whose call-0 target calls `pause()` as the owner, commits both deliveries, the second one
 with the handler paused, and the run ends paused. -/
-def Properties.OwnerPauseMidUnbundleWitness : Prop :=
+@[countermodel] def Properties.OwnerPauseMidUnbundleWitness : Prop :=
   (deliveries (submitAll wParams init
       [wInit wUnbundler wUnbundler, wVerify [2], wUnbundlePausing]).2).map
       (fun d => (d.index, d.pausedNow)) = [(0, false), (1, true)] ∧
@@ -241,7 +242,7 @@ with `wParams` and the two-call bundle `[2]`, whose inclusion proof the oracle a
 commits nothing (`L1InteropHandler.sol:85`), while
 `verifyBundle` then `unbundleBundle` by the bundle's unbundler commits deliveries of calls `0` and `1`,
 both on the unbundle route. -/
-def Properties.VerifyThenUnbundleDeliversEveryCall : Prop :=
+@[countermodel] def Properties.VerifyThenUnbundleDeliversEveryCall : Prop :=
   (submitAll wParams init [wExecTwo]).2 = [] ∧
     (deliveries (submitAll wParams init [wVerify [2], wUnbundleTwo]).2).map
       (fun d => (d.route, d.index)) = [(.unbundle, 0), (.unbundle, 1)]
@@ -250,7 +251,7 @@ def Properties.VerifyThenUnbundleDeliversEveryCall : Prop :=
 storage, along every sequence of transactions whose committed verifications all have one-call bundles:
 every committed delivery is call `0` of the one-call bundle its bytes decode to, made while the handler
 was not paused, or its bytes collide under keccak with a committed verification's bytes. -/
-def Properties.SingleCallEvidenceDeliversOneCall : Prop :=
+@[headline] def Properties.SingleCallEvidenceDeliversOneCall : Prop :=
   ∀ (P : Params) (txs : List Tx),
     (∀ v ∈ verifications (submitAll P init txs).2, v.bundle.calls.length = 1) →
     ∀ d ∈ deliveries (submitAll P init txs).2,
@@ -260,7 +261,7 @@ def Properties.SingleCallEvidenceDeliversOneCall : Prop :=
 
 /-- **THE SINGLE-CALL PREMISE HOLDS ON A DELIVERING RUN.** From fresh storage, with `wParams`, the run
 `[wExecOne]` commits one verification, of a one-call bundle, and one delivery. -/
-def Properties.SingleCallEvidenceWitness : Prop :=
+@[witness] def Properties.SingleCallEvidenceWitness : Prop :=
   (verifications (submitAll wParams init [wExecOne]).2).map (fun v => v.bundle.calls.length) = [1] ∧
     (deliveries (submitAll wParams init [wExecOne]).2).length = 1
 
@@ -278,7 +279,7 @@ def Properties.L1RunsProjectToPinRuns : Prop :=
 /-- **EACH CALL IS DELIVERED AT MOST ONCE.** From every state, along every sequence of transactions,
 with every target behaviour: no pair `(bundleHash, index)` is delivered twice, whether by
 `executeBundle`, by `unbundleBundle`, or by both, in one transaction or several. -/
-def Properties.EachCallDeliveredAtMostOnce : Prop :=
+@[headline] def Properties.EachCallDeliveredAtMostOnce : Prop :=
   ∀ (P : Params) (s : State) (txs : List Tx),
     ((deliveries (submitAll P s txs).2).map (fun d => (d.hash, d.index))).Nodup
 
@@ -287,7 +288,7 @@ def Properties.EachCallDeliveredAtMostOnce : Prop :=
 `unbundleBundle` with the same request and then `executeBundle` of `[1]` and catches both failures,
 commits exactly one delivery, of call 0; if the target does not catch them, the transaction commits
 nothing. -/
-def Properties.ReentrantRedeliveryRefusedWitness : Prop :=
+@[witness] def Properties.ReentrantRedeliveryRefusedWitness : Prop :=
   (deliveries (submitAll wParams init [wVerify [1], wUnbundleReentering true]).2).map
       (fun d => (d.hash, d.index)) = [(wKeccak [1], 0)] ∧
     (submit wParams (submitAll wParams init [wVerify [1]]).1 (wUnbundleReentering false)).2 = []
@@ -295,7 +296,7 @@ def Properties.ReentrantRedeliveryRefusedWitness : Prop :=
 /-- **THE CALL STATUS RECORDS THE DELIVERIES.** From fresh storage, along every sequence of
 transactions: `callStatus[h][i]` is `Executed` if and only if a committed delivery has hash `h` and
 index `i`. -/
-def Properties.CallStatusRecordsDeliveries : Prop :=
+@[headline] def Properties.CallStatusRecordsDeliveries : Prop :=
   ∀ (P : Params) (txs : List Tx) (h : Word) (i : ℕ),
     (submitAll P init txs).1.replay.call h i = .Executed ↔
       ∃ d ∈ deliveries (submitAll P init txs).2, d.hash = h ∧ d.index = i

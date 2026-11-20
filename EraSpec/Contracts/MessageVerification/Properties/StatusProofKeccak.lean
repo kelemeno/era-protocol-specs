@@ -1,4 +1,5 @@
 import EraSpec.Contracts.MessageVerification.Specs.StatusProofKeccak
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the located breaks of a status proof are keccak collisions on named byte strings
@@ -43,7 +44,7 @@ premises of `FailureProofForSucceededTxLocatesBreak` (met by `StatusProofWitness
 Failure proof gives a keccak collision between the batch's log at the proof's index and the Failure
 log (two 88-byte preimages), or a `StatusWalkKeccakBreak`: a collision on named byte strings in
 every case except `otherLeaf`. -/
-def Properties.FailureProofForSucceededTxIsKeccakBreak : Prop :=
+@[headline] def Properties.FailureProofForSucceededTxIsKeccakBreak : Prop :=
   ∀ (keccak : Keccak) (logs : List L2Log) (H : ℕ) (mc b e R : UInt256)
     (truth : UInt256 → Option TxStatus) (t : ℕ) (tx : UInt256) (j : ℕ) (sibs : ℕ → UInt256)
     (k : ℕ),
@@ -58,7 +59,7 @@ def Properties.FailureProofForSucceededTxIsKeccakBreak : Prop :=
 /-- **`StatusWalkKeccakBreak` IS NOT A TAUTOLOGY.** For every keccak, batch and index `j < 2^H`,
 the honest proof of position `j` claims the preimage `logEntryPre logs j` (whose hash is the tree's
 entry there), and no case of `StatusWalkKeccakBreak` holds on it. -/
-def Properties.HonestStatusWalkNoKeccakBreak : Prop :=
+@[witness] def Properties.HonestStatusWalkNoKeccakBreak : Prop :=
   ∀ (keccak : Keccak) (logs : List L2Log) (H : ℕ) (mc b e : UInt256) (j : ℕ), j < 2 ^ H →
     keccak (logEntryPre logs j) = (logsLeaves keccak logs).getD j (keccak logDefaultPre)
       ∧ ¬ StatusWalkKeccakBreak keccak logs H mc b e
@@ -73,7 +74,7 @@ with a metadata word allows an empty log-leaf path: `logLeafProofLen = 0`,
 `common/libraries/MessageHashing.sol:101-143`.) The break located is `shortLeafIsNode`: keccak
 collides on the 88-byte Failure preimage and the 64-byte preimage of the height-3 tree's top pair.
 Both sides of `BatchWalkBreakIffKeccakBreak` hold here. -/
-def Properties.ShortStatusProofIsCrossLengthCollision : Prop :=
+@[countermodel] def Properties.ShortStatusProofIsCrossLengthCollision : Prop :=
   StatusProofAccepted twoValuedKeccak
       (chainBatchRoot (efficientHash twoValuedKeccak)
         (logsRootOf twoValuedKeccak [statusLog 3 5 .success] 1) 0 7 7)

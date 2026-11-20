@@ -1,4 +1,5 @@
 import EraSpec.Contracts.AdminFacet.Specs.AdminFacet
+import EraSpec.Core.Headline
 
 /-!
 # Properties: who may call what, and who can change the chain's authorities
@@ -34,7 +35,7 @@ state-changing functions, was sent by an address in that function's `Role`, eval
 state before the call: the admin, the pending admin, the CTM, a validator, or (for disabling a
 proof system on a chain that requires its second one) the Bridgehub owner. `activatePriorityMode`
 has no caller check. -/
-def Properties.EveryEntryChecksItsRole : Prop :=
+@[headline] def Properties.EveryEntryChecksItsRole : Prop :=
   ∀ (K : Config) (e : Env) (s s' : State) (c : Call),
     call K e s c = some s' → Role e s c.sender c.entry
 
@@ -51,7 +52,7 @@ def Properties.CallerMattersOnlyThroughRole : Prop :=
 /-- **A VALIDATOR'S UPGRADE WAITS FOR THE CHAIN'S SCHEDULE.** If `upgradeChainFromVersion(_, v)`
 succeeds for a caller that is neither the admin nor the CTM, that caller is a validator and the
 `ServerNotifier` timestamp for `(chainId, v)` is set and has been reached (`Admin.sol:577-585`). -/
-def Properties.ValidatorUpgradeWaitsForSchedule : Prop :=
+@[headline] def Properties.ValidatorUpgradeWaitsForSchedule : Prop :=
   ∀ (K : Config) (e : Env) (s s' : State) (a : Address) (τ : ℕ) (ch : Address) (v : ℕ),
     call K e s ⟨a, τ, .upgradeChainFromVersion ch v⟩ = some s' →
     a ≠ s.admin → a ≠ s.chainTypeManager →
@@ -80,7 +81,7 @@ cut: if the admin at the end differs from the admin at the start, then the final
 `acceptAdmin` during the run, and it was either the pending admin at the start or the argument of
 a `setPendingAdmin` in the run (which only the then-admin can send,
 `EveryEntryChecksItsRole`). -/
-def Properties.AdminChangesOnlyByAcceptance : Prop :=
+@[headline] def Properties.AdminChangesOnlyByAcceptance : Prop :=
   ∀ (K : Config) (w w' : World) (ls : List Label),
     Run K w ls w' → (∀ l ∈ ls, l.runsCut = false) →
     (∀ c, Label.call c ∈ ls → c.sender ≠ 0) →
@@ -92,7 +93,7 @@ def Properties.AdminChangesOnlyByAcceptance : Prop :=
 /-- **WITHOUT CUTS, ONLY THE CTM CHANGES VALIDATORS.** Along any run that runs no cut, the CTM
 address stays fixed, and every validator bit that differs at the end was written to its final
 value by a `setValidator` call from that CTM in the run. -/
-def Properties.ValidatorsChangeOnlyByCTM : Prop :=
+@[headline] def Properties.ValidatorsChangeOnlyByCTM : Prop :=
   ∀ (K : Config) (w w' : World) (ls : List Label),
     Run K w ls w' → (∀ l ∈ ls, l.runsCut = false) →
     w'.st.chainTypeManager = w.st.chainTypeManager ∧
@@ -116,7 +117,7 @@ def Properties.FreezeOnlyByCTM : Prop :=
   only `frozen := true` (the proxy's freeze check cannot fire on an unfrozen diamond);
 * `unfreezeDiamond()` succeeds iff `a` is the CTM, the diamond is frozen **and the selector of
   `unfreezeDiamond` is not marked freezable**, and then writes only `frozen := false`. -/
-def Properties.FreezeUnfreezeExact : Prop :=
+@[headline] def Properties.FreezeUnfreezeExact : Prop :=
   ∀ (K : Config) (e : Env) (s : State) (a : Address) (τ : ℕ),
     call K e s ⟨a, τ, .freezeDiamond⟩ =
         (if a = s.chainTypeManager ∧ s.frozen = false then some { s with frozen := true }
@@ -149,7 +150,7 @@ def Properties.FreezableUnfreezeStrandsTheChain : Prop :=
 there are arguments, a deployment, an environment, a state, a caller and a time at which the call
 through the diamond succeeds. So no entry of the model reverts unconditionally, and
 `EveryEntryChecksItsRole` constrains a satisfiable success of every entry. -/
-def Properties.EveryEntrySucceedsSomewhere : Prop :=
+@[witness] def Properties.EveryEntrySucceedsSomewhere : Prop :=
   ∀ en : Entry, ∃ (en' : Entry) (K : Config) (e : Env) (s s' : State) (a : Address) (τ : ℕ),
     en'.sel = en.sel ∧ call K e s ⟨a, τ, en'⟩ = some s'
 
@@ -158,7 +159,7 @@ def Properties.EveryEntrySucceedsSomewhere : Prop :=
 the version (the premises of `ValidatorUpgradeWaitsForSchedule`), and the admin, a different
 address with the role, makes the same call with the same result (the premises and conclusion of
 `CallerMattersOnlyThroughRole` with a replacement caller). -/
-def Properties.ValidatorUpgradeWitness : Prop :=
+@[witness] def Properties.ValidatorUpgradeWitness : Prop :=
   ∃ (K : Config) (e : Env) (s s' : State) (a : Address) (τ : ℕ) (ch : Address) (v : ℕ),
     call K e s ⟨a, τ, .upgradeChainFromVersion ch v⟩ = some s' ∧
     a ≠ s.admin ∧ a ≠ s.chainTypeManager ∧ s.protocolVersion < s'.protocolVersion ∧
@@ -170,7 +171,7 @@ and `acceptAdmin` selectors are not freezable (the premises of `AdminHandoverIsT
 diamond frozen), a run without cuts and with nonzero senders, starting from admin `1`, ends with
 admin `2` and no pending admin (the premises of `AdminChangesOnlyByAcceptance`, with the admin
 changed). -/
-def Properties.AdminHandoverWitness : Prop :=
+@[witness] def Properties.AdminHandoverWitness : Prop :=
   ∃ (K : Config) (w w' : World) (ls : List Label),
     Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧ (∀ c, Label.call c ∈ ls → c.sender ≠ 0) ∧
     w.st.frozen = true ∧
@@ -181,7 +182,7 @@ def Properties.AdminHandoverWitness : Prop :=
 /-- **WITNESS: A VALIDATOR IS ADDED.** A run without cuts, containing an environment change and a
 foreign write, in which some validator bit goes from off to on (the premises of
 `ValidatorsChangeOnlyByCTM`, with a bit changed). -/
-def Properties.ValidatorChangeWitness : Prop :=
+@[witness] def Properties.ValidatorChangeWitness : Prop :=
   ∃ (K : Config) (w w' : World) (ls : List Label) (x : Address),
     Run K w ls w' ∧ (∀ l ∈ ls, l.runsCut = false) ∧
     (∃ e, Label.env e ∈ ls) ∧ (∃ s', Label.foreign s' ∈ ls) ∧
@@ -190,7 +191,7 @@ def Properties.ValidatorChangeWitness : Prop :=
 /-- **WITNESS: FREEZE, THEN UNFREEZE.** Two consecutive runs without cuts: in the first the
 diamond goes from unfrozen to frozen; the second, of at least two steps, takes it back to
 unfrozen. Together they meet the antecedents of both halves of `FreezeOnlyByCTM`. -/
-def Properties.FreezeWitness : Prop :=
+@[witness] def Properties.FreezeWitness : Prop :=
   ∃ (K : Config) (w w₁ w₂ : World) (ls₁ ls₂ : List Label),
     Run K w ls₁ w₁ ∧ Run K w₁ ls₂ w₂ ∧
     (∀ l ∈ ls₁ ++ ls₂, l.runsCut = false) ∧ 2 ≤ ls₂.length ∧
@@ -200,7 +201,7 @@ def Properties.FreezeWitness : Prop :=
 the three cut entries all marked freezable (the premises of `FreezableUnfreezeStrandsTheChain`)
 on which a run with an environment change and a foreign write changing
 `pausedDepositsTimestamp` takes place. -/
-def Properties.StrandedChainWitness : Prop :=
+@[witness] def Properties.StrandedChainWitness : Prop :=
   ∃ (K : Config) (w w' : World) (ls : List Label),
     Run K w ls w' ∧ w.st.frozen = true ∧
     w.st.freezable Entry.unfreezeDiamond.sel = true ∧

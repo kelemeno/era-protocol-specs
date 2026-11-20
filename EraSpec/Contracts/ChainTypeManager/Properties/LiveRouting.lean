@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.LiveRouting
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the counting check is exact, and the headline holds with it
@@ -70,7 +71,7 @@ def Properties.ValidRowsHaveDistinctFacets : Prop :=
 `DiamondOk`, for rows with nonempty, duplicate-free selector lists, `requireReleaseRouting`
 passes if and only if the proxy routes exactly the rows' selectors, each to its row's facet
 with its row's freezability, and nothing else. -/
-def Properties.CountCheckIffExactRouting : Prop :=
+@[headline] def Properties.CountCheckIffExactRouting : Prop :=
   ∀ (sel : Address → List Selector) (ds : DiamondStorage) (rows : List FacetRow),
     DiamondOk ds → RowsWf sel rows →
     (CountCheck sel ds rows ↔ ds.routing = rowsRouting (flattenRows sel rows))
@@ -78,7 +79,7 @@ def Properties.CountCheckIffExactRouting : Prop :=
 /-- **THE EQUIVALENCE IS NOT VACUOUS.** The diamond a chain created on release `100` gets
 satisfies `DiamondOk`; releases `100` and `200` pass `validate()`; and the diamond passes the
 check against `100` and fails it against `200`. -/
-def Properties.CountCheckWitness : Prop :=
+@[witness] def Properties.CountCheckWitness : Prop :=
   ∃ ds, diamondCut DiamondStorage.fresh (newChainInstallations wDWorld 100) = some ds ∧
     DiamondOk ds ∧ ReleaseValid wDWorld 100 ∧ ReleaseValid wDWorld 200 ∧
     CountCheck wDWorld.selectors ds (wDWorld.genesisFacets 100) ∧
@@ -90,7 +91,7 @@ diamond built by adding `11: [1]` and `13: [2]` satisfies `DiamondOk` and passes
 (two facets, two rows; `11` routes its one selector; `12` has nothing to compare), yet routes
 selector `2`, which the release does not. So the check's exactness rests on `validate()`
 refusing empty selector lists (`CTMRelease.sol:134-136`). -/
-def Properties.EmptySelectorRowFoolsCountCheck : Prop :=
+@[countermodel] def Properties.EmptySelectorRowFoolsCountCheck : Prop :=
   ∃ ds, diamondCut DiamondStorage.fresh cmCuts = some ds ∧ DiamondOk ds ∧
     CountCheck cmSelectors ds cmRows ∧
     ds.routing 2 = some (13, false) ∧ rowsRouting (flattenRows cmSelectors cmRows) 2 = none ∧
@@ -101,7 +102,7 @@ def Properties.EmptySelectorRowFoolsCountCheck : Prop :=
 self-describing `[1]`: every row has a selector, but selector `1` is listed twice. The same
 diamond passes the check (two facets, two rows) and routes selector `2`. So the check also
 rests on `validate()` refusing a repeated selector (`CTMRelease.sol:141`). -/
-def Properties.RepeatedRowFoolsCountCheck : Prop :=
+@[countermodel] def Properties.RepeatedRowFoolsCountCheck : Prop :=
   ∃ ds, diamondCut DiamondStorage.fresh cmCuts = some ds ∧ DiamondOk ds ∧
     CountCheck cmSelectors ds cmRepeatedRows ∧
     ds.routing 2 = some (13, false) ∧
@@ -114,7 +115,7 @@ diamond plus a `selectorToFacet` entry routing selector `3` to facet `99`, which
 records — what an init that writes diamond storage directly can leave. Release `100` passes
 `validate()`, the store passes the check against it, and the store routes selector `3`, which
 release `100` does not; the store fails `DiamondOk`. -/
-def Properties.CorruptStorageFoolsCountCheck : Prop :=
+@[countermodel] def Properties.CorruptStorageFoolsCountCheck : Prop :=
   ReleaseValid wDWorld 100 ∧
     CountCheck wDWorld.selectors corruptStore (wDWorld.genesisFacets 100) ∧
     corruptStore.routing 3 = some (99, false) ∧ rowsRouting (wDWorld.rows 100) 3 = none ∧
@@ -128,7 +129,7 @@ with `720` committed, and chain `0` at version 1 on the diamond above, which sat
 and lands at version 2 still routing selector `2`, which release `710` does not. The
 `ChainRouting` step with the semantic guard has no such crossing. Release `700` fails
 `validate()`. -/
-def Properties.EmptySelectorRowCarriesDriftAcrossEdge : Prop :=
+@[countermodel] def Properties.EmptySelectorRowCarriesDriftAcrossEdge : Prop :=
   CtmInv cmWorld.toWorld cmSys.ctm ∧ DiamondOk cmStore ∧
     cmSys.ctm.relAt 1 = 700 ∧ cmStore.routing ≠ rowsRouting (cmWorld.rows 700) ∧
     (∃ s', DStep cmWorld cmSys (.transition 0) s' ∧
@@ -165,7 +166,7 @@ version `v` for which the CTM has a release `R_v`: `R_v` is a release of version
 chain's proxy routes exactly `R_v`'s selectors, each to `R_v`'s facet with `R_v`'s
 freezability, and nothing else; the chain passes `requireReleaseRouting(R_v)`; and its
 diamond storage is consistent. -/
-def Properties.ChainsRunTheirVersionsReleaseCounted : Prop :=
+@[headline] def Properties.ChainsRunTheirVersionsReleaseCounted : Prop :=
   ∀ (D : DWorld) (s s' : DSys) (ls : List DLabel), DSysInv D s → DRun D s ls s' →
     (∀ l ∈ ls, ¬ l.isArbitrary) →
     ∀ id c, s'.chains id = some c → s'.ctm.relAt c.pv ≠ 0 →
@@ -220,7 +221,7 @@ releases as facet rows. From the fresh witness system: create chain `0` at versi
 counting check. The run starts from an invariant state; both chains end at version 2 routing
 release `200`, which differs from release `100`, and chain `0` passes the check against
 `200`. -/
-def Properties.CountedRoutingWitness : Prop :=
+@[witness] def Properties.CountedRoutingWitness : Prop :=
   wDWorld.toWorld = wWorld ∧ DSysInv wDWorld wDSys0 ∧
     ∃ s, DRun wDWorld wDSys0 [.genesis 0, .ctm (.commit 300), .transition 0, .genesis 1] s ∧
       (∃ c, s.chains 0 = some c ∧ c.pv = 2 ∧ c.ds.routing = rowsRouting (wRows 200) ∧
@@ -233,7 +234,7 @@ whose diamond routes only selector `7` (to facet `77`) crosses the bootstrap edg
 release `100`: `removeAllCuts` removes its routing, the release is installed, and the chain
 ends at version 1 routing exactly release `100`, without selector `7`, and passing the check
 against it. The starting system satisfies the invariant. -/
-def Properties.CountedBootstrapResetWitness : Prop :=
+@[witness] def Properties.CountedBootstrapResetWitness : Prop :=
   ∃ s, DRun wDWorld wBootDSys [.bootstrapReset 5] s ∧ DSysInv wDWorld wBootDSys ∧
     wPreStore.routing 7 = some (77, true) ∧
     ∃ c, s.chains 5 = some c ∧ c.pv = 1 ∧ c.ds.routing = rowsRouting (wRows 100) ∧
@@ -243,7 +244,7 @@ def Properties.CountedBootstrapResetWitness : Prop :=
 cut it by break-glass to `wBgStore`, release `100`'s diamond plus facet `99` routing selector
 `9` (one facet cut). The CTM satisfies `CtmInv`, its releases passed `validate()`, the chain's
 storage is consistent and does not route release `100`, and no transition step exists. -/
-def Properties.CountedDriftWitness : Prop :=
+@[witness] def Properties.CountedDriftWitness : Prop :=
   ∃ s, DRun wDWorld wDSys0 [.genesis 0, .ctm (.commit 300), .arbitraryCut 0 1 wBgStore] s ∧
     CtmInv wDWorld.toWorld s.ctm ∧
     (∀ v, s.ctm.relAt v ≠ 0 → ReleaseValid wDWorld (s.ctm.relAt v)) ∧

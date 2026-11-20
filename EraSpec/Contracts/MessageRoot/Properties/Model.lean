@@ -1,6 +1,7 @@
 import EraSpec.Contracts.MessageRoot.Specs.Model
 import EraSpec.Contracts.FullMerkle.Specs.CapacityInvariant
 import EraSpec.Contracts.Merkle.Specs.RootForgeryPinned
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what the message root guarantees on every run
@@ -71,7 +72,7 @@ def Properties.InvKeptByEveryCall : Prop :=
 (`MRB:56`); there is at least one chain; `chainIndexToId` is injective on
 `[0, chainCount)`; a chain is registered exactly when it occupies a slot below `chainCount`;
 and a registered chain's `chainIndex` is that slot. -/
-def Properties.ChainIndexBijection : Prop :=
+@[headline] def Properties.ChainIndexBijection : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State), Reachable H cfg s →
     s.chainIndexToId 0 = cfg.selfChainId ∧ s.chainIndex cfg.selfChainId = 0 ∧ 1 ≤ s.chainCount
       ∧ (∀ i j, i < s.chainCount → j < s.chainCount →
@@ -149,7 +150,7 @@ one value, or the two shared trees hash different pairs to one value on the path
 slot (`MerkleSpec.Pinned.TreeCollision`).  Every collision named is at specific inputs taken
 from the two storages; no hash is assumed injective.  The last disjunct can be the only one
 that holds (`AggregatedRootCollisionFires`, with toy hashes). -/
-def Properties.AggregatedRootPinsChainRootOrCollision : Prop :=
+@[headline] def Properties.AggregatedRootPinsChainRootOrCollision : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s s' : State) (c : ℕ), Reachable H cfg s → Reachable H cfg s' →
     s.chainCount = s'.chainCount → chainRegistered cfg s c = true →
     s'.chainIndexToId (s.chainIndex c) = c →
@@ -189,7 +190,7 @@ order.  `ns` may skip numbers: a batch recorded by the record-only `addChainBatc
 `chainBatchRoots` but not in the tree, and a batch number skipped by
 `setMigratingChainBatchNumber` is in neither.  So a leaf's position in the tree need not be its
 batch number (`ChainTreePositionIsNotBatchNumber`). -/
-def Properties.ChainTreeIsOrderedLog : Prop :=
+@[headline] def Properties.ChainTreeIsOrderedLog : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State), Reachable H cfg s → ∀ c, ∃ ns : List ℕ,
     ns.Pairwise (· < ·)
       ∧ (∀ n ∈ ns, n ≤ s.currentChainBatchNumber c ∧ s.chainBatchRoots c n ≠ 0)
@@ -207,7 +208,7 @@ def Properties.ChainTreeSetUpOnce : Prop :=
 
 /-- **BATCH ROOTS ARE WRITTEN ONCE.**  Along any run from reachable storage, a nonzero
 `chainBatchRoots[c][n]` and its `chainBatchRootTimestamp[c][n]` never change. -/
-def Properties.BatchRootsWriteOnce : Prop :=
+@[headline] def Properties.BatchRootsWriteOnce : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s t : State) (tr : List (Env × Call)) (c n : ℕ),
     Reachable H cfg s → Run H cfg s tr t → s.chainBatchRoots c n ≠ 0 →
       t.chainBatchRoots c n = s.chainBatchRoots c n
@@ -222,7 +223,7 @@ to the batch numbers a migration skips).  And for `n` at or above
 and after the run, for every candidate root and whatever the chain's getters answer.  Below
 `v31UpgradeChainBatchNumber[c]` the verdict on an unrecorded batch follows the chain's getter
 (`FinalNodeFallbackFollowsTheChain`). -/
-def Properties.SettledBatchRootsFrozen : Prop :=
+@[headline] def Properties.SettledBatchRootsFrozen : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s t : State) (tr : List (Env × Call)) (c n : ℕ),
     Reachable H cfg s → Run H cfg s tr t → chainRegistered cfg s c = true →
     n ≤ s.currentChainBatchNumber c →
@@ -253,7 +254,7 @@ root and whatever the chain's getters answer.  (In the source, the other branch 
 `_proveL2LeafInclusionRecursive` is the recursion through a settlement layer, `MRB:349-360`,
 which is not modelled.)  The registration premise is needed:
 `MigrationBeforeRegistrationIsOverwritten` in `Properties/Countermodels.lean`. -/
-def Properties.MigrationSkippedBatchesNeverRecorded : Prop :=
+@[headline] def Properties.MigrationSkippedBatchesNeverRecorded : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s t u : State) (env : Env) (tr : List (Env × Call)) (c m : ℕ),
     Reachable H cfg s → chainRegistered cfg s c = true →
     exec H cfg env s (.setMigratingChainBatchNumber c m) = some t → Run H cfg t tr u →
@@ -271,7 +272,7 @@ counter to `n`, stamps `n` with `block.timestamp`, appends exactly
 `batchLeafHash(r, n, block.timestamp)` to `c`'s tree, and changes no other chain's roots,
 counter or tree.  A successful `addChainBatchRoot(c, n, r)` (v31 flow) has the same guards and
 record, and leaves every tree, the shared tree and the history unchanged. -/
-def Properties.AppendExact : Prop :=
+@[headline] def Properties.AppendExact : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State) (env : Env) (c n : ℕ) (r : Bytes32),
     Reachable H cfg s →
     (∀ t, exec H cfg env s (.addChainBatchRootV32 c n r) = some t →
@@ -316,7 +317,7 @@ def Properties.GenesisSeedIsFirstLeaf : Prop :=
 reachable storage where chain `c`'s batch-`0` root is recorded, or `c` is registered with a
 positive counter, `seedGenesisRoot(c)` reverts after any run, whoever calls and whatever the
 chain's `l2LogsRootHash(0)` answers. -/
-def Properties.GenesisSeedOnce : Prop :=
+@[headline] def Properties.GenesisSeedOnce : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s t : State) (tr : List (Env × Call)) (env : Env) (c : ℕ),
     Reachable H cfg s → Run H cfg s tr t →
     (s.chainBatchRoots c 0 ≠ 0
@@ -329,7 +330,7 @@ def Properties.GenesisSeedOnce : Prop :=
 reachable storage in which no call is sent by `getZKChain(c)` (as that call saw it) or by the
 Bridgehub, chain `c`'s batch roots, timestamps and tree are unchanged.  If in addition no call
 is from the chain asset handler, `c`'s counter is unchanged. -/
-def Properties.ChainWritersOnly : Prop :=
+@[headline] def Properties.ChainWritersOnly : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s t : State) (tr : List (Env × Call)) (c : ℕ),
     Reachable H cfg s → Run H cfg s tr t →
     (∀ p ∈ tr, p.1.sender ≠ p.1.zkChain c ∧ p.1.sender ≠ cfg.bridgehub) →
@@ -379,7 +380,7 @@ check of `_proveL2LeafInclusionRecursive` (`MRB:343-348`) accepts `proven` for `
 `n > 0`, `n` is at most the chain's counter, and `proven` is the nonzero recorded
 `chainBatchRoots[c][n]`.  On batch `0`, the seeded genesis root included, the check reverts
 (`BatchZeroNotAllowed`, `MRB:366`), for every `v31UpgradeChainBatchNumber`. -/
-def Properties.ProofRootIsRecordedRoot : Prop :=
+@[headline] def Properties.ProofRootIsRecordedRoot : Prop :=
   ∀ (H : Hashes) (cfg : Config) (s : State) (env : Env) (c n : ℕ) (proven : Bytes32),
     Reachable H cfg s →
     finalNodeAccepts cfg env s c 0 proven = none

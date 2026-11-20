@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.CommittedEdgeExecutable
 import EraSpec.Contracts.ChainTypeManager.Specs.L2Derivation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the commit-time edge checks imply the chain-side upgrade checks
@@ -167,7 +168,7 @@ release's version (as every `CTMTransition` does, `CTMTransition.sol:61-64`). Le
 `v` on its settlement layer, with nothing pending if the minor changes, `priorityTxMaxPubdata` at
 least `90_000` and composed calldata within `UpgradeCalldataFits`, the storage part of `_upgrade`
 succeeds and lands the chain on `t`'s target version. -/
-def Properties.CommittedSlotEdgePassesChainChecks : Prop :=
+@[headline] def Properties.CommittedSlotEdgePassesChainChecks : Prop :=
   ∀ (W : World) (E : PlanEnv) (EW : EdgeWorld) (s s' : CTM) (ops : List Op),
     CtmInv W s → (∀ v, s.ut v ≠ 0 → (W.tr (s.ut v)).old = v) →
     (∀ e r, Op.replace e r ∈ ops → (W.tr r).old = W.relVersion (W.tr r).fromRel) →
@@ -197,7 +198,7 @@ side) is constructed with plan `wPlan`, and its composed transaction for an empt
 fits the calldata bound. On the clean chain at `0.29.0`, the storage part of `_upgrade` reverts
 when `priorityTxMaxPubdata = 89_999` (`PubdataGreaterThanLimit`) and succeeds when it is
 `90_000`. -/
-def Properties.PubdataLimitThresholdIsExact : Prop :=
+@[countermodel] def Properties.PubdataLimitThresholdIsExact : Prop :=
   Constructed wEnv wEdge wPlan ∧ UpgradeCalldataFits (composedTx wEnv wEdge wPlan []) ∧
     upgradeStoragePart wEnv.txHash ⟨v29, 0, 0⟩ 89999 v30 (composedTx wEnv wEdge wPlan []) true =
       none ∧
@@ -210,7 +211,7 @@ answer. On the clean chain at `0.29.0` with `priorityTxMaxPubdata = 99_000` (the
 `common/Config.sol:291`), the storage part of `_upgrade` succeeds for a 1_799_375-byte composer
 answer and reverts for a 1_799_376-byte one (`ValidateTxnNotEnoughGas`), whose transaction is
 not `UpgradeCalldataFits`. -/
-def Properties.CalldataBoundIsExact : Prop :=
+@[countermodel] def Properties.CalldataBoundIsExact : Prop :=
   Constructed wEnv wEdge wPlan ∧
     UpgradeCalldataFits (composedTx wEnv wEdge wPlan (List.replicate 1799375 0)) ∧
     (∃ r, upgradeStoragePart wEnv.txHash ⟨v29, 0, 0⟩ 99000 v30
@@ -227,7 +228,7 @@ from release `100` (version `0.29.0`) but reports `oldProtocolVersion() = 0.100.
 `0.29.0` now holds `500`, and for every chain at `0.29.0`, on or off its settlement layer, with any
 pending state, `priorityTxMaxPubdata` and transaction, the storage part of `_upgrade` towards
 `500`'s target reverts: the minor moves by 101. -/
-def Properties.NonGenuineSlotEdgeRevertsOnChain : Prop :=
+@[countermodel] def Properties.NonGenuineSlotEdgeRevertsOnChain : Prop :=
   ∃ s', CRun wEdgeWorld (initState wEdgeWorld 100) [.commit 300, .commit 600, .replace 300 500] s' ∧
     s'.ut v29 = 500 ∧
     Constructed wEnv (wEdgeObjs.obj 500) (wEdgeObjs.plan 500) ∧
@@ -241,7 +242,7 @@ def Properties.NonGenuineSlotEdgeRevertsOnChain : Prop :=
 false, so the patch edge `0.30.0 → 0.30.1` passes `requireValidEdge`; but the composer's
 transaction has the upgrade type, and on a clean chain at `0.30.0` the storage part of `_upgrade`
 reverts (`PatchCantSetUpgradeTxn`). -/
-def Properties.UnbuiltPlanBreaksEmptinessAgreement : Prop :=
+@[countermodel] def Properties.UnbuiltPlanBreaksEmptinessAgreement : Prop :=
   (∀ (E : PlanEnv) (derived : List Deployment) (a : AuthoredL2Plan),
     planBuild E derived a ≠ some wUnbuiltPlan) ∧
     requireValidEdge v30 v30p1 100 50 (decide (wUnbuiltPlan.deployments.length ≠ 0)) = some () ∧
@@ -257,7 +258,7 @@ by the model's definition: `implementationSwap` is an arbitrary new reading of `
 (new code, or a different storage layout). The source fact behind it is that the supplier is a
 CTM-domain proxy that the registry can upgrade
 (`upgrades/registry/libraries/ContractIdentifiers.sol:56-58` at `b17415d20`). -/
-def Properties.SupplierSwapClearsPublication : Prop :=
+@[countermodel] def Properties.SupplierSwapClearsPublication : Prop :=
   ∃ s s', requirePublished s wPlan.factoryDepHashes ∧ wPlan.factoryDepHashes ≠ [] ∧
     SupplierRun s [.implementationSwap (fun _ => 0)] s' ∧
     ¬ requirePublished s' wPlan.factoryDepHashes
@@ -273,7 +274,7 @@ the same chain reverts on its settlement layer and, off it, lands on `0.30.0` ke
 upgrade. The patch edge `wPatchEdge` (`0.30.0 → 0.30.1`) is constructed with the empty plan, and
 on a chain at `0.30.0` with an L2 upgrade pending it lands on `0.30.1` and leaves the pending
 upgrade as it was. -/
-def Properties.ConstructedEdgeWitness : Prop :=
+@[witness] def Properties.ConstructedEdgeWitness : Prop :=
   Constructed wEnv wEdge wPlan ∧ wPlan.deployments ≠ [] ∧ minorOf v30 ≠ minorOf v29 ∧
     UpgradeCalldataFits (composedTx wEnv wEdge wPlan [1, 2, 3]) ∧
     upgradeStoragePart wEnv.txHash ⟨v29, 0, 0⟩ 99000 v30 (composedTx wEnv wEdge wPlan [1, 2, 3])
@@ -292,7 +293,7 @@ def Properties.ConstructedEdgeWitness : Prop :=
 `0.29.0` holds `400`, whose object `wEdge` is constructed and reported by its getters, and on the
 clean chain at `0.29.0` with `priorityTxMaxPubdata = 99_000` and composer answer `[1, 2, 3]` the
 storage part of `_upgrade` lands on `0.30.0`. -/
-def Properties.CommittedSlotWitness : Prop :=
+@[witness] def Properties.CommittedSlotWitness : Prop :=
   ∃ s', CRun wEdgeWorld (initState wEdgeWorld 100) [.commit 300, .replace 300 400] s' ∧
     CtmInv wEdgeWorld (initState wEdgeWorld 100) ∧
     (wEdgeWorld.tr 400).old = wEdgeWorld.relVersion (wEdgeWorld.tr 400).fromRel ∧
@@ -308,7 +309,7 @@ def Properties.CommittedSlotWitness : Prop :=
 version; the run's one replacement reports its departing release's version; and the conclusion of
 `CommittedSlotEdgePassesChainChecks` at slot `0.29.0`, on the clean chain at `0.29.0` with
 `priorityTxMaxPubdata = 99_000` and composer answer `[1, 2, 3]`, is obtained from that theorem. -/
-def Properties.CommittedSlotWitnessMeetsHeadline : Prop :=
+@[witness] def Properties.CommittedSlotWitnessMeetsHeadline : Prop :=
   (∀ v, (initState wEdgeWorld 100).ut v ≠ 0 →
       (wEdgeWorld.tr ((initState wEdgeWorld 100).ut v)).old = v) ∧
   (∀ e r, Op.replace e r ∈ ([.commit 300, .replace 300 400] : List Op) →
@@ -322,7 +323,7 @@ def Properties.CommittedSlotWitnessMeetsHeadline : Prop :=
 /-- **THE SUPPLIER PREMISE IS MET BY A RUN THAT PUBLISHES MORE.** On a supplier where `wPlan`'s
 factory dependencies `[7, 8]` are published, two further publications (hashes `9` and `11`) run,
 and `[7, 8]` are still published. -/
-def Properties.SupplierWitness : Prop :=
+@[witness] def Properties.SupplierWitness : Prop :=
   ∃ s s', requirePublished s wPlan.factoryDepHashes ∧
     SupplierRun s [.publish 9 10, .publish 11 12] s' ∧
     (∀ op ∈ [SupplierOp.publish 9 10, .publish 11 12], op.IsPublish) ∧

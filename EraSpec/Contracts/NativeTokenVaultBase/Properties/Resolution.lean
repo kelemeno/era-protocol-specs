@@ -1,4 +1,5 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.Resolution
+import EraSpec.Core.Headline
 
 /-!
 # Properties: destination mint and failed-transfer recovery
@@ -88,7 +89,7 @@ mint is a genuine operation of the token model, with the vault as caller. The da
 `remoteReceiver` gains exactly `amount`, total supply rises by exactly `amount`, and every other
 balance, the token's identity (vault, origin token, asset id), the vault's configuration, its
 registry and its pause flag are unchanged. No invariant is assumed. -/
-def Properties.BridgeMintExact : Prop :=
+@[headline] def Properties.BridgeMintExact : Prop :=
   ∀ (Accounting : Type) (rh : ResolutionHooks Accounting) (s t : State Accounting)
     (c : ResolutionCall),
     bridgeMint rh s c = some t →
@@ -151,7 +152,7 @@ def Properties.BridgeMintEnabled : Prop :=
 /-- **EXACT REFUND TO THE DEPOSITOR.** As `BridgeMintExact`, but the credited account is the
 data's `originalCaller`: it gains exactly `amount`, supply rises by exactly `amount`, and every
 other account, in particular a `remoteReceiver` different from it, is unchanged. -/
-def Properties.RecoverExact : Prop :=
+@[headline] def Properties.RecoverExact : Prop :=
   ∀ (Accounting : Type) (rh : ResolutionHooks Accounting) (s t : State Accounting)
     (c : ResolutionCall),
     bridgeRecoverFailedTransfer rh s c = some t →
@@ -236,7 +237,7 @@ succeeds and returns exactly the state before the preparation: the depositor's b
 supply, every other balance, the token's identity, the registry, the pause flag and the
 accounting. Through the commit interfaces: committing the preparation and then the recovery
 yields the original state, and the recovery reports success. -/
-def Properties.PrepareThenRecoverRoundTrip : Prop :=
+@[headline] def Properties.PrepareThenRecoverRoundTrip : Prop :=
   ∀ (Accounting : Type) (hooks : Hooks Accounting) (rh : ResolutionHooks Accounting)
     (s : State Accounting) (r : Request) (out : Result Accounting),
     HooksCancel hooks rh → WellFormed s → prepare hooks s r = some out →
@@ -250,7 +251,7 @@ def Properties.PrepareThenRecoverRoundTrip : Prop :=
 the returned data is still on the registered branch and passes its entry checks; given the hook,
 it succeeds; the depositor gains exactly `amount` over whatever it holds at that moment; total
 supply is back to its value before the preparation; and the result is `WellFormed`. -/
-def Properties.RecoverAfterSpending : Prop :=
+@[headline] def Properties.RecoverAfterSpending : Prop :=
   ∀ (Accounting : Type) (hooks : Hooks Accounting) (rh : ResolutionHooks Accounting)
     (s : State Accounting) (r : Request) (out : Result Accounting) (u : State Accounting)
     (accounted : Accounting),
@@ -269,7 +270,7 @@ preparation on a source state satisfying the ledger invariant, and a successful 
 credits the request's receiver with exactly the amount the source debited from the depositor,
 and the sum of the two total supplies is unchanged. Which destination and asset the data is
 delivered to is the router's and the interop layer's binding, not the vault's. -/
-def Properties.PrepareThenDeliverConserves : Prop :=
+@[headline] def Properties.PrepareThenDeliverConserves : Prop :=
   ∀ (A B : Type) (hooks : Hooks A) (rh : ResolutionHooks B) (s : State A) (r : Request)
     (out : Result A) (d d' : State B) (c : ResolutionCall),
     LedgerInvariant s → prepare hooks s r = some out → c.data = out.data →

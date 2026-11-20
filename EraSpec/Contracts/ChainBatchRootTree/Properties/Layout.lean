@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainBatchRootTree.Specs.Layout
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the chain batch root is the height-3 tree over its four leaves, and a depth-3 path
@@ -45,7 +46,7 @@ def Properties.ComputeIsRootOfHeightThree : Prop :=
 
 /-- **THE DOCUMENTED-VALUE PREMISE IS SATISFIABLE AND LOAD-BEARING.** Some keccak meets
 `ReservedSubtreeDocumented`, and for some keccak `compute` differs from the height-3 fold. -/
-def Properties.ComputeRootNeedsDocumentedValue : Prop :=
+@[countermodel] def Properties.ComputeRootNeedsDocumentedValue : Prop :=
   (∃ keccak : Keccak, ReservedSubtreeDocumented keccak)
     ∧ ∃ (keccak : Keccak) (a b c d : UInt256),
         compute keccak a b c d ≠ rootOf (node keccak) 0 (liveLeaves a b c d) TREE_DEPTH
@@ -74,7 +75,7 @@ def Properties.ReservedLeafOpeningPinsZeroOrCollision : Prop :=
 /-- **EVERY DEPTH-3 OPENING, ONE STATEMENT.** Under the documented reserved value, a 3-sibling path
 at any index `j < 8` (`Merkle.sol:137-139`) that returns `compute a b c d` has claimed leaf
 `[a, b, c, d].getD j 0` (the live leaf, or the padding `0`), or an `OpeningCollision`. -/
-def Properties.OpeningPinsLeafOrCollision : Prop :=
+@[headline] def Properties.OpeningPinsLeafOrCollision : Prop :=
   ∀ (keccak : Keccak) (a b c d : UInt256) (sibs : ℕ → UInt256) (j : ℕ) (x : UInt256),
     ReservedSubtreeDocumented keccak → j < 2 ^ TREE_DEPTH →
     walkPure (node keccak) sibs 0 TREE_DEPTH j x = compute keccak a b c d →
@@ -84,7 +85,7 @@ def Properties.OpeningPinsLeafOrCollision : Prop :=
 With `logLeafProofLen = TREE_DEPTH` and mask `IMT_BEGIN_ROOT_LEAF_INDEX` (resp.
 `IMT_END_ROOT_LEAF_INDEX`), a first hop that reaches `compute a b c d` has claimed IMT root `x = c`
 (resp. `x = d`), or an `OpeningCollision`. -/
-def Properties.ImtRootHopPinsLeafOrCollision : Prop :=
+@[headline] def Properties.ImtRootHopPinsLeafOrCollision : Prop :=
   ∀ (keccak : Keccak) (a b c d : UInt256) (sibs : ℕ → UInt256) (len : ℕ) (x : UInt256),
     (ImtRootHopAccepted keccak a b c d sibs len IMT_BEGIN_ROOT_LEAF_INDEX x →
         x = c ∨ OpeningCollision keccak a b c d sibs IMT_BEGIN_ROOT_LEAF_INDEX x)
@@ -96,7 +97,7 @@ def Properties.ImtRootHopPinsLeafOrCollision : Prop :=
 reaches `compute a b c d` for the claimed root `x = node 0 0` (the reserved half's level-1 node),
 for every `a b c d`. Only `ImtRootHopAccepted.depthPinned` (`AtomicInteropProof.sol:160-162`)
 rejects it. -/
-def Properties.ImtRootHopDepthPinNeeded : Prop :=
+@[countermodel] def Properties.ImtRootHopDepthPinNeeded : Prop :=
   ∀ (keccak : Keccak) (a b c d : UInt256), ReservedSubtreeDocumented keccak →
     ∀ m, (m = IMT_BEGIN_ROOT_LEAF_INDEX ∨ m = IMT_END_ROOT_LEAF_INDEX) →
       m < 2 ^ 2
@@ -110,7 +111,7 @@ def Properties.ImtRootHopDepthPinNeeded : Prop :=
 under the documented reserved value), the tree's own siblings `openingSibs` with the leaf
 `[a, b, c, d].getD j 0` reach `compute a b c d`. So the opening properties' premises hold on
 honest proofs. -/
-def Properties.HonestOpeningAccepted : Prop :=
+@[witness] def Properties.HonestOpeningAccepted : Prop :=
   ∀ (keccak : Keccak) (a b c d : UInt256) (j : ℕ),
     (j < 4 ∨ (ReservedSubtreeDocumented keccak ∧ j < 2 ^ TREE_DEPTH)) →
       walkPure (node keccak) (openingSibs keccak a b c d j) 0 TREE_DEPTH j
@@ -118,7 +119,7 @@ def Properties.HonestOpeningAccepted : Prop :=
 
 /-- **NO COLLISION IS LOCATED ON THE HONEST PROOF.** Under the same conditions, `OpeningCollision`
 is false for the tree's own siblings and leaf: the verifier hashes exactly the tree's pairs. -/
-def Properties.HonestOpeningNoCollision : Prop :=
+@[witness] def Properties.HonestOpeningNoCollision : Prop :=
   ∀ (keccak : Keccak) (a b c d : UInt256) (j : ℕ),
     (j < 4 ∨ (ReservedSubtreeDocumented keccak ∧ j < 2 ^ TREE_DEPTH)) →
       ¬ OpeningCollision keccak a b c d (openingSibs keccak a b c d j) j
@@ -126,7 +127,7 @@ def Properties.HonestOpeningNoCollision : Prop :=
 
 /-- **THE COLLISION DISJUNCT FIRES.** On the constant keccak `fun _ => 0`, a depth-3 path at index
 0 with claimed leaf `1 ≠ a = 0` reaches `compute`, and the collision is located. -/
-def Properties.OpeningCollisionFires : Prop :=
+@[countermodel] def Properties.OpeningCollisionFires : Prop :=
   ∃ (keccak : Keccak) (a b c d : UInt256) (sibs : ℕ → UInt256) (j : ℕ) (x : UInt256),
     j < 4 ∧ walkPure (node keccak) sibs 0 TREE_DEPTH j x = compute keccak a b c d
       ∧ x ≠ (liveLeaves a b c d).getD j 0 ∧ OpeningCollision keccak a b c d sibs j x
@@ -158,7 +159,7 @@ def Properties.GenesisLeafOneNotInitialAggregatedRoot : Prop :=
 /-- **WITNESS: ON A CONCRETE KECCAK, NO PATH OPENS IT.** There is a keccak under which the initial
 aggregated root is nonzero and no sibling stream makes a depth-3 path at leaf 1 reach the genesis
 root with that claimed leaf. -/
-def Properties.GenesisLeafOneRejectsInitialAggregatedRootWitness : Prop :=
+@[witness] def Properties.GenesisLeafOneRejectsInitialAggregatedRootWitness : Prop :=
   ∃ (keccak : Keccak) (padC chainId : UInt256),
     keccak (chainIdLeafPre padC 0 chainId) ≠ 0
       ∧ ∀ sibs : ℕ → UInt256,
@@ -169,7 +170,7 @@ def Properties.GenesisLeafOneRejectsInitialAggregatedRootWitness : Prop :=
 it the honest proof at every index `j < 8`, reserved half included, is accepted and locates no
 collision. So the premises of `ReservedLeafOpeningPinsZeroOrCollision` and
 `OpeningPinsLeafOrCollision` hold together, for every `a b c d`. -/
-def Properties.ReservedOpeningWitness : Prop :=
+@[witness] def Properties.ReservedOpeningWitness : Prop :=
   ∃ keccak : Keccak, ReservedSubtreeDocumented keccak
     ∧ ∀ (a b c d : UInt256) (j : ℕ), j < 2 ^ TREE_DEPTH →
         walkPure (node keccak) (openingSibs keccak a b c d j) 0 TREE_DEPTH j
@@ -179,7 +180,7 @@ def Properties.ReservedOpeningWitness : Prop :=
 
 /-- **WITNESS FOR THE IMT-ROOT HOP.** For every keccak and every `a b c d`, the honest proofs of
 leaves 2 and 3 meet `ImtRootHopAccepted` with `len = TREE_DEPTH` and claimed roots `c` and `d`. -/
-def Properties.ImtRootHopWitness : Prop :=
+@[witness] def Properties.ImtRootHopWitness : Prop :=
   ∀ (keccak : Keccak) (a b c d : UInt256),
     ImtRootHopAccepted keccak a b c d (openingSibs keccak a b c d IMT_BEGIN_ROOT_LEAF_INDEX)
         TREE_DEPTH IMT_BEGIN_ROOT_LEAF_INDEX c

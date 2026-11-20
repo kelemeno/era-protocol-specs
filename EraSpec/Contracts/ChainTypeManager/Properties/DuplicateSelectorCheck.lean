@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.DuplicateSelectorCheck
+import EraSpec.Core.Headline
 
 /-!
 # Properties: `_requireNoDuplicateSelectors` is exactly `ReleaseWf`
@@ -36,7 +37,7 @@ def Properties.DuplicateCheckExactForAnyLargerTable : Prop :=
 `r` lists the facets' self-described selectors in row order, as `World.relRows` reads
 `genesisFacets()` and each facet's `selectors()`. Then `ReleaseWf W r` holds iff
 `_requireNoDuplicateSelectors` returns on those lists. -/
-def Properties.ReleaseWfIsTheDuplicateCheck : Prop :=
+@[headline] def Properties.ReleaseWfIsTheDuplicateCheck : Prop :=
   ∀ (W : World) (r : Address) (routing : List (List Selector)),
     (W.relRows r).map Prod.fst = routing.flatten →
     (ReleaseWf W r ↔ noDuplicateSelectors routing = true)
@@ -49,7 +50,7 @@ def Properties.ReleaseWfIsTheDuplicateCheck : Prop :=
 * With three selectors the table has 7 slots, and `0`, `7` and `14` (entries 1, 8 and 15) all
   hash to slot 1. The check stores all three by probing past occupied slots. The check reverts
   when `7` comes back, which it finds only after probing past `0`'s slot. -/
-def Properties.DuplicateCheckWitness : Prop :=
+@[witness] def Properties.DuplicateCheckWitness : Prop :=
   (wEnDupWorld.relRows 100).map Prod.fst = [[1, 2]].flatten ∧
     noDuplicateSelectors [[1, 2]] = true ∧
     (wEnDupWorld.relRows 260).map Prod.fst = [[1, 2], [1]].flatten ∧

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.IndexedMerkleTree.Specs.ReclaimGateFaithful
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the reclaim capstones against the deployed absence check
@@ -92,7 +93,7 @@ step and every padding constant, every absent nonzero value passes `BreakFreeGat
 `DeployedGate`.  (The proof uses the honest proof of an occupied low leaf, clause 2 of
 `Contracts.InteropCommitmentTree.Properties.RunRootsExclusiveOrBreakAtOwnHeight`.)  This is
 the half of `ReclaimDichotomyReading` that holds at the pin. -/
-def Properties.DeployedGateLiveness : Prop :=
+@[headline] def Properties.DeployedGateLiveness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → HState), HRun R → R 0 = hSetup →
     ∀ (j : ℕ) (v : UInt256), v ≠ 0 → v ∉ keys (absHistory R j) →
       BreakFreeGate h z0 hl (R j) v ∧ DeployedGate h z0 hl (R j) v
@@ -102,7 +103,7 @@ def Properties.DeployedGateLiveness : Prop :=
 iff it is absent.  This is `guardedEvolution_reclaimable_iff_absent` with `W ∈ S j` replaced
 by "no located break on the submission".  It holds at c67894b9 too: there the padding
 forgery's submission carries a located `paddingHit` and so does not pass this gate. -/
-def Properties.BreakFreeGateDichotomy : Prop :=
+@[headline] def Properties.BreakFreeGateDichotomy : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (R : ℕ → HState), HRun R → R 0 = hSetup →
     ∀ (j : ℕ) (v : UInt256), v ≠ 0 →
       (BreakFreeGate h z0 hl (R j) v ↔ v ∉ keys (absHistory R j))
@@ -143,7 +144,7 @@ constant).  This sharpens
 published height: the padding case is reported only at the published length, and a padding
 hit at any other length is reported as `wrongLength`.  At the pin the zero leaf `{0,0,0}`
 meets the padding case's hash condition by definition. -/
-def Properties.DeliveredRefundLocatesCollisionOrPaddingHit : Prop :=
+@[headline] def Properties.DeliveredRefundLocatesCollisionOrPaddingHit : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (S : HState), HReaches hSetup S →
     ∀ (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
       v ∈ keys (toAbs S.tree) →
@@ -239,7 +240,7 @@ def Properties.ReachedStatesLiftAtPadding : Prop :=
 `DedicatedPadding` fails for the pinned constant `zeroLeafHash hl`, by construction.  It
 holds for the toy leaf hash with padding `1`.  (For `keccak256` at b17415d20 it holds by the
 off-line computation in the spec's module header.) -/
-def Properties.DedicatedPaddingPremiseWitness : Prop :=
+@[witness] def Properties.DedicatedPaddingPremiseWitness : Prop :=
   (∀ hl : LeafHash, ¬ DedicatedPadding hl (zeroLeafHash hl))
     ∧ DedicatedPadding toyLeafHash 1
 
@@ -250,7 +251,7 @@ both sides of both equivalences of `ReachedBelowCapacityIffNotPowerOfTwo` occur,
 shape premises of `History.PinnedGateAcceptsEveryValueBelowCapacity`,
 `History.PinnedGateAcceptsEveryValueOffPowersOfTwo` and `FullSnapshotRefundOfDeliveredNeedsCollision`
 are each met on a reached state. -/
-def Properties.ReachedSnapshotShapesWitness : Prop :=
+@[witness] def Properties.ReachedSnapshotShapesWitness : Prop :=
   ∀ a b : UInt256, 0 < a → a < b →
     HReaches hSetup (hInsert hSetup a 0)
       ∧ (hInsert hSetup a 0).tree.leafCount = 2 ^ (hInsert hSetup a 0).height
@@ -265,7 +266,7 @@ nonzero and absent, `BreakFreeGate` holds for it and so does the capstones' memb
 step 2, `a` is delivered and `BreakFreeGate` fails for it.  So the premise of
 `BreakFreeGateImpliesMemberGate` is met, and both sides of `BreakFreeGateDichotomy` and
 `BreakFreeGateMatchesMemberGate` occur on one run, for every hash. -/
-def Properties.BreakFreeGateRunWitness : Prop :=
+@[witness] def Properties.BreakFreeGateRunWitness : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash) (a b : UInt256), 0 < a → a < b →
     HRun (hThreeRun a b) ∧ hThreeRun a b 0 = hSetup
       ∧ b ≠ 0 ∧ b ∉ keys (absHistory (hThreeRun a b) 1)
@@ -284,7 +285,7 @@ with sibling `0` for `a`.  This meets every premise of
 and `DedicatedPaddingRefundOfDeliveredNeedsCollision`.  The break located on this submission
 is exactly `pathCollision`: addition maps the verifier's level-0 pair `(0, 0)` and the tree's
 pair `(-a, a)` to the same value.  So the three conclusions hold here through that case. -/
-def Properties.ToyFullSnapshotRefundWitness : Prop :=
+@[countermodel] def Properties.ToyFullSnapshotRefundWitness : Prop :=
   ∀ a : UInt256, 0 < a →
     HReaches hSetup (hInsert hSetup a 0)
       ∧ (hInsert hSetup a 0).height = 1
@@ -305,7 +306,7 @@ height 2, slot 3 empty): `DedicatedPadding` holds, `a` is delivered, and
 height for `a`, with siblings `b + 1` at level 0 and `-b` at level 1.  The pin's submission
 (the zero leaf at index 3 with that slot's honest siblings) is REFUSED there.  This meets
 every premise of `DedicatedPaddingZeroLeafNeedsPathCollision`. -/
-def Properties.ToyEmptyIndexRefundWitness : Prop :=
+@[countermodel] def Properties.ToyEmptyIndexRefundWitness : Prop :=
   ∀ a b : UInt256, 0 < a → a < b →
     HReaches hSetup (hThree a b) ∧ (hThree a b).height = 2
       ∧ (hThree a b).tree.leafCount ≤ 3
@@ -323,7 +324,7 @@ def Properties.ToyEmptyIndexRefundWitness : Prop :=
 `hThreeRun a b` from `hSetup`, the clock `reclaimGateWitnessClock` (monotone; steps 0–2 at
 time 0, later steps at time 1) and deadline `0` make step 2 on time and meet the abstract
 pin at step 2 (by step 3), with `a` delivered at step 2. -/
-def Properties.FinalityPremisesWitness : Prop :=
+@[witness] def Properties.FinalityPremisesWitness : Prop :=
   ∀ a b : UInt256, 0 < a → a < b →
     HRun (hThreeRun a b) ∧ hThreeRun a b 0 = hSetup
       ∧ Monotone reclaimGateWitnessClock ∧ reclaimGateWitnessClock 2 ≤ 0
@@ -334,7 +335,7 @@ def Properties.FinalityPremisesWitness : Prop :=
 padding constant, and `0 < a < b`, the transcribed contract reaches from
 `cSetupPad h hl z0` a state whose view is `hThree a b` (three leaves at height 2), and
 the transcribed `root()` returns `(hThree a b).root h z0 hl` there. -/
-def Properties.StoredRootAtPaddingWitness : Prop :=
+@[witness] def Properties.StoredRootAtPaddingWitness : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (z0 : UInt256) (a b : UInt256), 0 < a → a < b →
     ∃ C : CState, CReachesPad h hl z0 C ∧ C.toH = hThree a b
       ∧ C.root = some ((hThree a b).root h z0 hl)
@@ -346,7 +347,7 @@ submission of `ToyEmptyIndexRefundWitness` (whose path carries a `PathCollision`
 `DedicatedPaddingZeroLeafNeedsPathCollision`).  So neither reading holds for every hash at
 a dedicated padding constant either; what the dedicated constant removes is the padding case
 (`DedicatedPaddingRefundOfDeliveredNeedsCollision`). -/
-def Properties.DedicatedPaddingReadingsFailUnderToyHashes : Prop :=
+@[countermodel] def Properties.DedicatedPaddingReadingsFailUnderToyHashes : Prop :=
   DedicatedPadding toyLeafHash 1
     ∧ ¬ ReclaimDichotomyReading toyNodeHash 1 toyLeafHash
     ∧ ¬ DeliveryFinalityReading toyNodeHash 1 toyLeafHash

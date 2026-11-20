@@ -1,4 +1,5 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.RegistryAndEscrow
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the native token vault
@@ -385,7 +386,7 @@ hash is injective and nonzero on the pairs the run's own registrations hash, the
 the end the registry is coherent (`Valid`, which includes solvency), the audit
 invariant holds, solvency and no-inflation hold, and every registered asset's
 recorded pair is one of the logged pairs. -/
-def Properties.LoggedRunSound : Prop :=
+@[headline] def Properties.LoggedRunSound : Prop :=
   ∀ (e : NtvAssetId) (thisChain : Chain), thisChain ≠ 0 →
     ∀ (W : World) (log : List Op), ReachLog e thisChain empty W log →
       IdAssumptionsOn e ↑(registeredPairs thisChain log) →

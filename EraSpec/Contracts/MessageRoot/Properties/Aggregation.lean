@@ -1,5 +1,6 @@
 import EraSpec.Contracts.MessageRoot.Specs.Aggregation
 import EraSpec.Contracts.AtomicInteropProof.Specs.LastBatchInRoot
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what a historical root aggregates
@@ -173,7 +174,7 @@ def Properties.LastWriteInBlockWins : Prop :=
 `e` as it stood at some reachable state `st₁`, possibly mid-block and possibly overwritten later,
 and any later state `st₂` of the run. Every leaf of `st₂` that settled strictly before `e`'s
 timestamp is counted by `e`. -/
-def Properties.AggregatesStrictFromMessageRoot : Prop :=
+@[headline] def Properties.AggregatesStrictFromMessageRoot : Prop :=
   ∀ (P : Params) (r : TsRule) (st₁ st₂ : State), Reachable P r st₁ → Reach P r st₁ st₂ →
     ∀ b e, st₁.hist b = some e → AggregatesStrictAt st₂ e
 
@@ -189,14 +190,14 @@ def Properties.AggregatesFromMessageRootStrictTs : Prop :=
 /-- **EQUAL TIMESTAMPS ACROSS BLOCKS ESCAPE THE ROOT.** Under non-decreasing timestamps, a leaf
 pushed in a later block with the same timestamp is outside the earlier block's root: the
 non-strict form fails for that root, the strict form holds. -/
-def Properties.EqualTimestampEscapesRoot : Prop :=
+@[countermodel] def Properties.EqualTimestampEscapesRoot : Prop :=
   ∃ (P : Params) (st : State) (b : ℕ) (e : HistEntry), Reachable P .mono st ∧ st.hist b = some e
     ∧ AggregatesStrictAt st e ∧ ¬ AggregatesAt st e
 
 /-- **A MID-BLOCK READ ESCAPES TOO.** Even with strictly increasing timestamps: a root as it
 stood mid-block misses a leaf pushed later in the same block, which carries the root's own
 timestamp. -/
-def Properties.MidBlockReadEscapesRoot : Prop :=
+@[countermodel] def Properties.MidBlockReadEscapesRoot : Prop :=
   ∃ (P : Params) (st₁ st₂ : State) (b : ℕ) (e : HistEntry), Reachable P .strict st₁
     ∧ Reach P .strict st₁ st₂ ∧ st₂.block = st₁.block ∧ st₁.hist b = some e
     ∧ AggregatesStrictAt st₂ e ∧ ¬ AggregatesAt st₂ e
@@ -213,7 +214,7 @@ The run takes the record-only step after pushes. The executor facet calls only
 calls the record-only entry point after it has pushed (ASSUMPTIONS.md, `PROTO-CONTIGUOUS-PUSH`).
 Record-only batches before the first push are the v31 path; they give the offset of
 `OnboardedChainPositionsAreNotBatchNumbers` instead. -/
-def Properties.RecordOnlyGap : Prop :=
+@[countermodel] def Properties.RecordOnlyGap : Prop :=
   ∃ (P : Params) (st : State) (b : ℕ) (e : HistEntry) (c : ChainId), Reachable P .strict st
     ∧ st.hist b = some e ∧ st.batchRoot c 2 ≠ 0 ∧ (∀ l ∈ st.leaves c, l.batch ≠ 2)
     ∧ ¬ OutsideRootLate (st.BatchInFirst c (e.count c)) (st.batchTs c) e.ts
@@ -241,7 +242,7 @@ def Properties.RecordOnlyBatchNotCitable : Prop :=
 batch 6 at position 0: a root counts one leaf of the chain, that leaf carries batch number 6, and
 no leaf carries a batch number below 6. Reading the count as "batches `0 … count - 1`" names
 batches that are in no tree. -/
-def Properties.OnboardedChainPositionsAreNotBatchNumbers : Prop :=
+@[countermodel] def Properties.OnboardedChainPositionsAreNotBatchNumbers : Prop :=
   ∃ (P : Params) (st : State) (b : ℕ) (e : HistEntry) (c : ChainId) (l : Leaf),
     Reachable P .strict st ∧ st.hist b = some e ∧ e.count c = 1 ∧ (st.leaves c)[0]? = some l
       ∧ l.batch = 6 ∧ ∀ n < l.batch, ∀ l' ∈ st.leaves c, l'.batch ≠ n
@@ -252,7 +253,7 @@ def Properties.OnboardedChainPositionsAreNotBatchNumbers : Prop :=
 state `st₁` whose current block `b` has an entry `e`, with a registered chain `c ≠ self` that has
 a recorded batch 1 and leaves counted by `e` (one settled strictly before `e`), and a later state
 `st₂` with a leaf of `c` outside `e`, at a `block.timestamp` that fits a word. -/
-def Properties.AggregationWitness : Prop :=
+@[witness] def Properties.AggregationWitness : Prop :=
   ∃ (P : Params) (st₁ st₂ : State) (b : ℕ) (e : HistEntry) (c : ChainId),
     Reachable P .strict st₁ ∧ Reach P .strict st₁ st₂ ∧ st₁.hist b = some e ∧ b = st₁.block
       ∧ st₂.Registered P c ∧ c ≠ P.self ∧ st₁.batchRoot c 1 ≠ 0
@@ -265,7 +266,7 @@ whose `currentChainBatchNumber` was moved by `setMigratingChainBatchNumber`, whi
 registration check (:153-157). Its deployed caller, the chain asset handler, calls it only for a
 chain already deployed on the settlement layer (`ChainAssetHandlerBase.sol:397-414`), so the
 second chain is a state of the model, not necessarily of the deployed system. -/
-def Properties.AggregationRegistryWitness : Prop :=
+@[witness] def Properties.AggregationRegistryWitness : Prop :=
   ∃ (P : Params) (st : State) (c c' : ChainId), Reachable P .strict st
     ∧ c ≠ P.self ∧ st.Registered P c ∧ st.leaves c = []
     ∧ ¬ st.Registered P c' ∧ st.current c' ≠ 0
@@ -275,7 +276,7 @@ def Properties.AggregationRegistryWitness : Prop :=
 `addChainBatchRoot`, then pushes batches 2 and 3 with `addChainBatchRootV32`. With `st₁` after
 the first push and `st₂` after the second: batch 1 is recorded, is in none of the nonempty
 tree's leaves at `st₁`, and the tree grows from `st₁` to `st₂`. -/
-def Properties.RecordOnlyBatchNotCitableWitness : Prop :=
+@[witness] def Properties.RecordOnlyBatchNotCitableWitness : Prop :=
   ∃ (P : Params) (st₁ st₂ : State) (c : ChainId) (b : ℕ),
     Reachable P .strict st₁ ∧ Reach P .strict st₁ st₂ ∧ st₁.batchRoot c b ≠ 0
       ∧ (∀ l ∈ st₁.leaves c, l.batch ≠ b) ∧ st₁.leaves c ≠ []

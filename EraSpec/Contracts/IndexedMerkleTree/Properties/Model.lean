@@ -1,4 +1,5 @@
 import EraSpec.Contracts.IndexedMerkleTree.Specs.Model
+import EraSpec.Core.Headline
 
 -- Named propositions are transparent abbreviations; proofs reference these statements.
 -- Preconditions remain parameters even when absent from the conclusion.
@@ -628,7 +629,7 @@ general one `ModelStrong.padding_leaf_forges_every_delivered`: in every
 `GapSound` tree, for every delivered nonzero value, `⟨0, 0⟩` is a non-member
 whose window straddles it.  Empty-slot padding must be distinguishable from the
 real zero leaf. -/
-abbrev Properties.forged_padding_witness_breaks_exclusivity {a : UInt256} (ha : a ≠ 0) :=
+@[countermodel] abbrev Properties.forged_padding_witness_breaks_exclusivity {a : UInt256} (ha : a ≠ 0) :=
   ∃ (s : Finset AbsLeaf) (v : UInt256) (W : AbsLeaf),
         SoundState s ∧ v ∈ keys s ∧ W ∉ s
           ∧ W.key < v ∧ (W.nextKey = 0 ∨ v < W.nextKey)

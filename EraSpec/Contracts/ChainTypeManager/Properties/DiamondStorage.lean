@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.DiamondStorage
+import EraSpec.Core.Headline
 
 /-!
 # Properties: `Diamond.diamondCut` keeps a diamond's storage consistent
@@ -100,7 +101,7 @@ def Properties.ReplaceFunctionsRoutes : Prop :=
 /-- **WITHOUT `NoFunctionsForDiamondCut`, AN EMPTY `Add` BREAKS THE INVARIANT.** Called
 directly with no selectors, `_addFunctions` lists facet `11` while it routes nothing;
 `diamondCut` refuses the same cut. -/
-def Properties.EmptyAddBreaksOk : Prop :=
+@[countermodel] def Properties.EmptyAddBreaksOk : Prop :=
   ∃ d, addFunctions DiamondStorage.fresh 11 [] false = some d ∧ ¬ DiamondOk d ∧
     11 ∈ d.facets ∧ (d.facetToSelectors 11).selectors = [] ∧
     facetCut DiamondStorage.fresh ⟨11, .add, false, []⟩ = none
@@ -112,7 +113,7 @@ selector `2` and facet `11` with `1`, `3`, `4`; then remove `2` (facet `13` leav
 takes its slot), remove `1` (selector `4` takes its slot) and replace `3` by the new facet
 `12`. Every cut succeeds, both storages satisfy the invariant, and the final diamond lists
 `[11, 12]`, routes `4` to `11` and `3` to `12`, and routes neither `1` nor `2`. -/
-def Properties.DiamondCutWitness : Prop :=
+@[witness] def Properties.DiamondCutWitness : Prop :=
   ∃ d₁ d₂, diamondCut DiamondStorage.fresh wTwoFacetCuts = some d₁ ∧
     diamondCut d₁ wRemoveReplaceCuts = some d₂ ∧ DiamondOk d₁ ∧ DiamondOk d₂ ∧
     d₁.facets = [13, 11] ∧ d₂.facets = [11, 12] ∧ (d₂.facetToSelectors 11).selectors = [4] ∧

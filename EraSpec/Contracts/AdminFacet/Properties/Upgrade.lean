@@ -1,4 +1,5 @@
 import EraSpec.Contracts.AdminFacet.Specs.Mutants
+import EraSpec.Core.Headline
 
 /-!
 # Properties: chain upgrades through the facet
@@ -42,7 +43,7 @@ version `v`: `upgradeChainFromVersion(_, v)` succeeds with result `s'` iff
   initializer);
 * if `s'` requires the second proof system, its verifier's `getProofMode(0)` is multi-proof;
 * `s'` has version strictly above `v`. -/
-def Properties.UpgradeRunsExactlyTheCommittedCut : Prop :=
+@[headline] def Properties.UpgradeRunsExactlyTheCommittedCut : Prop :=
   ∀ (K : Config) (e : Env) (s s' : State) (a : Address) (τ : ℕ) (ch : Address) (v : ℕ),
     call K e s ⟨a, τ, .upgradeChainFromVersion ch v⟩ = some s' ↔
       (¬ (s.frozen = true ∧ s.freezable (Entry.upgradeChainFromVersion 0 0).sel = true) ∧
@@ -63,7 +64,7 @@ Along any run — calls by anyone, environment changes, foreign writes, `genesis
 `upgradeChainFromVersion` included — that contains no `executeUpgrade`, the final version is at
 least the initial version plus the number of `upgradeChainFromVersion` calls. Cuts run by those
 calls may do anything else. -/
-def Properties.VersionRisesAlongRuns : Prop :=
+@[headline] def Properties.VersionRisesAlongRuns : Prop :=
   ∀ (K : Config) (w w' : World) (ls : List Label),
     GenuineGenesis K → Run K w ls w' → (∀ l ∈ ls, l.isExecuteUpgrade = false) →
     w.st.protocolVersion + ls.countP Label.isUpgrade ≤ w'.st.protocolVersion
@@ -73,7 +74,7 @@ a `genesisUpgrade` call succeeds in a world whose CTM composes a genesis transac
 hash (a keccak output; zero only for a preimage of `bytes32(0)`), then along any later run whose
 foreign writes never clear the L2 upgrade transaction hash and which calls neither
 `upgradeChainFromVersion` nor `executeUpgrade`, no `genesisUpgrade` call succeeds. -/
-def Properties.GenesisRunsOnce : Prop :=
+@[headline] def Properties.GenesisRunsOnce : Prop :=
   ∀ (K : Config) (w w₁ w₂ : World) (a : Address) (τ : ℕ) (ls : List Label),
     GenuineGenesis K →
     Step K w (.call ⟨a, τ, .genesisUpgrade⟩) w₁ →
@@ -90,7 +91,7 @@ there is a run without `executeUpgrade` that contains exactly one `genesisUpgrad
 `upgradeChainFromVersion`, the latter from the initial version by a caller that is initially
 neither the admin, the CTM nor a validator, and that ends exactly one version higher (the premises
 of `VersionRisesAlongRuns`, its bound met with equality). -/
-def Properties.UpgradeWitness : Prop :=
+@[witness] def Properties.UpgradeWitness : Prop :=
   ∃ (K : Config) (w w' : World) (ls : List Label) (a : Address) (τ : ℕ),
     GenuineGenesis K ∧ Run K w ls w' ∧ (∀ l ∈ ls, l.isExecuteUpgrade = false) ∧
     Label.call ⟨a, τ, .upgradeChainFromVersion 0 w.st.protocolVersion⟩ ∈ ls ∧
@@ -102,7 +103,7 @@ def Properties.UpgradeWitness : Prop :=
 `genesisUpgrade` step whose CTM composes a transaction with nonzero hash is followed by a run
 without `upgradeChainFromVersion` and `executeUpgrade` that contains a call, an environment change
 and a foreign write, all of whose foreign writes leave the hash nonzero. -/
-def Properties.GenesisRunsOnceWitness : Prop :=
+@[witness] def Properties.GenesisRunsOnceWitness : Prop :=
   ∃ (K : Config) (w w₁ w₂ : World) (a : Address) (τ : ℕ) (ls : List Label),
     GenuineGenesis K ∧ Step K w (.call ⟨a, τ, .genesisUpgrade⟩) w₁ ∧
     w.env.genesisTxHash w.st.chainTypeManager w.st.protocolVersion ≠ 0 ∧
@@ -116,7 +117,7 @@ def Properties.GenesisRunsOnceWitness : Prop :=
 cut it is handed, with no version check (`Admin.sol:593-595`). With genuine genesis code, a run
 containing exactly one `executeUpgrade` ends below the initial version. So `VersionRisesAlongRuns`
 needs its no-`executeUpgrade` premise. -/
-def Properties.ExecuteUpgradeCanLowerVersion : Prop :=
+@[countermodel] def Properties.ExecuteUpgradeCanLowerVersion : Prop :=
   ∃ (K : Config) (w w' : World) (ls : List Label),
     GenuineGenesis K ∧ Run K w ls w' ∧ ls.countP Label.isExecuteUpgrade = 1 ∧
     w'.st.protocolVersion < w.st.protocolVersion
@@ -124,7 +125,7 @@ def Properties.ExecuteUpgradeCanLowerVersion : Prop :=
 /-- **COUNTERMODEL: THE `ProtocolIdNotGreater` CHECK IS LOAD-BEARING.** Without
 `Admin.sol:587-589`, the admin's `upgradeChainFromVersion` with a committed cut that does not raise
 the version succeeds; the transcribed entry reverts on the same call. -/
-def Properties.UpgradePostCheckIsLoadBearing : Prop :=
+@[countermodel] def Properties.UpgradePostCheckIsLoadBearing : Prop :=
   ∃ (K : Config) (e : Env) (s s' : State) (τ v : ℕ),
     upgradeWithoutPostCheck K e s ⟨s.admin, τ, .upgradeChainFromVersion 0 v⟩ v = some s' ∧
     s'.protocolVersion ≤ s.protocolVersion ∧
@@ -138,7 +139,7 @@ write leaving the hash zero (as the Executor's finalization does, `Executor.sol:
 further successful `genesisUpgrade`. The facet makes genesis once-only only while the transaction
 is pending; beyond that it rests on the CTM, whose only call is in `createNewChain`
 (`ChainTypeManager.sol:703-707`). -/
-def Properties.GenesisRerunsAfterFinalization : Prop :=
+@[countermodel] def Properties.GenesisRerunsAfterFinalization : Prop :=
   ∃ (K : Config) (w w₁ w₂ : World) (a : Address) (τ : ℕ) (ls : List Label),
     GenuineGenesis K ∧ Step K w (.call ⟨a, τ, .genesisUpgrade⟩) w₁ ∧
     w.env.genesisTxHash w.st.chainTypeManager w.st.protocolVersion ≠ 0 ∧

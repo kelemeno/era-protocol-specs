@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.LegacyCrossingFaithful
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the executor headlines once pre-v35 chains cross opaque legacy edges themselves
@@ -93,7 +94,7 @@ executor transaction. At the end:
 
 So those models leave out a real behaviour, and their tame headlines, read as statements about
 every run in which the owner does no break-glass cut, are false. -/
-def Properties.ChainSideCrossingBreaksTameHeadline : Prop :=
+@[countermodel] def Properties.ChainSideCrossingBreaksTameHeadline : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wLX0.sys ∧
     (∀ l ∈ wRecutRun, l.ExecTame wX) ∧ (∀ l ∈ wRecutRun, l.KeepsCtmCode wX) ∧
     ∃ s1 s, LStep wX wLX0 (.u (.x (.forward [.sys (.ctm (.legacyRecut 0))]))) s1 ∧
@@ -230,7 +231,7 @@ executor transaction:
 2. The chain crosses the bootstrap edge onto release `200`.
 
 At the end `SysInv` holds, and chain `5` is at version 2 routing exactly release `200`. -/
-def Properties.LegacyCatchUpWitness : Prop :=
+@[witness] def Properties.LegacyCatchUpWitness : Prop :=
   SysInv wX.W wLagX0.sys ∧ wLagSys.ctm.legacy 0 = LegacyCut.opaque ∧
     (¬ ∃ s', Step wWorld wLagSys (.transition 5) s') ∧
     (¬ ∃ s', Step wWorld wLagSys (.bootstrapReset 5) s') ∧

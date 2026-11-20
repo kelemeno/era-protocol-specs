@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainBatchRootTree.Specs.GenesisSeed
+import EraSpec.Core.Headline
 
 /-!
 # Properties: genesis seeding stores one root in both places, once, and never after a real batch
@@ -49,7 +50,7 @@ def Properties.CreateNewChainSucceedsIffGenesisNonzero : Prop :=
 /-- **GENESIS CONSISTENCY, ON EVERY RUN.** On every successful run from fresh storage, in the final
 state, if `c` has a chain contract then its `l2LogsRootHashes[0]` and `chainBatchRoots[c][0]` both
 equal `genesisChainBatchRoot`, that root is nonzero, and `c` is registered. -/
-def Properties.GenesisRootStable : Prop :=
+@[headline] def Properties.GenesisRootStable : Prop :=
   ∀ (keccak : Keccak) (ls : List SeedLabel) (s : SeedSystem),
     seedRun keccak seedFresh ls = some s →
       ∀ d, s.diamond = some d →
@@ -59,14 +60,14 @@ def Properties.GenesisRootStable : Prop :=
 
 /-- **`seedGenesisRoot` SUCCEEDS AT MOST ONCE.** On every successful run, from any storage, at most
 one step runs `seedGenesisRoot` (`createNewChain` or a direct call). -/
-def Properties.SeedAtMostOnce : Prop :=
+@[headline] def Properties.SeedAtMostOnce : Prop :=
   ∀ (keccak : Keccak) (s₀ : SeedSystem) (ls : List SeedLabel) (s : SeedSystem),
     seedRun keccak s₀ ls = some s → seedCount ls ≤ 1
 
 /-- **NO `seedGenesisRoot` AFTER A REAL BATCH.** On every successful run, from any storage, no step
 after one that records a batch root (`execute`, or a direct `addChainBatchRoot`) runs
 `seedGenesisRoot`. -/
-def Properties.NoSeedAfterRealBatch : Prop :=
+@[headline] def Properties.NoSeedAfterRealBatch : Prop :=
   ∀ (keccak : Keccak) (s₀ : SeedSystem) (ls₁ : List SeedLabel) (ℓ : SeedLabel)
     (ls₂ : List SeedLabel) (s : SeedSystem),
     seedRun keccak s₀ (ls₁ ++ ℓ :: ls₂) = some s → ℓ.IsRealBatch → ∀ ℓ' ∈ ls₂, ¬ ℓ'.IsSeed
@@ -97,7 +98,7 @@ def Properties.GenesisImtLeavesOpenSetupRoot : Prop :=
 `createNewChain` then one executed batch with root `r ≠ 0` succeed; afterwards
 `chainBatchRoots[c][0]` is the genesis root, `chainBatchRoots[c][1] = r`, the current batch is 1,
 exactly one step seeded, and both seed paths revert. -/
-def Properties.GenesisSeedRunWitness : Prop :=
+@[witness] def Properties.GenesisSeedRunWitness : Prop :=
   ∃ (keccak : Keccak) (r : UInt256) (s : SeedSystem),
     genesisChainBatchRoot keccak ≠ 0 ∧ r ≠ 0
       ∧ seedRun keccak seedFresh [.createNewChain, .execute r] = some s
@@ -110,7 +111,7 @@ def Properties.GenesisSeedRunWitness : Prop :=
 `EMPTY_IMT_ROOT`, and under it the honest proofs of leaves 2 and 3 of the genesis root meet
 `ImtRootHopAccepted` with claimed root `EMPTY_IMT_ROOT`, locate no `OpeningCollision`, and that
 root is the set-up tree's root. -/
-def Properties.GenesisImtLeavesWitness : Prop :=
+@[witness] def Properties.GenesisImtLeavesWitness : Prop :=
   ∃ keccak : Keccak, EmptyImtRootDocumented keccak
     ∧ ∀ (z0 : UInt256) (m : ℕ), (m = IMT_BEGIN_ROOT_LEAF_INDEX ∨ m = IMT_END_ROOT_LEAF_INDEX) →
         ImtRootHopAccepted keccak 0 0 EMPTY_IMT_ROOT EMPTY_IMT_ROOT

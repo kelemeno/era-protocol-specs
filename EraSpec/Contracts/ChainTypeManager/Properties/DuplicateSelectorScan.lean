@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.DuplicateSelectorScan
 import EraSpec.Contracts.ChainTypeManager.Specs.DuplicateSelectorCheck
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the duplicate-selector scan is exact
@@ -55,7 +56,7 @@ share home slot `2` of a 5-slot table, and still pass; a repeated selector fails
 or across rows; and release `100` of the witness world passes `validate()`'s facet checks,
 with 4-byte selectors, while its genesis diamond satisfies `DiamondOk` and passes the count
 check. -/
-def Properties.DuplicateScanWitness : Prop :=
+@[witness] def Properties.DuplicateScanWitness : Prop :=
   scanEntry 1 % 5 = scanEntry 6 % 5 ∧ NoDuplicateScanPasses [[1, 6]] ∧
     ¬ NoDuplicateScanPasses [[1], [1]] ∧ ¬ NoDuplicateScanPasses [[1, 6], [6]] ∧
     (∀ fb ∈ wDWorld.genesisFacets 100, ∀ x ∈ wDWorld.selectors fb.1, x < 2 ^ 32) ∧

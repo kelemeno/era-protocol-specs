@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTxNonces
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the L2 upgrade transaction's nonce along one chain's history
@@ -93,7 +94,7 @@ def Properties.NonceStepPreservesInvariant : Prop :=
 transactions written to `l2SystemContractsUpgradeTxHash` only grows by appending, and its nonces
 strictly increase. The run covers genesis, crossings on and off the settlement layer, commits,
 executions, reverts, and migrations with their copies. -/
-def Properties.UpgradeTxNoncesStrictlyIncrease : Prop :=
+@[headline] def Properties.UpgradeTxNoncesStrictlyIncrease : Prop :=
   ∀ (H : L2Tx → ℕ) (s s' : NonceSys) (ls : List NonceLabel),
     NonceInv s → NonceRunWith H MintLandsNotBehind s ls s' →
       (∃ new, s'.log = s.log ++ new) ∧ s'.log.Pairwise (fun a b => a.nonce < b.nonce)
@@ -118,7 +119,7 @@ layer-`0` diamond at `0.29.0` while the version it left with is `0.30.0`, so tha
 satisfy `MintLandsNotBehind`. The final log is genesis's `wUpgradeTx 29 [9]` followed by
 `wUpgradeTx 30 [1]` twice: the same transaction, the same nonce and the same hash written twice
 for one chain. -/
-def Properties.LaggingReturnRepeatsNonce : Prop :=
+@[countermodel] def Properties.LaggingReturnRepeatsNonce : Prop :=
   ∃ s', NonceRun (fun tx => tx.nonce + 1) nonceInit wLaggingRun s' ∧
     s'.log = [wUpgradeTx 29 [9], wUpgradeTx 30 [1], wUpgradeTx 30 [1]] ∧
     ¬ s'.log.Pairwise (fun a b => a.nonce < b.nonce) ∧
@@ -143,7 +144,7 @@ from `nonceInit` satisfies `MintLandsNotBehind` at every step (so `UpgradeTxNonc
 applies to it), and its only genesis or crossing on the settlement layer is the genesis at
 `0.29.0`. At its end the chain is live at `0.30.0` on the layer-`0` diamond, and its log holds only
 the genesis transaction: no transaction with nonce `30` was written. -/
-def Properties.ReturnAheadSkipsAnL2Upgrade : Prop :=
+@[countermodel] def Properties.ReturnAheadSkipsAnL2Upgrade : Prop :=
   Constructed wEnv wEdge wPlan ∧ wPlan.deployments ≠ [] ∧ wEdge.old = v29 ∧ wEdge.new = v30 ∧
     ∃ s', NonceRunWith (fun tx => tx.nonce + 1) MintLandsNotBehind nonceInit wSkipRun s' ∧
       (∀ l ∈ wSkipRun, l = .genesis 0 v29 99000 (wUpgradeTx 29 [9]) ∨ l.KeepsVersionLabel) ∧
@@ -155,7 +156,7 @@ layer `0` (with the hash `nonce + 1`), the run `wExactRun` (commit, revert, comm
 migration to a fresh diamond, a migration back onto the existing layer-`0` diamond at the version
 it left with, a burn and a restore) satisfies `MintLandsExactly` at every step, has no genesis and
 no crossing on the settlement layer, and `0.29.0` is live before and after it. -/
-def Properties.ExactLandingWitness : Prop :=
+@[witness] def Properties.ExactLandingWitness : Prop :=
   ∃ s1 s2, NonceRun (fun tx => tx.nonce + 1) nonceInit [.genesis 0 v29 99000 (wUpgradeTx 29 [9])] s1 ∧
     NonceRunWith (fun tx => tx.nonce + 1) MintLandsExactly s1 wExactRun s2 ∧
     (∀ l ∈ wExactRun, l.KeepsVersionLabel) ∧ ActiveVersion s1 v29 ∧ ActiveVersion s2 v29 ∧
@@ -167,7 +168,7 @@ def Properties.ExactLandingWitness : Prop :=
 `wNonceRun` from `nonceInit` uses every kind of step, every one satisfying `MintLandsNotBehind`
 (the migration back lands on a diamond at the version it left with, `0.30.1`). Its log is
 `[wUpgradeTx 29 [9], wUpgradeTx 30 [1], wUpgradeTx 31 [2]]`, nonces `29 < 30 < 31`. -/
-def Properties.UpgradeTxNoncesWitness : Prop :=
+@[witness] def Properties.UpgradeTxNoncesWitness : Prop :=
   ∃ s', NonceRunWith (fun tx => tx.nonce + 1) MintLandsNotBehind nonceInit wNonceRun s' ∧
     s'.log = [wUpgradeTx 29 [9], wUpgradeTx 30 [1], wUpgradeTx 31 [2]] ∧
     s'.log.map L2Tx.nonce = [29, 30, 31]

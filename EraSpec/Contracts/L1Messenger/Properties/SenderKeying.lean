@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1Messenger.Specs.SenderKeying
+import EraSpec.Core.Headline
 
 /-!
 # Properties: how an L2→L1 message is keyed by its sender
@@ -34,7 +35,7 @@ logs of the center's L1 dispatches (`dispatchLog`: the message `BUNDLE_IDENTIFIE
 from the center), in dispatch order and with multiplicity; and every dispatched bundle has
 `WithdrawalShape` (the shape conjunct holds by construction: the withdrawal step takes `WithdrawalShape`
 as its guard, which models IC:262-264, :552-556, :629-658, :782-822). -/
-def Properties.CenterKeyedLogsAreItsWithdrawals : Prop :=
+@[headline] def Properties.CenterKeyedLogsAreItsWithdrawals : Prop :=
   ∀ (C : Codec) (Q : ChainParams) (H : HookSem) (S : L2State), HooksAsDocumented C H →
     Reach C Q H L2State.init S →
       S.out.filter (fun L => decide (CenterKeyed L)) = S.dispatched.map (dispatchLog C) ∧
@@ -44,7 +45,7 @@ def Properties.CenterKeyedLogsAreItsWithdrawals : Prop :=
 to `wS₄ wGatedHooks` (the center withdraws `wOne`; `wForger` sends a message; `wForger` calls the
 messenger hook directly, naming the center; the tree inserts a leaf) is a run of chain `wChain` from
 genesis. Its output has three logs, and the center-keyed ones are exactly the withdrawal's. -/
-def Properties.SenderKeyingWitness : Prop :=
+@[witness] def Properties.SenderKeyingWitness : Prop :=
   HooksAsDocumented wCodec wGatedHooks ∧
     Reach wCodec wChain wGatedHooks L2State.init (wS₄ wGatedHooks) ∧
     (wS₄ wGatedHooks).out.length = 3 ∧
@@ -55,7 +56,7 @@ caller gate and satisfies the other three clauses of `HooksAsDocumented`. The ru
 `wS₄ wUngatedHooks` is a run of chain `wChain` from genesis in which the center dispatched only `wOne`;
 its output holds the message log of `BUNDLE_IDENTIFIER ++ abi.encode(wTwo)` from the center, recorded by
 `wForger`'s direct hook call, and its center-keyed logs are not the dispatches' logs. -/
-def Properties.UngatedHookForgesACenterKeyedLog : Prop :=
+@[countermodel] def Properties.UngatedHookForgesACenterKeyedLog : Prop :=
   ¬ (∀ c t x, c ≠ l2ToL1MessengerAddr → wUngatedHooks.messengerHook c t x = none) ∧
     (∀ t a m, wUngatedHooks.messengerHook l2ToL1MessengerAddr t (a, m) =
       some (messageLog wCodec t a m)) ∧

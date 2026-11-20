@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.CommitmentTreeAtV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the v35 tree contract's transactions on its whole storage
@@ -144,7 +145,7 @@ of every run from the predeploy's storage, either the storage is still the prede
 
 So each `RunHeight` result about a state reached from `hSetup`, taken with padding `zE`, is about
 the root this storage holds. -/
-def Properties.CTxRunAtV35StoredRootIsPublished : Prop :=
+@[headline] def Properties.CTxRunAtV35StoredRootIsPublished : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
     CTxRunAtV35 h hl zE K R tx → R 0 = cPredeployAtV35 →
     ∀ n : ℕ, R n = cPredeployAtV35
@@ -167,7 +168,7 @@ run from the predeploy's storage, `root()` returns some `Rt`, and:
    `paddingHit` case is the equation `hashLeaf(ℓ) = zE`.
 
 This is `CachedRoot.ContractProofsAtStoredRoot` with padding `zE`, for runs of the v35 machine. -/
-def Properties.CTxRunAtV35ContractProofsAtStoredRoot : Prop :=
+@[headline] def Properties.CTxRunAtV35ContractProofsAtStoredRoot : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
     CTxRunAtV35 h hl zE K R tx → R 0 = cPredeployAtV35 →
     ∀ n : ℕ, Initialized (R n).tree →
@@ -208,7 +209,7 @@ a run of this machine; it exhibits only the first case, at the pin's padding.  T
 `PathCollision` and `HeightBreak` break cases fire on the base model at an occupied index
 (`Contracts.InteropCommitmentTree.Properties.TreeRootBreakEveryCaseFires`); no empty-slot instance
 of them is exhibited. -/
-def Properties.CTxRunAtV35EmptySlotLocatesPadding : Prop :=
+@[headline] def Properties.CTxRunAtV35EmptySlotLocatesPadding : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
     CTxRunAtV35 h hl zE K R tx → R 0 = cPredeployAtV35 →
     ∀ (n : ℕ) (Rt : UInt256) (ℓ : Leaf) (j k : ℕ) (s : ℕ → UInt256),
@@ -234,7 +235,7 @@ So the run premises of every statement above hold on this run, for every padding
 particular for the pin's (`CTxRunAtV35AtPinPaddingIsCRunFromCSetup`, with `k = 0`).  An insert
 premise holds at step 7, and an initialized state with a key and a non-key is at step 7.
 `PaddingForgeryAtV35Witness` meets the remaining premises. -/
-def Properties.StaleHintCRunWitnessAtV35 : Prop :=
+@[witness] def Properties.StaleHintCRunWitnessAtV35 : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles),
     CTxRunAtV35 h hl zE K (staleHintCRunAtV35 h hl zE) (staleHintTxV35 K)
       ∧ staleHintCRunAtV35 h hl zE 0 = cPredeployAtV35
@@ -265,7 +266,7 @@ So with the pin's constant the v35 machine's stored root accepts the pin's forge
 of clause 3 of `CTxRunAtV35ContractProofsAtStoredRoot` and of
 `CTxRunAtV35EmptySlotLocatesPadding` hold on a run of this machine.  The first case of the latter
 holds and, by `TreeRootBreakExactly`, the other two do not. -/
-def Properties.PaddingForgeryAtV35Witness : Prop :=
+@[countermodel] def Properties.PaddingForgeryAtV35Witness : Prop :=
   ∀ (h : Hash) (hl : LeafHash),
     (staleHintCRunAtV35 h hl (hl ⟨0, 0, 0⟩) 7).root
         = some (root h (hl ⟨0, 0, 0⟩) hl (chainTree 6) 3)
@@ -297,7 +298,7 @@ nonzero value is straddled by a leaf of the tree (a leaf `W` with `W.key < v` an
 `W.nextKey`, or `W.nextKey = 0`) exactly when it is not a key.  The straddling leaf is a genuine
 leaf of the list state; what the deployed `verifyNonInclusion` accepts against `root()` is
 `CTxRunAtV35ContractProofsAtStoredRoot`'s statement, not this one. -/
-def Properties.CTxRunAtV35ReclaimableIffAbsent : Prop :=
+@[headline] def Properties.CTxRunAtV35ReclaimableIffAbsent : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
     CTxRunAtV35 h hl zE K R tx → R 0 = cPredeployAtV35 →
     ∀ (n : ℕ) (v : UInt256), Initialized (R n).tree → v ≠ 0 →
@@ -307,7 +308,7 @@ def Properties.CTxRunAtV35ReclaimableIffAbsent : Prop :=
 /-- **THE KEY SET NEVER SHRINKS, ON THE CANONICAL MACHINE.**  For every node hash, leaf hash and
 padding constant, along every run from any start state, a key of the list state at step `m` is a
 key at every later step. -/
-def Properties.CTxRunAtV35KeysMono : Prop :=
+@[headline] def Properties.CTxRunAtV35KeysMono : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
     CTxRunAtV35 h hl zE K R tx →
     ∀ m n : ℕ, m ≤ n → keys (toAbs (R m).tree)
@@ -316,7 +317,7 @@ def Properties.CTxRunAtV35KeysMono : Prop :=
 /-- **AT MOST ONE `initL2()` SUCCEEDS, ON THE CANONICAL MACHINE.**  For every node hash, leaf hash
 and padding constant, along every run from any start state, two successful `initL2()` calls are
 the same step. -/
-def Properties.CTxRunAtV35InitL2AtMostOnce : Prop :=
+@[headline] def Properties.CTxRunAtV35InitL2AtMostOnce : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (zE : UInt256) (K : Roles) (R : ℕ → CState) (tx : Trace),
     CTxRunAtV35 h hl zE K R tx →
     ∀ (m n : ℕ) (cm cn : Caller), tx m = some (cm, .initL2) → tx n = some (cn, .initL2) → m = n

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.PaddingAtHead
+import EraSpec.Core.Headline
 
 /-!
 # Properties: at `main`, an accepted absence proof means absent, or a named keccak collision
@@ -149,7 +150,7 @@ either `v` is not in the tree, or the proof carries a `KeccakBreakAtHead`:
 
 In each case the two byte strings differ, so each is a genuine keccak collision; at the pin the
 padding case needed none (`PaddingHitAtPinNeedsNoCollision`). -/
-def Properties.NonInclusionAtHeadIsAbsentOrKeccakCollision : Prop :=
+@[headline] def Properties.NonInclusionAtHeadIsAbsentOrKeccakCollision : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (S : CState), CReachesAtHead keccak S →
     ∃ R : UInt256, S.root = some R ∧
       ∀ (v : UInt256) (ℓ : Leaf) (idx : ℕ) (sibs : ℕ → UInt256) (k : ℕ),
@@ -168,7 +169,7 @@ def Properties.InclusionAtHeadIsPresentOrKeccakCollision : Prop :=
 /-- **NO VALUE IS BOTH PROVED PRESENT AND PROVED ABSENT, SHORT OF A NAMED COLLISION.**  If a
 value has an accepted inclusion proof and an accepted non-inclusion proof against the stored
 root, one of the two paths carries a `KeccakBreakAtHead`. -/
-def Properties.ProofsExclusiveAtHeadOrKeccakCollision : Prop :=
+@[headline] def Properties.ProofsExclusiveAtHeadOrKeccakCollision : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (S : CState), CReachesAtHead keccak S →
     ∃ R : UInt256, S.root = some R ∧
       ∀ (v : UInt256) (ℓ₁ ℓ₂ : Leaf) (i₁ i₂ : ℕ) (s₁ s₂ : ℕ → UInt256) (k₁ k₂ : ℕ),
@@ -268,7 +269,7 @@ whose `nextIndex` does not fit a `uint256` while the stored leaf's does, is acce
 with the empty path.  Its proof carries a `TreeRootBreak` (a different leaf with the same
 `hashLeaf`), yet none of the four disjuncts of `TreeRootBreakAtHeadIsKeccakCollision`'s conclusion
 holds: the two leaves have one `abi.encode`. -/
-def Properties.TreeRootBreakAtHeadNeedsNextIndexBound : Prop :=
+@[countermodel] def Properties.TreeRootBreakAtHeadNeedsNextIndexBound : Prop :=
   ∀ keccak : List UInt8 → UInt256,
     ¬ (⟨0, 2 ^ 256, 0⟩ : Leaf).nextIndex < 2 ^ 256
     ∧ (∀ i < setup.leafCount, (setup.leaf i).nextIndex < 2 ^ 256)
@@ -405,7 +406,7 @@ reaches `threeLeafTree a b` with the view `hThree a b` at height 2; `root()` ret
 insert's `newRoot`, which is the fold at padding `ze`; and `merklePath(3)` reverts.  The three
 states are the steps of a `CRun` from `cSetupPad`.  This meets the `CReachesPad` /
 `CReachesAtHead` premise of every property here, and the premises of `CRunPadReaches`. -/
-def Properties.PaddingAtHeadThreeLeafRun : Prop :=
+@[witness] def Properties.PaddingAtHeadThreeLeafRun : Prop :=
   ∀ (h : Hash) (hl : LeafHash) (ze a b : UInt256), 0 < a → a < b →
     ∃ (S₀ S₁ S₂ : CState) (r₁ r₂ : UInt256),
       cSetupPad h hl ze = some S₀ ∧ cInsert h hl S₀ a 0 = some (S₁, r₁)
@@ -468,7 +469,7 @@ accepted inclusion proof (leaf 1, the tree's own siblings) and the pin's forged 
 exactly `emptyLeaf` holds on the forged proof.  So the premises of
 `PinForgeryAtHeadNeedsKeccakCollision`'s clause 1 and of `ProofsExclusiveAtHeadOrKeccakCollision`
 are satisfiable, and the `emptyLeaf` case cannot be dropped from `KeccakBreakAtHead`. -/
-def Properties.PinForgeryAtHeadFiresOnCollision : Prop :=
+@[countermodel] def Properties.PinForgeryAtHeadFiresOnCollision : Prop :=
   (∃ keccak : List UInt8 → UInt256, HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag)
     ∧ ∀ (keccak : List UInt8 → UInt256),
         HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag →
@@ -496,7 +497,7 @@ against the stored root for the delivered `a`, through a node-hash collision on 
 four cases of `KeccakBreakAtHead` exactly `node` holds.  So the `node` case cannot be dropped
 either.  The proof's keccak is a toy that maps every 64-byte input to one value, not a model of
 keccak256. -/
-def Properties.NodeCollisionAtHeadFires : Prop :=
+@[countermodel] def Properties.NodeCollisionAtHeadFires : Prop :=
   ∃ keccak : List UInt8 → UInt256,
     ¬ HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag
     ∧ ∀ a b : UInt256, 0 < a → a < b →
@@ -518,7 +519,7 @@ leaf 0 is `{0, 1, a}`.  For every `0 < a` some keccak collides on its `abi.encod
 fake low leaf `{0, 1, 0}`.  For every such keccak and `a < b`, the tree's own path of index 0,
 presenting the fake leaf, is accepted at `main` as an absence proof for the delivered `a`, and of
 the four cases of `KeccakBreakAtHead` exactly `leaf` holds on it. -/
-def Properties.LeafCollisionAtHeadFires : Prop :=
+@[countermodel] def Properties.LeafCollisionAtHeadFires : Prop :=
   (∀ a : UInt256, 0 < a → ∃ keccak : List UInt8 → UInt256,
       HashCollision keccak (imtLeafPreimage ⟨0, 1, a⟩) (imtLeafPreimage ⟨0, 1, 0⟩))
     ∧ ∀ (keccak : List UInt8 → UInt256) (a b : UInt256), 0 < a → a < b →
@@ -597,7 +598,7 @@ strings collide: a toy, not a model of keccak256), on the three-leaf run at `mai
 length 2 at the padding slot 3 and a path of length 3 at index 4, beyond `2 ^ 2`, both presenting
 the zero leaf, are accepted against the stored root.  On the second, of the four cases of
 `KeccakBreakAtHead` exactly `length` holds. -/
-def Properties.OutOfRangeIndexAtHeadWitness : Prop :=
+@[countermodel] def Properties.OutOfRangeIndexAtHeadWitness : Prop :=
   ∃ keccak : List UInt8 → UInt256, ∀ a b : UInt256, 0 < a → a < b →
     ∃ (S₂ : CState) (r₂ : UInt256),
       CReachesAtHead keccak S₂ ∧ S₂.tree = threeLeafTree a b ∧ S₂.fm.height = 2
@@ -641,7 +642,7 @@ for every keccak, `root()` returns some `R` and:
 
 Clause 2 meets the premises of the headline with its first disjunct true and its second
 false. -/
-def Properties.ContractProofsAtStoredRootAtHead : Prop :=
+@[witness] def Properties.ContractProofsAtStoredRootAtHead : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (S : CState), CReachesAtHead keccak S →
     ∃ R : UInt256, S.root = some R
       ∧ (∀ v : UInt256, v ∈ keys (toAbs S.tree) →
@@ -664,7 +665,7 @@ other than `a` and `b`: on the three-leaf run at `main`, `v` is absent and has a
 non-inclusion proof against the stored root (the contract's `merklePath` of its low leaf) with
 no keccak break, while the delivered `a` has an accepted inclusion proof with no keccak
 break. -/
-def Properties.NonInclusionAtHeadWitness : Prop :=
+@[witness] def Properties.NonInclusionAtHeadWitness : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (a b v : UInt256), 0 < a → a < b → v ≠ 0 → v ≠ a → v ≠ b →
     ∃ (S₂ : CState) (r₂ : UInt256), CReachesAtHead keccak S₂ ∧ S₂.tree = threeLeafTree a b
       ∧ S₂.root = some r₂ ∧ v ∉ keys (toAbs S₂.tree) ∧ a ∈ keys (toAbs S₂.tree)

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1NativeTokenVault.Specs.BulkheadIsolation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what one chain can release from the L1 vault under the v35 per-chain cap
@@ -111,7 +112,7 @@ the run contains, for any chains and amounts, the amounts of its `fromChain c a 
 exactly the growth of `withdrawn[c][a]`, and at most `deposited + backfill` of `(c, a)` at the end
 less `withdrawn` at the start: the growth of `deposited + backfill` plus the starting headroom when
 it is positive. -/
-def Properties.BulkheadDisabledChainReleaseBound : Prop :=
+@[headline] def Properties.BulkheadDisabledChainReleaseBound : Prop :=
   ∀ (cfg : CapConfig) (s t : CapState) (ls : List CapLabel) (c a : ℕ),
     CapRun cfg s ls t → s.upgraded = true → s.pending c = false → t.interop c = false →
     c ≠ cfg.pool → s.origin a ≠ c → t.origin a ≠ c →
@@ -127,7 +128,7 @@ the run: the amounts of the run's withdrawals by chains that were enabled when t
 exactly the growth of the pool key's `withdrawn`, and at most the pool's `deposited` at the end less
 its `withdrawn` at the start, i.e. the growth of the pool's deposits (moves and pool backfill
 credits included) plus the pool's starting headroom when it is positive. -/
-def Properties.BulkheadEnabledSetReleaseBound : Prop :=
+@[headline] def Properties.BulkheadEnabledSetReleaseBound : Prop :=
   ∀ (cfg : CapConfig) (s t : CapState) (ls : List CapLabel) (a : ℕ),
     cfg.Ok → CapWF cfg s → CapRun cfg s ls t → t.interop (t.origin a) = false →
       releasedByEnabled cfg a s ls = t.withdrawn cfg.pool a - s.withdrawn cfg.pool a ∧
@@ -157,7 +158,7 @@ def Properties.BulkheadLedgerIdentity : Prop :=
 backfills of the asset fit in its `bridgedOut` at the upgrade plus the legacy amounts populated
 since, and no chain whose balance moved to the pool is in deficit, then `bridgedOut` is at least
 the sum of the headrooms of the chains whose balance has not moved plus the pool's headroom. -/
-def Properties.BulkheadEscrowBacksHeadroom : Prop :=
+@[headline] def Properties.BulkheadEscrowBacksHeadroom : Prop :=
   ∀ (cfg : CapConfig) (s0 s : CapState) (ls : List CapLabel) (a : ℕ),
     cfg.Ok → CapUpgradeState cfg s0 → CapRun cfg s0 ls s → s0.origin a = cfg.l1 →
     ∑ c ∈ range chainIdCap, s.backfill c a ≤ s0.bridgedOut a + populatedIn a ls →
@@ -170,7 +171,7 @@ def Properties.BulkheadEscrowBacksHeadroom : Prop :=
 that is disabled and not pending, every amount up to its headroom passes `_handleBridgeFromChain`
 (both the `bridgedOut` check and the cap), provided `deposited + backfill` of `(c, a)` is below
 `2^256`. -/
-def Properties.BulkheadHonestWithdrawalSucceeds : Prop :=
+@[headline] def Properties.BulkheadHonestWithdrawalSucceeds : Prop :=
   ∀ (cfg : CapConfig) (s0 s : CapState) (ls : List CapLabel) (a c x : ℕ),
     cfg.Ok → CapUpgradeState cfg s0 → CapRun cfg s0 ls s → s0.origin a = cfg.l1 →
     ∑ k ∈ range chainIdCap, s.backfill k a ≤ s0.bridgedOut a + populatedIn a ls →

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Specs.CoreLegRefinement
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the Core leg is the canonical leg in the Core domain
@@ -24,7 +25,7 @@ engines `E`, transition `T`, world `W`, filler world `w₀` and `DomainHoldersV3
 `eng`, run on the embedded `W` with the context `DomainHoldersV35` builds, returns the embedding
 of what `T`'s engine returns on `W`, then the embedding of the Core leg's result on `W` is the
 `DomainHoldersV35` leg's result on the embedded `W`. -/
-def Properties.CoreLegIsDomainHoldersLeg : Prop :=
+@[headline] def Properties.CoreLegIsDomainHoldersLeg : Prop :=
   ∀ (X : CoreLeg.Exec) (E : CoreLeg.Engines) (T : CoreLeg.TransitionObj) (W : CoreLeg.World)
     (w₀ : DomainHoldersV35.World) (eng : DomainHoldersV35.Engine),
     eng X.self (DomainHoldersV35.buildContext (bindings X) T.addr (manifestMap T.manifest))
@@ -38,7 +39,7 @@ def Properties.CoreLegIsDomainHoldersLeg : Prop :=
 /-- **THE ENGINE-AGREEMENT PREMISE OF `CoreLegIsDomainHoldersLeg` IS SATISFIABLE.** For every
 Core executor, engines, transition, world and filler world there is a `DomainHoldersV35` engine
 meeting it: the one that returns the embedding of what `T`'s engine returns on `W`. -/
-def Properties.CoreLegIsDomainHoldersLegSatisfiable : Prop :=
+@[witness] def Properties.CoreLegIsDomainHoldersLegSatisfiable : Prop :=
   ∀ (X : CoreLeg.Exec) (E : CoreLeg.Engines) (T : CoreLeg.TransitionObj) (W : CoreLeg.World)
     (w₀ : DomainHoldersV35.World), ∃ eng : DomainHoldersV35.Engine,
     eng X.self (DomainHoldersV35.buildContext (bindings X) T.addr (manifestMap T.manifest))

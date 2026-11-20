@@ -1,4 +1,5 @@
 import EraSpec.Contracts.RegistryBootstrapMigration.Specs.Forward
+import EraSpec.Core.Headline
 
 /-!
 # Properties: forwarded calls and the authority model's label set
@@ -187,7 +188,7 @@ and nothing is parked. Executor `3`, owning the `ProxyAdmin`, forwards an `upgra
 the CTM proxy whose new code writes the migration into the CTM's owner slot. The forward
 succeeds and makes no ownership call naming the migration. Only the no-swap premise of
 `NoReparkingAcrossForwards` fails, and the migration ends up owning the CTM. -/
-def Properties.ForwardCtmSwapReparks : Prop :=
+@[countermodel] def Properties.ForwardCtmSwapReparks : Prop :=
   wPost.executed = true ∧ ¬ ParkedOnMigration (wConfig true) wPost ∧
     ¬ XLabel.handsToMigration (wConfig true) (.forward [⟨3, .ctmCodeSwap 50 0 35 60⟩]) ∧
     XLabel.swapsCtmCode (.forward [⟨3, .ctmCodeSwap 50 0 35 60⟩]) ∧
@@ -219,7 +220,7 @@ a genuine executor:
 * from there the forward succeeds, and so does the run of the bundle followed by the forward;
 * at the end, successor `7` owns the CTM (with no nomination outstanding) and the
   `ProxyAdmin`, at version 36 on release 61. -/
-def Properties.ForwardWitness : Prop :=
+@[witness] def Properties.ForwardWitness : Prop :=
   (∀ c ∈ wSuccession, c.Covered (wConfig true) ∧ ¬ c.op.handsToMigration (wConfig true) ∧
       ¬ c.op.swapsCtmCode) ∧
     AStep (wConfig true) wPre .bundle wPost ∧ wPost.executed = true ∧

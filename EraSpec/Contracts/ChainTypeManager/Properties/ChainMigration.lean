@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ChainMigration
+import EraSpec.Core.Headline
 
 /-!
 # Properties: a returning chain keeps its diamond, drift included
@@ -81,7 +82,7 @@ def Properties.DriftedReturnerIsStuck : Prop :=
 chain `0`, let it leave and return, commit `300`, and upgrade it. The run has no
 break-glass cut and starts from an invariant state; chain `0` ends at version 2 routing
 release `200`. -/
-def Properties.MigrationRoundTripWitness : Prop :=
+@[witness] def Properties.MigrationRoundTripWitness : Prop :=
   ∃ s, MRun wWorld wMSys0
       [.base (.genesis 0), .migrateOut 0, .migrateReturn 0, .base (.ctm (.commit 300)),
         .base (.transition 0)] s ∧

@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1NativeTokenVault.Specs.InteropPool
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the L1 vault's per-chain ledger and the interop pool
@@ -108,7 +109,7 @@ def Properties.InvariantStepWitness : Prop :=
   last two are the conditions under which the cap check of `handleBridgeFromChain`
   (`L1NativeTokenVault.sol:450-456`) runs for the pool's key with limit
   `chainTotalDeposited[POOL][a] + 0`; `PoolWithdrawalsCovered` is the bound that results. -/
-def Properties.FlagsAfterUpgrade : Prop :=
+@[headline] def Properties.FlagsAfterUpgrade : Prop :=
   ∀ (l1 : ChainId) (pre s₀ t : PoolSys) (L : List PoolCall),
     PreUpgrade pre → initializeUpgrade pre = some s₀ → PoolRun l1 s₀ L t →
       (∀ c, t.interop c = true → t.pending c = false)
@@ -211,7 +212,7 @@ whose chain argument is the pool id itself, which the model allows (the hooks ta
 the hooks' callers rule out (not modelled); `PoolKeyedMeansEnabledDestination` is stated for a
 chain id other than the pool's. The ghost is pinned step by step (`DirectToPoolIsPoolKeyedDeposits`);
 no run-level statement sums it over the run's calls. -/
-def Properties.PoolDepositIdentity : Prop :=
+@[headline] def Properties.PoolDepositIdentity : Prop :=
   ∀ (l1 : ChainId) (pre s₀ t : PoolSys) (L : List PoolCall),
     PreUpgrade pre → initializeUpgrade pre = some s₀ → PoolRun l1 s₀ L t →
       ∀ a, t.deposited interopPoolChainId a = t.directToPool a
@@ -220,7 +221,7 @@ def Properties.PoolDepositIdentity : Prop :=
 
 /-- **THE POOL'S WITHDRAWALS ARE COVERED.** Along every run from the post-upgrade state, for every
 asset, `chainTotalWithdrawn[POOL][a]` is at most the right-hand side of `PoolDepositIdentity`. -/
-def Properties.PoolWithdrawalsCovered : Prop :=
+@[headline] def Properties.PoolWithdrawalsCovered : Prop :=
   ∀ (l1 : ChainId) (pre s₀ t : PoolSys) (L : List PoolCall),
     PreUpgrade pre → initializeUpgrade pre = some s₀ → PoolRun l1 s₀ L t →
       ∀ a, t.withdrawn interopPoolChainId a ≤ t.directToPool a
@@ -257,7 +258,7 @@ def Properties.PoolKeyedWitness : Prop :=
 `moveChainBalanceToInteropPool(c, a)` then the backfill entry `(c, a, x)` gives the same result as
 the backfill entry then the move: the same state, or a revert on both sides. No premise is
 needed: if `c` is not enabled, or the pair already has a nonzero backfill, both orders revert. -/
-def Properties.MoveBackfillCommute : Prop :=
+@[headline] def Properties.MoveBackfillCommute : Prop :=
   ∀ (s : PoolSys) (c a : ChainId) (x : UInt256),
     (moveChainBalanceToInteropPool s c a).bind (fun m => setChainBalanceBackfill m c a x)
       = (setChainBalanceBackfill s c a x).bind (fun m => moveChainBalanceToInteropPool m c a)

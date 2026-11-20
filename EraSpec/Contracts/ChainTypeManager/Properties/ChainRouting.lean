@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ChainRouting
+import EraSpec.Core.Headline
 
 /-!
 # Properties: every chain on a CTM runs its version's release
@@ -117,7 +118,7 @@ break-glass cut adds selector `9`, which neither release `100` nor release `200`
 The chain is now at version 1 routing something other than `R_1`, so the headline's
 no-break-glass premise is needed. The unguarded engine would cross the edge and keep
 selector `9`; the guarded system has no transition for this chain. -/
-def Properties.BreakGlassSelectorSurvivesWithoutGuard : Prop :=
+@[countermodel] def Properties.BreakGlassSelectorSurvivesWithoutGuard : Prop :=
   ∃ s, Run wWorld wSys0 [.genesis 0, .ctm (.commit 300), .arbitraryCut 0 1 bgExtra] s ∧
     (∃ c, s.chains 0 = some c ∧ c.pv = 1 ∧ s.ctm.relAt 1 = 100 ∧
       c.routing ≠ rowsRouting (wRows 100) ∧ c.routing 9 = some (99, false) ∧
@@ -129,7 +130,7 @@ def Properties.BreakGlassSelectorSurvivesWithoutGuard : Prop :=
 removes selector `2`, which release `100` routes. The chain cannot cross the committed
 edge: not with the guard, and not without it either, since the derived `Remove` of
 selector `2` reverts on an unrouted selector. -/
-def Properties.MissingSelectorBricksTransition : Prop :=
+@[countermodel] def Properties.MissingSelectorBricksTransition : Prop :=
   ∃ s, Run wWorld wSys0 [.genesis 0, .ctm (.commit 300), .arbitraryCut 0 1 bgMissing] s ∧
     (∃ c, s.chains 0 = some c ∧ c.pv = 1 ∧ c.routing 2 = none ∧
       rowsRouting (wRows 100) 2 ≠ none) ∧
@@ -143,7 +144,7 @@ version 1, commit `300` (1→2), upgrade chain `0`, and create chain `1`. The ru
 break-glass cut and starts from an invariant state. Both chains end at version 2 routing
 release `200`, which differs from release `100` — so the transition really reinstalled
 the routing. -/
-def Properties.ChainRoutingWitness : Prop :=
+@[witness] def Properties.ChainRoutingWitness : Prop :=
   ∃ s, Run wWorld wSys0 [.genesis 0, .ctm (.commit 300), .transition 0, .genesis 1] s ∧
     SysInv wWorld wSys0 ∧
     (∃ c, s.chains 0 = some c ∧ c.pv = 2 ∧ c.routing = rowsRouting (wRows 200)) ∧
@@ -153,7 +154,7 @@ def Properties.ChainRoutingWitness : Prop :=
 /-- **THE BOOTSTRAP RESET WIPES PRE-REGISTRY ROUTING.** A pre-registry chain at version 0
 that routes only selector `7` crosses the bootstrap edge onto release `100` at version 1:
 selector `7` is gone and the chain routes exactly release `100`. -/
-def Properties.BootstrapResetWitness : Prop :=
+@[witness] def Properties.BootstrapResetWitness : Prop :=
   ∃ s, Run wWorld wBootSys [.bootstrapReset 5] s ∧ SysInv wWorld wBootSys ∧
     (∃ c, wBootSys.chains 5 = some c ∧ c.routing 7 ≠ none ∧ c.routing ≠ rowsRouting (wRows 100)) ∧
     (∃ c, s.chains 5 = some c ∧ c.pv = 1 ∧ c.routing = rowsRouting (wRows 100) ∧ c.routing 7 = none)

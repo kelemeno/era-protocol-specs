@@ -5,9 +5,8 @@ priority-operation step that calls it.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. No hash
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`). No hash
 premise anywhere: a "break" is a located hash event (`BatchBreak`), not an assumption.
 
 | Guarantee | Premises | Statement |

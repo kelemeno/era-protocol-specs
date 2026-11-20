@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1ChainAssetHandler.Specs.SettlementLayerValidation
+import EraSpec.Core.Headline
 
 -- Named propositions are transparent definitions; proofs reference these statements.
 set_option linter.unusedVariables false
@@ -125,7 +126,7 @@ def Properties.MainAgreesWithoutLegacyInterval : Prop :=
 /-- **NO REVERT ON A REACHABLE STATE.** In every environment and world, on every state a run from
 a start state reaches, `migrationNumber[c] ≤ 2`, so `isValidSettlementLayer` returns for every
 batch, claimed layer and claimed layer batch. -/
-def Properties.ReachableNeverReverts : Prop :=
+@[headline] def Properties.ReachableNeverReverts : Prop :=
   ∀ (K : ValEnv) (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
     ValInit W s0 → valRun K W s0 ls = some s →
       s.mn ≤ maxMigrations ∧ ∀ b X k, (isValidAt W s b X k).isSome = true
@@ -160,7 +161,7 @@ def Properties.ExecutedBatchNeverRewritten : Prop :=
 every claimed layer `X` and claimed layer batch `k`: `isValidSettlementLayer(c, b, X, k)` returns
 `true` iff `X` is `r.layer` and, when `r.layer` is not L1, `k` is at least interval 1's lower bound
 and, when interval 1 is closed, at most its upper bound; otherwise it returns `false`. -/
-def Properties.ExecutedBatchAnswer : Prop :=
+@[headline] def Properties.ExecutedBatchAnswer : Prop :=
   ∀ (K : ValEnv) (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
     W.Ok → ValInit W s0 → valRun K W s0 ls = some s →
     ∀ b r, s.hist b = some r → ∀ X k,
@@ -170,7 +171,7 @@ def Properties.ExecutedBatchAnswer : Prop :=
 /-- **SOUND FOR EXECUTED BATCHES.** In every environment, in a world where chain id 0 is not
 whitelisted, on every reachable state: if `isValidSettlementLayer(c, b, X, k)` returns `true` for
 an executed batch `b`, then `X` is the layer whose diamond executed `b`. -/
-def Properties.ExecutedBatchSound : Prop :=
+@[headline] def Properties.ExecutedBatchSound : Prop :=
   ∀ (K : ValEnv) (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
     W.Ok → ValInit W s0 → valRun K W s0 ls = some s →
     ∀ b r X k, s.hist b = some r → isValidAt W s b X k = some true → X = r.layer
@@ -183,7 +184,7 @@ layer batches (`sealedOnly`), the lower bound is strictly below the first layer 
 `b`. If the return is finalized only after the layer batch containing the burn was executed on
 L1 (`finalizedAfterExec`) and the interval is closed, that first layer batch is at most the upper
 bound. -/
-def Properties.SLBatchWithinBounds : Prop :=
+@[headline] def Properties.SLBatchWithinBounds : Prop :=
   ∀ (K : ValEnv) (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
     ValInit W s0 → valRun K W s0 ls = some s →
     ∀ b r, s.hist b = some r → r.layer ≠ W.l1 →
@@ -208,7 +209,7 @@ def Properties.IntervalBatchesRanOnLayer : Prop :=
 whitelisted, on every reachable state, for every executed batch `b` with record `r`:
 `isValidSettlementLayer(c, b, r.layer, r.slBatch)` returns `true`, and so does the claim of every
 layer batch `k ≥ r.slBatch` that is at most the upper bound when interval 1 is closed. -/
-def Properties.ExecutedBatchComplete : Prop :=
+@[headline] def Properties.ExecutedBatchComplete : Prop :=
   ∀ (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
     W.Ok → ValInit W s0 → valRun ValEnv.real W s0 ls = some s →
     ∀ b r, s.hist b = some r →
@@ -224,7 +225,7 @@ returns whether `X` is L1, for every `b`, `X` and `k`. This follows from the ste
 `migrationNumber` to `0`, so the call's loop visits no interval. That every batch executed while
 the migration was pending ran on L1 is a separate fact (`MigrationsDisabledEveryBatchOnL1`, and
 `SLVPending.allL1` in the Proofs). -/
-def Properties.FailureClassifiesAllOnL1 : Prop :=
+@[headline] def Properties.FailureClassifiesAllOnL1 : Prop :=
   ∀ (K : ValEnv) (W : ValWorld) (s s' : ValState), valStep K W s .confirmFailure = some s' →
     ∀ b X k, isValidAt W s' b X k = some (decide (X = W.l1))
 
@@ -234,7 +235,7 @@ any run from any state `s0`: either `migrationNumber[c]` and the interval row ar
 or `s0` had `migrationNumber` 1 and the run confirmed a failure, leaving `migrationNumber` 0 and
 interval 1 empty. Hence every claim naming a layer other than L1 that is accepted at the end was
 accepted, with the same layer batch, at `s0`. -/
-def Properties.MigrationsDisabledOnlyHistoricalIntervals : Prop :=
+@[headline] def Properties.MigrationsDisabledOnlyHistoricalIntervals : Prop :=
   ∀ (K : ValEnv) (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
     W.enabled = false → valRun K W s0 ls = some s →
       ((s.mn = s0.mn ∧ s.ivs = s0.ivs) ∨
@@ -256,7 +257,7 @@ def Properties.MigrationsDisabledEveryBatchOnL1 : Prop :=
 before it is sealed (and the return is finalized after execution), completeness at the first
 containing layer batch fails: there are a world where chain id 0 is not whitelisted, a run from a
 start state and an executed batch whose claim `(r.layer, r.slBatch)` is rejected. -/
-def Properties.CompletenessNeedsSealedOnly : Prop :=
+@[countermodel] def Properties.CompletenessNeedsSealedOnly : Prop :=
   ¬ ∀ (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
       W.Ok → ValInit W s0 → valRun ⟨false, true⟩ W s0 ls = some s →
       ∀ b r, s.hist b = some r → isValidAt W s b r.layer r.slBatch = some true
@@ -266,7 +267,7 @@ finalized before the layer batch containing the burn is executed on L1 (and L1 e
 sealed layer batches), there are a world where chain id 0 is not whitelisted, a run from a start
 state and an executed batch for which no claim of its layer with a layer batch at or after the
 first one containing it is accepted. -/
-def Properties.CompletenessNeedsFinalizedAfterExec : Prop :=
+@[countermodel] def Properties.CompletenessNeedsFinalizedAfterExec : Prop :=
   ¬ ∀ (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
       W.Ok → ValInit W s0 → valRun ⟨true, false⟩ W s0 ls = some s →
       ∀ b r, s.hist b = some r → ∃ k, r.slBatch ≤ k ∧ isValidAt W s b r.layer k = some true
@@ -274,7 +275,7 @@ def Properties.CompletenessNeedsFinalizedAfterExec : Prop :=
 /-- **SOUNDNESS NEEDS NONZERO LAYER IDS.** Without `ValWorld.Ok`, soundness fails: in some
 environment and world (one that whitelists chain 0), a run from a start state executes a batch on
 layer 0 and `isValidSettlementLayer` accepts a claim naming a different layer (L1) for it. -/
-def Properties.SoundnessNeedsNonzeroLayerIds : Prop :=
+@[countermodel] def Properties.SoundnessNeedsNonzeroLayerIds : Prop :=
   ¬ ∀ (K : ValEnv) (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
       ValInit W s0 → valRun K W s0 ls = some s →
       ∀ b r X k, s.hist b = some r → isValidAt W s b X k = some true → X = r.layer
@@ -283,7 +284,7 @@ def Properties.SoundnessNeedsNonzeroLayerIds : Prop :=
 batch at or after the first one containing the batch" fails in the real environment, in a world
 where chain id 0 is not whitelisted: on the witness round trip, batch 3 was first contained in
 layer batch 2 and the claim `(5, 1)` is accepted (the lower bound is 1). -/
-def Properties.ClaimBelowFirstContainingBatchAccepted : Prop :=
+@[countermodel] def Properties.ClaimBelowFirstContainingBatchAccepted : Prop :=
   ¬ ∀ (W : ValWorld) (s0 s : ValState) (ls : List ValLabel),
       W.Ok → ValInit W s0 → valRun ValEnv.real W s0 ls = some s →
       ∀ b r k, s.hist b = some r → isValidAt W s b r.layer k = some true → r.slBatch ≤ k
@@ -301,7 +302,7 @@ batches 1, 2 and 5 were executed on L1 and batches 3 and 4 on layer 5, in layer 
 (batch 3's record is the one it had at `s1`). The call accepts `(1, _)` for batches 1 and 5 and
 `(5, 2)`, `(5, 3)` for batches 3 and 4, and rejects `(5, _)` for batches 1 and 5, `(1, _)` for
 batch 3 and `(5, 4)` (above the upper bound) for batch 4. -/
-def Properties.RoundTripWitness : Prop :=
+@[witness] def Properties.RoundTripWitness : Prop :=
   wWorld.Ok ∧ wWorld.enabled = true ∧ ValInit wWorld wFresh ∧
   ∃ s1 s, valRun ValEnv.real wWorld wFresh (wRoundTrip.take 7) = some s1 ∧
     valRun ValEnv.real wWorld s1 (wRoundTrip.drop 7) = some s ∧
@@ -321,7 +322,7 @@ seals a batch and L1 executes it, a burn to layer 5 (interval 1 active with lowe
 the failure of its transaction. Before the confirmation the call accepts `(5, 1)` for batch 2,
 which has not been executed; the confirmation step succeeds, batch 2 is then executed on L1,
 `migrationNumber` is 0, and the call accepts `(1, 0)` and rejects `(5, 1)` for batch 2. -/
-def Properties.FailedMigrationWitness : Prop :=
+@[witness] def Properties.FailedMigrationWitness : Prop :=
   ∃ s1 s2 s3, valRun ValEnv.real wWorld wFresh
       [.execL1 1, .slSeal 5, .slExecL1 5, .burnL1 5, .failSL] = some s1 ∧
     s1.ivs 1 = ⟨1, 0, 1, 0, 5, true⟩ ∧ isValidAt wWorld s1 2 5 1 = some true ∧
@@ -336,7 +337,7 @@ the claim `(5, 2)` for batch 3 is accepted at both ends, and a new burn reverts.
 fresh state in that world, batch 1 executes on L1 and a burn reverts. (3) A migration in flight
 when migrations are disabled: after a burn to layer 5 in the enabled world, the disabled world
 fails its transaction and confirms the failure, which takes `migrationNumber` from 1 to 0. -/
-def Properties.MigrationsDisabledWitness : Prop :=
+@[witness] def Properties.MigrationsDisabledWitness : Prop :=
   wWorldBanned.enabled = false ∧ ValInit wWorldBanned wFresh ∧
   (∃ s0 s, valRun ValEnv.real wWorld wFresh wRoundTrip = some s0 ∧
     valRun ValEnv.real wWorldBanned s0 [.execL1 6, .slSeal 5, .slExecL1 5] = some s ∧

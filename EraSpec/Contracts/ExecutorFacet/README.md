@@ -5,9 +5,8 @@ The batch pipeline of one ZK chain's diamond (commit, prove, execute, revert) at
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`).
 "Reachable" means reached from a chain right after `DiamondInit` by any interleaving of the
 model's eleven calls, for any `Env` (verifier, DA validator results, dependency roots). No
 statement assumes a hash injective: "unless a collision was submitted" means unless the run logged

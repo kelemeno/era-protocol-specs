@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2AssetTracker.Specs.RecoveryNeutrality
+import EraSpec.Core.Headline
 
 /-!
 # Properties: atomic recovery and the `L2AssetTracker` at v35
@@ -115,7 +116,7 @@ destination is `L1_CHAIN_ID` reverts; so do the router's `recoverAtomicCall` and
 `bridgehubRecoverBaseToken` with destination L1 (any call data, asset, receiver, amount), the vault's
 `bridgeRecoverFailedTransfer` with destination L1 (any asset and mint data), and the holder's
 `recoverBaseToken` of a nonzero amount with destination L1. -/
-def Properties.RecoveryToL1RevertsAtV35 : Prop :=
+@[headline] def Properties.RecoveryToL1RevertsAtV35 : Prop :=
   ∀ (cfg : Config) (sys : Sys) (reads : AssetId → TokenReads),
     (∀ b : Bundle, b.dest = cfg.l1 → exec cfg Guards.v35 sys (.claimRefund reads b) = none) ∧
     (∀ data : CallData, routerRecoverAtomicCall cfg Guards.v35 sys reads cfg.l1 data = none) ∧
@@ -212,7 +213,7 @@ toward `d`, one per mint data in `mds`, whose amounts total `x`, take `sys₂` t
 * every other asset's view is `sys₂`'s;
 * the holder's balance is `sys₀`'s if `a` is the base asset; otherwise neither the bridge-out nor the
   recoveries change it. -/
-def Properties.BurnThenRecoveriesRestoreAsset : Prop :=
+@[headline] def Properties.BurnThenRecoveriesRestoreAsset : Prop :=
   ∀ (cfg : Config) (sys₀ sys₁ sys₂ sys₃ : Sys) (reads₀ : TokenReads) (reads : AssetId → TokenReads)
     (d : ChainId) (a : AssetId) (x : UInt256) (mid : List Op) (mds : List MintData),
     exec cfg Guards.v35 sys₀ (.vaultBurn reads₀ d a x) = some sys₁ →
@@ -514,7 +515,7 @@ def Properties.VaultRecoveryEffectAtV35 : Prop :=
 state: the bundle's destination is not L1; `interopInfo` is unchanged for every asset; no chain
 balance decreases; chain balances on chains other than this one are unchanged; the holder's balance
 does not increase; handlers and the settlement layer are unchanged. -/
-def Properties.ClaimRefundNeverWritesInteropInfo : Prop :=
+@[headline] def Properties.ClaimRefundNeverWritesInteropInfo : Prop :=
   ∀ (cfg : Config) (sys sys' : Sys) (reads : AssetId → TokenReads) (b : Bundle),
     exec cfg Guards.v35 sys (.claimRefund reads b) = some sys' →
     b.dest ≠ cfg.l1 ∧ sys'.trk.interopInfo = sys.trk.interopInfo ∧
@@ -547,7 +548,7 @@ grows by some events `new`, and for every asset `a`, `totalWithdrawalsToL1[a]` g
 total of the `burned a L1 x L1` events in `new` (`l1BurnTotal`): the bridge-outs of `a` toward L1
 made while the chain settled on L1.  It never decreases.  If the flow manager's check is present (so
 at v35), no `recovered` event in `new` has L1 as its destination. -/
-def Properties.WithdrawalsToL1Ledger : Prop :=
+@[headline] def Properties.WithdrawalsToL1Ledger : Prop :=
   ∀ (cfg : Config) (g : Guards) (sys₀ sys : Sys) (ops : List Op),
     run cfg g sys₀ ops = some sys →
     ∃ new, sys.log = sys₀.log ++ new ∧

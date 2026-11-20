@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.L2Convergence
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the L2 implementations of the chains on a `ChainTypeManager`
@@ -115,7 +116,7 @@ for any two chains on the same version `v` for which the CTM has a release, and 
 a fixed address and a nonempty row in that release, both chains have a system proxy at that
 address pointing at the same implementation row, however each reached `v`; or the run crosses a
 transition with a row clash. -/
-def Properties.ChainsOnOneVersionRunOneL2 : Prop :=
+@[headline] def Properties.ChainsOnOneVersionRunOneL2 : Prop :=
   ∀ {H : Type} [DecidableEq H] (kec : Bytes → H) (rnd : Bytes → L2Addr) (W : L2World)
     (s s' : L2Sys) (ls : List L2Label),
     L2Inv W s → L2Run W s ls s' →
@@ -168,7 +169,7 @@ identity as hash. Each of its three crossings has a new or changed row. At its e
 holds the skip `700` (landing on version `3·2^32`), and chains `0` (two crossings), `1` (the skip)
 and `2` (genesis) are all at version `3·2^32` with proxies at the three members' fixed addresses
 pointing at the same rows. -/
-def Properties.L2ConvergenceWitness : Prop :=
+@[witness] def Properties.L2ConvergenceWitness : Prop :=
   ∃ s', L2Run cvWorld cvSys0 cvLabels s' ∧ L2Inv cvWorld cvSys0 ∧
     (∀ l ∈ cvLabels, ¬ l.IsBreakGlass) ∧ (∀ l ∈ cvLabels, l.L2Executed) ∧
     (∀ cid t b, L2Label.cross cid t b ∈ cvLabels → L2Genuine (fun x : Bytes => x) wRnd cvWorld t) ∧
@@ -188,7 +189,7 @@ version 0 onto release `100`, with pre-registry chain `5` at version 0 (`cvPre`)
 CTM commits `300`, chain `5` crosses it" succeeds and meets every premise of
 `ChainsRunTheirVersionsL2Rows` with the identity hash. At its end chain `5` is at version
 `2·2^32` and runs release `200`, behind its pre-registry shell at member 0's address. -/
-def Properties.BootstrapConvergenceWitness : Prop :=
+@[witness] def Properties.BootstrapConvergenceWitness : Prop :=
   ∃ s', L2Run cvWorld (bootstrapL2Sys cvWorld 0 100 cvPre)
       [.bootstrapCross 5 true, .ctm (.commit 300), .cross 5 300 true] s' ∧
     (100 : Address) ≠ 0 ∧ 0 < cvWorld.base.relVersion 100 ∧
@@ -203,7 +204,7 @@ def Properties.BootstrapConvergenceWitness : Prop :=
 only addresses with no code). At the end of the witness run `cvLabels`, chains `0` and `2` are on
 the same version and their proxies at member 0's fixed address point at the same implementation
 row, behind different shells: chain `0`'s from release `100`, chain `2`'s from release `250`. -/
-def Properties.ShellsDoNotConverge : Prop :=
+@[countermodel] def Properties.ShellsDoNotConverge : Prop :=
   ∃ s', L2Run cvWorld cvSys0 cvLabels s' ∧
     ∃ c₀ c₂, s'.chains 0 = some c₀ ∧ s'.chains 2 = some c₂ ∧ c₀.pv = c₂.pv ∧
       (c₀.l2 0x10002).map Prod.snd = (c₂.l2 0x10002).map Prod.snd ∧
@@ -215,7 +216,7 @@ def Properties.ShellsDoNotConverge : Prop :=
 premise of `ChainsRunTheirVersionsL2Rows` except that its one crossing does not execute its L2
 transaction ends with chain `0` at a version whose release it does not run, and no transition has
 a row clash under the identity hash. -/
-def Properties.UnexecutedL2TxLeavesTheOldRow : Prop :=
+@[countermodel] def Properties.UnexecutedL2TxLeavesTheOldRow : Prop :=
   ∃ s', L2Run cvWorld cvSys0 [.genesis 0, .ctm (.commit 300), .cross 0 300 false] s' ∧
     L2Inv cvWorld cvSys0 ∧ L2Genuine (fun x : Bytes => x) wRnd cvWorld 300 ∧
     (∀ v, s'.ctm.relAt v ≠ 0 → GenesisImageHolds cvWorld (s'.ctm.relAt v)) ∧
@@ -228,7 +229,7 @@ def Properties.UnexecutedL2TxLeavesTheOldRow : Prop :=
 deployment, so it is not L2-genuine. A run that meets every other premise of
 `ChainsRunTheirVersionsL2Rows` ends with chain `0` at a version whose release it does not run, and
 no transition has a row clash under the identity hash. -/
-def Properties.NonGenuinePlanLeavesTheOldRow : Prop :=
+@[countermodel] def Properties.NonGenuinePlanLeavesTheOldRow : Prop :=
   ∃ s', L2Run cvWorldStalePlan (freshL2Sys cvWorldStalePlan 100)
       [.genesis 0, .ctm (.commit 300), .cross 0 300 true] s' ∧
     L2Inv cvWorldStalePlan (freshL2Sys cvWorldStalePlan 100) ∧
@@ -244,7 +245,7 @@ def Properties.NonGenuinePlanLeavesTheOldRow : Prop :=
 `ChainsRunTheirVersionsL2Rows` ends with chain `0` (which crossed `300`) and chain `1` (created
 at that version) on one version, their proxies at member 0's fixed address pointing at different
 rows, and no transition has a row clash under the identity hash. -/
-def Properties.StaleGenesisImageSplitsAVersion : Prop :=
+@[countermodel] def Properties.StaleGenesisImageSplitsAVersion : Prop :=
   ∃ s', L2Run cvWorldStaleImage (freshL2Sys cvWorldStaleImage 100)
       [.genesis 0, .ctm (.commit 300), .cross 0 300 true, .genesis 1] s' ∧
     L2Inv cvWorldStaleImage (freshL2Sys cvWorldStaleImage 100) ∧
@@ -259,7 +260,7 @@ def Properties.StaleGenesisImageSplitsAVersion : Prop :=
 changes row 0, succeeds and lands on release `200`, whose row 14 is the same. This meets the
 premises of `NonemptyRowsStayNonemptyAlongRegistryRuns` and
 `NoFixedAddressRowFrozenAlongRegistryRuns`. -/
-def Properties.FrozenRowAlongRunsWitness : Prop :=
+@[witness] def Properties.FrozenRowAlongRunsWitness : Prop :=
   ∃ c', CRun fzBase (initState fzBase 100) [.commit 300] c' ∧
     L2Genuine (fun x : Bytes => x) wRnd fzWorld 300 ∧
     fixedAddress 14 = none ∧ rowAt (fzRel 100).table 14 ≠ [] ∧
@@ -269,7 +270,7 @@ def Properties.FrozenRowAlongRunsWitness : Prop :=
 /-- **THE LEGACY COMMIT MOVES THE FROZEN ROW.** From the same state, the legacy cut-taking commit
 `setNewVersionUpgrade` installing release `250` succeeds, and `250`'s row 14 differs from
 `100`'s. So `NoFixedAddressRowFrozenAlongRegistryRuns` needs its no-legacy-commit premise. -/
-def Properties.LegacyCommitMovesTheFrozenRow : Prop :=
+@[countermodel] def Properties.LegacyCommitMovesTheFrozenRow : Prop :=
   ∃ c', CRun fzBase (initState fzBase 100) [.legacyCommit 250 false] c' ∧
     c'.cur = 250 ∧ rowAt (fzRel c'.cur).table 14 ≠ [] ∧
     rowAt (fzRel c'.cur).table 14 ≠ rowAt (fzRel 100).table 14

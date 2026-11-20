@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.MutableSelectors
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the routing headline needs stable `selectors()` answers
@@ -191,7 +192,7 @@ chain `0` at version 1, commits `300` (1→2), upgrades chain `0` and creates ch
 changes and there is no break-glass cut. The run meets `StableSelectors` and starts from an
 invariant state. Both chains end at version 2, whose release is `200`, routing release `200`,
 which differs from release `100`. -/
-def Properties.StableSelectorsWitness : Prop :=
+@[witness] def Properties.StableSelectorsWitness : Prop :=
   mutSys0 = ⟨⟨initState (mutWorld.at mutSelA).toWorld 100, fun _ => none⟩, mutSelA⟩ ∧
     (100 : Address) ≠ 0 ∧ ReleaseValid (mutWorld.at mutSelA) 100 ∧
     StableSelectors mutWorld mutSelA mutSys0
@@ -214,7 +215,7 @@ there is no break-glass cut, and `600` is never committed. The run meets `Stable
 `mutSelA`; it meets `StableSelectors` with no `σ`, because `600` was not built under `mutSelA`.
 Both chains end at version 2, whose release is `200`, routing release `200`, which differs from
 release `100`. -/
-def Properties.StableSelectorsOnWitness : Prop :=
+@[witness] def Properties.StableSelectorsOnWitness : Prop :=
   StableSelectorsOn mutLateWorld mutSelA mutSys0
       [.sys (.genesis 0), .sys (.ctm (.commit 300)), .sys (.transition 0), .sys (.genesis 1)] ∧
     ¬ mutLateWorld.FrozenUnder mutSelA 600 ∧
@@ -292,7 +293,7 @@ answering `[1, 3]`" reaches a state where:
 
 In the next state the facets still answer `mutSelB`, the current release is `200`, and chain `1`
 is created. The two answer sets flatten release `200`'s rows differently. -/
-def Properties.InstallsReadDifferentAnswersWitness : Prop :=
+@[witness] def Properties.InstallsReadDifferentAnswersWitness : Prop :=
   DSysInv (mutWorld.at mutSelA) mutSys0.sys ∧
     ∃ s₃ s₄ s₅ : MutSys,
       MutRun mutWorld mutSys0
@@ -331,7 +332,7 @@ At the end both chains are at version 2, whose release is `200`. Chain `0` route
 rows with the old answers; chain `1` routes them with the new ones. So no `ChainRouting` world
 reaches the final state's routing view along a run without break-glass cut from an invariant
 state, and no `LiveRouting` world reaches the final state that way. -/
-def Properties.MutableSelectorsSplitRouting : Prop :=
+@[countermodel] def Properties.MutableSelectorsSplitRouting : Prop :=
   (∀ t, mutWorld.FrozenUnder mutSelA t) ∧ mutWorld.GenuineUnder mutSelA 300 ∧
     mutWorld.cuts 300 = [⟨0, .remove, false, [1, 2]⟩, ⟨21, .add, false, [1, 2]⟩] ∧
     (∀ R, ReleaseValid (mutWorld.at mutSelA) R ∧ ReleaseValid (mutWorld.at mutSelB) R) ∧
@@ -370,7 +371,7 @@ cuts), then commit `600`. The CTM then satisfies `CtmInv`, slot 2 holds `600`, a
 release is `200`. Chain `0`, at version 2, fails the count check against release `200` as the
 facets answer now, and has no crossing. Chain `1`, at version 2, passes it, crosses, and lands at
 version 3. -/
-def Properties.MutableSelectorsBlockNextEdge : Prop :=
+@[countermodel] def Properties.MutableSelectorsBlockNextEdge : Prop :=
   mutLateWorld.GenuineUnder mutSelB 600 ∧ mutLateWorld.GenuineUnder mutSelA 300 ∧
     ∃ s, MutRun mutLateWorld mutSys0
         [.sys (.genesis 0), .sys (.ctm (.commit 300)), .setSelectors 21 [1, 3],
@@ -392,7 +393,7 @@ starts from an invariant state under the answers it sees: it creates chain `0`, 
 upgrades chain `0` and creates chain `1`. Both chains end at version 2, whose release is `200`,
 and route differently, so no `ChainRouting` world reaches the final state's routing view along a
 run without break-glass cut from an invariant state. -/
-def Properties.StaleCutsSplitRouting : Prop :=
+@[countermodel] def Properties.StaleCutsSplitRouting : Prop :=
   (∀ t, mutWorld.FrozenUnder mutSelA t) ∧ ¬ mutWorld.FrozenUnder mutSelB 300 ∧
     (∀ σ, ¬ StableSelectors mutWorld σ mutStaleSys0
       [.sys (.genesis 0), .sys (.ctm (.commit 300)), .sys (.transition 0), .sys (.genesis 1)]) ∧
@@ -423,7 +424,7 @@ At the end chain `0` is at version 2, whose release is `200`, and routes selecto
 `11`. For no answer set is its routing release `200`'s, so no `LiveRouting` run of these objects,
 whatever fixed answers the facets give, reaches the final state from an invariant state without
 break-glass cut. It fails the count check against release `200` under every answer set. -/
-def Properties.MutableSelectorsLeaveDepartingFacetRouted : Prop :=
+@[countermodel] def Properties.MutableSelectorsLeaveDepartingFacetRouted : Prop :=
   (∀ t, mutWorld.FrozenUnder mutSelA t) ∧ mutWorld.GenuineUnder mutSelA 300 ∧
     mutWorld.cuts 300 = [⟨0, .remove, false, [1, 2]⟩, ⟨21, .add, false, [1, 2]⟩] ∧
     (∀ R, ReleaseValid (mutWorld.at mutSelC) R) ∧

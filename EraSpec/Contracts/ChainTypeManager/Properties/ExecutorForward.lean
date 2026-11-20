@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorForward
+import EraSpec.Core.Headline
 
 /-!
 # Properties: which invariants survive the CTM executor's `forward`
@@ -96,7 +97,7 @@ reinitializers satisfy `ReinitFrames` and whose transition's rows name distinct 
 `CTM_PROXY_ADMIN.upgrade(5, 10)` then succeeds and moves it back to `10`, which no row of
 any transition did: the conclusion of `FixedEntrypointsMoveProxiesOnlyAlongRows` fails for
 that step. -/
-def Properties.ForwardDowngradesAProxy : Prop :=
+@[countermodel] def Properties.ForwardDowngradesAProxy : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧
     wInfra.rows.Pairwise (fun a b => a.proxy ≠ b.proxy) ∧
     ∃ s s', XRun wX wX0 [.infra wInfra] s ∧
@@ -111,7 +112,7 @@ which satisfies `SysInv`: a tame run creates chain `0`, commits `300` (1→2) th
 Then one `forward` of `upgradeAndCall` on the CTM proxy, whose new code leaves the CTM in
 the state `initialize(100)` would (version 1), succeeds. The CTM's version decreased, and
 `SysInv` fails: chain `0` is ahead of its CTM. -/
-def Properties.ForwardCtmSwapBreaksInvariants : Prop :=
+@[countermodel] def Properties.ForwardCtmSwapBreaksInvariants : Prop :=
   SysInv wX.W wX0.sys ∧
     ∃ s s', XRun wX wX0 [.env (.genesis 0), .commit 300, .upgradeChain 0] s ∧
       (∀ x ∈ [XLabel.env (.genesis 0), .commit 300, .upgradeChain 0], x.Tame wX) ∧
@@ -129,7 +130,7 @@ on the CTM and upgrades proxy `7` to `42` through the `ProxyAdmin`. Every transa
 tame, the reinitializers satisfy `ReinitFrames`, the transition's rows name distinct
 proxies, and the start satisfies `SysInv`. At the end chain `0` is at version 2, which has a
 release, slot 1 holds `400`, and the three proxies have moved. -/
-def Properties.ExecutorWitness : Prop :=
+@[witness] def Properties.ExecutorWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     wInfra.rows.Pairwise (fun a b => a.proxy ≠ b.proxy) ∧
     (∀ x ∈ [XLabel.infra wInfra, .env (.genesis 0), .commit 300, .upgradeChain 0,

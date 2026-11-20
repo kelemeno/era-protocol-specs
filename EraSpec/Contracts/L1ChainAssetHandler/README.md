@@ -5,9 +5,8 @@ the layer that actually executed each batch of one migrating chain.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`).
 "Reachable" means reached by any run of the ten modelled steps from a start state: a chain that
 settles on L1, has never migrated, and whose two L1 counters agree. "The real environment" is
 `ValEnv.real`: L1 executes only sealed layer batches (`sealedOnly`), and the return message is

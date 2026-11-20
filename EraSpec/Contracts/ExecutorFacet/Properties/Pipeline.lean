@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ExecutorFacet.Specs.Pipeline
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the batch pipeline (commit, prove, execute, revert)
@@ -37,7 +38,7 @@ namespace Contracts.ExecutorFacet
 
 /-- **EXECUTED ≤ VERIFIED ≤ COMMITTED, ALWAYS.** In every reachable state
 `totalBatchesExecuted ≤ totalBatchesVerified ≤ totalBatchesCommitted`. No hash premise. -/
-def Properties.CountersOrdered : Prop :=
+@[headline] def Properties.CountersOrdered : Prop :=
   ∀ (env : Env) (s : State), Reach env s →
     s.totalBatchesExecuted ≤ s.totalBatchesVerified ∧
     s.totalBatchesVerified ≤ s.totalBatchesCommitted
@@ -46,7 +47,7 @@ def Properties.CountersOrdered : Prop :=
 or not) and any successful call: the executed count does not decrease; and unless the call is
 `revertBatchesSharedBridge` or `activatePriorityMode`, neither the committed nor the verified
 count decreases. -/
-def Properties.OnlyRevertMovesCountersBack : Prop :=
+@[headline] def Properties.OnlyRevertMovesCountersBack : Prop :=
   ∀ (env : Env) (s s' : State) (c : Call), step env s c = some s' →
     s.totalBatchesExecuted ≤ s'.totalBatchesExecuted ∧
     ((∃ caller n, c = .revert caller n) ∨ c = .activatePriorityMode ∨
@@ -62,7 +63,7 @@ unchanged, among them the executed count, the stored batch hashes, the log roots
 interop fee units, the priority tree, the upgrade transaction hash and the ghost state. Since
 the transaction hash is kept, reverting the batch that carried it makes it pending again
 (`Co:105-107`; `RevertRecommitWitness` shows the next commit carrying it). -/
-def Properties.RevertBatchesEffect : Prop :=
+@[headline] def Properties.RevertBatchesEffect : Prop :=
   ∀ (s s' : State) (n : Nat), revertBatches s n = some s' ↔
     (s.totalBatchesExecuted ≤ n ∧ n ≤ s.totalBatchesCommitted ∧
       s' = { s with
@@ -106,7 +107,7 @@ def Properties.RevertEntryPoints : Prop :=
 permissionless validator in priority mode (`settlerAllowed`, `Base:75-83`). A batch committed
 in priority mode has no L2 transactions and at least one priority transaction
 (`Co:214-216`). -/
-def Properties.OnlySettlersSettle : Prop :=
+@[headline] def Properties.OnlySettlersSettle : Prop :=
   (∀ (env : Env) (s s' : State) (c : CommitCall), commit env s c = some s' →
     settlerAllowed s c.caller = true ∧ s.settlementLayer = 0 ∧
     (s.priorityModeActivated = true →
@@ -122,7 +123,7 @@ def Properties.OnlySettlersSettle : Prop :=
 numbers of the executed log, in execution order, are exactly `1, 2, …, totalBatchesExecuted`.
 So no batch number is executed twice, none is skipped, and the count is the log's length. No
 hash premise. -/
-def Properties.ExecutedExactlyOnceInOrder : Prop :=
+@[headline] def Properties.ExecutedExactlyOnceInOrder : Prop :=
   ∀ (env : Env) (s : State), Reach env s →
     s.executed.map (·.info.batchNumber) = List.range' 1 s.totalBatchesExecuted ∧
     (s.executed.map (·.info.batchNumber)).Nodup ∧
@@ -135,7 +136,7 @@ log of `s` is a prefix of that of `s'`, the executed count does not decrease, an
 already executed, and genesis). No hash premise: this holds even in a run that logs a hash
 collision, because the only writer of `l2LogsRootHashes` is `_executeOneBatch`, at a batch
 number above the executed count (`Ex:66-68`, `Ex:103`). -/
-def Properties.ExecutedIsFinal : Prop :=
+@[headline] def Properties.ExecutedIsFinal : Prop :=
   ∀ (env : Env) (s s' : State), Reach env s → Steps env s s' →
     s.executed <+: s'.executed ∧
     s.totalBatchesExecuted ≤ s'.totalBatchesExecuted ∧
@@ -170,7 +171,7 @@ initialization is a concrete collision, or for every record `r` of the executed 
   number (`ProvedAt`).
 
 `VerifiedBatchesHaveAcceptedProofs` says the verifier returned `true` for each such call. -/
-def Properties.ExecutedBatchesWereCommittedAndProved : Prop :=
+@[headline] def Properties.ExecutedBatchesWereCommittedAndProved : Prop :=
   ∀ (env : Env) (s : State), Reach env s → HashBreakLogged env s ∨
     ∀ r ∈ s.executed, r.info = s.preimage r.info.batchNumber ∧
       s.storedBatchHashes r.info.batchNumber = env.hashStored r.info ∧
@@ -212,7 +213,7 @@ reachable state:
   committed* batch `preimage n` at position `n`. A proof accepted for a batch that was later
   reverted and re-committed with different contents does not count for the re-committed
   batch (`RevertRecommitWitness`). -/
-def Properties.VerifiedBatchesHaveAcceptedProofs : Prop :=
+@[headline] def Properties.VerifiedBatchesHaveAcceptedProofs : Prop :=
   ∀ (env : Env) (s : State), Reach env s →
     (∀ call ∈ s.verified, env.verify (call.batches.map (·.commitment)) call.proof = true) ∧
     (HashBreakLogged env s ∨
@@ -299,7 +300,7 @@ numbered `committed + 1` on top of the last committed batch (`preimage committed
 `_processFrom = _processTo` its number; in priority mode the batch must have no L2
 transactions and at least one priority transaction. The checks the model omits (Specs header)
 can still reject such a call in the source. -/
-def Properties.HonestCommitEnabled : Prop :=
+@[headline] def Properties.HonestCommitEnabled : Prop :=
   ∀ (env : Env) (s : State) (caller : Addr) (b : CommitBatchInfo), Reach env s →
     s.hashBreaks = [] → s.settlementLayer = 0 → settlerAllowed s caller = true →
     b.batchNumber = s.totalBatchesCommitted + 1 →
@@ -341,7 +342,7 @@ LOGGED.** In every reachable state:
 The statement does not say what producing a genuine Merkle break takes for the real tree;
 `processBatch` leaves the validity of the item hashes to the validity proof (`PT:77-82`).
 `MerkleBreakConsumesAnUnpushedOp` shows the break disjunct is needed. -/
-def Properties.PriorityOpsConsumedInOrder : Prop :=
+@[headline] def Properties.PriorityOpsConsumedInOrder : Prop :=
   ∀ (env : Env) (s : State), Reach env s →
     s.ptUnprocessedIndex = (consumed s).length ∧
     (∀ r ∈ s.executed, r.items.length = r.info.numberOfLayer1Txs ∧
@@ -380,7 +381,7 @@ So a chain cannot commit past a pending upgrade transaction without including it
 the committed batches not yet executed only one carries it. This rests on the in-tree upgrade
 engines' "all batches executed" guard (`Up:115-119`), which `setUpgradeTx` models; without it
 the transaction lands in a later batch (`UpgradeWithoutExecutedCheckSkipsABatch`). -/
-def Properties.UpgradeTxInFirstUnexecutedBatch : Prop :=
+@[headline] def Properties.UpgradeTxInFirstUnexecutedBatch : Prop :=
   ∀ (env : Env) (s : State), Reach env s → HashBreakLogged env s ∨
     ((s.l2SystemContractsUpgradeBatchNumber ≠ 0 →
         s.l2SystemContractsUpgradeTxHash ≠ 0 ∧

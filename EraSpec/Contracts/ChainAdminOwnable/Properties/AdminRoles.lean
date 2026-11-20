@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainAdminOwnable.Specs.AdminRoles
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the admin roles a `ChainAdminOwnable` holds
@@ -67,7 +68,7 @@ namespace Contracts.ChainAdminOwnable
 configuration, start from storage with no owner and no nominee, and a diamond `D` whose admin is
 the `ChainAdminOwnable` and whose pending admin is zero. Along any run that logs no cut of `D`, `D`
 ends with the same admin pair. -/
-def Properties.RenouncedCaoKeepsDiamondAdmin : Prop :=
+@[headline] def Properties.RenouncedCaoKeepsDiamondAdmin : Prop :=
   ∀ (cfg : Config) (S S' : State) (L : List Event) (D : Address), cfg.WF →
     S.cao.owner = 0 → S.cao.pending = 0 → S.chain D = ⟨cfg.cao, 0⟩ →
     Sem cfg .acts S L S' → Event.cut D ∉ L → S'.chain D = ⟨cfg.cao, 0⟩
@@ -92,7 +93,7 @@ def Properties.RenounceStrandsDiamondAdminRole : Prop :=
 configuration, start from storage with no owner and no nominee. Along any run, every logged
 successful call by the `ChainAdminOwnable` into a diamond has selector `0x235d9eb5`
 (`setTokenMultiplier(uint128,uint128)`), and none into the Bridgehub is logged. -/
-def Properties.RenouncedCaoReachesOnlySetTokenMultiplier : Prop :=
+@[headline] def Properties.RenouncedCaoReachesOnlySetTokenMultiplier : Prop :=
   ∀ (cfg : Config) (S S' : State) (L : List Event), cfg.WF →
     S.cao.owner = 0 → S.cao.pending = 0 → Sem cfg .acts S L S' →
     (∀ D sel, Event.chainEntry D cfg.cao sel ∈ L → sel = SEL_SET_MULTIPLIER) ∧
@@ -107,7 +108,7 @@ same three properties, and an argument encoding `arg` that decodes to `x`. Then 
 transactions, the owner's `setPendingAdmin` with `arg` and `x`'s `acceptAdmin()`, commits and ends
 with `x` as the Bridgehub's admin, no pending admin, and the `ChainAdminOwnable`'s storage and
 every diamond's admin pair unchanged. -/
-def Properties.BridgehubAdminRecoverable : Prop :=
+@[headline] def Properties.BridgehubAdminRecoverable : Prop :=
   ∀ (cfg : Config) (S : State) (x : Address) (arg : Bytes),
     S.hub.owner ≠ 0 → S.hub.owner ≠ cfg.cao → S.hub.owner ≠ cfg.hubProxyAdmin →
     x ≠ 0 → x ≠ cfg.cao → x ≠ cfg.hubProxyAdmin → cfg.abi.addr arg = some x →
@@ -135,7 +136,7 @@ def Properties.SetTokenMultiplierOnBridgehubReverts : Prop :=
 
 /-- **(f) NO SETTER CALL REACHES THE BRIDGEHUB.** In a well-formed configuration, along any run,
 no logged `setTokenMultiplier` call of the `ChainAdminOwnable` targets the Bridgehub. -/
-def Properties.NoSetterCallReachesBridgehub : Prop :=
+@[headline] def Properties.NoSetterCallReachesBridgehub : Prop :=
   ∀ (cfg : Config) (S S' : State) (L : List Event), cfg.WF → Sem cfg .acts S L S' →
     ∀ inv pre t n d c ok, Event.caoCall (.multiplier inv pre t n d) c ok ∈ L → t ≠ cfg.hub
 
@@ -146,7 +147,7 @@ def Properties.NoSetterCallReachesBridgehub : Prop :=
 storage, and diamond `4`'s admin is the `ChainAdminOwnable` with pending admin `12`. From
 `wNominated`, a run of `12`'s `acceptAdmin()` commits, logs no cut, and makes `12` the diamond's
 admin. -/
-def Properties.PendingDiamondAdminEscapes : Prop :=
+@[countermodel] def Properties.PendingDiamondAdminEscapes : Prop :=
   (∃ L, Sem wCfg .acts wS1 L wNominated) ∧
     wNominated.cao.owner = 0 ∧ wNominated.cao.pending = 0 ∧ wNominated.chain 4 = ⟨wCfg.cao, 12⟩ ∧
     ∃ L S', Sem wCfg .acts wNominated L S' ∧ Event.cut 4 ∉ L ∧ S'.chain 4 = ⟨12, 0⟩
@@ -156,7 +157,7 @@ def Properties.PendingDiamondAdminEscapes : Prop :=
 owner's `multicall(wCallsC, true)` commits, logs no cut, and makes the `ChainAdminOwnable` call the
 diamond's `onlyAdmin` function `setTransactionFilterer(13)`, which the diamond logs. The conclusion
 of `RenounceStrandsDiamondAdminRole` fails here: its renounce premise is needed. -/
-def Properties.AdminRoleLiveBeforeRenounce : Prop :=
+@[countermodel] def Properties.AdminRoleLiveBeforeRenounce : Prop :=
   wS1.cao.owner ≠ 0 ∧ wS1.chain 4 = ⟨wCfg.cao, 0⟩ ∧
     SEL_SET_TRANSACTION_FILTERER ∈ ADMIN_ONLY_SELECTORS ∧
     ∃ L S', Sem wCfg .acts wS1 L S' ∧ Event.cut 4 ∉ L ∧
@@ -166,7 +167,7 @@ def Properties.AdminRoleLiveBeforeRenounce : Prop :=
 storage; diamond `4`'s admin is the `ChainAdminOwnable` with no pending admin), the chain type
 manager `5`'s `executeUpgrade`, whose initialization writes admin `13`, commits and makes `13` the
 diamond's admin. Its log contains the cut. -/
-def Properties.CtmCutMovesRenouncedAdmin : Prop :=
+@[countermodel] def Properties.CtmCutMovesRenouncedAdmin : Prop :=
   wRenounced.cao.owner = 0 ∧ wRenounced.cao.pending = 0 ∧ wRenounced.chain 4 = ⟨wCfg.cao, 0⟩ ∧
     ∃ L S', Sem wCfg .acts wRenounced L S' ∧ Event.cut 4 ∈ L ∧ S'.chain 4 = ⟨13, 0⟩
 
@@ -182,7 +183,7 @@ encoding decodes to it. From `wRenounced`, one run commits: the setter's
 `onlyAdminOrChainTypeManager` function, logged); then `9` nominates `8` on the Bridgehub and `8`
 accepts. The run logs no cut, the diamond keeps its admin pair, and `8` is the Bridgehub's
 admin. -/
-def Properties.AdminRolesWitness : Prop :=
+@[witness] def Properties.AdminRolesWitness : Prop :=
   wCfg.WF ∧ wRenounced.cao.owner = 0 ∧ wRenounced.cao.pending = 0 ∧
     wRenounced.chain 4 = ⟨wCfg.cao, 0⟩ ∧
     wRenounced.hub.owner = 9 ∧ (9 : Address) ≠ 0 ∧ (9 : Address) ≠ wCfg.cao ∧
@@ -201,7 +202,7 @@ def Properties.AdminRolesWitness : Prop :=
 * the setter `7`'s `setTokenMultiplier(4, 3, 2)` has a successful execution;
 * the calldata `viaData 2 3 2` selects `setTokenMultiplier(address,uint128,uint128)` and decodes
   to the Bridgehub `2`, the premises of `SetTokenMultiplierOnBridgehubReverts`. -/
-def Properties.SetterReachesDiamondNotBridgehub : Prop :=
+@[witness] def Properties.SetterReachesDiamondNotBridgehub : Prop :=
   wCfg.WF ∧
     (∃ L S', Sem wCfg (.call wCfg.cao ⟨4, 0, multiplierData 3 2⟩ true) wRenounced L S') ∧
     (∃ L S', Sem wCfg (.call 7 ⟨wCfg.cao, 0, viaData 4 3 2⟩ true) wRenounced L S') ∧

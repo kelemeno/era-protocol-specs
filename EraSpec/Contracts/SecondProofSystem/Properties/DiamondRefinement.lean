@@ -1,4 +1,5 @@
 import EraSpec.Contracts.SecondProofSystem.Specs.DiamondRefinement
+import EraSpec.Core.Headline
 
 /-!
 # Properties: MigrationV35's diamond calls refine FlagAuthorityV35's
@@ -22,7 +23,7 @@ namespace Contracts.SecondProofSystem.DiamondRefinement
 environment, Bridgehub owner, CTM, caller, diamond call and diamond: if the call succeeds, the
 FlagAuthorityV35 call of the same entry point succeeds on the projected diamond and ends in the
 projection of the result; and it is a break-glass cut exactly when the image is. -/
-def Properties.DiamondStepRefines : Prop :=
+@[headline] def Properties.DiamondStepRefines : Prop :=
   ∀ (E : MigrationV35.Env) (owner ctm c : MigrationV35.Address) (dc : MigrationV35.DCall)
     (d d' : MigrationV35.Diamond),
     MigrationV35.dstep E owner c dc d = some d' →

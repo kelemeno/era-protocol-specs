@@ -1,4 +1,5 @@
 import EraSpec.Contracts.PriorityTree.Specs.SegmentBinding
+import EraSpec.Core.Headline
 
 /-!
 # Properties: a processed batch is the queue segment at `unprocessedIndex`, or a located break
@@ -29,7 +30,7 @@ open Clear MerkleSpec MerkleSpec.Verifier MerkleSpec.RootPaths
 `calculateRootPaths` overwrote entries of the array in place but not its length, which is all
 `PT:94` reads afterwards. With at least one item, the call's recomputed root is a recorded root
 and the array left behind is the one `calculateRootPaths` leaves. -/
-def Properties.ProcessBatchAdvancesByLength : Prop :=
+@[headline] def Properties.ProcessBatchAdvancesByLength : Prop :=
   ∀ (h : Hash) (roots : UInt256 → Bool) (u : ℕ) (info : BatchInfo) (u' : ℕ) (mem : List UInt256),
     processBatch h roots u info = some (u', mem) →
       u' = u + info.itemHashes.length ∧ mem.length = info.itemHashes.length
@@ -40,7 +41,7 @@ def Properties.ProcessBatchAdvancesByLength : Prop :=
 /-- **(e) THE EXECUTOR HASHES THE ITEMS AS SUBMITTED.** A successful priority-operation step
 checked the count and the rolling hash of the submitted items (`Ex:92-95`, `Ex:70-72`) before
 `processBatch` (`Ex:98`) overwrote them, and its result is that call's result. -/
-def Properties.ExecutePriorityHashesSubmittedItems : Prop :=
+@[headline] def Properties.ExecutePriorityHashesSubmittedItems : Prop :=
   ∀ (h : Hash) (kpair : UInt256 → UInt256 → UInt256) (e0 : UInt256) (roots : UInt256 → Bool)
     (u nL1 : ℕ) (poh : UInt256) (info : BatchInfo) (u' : ℕ) (mem : List UInt256),
     executePriority h kpair e0 roots u nL1 poh info = some (u', mem) →
@@ -54,7 +55,7 @@ with the rolling-hash pair function `sumHash` and start value `5`: the batch wit
 `[1, 2]`, passes the deployed order; with the rolling hash moved after `processBatch` it is
 rejected, because `calculateRootPaths` left `[6, 2]` in the array. So the order `Ex:95` before
 `Ex:98` is load-bearing. -/
-def Properties.HashAfterCallRejectsHonestBatch : Prop :=
+@[countermodel] def Properties.HashAfterCallRejectsHonestBatch : Prop :=
   executePriority rangeToyHash MerkleSpec.Pinned.sumHash 5 (fun r => r == 6) 0 2
       (rollingHash MerkleSpec.Pinned.sumHash 5 [1, 2]) ⟨[0], [0], [1, 2]⟩ = some (2, [6, 2])
     ∧ executePriorityHashAfter rangeToyHash MerkleSpec.Pinned.sumHash 5 (fun r => r == 6) 0 2
@@ -103,7 +104,7 @@ def Properties.ProcessBatchQueueSegmentOrBreak : Prop :=
 `u₁ = u₀ + N` for the `N` items processed, and the items of all batches, in order, are the
 queued hashes `Q[u₀], …, Q[u₀ + N - 1]` (`IsQueueSegment`), or some batch, at the index it
 started from, has a `BatchBreak`. -/
-def Properties.ProcessedRunIsQueueSegmentOrBreak : Prop :=
+@[headline] def Properties.ProcessedRunIsQueueSegmentOrBreak : Prop :=
   ∀ (h : Hash) (z : UInt256) (roots : UInt256 → Bool) (Q : List UInt256) (log : List (ℕ × ℕ))
     (u₀ : ℕ) (steps : List (ℕ × BatchInfo)) (u₁ : ℕ),
     RootsAreLoggedPrefixRoots h z roots Q log →
@@ -155,7 +156,7 @@ is `7`, it ends at index 3, its items are the whole queue, a `IsQueueSegment` at
 batch has a `BatchBreak`. This meets every premise of `ProcessBatchSegmentOrBreak`,
 `ProcessBatchQueueSegmentOrBreak` and `ProcessedRunIsQueueSegmentOrBreak` (both batches have
 items), with the segment disjunct holding and the break disjunct false. -/
-def Properties.SegmentBindingWitness : Prop :=
+@[witness] def Properties.SegmentBindingWitness : Prop :=
   RootsAreLoggedPrefixRoots rangeToyHash 7 witnessRoots witnessQueue witnessLog
   ∧ processBatch rangeToyHash witnessRoots 0 ⟨[], [], [11]⟩ = some (1, [11])
   ∧ processBatch rangeToyHash witnessRoots 1
@@ -184,7 +185,7 @@ paths of the padded slot 3 of the three-leaf tree at height 2, is accepted and m
 So the premise "no item is the padding value" of `ProcessBatchQueueSegmentOrBreak` is
 load-bearing. (The NatSpec of `processBatch`, `PT:77-82`, leaves item validity to the proof that
 binds the rolling hash.) -/
-def Properties.PaddingItemsAdvancePastQueue : Prop :=
+@[countermodel] def Properties.PaddingItemsAdvancePastQueue : Prop :=
   RootsAreLoggedPrefixRoots rangeToyHash 7 witnessRoots witnessQueue witnessLog
   ∧ processBatch rangeToyHash witnessRoots 3
       ⟨honestPath rangeToyHash 7 witnessQueue 3 2, honestPath rangeToyHash 7 witnessQueue 3 2, [7]⟩
@@ -198,7 +199,7 @@ def Properties.PaddingItemsAdvancePastQueue : Prop :=
 batch `[0]` with empty paths at index 0 is accepted against the recorded root `bytes32(0)`
 (`PT:59-63`) and moves `unprocessedIndex` to 1, though the first queued hash is `11`: the
 `bytes32(0)` case of `BatchBreak` is reached. -/
-def Properties.SetupRootAcceptsZeroItem : Prop :=
+@[countermodel] def Properties.SetupRootAcceptsZeroItem : Prop :=
   RootsAreLoggedPrefixRoots rangeToyHash 7 witnessRoots witnessQueue witnessLog
   ∧ processBatch rangeToyHash witnessRoots 0 ⟨[], [], [0]⟩ = some (1, [0])
   ∧ ¬ IsQueueSegment witnessQueue 0 [0]

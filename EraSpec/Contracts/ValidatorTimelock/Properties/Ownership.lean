@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ValidatorTimelock.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: initialization and the owner
@@ -30,7 +31,7 @@ namespace Contracts.ValidatorTimelock
 
 /-- **`initialize` RUNS AT MOST ONCE.** Along any run of successful calls, at most one is
 `initialize`; none is if the run starts initialized; and the run ends initialized if one is. -/
-def Properties.InitializeAtMostOnce : Prop :=
+@[headline] def Properties.InitializeAtMostOnce : Prop :=
   ∀ (s s' : State) (ks : List Call), Run s ks s' →
     (ks.filter (fun k => k.action.isInitialize)).length ≤ 1 ∧
     (s.initialized = true → ks.filter (fun k => k.action.isInitialize) = []) ∧
@@ -41,7 +42,7 @@ changes the owner, it is `initialize` (with the new owner as argument) on uninit
 `acceptOwnership` sent by the pending owner (who becomes the owner), or `renounceOwnership` sent
 by the owner (the owner becomes `0`). If it changes the pending owner, it is the owner's
 `transferOwnership` to the new pending owner, or the pending owner becomes `0`. -/
-def Properties.OwnerChangesOnlyByHandover : Prop :=
+@[headline] def Properties.OwnerChangesOnlyByHandover : Prop :=
   ∀ (k : Call) (s s' : State), step k s = some s' →
     (s'.owner ≠ s.owner →
       (∃ d, k.action = .initializeTimelock s'.owner d ∧ s.initialized = false) ∨
@@ -63,7 +64,7 @@ def Properties.OwnerOnlyCalls : Prop :=
 and pending owner `0`. Along any run of successful calls none of which is sent by address `0`,
 the owner and the pending owner stay `0`, the ecosystem-wide delay is unchanged, and the delay
 enforced for every chain at the end is at least the one at the start. -/
-def Properties.RenouncedTimelockOnlyRaisesDelays : Prop :=
+@[headline] def Properties.RenouncedTimelockOnlyRaisesDelays : Prop :=
   ∀ (s s' : State) (ks : List Call), s.initialized = true → s.owner = 0 → s.pendingOwner = 0 →
     (∀ k ∈ ks, k.sender ≠ 0) → Run s ks s' →
     s'.owner = 0 ∧ s'.pendingOwner = 0 ∧ s'.executionDelay = s.executionDelay ∧
@@ -73,7 +74,7 @@ def Properties.RenouncedTimelockOnlyRaisesDelays : Prop :=
 renounces; a call with sender `0` then succeeds with `setExecutionDelay(0)`, lowering the
 ecosystem delay from `100` to `0`. So the sender premise of `RenouncedTimelockOnlyRaisesDelays`
 cannot be dropped from the model's statement. -/
-def Properties.ZeroSenderActsAsRenouncedOwner : Prop :=
+@[countermodel] def Properties.ZeroSenderActsAsRenouncedOwner : Prop :=
   ∃ s₀ s₁ s₂ : State,
     Run init vtSetupCalls s₀ ∧ step (vtCall 1 vtOwner .renounceOwnership) s₀ = some s₁ ∧
     s₁.owner = 0 ∧ s₁.executionDelay = 100 ∧
@@ -84,7 +85,7 @@ def Properties.ZeroSenderActsAsRenouncedOwner : Prop :=
 /-- **THE TWO-STEP HANDOVER RUNS.** After the witness setup (owner `1`), `1` calls
 `transferOwnership(7)`, `7` accepts and becomes the owner with no pending owner, and a second
 `initialize` reverts. -/
-def Properties.HandoverWitness : Prop :=
+@[witness] def Properties.HandoverWitness : Prop :=
   ∃ s₀ s₁ s₂ : State,
     Run init vtSetupCalls s₀ ∧ s₀.owner = vtOwner ∧ s₀.initialized = true ∧
     step (vtCall 1 vtOwner (.transferOwnership 7)) s₀ = some s₁ ∧ s₁.pendingOwner = 7 ∧
@@ -95,7 +96,7 @@ def Properties.HandoverWitness : Prop :=
 initialized with owner and pending owner `0`. The chain admin's
 `increaseChainExecutionDelay(100, 200)` then succeeds (sender `2`), raising the delay enforced
 for chain `100` from `100` to `200`, and the former owner's `setExecutionDelay(0)` reverts. -/
-def Properties.RenounceWitness : Prop :=
+@[witness] def Properties.RenounceWitness : Prop :=
   ∃ s₀ s₁ s₂ : State,
     Run init vtSetupCalls s₀ ∧ step (vtCall 1 vtOwner .renounceOwnership) s₀ = some s₁ ∧
     s₁.initialized = true ∧ s₁.owner = 0 ∧ s₁.pendingOwner = 0 ∧

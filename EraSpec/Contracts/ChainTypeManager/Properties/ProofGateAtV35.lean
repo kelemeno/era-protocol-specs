@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ProofGateAtV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the routing system at `draft/v0.35.0`, with the second-proof-system gate
@@ -137,7 +138,7 @@ def Properties.UngatedRunsAreRunsWithoutTheRequirement : Prop :=
 v35 run from a state whose routing system satisfies `SysInv`, with no break-glass cut, every
 chain at a version `v` with a release `R_v` routes exactly `R_v`, and `R_v` is a release of
 version `v`. The proof-system fields are arbitrary. -/
-def Properties.ChainsRunTheirVersionsRelease : Prop :=
+@[headline] def Properties.ChainsRunTheirVersionsRelease : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35), SysInv W s.sys →
     Run35 W P s ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →
     ∀ id c, s'.sys.chains id = some c → s'.sys.ctm.relAt c.pv ≠ 0 →
@@ -148,7 +149,7 @@ def Properties.ChainsRunTheirVersionsRelease : Prop :=
 run with no break-glass cut from a CTM just initialized with a nonzero release `R` and no chains,
 whatever the proof-system fields, every chain is at a version with a release, which is a release
 of that version, and routes exactly it. -/
-def Properties.FreshChainsRunTheirVersionsRelease : Prop :=
+@[headline] def Properties.FreshChainsRunTheirVersionsRelease : Prop :=
   ∀ (W : World) (P : ProofWorld) (R : Address) (pr : ChainId → ProofState) (s' : Sys35)
     (ls : List Label35), R ≠ 0 →
     Run35 W P ⟨⟨initState W R, fun _ => none⟩, pr⟩ ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →
@@ -160,7 +161,7 @@ def Properties.FreshChainsRunTheirVersionsRelease : Prop :=
 if the last routing step of the run that writes chain `id` is not a break-glass cut, chain `id`
 is not ahead of its CTM and routes its version's release, if the CTM has one. The two
 proof-system writers are not routing steps. -/
-def Properties.ChainRunsItsVersionsRelease : Prop :=
+@[headline] def Properties.ChainRunsItsVersionsRelease : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35) (id : ChainId),
     CtmInv W s.sys.ctm → (∀ c, s.sys.chains id = some c → ChainOk W s.sys c) →
     Run35 W P s ls s' → LastWriteNotBreakGlass id (ls.flatMap Label35.routingSteps) →
@@ -175,7 +176,7 @@ has a v35 transition iff the three conditions of
 `Contracts.ChainTypeManager.Properties.TransitionEnabledIff` hold and, if the chain requires its
 second proof system, the verifier of the release its edge arrives at reports multi-proof mode
 with nothing disabled. As in `Enabledness`, this is about the checks the model keeps. -/
-def Properties.TransitionEnabledIff : Prop :=
+@[headline] def Properties.TransitionEnabledIff : Prop :=
   ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId) (c : Chain),
     CtmInv W s.sys.ctm → s.sys.chains id = some c →
     ((∃ s', Step35 W P s (.routing (.transition id)) s') ↔
@@ -208,7 +209,7 @@ well-formed, with every install validated,
 * every free id can be deployed by genesis or by migration in, with no further condition.
 "Can" is relative to the checks the model keeps; migration in is disabled at `b17415d20`
 (*Scope*), so its conjunct describes a step the production source does not take. -/
-def Properties.ValidatedRunsKeepEverythingEnabled : Prop :=
+@[headline] def Properties.ValidatedRunsKeepEverythingEnabled : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35), SysInv W s.sys →
     RecordedReleasesWf W s.sys.ctm → Run35 W P s ls s' → (∀ l ∈ ls, ¬ l.isArbitrary) →
     (∀ l ∈ ls.flatMap Label35.routingSteps, l.InstallsWf W) →
@@ -253,7 +254,7 @@ def Properties.TransitionStartsAndLandsOnRelease : Prop :=
 /-- **AT v35 DRIFT STILL BLOCKS THE TRANSITION.** As
 `Contracts.ChainTypeManager.Properties.DriftBlocksTransition`: under the CTM's invariant, a
 chain whose routing is not its version's release has no v35 transition. -/
-def Properties.DriftBlocksTransition : Prop :=
+@[headline] def Properties.DriftBlocksTransition : Prop :=
   ∀ (W : World) (P : ProofWorld) (s : Sys35) (id : ChainId) (c : Chain), CtmInv W s.sys.ctm →
     s.sys.chains id = some c → c.routing ≠ rowsRouting (W.relRows (s.sys.ctm.relAt c.pv)) →
     ¬ ∃ s', Step35 W P s (.routing (.transition id)) s'
@@ -423,7 +424,7 @@ verifier that reports multi-proof mode for the empty mask, `getProofMode(0)`. Th
 must satisfy `DisablingNeverEnablesMultiProof`. Every break-glass cut of the model makes the
 v35 `Admin` facet's final check (Specs, *Break-glass*). This says nothing about the chain's own
 mask; see `RequirementDoesNotPinTheCurrentProofMode`. -/
-def Properties.RequiringChainsKeepAMultiProofVerifier : Prop :=
+@[headline] def Properties.RequiringChainsKeepAMultiProofVerifier : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35),
     DisablingNeverEnablesMultiProof P → ProofInv P s → Run35 W P s ls s' → ProofInv P s'
 
@@ -443,7 +444,7 @@ def Properties.RequirementWriters : Prop :=
 break-glass cut of chain `id`, a registered chain that requires its second proof system still
 requires it at the end. This is about the chain's diamond on the modelled CTM, upgraded by the
 in-tree engines. -/
-def Properties.RequirementIsPermanentWithoutBreakGlass : Prop :=
+@[headline] def Properties.RequirementIsPermanentWithoutBreakGlass : Prop :=
   ∀ (W : World) (P : ProofWorld) (s s' : Sys35) (ls : List Label35) (id : ChainId) (c : Chain),
     Run35 W P s ls s' → s.sys.chains id = some c → (s.proof id).required = true →
     (∀ v ρ, Label35.routing (.arbitraryCut id v ρ) ∉ ls) → (s'.proof id).required = true
@@ -463,7 +464,7 @@ version 1 on release `100`, chain `0` requires its second proof system, and the 
 * Chain `1`, which does not require the second proof system, has one.
 `protocol-docs/interop-gating.md:43-48` (at `b17415d20`) describes such an edge and leaves its
 prevention to off-chain package verification. -/
-def Properties.GateStrandsRequiringChain : Prop :=
+@[countermodel] def Properties.GateStrandsRequiringChain : Prop :=
   ∃ s, Run35 wWorld wProofPlonk wSys35 wGateSetup s ∧
     SysInv wWorld wSys35.sys ∧ ChainsOnWfReleases wWorld wSys35.sys ∧
     (∀ l ∈ wGateSetup, ¬ l.isArbitrary) ∧ ProofInv wProofPlonk s ∧
@@ -479,7 +480,7 @@ state of `GateStrandsRequiringChain`, a break-glass cut of chain `0` (in the sou
 owner's `executeUpgrade`) that keeps its version and its routing, with an init that turns the
 requirement off, succeeds. After it chain `0` crosses to version 2 on release `200`, with the
 PLONK-only verifier `52` installed. -/
-def Properties.BreakGlassClearsTheRequirement : Prop :=
+@[countermodel] def Properties.BreakGlassClearsTheRequirement : Prop :=
   ∃ s s', Run35 wWorld wProofPlonk wSys35 wGateSetup s ∧ (s.proof 0).required = true ∧
     Step35 wWorld wProofPlonk s (.routing (.arbitraryCut 0 1 (rowsRouting (wRows 100)))) s' ∧
     (s'.proof 0).required = false ∧
@@ -492,7 +493,7 @@ multi-proof mode exactly with ZiSK disabled (mask `ziskBit`), run `wZiskOffFirst
 `wSys35`: chain `0` is created, ZiSK is switched off, and the chain requires its second proof
 system. `ProofInv` held at the start and fails at the end. The verifier is hypothetical; the
 masks are ones `setProofSystemStatus` can write. -/
-def Properties.MaskPremiseNeeded : Prop :=
+@[countermodel] def Properties.MaskPremiseNeeded : Prop :=
   ¬ DisablingNeverEnablesMultiProof wProofOdd ∧ ProofInv wProofOdd wSys35 ∧
     ∃ s, Run35 wWorld wProofOdd wSys35 wZiskOffFirstRun s ∧
       (s.proof 0).required = true ∧ ¬ ProofInv wProofOdd s
@@ -504,7 +505,7 @@ Bridgehub owner can do this once the requirement is set). At the end the chain s
 its second proof system and `ProofInv` holds: verifier `51` reports multi-proof mode for the
 empty mask. But for the chain's own mask it does not, so `getProofMode(s.disabledProofSystems)`
 is not multi-proof. -/
-def Properties.RequirementDoesNotPinTheCurrentProofMode : Prop :=
+@[countermodel] def Properties.RequirementDoesNotPinTheCurrentProofMode : Prop :=
   ∃ s, Run35 wWorld wProofMulti wSys35 wZiskOffRun s ∧
     (s.proof 0).required = true ∧ ProofInv wProofMulti s ∧
     wProofMulti.multi (s.proof 0).verifier 0 = true ∧
@@ -523,7 +524,7 @@ holds. `wSys35`'s routing system is a freshly initialized CTM on release `100` w
 this meets the premises of `RunIsARun`, `ChainsRunTheirVersionsRelease`,
 `FreshChainsRunTheirVersionsRelease`, `ValidatedRunsKeepEverythingEnabled` and
 `RequiringChainsKeepAMultiProofVerifier`. -/
-def Properties.ProofGateWitness : Prop :=
+@[witness] def Properties.ProofGateWitness : Prop :=
   SysInv wWorld wSys35.sys ∧ ChainsOnWfReleases wWorld wSys35.sys ∧
     RecordedReleasesWf wWorld wSys35.sys.ctm ∧ ProofInv wProofMulti wSys35 ∧ NoChainRequires wSys35 ∧
     DisablingNeverEnablesMultiProof wProofMulti ∧
@@ -545,7 +546,7 @@ multi-proof mode. So every premise of `UpgradesStayEnabled`, of the first conclu
 `ValidatedRunsKeepEverythingEnabled` and of `TransitionEnabledIff`, and the right side of the
 latter, hold for a chain whose gate premise is not vacuous. Chain `0`'s transition exists, to
 `crossEdge` with verifier `53` installed. -/
-def Properties.RequiringChainCanCrossWitness : Prop :=
+@[witness] def Properties.RequiringChainCanCrossWitness : Prop :=
   SysInv wWorld wSys35.sys ∧ ChainsOnWfReleases wWorld wSys35.sys ∧
     RecordedReleasesWf wWorld wSys35.sys.ctm ∧ (∀ l ∈ wGateSetup, ¬ l.isArbitrary) ∧
     (∀ l ∈ wGateSetup.flatMap Label35.routingSteps, l.InstallsWf wWorld) ∧
@@ -569,7 +570,7 @@ def Properties.RequiringChainCanCrossWitness : Prop :=
   system, the two transitions of `wGateRun` are a run with no break-glass cut of chain `0`, and
   chain `0` still requires it at the end (the premises and conclusion of
   `RequirementIsPermanentWithoutBreakGlass`). -/
-def Properties.RequirementLifecycleWitness : Prop :=
+@[witness] def Properties.RequirementLifecycleWitness : Prop :=
   (∃ s s' c, Run35 wWorld wProofMulti wSys35 [.routing (.genesis 0), .routing (.genesis 1)] s ∧
     Step35 wWorld wProofMulti s (.requireSecondProofSystem 0) s' ∧ s.sys.chains 0 = some c ∧
     (s.proof 0).required = false ∧ (s'.proof 0).required = true) ∧
@@ -589,7 +590,7 @@ routing step writing chain `0` is its transition, so `ChainRunsItsVersionsReleas
 chain `0`: it ends at version 2 on release `200`, still requiring its second proof system with
 release `200`'s verifier `53` installed, and `ProofInv` holds. The last write of chain `1` is a
 cut, and chain `1` ends at version 1 on a routing other than release `100`'s. -/
-def Properties.PerChainHeadlineAtV35Witness : Prop :=
+@[witness] def Properties.PerChainHeadlineAtV35Witness : Prop :=
   ∃ s, Run35 wWorld wProofMulti wSys35 wGateLocalRun s ∧ SysInv wWorld wSys35.sys ∧
     wSys35.sys.chains 0 = none ∧ (∃ l ∈ wGateLocalRun, l.isArbitrary) ∧
     LastWriteNotBreakGlass 0 (wGateLocalRun.flatMap Label35.routingSteps) ∧
@@ -604,7 +605,7 @@ def Properties.PerChainHeadlineAtV35Witness : Prop :=
 geneses of chains `0` and `1`, the commit of `300` and both transitions, is a `ChainRouting` run
 from `wSys0` that ends with both chains at version 2, and the fields of `wSys35` have the
 requirement off everywhere: the premises of `UngatedRunsAreRunsWithoutTheRequirement`. -/
-def Properties.UngatedRunLiftWitness : Prop :=
+@[witness] def Properties.UngatedRunLiftWitness : Prop :=
   wGateRun.flatMap Label35.routingSteps =
       [.genesis 0, .genesis 1, .ctm (.commit 300), .transition 0, .transition 1] ∧
     (∀ id : ChainId, (wSys35.proof id).required = false) ∧

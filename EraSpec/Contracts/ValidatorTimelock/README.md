@@ -5,9 +5,8 @@ execution delay, ownership and the packed commit timestamps.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. A "run"
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`). A "run"
 is any sequence of successful calls of the proxy's state-changing entry points, by any senders.
 External reads (`getChainId`, `getAdmin`, `getZKChain`, block time, whether the forwarded call
 succeeds) are a per-call environment, fixed within a call and unrelated between calls. No result

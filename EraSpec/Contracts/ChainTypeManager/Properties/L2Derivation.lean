@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.L2Derivation
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the L2 side a registry transition derives from its two releases
@@ -54,7 +55,7 @@ namespace Contracts.ChainTypeManager.L2Tables
   for a member `i` with a fixed address whose row is new or changed by keccak (`RowChanged`);
 * the system-proxy deployments target pairwise distinct addresses;
 * every new or changed row is at a member with a fixed address. -/
-def Properties.TransitionDeploysExactlyTheChangedRows : Prop :=
+@[headline] def Properties.TransitionDeploysExactlyTheChangedRows : Prop :=
   ∀ {H : Type} [DecidableEq H] (kec : Bytes → H) (rnd : Bytes → L2Addr) (vFrom vNew : ℕ)
     (Rf Rn : ReleaseL2) (e : EdgeInput) (p : L2Plan),
     ctmTransitionL2 kec rnd vFrom vNew Rf Rn e = some p →
@@ -126,7 +127,7 @@ a nonempty row appended past the departing table's end hashes like the empty row
 succeeds whose plan deploys that row while `_l2TableChanged` (which `releaseDiff()` reports,
 `CTMTransition.sol:159`) is false. So the second half of `TableComparisonsAgree` needs its clash
 disjunct. -/
-def Properties.EmptyRowClashSplitsTheComparisons : Prop :=
+@[countermodel] def Properties.EmptyRowClashSplitsTheComparisons : Prop :=
   ∃ (kec : Bytes → Bytes) (rnd : Bytes → L2Addr) (vFrom vNew : ℕ) (Rf Rn : ReleaseL2)
     (e : EdgeInput) (p : L2Plan),
     ctmTransitionL2 kec rnd vFrom vNew Rf Rn e = some p ∧
@@ -142,7 +143,7 @@ append), such that:
   same plan;
 * at `4e073f09b` (before the fix) its construction reverts for every table hash
   `kec ∘ encT` that is injective. -/
-def Properties.AppendedEmptyRowKeepsAnL1OnlyEdge : Prop :=
+@[countermodel] def Properties.AppendedEmptyRowKeepsAnL1OnlyEdge : Prop :=
   ∃ (rnd : Bytes → L2Addr) (vFrom vNew : ℕ) (Rf Rn : ReleaseL2) (e : EdgeInput) (p : L2Plan),
     Rf.table ≠ [] ∧ Rn.table = Rf.table ++ [[]] ∧ minorOf vFrom = minorOf vNew ∧
     hasL2Side p = false ∧
@@ -197,7 +198,7 @@ def Properties.BootstrapOntoNoFixedAddressRowReverts : Prop :=
 changes row 0, succeeds with an L2 side; an edge onto `R''`, which changes row 14 and nothing
 else, reverts for every pair of versions and every authored input; and no bootstrap plan onto `R`
 can be built. -/
-def Properties.FrozenRowWitness : Prop :=
+@[witness] def Properties.FrozenRowWitness : Prop :=
   ∃ (enc : Bytes → Bytes → Bytes) (rnd : Bytes → L2Addr) (R R' R'' : ReleaseL2) (e : EdgeInput)
     (p : L2Plan),
     ReleaseL2Accepted (id : Bytes → Bytes) enc R ∧ ReleaseL2Accepted (id : Bytes → Bytes) enc R' ∧
@@ -218,7 +219,7 @@ with an L2 side, deploying exactly those two rows; and a patch edge `R2 → R3`
 (`2·2^32 → 2·2^32 + 1`) whose target has the same L2 description succeeds without one. The
 `changedL2Rows` results of both are the premises of `TableComparisonsAgree`, one with a nonempty
 entry and one with `_l2TableChanged` false. -/
-def Properties.L2DerivationWitness : Prop :=
+@[witness] def Properties.L2DerivationWitness : Prop :=
   ∃ (rnd : Bytes → L2Addr) (R1 R2 R3 : ReleaseL2) (e12 e23 : EdgeInput) (p12 p23 : L2Plan)
     (c12 c23 : List Bytes),
     ctmTransitionL2 (id : Bytes → Bytes) rnd (2 ^ 32) (2 * 2 ^ 32) R1 R2 e12 = some p12 ∧

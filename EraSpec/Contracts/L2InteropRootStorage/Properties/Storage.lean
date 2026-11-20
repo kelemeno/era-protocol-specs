@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropRootStorage.Specs.Storage
+import EraSpec.Core.Headline
 
 /-!
 # Properties: `L2InteropRootStorage`
@@ -86,7 +87,7 @@ def Properties.AddInteropRootEffect : Prop :=
 
 /-- **ONLY THE BOOTLOADER WRITES.**  Every successful state-changing call, single or batch, with
 any arguments, in any state, has `msg.sender = L2_BOOTLOADER_ADDRESS`. -/
-def Properties.OnlyBootloaderWrites : Prop :=
+@[headline] def Properties.OnlyBootloaderWrites : Prop :=
   ∀ (S S' : State) (caller : Address) (c : Call),
     exec S caller c = some S' → caller = L2_BOOTLOADER_ADDRESS
 
@@ -106,7 +107,7 @@ def Properties.LoggedCallersAreBootloader : Prop :=
 /-- **A STORED ROOT IS NEVER OVERWRITTEN.**  If a key holds a nonzero root in some state, then
 in every state reachable from it (any calls, any callers, any order) the key holds the same
 pair, root and timestamp. -/
-def Properties.NoOverwrite : Prop :=
+@[headline] def Properties.NoOverwrite : Prop :=
   ∀ (S S' : State) (c b : UInt256),
     Reach S S' → (S.storedInteropRoots c b).root ≠ 0 →
       S'.storedInteropRoots c b = S.storedInteropRoots c b
@@ -121,7 +122,7 @@ def Properties.LoggedImportsWellFormed : Prop :=
 /-- **EACH KEY IS IMPORTED AT MOST ONCE.**  In any logged run from any state `S₀`, the keys
 `(chainId, blockOrBatchNumber)` of the imported roots are pairwise distinct, across calls and
 inside one batch, and none of them held a nonzero root in `S₀`. -/
-def Properties.EachKeyImportedOnce : Prop :=
+@[headline] def Properties.EachKeyImportedOnce : Prop :=
   ∀ (S₀ S : State) (log : List (Address × Call)),
     ReachLog S₀ S log →
       ((imports log).map InteropRoot.key).Nodup ∧
@@ -147,14 +148,14 @@ def Properties.StoredIffImported : Prop :=
 /-- **A ZERO TIMESTAMP MEANS "NOT IMPORTED".**  `ZeroTimestampIffUnset` holds of fresh storage
 and is preserved by every run; so it holds in every state reachable from fresh storage.  From
 other start states it can fail in every reachable state (`LegacyRootBreaksZeroTimestampClaim`). -/
-def Properties.ZeroTimestampIffUnsetInvariant : Prop :=
+@[headline] def Properties.ZeroTimestampIffUnsetInvariant : Prop :=
   ZeroTimestampIffUnset empty ∧
   ∀ (S S' : State), Reach S S' → ZeroTimestampIffUnset S → ZeroTimestampIffUnset S'
 
 /-- **`latestInteropRootTimestamp` IS THE MAXIMUM STORED TIMESTAMP.**  `LatestIsMax` (an upper
 bound on the chain's stored timestamps, equal to one of them at a key with a nonzero root when
 it is nonzero) holds of fresh storage and is preserved by every run. -/
-def Properties.LatestIsMaxInvariant : Prop :=
+@[headline] def Properties.LatestIsMaxInvariant : Prop :=
   LatestIsMax empty ∧
   ∀ (S S' : State), Reach S S' → LatestIsMax S → LatestIsMax S'
 
@@ -179,7 +180,7 @@ def Properties.LatestBoundsEveryImport : Prop :=
 a root with timestamp above a flow's deadline, once imported, makes the tracked timestamp exceed
 that deadline from then on).  It needs a start state where `LatestIsMax` holds, which fresh storage
 gives. -/
-def Properties.StoredTimestampStaysBelowLatest : Prop :=
+@[headline] def Properties.StoredTimestampStaysBelowLatest : Prop :=
   ∀ (S S' : State) (c b : UInt256),
     Reach empty S → Reach S S' →
       (S.storedInteropRoots c b).timestamp ≤ S'.latestInteropRootTimestamp c
@@ -218,7 +219,7 @@ bootloader's import of the genuine one succeeds; the source rejects the attacker
 contract with the modifier deleted accepts it; and from the state it leaves, in every state the
 real contract reaches, the key holds the attacker's pair and the bootloader's genuine import
 reverts. -/
-def Properties.WithoutAuthAnyoneSquatsAKey : Prop :=
+@[countermodel] def Properties.WithoutAuthAnyoneSquatsAKey : Prop :=
   ∃ (attacker : Address) (bogus genuine : InteropRoot) (S : State),
     attacker ≠ L2_BOOTLOADER_ADDRESS ∧ bogus.key = genuine.key ∧ bogus.stored ≠ genuine.stored ∧
     addSingleInteropRoot empty L2_BOOTLOADER_ADDRESS genuine ≠ none ∧
@@ -231,7 +232,7 @@ def Properties.WithoutAuthAnyoneSquatsAKey : Prop :=
 /-- **WITHOUT `InteropRootAlreadyExists`, A STORED ROOT IS REPLACED.**  In a state reachable from
 fresh storage a key holds `(root, ts)`; the source rejects a second import at that key; the
 contract with the check deleted accepts it, and the key then holds a different root. -/
-def Properties.WithoutExistsCheckRootIsOverwritten : Prop :=
+@[countermodel] def Properties.WithoutExistsCheckRootIsOverwritten : Prop :=
   ∃ (S S' : State) (c b ts ts' root root' : UInt256),
     Reach empty S ∧ S.storedInteropRoots c b = ⟨root, ts⟩ ∧ root ≠ root' ∧
     addInteropRoot S c b ts' [root'] = none ∧
@@ -242,7 +243,7 @@ def Properties.WithoutExistsCheckRootIsOverwritten : Prop :=
 zero root; the contract with that check deleted stores `(0, 5)`, which breaks
 `ZeroTimestampIffUnset`; and the REAL `_addInteropRoot` then accepts another import at the
 same key (its root slot is still zero), after which the timestamp stored there is 7, not 5. -/
-def Properties.WithoutZeroRootCheckTimestampIsRewritten : Prop :=
+@[countermodel] def Properties.WithoutZeroRootCheckTimestampIsRewritten : Prop :=
   ∃ (S₁ S₂ : State) (c b : UInt256),
     addInteropRoot empty c b 5 [0] = none ∧
     addInteropRootNoZeroRootCheck empty c b 5 [0] = some S₁ ∧
@@ -253,7 +254,7 @@ def Properties.WithoutZeroRootCheckTimestampIsRewritten : Prop :=
 source rejects a zero timestamp; the contract with that check deleted stores a root with
 timestamp zero, and in every state the real contract reaches from there the key still holds a
 nonzero root with timestamp zero. -/
-def Properties.WithoutZeroTimestampCheckRootLooksUnimported : Prop :=
+@[countermodel] def Properties.WithoutZeroTimestampCheckRootLooksUnimported : Prop :=
   ∃ (S₁ : State) (c b : UInt256),
     addInteropRoot empty c b 0 [1] = none ∧
     addInteropRootNoZeroTimestampCheck empty c b 0 [1] = some S₁ ∧
@@ -265,7 +266,7 @@ deleted: from any state in which some key holds a nonzero root with timestamp ze
 stored under the earlier `bytes32` value type would read; see the Specs header),
 `ZeroTimestampIffUnset` fails in every reachable state.  The source relies on "the mapping was
 empty at upgrade time" (`L2InteropRootStorage.sol:29-31`). -/
-def Properties.LegacyRootBreaksZeroTimestampClaim : Prop :=
+@[countermodel] def Properties.LegacyRootBreaksZeroTimestampClaim : Prop :=
   ∀ (S : State) (c b : UInt256),
     (S.storedInteropRoots c b).root ≠ 0 → (S.storedInteropRoots c b).timestamp = 0 →
       ∀ S', Reach S S' → ¬ ZeroTimestampIffUnset S'
@@ -276,7 +277,7 @@ def Properties.LegacyRootBreaksZeroTimestampClaim : Prop :=
 three roots of chain 1 with one batch, out of timestamp order (50, 70, 60).  All four are stored,
 chain 1's tracked timestamp is the maximum 70 (not the last, 60), chain 9's is 5, and an
 untouched chain's is 0. -/
-def Properties.RootImportRunWitness : Prop :=
+@[witness] def Properties.RootImportRunWitness : Prop :=
   ∃ (S : State) (log : List (Address × Call)),
     ReachLog empty S log ∧ log.length = 2 ∧ (imports log).length = 4 ∧
     S.storedInteropRoots 9 7 = ⟨0xdd, 5⟩ ∧
@@ -290,7 +291,7 @@ def Properties.RootImportRunWitness : Prop :=
 /-- **ONE IMPORT BELOW THE TRACKED TIMESTAMP.**  In a state reachable from fresh storage whose
 chain-1 tracked timestamp is 70, a successful import of `(0xcc, 60)` at `(1, 99)`: the premise of
 `AddInteropRootEffect`, in a case where the maximum keeps the old value. -/
-def Properties.SingleImportEffectWitness : Prop :=
+@[witness] def Properties.SingleImportEffectWitness : Prop :=
   ∃ (S S' : State),
     Reach empty S ∧ S.latestInteropRootTimestamp 1 = 70 ∧
     addInteropRoot S 1 99 60 [0xcc] = some S' ∧ S'.latestInteropRootTimestamp 1 = 70
@@ -299,7 +300,7 @@ def Properties.SingleImportEffectWitness : Prop :=
 storage in which `(9, 7)` holds `(0xdd, 5)`, a run that imports another root of chain 9 with a
 later timestamp: the premises of `NoOverwrite` and `StoredTimestampStaysBelowLatest`, with the
 storage and the chain's tracked timestamp changing along the run. -/
-def Properties.StoredRootSurvivesRunWitness : Prop :=
+@[witness] def Properties.StoredRootSurvivesRunWitness : Prop :=
   ∃ (S S' : State),
     Reach empty S ∧ Reach S S' ∧ S.storedInteropRoots 9 7 = ⟨0xdd, 5⟩ ∧
     S'.storedInteropRoots 9 7 = ⟨0xdd, 5⟩ ∧
@@ -309,7 +310,7 @@ def Properties.StoredRootSurvivesRunWitness : Prop :=
 /-- **A DUPLICATE-KEY BATCH OF IMPORTS THAT ARE EACH ACCEPTED ALONE.**  Two well-formed roots
 for the key `(1, 100)`: on fresh storage the bootloader's single import of either succeeds, and
 their batch reverts (the premise of `BatchRejectsDuplicateKey`). -/
-def Properties.DuplicateKeyBatchWitness : Prop :=
+@[witness] def Properties.DuplicateKeyBatchWitness : Prop :=
   ∃ (r r' : InteropRoot),
     r.key = r'.key ∧ r ≠ r' ∧
     addSingleInteropRoot empty L2_BOOTLOADER_ADDRESS r ≠ none ∧
@@ -321,7 +322,7 @@ def Properties.DuplicateKeyBatchWitness : Prop :=
 at `(1, 100)` and nothing else meets the premises of `LegacyRootBreaksZeroTimestampClaim`, and the
 bootloader can still import from it: a one-call run reaches a state with a root at `(1, 101)`,
 in which `(1, 100)` still reads `(0xaa, 0)`. -/
-def Properties.LegacyRootStateWitness : Prop :=
+@[witness] def Properties.LegacyRootStateWitness : Prop :=
   ∃ (S S' : State),
     (S.storedInteropRoots 1 100).root ≠ 0 ∧ (S.storedInteropRoots 1 100).timestamp = 0 ∧
     (∀ c b, (c, b) ≠ (1, 100) → S.storedInteropRoots c b = ⟨0, 0⟩) ∧

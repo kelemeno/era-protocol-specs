@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrent
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the proxy rows at `b17415d20`
@@ -55,7 +56,7 @@ def Properties.OnlyTheNamedEdge : Prop :=
 
 /-- **A STALE ROW DOES NOT APPLY.** If the proxy is at neither the row's source nor its
 target, the loop iteration reverts. No premise: there is no foreign-admin skip any more. -/
-def Properties.StaleObjectCannotDowngrade : Prop :=
+@[headline] def Properties.StaleObjectCannotDowngrade : Prop :=
   ∀ (C : Config) (I : Impl) (r : Row), I r.proxy ≠ r.expectedOldImpl → I r.proxy ≠ r.implNew →
     ¬ ∃ J, ApplyRow C I r J
 
@@ -75,12 +76,12 @@ def Properties.ApplyRowsDeterministic : Prop :=
 /-- **A SUCCESSFUL CALL ESTABLISHES THE VERIFICATION.** Every row's proxy ends at its
 `implNew`. No premise: this is the second loop of `applyRows`. At `612a71ccc` the same
 conclusion needed distinct proxies and no foreign-admin row. -/
-def Properties.ApplyRowsPostcondition : Prop :=
+@[headline] def Properties.ApplyRowsPostcondition : Prop :=
   ∀ (C : Config) (I J : Impl) (rows : List Row), ApplyRows C I rows J → RowsApplied J rows
 
 /-- **APPLYING TWICE IS APPLYING ONCE.** A second `applyRows` over the same rows, from the
 state the first one left, succeeds and changes nothing. No distinct-proxies premise. -/
-def Properties.ApplyRowsIdempotent : Prop :=
+@[headline] def Properties.ApplyRowsIdempotent : Prop :=
   ∀ (C : Config) (I J : Impl) (rows : List Row), ApplyRows C I rows J → ApplyRows C J rows J
 
 /-- **A LATER READER SEES THE ROWS APPLIED IF NOTHING MOVED THEM.** The separate
@@ -190,7 +191,7 @@ def Properties.ReinitMovingOwnProxyIsCaught : Prop :=
 /-- **THE VERIFICATION DOES NOT SEE OTHER PROXIES.** `rowB`'s reinitializer also moves proxy
 `7`, which no row names (so `ReinitFrames` fails). `applyRows` succeeds and proxy `7` has
 moved. So `UnmovedProxiesFrame` needs `ReinitFrames`. -/
-def Properties.ReinitLeakIsNotCaught : Prop :=
+@[countermodel] def Properties.ReinitLeakIsNotCaught : Prop :=
   ¬ ReinitFrames wLeaky ∧ ValidRows [rowA, rowB] ∧
     ∃ J, ApplyRows wLeaky wImpl [rowA, rowB] J ∧ (∀ r ∈ [rowA, rowB], r.proxy ≠ 7) ∧ J 7 ≠ wImpl 7
 
@@ -232,7 +233,7 @@ transition and are refused as a core-domain one. An applier that does not own it
 succeeds on a row that is already applied. Row `5: 11 → 12` is stale in the starting state.
 The inventory `[rowA, slotInert]` drops the inert slot for proxy `7`, applies, and leaves
 proxy `7` alone. -/
-def Properties.CurrentRowsWitness : Prop :=
+@[witness] def Properties.CurrentRowsWitness : Prop :=
   ValidRows [rowA, rowB] ∧ ReinitFrames wConfig ∧ (∀ r ∈ [rowA, rowB], RowInert wConfig r) ∧
     wImpl rowA.proxy = rowA.expectedOldImpl ∧ wImpl rowB.proxy = rowB.expectedOldImpl ∧
     (∃ J, ApplyRows wConfig wImpl [rowA, rowB] J ∧ ApplyRows wConfig wImpl [rowB, rowA] J ∧

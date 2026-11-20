@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTiming
+import EraSpec.Core.Headline
 
 /-!
 # Properties: who may upgrade a chain, and when
@@ -246,7 +247,7 @@ From a fresh CTM: chain `0` is created at version 1 with admin `3`, the CTM comm
 `12`. At time `9`, neither the executor's owner `2` nor the chain's admin `3` can upgrade
 chain `0` through `upgradeChain`, whatever transition they name, and nobody can upgrade it
 by any path. At time `10`, both can, through `upgradeChain(300, 0)`. -/
-def Properties.NotAtAnyTime : Prop :=
+@[countermodel] def Properties.NotAtAnyTime : Prop :=
   ∃ s, TimedRun wTiming wTimingSys0 wTimingSetup s ∧
     s.sys.ctm.ut 1 = 300 ∧ (wTiming.sched 300).upgradeTimestamp = 10 ∧
     (∃ c, s.sys.chains 0 = some c ∧ c.pv = 1) ∧ wTiming.execOwner = 2 ∧ (s.aux 0).admin = 3 ∧
@@ -259,7 +260,7 @@ def Properties.NotAtAnyTime : Prop :=
 /-- **"AT ANY TIME" IS FALSE, FOR THE OWNER AND FOR THE CHAIN'S ADMIN.** It is not the case that
 whenever the executor's owner can upgrade a chain through `upgradeChain` at some time, it can
 at every time. The same fails for the chain's own admin. -/
-def Properties.UpgradeChainIsNotTimeIndependent : Prop :=
+@[countermodel] def Properties.UpgradeChainIsNotTimeIndependent : Prop :=
   (¬ ∀ (T : TimedConfig) (s : TimedSys) (id : ChainId) (t : Address) (τ τ' : ℕ),
       (∃ s', TimedStep T s (.upgrade id (.executor t) T.execOwner τ) s') →
       ∃ s', TimedStep T s (.upgrade id (.executor t) T.execOwner τ') s') ∧
@@ -274,7 +275,7 @@ upgrades. In the state of `NotAtAnyTime`, the owner can upgrade chain `0` throug
 `12`. `replaceUpgradeTransition(300, 400)` succeeds; `400` has a valid schedule, the same
 deadline, and upgrade time `15`. After it nobody can upgrade chain `0` at `12`, by any path,
 and the owner can through `400` at `15`. -/
-def Properties.ReplacementMovesTheTimeGate : Prop :=
+@[countermodel] def Properties.ReplacementMovesTheTimeGate : Prop :=
   ∃ s s', TimedRun wTiming wTimingSys0 wTimingSetup s ∧
     TimedStep wTiming s (.base (.ctm (.replace 300 400))) s' ∧
     ValidSchedule wTiming 300 ∧ ValidSchedule wTiming 400 ∧
@@ -313,7 +314,7 @@ whose schedule is valid (time `10`, deadline `20`):
 The same override on a reachable timed state, with every upgrade step ruled out, is in
 `NoDeadTimeNeedsItsOtherPremises` (`UpgradeTimingStrong`).
 -/
-def Properties.DeadlineOverrideOpensDeadTime : Prop :=
+@[countermodel] def Properties.DeadlineOverrideOpensDeadTime : Prop :=
   ∃ s, CRun wWorld (initState wWorld 100) [.commit 300] s ∧ s.ut 1 = 300 ∧
     ValidSchedule wTiming 300 ∧
     (∀ τ, ProtocolVersionActive wTiming (fun _ => 0) s 1 τ ∨
@@ -333,7 +334,7 @@ admin `3`, validator `4`, CTM `8`, the chain's own entry `12`, the manifest's ti
   does not.
 
 Each modified state is one `setAux` or `swapNotifier` step away. -/
-def Properties.EachGateIsLoadBearing : Prop :=
+@[countermodel] def Properties.EachGateIsLoadBearing : Prop :=
   ∃ s, TimedRun wTiming wTimingSys0 wTimingSetup s ∧
     (s.aux 0).admin = 3 ∧ (s.aux 0).validators 4 = true ∧ wTiming.X.ctmProxy = 8 ∧
     s.notifier 0 1 = 12 ∧
@@ -360,7 +361,7 @@ def Properties.EachGateIsLoadBearing : Prop :=
 
 Along it the notifier's entry for chain `2` and version 1 changes from `0` to `12`. All three
 chains end at version 2 on release `200`, the CTM's release of version 2. -/
-def Properties.UpgradeTimingWitness : Prop :=
+@[witness] def Properties.UpgradeTimingWitness : Prop :=
   SysInv wTiming.X.W wTimingSys0.sys ∧ (∀ l ∈ wTimingRun, ¬ l.isArbitrary) ∧
     ∃ s, TimedRun wTiming wTimingSys0 wTimingRun s ∧
       wTimingSys0.notifier 2 1 = 0 ∧ s.notifier 2 1 = 12 ∧ s.sys.ctm.relAt 2 = 200 ∧

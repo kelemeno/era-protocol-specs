@@ -1,4 +1,5 @@
 import EraSpec.Contracts.BlobsL1DAValidatorZKsyncOS.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what `BlobsL1DAValidatorZKsyncOS` accepts, and what an acceptance implies
@@ -44,7 +45,7 @@ open AttackVectors.BundleHashEncoding
 /-- **`publishBlobs` WRITES EXACTLY THE ATTACHED HASHES, AT THE CURRENT BLOCK.** After the call,
 `publishedBlobs[v]` is the current block for every hash in `attached env` and is unchanged for every
 other hash. The block number is unchanged. -/
-def Properties.BlobsPublishWritesExactlyAttached : Prop :=
+@[headline] def Properties.BlobsPublishWritesExactlyAttached : Prop :=
   ∀ (env : TxEnv) (S : VState) (v : UInt256),
     (publishBlobs env S).published v = (if v ∈ attached env then S.block else S.published v)
       ∧ (publishBlobs env S).block = S.block
@@ -64,7 +65,7 @@ def Properties.BlobsAttachedIsAllBlobs : Prop :=
   of zero entries;
 * keccak of the resolved hashes (`resolvedHashes`), concatenated, is `h`;
 * and `out` is the empty output. -/
-def Properties.BlobsCheckDAAcceptsIff : Prop :=
+@[headline] def Properties.BlobsCheckDAAcceptsIff : Prop :=
   ∀ (K : Bytes → UInt256) (env : TxEnv) (S : VState) (h : UInt256) (input : Bytes)
     (out : DAOutput),
     checkDA K env S h input = some out ↔
@@ -85,7 +86,7 @@ one hash per entry, such that
 * keccak of `vs`, concatenated, is `h`;
 
 and `out` is the empty output. -/
-def Properties.BlobsCheckDAAcceptsIffWellFormed : Prop :=
+@[headline] def Properties.BlobsCheckDAAcceptsIffWellFormed : Prop :=
   ∀ (K : Bytes → UInt256) (env : TxEnv) (S : VState) (h : UInt256) (input : Bytes)
     (out : DAOutput),
     env.WellFormed →
@@ -102,7 +103,7 @@ def Properties.BlobsCheckDAAcceptsIffWellFormed : Prop :=
 /-- **EVERY ATTACHED BLOB IS USED, IN ORDER.** For a transaction with nonzero versioned hashes, an
 accepted input has exactly as many zero entries as the transaction has blobs, and its resolved
 hashes at those entries are the transaction's blobs in order. -/
-def Properties.BlobsAcceptedUsesEveryAttachedBlob : Prop :=
+@[headline] def Properties.BlobsAcceptedUsesEveryAttachedBlob : Prop :=
   ∀ (K : Bytes → UInt256) (env : TxEnv) (S : VState) (h : UInt256) (input : Bytes)
     (out : DAOutput),
     env.WellFormed → checkDA K env S h input = some out →
@@ -118,7 +119,7 @@ def Properties.BlobsAvailabilityNeverPanics : Prop :=
 /-- **AVAILABLE IFF WRITTEN IN THE WINDOW.** On a reachable state a hash is `Available` iff a logged
 `publishBlobs` call wrote it at a nonzero block between `block - BLOB_EXPIRATION_BLOCKS` and the
 current block. -/
-def Properties.BlobsAvailableIffLoggedInWindow : Prop :=
+@[headline] def Properties.BlobsAvailableIffLoggedInWindow : Prop :=
   ∀ (W : World) (v : UInt256), W.Reachable → (Available W.st v ↔ LoggedInWindow W v)
 
 /-- **FRESHNESS OF AN ACCEPTED INPUT.** On a reachable state, for an accepted input:
@@ -126,7 +127,7 @@ def Properties.BlobsAvailableIffLoggedInWindow : Prop :=
 * at a nonzero entry the resolved hash is the entry, and a logged `publishBlobs` call wrote it in
   the window;
 * at a zero entry the resolved hash is a nonzero blob of the checking transaction. -/
-def Properties.BlobsAcceptedHashesFresh : Prop :=
+@[headline] def Properties.BlobsAcceptedHashesFresh : Prop :=
   ∀ (K : Bytes → UInt256) (env : TxEnv) (W : World) (h : UInt256) (input : Bytes)
     (out : DAOutput),
     W.Reachable → checkDA K env W.st h input = some out →
@@ -149,7 +150,7 @@ def Properties.BlobsEncWordsInjective : Prop :=
 the concatenation of a list `vs`, every input `checkDA` accepts for `h` resolves to `vs`, or keccak
 collides on the two concatenations. Under the `BLOBS_ZKSYNC_OS` scheme `vs` is meant to be the batch's
 blob versioned hashes; that is the program's side and is not modelled. -/
-def Properties.BlobsAcceptedBindsOrCollision : Prop :=
+@[headline] def Properties.BlobsAcceptedBindsOrCollision : Prop :=
   ∀ (K : Bytes → UInt256) (env : TxEnv) (S : VState) (input : Bytes) (vs : List UInt256)
     (out : DAOutput),
     checkDA K env S (K (encWords vs)) input = some out →
@@ -171,7 +172,7 @@ def Properties.BlobsTwoAcceptancesAgreeOrCollision : Prop :=
 /-- **THE EXTRA-BLOB CHECK IS LOAD-BEARING** for `BlobsAcceptedUsesEveryAttachedBlob`. With
 `:83-88` deleted, the empty input is accepted from a transaction carrying the one blob `1`, for every
 keccak and state, although it has no zero entry. The source rejects it. -/
-def Properties.BlobsExtraBlobCheckLoadBearing : Prop :=
+@[countermodel] def Properties.BlobsExtraBlobCheckLoadBearing : Prop :=
   ∀ (K : Bytes → UInt256) (S : VState),
     (⟨[1]⟩ : TxEnv).WellFormed
       ∧ checkDAWith { extraBlob := false } K ⟨[1]⟩ S (K (encWords [])) [] = some DAOutput.empty
@@ -183,7 +184,7 @@ world whose only logged `publishBlobs` call wrote hash `1` at block 1, now at bl
 `2 + BLOB_EXPIRATION_BLOCKS`. With the window conjunct of `:39` deleted, `checkDA` accepts the
 one-entry input naming hash `1` from a transaction with no blob, although no logged call wrote it in
 the window. The source rejects it. -/
-def Properties.BlobsWindowCheckLoadBearing : Prop :=
+@[countermodel] def Properties.BlobsWindowCheckLoadBearing : Prop :=
   ∀ K : Bytes → UInt256, ∃ W : World, W.Reachable ∧ W.log = [(1, [1])]
     ∧ W.st.block = 2 + BLOB_EXPIRATION_BLOCKS
     ∧ checkDAWith { window := false } K ⟨[]⟩ W.st (K (encWords [1])) (toB32 1)
@@ -197,7 +198,7 @@ def Properties.BlobsWindowCheckLoadBearing : Prop :=
 hash `7` there, move to block 10. A transaction carrying the one blob `9` submits the two entries
 `[7, 0]`: they resolve to `[7, 9]`, and `checkDA` accepts them for `h = keccak([7, 9])`, for every
 keccak. Hash `7` was written in the window. -/
-def Properties.BlobsAcceptanceWitness : Prop :=
+@[witness] def Properties.BlobsAcceptanceWitness : Prop :=
   ∀ K : Bytes → UInt256, ∃ W : World, W.Reachable ∧ W.log = [(1, [7])] ∧ W.st.block = 10
     ∧ (⟨[9]⟩ : TxEnv).WellFormed ∧ attached ⟨[9]⟩ = [9]
     ∧ inputWords (toB32 7 ++ toB32 0) = [7, 0]
@@ -209,7 +210,7 @@ def Properties.BlobsAcceptanceWitness : Prop :=
 `h = keccak([7, 9])` resolves to `[7, 9]`, and the named collision is false. Second, under the
 constant hash, an input resolving to `[7, 9]` is accepted for `h = keccak([8])`: the lists differ
 and the named collision holds. -/
-def Properties.BlobsBindingWitness : Prop :=
+@[witness] def Properties.BlobsBindingWitness : Prop :=
   (∀ K : Bytes → UInt256, ∃ W : World, W.Reachable
       ∧ checkDA K ⟨[9]⟩ W.st (K (encWords [7, 9])) (toB32 7 ++ toB32 0) = some DAOutput.empty
       ∧ resolvedHashes ⟨[9]⟩ (toB32 7 ++ toB32 0) = [7, 9]
@@ -227,7 +228,7 @@ commitment and resolve to one list. Deploy at block 1, publish hashes `7` and `9
 block 10. The input `[7, 0]` from a transaction carrying blob `9` and the input `[7, 9]` from a
 transaction carrying no blob both resolve to `[7, 9]` and are accepted for `h = keccak([7, 9])`, for
 every keccak. -/
-def Properties.BlobsTwoInputsOneListWitness : Prop :=
+@[witness] def Properties.BlobsTwoInputsOneListWitness : Prop :=
   ∀ K : Bytes → UInt256, ∃ W : World, W.Reachable
     ∧ checkDA K ⟨[9]⟩ W.st (K (encWords [7, 9])) (toB32 7 ++ toB32 0) = some DAOutput.empty
     ∧ checkDA K ⟨[]⟩ W.st (K (encWords [7, 9])) (toB32 7 ++ toB32 9) = some DAOutput.empty

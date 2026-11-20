@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Specs.NotifierBindingV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the ServerNotifier binding at `b17415d20`
@@ -179,7 +180,7 @@ def Properties.DomainHashCollisionIsKeccakCollision : Prop :=
 `AcceptedLegKeepsShapeOrCollision`, with the comparison done by `domainHash k`: the leg ends in
 the shape, or `k` takes the same value on two distinct preimages built from the readings `t`
 before and `t'` after the engine, as in `DomainHashCollisionIsKeccakCollision`. -/
-def Properties.AcceptedLegKeepsShapeOrKeccakCollision : Prop :=
+@[headline] def Properties.AcceptedLegKeepsShapeOrKeccakCollision : Prop :=
   ∀ (E : Env) (k : List Address → Address) (s s' : State) (cs : List (Address × Op))
     (sn exec pa : Address),
     CtmDomainShape E s sn exec pa → LegAccepted E (domainHash k) pa s cs s' →
@@ -363,7 +364,7 @@ def Properties.OnlyDiamondAdminSchedulesAlongDomainRuns : Prop :=
 domain-holders comparison passes for every hash while the shape no longer holds: the CTM proxy's
 admin is `a`. `getProxyAdmin(ctm)` reads `pa` before the leg (from the slot) and after it (from
 the CTM's `admin`); this is the case the comment at `:72-74` describes. -/
-def Properties.PreCheckIsLoadBearing : Prop :=
+@[countermodel] def Properties.PreCheckIsLoadBearing : Prop :=
   ∃ (E : Env) (s s' : State) (sn exec pa a : Address),
     CtmDomainShape E s sn exec pa ∧ ¬ PreCheck s pa ∧ a ≠ pa ∧
     Run E s [(exec, .changeCtmProxyAdmin a)] s' ∧ s'.ctm.adminSlot = a ∧
@@ -377,7 +378,7 @@ accepted for every hash, and its end state differs from the start in both: the c
 neither the notifier's checkers nor the CTM's `pendingAdmin`
 (`ProxyUpgradeExecutorBase.sol:114-115`). So the premises of `AcceptedLegKeepsShape` hold for a
 leg that changes the state. -/
-def Properties.AcceptedLegWitness : Prop :=
+@[witness] def Properties.AcceptedLegWitness : Prop :=
   ∃ s' : State,
     CtmDomainShape nbEnv nbState0 6 1 2 ∧
     (∀ (H : Type) (h : Holders → H), LegAccepted nbEnv h 2 nbState0
@@ -414,7 +415,7 @@ shape, with the CTM answering the diamond's admin, where
 
 From the shape, `X` cannot make that call on `sn`. The same calls made as an engine leg fail the
 domain-holders comparison (`EngineRepointAndRebindRejected`). -/
-def Properties.CallsOutsideLegsMoveTheBinding : Prop :=
+@[countermodel] def Properties.CallsOutsideLegsMoveTheBinding : Prop :=
   ∃ (E : Env) (s0 s1 s2 s3 s4 : State) (exec pa sn N' C' X : Address) (id : ChainId) (v t : ℕ),
     CtmAnswersDiamondAdmin E ∧ CtmDomainShape E s0 sn exec pa ∧
     X ≠ E.diamondAdmin id ∧ X ≠ exec ∧ v = E.pvVia E.ctm id ∧ ¬ ValidatorGateOpen s0 id v t ∧

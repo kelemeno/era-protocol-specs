@@ -1,4 +1,5 @@
 import EraSpec.Contracts.MessageVerification.Specs.StatusProof
+import EraSpec.Core.Headline
 
 /-!
 # Properties: an accepted status proof for a status the batch never recorded locates a break
@@ -48,7 +49,7 @@ def Properties.BatchWalkOpensLogsEntryOrBreak : Prop :=
 every node hash, logs tree, roots `mc`, `b`, `e` and index `j < 2^H` (occupied or padded), the
 honest stream of length `H + 3` meets both premises (`j < 2^(H+3)`, and the walk from
 `L.getD j z0` reaches the chain batch root), and no case of `BatchWalkBreak` holds on it. -/
-def Properties.HonestBatchWalkNoBreak : Prop :=
+@[witness] def Properties.HonestBatchWalkNoBreak : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (L : List UInt256) (H : ℕ) (mc b e : UInt256) (j : ℕ), j < 2 ^ H →
     j < 2 ^ (H + 3)
       ∧ walkPure h (honestBatchSibs h z0 L H mc b e j) 0 (H + 3) j (L.getD j z0)
@@ -120,7 +121,7 @@ default leaf hash, the honest proof of position `j` passes `LogProofAccepted` fo
 its sender. For a status log this is `StatusProofAccepted`: a status the batch recorded is
 provable. And the L1 check cannot tell a genuine status log from another bootloader-sender log the
 batch holds, which is why `BootloaderLogsAreStatusLogs` is a premise above. -/
-def Properties.HeldLogIsProvable : Prop :=
+@[headline] def Properties.HeldLogIsProvable : Prop :=
   ∀ (keccak : Keccak) (logs : List L2Log) (H : ℕ) (mc b e R : UInt256) (j : ℕ) (log : L2Log),
     BatchRootCommitsLogs keccak R logs H mc b e → logs[j]? = some log → j < 2 ^ H →
     H + 3 < 256 → R ≠ 0 → logLeaf keccak log ≠ keccak logDefaultPre →
@@ -132,7 +133,7 @@ def Properties.HeldLogIsProvable : Prop :=
 height 1 holding a message log at position 0 and the Failure status log of transaction 5
 (number 3) at position 1 meets every premise at `j = 1`, and the honest proof passes
 `StatusProofAccepted` for that Failure log. -/
-def Properties.HeldLogIsProvableWitness : Prop :=
+@[witness] def Properties.HeldLogIsProvableWitness : Prop :=
   let K := paddingAwareLengthKeccak
   let logs : List L2Log := [messageLog K ⟨2, 0x1234, [1, 2, 3]⟩, statusLog 3 5 .failure]
   let R := chainBatchRoot (efficientHash K) (logsRootOf K logs 1) 0 7 7
@@ -152,7 +153,7 @@ transaction 5, and an accepted Failure proof for it at index 1. Every premise of
 `s = Failure`) and `LogProofOfAbsentLogLocatesBreak` (at `ℓ` the Failure log) holds; the proof has
 the honest shape, and what the theorems locate is the keccak collision between the Success log at
 the proof's index and the Failure log. -/
-def Properties.StatusProofWitness : Prop :=
+@[witness] def Properties.StatusProofWitness : Prop :=
   ∃ (keccak : Keccak) (logs : List L2Log) (H : ℕ) (mc b e R : UInt256)
     (truth : UInt256 → Option TxStatus) (t : ℕ) (tx : UInt256) (j : ℕ) (sibs : ℕ → UInt256)
     (k : ℕ),
@@ -172,7 +173,7 @@ every other premise of `FailureProofForSucceededTxLocatesBreak` holds. For every
 the recorded root is nonzero and the Failure leaf is not the default leaf hash, the honest Failure
 proof of position 1 is accepted and the conclusion fails: no collision, no break.
 `paddingAwareLengthKeccak` is such a keccak. -/
-def Properties.BootloaderPremiseLoadBearing : Prop :=
+@[countermodel] def Properties.BootloaderPremiseLoadBearing : Prop :=
   ∃ (logs : List L2Log) (H : ℕ) (mc b e : UInt256) (truth : UInt256 → Option TxStatus) (t : ℕ)
     (tx : UInt256) (j k : ℕ),
     (∀ log ∈ logs, LogWellFormed log) ∧ t < 256 ^ 2 ∧ truth tx = some .success
@@ -202,7 +203,7 @@ has preimage `new bytes(88)`, so its leaf is the padding constant, and for every
 the recorded root is nonzero the honest proof of position 1 passes every remaining check while
 the conclusion of `LogProofOfAbsentLogLocatesBreak` fails. `paddingAwareLengthKeccak` is such a
 keccak. Status logs are never the zero log (`StatusPreimageNeDefault`). -/
-def Properties.DefaultLeafCheckLoadBearing : Prop :=
+@[countermodel] def Properties.DefaultLeafCheckLoadBearing : Prop :=
   ∃ (logs : List L2Log) (H : ℕ) (mc b e : UInt256) (j k : ℕ),
     (∀ log ∈ logs, LogWellFormed log) ∧ LogWellFormed zeroLog ∧ zeroLog ∉ logs
       ∧ logLeaf paddingAwareLengthKeccak zeroLog = paddingAwareLengthKeccak logDefaultPre

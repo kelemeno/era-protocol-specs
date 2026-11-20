@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.UpgradeTimingStrong
+import EraSpec.Core.Headline
 
 /-!
 # Properties: no dead time along timed runs
@@ -125,7 +126,7 @@ committed), then one write to chain `0`'s `DiamondAux`:
 
 In both end states chain `0` is in dead time at time `25`. Version 1 has expired, and no
 upgrade of the chain succeeds, by any entry point and any caller. -/
-def Properties.ValidScheduleAloneLeavesDeadTime : Prop :=
+@[countermodel] def Properties.ValidScheduleAloneLeavesDeadTime : Prop :=
   ValidSchedule wTiming 300 ∧ (wTiming.sched 300).deadline < 25 ∧
     (∀ l ∈ wTimingSetup ++ [.setAux 0 wSlBehindAux],
       ¬ l.isArbitrary ∧ l.InstallsWf wTiming.X.W ∧ l.CommitsValidSchedule wTiming) ∧
@@ -150,7 +151,7 @@ L1:
 * **break-glass.** After a break-glass cut that adds selector `9` to chain `0`'s routing, the
   chain is in dead time at time `25`: version 1 has expired, and the routing guard blocks every
   upgrade. -/
-def Properties.NoDeadTimeNeedsItsOtherPremises : Prop :=
+@[countermodel] def Properties.NoDeadTimeNeedsItsOtherPremises : Prop :=
   ∃ s, TimedRun wTiming wTimingSys0 wTimingSetup s ∧
     (∃ c, s.sys.chains 0 = some c ∧ c.pv = 1) ∧ s.sys.ctm.ut 1 = 300 ∧
     (s.aux 0).committed = (s.aux 0).executed ∧ (s.aux 0).slVersion = none ∧
@@ -184,7 +185,7 @@ succeeds:
 * under `wShortDeadlineTiming`, `400` pins `12`. Both schedules are valid. The model's step,
   which omits `_requireSameDeadline`, still succeeds, and it moves version 1's deadline from
   `20` to `12`: version 1 was active at time `15`, and after the replacement it is not. -/
-def Properties.ReplacementDeadlineWitness : Prop :=
+@[witness] def Properties.ReplacementDeadlineWitness : Prop :=
   ∃ s s', TimedRun wTiming wTimingSys0 wTimingSetup s ∧ CtmInv wTiming.X.W s.sys.ctm ∧
     s.sys.ctm.ut 1 = 300 ∧
     TimedStep wTiming s (.base (.ctm (.replace 300 400))) s' ∧
@@ -211,7 +212,7 @@ batch and settles on L1. With no override:
 * at time `15` version 1 is active, and the chain's admin `3` can upgrade it directly;
 * at time `25` version 1 has expired, and the admin can upgrade the chain directly;
 * the chain is in dead time at no block time. -/
-def Properties.NoDeadTimeWitness : Prop :=
+@[witness] def Properties.NoDeadTimeWitness : Prop :=
   SysInv wTiming.X.W wTimingSys0.sys ∧ RecordedReleasesWf wTiming.X.W wTimingSys0.sys.ctm ∧
     SlotSchedulesValid wTiming wTimingSys0.sys.ctm ∧
     (∀ l ∈ wTimingSetup,

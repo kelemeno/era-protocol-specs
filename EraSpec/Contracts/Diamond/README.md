@@ -5,9 +5,8 @@ facet cuts and the init call, over runs of every entry point that writes diamond
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`).
 "Reachable" means a successful constructor followed by any run of calls through the proxy, by any
 callers, for any facet behaviour. A cut's init is in the `InitRun` class: nested
 `Diamond.diamondCut` calls without an init of their own, then a revert or return data. Init code

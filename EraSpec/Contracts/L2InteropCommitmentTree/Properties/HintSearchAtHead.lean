@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.HintSearchAtHead
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the head's unbounded walk, against the pin's five-hop search
@@ -96,7 +97,7 @@ exactly when the tree is initialized, `v` is nonzero and unregistered, and the h
 occupied index whose value is below `v`.  These are the checks of
 `IndexedMerkleTree.sol:71-88`: the walk adds no check that can fail.  Gas, the tree's appender
 check and its leaf report are not part of `InsertChecksAtV35`. -/
-def Properties.InsertAtHeadEnabledIff : Prop :=
+@[headline] def Properties.InsertAtHeadEnabledIff : Prop :=
   ∀ (T : Tree), Valid T → ∀ (v : UInt256) (hint : ℕ),
     (∃ low, InsertChecksAtV35 T v hint low)
       ↔ Initialized T ∧ v ≠ 0 ∧ T.valueToIndex v = 0 ∧ hint < T.leafCount
@@ -127,7 +128,7 @@ appender's `insert(7, 0)` is a head transaction to `chainTree 7` that is no pin 
 So the premises of `InsertAtHeadLandingHintIndependent` hold with two different hints, those
 of both halves of `InsertChecksAtHeadVsPin` hold, and so do those of
 `TxStepAtHeadIsRelabelledTxStep` on a step outside the pin's model. -/
-def Properties.InsertAtHeadWitness : Prop :=
+@[witness] def Properties.InsertAtHeadWitness : Prop :=
   ∀ K : Roles,
     Valid (chainTree 6)
       ∧ InsertChecksAtV35 (chainTree 6) 7 0 6 ∧ InsertChecksAtV35 (chainTree 6) 7 3 6
@@ -263,7 +264,7 @@ is a pin run: the stale hint becomes the landing index `6`.  So the run premises
 results above about head runs from the predeploy (for the `_nodes[0]` ghost see
 `StaleHintStoredRootWitnessAtHead`) are met by a run outside the pin's model, and its state
 at step 7 is initialized (`StaleHintStoredRootWitnessAtHead`). -/
-def Properties.StaleHintRunWitnessAtHead : Prop :=
+@[witness] def Properties.StaleHintRunWitnessAtHead : Prop :=
   ∀ K : Roles,
     TxRunAtHead K staleHintRunAtHead (staleHintTxAtHead K)
       ∧ staleHintRunAtHead 0 = predeploy

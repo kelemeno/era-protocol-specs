@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Specs.DomainHoldersV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what the domain-holder check catches, at `b17415d`
@@ -47,7 +48,7 @@ owner is unchanged; and, with a CTM, the CTM's `owner()` and `pendingOwner()`, t
 `getProxyAdmin(ctm)`) and the CTM's `serverNotifierAddress` are unchanged; and, if that
 notifier is nonzero, its `owner()`, `pendingOwner()`, `getProxyAdmin(notifier)` and
 `chainTypeManager()` are unchanged. No hash premise. -/
-def Properties.PassingLegKeepsHolderReads : Prop :=
+@[headline] def Properties.PassingLegKeepsHolderReads : Prop :=
   ∀ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (eng : Engine) (w w' : World),
     leg E B tr m eng w = some w' →
     (w'.paOwner = w.paOwner
@@ -82,7 +83,7 @@ before the leg, and the engine's post-state `w'` has the CTM proxy's admin slot 
 other than the `ProxyAdmin`, then the leg reverts, or the compared pair collides
 (`HolderPairCollides B E.H w w'`). The engine is an arbitrary function on this model's worlds,
 and nothing is assumed about what the CTM's `admin()` answers in `w'`. No hash premise. -/
-def Properties.MovedCtmCaught : Prop :=
+@[headline] def Properties.MovedCtmCaught : Prop :=
   ∀ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (eng : Engine) (w w' : World),
     B.ctm ≠ 0 →
     (w.proxy B.ctm).adminSlot = B.pa →
@@ -96,7 +97,7 @@ engine `aliasCtmProxyAdmin X` for an `X` other than zero, the executor and the `
 every premise of `MovedCtmCaught` holds, the engine moves the CTM proxy's admin slot to `X`,
 `leg` reverts, and the pair does not collide under the environment's hash. (The same run passes
 the `d9f6789` leg: `Contracts.DomainHoldersV35.History.Properties.MovedCtmCaughtNotVacuous`.) -/
-def Properties.MovedCtmCaughtWitness : Prop :=
+@[witness] def Properties.MovedCtmCaughtWitness : Prop :=
   ∃ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (w w' : World) (X : Address),
     Prechecks E B tr m ∧ ExecutorHoldsCtm B w ∧ CtmAdminOk B w ∧ w.serverNotifier ≠ 0
     ∧ toRows m.proxyUpgrades ≠ [] ∧ rowsApplied B w (toRows m.proxyUpgrades)
@@ -110,7 +111,7 @@ def Properties.MovedCtmCaughtWitness : Prop :=
 that sends every word list to the same word, a CTM executor in its standing configuration with
 the check at `:75-77` passing, whose engine is `aliasCtmProxyAdmin X`, meets every premise of
 `MovedCtmCaught`, and the leg succeeds. -/
-def Properties.MovedCtmCollisionDisjunctLoadBearing : Prop :=
+@[countermodel] def Properties.MovedCtmCollisionDisjunctLoadBearing : Prop :=
   ∃ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (w w' : World) (X : Address),
     (∀ l l', E.H l = E.H l')
     ∧ Prechecks E B tr m ∧ ExecutorHoldsCtm B w ∧ CtmAdminOk B w
@@ -135,7 +136,7 @@ other than zero, the executor and the `ProxyAdmin`. Then: the prechecks pass; th
 its reads succeed); the executor's ownership is unchanged; the rows are applied; the check at
 `:75-77` fails (`¬ CtmAdminOk`); and the leg reverts. So on this instance every check of the
 leg other than `:75-77` passes. -/
-def Properties.CtmAdminCheckLoadBearing : Prop :=
+@[countermodel] def Properties.CtmAdminCheckLoadBearing : Prop :=
   ∃ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (w w' : World) (X : Address),
     Prechecks E B tr m ∧ ExecutorHoldsCtm B w ∧ w.serverNotifier ≠ 0
     ∧ adminCall w B.self B.ctm = some B.pa
@@ -158,7 +159,7 @@ engine: the second `_domainHolders` call reads `serverNotifierAddress()` again (
 (`PassingLegKeepsHolderReads` says a successful leg leaves that address unchanged unless the
 compared pair collides.) The engine is arbitrary. No hash premise and no premise on the
 pre-state. -/
-def Properties.MovedNotifierReverts : Prop :=
+@[headline] def Properties.MovedNotifierReverts : Prop :=
   ∀ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (eng : Engine) (w w' : World),
     B.ctm ≠ 0 →
     eng B.self (buildContext B tr m) m.proxyUpgrades w = some w' →
@@ -171,7 +172,7 @@ def Properties.MovedNotifierReverts : Prop :=
 the check at `:75-77` passing, with a nonzero notifier the `ProxyAdmin` administers and whose
 implementation has no `admin()`, and the engine `moveProxyAdmin notifier X`: every premise
 holds, and the notifier the CTM points at is the same before and after. -/
-def Properties.MovedNotifierRevertsSatisfiable : Prop :=
+@[witness] def Properties.MovedNotifierRevertsSatisfiable : Prop :=
   ∃ (E : Env) (B : Bindings) (tr : Address) (m : Manifest) (w w' : World) (X : Address),
     Prechecks E B tr m ∧ ExecutorHoldsCtm B w ∧ CtmAdminOk B w ∧ w.serverNotifier ≠ 0
     ∧ (w.proxy w.serverNotifier).adminSlot = B.pa

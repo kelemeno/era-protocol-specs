@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorEngineAtV35
 import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorUpgradeChain
+import EraSpec.Core.Headline
 
 /-!
 # Properties: `applyInfrastructureUpgrade` at `draft/v0.35.0`, with an arbitrary engine
@@ -89,7 +90,7 @@ domain and its inventory has the CTM domain's length, the CTM's `admin()` was no
 `ProxyAdmin` in the start state, every row's proxy is at its `implNew`, the executor's `owner`
 and `pendingOwner` are unchanged, and the domain holders are unchanged unless the pair (before,
 after) is a collision of `holdersHash`. -/
-def Properties.ExecutorChecksAfterAnyEngine : Prop :=
+@[headline] def Properties.ExecutorChecksAfterAnyEngine : Prop :=
   ∀ (X : V35Config) (T : V35Transition) (s s' : V35State), V35Step X s (.infra T) s' →
     X.base.rc.hasCode T.addr ∧ T.domain = .ctm ∧ X.base.rc.hasCode T.engine ∧
     T.inventory.length = X.inventoryLength .ctm ∧ s.holders.ctmAdmin ≠ X.proxyAdmin ∧
@@ -125,7 +126,7 @@ def Properties.EveryForwardIsAnEngineLeg : Prop :=
 `TameRunPreservesSysInv` without a premise on the engines is false at `b17415d20`, even when every
 applied object is a genuine `ProxyUpgradeTransition`: some configuration with `ReinitFrames` has
 a run of tame transactions from a `SysInv` state that ends outside `SysInv`. -/
-def Properties.TameRunsNoLongerPreserveSysInv : Prop :=
+@[countermodel] def Properties.TameRunsNoLongerPreserveSysInv : Prop :=
   ¬ ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label),
     ProxyUpgradeCurrent.ReinitFrames X.base.rc → SysInv X.base.W s.x.sys → V35Run X s ls s' →
     (∀ l ∈ ls, l.Tame X) → (∀ T, V35Label.infra T ∈ ls → T.Genuine (X.inventoryLength T.domain)) →
@@ -134,7 +135,7 @@ def Properties.TameRunsNoLongerPreserveSysInv : Prop :=
 /-- **AND NO LONGER KEEP EVERY CHAIN ON ITS RELEASE.** `ExecutorForward`'s
 `TameRunKeepsChainsOnTheirRelease` without a premise on the engines is false at `b17415d20`, even
 for genuine objects. -/
-def Properties.TameRunsNoLongerKeepChainsOnTheirRelease : Prop :=
+@[countermodel] def Properties.TameRunsNoLongerKeepChainsOnTheirRelease : Prop :=
   ¬ ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label),
     ProxyUpgradeCurrent.ReinitFrames X.base.rc → SysInv X.base.W s.x.sys → V35Run X s ls s' →
     (∀ l ∈ ls, l.Tame X) → (∀ T, V35Label.infra T ∈ ls → T.Genuine (X.inventoryLength T.domain)) →
@@ -145,7 +146,7 @@ def Properties.TameRunsNoLongerKeepChainsOnTheirRelease : Prop :=
 `ExecutorForward`'s `FixedEntrypointsMoveProxiesOnlyAlongRows` (and its `AnyRows` form) without
 a premise on the engine is false at `b17415d20`, even for a genuine object, whose rows name
 distinct proxies. -/
-def Properties.FixedEntrypointsNoLongerMoveOnlyAlongRows : Prop :=
+@[countermodel] def Properties.FixedEntrypointsNoLongerMoveOnlyAlongRows : Prop :=
   ¬ ∀ (X : V35Config) (s s' : V35State) (l : V35Label),
     ProxyUpgradeCurrent.ReinitFrames X.base.rc → V35Step X s l s' → (∀ calls, l ≠ .forward calls) →
     (∀ T, l = .infra T → T.Genuine (X.inventoryLength T.domain)) → V35MovesOnlyAlongRows s s' l
@@ -248,7 +249,7 @@ across `b17415d20` executor runs: under `ReinitFrames`, from a `SysInv` state, a
 tame transactions (as in `ExecutorForward`) whose infrastructure transitions all pin
 `DefaultProxyUpgradeEngine`, every chain at a version `v` with a release `R_v` routes exactly
 `R_v`, and `R_v` is a release of version `v`. -/
-def Properties.DefaultEngineRunKeepsChainsOnTheirRelease : Prop :=
+@[headline] def Properties.DefaultEngineRunKeepsChainsOnTheirRelease : Prop :=
   ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label),
     ProxyUpgradeCurrent.ReinitFrames X.base.rc → SysInv X.base.W s.x.sys → V35Run X s ls s' →
     (∀ l ∈ ls, l.Tame X) → (∀ T, V35Label.infra T ∈ ls → EngineIsDefault X T) →
@@ -298,7 +299,7 @@ def Properties.TameEngineRunPreservesSysInv : Prop :=
 (`TameRunKeepsChainsOnTheirRelease` at `b17415d20`.) Under the premises of
 `TameEngineRunPreservesSysInv`, every chain at a version `v` with a release `R_v` routes exactly
 `R_v`, and `R_v` is a release of version `v`. -/
-def Properties.TameEngineRunKeepsChainsOnTheirRelease : Prop :=
+@[headline] def Properties.TameEngineRunKeepsChainsOnTheirRelease : Prop :=
   ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label),
     ProxyUpgradeCurrent.ReinitFrames X.base.rc → SysInv X.base.W s.x.sys → V35Run X s ls s' →
     (∀ l ∈ ls, l.Tame X) → (∀ T, V35Label.infra T ∈ ls → EngineIsTame X T) →
@@ -308,7 +309,7 @@ def Properties.TameEngineRunKeepsChainsOnTheirRelease : Prop :=
 
 /-- **THE HEADLINE FOR REVIEWED ENGINES.** As `TameEngineRunKeepsChainsOnTheirRelease`, with every
 infrastructure transition pinning a reviewed engine. -/
-def Properties.ReviewedRunKeepsChainsOnTheirRelease : Prop :=
+@[headline] def Properties.ReviewedRunKeepsChainsOnTheirRelease : Prop :=
   ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label),
     ProxyUpgradeCurrent.ReinitFrames X.base.rc → SysInv X.base.W s.x.sys → V35Run X s ls s' →
     (∀ l ∈ ls, l.Tame X) → (∀ T, V35Label.infra T ∈ ls → EngineReviewed X T) →
@@ -354,7 +355,7 @@ start, then along a run of tame transactions whose infrastructure transitions pi
 chain `id` is not ahead of its CTM at the end and routes its version's release, if the CTM has
 one. Unlike `TameEngineRunKeepsChainsOnTheirRelease` it needs only chain `id`'s own consistency at
 the start, not `SysInv` of the whole system. -/
-def Properties.ChainRunsItsVersionsReleaseAcrossEngineRuns : Prop :=
+@[headline] def Properties.ChainRunsItsVersionsReleaseAcrossEngineRuns : Prop :=
   ∀ (X : V35Config) (s s' : V35State) (ls : List V35Label) (id : ChainId),
     ProxyUpgradeCurrent.ReinitFrames X.base.rc → CtmInv X.base.W s.x.sys.ctm →
     (∀ c, s.x.sys.chains id = some c → ChainOk X.base.W s.x.sys c) → V35Run X s ls s' →
@@ -389,7 +390,7 @@ whose `_afterSwaps` makes the break-glass cut `executeUpgrade(0, ·)`. Both tran
 and every executor check passes: the rows are applied, and the executor's ownership and the
 holders are unchanged. Chain `0` ends at version 1, whose release is `100`, routing something
 else. So the engine is neither tame nor reviewed. -/
-def Properties.CuttingEngineBreaksTheHeadline : Prop :=
+@[countermodel] def Properties.CuttingEngineBreaksTheHeadline : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wV35.base.rc ∧ SysInv wV35.base.W wV0.x.sys ∧
     (wTAB 72).Genuine (wV35.inventoryLength .ctm) ∧
     (∀ l ∈ [V35Label.env (.genesis 0), .infra (wTAB 72)], l.Tame wV35) ∧
@@ -406,7 +407,7 @@ object whose rows do not name the CTM proxy, so `Tame` as in `ExecutorForward`, 
 `_afterSwaps` is that countermodel's `upgradeAndCall` on the CTM proxy. Every executor check
 passes. The CTM proxy moved, the CTM's version decreased, and `SysInv` fails. So the engine is
 neither tame nor reviewed. -/
-def Properties.CtmSwappingEngineBreaksSysInv : Prop :=
+@[countermodel] def Properties.CtmSwappingEngineBreaksSysInv : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wV35.base.rc ∧ (wTAB 73).Genuine (wV35.inventoryLength .ctm) ∧
     V35Label.Tame wV35 (.infra (wTAB 73)) ∧ XLabel.Tame wX (.infra (wTAB 73).toCurrent) ∧
     ¬ EngineIsTame wV35 (wTAB 73) ∧ ¬ EngineReviewed wV35 (wTAB 73) ∧
@@ -421,7 +422,7 @@ with rows `5: 10 → 11` and `6: 10 → 12` pins a subclass whose `_afterSwaps` 
 which no row names, from `10` to `42`. Every executor check passes, and proxy `7` moved along no
 row's edge. With the default engine only a `forward` can do this (`ForwardDowngradesAProxy`); here it is
 the fixed entry point. The engine is tame (the CTM's invariants are safe) but not reviewed. -/
-def Properties.ProxyMovingEngineMovesAnUnnamedProxy : Prop :=
+@[countermodel] def Properties.ProxyMovingEngineMovesAnUnnamedProxy : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wV35.base.rc ∧ (wTAB 75).Genuine (wV35.inventoryLength .ctm) ∧
     (wTAB 75).rows.Pairwise (fun a b => a.proxy ≠ b.proxy) ∧
     (∀ r ∈ (wTAB 75).rows, r.proxy ≠ 7) ∧ EngineIsTame wV35 (wTAB 75) ∧
@@ -437,7 +438,7 @@ and the default engine, which is reviewed, refuses it. A genuine object with the
 engine only calls `ProxyAdmin.upgrade(5, 11)` (code with no `applyRows`) succeeds, every executor
 check passes, and proxy `5` goes `12 → 11`, along no row's edge. That engine is tame but not
 reviewed. -/
-def Properties.DirectEngineSkipsTheSourceCheck : Prop :=
+@[countermodel] def Properties.DirectEngineSkipsTheSourceCheck : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wV35.base.rc ∧ EngineReviewed wV35 (wTA 30 70) ∧
     (wTA 30 70).Genuine (wV35.inventoryLength .ctm) ∧ (wTA 34 74).Genuine (wV35.inventoryLength .ctm) ∧
     (wTA 34 74).rows = (wTA 30 70).rows ∧
@@ -459,7 +460,7 @@ def Properties.DirectEngineSkipsTheSourceCheck : Prop :=
 goes `12 → 11`. The executor's second `requireRowsApplied` (`ProxyUpgradeExecutorBase.sol:99-103`)
 reads only the end state, where proxy `5` is at the row's `implNew`. The engine is tame but not
 reviewed. -/
-def Properties.BeforeHookDefeatsTheSourceCheck : Prop :=
+@[countermodel] def Properties.BeforeHookDefeatsTheSourceCheck : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wV35.base.rc ∧ (wTA 36 76).Genuine (wV35.inventoryLength .ctm) ∧
     EngineIsTame wV35 (wTA 36 76) ∧ ¬ EngineReviewed wV35 (wTA 36 76) ∧
     ∃ s, V35Run wV35 wV0 wStaleRun s ∧ s.x.impl 5 = 12 ∧
@@ -480,7 +481,7 @@ is tame, both engines are reviewed and tame, the first is the default engine and
 not, both objects are genuine and they and their engines have code. At the end chain `0` is at
 version 2 on release `200`, slot 1 holds `400`, proxies `5` and `6` moved, and the executor's
 ownership and the holders are unchanged. -/
-def Properties.ReviewedRunWitness : Prop :=
+@[witness] def Properties.ReviewedRunWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wV35.base.rc ∧ SysInv wV35.base.W wV0.x.sys ∧
     wV35.base.rc.adminOwner = wV35.base.rc.self ∧ wV0.holders.ctmAdmin ≠ wV35.proxyAdmin ∧
     EngineIsDefault wV35 (wTAB 70) ∧ EngineReviewed wV35 (wTAB 70) ∧
@@ -502,7 +503,7 @@ From the fresh witness state (`SysInv`, `ReinitFrames`), `wDefaultRun` applies `
 default engine), creates chain `0`, commits `300` and upgrades chain `0`. Every transaction is
 tame and its one infrastructure transition pins the default engine. At the end chain `0` is at
 version 2, whose release is `200`, and routes it: the conclusion is about a real chain. -/
-def Properties.DefaultEngineRunWitness : Prop :=
+@[witness] def Properties.DefaultEngineRunWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wV35.base.rc ∧ SysInv wV35.base.W wV0.x.sys ∧
     (∀ l ∈ wDefaultRun, l.Tame wV35) ∧
     (∀ T, V35Label.infra T ∈ wDefaultRun → EngineIsDefault wV35 T) ∧
@@ -514,7 +515,7 @@ def Properties.DefaultEngineRunWitness : Prop :=
 `wTA 34 74` (row `5: 10 → 11`) pins engine `74`, which only calls `ProxyAdmin.upgrade(5, 11)`. From
 the fresh witness state every premise holds, `forward([upgrade(5, 11)])` succeeds and leaves the
 row applied, and so does the leg, ending in the same executor-model state. -/
-def Properties.EveryForwardIsAnEngineLegWitness : Prop :=
+@[witness] def Properties.EveryForwardIsAnEngineLegWitness : Prop :=
   wV35.code (wTA 34 74).engine = callingEngine wV35.base [.upgradeProxy 5 11] ∧
     wV35.base.rc.hasCode (wTA 34 74).addr ∧ (wTA 34 74).domain = .ctm ∧
     wV35.base.rc.hasCode (wTA 34 74).engine ∧ wV0.holders.ctmAdmin ≠ wV35.proxyAdmin ∧

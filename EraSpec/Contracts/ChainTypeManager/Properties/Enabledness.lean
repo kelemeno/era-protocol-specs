@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.Enabledness
+import EraSpec.Core.Headline
 
 /-!
 # Properties: when a chain can upgrade, be deployed, or cross the bootstrap edge
@@ -142,7 +143,7 @@ Yet:
 
 At the source, `_setCurrentRelease` refuses `260` (`ChainTypeManager.sol:305`), and so does the
 constructor of any `CTMTransition` arriving there (`CTMTransition.sol:74`). -/
-def Properties.DuplicateSelectorBricksEdge : Prop :=
+@[countermodel] def Properties.DuplicateSelectorBricksEdge : Prop :=
   wEnDupWorld.Genuine 700 ∧ SysInv wEnDupWorld wEnDupSys0 ∧ RecordedReleasesWf wEnDupWorld wEnDupSys0.ctm ∧
     ChainsOnWfReleases wEnDupWorld wEnDupSys0 ∧
     ∃ s, Run wEnDupWorld wEnDupSys0 [.genesis 0, .ctm (.commit 700)] s ∧
@@ -165,7 +166,7 @@ version, and the arriving release is well-formed, yet it has no transition: the 
 So `TransitionEnabled` needs its departing-release premise. `UpgradesStayEnabled` needs
 `ChainsOnWfReleases` at its start, and `wDupDepSys` fails it. No run from a starting state gets
 here: not even the first chain can be deployed on `150`. -/
-def Properties.DepartingDuplicateBlocksTransition : Prop :=
+@[countermodel] def Properties.DepartingDuplicateBlocksTransition : Prop :=
   wEnDupWorld.Genuine 800 ∧ SysInv wEnDupWorld wDupDepSys ∧ ¬ ChainsOnWfReleases wEnDupWorld wDupDepSys ∧
     (∃ s, Run wEnDupWorld wDupDepSys [.ctm (.commit 800)] s ∧ SysInv wEnDupWorld s ∧
       (∃ c, s.chains 0 = some c ∧ c.pv = 1 ∧ s.ctm.ut 1 = 800 ∧ ChainOk wEnDupWorld s c ∧
@@ -271,7 +272,7 @@ end:
   route differently, and the transition fires, so it is a real reinstall;
 * chain `1` is free, the current release `200` is well-formed, and both genesis and migration in
   fire. -/
-def Properties.EnablednessWitness : Prop :=
+@[witness] def Properties.EnablednessWitness : Prop :=
   SysInv wWorld wSys0 ∧ RecordedReleasesWf wWorld wSys0.ctm ∧ ChainsOnWfReleases wWorld wSys0 ∧
     ∃ s, Run wWorld wSys0 [.genesis 0, .ctm (.commit 300)] s ∧
       (∀ l ∈ [Label.genesis 0, .ctm (.commit 300)], ¬ l.isArbitrary ∧ l.InstallsWf wWorld) ∧
@@ -296,7 +297,7 @@ is well-formed, `1 < 2`, both chains at or below version 1), and hence those of
 * chain `6`, at version 1, can take the bootstrap reset onto release `200`;
 * chain `5`, at version 0, is behind an opaque legacy cut, with neither a transition nor a
   bootstrap reset. -/
-def Properties.CatchUpWitness : Prop :=
+@[witness] def Properties.CatchUpWitness : Prop :=
   ReleaseWf wWorld 200 ∧ 1 < wWorld.relVersion 200 ∧
     (∀ id c, wLagSys.chains id = some c → c.pv ≤ 1) ∧ wLagSys.ctm = bootstrapState wWorld 1 200 ∧
     SysInv wWorld wLagSys ∧ RecordedReleasesWf wWorld wLagSys.ctm ∧ DepartedBelow wLagSys.ctm ∧

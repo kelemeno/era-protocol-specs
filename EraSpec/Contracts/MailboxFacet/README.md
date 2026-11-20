@@ -5,9 +5,8 @@ era-contracts `draft/v0.35.0` `b17415d20`.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. They
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`). They
 are about one diamond; the external view calls (transaction filterer, 7702 checker,
 `isMigrationInProgress`, code size) are environment values, and the hash
 `keccak256(abi.encode(tx))` is an arbitrary function (no hash premise). Caller checks, the

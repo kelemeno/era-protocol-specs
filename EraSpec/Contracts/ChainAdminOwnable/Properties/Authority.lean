@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainAdminOwnable.Specs.Authority
+import EraSpec.Core.Headline
 
 /-!
 # Properties: who drives the calls of `ChainAdminOwnable`, and what a renounce leaves
@@ -77,7 +78,7 @@ logs it). Along any run, every such logged call is authorized by its origin
 `t.setTokenMultiplier(n, d)` (selector `0x235d9eb5`, value zero) made by a
 `setTokenMultiplier(t, n, d)` whose `msg.sender` was the setter in the storage it ran on. Calls
 whose low-level result is a failure are included (`ok = false`). -/
-def Properties.CallsAreOwnersOrSetters : Prop :=
+@[headline] def Properties.CallsAreOwnersOrSetters : Prop :=
   ∀ (cfg : Config) (S S' : State) (L : List Event), Sem cfg .acts S L S' →
     ∀ o c ok, Event.caoCall o c ok ∈ L → o.Authorized c
 
@@ -88,7 +89,7 @@ with that target and that selector, and that call is authorized by its origin, a
 `CallsAreOwnersOrSetters`. So a diamond or the Bridgehub sees `msg.sender` equal to the
 `ChainAdminOwnable` only in calls made by a `multicall` that the owner of that moment entered, or
 by a `setTokenMultiplier` that the setter of that moment entered. -/
-def Properties.ReceivedCallsAreOwnersOrSetters : Prop :=
+@[headline] def Properties.ReceivedCallsAreOwnersOrSetters : Prop :=
   ∀ (cfg : Config) (S S' : State) (L : List Event), Sem cfg .acts S L S' →
     (∀ D sel, Event.chainEntry D cfg.cao sel ∈ L →
       ∃ o c, Event.caoCall o c true ∈ L ∧ o.Authorized c ∧ c.target = D ∧ c.data.take 4 = sel) ∧
@@ -108,7 +109,7 @@ def Properties.WritesAreGuarded : Prop :=
 /-- **(b) THE SETTER CHANGES ONLY BY THE OWNER.** Along any run, the final setter is the initial
 one, or a logged `setTokenMultiplierSetter` wrote exactly it, called by the owner of that
 moment. -/
-def Properties.SetterChangesOnlyByOwner : Prop :=
+@[headline] def Properties.SetterChangesOnlyByOwner : Prop :=
   ∀ (cfg : Config) (S S' : State) (L : List Event), Sem cfg .acts S L S' →
     S'.cao.setter = S.cao.setter ∨
       ∃ inv pre, Event.caoWrite inv pre (.setSetter S'.cao.setter) ∈ L ∧ inv = pre.owner
@@ -118,7 +119,7 @@ def Properties.SetterChangesOnlyByOwner : Prop :=
   nominee; or it is zero and a `renounceOwnership` by the owner of that moment is logged;
 * the final nominee is the initial one, or zero, or a logged `transferOwnership` by the owner of
   that moment named it. -/
-def Properties.OwnerChangesOnlyByAcceptOrRenounce : Prop :=
+@[headline] def Properties.OwnerChangesOnlyByAcceptOrRenounce : Prop :=
   ∀ (cfg : Config) (S S' : State) (L : List Event), Sem cfg .acts S L S' →
     (S'.cao.owner = S.cao.owner ∨
       (∃ pre, Event.caoWrite S'.cao.owner pre (.own .accept) ∈ L ∧ pre.pending = S'.cao.owner) ∨
@@ -164,7 +165,7 @@ any run from `S₁`. The second run leaves the storage as it is at `S₁`, and e
 `ChainAdminOwnable` makes in it is a `setTokenMultiplier` call made for the setter of `S₁`.
 `S₁` is the end of a run: a point between calls, not one inside a `multicall` (see
 `MulticallOutlivesRenounce`). -/
-def Properties.ConstructedThenOwnerlessIsPermanent : Prop :=
+@[headline] def Properties.ConstructedThenOwnerlessIsPermanent : Prop :=
   ∀ (cfg : Config) (S₀ S₁ S₂ : State) (L₁ L₂ : List Event) (o σ : Address), cfg.WF →
     construct o σ = some S₀.cao → Sem cfg .acts S₀ L₁ S₁ → S₁.cao.owner = 0 →
     Sem cfg .acts S₁ L₂ S₂ →
@@ -180,7 +181,7 @@ def Properties.ConstructedThenOwnerlessIsPermanent : Prop :=
 calldata), which calls `renounceOwnership()`; its second call, made after that, sets the diamond's
 pending admin to `12`. The run commits with exactly this log, in this order, and ends with the
 storage renounced and the diamond's pending admin `12`. -/
-def Properties.MulticallOutlivesRenounce : Prop :=
+@[countermodel] def Properties.MulticallOutlivesRenounce : Prop :=
   ∃ L S', Sem wCfg .acts wS1 L S' ∧
     L = [.caoWrite 6 ⟨6, 0, 7⟩ (.own .renounce),
       .caoCall (.multicall 6 ⟨6, 0, 7⟩ wCallsB 0) ⟨6, 0, []⟩ true,
@@ -200,7 +201,7 @@ storage is what the constructor leaves for owner `6` and setter zero, and one ru
 The diamond logs the two entries and the Bridgehub the one entry these calls make. The run ends
 with owner `10`, no nominee and setter `7`, and with `8` the pending admin of the diamond and of
 the Bridgehub. -/
-def Properties.AuthorityWitness : Prop :=
+@[witness] def Properties.AuthorityWitness : Prop :=
   construct 6 0 = some wS0.cao ∧
     ∃ L S', Sem wCfg .acts wS0 L S' ∧
       Event.caoWrite 6 ⟨6, 0, 0⟩ (.setSetter 7) ∈ L ∧
@@ -219,7 +220,7 @@ def Properties.AuthorityWitness : Prop :=
 start storage has setter zero. From `wS0`, the owner's `multicall(wCallsA, true)` commits: the
 `ChainAdminOwnable` makes both submitted calls, the run logs no `setTokenMultiplierSetter`
 write, and the setter is still zero at the end. -/
-def Properties.ZeroSetterWitness : Prop :=
+@[witness] def Properties.ZeroSetterWitness : Prop :=
   wCfg.WF ∧ wS0.cao.setter = 0 ∧
     ∃ L S', Sem wCfg .acts wS0 L S' ∧ (∀ inv pre x, Event.caoWrite inv pre (.setSetter x) ∉ L) ∧
       Event.caoCall (.multicall 6 wS0.cao wCallsA 1) ⟨2, 0, withWord SEL_SET_PENDING_ADMIN 8⟩
@@ -232,7 +233,7 @@ constructed start storage, a run in which the owner sets the setter to `7` and r
 run of the setter's `setTokenMultiplier(4, 3, 2)` and `setTokenMultiplier(11, 3, 2)` commits: the
 `ChainAdminOwnable` calls diamond `4` and address `11`, which runs no modelled contract, and its
 storage stays `wRenounced`'s. -/
-def Properties.RenounceWitness : Prop :=
+@[witness] def Properties.RenounceWitness : Prop :=
   wCfg.WF ∧ construct 6 0 = some wS0.cao ∧ wRenounced.cao.owner = 0 ∧ wRenounced.cao.pending = 0 ∧
     (∃ L, Sem wCfg .acts wS0 L wRenounced ∧ Event.caoWrite 6 ⟨6, 0, 7⟩ (.own .renounce) ∈ L) ∧
     ∃ L S', Sem wCfg .acts wRenounced L S' ∧

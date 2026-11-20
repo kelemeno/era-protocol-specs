@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Specs.EngineLegV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what a successful engine leg pins, and each check is load-bearing
@@ -101,7 +102,7 @@ def Properties.LegRunsThePinnedEngine : Prop :=
 
 /-- **(a) THE ENGINE CANNOT CHANGE WHO GOVERNS THE EXECUTOR.** For every engine, a successful
 leg leaves the executor's `owner()` and `pendingOwner()` as they were (`:78-79`, `:93-95`). -/
-def Properties.LegKeepsExecutorOwnership : Prop :=
+@[headline] def Properties.LegKeepsExecutorOwnership : Prop :=
   ∀ (σ κ : Type) (E : Env σ κ) (eng : Engine σ κ) (T : Address) (M : Manifest) (d : Domain)
     (st : Store) (s : σ) (st' : Store) (s' : σ),
     Leg E eng T M d st s st' s' → st'.owner = st.owner ∧ st'.pendingOwner = st.pendingOwner
@@ -183,7 +184,7 @@ def Properties.LegKeepsCtmProxyAdministeredUnlessCollision : Prop :=
 `getProxyImplementation(row.proxy) = row.implNew` (`:99-103`;
 `libraries/ProxyUpgradeRowLib.sol:133-141`), and the inventory had exactly
 `inventoryLength(domain)` slots (`libraries/ProxyUpgradeRowLib.sol:62-64`). -/
-def Properties.LegLandsEveryRow : Prop :=
+@[headline] def Properties.LegLandsEveryRow : Prop :=
   ∀ (σ κ : Type) (E : Env σ κ) (eng : Engine σ κ) (T : Address) (M : Manifest) (d : Domain)
     (st : Store) (s : σ) (st' : Store) (s' : σ),
     Leg E eng T M d st s st' s' →
@@ -235,7 +236,7 @@ from `w0` and ends in `w1` with executor storage unchanged, no compared preimage
 domain's length; the `ProxyAdmin` administers every proxy; the CTM names ServerNotifier `9`
 and its admin role is `15`; and the holder tuple has all ten entries and is the same before
 and after. -/
-def Properties.DefaultEngineLegWitness : Prop :=
+@[witness] def Properties.DefaultEngineLegWitness : Prop :=
   (∀ k : List UInt8 → UInt256,
       Leg (wEnvWith 8 allCode k) defaultEngine wT wManifest .ctm wStore w0 wStore w1 ∧
         ¬ HoldersBreak (wEnvWith 8 allCode k) w0 w1 ∧ AdminFallsThrough (wEnvWith 8 allCode k)) ∧

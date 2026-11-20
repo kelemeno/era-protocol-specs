@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsAdminSlot
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the rows at `b17415d20`, read through the proxies' admin dispatch
@@ -78,7 +79,7 @@ So, on the implementation slots of this model, the conclusions of `ApplyRowsPost
 call whose configuration projects to one meeting `ReinitFrames`. The `RowsCurrent` theorems are
 not contradicted: in `RowsCurrent` this call reverts. The `...OnSlots` forms add `KeepsAdmin`.
 Proxy `6` is in the third case of `OnlyNamedEdgesOrAdminLost`. -/
-def Properties.AdminRewritePassesVerification : Prop :=
+@[countermodel] def Properties.AdminRewritePassesVerification : Prop :=
   SelfOnly wAdminRewrite ∧ ProxyUpgradeCurrent.ReinitFrames (wAdminRewrite.project wSlots.admin) ∧
     ¬ KeepsAdmin wAdminRewrite ∧ ValidRows [rowA, rowB] ∧
     Administered wAdminRewrite wSlots [rowA, rowB] ∧
@@ -137,7 +138,7 @@ is administered by `66`, not `_admin`, and its implementation slot holds `99`; a
 `99` answers a forwarded `implementation()` with `12`. `applyRows [rowB]` reads `12`, takes the
 skip, passes the verification and changes nothing, and proxy `6`'s implementation slot is not
 `rowB`'s target. `Specs/RowsCurrent.lean:66-69` leaves this configuration out of that model. -/
-def Properties.UnadministeredRowSkippedWhileOffTarget : Prop :=
+@[countermodel] def Properties.UnadministeredRowSkippedWhileOffTarget : Prop :=
   SelfOnly wForeignAnswers ∧ KeepsAdmin wForeignAnswers ∧ ValidRows [rowB] ∧
     ¬ Administered wForeignAnswers wSlotsForeign6 [rowB] ∧
     ApplyRows wForeignAnswers wSlotsForeign6 [rowB] wSlotsForeign6 ∧
@@ -277,7 +278,7 @@ def Properties.ApplyRowsPostconditionOnSlots : Prop :=
 `KeepsAdmin` and `Administered`: after a successful `applyRows` no admin slot has changed, and
 every proxy's implementation slot is where it was, or was at some row's `expectedOldImpl` and
 is now at that row's `implNew`. Without `SelfOnly` this fails (`SelfOnlyIsNeededOnSlots`). -/
-def Properties.OnlyNamedEdgesAcrossCallOnSlots : Prop :=
+@[headline] def Properties.OnlyNamedEdgesAcrossCallOnSlots : Prop :=
   ∀ (C : Config) (S J : Slots) (rows : List Row), SelfOnly C → KeepsAdmin C →
     Administered C S rows → ApplyRows C S rows J → J.admin = S.admin ∧
       ∀ p, J.impl p = S.impl p ∨
@@ -341,7 +342,7 @@ and `6`; no successful call here has a reinitializer that changes the slots.
 reinitializer moves proxy `6` back to `10` and leaves the admin slot alone. The first loop
 succeeds and `applyRows` reverts: the move is caught, as
 `ReinitMovesAreCaughtOnDistinctRowsOnSlots` requires. -/
-def Properties.AdminSlotWitness : Prop :=
+@[witness] def Properties.AdminSlotWitness : Prop :=
   SelfOnly wCfg ∧ KeepsAdmin wCfg ∧ Administered wCfg wSlots [rowA, rowB] ∧
     ValidRows [rowA, rowB] ∧
     (∃ J, ApplyRows wCfg wSlots [rowA, rowB] J ∧ ApplyRows wCfg wSlots [rowB, rowA] J ∧

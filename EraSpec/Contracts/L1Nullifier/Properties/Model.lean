@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L1Nullifier.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the nullifier's deposit ledger
@@ -123,7 +124,7 @@ def Properties.ClearCountIdentity : Prop :=
 from an empty log: if the key is recorded with a nonzero value at most once, counting a record
 already in the start storage, and no clear of it carries a triple hashing to zero, then it is
 cleared at most once. So a deposit is confirmed or recovered at most once, and not both. -/
-def Properties.AtMostOneClearPerDeposit : Prop :=
+@[headline] def Properties.AtMostOneClearPerDeposit : Prop :=
   ∀ (env : Env) (cfg : Cfg) (s0 s : Sys) (c : ChainId) (h : Bytes32),
     s0.log = [] → Reach Checks.source env cfg s0 s →
     s.log.countP (isNzWrite c h) + occupied s0.n c h ≤ 1 →
@@ -157,7 +158,7 @@ earlier bridgehub deposit at `cl`'s key has a triple with the same hash; (2) if 
 at that key in the run other than `cl`'s own hashes the same as `cl`'s, an earlier bridgehub deposit
 at that key is of exactly `cl`'s `(depositSender, assetId, assetData)`. (2)'s premise is a
 no-collision premise on the run's own deposits at one key, not global injectivity. -/
-def Properties.ClearCarriesDepositTriple : Prop :=
+@[headline] def Properties.ClearCarriesDepositTriple : Prop :=
   ∀ (env : Env) (cfg : Cfg) (s0 s : Sys), s0.log = [] → Reach Checks.source env cfg s0 s →
     RouterConfigured cfg s →
     ∀ (pre post : List Event) (cl : Claim) (tgt : Address),
@@ -172,7 +173,7 @@ def Properties.ClearCarriesDepositTriple : Prop :=
 /-- **NO HANDLER CALL WITHOUT A CLEAR.** Along every run of the source from an empty log, no direct
 call of the router's `bridgeConfirmTransferResult` succeeds (`onlyNullifier`): the log has no
 `handler` event. In the model the router therefore calls an asset handler only inside a clear. -/
-def Properties.NoHandlerCallWithoutClear : Prop :=
+@[headline] def Properties.NoHandlerCallWithoutClear : Prop :=
   ∀ (env : Env) (cfg : Cfg) (s0 s : Sys), s0.log = [] → Reach Checks.source env cfg s0 s →
     s.log.countP isHandler = 0
 
@@ -181,7 +182,7 @@ def Properties.NoHandlerCallWithoutClear : Prop :=
 /-- **HEADLINE (c): A CLEAR'S STATUS IS THE REAL ONE.** If the status prover accepts a query only for
 the L2 transaction's real status (`PROTO-TX-STATUS`), then along every run of the source from an
 empty log every clear's status is the real status of its transaction. -/
-def Properties.ClearStatusIsTrue : Prop :=
+@[headline] def Properties.ClearStatusIsTrue : Prop :=
   ∀ (env : Env) (cfg : Cfg) (s0 s : Sys) (truth : ChainId → Bytes32 → Option TxStatus),
     (∀ q, env.accepts q → truth q.chainId q.l2TxHash = some q.status) →
     s0.log = [] → Reach Checks.source env cfg s0 s →
@@ -191,7 +192,7 @@ def Properties.ClearStatusIsTrue : Prop :=
 /-- **A SUCCEEDED DEPOSIT IS NEVER CLEARED AS FAILED.** With a sound status prover, along every run
 of the source from an empty log: a clear of a key whose transaction succeeded has status success,
 and two clears of one key have the same status. -/
-def Properties.NoFailureClearOfSucceededDeposit : Prop :=
+@[headline] def Properties.NoFailureClearOfSucceededDeposit : Prop :=
   ∀ (env : Env) (cfg : Cfg) (s0 s : Sys) (truth : ChainId → Bytes32 → Option TxStatus),
     (∀ q, env.accepts q → truth q.chainId q.l2TxHash = some q.status) →
     s0.log = [] → Reach Checks.source env cfg s0 s →
@@ -231,7 +232,7 @@ model. It empties the key and its clear hands the router exactly `cl`'s fields w
 `Failure`. This is enabledness for the two modelled contracts only. The downstream checks the model
 omits can still revert the call (`DEP-RESULTS`): `_checkAssetHandlerAllowed`, the asset handler's
 own checks, and a reentrancy lock never initialized. -/
-def Properties.UnclaimedDepositRecoverable : Prop :=
+@[headline] def Properties.UnclaimedDepositRecoverable : Prop :=
   ∀ (env : Env) (cfg : Cfg) (s0 s : Sys), s0.log = [] → Reach Checks.source env cfg s0 s →
     ∀ (pre post : List Event) (t : Triple) (c : ChainId) (h : Bytes32),
       s.log = pre ++ Event.write (.deposit t) c h (env.txDataHash t) :: post →
@@ -246,13 +247,13 @@ def Properties.UnclaimedDepositRecoverable : Prop :=
 /-! ## (e) Configuration and pause -/
 
 /-- **DEPRECATED SLOTS ARE FROZEN.** Along any run, with any checks, no deprecated slot changes. -/
-def Properties.DeprecatedSlotsFrozen : Prop :=
+@[headline] def Properties.DeprecatedSlotsFrozen : Prop :=
   ∀ (chk : Checks) (env : Env) (cfg : Cfg) (s s' : Sys), Reach chk env cfg s s' →
     s'.n.deprecated = s.n.deprecated
 
 /-- **THE THREE ADDRESSES ARE SET ONCE.** Along any run, with any checks, each of `l1AssetRouter`,
 `l1NativeTokenVault` and `l1InteropHandler` that is nonzero at the start is unchanged at the end. -/
-def Properties.ConfigSetOnce : Prop :=
+@[headline] def Properties.ConfigSetOnce : Prop :=
   ∀ (chk : Checks) (env : Env) (cfg : Cfg) (s s' : Sys), Reach chk env cfg s s' →
     (s.n.l1AssetRouter ≠ 0 → s'.n.l1AssetRouter = s.n.l1AssetRouter) ∧
     (s.n.l1NativeTokenVault ≠ 0 → s'.n.l1NativeTokenVault = s.n.l1NativeTokenVault) ∧
@@ -306,7 +307,7 @@ def Properties.PausedOwnerlessFreezesForever : Prop :=
 /-- **THE PAUSED, OWNERLESS STATE IS REACHABLE WITH A RECORD HELD.** From uninitialized storage with
 every record empty, a run of the source reaches an initialized, paused state with owner and
 pending owner zero that holds a nonzero record: the premises of `PausedOwnerlessFreezesForever`. -/
-def Properties.PausedOwnerlessReachable : Prop :=
+@[witness] def Properties.PausedOwnerlessReachable : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys), s0.log = [] ∧ s0.n.initialized = false ∧
     (∀ c h, s0.n.depositHappened c h = 0) ∧ Reach Checks.source env cfg s0 s ∧
     s.n.initialized = true ∧ s.n.paused = true ∧ s.n.owner = 0 ∧ s.n.pendingOwner = 0 ∧
@@ -317,7 +318,7 @@ def Properties.PausedOwnerlessReachable : Prop :=
 /-- **WITHOUT THE DATA-HASH CHECK, ONE DEPOSIT IS CLEARED TWICE.** Without `DepositDoesNotExist`
 (`N:243-245`), a run from an empty log records a key with a nonzero value at most once (counting
 the start storage), never claims it with a zero hash, and clears it more than once. -/
-def Properties.HashCheckLoadBearing : Prop :=
+@[countermodel] def Properties.HashCheckLoadBearing : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (c : ChainId) (h : Bytes32),
     s0.log = [] ∧ Reach { Checks.source with dataHash := false } env cfg s0 s ∧
     s.log.countP (isNzWrite c h) + occupied s0.n c h ≤ 1 ∧
@@ -327,7 +328,7 @@ def Properties.HashCheckLoadBearing : Prop :=
 /-- **WITHOUT THE PROOF CHECK, A SUCCEEDED DEPOSIT IS CLEARED AS FAILED.** Without `InvalidProof`
 (`N:231`), and with a sound prover, a run from an empty log clears a key with status failure
 although its transaction succeeded. -/
-def Properties.ProofCheckLoadBearing : Prop :=
+@[countermodel] def Properties.ProofCheckLoadBearing : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (truth : ChainId → Bytes32 → Option TxStatus),
     (∀ q, env.accepts q → truth q.chainId q.l2TxHash = some q.status) ∧
     s0.log = [] ∧ Reach { Checks.source with proof := false } env cfg s0 s ∧
@@ -337,7 +338,7 @@ def Properties.ProofCheckLoadBearing : Prop :=
 /-- **WITHOUT `DepositExists`, THE LEDGER IDENTITY FAILS.** Without `N:160`, a run from an empty log
 breaks the identity of `ClearCountIdentity` at some key (in the proof, a second deposit overwrites
 the first record). -/
-def Properties.DepositExistsLoadBearing : Prop :=
+@[countermodel] def Properties.DepositExistsLoadBearing : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (c : ChainId) (h : Bytes32),
     s0.log = [] ∧ Reach { Checks.source with depositExists := false } env cfg s0 s ∧
     s.log.countP (isClear c h) + occupied s.n c h ≠
@@ -345,7 +346,7 @@ def Properties.DepositExistsLoadBearing : Prop :=
 
 /-- **WITHOUT `onlyNullifier`, AN OUTSIDE CALL REACHES THE HANDLER.** Without `R:70-73`, a run from
 an empty log has a `handler` event and no clear at all. -/
-def Properties.OnlyNullifierLoadBearing : Prop :=
+@[countermodel] def Properties.OnlyNullifierLoadBearing : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys), s0.log = [] ∧
     Reach { Checks.source with onlyNullifier := false } env cfg s0 s ∧
     s.log.countP isHandler ≠ 0 ∧ ∀ c h, s.log.countP (isClear c h) = 0
@@ -358,7 +359,7 @@ from fresh storage whose log is a bridgehub deposit of `cl`'s triple at `cl`'s k
 the key has two nonzero writes, no zero-hash clear and two clears: `AtMostOneClearPerDeposit`
 needs its count premise (`PROTO-TXHASH-FRESH`). `DepositExists` rejects only an occupied key, and
 a clear empties it. -/
-def Properties.TxHashFreshnessLoadBearing : Prop :=
+@[countermodel] def Properties.TxHashFreshnessLoadBearing : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (cl : Claim),
     s0.log = [] ∧ (∀ c' h', s0.n.depositHappened c' h' = 0) ∧ Reach Checks.source env cfg s0 s ∧
     s.log = [.write (.deposit cl.triple) cl.chainId cl.l2TxHash (env.txDataHash cl.triple),
@@ -373,7 +374,7 @@ def Properties.TxHashFreshnessLoadBearing : Prop :=
 /-- **WITHOUT A SOUND PROVER, A SUCCEEDED DEPOSIT IS CLEARED AS FAILED.** With every source check, a
 prover that accepts a failure query for a transaction whose real status is success lets a run from
 an empty log clear that key as failed. `ClearStatusIsTrue` needs `PROTO-TX-STATUS`. -/
-def Properties.SoundProverLoadBearing : Prop :=
+@[countermodel] def Properties.SoundProverLoadBearing : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (truth : ChainId → Bytes32 → Option TxStatus),
     s0.log = [] ∧ Reach Checks.source env cfg s0 s ∧
     ∃ (cl : Claim) (tgt : Address), Event.clear cl tgt ∈ s.log ∧
@@ -385,7 +386,7 @@ write of a nonzero value by that address (`bridgehubConfirmL2TransactionForwarde
 `Origin.direct`) and a clear of a claim whose triple's hash is nonzero, and no bridgehub deposit.
 So without `RouterConfigured` the conclusions of `RecordsComeFromBridgehub` and
 `ClearCarriesDepositTriple` fail. -/
-def Properties.RouterConfiguredLoadBearing : Prop :=
+@[countermodel] def Properties.RouterConfiguredLoadBearing : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys), s0.log = [] ∧ (∀ c h, s0.n.depositHappened c h = 0) ∧
     Reach Checks.source env cfg s0 s ∧ ¬ RouterConfigured cfg s ∧
     (∀ (t : Triple) (c : ChainId) (h v : Bytes32), Event.write (.deposit t) c h v ∉ s.log) ∧
@@ -398,7 +399,7 @@ router configured, from fresh storage: a run with no write at all clears one key
 with a claimed triple hashing to `0`, which passes the data-hash check against the empty key. So
 `AtMostOneClearPerDeposit` needs its zero-hash premise and `ClearCarriesDepositTriple` its
 nonzero-hash premise. For keccak such a triple is a preimage of zero. -/
-def Properties.ZeroHashClaimClearsEmptySlot : Prop :=
+@[countermodel] def Properties.ZeroHashClaimClearsEmptySlot : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (c : ChainId) (h : Bytes32),
     s0.log = [] ∧ (∀ c' h', s0.n.depositHappened c' h' = 0) ∧
     Reach Checks.source env cfg s0 s ∧ RouterConfigured cfg s ∧
@@ -410,7 +411,7 @@ def Properties.ZeroHashClaimClearsEmptySlot : Prop :=
 occupied key: two successive bridgehub requests at one key both succeed when the first is a
 counterpart registration, which records `0`; the second, a deposit, then records its nonzero
 hash there. -/
-def Properties.RepeatedKeyAccepted : Prop :=
+@[countermodel] def Properties.RepeatedKeyAccepted : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s s1 s2 : Sys) (a a' : Address) (c : ChainId) (h : Bytes32)
     (assetId : Bytes32) (data : Bytes),
     Step Checks.source env cfg s (.twoBridges a c .counterpart h) s1 ∧
@@ -431,7 +432,7 @@ confirmation. At the first key the count premises of `AtMostOneClearPerDeposit` 
 clear; each key's only deposit is of its claimed triple, so the no-collision premise of
 `ClearCarriesDepositTriple` holds; the second clear is an instance of the first half of
 `NoFailureClearOfSucceededDeposit`. -/
-def Properties.LedgerRunWitness : Prop :=
+@[witness] def Properties.LedgerRunWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (truth : ChainId → Bytes32 → Option TxStatus)
     (clF clS : Claim),
     (∀ q, env.accepts q ↔ truth q.chainId q.l2TxHash = some q.status) ∧
@@ -451,7 +452,7 @@ check and a prover that accepts exactly the real statuses, the run's log is a de
 it with status failure, the same deposit again at the same key, and a second clear with a different
 claim, also with status failure: the premises of the second half of
 `NoFailureClearOfSucceededDeposit` with `cl ≠ cl'`. -/
-def Properties.SameKeyClearedTwiceWitness : Prop :=
+@[witness] def Properties.SameKeyClearedTwiceWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (truth : ChainId → Bytes32 → Option TxStatus)
     (cl cl' : Claim),
     (∀ q, env.accepts q ↔ truth q.chainId q.l2TxHash = some q.status) ∧
@@ -466,7 +467,7 @@ def Properties.SameKeyClearedTwiceWitness : Prop :=
 /-- **A RECORD THAT LEAVES.** A run of the source between two states: the key holds the claimed
 triple's nonzero hash at the start, is `0` at the end, and the run's only event is a clear of that
 claim: the premises of `RecordLeavesOnlyByPreimage`. -/
-def Properties.RecordLeavesOnlyByPreimageWitness : Prop :=
+@[witness] def Properties.RecordLeavesOnlyByPreimageWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s s' : Sys) (cl : Claim),
     Reach Checks.source env cfg s s' ∧
     s.n.depositHappened cl.chainId cl.l2TxHash = env.txDataHash cl.triple ∧
@@ -477,7 +478,7 @@ def Properties.RecordLeavesOnlyByPreimageWitness : Prop :=
 meets every premise of `UnclaimedDepositRecoverable`. Two events follow the deposit (in the proof,
 another depositor's deposit and its confirmation), and the recovery's caller is not the
 depositor. -/
-def Properties.UnclaimedDepositRecoverableWitness : Prop :=
+@[witness] def Properties.UnclaimedDepositRecoverableWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s0 s : Sys) (pre post : List Event) (t : Triple) (c : ChainId)
     (h : Bytes32) (a : Address) (cl : Claim),
     s0.log = [] ∧ (∀ c' h', s0.n.depositHappened c' h' = 0) ∧ Reach Checks.source env cfg s0 s ∧
@@ -492,7 +493,7 @@ nonzero hash (`DepositRecordsClaimClears`), the owner's `pause` (a change of the
 `OnlyOwnerPausesOrConfigures`), the owner's `unpause` from the paused state with the record held
 (`PausedStepKeepsRecords`), a recovery of that deposit (`DepositRecordsClaimClears`), and the owner's
 `renounceOwnership`, a change of owner (`OnlyOwnerPausesOrConfigures`). -/
-def Properties.LedgerStepWitness : Prop :=
+@[witness] def Properties.LedgerStepWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s₁ s₂ s₃ s₄ s₅ s₆ : Sys) (caller o : Address) (c : ChainId)
     (a : Bytes32) (d : Bytes) (h : Bytes32) (cl : Claim),
     Step Checks.source env cfg s₁ (.twoBridges caller c (.deposit a d) h) s₂ ∧
@@ -506,7 +507,7 @@ def Properties.LedgerStepWitness : Prop :=
 /-- **THE INITIALIZE-ONCE PREMISES.** From uninitialized storage, a successful `initialize` followed
 by a run of the source that adds two events to the log (in the proof, a deposit and its
 recovery). -/
-def Properties.InitializeOnlyOnceWitness : Prop :=
+@[witness] def Properties.InitializeOnlyOnceWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s s' s'' : Sys) (a o : Address),
     s.n.initialized = false ∧ Step Checks.source env cfg s (.initialize a o) s' ∧
     Reach Checks.source env cfg s' s'' ∧ s''.log.length = s'.log.length + 2
@@ -514,7 +515,7 @@ def Properties.InitializeOnlyOnceWitness : Prop :=
 /-- **THE ROUTER-PAUSED PREMISES.** A step of the source that changes the nullifier's pause flag, from
 a state where the router is paused and is the nullifier's `l1AssetRouter` and a nonzero record is
 held (in the proof, the nullifier owner's `pause`). -/
-def Properties.RouterPausedStepWitness : Prop :=
+@[witness] def Properties.RouterPausedStepWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s s' : Sys) (l : Label), Step Checks.source env cfg s l s' ∧
     s.routerPaused = true ∧ s.n.l1AssetRouter = cfg.router ∧
     (∃ c h, s.n.depositHappened c h ≠ 0) ∧ s'.n.paused ≠ s.n.paused
@@ -522,7 +523,7 @@ def Properties.RouterPausedStepWitness : Prop :=
 /-- **THE SET-ONCE PREMISES.** A run of the source that starts with all three addresses nonzero and
 adds two events to the log (in the proof, a deposit and its recovery): the premises of
 `ConfigSetOnce`. -/
-def Properties.ConfigSetOnceWitness : Prop :=
+@[witness] def Properties.ConfigSetOnceWitness : Prop :=
   ∃ (env : Env) (cfg : Cfg) (s s' : Sys), Reach Checks.source env cfg s s' ∧
     s.n.l1AssetRouter ≠ 0 ∧ s.n.l1NativeTokenVault ≠ 0 ∧ s.n.l1InteropHandler ≠ 0 ∧
     s'.log.length = s.log.length + 2

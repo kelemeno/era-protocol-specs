@@ -1,4 +1,5 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.EscrowLedgerAtHead
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the escrow ledger at head, with `populateBridgedOut`
@@ -82,7 +83,7 @@ def Properties.StepAtHeadPreservesLedgerBacked : Prop :=
 /-- **SOLVENCY AT HEAD (HEADLINE).**  Along every run from a state whose ledger, legacy
 amounts included, is backed, it stays backed, so `bridgedOut` never exceeds the escrow.  No
 hash premise, no registry invariant: the legacy backing is the only premise. -/
-def Properties.SolvencyAtHead : Prop :=
+@[headline] def Properties.SolvencyAtHead : Prop :=
   ∀ (e : NtvAssetId) (thisChain : Chain) (legacy : LegacyAmounts) (W₀ W : WorldAtHead)
     (log : List OpAtHead),
     LedgerBackedAtHead legacy W₀ → ReachLogAtHead e thisChain legacy W₀ W log →

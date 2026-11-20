@@ -1,4 +1,5 @@
 import EraSpec.Contracts.SecondProofSystem.Specs.MigrationV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the second-proof-system requirement of one chain, its two diamonds and migration
@@ -165,7 +166,7 @@ system turned off on the L1 diamond by the owner of L1's Bridgehub (`NoL1OwnerZi
 other modelled call is allowed, upgrades to any verifier passing the upgrade check included),
 interop stays enabled, the chain settles on its L1 diamond, which has the flag and mask `0`,
 and the proof mode it reports is multi-proof. -/
-def Properties.EnabledChainStaysMultiProof : Prop :=
+@[headline] def Properties.EnabledChainStaysMultiProof : Prop :=
   ∀ (cfg : Cfg) (E : Env) (c : Address) (s s₁ s' : Sys) (tr : List (Address × Call)),
     cfg.migrationsEnabled = false → SettlesOnL1 s →
     (∀ m, E.proofMode s.l1.verifier m = multiProofGetProofMode m) →
@@ -210,7 +211,7 @@ waived `enableInterop(chainId, false)` succeeds. From `w3` the `NoL1OwnerZiskOff
 `4`, and L1's Bridgehub changing owner to `6`) reaches `wKept`, which reports multi-proof mode.
 In `wKept` the new admin's ZiSK-off, an upgrade to the single-proof verifier `20` and the new
 admin's migration burn are refused, and the new owner's ZiSK-off succeeds. -/
-def Properties.MultiProofKeptWitness : Prop :=
+@[witness] def Properties.MultiProofKeptWitness : Prop :=
   Run wSource wEnv NoL1OwnerZiskOff w0 wRequire w2 ∧
   SettlesOnL1 w2 ∧ w2.l1.secondProofSystemRequired = true ∧ w2.l1.disabledProofSystems = 0 ∧
   ¬ ziskOff w2.l1 ∧ (∀ m, wEnv.proofMode w2.l1.verifier m = multiProofGetProofMode m) ∧

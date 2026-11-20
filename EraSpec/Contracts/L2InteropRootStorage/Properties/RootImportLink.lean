@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropRootStorage.Specs.RootImportLink
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the storage's runs and `Contracts.RootImport`'s imported roots
@@ -20,7 +21,7 @@ if each destination's storage `S d` reaches `S' d` by a run of the contract, the
 off `S'` is a later snapshot of the world read off `S` in the sense of
 `Contracts.RootImport.ImportsGrow`: the same roots and configuration, and every import of the
 first still an import of the second. -/
-def Properties.StorageRunsGrowImports : Prop :=
+@[headline] def Properties.StorageRunsGrowImports : Prop :=
   ∀ (slRoot : Contracts.Atomicity.Chain → ℕ → Contracts.Timeout.SlRoot)
     (l1 : Contracts.RootImport.Dest → Contracts.Atomicity.Chain)
     (S S' : Contracts.RootImport.Dest → State),
@@ -31,7 +32,7 @@ def Properties.StorageRunsGrowImports : Prop :=
 at `(9, 7)`, every other destination stays at fresh storage: the premise of
 `StorageRunsGrowImports` holds, and the later world has destination 5's import of `(9, 7)`, which
 the earlier one does not have. -/
-def Properties.StorageRunsGrowImportsRunWitness : Prop :=
+@[witness] def Properties.StorageRunsGrowImportsRunWitness : Prop :=
   ∃ (S S' : Contracts.RootImport.Dest → State),
     (∀ d, Reach (S d) (S' d)) ∧
     ∀ (slRoot : Contracts.Atomicity.Chain → ℕ → Contracts.Timeout.SlRoot)

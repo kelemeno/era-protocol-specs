@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorUpgradeChain
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the executor's `upgradeChain`, and what a replacement must report
@@ -175,7 +176,7 @@ at version 1, slot 1 holds `500`, and:
   routing exactly release `200`, and `SysInv` still holds.
 
 So `GenuineReplacementsKeepUpgradeChainLive` needs its premise on replacements. -/
-def Properties.NonGenuineReplacementBricksUpgradeChain : Prop :=
+@[countermodel] def Properties.NonGenuineReplacementBricksUpgradeChain : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     ∃ s1 s, URun wX wX0 [.x (.env (.genesis 0)), .x (.commit 300)] s1 ∧
       (∃ s', UStep wX s1 (.upgradeChain 300 0) s') ∧
@@ -207,7 +208,7 @@ tame, and the one replacement forwarded reports its departing release's version.
   "stops working at once" (`protocol-docs/ecosystem-upgrade-coordination.md:201-202`);
 * `upgradeChain(400, 0)` takes chain `0` to version 2, whose release `200` it then routes
   exactly. -/
-def Properties.ExecutorUpgradeChainWitness : Prop :=
+@[witness] def Properties.ExecutorUpgradeChainWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     SlotsReport wX.W wX0.sys.ctm ∧
     (∀ u ∈ [ULabel.x (.env (.genesis 0)), .x (.commit 300),
@@ -230,7 +231,7 @@ def Properties.ExecutorUpgradeChainWitness : Prop :=
 which reports `7`. Replacing `500` by anything reverts, because `replaceUpgradeTransition` looks
 `500` up at slot 7, where nothing is committed (`ChainTypeManager.sol:428-432`). The CTM still
 moves on: committing `600` (2→3) succeeds and leaves slot 1 at `500`. -/
-def Properties.MisreportingSlotWitness : Prop :=
+@[witness] def Properties.MisreportingSlotWitness : Prop :=
   ∃ c c', CRun wWorld (initState wWorld 100) [.commit 300, .replace 300 500] c ∧
     CtmInv wWorld c ∧ c.ut 1 = 500 ∧ (wWorld.tr (c.ut 1)).old ≠ 1 ∧
     (∀ r, ¬ ∃ c'', CStep wWorld c (.replace 500 r) c'') ∧

@@ -1,5 +1,6 @@
 import EraSpec.Contracts.L2InteropCommitmentTree.Specs.TreeRoot
 import EraSpec.Protocol.Spec
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the root and the two proof gates
@@ -216,7 +217,7 @@ hash can meet).  Elsewhere the repair is the collision form of `LastLeafOrBreak`
 (`AtomicInteropProof/Properties/LastLeaf.lean`; its accepted-path variant still needs the
 repair) and `Contracts.Refund.Properties.CrossFlowRefundYieldsCollision`: conclude
 "the property holds, or a concrete collision among the compared values exists". -/
-def Properties.HashAssumptionsUnsatisfiable : Prop :=
+@[countermodel] def Properties.HashAssumptionsUnsatisfiable : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (hl : LeafHash), ¬ HashAssumptions h z0 hl
 
 
@@ -427,7 +428,7 @@ pair and padding constant `1`, for each of the four cases `c` there is a proof
 valid `setup` tree's root at height 1 for a value that tree does not hold, and whose
 located break is exactly `c`.  So no case of `TreeRootBreak` is dead code, and the
 case analysis attributes each forgery to the right one. -/
-def Properties.TreeRootBreakEveryCaseFires : Prop :=
+@[countermodel] def Properties.TreeRootBreakEveryCaseFires : Prop :=
   ∀ c : TreeRootBreakCase, ∃ (sibs : ℕ → UInt256) (k idx : ℕ) (ℓ : Leaf),
     Valid setup ∧ setup.leafCount ≤ 2 ^ 1
       ∧ InclusionAccepted toyNodeHash toyLeafHash (root toyNodeHash 1 toyLeafHash setup 1)

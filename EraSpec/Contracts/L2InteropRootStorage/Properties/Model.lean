@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2InteropRootStorage.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: imported roots are write-once, and a zero timestamp means absent
@@ -89,7 +90,7 @@ def Properties.LegacyEntryBlocksTimeoutForever : Prop :=
 /-- **THE COUNTERMODEL, CONCRETELY.** A storage with a legacy entry, and a run from it that imports
 another root: afterwards the legacy root still passes inclusion and fails every timeout read,
 while the new root passes the timeout read. -/
-def Properties.LegacyEntryCountermodel : Prop :=
+@[countermodel] def Properties.LegacyEntryCountermodel : Prop :=
   ∃ (st₀ st : State) (c : ChainId) (n n' : ℕ) (r : Word), r ≠ 0 ∧ st₀.entries c n = ⟨r, 0⟩
     ∧ Reach (fun _ => True) st₀ st ∧ st.InclusionRootAccepts c n r
     ∧ (∀ D, ¬ st.TimeoutRootPasses c n D) ∧ st.TimeoutRootPasses c n' 0
@@ -97,7 +98,7 @@ def Properties.LegacyEntryCountermodel : Prop :=
 /-- **NON-VACUITY.** From fresh storage, a batch import of two tuples stores both with nonzero
 roots and timestamps (`st₁`); a later single import (`st₂`) writes a key `y` that was empty in
 `st₁`. -/
-def Properties.RootStorageRunWitness : Prop :=
+@[witness] def Properties.RootStorageRunWitness : Prop :=
   ∃ (st₁ st₂ : State) (xs : List RootIn) (y : RootIn),
     AddsAll (fun _ => True) empty xs st₁ ∧ xs.length = 2
       ∧ (∀ x ∈ xs, (st₁.entries x.chainId x.blockOrBatchNumber).root ≠ 0

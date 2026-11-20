@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorForward
 import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsUnvalidated
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the executor's fixed entry points, for any transition object
@@ -39,7 +40,7 @@ twice, succeeds from the fresh witness state. The object is not genuine, so the 
 `FixedEntrypointsMoveProxiesOnlyAlongRows` takes fails for this step. The step is not a
 `forward`, and it is `Tame`: its rows do not name the CTM proxy `8`. It leaves the CTM and its
 chains alone and really moves proxy `6`, from `10` to `12`. -/
-def Properties.ExecutorAnyRowsWitness : Prop :=
+@[witness] def Properties.ExecutorAnyRowsWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ ¬ ProxyUpgradeCurrent.wDupTransition.Genuine ∧
     ¬ ProxyUpgradeCurrent.wDupTransition.rows.Pairwise (fun a b => a.proxy ≠ b.proxy) ∧
     (∀ calls, XLabel.infra ProxyUpgradeCurrent.wDupTransition ≠ .forward calls) ∧

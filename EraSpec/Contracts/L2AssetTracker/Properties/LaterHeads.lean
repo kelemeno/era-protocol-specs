@@ -1,4 +1,5 @@
 import EraSpec.Contracts.L2AssetTracker.Specs.LaterHeads
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the tracker results at the current heads, and what the recovery guard closes
@@ -81,14 +82,14 @@ def Properties.HeadRunIsPinRun : Prop :=
     HeadReach cfg sys₀ sys → Reach cfg sys₀ sys
 
 /-- **THE INVARIANT HOLDS ALONG EVERY RUN AT THE HEADS.** -/
-def Properties.HeadAccountingInvariant : Prop :=
+@[headline] def Properties.HeadAccountingInvariant : Prop :=
   ∀ (cfg : Config) (sys₀ sys : Sys), Inv cfg sys₀ → HeadReach cfg sys₀ sys → Inv cfg sys
 
 /-- **WHAT THE CHAIN BALANCE OF A NATIVE TOKEN IS, AT THE HEADS.**  `Properties.NativeSentinel`
 for runs at the heads: along every such run from a state satisfying `Inv`, for every registered
 native asset `a`, with `E := MAX - snapshot`, `chainBalance + Σout = snapshot + Σin`,
 `Σin ≤ E + Σout`, and `chainBalance = MAX - (E + Σout - Σin)`. -/
-def Properties.HeadNativeSentinel : Prop :=
+@[headline] def Properties.HeadNativeSentinel : Prop :=
   ∀ (cfg : Config) (sys₀ sys : Sys) (a : AssetId),
     Inv cfg sys₀ → HeadReach cfg sys₀ sys → sys.st.isAssetRegistered a = true → Native cfg a →
       (sys.st.chainBalance cfg.thisChain a).val + sys.audit.outflow a =
@@ -163,7 +164,7 @@ def Properties.HeadEscrowInvariant : Prop :=
 `Properties.NativeReleasesAreEscrowed` for composed runs at the heads: for a registered asset `a`
 native here, with `E := MAX - snapshot`, `MAX - chainBalance` is at most the vault's balance of
 the token, and so is `E + Σout - Σin`. -/
-def Properties.HeadNativeReleasesAreEscrowed : Prop :=
+@[headline] def Properties.HeadNativeReleasesAreEscrowed : Prop :=
   ∀ (cfg : Config) (a : AssetId) (e₀ e : EscrowSys), Native cfg a →
     EscrowInv cfg a e₀ → HeadEscrowReach cfg a e₀ e → e.sys.st.isAssetRegistered a = true →
       MAX_TOKEN_BALANCE.val - (e.sys.st.chainBalance cfg.thisChain a).val ≤
@@ -176,7 +177,7 @@ def Properties.HeadNativeReleasesAreEscrowed : Prop :=
 here, a nonzero vault address and a nonzero receiver, and an inbound transfer touching no L1
 counter, the vault's inbound native path (hook, then withdrawal) succeeds iff
 `Σin + amount ≤ E + Σout`. -/
-def Properties.HeadNativeInboundIffCap : Prop :=
+@[headline] def Properties.HeadNativeInboundIffCap : Prop :=
   ∀ (cfg : Config) (a : AssetId) (e₀ e : EscrowSys) (chain : ChainId) (account : Address)
     (amount : UInt256),
     Native cfg a → EscrowInv cfg a e₀ → HeadEscrowReach cfg a e₀ e →
@@ -193,7 +194,7 @@ here (registered or not) whose token address in the vault is set, on a chain wit
 nonzero vault address, every depositor other than the vault and the zero address holding at least
 `amount` can move it out on the outbound native path, unless a transfer to L1 while the chain
 settles on L1 would raise `totalWithdrawalsToL1` past `2^256 - 1`.  Allowances are not modelled. -/
-def Properties.HeadFundedNativeOutboundSucceeds : Prop :=
+@[headline] def Properties.HeadFundedNativeOutboundSucceeds : Prop :=
   ∀ (cfg : Config) (a : AssetId) (e₀ e : EscrowSys) (chain : ChainId) (account : Address)
     (amount : UInt256),
     Native cfg a → EscrowInv cfg a e₀ → HeadEscrowReach cfg a e₀ e →
@@ -215,7 +216,7 @@ returned data (`recoveryCall`), applied to the prepared state moved to `sl₂`, 
 guard holds of the starting tracker storage (the destination is not L1, and the asset is not the
 tracker's base asset native here), and then yields the original vault state with tracker storage
 `st₀` and settlement layer `sl₂`. -/
-def Properties.HeadRecoveryRestoresVaultAndTracker : Prop :=
+@[headline] def Properties.HeadRecoveryRestoresVaultAndTracker : Prop :=
   ∀ (cfg : Config) (metadata : Contracts.BridgedStandardERC20.State → UInt256 → Option Bytes)
     (s : State L2Accounting) (r : Request) (out : Result L2Accounting) (sl₂ : ChainId),
     WellFormed s → prepare (l2Hooks cfg metadata) s r = some out →

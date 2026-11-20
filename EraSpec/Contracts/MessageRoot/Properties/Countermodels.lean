@@ -1,6 +1,7 @@
 import EraSpec.Contracts.MessageRoot.Specs.Countermodels
 import EraSpec.Contracts.FullMerkle.Specs.CapacityInvariant
 import EraSpec.Contracts.Merkle.Specs.RootForgeryPinned
+import EraSpec.Core.Headline
 
 /-!
 # Properties: witnesses for every premise, the premises that are needed, and the checks that
@@ -63,7 +64,7 @@ exactly the leaves of batches `0`, `1`, `6` (batch `2` is recorded but not in th
 recorded roots of batches `6` and `2` of chain `5`, rejects batch `3` (never recorded) for every
 candidate root and every environment, and reverts on batch `0`; and the latest historical root
 is the aggregated root. -/
-def Properties.EveryEntryPointRun : Prop :=
+@[witness] def Properties.EveryEntryPointRun : Prop :=
   ∃ s : State, execCalls mrHashes mrConfig fresh mrCalls = some s ∧ Reachable mrHashes mrConfig s
     ∧ s.chainCount = 3 ∧ s.chainIndex 5 = 1 ∧ s.chainIndex 6 = 2
     ∧ s.currentChainBatchNumber 5 = 6
@@ -81,7 +82,7 @@ unregistered and neither `chainCount` nor `interopRootLogId` is about to overflo
 Bridgehub's `addNewChain(5, 0)` succeeds, and so does the chain asset handler's
 `addNewChain(6, 0)` (a different address from the Bridgehub).  On the reachable storage the
 first call leaves, `5` is registered. -/
-def Properties.RegistrationPremisesHold : Prop :=
+@[witness] def Properties.RegistrationPremisesHold : Prop :=
   ∃ s t t' : State, Reachable mrHashes mrConfig s
     ∧ chainRegistered mrConfig s 5 = false ∧ chainRegistered mrConfig s 6 = false
     ∧ s.chainCount + 1 < UInt256.size ∧ s.interopRootLogId + 1 < UInt256.size
@@ -98,7 +99,7 @@ there the chain's diamond sends `addChainBatchRootV32(5, 1, 101)` with every pre
 `AppendLiveness` (counter `0`, root nonzero, no overflow) and succeeds; then
 `addChainBatchRoot(5, 2, 102)` (record only) succeeds, records `102` at batch `2` and leaves the
 tree, which holds batches `0` and `1`, unchanged. -/
-def Properties.AppendPremisesHold : Prop :=
+@[witness] def Properties.AppendPremisesHold : Prop :=
   ∃ s₂ s₃ s₄ s₅ : State, Reachable mrHashes mrConfig s₂
     ∧ exec mrHashes mrConfig (mrEnv 10 2) s₂ (.seedGenesisRoot 5) = some s₃
     ∧ (mrEnv 10 2).l2LogsRootHash 5 0 ≠ 0
@@ -116,7 +117,7 @@ def Properties.AppendPremisesHold : Prop :=
 counter `2`, the chain asset handler's `setMigratingChainBatchNumber(5, 5)` succeeds (it skips
 batch numbers `3`, `4`, `5`), and a nonempty run follows after which the counter is `6` and
 batch `6` has a root. -/
-def Properties.MigrationPremisesHold : Prop :=
+@[witness] def Properties.MigrationPremisesHold : Prop :=
   ∃ (s t u : State) (tr : List (Env × Call)), Reachable mrHashes mrConfig s
     ∧ chainRegistered mrConfig s 5 = true ∧ s.currentChainBatchNumber 5 = 2
     ∧ exec mrHashes mrConfig (mrEnv 11 4) s (.setMigratingChainBatchNumber 5 5) = some t
@@ -127,7 +128,7 @@ def Properties.MigrationPremisesHold : Prop :=
 registered with counter `2` and nonzero roots at batches `0`, `1`, `2`.  Along it chain `5`'s
 counter goes to `6`, its tree grows, a root is written at batch `6`, and `chainCount` goes from
 `2` to `3`. -/
-def Properties.RunPremisesHold : Prop :=
+@[witness] def Properties.RunPremisesHold : Prop :=
   ∃ (s t : State) (tr : List (Env × Call)), Reachable mrHashes mrConfig s
     ∧ Run mrHashes mrConfig s tr t ∧ tr.length = 5
     ∧ chainRegistered mrConfig s 5 = true ∧ s.currentChainBatchNumber 5 = 2
@@ -140,7 +141,7 @@ storage, the run `mrWritersOnlyFirst ++ mrWritersOnlySecond`: none of its calls 
 chain `5`'s diamond or the Bridgehub, and none of `mrWritersOnlySecond` (nonempty) by the chain
 asset handler.  Along the first part chain `5`'s counter changes; along the second the
 aggregated root changes. -/
-def Properties.WritersOnlyPremisesHold : Prop :=
+@[witness] def Properties.WritersOnlyPremisesHold : Prop :=
   ∃ s s' t : State, Reachable mrHashes mrConfig s
     ∧ Run mrHashes mrConfig s mrWritersOnlyFirst s'
     ∧ Run mrHashes mrConfig s' mrWritersOnlySecond t
@@ -157,7 +158,7 @@ in block `2`, the two calls `addNewChain(5, 0)` and `seedGenesisRoot(5)`, both i
 each change the aggregated root, and `interopRootLogId` grows by exactly one.  The second call
 alone, from the storage `s₂` the first leaves (last emission in block `2`), changes the
 aggregated root and leaves `interopRootLogId` unchanged. -/
-def Properties.LogIdPremisesHold : Prop :=
+@[witness] def Properties.LogIdPremisesHold : Prop :=
   ∃ s₁ s₂ s₃ : State, Reachable mrHashes mrConfig s₁
     ∧ Run mrHashes mrConfig s₁
         [(mrEnv 10 2, .addNewChain 5 0), (mrEnv 10 2, .seedGenesisRoot 5)] s₃
@@ -172,7 +173,7 @@ def Properties.LogIdPremisesHold : Prop :=
 `enableInterop(5, false)`, enables interop for chain `5`, which was not enabled; on the storage
 it leaves a second `enableInterop(5, false)` from the owner reverts, and a further two-call run
 keeps chain `5` enabled. -/
-def Properties.InteropPremisesHold : Prop :=
+@[witness] def Properties.InteropPremisesHold : Prop :=
   ∃ s t u : State, Run mrHashes mrConfig s [(mrEnv 12 6, .enableInterop 5 false)] t
     ∧ s.interopEnabled 5 = false ∧ t.interopEnabled 5 = true
     ∧ exec mrHashes mrConfig (mrEnv 12 8) t (.enableInterop 5 false) = none
@@ -184,7 +185,7 @@ def Properties.InteropPremisesHold : Prop :=
 same chains in the same slots and the same chain trees, but different counters for chain `5`
 and different recorded roots at its batch `2`.  Chain `5` is registered, in the same slot in
 both, and the aggregated roots are equal. -/
-def Properties.SameTreesPremisesHold : Prop :=
+@[witness] def Properties.SameTreesPremisesHold : Prop :=
   ∃ s s' : State, Reachable mrHashes mrConfig s ∧ Reachable mrHashes mrConfig s'
     ∧ s.chainCount = s'.chainCount
     ∧ (∀ i, i < s.chainCount → s.chainIndexToId i = s'.chainIndexToId i)
@@ -199,7 +200,7 @@ hashes, the storages `s` and `s'` that `mrCollisionCalls 101 201` and `mrCollisi
 reach have the same `chainCount`, chain `5` registered in the same slot, and equal aggregated
 roots, yet chain `5`'s tree roots differ, and so do their chain-id leaves.  The located
 `TreeCollision` holds on `5`'s slot. -/
-def Properties.AggregatedRootCollisionFires : Prop :=
+@[countermodel] def Properties.AggregatedRootCollisionFires : Prop :=
   ∃ s s' : State, execCalls mrHashes mrConfig fresh (mrCollisionCalls 101 201) = some s
     ∧ execCalls mrHashes mrConfig fresh (mrCollisionCalls 102 200) = some s'
     ∧ Reachable mrHashes mrConfig s ∧ Reachable mrHashes mrConfig s'
@@ -224,7 +225,7 @@ with an environment whose diamond answers `0` it rejects the same candidate.  So
 of `FinalNodeAcceptsIff` occurs, and without `cfg.v31Upgrade c ≤ n` the verdict parts of
 `SettledBatchRootsFrozen` (here with the empty run) and `MigrationSkippedBatchesNeverRecorded`
 fail. -/
-def Properties.FinalNodeFallbackFollowsTheChain : Prop :=
+@[witness] def Properties.FinalNodeFallbackFollowsTheChain : Prop :=
   ∃ s t u : State, Reachable mrHashes mrConfigPreV31 s
     ∧ chainRegistered mrConfigPreV31 s 5 = true ∧ s.currentChainBatchNumber 5 = 1
     ∧ exec mrHashes mrConfigPreV31 (mrEnv 11 4) s (.setMigratingChainBatchNumber 5 5) = some t
@@ -246,7 +247,7 @@ where chain `5` is unregistered with counter `0`, the chain asset handler's
 Bridgehub's `addNewChain(5, 0)`, which sets the counter back to `0` (`MRB:282`), the genesis
 seed, and the chain's append of batch `1`.  At the end the counter is below `5`, batch `1`
 (between the old counter and `5`) has a nonzero root, and the final proof node accepts it. -/
-def Properties.MigrationBeforeRegistrationIsOverwritten : Prop :=
+@[countermodel] def Properties.MigrationBeforeRegistrationIsOverwritten : Prop :=
   ∃ s t u : State, Reachable mrHashes mrConfig s
     ∧ chainRegistered mrConfig s 5 = false ∧ s.currentChainBatchNumber 5 = 0
     ∧ exec mrHashes mrConfig (mrEnv 11 2) s (.setMigratingChainBatchNumber 5 5) = some t
@@ -260,7 +261,7 @@ def Properties.MigrationBeforeRegistrationIsOverwritten : Prop :=
 every batch of chain `5` with a root here is pushed into its tree, and the first pushed batch is
 `0`), chain `5`'s tree holds the leaves of batches `0`, `1`, `6`, in that order: position `2`
 holds batch `6`.  Batches `2` to `5` have no root here. -/
-def Properties.ChainTreePositionIsNotBatchNumber : Prop :=
+@[countermodel] def Properties.ChainTreePositionIsNotBatchNumber : Prop :=
   ∃ s : State, execCalls mrHashes mrConfig fresh mrMigrationCalls = some s
     ∧ Reachable mrHashes mrConfig s ∧ chainRegistered mrConfig s 5 = true
     ∧ s.currentChainBatchNumber 5 = 6
@@ -272,7 +273,7 @@ def Properties.ChainTreePositionIsNotBatchNumber : Prop :=
 /-- **`ChainExists` IS LOAD-BEARING.**  There is reachable storage on which the model's
 `addNewChain(c, start)` reverts but the variant without the `chainRegistered` check succeeds
 and leaves two distinct slots below `chainCount` holding the same chain id. -/
-def Properties.RegisteredCheckLoadBearing : Prop :=
+@[countermodel] def Properties.RegisteredCheckLoadBearing : Prop :=
   ∃ (H : Hashes) (cfg : Config) (s t : State) (env : Env) (c start : ℕ), Reachable H cfg s
     ∧ exec H cfg env s (.addNewChain c start) = none
     ∧ execNoRegisteredCheck H cfg env s (.addNewChain c start) = some t
@@ -283,7 +284,7 @@ def Properties.RegisteredCheckLoadBearing : Prop :=
 `addChainBatchRootV32(c, n, r)` from the chain's diamond reverts but the variant without
 `_batchNumber == currentChainBatchNumber + 1` succeeds and records a nonzero root at a batch
 number above the chain's new counter. -/
-def Properties.ConsecutiveCheckLoadBearing : Prop :=
+@[countermodel] def Properties.ConsecutiveCheckLoadBearing : Prop :=
   ∃ (H : Hashes) (cfg : Config) (s t : State) (env : Env) (c n : ℕ) (r : Bytes32),
     Reachable H cfg s
     ∧ exec H cfg env s (.addChainBatchRootV32 c n r) = none
@@ -296,7 +297,7 @@ reverts, but the variant without `currentChainBatchNumber[c] <= k` (`MRB:155`) s
 leaves a nonzero batch root above the chain's counter.  From there the unmodified model accepts
 an append of batch `k + 1` by the chain, and the chain's tree then holds batches `0, 1, 6, 3`
 in that order: not increasing. -/
-def Properties.MigratingCheckLoadBearing : Prop :=
+@[countermodel] def Properties.MigratingCheckLoadBearing : Prop :=
   ∃ (H : Hashes) (cfg : Config) (s t u : State) (env env' : Env) (c k : ℕ) (r : Bytes32),
     Reachable H cfg s
     ∧ exec H cfg env s (.setMigratingChainBatchNumber c k) = none
@@ -312,7 +313,7 @@ the registration check of `_recordChainBatchRoot` (`MRB:184-186`) succeeds: `c` 
 unregistered and has a nonzero batch root.  (2) On every reachable storage, the same variant's
 `addChainBatchRootV32(c, n, r)` for an unregistered `c` reverts anyway: the push into the
 never-set-up chain tree underflows (`DIM:95`). -/
-def Properties.RecordRegisteredCheckLoadBearing : Prop :=
+@[countermodel] def Properties.RecordRegisteredCheckLoadBearing : Prop :=
   (∃ (H : Hashes) (cfg : Config) (s t : State) (env : Env) (c n : ℕ) (r : Bytes32),
     Reachable H cfg s ∧ chainRegistered cfg s c = false
     ∧ exec H cfg env s (.addChainBatchRoot c n r) = none

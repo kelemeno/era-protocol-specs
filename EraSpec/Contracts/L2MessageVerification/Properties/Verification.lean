@@ -1,5 +1,6 @@
 import EraSpec.Contracts.L2MessageVerification.Specs.Verification
 import EraSpec.Contracts.FullMerkle.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: `L2MessageVerification`
@@ -104,7 +105,7 @@ def Properties.RevertIsStorageIndependent : Prop :=
 /-- **ACCEPTED EXACTLY WHEN THE ROOT STORED AT THE ANCHOR IS THE RECOMPUTED ONE AND NONZERO.**
 For any caller-chosen depth: the external call returns `true` exactly when the call has an anchor
 and the root stored at the anchor's key is the anchor's recomputed root, which is nonzero. -/
-def Properties.AcceptedIffStoredRootAtAnchor : Prop :=
+@[headline] def Properties.AcceptedIffStoredRootAtAnchor : Prop :=
   ∀ (H : Hashes) (S : State) (chainId blockOrBatchNumber leafProofMask leaf : UInt256)
     (proof : List UInt256) (depth : UInt256),
     proveL2LeafInclusionSharedRecursive H S chainId blockOrBatchNumber leafProofMask leaf proof depth
@@ -148,7 +149,7 @@ non-final, the rest of the proof parses as a final step for the settlement-layer
 step produced, and the root stored at the settlement-layer key
 `(settlementLayerChainId, settlementLayerBatchNumber)` that the first step read from the proof is
 the second step's recomputed root and nonzero. -/
-def Properties.SharedEntryAcceptsIff : Prop :=
+@[headline] def Properties.SharedEntryAcceptsIff : Prop :=
   ∀ (H : Hashes) (S : State) (chainId blockOrBatchNumber leafProofMask leaf : UInt256)
     (proof : List UInt256),
     proveL2LeafInclusionShared H S chainId blockOrBatchNumber leafProofMask leaf proof = some true ↔
@@ -215,7 +216,7 @@ def Properties.SharedEntryRootShape : Prop :=
 
 /-- **AN ACCEPTED PROOF STAYS ACCEPTED.**  If a call (any depth) returns `true` in a state, it
 returns `true` in every state reachable from it by the storage contract's runs. -/
-def Properties.AcceptanceSurvivesRuns : Prop :=
+@[headline] def Properties.AcceptanceSurvivesRuns : Prop :=
   ∀ (H : Hashes) (S S' : State) (chainId blockOrBatchNumber leafProofMask leaf : UInt256)
     (proof : List UInt256) (depth : UInt256),
     Reach S S' →
@@ -245,7 +246,7 @@ def Properties.AcceptedAfterRunWasAcceptedOrImported : Prop :=
 Along any logged run of the storage contract from fresh storage, if a call (any depth) returns
 `true`, then some logged call, made by `L2_BOOTLOADER_ADDRESS`, imported an `InteropRoot` at the
 anchor's key whose `sides` is exactly `[anchor's recomputed root]`. -/
-def Properties.AcceptedFromFreshStorageWasImported : Prop :=
+@[headline] def Properties.AcceptedFromFreshStorageWasImported : Prop :=
   ∀ (H : Hashes) (S : State) (log : List (Address × Call))
     (chainId blockOrBatchNumber leafProofMask leaf : UInt256) (proof : List UInt256)
     (depth : UInt256),
@@ -262,7 +263,7 @@ anchor's key is nonzero (`L2InteropRootStorage`'s `ZeroTimestampIffUnsetInvarian
 `SettlementLayerReferenceIsTheAnchorKey`, that key is the one whose timestamp
 `AtomicInteropProof.verifyTimeoutAbsence` reads and tests against zero right after
 `_authenticateRoot` (`atomic-interop/libraries/AtomicInteropProof.sol:89-97` at `b17415d20`). -/
-def Properties.AcceptedAnchorHasNonzeroTimestamp : Prop :=
+@[headline] def Properties.AcceptedAnchorHasNonzeroTimestamp : Prop :=
   ∀ (H : Hashes) (S : State) (chainId blockOrBatchNumber leafProofMask leaf : UInt256)
     (proof : List UInt256) (depth : UInt256),
     Reach empty S →
@@ -277,7 +278,7 @@ def Properties.AcceptedAnchorHasNonzeroTimestamp : Prop :=
 hash, every state and every key holding a zero root (every key of fresh storage, for instance):
 `proveL2LeafInclusionShared` with leaf `0`, mask `0` and the one-word final-node proof
 `zeroLeafDirectProof` returns `false`, and the same call of the mutant returns `true`. -/
-def Properties.WithoutNonzeroCheckUnimportedKeyAccepts : Prop :=
+@[countermodel] def Properties.WithoutNonzeroCheckUnimportedKeyAccepts : Prop :=
   ∀ (H : Hashes) (S : State) (chainId blockOrBatchNumber : UInt256),
     (interopRoots S chainId blockOrBatchNumber).root = 0 →
       proveL2LeafInclusionShared H S chainId blockOrBatchNumber 0 0 zeroLeafDirectProof = some false ∧
@@ -292,7 +293,7 @@ def Properties.WithoutNonzeroCheckUnimportedKeyAccepts : Prop :=
 `proveL2LeafInclusionShared(7, 3, 0, leaf, oneHopExampleProof)`: its anchor is the
 settlement-layer key `(1, 42)` with recomputed root `R` and one self-call; on fresh storage it
 returns `false`; and in every state whose root at `(1, 42)` is `R` it returns `true`. -/
-def Properties.HonestOneHopProofAccepted : Prop :=
+@[witness] def Properties.HonestOneHopProofAccepted : Prop :=
   ∀ (H : Hashes) (leaf : UInt256),
     leaf ≠ L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH →
     H.chainIdLeaf (H.batchLeaf leaf 3 100) 7 ≠ L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH →
@@ -309,7 +310,7 @@ and `readSettlementLayerReference` reads `(42, 1, 100)` from the proof; on fresh
 holds no root at `(1, 42)`, the call returns `false`; after one logged bootloader import at
 `(1, 42)` it returns `true`; after a further logged import at another key it still returns
 `true`. -/
-def Properties.OneHopProofWitness : Prop :=
+@[witness] def Properties.OneHopProofWitness : Prop :=
   ∃ (H : Hashes) (S₁ S₂ : State) (log₁ log₂ : List (Address × Call)),
     1 ≠ L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH ∧
     H.chainIdLeaf (H.batchLeaf 1 3 100) 7 ≠ L2_L1_LOGS_TREE_DEFAULT_LEAF_HASH ∧

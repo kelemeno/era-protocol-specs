@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.ChainLocalExecutor
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the per-chain headline across the CTM executor's transactions
@@ -85,7 +86,7 @@ particular, the forwarded repair cut exists because the model's break-glass step
 precondition on the live routing (`RepairStepIgnoresLiveRouting`). Here the drift `bgExtra`
 keeps every selector of release `100` with its facet and freezability and only adds
 selector `9`. -/
-def Properties.ExecutorChainLocalWitness : Prop :=
+@[witness] def Properties.ExecutorChainLocalWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     (∀ x ∈ wExecStuckRun ++ wExecRepairRun, x.KeepsCtmCode wX) ∧
     (∃ x ∈ wExecStuckRun ++ wExecRepairRun, ¬ x.Tame wX) ∧
@@ -103,7 +104,7 @@ upgrades chain `0`, and then one `forward` swaps the CTM's code for code that le
 `initialize(100)` would. The last routing step writing chain `0` is its transition (the swap is
 no routing step), and every other premise of `ChainRunsItsVersionsReleaseAcrossExecutorRuns`
 holds, except that the swap does not keep the CTM's code. Chain `0` ends ahead of its CTM. -/
-def Properties.CtmSwapBreaksChainLocal : Prop :=
+@[countermodel] def Properties.CtmSwapBreaksChainLocal : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     (∀ x ∈ [XLabel.env (.genesis 0), .commit 300, .upgradeChain 0], x.KeepsCtmCode wX) ∧
     ¬ XLabel.KeepsCtmCode wX (.forward [.swapCtm 42 (initState wWorld 100)]) ∧

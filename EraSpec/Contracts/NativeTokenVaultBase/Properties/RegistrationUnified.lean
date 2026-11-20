@@ -1,5 +1,6 @@
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.RegistrationUnified
 import EraSpec.Contracts.NativeTokenVaultBase.Properties.ModelCorrespondence
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the two vault models with the registration guard gap closed
@@ -264,7 +265,7 @@ def Properties.UnifiedRegistrationIsRegistryStep : Prop :=
 `S` holding the registered (origin chain, origin token) pair, hold for the
 corresponding registry write; the correspondence holds; and the representation
 model's `WellFormed` holds for its post-state.  No `RegistryOnlyGuards` premise. -/
-def Properties.UnifiedRegistrationPreservesValidOn : Prop :=
+@[headline] def Properties.UnifiedRegistrationPreservesValidOn : Prop :=
   ∀ (Accounting : Type) (hooks : RegistrationHooks Accounting)
     (s : RegistrationState Accounting) (origin : Address) (out : Registered Accounting)
     (e : NtvAssetId) (S : Set (Chain × NativeTokenVault.Address)) (thisChain : Chain)

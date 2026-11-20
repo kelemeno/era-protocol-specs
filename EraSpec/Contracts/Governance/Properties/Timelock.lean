@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Governance.Specs.Timelock
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what the `Governance` timelock guarantees, across re-entrant execution
@@ -168,7 +169,7 @@ variant:
   only their field;
 * `transferOwnership` and `renounceOwnership` need the owner; `acceptOwnership` needs the
   pending owner, and makes it the owner. -/
-def Properties.EntryGuards : Prop :=
+@[headline] def Properties.EntryGuards : Prop :=
   ∀ (v : Variant) (E : Env) (τ n : ℕ) (c : Address) (cbs : List Callee) (s s' : State)
     (l : List Effect),
     (∀ op d, exec v E τ n (.entry c (.scheduleTransparent op d) cbs) s = some (s', l) →
@@ -202,7 +203,7 @@ def Properties.EntryGuards : Prop :=
 self-call changes the council, and a renunciation; `timelockCancelRescheduleRun` commits a
 cancel, a shadow schedule and an instant execution; `timelockRaiseRun` commits a self-called
 `updateDelay`. -/
-def Properties.EntryGuardsWitness : Prop :=
+@[witness] def Properties.EntryGuardsWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockOwnershipRun).2 =
     [.ownershipTransferStarted 5, .ownershipTransferred 5,
       .scheduled 16 100 10 10 (some timelockCouncilOp), .delivered 16 0, .councilChanged 2 3,
@@ -231,7 +232,7 @@ def Properties.StateIsLogReplay : Prop :=
 on fresh Governance gives `minDelay = 100`, set by a self-call inside an execution, as the run
 leaves it, and ids `11` and `12` `Done`; replaying that of `timelockOwnershipRun` gives owner `0`
 and council `3`, as the run leaves them. -/
-def Properties.StateIsLogReplayWitness : Prop :=
+@[witness] def Properties.StateIsLogReplayWitness : Prop :=
   (replay timelockInit (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).2).minDelay =
     100 ∧
   (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).1.minDelay = 100 ∧
@@ -270,7 +271,7 @@ schedule of id `12`, the delivery of its call, the in-flight cancel, a new shado
 entries, `12` is `Unset` and `minDelay` is `10`, as the new schedule's check requires; on the
 replay of the first four, `timestamps[12] = 115`, so `12` is pending, as the execution's check
 requires. -/
-def Properties.LoggedEntriesPassedTheirChecksWitness : Prop :=
+@[witness] def Properties.LoggedEntriesPassedTheirChecksWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockCancelRescheduleRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0, .cancelled 12] ++
       .scheduled 12 105 10 10 none :: [.executed 12 timelockPlainOp 105 true] ∧
@@ -296,7 +297,7 @@ def Properties.NothingAfterExecution : Prop :=
 /-- **AN EXECUTION FOLLOWED BY MORE ENTRIES.** From fresh Governance, `timelockPlainRun`
 executes id `12` at `110`; then, at `120`, the owner's `scheduleTransparent` of the same
 operation commits nothing, and the schedule of `timelockSuccOp` (id `13`) commits. -/
-def Properties.NothingAfterExecutionWitness : Prop :=
+@[witness] def Properties.NothingAfterExecutionWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit (timelockPlainRun ++ timelockAfterDoneRun)).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
       .executed 12 timelockPlainOp 110 false, .scheduled 13 120 10 10 (some timelockSuccOp)]
@@ -314,7 +315,7 @@ def Properties.DoneIsPermanent : Prop :=
 /-- **A LATER SCHEDULE OF A DONE OPERATION COMMITS NOTHING.** After `timelockPlainRun` id `12`
 is `Done`; the owner's later `scheduleTransparent` of the same operation commits nothing, and
 `12` stays `Done`. -/
-def Properties.DoneIsPermanentWitness : Prop :=
+@[witness] def Properties.DoneIsPermanentWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockPlainRun).1.ts 12 = EXECUTED ∧
   (submitAll .deployed timelockEnv timelockInit
       (timelockPlainRun ++ [timelockTx 1 120 (.scheduleTransparent timelockPlainOp 10)])).2 =
@@ -327,7 +328,7 @@ def Properties.DoneIsPermanentWitness : Prop :=
 /-- **HEADLINE (a): ONCE ONLY.** For every deployment, every state and every sequence of
 transactions, with every behaviour of every target at every depth: the committed log never
 executes one operation id twice, and never delivers call `i` of one operation id twice. -/
-def Properties.OnceOnly : Prop :=
+@[headline] def Properties.OnceOnly : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx),
     ((submitAll .deployed E s txs).2.filterMap Effect.runKey).Nodup
 
@@ -352,7 +353,7 @@ def Properties.DoneIffExecuted : Prop :=
 /-- **`DoneIffExecuted`'S PREMISE HOLDS, AND AN ID BECOMES `Done` BY EXECUTION.** The block times
 of `timelockPlainRun` are at least `2`; id `12` is not `Done` in fresh Governance, ends `Done`,
 and the committed log executes it. -/
-def Properties.DoneIffExecutedWitness : Prop :=
+@[witness] def Properties.DoneIffExecutedWitness : Prop :=
   (∀ t ∈ timelockPlainRun, 2 ≤ t.time) ∧ timelockInit.ts 12 ≠ EXECUTED ∧
   (submitAll .deployed timelockEnv timelockInit timelockPlainRun).1.ts 12 = EXECUTED ∧
   Effect.executed 12 timelockPlainOp 110 false ∈
@@ -379,7 +380,7 @@ of `op` commits, with any targets, and its log contains an execution of the id `
 `op` itself or of any operation with that id, by any caller, at any depth), then
 `execute(op)` and `executeInstant(op)` with those targets revert, whoever calls them: if the
 entry checks pass, the re-check after the calls finds the id `Done`. -/
-def Properties.ReentrantReexecutionReverts : Prop :=
+@[headline] def Properties.ReentrantReexecutionReverts : Prop :=
   ∀ (E : Env) (τ n : ℕ) (c : Address) (op : Operation) (instant : Bool) (cbs : List Callee)
     (s s₂ : State) (l : List Effect),
     exec .deployed E τ n (.calls (E.H op) 0 op.calls cbs) s = some (s₂, l) →
@@ -390,7 +391,7 @@ def Properties.ReentrantReexecutionReverts : Prop :=
 call loop of `timelockPlainOp` (whose first target calls `execute(timelockPlainOp)` again as
 the owner) commits the inner execution of id `12`. The outer `execute` then reverts, and the
 transaction commits nothing; the operation is still pending. -/
-def Properties.ReentrantReexecutionWitness : Prop :=
+@[witness] def Properties.ReentrantReexecutionWitness : Prop :=
   (exec .deployed timelockEnv 110 9 (.calls 12 0 timelockPlainOp.calls
       [timelockCallback 1 (.execute timelockPlainOp)])
       (submitAll .deployed timelockEnv timelockInit (timelockReenterRun.take 1)).1).map
@@ -406,7 +407,7 @@ def Properties.ReentrantReexecutionWitness : Prop :=
 /-- **COUNTERMODEL: WITHOUT THE RE-CHECK, RE-ENTRY RUNS AN OPERATION TWICE.** In the variant
 with the re-checks removed, the same run commits the call of `timelockPlainOp` twice and its
 execution twice. -/
-def Properties.WithoutRecheckReexecutes : Prop :=
+@[countermodel] def Properties.WithoutRecheckReexecutes : Prop :=
   (submitAll .noRecheck timelockEnv timelockInit timelockReenterRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0, .delivered 12 0,
       .executed 12 timelockPlainOp 110 false, .executed 12 timelockPlainOp 110 false] ∧
@@ -419,7 +420,7 @@ operation with at least one call, none of them a self-call: from every state whe
 calls `execute` of the same operation again as the owner commits a log with a repeated
 execution, when the re-checks are removed. In the source the same transaction commits
 nothing. -/
-def Properties.WithoutRecheckAnyOpRunsTwice : Prop :=
+@[countermodel] def Properties.WithoutRecheckAnyOpRunsTwice : Prop :=
   ∀ (E : Env) (s : State) (op : Operation) (τ : ℕ),
     op.calls ≠ [] → (∀ c ∈ op.calls, c.target ≠ E.self) → s.owner ≠ E.self →
     s.predecessorDone τ op.predecessor → s.opState τ (E.H op) = .Ready →
@@ -431,7 +432,7 @@ def Properties.WithoutRecheckAnyOpRunsTwice : Prop :=
 /-- **`WithoutRecheckAnyOpRunsTwice`'s PREMISES HOLD.** After the first transaction of
 `timelockReenterRun`, `timelockPlainOp` has a call to a foreign target, the owner is not
 Governance, it has no predecessor, and it is ready at `110`. -/
-def Properties.WithoutRecheckAnyOpRunsTwiceWitness : Prop :=
+@[witness] def Properties.WithoutRecheckAnyOpRunsTwiceWitness : Prop :=
   timelockPlainOp.calls ≠ [] ∧ (∀ c ∈ timelockPlainOp.calls, c.target ≠ timelockEnv.self) ∧
   (submitAll .deployed timelockEnv timelockInit (timelockReenterRun.take 1)).1.owner ≠
     timelockEnv.self ∧
@@ -448,7 +449,7 @@ of an id `x` at time `τ` has a schedule of `x` earlier in the log. The last one
 `delay ≥` the `minDelay` in force when it was made, and was made at least `delay` before
 `τ`. "Earlier in the log" is before the `executed` entry, which follows the execution's own
 calls: the schedule reported may be a re-entrant reschedule made during the execution. -/
-def Properties.OwnerPathWaited : Prop :=
+@[headline] def Properties.OwnerPathWaited : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx), NoPending s →
     ∀ (l₁ l₂ : List Effect) (x : OpId) (op : Operation) (τ : ℕ),
       (submitAll .deployed E s txs).2 = l₁ ++ .executed x op τ false :: l₂ →
@@ -466,7 +467,7 @@ def Properties.EarlyExecutionIsInstant : Prop :=
 
 /-- **AN EARLY EXECUTION OCCURS.** In `timelockCancelRun` the council executes id `12` at `105`,
 before the ready time `110` of its schedule. -/
-def Properties.EarlyExecutionIsInstantWitness : Prop :=
+@[witness] def Properties.EarlyExecutionIsInstantWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockCancelRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
       .executed 12 timelockPlainOp 105 true] ∧
@@ -484,7 +485,7 @@ before `τ`. The schedule reported is the last one before the execution's end, w
 re-entrant reschedule made inside the execution after the call was delivered (as in
 `timelockCancelRescheduleRun`), possibly after a self-call `updateDelay(0)`; it need not be the
 schedule that gated the execution at entry. -/
-def Properties.OutgoingCallsWaitedOrInstant : Prop :=
+@[headline] def Properties.OutgoingCallsWaitedOrInstant : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx), NoPending s →
     ∀ (l₁ l₂ : List Effect) (x : OpId) (i : ℕ),
       (submitAll .deployed E s txs).2 = l₁ ++ .delivered x i :: l₂ →
@@ -497,7 +498,7 @@ def Properties.OutgoingCallsWaitedOrInstant : Prop :=
 delivered call of id `12` belongs to the owner's `execute` at `110`, ten seconds after its
 schedule with the minimum delay `10`; in `timelockCancelRun` it belongs to the council's
 `executeInstant` at `105`. -/
-def Properties.OutgoingCallsWaitedOrInstantWitness : Prop :=
+@[witness] def Properties.OutgoingCallsWaitedOrInstantWitness : Prop :=
   NoPending timelockInit ∧
   (submitAll .deployed timelockEnv timelockInit timelockPlainRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
@@ -524,7 +525,7 @@ NEEDED.** The block times of `timelockCancelRun` never decrease, and its instant
 `105` comes after the schedule at `100`, before the ready time `110`. With the times out of order
 (schedule at `100`, then the council's `executeInstant` at `50`), the execution commits at `50`,
 before its schedule's time. -/
-def Properties.ExecutionNotBeforeScheduleWitness : Prop :=
+@[witness] def Properties.ExecutionNotBeforeScheduleWitness : Prop :=
   NoPending timelockInit ∧ TimesMonotone timelockCancelRun ∧
   (submitAll .deployed timelockEnv timelockInit timelockCancelRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
@@ -539,7 +540,7 @@ def Properties.ExecutionNotBeforeScheduleWitness : Prop :=
 
 /-- **THE BOUND IS ATTAINED.** From fresh Governance, `timelockPlainRun` schedules id `12` at
 `100` with the minimum delay `10` and executes it by the owner at `110`. -/
-def Properties.OwnerPathWaitedWitness : Prop :=
+@[witness] def Properties.OwnerPathWaitedWitness : Prop :=
   NoPending timelockInit ∧
   (submitAll .deployed timelockEnv timelockInit timelockPlainRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
@@ -555,7 +556,7 @@ the log; the last one had `delay ≥ minDelay` then; and if it was transparent w
 `H op₀ = H op`: the published payload hashes to the executed id, so the schedule binds its
 payload only up to a keccak collision. The content beyond it is that `x = H op`, that a last
 schedule exists on either path, and that its delay is at least the `minDelay` recorded with it. -/
-def Properties.TransparentBinding : Prop :=
+@[headline] def Properties.TransparentBinding : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx), NoPending s →
     ∀ (l₁ l₂ : List Effect) (x : OpId) (op : Operation) (τ : ℕ) (b : Bool),
       (submitAll .deployed E s txs).2 = l₁ ++ .executed x op τ b :: l₂ →
@@ -564,7 +565,7 @@ def Properties.TransparentBinding : Prop :=
 
 /-- **THE BINDING CASE.** In `timelockPlainRun` the published and the executed operation are
 the same. -/
-def Properties.TransparentBindingWitness : Prop :=
+@[witness] def Properties.TransparentBindingWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockPlainRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
       .executed 12 timelockPlainOp 110 false]
@@ -572,7 +573,7 @@ def Properties.TransparentBindingWitness : Prop :=
 /-- **THE COLLISION CASE FIRES.** In `timelockCollideRun` the owner publishes
 `timelockPlainOp` and then executes `timelockCollideOp`, a different operation with the same
 id. The log carries both. -/
-def Properties.TransparentCollisionExecutesAnotherOp : Prop :=
+@[countermodel] def Properties.TransparentCollisionExecutesAnotherOp : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockCollideRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .delivered 12 0,
       .executed 12 timelockCollideOp 110 false] ∧
@@ -585,7 +586,7 @@ def Properties.TransparentCollisionExecutesAnotherOp : Prop :=
 whose block times are all at least `2`: every committed execution of an operation whose
 predecessor `p` is nonzero has an execution of `p` earlier in the log, or `p` was already
 `Done` where the sequence started. -/
-def Properties.PredecessorDone : Prop :=
+@[headline] def Properties.PredecessorDone : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx), (∀ t ∈ txs, 2 ≤ t.time) →
     ∀ (l₁ l₂ : List Effect) (x : OpId) (op : Operation) (τ : ℕ) (b : Bool),
       (submitAll .deployed E s txs).2 = l₁ ++ .executed x op τ b :: l₂ →
@@ -609,7 +610,7 @@ def Properties.PredecessorDoneOrSentinel : Prop :=
 /-- **`PredecessorDone`'s PREMISES HOLD, AND THE PREDECESSOR CASE FIRES.** In
 `timelockPredRun` every block time is at least `2`; `timelockSuccOp`, whose predecessor is
 `12`, is executed after `12` is. -/
-def Properties.PredecessorDoneWitness : Prop :=
+@[witness] def Properties.PredecessorDoneWitness : Prop :=
   (∀ t ∈ timelockPredRun, 2 ≤ t.time) ∧ timelockSuccOp.predecessor = 12 ∧
   (submitAll .deployed timelockEnv timelockInit timelockPredRun).2 =
     [.scheduled 12 100 10 10 (some timelockPlainOp), .scheduled 13 100 10 10 (some timelockSuccOp),
@@ -624,7 +625,7 @@ Governance with `minDelay = 0`). In `timelockSentinelRun`, from that state: at t
 `timelockSentinelSuccOp`, whose predecessor is `14`. The execution commits, though `14` was
 never executed and was not `Done` at the start; `14` ends `Done`, so by `DoneIsPermanent` and
 `EntryGuards` no later schedule or execution of `14` commits. -/
-def Properties.SentinelCollision : Prop :=
+@[countermodel] def Properties.SentinelCollision : Prop :=
   (∀ (τ : ℕ) (s : State) (x : OpId) (d : ℕ) (o : Option Operation) (s' : State)
       (l : List Effect),
     schedule τ s x d o = some (s', l) → τ + d = EXECUTED → s'.opState τ x = .Done) ∧
@@ -660,7 +661,7 @@ operation is still pending (`timestamps[12] = 110`), and the council's next `exe
 runs it. In `timelockCancelRescheduleRun` the owner also shadow-schedules id `12` again inside
 the execution. The execution commits, logs the cancel and the new schedule, and leaves `12`
 `Done`, overwriting both. -/
-def Properties.InFlightCancelIneffective : Prop :=
+@[countermodel] def Properties.InFlightCancelIneffective : Prop :=
   (exec .deployed timelockEnv 105 1 (.entry 1 (.cancel 12) [])
       (submitAll .deployed timelockEnv timelockInit (timelockCancelRun.take 1)).1).map
         Prod.snd = some [.cancelled 12] ∧
@@ -697,7 +698,7 @@ times nondecreasing), the owner schedules `timelockRaiseOp` and `timelockPlainOp
 with the minimum delay `10`. At `110` the first raises the minimum delay to `100`, and the
 second still executes at `110`, ten seconds after it was scheduled, though `110 < 100 + 100`.
 A new schedule with delay `10` is now refused. -/
-def Properties.DelayRaiseNotRetroactive : Prop :=
+@[countermodel] def Properties.DelayRaiseNotRetroactive : Prop :=
   TimesMonotone timelockRaiseRun ∧
   (submitAll .deployed timelockEnv timelockInit timelockRaiseRun).2 =
     [.scheduled 11 100 10 10 (some timelockRaiseOp), .scheduled 12 100 10 10 (some timelockPlainOp),
@@ -713,7 +714,7 @@ def Properties.DelayRaiseNotRetroactive : Prop :=
 `minDelay` or the security council, from any state, then it called `execute(op)` or
 `executeInstant(op)` (`GovEntry.execution op b`) for some operation `op`, and its committed
 log ends with the execution of `op`, at the transaction's block time, on that path. -/
-def Properties.ConfigChangesNeedExecution : Prop :=
+@[headline] def Properties.ConfigChangesNeedExecution : Prop :=
   ∀ (E : Env) (s : State) (t : Tx),
     ((submit .deployed E s t).1.minDelay ≠ s.minDelay ∨
       (submit .deployed E s t).1.council ≠ s.council) →
@@ -723,7 +724,7 @@ def Properties.ConfigChangesNeedExecution : Prop :=
 /-- **A TRANSACTION THAT CHANGES THE DELAY.** After the first two transactions of
 `timelockRaiseRun`, its third, the owner's `execute(timelockRaiseOp)` at `110`, changes
 `minDelay` from `10` to `100` through the operation's self-call. -/
-def Properties.ConfigChangesNeedExecutionWitness : Prop :=
+@[witness] def Properties.ConfigChangesNeedExecutionWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit (timelockRaiseRun.take 2)).1.minDelay = 10 ∧
   (submit .deployed timelockEnv
       (submitAll .deployed timelockEnv timelockInit (timelockRaiseRun.take 2)).1
@@ -748,7 +749,7 @@ nomination of `a` (`OwnershipTransferStarted`, logged only by `transferOwnership
 the owner, `EntryGuards`) with no entry between them that writes the pending owner
 (`Effect.pendingWrite`: a nomination or an ownership transfer); or no entry before it writes the
 pending owner, and `a` was the pending owner at the start. -/
-def Properties.NewOwnerWasNominated : Prop :=
+@[headline] def Properties.NewOwnerWasNominated : Prop :=
   ∀ (E : Env) (s : State) (txs : List Tx) (l₁ l₂ : List Effect) (a : Address),
     (submitAll .deployed E s txs).2 = l₁ ++ .ownershipTransferred a :: l₂ → a ≠ 0 →
     (∃ l₃ l₄, l₁ = l₃ ++ .ownershipTransferStarted a :: l₄ ∧ ∀ e ∈ l₄, e.pendingWrite = none) ∨
@@ -759,7 +760,7 @@ def Properties.NewOwnerWasNominated : Prop :=
 council's `executeInstant` of it at `105` commits, and inside it `5` accepts. The committed
 log has the transfer to `5` after the nomination of `5`, with the schedule and the delivery,
 which write no pending owner, between them; `5` ends the owner. -/
-def Properties.NewOwnerWasNominatedWitness : Prop :=
+@[witness] def Properties.NewOwnerWasNominatedWitness : Prop :=
   (submitAll .deployed timelockEnv timelockInit timelockAcceptInsideRun).2 =
     [.ownershipTransferStarted 5, .scheduled 12 100 10 10 (some timelockPlainOp),
       .delivered 12 0] ++ .ownershipTransferred 5 :: [.executed 12 timelockPlainOp 105 true] ∧
@@ -777,7 +778,7 @@ that caller is not Governance itself, calling `execute(op)` with budget at least
 calls plus `2` and targets that all return without calling back (`callees = []`), commits. It
 leaves the operation `Done` and the rest of the state as it was, and logs the delivery of each
 call in order, then the execution. -/
-def Properties.ReadyIsExecutable : Prop :=
+@[headline] def Properties.ReadyIsExecutable : Prop :=
   ∀ (E : Env) (s : State) (op : Operation) (c : Address) (τ n : ℕ),
     (c = s.owner ∨ c = s.council) → c ≠ E.self → (∀ call ∈ op.calls, call.target ≠ E.self) →
     op.calls.length + 2 ≤ n →
@@ -810,7 +811,7 @@ scheduled at `120` with delay `10`): `timelockSuccOp` has one call, to the forei
 `50`; its predecessor `12` is nonzero and `Done`; at `130` it is `Ready`; the owner `1` is not
 Governance. The owner's `execute(timelockSuccOp)` at `130` with budget `3` logs the delivery and
 the execution of id `13`. -/
-def Properties.ReadyIsExecutableWitness : Prop :=
+@[witness] def Properties.ReadyIsExecutableWitness : Prop :=
   timelockSuccOp.calls.length = 1 ∧
   (∀ call ∈ timelockSuccOp.calls, call.target ≠ timelockEnv.self) ∧
   (1 : Address) = (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.owner ∧
@@ -828,7 +829,7 @@ def Properties.ReadyIsExecutableWitness : Prop :=
 at `125`: `timelockSuccOp` is `Waiting` (pending, not ready), its predecessor `12` is nonzero
 and `Done`, and the council `2` is not Governance. The council's `executeInstant` of it at `125`
 with budget `3` logs the delivery and the instant execution of id `13`. -/
-def Properties.PendingIsInstantlyExecutableWitness : Prop :=
+@[witness] def Properties.PendingIsInstantlyExecutableWitness : Prop :=
   (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.council = 2 ∧
   (2 : Address) ≠ timelockEnv.self ∧ timelockSuccOp.predecessor ≠ 0 ∧
   (submitAll .deployed timelockEnv timelockPlainDone timelockAfterDoneRun).1.predecessorDone 125

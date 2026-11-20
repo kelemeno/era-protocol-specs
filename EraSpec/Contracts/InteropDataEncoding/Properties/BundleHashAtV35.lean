@@ -1,4 +1,5 @@
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashAtV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties at draft/v0.35.0: distinct sends give distinct bundle hashes, or a named collision
@@ -137,7 +138,7 @@ No chain id appears, so the two sends may be on one chain or on two. On one chai
 across chains it is a premise about the two sends, and
 `SendsDistinctBundleHashesAcrossChainsOrKeccakCollisionV35` weakens it. Nothing is assumed about
 `keccak`, and `B` is any byte string with that slot. -/
-def Properties.SendsDistinctBundleHashesOrKeccakCollisionV35 : Prop :=
+@[headline] def Properties.SendsDistinctBundleHashesOrKeccakCollisionV35 : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (a a' : ℕ) (s s' B B' : List UInt8),
     a < 256 ^ 20 → a' < 256 ^ 20 → s.length = 32 → s'.length = 32 →
     bundleSaltSlot B = word (keccak (packedSalt a s)).val →
@@ -174,7 +175,7 @@ the raw bytes alone (`InteropHandlerBase.sol:231-232`).
 
 The chain-id bounds are the `uint256` width of `block.chainid`. Two chains with one chain id count as
 one chain; that chain ids are unique is a registry fact outside this model. -/
-def Properties.SendsDistinctBundleHashesAcrossChainsOrKeccakCollisionV35 : Prop :=
+@[headline] def Properties.SendsDistinctBundleHashesAcrossChainsOrKeccakCollisionV35 : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (c c' a a' : ℕ) (s s' B B' : List UInt8),
     c < 256 ^ 32 → c' < 256 ^ 32 →
     a < 256 ^ 20 → a' < 256 ^ 20 → s.length = 32 → s'.length = 32 →
@@ -198,7 +199,7 @@ bytes, with no decoded field in the comparison. At the pin the receivers hashed
 `abi.encode(decoded sourceChainId, x)` and the center `abi.encode(block.chainid, B)`: relating the
 two needs `abiEncode_right_inj` (`InteropCenter/Proofs/Dispatch.lean`), and the collision is then
 on the two `abi.encode` preimages. -/
-def Properties.SourceAndDestinationAgreeOrCollisionV35 : Prop :=
+@[headline] def Properties.SourceAndDestinationAgreeOrCollisionV35 : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (B x : List UInt8),
     bundleHashV35 keccak x = bundleHashV35 keccak B → x = B ∨ HashCollision keccak x B
 
@@ -226,7 +227,7 @@ bytes of two `sendMessage` bundles from distinct `(chain, sender, salt)` triples
 the v35 bundle hashes differ unless keccak collides on the two named byte strings. Unlike the general
 headline, there is no salt-collision disjunct: by
 `SendMessageBytesDetermineChainSenderSaltV35`, the two byte strings already differ. -/
-def Properties.SendMessagesDistinctBundleHashesOrBytesCollisionV35 : Prop :=
+@[headline] def Properties.SendMessagesDistinctBundleHashesOrBytesCollisionV35 : Prop :=
   ∀ (keccak : List UInt8 → UInt256) (c c' d d' base base' a a' recipient recipient' value value' : ℕ)
     (s s' payload payload' : List UInt8),
     c < 256 ^ 32 → c' < 256 ^ 32 → a < 256 ^ 20 → a' < 256 ^ 20 → s.length = 32 → s'.length = 32 →
@@ -283,7 +284,7 @@ the 4-byte payload `0xdeadbeef`, and the sender's default unbundler. -/
 on chain `324` with the zero user salt, each sending one message. Their bundle bytes are the
 `sendMessage` bytes. The bounded injectivity premises hold, neither collision disjunct holds, and
 the hashes differ. -/
-def Properties.SendsDistinctBundleHashesWitnessV35 : Prop :=
+@[witness] def Properties.SendsDistinctBundleHashesWitnessV35 : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (a a' : ℕ) (s s' B B' : List UInt8),
     a < 256 ^ 20 ∧ a' < 256 ^ 20 ∧ s.length = 32 ∧ s'.length = 32
     ∧ bundleSaltSlot B = word (keccak (packedSalt a s)).val
@@ -301,7 +302,7 @@ def Properties.SendsDistinctBundleHashesWitnessV35 : Prop :=
 the case the salt guard cannot separate. The two packed preimages are the same, so the salt disjunct
 is false. The two `sendMessage` bundles (chains `324` and `326`) differ in their source slot and in
 the chain reference of their default unbundler. The bytes disjunct is false, and the hashes differ. -/
-def Properties.SendsAcrossChainsWitnessV35 : Prop :=
+@[witness] def Properties.SendsAcrossChainsWitnessV35 : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (c c' a : ℕ) (s B B' : List UInt8),
     c < 256 ^ 32 ∧ c' < 256 ^ 32 ∧ a < 256 ^ 20 ∧ s.length = 32
     ∧ bundleSourceSlotV35 B = word c ∧ bundleSourceSlotV35 B' = word c'
@@ -318,7 +319,7 @@ def Properties.SendsAcrossChainsWitnessV35 : Prop :=
 on chain `324` with the zero user salt: every premise of `SendMessagesDistinctBundleHashesOnV35` holds
 (including injectivity on the two byte strings), the bytes disjunct is false, and the hashes
 differ. -/
-def Properties.SendMessagesWitnessV35 : Prop :=
+@[witness] def Properties.SendMessagesWitnessV35 : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (c a a' : ℕ) (s s' : List UInt8),
     c < 256 ^ 32 ∧ a < 256 ^ 20 ∧ a' < 256 ^ 20 ∧ s.length = 32 ∧ s'.length = 32
     ∧ ¬ (c = c ∧ a = a' ∧ s = s')
@@ -334,7 +335,7 @@ distinct `(chain, sender, salt)` triples, there is a keccak under which neither 
 `SendsDistinctBundleHashesAcrossChainsOrKeccakCollisionV35` holds for their `sendMessage` bytes
 (fixed destination, recipient, value and payload as above). So only the hash function can make a
 disjunct true, never the choice of sends. -/
-def Properties.SendsCollisionNotTautologyV35 : Prop :=
+@[witness] def Properties.SendsCollisionNotTautologyV35 : Prop :=
   ∀ (c c' a a' : ℕ) (s s' : List UInt8),
     c < 256 ^ 32 → c' < 256 ^ 32 → a < 256 ^ 20 → a' < 256 ^ 20 → s.length = 32 → s'.length = 32 →
     ¬ (c = c' ∧ a = a' ∧ s = s') →
@@ -350,7 +351,7 @@ same bytes (`noCallBytesV35`): the sender enters them only through the salt word
 equal, keccak does not collide on the two (equal) byte strings, and only the salt disjunct holds. For
 `sendMessage` bytes this cannot happen, since their call carries the sender in `from`
 (`SendMessageBytesDetermineChainSenderSaltV35`). -/
-def Properties.SaltCollisionDisjunctNeededV35 : Prop :=
+@[countermodel] def Properties.SaltCollisionDisjunctNeededV35 : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (a a' : ℕ) (s s' B B' : List UInt8),
     a < 256 ^ 20 ∧ a' < 256 ^ 20 ∧ s.length = 32 ∧ s'.length = 32
     ∧ bundleSaltSlot B = word (keccak (packedSalt a s)).val
@@ -367,7 +368,7 @@ satisfying every premise of the headline (and, with both on chain `324`, those o
 `SendMessagesDistinctBundleHashesOrBytesCollisionV35`), under a keccak that separates the two packed
 preimages and maps both byte strings to one value. The hashes are equal and only the bytes disjunct
 holds. -/
-def Properties.PreimageCollisionDisjunctNeededV35 : Prop :=
+@[countermodel] def Properties.PreimageCollisionDisjunctNeededV35 : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (a a' : ℕ) (s s' B B' : List UInt8),
     a < 256 ^ 20 ∧ a' < 256 ^ 20 ∧ s.length = 32 ∧ s'.length = 32
     ∧ bundleSaltSlot B = word (keccak (packedSalt a s)).val
@@ -382,7 +383,7 @@ def Properties.PreimageCollisionDisjunctNeededV35 : Prop :=
 /-- **ACROSS CHAINS, ONLY A BYTES COLLISION EQUATES A REUSED SALT.** One sender, one salt, two chains
 (`324`, `326`), each sending one message: the salt disjunct is false (one packed preimage), and under
 a keccak that maps both byte strings to one value only the bytes disjunct holds. -/
-def Properties.AcrossChainsPreimageDisjunctNeededV35 : Prop :=
+@[countermodel] def Properties.AcrossChainsPreimageDisjunctNeededV35 : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (c c' a : ℕ) (s B B' : List UInt8),
     c < 256 ^ 32 ∧ c' < 256 ^ 32 ∧ a < 256 ^ 20 ∧ s.length = 32
     ∧ bundleSourceSlotV35 B = word c ∧ bundleSourceSlotV35 B' = word c'
@@ -397,13 +398,13 @@ def Properties.AcrossChainsPreimageDisjunctNeededV35 : Prop :=
 
 /-- **THE RECEIVER'S COLLISION DISJUNCT IS NOT A TAUTOLOGY.** For any two byte strings there is a
 keccak that does not collide on them. -/
-def Properties.SourceAndDestinationCollisionNotTautologyV35 : Prop :=
+@[witness] def Properties.SourceAndDestinationCollisionNotTautologyV35 : Prop :=
   ∀ (B x : List UInt8), ∃ keccak : List UInt8 → UInt256, ¬ HashCollision keccak x B
 
 /-- **…AND IT IS NEEDED.** Under a keccak that maps every bundle byte string to one value, the
 `sendMessage` bytes of a second sender carry the hash of the first sender's bytes, and differ from
 them. -/
-def Properties.SourceAndDestinationCollisionNeededV35 : Prop :=
+@[countermodel] def Properties.SourceAndDestinationCollisionNeededV35 : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (B x : List UInt8),
     B = sendMessageBytesV35 keccak 324 325 1 1 0x1234 0 (word 0) [0xde, 0xad, 0xbe, 0xef]
     ∧ x = sendMessageBytesV35 keccak 324 325 1 2 0x1234 0 (word 0) [0xde, 0xad, 0xbe, 0xef]

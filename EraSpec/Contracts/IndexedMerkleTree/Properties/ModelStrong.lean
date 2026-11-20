@@ -1,4 +1,5 @@
 import EraSpec.Contracts.IndexedMerkleTree.Specs.ModelStrong
+import EraSpec.Core.Headline
 
 -- Named propositions are transparent abbreviations; proofs reference these statements.
 -- Preconditions remain parameters even when absent from the conclusion.
@@ -38,7 +39,7 @@ not a member, and its window straddles `a` (key `0 < a`, `nextKey = 0`); and no 
 straddles `a` (`present_not_reclaimable`).  The tree, the value and the forged leaf are all fixed
 by `a`.  It is the instance `s = {⟨0, a⟩, ⟨a, 0⟩}`, `v = a` of
 `padding_leaf_forges_every_delivered`, and meets that property's premises. -/
-abbrev Properties.forged_padding_witness_pinned {a : UInt256} (ha : a ≠ 0) :=
+@[countermodel] abbrev Properties.forged_padding_witness_pinned {a : UInt256} (ha : a ≠ 0) :=
   SoundState ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf)
     ∧ a ∈ keys ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf)
     ∧ (⟨0, 0⟩ : AbsLeaf) ∉ ({⟨0, a⟩, ⟨a, 0⟩} : Finset AbsLeaf)
@@ -51,7 +52,7 @@ leaf set `s`, for any nonzero key `v` of `s`: the padding leaf `⟨0, 0⟩` is N
 member with key `0` below the key `v` must have a nonzero `nextKey`), its window straddles `v`,
 and no member's window straddles `v`.  So dropping `W ∈ s` from `present_not_reclaimable` breaks
 it at every sound tree and every delivered nonzero value, always with the same forged leaf. -/
-abbrev Properties.padding_leaf_forges_every_delivered {s : Finset AbsLeaf} {v : UInt256}
+@[countermodel] abbrev Properties.padding_leaf_forges_every_delivered {s : Finset AbsLeaf} {v : UInt256}
     (hgs : GapSound s) (hv : v ∈ keys s) (hv0 : v ≠ 0) :=
   (⟨0, 0⟩ : AbsLeaf) ∉ s
     ∧ (⟨0, 0⟩ : AbsLeaf).key < v
@@ -62,7 +63,7 @@ abbrev Properties.padding_leaf_forges_every_delivered {s : Finset AbsLeaf} {v : 
 `{⟨0, 0⟩}`, at every step `n` and for every delivered nonzero value `v` of `S n`: the padding leaf
 is not a leaf of `S n`, it straddles `v`, and no leaf of `S n` does.  Only the guard shape and
 genesis are assumed. -/
-abbrev Properties.padding_leaf_forges_on_guarded_history {S : ℕ → Finset AbsLeaf}
+@[countermodel] abbrev Properties.padding_leaf_forges_on_guarded_history {S : ℕ → Finset AbsLeaf}
     (hge : GuardedEvolution S) (hgen : S 0 = ({⟨0, 0⟩} : Finset AbsLeaf))
     {n : ℕ} {v : UInt256} (hv : v ∈ keys (S n)) (hv0 : v ≠ 0) :=
   (⟨0, 0⟩ : AbsLeaf) ∉ S n

@@ -6,9 +6,8 @@ diamonds and pause switches.
 
 ## Headline guarantees
 
-The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
-`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
-of `EraSpec.Core.Headline` are on this branch; they are not tagged yet.
+The folder's real guarantees about `b17415d20`, each with every premise. Each carries `@[headline]` (the lists after the table: `@[witness]`,
+`@[countermodel]`).
 "Reachable" means reached from a fresh deployment by any interleaving of the model's steps, for one
 fixed `World` (whitelists, CTM registries and owners). Message delivery is the environment's
 guarantee (`PROTO-CAH-DELIVERY`: an L1 → L2 transaction executes once with a truthful status that

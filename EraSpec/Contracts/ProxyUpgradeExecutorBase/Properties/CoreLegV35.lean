@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ProxyUpgradeExecutorBase.Specs.CoreLegV35
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the Core-domain leg at `b17415d20`
@@ -64,7 +65,7 @@ exactly unchanged (`:93-95`); the `ProxyAdmin`'s owner is unchanged, or it chang
 whose `keccakOwner` equals the old one's (`:96-98`, `:119-121`); the inventory has
 `L1_ECOSYSTEM_CONTRACT_COUNT` slots; and every row of `toRows(inventory)`, read through
 `getProxyImplementation`, answers its `implNew` (`:99-103`). -/
-def Properties.CoreLegChecks : Prop :=
+@[headline] def Properties.CoreLegChecks : Prop :=
   ∀ (X : Exec) (E : Engines) (caller : Address) (T : TransitionObj) (W W' : World),
     applyL1Upgrade X E caller T W = some W' →
       caller = W.owner ∧ X.hasCode T.addr = true ∧ T.manifest.domain = .core ∧
@@ -120,7 +121,7 @@ the executor `1` and address `9` to the same value, a genuine Core transition wh
 engine applies its row and then calls `PROXY_ADMIN.transferOwnership(9)` completes, and the
 executor no longer owns the `ProxyAdmin`. So the collision disjunct of `CoreLegChecks` cannot be
 dropped in this model, where `keccakOwner` is an arbitrary function. -/
-def Properties.CorePAOwnerMoveUnderCollisionPasses : Prop :=
+@[countermodel] def Properties.CorePAOwnerMoveUnderCollisionPasses : Prop :=
   ∃ W', Genuine coreTransition ∧
     applyL1Upgrade coreExecCollide (coreReleaseEngines coreExecCollide [.transferPAOwnership 9])
       coreWorld.owner coreTransition coreWorld = some W' ∧
@@ -431,7 +432,7 @@ No premise on who administers the rows' proxies or on the reinitializers: in `W'
 reads its `implNew`, so every row is skipped. This is the replay
 `DefaultProxyUpgradeEngine.sol:20-23` describes ("a transition can be applied again (every row
 already installed)"), for the engine with empty hooks. -/
-def Properties.DefaultCoreLegReplayIsNoop : Prop :=
+@[headline] def Properties.DefaultCoreLegReplayIsNoop : Prop :=
   ∀ (X : Exec) (E : Engines) (caller : Address) (T : TransitionObj) (W W' : World),
     E T.manifest.engine = defaultEngine X →
     applyL1Upgrade X E caller T W = some W' →
@@ -556,7 +557,7 @@ conjunct is evaluated at the pre-swap `coreWorld.impl`; in the run it writes `im
 own proxy, which the swap already did, so it changes nothing there. Under `ReinitFrames`,
 `ReinitKeepsAdmins` and a successful leg every reinitializer is inert on the run;
 `DefaultLegReinitMovesRowAdmin` is the run where a reinitializer does act. -/
-def Properties.CoreLegWitness : Prop :=
+@[witness] def Properties.CoreLegWitness : Prop :=
   ∃ W', Genuine coreTransitionInit ∧ coreTransitionInit.manifest.domain = .core ∧
     coreDefaultEngines coreExec coreTransitionInit.manifest.engine = defaultEngine coreExec ∧
     coreWorld.paOwner = coreExec.self ∧

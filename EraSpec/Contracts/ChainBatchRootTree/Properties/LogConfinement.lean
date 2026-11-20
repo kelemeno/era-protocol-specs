@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainBatchRootTree.Specs.LogConfinement
+import EraSpec.Core.Headline
 
 /-!
 # Properties: an accepted L2-log proof against a ZKsync OS batch root passes through leaf 0, or
@@ -101,7 +102,7 @@ length `k` and mask `j < 2^k` that returns it passes through leaf 0 at height 3,
   preimage, an IMT leaf preimage, the IMT padding preimage, or a leaf of `T1`); or
 * keccak maps the walk's input at the landing (88 or 64 bytes long) to `0` or to a constant of
   `T1`. -/
-def Properties.ImtBatchRootLogProofConfinedOrKeccakEvent : Prop :=
+@[headline] def Properties.ImtBatchRootLogProofConfinedOrKeccakEvent : Prop :=
   ∀ (keccak : Keccak) (a : UInt256) (T1 : PreTree) (Tb Te : Contracts.InteropCommitmentTree.Tree)
     (Hb He : ℕ) (log : L2Log) (sibs : ℕ → UInt256) (k j : ℕ),
     ReservedSubtreeDocumented keccak →
@@ -132,7 +133,7 @@ def Properties.ImtBatchRootLogProofConfinedOrKeccakEvent : Prop :=
 `ImtBatchRootLogProofConfinedOrKeccakEvent`'s premises (documented reserved value, two IMT
 snapshots, multichain leaf `const 0`, a 3-step proof at mask 0 with the honest siblings) where the
 walk passes through leaf 0 at height 3 and no `LandingBreak` is located. -/
-def Properties.HonestLogProofPassesLeafZero : Prop :=
+@[witness] def Properties.HonestLogProofPassesLeafZero : Prop :=
   ∃ (keccak : Keccak) (a : UInt256) (T1 : PreTree) (Tb Te : Contracts.InteropCommitmentTree.Tree)
     (Hb He : ℕ) (log : L2Log) (sibs : ℕ → UInt256) (k j : ℕ),
     ReservedSubtreeDocumented keccak ∧ T1.CutFree ∧ T1.LeafLengthsAvoid ∧ j < 2 ^ k
@@ -147,7 +148,7 @@ reserved value; every 88- and 96-byte string hashed to one word), a 3-step proof
 `IMT_BEGIN_ROOT_LEAF_INDEX` whose claimed leaf is a log hash is accepted against a batch whose IMT
 snapshots are the freshly set-up tree. It does not pass through leaf 0, and the located break is
 the collision between the 88-byte log preimage and the 96-byte `{0,0,0}` leaf preimage. -/
-def Properties.ImtLandingCollisionFires : Prop :=
+@[countermodel] def Properties.ImtLandingCollisionFires : Prop :=
   ∃ (keccak : Keccak) (a : UInt256) (T1 : PreTree) (log : L2Log) (sibs : ℕ → UInt256),
     ReservedSubtreeDocumented keccak ∧ T1.CutFree ∧ T1.LeafLengthsAvoid
       ∧ IMT_BEGIN_ROOT_LEAF_INDEX < 2 ^ TREE_DEPTH
@@ -173,7 +174,7 @@ def Properties.ImtLandingCollisionFires : Prop :=
 on one instance with nonempty subtrees: leaf 1 `const 0`, leaves 2 and 3 the set-up commitment tree,
 the reserved zero half, a documented keccak and a 3-step proof at mask 0; the walk passes through
 leaf 0 at height 3. -/
-def Properties.LogProofPassesLeafZeroWitness : Prop :=
+@[witness] def Properties.LogProofPassesLeafZeroWitness : Prop :=
   ∃ (keccak : Keccak) (a : UInt256) (T1 T2 T3 R : PreTree) (log : L2Log) (sibs : ℕ → UInt256)
     (k j : ℕ),
     T1.CutFree ∧ T2.CutFree ∧ T3.CutFree ∧ R.CutFree

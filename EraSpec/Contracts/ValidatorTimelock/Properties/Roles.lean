@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ValidatorTimelock.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: the per-chain role registry and where the timelock forwards
@@ -53,7 +54,7 @@ registry on every chain (`ChainRolesEmpty`). Along any run of successful calls f
 where chain `c`'s registry is empty to one where it is not, some call of the run writes `c`'s
 registry and is sent by `c`'s verified admin in its own environment
 (`chainAdmin k.env c = some k.sender`). -/
-def Properties.RolesTraceToAVerifiedChainAdmin : Prop :=
+@[headline] def Properties.RolesTraceToAVerifiedChainAdmin : Prop :=
   (∀ c, ChainRolesEmpty init c) ∧
   ∀ (s₀ s : State) (ks : List Call) (c : Address), ChainRolesEmpty s₀ c → Run s₀ ks s →
     ¬ ChainRolesEmpty s c →
@@ -64,7 +65,7 @@ any run of successful calls from fresh storage, followed by a successful call th
 `c`. Then some call `k₀` of the run wrote `c`'s registry, and in `k₀`'s environment `c` reported
 a chain id `id` with `BRIDGE_HUB.getZKChain(id) = c`, and `c`'s `getAdmin()` returned `k₀`'s
 sender. -/
-def Properties.ForwardsOnlyToOnceRegisteredChains : Prop :=
+@[headline] def Properties.ForwardsOnlyToOnceRegisteredChains : Prop :=
   ∀ (ks : List Call) (s s' : State) (k : Call) (c : Address) (r : Role),
     Run init ks s → step k s = some s' → k.action.forward = some (c, r) →
     ∃ k₀ ∈ ks, k₀.action.writesRolesOf k₀.env c ∧
@@ -78,7 +79,7 @@ chain id `270` and admin `5`, but the bridgehub maps `270` to `100`, so `200` ha
 admin. With the lookup of `hasRoleUnchecked`, `5` grants itself `COMMITTER_ROLE` on `200` from
 fresh storage, and then the deployed `commitBatchesSharedBridge` by `5` succeeds and forwards
 to `200`. The deployed `grantRole` of the same call reverts. -/
-def Properties.UncheckedLookupGrantsOnUnregisteredChain : Prop :=
+@[countermodel] def Properties.UncheckedLookupGrantsOnUnregisteredChain : Prop :=
   chainAdmin (vtEnv 0) vtFake = none ∧ (vtEnv 0).adminOf vtFake = some vtFakeAdmin ∧
   (∃ s s' : State,
     grantRoleUnchecked (vtEnv 0) vtFakeAdmin vtFake COMMITTER_ROLE vtFakeAdmin init = some s ∧
@@ -94,7 +95,7 @@ chain `100` and grants it to `4`; then `4`, which is not the chain's admin, gran
 `COMMITTER_ROLE` to `6`, and `6`'s commit succeeds. The chain admin's own grant of
 `COMMITTER_ROLE` now reverts, since it does not hold the new admin role. The run's last grant is
 not by the verified admin; `RolesTraceToAVerifiedChainAdmin` finds the admin's earlier calls. -/
-def Properties.RoleDelegationWitness : Prop :=
+@[witness] def Properties.RoleDelegationWitness : Prop :=
   ∃ s₀ s s' : State,
     Run init vtSetupCalls s₀ ∧
     Run s₀ [vtCall 1 vtAdmin (.setRoleAdmin vtChain COMMITTER_ROLE OPTIONAL_COMMITTER_ADMIN_ROLE),

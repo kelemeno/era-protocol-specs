@@ -1,4 +1,5 @@
 import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashPinned
+import EraSpec.Core.Headline
 
 /-!
 # Properties: distinct sends give distinct bundle hashes, or a collision on named inputs
@@ -199,7 +200,7 @@ is false. So the salt disjunct of `SendsDistinctBundleHashesOrKeccakCollisionV35
 `BundleHashAtV35`) cannot be dropped, and it describes a real failure: the destination cannot tell
 the two bundles apart. (In the proof, `B` is a
 `bundleEncoding` layout.) -/
-def Properties.SaltCollisionMakesBundlesIdentical : Prop :=
+@[countermodel] def Properties.SaltCollisionMakesBundlesIdentical : Prop :=
   ∃ (keccak : List UInt8 → UInt256) (a a' : ℕ) (s s' B : List UInt8),
     a < 256 ^ 20 ∧ a' < 256 ^ 20 ∧ s.length = 32 ∧ s'.length = 32
     ∧ bundleSaltSlot B = word (keccak (packedSalt a s)).val

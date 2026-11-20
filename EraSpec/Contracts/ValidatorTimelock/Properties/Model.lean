@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ValidatorTimelock.Specs.Model
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what each `ValidatorTimelock` entry point checks and writes
@@ -38,7 +39,7 @@ when the caller is a member of `COMMITTER_ROLE`, `EXECUTOR_ROLE`, `REVERTER_ROLE
 commit and execute, the range is valid and (execute only) every batch of it has waited the
 enforced delay. The chain's admin and the bridgehub are not consulted. A commit writes the
 range's timestamps (`recordCommit`); the other four leave storage unchanged. -/
-def Properties.ForwardingGuardsExact : Prop :=
+@[headline] def Properties.ForwardingGuardsExact : Prop :=
   ∀ (e : Env) (x c : Address) (s s' : State),
     (∀ lo hi, step ⟨e, x, .commitBatches c lo hi⟩ s = some s' ↔
       s.members c COMMITTER_ROLE x = true ∧ validRange lo hi ∧ e.forwardOk = true ∧
@@ -160,7 +161,7 @@ the chain admin's `addValidator(100, 3)`), followed by the chain admin's
 `removeValidator(100, 3)`, `addValidatorForChainId(270, 3)` and
 `removeValidatorForChainId(270, 3)`, all succeed. Validator `3` holds `COMMITTER_ROLE` after the
 setup and none of the six validator roles at the end. -/
-def Properties.RotationWrappersRun : Prop :=
+@[witness] def Properties.RotationWrappersRun : Prop :=
   ∃ s₀ s : State,
     Run init vtSetupCalls s₀ ∧ s₀.members vtChain COMMITTER_ROLE vtValidator = true ∧
     Run s₀ [vtCall 1 vtAdmin (.removeValidatorRoles vtChain vtValidator

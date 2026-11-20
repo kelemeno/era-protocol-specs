@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ChainTypeManager.Specs.EngineGettersFaithful
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what the routing headline assumes about the engine's getters
@@ -93,7 +94,7 @@ satisfies `SysInv`, has no committed slot, and whose reinitializers satisfy `Rei
 `400`. At the end chain `0` is at version 2, whose release is `200`. It routes selector `9` to
 facet `99`, so it does not route release `200`, and `SysInv` fails. `ExecutorUpgradeChain` runs
 the same transactions from the same start, and there chain `0` routes exactly release `200`. -/
-def Properties.ForeignCutsBreakTheHeadline : Prop :=
+@[countermodel] def Properties.ForeignCutsBreakTheHeadline : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     SlotsDerived wX.W wForeignCuts wX0.sys.ctm ∧ (∀ u ∈ wReplaceRun, u.Tame wX) ∧
     (∀ t, (∃ u ∈ wReplaceRun, Installs t u) → t = 300 ∨ t = 400) ∧
@@ -113,7 +114,7 @@ on its `newProtocolVersion()`, 2. Every other object is derived. From the fresh 
 `wReplaceRun`, then `applyCTMUpgrade(600)` (2→3); every transaction is tame. After `wReplaceRun`
 chain `0` routes release `200` at version 3, while the CTM is at version 2, so `SysInv` fails.
 After the commit the CTM is at version 3, whose release is `250`, and chain `0` does not route it. -/
-def Properties.ForeignTargetBreaksTheHeadline : Prop :=
+@[countermodel] def Properties.ForeignTargetBreaksTheHeadline : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     SlotsDerived wX.W wForeignTarget wX0.sys.ctm ∧
     (∀ u ∈ wReplaceRun ++ [.x (.commit 600)], u.Tame wX) ∧
@@ -133,7 +134,7 @@ def Properties.ForeignTargetBreaksTheHeadline : Prop :=
 `CTMTransition` returns. The fresh witness system satisfies `SysInv` and has no committed slot, and
 its reinitializers satisfy `ReinitFrames`. Every transaction of `wReplaceRun` is tame. The refined
 run exists, and chain `0` ends at version 2 routing exactly release `200`. -/
-def Properties.EngineGettersWitness : Prop :=
+@[witness] def Properties.EngineGettersWitness : Prop :=
   ProxyUpgradeCurrent.ReinitFrames wX.rc ∧ SysInv wX.W wX0.sys ∧
     (∀ t, EngineDerived wWorld wGenuineEngine t) ∧ SlotsDerived wX.W wGenuineEngine wX0.sys.ctm ∧
     (∀ u ∈ wReplaceRun, u.Tame wX) ∧

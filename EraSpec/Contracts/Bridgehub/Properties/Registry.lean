@@ -1,4 +1,5 @@
 import EraSpec.Contracts.Bridgehub.Specs.Registry
+import EraSpec.Core.Headline
 
 /-!
 # Properties: `L1Bridgehub`
@@ -126,7 +127,7 @@ def Properties.CtmNeverCleared : Prop :=
 /-- **A CHAIN ID IS REGISTERED AT MOST ONCE.** In any run from any state, at most one
 successful `createNewChain` / `registerAlreadyDeployedZKChain` names chain `c`, and none
 does if `c` already had a CTM. -/
-def Properties.ChainIdRegisteredOnce : Prop :=
+@[headline] def Properties.ChainIdRegisteredOnce : Prop :=
   ∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t → ∀ c,
     (l.filter fun k => k.2.registers c).length ≤ 1 ∧
     (s.chainTypeManager c ≠ 0 → (l.filter fun k => k.2.registers c) = [])
@@ -152,7 +153,7 @@ proof's run, `removeChainTypeManager` removed it) and chain `c` has no CTM, and 
 asset handler's `forwardedBridgeMint` makes `m` the CTM of `c`. This is about the Bridgehub's own checks:
 on L1 the deployed handler lets only a chain that left L1 come back
 (`ChainAssetHandlerBase.sol:374-383`), a precondition this model does not include. -/
-def Properties.RemovedCtmStillAssignedByBridgeMint : Prop :=
+@[countermodel] def Properties.RemovedCtmStillAssignedByBridgeMint : Prop :=
   ∃ (cfg : Config) (s s' : State) (caller : Address) (aid : AssetId) (c : ChainId)
     (b : AssetId) (m : Address),
     Reachable cfg s ∧ s.ctmRegistered m = false ∧ s.chainTypeManager c = 0 ∧
@@ -173,7 +174,7 @@ def Properties.CtmAndBaseTokenFixedOutsideBridgeMint : Prop :=
 base token, and the chain asset handler's `forwardedBridgeMint` succeeds and sets a
 different base token `b`. The Bridgehub does not compare the new value with the old one
 (`BB:447`). (In the proof's run `c` was migrated away first, which the call requires.) -/
-def Properties.BridgeMintRewritesBaseToken : Prop :=
+@[countermodel] def Properties.BridgeMintRewritesBaseToken : Prop :=
   ∃ (cfg : Config) (s s' : State) (caller : Address) (aid : AssetId) (c : ChainId) (b : AssetId),
     Reachable cfg s ∧ s.chainTypeManager c ≠ 0 ∧ b ≠ s.baseTokenAssetId c ∧
     exec cfg caller (.forwardedBridgeMint aid c b) s = some s' ∧
@@ -198,7 +199,7 @@ deployed system the handler registers the chain with the message root too
 (`ChainAssetHandlerBase.sol:405-409`), and `createNewChain`'s later
 `messageRoot.addNewChain` then reverts with `ChainExists` (`MessageRootBase.sol:146-148`),
 a revert this model does not include. -/
-def Properties.HandlerEntryOverwrittenByCreate : Prop :=
+@[countermodel] def Properties.HandlerEntryOverwrittenByCreate : Prop :=
   ∃ (cfg : Config) (s s' : State) (caller : Address) (c : ChainId) (m : Address) (a : AssetId)
     (adm d : Address),
     Reachable cfg s ∧ c ∈ s.zkKeys ∧ s.chainTypeManager c = 0 ∧ s.zkAddr c ≠ 0 ∧
@@ -218,7 +219,7 @@ satisfies `ctmAssetIdToAddress[ctmAssetIdFromAddress[m]] = m`, unless the run ha
 collision at `m` (`CtmAssetIdLoggedCollision`): a call `setCTMAssetAddress(m, m)` and a call
 `setCTMAssetAddress(m', m')` with `m' ≠ m`, both in the run, whose hash inputs give the same
 asset id. No injectivity is assumed. -/
-def Properties.CtmAssetIdRoundTrip : Prop :=
+@[headline] def Properties.CtmAssetIdRoundTrip : Prop :=
   ∀ (cfg : Config) (owner : Address) (l : List Call) (s : State), Run cfg (init cfg owner) l s →
     (∀ k ∈ l, k.2.ctmAssetDisciplined = true) →
     ∀ m, s.ctmAssetIdFromAddress m ≠ 0 →
@@ -231,7 +232,7 @@ Bridgehub reaches a state where the round trip fails at CTM `m` and the run has 
 collision at `m`. (In the proof's run, two `setCTMAssetAddress` calls by the same sender
 with the same data `5`, for CTMs `60` and `61`, hash the same input: the second overwrites
 `ctmAssetIdToAddress` at CTM `60`'s asset id.) -/
-def Properties.CtmAssetIdRoundTripNeedsDiscipline : Prop :=
+@[countermodel] def Properties.CtmAssetIdRoundTripNeedsDiscipline : Prop :=
   ∃ (cfg : Config) (l : List Call) (s : State) (m : Address),
     (∀ x y d d', cfg.encodeAssetId x d y = cfg.encodeAssetId x d' y → d = d') ∧
     Run cfg (init cfg 1) l s ∧ ¬ CtmAssetIdLoggedCollision cfg l m ∧
@@ -245,7 +246,7 @@ CTM address as data reaches a state where the round trip fails at a CTM `m` with
 asset-id hash ignores the chain and the sender, maps the data `60` and `61` to the same id,
 and is injective on the other data; the CTM deployer sets CTM `60`'s asset id, then CTM
 `61`'s, which overwrites `ctmAssetIdToAddress` at that id.) -/
-def Properties.CtmAssetIdCollisionFires : Prop :=
+@[countermodel] def Properties.CtmAssetIdCollisionFires : Prop :=
   ∃ (cfg : Config) (l : List Call) (s : State) (m : Address),
     Run cfg (init cfg 1) l s ∧ (∀ k ∈ l, k.2.ctmAssetDisciplined = true) ∧
     s.ctmAssetIdFromAddress m ≠ 0 ∧ s.ctmAssetIdToAddress (s.ctmAssetIdFromAddress m) ≠ m ∧
@@ -257,7 +258,7 @@ def Properties.CtmAssetIdCollisionFires : Prop :=
 key (no entry point removes one). In every reachable state a chain id with a nonzero
 stored diamond is a key, so `zkChainMap.get(c)` succeeds exactly for the keys. Every entry
 point is allowed, the chain asset handler's included. -/
-def Properties.ChainMapOnlyGrows : Prop :=
+@[headline] def Properties.ChainMapOnlyGrows : Prop :=
   (∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t →
     ∀ c, c ∈ s.zkKeys → c ∈ t.zkKeys) ∧
   (∀ (cfg : Config) (s : State), Reachable cfg s → ∀ c, ZkGetOk s c ↔ c ∈ s.zkKeys)
@@ -276,7 +277,7 @@ def Properties.DiamondChangesOnlyByRegistration : Prop :=
 In any run from any state that contains no `registerNewZKChain` for chain `c`: if `c` had a
 CTM at the start, `getZKChain(c)` is the same at the end. Every other entry point,
 including `forwardedBridgeMint` and `registerNewZKChain` for other chains, is allowed. -/
-def Properties.DiamondFixedAfterRegistration : Prop :=
+@[headline] def Properties.DiamondFixedAfterRegistration : Prop :=
   ∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t → ∀ c,
     (∀ k ∈ l, k.2.handlerRegistersFor c = false) → s.chainTypeManager c ≠ 0 →
       getZKChain t c = getZKChain s c
@@ -288,7 +289,7 @@ succeeds and makes `getZKChain(c) = z`, a different address. `_registerNewZKChai
 `EnumerableMap.set`'s return value (`BB:302-303`), so the Bridgehub does not notice that
 the key existed. The deployed handler calls it only when `forwardedBridgeMint` returned a
 zero diamond (`ChainAssetHandlerBase.sol:397-405`), which this model does not include. -/
-def Properties.HandlerRegisterReplacesDiamond : Prop :=
+@[countermodel] def Properties.HandlerRegisterReplacesDiamond : Prop :=
   ∃ (cfg : Config) (s s' : State) (caller : Address) (c : ChainId) (z : Address) (chk : Bool),
     Reachable cfg s ∧ s.chainTypeManager c ≠ 0 ∧ getZKChain s c ≠ 0 ∧
     exec cfg caller (.registerNewZKChain c z chk) s = some s' ∧
@@ -298,7 +299,7 @@ def Properties.HandlerRegisterReplacesDiamond : Prop :=
 
 /-- **WHITELISTED SETTLEMENT LAYERS SETTLE HERE.** In every reachable state, a whitelisted
 settlement layer is this chain or has `settlementLayer = block.chainid`. -/
-def Properties.WhitelistedSettlementLayersSettleHere : Prop :=
+@[headline] def Properties.WhitelistedSettlementLayersSettleHere : Prop :=
   ∀ (cfg : Config) (s : State), Reachable cfg s →
     ∀ c, s.whitelistedSL c = true → c = cfg.thisChain ∨ s.settlementLayer c = cfg.thisChain
 
@@ -307,7 +308,7 @@ def Properties.WhitelistedSettlementLayersSettleHere : Prop :=
 other than this chain migrates away and stays whitelisted, so the post-state breaks the
 invariant of `WhitelistedSettlementLayersSettleHere`; with the check the same call
 reverts. -/
-def Properties.WithoutCheckWhitelistedLayerLeaves : Prop :=
+@[countermodel] def Properties.WithoutCheckWhitelistedLayerLeaves : Prop :=
   ∃ (cfg : Config) (s s' : State) (caller : Address) (c sl : ChainId),
     Reachable cfg s ∧
     burnNoSettlementLayerCheck cfg caller s c sl = some s' ∧
@@ -319,7 +320,7 @@ successful call of every entry point: if chain `c`'s settlement layer changes to
 other than this chain, the call is the chain asset handler's
 `forwardedBridgeBurnSetSettlementLayer(c, sl)`, `sl` was whitelisted, `c` settled here
 before, and `sl` is the new value. -/
-def Properties.MigrationOutOnlyToWhitelisted : Prop :=
+@[headline] def Properties.MigrationOutOnlyToWhitelisted : Prop :=
   ∀ (cfg : Config) (caller : Address) (a : Action) (s s' : State) (c : ChainId),
     exec cfg caller a s = some s' →
     s'.settlementLayer c ≠ s.settlementLayer c → s'.settlementLayer c ≠ cfg.thisChain →
@@ -390,7 +391,7 @@ it has the same CTM, the same base-token asset id, and still settles on this cha
 base token fixed at registration can change only in a run that contains the chain asset
 handler's `forwardedBridgeBurnSetSettlementLayer` for that chain. Every other entry point,
 including `forwardedBridgeMint`, is allowed in the run. -/
-def Properties.CtmAndBaseTokenFixedWhileSettlingHere : Prop :=
+@[headline] def Properties.CtmAndBaseTokenFixedWhileSettlingHere : Prop :=
   ∀ (cfg : Config) (s t : State) (l : List Call), Run cfg s l t → ∀ c,
     (∀ k ∈ l, k.2.burnFor c = false) →
     s.chainTypeManager c ≠ 0 → s.settlementLayer c = cfg.thisChain →
@@ -402,7 +403,7 @@ def Properties.CtmAndBaseTokenFixedWhileSettlingHere : Prop :=
 (`forwardedBridgeMintNoCurrentSLCheck`), in a reachable state where chain `c` has a CTM
 and settles on this chain, the mint hook rewrites `c`'s base token to a different asset
 id; with the check the same call reverts. -/
-def Properties.WithoutCurrentSLCheckBaseTokenRewritten : Prop :=
+@[countermodel] def Properties.WithoutCurrentSLCheckBaseTokenRewritten : Prop :=
   ∃ (cfg : Config) (s s' : State) (caller : Address) (aid : AssetId) (c : ChainId) (b : AssetId),
     Reachable cfg s ∧ s.chainTypeManager c ≠ 0 ∧ s.settlementLayer c = cfg.thisChain ∧
     b ≠ s.baseTokenAssetId c ∧
@@ -414,7 +415,7 @@ def Properties.WithoutCurrentSLCheckBaseTokenRewritten : Prop :=
 (`createNewChainNoDupCheck`), in a reachable state where chain `c` is registered,
 `createNewChain(c, …)` succeeds a second time and replaces `c`'s CTM, base token and
 diamond; with the check the same call reverts. -/
-def Properties.WithoutAlreadyRegisteredCheckChainReRegistered : Prop :=
+@[countermodel] def Properties.WithoutAlreadyRegisteredCheckChainReRegistered : Prop :=
   ∃ (cfg : Config) (s s' : State) (caller : Address) (c : ChainId) (m : Address) (a : AssetId)
     (adm d : Address),
     Reachable cfg s ∧ s.chainTypeManager c ≠ 0 ∧
@@ -451,7 +452,7 @@ different from this chain. (The proof's run: `c` migrates to the whitelisted `g`
 removes `g` from the whitelist; the handler migrates `g` to `h`. Neither
 `setSettlementLayerStatus` (`L1:94-100`) nor the burn hook (`BB:403-421`) reads the
 settlement layers of other chains.) -/
-def Properties.SettlementLayerOfAChainNeedNotSettleHere : Prop :=
+@[countermodel] def Properties.SettlementLayerOfAChainNeedNotSettleHere : Prop :=
   ∃ (cfg : Config) (s : State) (c g h : ChainId),
     Reachable cfg s ∧ g ≠ cfg.thisChain ∧ h ≠ cfg.thisChain ∧ h ≠ g ∧
     s.settlementLayer c = g ∧ s.settlementLayer g = h ∧ s.whitelistedSL g = false
@@ -465,7 +466,7 @@ to `msg.value`, and the second bridge gets none), attaches exactly `mintValue` i
 `c`'s base token is ETH and nothing otherwise, asks `c`'s stored diamond to mint the same
 `mintValue` on L2 with the caller as sender, keeps an explicit refund recipient, and happens
 only while unpaused and when `zkChainMap.get(c)` succeeds. -/
-def Properties.DirectRequestAccounting : Prop :=
+@[headline] def Properties.DirectRequestAccounting : Prop :=
   ∀ (cfg : Config) (s : State) (caller : Address) (env : CallEnv) (req : DirectRequest)
     (o : Outcome), requestDirect cfg s caller env req = some o →
     s.paused = false ∧ ZkGetOk s req.chainId ∧
@@ -486,7 +487,7 @@ otherwise; the second bridge gets `secondBridgeValue`; the deposit and the Mailb
 carry the same `mintValue` for `c` in `c`'s base token; the L2 sender is the second bridge,
 which lies above `BRIDGEHUB_MIN_SECOND_BRIDGE_ADDRESS`; the bridge returned the magic
 value; and this happens only while unpaused and when `zkChainMap.get(c)` succeeds. -/
-def Properties.TwoBridgesRequestAccounting : Prop :=
+@[headline] def Properties.TwoBridgesRequestAccounting : Prop :=
   ∀ (cfg : Config) (s : State) (caller : Address) (env : CallEnv) (req : TwoBridgesRequest)
     (reply : SecondBridgeReply) (o : Outcome),
     requestTwoBridges cfg s caller env req reply = some o →
@@ -506,7 +507,7 @@ def Properties.TwoBridgesRequestAccounting : Prop :=
 /-- **REQUESTS REACH REGISTERED CHAINS.** In a run from an initialized Bridgehub without
 the handler's registry writers, a successful request of either kind for chain `c` goes to
 a nonzero diamond of a chain that has a CTM, and is charged in a registered asset. -/
-def Properties.RequestsReachRegisteredChains : Prop :=
+@[headline] def Properties.RequestsReachRegisteredChains : Prop :=
   ∀ (cfg : Config) (owner : Address) (l : List Call) (s : State), Run cfg (init cfg owner) l s →
     (∀ k ∈ l, k.2.handlerRegistryWrite = false) →
     ∀ (caller : Address) (env : CallEnv) (o : Outcome) (c : ChainId),
@@ -547,7 +548,7 @@ def Properties.RequestChargesCreationBaseToken : Prop :=
 /-- **THE MINIMUM SECOND-BRIDGE ADDRESS CHECK IS LOAD-BEARING.** Without it
 (`requestTwoBridgesNoMinAddress`), a request in a reachable state succeeds with a reserved
 low address (`≤ 0xFFFF`) as the L2 sender; with the check the same request reverts. -/
-def Properties.WithoutMinAddressCheckLowSender : Prop :=
+@[countermodel] def Properties.WithoutMinAddressCheckLowSender : Prop :=
   ∃ (cfg : Config) (s : State) (caller : Address) (env : CallEnv) (req : TwoBridgesRequest)
     (reply : SecondBridgeReply) (o : Outcome),
     Reachable cfg s ∧ requestTwoBridgesNoMinAddress cfg s caller env req reply = some o ∧
@@ -567,7 +568,7 @@ each changed part of the storage was changed by a caller the source's modifiers 
 * the owner: the owner (renouncing) or the pending owner (accepting); the pending owner: the
   owner or the pending owner (accepting clears it); the admin: the pending admin; the pending
   admin: the owner, the admin or the pending admin (accepting clears it). -/
-def Properties.RegistryWritesAuthorized : Prop :=
+@[headline] def Properties.RegistryWritesAuthorized : Prop :=
   ∀ (cfg : Config) (caller : Address) (a : Action) (s s' : State),
     exec cfg caller a s = some s' →
     (s'.ctmRegistered ≠ s.ctmRegistered → caller = s.owner) ∧
@@ -598,7 +599,7 @@ def Properties.RegistryWritesAuthorized : Prop :=
 
 /-- **PAUSE BLOCKS CREATION AND REQUESTS.** While paused, `createNewChain` and both
 request entry points revert. -/
-def Properties.PauseBlocksCreationAndRequests : Prop :=
+@[headline] def Properties.PauseBlocksCreationAndRequests : Prop :=
   ∀ (cfg : Config) (s : State), s.paused = true → ∀ (caller : Address),
     (∀ c m a adm d, exec cfg caller (.createNewChain c m a adm d) s = none) ∧
     (∀ env req, requestDirect cfg s caller env req = none) ∧
@@ -618,7 +619,7 @@ and chain `11` is recorded on it. This meets the premises of `ChainIdRegisteredO
 `ChainBaseTokenRegistered`, `ChainCtmWasApproved`, `RegistryConsistentWithoutHandler`,
 `ChainCountBounded`, `CtmAssetIdRoundTrip`, `WhitelistedSettlementLayersSettleHere`,
 `RemoteSettlementLayerCameFromBurn` and `AssetIdNeverUnregistered`. -/
-def Properties.RegistryRunWitness : Prop :=
+@[witness] def Properties.RegistryRunWitness : Prop :=
   ∃ s, Run wRegistryCfg (init wRegistryCfg 1) wRegistryRun s ∧
     (∀ k ∈ wRegistryRun, k.2.handlerRegistryWrite = false ∧
       k.2.uncheckedRegistration = false ∧ k.2.ctmAssetDisciplined = true) ∧
@@ -641,7 +642,7 @@ has exactly `3` keys, and both a checked `registerNewZKChain(13, 73, true)` for 
 and `createNewChain(14, 60, 7, 0)` (which succeeds at the limit `10`, `RegistryStepWitness`)
 revert (`ZKChainLimitReached`, `BB:301-307`). So the bound of `ChainCountBounded` is reached
 and the next checked registration is refused. -/
-def Properties.ChainCountLimitWitness : Prop :=
+@[witness] def Properties.ChainCountLimitWitness : Prop :=
   ∃ s, Run { wRegistryCfg with maxChains := 3 } (init { wRegistryCfg with maxChains := 3 } 1)
       (wRegistryRun ++ [(53, .registerNewZKChain 12 82 true)]) s ∧
     (∀ k ∈ wRegistryRun ++ [(53, .registerNewZKChain 12 82 true)],
@@ -665,7 +666,7 @@ of `ChainIdRegisteredOnce`, `CtmAndBaseTokenFixedOutsideBridgeMint` (chains `10`
 `AssetIdNeverUnregistered` (asset id `8`, on a run containing `forwardedBridgeMint`, the
 other writer of `assetIdIsRegistered`), on a run in which the excluded calls occur for other
 chains. -/
-def Properties.HandlerRunWitness : Prop :=
+@[witness] def Properties.HandlerRunWitness : Prop :=
   ∃ s t, Run wRegistryCfg (init wRegistryCfg 1) wRegistryRun s ∧
     Run wRegistryCfg s wRegistryHandlerRun t ∧
     s.chainTypeManager 10 ≠ 0 ∧ s.chainTypeManager 11 = 60 ∧ s.chainTypeManager 12 ≠ 0 ∧
@@ -702,7 +703,7 @@ Of `RegistryWritesAuthorized`'s implications, the stated facts instantiate the a
 on `chainTypeManager` and `settlementLayer` (the `createNewChain` step) and the diamond write;
 no step here is stated to change the CTM registry, the whitelist, the address slots, the owner
 or admin slots or the CTM asset maps, so those antecedents are not exhibited. -/
-def Properties.RegistryStepWitness : Prop :=
+@[witness] def Properties.RegistryStepWitness : Prop :=
   (∃ s s', Run wRegistryCfg (init wRegistryCfg 1) wRegistryPrelude s ∧
     exec wRegistryCfg 1 (.createNewChain 10 60 7 0 70) s = some s' ∧
     s'.chainTypeManager ≠ s.chainTypeManager ∧ s'.settlementLayer ≠ s.settlementLayer ∧
@@ -738,7 +739,7 @@ has a `zkChainMap` key but no CTM, succeeds and goes to `73`. These meet the pre
 (with `RegistryRunWitness`), `RequestNeedsMapEntry` and `RequestChargesCreationBaseToken`.
 The request for chain `13` shows that `RequestsReachRegisteredChains` needs its premise
 excluding the handler's writers. -/
-def Properties.RequestWitness : Prop :=
+@[witness] def Properties.RequestWitness : Prop :=
   ∃ s t, Run wRegistryCfg (init wRegistryCfg 1) wRegistryRun s ∧
     Run wRegistryCfg (init wRegistryCfg 1) (wRegistryPrelude ++ [wRegistryCreate10] ++
       (wRegistryRest ++ [wRegistryBurn11] ++ wRegistryHandlerRun)) t ∧

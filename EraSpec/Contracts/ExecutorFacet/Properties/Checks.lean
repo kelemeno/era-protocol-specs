@@ -1,4 +1,5 @@
 import EraSpec.Contracts.ExecutorFacet.Specs.Witness
+import EraSpec.Core.Headline
 
 /-!
 # Properties: what each check and each break disjunct does, on concrete runs
@@ -40,7 +41,7 @@ left batch 1's hash in `storedBatchHashes[1]` (`_revertBatches` clears no slot,
 rejects the proof at the committed check. Without that check the proof is accepted, no hash
 break is logged, and the chain has more verified batches than committed ones, against
 `CountersOrdered`. -/
-def Properties.WithoutCommittedCheckProofsOutrunCommits : Prop :=
+@[countermodel] def Properties.WithoutCommittedCheckProofsOutrunCommits : Prop :=
   Init wEnv wInit ∧
   (runCalls wEnv wInit (wStaleProveRun.take 2)).isSome = true ∧
   runCalls wEnv wInit wStaleProveRun = none ∧
@@ -51,7 +52,7 @@ def Properties.WithoutCommittedCheckProofsOutrunCommits : Prop :=
 `wUnprovenExecRun` commits batch 1 and executes it with no proof. The source rejects the
 execute. Without the check it succeeds, no hash break is logged, and the chain has more
 executed batches than verified ones, against `CountersOrdered`. -/
-def Properties.WithoutProvenCheckExecutionOutrunsProofs : Prop :=
+@[countermodel] def Properties.WithoutProvenCheckExecutionOutrunsProofs : Prop :=
   (runCalls wEnv wInit (wUnprovenExecRun.take 1)).isSome = true ∧
   runCalls wEnv wInit wUnprovenExecRun = none ∧
   ∃ s, runCallsWith { provenCheck := true } wEnv wInit wUnprovenExecRun = some s ∧
@@ -67,7 +68,7 @@ revert. Without the check:
 * after the re-commit, `storedBatchHashes[1]` no longer holds the hash of the executed batch 1,
   and no hash break is logged, against `ExecutedStoredHashesFinal` and
   `ExecutedBatchesWereCommittedAndProved`. -/
-def Properties.WithoutExecutedCheckRevertRewritesAnExecutedBatch : Prop :=
+@[countermodel] def Properties.WithoutExecutedCheckRevertRewritesAnExecutedBatch : Prop :=
   (runCalls wEnv wInit (wRevertExecutedRun.take 3)).isSome = true ∧
   runCalls wEnv wInit (wRevertExecutedRun.take 4) = none ∧
   (∃ s, runCallsWith { executedCheck := true } wEnv wInit (wRevertExecutedRun.take 4) = some s ∧
@@ -82,7 +83,7 @@ upgrade that sets transaction `9`, and commits batch 2. The source rejects the u
 Without the guard the transaction is committed in batch 2 while batch 1 is not executed, so
 the upgrade batch is not `executed + 1`, and no hash break is logged, against
 `UpgradeTxInFirstUnexecutedBatch`. -/
-def Properties.UpgradeWithoutExecutedCheckSkipsABatch : Prop :=
+@[countermodel] def Properties.UpgradeWithoutExecutedCheckSkipsABatch : Prop :=
   (runCalls wEnv wInit (wEarlyUpgradeRun.take 1)).isSome = true ∧
   runCalls wEnv wInit (wEarlyUpgradeRun.take 2) = none ∧
   ∃ s, runCallsWith { upgradeExecutedCheck := true } wEnv wInit wEarlyUpgradeRun = some s ∧
@@ -98,7 +99,7 @@ last committed batch. It hashes like batch 1, passes the check against slot `1`,
 call writes a different batch 1 over the executed one. So the main disjunct of
 `ExecutedStoredHashesFinal` fails between the two states, and its collision disjunct holds:
 the call logged the pair, and the log's first entry is a genuine collision. -/
-def Properties.CollisionRewritesAnExecutedBatch : Prop :=
+@[countermodel] def Properties.CollisionRewritesAnExecutedBatch : Prop :=
   Init wCollEnv (wInitOf wCollEnv) ∧
   ∃ s s', runCalls wCollEnv (wInitOf wCollEnv) wCollRun = some s ∧
     step wCollEnv s wCollCommit = some s' ∧
@@ -113,7 +114,7 @@ priority operation pushed: `wMerkleRun` commits, proves and executes batch 1 car
 `77`, and `processBatch` accepts it against the empty tree's root. The main disjunct of
 `PriorityOpsConsumedInOrder` fails (one operation consumed, none pushed), and a genuine
 Merkle break is logged. -/
-def Properties.MerkleBreakConsumesAnUnpushedOp : Prop :=
+@[countermodel] def Properties.MerkleBreakConsumesAnUnpushedOp : Prop :=
   Init wMerkleEnv (wInitOf wMerkleEnv) ∧
   ∃ s, runCalls wMerkleEnv (wInitOf wMerkleEnv) wMerkleRun = some s ∧ Reach wMerkleEnv s ∧
     consumed s = [77] ∧ s.ptLeaves = [] ∧ s.ptUnprocessedIndex = 1 ∧
@@ -149,7 +150,7 @@ main run `wRun` succeeds without logging a hash or Merkle break.
   order, by two calls (the second with two batches); the operations consumed are
   `11, 12, 13`, the leaves pushed; the log roots recorded are `31, 32, 33`; every executed
   batch is the committed `StoredBatchInfo` and is covered by an accepted proof. -/
-def Properties.PipelineWitness : Prop :=
+@[witness] def Properties.PipelineWitness : Prop :=
   Init wEnv wInit ∧
   (∃ s, runCalls wEnv wInit (wRunA.take 7) = some s ∧ Reach wEnv s ∧
     s.totalBatchesExecuted = 0 ∧ s.totalBatchesCommitted = 3 ∧
@@ -181,7 +182,7 @@ and no interop fee units. In the state reached, with no hash break logged:
 * nothing is verified; the proof accepted for the old batch 1 is still logged (`ProvedAt` for
   `wInfo1`) and does not cover the new batch 1;
 * a proof of the old batch 1 is now rejected, and one of the new batch 1 is accepted. -/
-def Properties.RevertRecommitWitness : Prop :=
+@[witness] def Properties.RevertRecommitWitness : Prop :=
   ∃ s, runCalls wEnv wInit wRecommitRun = some s ∧ Reach wEnv s ∧
     s.totalBatchesCommitted = 1 ∧ s.totalBatchesVerified = 0 ∧
     s.l2SystemContractsUpgradeBatchNumber = 1 ∧ s.preimage 1 = wInfo1' ∧
@@ -202,7 +203,7 @@ batch number, keeping transaction `9` pending. Then:
 * the permissionless validator `3` cannot commit a batch with L2 transactions;
 * `wPriorityTail`: `3` commits, proves and executes the priority-only batch 1, which carries
   upgrade transaction `9`, and the chain type manager `2` deactivates priority mode. -/
-def Properties.PriorityModeWitness : Prop :=
+@[witness] def Properties.PriorityModeWitness : Prop :=
   ∃ s0 s, runCalls wEnv wInit (wRunA.take 8) = some s0 ∧
     step wEnv s0 .activatePriorityMode = some s ∧ Reach wEnv s ∧
     s0.totalBatchesCommitted = 3 ∧ s0.totalBatchesVerified = 2 ∧ s0.totalBatchesExecuted = 0 ∧
@@ -224,7 +225,7 @@ and `wInfo2`, `wEnv.verify` accepts `wProof [wInfo1, wInfo2]` and rejects `[0]`.
 right after `activatePriorityMode` in `PriorityModeWitness` (no break logged), the
 permissionless validator `3` and the priority-only batch `wInP` meet every premise of
 `HonestCommitEnabled`, the priority-mode one included. -/
-def Properties.HonestProgressWitness : Prop :=
+@[witness] def Properties.HonestProgressWitness : Prop :=
   (∃ s, runCalls wEnv wInit (wRunA.take 7) = some s ∧ Reach wEnv s ∧ s.hashBreaks = [] ∧
     s.settlementLayer = 0 ∧ settlerAllowed s 1 = true ∧
     s.totalBatchesVerified + 2 ≤ s.totalBatchesCommitted ∧
@@ -242,7 +243,7 @@ batch is executed and validator `1` can commit batch 4. `migrateOut 99` succeeds
 the settlement layer is `99` that commit fails. After `wAdminRun` (the migration fails, and
 the chain type manager removes validator `1` and adds `4`) the settlement layer is `0` again,
 the commit of batch 4 by `1` fails and the one by `4` succeeds. -/
-def Properties.AdminWitness : Prop :=
+@[witness] def Properties.AdminWitness : Prop :=
   ∃ s, runCalls wEnv wInit wRun = some s ∧
     (step wEnv s (wCommit4 1)).isSome = true ∧
     (∃ s1, step wEnv s (.migrateOut 99) = some s1 ∧ s1.settlementLayer = 99 ∧

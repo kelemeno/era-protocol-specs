@@ -1,4 +1,5 @@
 import EraSpec.Contracts.IndexedMerkleTree.Specs.InsertGuard
+import EraSpec.Core.Headline
 
 -- Named propositions are transparent abbreviations; proofs reference these statements.
 -- Preconditions remain parameters even when absent from the conclusion.
@@ -73,7 +74,7 @@ indispensable.**  For any nonzero `a` and any nonzero `v ≤ a` there is a fully
 `imtInsert s W v` is NOT `WindowPos` (hence NOT `SoundState`): the retargeted
 low leaf `⟨W.key, v⟩` carries a nonzero `nextKey` not strictly above its key.
 Choosing `v ≠ 0` closes the `nextKey = 0` escape hatch. -/
-abbrev Properties.below_window_insert_breaks_windowPos {a v : UInt256} (ha : a ≠ 0) (hv : v ≠ 0) (hle : v ≤ a) :=
+@[countermodel] abbrev Properties.below_window_insert_breaks_windowPos {a v : UInt256} (ha : a ≠ 0) (hv : v ≠ 0) (hle : v ≤ a) :=
   ∃ (s : Finset AbsLeaf) (W : AbsLeaf),
         SoundState s ∧ W ∈ s ∧ ¬ (W.key < v)
           ∧ ¬ WindowPos (imtInsert s W v)
@@ -114,7 +115,7 @@ set that is NOT `KeyInj` (hence NOT `SoundState`): the new leaf `⟨a, a⟩` and
 the surviving old leaf `⟨a, 0⟩` are distinct but share key `a`.  This is the
 precise reason `window_strict_of_not_mem` requires `v ∉ keys s`: without the
 dedup gate the weak window admits the key-duplicating boundary insert. -/
-abbrev Properties.weak_window_without_dedup_breaks_keyInj {a : UInt256} (ha : a ≠ 0) :=
+@[countermodel] abbrev Properties.weak_window_without_dedup_breaks_keyInj {a : UInt256} (ha : a ≠ 0) :=
   ∃ (s : Finset AbsLeaf) (W : AbsLeaf) (v : UInt256),
         SoundState s ∧ W ∈ s
           ∧ W.key < v                          -- guard (ii) holds
