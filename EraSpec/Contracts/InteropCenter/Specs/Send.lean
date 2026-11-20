@@ -1,5 +1,6 @@
 import Mathlib.Tactic
-import EraSpec.Contracts.InteropCenter.History.Specs.Dispatch
+import EraSpec.Contracts.InteropCenter.Specs.Common
+import EraSpec.Contracts.AtomicFlowManager.Specs.Model
 
 /-!
 # Model: `InteropCenter` send path at head — every L2→L2 send is atomic
@@ -15,8 +16,8 @@ the same path is `Specs/Dispatch.lean` (`c67894b970a0dac6fe9144d8ebf4b0806e15a9a
 The last paragraph below gives the lines on the current `draft/v0.35.0` head `b17415d20`.
 
 **This file is definitions only.** The results are in
-`EraSpec.Contracts.InteropCenter.Properties.SendAtHead` and are proved in
-`EraSpec.Contracts.InteropCenter.Proofs.SendAtHead`.
+`EraSpec.Contracts.InteropCenter.Properties.Send` and are proved in
+`EraSpec.Contracts.InteropCenter.Proofs.Send`.
 
 ## What changed since the pin (a1d5c34d4 #2280, 8935a573e #2348, #2312, #2339)
 
@@ -154,7 +155,7 @@ move as follows (main line `N` is the given line at `b17415d20`):
   `_recoverBundle` :292-325), `N+14` for `N ≥ 329` (`_validateAndComputeFlowId` :360-379).
 -/
 
-namespace Contracts.InteropCenter.SendAtHead
+namespace Contracts.InteropCenter.Send
 
 open Contracts.AtomicFlowManager (Manager LegState AuthorizeGuard ClaimGuard)
 open AttackVectors.BundleHashEncoding (toBytesBE)
@@ -265,17 +266,6 @@ def restrictionMask : ℕ → ℕ
 def allowedUnder (idx : ℕ) (r : Restriction) : Bool :=
   (restrictionMask idx >>> r.toNat) &&& 1 == 1
 
-/-- The pin's table, written out as the explicit `_restriction == …` disjunctions of pin
-`InteropCenter.sol:791-863` (one branch per selector, same order): `interopCallValue` under
-`OnlyInteropCallValue`, `OnlyCallAttributes` or `CallAndBundleAttributes` (pin :794-796);
-`indirectCall` under `OnlyCallAttributes` or `CallAndBundleAttributes` (pin :804-805); the five
-bundle attributes under `OnlyBundleAttributes` or `CallAndBundleAttributes` (pin :814-815, :824-825,
-:834-835, :846-847, :858-859). -/
-def pinAllowed : ℕ → Restriction → Bool
-  | 0, r => r == .onlyInteropCallValue || r == .onlyCallAttributes || r == .callAndBundleAttributes
-  | 1, r => r == .onlyCallAttributes || r == .callAndBundleAttributes
-  | _, r => r == .onlyBundleAttributes || r == .callAndBundleAttributes
-
 /-- `CallAttributes` with every field zero: the fresh memory struct `parseAttributes` returns
 (`indirectCall` defaults to `false`, InteropAttributeParser.sol:31-32). -/
 def noCallAttributes : CallAttributes := ⟨0, 0, false⟩
@@ -318,29 +308,6 @@ def parseFrom (r : Restriction) :
 def parseAttributes (attrs : List Attribute) (r : Restriction) :
     Option (CallAttributes × BundleAttributes) :=
   parseFrom r [] (noCallAttributes, noBundleAttributes) attrs
-
-/-- The loop of the pin's `parseAttributes` (pin `InteropCenter.sol:788-867`): per attribute, the
-selector's branch (an unsupported selector reverts `UnsupportedAttribute`, pin :864-866), then
-`require(!attributeUsed[k], AttributeAlreadySet)`, then the explicit restriction disjunction
-(`pinAllowed`, `AttributeViolatesRestriction`), then `attributeUsed[k] = true` and the field writes.
-The selector-to-branch mapping is the head's `Attribute.index`. -/
-def pinParseFrom (r : Restriction) :
-    List ℕ → CallAttributes × BundleAttributes → List Attribute →
-      Option (CallAttributes × BundleAttributes)
-  | _, x, [] => some x
-  | used, x, a :: rest =>
-    match a.index with
-    | none => none
-    | some i =>
-      if i ∈ used then none
-      else if pinAllowed i r then pinParseFrom r (i :: used) (a.apply x) rest
-      else none
-
-/-- The pin's `parseAttributes(_attributes, _restriction)` (pin `InteropCenter.sol:776-868`), from
-the zero structs (`indirectCall = false`, pin :781). -/
-def pinParseAttributes (attrs : List Attribute) (r : Restriction) :
-    Option (CallAttributes × BundleAttributes) :=
-  pinParseFrom r [] (noCallAttributes, noBundleAttributes) attrs
 
 /-- `parseAtomicSend(_attributes)` (InteropAttributeParser.sol:82-96): the payload of the first
 `atomicBundle` attribute, with `isAtomic = true` (:87-93); the zero struct if there is none. -/
@@ -682,14 +649,6 @@ def saltPreimages (log : List Dispatch) : List (List UInt8) :=
 def bundleEncodings (P : Params) (log : List Dispatch) : List (List UInt8) :=
   log.map fun d => P.enc d.bundle
 
-/-! ## The pin's `sendMessage`, for comparison -/
-
-/-- The `AtomicSend` the pin's `sendMessage` passed to `_sendBundle`, in the pin's layout
-(`Contracts.InteropCenter.History.AtomicSend`): `AtomicSend({flowId: bytes32(0), lowNullifierIndex: 0,
-deadline: 0, isAtomic: false})` (pin `InteropCenter.sol:246-252`), whatever the attributes. -/
-def pinSendMessageAtomicSend (_attrs : List Attribute) : Contracts.InteropCenter.History.AtomicSend :=
-  ⟨0, 0, 0, false⟩
-
 /-! ## Witness data
 
 The toy keccak and bundle encoder of the pin model (`lastWord`, `saltWordsEncoder`), so a bundle's
@@ -752,4 +711,4 @@ def headDec (x : List UInt8) : Bundle :=
   else if x = saltWordsEncoder headWithdrawal.bundle then headWithdrawal.bundle
   else headMsg.bundle
 
-end Contracts.InteropCenter.SendAtHead
+end Contracts.InteropCenter.Send

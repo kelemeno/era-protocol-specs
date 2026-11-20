@@ -2,7 +2,7 @@
 
 Source: `contracts/interop/InteropCenter.sol` in the pinned era-contracts tree, with
 `contracts/atomic-interop/AtomicFlowManager.sol` for the leg state that `append` writes.
-Topics `SendAtHead`, `FeeState` and `FeeReentry` are pinned to later era-contracts commits
+Topics `Send`, `FeeState` and `FeeReentry` are pinned to later era-contracts commits
 instead, as their table rows and sections say.
 Only the send path is modelled: the salt mapping `isInteropBundleSaltUsed`, bundle
 formation in `_sendBundle`, `_validateAtomicBundle`, and `_dispatchBundle` →
@@ -18,7 +18,7 @@ for those exact named propositions, plus auxiliary lemmas.
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|
 | Dispatch | [Specs/Dispatch.lean](Specs/Dispatch.lean) | [Properties/Dispatch.lean](Properties/Dispatch.lean) | [Proofs/Dispatch.lean](Proofs/Dispatch.lean) |
-| SendAtHead (main `3605e82` = `70096e2ea`; `draft/v0.35.0` `b17415d20`) | [Specs/SendAtHead.lean](Specs/SendAtHead.lean) | [Properties/SendAtHead.lean](Properties/SendAtHead.lean) | [Proofs/SendAtHead.lean](Proofs/SendAtHead.lean) |
+| Send (main `3605e82` = `70096e2ea`; `draft/v0.35.0` `b17415d20`) | [Specs/Send.lean](Specs/Send.lean) | [Properties/Send.lean](Properties/Send.lean) | [Proofs/Send.lean](Proofs/Send.lean) |
 | AtomicRouting | [Specs/AtomicRouting.lean](Specs/AtomicRouting.lean) | [Properties/AtomicRouting.lean](Properties/AtomicRouting.lean) | [Proofs/AtomicRouting.lean](Proofs/AtomicRouting.lean) |
 | ClaimBinding | [Specs/ClaimBinding.lean](Specs/ClaimBinding.lean) | [Properties/ClaimBinding.lean](Properties/ClaimBinding.lean) | [Proofs/ClaimBinding.lean](Proofs/ClaimBinding.lean) |
 | FeeState (`b17415d20`) | [Specs/FeeState.lean](Specs/FeeState.lean) | [Properties/FeeState.lean](Properties/FeeState.lean) | [Proofs/FeeState.lean](Proofs/FeeState.lean) |
@@ -113,8 +113,8 @@ topic `OncePerLeg`.
     `ClaimIdentifiesOneDispatch` are needed (`ClaimIdentifiesOneDispatchNeedsBothMatches`);
     the flow match only because the statement takes no hash premise: that countermodel's
     second run uses O1 (c)'s cross-sender salt clash under a constant keccak.
-  - The head form of the headline is `SendAtHead`'s
-    `ClaimedBundleIsDispatchedOrCollision` (namespace `Contracts.InteropCenter.SendAtHead`).
+  - The head form of the headline is `Send`'s
+    `ClaimedBundleIsDispatchedOrCollision` (namespace `Contracts.InteropCenter.Send`).
   - Witnesses: `ClaimBindingWitness`, `ClaimBindingWithoutValueCheckWitness`,
     `ClaimBindingWithoutSaltCheckWitness`, `ClaimBindingNonCanonicalWitness`,
     `ClaimBindingTwoClaimsWitness`.
@@ -134,16 +134,16 @@ Source findings, reported to the maintainer of this repo, not yet confirmed upst
   wrong documentation, low severity.
 
 Neither is formalized at the attribute-parsing level in `Dispatch`; in that model such a
-bundle is a public dispatch. Topics `AtomicRouting` (at the pin) and `SendAtHead` (at head)
+bundle is a public dispatch. Topics `AtomicRouting` (at the pin) and `Send` (at head)
 model the attribute: see below.
 
-## SendAtHead: the send path at head
+## Send: the send path at head
 
 Pinned at era-contracts main `3605e82`; nothing under `l1-contracts/contracts` changed up to
 the current main `70096e2ea`. The Specs header maps every cited line to the current
 `draft/v0.35.0` head `b17415d20`, where this path differs only by reject-only checks (no pause,
 `isPeerAllowed`) and an unmodelled fee-unit counter. Namespace
-`Contracts.InteropCenter.SendAtHead`; statements are `Contracts.InteropCenter.SendAtHead.Properties.*`.
+`Contracts.InteropCenter.Send`; statements are `Contracts.InteropCenter.Send.Properties.*`.
 The namespace reuses many of the parent's names for the head model, among them `State`,
 `Dispatch`, `Params`, `AtomicSend`, `Step`, `Reach`, `init`, `Dispatch.key`, `bundleHash` and
 `Inv`, and eighteen of its headline names (for example `EachSaltDispatchesOnce`, `SolePath`,
@@ -205,7 +205,7 @@ leg-membership and source-chain checks; six checks are switches.
   (`WithoutSaltCheckABundleJoinsTwoFlows`). The clash disjunct fires
   (`BundleHashCollisionJoinsTwoFlows`).
 
-Witnesses: `SendAtHeadWitness`, `SendAtHeadStepWitness`, `SendAtHeadClaimWitness`. The clash and
+Witnesses: `SendWitness`, `SendStepWitness`, `SendClaimWitness`. The clash and
 collision disjuncts fire in `SaltClashLetsTwoSendersShareABundle`, `BundleHashClashFiresAlone`,
 `CollisionLetsForeignBytesMatchACommittedLeg`, `CollisionLetsAForeignBundleMatchACommittedLeg` and
 `BundleHashCollisionJoinsTwoFlows`. Countermodels: `WithoutSaltCheckABundleRepeats`,

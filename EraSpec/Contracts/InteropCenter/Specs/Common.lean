@@ -7,7 +7,7 @@ import EraSpec.Contracts.InteropDataEncoding.Specs.BundleHashEncoding
 
 Source: era-contracts `draft/v0.35.0` head `b17415d20`: `l1-contracts/contracts/common/Messaging.sol`
 (the structs) and `interop/InteropCenter.sol` (a bare `:N` is a line of that file). The send model
-(`Specs/SendAtHead.lean`) and the fee model (`Specs/FeeState.lean`) of this folder build on these
+(`Specs/Send.lean`) and the fee model (`Specs/FeeState.lean`) of this folder build on these
 definitions, and so does the `c67894b9` record under `History/`.
 
 **This file is definitions only.** It declares no state and no step.

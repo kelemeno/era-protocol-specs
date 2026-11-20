@@ -304,7 +304,8 @@ import EraSpec.Contracts.ChainBatchRootTree.Proofs.LogConfinement
 import EraSpec.Contracts.ChainBatchRootTree.Proofs.MessageRootLink
 
 -- Head-pinned send path: InteropCenter at main 3605e82 (= 70096e2ea) and draft/v0.35.0 b17415d20
-import EraSpec.Contracts.InteropCenter.Proofs.SendAtHead
+import EraSpec.Contracts.InteropCenter.Proofs.Send
+import EraSpec.Contracts.InteropCenter.History.Proofs.SendMessageFinding
 
 -- Mailbox request paths and the privileged L2 senders (draft/v0.35.0 at b17415d20)
 import EraSpec.Contracts.MailboxFacet.Proofs.RequestPaths
