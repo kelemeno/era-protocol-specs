@@ -3,9 +3,25 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorForward
 /-!
 # Model: who may upgrade a chain, and when
 
-Source: branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at
-commit `e561b9cc2` (2026-10-19), as for the rest of this folder. The branch moves; every
-`file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`.
+Source: era-contracts branch `draft/v0.35.0` at commit **`b17415d20`**
+(`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, 2026-11-16). Every `file:line` below is at that
+commit. Paths are relative to `l1-contracts/contracts/`.
+
+This model was first written against branch `feat/upgrade-simplification` of the zksync-era
+`contracts` repository at commit `e561b9cc2` (2026-10-19), whose registry code `draft/v0.35.0`
+took by the squash-merge `ccf00623c`. It was re-read at `b17415d20` function by function, by
+diffing every cited file from `ccf00623c`. Every modelled body is unchanged there except for
+these reject-only additions, which the model omits (see "Omitted reject-only checks"):
+`Admin._executeDiamondCut` (`state-transition/chain-deps/facets/Admin.sol:117-128`, called by
+`upgradeChainFromVersion` at :586) and `BaseZkSyncUpgrade._setVerifier`
+(`upgrades/BaseZkSyncUpgrade.sol:143-148`) refuse to leave a chain that requires its second proof
+system with a verifier outside multi-proof mode (#2628); and `UpgradeExecutorBase.forward`
+requires code at the target of a call with calldata (`governance/UpgradeExecutorBase.sol:42-44`),
+which a `forward` of the CTM's `upgradeChainFromVersion`, a call to the CTM, always has.
+`CTMUpgradeExecutor` now derives from `ProxyUpgradeExecutorBase`
+(`upgrades/registry/executors/ProxyUpgradeExecutorBase.sol`), itself an `UpgradeExecutorBase`, so
+`owner()` is still `Ownable2Step`'s. `Specs/UpgradeTimingAtV35.lean` adds the proof-system gate
+to this model.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.UpgradeTiming` and are proved in
@@ -31,84 +47,84 @@ stated and checked.
 ## Three ways to upgrade a chain
 
 1. **Directly.** Anyone calls the diamond's `Admin.upgradeChainFromVersion(_, v)`
-   (`state-transition/chain-deps/facets/Admin.sol:528-559`); the modifier admits the chain's
+   (`state-transition/chain-deps/facets/Admin.sol:559-590`); the modifier admits the chain's
    admin, its CTM and its validators (`onlyAdminOrChainTypeManagerOrValidator`,
-   `state-transition/chain-deps/facets/ZKChainBase.sol:126-131`).
+   `state-transition/chain-deps/facets/ZKChainBase.sol:127-132`).
 2. **Through the CTM.** The CTM's owner calls
    `ChainTypeManager.upgradeChainFromVersion(id, v)`
-   (`state-transition/ChainTypeManager.sol:623-626`, `onlyOwner`), which calls the diamond,
+   (`state-transition/ChainTypeManager.sol:618-621`, `onlyOwner`), which calls the diamond,
    so the diamond sees `msg.sender` = the CTM. The
    executor's `forward` of that call is this path with the executor as caller.
 3. **Through the executor.** `CTMUpgradeExecutor.upgradeChain(t, id)`
-   (`upgrades/registry/executors/CTMUpgradeExecutor.sol:87-102`):
+   (`upgrades/registry/executors/CTMUpgradeExecutor.sol:92-107`):
 
         if (msg.sender != owner() && msg.sender != CHAIN_TYPE_MANAGER.getChainAdmin(_chainId)) {
-            revert Unauthorized(msg.sender); }                                           // :88-90
-        uint256 oldProtocolVersion = _transition.oldProtocolVersion();                  // :91
-        address committed = CHAIN_TYPE_MANAGER.upgradeTransition(oldProtocolVersion);   // :94
-        if (committed != address(_transition)) { revert TransitionNotCommitted(...); }  // :95-97
-        CHAIN_TYPE_MANAGER.upgradeChainFromVersion(_chainId, oldProtocolVersion);       // :100
+            revert Unauthorized(msg.sender); }                                           // :93-95
+        uint256 oldProtocolVersion = _transition.oldProtocolVersion();                  // :96
+        address committed = CHAIN_TYPE_MANAGER.upgradeTransition(oldProtocolVersion);   // :99
+        if (committed != address(_transition)) { revert TransitionNotCommitted(...); }  // :100-102
+        CHAIN_TYPE_MANAGER.upgradeChainFromVersion(_chainId, oldProtocolVersion);       // :105
 
-   `getChainAdmin` is the diamond's `getAdmin()` (`ChainTypeManager.sol:265-267`), i.e.
+   `getChainAdmin` is the diamond's `getAdmin()` (`ChainTypeManager.sol:260-262`), i.e.
    `s.admin`. The CTM call is path 2 with the executor as the CTM's caller.
 
 ## What the diamond checks
 
-`Admin.upgradeChainFromVersion` (`Admin.sol:528-559`):
+`Admin.upgradeChainFromVersion` (`Admin.sol:559-590`):
 
     Diamond.DiamondCutData memory diamondCut = IChainTypeManager(s.chainTypeManager).upgradeCutForVersion(
-        _oldProtocolVersion);                                                         // :535-537
-    if (s.protocolVersion != _oldProtocolVersion) { revert ProtocolIdMismatch(...); } // :539-541
-    if (msg.sender != s.admin && msg.sender != s.chainTypeManager) {                  // :546
+        _oldProtocolVersion);                                                         // :566-568
+    if (s.protocolVersion != _oldProtocolVersion) { revert ProtocolIdMismatch(...); } // :570-572
+    if (msg.sender != s.admin && msg.sender != s.chainTypeManager) {                  // :577
         IServerNotifier serverNotifier = IServerNotifier(
-            IChainTypeManager(s.chainTypeManager).serverNotifierAddress());           // :547-549
-        uint256 timestamp = serverNotifier.protocolVersionToUpgradeTimestamp(s.chainId, _oldProtocolVersion); // :550
+            IChainTypeManager(s.chainTypeManager).serverNotifierAddress());           // :578-580
+        uint256 timestamp = serverNotifier.protocolVersionToUpgradeTimestamp(s.chainId, _oldProtocolVersion); // :581
         if (timestamp == 0 || block.timestamp < timestamp) {
-            revert UpgradeTimestampNotReached(timestamp, block.timestamp); }          // :551-553
+            revert UpgradeTimestampNotReached(timestamp, block.timestamp); }          // :582-584
     }
-    _executeDiamondCut(diamondCut);                                                   // :555
-    if (s.protocolVersion <= _oldProtocolVersion) { revert ProtocolIdNotGreater(); }  // :556-558
+    _executeDiamondCut(diamondCut);                                                   // :586
+    if (s.protocolVersion <= _oldProtocolVersion) { revert ProtocolIdNotGreater(); }  // :587-589
 
 The cut's init is the transition's engine running `DefaultUpgrade.upgradeFromTransition`
-(`upgrades/DefaultUpgrade.sol:30-44`), which first requires every committed batch to be
-executed (`_requireAllBatchesExecuted()`, :31, defined at `upgrades/BaseZkSyncUpgrade.sol:109-113`:
+(`upgrades/DefaultUpgrade.sol:29-43`), which first requires every committed batch to be
+executed (`_requireAllBatchesExecuted()`, :30, defined at `upgrades/BaseZkSyncUpgrade.sol:115-119`:
 `if (s.totalBatchesCommitted != s.totalBatchesExecuted) { revert NotAllBatchesExecuted(); }`),
 then runs the routing guard and the derived cuts (`ChainRouting`), and then
-`_upgradeFromCommittedObject` (:66-85), which reads
-`(newProtocolVersion, upgradeTimestamp, newRelease) = _object.upgradeTarget()` (:67) and
-passes `_upgradeTimestamp: upgradeTimestamp` (:75) to `BaseZkSyncUpgrade._upgrade`
-(`BaseZkSyncUpgrade.sol:66-102`):
+`_upgradeFromCommittedObject` (:65-84), which reads
+`(newProtocolVersion, upgradeTimestamp, newRelease) = _object.upgradeTarget()` (:66) and
+passes `_upgradeTimestamp: upgradeTimestamp` (:74) to `BaseZkSyncUpgrade._upgrade`
+(`BaseZkSyncUpgrade.sol:72-108`):
 
-    if (block.timestamp < _upgradeTimestamp) { revert TimeNotReached(...); }          // :76-78
-    bool isOnSettlementLayer = s.settlementLayer == address(0);                       // :81
+    if (block.timestamp < _upgradeTimestamp) { revert TimeNotReached(...); }          // :82-84
+    bool isOnSettlementLayer = s.settlementLayer == address(0);                       // :87
     if (!isOnSettlementLayer) {
         require(_newProtocolVersion <= IZKChain(s.settlementLayer).getProtocolVersion(),
-            SettlementLayerUpgradeMustPrecedeChainUpgrade()); }                       // :83-88
+            SettlementLayerUpgradeMustPrecedeChainUpgrade()); }                       // :89-94
 
 ## Two gates, both called `upgradeTimestamp`
 
 * **The manifest's.** `CTMTransition.upgradeTarget()` returns the manifest's
-  `upgradeTimestamp` (`upgrades/registry/objects/CTMTransition.sol:197-205`), "The earliest a
-  chain may execute its own diamond upgrade" (`upgrades/registry/RegistryTypes.sol:139`). It
+  `upgradeTimestamp` (`upgrades/registry/objects/CTMTransition.sol:218-226`), "The earliest a
+  chain may execute its own diamond upgrade" (`upgrades/registry/RegistryTypes.sol:141`). It
   is checked in the engine, so it applies to **every** path and caller.
 * **The chain's own.** `ServerNotifier.protocolVersionToUpgradeTimestamp[chainId][v]`
   (`governance/ServerNotifier.sol:32-34`), set by the chain's admin with
-  `setUpgradeTimestamp` (:113-131). It is checked in `Admin.sol:546-554` and is skipped
+  `setUpgradeTimestamp` (:113-131). It is checked in `Admin.sol:577-585` and is skipped
   when the caller is the chain's admin or its CTM.
 
 ## The schedule's deadline
 
-The manifest also pins `oldProtocolVersionDeadline` (`CTMTransition.sol:65`, getter :193-195).
+The manifest also pins `oldProtocolVersionDeadline` (`CTMTransition.sol:65`, getter :214-216).
 It does not gate upgrades. It gates batch commits on the departing version: the committer
 requires `protocolVersionIsActive(s.protocolVersion)`
 (`state-transition/chain-deps/facets/Committer.sol:85-87`), which is
-`block.timestamp <= protocolVersionDeadline(v)` (`ChainTypeManager.sol:575-577`), resolved at
-:550-563. Every `CTMTransition` constructor runs `VersionEdgeLib.requireValidEdge`
+`block.timestamp <= protocolVersionDeadline(v)` (`ChainTypeManager.sol:570-572`), resolved at
+:545-558. Every `CTMTransition` constructor runs `VersionEdgeLib.requireValidEdge`
 (`CTMTransition.sol:91-97`), which refuses a zero deadline and a deadline before the upgrade
 timestamp (`upgrades/registry/libraries/VersionEdgeLib.sol:55-62`). A replacement must keep
-the deadline (`_requireSameDeadline`, `ChainTypeManager.sol:488-494`) but may change the
+the deadline (`_requireSameDeadline`, `ChainTypeManager.sol:483-489`) but may change the
 upgrade timestamp. The owner may override the deadline with any nonzero value
-(`setProtocolVersionDeadline`, :568-571; "a past one expires the version immediately", :567).
+(`setProtocolVersionDeadline`, :563-566; "a past one expires the version immediately", :562).
 
 ## Modelling choices
 
@@ -120,27 +136,27 @@ upgrade timestamp. The owner may override the deadline with any nonzero value
   `oldProtocolVersionDeadline()` of the object at each address, fixed because the object is
   write-once (`CTMTransition.sol:48-49`). `ValidSchedule` is what the constructor's
   `requireValidEdge` establishes; it is a premise only where a result needs it. Neither it nor
-  the same-deadline check of a replacement (`_requireSameDeadline`, `ChainTypeManager.sol:488-494`)
+  the same-deadline check of a replacement (`_requireSameDeadline`, `ChainTypeManager.sol:483-489`)
   is a condition of `CStep`, so the model's commit and replacement steps admit a transition
   with any schedule. `Specs/UpgradeTimingStrong.lean` states both as premises on a run's labels
   (`Op.CommitsValidSchedule`, `Op.KeepsDeadline`).
 * **`s.chainTypeManager` is this CTM for every chain.** `DiamondInit.initialize` sets
   `s.chainTypeManager = msg.sender` (`state-transition/chain-deps/DiamondInit.sol:91`), and the
-  CTM is the deployer (`ChainTypeManager.sol:693`), so `msg.sender` is the CTM. A source search
+  CTM is the deployer (`ChainTypeManager.sol:688`), so `msg.sender` is the CTM. A source search
   at this commit finds no other writer. Code an engine or a break-glass init delegatecalls
   could rewrite it; such a chain reads its cut and its notifier from another contract and is
   a chain of another CTM, which `ChainRouting` already leaves out. This identification is
   what the exemption of the CTM rests on.
 * **One `ServerNotifier`**, the one the CTM points at (`serverNotifierAddress`,
-  `ChainTypeManager.sol:128`). Its only writer is `setUpgradeTimestamp`. The CTM owner can
-  repoint the CTM at another notifier (`setServerNotifier`, :392-396), and the notifier's
+  `ChainTypeManager.sol:125`). Its only writer is `setUpgradeTimestamp`. The CTM owner can
+  repoint the CTM at another notifier (`setServerNotifier`, :387-391), and the notifier's
   implementation can be swapped. Both are `TimedLabel.swapNotifier`, which installs an
   arbitrary schedule. The notifier's `chainTypeManager` is assumed to be this CTM.
   `upgradePreconditionChecker` (`ServerNotifier.sol:126-129`) only rejects and is omitted.
 * **The rest of the diamond's state that the gates read** (`DiamondAux`): `s.admin`,
   `s.validators`, the two batch counters, and the settlement layer's version. Its writers
-  are the chain's own operations (`acceptAdmin`, `Admin.sol:127-140`; the CTM's
-  `setValidator`, `Admin.sol:143-146`; batch commit, execute and revert; migration,
+  are the chain's own operations (`acceptAdmin`, `Admin.sol:140-153`; the CTM's
+  `setValidator`, `Admin.sol:156-159`; batch commit, execute and revert; migration,
   `Migrator.sol:238-240`), `DiamondInit` at creation (`DiamondInit.sol:119-120`), and code a
   break-glass init delegatecalls. The model makes no claim about any of them:
   `TimedLabel.setAux` rewrites a chain's `DiamondAux` arbitrarily, at any time. Genesis and
@@ -153,15 +169,17 @@ upgrade timestamp. The owner may override the deadline with any nonzero value
   read at call time; `setAux` may move it.
 * **The two owners are fixed configuration**, as in `ExecutorForward`: `ctmOwner` is
   `CHAIN_TYPE_MANAGER.owner()` and `execOwner` is the executor's own `owner()`
-  (`governance/UpgradeExecutorBase.sol:20-29`). The executor is `X.rc.self`, the CTM's address
+  (`governance/UpgradeExecutorBase.sol:23-32`). The executor is `X.rc.self`, the CTM's address
   `X.ctmProxy`.
 * **Block times** are labels' arguments. Nothing orders them along a run (a run may go
   back in time), which only adds runs.
 * **Omitted reject-only checks**, so that enabledness results here give conditions the
   source also needs, not all it needs: the release's verifier being nonzero
-  (`DefaultUpgrade.sol:68-72`), the L2 upgrade transaction's checks and the previous L2
-  upgrade being finalized (`BaseZkSyncUpgrade.sol:148-188, 245-254`), the version's
-  semver shape (:213-238), and the precondition checker.
+  (`DefaultUpgrade.sol:67-71`), the L2 upgrade transaction's checks and the previous L2
+  upgrade being finalized (`BaseZkSyncUpgrade.sol:162-202`, :259-268), the version's
+  semver shape (:227-252), the precondition checker, and the second-proof-system checks of
+  `Admin._executeDiamondCut` (`Admin.sol:121-126`) and `BaseZkSyncUpgrade._setVerifier`
+  (`BaseZkSyncUpgrade.sol:143-148`), which `Specs/UpgradeTimingAtV35.lean` models.
 * **Only registry transitions are timed.** Crossing the bootstrap edge runs pre-registry
   facets and is `ChainRouting`'s untimed `bootstrapReset`; a break-glass cut is untimed
   `arbitraryCut`.
@@ -174,11 +192,11 @@ namespace Contracts.ChainTypeManager
 /-- The schedule getters of a transition object. -/
 structure TransitionSchedule where
   /-- `upgradeTimestamp()`, which is also the second component of `upgradeTarget()`
-  (`CTMTransition.sol:197-205`): "The earliest a chain may execute its own diamond upgrade"
-  (`RegistryTypes.sol:139`). -/
+  (`CTMTransition.sol:218-226`): "The earliest a chain may execute its own diamond upgrade"
+  (`RegistryTypes.sol:141`). -/
   upgradeTimestamp : ℕ
-  /-- `oldProtocolVersionDeadline()` (`CTMTransition.sol:193-195`): "When the departing
-  version stops being usable" (`RegistryTypes.sol:138`). -/
+  /-- `oldProtocolVersionDeadline()` (`CTMTransition.sol:214-216`): "When the departing
+  version stops being usable" (`RegistryTypes.sol:140`). -/
   deadline : ℕ
 
 /-- The timed model's configuration. -/
@@ -270,25 +288,25 @@ routing part is `ChainRouting`'s transition step; the other fields are the check
 omits. -/
 structure DiamondUpgrade (T : TimedConfig) (s : TimedSys) (id : ChainId) (v : ℕ)
     (caller : Address) (τ : ℕ) (sys' : Sys) : Prop where
-  /-- `onlyAdminOrChainTypeManagerOrValidator` (`ZKChainBase.sol:126-131`). -/
+  /-- `onlyAdminOrChainTypeManagerOrValidator` (`ZKChainBase.sol:127-132`). -/
   authorized : caller = (s.aux id).admin ∨ caller = T.X.ctmProxy ∨
     (s.aux id).validators caller = true
-  /-- `s.protocolVersion == _oldProtocolVersion` (`Admin.sol:539-541`). -/
+  /-- `s.protocolVersion == _oldProtocolVersion` (`Admin.sol:570-572`). -/
   atVersion : ∃ c, s.sys.chains id = some c ∧ c.pv = v
   /-- The chain's own schedule, for callers other than its admin and its CTM
-  (`Admin.sol:546-554`). -/
+  (`Admin.sol:577-585`). -/
   notifierGate : caller ≠ (s.aux id).admin → caller ≠ T.X.ctmProxy →
     s.notifier id v ≠ 0 ∧ s.notifier id v ≤ τ
-  /-- `_requireAllBatchesExecuted()` (`DefaultUpgrade.sol:31`, `BaseZkSyncUpgrade.sol:109-113`). -/
+  /-- `_requireAllBatchesExecuted()` (`DefaultUpgrade.sol:30`, `BaseZkSyncUpgrade.sol:115-119`). -/
   batchesExecuted : (s.aux id).committed = (s.aux id).executed
-  /-- The cut lookup (`Admin.sol:535-537`), the routing guard, the derived cuts and the
+  /-- The cut lookup (`Admin.sol:566-568`), the routing guard, the derived cuts and the
   version increase: `ChainRouting`'s transition. -/
   routing : Step T.X.W s.sys (.transition id) sys'
-  /-- The manifest's schedule (`BaseZkSyncUpgrade.sol:76-78`), read from the transition the
-  cut names, `upgradeTransition[v]` (`ChainTypeManager.sol:606-612`). -/
+  /-- The manifest's schedule (`BaseZkSyncUpgrade.sol:82-84`), read from the transition the
+  cut names, `upgradeTransition[v]` (`ChainTypeManager.sol:601-607`). -/
   manifestTime : (T.sched (s.sys.ctm.ut v)).upgradeTimestamp ≤ τ
   /-- The settlement layer must already be at the target version
-  (`BaseZkSyncUpgrade.sol:81-88`). -/
+  (`BaseZkSyncUpgrade.sol:87-94`). -/
   settlementLayer : ∀ w, (s.aux id).slVersion = some w → (s.sys.edge T.X.W v).new ≤ w
 
 /-- One successful transaction. -/
@@ -297,13 +315,13 @@ inductive TimedStep (T : TimedConfig) : TimedSys → TimedLabel → TimedSys →
   | direct {s : TimedSys} {id : ChainId} {v : ℕ} {caller : Address} {τ : ℕ} {sys' : Sys} :
       DiamondUpgrade T s id v caller τ sys' →
       TimedStep T s (.upgrade id (.direct v) caller τ) { s with sys := sys' }
-  /-- `ChainTypeManager.upgradeChainFromVersion` (`ChainTypeManager.sol:623-626`): `onlyOwner`,
+  /-- `ChainTypeManager.upgradeChainFromVersion` (`ChainTypeManager.sol:618-621`): `onlyOwner`,
   then the diamond, which sees the CTM as `msg.sender`. -/
   | ctm {s : TimedSys} {id : ChainId} {v : ℕ} {caller : Address} {τ : ℕ} {sys' : Sys} :
       caller = T.ctmOwner →
       DiamondUpgrade T s id v T.X.ctmProxy τ sys' →
       TimedStep T s (.upgrade id (.ctm v) caller τ) { s with sys := sys' }
-  /-- `CTMUpgradeExecutor.upgradeChain(t, id)` (`CTMUpgradeExecutor.sol:87-102`): the caller is
+  /-- `CTMUpgradeExecutor.upgradeChain(t, id)` (`CTMUpgradeExecutor.sol:92-107`): the caller is
   the executor's owner or the chain's admin, `t` is the transition committed at its own
   `oldProtocolVersion()`, and the executor (the CTM's caller) must own the CTM. -/
   | executor {s : TimedSys} {id : ChainId} {t caller : Address} {τ : ℕ} {sys' : Sys} :
@@ -355,16 +373,16 @@ def TimedLabel.isArbitrary : TimedLabel → Prop
 
 /-! ## The departing version's deadline -/
 
-/-- `ChainTypeManager.protocolVersionDeadline(v)` (`ChainTypeManager.sol:550-563`), with `d` the
-stored overrides `protocolVersionDeadlines` (written by `setProtocolVersionDeadline`, :568-571,
-and the legacy commit, :812; zero is "not set"). `none` is `type(uint256).max`: no deadline. -/
+/-- `ChainTypeManager.protocolVersionDeadline(v)` (`ChainTypeManager.sol:545-558`), with `d` the
+stored overrides `protocolVersionDeadlines` (written by `setProtocolVersionDeadline`, :563-566,
+and the legacy commit, :807; zero is "not set"). `none` is `type(uint256).max`: no deadline. -/
 def versionDeadline (T : TimedConfig) (d : ℕ → ℕ) (s : CTM) (v : ℕ) : Option ℕ :=
   if d v ≠ 0 then some (d v)
   else if s.ut v ≠ 0 then some (T.sched (s.ut v)).deadline
   else if v = s.pv then none
   else some 0
 
-/-- `protocolVersionIsActive(v)` at block time `τ` (`ChainTypeManager.sol:575-577`): chains at
+/-- `protocolVersionIsActive(v)` at block time `τ` (`ChainTypeManager.sol:570-572`): chains at
 `v` may still commit batches (`Committer.sol:85-87`). -/
 def ProtocolVersionActive (T : TimedConfig) (d : ℕ → ℕ) (s : CTM) (v τ : ℕ) : Prop :=
   ∀ x, versionDeadline T d s v = some x → τ ≤ x

@@ -31,7 +31,9 @@ the proof file references that same named proposition. Start with:
 - [AtomicFlowManager checked proofs](EraSpec/Contracts/AtomicFlowManager/Proofs/Model.lean)
 
 The per-contract README tables link all matching topics. The environment audit
-checks proof coverage as well as axioms. Implementation correspondence remains
+checks proof coverage as well as axioms, and counts the `@[headline]`, `@[witness]` and
+`@[countermodel]` property statements separately from the untagged supporting lemmas, per contract
+folder and protocol area ([consolidation conventions](CONSOLIDATION.md)). Implementation correspondence remains
 separate in [Refinement.lean](EraSpec/Refinement.lean).
 Review the [assumption layers](ASSUMPTIONS.md) alongside these files: the axiom
 audit does not classify model choices or establish EVM/Solidity correspondence.

@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Properties.DuplicateSelectorScan
 import EraSpec.Contracts.ChainTypeManager.Proofs.LiveRouting
+import EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorCheck
 
 /-!
 # Proofs: the duplicate-selector scan is exact
@@ -259,5 +260,9 @@ theorem DuplicateScanWitness : Properties.DuplicateScanWitness := by
   refine ⟨by decide, ?_, ?_, ?_, by decide, ⟨by decide, ?_⟩,
     ⟨_, rfl, diamondCut_ok (newChainInstallations wDWorld 100) _ _ fresh_ok rfl, by decide⟩⟩
   all_goals unfold NoDuplicateScanPasses; decide
+
+theorem ScanIsTheDuplicateCheck : Properties.ScanIsTheDuplicateCheck := by
+  intro routing h
+  rw [DuplicateScanIffNodup routing h, DuplicateCheckIsExact routing]
 
 end Contracts.ChainTypeManager

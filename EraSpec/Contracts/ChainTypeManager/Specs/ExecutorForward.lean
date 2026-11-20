@@ -4,9 +4,11 @@ import EraSpec.Contracts.ProxyUpgradeRowLib.Specs.RowsCurrent
 /-!
 # Model: the CTM executor, including its owner-only `forward`
 
-Source: branch `feat/upgrade-simplification` of the zksync-era `contracts` repository at
-commit `e561b9cc2` (2026-10-19), as for the rest of this folder. Paths are relative to
-`l1-contracts/contracts/`.
+Source: era-contracts branch `draft/v0.35.0` at commit `b17415d20`. Paths are relative to
+`l1-contracts/contracts/`, and every `file:line` below is at `b17415d20`. The topic was first
+written at `e561b9cc2` (branch `feat/upgrade-simplification`) and re-read at `b17415d20`; the
+section "Re-read at `b17415d20`" says what changed. The CTM and its chains are
+`ChainRouting`'s model, which this file imports.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.ExecutorForward` and are proved in
@@ -26,31 +28,66 @@ register lists this as not modelled (`MODEL-CTM-ROUTING`: "CTM proxy implementat
 `CTMUpgradeExecutor` (`upgrades/registry/executors/CTMUpgradeExecutor.sol`):
 
     function applyInfrastructureUpgrade(IProxyUpgradeTransition _infrastructureTransition) external onlyOwner {
-        ProxyUpgradeRowLib.applyTransition(CTM_PROXY_ADMIN, _infrastructureTransition, ProxyUpgradeDomain.CTM);
-        …                                                                          // :64-67
+        _applyProxyUpgradeTransition(CTM_PROXY_ADMIN, _infrastructureTransition, ProxyUpgradeDomain.CTM,
+            address(CHAIN_TYPE_MANAGER));
+        …                                                                          // :64-72
     function applyCTMUpgrade(ICTMTransition _transition) external onlyOwner {
         address(_transition).requireCode();
         CHAIN_TYPE_MANAGER.setNewVersionUpgradeFromTransition(_transition);
         …
-        _requireTransitionApplied(_transition);                                    // :72-84
-    function upgradeChain(ICTMTransition _transition, uint256 _chainId) external { // :87-102
+        _requireTransitionApplied(_transition);                                    // :77-89
+    function upgradeChain(ICTMTransition _transition, uint256 _chainId) external { // :92-107
         … CHAIN_TYPE_MANAGER.upgradeChainFromVersion(_chainId, oldProtocolVersion);
 
-and, inherited from `governance/UpgradeExecutorBase.sol:32-46`:
+and, inherited from `governance/UpgradeExecutorBase.sol:35-55`:
 
     function forward(Call[] calldata _calls) external payable onlyOwner {
         for (uint256 i = 0; i < _calls.length; ++i) {
+            if (_calls[i].data.length != 0) {
+                ObjectAnchorLib.requireCode(_calls[i].target);
+            }
             (bool success, bytes memory returnData) = _calls[i].target.call{value: _calls[i].value}(_calls[i].data);
             if (!success) { assembly { revert(add(returnData, 0x20), mload(returnData)) } }
             emit CallForwarded(_calls[i].target, _calls[i].value, _calls[i].data);
         }
     }
 
-The contract's own description (`CTMUpgradeExecutor.sol:25-29`): "Every other owner
+The contract's own description (`CTMUpgradeExecutor.sol:26-29`): "Every other owner
 operation of the CTM (freezing a chain, moving a deadline, replacing a committed
 transition, ...) goes through the owner-gated, event-logged `forward`". `forward` is not
 restricted to the CTM: any target, any calldata, with the executor as `msg.sender`, all
 calls atomic.
+
+## Re-read at `b17415d20`
+
+`git diff e561b9cc2..b17415d20` (checked through `ccf00623c`, whose CTM and registry code is
+`e561b9cc2`'s) changes the executor in three places.
+
+* **`applyInfrastructureUpgrade` delegatecalls an engine** (#2654, `95b5c469d`). At `e561b9cc2`
+  it ran `ProxyUpgradeRowLib.applyTransition` (code and domain checks on the object, then
+  `applyRows(CTM_PROXY_ADMIN, T.rows())`); that function is deleted. Now
+  `_applyProxyUpgradeTransition` (`upgrades/registry/executors/ProxyUpgradeExecutorBase.sol:51-104`)
+  makes the same code and domain checks on the object, delegatecalls `executeUpgrade` on the
+  engine the transition's manifest names, and then re-checks the executor's ownership, the
+  domain holders and every row at its `implNew`. `XStep.infra` below is still
+  `ProxyUpgradeCurrent.ApplyTransition`, the row library's `applyRows` on the manifest's rows.
+  That is exactly the leg of a transition that pins `DefaultProxyUpgradeEngine`
+  (`upgrades/registry/engines/DefaultProxyUpgradeEngine.sol:32-47`), up to the extra checks the
+  executor and the engine now make, which only reject (`ExecutorEngineAtV35`'s
+  `DefaultEngineLegIsAnInfraStep` and `InfraStepIsADefaultEngineLeg`). A transition that pins
+  any other engine is **not** an `XStep.infra`: `ExecutorEngineAtV35` models it, over this
+  file's state. So every result below about runs with `infra` steps is about `b17415d20` runs
+  whose infrastructure transitions pin `DefaultProxyUpgradeEngine`; for other engines see
+  `ExecutorEngineAtV35`.
+* **`forward` requires code at the target of a call with calldata**
+  (`governance/UpgradeExecutorBase.sol:39-44`). This check only rejects. Every modelled
+  forwarded call goes to the CTM proxy or to `CTM_PROXY_ADMIN`, both code, so `FStep` is
+  unchanged; for liveness it is one more omitted check.
+* **The rest is unchanged:** `applyCTMUpgrade`, `upgradeChain` and `_requireTransitionApplied`
+  (`CTMUpgradeExecutor.sol:77-121`) are the `e561b9cc2` bodies five lines lower. The CTM's
+  `executeUpgrade` moved to `state-transition/ChainTypeManager.sol:626-628`. The CTM writers
+  `FCall.sys` stands for are `ChainRouting`'s; that topic's own re-pin says how they read at
+  `b17415d20`.
 
 ## Modelling choices
 
@@ -59,7 +96,7 @@ calls atomic.
   own proxy (`CHAIN_TYPE_MANAGER`).
 * **A forwarded call to the CTM** is any `ChainRouting` step (`FCall.sys`). This
   over-approximates: it admits labels the executor cannot cause (`genesis`, `migrateIn`),
-  and it includes the break-glass `executeUpgrade` (`ChainTypeManager.sol:631-633`,
+  and it includes the break-glass `executeUpgrade` (`ChainTypeManager.sol:626-628`,
   `onlyOwner`), which the executor has no fixed entry point for.
 * **A forwarded `ProxyAdmin` call** is `upgrade`/`upgradeAndCall` on the CTM domain's
   `ProxyAdmin`. On a proxy other than the CTM (`FCall.upgradeProxy`), it sets the
@@ -68,10 +105,13 @@ calls atomic.
   code the model does not know, so its version state may be anything (`c'` is
   arbitrary); the chains are left as they were.
 * **`applyInfrastructureUpgrade`** is `ProxyUpgradeCurrent.ApplyTransition` on the CTM
-  domain. If it moves the CTM proxy's implementation, the CTM's version state afterwards
+  domain: at `b17415d20`, the leg of a transition that pins `DefaultProxyUpgradeEngine` (see
+  above). If it moves the CTM proxy's implementation, the CTM's version state afterwards
   is arbitrary, as for `swapCtm`; if not, the CTM is untouched.
 * **`applyCTMUpgrade`** is the registry commit plus the executor's post-check
-  (`_requireTransitionApplied`, `:104-116`). **`upgradeChain`** is the transition step.
+  (`_requireTransitionApplied`, `CTMUpgradeExecutor.sol:109-121`). **`upgradeChain`** is the
+  transition step; its caller check and its check that the argument is the committed
+  transition (`:93-102`) only reject and are omitted.
 * **Other actors** (`XLabel.env`): `createNewChain` (Bridgehub), migration in, and
   crossing the bootstrap edge.
 * **Not modelled**: ownership transfers through `forward` (of the CTM, the `ProxyAdmin`,

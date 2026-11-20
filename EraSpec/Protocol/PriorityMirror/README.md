@@ -7,10 +7,11 @@ Mailbox facet's request and gateway paths, `InteropCenter.forwardTransactionOnGa
 `forwardedBridgeConfirmTransferResult`), `L1ChainAssetHandler.isMigrationInProgress`, the
 `DiamondProxy` freeze check and `freezeDiamond`/`unfreezeDiamond`. The model of the
 `PriorityTree` and `DynamicIncrementalMerkle` libraries is
-[`../../Contracts/MailboxFacet/Specs/PriorityTree.lean`](../../Contracts/MailboxFacet/Specs/PriorityTree.lean),
-copied from branch `origin/cov/mailbox` (commit `212f846`, pinned `d9f678900`; both libraries are
-byte-identical at `b17415d20`). That branch's statements and proofs about the library are not part
-of this topic.
+[`../../Contracts/PriorityTree/Specs/Library.lean`](../../Contracts/PriorityTree/Specs/Library.lean),
+at `b17415d20`, copied from branch `origin/cov/mailbox` (commit `212f846`). That branch's statements
+and proofs about the library are not part of this topic. Its `processBatch` is the one of
+`../../Contracts/PriorityTree/` topic `SegmentBinding` when `calculateRootPaths` is that topic's
+transcription (`LibraryProcessBatchIsSegmentBinding`).
 
 | Topic | Specification | Property statements | Checked proofs |
 |---|---|---|---|

@@ -3,44 +3,47 @@ import EraSpec.Contracts.ChainTypeManager.Specs.Enabledness
 /-!
 # Model: `CTMRelease._requireNoDuplicateSelectors`, the check behind `ReleaseWf`
 
-Source: `upgrades/registry/objects/CTMRelease.sol` on branch `feat/upgrade-simplification` at
-`e561b9cc2`, as for the rest of this folder. Paths are relative to `l1-contracts/contracts/`.
+Source: `upgrades/registry/objects/CTMRelease.sol` of era-contracts, branch `draft/v0.35.0`
+at commit `b17415d20`. Paths are relative to `l1-contracts/contracts/`, and every `file:line`
+below is at `b17415d20`. The topic was first written at `e561b9cc2` (branch
+`feat/upgrade-simplification`); `_requireNoDuplicateSelectors` and `validate()` are unchanged
+between the two, only their line numbers moved.
 
 **This file is definitions only.** The results are in
 `EraSpec.Contracts.ChainTypeManager.Properties.DuplicateSelectorCheck` and are proved in
 `EraSpec.Contracts.ChainTypeManager.Proofs.DuplicateSelectorCheck`.
 
 `CTMRelease.validate()` reads every facet's self-described selectors,
-`routing[i] = ISelfDescribingFacet(facet).selectors()` (:118), and ends with
-`_requireNoDuplicateSelectors(routing)` (:128). `Specs/Enabledness.lean` states that check's
-documented meaning as `ReleaseWf`. This topic transcribes the check itself (:186-213):
+`routing[i] = ISelfDescribingFacet(facet).selectors()` (:131), and ends with
+`_requireNoDuplicateSelectors(routing)` (:141). `Specs/Enabledness.lean` states that check's
+documented meaning as `ReleaseWf`. This topic transcribes the check itself (:234-261):
 
     function _requireNoDuplicateSelectors(bytes4[][] memory _routing) private pure {
         uint256 routingLength = _routing.length;
         uint256 total = 0;
         for (uint256 i = 0; i < routingLength; ++i) {
-            total += _routing[i].length;                                    // :193-195
+            total += _routing[i].length;                                    // :241-243
         }
-        uint256 tableSize = 2 * total + 1;                                  // :196
-        uint256[] memory table = new uint256[](tableSize);                  // :197
-        for (uint256 i = 0; i < routingLength; ++i) {                       // :198
+        uint256 tableSize = 2 * total + 1;                                  // :244
+        uint256[] memory table = new uint256[](tableSize);                  // :245
+        for (uint256 i = 0; i < routingLength; ++i) {                       // :246
             bytes4[] memory selectors = _routing[i];
             uint256 selectorsLength = selectors.length;
-            for (uint256 j = 0; j < selectorsLength; ++j) {                 // :201
-                uint256 entry = uint256(uint32(selectors[j])) + 1;          // :202
-                uint256 slot = entry % tableSize;                           // :203
-                while (table[slot] != 0) {                                  // :204
+            for (uint256 j = 0; j < selectorsLength; ++j) {                 // :249
+                uint256 entry = uint256(uint32(selectors[j])) + 1;          // :250
+                uint256 slot = entry % tableSize;                           // :251
+                while (table[slot] != 0) {                                  // :252
                     if (table[slot] == entry) {
-                        revert RegistryDuplicateSelector(selectors[j]);     // :205-207
+                        revert RegistryDuplicateSelector(selectors[j]);     // :253-255
                     }
-                    slot = (slot + 1) % tableSize;                          // :208
+                    slot = (slot + 1) % tableSize;                          // :256
                 }
-                table[slot] = entry;                                        // :210
+                table[slot] = entry;                                        // :258
             }
         }
     }
 
-The NatSpec (:186-189) says the table is an open-addressing set, that a slot holds
+The NatSpec (:234-237) says the table is an open-addressing set, that a slot holds
 `selector + 1` so zero marks it empty, and that a probe always ends at an empty slot because
 the table is never more than half full.
 
@@ -63,7 +66,7 @@ namespace Contracts.ChainTypeManager
 /-- The check's table: each slot holds `selector + 1`, or `0` if it is empty. -/
 abbrev ProbeTable := ℕ → ℕ
 
-/-- The `while` loop (:204-209) for `entry`, starting at `slot`, with `fuel` iterations left.
+/-- The `while` loop (:252-257) for `entry`, starting at `slot`, with `fuel` iterations left.
 `none` is a revert: the entry is already stored (`RegistryDuplicateSelector`), or the loop has
 run out. `some j` is the empty slot where the loop stops. -/
 def probeSlot (T : ProbeTable) (n entry : ℕ) : ℕ → ℕ → Option ℕ
@@ -73,22 +76,22 @@ def probeSlot (T : ProbeTable) (n entry : ℕ) : ℕ → ℕ → Option ℕ
     else if T slot = entry then none
     else probeSlot T n entry ((slot + 1) % n) fuel
 
-/-- One iteration of the inner loop (:202-210): probe from `entry % tableSize` with
+/-- One iteration of the inner loop (:250-258): probe from `entry % tableSize` with
 `tableSize` iterations, then store the entry in the empty slot found. -/
 def insertSelector (n : ℕ) (T : ProbeTable) (x : Selector) : Option ProbeTable :=
   (probeSlot T n (x + 1) ((x + 1) % n) n).map (fun j => upd T j (x + 1))
 
-/-- The inner loop over one facet's selectors (:201-211). -/
+/-- The inner loop over one facet's selectors (:249-259). -/
 def insertSelectors (n : ℕ) : ProbeTable → List Selector → Option ProbeTable
   | T, [] => some T
   | T, x :: xs => (insertSelector n T x).bind (fun T' => insertSelectors n T' xs)
 
-/-- The outer loop over the release's facets (:198-212). -/
+/-- The outer loop over the release's facets (:246-260). -/
 def insertRouting (n : ℕ) : ProbeTable → List (List Selector) → Option ProbeTable
   | T, [] => some T
   | T, sels :: rest => (insertSelectors n T sels).bind (fun T' => insertRouting n T' rest)
 
-/-- `total` (:192-195): the number of selectors across all facets. -/
+/-- `total` (:240-243): the number of selectors across all facets. -/
 def selectorTotal (routing : List (List Selector)) : ℕ := (routing.map List.length).sum
 
 /-- `_requireNoDuplicateSelectors(routing)` returns (`true`) rather than reverting (`false`). -/

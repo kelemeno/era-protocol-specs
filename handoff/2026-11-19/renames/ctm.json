@@ -1,0 +1,38 @@
+[
+  {
+    "old": "Contracts.ChainTypeManager.ProofGateAtV35.Properties.StepIsTheE561StepPlusTheGate",
+    "new": "Contracts.ChainTypeManager.ProofGateAtV35.Properties.StepIsTheUngatedStepPlusTheGate",
+    "kind": "renamed",
+    "justification": "Name said E561 after the base ChainRouting topic was re-pinned to b17415d20; it now means the gate-free ChainRouting step. Statement unchanged."
+  },
+  {
+    "old": "Contracts.ChainTypeManager.ProofGateAtV35.Properties.E561RunsAreRunsWithoutTheRequirement",
+    "new": "Contracts.ChainTypeManager.ProofGateAtV35.Properties.UngatedRunsAreRunsWithoutTheRequirement",
+    "kind": "renamed",
+    "justification": "Name said E561 after the base ChainRouting topic was re-pinned to b17415d20; it now means the gate-free ChainRouting step. Statement unchanged."
+  },
+  {
+    "old": "Contracts.ChainTypeManager.ProofGateAtV35.Properties.E561RunLiftWitness",
+    "new": "Contracts.ChainTypeManager.ProofGateAtV35.Properties.UngatedRunLiftWitness",
+    "kind": "renamed",
+    "justification": "Name said E561 after the base ChainRouting topic was re-pinned to b17415d20; it now means the gate-free ChainRouting step. Statement unchanged."
+  },
+  {
+    "old": "Contracts.ChainTypeManager.UpgradeTimingAtV35.Properties.TimedStepIsTheE561StepPlusTheGate",
+    "new": "Contracts.ChainTypeManager.UpgradeTimingAtV35.Properties.TimedStepIsTheUngatedStepPlusTheGate",
+    "kind": "renamed",
+    "justification": "Name said E561 after the base UpgradeTiming topic was re-pinned to b17415d20; it now means the gate-free UpgradeTiming step. Statement unchanged."
+  },
+  {
+    "old": "Contracts.ChainTypeManager.UpgradeTimingAtV35.Properties.E561TimedRunsAreRunsWithoutTheRequirement",
+    "new": "Contracts.ChainTypeManager.UpgradeTimingAtV35.Properties.UngatedTimedRunsAreRunsWithoutTheRequirement",
+    "kind": "renamed",
+    "justification": "Name said E561 after the base UpgradeTiming topic was re-pinned to b17415d20; it now means the gate-free UpgradeTiming step. Statement unchanged."
+  },
+  {
+    "old": "Contracts.ChainTypeManager.UpgradeTimingAtV35.Properties.UnflaggedChainsUpgradeAsAtE561",
+    "new": "Contracts.ChainTypeManager.UpgradeTimingAtV35.Properties.UnflaggedChainsUpgradeAsUngated",
+    "kind": "renamed",
+    "justification": "Name said E561 after the base UpgradeTiming topic was re-pinned to b17415d20; it now means the gate-free UpgradeTiming step. Statement unchanged."
+  }
+]

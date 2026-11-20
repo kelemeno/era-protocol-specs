@@ -4,8 +4,7 @@ import EraSpec.Contracts.ValidatorTimelock.Specs.Model
 # Model: the packed commit timestamps (`LibMap.Uint32Map`)
 
 **Source commit.** era-contracts `draft/v0.35.0` at **`b17415d20`**:
-`state-transition/libraries/LibMap.sol` (`LM`, byte-identical at `d9f6789`, `c67894b9` and
-`main` `70096e2ea`) and `state-transition/validators/ValidatorTimelock.sol` (`VT`).
+`state-transition/libraries/LibMap.sol` (`LM`) and `state-transition/validators/ValidatorTimelock.sol` (`VT`).
 
 **This file is definitions only.** The statements are in
 `EraSpec.Contracts.ValidatorTimelock.Properties.LibMap` and are proved in

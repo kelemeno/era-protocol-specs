@@ -1,14 +1,50 @@
 # Bridgehub
 
-Source: era-contracts `draft/v0.35.0` at commit
-**`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, files
+`L1Bridgehub` at era-contracts `draft/v0.35.0` `b17415d20`: the chain registry, settlement-layer
+bookkeeping and the two L1 → L2 request paths.
+
+## Headline guarantees
+
+The folder's real guarantees about `b17415d20`, each with every premise. They are meant to carry
+`@[headline]` (the lists after the table: `@[witness]`, `@[countermodel]`) once the tag attributes
+of `EraSpec.Core.Headline` are on this branch; they are not tagged yet. A "run"
+is any sequence of successful calls of every non-view entry point, by any callers; "reachable"
+means a run from the state `initialize` leaves on a fresh proxy. External calls (CTM, diamond,
+asset router, second bridge, message root) are inputs or assumed not to revert or write the
+Bridgehub's storage; re-entrancy is not modelled (`MODEL-BRIDGEHUB`).
+
+| Guarantee | Premises | Statement |
+|---|---|---|
+| At most one `createNewChain` / `registerAlreadyDeployedZKChain` names a chain, and none if it already has a CTM | Any run from any state | `ChainIdRegisteredOnce` |
+| A chain that settles here keeps its CTM and base token and keeps settling here | The run contains no `forwardedBridgeBurnSetSettlementLayer` for that chain (every other entry, `forwardedBridgeMint` included, allowed) | `CtmAndBaseTokenFixedWhileSettlingHere` |
+| `zkChainMap` never loses a key, and in a reachable state `get` succeeds exactly for its keys | None (the reachable-state part: reachable) | `ChainMapOnlyGrows` |
+| A registered chain's diamond address never changes | The run contains no `registerNewZKChain` for that chain | `DiamondFixedAfterRegistration` |
+| A chain's settlement layer leaves this chain only through the handler's burn hook, to a whitelisted layer, from a chain that settled here | None | `MigrationOutOnlyToWhitelisted` |
+| Every whitelisted settlement layer is this chain or settles on it | Reachable state | `WhitelistedSettlementLayersSettleHere` |
+| A direct request forwards all of `msg.value` and keeps none, deposits `mintValue` in the chain's base token, attaches exactly `mintValue` ETH for an ETH-based chain and none otherwise, and asks the chain's stored diamond to mint the same `mintValue` | The request succeeded | `DirectRequestAccounting` |
+| A two-bridges request splits `msg.value` exactly between the router and the second bridge, carries the same `mintValue` in the deposit and the Mailbox request, and uses the second bridge, above the reserved range, as L2 sender | The request succeeded | `TwoBridgesRequestAccounting` |
+| Every request goes to the nonzero diamond of a chain with a CTM and is charged in a registered asset | A run from an initialized Bridgehub without the chain asset handler's two registry writers | `RequestsReachRegisteredChains` |
+| Every write to the Bridgehub's storage was by a caller the source's modifiers admit (owner, admin, chain asset handler, CTM deployer, upgrader, the two-step handovers) | None | `RegistryWritesAuthorized` |
+| A paused Bridgehub creates no chain and serves no request | None | `PauseBlocksCreationAndRequests` |
+| `ctmAssetIdToAddress[ctmAssetIdFromAddress[m]] = m` for every CTM with an asset id | A run from an initialized Bridgehub in which every `setCTMAssetAddress` passes the CTM address as data (as `CTMDeploymentTracker` does); no two such calls of the run, for different CTMs, hash to the same asset id (a logged collision, not an injectivity premise) | `CtmAssetIdRoundTrip` |
+
+Witnesses: `RegistryRunWitness`, `HandlerRunWitness`, `RegistryStepWitness`,
+`RequestWitness`, `ChainCountLimitWitness`. Countermodels:
+`RemovedCtmStillAssignedByBridgeMint`, `BridgeMintRewritesBaseToken`,
+`HandlerEntryOverwrittenByCreate`, `HandlerRegisterReplacesDiamond`,
+`SettlementLayerOfAChainNeedNotSettleHere`, `CtmAssetIdRoundTripNeedsDiscipline`,
+`CtmAssetIdCollisionFires`, `WithoutCheckWhitelistedLayerLeaves`,
+`WithoutCurrentSLCheckBaseTokenRewritten`, `WithoutAlreadyRegisteredCheckChainReRegistered`,
+`WithoutMinAddressCheckLowSender`. The other statements are supporting lemmas.
+
+## Source
+
+era-contracts `draft/v0.35.0` at commit **`b17415d2068065a4a3e3f0e7a14a2e96f54212e5`**, files
 
 - `l1-contracts/contracts/core/bridgehub/BridgehubBase.sol`
 - `l1-contracts/contracts/core/bridgehub/L1Bridgehub.sol`
 
-The model was first written at `d9f678900e1bc8286412b78f56d4a9f443983c29`. Both files, and
-every other file the specs cite, are byte-identical at the two commits, so every
-`file:line` in the specs holds at both (`BB:` is `BridgehubBase.sol`, `L1:` is
+Every `file:line` in the specs is at that commit (`BB:` is `BridgehubBase.sol`, `L1:` is
 `L1Bridgehub.sol`). OpenZeppelin is v4.9.6 at the submodule commits `b17415d2` pins.
 
 Review `Specs/` for state, operations and assumptions, then `Properties/` for the

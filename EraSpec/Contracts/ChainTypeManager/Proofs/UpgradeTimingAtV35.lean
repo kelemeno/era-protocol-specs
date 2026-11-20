@@ -1,6 +1,7 @@
 import EraSpec.Contracts.ChainTypeManager.Properties.UpgradeTimingAtV35
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTiming
 import EraSpec.Contracts.ChainTypeManager.Proofs.ProofGateAtV35
+import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
 
 /-!
 # Proofs: who may upgrade a chain, and when, at `draft/v0.35.0`
@@ -8,7 +9,7 @@ import EraSpec.Contracts.ChainTypeManager.Proofs.ProofGateAtV35
 A v35 timed step is an `UpgradeTiming` step plus the `ProofEffect` of its routing step, so
 `ProofGateAtV35`'s two lemmas (`proofEffect_gate`, `gate_proofEffect`) give the step
 characterization. The `UpgradeTiming` results then transfer: necessary conditions through the
-projection `TimedRunIsATimedRun`, exact ones through `UnflaggedChainsUpgradeAsAtE561`. The
+projection `TimedRunIsATimedRun`, exact ones through `UnflaggedChainsUpgradeAsUngated`. The
 countermodel and the witness are concrete runs over `UpgradeTiming`'s witness configuration.
 -/
 
@@ -48,7 +49,7 @@ private lemma gate_timedEffect {T : TimedConfig} {P : ProofWorld} {s : TimedSys3
   | swapNotifier _ => exact ⟨_, TimedProofEffect.swapNotifier⟩
   | setAux _ _ => exact ⟨_, TimedProofEffect.setAux⟩
 
-theorem TimedStepIsTheE561StepPlusTheGate : Properties.TimedStepIsTheE561StepPlusTheGate := by
+theorem TimedStepIsTheUngatedStepPlusTheGate : Properties.TimedStepIsTheUngatedStepPlusTheGate := by
   intro T P s l t'
   constructor
   · rintro ⟨pr', h⟩
@@ -99,8 +100,8 @@ private lemma lift_timedEffect {T : TimedConfig} {P : ProofWorld} {s t' : TimedS
   | swapNotifier _ => exact ⟨_, TimedProofEffect.swapNotifier, hpr⟩
   | setAux _ _ => exact ⟨_, TimedProofEffect.setAux, hpr⟩
 
-theorem E561TimedRunsAreRunsWithoutTheRequirement :
-    Properties.E561TimedRunsAreRunsWithoutTheRequirement := by
+theorem UngatedTimedRunsAreRunsWithoutTheRequirement :
+    Properties.UngatedTimedRunsAreRunsWithoutTheRequirement := by
   intro T P s s' ls pr h hpr
   induction h generalizing pr with
   | nil => exact ⟨pr, TimedRun35.nil, hpr⟩
@@ -109,9 +110,9 @@ theorem E561TimedRunsAreRunsWithoutTheRequirement :
       obtain ⟨pr2, hrun, hpr2⟩ := ih pr1 hpr1
       exact ⟨pr2, TimedRun35.cons (TimedStep35.timed hs he) hrun, hpr2⟩
 
-theorem UnflaggedChainsUpgradeAsAtE561 : Properties.UnflaggedChainsUpgradeAsAtE561 := by
+theorem UnflaggedChainsUpgradeAsUngated : Properties.UnflaggedChainsUpgradeAsUngated := by
   intro T P s id path caller τ t' hreq
-  rw [TimedStepIsTheE561StepPlusTheGate T P s _ t']
+  rw [TimedStepIsTheUngatedStepPlusTheGate T P s _ t']
   refine ⟨fun h => h.1, fun h => ⟨h, ?_⟩⟩
   intro c _ hr
   exact absurd (hreq.symm.trans hr) (by decide)
@@ -344,7 +345,7 @@ theorem NotAtAnyTime : Properties.NotAtAnyTime := by
   intro P
   obtain ⟨s0, hrun, hut, hts, hc, hown, hadm, h9o, h9a, h9, h10o, h10a⟩ :=
     Contracts.ChainTypeManager.NotAtAnyTime
-  obtain ⟨pr', hrun35, hpr'⟩ := E561TimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0 s0
+  obtain ⟨pr', hrun35, hpr'⟩ := UngatedTimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0 s0
     wTimingSetup (fun _ => ⟨false, 0, 0⟩) hrun (fun _ => rfl)
   -- a v35 step from `⟨s0, pr'⟩` is an `UpgradeTiming` step from `s0`
   have proj : ∀ l s', TimedStep35 wTiming P ⟨s0, pr'⟩ (.timed l) s' → ∃ t', TimedStep wTiming s0 l t' := by
@@ -355,7 +356,7 @@ theorem NotAtAnyTime : Properties.NotAtAnyTime := by
   have lift : ∀ path caller τ, (∃ t', TimedStep wTiming s0 (.upgrade 0 path caller τ) t') →
       ∃ s', TimedStep35 wTiming P ⟨s0, pr'⟩ (.timed (.upgrade 0 path caller τ)) s' := by
     rintro path caller τ ⟨t', h⟩
-    obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsAtE561 wTiming P ⟨s0, pr'⟩ 0 path caller τ t'
+    obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsUngated wTiming P ⟨s0, pr'⟩ 0 path caller τ t'
       (hpr' 0)).mpr h
     exact ⟨_, h'⟩
   refine ⟨⟨s0, pr'⟩, hrun35, hut, hts, hc, hown, hadm, ?_, ?_, ?_, lift _ _ _ h10o, lift _ _ _ h10a⟩
@@ -503,11 +504,133 @@ theorem TimedRequirementWritersWitness : Properties.TimedRequirementWritersWitne
 theorem UnflaggedUpgradeWitness : Properties.UnflaggedUpgradeWitness := by
   intro P
   obtain ⟨s0, hrun, _, _, _, _, _, _, _, _, h10o, _⟩ := Contracts.ChainTypeManager.NotAtAnyTime
-  obtain ⟨pr', hrun35, hpr'⟩ := E561TimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0
+  obtain ⟨pr', hrun35, hpr'⟩ := UngatedTimedRunsAreRunsWithoutTheRequirement wTiming P wTimingSys0
     s0 wTimingSetup (fun _ => ⟨false, 0, 0⟩) hrun (fun _ => rfl)
   obtain ⟨t', h⟩ := h10o
-  obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsAtE561 wTiming P ⟨s0, pr'⟩ 0 (.executor 300) 2 10
+  obtain ⟨pr'', h'⟩ := (UnflaggedChainsUpgradeAsUngated wTiming P ⟨s0, pr'⟩ 0 (.executor 300) 2 10
     t' (hpr' 0)).mpr h
   exact ⟨s0, ⟨s0, pr'⟩, hrun, fun _ => rfl, hrun35, rfl, hpr', ⟨t', h⟩, ⟨_, h'⟩⟩
+
+/-! ## `UpgradeTiming`'s step results over v35 timed steps -/
+
+/-- A v35 upgrade is its `UpgradeTiming` step together with the `ProofEffect` of a transition,
+whatever the path, the caller and the time. -/
+lemma timedStep35_upgrade_iff {T : TimedConfig} {P : ProofWorld} {s s' : TimedSys35}
+    {id : ChainId} {path : UpgradePath} {caller : Address} {τ : ℕ} :
+    TimedStep35 T P s (.timed (.upgrade id path caller τ)) s' ↔
+      TimedStep T s.timed (.upgrade id path caller τ) s'.timed ∧
+      ProofEffect T.X.W P s.timed.sys s.proof (.transition id) s'.proof := by
+  constructor
+  · intro h
+    cases h with
+    | timed hs he =>
+        cases he with
+        | upgrade he' => exact ⟨hs, he'⟩
+  · rintro ⟨hs, he⟩
+    cases s'
+    exact TimedStep35.timed hs (TimedProofEffect.upgrade he)
+
+/-- The `UpgradeTiming` step of a v35 timed step. -/
+lemma timedStep35_timedStep {T : TimedConfig} {P : ProofWorld} {s s' : TimedSys35}
+    {l : TimedLabel} (h : TimedStep35 T P s (.timed l) s') : TimedStep T s.timed l s'.timed := by
+  cases h with
+  | timed hs _ => exact hs
+
+theorem UpgradeIsATransition : Properties.UpgradeIsATransition := by
+  intro T P s s' id path caller τ h
+  obtain ⟨hs, he⟩ := timedStep35_upgrade_iff.mp h
+  obtain ⟨hr, ha, hn⟩ :=
+    Contracts.ChainTypeManager.UpgradeIsATransition T s.timed s'.timed id path caller τ hs
+  exact ⟨Step35.routing hr he, ha, hn⟩
+
+theorem ManifestTimestampGates : Properties.ManifestTimestampGates :=
+  fun T _ s s' id path caller τ h =>
+    Contracts.ChainTypeManager.ManifestTimestampGates T s.timed s'.timed id path caller τ
+      (timedStep35_timedStep h)
+
+theorem EveryPathNeedsExecutedBatches : Properties.EveryPathNeedsExecutedBatches :=
+  fun T _ s s' id path caller τ h =>
+    Contracts.ChainTypeManager.EveryPathNeedsExecutedBatches T s.timed s'.timed id path caller τ
+      (timedStep35_timedStep h)
+
+theorem EveryPathNeedsTheSettlementLayerAhead :
+    Properties.EveryPathNeedsTheSettlementLayerAhead :=
+  fun T _ s s' id path caller τ w h hw =>
+    Contracts.ChainTypeManager.EveryPathNeedsTheSettlementLayerAhead T s.timed s'.timed id path
+      caller τ w (timedStep35_timedStep h) hw
+
+theorem OtherCallersNeedTheNotifier : Properties.OtherCallersNeedTheNotifier :=
+  fun T _ s s' id v caller τ h ha hc =>
+    Contracts.ChainTypeManager.OtherCallersNeedTheNotifier T s.timed s'.timed id v caller τ
+      (timedStep35_timedStep h) ha hc
+
+theorem NotifierWrittenOnlyByItsChainAdmin : Properties.NotifierWrittenOnlyByItsChainAdmin := by
+  intro T P s s' l id v h hn
+  cases h with
+  | timed hs _ =>
+      rcases Contracts.ChainTypeManager.NotifierWrittenOnlyByItsChainAdmin T _ _ _ id v hs hn with
+        ⟨caller, ts, c, hl, h1, h2, h3, h4, h5⟩ | ⟨n, hl⟩
+      · subst hl
+        exact Or.inl ⟨caller, ts, c, rfl, h1, h2, h3, h4, h5⟩
+      · subst hl
+        exact Or.inr ⟨n, rfl⟩
+  | requireSecondProofSystem _ _ _ _ _ => exact absurd rfl hn
+  | setProofSystems _ => exact absurd rfl hn
+
+theorem CtmPathIsADiamondCallByTheCtm : Properties.CtmPathIsADiamondCallByTheCtm := by
+  intro T P s s' id v caller τ
+  rw [timedStep35_upgrade_iff, timedStep35_upgrade_iff,
+    Contracts.ChainTypeManager.CtmPathIsADiamondCallByTheCtm T s.timed s'.timed id v caller τ,
+    and_assoc]
+
+theorem ExecutorPathIsACtmCallByTheExecutor : Properties.ExecutorPathIsACtmCallByTheExecutor := by
+  intro T P s s' id t caller τ
+  rw [timedStep35_upgrade_iff, timedStep35_upgrade_iff,
+    Contracts.ChainTypeManager.ExecutorPathIsACtmCallByTheExecutor T s.timed s'.timed id t caller τ]
+  simp only [and_assoc]
+
+theorem AdminAndCtmSkipTheNotifier : Properties.AdminAndCtmSkipTheNotifier := by
+  intro T P s id v caller τ n sys' pr' hc
+  rw [timedStep35_upgrade_iff, timedStep35_upgrade_iff]
+  exact and_congr
+    (Contracts.ChainTypeManager.AdminAndCtmSkipTheNotifier T s.timed id v caller τ n sys' hc)
+    Iff.rfl
+
+theorem UpgradeStaysEnabledLater : Properties.UpgradeStaysEnabledLater := by
+  intro T P s s' id path caller τ τ' h hτ
+  obtain ⟨hs, he⟩ := timedStep35_upgrade_iff.mp h
+  exact timedStep35_upgrade_iff.mpr
+    ⟨Contracts.ChainTypeManager.UpgradeStaysEnabledLater T s.timed s'.timed id path caller τ τ'
+      hs hτ, he⟩
+
+/-! ## No dead time at v35 -/
+
+/-- A v35 timed run without break-glass cuts projects to a timed run without them. -/
+private lemma timed_no_arbitrary {ls : List TimedLabel35} (hl : ∀ l ∈ ls, ¬ l.isArbitrary) :
+    ∀ l ∈ ls.flatMap TimedLabel35.timedSteps, ¬ l.isArbitrary := by
+  intro l hm
+  obtain ⟨x, hx, hlx⟩ := List.mem_flatMap.mp hm
+  cases x with
+  | timed l' =>
+      simp only [TimedLabel35.timedSteps, List.mem_singleton] at hlx
+      subst hlx
+      exact hl _ hx
+  | requireSecondProofSystem _ _ => simp [TimedLabel35.timedSteps] at hlx
+  | setProofSystems _ _ => simp [TimedLabel35.timedSteps] at hlx
+
+theorem ValidatedTimedRunsHaveNoDeadTime : Properties.ValidatedTimedRunsHaveNoDeadTime := by
+  intro T P d s s' ls hI hR hS h hl hW hV id c hc hut hd hce hsl hgate
+  obtain ⟨-, h2, h3, h4, h5⟩ := Contracts.ChainTypeManager.ValidatedTimedRunsHaveNoDeadTime T d
+    s.timed s'.timed _ hI hR hS (TimedRunIsATimedRun T P s s' ls h) (timed_no_arbitrary hl) hW hV
+    id c hc hut hd hce hsl
+  have lift : ∀ (path : UpgradePath) (caller : Address) (τ : ℕ),
+      TimedStep T s'.timed (.upgrade id path caller τ)
+        { s'.timed with sys := s'.timed.sys.crossEdge T.X.W id c } →
+      TimedStep35 T P s' (.timed (.upgrade id path caller τ))
+        ⟨{ s'.timed with sys := s'.timed.sys.crossEdge T.X.W id c },
+          upd s'.proof id ((s'.proof id).install (arrivingVerifier T.X.W P s'.timed.sys c))⟩ :=
+    fun _ _ _ hs => TimedStep35.timed hs (TimedProofEffect.upgrade (ProofEffect.transition hc hgate))
+  refine ⟨fun τ => (h2 τ).imp (fun h => h) (fun hh => ⟨lift _ _ _ hh.1, lift _ _ _ hh.2⟩), h3,
+    lift _ _ _ h4, lift _ _ _ h5⟩
 
 end Contracts.ChainTypeManager.UpgradeTimingAtV35

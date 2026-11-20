@@ -3,9 +3,8 @@ import Mathlib.Tactic
 /-!
 # Model: chains migrating between settlement layers through the chain asset handler
 
-Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`. Every
-cited file is byte-identical at `d9f678900e1bc8286412b78f56d4a9f443983c29`, against which an
-earlier draft of this model was written. Paths are relative to `l1-contracts/contracts/`; the
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`; every
+`file:line` below is at that commit. Paths are relative to `l1-contracts/contracts/`; the
 files modelled are cited as
 
 * `CAH` — `core/chain-asset-handler/ChainAssetHandlerBase.sol`,

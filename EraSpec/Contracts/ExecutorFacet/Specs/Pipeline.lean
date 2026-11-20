@@ -5,9 +5,7 @@ import EraSpec.Core.Word
 
 Source: era-contracts `draft/v0.35.0` at commit
 `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`. Paths are relative to `l1-contracts/contracts/`;
-every `file:line` below is at that commit. The model was first written at `d9f678900e1b`;
-every file cited here is byte-identical at the two commits, so the line numbers are the
-same. Abbreviations:
+every `file:line` below is at that commit. Abbreviations:
 
 * `Ex` = `state-transition/chain-deps/facets/Executor.sol`
 * `Co` = `state-transition/chain-deps/facets/Committer.sol`

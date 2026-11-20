@@ -15,6 +15,11 @@ it is pure mathematics, EVM-free, or shared by many callers.
 - `Simulation.lean`: generic forward-simulation composition and reachable-state
   safety transfer, with explicit related initial states. It supplies no concrete
   VM, Solidity, or compiler instance and does not establish progress.
+- `Headline.lean`: the `@[headline]`, `@[witness]` and `@[countermodel]` tags for
+  property statements, which `scripts/Audit.lean` counts and checks, and the predicates
+  saying which declarations are property statements, shared by `scripts/Audit.lean` and
+  `scripts/ListProperties.lean`. It contains no mathematics. See
+  [CONSOLIDATION.md](../../CONSOLIDATION.md).
 
 See the [assumption layers](../../ASSUMPTIONS.md) for the distinction between
 logical axioms, theorem premises, model boundaries, and concrete correspondence.

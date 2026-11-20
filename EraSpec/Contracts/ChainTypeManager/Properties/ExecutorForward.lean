@@ -6,6 +6,12 @@ import EraSpec.Contracts.ChainTypeManager.Specs.ExecutorForward
 Statements about `EraSpec.Contracts.ChainTypeManager.Specs.ExecutorForward`. Proofs are in
 `EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward`.
 
+**At `b17415d20`** an infrastructure step `XStep.infra` is the leg of a transition that pins
+`DefaultProxyUpgradeEngine` (see the Specs file). The run results below therefore describe
+`b17415d20` runs whose infrastructure transitions pin that engine. For a transition that pins
+another engine, the premise "no row names the CTM proxy" no longer suffices
+(`ExecutorEngineAtV35`'s `TameRunsNoLongerPreserveSysInv`); that topic states what does.
+
 ## What survives
 
 * **Forwarded calls to the CTM are ordinary runs.** A `forward` whose calls all target the

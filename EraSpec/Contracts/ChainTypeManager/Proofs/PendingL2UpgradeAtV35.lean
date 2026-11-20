@@ -1,5 +1,6 @@
 import EraSpec.Contracts.ChainTypeManager.Properties.PendingL2UpgradeAtV35
 import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingStrong
+import EraSpec.Contracts.ChainTypeManager.Proofs.UpgradeTimingAtV35
 
 /-!
 # Proofs: the pending L2 upgrade transaction, at `draft/v0.35.0`
@@ -1119,5 +1120,19 @@ theorem BreakGlassEndsDeadTime : Properties.BreakGlassEndsDeadTime := by
   have hcc : c = ⟨v030, rowsRouting (pwRows 250)⟩ := (Option.some.inj (hc.symm.trans rfl) :)
   subst hcc
   exact hna (active_of_none (by decide))
+
+end Contracts.ChainTypeManager.PendingL2UpgradeAtV35
+
+namespace Contracts.ChainTypeManager.PendingL2UpgradeAtV35
+
+/-! ## The bridge to the gated v35 timed system -/
+
+theorem PendingRunIsAGatedRunWithoutTheRequirement :
+    Properties.PendingRunIsAGatedRunWithoutTheRequirement := by
+  intro C P s s' ls pr h hpr
+  obtain ⟨ls', hrun, hls'⟩ := PendingRunIsATimedRun C s s' ls h
+  obtain ⟨pr', hrun35, hpr'⟩ :=
+    UpgradeTimingAtV35.UngatedTimedRunsAreRunsWithoutTheRequirement C.T P s.ts s'.ts ls' pr hrun hpr
+  exact ⟨ls', pr', hrun35, hpr', hls'⟩
 
 end Contracts.ChainTypeManager.PendingL2UpgradeAtV35

@@ -405,6 +405,52 @@ theorem legacy_reachable_ledger (env : LegacyEnv) {s t : State} (hw : WellFormed
       refine ⟨(transfer_preserves_ledger hwf ht).1, ?_⟩
       rw [transfer_config ht, ho]
 
+/-! ## Headlines: the deployed bridge calls on a nonlegacy token -/
+
+theorem nonlegacy_unauthorized_bridge_calls (env : LegacyEnv) {s : State}
+    {caller : Address} (hv : s.config.vault ≠ 0) (hc : caller ≠ s.config.vault)
+    (account : Address) (amount : UInt256) :
+    Properties.nonlegacy_unauthorized_bridge_calls env hv hc account amount := by
+  unfold Properties.nonlegacy_unauthorized_bridge_calls
+  rw [(nonlegacy_bridge_calls_unchanged env hv caller account amount).1,
+    (nonlegacy_bridge_calls_unchanged env hv caller account amount).2]
+  exact unauthorized_bridge_calls hc
+
+theorem nonlegacy_bridge_mint_exact (env : LegacyEnv) {s t : State}
+    {caller recipient : Address} {amount : UInt256} (hv : s.config.vault ≠ 0)
+    (h : bridgeMint env s caller recipient amount = some t) :
+    Properties.nonlegacy_bridge_mint_exact env hv h := by
+  unfold Properties.nonlegacy_bridge_mint_exact
+  rw [(nonlegacy_bridge_calls_unchanged env hv caller recipient amount).1] at h
+  obtain ⟨hc, _, hb, hsup, hother, hcfg⟩ := mint_exact h
+  exact ⟨hc, hb, hsup, hother, hcfg⟩
+
+theorem nonlegacy_bridge_burn_exact (env : LegacyEnv) {s t : State}
+    {caller owner : Address} {amount : UInt256} (hv : s.config.vault ≠ 0) (hw : WellFormed s)
+    (h : bridgeBurn env s caller owner amount = some t) :
+    Properties.nonlegacy_bridge_burn_exact env hv hw h := by
+  unfold Properties.nonlegacy_bridge_burn_exact
+  rw [(nonlegacy_bridge_calls_unchanged env hv caller owner amount).2] at h
+  obtain ⟨hc, _, hb, hsup, hother, hcfg⟩ := burn_exact hw h
+  exact ⟨hc, hb, hsup, hother, hcfg⟩
+
+theorem nonlegacy_reachable_ledger (env : LegacyEnv) {s t : State}
+    (hv : s.config.vault ≠ 0) (hw : WellFormed s) (h : LegacyReach env s t) :
+    Properties.nonlegacy_reachable_ledger env hv hw h :=
+  reachable_ledger hw ((nonlegacy_runs_agree env hv t).mp h)
+
+theorem nonlegacy_one_unit_roundtrip (env : LegacyEnv) (config : Config)
+    (account : Address) (hv : config.vault ≠ 0) (ha : account ≠ 0) :
+    Properties.nonlegacy_one_unit_roundtrip env config account hv ha := by
+  obtain ⟨hw, funded, hmint, hwf, hburn⟩ := one_unit_roundtrip config account hv ha
+  have hcfg : funded.config = config := mint_config hmint
+  have hfv : funded.config.vault ≠ 0 := by rw [hcfg]; exact hv
+  have hbm := bridgeMint_of_mint env hmint
+  refine ⟨hw, funded, hbm, LegacyReach.tail LegacyReach.refl (LegacyStep.bridgeMint hbm),
+    hwf, hfv, ?_⟩
+  rw [(nonlegacy_bridge_calls_unchanged env hfv config.vault account 1).2]
+  exact hburn
+
 /-! ## Non-vacuity -/
 
 theorem legacy_branch_witness (env : LegacyEnv) (origin account : Address)

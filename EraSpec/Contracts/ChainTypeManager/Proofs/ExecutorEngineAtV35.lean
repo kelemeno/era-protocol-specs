@@ -1,12 +1,14 @@
 import EraSpec.Contracts.ChainTypeManager.Properties.ExecutorEngineAtV35
 import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorForward
+import EraSpec.Contracts.ChainTypeManager.Proofs.ExecutorUpgradeChain
+import EraSpec.Contracts.ChainTypeManager.Proofs.ChainLocalExecutor
 import EraSpec.Contracts.ProxyUpgradeRowLib.Proofs.RowsUnvalidated
 
 /-!
 # Proofs: `applyInfrastructureUpgrade` at `draft/v0.35.0`, with an arbitrary engine
 
 A leg whose engine meets `EngineReviewed` is three `ExecutorForward` transactions: a `forward`
-of the `_beforeSwaps` calls, the `e561b9cc2` infrastructure step, and a `forward` of the
+of the `_beforeSwaps` calls, the `ExecutorForward` infrastructure step, and a `forward` of the
 `_afterSwaps` calls (`reviewed_leg`). The hook calls are tame CTM calls, so for rows that do
 not name the CTM proxy a reviewed engine is tame (`reviewed_tame`). A `b17415d20` run of tame
 transactions with tame engines maps to a tame `ExecutorForward` run (`tame_run`), and
@@ -105,7 +107,7 @@ lemma tame_toX {X : V35Config} {l : V35Label} {x : XLabel} (hl : l.toX? = some x
       simp only [V35Label.toX?, Option.some.injEq] at hl
       subst hl; trivial
 
-/-! ## A reviewed leg is an `e561b9cc2` executor run -/
+/-! ## A reviewed leg is an `ExecutorForward` executor run -/
 
 lemma reviewed_leg {X : V35Config} {T : V35Transition} {s s' : V35State}
     (hr : EngineReviewed X T) (h : V35Step X s (.infra T) s') :
@@ -772,7 +774,7 @@ theorem BeforeHookDefeatsTheSourceCheck : Properties.BeforeHookDefeatsTheSourceC
     (by show s.x.impl 5 ≠ 10; rw [h5]; decide) (by show s.x.impl 5 ≠ 11; rw [h5]; decide)
     ⟨s', hleg⟩
 
-/-! ### The `e561b9cc2` premises no longer suffice -/
+/-! ### The `ExecutorForward` premises no longer suffice -/
 
 theorem TameRunsNoLongerPreserveSysInv : Properties.TameRunsNoLongerPreserveSysInv := by
   intro hall
@@ -984,5 +986,31 @@ theorem ReviewedRunWitness : Properties.ReviewedRunWitness := by
   · trivial
   · trivial
   · exact wTAB_tame 71
+
+end Contracts.ChainTypeManager.ExecutorEngineAtV35
+
+namespace Contracts.ChainTypeManager.ExecutorEngineAtV35
+
+/-! ## `ChainLocalExecutor` and `ExecutorUpgradeChain` run results over tame-engine runs -/
+
+theorem ChainRunsItsVersionsReleaseAcrossEngineRuns :
+    Properties.ChainRunsItsVersionsReleaseAcrossEngineRuns := by
+  intro X s s' ls id hR hC hok h htame heng
+  obtain ⟨xs, hx, hxt⟩ := TameEngineRunIsATameExecutorRun X s s' ls h htame heng
+  obtain ⟨hk, hlast⟩ :=
+    Contracts.ChainTypeManager.TamePremiseImpliesChainLocal X.base s.x s'.x xs hx hxt
+  exact Contracts.ChainTypeManager.ChainRunsItsVersionsReleaseAcrossExecutorRuns X.base s.x s'.x
+    xs id hR hC hok hx hk (hlast id)
+
+theorem MisreportingSlotStaysFrozen : Properties.MisreportingSlotStaysFrozen := by
+  intro X s s' ls v hR hC hut hold h htame heng
+  obtain ⟨xs, hx, hxt⟩ := TameEngineRunIsATameExecutorRun X s s' ls h htame heng
+  obtain ⟨hu, hiff, -⟩ := Contracts.ChainTypeManager.ExecutorRunsNeedNoUpgradeChain X.base s.x s'.x
+    xs hx
+  refine Contracts.ChainTypeManager.MisreportingSlotStaysFrozen X.base s.x s'.x _ v hR hC hut hold
+    hu ?_
+  intro u hu'
+  obtain ⟨x, hx', rfl⟩ := List.mem_map.mp hu'
+  exact (hiff x).mpr (hxt x hx')
 
 end Contracts.ChainTypeManager.ExecutorEngineAtV35

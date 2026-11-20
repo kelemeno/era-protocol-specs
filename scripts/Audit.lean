@@ -31,7 +31,24 @@ quantified statement, at every universe level. Missing proofs, special-case-only
 proofs (a proof of one universe instance among them), and independently restated
 theorem conclusions are rejected. A Properties module may declare only `def`
 property statements: an `opaque` property, or a theorem, axiom or inductive type
-there, is an error, never a declaration the coverage check skips.
+there, is an error, never a declaration the coverage check skips. So is a `private`
+declaration of any kind there: `Name.isInternal` takes a private name's `_private`
+prefix for a Lean auxiliary, so the check strips that prefix first (`isUserDecl`).
+
+Property statements may carry one of the tags of `EraSpec.Core.Headline`: `@[headline]` (a real
+guarantee about era-contracts `b17415d20`), `@[witness]` (a non-vacuity witness for a headline) or
+`@[countermodel]` (a stronger reading or a dropped premise fails). The audit counts each kind
+separately, with the untagged properties (supporting lemmas), in total and per contract folder
+(`EraSpec.Contracts.<C>`) and protocol area (`EraSpec.Protocol.<A>`), so that the README headline
+indexes can be checked against it. It rejects a tag on anything but a property statement (a `def` in
+a Properties module), a statement carrying two of the tags, and a `@[headline]` in a `History` module
+or namespace (History is the record of an older commit, not a claim about `b17415d20`), and a
+`@[headline]` without a docstring (its docstring states every premise; that it states ALL of them,
+and that each headline with premises has a witness, stay review items). If the
+environment variable `ERASPEC_HEADLINES_OUT` names a file, the audit writes every tagged property to
+it, one per line: tag, folder, statement name and module, separated by tabs.
+
+The axiom findings and the tag findings are all printed before the audit fails on any of them.
 
 `scripts/audit-selftest.sh` runs this file against planted defects
 (`scripts/audit-selftest/`) and requires each to be rejected for its own reason.
@@ -53,10 +70,7 @@ formatted text, which is what removes the print-order and line-wrapping hazards.
 private def axiomsOf (n : Name) : CommandElabM (Array Name) :=
   Lean.collectAxioms n
 
-private def hasPart (part : String) : Name → Bool
-  | .anonymous => false
-  | .str parentName s => s == part || hasPart part parentName
-  | .num parentName _ => hasPart part parentName
+open EraSpec.Headline (hasNamePart isPropertiesModule isUserDecl)
 
 /-- Statements add a `Properties` namespace segment; their public proofs keep
 the original name. Removing that segment gives the required proof declaration. -/
@@ -82,6 +96,27 @@ private def kindName : ConstantInfo → String
   | .ctorInfo _ => "constructor"
   | .recInfo _ => "recursor"
 
+/-- The three classification tags of `EraSpec.Core.Headline`, with the names findings use. -/
+private def classificationTags : List (String × TagAttribute) :=
+  [("headline", EraSpec.Headline.headlineAttr), ("witness", EraSpec.Headline.witnessAttr),
+   ("countermodel", EraSpec.Headline.countermodelAttr)]
+
+/-- Every declaration carrying tag `attr`, in any imported module or in this file. -/
+private def taggedWith (env : Environment) (attr : TagAttribute) : Array Name := Id.run do
+  let mut out : Array Name := #[]
+  for i in [0:env.header.moduleNames.size] do
+    out := out ++ attr.ext.getModuleEntries env i
+  return out ++ (attr.ext.getState env).toArray
+
+/-- The folder a package module reports under: the two name components after `EraSpec`
+(`Contracts.<C>`, `Protocol.<A>`; a top-level module reports under its own name). -/
+private def folderOf (modName : Name) : String :=
+  match modName.components with
+  | _ :: a :: b :: _ :: _ => s!"{a}.{b}"
+  | _ :: a :: b :: [] => s!"{a}.{b}"
+  | _ :: a :: [] => s!"{a}"
+  | _ => s!"{modName}"
+
 run_cmd do
   let env ← getEnv
   let mut thms : Nat := 0
@@ -92,6 +127,8 @@ run_cmd do
   let mut declaredAxioms : Array Name := #[]
   let mut internalStubs : Nat := 0
   let mut properties : Nat := 0
+  -- Every property statement, with its module.
+  let mut propertyModules : NameMap Name := {}
   for (n, ci) in env.constants.toList do
     -- Restrict to constants that came from this package's modules.
     let some modIdx := env.getModuleIdxFor? n | continue
@@ -101,10 +138,16 @@ run_cmd do
     -- declaration kind is handled here, so none can bypass the coverage check by
     -- being a kind it does not look at. Internal names (`_proof_1`, …) are the
     -- auxiliaries Lean generates for a statement; the axiom check below covers them.
-    if hasPart "Properties" modName && !n.isInternal then
+    -- A `private` declaration is not internal (`isUserDecl` strips its `_private`
+    -- prefix first), and it is rejected: a property statement is public, so that its
+    -- name can be cited and its proof found.
+    if isPropertiesModule modName && isUserDecl n then
+      if isPrivateName n then
+        throwError "{privateToUserName n} in {modName} ({kindName ci}) is private: a Properties module may declare only public `def` property statements"
       match ci with
       | .defnInfo statement =>
         properties := properties + 1
+        propertyModules := propertyModules.insert n modName
         unless returnsProp statement.type do
           throwError "property {n} is not a proposition"
         let expectedProof := proofName n
@@ -170,6 +213,71 @@ run_cmd do
   logInfo m!"compiler stubs       : {internalStubs}   (internal names; no proof can use them)"
   logInfo m!"NOT clean            : {unclean.size}   (must be 0)"
   logInfo m!"NOT clean, other     : {uncleanOthers.size}   (must be 0)"
+  -- Classification tags. A tag sits on a property statement, at most one per statement, and a
+  -- `@[headline]` is never a History record.
+  let mut tagsOf : NameMap (Array String) := {}
+  for (tag, attr) in classificationTags do
+    for n in taggedWith env attr do
+      tagsOf := tagsOf.insert n (((tagsOf.find? n).getD #[]).push tag)
+  let mut tagFindings : Array MessageData := #[]
+  let mut counts : Std.HashMap String Nat := {}
+  -- folder ↦ (headline, witness, countermodel, untagged)
+  let mut byFolder : Std.HashMap String (Nat × Nat × Nat × Nat) := {}
+  let mut listing : Array String := #[]
+  for (n, tags) in tagsOf.toList do
+    match propertyModules.find? n with
+    | none =>
+      let kind := match env.find? n with
+        | some ci => kindName ci
+        | none => "unknown declaration"
+      let modName := match env.getModuleIdxFor? n with
+        | some i => s!"{env.header.moduleNames[i.toNat]?.getD .anonymous}"
+        | none => "this file"
+      tagFindings := tagFindings.push
+        m!"  MISPLACED TAG {n} ({kind} in {modName}) carries @[{tags[0]!}]: only a property statement, a `def` in a Properties module, may carry @[headline], @[witness] or @[countermodel]"
+    | some modName =>
+      if tags.size > 1 then
+        tagFindings := tagFindings.push
+          m!"  DOUBLE TAG {n} carries {tags.size} of @[headline], @[witness], @[countermodel]: {", ".intercalate (tags.toList.map (s!"@[{·}]"))}"
+      if tags.contains "headline" && (hasNamePart "History" modName || hasNamePart "History" n) then
+        tagFindings := tagFindings.push
+          m!"  HISTORY HEADLINE {n} in {modName}: a History record is not a guarantee about b17415d20 and may not carry @[headline]"
+      if tags.contains "headline" then
+        let doc := (← findDocString? env n).getD ""
+        if doc.all Char.isWhitespace then
+          tagFindings := tagFindings.push
+            m!"  HEADLINE WITHOUT DOCSTRING {n} in {modName}: a @[headline] states every premise in its docstring"
+      for tag in tags do
+        listing := listing.push s!"{tag}\t{folderOf modName}\t{n}\t{modName}"
+  for (n, modName) in propertyModules.toList do
+    let tags := (tagsOf.find? n).getD #[]
+    let (h, w, c, u) := (byFolder.get? (folderOf modName)).getD (0, 0, 0, 0)
+    let entry :=
+      if tags.size != 1 then (h, w, c, u + (if tags.isEmpty then 1 else 0))
+      else match tags[0]! with
+        | "headline" => (h + 1, w, c, u)
+        | "witness" => (h, w + 1, c, u)
+        | _ => (h, w, c + 1, u)
+    byFolder := byFolder.insert (folderOf modName) entry
+    let key := if tags.isEmpty then "untagged" else if tags.size == 1 then tags[0]! else "multiple"
+    counts := counts.insert key ((counts.getD key 0) + 1)
+  logInfo m!"headline properties  : {counts.getD "headline" 0}   (real guarantees about b17415d20)"
+  logInfo m!"witness properties   : {counts.getD "witness" 0}   (non-vacuity witnesses)"
+  logInfo m!"countermodel props   : {counts.getD "countermodel" 0}   (a stronger reading or a dropped premise fails)"
+  logInfo m!"untagged properties  : {counts.getD "untagged" 0}   (supporting lemmas)"
+  logInfo m!"tag findings         : {tagFindings.size}   (must be 0)"
+  logInfo m!"per folder           : headline / witness / countermodel / untagged"
+  let folders := byFolder.toArray.qsort (fun a b => a.1 < b.1)
+  for (folder, (h, w, c, u)) in folders do
+    logInfo m!"  FOLDER {folder} : {h} / {w} / {c} / {u}"
+  if let some path ← IO.getEnv "ERASPEC_HEADLINES_OUT" then
+    unless path.isEmpty do
+      let header := "tag\tfolder\tstatement\tmodule"
+      let lines := listing.qsort (· < ·)
+      IO.FS.writeFile path (String.intercalate "\n" (header :: lines.toList) ++ "\n")
+      logInfo m!"tagged properties written to {path}"
+  for f in tagFindings do
+    logInfo f
   for n in declaredAxioms do
     logInfo m!"  DECLARED AXIOM {n}"
   for (n, axs) in unclean do
@@ -182,3 +290,5 @@ run_cmd do
     throwError "audit failed: {uncleanOthers.size} other declaration(s) depend on non-standard axioms"
   if declaredAxioms.size > 0 then
     throwError "audit failed: {declaredAxioms.size} axiom(s) declared in EraSpec"
+  if tagFindings.size > 0 then
+    throwError "audit failed: {tagFindings.size} misplaced, doubled, History or undocumented headline tag(s)"

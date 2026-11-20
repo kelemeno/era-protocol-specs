@@ -17,7 +17,7 @@ Proofs of `EraSpec.Protocol.PriorityMirror.Properties.Mirror`.
 
 namespace Protocol.PriorityMirror
 
-open Contracts.MailboxFacet
+open Contracts.PriorityTree.Library
 
 /-! ## Library facts -/
 

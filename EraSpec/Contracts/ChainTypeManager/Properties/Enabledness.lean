@@ -33,7 +33,7 @@ claim. The negative results need no such premise.
   and no chain can be created or migrate in (`DuplicateSelectorBricksEdge`). This is reachable
   from a fresh CTM without a break-glass cut, because the model omits `validate()`. At the
   source, `_setCurrentRelease` and `CTMTransition`'s constructor refuse such a release, which is
-  the reason `CTMRelease.sol:125-127` gives.
+  the reason `CTMRelease.sol:138-140` gives.
 * **`SysInv` alone does not make the departing release well-formed**
   (`DepartingDuplicateBlocksTransition`): a chain could route an ill-formed release only if it
   started there. No run from a starting state puts it there.
@@ -140,7 +140,7 @@ Yet:
 * no chain can be created or migrate in: `DiamondInit`'s `Add` of `260`'s rows reverts in the
   same way.
 
-At the source, `_setCurrentRelease` refuses `260` (`ChainTypeManager.sol:310`), and so does the
+At the source, `_setCurrentRelease` refuses `260` (`ChainTypeManager.sol:305`), and so does the
 constructor of any `CTMTransition` arriving there (`CTMTransition.sol:74`). -/
 def Properties.DuplicateSelectorBricksEdge : Prop :=
   wEnDupWorld.Genuine 700 ∧ SysInv wEnDupWorld wEnDupSys0 ∧ RecordedReleasesWf wEnDupWorld wEnDupSys0.ctm ∧
