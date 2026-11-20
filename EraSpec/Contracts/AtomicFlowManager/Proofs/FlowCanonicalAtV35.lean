@@ -6,7 +6,7 @@ import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
 # Proofs: `_validateAndComputeFlowId` and the leg writes at `draft/v0.35.0`
 
 * The acceptance results unfold `validateV35` check by check; the canonicity results are the
-  pin's `AttackVectors.FlowCanonical` theorems applied to `AcceptedV35 → Valid`.
+  `AttackVectors.FlowCanonical` theorems applied to `AcceptedV35 → Valid`.
 * `AppendV35SomeIff`: an accepted preimage has distinct bundle hashes, so `append`'s leg search
   stops at the position that declares the leg (`legIndex_source_of_mem_zip_V35`).
 * The run results rest on one lemma per call (`stepV35_legState_V35`): a successful call leaves a
@@ -17,7 +17,7 @@ import EraSpec.Contracts.AtomicFlowManager.Proofs.Model
   run gives the backing `append` (`writtenLegAppended_V35`) and `authorizeRefund`
   (`refundedLegAuthorized_V35`) calls; two accepted preimages with one hash are equal or clash.
   The same lemma gives the at-most-once counts (`claimCount_V35`, `appendCount_V35`).
-* `RunV35IsPinLegRun`: `append` is one pin `Step.append`, the marking loop one `Step.authorize`
+* `RunV35IsPinLegRun`: `append` is one `Step.append`, the marking loop one `Step.authorize`
   per leg it marks, `claimRefund` one `Step.claim`, `requireFlowFinalized` none.
 * The witnesses are evaluated by `decide`.
 -/
@@ -73,7 +73,7 @@ theorem TooManyLegsRevertsEveryEntryPointV35 : Properties.TooManyLegsRevertsEver
   · simp [stepV35, requireFinalizedV35, hv]
   · simp [stepV35, authorizeRefundV35, hv]
 
-/-! ## The pin's canonicity results, over v35's acceptance -/
+/-! ## The `FlowCanonical` canonicity results, over v35's acceptance -/
 
 theorem AcceptedV35NoDuplicateLeg : Properties.AcceptedV35NoDuplicateLeg :=
   fun _ hp _ _ hij => AttackVectors.FlowCanonical.no_duplicate_leg hp.sorted hij
@@ -231,7 +231,7 @@ theorem AppendV35SomeIff : Properties.AppendV35SomeIff := by
     rw [hv]
     simp [h1, h2, hU]
 
-/-! ## Runs are runs of the pin's leg machine -/
+/-! ## Runs are runs of the `Model` leg machine -/
 
 lemma reachTrans_V35 {M N P : Manager} (h₁ : Contracts.AtomicFlowManager.Reach M N)
     (h₂ : Contracts.AtomicFlowManager.Reach N P) : Contracts.AtomicFlowManager.Reach M P := by
@@ -239,7 +239,7 @@ lemma reachTrans_V35 {M N P : Manager} (h₁ : Contracts.AtomicFlowManager.Reach
   | refl => exact h₁
   | tail _ hs ih => exact .tail ih hs
 
-/-- The marking loop is a sequence of the pin's `authorize` steps. -/
+/-- The marking loop is a sequence of `authorize` steps. -/
 lemma markRevertableV35_reach (id : UInt256) (legs : List UInt256) :
     ∀ M : Manager, Contracts.AtomicFlowManager.Reach M (markRevertableV35 id M legs) := by
   induction legs with
@@ -254,7 +254,7 @@ lemma markRevertableV35_reach (id : UInt256) (legs : List UInt256) :
     · simp only [ha, ↓reduceIte]
       exact ih M
 
-/-- One successful call is a run of the pin's leg machine: `append` one `Step.append`,
+/-- One successful call is a run of the `Model` leg machine: `append` one `Step.append`,
 `authorizeRefund` one `Step.authorize` per leg it marks, `claimRefund` one `Step.claim`,
 `requireFlowFinalized` none. -/
 lemma stepV35_reach_V35 {enc : PreimageHashV35} {chainId : UInt256} {M M' : Manager}

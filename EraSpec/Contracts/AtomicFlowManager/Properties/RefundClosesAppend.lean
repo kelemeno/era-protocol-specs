@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicFlowManager.Specs.RefundClosesAppend
 
 -- Named propositions are transparent definitions; proofs reference these statements.
@@ -14,7 +15,7 @@ takes a hash premise; the countermodels and the witness each exhibit one configu
 
 ## Runs
 
-A run is its calls run in order (`ChainRunIffRunCalls`), and its leg map moves as the pinned
+A run is its calls run in order (`ChainRunIffRunCalls`), and its leg map moves as the
 abstract manager `Contracts.AtomicFlowManager.Reach` (`ChainRunLegsReach`), so that machine's
 results apply to the leg map of every run here.
 
@@ -87,7 +88,7 @@ def Properties.ChainRunIffRunCalls : Prop :=
     ChainRun P K S cs S' ↔ runCalls P K S cs = some S'
 
 /-- **THE LEG MAP MOVES AS THE ABSTRACT MANAGER.**  For any checks, the leg map at the end of a
-run is reachable from the one at its start in `Contracts.AtomicFlowManager.Reach` (the pinned
+run is reachable from the one at its start in `Contracts.AtomicFlowManager.Reach` (the
 lifecycle machine of `Specs/Model.lean`): each `append` is one `append` step, each
 `authorizeRefund` one `authorize` step per leg it marks, each `claimRefund` one `claim` step, and
 the other calls leave the leg map alone. -/
@@ -122,8 +123,20 @@ def Properties.LatestNeverDecreases : Prop :=
 code from a state `S₀` whose root storage satisfies `LatestBoundsStored`: calls `pre` reach `S₁`,
 `authorizeRefund(flowId, p, i, a)` succeeds there and leaves `S₂`, and calls `post` reach `S₃`.
 In `S₃`, `append` of preimage `p` reverts, for every caller, registration answer, bundle hash and
-low-nullifier index. -/
-def Properties.AuthorizedPreimageNeverAppendedAgain : Prop :=
+low-nullifier index.
+
+Premises in words. `LatestBoundsStored`: in the root storage at the start of the run, every
+stored root's timestamp is at most its chain's `latestInteropRootTimestamp` (fresh storage and any
+storage whose stored timestamps are all zero satisfy it, and every run keeps it:
+`LatestBoundsStoredInvariant`). "Run of the deployed code": any finite sequence of successful
+calls of `initL2`, `append`, `requireFlowFinalized`, `authorizeRefund`, `claimRefund`,
+`addSingleInteropRoot` and `addInteropRootsInBatch`, by any callers, with any arguments.
+Model boundary (`MODEL-REFUND-CLOSES-APPEND`): one chain's manager `_state` and `L1_CHAIN_ID`, its
+`L2InteropRootStorage`, and the commitment tree as an abstract state; the flow-id hash, the commit
+value, the tree insert, the proof's root authentication, its last-batch check and the tree's
+non-inclusion check are free parameters (`ChainParams`), so the statement holds for every choice
+of them; the bridgehub's answers (`registered`, `peerAllowed`) are arbitrary per call. -/
+@[headline] def Properties.AuthorizedPreimageNeverAppendedAgain : Prop :=
   ∀ {τ : Type} (P : ChainParams τ) (S₀ S₁ S₂ S₃ : ChainState τ) (pre post : List ChainCall)
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof),
     LatestBoundsStored S₀.roots → ChainRun P deployed S₀ pre S₁ →
@@ -136,8 +149,20 @@ def Properties.AuthorizedPreimageNeverAppendedAgain : Prop :=
 `L1_CHAIN_ID` set (nonzero) when the refund was authorized.  In `S₃` the tracked timestamp of the
 flow's settlement layer is past `p.deadline`, and `append` of `p` by the interop center reverts
 with exactly `ManagerFlowDeadlinePassed(p.deadline, latestInteropRootTimestamp(sl))`, for every
-registration answer, bundle hash and low-nullifier index. -/
-def Properties.AuthorizedPreimageAppendHitsDeadlineGate : Prop :=
+registration answer, bundle hash and low-nullifier index.
+
+Premises in words. `LatestBoundsStored`: in the root storage at the start of the run, every
+stored root's timestamp is at most its chain's `latestInteropRootTimestamp` (fresh storage and any
+storage whose stored timestamps are all zero satisfy it, and every run keeps it:
+`LatestBoundsStoredInvariant`). "Run of the deployed code": any finite sequence of successful
+calls of `initL2`, `append`, `requireFlowFinalized`, `authorizeRefund`, `claimRefund`,
+`addSingleInteropRoot` and `addInteropRootsInBatch`, by any callers, with any arguments.
+Model boundary (`MODEL-REFUND-CLOSES-APPEND`): one chain's manager `_state` and `L1_CHAIN_ID`, its
+`L2InteropRootStorage`, and the commitment tree as an abstract state; the flow-id hash, the commit
+value, the tree insert, the proof's root authentication, its last-batch check and the tree's
+non-inclusion check are free parameters (`ChainParams`), so the statement holds for every choice
+of them; the bridgehub's answers (`registered`, `peerAllowed`) are arbitrary per call. -/
+@[headline] def Properties.AuthorizedPreimageAppendHitsDeadlineGate : Prop :=
   ∀ {τ : Type} (P : ChainParams τ) (S₀ S₁ S₂ S₃ : ChainState τ) (pre post : List ChainCall)
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof),
     LatestBoundsStored S₀.roots → ChainRun P deployed S₀ pre S₁ →
@@ -167,8 +192,20 @@ def Properties.AuthorizedFlowIdAppendRevertsOrLoggedClash : Prop :=
 
 /-- **EVERY LATER `append` IS OF A LATER DEADLINE.**  The same run, with `L1_CHAIN_ID` set when
 the refund was authorized.  Every `append` that succeeds in `S₃`, of any preimage `q`, is on the
-same settlement layer as `p` and has a deadline strictly later than `p.deadline`. -/
-def Properties.LaterAppendsHaveLaterDeadlines : Prop :=
+same settlement layer as `p` and has a deadline strictly later than `p.deadline`.
+
+Premises in words. `LatestBoundsStored`: in the root storage at the start of the run, every
+stored root's timestamp is at most its chain's `latestInteropRootTimestamp` (fresh storage and any
+storage whose stored timestamps are all zero satisfy it, and every run keeps it:
+`LatestBoundsStoredInvariant`). "Run of the deployed code": any finite sequence of successful
+calls of `initL2`, `append`, `requireFlowFinalized`, `authorizeRefund`, `claimRefund`,
+`addSingleInteropRoot` and `addInteropRootsInBatch`, by any callers, with any arguments.
+Model boundary (`MODEL-REFUND-CLOSES-APPEND`): one chain's manager `_state` and `L1_CHAIN_ID`, its
+`L2InteropRootStorage`, and the commitment tree as an abstract state; the flow-id hash, the commit
+value, the tree insert, the proof's root authentication, its last-batch check and the tree's
+non-inclusion check are free parameters (`ChainParams`), so the statement holds for every choice
+of them; the bridgehub's answers (`registered`, `peerAllowed`) are arbitrary per call. -/
+@[headline] def Properties.LaterAppendsHaveLaterDeadlines : Prop :=
   ∀ {τ : Type} (P : ChainParams τ) (S₀ S₁ S₂ S₃ : ChainState τ) (pre post : List ChainCall)
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof),
     LatestBoundsStored S₀.roots → ChainRun P deployed S₀ pre S₁ →
@@ -182,8 +219,20 @@ def Properties.LaterAppendsHaveLaterDeadlines : Prop :=
 /-- **NO LEG OF THE REFUNDED FLOW IS `Committed` AFTERWARDS, UP TO A LOGGED CLASH.**  The same
 run, from a state whose manager is fresh.  If a leg `(flowId, h)` is `Committed` in `S₃`, then
 `pre ++ post` contains a successful `append` of that leg with a preimage `q` that is not `p` and
-has `flowHash q = flowHash p`: a collision of the flow-id hash between two preimages of the run. -/
-def Properties.RefundedFlowHasNoCommittedLegOrLoggedClash : Prop :=
+has `flowHash q = flowHash p`: a collision of the flow-id hash between two preimages of the run.
+
+Premises in words. `LatestBoundsStored`: in the root storage at the start of the run, every
+stored root's timestamp is at most its chain's `latestInteropRootTimestamp` (fresh storage and any
+storage whose stored timestamps are all zero satisfy it, and every run keeps it:
+`LatestBoundsStoredInvariant`). "Run of the deployed code": any finite sequence of successful
+calls of `initL2`, `append`, `requireFlowFinalized`, `authorizeRefund`, `claimRefund`,
+`addSingleInteropRoot` and `addInteropRootsInBatch`, by any callers, with any arguments.
+Model boundary (`MODEL-REFUND-CLOSES-APPEND`): one chain's manager `_state` and `L1_CHAIN_ID`, its
+`L2InteropRootStorage`, and the commitment tree as an abstract state; the flow-id hash, the commit
+value, the tree insert, the proof's root authentication, its last-batch check and the tree's
+non-inclusion check are free parameters (`ChainParams`), so the statement holds for every choice
+of them; the bridgehub's answers (`registered`, `peerAllowed`) are arbitrary per call. -/
+@[headline] def Properties.RefundedFlowHasNoCommittedLegOrLoggedClash : Prop :=
   ∀ {τ : Type} (P : ChainParams τ) (S₀ S₁ S₂ S₃ : ChainState τ) (pre post : List ChainCall)
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof),
     S₀.legs = Contracts.AtomicFlowManager.empty → LatestBoundsStored S₀.roots →
@@ -199,8 +248,23 @@ def Properties.RefundedFlowHasNoCommittedLegOrLoggedClash : Prop :=
 is `Committed` in `S₁` is `Revertable` in `S₂`.  In every state a continuation `post` reaches, it
 is `Revertable` if `post` has no `claimRefund` of `(flowId, h)` and `Reverted` otherwise; `post`
 has at most one such claim; and while it has none, `claimRefund` of the leg succeeds whenever its
-recovery returns. -/
-def Properties.CommittedLegsBecomeClaimableOnce : Prop :=
+recovery returns.
+
+Premises in words. No `LatestBoundsStored` premise. Otherwise as the other headlines:
+`LatestBoundsStored`: in the root storage at the start of the run, every
+stored root's timestamp is at most its chain's `latestInteropRootTimestamp` (fresh storage and any
+storage whose stored timestamps are all zero satisfy it, and every run keeps it:
+`LatestBoundsStoredInvariant`). "Run of the deployed code": any finite sequence of successful
+calls of `initL2`, `append`, `requireFlowFinalized`, `authorizeRefund`, `claimRefund`,
+`addSingleInteropRoot` and `addInteropRootsInBatch`, by any callers, with any arguments.
+Model boundary (`MODEL-REFUND-CLOSES-APPEND`): one chain's manager `_state` and `L1_CHAIN_ID`, its
+`L2InteropRootStorage`, and the commitment tree as an abstract state; the flow-id hash, the commit
+value, the tree insert, the proof's root authentication, its last-batch check and the tree's
+non-inclusion check are free parameters (`ChainParams`), so the statement holds for every choice
+of them; the bridgehub's answers (`registered`, `peerAllowed`) are arbitrary per call.
+"Its recovery returns" is the model's flag on `claimRefund` that `_recoverBundle` did not
+revert (`A:262`); the recovery calls themselves are outside this model. -/
+@[headline] def Properties.CommittedLegsBecomeClaimableOnce : Prop :=
   ∀ {τ : Type} (P : ChainParams τ) (S₁ S₂ : ChainState τ) (peerAllowed : ℕ → Bool)
     (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof),
     execCall P deployed S₁ (.authorizeRefund peerAllowed flowId p i a) = some S₂ →
@@ -218,8 +282,20 @@ of the deployed code from a state with a fresh manager and `LatestBoundsStored` 
 which a leg `(flowId, h)` is `Revertable` or `Reverted`.  Then the run contains a successful
 `authorizeRefund` of `flowId` with some preimage `p`, `flowHash p = flowId`, and in every state
 reachable from `S₁` an `append` of a preimage `q` with `flowHash q = flowId` succeeds only if
-`q ≠ p`. -/
-def Properties.RevertedLegClosesFlowOrLoggedClash : Prop :=
+`q ≠ p`.
+
+Premises in words. `LatestBoundsStored`: in the root storage at the start of the run, every
+stored root's timestamp is at most its chain's `latestInteropRootTimestamp` (fresh storage and any
+storage whose stored timestamps are all zero satisfy it, and every run keeps it:
+`LatestBoundsStoredInvariant`). "Run of the deployed code": any finite sequence of successful
+calls of `initL2`, `append`, `requireFlowFinalized`, `authorizeRefund`, `claimRefund`,
+`addSingleInteropRoot` and `addInteropRootsInBatch`, by any callers, with any arguments.
+Model boundary (`MODEL-REFUND-CLOSES-APPEND`): one chain's manager `_state` and `L1_CHAIN_ID`, its
+`L2InteropRootStorage`, and the commitment tree as an abstract state; the flow-id hash, the commit
+value, the tree insert, the proof's root authentication, its last-batch check and the tree's
+non-inclusion check are free parameters (`ChainParams`), so the statement holds for every choice
+of them; the bridgehub's answers (`registered`, `peerAllowed`) are arbitrary per call. -/
+@[headline] def Properties.RevertedLegClosesFlowOrLoggedClash : Prop :=
   ∀ {τ : Type} (P : ChainParams τ) (S₀ S₁ : ChainState τ) (pre : List ChainCall),
     S₀.legs = Contracts.AtomicFlowManager.empty → LatestBoundsStored S₀.roots →
     ChainRun P deployed S₀ pre S₁ →
@@ -241,7 +317,7 @@ succeeds and leaves `S₂`; then the interop center's `append` of leg `b` of `p`
 leg is `Committed`.  The deployed code runs the same calls to the same `S₂`, and there that
 `append` reverts with `ManagerFlowDeadlinePassed`.  In the mutant, repeating the same
 `authorizeRefund` call from the new state succeeds and marks the leg `Revertable`. -/
-def Properties.WithoutDeadlineGateLegCommittedAfterRefund : Prop :=
+@[countermodel] def Properties.WithoutDeadlineGateLegCommittedAfterRefund : Prop :=
   ∃ (P : ChainParams (List Word)) (pre : List ChainCall) (S₁ S₂ S₃ S₄ : ChainState (List Word))
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof)
     (registered : ℕ → Bool) (b : Word) (idx : ℕ),
@@ -263,7 +339,7 @@ the continuation `post` imports a root with an earlier timestamp; then the inter
 `append` of leg `b` of `p` succeeds and the leg is `Committed`.  `LatestBoundsStored` fails in
 the state `post` reaches.  The deployed code runs the same calls, and there that `append`
 reverts. -/
-def Properties.LastValueLatestReadmitsAppend : Prop :=
+@[countermodel] def Properties.LastValueLatestReadmitsAppend : Prop :=
   ∃ (P : ChainParams (List Word)) (pre post : List ChainCall)
     (S₁ S₂ S₃ S₄ D₁ D₂ D₃ : ChainState (List Word))
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof)
@@ -284,7 +360,7 @@ THE `append` STILL PASSES.**  Under `unboundProofSettlementLayer`, a run from ge
 chain id is not the flow's; then the interop center's `append` of leg `b` of `p` succeeds and the
 leg is `Committed`.  The deployed code runs the same calls to `S₁`, and there that
 `authorizeRefund` reverts. -/
-def Properties.UnboundProofSettlementLayerReadmitsAppend : Prop :=
+@[countermodel] def Properties.UnboundProofSettlementLayerReadmitsAppend : Prop :=
   ∃ (P : ChainParams (List Word)) (pre : List ChainCall) (S₁ S₂ S₃ : ChainState (List Word))
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof)
     (registered : ℕ → Bool) (b : Word) (idx : ℕ),
@@ -302,7 +378,7 @@ a run from genesis reaches `S₁`; `authorizeRefund(flowId, p, i, a)` succeeds w
 timestamp equals `p.deadline`; then the interop center's `append` of leg `b` of `p` succeeds and
 the leg is `Committed`.  The deployed code runs the same calls to `S₁`, and there that
 `authorizeRefund` reverts. -/
-def Properties.NonStrictRootTimestampReadmitsAppend : Prop :=
+@[countermodel] def Properties.NonStrictRootTimestampReadmitsAppend : Prop :=
   ∃ (P : ChainParams (List Word)) (pre : List ChainCall) (S₁ S₂ S₃ : ChainState (List Word))
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof)
     (registered : ℕ → Bool) (b : Word) (idx : ℕ),
@@ -320,7 +396,7 @@ root with a nonzero timestamp above the chain's tracked timestamp (so `LatestBou
 by `LatestBoundsStoredInvariant` no run from fresh or all-zero-timestamp storage reaches it).
 From it, the deployed `authorizeRefund(flowId, p, i, a)` succeeds and then the interop center's
 `append` of leg `b` of `p` succeeds, leaving the leg `Committed`. -/
-def Properties.WithoutLatestBoundAppendAfterRefund : Prop :=
+@[countermodel] def Properties.WithoutLatestBoundAppendAfterRefund : Prop :=
   ∃ (P : ChainParams (List Word)) (S₁ S₂ S₃ : ChainState (List Word))
     (peerAllowed : ℕ → Bool) (flowId : Word) (p : FlowPreimage) (i : ℕ) (a : AbsenceProof)
     (registered : ℕ → Bool) (b : Word) (idx : ℕ),
@@ -341,7 +417,7 @@ leads to `S₁`, where `a` authenticates, `L1_CHAIN_ID` is set and `h₁` is `Co
 whose deadline is later and whose flow id differs from `p`'s; every `append` of the run is of
 `p` or `q`.  In the state `post` reaches, `h₁` is `Reverted`, `h₃` is still `Unset`, and the
 center's `append` of `h₃` reverts with `ManagerFlowDeadlinePassed`. -/
-def Properties.RefundClosesAppendWitness : Prop :=
+@[witness] def Properties.RefundClosesAppendWitness : Prop :=
   ∃ (P : ChainParams (List Word)) (pre₁ post : List ChainCall) (imp : ChainCall)
     (S₀ M S₁ S₂ S₃ M' : ChainState (List Word))
     (peerAllowed : ℕ → Bool) (flowId : Word) (p q : FlowPreimage) (i : ℕ) (a : AbsenceProof)

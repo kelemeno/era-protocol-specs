@@ -8,8 +8,7 @@ import EraSpec.Contracts.AtomicFlowManager.Specs.Model
 **Commit.** matter-labs/era-contracts, branch `draft/v0.35.0` at `b17415d20`.  Paths are relative
 to `l1-contracts/contracts/`.  `A:N` is a line of `atomic-interop/AtomicFlowManager.sol`, `P:N` of
 `atomic-interop/libraries/AtomicInteropProof.sol`, `R:N` of `interop/L2InteropRootStorage.sol`.
-The other models in this folder describe the older pin `c67894b9`, whose `append` has no time
-check; none of them is changed here.
+The leg map is the `Manager` of `Specs/Model.lean`, the folder's one leg machine.
 
 **This file is definitions only.**  Statements are in
 `EraSpec.Contracts.AtomicFlowManager.Properties.RefundClosesAppend`, proofs in
@@ -124,7 +123,7 @@ it is the step sequence "claim, then that call" (the same argument as `InteropCe
 * **One chain's state** (`ChainState`): the manager's `_state` (reusing
   `Contracts.AtomicFlowManager.Manager`) and `L1_CHAIN_ID`, the commitment tree as an abstract
   state of type `τ`, and the root storage's two mappings (`RootStore`, transcribed from
-  `L2InteropRootStorage.sol` R:32-103 at `b17415d20`, which is identical at `d9f6789`; here
+  `L2InteropRootStorage.sol` R:32-103 at `b17415d20`; here
   with `ℕ` numbers and the maximum as a switch).
 * **Every entry point that writes it**, with its guards in source order (`ChainCall`, `execCall`):
   `initL2`, `append`, `authorizeRefund`, `claimRefund`, `addSingleInteropRoot`,
@@ -177,13 +176,6 @@ Events; gas; ABI decoding (calldata is given as decoded fields); the `bytes1`/`u
 the tree's internals and its `initL2`; who the bootloader is and what it imports (any import
 sequence is a run); other chains (their managers, trees and views of the clock); upgrades of
 either contract by the complex upgrader (`OPS-CONFIG`).
-
-At `main` (`70096e2ea`) `AtomicFlowManager.sol` differs, apart from its imports (`main` imports
-`Unauthorized` from `ZKOSContractErrors.sol`), only by not having `_checkLegSourceAllowed`
-(here `LegSourceAllowed`, an extra rejecting check) and `L2InteropRootStorage.sol` only by an
-import and a comment; `AtomicInteropProof.sol` is identical.  The positive results hold for every
-`peerAllowed` answer, so they cover `main`'s `authorizeRefund` with `peerAllowed` constantly
-`true`.
 -/
 
 namespace Contracts.AtomicFlowManager.RefundClosesAppend

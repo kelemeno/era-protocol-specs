@@ -1,16 +1,22 @@
 import EraSpec.Contracts.AtomicFlowManager.Specs.FlowCanonicalAtHead
 
 /-!
-# Properties: what `_validateAndComputeFlowId` accepts, at head (`3605e82`)
+# Properties: what `_validateAndComputeFlowId` accepts, at `b17415d20`
 
 Statements about `EraSpec.Contracts.AtomicFlowManager.Specs.FlowCanonicalAtHead`; proofs in
 `EraSpec.Contracts.AtomicFlowManager.Proofs.FlowCanonicalAtHead`.
 
+The canonical model of this code is `Contracts.FlowCanonicalAtV35`. Its preimage type is a field-by-field
+copy of this topic's, and under that bijection the function, `_checkFlowId` and the acceptance condition
+are the same (`Properties.ToV35Bijective`, `Properties.ValidateAgreesWithV35`,
+`Properties.CheckFlowIdAgreesWithV35`, `Properties.AcceptedIffAcceptedV35`), so every statement below is
+also a statement about `Contracts.FlowCanonicalAtV35`'s model.
+
 ## Necessary and sufficient
 
-The pin's `AttackVectors.FlowCanonical.Valid` is the conjunction of the two checks the pin
-ran: the neighbour sort check and the length check. At head those two checks are
-unchanged and two more run before them, so:
+`AttackVectors.FlowCanonical.Valid` is the conjunction of two of the four checks: the
+neighbour sort check and the length check (the only two the older pin `c67894b9` ran). Two
+more run before them, so:
 
 * `Valid` is still **necessary** (`Properties.AcceptedPreimageIsValid`). Every
   `AttackVectors.FlowCanonical` consequence of `Valid` (no duplicated leg, a functional
@@ -26,15 +32,14 @@ unchanged and two more run before them, so:
 `_validateAndComputeFlowId`. So the flow id `append` computes for a preimage is exactly
 the id the other two accept with it (`Properties.SharedValidationNoDrift`), and a preimage
 the new checks reject is rejected on all three (`Properties.NewChecksRejectOnEveryPath`).
-This is the source's "canonicalization cannot drift" (`AtomicFlowManager.sol:345`) and the
+This is the source's "canonicalization cannot drift" (`AtomicFlowManager.sol:359`) and the
 cap's "rejected identically on the append, finalize and refund paths"
-(`IAtomicInterop.sol:97-98`), as theorems about the model.
+(`IAtomicInterop.sol:97-98`, `b17415d20`), as theorems about the model.
 
 ## Binding
 
 Two flows that pass `_checkFlowId` with one id are the same flow, or `enc` collides on
-their two preimages (`Properties.CheckedFlowsAgreeOrClash`). That is an unfolding, as for
-the pin (`ASSUMPTIONS.md`, "Recorded but without protocol content"), and so is
+their two preimages (`Properties.CheckedFlowsAgreeOrClash`). That is an unfolding (`ASSUMPTIONS.md`, "Recorded but without protocol content"), and so is
 `Properties.DifferentVersionsShareAnIdOnlyByClash`. The protocol topic
 `Protocol/InteropAtomicity` `FlowBindingAtHead` makes the same case split on two preimages
 from one run's own log, where the clash disjunct is pinned to calls of the run.
@@ -57,7 +62,7 @@ def Properties.CheckFlowIdIff : Prop :=
     CheckFlowId enc F ↔ PreimageAccepted F.preimage ∧ enc F.preimage = F.flowId
 
 /-- **`Valid` IS STILL NECESSARY.** Every preimage `_validateAndComputeFlowId` accepts passes
-the pin's two checks, `AttackVectors.FlowCanonical.Valid`. -/
+the sort and length checks, `AttackVectors.FlowCanonical.Valid`. -/
 def Properties.AcceptedPreimageIsValid : Prop :=
   ∀ (enc : PreimageHash) (P : FlowPreimage) (id : UInt256),
     validateAndComputeFlowId enc P = some id → Valid P.arrays
@@ -102,7 +107,7 @@ def Properties.SharedValidationNoDrift : Prop :=
 
 /-- **THE CAP BOUNDS THE GATE'S WORK.** An accepted preimage has at most eight legs, so
 `requireFlowFinalized`, which verifies one inclusion proof per leg
-(`AtomicFlowManager.sol:184-207`), verifies at most eight. -/
+(`AtomicFlowManager.sol:185-209`), verifies at most eight. -/
 def Properties.AcceptedHasAtMostMaxLegs : Prop :=
   ∀ P : FlowPreimage, PreimageAccepted P → P.legPairs.length ≤ MAX_ATOMIC_FLOW_LEGS
 
@@ -115,7 +120,7 @@ def Properties.AcceptedCapIsReached : Prop :=
 
 /-- **AN ACCEPTED PREIMAGE IS CANONICAL.** Its bundle hashes are distinct; the positional
 pairing loses no leg and has distinct keys; and any accepted preimage whose bundle hashes
-are a permutation of these has the very same list. These are the pin's `FlowCanonical`
+are a permutation of these has the very same list. These are the `FlowCanonical`
 consequences of `Valid`, applied through `Properties.AcceptedPreimageIsValid`. -/
 def Properties.AcceptedPreimageIsCanonical : Prop :=
   ∀ P : FlowPreimage, PreimageAccepted P →
@@ -139,14 +144,14 @@ def Properties.DeclaredLegIsListed : Prop :=
   ∀ (P : FlowPreimage) (b c : UInt256), P.Declares b c →
     b ∈ P.legBundleHashes ∧ c ∈ P.legSourceChainIds
 
-/-! ## Binding, in pinned form -/
+/-! ## Binding, with named collisions -/
 
 /-- **TWO CHECKED FLOWS WITH ONE ID ARE EQUAL, OR THEIR PREIMAGES CLASH.** -/
 def Properties.CheckedFlowsAgreeOrClash : Prop :=
   ∀ (enc : PreimageHash) (F F' : AtomicFlow), CheckFlowId enc F → CheckFlowId enc F' →
     F.flowId = F'.flowId → F = F' ∨ PreimageClash enc F.preimage F'.preimage
 
-/-- **TWO VERSIONS SHARE AN ID ONLY BY A COLLISION ON THE TWO PREIMAGES.** The pinned form
+/-- **TWO VERSIONS SHARE AN ID ONLY BY A COLLISION ON THE TWO PREIMAGES.** The named-collision form
 of the NatSpec claim that a preimage of one version can never "hash to the same `flowId`"
 under the rules of another (`IAtomicInterop.sol:86-88`): the version byte is part of the
 hashed preimage, so equal ids for different versions are a `PreimageClash`. An unfolding:
@@ -170,6 +175,31 @@ is an assumption that can hold, unlike global injectivity, which no function fro
 preimages to words satisfies. -/
 def Properties.PreimageHashInjOnSatisfiable : Prop :=
   ∀ Ps : List FlowPreimage, Ps.length < UInt256.size → ∃ enc : PreimageHash, PreimageHashInjOn enc Ps
+
+/-! ## The refinement onto `Contracts.FlowCanonicalAtV35` -/
+
+/-- **THE TWO PREIMAGE TYPES ARE ONE.** `FlowPreimage.toV35` and `PreimageV35.toHead` are inverse
+bijections between this topic's preimages and the canonical model's. -/
+def Properties.ToV35Bijective : Prop :=
+  (∀ P : FlowPreimage, P.toV35.toHead = P)
+  ∧ ∀ p : Contracts.FlowCanonicalAtV35.PreimageV35, p.toHead.toV35 = p
+
+/-- **THIS TOPIC'S `_validateAndComputeFlowId` IS THE CANONICAL MODEL'S.** For every hash and every
+preimage, `validateAndComputeFlowId` returns what `Contracts.FlowCanonicalAtV35.validateV35` returns
+on the same preimage and hash. -/
+def Properties.ValidateAgreesWithV35 : Prop :=
+  ∀ (enc : PreimageHash) (P : FlowPreimage),
+    validateAndComputeFlowId enc P = Contracts.FlowCanonicalAtV35.validateV35 enc.toV35 P.toV35
+
+/-- **THIS TOPIC'S `_checkFlowId` IS THE CANONICAL MODEL'S.** -/
+def Properties.CheckFlowIdAgreesWithV35 : Prop :=
+  ∀ (enc : PreimageHash) (F : AtomicFlow),
+    CheckFlowId enc F ↔ Contracts.FlowCanonicalAtV35.CheckFlowIdV35 enc.toV35 F.toV35
+
+/-- **THE TWO ACCEPTANCE CONDITIONS ARE ONE.** `PreimageAccepted` is
+`Contracts.FlowCanonicalAtV35.AcceptedV35` on the same preimage. -/
+def Properties.AcceptedIffAcceptedV35 : Prop :=
+  ∀ P : FlowPreimage, PreimageAccepted P ↔ Contracts.FlowCanonicalAtV35.AcceptedV35 P.toV35
 
 /-! ## Witness -/
 

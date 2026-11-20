@@ -1,4 +1,4 @@
-import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryLimitsStrong
+import EraSpec.Contracts.AtomicFlowManager.History.Specs.RecoveryLimitsStrong
 
 -- Named propositions are transparent abbreviations; proofs reference these statements.
 -- Preconditions remain parameters even when absent from the conclusion.
@@ -8,8 +8,14 @@ set_option linter.unusedVariables false
 /-!
 # Properties: recovery limits, on the manager's runs and across retries
 
-Statements about `EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryLimitsStrong`; proofs are in
-`EraSpec.Contracts.AtomicFlowManager.Proofs.RecoveryLimitsStrong`.
+**History.** This topic is the record of the loop at era-contracts `c67894b9`, which calls
+`recoverAtomicCall` on every call's `to` and reverts unless one call recovers. It is not a claim
+about `draft/v0.35.0` `b17415d20`, whose `_recoverBundle` (`AtomicFlowManager.sol:292-325`) calls
+only the asset router, discards its answer and counts nothing. The current model of that loop is
+`Contracts.AtomicFlowManager.RecoveryLimitsFaithful` (`claimRefundV35`).
+
+Statements about `EraSpec.Contracts.AtomicFlowManager.History.Specs.RecoveryLimitsStrong`; proofs are in
+`EraSpec.Contracts.AtomicFlowManager.History.Proofs.RecoveryLimitsStrong`.
 
 Each section takes a property of `EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryLimits` and ties it to the
 loop that produces the outcomes and to the manager whose leg the claim closes.  The properties there stay as they
@@ -32,7 +38,7 @@ are.
   changes.
 -/
 
-namespace Contracts.AtomicFlowManager.RecoveryLimitsStrong
+namespace Contracts.AtomicFlowManager.RecoveryLimitsStrong.History
 
 open Contracts.AssetRouter.AtomicRecovery (World Call claimRefund outcomes)
 open AttackVectors.RecoveryLimits (Outcome recoveredCount ClaimAccepted claimEnabled afterClaim)
@@ -151,4 +157,4 @@ abbrev Properties.blocked_retry_witness :=
     (legClaimRefund step M 0 0 { w with paused := false } calls).isSome = true
 
 
-end Contracts.AtomicFlowManager.RecoveryLimitsStrong
+end Contracts.AtomicFlowManager.RecoveryLimitsStrong.History

@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicFlowManager.Specs.FlowCanonicalAtV35
 
 /-!
@@ -9,9 +10,9 @@ Statements about `EraSpec.Contracts.AtomicFlowManager.Specs.FlowCanonicalAtV35` 
 premise: the results hold for every hash `enc`, and each witness names its hash.
 
 * **Acceptance.** `AcceptedV35Iff` is the exact acceptance condition: version byte `0x01`, at most
-  eight legs, and the pin's `Valid`. `ValidateV35SomeIff` and `CheckFlowIdV35Iff` tie the
-  transcription of `AtomicFlowManager.sol:348-379` to it. The pin's `Valid` is still necessary
-  (`AcceptedV35ImpliesValid`), so the pin's results of the form `Valid f → …` apply to every
+  eight legs, and `Valid`. `ValidateV35SomeIff` and `CheckFlowIdV35Iff` tie the
+  transcription of `AtomicFlowManager.sol:348-379` to it. `Valid` is still necessary
+  (`AcceptedV35ImpliesValid`), so `FlowCanonical`.s results of the form `Valid f → …` apply to every
   preimage v35 accepts; three are restated over `AcceptedV35` (`AcceptedV35NoDuplicateLeg`,
   `AcceptedV35UniquePerLegSet`, `AcceptedV35PairingFunctional`). It is no longer sufficient
   (`ValidNotSufficientVersionV35`, `ValidNotSufficientLegCapV35`).
@@ -19,7 +20,7 @@ premise: the results hold for every hash `enc`, and each witness names its hash.
   (`TooManyLegsRejectedV35`), and so make the transcribed `append`, `requireFlowFinalized` and
   `authorizeRefund` revert from every state (`TooManyLegsRevertsEveryEntryPointV35`).
 * **The leg writes** (`runV35`; model boundary `MODEL-AFM-V35`). `AppendV35SomeIff` says exactly
-  when the transcribed `append` succeeds and what it writes. Every run is a run of the pin's leg
+  when the transcribed `append` succeeds and what it writes. Every run is a run of the `Model` leg
   machine (`RunV35IsPinLegRun`), so legs only move forward (`RunV35LegRankMonotone`); a run
   claims each leg at most once and appends each leg at most once
   (`RunV35ClaimsEachLegAtMostOnce`, `RunV35AppendsEachLegAtMostOnce`).
@@ -56,36 +57,40 @@ open Contracts.AtomicFlowManager (Manager LegState)
 
 /-- **THE EXACT ACCEPTANCE CONDITION.** A preimage passes the four checks of
 `_validateAndComputeFlowId` (`AtomicFlowManager.sol:360-377`) if and only if its version byte is
-`0x01`, it has at most eight legs, and it is the pin's `Valid` (strictly ascending bundle hashes,
+`0x01`, it has at most eight legs, and it is `Valid` (strictly ascending bundle hashes,
 as many source chains as legs). -/
 def Properties.AcceptedV35Iff : Prop :=
   ∀ p : PreimageV35, AcceptedV35 p ↔
     p.version = ATOMIC_FLOW_PREIMAGE_VERSION_V35
       ∧ p.legBundleHashes.length ≤ MAX_ATOMIC_FLOW_LEGS_V35 ∧ Valid p.arrays
 
-/-- **`Valid` IS STILL NECESSARY.** Every preimage v35 accepts passes the pin's two checks
+/-- **`Valid` IS STILL NECESSARY.** Every preimage v35 accepts passes the sort and length checks
 (`AtomicFlowManager.sol:370-377`). -/
 def Properties.AcceptedV35ImpliesValid : Prop :=
   ∀ p : PreimageV35, AcceptedV35 p → Valid p.arrays
 
 /-- **`Valid` IS NOT SUFFICIENT: THE VERSION BYTE.** Some preimage with at most eight legs passes
-the pin's checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for every hash
+the sort and length checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for every hash
 (`:361-363`). -/
-def Properties.ValidNotSufficientVersionV35 : Prop :=
+@[countermodel] def Properties.ValidNotSufficientVersionV35 : Prop :=
   ∃ p : PreimageV35, Valid p.arrays ∧ p.legBundleHashes.length ≤ MAX_ATOMIC_FLOW_LEGS_V35
     ∧ ¬ AcceptedV35 p ∧ ∀ enc : PreimageHashV35, validateV35 enc p = none
 
 /-- **`Valid` IS NOT SUFFICIENT: THE LEG CAP.** Some preimage with version byte `0x01` and nine
-legs passes the pin's checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for
+legs passes the sort and length checks and is rejected at v35: `_validateAndComputeFlowId` reverts on it for
 every hash (`:367-369`). -/
-def Properties.ValidNotSufficientLegCapV35 : Prop :=
+@[countermodel] def Properties.ValidNotSufficientLegCapV35 : Prop :=
   ∃ p : PreimageV35, Valid p.arrays ∧ p.version = ATOMIC_FLOW_PREIMAGE_VERSION_V35
     ∧ p.legBundleHashes.length = MAX_ATOMIC_FLOW_LEGS_V35 + 1
     ∧ ¬ AcceptedV35 p ∧ ∀ enc : PreimageHashV35, validateV35 enc p = none
 
-/-- **THE TRANSCRIPTION MEANS WHAT IT SAYS.** `validateV35` returns `id` exactly when the
-preimage is accepted and its hash is `id` (`AtomicFlowManager.sol:360-379`). -/
-def Properties.ValidateV35SomeIff : Prop :=
+/-- **`_validateAndComputeFlowId` RETURNS `id` EXACTLY ON AN ACCEPTED PREIMAGE HASHING TO `id`.**
+At `b17415d20` (`AtomicFlowManager.sol:360-379`), for every hash `enc` and preimage `p`, the function
+returns `id` (does not revert) if and only if the version byte is `0x01`, there are at most eight
+legs, the bundle hashes are strictly ascending, there are as many source chains as legs
+(`AcceptedV35`), and `enc p = id`. Premise: none; `enc` stands for `keccak256(abi.encode(p))` and is
+any function. -/
+@[headline] def Properties.ValidateV35SomeIff : Prop :=
   ∀ (enc : PreimageHashV35) (p : PreimageV35) (id : UInt256),
     validateV35 enc p = some id ↔ AcceptedV35 p ∧ enc p = id
 
@@ -104,10 +109,12 @@ def Properties.TooManyLegsRejectedV35 : Prop :=
     MAX_ATOMIC_FLOW_LEGS_V35 < p.legBundleHashes.length → validateV35 enc p = none
 
 /-- **MORE THAN EIGHT LEGS: THE THREE ENTRY POINTS THAT TAKE A PREIMAGE REVERT.** For every hash,
-chain, manager state and every other argument, the transcribed `append` (`:104-173`),
-`requireFlowFinalized` (`:176-213`) and `authorizeRefund` (`:216-247`) revert on a preimage with
-more than eight legs. -/
-def Properties.TooManyLegsRevertsEveryEntryPointV35 : Prop :=
+chain, `_state` and every other argument, `append` (`:104-173`), `requireFlowFinalized`
+(`:176-213`) and `authorizeRefund` (`:216-247`) revert on a preimage with more than eight legs.
+Premises: the preimage has more than eight bundle hashes. Model boundary (`MODEL-AFM-V35`): the
+entry points are transcribed up to checks that only revert, so a transcribed revert is a deployed
+revert. -/
+@[headline] def Properties.TooManyLegsRevertsEveryEntryPointV35 : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M : Manager) (p : PreimageV35),
     MAX_ATOMIC_FLOW_LEGS_V35 < p.legBundleHashes.length →
       ∀ (h id e : UInt256) (k : ℕ),
@@ -115,7 +122,7 @@ def Properties.TooManyLegsRevertsEveryEntryPointV35 : Prop :=
         stepV35 enc chainId M (.requireFinalized e ⟨id, p⟩) = none ∧
         stepV35 enc chainId M (.authorizeRefund ⟨id, p⟩ k) = none
 
-/-! ## The pin's canonicity results, over v35's acceptance -/
+/-! ## The `FlowCanonical` canonicity results, over v35's acceptance -/
 
 /-- **NO DUPLICATED LEG.** Distinct positions of an accepted preimage carry distinct bundle
 hashes: the neighbour scan (`:370-374`) lifts to all pairs. -/
@@ -150,8 +157,8 @@ def Properties.AppendV35SomeIff : Prop :=
         M.legState (enc p) h = .Unset ∧ M' = M.set (enc p) h .Committed
 
 /-- **EVERY RUN IS A RUN OF THE PIN'S LEG MACHINE.** For every hash, chain, starting state `M₀`
-and successful run ending in `M`, `M` is reachable from `M₀` in the pin's
-`Contracts.AtomicFlowManager.Reach`. So every result of the pin's `Model` topic that takes a
+and successful run ending in `M`, `M` is reachable from `M₀` in
+`Contracts.AtomicFlowManager.Reach`. So every result of the `Model` topic that takes a
 `Reach` premise (`reach_rank_mono`, `reverted_absorbing`, `no_double_claim`,
 `no_double_append`) applies to every run here, with the run's start and end states as the two
 ends of that `Reach`. -/
@@ -161,26 +168,39 @@ def Properties.RunV35IsPinLegRun : Prop :=
 
 /-- **NO LEG MOVES BACKWARD IN A RUN.** For every hash, chain, starting state `M₀` and successful
 run ending in `M`, every leg's rank (`Unset` 0, `Committed` 1, `Revertable` 2, `Reverted` 3) in
-`M` is at least its rank in `M₀` (the pin's `reach_rank_mono`, through `RunV35IsPinLegRun`). -/
+`M` is at least its rank in `M₀` (`Model`.s `reach_rank_mono`, through `RunV35IsPinLegRun`). -/
 def Properties.RunV35LegRankMonotone : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35),
     runV35 enc chainId M₀ calls = some M → ∀ id h : UInt256,
       Contracts.AtomicFlowManager.rank (M₀.legState id h) ≤
         Contracts.AtomicFlowManager.rank (M.legState id h)
 
-/-- **EACH LEG IS CLAIMED AT MOST ONCE IN A RUN.** For every hash, chain, starting state and
-successful run, and every leg `(id, h)`: the run has at most one call `claimRefund(id, h)`, and
-none if the leg is `Reverted` at the start. -/
-def Properties.RunV35ClaimsEachLegAtMostOnce : Prop :=
+/-- **EACH LEG IS CLAIMED AT MOST ONCE IN A RUN.** In every successful run, every leg `(id, h)` has
+at most one `claimRefund(id, h)`, and none if the leg is `Reverted` at the start.
+Premises: the hash `keccak256(abi.encode(preimage))` is any function `enc`; `chainId` is this
+chain's `block.chainid`; `M₀` is any `_state`; the calls are any successful calls of `append`,
+`requireFlowFinalized`, `authorizeRefund` and `claimRefund`, in any order (`runV35`). Model
+boundary (`MODEL-AFM-V35`): each entry point is transcribed with its flow-id and leg checks and
+its `_state` write; the checks it leaves out (caller, settlement layer, deadline gate,
+registration, proofs, receive filter) only revert, so every successful run of the deployed
+entry points is a run here, and a call that re-enters the manager appears as its own later call. -/
+@[headline] def Properties.RunV35ClaimsEachLegAtMostOnce : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35),
     runV35 enc chainId M₀ calls = some M → ∀ id h : UInt256,
       calls.count (.claimRefund id h) ≤ 1 ∧
         (M₀.legState id h = .Reverted → calls.count (.claimRefund id h) = 0)
 
-/-- **EACH LEG IS APPENDED AT MOST ONCE IN A RUN.** For every hash, chain, starting state and
-successful run, and every leg `(id, h)`: at most one call of the run is an `append(h, p)` with
-`enc p = id`, and none if the leg is not `Unset` at the start. -/
-def Properties.RunV35AppendsEachLegAtMostOnce : Prop :=
+/-- **EACH LEG IS APPENDED AT MOST ONCE IN A RUN.** In every successful run, for every leg
+`(id, h)`, at most one call is an `append(h, p)` with `enc p = id`, and none if the leg is not
+`Unset` at the start.
+Premises: the hash `keccak256(abi.encode(preimage))` is any function `enc`; `chainId` is this
+chain's `block.chainid`; `M₀` is any `_state`; the calls are any successful calls of `append`,
+`requireFlowFinalized`, `authorizeRefund` and `claimRefund`, in any order (`runV35`). Model
+boundary (`MODEL-AFM-V35`): each entry point is transcribed with its flow-id and leg checks and
+its `_state` write; the checks it leaves out (caller, settlement layer, deadline gate,
+registration, proofs, receive filter) only revert, so every successful run of the deployed
+entry points is a run here, and a call that re-enters the manager appears as its own later call. -/
+@[headline] def Properties.RunV35AppendsEachLegAtMostOnce : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35),
     runV35 enc chainId M₀ calls = some M → ∀ id h : UInt256,
       calls.countP (CallV35.appendsLegV35 enc id h) ≤ 1 ∧
@@ -188,12 +208,19 @@ def Properties.RunV35AppendsEachLegAtMostOnce : Prop :=
 
 /-! ## Who wrote a leg, over runs -/
 
-/-- **A LEG FIRST WRITTEN IN A RUN WAS APPENDED UNDER AN ACCEPTED PREIMAGE WITH ITS FLOW ID.**
-For every hash `enc`, chain `chainId`, starting state `M₀` and successful run `calls` ending in
-`M`: if leg `(id, h)` is `Unset` in `M₀` and not `Unset` in `M`, some call of the run is
-`append h p` where `p` passes `_validateAndComputeFlowId`, `enc p = id`, and `p` declares leg `h`
-with source chain `chainId` (`AtomicFlowManager.sol:109`, `:130-147`, `:166`). -/
-def Properties.WrittenLegAppendedUnderAcceptedPreimageV35 : Prop :=
+/-- **A LEG FIRST WRITTEN IN A RUN WAS APPENDED UNDER AN ACCEPTED PREIMAGE WITH ITS FLOW ID.** In
+every successful run ending in `M`: if leg `(id, h)` is `Unset` in `M₀` and not `Unset` in `M`,
+some call of the run is `append h p` where `p` passes `_validateAndComputeFlowId`, `enc p = id`,
+and `p` declares leg `h` with source chain `chainId` (`AtomicFlowManager.sol:109`, `:130-147`,
+`:166`).
+Premises: the hash `keccak256(abi.encode(preimage))` is any function `enc`; `chainId` is this
+chain's `block.chainid`; `M₀` is any `_state`; the calls are any successful calls of `append`,
+`requireFlowFinalized`, `authorizeRefund` and `claimRefund`, in any order (`runV35`). Model
+boundary (`MODEL-AFM-V35`): each entry point is transcribed with its flow-id and leg checks and
+its `_state` write; the checks it leaves out (caller, settlement layer, deadline gate,
+registration, proofs, receive filter) only revert, so every successful run of the deployed
+entry points is a run here, and a call that re-enters the manager appears as its own later call. -/
+@[headline] def Properties.WrittenLegAppendedUnderAcceptedPreimageV35 : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35),
     runV35 enc chainId M₀ calls = some M →
     ∀ id h : UInt256, M₀.legState id h = .Unset → M.legState id h ≠ .Unset →
@@ -211,11 +238,19 @@ def Properties.RejectedPreimageLegsUntouchedOrLoggedClashV35 : Prop :=
       M.legState (enc p) h = .Unset ∨
         ∃ q, CallV35.append h q ∈ calls ∧ AcceptedV35 q ∧ PreimageClashV35 enc p q
 
-/-- **AN OVERSIZED FLOW COMMITS NO LEG, UNLESS A LOGGED CLASH.** The previous statement for a
-preimage `p` with more than eight legs (the claim of `IAtomicInterop.sol:93-98` that such a flow
-"can never commit a leg"): every leg `(enc p, h)` that is `Unset` in `M₀` is `Unset` after every
-successful run, or the run appended `h` under an accepted preimage that clashes with `p`. -/
-def Properties.OversizedFlowCommitsNoLegOrLoggedClashV35 : Prop :=
+/-- **AN OVERSIZED FLOW COMMITS NO LEG, UNLESS A LOGGED CLASH.** For a preimage `p` with more than
+eight legs (the claim of `IAtomicInterop.sol:93-98` that such a flow "can never commit a leg"):
+every leg `(enc p, h)` that is `Unset` in `M₀` is `Unset` after every successful run, or the run
+appended `h` under an accepted preimage `q` with `q ≠ p` and `enc q = enc p` (a hash collision on
+two preimages the run presented). Premises: `p` has more than eight bundle hashes, and:
+Premises: the hash `keccak256(abi.encode(preimage))` is any function `enc`; `chainId` is this
+chain's `block.chainid`; `M₀` is any `_state`; the calls are any successful calls of `append`,
+`requireFlowFinalized`, `authorizeRefund` and `claimRefund`, in any order (`runV35`). Model
+boundary (`MODEL-AFM-V35`): each entry point is transcribed with its flow-id and leg checks and
+its `_state` write; the checks it leaves out (caller, settlement layer, deadline gate,
+registration, proofs, receive filter) only revert, so every successful run of the deployed
+entry points is a run here, and a call that re-enters the manager appears as its own later call. -/
+@[headline] def Properties.OversizedFlowCommitsNoLegOrLoggedClashV35 : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35)
     (p : PreimageV35), MAX_ATOMIC_FLOW_LEGS_V35 < p.legBundleHashes.length →
     runV35 enc chainId M₀ calls = some M →
@@ -223,17 +258,21 @@ def Properties.OversizedFlowCommitsNoLegOrLoggedClashV35 : Prop :=
       M.legState (enc p) h = .Unset ∨
         ∃ q, CallV35.append h q ∈ calls ∧ AcceptedV35 q ∧ PreimageClashV35 enc p q
 
-/-- **A LEG IS REFUNDED UNDER THE PREIMAGE IT WAS COMMITTED UNDER, UNLESS A LOGGED CLASH.** For
-every hash, chain, starting state `M₀` and successful run `calls` ending in `M`: if leg `(id, h)`
-is `Unset` in `M₀` and `Revertable` or `Reverted` in `M`, the run has a call `append h p` and a
-call `authorizeRefund F k` such that `p` is accepted with `enc p = id`, `F` passes `_checkFlowId`
-with `F.flowId = id` and lists `h`, and either `F.preimage = p` (the same version, deadline,
-settlement layer, legs and source chains) or `PreimageClashV35 enc p F.preimage`.
-
-Given `enc p = id` and the check on `F`, the last disjunct is excluded middle. The content is
-that both preimages were presented by calls of the run, so a hash injective on the run's
-presented preimages forces `F.preimage = p`. -/
-def Properties.RefundedLegSameFlowOrLoggedClashV35 : Prop :=
+/-- **A LEG IS REFUNDED UNDER THE PREIMAGE IT WAS COMMITTED UNDER, UNLESS A LOGGED CLASH.** In every
+successful run ending in `M`: if leg `(id, h)` is `Unset` in `M₀` and `Revertable` or `Reverted`
+in `M`, the run has a call `append h p` and a call `authorizeRefund F k` such that `p` is accepted
+with `enc p = id`, `F` passes `_checkFlowId` with `F.flowId = id` and lists `h`, and either
+`F.preimage = p` (the same version, deadline, settlement layer, legs and source chains) or
+`PreimageClashV35 enc p F.preimage`. Given `enc p = id` and the check on `F`, the last disjunct is
+excluded middle; the content is that both preimages were presented by calls of the run.
+Premises: the hash `keccak256(abi.encode(preimage))` is any function `enc`; `chainId` is this
+chain's `block.chainid`; `M₀` is any `_state`; the calls are any successful calls of `append`,
+`requireFlowFinalized`, `authorizeRefund` and `claimRefund`, in any order (`runV35`). Model
+boundary (`MODEL-AFM-V35`): each entry point is transcribed with its flow-id and leg checks and
+its `_state` write; the checks it leaves out (caller, settlement layer, deadline gate,
+registration, proofs, receive filter) only revert, so every successful run of the deployed
+entry points is a run here, and a call that re-enters the manager appears as its own later call. -/
+@[headline] def Properties.RefundedLegSameFlowOrLoggedClashV35 : Prop :=
   ∀ (enc : PreimageHashV35) (chainId : UInt256) (M₀ M : Manager) (calls : List CallV35),
     runV35 enc chainId M₀ calls = some M →
     ∀ id h : UInt256, M₀.legState id h = .Unset →
@@ -264,7 +303,7 @@ def Properties.PreimageClashNotForcedV35 : Prop :=
 and source chains, a later deadline) are accepted and distinct, and their leg lists are
 permutations of each other; under the hash honest about `wFlowV35` at `7`, the flow
 `⟨7, wFlowV35⟩` passes `_checkFlowId` and `⟨7, wFlowLateV35⟩` does not. -/
-def Properties.AcceptanceWitnessV35 : Prop :=
+@[witness] def Properties.AcceptanceWitnessV35 : Prop :=
   AcceptedV35 wFlowV35 ∧ AcceptedV35 wFlowLateV35 ∧ wFlowV35 ≠ wFlowLateV35 ∧
     wFlowV35.legBundleHashes.length = 3 ∧
     wFlowV35.legBundleHashes.Perm wFlowLateV35.legBundleHashes ∧
@@ -285,7 +324,7 @@ has nine legs, one over the cap, and declares leg `1` on chain `270`. From fresh
 `270`, under the hash honest about `wCappedV35` at `7`, `append(1, wOversizedV35)` reverts, while
 `wCappedV35` (the same preimage without its ninth leg) passes `append(1, ·)`,
 `requireFlowFinalized(1, ⟨7, ·⟩)` and `authorizeRefund(⟨7, ·⟩, 0)`. -/
-def Properties.TooManyLegsWitnessV35 : Prop :=
+@[witness] def Properties.TooManyLegsWitnessV35 : Prop :=
   Valid wOversizedV35.arrays ∧ wOversizedV35.version = ATOMIC_FLOW_PREIMAGE_VERSION_V35 ∧
     wOversizedV35.legBundleHashes.length = 9 ∧
     MAX_ATOMIC_FLOW_LEGS_V35 < wOversizedV35.legBundleHashes.length ∧
@@ -304,7 +343,7 @@ def Properties.TooManyLegsWitnessV35 : Prop :=
 the flow's refund, claim leg `11`) succeeds and leaves leg `(7, 11)` `Reverted`, leg `(7, 33)`
 `Revertable` and leg `(7, 22)`, declared on chain `271`, `Unset`. The rejected `wWrongVersionV35`
 hashes to `8` there, and its leg `(8, 11)` stays `Unset`. -/
-def Properties.LegWritesWitnessV35 : Prop :=
+@[witness] def Properties.LegWritesWitnessV35 : Prop :=
   (runV35 (honestPreimageHashV35 wFlowV35 7) wChainV35 Contracts.AtomicFlowManager.empty
       wRunV35).map (fun M => (M.legState 7 11, M.legState 7 33, M.legState 7 22)) =
     some (.Reverted, .Revertable, .Unset) ∧
@@ -318,7 +357,7 @@ about `wCappedV35` at `7`, `wOversizedV35` hashes to `8` and leg `(8, 1)` stays 
 hash that maps exactly `wOversizedV35` and `wCappedV35` to `7`, `wOversizedV35` hashes to `7`, so
 its flow id has leg `1` `Committed`; the run's one preimage, `wCappedV35`, is accepted and clashes
 with it. -/
-def Properties.OversizedFlowWitnessV35 : Prop :=
+@[witness] def Properties.OversizedFlowWitnessV35 : Prop :=
   ¬ AcceptedV35 wOversizedV35 ∧ AcceptedV35 wCappedV35 ∧
   honestPreimageHashV35 wCappedV35 7 wOversizedV35 = 8 ∧
   (runV35 (honestPreimageHashV35 wCappedV35 7) wChainV35 Contracts.AtomicFlowManager.empty
@@ -333,7 +372,7 @@ def Properties.OversizedFlowWitnessV35 : Prop :=
 /-- **A SECOND CLAIM OR A SECOND APPEND OF ONE LEG REVERTS.** Under the hash honest about
 `wFlowV35` at `7`, on chain `270`, from fresh storage: `wRunV35` followed by a second
 `claimRefund(7, 11)` reverts, and so does appending leg `11` of `wFlowV35` twice in a row. -/
-def Properties.SecondClaimOrAppendRevertsWitnessV35 : Prop :=
+@[witness] def Properties.SecondClaimOrAppendRevertsWitnessV35 : Prop :=
   (runV35 (honestPreimageHashV35 wFlowV35 7) wChainV35 Contracts.AtomicFlowManager.empty
       (wRunV35 ++ [.claimRefund 7 11])).isNone ∧
   (runV35 (honestPreimageHashV35 wFlowV35 7) wChainV35 Contracts.AtomicFlowManager.empty
@@ -344,7 +383,7 @@ def Properties.SecondClaimOrAppendRevertsWitnessV35 : Prop :=
 `wLateRefundRunV35` (append leg `11` under `wFlowV35`, then authorize a refund presenting
 `wFlowLateV35`, a later deadline, under id `7`) succeeds and leaves leg `(7, 11)` `Revertable`.
 The two presented preimages differ and clash. -/
-def Properties.RefundUnderOtherPreimageWitnessV35 : Prop :=
+@[witness] def Properties.RefundUnderOtherPreimageWitnessV35 : Prop :=
   (runV35 (pairClashHashV35 wFlowV35 wFlowLateV35 7) wChainV35 Contracts.AtomicFlowManager.empty
       wLateRefundRunV35).map (fun M => M.legState 7 11) = some .Revertable ∧
   wFlowLateV35 ≠ wFlowV35 ∧
