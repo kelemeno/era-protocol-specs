@@ -5,42 +5,41 @@ import Mathlib.Tactic
 
 `AttackVectors.ProofPolarity` writes a leg's chain as one value, `srcOf v` (the chain
 baked into the commit value), and reads the refund-path pin `c = srcOf v` as "the
-leg's declared chain".  The pinned contract keeps two values there, and nothing on
-the send path ties them together.  This file models both, and the results in
-`../Properties/ProofPolarityFaithful.lean` say what follows.
+leg's declared chain".  The contract keeps two values there.  This file models both, and the
+results in `../Properties/ProofPolarityFaithful.lean` say what follows.
 
-## What the pinned source does (era-contracts `c67894b9`)
+## What the source does (era-contracts `b17415d20`)
 
-* `InteropCenter._dispatchBundle` (`interop/InteropCenter.sol:644-655`) computes
-  `bundleHash = encodeInteropBundleHash(block.chainid, abi.encode(_bundle))` and calls
-  `append({_flowId: _atomicSend.flowId, ...})` with the sender-chosen `flowId`.
-* `AtomicFlowManager.append` (`atomic-interop/AtomicFlowManager.sol:87-102`) checks
-  only `_state[_flowId][_bundleHash] == Unset`, then inserts
-  `commitValue(_flowId, _bundleHash)`.  It never reads the flow's
-  `legSourceChainIds`, which `IAtomicInterop.sol:71-72` documents as "aligned 1:1 ...
-  May repeat and need not be ascending".  So a leg can be committed on chain `S`
-  under a flow that declares chain `X ≠ S` for it.
-* `requireFlowFinalized` (`AtomicFlowManager.sol:122-129`), per leg: check A
-  `if (_finality.proofs[i].sourceChainId != flow.legSourceChainIds[i]) revert
-  ProofSourceChainMismatch(...)`, then `verifyInclusion` against the tree of chain
-  `proofs[i].sourceChainId`.
-* `authorizeRefund` (`AtomicFlowManager.sol:142-151`): check B
+Paths are under `l1-contracts/contracts/`.
+
+* `InteropCenter._dispatchBundle` (`interop/InteropCenter.sol:727-750`) computes
+  `bundleHash = keccak256(abi.encode(bundle))` (`:690-692`), with `bundle.sourceChainId =
+  block.chainid` (`:634`), and calls `append` with the sender's flow preimage (`:742-746`).
+* `AtomicFlowManager.append` (`atomic-interop/AtomicFlowManager.sol:104-173`) finds the leg
+  whose bundle hash is `_bundleHash` (`:130-139`) and reverts with
+  `ManagerCommittedLegSourceChainMismatch` unless that leg's declared chain
+  `legSourceChainIds[legIndex]` is `block.chainid` (`:140-146`); then it checks the leg is
+  `Unset` and inserts `commitValue(flowId, _bundleHash)` (`:162-170`).  So a leg is committed
+  only on the chain its flow declares for it.
+* `requireFlowFinalized` (`:176-213`), per leg: check A
+  `if (_finality.proofs[i].sourceChainId != preimage.legSourceChainIds[i]) revert
+  ProofSourceChainMismatch(...)` (`:198-200`), then `verifyInclusion` against the tree of
+  chain `proofs[i].sourceChainId` (`:203-208`).
+* `authorizeRefund` (`:216-247`): check B
   `if (_absence.sourceChainId != missingLegChainId) revert ProofSourceChainMismatch(...)`
-  with `missingLegChainId = _flow.legSourceChainIds[_missingLegIndex]`, then
-  `verifyTimeoutAbsence` against the tree of that chain; then every leg of the flow that
-  this chain committed is marked `Revertable` (`:153-161`), whichever leg was proved
-  missing, and `claimRefund` (`:165-180`) asks each such leg's call targets to recover it.
+  (`:228-230`) with `missingLegChainId = preimage.legSourceChainIds[_missingLegIndex]`, then
+  `verifyTimeoutAbsence` against the tree of that chain (`:233-234`); then every leg of the flow
+  that this chain committed is marked `Revertable` (`:236-246`), whichever leg was proved missing.
 
-So both gates pin the proof to the DECLARED chain `legSourceChainIds[i]`; the real
-source chain (`block.chainid` at dispatch, inside `bundleHash`) is a different
-value.  The source comment at `AtomicFlowManager.sol:117-119` ("defense-in-depth here
-(membership already self-binds via the chain-specific `commitValue`)") reads the two
-as one.
+Both gates pin the proof to the DECLARED chain `legSourceChainIds[i]`; the real source chain
+(`block.chainid` at dispatch, inside `bundleHash`) is a different value, and `append` is what ties
+them.  The source comment at `AtomicFlowManager.sol:191-192` ("defense-in-depth here (inclusion
+self-binds via the chain-specific commit value)") reads the two as one, which `append`'s binding
+makes true on trees it wrote.
 
-The upgrade tree (era-contracts `e561b9cc2`) adds the missing binding:
-`AtomicFlowManager.append` (`:125-145`) reverts with
-`ManagerCommittedLegSourceChainMismatch` unless
-`_flowPreimage.legSourceChainIds[legIndex] == block.chainid`.
+At the extraction pin `c67894b9` `append` did not read `legSourceChainIds` at all, so a leg could be
+committed on chain `S` under a flow declaring `X ≠ S`.  That pinned `append` and what it reaches
+are the History record `../History/Specs/ProofPolarityFaithful.lean` (H1).
 
 ## The model
 
@@ -48,28 +47,26 @@ The upgrade tree (era-contracts `e561b9cc2`) adds the missing binding:
 * `decl v` — the chain the flow's `legSourceChainIds` assigns to the leg whose commit
   value is `v`.  Modelling it as a function of `v` assumes that the leg's bundle hash
   occurs at ONE position of the flow, so that the position and hence the declared chain
-  are determined.  At the pin this is enforced on the gates, not on the send path:
-  `_checkFlowId` (`AtomicFlowManager.sol:247-259`), called by `requireFlowFinalized` and
-  `authorizeRefund`, reverts with `ManagerBundleHashesNotSorted` unless
-  `legBundleHashes` is strictly ascending, so a flow preimage that passes a gate has no
-  repeated bundle hash; `append` (`:87-102`) reads no preimage at all.  Beyond that it
-  rests on the same keccak idealization that makes `srcOf` a function
+  are determined.  `_validateAndComputeFlowId` (`:360-379`), run by `append`, `requireFlowFinalized`
+  and `authorizeRefund`, reverts with `ManagerBundleHashesNotSorted` unless `legBundleHashes` is
+  strictly ascending (`:371-373`), so a flow preimage that passes has no repeated bundle hash.
+  Beyond that it rests on the same keccak idealization that makes `srcOf` a function
   (`v = keccak(TAG, flowId, bundleHash)`, and `flowId` hashes the leg list, so two
   preimages with one `flowId` are a collision).  A model indexed by leg position would
   not need either; the results here do not depend on which `decl` is chosen, only on
   its value at the legs they mention.
 * `tree c` — the set of commit values in chain `c`'s IMT.
-* `appendAt`, `PinnedReach`, `UpgradeReach` — the commitment states honest chains
-  reach under the pinned and the upgraded `append`.
+* `appendAt`, `UpgradeReach` — the commitment states honest chains reach under the binding
+  `append` of `b17415d20` (named for the upgrade tree `e561b9cc2` that introduced it).
 * `FinalityChecked` / `FinalityUnchecked` — one leg of `requireFlowFinalized` with
   and without check A; `RefundChecked` — `authorizeRefund` for the missing leg
-  (check B is present at both pins and is never dropped here).
+  (check B is never dropped here).
 
 Model boundaries.  A proof is identified with the set fact it proves (`v ∈ tree c`,
 `v ∉ tree c`), and each chain has ONE timeless tree.  On chain the finality gate reads
-the batch-END IMT root of an on-time batch (`AtomicInteropProof.sol:113-139`), and the
-refund gate the BEGIN root of a late batch or the END root of the last in-time batch of
-a post-deadline root (`:152-206`): different snapshots, each read through an IMT proof.
+the batch-END IMT root of an on-time batch (`atomic-interop/libraries/AtomicInteropProof.sol:44-68`),
+and the refund gate the BEGIN root of a late batch or the END root of the last in-time batch of
+a post-deadline root (`:77-124`): different snapshots, each read through an IMT proof.
 Those snapshots, the deadline and timeout branches (`TimeoutSoundness`,
 `StaleSnapshotBranches`), the Merkle authentication of roots and the IMT proofs
 themselves are not modelled here.
@@ -87,8 +84,8 @@ def HonestInsertion (srcOf : Value → Chain) (tree : Chain → Set Value) : Pro
   ∀ c v, v ∈ tree c → srcOf v = c
 
 /-- **DECLARED INSERTION**: every value in chain `c`'s tree belongs to a leg its flow
-DECLARES on chain `c`.  This is the binding the upgrade's `append` enforces
-(`legSourceChainIds[legIndex] == block.chainid`); the pinned `append` does not. -/
+DECLARES on chain `c`.  This is the binding the `b17415d20` `append` enforces
+(`legSourceChainIds[legIndex] == block.chainid`); the extraction pin's `append` did not (History). -/
 def DeclaredInsertion (decl : Value → Chain) (tree : Chain → Set Value) : Prop :=
   ∀ c v, v ∈ tree c → decl v = c
 
@@ -96,16 +93,9 @@ def DeclaredInsertion (decl : Value → Chain) (tree : Chain → Set Value) : Pr
 def appendAt (tree : Chain → Set Value) (c : Chain) (v : Value) : Chain → Set Value :=
   fun c' => {w | w ∈ tree c' ∨ (c' = c ∧ w = v)}
 
-/-- The states honest chains reach under the PINNED `append`: chain `c` inserts a
-commit value whose bundle hash it computed with its own `block.chainid`
-(`srcOf v = c`), under any sender-chosen flow, so with no condition on `decl v`. -/
-inductive PinnedReach (srcOf : Value → Chain) : (Chain → Set Value) → Prop
-  | genesis : PinnedReach srcOf (fun _ => ∅)
-  | append {tree : Chain → Set Value} (c : Chain) (v : Value) :
-      PinnedReach srcOf tree → srcOf v = c → PinnedReach srcOf (appendAt tree c v)
-
-/-- The states honest chains reach under the UPGRADED `append`, which also requires
-the leg to be declared on the committing chain (`decl v = c`).
+/-- The states honest chains reach under the `b17415d20` `append`
+(`AtomicFlowManager.sol:140-146`; first introduced in the upgrade tree `e561b9cc2`, hence the
+name), which requires the leg to be declared on the committing chain (`decl v = c`).
 
 Scope: it starts from empty trees, so it covers histories in which every tree was
 written only by the binding `append` (for example a fresh deployment).  Values from a

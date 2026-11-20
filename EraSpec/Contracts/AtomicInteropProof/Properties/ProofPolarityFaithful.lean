@@ -1,15 +1,19 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.Specs.ProofPolarityFaithful
+import EraSpec.Contracts.AtomicInteropProof.Specs.ProofPolarity
 
 /-!
 # Properties: proof polarity with the declared chain kept apart
 
-Statements over `../Specs/ProofPolarityFaithful.lean`.  Proofs:
-`../Proofs/ProofPolarityFaithful.lean`.
+Statements over `../Specs/ProofPolarityFaithful.lean` (era-contracts `b17415d20`).  Proofs:
+`../Proofs/ProofPolarityFaithful.lean`.  The pinned `append` of `c67894b9`, which did not bind
+the declared chain, and the double-mint countermodel it reaches (H1) are History
+(`../History/Properties/ProofPolarityFaithful.lean`).
 
 `AttackVectors.ProofPolarity` proves its theorems about one chain value `srcOf v` and
 reads them as saying that the finality-side check A (`proofs[i].sourceChainId ==
 legSourceChainIds[i]`) "adds nothing" under honest insertion.  With the declared chain
-`decl v` modelled separately, as the pinned contract has it:
+`decl v` modelled separately:
 
 * **The pair of checks is exclusive with no honesty premise, in this abstraction**
   (`CheckedGatesExclusive`): both gates pin to `decl v`, so finality needs `v` in
@@ -20,45 +24,33 @@ legSourceChainIds[i]`) "adds nothing" under honest insertion.  With the declared
   `PROTO-BATCH-SNAPSHOT`; `Contracts.Timeout.StaleRootRefundsDeliveredLeg`,
   `AttackVectors.StaleSnapshotBranches.BeginBranchNeedsBeginIsPrevEnd`,
   `AttackVectors.StaleSnapshotBranches.EndBranchNeedsLaterBatchesLate`) and sound IMT
-  proofs, and the latter fail at `c67894b9` by the padding forgery
-  (`Contracts.InteropCommitmentTree.History.CThreeLeafWitness`,
-  `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`).
-* **Check A is NOT redundant at the pin, even under honest insertion.**  Per leg:
-  without check A, leg `v` passes the unchecked finality check and passes
-  `authorizeRefund` as the missing leg iff it is committed on its real source chain and
-  misdeclared, `decl v ≠ srcOf v` (`UncheckedDoubleMintIffMisdeclared`), and the pinned
-  `append` reaches such a state (`PinnedMisdeclaredDoubleMint`).  Per flow: without
-  check A, a flow passes the finality gate on every leg and `authorizeRefund` on some
-  leg (a double mint) iff every leg is live and SOME leg is misdeclared
-  (`FlowDoubleMintIffSomeMisdeclared`); the chain running `authorizeRefund` then marks
-  every leg it committed under the flow `Revertable`, misdeclared or not.  So the
-  reading of `ProofPolarity.inclusion_self_binds` ("the explicit equality check adds
-  nothing on this path") and the source comment at `AtomicFlowManager.sol:117-119` are
-  false of the pinned contract.
-* **The refund pin is to `decl v`, not `srcOf v`.**  A committed leg pinned to its
-  declared chain can still have an absence witness (`RefundNotBlockedWhenPinnedToDeclared`);
-  a live leg fails `authorizeRefund` as the missing leg, whatever chain the prover names,
-  iff `decl v = srcOf v` (`RefundBlockedIffDeclaredIsSource`).  This replaces the reading
-  of `ProofPolarity.refund_blocked_when_chain_pinned`, whose premise `c = srcOf v` is not
-  the contract's pin.  (A leg that fails as the missing leg is still marked `Revertable`
-  when a sibling leg passes `authorizeRefund` on the chain that committed it.)
+  proofs (`AttackVectors.StaleSnapshotFaithful`).
+* **Check A matters exactly for misdeclared legs.**  Per leg: without check A, leg `v` passes
+  the unchecked finality check and passes `authorizeRefund` as the missing leg iff it is
+  committed on its real source chain and misdeclared, `decl v ≠ srcOf v`
+  (`UncheckedDoubleMintIffMisdeclared`).  Per flow: without check A, a flow passes the finality
+  gate on every leg and `authorizeRefund` on some leg (a double mint) iff every leg is live and
+  SOME leg is misdeclared (`FlowDoubleMintIffSomeMisdeclared`).
+* **The refund pin is to `decl v`, not `srcOf v`.**  A live leg fails `authorizeRefund` as the
+  missing leg, whatever chain the prover names, iff `decl v = srcOf v`
+  (`RefundBlockedIffDeclaredIsSource`).  This replaces the reading of
+  `ProofPolarity.refund_blocked_when_chain_pinned`, whose premise `c = srcOf v` is not the
+  contract's pin.  (A leg that fails as the missing leg is still marked `Revertable` when a
+  sibling leg passes `authorizeRefund` on the chain that committed it.)
   **Correction (StaleSnapshotFaithful).**  "Fails `authorizeRefund`" here and in the
-  per-leg and per-flow statements is over the set-fact absence check.  At `c67894b9` the
-  deployed absence check can also accept a padding forgery when the tree has an empty slot,
-  so a live leg declared on its real source chain can still pass `authorizeRefund`
-  (`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`).
+  per-leg and per-flow statements is over the set-fact absence check; the deployed check
+  accepts an IMT proof (see `AttackVectors.StaleSnapshotFaithful`).
 * **Check A is redundant exactly under `DeclaredInsertion`** (`RedundantIffDeclared`;
   the exclusive form is `UncheckedExclusiveUnderDeclared`, whose premises hold together
-  by `UncheckedExclusiveUnderDeclaredSatisfiable`), which the upgrade's `append`
-  establishes on every honest chain (`UpgradeReachDeclared`, `UpgradeCheckARedundant`).
-  In those states `decl v = srcOf v` holds for every committed value
-  (`UpgradeExcludesMisdeclared`), so the original model's identification becomes
-  accurate there.  Scope: the upgrade results cover histories in which every tree was
-  written only by the binding `append` (for example a fresh deployment); values from a
-  binding-free `append`, if any chain carries them, are outside them, and check A stays
-  load-bearing for flows that use them.
+  by `UncheckedExclusiveUnderDeclaredSatisfiable`), which the `b17415d20` `append`
+  (`AtomicFlowManager.sol:140-146`) establishes on every honest chain (`UpgradeReachDeclared`,
+  `UpgradeCheckARedundant`).  In those states `decl v = srcOf v` holds for every committed value
+  (`UpgradeExcludesMisdeclared`), so the original model's identification is accurate there.
+  Scope: these results cover histories in which every tree was written only by the binding
+  `append` (`UpgradeReach` starts from empty trees, as a fresh deployment does).
+* `HonestInsertionAgrees`: this file's `HonestInsertion` is `ProofPolarity`'s.
 
-Readings this repair replaces, each now marked "Correction (ProofPolarityFaithful)":
+Readings this repair replaces, each marked "Correction (ProofPolarityFaithful)":
 `ProofPolarity`'s header (in its Specs, Properties and Proofs files), its
 `inclusion_self_binds`, `refund_blocked_when_chain_pinned` and the section sharpening
 the "defense-in-depth" label; `ProofPolarityStrong`'s header and
@@ -68,15 +60,9 @@ the "defense-in-depth" label; `ProofPolarityStrong`'s header and
 
 namespace AttackVectors.ProofPolarityFaithful
 
-/-- **THE PINNED `append` PRESERVES HONEST INSERTION.**  Every state honest chains
-reach under the pinned `append` satisfies `HonestInsertion`: the bundle hash bakes in
-the committing chain. -/
-def Properties.PinnedReachHonest : Prop :=
-  ∀ (Chain Value : Type) (srcOf : Value → Chain) (tree : Chain → Set Value),
-    PinnedReach srcOf tree → HonestInsertion srcOf tree
-
-/-- **THE UPGRADED `append` ALSO ESTABLISHES DECLARED INSERTION.**  With
-`legSourceChainIds[legIndex] == block.chainid` checked at commit time, every reachable
+/-- **THE BINDING `append` ESTABLISHES HONEST AND DECLARED INSERTION.**  With
+`legSourceChainIds[legIndex] == block.chainid` checked at commit time (`b17415d20`,
+`AtomicFlowManager.sol:140-146`), every reachable
 state satisfies both `HonestInsertion` and `DeclaredInsertion`. -/
 def Properties.UpgradeReachDeclared : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value),
@@ -93,9 +79,8 @@ proofs, and for them exclusivity further needs the timeout premises
 (`PROTO-AGGREGATES`, `PROTO-BATCH-SNAPSHOT`; `Contracts.Timeout.StaleRootRefundsDeliveredLeg`,
 `AttackVectors.StaleSnapshotBranches.BeginBranchNeedsBeginIsPrevEnd`,
 `AttackVectors.StaleSnapshotBranches.EndBranchNeedsLaterBatchesLate`) and sound IMT
-proofs; the latter fail at `c67894b9` by the padding forgery
-(`Contracts.InteropCommitmentTree.History.CThreeLeafWitness`,
-`Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`). -/
+proofs (`AttackVectors.StaleSnapshotFaithful`; at the extraction pin `c67894b9` these failed by
+the padding forgery, `Contracts.InteropCommitmentTree.History.CThreeLeafWitness`). -/
 def Properties.CheckedGatesExclusive : Prop :=
   ∀ (Chain Value : Type) (decl : Value → Chain) (tree : Chain → Set Value) (legs : List Value)
     (pc : Value → Chain),
@@ -133,27 +118,6 @@ def Properties.FlowDoubleMintIffSomeMisdeclared : Prop :=
       (((∃ pc, FlowFinalizedUnchecked tree legs pc) ∧ FlowRefunded decl tree legs)
         ↔ ((∀ v ∈ legs, v ∈ tree (srcOf v)) ∧ ∃ v ∈ legs, decl v ≠ srcOf v))
 
-/-- **COUNTERMODEL: AT THE PIN, CHECK A IS LOAD-BEARING UNDER HONEST INSERTION.**  Chain
-`true` commits a leg under a flow that declares chain `false`; the pinned `append`
-accepts it.  The state satisfies `HonestInsertion` but not `DeclaredInsertion`.  With
-check A removed the one-leg flow is finalized (proof against chain `true`) AND refunded
-(absence at chain `false`); with check A present, finality fails for every choice of
-proof chains.  So the "defense-in-depth" reading of the finality-side check is false
-of the pinned contract. -/
-def Properties.PinnedMisdeclaredDoubleMint : Prop :=
-  PinnedReach cmSrc cmTree ∧ HonestInsertion cmSrc cmTree ∧ ¬ DeclaredInsertion cmDecl cmTree
-    ∧ () ∈ cmTree (cmSrc ()) ∧ cmDecl () ≠ cmSrc ()
-    ∧ FlowFinalizedUnchecked cmTree [()] cmSrc ∧ FlowRefunded cmDecl cmTree [()]
-    ∧ ∀ pc : Unit → Bool, ¬ FlowFinalizedChecked cmDecl cmTree [()] pc
-
-/-- **COUNTERMODEL: PINNING THE REFUND PROOF TO THE DECLARED CHAIN DOES NOT BLOCK IT.**
-In the same reachable pinned state, the leg is committed on its real source chain, the
-absence proof is pinned to the leg's declared chain (check B passes), and the leg is
-absent there.  This is the case `ProofPolarity.refund_blocked_when_chain_pinned`
-excludes by writing the pin as `c = srcOf v`. -/
-def Properties.RefundNotBlockedWhenPinnedToDeclared : Prop :=
-  PinnedReach cmSrc cmTree ∧ () ∈ cmTree (cmSrc ()) ∧ RefundChecked cmDecl cmTree () (cmDecl ())
-
 /-- **A LIVE LEG FAILS `authorizeRefund` AS THE MISSING LEG IFF IT IS DECLARED ON ITS
 REAL SOURCE CHAIN.**  Under honest insertion, a leg committed on its real source chain
 has no accepted refund proof as the missing leg, for any chain the prover names, iff its
@@ -162,9 +126,10 @@ by check A.)  This is per leg: a leg that fails as the missing leg is still mark
 `Revertable` when a sibling leg of its flow passes `authorizeRefund` on the chain that
 committed it.
 
-**Correction (StaleSnapshotFaithful).**  Over the set-fact absence check: at `c67894b9` a
-padding forgery can pass `authorizeRefund` for a live leg declared on its real source chain
-when the tree has an empty slot (`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`). -/
+**Correction (StaleSnapshotFaithful).**  Over the set-fact absence check; the deployed check
+accepts an IMT proof (`AttackVectors.StaleSnapshotFaithful`).  At the extraction pin `c67894b9` a
+padding forgery could pass `authorizeRefund` for a live leg declared on its real source chain
+when the tree had an empty slot (`Contracts.Refund.PaddingAcceptedRefundLocatesAbsenceBreak`). -/
 def Properties.RefundBlockedIffDeclaredIsSource : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value) (v : Value),
     HonestInsertion srcOf tree → v ∈ tree (srcOf v) →
@@ -188,9 +153,9 @@ def Properties.RedundantIffDeclared : Prop :=
         FlowFinalizedUnchecked tree legs pc → FlowFinalizedChecked decl tree legs pc)
       ↔ DeclaredInsertion decl tree
 
-/-- **AT THE UPGRADE THE "DEFENSE-IN-DEPTH" READING HOLDS.**  In every state honest
-chains reach under the upgraded `append` (from empty trees; `UpgradeReach` gives the
-scope), check A adds nothing: a flow finalized without it is finalized with it, and is
+/-- **UNDER THE BINDING `append` THE "DEFENSE-IN-DEPTH" READING HOLDS.**  In every state honest
+chains reach under the `b17415d20` `append` (`AtomicFlowManager.sol:140-146`; from empty trees,
+`UpgradeReach` gives the scope), check A adds nothing: a flow finalized without it is finalized with it, and is
 not refunded. -/
 def Properties.UpgradeCheckARedundant : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value)
@@ -198,18 +163,23 @@ def Properties.UpgradeCheckARedundant : Prop :=
     UpgradeReach srcOf decl tree → FlowFinalizedUnchecked tree legs pc →
       FlowFinalizedChecked decl tree legs pc ∧ ¬ FlowRefunded decl tree legs
 
-/-- **AT THE UPGRADE, DECLARED = REAL ON COMMITTED VALUES.**  In every `UpgradeReach`
+/-- **UNDER THE BINDING `append`, DECLARED = REAL ON COMMITTED VALUES.**  In every `UpgradeReach`
 state, every committed value's declared chain is its real source chain, which is the
-identification `ProofPolarity` makes everywhere. -/
-def Properties.UpgradeExcludesMisdeclared : Prop :=
+identification `ProofPolarity` makes everywhere.
+
+Premises: the state is reached from empty trees by the `b17415d20` `append` only
+(`UpgradeReach`: each insert by chain `c` of a value whose real source chain `srcOf v` and
+declared chain `decl v` are both `c`, `AtomicFlowManager.sol:140-146`); `srcOf` and `decl` are
+abstract functions of the commit value (the Specs explain when that is faithful). -/
+@[headline] def Properties.UpgradeExcludesMisdeclared : Prop :=
   ∀ (Chain Value : Type) (srcOf decl : Value → Chain) (tree : Chain → Set Value)
     (c : Chain) (v : Value),
     UpgradeReach srcOf decl tree → v ∈ tree c → decl v = srcOf v
 
 /-- **THE UPGRADE PREMISES ARE SATISFIABLE, NON-VACUOUSLY.**  The leg declared on its
-real source chain is committed by the upgraded `append`, and the one-leg flow is
+real source chain is committed by the binding `append`, and the one-leg flow is
 finalized with check A (so the premise of `UpgradeCheckARedundant` holds). -/
-def Properties.UpgradeFinalitySatisfiable : Prop :=
+@[witness] def Properties.UpgradeFinalitySatisfiable : Prop :=
   UpgradeReach cmSrc cmSrc cmTree ∧ FlowFinalizedUnchecked cmTree [()] cmSrc
     ∧ FlowFinalizedChecked cmSrc cmTree [()] cmSrc
 
@@ -218,5 +188,12 @@ declared on its real source chain (`decl = cmSrc`), the state `cmTree` satisfies
 `DeclaredInsertion` and the one-leg flow is finalized without check A. -/
 def Properties.UncheckedExclusiveUnderDeclaredSatisfiable : Prop :=
   DeclaredInsertion cmSrc cmTree ∧ FlowFinalizedUnchecked cmTree [()] cmSrc
+
+/-- **THE TWO HONEST-INSERTION PREMISES ARE ONE.**  This file's `HonestInsertion` and
+`AttackVectors.ProofPolarity.HonestInsertion` (every value in chain `c`'s tree has source chain
+`c`) are the same proposition, so results of the two topics compose on one premise. -/
+def Properties.HonestInsertionAgrees : Prop :=
+  ∀ (Chain Value : Type) (srcOf : Value → Chain) (tree : Chain → Set Value),
+    HonestInsertion srcOf tree ↔ AttackVectors.ProofPolarity.HonestInsertion srcOf tree
 
 end AttackVectors.ProofPolarityFaithful

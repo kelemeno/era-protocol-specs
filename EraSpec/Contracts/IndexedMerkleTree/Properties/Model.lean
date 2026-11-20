@@ -553,7 +553,7 @@ the delivery statement).
 **Correction (StaleSnapshotFaithful).**  The reclaim witness here is a member leaf `W ∈ S j`.
 At `c67894b9` the deployed `verifyNonInclusion` can also accept the padding sentinel `{0,0,0}`
 at an empty slot, so on a real run a delivered value can have an accepted reclaim proof
-(`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`;
+(`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`;
 `padding_leaf_forges_on_guarded_history` in `Properties/ModelStrong.lean`; the Sharpness
 section below). -/
 

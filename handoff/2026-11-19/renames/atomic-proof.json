@@ -1,0 +1,38 @@
+[
+  {
+    "old": "AttackVectors.AuthenticateRootAtV35.Properties.AuthenticateRootRefactorExactV35",
+    "new": "AttackVectors.AuthenticateRootAtV35.History.Properties.AuthenticateRootRefactorExactV35",
+    "kind": "history",
+    "justification": "Moved unchanged (statement and proof) under History as the record of the extraction pin c67894b9: it compares the b17415d20 _authenticateRoot with the pin's transcription (authenticateRootPin), which moved with it."
+  },
+  {
+    "old": "AttackVectors.AuthenticateRootAtV35.Properties.EndBranchRefactorExactV35",
+    "new": "AttackVectors.AuthenticateRootAtV35.History.Properties.EndBranchRefactorExactV35",
+    "kind": "history",
+    "justification": "Moved unchanged (statement and proof) under History as the record of the extraction pin c67894b9: it compares the b17415d20 end branch with the pin's (EndBranchPassesPin, readHopPin), which moved with it."
+  },
+  {
+    "old": "AttackVectors.ProofPolarityFaithful.Properties.PinnedMisdeclaredDoubleMint",
+    "new": "AttackVectors.ProofPolarityFaithful.History.Properties.PinnedMisdeclaredDoubleMint",
+    "kind": "history",
+    "justification": "Moved unchanged (statement and proof) under History as the record of the extraction pin c67894b9 (H1): the pinned append (PinnedReach) did not bind the declared chain; at b17415d20 append binds it (AtomicFlowManager.sol:140-146)."
+  },
+  {
+    "old": "AttackVectors.ProofPolarityFaithful.Properties.PinnedReachHonest",
+    "new": "AttackVectors.ProofPolarityFaithful.History.Properties.PinnedReachHonest",
+    "kind": "history",
+    "justification": "Moved unchanged (statement and proof) under History as the record of the extraction pin c67894b9 (H1): a statement about the pinned append (PinnedReach), which moved with it."
+  },
+  {
+    "old": "AttackVectors.ProofPolarityFaithful.Properties.RefundNotBlockedWhenPinnedToDeclared",
+    "new": "AttackVectors.ProofPolarityFaithful.History.Properties.RefundNotBlockedWhenPinnedToDeclared",
+    "kind": "history",
+    "justification": "Moved unchanged (statement and proof) under History as the record of the extraction pin c67894b9 (H1): its state is reached by the pinned append (PinnedReach)."
+  },
+  {
+    "old": "AttackVectors.StaleSnapshotFaithful.Properties.PaddingReclaimRedeemsDeliveredLeg",
+    "new": "AttackVectors.StaleSnapshotFaithful.History.Properties.PaddingReclaimRedeemsDeliveredLeg",
+    "kind": "history",
+    "justification": "Moved unchanged (statement and proof) under History as the record of the extraction pin c67894b9 (H2): the pinned padding constant hashLeaf({0,0,0}); at b17415d20 the tree pads with IMT_EMPTY_LEAF_HASH (IndexedMerkleTree.sol:51)."
+  }
+]

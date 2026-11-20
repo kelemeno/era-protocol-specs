@@ -377,7 +377,7 @@ snapshot 2, which meets the pin for deadline `0`, and
 against snapshot 2's stored root.  So the first disjunct of
 `StaleWitnessAtHeadNotRedeemableOrKeccakCollision` is false there, and of the four cases of
 `KeccakBreakAtHead` exactly `emptyLeaf` holds.  This is `StaleSnapshotFaithful`'s
-`PaddingReclaimRedeemsDeliveredLeg`, which holds at the pin for every hash, at `main`, for the
+`History.PaddingReclaimRedeemsDeliveredLeg`, which holds at the pin for every hash, at `main`, for the
 keccaks with this collision. -/
 def Properties.PaddingReclaimAtHeadLocatesEmptyLeafCollision : Prop :=
   (∃ keccak : List UInt8 → UInt256, HashCollision keccak (imtLeafPreimage ⟨0, 0, 0⟩) imtEmptyLeafTag)

@@ -4,18 +4,21 @@ import EraSpec.Contracts.Merkle.Specs.PathCollision
 /-!
 # The last-leaf proof, and what breaking it would cost
 
-`_verifyLastBatchInRoot` establishes that a batch leaf is the **last** leaf of its
-chain's batch tree inside an aggregated root, and it does so with a shape argument
-rather than a count:
+`_verifyLastBatchInRoot` (era-contracts `b17415d20`,
+`atomic-interop/libraries/AtomicInteropProof.sol:130-143`) establishes that a batch leaf is
+the **last** leaf of its chain's batch tree inside an aggregated root, and it does so with a
+shape argument rather than a count.  Its NatSpec (`:126-129`):
 
-    /// @dev Verifies that the proven batch leaf is the LAST leaf of the source chain's batch tree
-    /// inside the aggregated root: on every level of the batch-leaf Merkle path where the current
-    /// node is a left child (mask bit 0), the right sibling must be the empty-subtree hash for that
-    /// level (`zeros[0] = CHAIN_TREE_EMPTY_ENTRY_HASH`, `zeros[i+1] = keccak(zeros[i] || zeros[i])`).
-    /// A non-last leaf necessarily has a populated right subtree on some level, whose hash cannot
-    /// collide with the zero cascade.
+    /// @dev Verifies the proven batch leaf is the LAST leaf of the source chain's batch tree inside
+    /// the aggregated root: wherever the path node is a left child (mask bit 0), the right sibling
+    /// must be that level's empty-subtree hash (the `DynamicIncrementalMerkle` zero cascade).
 
-This file proves that, in the form the comment's last sentence suggests: not "assume
+The loop starts from `zeros[0] = CHAIN_TREE_EMPTY_ENTRY_HASH` (`:132`) and steps
+`zeros[i+1] = efficientHash(zeros[i], zeros[i])` (`:141`).  The extraction pin's NatSpec
+(`c67894b9`) added: "A non-last leaf necessarily has a populated right subtree on some level,
+whose hash cannot collide with the zero cascade."
+
+This file proves that, in the form that sentence suggests: not "assume
 the hash is injective, therefore the leaf is last", but **the leaf is last, or you
 have produced a concrete collision**.  `HashBreak` is that alternative, and it has
 exactly two constructors because there are exactly two ways out — a genuine node

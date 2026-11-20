@@ -7,54 +7,46 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.LastBatchInRoot
 the chain-tree leaf POSITION (the mask, in `RightEmpty B nBatches hDepth`) and as the
 BATCH NUMBER (in `H.endSet B` and `H.time`).  Its `hout : OutsideRootLate (· < nBatches)
 time T` reads the root as holding batches `0 .. nBatches - 1`.  The source keeps the two
-apart (`core/message-root/MessageRootBase.sol`, pinned `c67894b9`):
+apart (era-contracts `b17415d20`, `l1-contracts/contracts/core/message-root/MessageRootBase.sol`):
 
-* `_addNewChain` (`:329-358`) sets `currentChainBatchNumber[_chainId] =
-  _startingBatchNumber` and starts an EMPTY chain tree ("Chains registered with a non-zero
-  `_startingBatchNumber` ... never report a genesis root", `:334-335`);
-* `_recordChainBatchRoot` (`:228-243`) requires consecutive batch numbers (`:238-239`);
-  `addChainBatchRoot` (v31, `:199-205`) only records, never pushes; only
-  `_pushChainBatchRoot` (`:247-271`) appends `batchLeafHash(_chainBatchRoot,
-  _batchNumber, l1Timestamp)` to the chain tree (`:257-259`);
-* `seedGenesisRoot` (`:364-387`) pushes batch 0 only for ZKsync OS chains and returns
-  early for EraVM chains;
-* `MessageHashing.sol:189-208`: the batch number is INSIDE the leaf hash; the leaf's
-  position is the prover's mask.
+* `_addNewChain` (`:275-293`) sets `currentChainBatchNumber[_chainId] = _startingBatchNumber`
+  (`:282`) and starts an EMPTY chain tree (`:285`);
+* `_recordChainBatchRoot` (`:183-197`) requires consecutive batch numbers (`:192-193`);
+  `addChainBatchRoot` (`:164-170`) only records, never pushes; only `_pushChainBatchRoot`
+  (`:201-214`) appends `batchLeafHash(_chainBatchRoot, _batchNumber, l1Timestamp)` to the chain
+  tree (`:206-209`);
+* `seedGenesisRoot` (`:296-314`) pushes batch 0, for a chain whose counter is still 0 and whose
+  diamond stores a nonzero genesis root (`:302-313`);
+* `common/libraries/MessageHashing.sol:76-82`: the batch number is INSIDE the leaf hash;
+  `:198-205`: the leaf's position is the prover's mask.
 
 So leaf position `k` of chain `c`'s tree is batch `f + k`, where `f` is the batch number
-of the tree's first pushed leaf: `f = 0` for a genesis-seeded ZKsync OS chain
-(`seedGenesisRoot` pushes batch 0), and `f = s + 1` otherwise, with `s` the starting
-batch number or the last record-only batch.  With `f = 0`, `batchAt 0 p = p` and the
-re-indexed composition is the original position-as-batch statement.
+of the tree's first pushed leaf: `f = 0` for a genesis-seeded chain (`seedGenesisRoot` pushes
+batch 0), and `f = s + 1` otherwise, with `s` the starting batch number or the last record-only
+batch.  With `f = 0`, `batchAt 0 p = p` and the re-indexed composition is the original
+position-as-batch statement.
 
-**Which `f` the pin produces.**  At `c67894b9` every atomic-interop source chain is a
-ZKsync OS chain that got the built-ins at its genesis upgrade, and its first pushed
-batch on L1 is 0.  The commitment tree and `AtomicFlowManager` are initialised only under
-`_isZKsyncOS && _isGenesisUpgrade` (`l2-upgrades/L2GenesisForceDeploymentsHelper.sol:448-461`;
-`Contracts/L2InteropCommitmentTree/Specs/InitOnce.lean` records the same).  Such a chain
-is created by `L1Bridgehub.createNewChain` (the chain type manager's `createNewChain` is
-`onlyBridgehub`, `state-transition/ChainTypeManagerBase.sol:635-641`), which calls
-`addNewChain(_chainId, 0)` and then `seedGenesisRoot` (`core/bridgehub/L1Bridgehub.sol:141-142`).
-Every flow settles on L1 (`atomic-interop/AtomicFlowManager.sol:56`; `authorizeRefund`
-checks it before `verifyTimeoutAbsence`, `:134-151`), so the end branch reads L1's chain
-tree.  For these chains the original position-as-batch reading is exact while pushes are
-contiguous.  (An EraVM chain has `f = 1` on L1, but it has no commitment tree.)  The
-offset form is a generalisation that matters for a chain whose first pushed batch is
-later, for example if the built-ins reach existing chains by upgrade (not verified here).
-The gap the pin does have is contiguity.
+**Which `f` occurs at `b17415d20`.**  Every flow settles on L1 (`atomic-interop/AtomicFlowManager.sol:329-333`,
+checked in `append`, `requireFlowFinalized` and `authorizeRefund`), so the end branch reads L1's
+chain tree.  `L1Bridgehub.createNewChain` calls `addNewChain(_chainId, 0)` and then
+`seedGenesisRoot` (`core/bridgehub/L1Bridgehub.sol:134-135`) for every chain it creates, so such
+a chain has `f = 0`.  A chain registered by `registerAlreadyDeployedZKChain` gets
+`addNewChain(_chainId, getTotalBatchesExecuted())` (`:302`, `:316`) and no genesis leaf, so its
+first pushed batch is later: there `f > 0`, and the offset form is the one that applies.  (At the
+extraction pin `c67894b9` every atomic-interop source chain was a genesis-created ZKsync OS chain,
+with `f = 0` on L1, as earlier rounds recorded.)
 
 **Assumption (`PROTO-CONTIGUOUS-PUSH`, ASSUMPTIONS.md).**  "Leaf `k` is batch `f + k`"
 holds only if, after the first push, every batch of the chain is pushed into this tree.
 `MessageRootBase` does not enforce it; `_recordChainBatchRoot` only makes the batch
-NUMBERS consecutive.  `setMigratingChainBatchNumber` (`:177-183`) can advance the counter
+NUMBERS consecutive.  `setMigratingChainBatchNumber` (`:153-157`) can advance the counter
 past batches never pushed here, and on L1 it runs when a chain returns from Gateway
-(`core/chain-asset-handler/ChainAssetHandlerBase.sol:386`): a Gateway round trip is the
-realistic breaker at the pin.  The record-only `addChainBatchRoot` passes the same
-`addChainBatchRootRestriction` (`:155-160`) as `addChainBatchRootV32`, but at the pin no
-executor calls it (`state-transition/chain-deps/facets/Executor.sol:154` calls only
-`addChainBatchRootV32`), so that route needs an executor facet downgrade.  The statements
-below take `B = batchAt f p` as a premise, so they hold whenever that identification
-does; `BatchNumberBoundOrCollision` adds nothing to it.
+(`core/chain-asset-handler/ChainAssetHandlerBase.sol:414`).  The record-only
+`addChainBatchRoot` passes the same `addChainBatchRootRestriction` (`:131-136`) as
+`addChainBatchRootV32`, but no executor calls it
+(`state-transition/chain-deps/facets/Executor.sol:165` calls only `addChainBatchRootV32`).
+The statements below take `B = batchAt f p` as a premise, so they hold whenever that
+identification does; `BatchNumberBoundOrCollision` adds nothing to it.
 
 `batchAt f p` is that map.  The re-indexed end-branch composition states
 `RightEmpty` on the position, `OutsideRootLate` only for batch numbers AFTER the root's
@@ -74,9 +66,8 @@ batch `f` (under `PROTO-CONTIGUOUS-PUSH`). -/
 def batchAt (f p : ℕ) : ℕ := f + p
 
 /-- An abstract chain whose first pushed batch is batch 1 (`f = 1`), and which commits
-value `1` in that batch.  No atomic-interop source chain has `f = 1` at `c67894b9` (each
-is genesis-seeded with batch 0 on L1); the instance shows what the two readings say when
-`f > 0`.  Batches 0 and 1 settle at time 0, later ones at time 1. -/
+value `1` in that batch.  The instance shows what the two readings say when `f > 0` (at
+`b17415d20`, for example, a chain registered by `registerAlreadyDeployedZKChain`).  Batches 0 and 1 settle at time 0, later ones at time 1. -/
 def offsetHistory : BatchHistory where
   endSet := fun n => if 1 ≤ n then {1} else ∅
   time := fun n => if n ≤ 1 then 0 else 1

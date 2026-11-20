@@ -1,22 +1,20 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AtomicInteropProof.Specs.AuthenticateRootAtV35
 
 /-!
-# Properties: `_authenticateRoot` at v35, its exact refactor, and what it authenticates
+# Properties: `_authenticateRoot` at v35, its readers, and what it authenticates
 
 era-contracts `draft/v0.35.0` at `b17415d20` (the cited files are the same blobs at `d9f6789`).
 Definitions and citations are in `../Specs/AuthenticateRootAtV35.lean`, and proofs are in
 `../Proofs/AuthenticateRootAtV35.lean`. Every universally quantified statement here holds for every
 parser `E.parse` and every hash function in `E`, and none takes a hash premise.
 
-The refactor:
+The readers (the comparison with the pin's `_authenticateRoot` is History,
+`../History/Properties/AuthenticateRootAtV35.lean`):
 
 * `ReadSLEqParsedV35` and `ReadHopIsFoldedPathV35`: the two positional readers return exactly the
   words `_getProofData` consumed, on every proof on which `_getProofData` succeeds with a non-final
   first hop.
-* `AuthenticateRootRefactorExactV35`: the v35 `_authenticateRoot` and the pin's are the same
-  function of their inputs: the same reverts and the same returned triple.
-* `EndBranchRefactorExactV35`: the end branch of `verifyTimeoutAbsence`, up to the last-batch check,
-  accepts the same submissions with the same values at v35 as at the pin.
 * `HopReadTotalAfterAuthV35`: once `_authenticateRoot` has accepted, `readAggregationHopPath` does
   not revert. Its new final-node revert, and its out-of-range reads, cannot be reached from
   `verifyTimeoutAbsence`.
@@ -83,29 +81,11 @@ def Properties.ReadHopIsFoldedPathV35 : Prop :=
             (E.batchLeaf pd.batchSettlementRoot batchNumber pd.l1BatchTimestamp) = some chainIdRoot
           ∧ pd.chainIdLeaf = E.chainIdLeaf chainIdRoot chainId
 
-/-- **THE REFACTOR IS EXACT.** The v35 `_authenticateRoot` (positional read,
-`AtomicInteropProof.sol:155-189`) and the pin's (re-parse, `:256-290@c67894b9`) agree on every
-input: same reverts, same returned triple. -/
-def Properties.AuthenticateRootRefactorExactV35 : Prop :=
-  ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (src batch leafIndex imtRoot : UInt256)
-    (w : Proof),
-    authenticateRootV35 E roots src batch leafIndex imtRoot w
-      = authenticateRootPin E roots src batch leafIndex imtRoot w
-
-/-- **THE END BRANCH IS UNCHANGED.** Up to the last-batch check, the v35 end branch (`_authenticateRoot`
-against leaf 3, `readAggregationHopPath` with its new final-node revert, the zero cascade) and the
-pin's accept exactly the same proofs, with the same returned triple and the same hop path. -/
-def Properties.EndBranchRefactorExactV35 : Prop :=
-  ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 src batch imtRoot : UInt256) (w : Proof)
-    (sl : SLRef) (hop : HopPath),
-    EndBranchPassesV35 E roots z0 src batch imtRoot w sl hop
-      ↔ EndBranchPassesPin E roots z0 src batch imtRoot w sl hop
-
 /-- **THE HOP READ CANNOT REVERT AFTER AUTHENTICATION.** If `_authenticateRoot` accepted a proof,
 `readAggregationHopPath` returns on it. So its final-node revert (`MessageHashing.sol:254-256`) is
 unreachable from `verifyTimeoutAbsence`, because `_authenticateRoot` already rejected final nodes
 (`AtomicInteropProof.sol:177-179`). -/
-def Properties.HopReadTotalAfterAuthV35 : Prop :=
+@[headline] def Properties.HopReadTotalAfterAuthV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (src batch leafIndex imtRoot : UInt256)
     (w : Proof) (sl : SLRef),
     authenticateRootV35 E roots src batch leafIndex imtRoot w = some sl →
@@ -208,7 +188,7 @@ inner walk's root and `sp` the outer hop's path (`slHopPath`), one of these hold
   `HeightBreak` on `sp` against the shared tree.
 
 Every break is located on the instance. -/
-def Properties.EndBranchTwoHopLastLeafOrBreakV35 : Prop :=
+@[headline] def Properties.EndBranchTwoHopLastLeafOrBreakV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch imtRoot : UInt256)
     (w : Proof) (sl : SLRef) (hop : HopPath)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))
@@ -241,7 +221,7 @@ three paths in the proof. If `_authenticateRoot` accepts the claimed root `imtRo
 * an `SLHopBreak` on the outer hop.
 
 Every break is located on the instance. -/
-def Properties.AuthenticateRootSoundV35 : Prop :=
+@[headline] def Properties.AuthenticateRootSoundV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch leafIndex imtRoot : UInt256)
     (w : Proof) (sl : SLRef)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))
@@ -270,7 +250,7 @@ that passes up to the last-batch check (`EndBranchPassesV35`, leaf index 3) has 
 * a `LastLeafAnyLengthBreak` on the batch-leaf path;
 * an `AuthBreak` on the first hop or the batch-leaf hop;
 * an `SLHopBreak` on the outer hop. -/
-def Properties.EndBranchSoundV35 : Prop :=
+@[headline] def Properties.EndBranchSoundV35 : Prop :=
   ∀ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch imtRoot : UInt256)
     (w : Proof) (sl : SLRef) (hop : HopPath)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))
@@ -307,7 +287,7 @@ transcribed parser `parseMeta`, the deployed default-leaf constant, toy hashes) 
   the premises of `EndBranchTwoHopLastLeafOrBreakV35`, `AuthenticateRootSoundV35` and
   `EndBranchSoundV35`);
 * no `SLHopBreak` and no `AuthBreak` holds, so neither break predicate is always true. -/
-def Properties.EndBranchV35Satisfiable : Prop :=
+@[witness] def Properties.EndBranchV35Satisfiable : Prop :=
   ∃ (E : Env) (roots : UInt256 → UInt256 → UInt256) (z0 zS src batch imtRoot : UInt256)
     (w : Proof) (sl : SLRef) (hop : HopPath)
     (B : SharedTreeBacking E.node E.chainIdLeaf zS (roots sl.slChainId sl.slBatchNumber))

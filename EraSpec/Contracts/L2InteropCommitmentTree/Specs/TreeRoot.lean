@@ -119,7 +119,7 @@ collision: its located break is `TreeRootBreak.paddingHit`, and of `TreeRootStro
 clauses it fails only `padNotPresented` when the tree's own log has no node-hash collision
 (`Properties.TreeRootStrongPinForgeryFailsOnlyPadding`; instances: `History.Properties.CThreeLeafWitness`,
 `Contracts.Timeout.PaddingTimeoutLocatesAbsenceBreak`,
-`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).  So a result premised
+`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`).  So a result premised
 on `HashAssumptions`, vacuous anyway, says nothing about the deployed absence check under any
 keccak idealization, and a gloss that such a result holds once keccak behaves, or fails only on
 a hash collision, is false at the pin.  Read the repaired `…OrBreak` forms, which take no hash

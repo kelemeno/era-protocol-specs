@@ -10,17 +10,20 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.TimeoutSoundness
 /-
   "THE CHAIN'S LAST BATCH IN THIS ROOT" — the zero-cascade check, justified.
 
-  `TimeoutSoundness.end_absence_implies_never_finalized` takes `hlast` as a hypothesis: everything
-  after batch `B` settles no earlier than the root's creation time.  That hypothesis is discharged on
-  chain by `_verifyLastBatchInRoot`, whose docstring states the argument:
+  era-contracts `b17415d20`.  `TimeoutSoundness.end_absence_implies_never_finalized` takes `hlast` as
+  a hypothesis: everything after batch `B` settles no earlier than the root's creation time.  That
+  hypothesis is discharged on chain by `_verifyLastBatchInRoot`
+  (`atomic-interop/libraries/AtomicInteropProof.sol:130-143`), whose NatSpec (`:126-129`) says that
+  wherever the path node is a left child (mask bit 0), the right sibling must be that level's
+  empty-subtree hash, so the proven batch leaf is the LAST leaf of the source chain's batch tree
+  inside the aggregated root.  `protocol-docs/atomicity/proofs.md:90-95` adds that the end root of
+  that batch is then "the final IMT state reachable in time, since any later batch has
+  `t' >= T > deadline`".  (At the extraction pin `c67894b9` the NatSpec also said that a non-last
+  leaf necessarily has a populated right subtree on some level, whose hash cannot collide with the
+  zero cascade.)
 
-      "on every level of the batch-leaf Merkle path where the current node is a left child (mask bit
-       0), the right sibling must be the empty-subtree hash for that level ... A non-last leaf
-       necessarily has a populated right subtree on some level, whose hash cannot collide with the
-       zero cascade."
-
-  The second sentence is the mathematical content, and it is the part with no counterpart anywhere in
-  this corpus -- I flagged it as missing when the end branch was first proved.  This file supplies it.
+  That "non-last leaf has a populated right subtree" is the mathematical content.  This file
+  supplies it.
 
   The claim is about the leaf INDEX, not about hashes: in a tree filled left to right with leaves
   `0 .. n-1`, if every left-child right-sibling subtree along the path to `i` is empty, then `i = n-1`.
@@ -75,8 +78,10 @@ def OutsideRootLate (inRoot : ℕ → Prop) (time : ℕ → ℕ) (T : ℕ) : Pro
   ∀ n, ¬ inRoot n → T ≤ time n
 
 
-/-! ## The deployed counterpart
+/-! ## The deployed counterpart (a record of the extraction pin's compiled code)
 
+The Yul below was compiled from the extraction pin `c67894b9` in contracts-formal-verification; the
+Solidity loop is the same at `b17415d20` (`AtomicInteropProof.sol:130-143`).
 `AtomicFlowManager`'s `for_5976315420052011104` IS this check, compiled:
 
     for { } lt(var_i, length) {var_i := add(var_i, 1)} {

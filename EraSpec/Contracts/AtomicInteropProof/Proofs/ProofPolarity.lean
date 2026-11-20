@@ -31,15 +31,16 @@ import Mathlib.Tactic
   The pleasing part, and the reason it is worth writing down: the SAME assumption that makes inclusion
   self-binding is exactly what makes absence chain-blind.  One hypothesis, opposite consequences.
 
-  Correction (ProofPolarityFaithful).  The "defense-in-depth" reading is false of the pinned
-  contract, even under honest insertion.  This file writes a leg's chain as one value `srcOf v`,
+  Correction (ProofPolarityFaithful).  This file writes a leg's chain as one value `srcOf v`,
   but both checks compare the proof's chain with the flow's DECLARED chain
-  `legSourceChainIds[i]`, which the pinned `append` does not bind to the committing chain.  With
-  the two kept apart the finality-side check is load-bearing:
-  `AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared` (per leg),
-  `FlowDoubleMintIffSomeMisdeclared` (per flow) and `PinnedMisdeclaredDoubleMint` (a state the
-  pinned `append` reaches, with honest insertion).  The set facts here stay true; reading them as
-  "the check adds nothing on the inclusion path" does not.
+  `legSourceChainIds[i]`.  With the two kept apart the finality-side check is load-bearing
+  exactly for misdeclared legs: `AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`
+  (per leg) and `FlowDoubleMintIffSomeMisdeclared` (per flow).  At `b17415d20` `append` binds the
+  declared chain to the committing one (`AtomicFlowManager.sol:140-146`), so on trees written only
+  by it the identification holds and the check is redundant (`UpgradeExcludesMisdeclared`,
+  `UpgradeCheckARedundant`).  The append of the extraction pin `c67894b9` did not bind them, and
+  there the "defense-in-depth" reading was false, even under honest insertion
+  (`History.PinnedMisdeclaredDoubleMint`, History).  The set facts here stay true at both pins.
 -/
 
 namespace AttackVectors.ProofPolarity
@@ -70,7 +71,7 @@ equality check adds nothing on this path — the "defense-in-depth" reading.
 compares the proof's chain with the flow's DECLARED chain, which at the pin need not be the
 committing chain `srcOf v`, so it is load-bearing even under honest insertion
 (`AttackVectors.ProofPolarityFaithful.UncheckedDoubleMintIffMisdeclared`,
-`PinnedMisdeclaredDoubleMint`). -/
+`History.PinnedMisdeclaredDoubleMint`). -/
 theorem inclusion_self_binds (h : HonestInsertion srcOf tree) {c : Chain} {v : Value}
     (hmem : v ∈ tree c) :
     Properties.inclusion_self_binds (h := h) (c := c) (v := v) (hmem := hmem) := by
@@ -122,7 +123,7 @@ committed leg leaves no absence witness — the refund gate cannot pass.
 
 **Correction (ProofPolarityFaithful).**  The premise pins to `srcOf v`, not to the declared chain
 the contract pins to.  Pinned to the declared chain, a committed leg can still have an absence
-witness (`AttackVectors.ProofPolarityFaithful.RefundNotBlockedWhenPinnedToDeclared`), and a live
+witness (`AttackVectors.ProofPolarityFaithful.History.RefundNotBlockedWhenPinnedToDeclared`), and a live
 leg fails `authorizeRefund` as the missing leg exactly when its declared chain is `srcOf v`
 (`RefundBlockedIffDeclaredIsSource`).  Absence here is the set fact
 (Correction (StaleSnapshotFaithful) in `Specs/ProofPolarityStrong.lean`). -/
@@ -146,7 +147,7 @@ different amounts of trust, which the comment does not say.
 
 Correction (ProofPolarityFaithful).  Honest insertion is not enough for the label either: with
 the flow's declared chain kept apart from the committing chain, the check is load-bearing even
-when every chain inserts honestly (`AttackVectors.ProofPolarityFaithful.PinnedMisdeclaredDoubleMint`
+when every chain inserts honestly (`AttackVectors.ProofPolarityFaithful.History.PinnedMisdeclaredDoubleMint`
 satisfies `HonestInsertion`).  The label holds in the states the upgrade's binding `append`
 (`e561b9cc2`) reaches (`UpgradeCheckARedundant`). -/
 

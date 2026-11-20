@@ -6,9 +6,9 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.LastBatchInRoot
 /-!
 # Spec: the timeout gate, with the branch flag and the authenticated leaf kept apart
 
-Source, in the pinned era-contracts tree (`c67894b9`):
-`contracts/atomic-interop/libraries/AtomicInteropProof.sol`, `verifyTimeoutAbsence`.  The
-prover declares the branch (`_absence.provesAgainstBeginRoot`), and the contract derives from
+Source: era-contracts `b17415d20`,
+`l1-contracts/contracts/atomic-interop/libraries/AtomicInteropProof.sol`, `verifyTimeoutAbsence`
+(`:77-124`; the same gate as at the extraction pin `c67894b9`).  The prover declares the branch (`_absence.provesAgainstBeginRoot`), and the contract derives from
 that one flag BOTH the chain-batch-root leaf it authenticates
 
     uint256 imtRootLeafIndex = _absence.provesAgainstBeginRoot
@@ -16,10 +16,11 @@ that one flag BOTH the chain-batch-root leaf it authenticates
         : ChainBatchRootTree.IMT_END_ROOT_LEAF_INDEX;      // leaf 3: IMT root at batch end
     ... _authenticateRoot(_absence, imtRootLeafIndex) ...
 
-AND the branch checks: the imported root must be created after the deadline
-(`rootTimestamp > _deadline`); then the begin branch needs `l1BatchTimestamp > _deadline`, and
-the end branch needs `l1BatchTimestamp <= _deadline` plus `_verifyLastBatchInRoot`.  Finally
-the non-inclusion proof is checked against the authenticated root.
+(`:85-87`) AND the branch checks: the imported root must be created after the deadline
+(`rootTimestamp > _deadline`, `:94-100`); then the begin branch needs
+`l1BatchTimestamp > _deadline` (`:103-106`), and the end branch needs
+`l1BatchTimestamp <= _deadline` plus `_verifyLastBatchInRoot` (`:107-114`).  Finally the
+non-inclusion proof is checked against the authenticated root (`:116-123`).
 
 `TimeoutSoundness.end_branch_with_begin_root_unsound` is about what happens when the leaf is not
 tied to the flag, but it drops the end branch's own checks.  To state that question with every

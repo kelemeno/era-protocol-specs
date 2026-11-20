@@ -7,17 +7,18 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.Timestamps
 `AttackVectors.StaleSnapshot` and `AttackVectors.Timestamps` model the reclaim gate as
 "a witness at snapshot `j`, pinned by `D < t (j+1)`", and say the pin makes `j` "the
 LAST on-time snapshot".  The deployed gate has no such comparison.
-`AtomicInteropProof.verifyTimeoutAbsence` (`AtomicInteropProof.sol:162-196`, pinned
-`c67894b9`) has two branches, and neither reads a successor batch's timestamp:
+`AtomicInteropProof.verifyTimeoutAbsence` (era-contracts `b17415d20`,
+`atomic-interop/libraries/AtomicInteropProof.sol:77-124`) has two branches, and neither reads a
+successor batch's timestamp:
 
 * **begin** (`_absence.provesAgainstBeginRoot`): the absence proof is against leaf 2
   (the IMT root at the BEGIN of batch `L`), `l1BatchTimestamp > _deadline` is required
-  (`:185-188`);
+  (`:103-106`);
 * **end**: the proof is against leaf 3 (the IMT root at the END of batch `B`),
-  `l1BatchTimestamp <= _deadline` is required (`:189-192`) and `_verifyLastBatchInRoot`
-  must pass (`:195`);
+  `l1BatchTimestamp <= _deadline` is required (`:107-110`) and `_verifyLastBatchInRoot`
+  must pass (`:113`);
 * both: the imported settlement-layer root must have `rootTimestamp > _deadline`
-  (`:171-179`).
+  (`:94-100`).
 
 Each branch reaches the abstract pin only through an assumption nothing on chain
 checks:
@@ -37,9 +38,9 @@ checks:
   `AttackVectors.LastBatchInRoot.hlast_of_last_in_root`) fails whenever a batch that is
   in no root settled before `T`: below the first pushed batch of a chain whose first
   pushed batch is above 0, or in a gap left by a non-contiguous push
-  (`PROTO-CONTIGUOUS-PUSH`).  At `c67894b9` every atomic-interop source chain is
-  genesis-seeded with batch 0 on L1 (`LastBatchInRootOffset`), so there the two forms
-  coincide while pushes are contiguous.  The unrestricted form is kept below only to
+  (`PROTO-CONTIGUOUS-PUSH`).  For a chain genesis-seeded with batch 0 on L1 (every chain
+  `createNewChain` creates; `LastBatchInRootOffset`) the two forms coincide while pushes are
+  contiguous.  The unrestricted form is kept below only to
   state that it implies the restricted one.
 
 And `D < t (j+1)` does not make `j` on time: in the begin branch `j = L - 1` may itself
@@ -76,8 +77,8 @@ settles no earlier than the root's creation time `T` (`LastBatchInRoot.OutsideRo
 on the `UInt256` clock `StaleSnapshot` uses).  Read with true root membership it fails
 whenever a batch that is in no root settled before `T`: below the first pushed batch of
 a chain whose first pushed batch is above 0, or in a gap left by a non-contiguous push.
-At `c67894b9` every atomic-interop source chain is genesis-seeded with batch 0 on L1, so
-only the second case can arise there.  See `LaterBatchesLate`. -/
+For a chain genesis-seeded with batch 0 on L1 only the second case can arise.  See
+`LaterBatchesLate`. -/
 def OutsideRootLate (inRoot : ℕ → Prop) (t : ℕ → UInt256) (T : UInt256) : Prop :=
   ∀ n, ¬ inRoot n → T ≤ t n
 

@@ -67,7 +67,7 @@ import EraSpec.Contracts.IndexedMerkleTree.Proofs.Model
   for genuine witnesses only: see the padding entries of the assumption
   ledger of `AttackVectors.NoTheft` (`Protocol/NoTheft.lean`, hypothesis 1
   and (iii), `IMTAbstract.forged_padding_witness_breaks_exclusivity`) and
-  `AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`.
+  `AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`.
 
   HONEST LIMITATION — MIXED OUTCOMES ARE PERMITTED AT THIS LAYER: the
   abstract layer does NOT prove that all legs of a flow reach the SAME

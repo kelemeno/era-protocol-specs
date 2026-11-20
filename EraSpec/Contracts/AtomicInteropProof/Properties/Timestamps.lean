@@ -155,7 +155,7 @@ exact statement whose hypothesis the counterexample above removes.
 leaf `W ∈ S j`.  For an absence proof the deployed check accepts, monotone times
 do not block the attack: there is a run with monotone times on which a value
 delivered on time has an accepted absence proof at a snapshot that meets
-`D < t (j+1)` (`AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg`).
+`D < t (j+1)` (`AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg`).
 Over accepted proofs the statement is `StaleWitnessNotRedeemableOrBreak`. -/
 abbrev Properties.monotone_blocks_the_attack {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}
     (hevo : Evolution S) (h0 : SoundState (S 0)) (htmono : Monotone t)
@@ -182,7 +182,7 @@ verified against.
 
 **Correction (StaleSnapshotFaithful).**  That is what the times must satisfy for a genuine
 witness `W ∈ S j`.  For an absence proof the deployed check accepts, ordered times are not
-enough: `AttackVectors.StaleSnapshotFaithful.PaddingReclaimRedeemsDeliveredLeg` has monotone
+enough: `AttackVectors.StaleSnapshotFaithful.History.PaddingReclaimRedeemsDeliveredLeg` has monotone
 times, a value delivered on time and an accepted absence proof at a snapshot that meets
 `D < t (j+1)`. -/
 abbrev Properties.delivered_and_reclaimed_impossible_local {S : ℕ → Finset AbsLeaf} {t : ℕ → UInt256} {D v : UInt256}

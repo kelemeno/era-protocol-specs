@@ -9,16 +9,19 @@ import EraSpec.Contracts.AtomicInteropProof.Specs.LastLeaf
 walk and for the chain tree, and an occupied index.  The deployed verifier fixes
 neither of the two:
 
-* `MessageHashing.sol:131` (pinned `c67894b9`): `result.batchLeafProofLen =
+Paths below are under `l1-contracts/contracts/` at era-contracts `b17415d20`.
+
+* `common/libraries/MessageHashing.sol:129`: `result.batchLeafProofLen =
   uint256(uint8(proofMetadata[2]))` — the batch-leaf path length is a prover-chosen
-  metadata byte.  `_authenticateRoot` (`AtomicInteropProof.sol:260-263`) pins only
+  metadata byte.  `_authenticateRoot`
+  (`atomic-interop/libraries/AtomicInteropProof.sol:160-162`) pins only
   `logLeafProofLen` to `ChainBatchRootTree.TREE_DEPTH`, never `batchLeafProofLen`.
-* `MessageHashing.sol:201-208`: `batchLeafProofMask = uint256(bytes32(_proof[result.ptr]))`,
+* `MessageHashing.sol:198-208`: `batchLeafProofMask = uint256(bytes32(_proof[result.ptr]))`,
   then `chainIdRoot = Merkle.calculateRootMemory(extractSlice(..., batchLeafProofLen),
   batchLeafProofMask, localBatchLeafHash)` — the index is the prover's mask.
-* `Merkle.sol:133-140` checks only `_pathLength < 256` and `_index < (1 << _pathLength)`:
+* `common/libraries/Merkle.sol:133-140` checks only `_pathLength < 256` and `_index < (1 << _pathLength)`:
   a padded index `j ≥ leafCount` below `2^len` is accepted, and so is any length.
-* `AtomicInteropProof.sol:217-230` (`_verifyLastBatchInRoot`) runs its zero check over
+* `AtomicInteropProof.sol:130-143` (`_verifyLastBatchInRoot`) runs its zero check over
   `levels = _path.batchLeafSiblings.length`, the SUBMITTED length.
 
 `LastBatchPathAccepted` below is that acceptance with `k` (length) and `j` (mask) free.
@@ -31,10 +34,10 @@ pinned break / path collision `LastLeaf` already names.
 
 The model takes the claimed leaf hash `x` as free.  On chain it is computed:
 `localBatchLeafHash = batchLeafHash(batchSettlementRoot, _batchNumber, l1BatchTimestamp)`
-(`MessageHashing.sol:195-199`), that is `keccak256(BATCH_LEAF_PADDING ‖ root ‖ number ‖
-timestamp)` over a 128-byte preimage (`:78-84`), which the prover controls only through
+(`MessageHashing.sol:192-196`), that is `keccak256(BATCH_LEAF_PADDING ‖ root ‖ number ‖
+timestamp)` over a 128-byte preimage (`:76-82`), which the prover controls only through
 its inputs.  A tree node is the keccak of 64 bytes (`Merkle.sol:124-131`), and the
-empty-entry constant is the keccak of 96 zero bytes (`IMessageRoot.sol:8-11`).  So, on
+empty-entry constant is the keccak of 96 zero bytes (`core/message-root/IMessageRoot.sol:8-11`).  So, on
 chain, presenting an interior node as the leaf (`HeightBreak.shortInteriorLeaf`) needs a
 batch leaf equal to a node hash, `HeightBreak.longEntryIsNode` needs a stored entry (a
 batch leaf or the empty-entry constant) equal to a node hash, and a padded entry needs a
@@ -46,10 +49,11 @@ collisions on the walk, so length separation alone does not exclude every wrong 
 ## Model boundary that remains: the outer hop
 
 `authenticated` says the batch-leaf walk reaches chain `c`'s own batch-tree root.  On
-chain that is the job of the next hop (`L2MessageVerification.sol:42-51`):
+chain that is the job of the next hop (`interop/L2MessageVerification.sol:45-55`):
 `chainIdLeaf = chainIdLeafHash(chainIdRoot, chainId)` is proven into the imported
 settlement-layer root by another path whose length and mask are again the prover's.
-That hop is not modelled here.  Applied to it, `MerkleSpec.Verifier.AcceptPinsEntryAnyLengthOrBreak`
+That hop is not modelled here; it is modelled at `b17415d20` in `AuthenticateRootAtV35`
+(`slHopPath`, `SLHopBreak`, `EndBranchTwoHopLastLeafOrBreakV35`).  Applied to it, `MerkleSpec.Verifier.AcceptPinsEntryAnyLengthOrBreak`
 yields "the opened shared-tree entry is `chainIdLeaf`, or a located break"; reading
 that entry as chain `c`'s own leaf additionally needs the chain-id-leaf hash to separate
 `(chainIdRoot, chainId)` pairs on the instance.
@@ -67,7 +71,7 @@ empty-entry constant `CHAIN_TREE_EMPTY_ENTRY_HASH` (the tree's padding and the b
 the zero cascade the check compares against).  The submitted length `k`, mask `j` and
 siblings `sibs` are the prover's.  The claimed leaf hash `x` is modelled as free; on
 chain it is `batchLeafHash(root, n, t)`, a keccak of a 128-byte preimage
-(`MessageHashing.sol:78-84`, `:195-199`), see the module docstring. -/
+(`MessageHashing.sol:76-82`, `:192-196`), see the module docstring. -/
 structure LastBatchPathAccepted (h : Hash) (z0 : UInt256) (L : List UInt256) (height : ℕ)
     (sibs : ℕ → UInt256) (k j : ℕ) (x : UInt256) : Prop where
   /-- `Merkle.sol:137-139`, `MerkleIndexOutOfBounds`. -/
