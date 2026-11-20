@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AssetRouterBase.Specs.AllWritersStrong
 
 /-!
@@ -75,8 +76,14 @@ No hash premise.
 
 This is the pinned form of `AllWriters.Properties.RunTrackerHashed`.  Its data word `d` is
 an argument of a call in the log, not an arbitrary preimage.  The run of
-`RunTrackerRecordedWitness` meets the premise with two nonzero trackers. -/
-def Properties.RunTrackerRecorded : Prop :=
+`RunTrackerRecordedWitness` meets the premise with two nonzero trackers.
+
+Premises: the run starts from fresh router storage.  No hash premise. Model boundary (`MODEL-ROUTER-WRITERS`): a run is a sequence of successful calls of the router's
+map writers (`AllWriters.Op`: registration, the `_finalizeDeposit` fallback, the seed, the L2
+counterpart write, the L1 owner tracker write) with the router's configuration `Cfg` (encoding,
+`block.chainid`, vault address, seeded id) fixed for the whole run and no router upgrade;
+`finalize` admits every caller and the initializers are repeatable, which only adds runs. -/
+@[headline] def Properties.RunTrackerRecorded : Prop :=
   ∀ (K : Cfg) (ops : List Op) (R : Router), ARun K empty ops R → TrackerRecorded K ops R
 
 /-- **THE PINNED FORM IMPLIES THE ORIGINAL.**  For any log and any router state,
@@ -181,7 +188,7 @@ ids `a` and `b`:
   vault's normalisation to `L2_NATIVE_TOKEN_VAULT_ADDR` is needed too.
 
 The run has two logged triples, so `{a, b}` attains the bound of `RunTrackedIdsCardLe`. -/
-def Properties.RunTrackerRecordedWitness : Prop :=
+@[witness] def Properties.RunTrackerRecordedWitness : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router) (a b : AssetId),
     K.side = .l1 ∧ K.ntv ≠ K.ntvAddr ∧ ARun K empty ops R ∧
     IdInjOn K.enc ↑(loggedTriples K ops) ∧ a ≠ b ∧ (loggedTriples K ops).card = 2 ∧
@@ -213,7 +220,7 @@ clash: a logged triple other than `q` (in the proof, the owner's) has `q`'s id.
 So the premise of `RunTrackerNotHandedToOtherSenderOn` is load-bearing, and injectivity on
 the log alone does not give it.  Without a hash premise, the reading of
 `AllWriters.Properties.RunTrackerHashed`'s docstring is false. -/
-def Properties.TrackerHandedToOtherSenderUnderCollision : Prop :=
+@[countermodel] def Properties.TrackerHandedToOtherSenderUnderCollision : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router) (q : Chain × Address × AssetData) (t : Address),
     K.side = .l1 ∧ ARun K empty ops R ∧ t ≠ 0 ∧ q.2.1 = K.ntvAddr ∧ q.2.1 ≠ t ∧
     (t = K.ntv → q.2.1 ≠ K.ntvAddr) ∧ IdInjOn K.enc ↑(loggedTriples K ops) ∧

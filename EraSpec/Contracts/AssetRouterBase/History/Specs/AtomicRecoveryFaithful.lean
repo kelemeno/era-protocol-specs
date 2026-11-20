@@ -3,6 +3,11 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery
 /-!
 # Model: the router-produced bundle call's target depends on its destination
 
+**History.**  This topic is the record of the pin `c67894b9`, not a claim about `b17415d20`.  At
+`b17415d20` an atomic bundle to L1 is rejected at send (`interop/InteropCenter.sol:552-553`) and
+`L2AssetRouter.recoverAtomicCall` rejects an L1 destination (`bridge/asset-router/L2AssetRouter.sol:275`).
+Line numbers below are the pin's.
+
 Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af` (`contracts/` below is
 `l1-contracts/contracts/`).  One check is read from another tree, `e561b9cc2`, the snapshot of
 `feat/upgrade-simplification` that this repository's upgrade models pin.  That tree is not a
@@ -11,8 +16,8 @@ successor of the pin: the two diverge at `76f40b530`, with 20 commits only on th
 and the matching check in its `_recoverBundle`.
 
 **This file is definitions only.**  The results are in
-`EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecoveryFaithful` and proved in
-`EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryFaithful`.
+`EraSpec.Contracts.AssetRouterBase.History.Properties.AtomicRecoveryFaithful` and proved in
+`EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecoveryFaithful`.
 
 ## What `AtomicRecovery` merges
 
@@ -137,7 +142,7 @@ code at that address does (`L1LegRefundBypassesRouter`, `L1LegClaimOnlyByForeign
   leg to `Revertable` are not modelled.  The stranding results hold for every leg state.
 -/
 
-namespace Contracts.AssetRouter.AtomicRecoveryFaithful
+namespace Contracts.AssetRouter.AtomicRecoveryFaithful.History
 
 open Contracts.AssetRouter.AtomicRecovery
 
@@ -286,4 +291,4 @@ atomic send must not go to L1 (`AtomicBundleToL1NotSupported`), and a non-atomic
 def UpgradeAtomicityGuard (env : CenterEnv) (dest : Chain) (isAtomic : Bool) : Prop :=
   (isAtomic = true → dest ≠ env.l1Chain) ∧ (isAtomic = false → dest = env.l1Chain)
 
-end Contracts.AssetRouter.AtomicRecoveryFaithful
+end Contracts.AssetRouter.AtomicRecoveryFaithful.History

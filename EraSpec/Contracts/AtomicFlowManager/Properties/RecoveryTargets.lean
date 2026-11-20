@@ -54,7 +54,7 @@ Two of these restate known results in the code-map form, and are close to defini
 `VmCall`, whose modelling premise is their content: `NonRecovererTargetBlocksClaim` is
 `AttackVectors.RecoveryLimits.revert_anywhere_blocks` with the revert located at a target with
 no recoverer, and `ForeignTrueCountsAsRecovered` generalizes `AssetRouterBase`'s
-`Contracts.AssetRouter.AtomicRecoveryFaithful.Properties.L1LegForeignTrueClosesWithoutRefund`
+`Contracts.AssetRouter.AtomicRecoveryFaithful.History.Properties.L1LegForeignTrueClosesWithoutRefund`
 and `L1LegClaimOnlyByForeignCode` from the L1 leg to any nonempty bundle.
 -/
 
@@ -149,7 +149,7 @@ def Properties.RouterModelIsACodeMap : Prop :=
 /-- **A ROUTER CALL WHOSE `to` IS THE SOURCE CHAIN'S ROUTER REFUNDS THE DEPOSITOR.**
 `routerCall` targets `L2_ASSET_ROUTER_ADDR`, the router's own address on the source chain; it is
 the call the router produces for a destination other than L1 (`L2AssetRouter.sol:336`,
-`AssetRouterBase.sol:365, 374-376`; `AtomicRecoveryFaithful.Properties.RouterCallToL2IsModelled`).
+`AssetRouterBase.sol:365, 374-376`; `AtomicRecoveryFaithful.History.Properties.RouterCallToL2IsModelled`).
 Under `VmCall`, if the source chain's code at that address is the router's `recoverAtomicCall`, the
 manager's call of the router call carrying a prepared burn's returned mint data is the vault's mint
 of exactly the burned amount `r.data.amount` to the depositor `r.depositor` (the `mint` hook:

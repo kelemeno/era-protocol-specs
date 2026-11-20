@@ -1,12 +1,13 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AssetRouterBase.Specs.AllWriters
 
 /-!
-# Properties: the router with every writer at the pin
+# Properties: the router with every writer
 
 Statements about `EraSpec.Contracts.AssetRouterBase.Specs.AllWriters`.  Proofs are in
 `EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters`.
 
-## (a) `RunValid` fails at the pin
+## (a) `RunValid` fails on the deployed routers
 
 `HandlerRegistration.RunValid` says every live route has a nonzero deployment
 tracker.  With every writer, it is false.  The first deposit of any token the
@@ -77,7 +78,7 @@ in the `VaultMintGate` topic (`VaultModelDischargesMintPremise`).
 
 namespace Contracts.AssetRouter.AllWriters
 
-/-! ## (a) `RunValid` fails at the pin -/
+/-! ## (a) `RunValid` fails on the deployed routers -/
 
 /-- **ONE FALLBACK DEPOSIT BREAKS `Valid`, ON EVERY DEPLOYMENT.**  From any router state
 in which an id has neither handler nor tracker, a `finalizeDeposit` for that id that the
@@ -93,7 +94,7 @@ For each side there is a configuration meeting every premise of `RunWeakValid` (
 vault mints only vault ids and the seeded id is a vault id), and a one-call run from
 fresh storage — a fallback deposit — that ends violating `Valid` and satisfying
 `WeakValid`. -/
-def Properties.RunValidFailsAfterOneDeposit : Prop :=
+@[countermodel] def Properties.RunValidFailsAfterOneDeposit : Prop :=
   ∀ side : Side, ∃ (K : Cfg) (a : AssetId) (R : Router),
     K.side = side ∧ K.ntv ≠ 0 ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧
     ARun K empty [.finalize a] R ∧ ¬ Valid R ∧ WeakValid K R
@@ -146,8 +147,18 @@ def Properties.StepPreservesWeakValid : Prop :=
 
 /-- **EVERY LIVE ROUTE HAS A TRACKER OR IS A VAULT ROUTE.**  Along every run from fresh
 storage that has no counterpart write and no zero-tracker write, when the vault mints
-only vault ids and the seeded id is a vault id.  No hash premise. -/
-def Properties.RunWeakValid : Prop :=
+only vault ids and the seeded id is a vault id.  No hash premise.
+
+Premises: the vault's `bridgeMint` succeeds only on vault ids (`MintsOnlyNtvIds`; proved from
+the vault's registry model by `VaultModelDischargesMintPremise`); the seeded id is a vault id
+(`ETH_TOKEN_ASSET_ID` on L1; on L2 the upgrader's `_baseTokenAssetId`, `OPS-CONFIG`); the run starts
+from fresh router storage and has no counterpart `setAssetHandlerAddress` and no owner tracker
+write naming zero. Model boundary (`MODEL-ROUTER-WRITERS`): a run is a sequence of successful calls of the router's
+map writers (`AllWriters.Op`: registration, the `_finalizeDeposit` fallback, the seed, the L2
+counterpart write, the L1 owner tracker write) with the router's configuration `Cfg` (encoding,
+`block.chainid`, vault address, seeded id) fixed for the whole run and no router upgrade;
+`finalize` admits every caller and the initializers are repeatable, which only adds runs. -/
+@[headline] def Properties.RunWeakValid : Prop :=
   ∀ (K : Cfg), MintsOnlyNtvIds K → IsNtvId K.enc K.ntvAddr K.seedId →
     ∀ (ops : List Op) (R : Router), ARun K empty ops R →
       (∀ op ∈ ops, ¬ op.IsCounterpart ∧ ¬ op.ZeroTracker) → WeakValid K R
@@ -171,8 +182,16 @@ def Properties.RunWeakValidOn : Prop :=
         WeakValid K R
 
 /-- **ON L1: EVERY RUN, UNDER THE RUN-LOCAL HASH PREMISE.**  The L1 router has no
-counterpart write. -/
-def Properties.L1RunWeakValidOn : Prop :=
+counterpart write.
+
+Premises: the L1 router, with a nonzero vault address; the vault's `bridgeMint` succeeds only on
+vault ids (`MintsOnlyNtvIds`); the seeded id is a vault id; the run starts from fresh router
+storage; `encodeAssetId` is injective on the triples the run's calls hashed. Model boundary (`MODEL-ROUTER-WRITERS`): a run is a sequence of successful calls of the router's
+map writers (`AllWriters.Op`: registration, the `_finalizeDeposit` fallback, the seed, the L2
+counterpart write, the L1 owner tracker write) with the router's configuration `Cfg` (encoding,
+`block.chainid`, vault address, seeded id) fixed for the whole run and no router upgrade;
+`finalize` admits every caller and the initializers are repeatable, which only adds runs. -/
+@[headline] def Properties.L1RunWeakValidOn : Prop :=
   ∀ (K : Cfg), K.side = .l1 → K.ntvAddr ≠ 0 → MintsOnlyNtvIds K →
     IsNtvId K.enc K.ntvAddr K.seedId →
     ∀ (ops : List Op) (R : Router), ARun K empty ops R →
@@ -195,7 +214,7 @@ storage containing a seed, a registration and a fallback deposit, with no counte
 zero-tracker write, ending in a state that violates `Valid`.  On L1 the log also holds an
 owner tracker write for a custom tracker (not the vault) and that tracker's own
 registration. -/
-def Properties.RunWeakValidWitness : Prop :=
+@[witness] def Properties.RunWeakValidWitness : Prop :=
   ∀ side : Side, ∃ (K : Cfg) (ops : List Op) (R : Router),
     K.side = side ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧
     ARun K empty ops R ∧ (∀ op ∈ ops, ¬ op.IsCounterpart ∧ ¬ op.ZeroTracker) ∧
@@ -209,7 +228,7 @@ THAT COLLIDES OFF THE LOG.**  An L1 configuration with a well-behaved vault, and
 from fresh storage that includes an owner tracker write naming zero.  The encoding is
 injective on the logged triples, but maps a logged triple and an unlogged one to the
 same id.  The run ends violating `Valid`. -/
-def Properties.RunWeakValidOnWitness : Prop :=
+@[witness] def Properties.RunWeakValidOnWitness : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router),
     K.side = .l1 ∧ K.ntvAddr ≠ 0 ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧
     ARun K empty ops R ∧ IdInjOn K.enc ↑(loggedTriples K ops) ∧
@@ -220,7 +239,7 @@ def Properties.RunWeakValidOnWitness : Prop :=
 
 /-- **THE COUNTERPART BREAKS `WeakValid`, ON EVERY L2 ROUTER.**  Pointing an id that has no
 tracker at a nonzero handler other than the vault succeeds and violates `WeakValid`. -/
-def Properties.CounterpartBreaksWeakValid : Prop :=
+@[countermodel] def Properties.CounterpartBreaksWeakValid : Prop :=
   ∀ (K : Cfg) (R : Router) (a : AssetId) (h : Address), K.side = .l2 → R.tracker a = 0 →
     h ≠ 0 → h ≠ K.ntv →
       AStep K (.counterpartSet a h) R (pointAt R a h) ∧ ¬ WeakValid K (pointAt R a h)
@@ -230,7 +249,7 @@ well-behaved vault and a colliding encoding.  The owner records a custom tracker
 registers a custom handler.  Then an owner write naming the zero tracker, which hashes
 to the same id, erases that tracker.  So `RunWeakValid`'s zero-tracker exclusion and
 `RunWeakValidOn`'s hash premise are both load-bearing. -/
-def Properties.ZeroTrackerBreaksWeakValidUnderCollision : Prop :=
+@[countermodel] def Properties.ZeroTrackerBreaksWeakValidUnderCollision : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router),
     K.side = .l1 ∧ K.ntvAddr ≠ 0 ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧
     ARun K empty ops R ∧ (∀ op ∈ ops, ¬ op.IsCounterpart) ∧ (∃ op ∈ ops, op.ZeroTracker) ∧
@@ -238,14 +257,14 @@ def Properties.ZeroTrackerBreaksWeakValidUnderCollision : Prop :=
 
 /-- **A VAULT THAT MINTED A NON-VAULT ID WOULD BREAK `WeakValid`.**  So `MintsOnlyNtvIds` is
 load-bearing: one fallback deposit for an id that is not a vault id, from fresh storage. -/
-def Properties.NonVaultMintBreaksWeakValid : Prop :=
+@[countermodel] def Properties.NonVaultMintBreaksWeakValid : Prop :=
   ∃ (K : Cfg) (a : AssetId) (R : Router),
     K.ntv ≠ 0 ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧ K.ntvMints a ∧
     ¬ IsNtvId K.enc K.ntvAddr a ∧ ARun K empty [.finalize a] R ∧ ¬ WeakValid K R
 
 /-- **A SEEDED ID THAT IS NOT A VAULT ID WOULD BREAK `WeakValid`.**  So the seed premise is
 load-bearing.  On L2 it is a premise on the upgrade's `_baseTokenAssetId`. -/
-def Properties.NonVaultSeedBreaksWeakValid : Prop :=
+@[countermodel] def Properties.NonVaultSeedBreaksWeakValid : Prop :=
   ∃ (K : Cfg) (R : Router), K.side = .l2 ∧ K.ntv ≠ 0 ∧ MintsOnlyNtvIds K ∧
     ¬ IsNtvId K.enc K.ntvAddr K.seedId ∧ ARun K empty [.seed] R ∧ ¬ WeakValid K R
 
@@ -275,8 +294,17 @@ counterpart's `setAssetHandlerAddress`.
 
 The vault's own registrations are covered: their sender is `L2_NATIVE_TOKEN_VAULT_ADDR`.
 The aliased L1 router's `finalizeDeposit` on L2 is a fallback, so it is covered too.
-Only its `setAssetHandlerAddress` is excluded. -/
-def Properties.NoHijackOnExceptCounterpart : Prop :=
+Only its `setAssetHandlerAddress` is excluded.
+
+Premises: the vault's `bridgeMint` succeeds only on vault ids (`MintsOnlyNtvIds`); the seeded id
+is a vault id; one successful call of any writer except the counterpart's `setAssetHandlerAddress`,
+from any router state; the victim's sender differs from the call's hashed sender; `encodeAssetId`
+is injective on the two triples compared. Model boundary (`MODEL-ROUTER-WRITERS`): a run is a sequence of successful calls of the router's
+map writers (`AllWriters.Op`: registration, the `_finalizeDeposit` fallback, the seed, the L2
+counterpart write, the L1 owner tracker write) with the router's configuration `Cfg` (encoding,
+`block.chainid`, vault address, seeded id) fixed for the whole run and no router upgrade;
+`finalize` admits every caller and the initializers are repeatable, which only adds runs. -/
+@[headline] def Properties.NoHijackOnExceptCounterpart : Prop :=
   ∀ (K : Cfg), MintsOnlyNtvIds K → IsNtvId K.enc K.ntvAddr K.seedId →
     ∀ (op : Op) (R R' : Router), AStep K op R R' → ¬ op.IsCounterpart →
       (∃ p, op.HashedFrom K p) ∧
@@ -290,7 +318,7 @@ the victim's route is live.  A fallback deposit succeeds from that state, and th
 victim's triple and a vault triple of the deposit's id are separated by the encoding.
 (The witness is an L1 run in which the owner records a custom tracker and that tracker
 registers the victim's route.) -/
-def Properties.NoHijackOnExceptCounterpartWitness : Prop :=
+@[witness] def Properties.NoHijackOnExceptCounterpartWitness : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R R' : Router) (a : AssetId)
     (p : Chain × Address × AssetData) (c : Chain) (s : Address) (d' : AssetData),
     MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧ ARun K empty ops R ∧
@@ -301,8 +329,8 @@ def Properties.NoHijackOnExceptCounterpartWitness : Prop :=
 outright.  On every L2 router, from every state, `setAssetHandlerAddress` succeeds for
 every id and every handler, the zero address included, and sets exactly that handler.
 Its only check on L2 is the caller (`onlyAssetRouterCounterpart`,
-`AR/L2AssetRouter.sol:91-102`). -/
-def Properties.CounterpartRepointsAnyRoute : Prop :=
+`AR/L2AssetRouter.sol:96-107`). -/
+@[countermodel] def Properties.CounterpartRepointsAnyRoute : Prop :=
   ∀ (K : Cfg) (R : Router) (a : AssetId) (h : Address), K.side = .l2 →
     ∃ R', AStep K (.counterpartSet a h) R R' ∧ R'.handler a = h ∧
       ∀ x, x ≠ a → R'.handler x = R.handler x
@@ -312,7 +340,7 @@ made explicit.  On an L2 router with a well-behaved vault, a run from fresh stor
 no counterpart write leaves a vault route whose tracker is the vault.  One
 `setAssetHandlerAddress` then points that id at a nonzero handler other than the vault.
 No collision is involved: the counterpart's id is an argument, not a hash of its
-caller.  This is the L2 router taken alone.  With trackers that behave as at the pin
+caller.  This is the L2 router taken alone.  With trackers that behave as deployed
 (`VaultApprovals`), the L1 router would not send that message for a vault triple's id
 unless its own log holds a clash (`CounterpartGate.L1CounterpartAtVaultIdOrLoggedClash`). -/
 def Properties.CounterpartRepointsVaultRoute : Prop :=
@@ -327,8 +355,14 @@ tracker is zero or the vault, and every registration in the log was made by the 
 This holds for every encoding, colliding or not.  L2 has no tracker writer other than
 registration, and the first registration of an id needs the vault (`FreshIdNeedsNtv`).
 So on L2 a handler other than what the vault registers, the fallback or the seed can
-only come from the counterpart. -/
-def Properties.L2OnlyVaultRegisters : Prop :=
+only come from the counterpart.
+
+Premises: the L2 router; the run starts from fresh router storage.  No hash premise. Model boundary (`MODEL-ROUTER-WRITERS`): a run is a sequence of successful calls of the router's
+map writers (`AllWriters.Op`: registration, the `_finalizeDeposit` fallback, the seed, the L2
+counterpart write, the L1 owner tracker write) with the router's configuration `Cfg` (encoding,
+`block.chainid`, vault address, seeded id) fixed for the whole run and no router upgrade;
+`finalize` admits every caller and the initializers are repeatable, which only adds runs. -/
+@[headline] def Properties.L2OnlyVaultRegisters : Prop :=
   ∀ (K : Cfg), K.side = .l2 → ∀ (ops : List Op) (R : Router), ARun K empty ops R →
     (∀ a, R.tracker a = 0 ∨ R.tracker a = K.ntv) ∧
     ∀ (caller : Address) (d : AssetData) (h : Address), Op.register caller d h ∈ ops →
@@ -347,8 +381,12 @@ def Properties.L2OnlyCounterpartTouchesNonVaultIds : Prop :=
 
 /-- **`L2OnlyCounterpartTouchesNonVaultIds`'s PREMISES HOLD, WITH A HANDLER THAT CHANGES.**
 On an L2 router with a well-behaved vault, after the seed, the vault's registration of its
-own token changes a handler. -/
-def Properties.L2OnlyCounterpartTouchesNonVaultIdsWitness : Prop :=
+own token changes a handler.
+
+It is also the `@[witness]` for the headline `L2OnlyVaultRegisters`: its premises (the L2 side
+and a run `ops` from fresh storage) hold here, with a further step that changes a handler.  The
+`register` it exercises is that further step `op`, not a logged `register` inside `ops`. -/
+@[witness] def Properties.L2OnlyCounterpartTouchesNonVaultIdsWitness : Prop :=
   ∃ (K : Cfg) (ops : List Op) (R : Router) (op : Op) (R' : Router) (x : AssetId),
     K.side = .l2 ∧ MintsOnlyNtvIds K ∧ IsNtvId K.enc K.ntvAddr K.seedId ∧
     ARun K empty ops R ∧ AStep K op R R' ∧ ¬ op.IsCounterpart ∧ R'.handler x ≠ R.handler x

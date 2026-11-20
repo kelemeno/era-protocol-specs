@@ -1,5 +1,6 @@
 import EraSpec.Contracts.AtomicFlowManager.Properties.RecoveryTargets
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecovery
 
 /-!
 # Proofs: what `_recoverBundle` finds at each call's `to`
@@ -256,13 +257,13 @@ theorem recoverStep_routerCall {enc : AssetIdOf} {cfg : Config} {hk : Hooks X}
 theorem SourceRouterTargetRefundsDepositor : Properties.SourceRouterTargetRefundsDepositor := by
   intro Acc prepHooks s r out hw hprep X enc cfg hk sem code dest w x₁ hvm hcode hp hn ht hf
   rw [recoverStep_routerCall hvm hcode]
-  exact Contracts.AssetRouter.AtomicRecovery.PreparedBurnRefundsDepositor Acc prepHooks s r out hw
+  exact Contracts.AssetRouter.AtomicRecovery.History.PreparedBurnRefundsDepositor Acc prepHooks s r out hw
     hprep X enc cfg hk _ dest w x₁ hp hn ht hf
 
 theorem SourceRouterTargetRefundsDepositorWitness :
     Properties.SourceRouterTargetRefundsDepositorWitness := by
   obtain ⟨Acc, prepHooks, s, r, out, X, enc, cfg, hk, other, dest, w, x₁, hw, hprep, hne, hp, hn,
-    ht, hf, hout⟩ := Contracts.AssetRouter.AtomicRecovery.PreparedBurnRefundSatisfiable
+    ht, hf, hout⟩ := Contracts.AssetRouter.AtomicRecovery.History.PreparedBurnRefundSatisfiable
   refine ⟨Acc, prepHooks, s, r, out, X, enc, cfg, hk, vmCall, routerCodeMap enc cfg hk other, dest,
     w, x₁, hw, hprep, hne, vmCall_holds _ _, by simp [routerCodeMap], hp, hn, ht, hf, ?_⟩
   rw [← recoverCall_eq_recoverStep (vmCall_holds _ _)]

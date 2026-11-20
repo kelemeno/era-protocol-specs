@@ -22,8 +22,8 @@ namespace Contracts.AssetRouter.AllWriters
 
 /-- **EVERY REGISTERED VAULT ID IS THE ENCODING OF ITS RECORDED ORIGIN, ALONG EVERY VAULT
 RUN.**  No hash premise.  `_unsafeRegisterNativeToken` derives the id from this chain and
-the token (`NTV/NativeTokenVaultBase.sol:516`).  `assetIdCheck` enforces the encoding on
-the bridged path (:580).  Neither needs injectivity to keep the equation true. -/
+the token (`NTV/NativeTokenVaultBase.sol:493`).  `assetIdCheck` enforces the encoding on
+the bridged path (:557).  Neither needs injectivity to keep the equation true. -/
 def Properties.VaultRunIdShape : Prop :=
   ∀ (e : Contracts.NativeTokenVault.NtvAssetId) (thisChain : Chain)
     (W : Contracts.NativeTokenVault.World),

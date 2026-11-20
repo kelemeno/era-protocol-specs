@@ -1,11 +1,16 @@
-import EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecoveryFaithful
+import EraSpec.Contracts.AssetRouterBase.History.Specs.AtomicRecoveryFaithful
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.RepresentationPreparation
 
 /-!
 # Properties: the router-produced call by destination, and the stranded L2→L1 atomic leg
 
-Statements about `EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecoveryFaithful`.  Proofs are in
-`EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryFaithful`.
+**History.**  This topic is the record of the pin `c67894b9`, not a claim about `b17415d20`.  At
+`b17415d20` an atomic bundle to L1 is rejected at send (`interop/InteropCenter.sol:552-553`) and
+`L2AssetRouter.recoverAtomicCall` rejects an L1 destination (`bridge/asset-router/L2AssetRouter.sol:275`).
+Line numbers below are the pin's.
+
+Statements about `EraSpec.Contracts.AssetRouterBase.History.Specs.AtomicRecoveryFaithful`.  Proofs are in
+`EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecoveryFaithful`.
 
 `AtomicRecovery` models a router-produced bundle call as `routerCall`, with the L2 router as its
 target.  That is the real call only when the destination is another L2.  For an L1 destination
@@ -26,7 +31,7 @@ that use `routerCall` over the real call, `routerCallTo`, and adds what happens 
   address, the refund reverts (`L1LegRefundReverts`) and every claim of the bundle reverts
   (`L1LegNeverRefunded`).
 * **The original headline (c) is false for an L2→L1 leg.**  One prepared burn to L1 satisfies
-  every premise of `AtomicRecovery.Properties.PreparedBurnRefundsDepositor`, and its modelled call
+  every premise of `AtomicRecovery.History.Properties.PreparedBurnRefundsDepositor`, and its modelled call
   is refunded, but its real call's refund reverts (`PreparedBurnRefundFailsToL1`).  An exact
   replacement for every destination is the case split `PreparedBurnRefundByDestination`.
 * **The pin's modelled checks admit such a leg, and the other tree's guard does not.**  At the
@@ -61,7 +66,7 @@ addresses are 160-bit, so they are compared through the zero extension
 `NativeTokenVaultBase.widen`.
 -/
 
-namespace Contracts.AssetRouter.AtomicRecoveryFaithful
+namespace Contracts.AssetRouter.AtomicRecoveryFaithful.History
 
 open Contracts.AssetRouter.AtomicRecovery
 open AttackVectors.RecoveryLimits (Outcome LegState)
@@ -155,7 +160,7 @@ def Properties.L1LegNeverRefunded : Prop :=
 /-! ## Headline (c), by destination -/
 
 /-- **HEADLINE (c), ON THE REAL CALL: A BURN'S OWN BUNDLE CALL TO ANOTHER L2 REFUNDS THE
-DEPOSITOR.**  This is `AtomicRecovery.Properties.PreparedBurnRefundsDepositor` over the call the
+DEPOSITOR.**  This is `AtomicRecovery.History.Properties.PreparedBurnRefundsDepositor` over the call the
 router really produces for destination `dest`, with the explicit premise that `dest` is not the
 router's `L1_CHAIN_ID`.  On a vault that knows the asset, unpaused, once the tracker hook
 returns, the refund re-mints exactly the burned amount to the depositor `r.depositor`, not to
@@ -175,7 +180,7 @@ def Properties.PreparedBurnRefundsDepositorToL2 : Prop :=
               (fun x₂ => ({ w with rest := x₂ }, true))
 
 /-- **HEADLINE (c), EXACTLY, FOR EVERY DESTINATION.**  An exact replacement of
-`AtomicRecovery.Properties.PreparedBurnRefundsDepositor` on the real call.  Under that result's
+`AtomicRecovery.History.Properties.PreparedBurnRefundsDepositor` on the real call.  Under that result's
 premises, and `L1_ASSET_ROUTER ≠ L2_ASSET_ROUTER_ADDR`, the refund of the real call is a case
 split.  To L1 it is whatever the code at the L1 router's address does.  To any other chain it is
 the re-mint of the burned amount to the depositor.  Witness: `PreparedBurnRefundToL2Satisfiable`,
@@ -199,7 +204,7 @@ def Properties.PreparedBurnRefundByDestination : Prop :=
 
 /-- **COUNTERMODEL: THE ORIGINAL HEADLINE (c) IS FALSE FOR AN L2→L1 LEG.**  One burn to L1, with
 one refund world, satisfies every premise of
-`AtomicRecovery.Properties.PreparedBurnRefundsDepositor`, and the mint succeeds.  The burn goes
+`AtomicRecovery.History.Properties.PreparedBurnRefundsDepositor`, and the mint succeeds.  The burn goes
 to the router's `L1_CHAIN_ID`, which is not the chain it is made on.  It is
 prepared by the vault of the refund configuration, on its chain, called by its router, and the
 refund world's registry has the burned asset's local token and origin chain as that vault has
@@ -357,7 +362,7 @@ def Properties.AtomicL1LegIsStranded : Prop :=
           [formedCall cfg r.destinationChain (routerStarter env) r.assetId out.data] = none
 
 /-- **HEADLINE (b), CONCRETE, ON THE REAL CALLS.**  This is
-`AtomicRecovery.Properties.CustomHandlerBundleIsStranded` for the router-produced calls of a
+`AtomicRecovery.History.Properties.CustomHandlerBundleIsStranded` for the router-produced calls of a
 two-call atomic bundle to another L2.  The center and the router agree on the L1 chain, this
 chain and the L2 router.  The two-starter send passes `PinSendChecks`, and the bundle the center
 forms from the two starters is the bundle of the two router-produced calls.  A two-call bundle
@@ -433,4 +438,4 @@ def Properties.PreparedBurnRefundToL2Satisfiable : Prop :=
     ∧ outcomeOf (recoverCall enc cfg.base hk other r.destinationChain w
         (routerCallTo cfg r.destinationChain r.assetId out.data)) = Outcome.recovered
 
-end Contracts.AssetRouter.AtomicRecoveryFaithful
+end Contracts.AssetRouter.AtomicRecoveryFaithful.History

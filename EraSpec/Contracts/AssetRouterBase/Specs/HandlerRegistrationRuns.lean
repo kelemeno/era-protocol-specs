@@ -15,9 +15,9 @@ file's `Step`, labelled.
 `EraSpec.Contracts.AssetRouterBase.Properties.HandlerRegistrationRuns` and proved in
 `EraSpec.Contracts.AssetRouterBase.Proofs.HandlerRegistrationRuns`.
 
-## Source (pinned tree `c67894b9`, `l1-contracts/contracts/`)
+## Source (era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`, `l1-contracts/contracts/`)
 
-The writer is `_setAssetHandlerAddressThisChain` (`bridge/asset-router/AssetRouterBase.sol:73-85`):
+The writer is `_setAssetHandlerAddressThisChain` (`bridge/asset-router/AssetRouterBase.sol:65-77`):
 
     bool senderIsNTV = msg.sender == _nativeTokenVault;
     address sender = senderIsNTV ? L2_NATIVE_TOKEN_VAULT_ADDR : msg.sender;
@@ -27,34 +27,35 @@ The writer is `_setAssetHandlerAddressThisChain` (`bridge/asset-router/AssetRout
     assetDeploymentTracker[assetId] = msg.sender;
 
 with `encodeAssetId(_chainId, _assetData, _sender) = keccak256(abi.encode(_chainId, _sender, _assetData))`
-(`common/libraries/DataEncoding.sol:126-128`).  So each call hashes exactly one triple,
+(`common/libraries/DataEncoding.sol:125-127`).  So each call hashes exactly one triple,
 `(block.chainid, sender, _assetRegistrationData)` — `Call.triple` below.
 
 **Anyone can schedule the vault's calls**, the ones that skip the tracker check:
-`NativeTokenVaultBase.registerToken` is permissionless (`bridge/ntv/NativeTokenVaultBase.sol:129-142`;
-it needs only code at the token and the token unregistered), and it makes the vault call
+`NativeTokenVaultBase.registerToken` is permissionless (`bridge/ntv/NativeTokenVaultBase.sol:127-140`;
+it needs only code at the token, the token unregistered, and on an L2 a token other than WETH),
+and it makes the vault call
 `setAssetHandlerAddressThisChain(bytes32(uint256(uint160(_nativeToken))), address(this))`
-(`:515-522`).  So the data of a vault call is any address an attacker can put code at,
+(`:492-499`).  So the data of a vault call is any address an attacker can put code at,
 and its handler is the vault itself.
 
 ## Where non-vault trackers come from, and why runs start from any router
 
-At the pin the tracker mapping has exactly two writers: line 83 above, which records
-`msg.sender`, and `L1AssetRouter.setAssetDeploymentTracker` (`bridge/asset-router/L1AssetRouter.sol:159-166`,
+The tracker mapping has exactly two writers: line 75 above, which records
+`msg.sender`, and `L1AssetRouter.setAssetDeploymentTracker` (`bridge/asset-router/L1AssetRouter.sol:135-142`,
 `onlyOwner`), which records `_assetDeploymentTracker` at the id hashed from that same
-address.  Line 83 alone never records anybody but the vault when started from fresh
+address.  Line 75 alone never records anybody but the vault when started from fresh
 storage: the first write to an id must pass the guard while its tracker is still zero,
 and only the vault does (`Contracts.AssetRouter.Properties.OnlyVaultActsFromEmpty`).  So
 on a run of this model from `empty` every call is the vault's, and the non-vault half of
 `NoHijack` has nothing to say.  On L1 a custom tracker exists once the owner has
-whitelisted it.  The one in use at the pin is the `CTMDeploymentTracker`, which registers
+whitelisted it.  The one in use is the `CTMDeploymentTracker`, which registers
 each chain type manager's asset — the route chain migrations take — with handler
 `BRIDGE_HUB.chainAssetHandler()` (`core/ctm-deployment/CTMDeploymentTracker.sol:71-91`); the
 guard admits it only after the owner's `setAssetDeploymentTracker` for that data.  The L2
-router has no tracker writer besides line 83 (its other writers,
-`initL2` at `L2AssetRouter.sol:167`, the counterpart-only `setAssetHandlerAddress` at
-`:200-206` and `_finalizeDeposit`'s fallback at `AssetRouterBase.sol:285-286`, all go
-through `_setAssetHandler` at `:298-301`, which writes the handler only), so on L2 only
+router has no tracker writer besides line 75 (its other writers,
+`initL2` at `L2AssetRouter.sol:162`, the counterpart-only `setAssetHandlerAddress` at
+`:198-204` and `_finalizeDeposit`'s fallback at `AssetRouterBase.sol:278`, all go
+through `_setAssetHandler` at `:289-292`, which writes the handler only), so on L2 only
 the vault ever passes the guard (`Contracts.AssetRouter.Properties.OnlyVaultActsAmidOtherWriters`).
 
 The run results therefore start from an ARBITRARY router `R₀` — whatever the owner's
@@ -162,7 +163,7 @@ def VaultOnlyTrackers (ntv : Address) (R : Router) : Prop :=
   ∀ a, R.tracker a = 0 ∨ R.tracker a = ntv
 
 /-- A run of guarded calls (logged) interleaved with writes by the router's OTHER writers,
-abstracted to what they all share at the pin on L2: they leave the tracker mapping as it
+abstracted to what they all share on L2: they leave the tracker mapping as it
 was.  (`initL2`, the counterpart's `setAssetHandlerAddress` and `_finalizeDeposit`'s
 fallback all write through `_setAssetHandler`, which writes the handler only; see the
 header.)  The other writers' steps are not logged — they hash nothing the guard reads. -/

@@ -1,82 +1,72 @@
 import EraSpec.Contracts.AssetRouterBase.Specs.HandlerRegistration
 import EraSpec.Contracts.AtomicFlowManager.Specs.RecoveryLimits
 import EraSpec.Contracts.NativeTokenVaultBase.Specs.ModelCorrespondence
+import EraSpec.Contracts.NativeTokenVaultBase.Specs.Resolution
 
 /-!
-# Model: `L2AssetRouter.recoverAtomicCall` — an atomic refund always goes to the vault
+# Model: the vault's refund of an atomic leg, and the pin's router refund
 
-Source: era-contracts `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`
-(`contracts/` below is `l1-contracts/contracts/`).
+Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`
+(`contracts/` below is `l1-contracts/contracts/`), except the definitions marked
+**`c67894b9` record**, which model the abandoned interop pin `c67894b970a0dac6fe9144d8ebf4b0806e15a9af`.
 
-**This file is definitions only.**  The results are in
-`EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecovery` and proved in
-`EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery`.
+**This file is definitions only.**  The current results are in
+`EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecovery`; the pin results are in
+`EraSpec.Contracts.AssetRouterBase.History.Properties.AtomicRecovery` (History is the record of an
+older commit, not a claim about `b17415d20`).  The `b17415d20` refund (the manager's loop and
+`L2AssetRouter.recoverAtomicCall`) is `AtomicRecoveryAtHead`, which builds on the vault refund here.
 
-## The two halves of one atomic transfer
+## What is current at `b17415d20`
 
-An atomic interop leg burns at the source when it is sent, and is refunded at the source
-if its flow times out.  The router picks the asset handler differently on the two sides.
-
-*Send.*  `AssetRouterBase._burn` (`bridge/asset-router/AssetRouterBase.sol:313-346`)
-reads the routing table:
+*The source burn.*  `AssetRouterBase._burn` (`bridge/asset-router/AssetRouterBase.sol:303-331`)
+reads the routing table (`:312-321`):
 
     address assetHandler = assetHandlerAddress[_assetId];
     if (assetHandler == address(0)) { ... tryRegisterTokenFromBurnData ...; assetHandler = _nativeTokenVault; }
     bridgeMintCalldata = IAssetHandler(assetHandler).bridgeBurn{...}(...);
 
 so an asset with a custom handler is burned by that handler, which also writes the
-bridge-mint data.  `getDepositCalldata` (`AssetRouterBase.sol:378-384`) wraps it as
-`finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)`, and that is the bundle call.
+bridge-mint data (`burnHandler`).  `getDepositCalldata` (`AssetRouterBase.sol:365-371`) wraps it
+as `finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)`.
 
-*Refund.*  `AtomicFlowManager._recoverBundle` (`atomic-interop/AtomicFlowManager.sol:219-230`)
-passes each call's `(destinationChainId, data)` to `IAtomicRecoverable(c.to).recoverAtomicCall`,
-with no `try/catch`.  The router's implementation (`bridge/asset-router/L2AssetRouter.sol:281-296`):
+*The vault's refund.*  `NativeTokenVaultBase.bridgeRecoverFailedTransfer`
+(`bridge/ntv/NativeTokenVaultBase.sol:195-214`) and `_disburseFailedTransfer` (`:264-286`), with the
+L2 hooks of `bridge/ntv/L2NativeTokenVault.sol` (`vaultRefund`, `ntvRecover`):
 
-    function recoverAtomicCall(uint256 _destChainId, bytes calldata _callData)
-        external onlyAtomicFlowManager nonReentrant returns (bool recovered) {
-        if (_callData.length < 4 || bytes4(_callData[:4]) != AssetRouterBase.finalizeDeposit.selector) {
-            return false;
-        }
-        (, bytes32 assetId, bytes memory mintData) = abi.decode(_callData[4:], (uint256, bytes32, bytes));
-        IL2NativeTokenVault(_nativeTokenVaultAddr()).bridgeRecoverFailedTransfer(_destChainId, assetId, mintData);
-        return true;
-    }
-
-It never reads `assetHandlerAddress`: every `finalizeDeposit` call goes to the native token
-vault.  (Compare `L1AssetRouter.bridgeConfirmTransferResult`, `L1AssetRouter.sol:309`,
-which calls `assetHandlerAddress[_assetId]` for the L1 failed-deposit refund.)
-
-## The vault's guard chain, as far as `assetIdCheck`
-
-`NativeTokenVaultBase.bridgeRecoverFailedTransfer` (`bridge/ntv/NativeTokenVaultBase.sol:213-233`)
-and `_disburseFailedTransfer` (`:284-306`), with the L2 overrides of
-`bridge/ntv/L2NativeTokenVault.sol`:
-
-1. `requireZeroValue(msg.value) onlyAssetRouter whenNotPaused` (`:217`);
-2. `DataEncoding.decodeBridgeMintData(_data)` (`:219-220`, `common/libraries/DataEncoding.sol:102-119`);
-3. `isNative = originChainId[_assetId] == block.chainid` (`:221`);
-4. `_handleBridgeFromChain(...)`, the asset-tracker hook (`:296`, `L2NativeTokenVault.sol:304-315`);
-5. native: `_withdrawFunds(_assetId, _receiver, tokenAddress[_assetId], _amount)` (`:298`,
-   `L2NativeTokenVault.sol:238-241`);
+1. `requireZeroValue(msg.value) onlyAssetRouter whenNotPaused` (`:199`);
+2. `DataEncoding.decodeBridgeMintData(_data)` (`:201-202`, `common/libraries/DataEncoding.sol:101-118`);
+3. `isNative = originChainId[_assetId] == block.chainid` (`:203`);
+4. `_handleBridgeFromChain(...)`, the asset-tracker hook (`:276`, `L2NativeTokenVault.sol:285-293`);
+5. native: `_withdrawFunds(_assetId, _receiver, tokenAddress[_assetId], _amount)` (`:278`,
+   `L2NativeTokenVault.sol:196-199`);
 6. otherwise, with `token = tokenAddress[_assetId]`: if `token == 0`,
-   `_ensureAndSaveTokenDeployed` (`L2NativeTokenVault.sol:195-209`), which decodes the metadata's
-   origin chain (`tokenDataOriginChainId`, `NativeTokenVaultBase.sol:565-571`) and runs
-   `DataEncoding.assetIdCheck(originChain, _assetId, originToken)` (`:580`), which reverts unless
-   `_assetId == encodeNTVAssetId(originChain, originToken)` (`DataEncoding.sol:208-214`); then
-   `_deployBridgedToken` (`:620-633`, rejecting `originChain == block.chainid` at `:626`) and
-   `_setNewTokenStorage` (`:585`, `:588-598`);
-7. `IBridgedStandardToken(token).bridgeMint(_receiver, _amount)` (`:304`).
+   `_ensureAndSaveTokenDeployed` (`:515-529`), which decodes the metadata's origin chain
+   (`tokenDataOriginChainId`, `:542-548`) and runs `DataEncoding.assetIdCheck(originChain,
+   _assetId, originToken)` (`:557`), which reverts unless `_assetId == encodeNTVAssetId(originChain,
+   originToken)` (`DataEncoding.sol:207-213`); then `_deployBridgedToken` (`:597-609`, rejecting
+   `originChain == block.chainid` at `:603`) and `_setNewTokenStorage` (`:562`, `:565-575`);
+7. `IBridgedStandardToken(token).bridgeMint(_receiver, _amount)` (`:284`).
 
-The receiver is the mint data's `originalCaller`; `remoteReceiver` is decoded and dropped.
+The receiver is the mint data's `originalCaller`; `remoteReceiver` is decoded and dropped.  On L2
+`_disburseFailedTransfer` is overridden (`L2NativeTokenVault.sol:204-227`): it first calls
+`L2AssetTracker.assertRecoveryIsAccountingNeutral` and sends this chain's `BASE_TOKEN_ASSET_ID`
+to `BaseTokenHolder`.  `vaultRefund` is the refund for every other asset, with the tracker
+assertion inside the abstract hooks; `AtomicRecoveryAtHead` models the override and proves that off
+the base token it is `ntvRecover` (`VaultRecoverAtHeadIsPinRefundOffBaseToken`).
 
-So an asset the vault has never registered — every custom-handler asset whose id is not an
-NTV id — reaches step 6 and reverts there (on L2 it already reverts at step 4, in
-`L2AssetTracker._registerLegacyToken`, `bridge/asset-tracker/L2AssetTracker.sol:311-312`; the
-model keeps the tracker hook abstract and does not rely on that).  The router does not catch
-it, so `recoverAtomicCall` reverts instead of returning `false` — against
-`IAtomicRecoverable.sol:13-15` ("MUST return `false` (rather than revert) for call data they do
-not recognise as recoverable") and `AtomicFlowManager.sol:205-206`.  The manager does not catch
-it either, so the whole refund reverts (`AttackVectors.RecoveryLimits`, limit 2).
+## The `c67894b9` record kept here
+
+The pin's `L2AssetRouter.recoverAtomicCall` always called the vault and never read
+`assetHandlerAddress`; the pin's `AtomicFlowManager._recoverBundle` passed each call's
+`(destinationChainId, data)` to `IAtomicRecoverable(c.to).recoverAtomicCall` with no `try/catch`,
+and `claimRefund` reverted when nothing was recovered.  `recoverAtomicCall`, `recoverCall`,
+`recoverBundle`, `claimRefund`, `outcomes`, `outcomeOf` and the pin send (`routerCall`,
+`directCall`, `AtomicBundleValid`) model that code, with the pin's line numbers.  They stay in this
+file, not under `History/`, because `AtomicRecoveryAtHead`'s pin-against-head statements,
+AtomicFlowManager `RecoveryTargets` and Protocol `AssetBridgePreparation` `FullRecovery` use them;
+they move to `History/` with those importers.  At `b17415d20` the manager dispatches on
+`InteropCall.from` and `recoverAtomicCall` (`bridge/asset-router/L2AssetRouter.sol:269-303`)
+rejects an L1 destination and calls the handler registered at claim time.
 
 ## What is modelled, and what is not
 
@@ -89,10 +79,8 @@ it either, so the whole refund reverts (`AttackVectors.RecoveryLimits`, limit 2)
   tracker, token transfer, CREATE2 deployment, token mint) are hooks on an abstract rest of the
   world `X`.  Their types confine their writes to `X` (`DEP-FRAME`): no hook can write the vault
   registry, the router's maps, or the pause flag.
-* `nonReentrant` and events are not modelled.  `msg.value` is zero on the router-to-vault call
-  (`L2AssetRouter.sol:294` forwards none).
+* `nonReentrant` and events are not modelled.  `msg.value` is zero on the router-to-vault call.
 * Targets other than the router are an arbitrary function of the world.
-* The leg state machine and the acceptance rule are `AttackVectors.RecoveryLimits`'s.
 -/
 
 namespace Contracts.AssetRouter.AtomicRecovery
@@ -103,7 +91,7 @@ open AttackVectors.RecoveryLimits (Outcome LegState)
 abbrev Addr160 := Contracts.NativeTokenVaultBase.Address
 
 /-- Decoded `bridgeMintData`: `(originalCaller, remoteReceiver, originToken, amount, erc20Metadata)`
-(`DataEncoding.encodeBridgeMintData` / `decodeBridgeMintData`, `DataEncoding.sol:84-119`).  The
+(`DataEncoding.encodeBridgeMintData` / `decodeBridgeMintData`, `DataEncoding.sol:84-118`).  The
 same tuple the vault's `bridgeBurn` returns (`Contracts.NativeTokenVaultBase.mintData`). -/
 abbrev MintData := Contracts.NativeTokenVaultBase.MintData
 
@@ -117,24 +105,24 @@ structure Config where
   /-- `block.chainid`. -/
   thisChain : Chain
   /-- `L2_ASSET_ROUTER_ADDR`: the router's own address on this chain, and the target of every
-  router-produced bundle call to another L2 (`AssetRouterBase.sol:374-376`).  It is not the target
+  router-produced bundle call to another L2 (`AssetRouterBase.sol:360-362`).  It is not the target
   of a call to L1: there `initiateIndirectCall` targets `L1_ASSET_ROUTER`
-  (`L2AssetRouter.sol:336`).  `AtomicRecoveryFaithful` models that choice. -/
+  (`L2AssetRouter.sol:355`). -/
   router : Address
-  /-- `_nativeTokenVaultAddr()` = `L2_NATIVE_TOKEN_VAULT_ADDR` (`L2AssetRouter.sol:72-74`).  On
+  /-- `_getNativeTokenVaultAddr()` = `L2_NATIVE_TOKEN_VAULT_ADDR` (`L2AssetRouter.sol:79-81`).  On
   an L2 the vault's address is also the address hashed into every NTV asset id
-  (`DataEncoding.sol:151-153`), so one field serves for both. -/
+  (`DataEncoding.sol:150-152`), so one field serves for both. -/
   ntv : Address
-  /-- `_atomicFlowManagerAddr()` = `L2_ATOMIC_FLOW_MANAGER_ADDR` (`L2AssetRouter.sol:86-88`). -/
+  /-- `_getAtomicFlowManagerAddr()` = `L2_ATOMIC_FLOW_MANAGER_ADDR` (`L2AssetRouter.sol:91-93`). -/
   manager : Address
-  /-- `tokenDataOriginChainId(erc20Data)` (`NativeTokenVaultBase.sol:565-571`): the origin chain
+  /-- `tokenDataOriginChainId(erc20Data)` (`NativeTokenVaultBase.sol:542-548`): the origin chain
   decoded from the token metadata, with `0` replaced by the L1 chain id; `none` when
-  `DataEncoding.decodeTokenData` reverts (`DataEncoding.sol:174-186`). -/
+  `DataEncoding.decodeTokenData` reverts (`DataEncoding.sol:173-185`). -/
   tokenOrigin : Bytes → Option Chain
 
 /-- `DataEncoding.encodeNTVAssetId(chainId, token)` = `keccak256(abi.encode(chainId,
-L2_NATIVE_TOKEN_VAULT_ADDR, token))` (`DataEncoding.sol:151-153`), which is the router's
-`encodeAssetId(chainId, bytes32(token), L2_NATIVE_TOKEN_VAULT_ADDR)` (`:126-128`): the router
+L2_NATIVE_TOKEN_VAULT_ADDR, token))` (`DataEncoding.sol:150-152`), which is the router's
+`encodeAssetId(chainId, bytes32(token), L2_NATIVE_TOKEN_VAULT_ADDR)` (`:125-127`): the router
 encoding with the vault as the sender.  Tokens are 256-bit words here (as in the registry
 model); a 160-bit address enters as its zero extension `widen`. -/
 def ntvId (enc : AssetIdOf) (cfg : Config) : NativeTokenVault.NtvAssetId :=
@@ -142,46 +130,46 @@ def ntvId (enc : AssetIdOf) (cfg : Config) : NativeTokenVault.NtvAssetId :=
 
 /-! ## Bundle calls -/
 
-/-- The `data` of one bundle call, as `recoverAtomicCall` parses it
-(`L2AssetRouter.sol:285-293`). -/
+/-- The `data` of one bundle call, as `recoverAtomicCall` parses it (`L2AssetRouter.sol:284-290`;
+the same parse at the pin). -/
 inductive CallData where
   /-- Starts with the `finalizeDeposit` selector, and `abi.decode(_callData[4:], (uint256,
   bytes32, bytes))` succeeds.  `mint` is the inner bytes decoded as bridge-mint data, `none` if
-  that decoding reverts (it happens inside the vault, `NativeTokenVaultBase.sol:219-220`). -/
+  that decoding reverts (it happens inside the vault, `NativeTokenVaultBase.sol:201-202`). -/
   | finalizeDeposit (sourceChain : Chain) (assetId : AssetId) (mint : Option MintData)
   /-- Starts with the `finalizeDeposit` selector, but the outer `abi.decode` reverts. -/
   | malformedFinalizeDeposit
   /-- Shorter than four bytes, or any other selector. -/
   | other
 
-/-- One `InteropCall` (`common/Messaging.sol:257-264`).  The manager passes only `target`'s
-`recoverAtomicCall(destinationChainId, data)`; `sender` (`InteropCall.from`) and `value` are not
-passed on. -/
+/-- One `InteropCall` (`common/Messaging.sol:240-247`, without `version` and `shadowAccount`).
+The pin manager passed only `target`'s `recoverAtomicCall(destinationChainId, data)`; `sender`
+(`InteropCall.from`) and `value` were not passed on. -/
 structure Call where
   /-- `InteropCall.to`. -/
   target : Address
   /-- `InteropCall.from`: the router for an indirect call through it, the sending account for
-  a direct call (`InteropCenter.sol:733-750`). -/
+  a direct call (pin `InteropCenter.sol:733-750`). -/
   sender : Address
   /-- `InteropCall.value`. -/
   value : UInt256
   /-- `InteropCall.data`. -/
   data : CallData
 
-/-- The bundle call a router-routed indirect starter to another L2 produces: `target` the router,
+/-- **`c67894b9` record.**  The bundle call a router-routed indirect starter to another L2 produces: `target` the router,
 `from` the router (`InteropCenter.sol:733-740`; `L2AssetRouter.sol:336-341`), value zero for a
 non-base asset, data `finalizeDeposit(block.chainid, assetId, bridgeMintCalldata)`.  For an L1
-destination the real call's target is `L1_ASSET_ROUTER` instead; see
-`AtomicRecoveryFaithful.routerCallTo`, which equals this call off L1. -/
+destination the real call's target is `L1_ASSET_ROUTER` instead; see the History topic
+`AtomicRecoveryFaithful.History.routerCallTo`, which equals this call off L1. -/
 def routerCall (cfg : Config) (assetId : AssetId) (md : MintData) : Call :=
   ⟨cfg.router, cfg.router, 0, .finalizeDeposit cfg.thisChain assetId (some md)⟩
 
-/-- The bundle call a DIRECT starter produces (`InteropCenter.sol:741-750`): `to` and `data`
+/-- **`c67894b9` record.**  The bundle call a DIRECT starter produces (`InteropCenter.sol:741-750`): `to` and `data`
 exactly as the sender supplied them, `from` the sender.  Nothing is burned for it; its value is
 zero in an atomic bundle (`_validateAtomicBundle`). -/
 def directCall (target sender : Address) (data : CallData) : Call := ⟨target, sender, 0, data⟩
 
-/-- `InteropCenter._validateAtomicBundle` (`interop/InteropCenter.sol:670-677`), called at
+/-- **`c67894b9` record.**  `InteropCenter._validateAtomicBundle` (`interop/InteropCenter.sol:670-677`), called at
 `:649` before the leg is committed: the one send-time check specific to atomic bundles rejects
 calls that carry native `value`, and nothing else.  In particular it does not look at the
 asset, its handler, or whether the call is direct. -/
@@ -193,16 +181,16 @@ def AtomicBundleValid (calls : List Call) : Prop := ∀ c ∈ calls, c.value = 0
 revert (`none`).  Their types confine writes to `X`. -/
 structure Hooks (X : Type) where
   /-- `_handleBridgeFromChain(chainId, assetId, amount)`: `L2AssetTracker.handleFinalizeBridgingOnL2`
-  (`L2NativeTokenVault.sol:304-315`). -/
+  (`L2NativeTokenVault.sol:285-293`). -/
   fromChain : X → Chain → AssetId → UInt256 → Option X
   /-- `_withdrawFunds(assetId, to, token, amount)`: `require(assetId != BASE_TOKEN_ASSET_ID)`,
-  then `safeTransfer` (`L2NativeTokenVault.sol:238-241`). -/
+  then `safeTransfer` (`L2NativeTokenVault.sol:196-199`). -/
   withdraw : X → AssetId → Addr160 → Address → UInt256 → Option X
   /-- `_deployBridgedToken(originChain, assetId, originToken, erc20Data)` and the address check
-  (`NativeTokenVaultBase.sol:582-583, 620-633`), plus `_registerTokenInAssetTracker`: returns the
+  (`NativeTokenVaultBase.sol:559-560, 597-609`), plus `_registerTokenInAssetTracker`: returns the
   deployed local token.  Runs only after `assetIdCheck` passed. -/
   deploy : X → AssetId → Addr160 → Chain → Option (X × Address)
-  /-- `IBridgedStandardToken(token).bridgeMint(receiver, amount)` (`NativeTokenVaultBase.sol:304`). -/
+  /-- `IBridgedStandardToken(token).bridgeMint(receiver, amount)` (`NativeTokenVaultBase.sol:284`). -/
   mint : X → Address → Addr160 → UInt256 → Option X
 
 /-- What a refund reads and writes on the source chain. -/
@@ -267,10 +255,28 @@ def ntvRecover (enc : AssetIdOf) (cfg : Config) (hk : Hooks X) (w : World X)
   (vaultRefund enc cfg hk w.vault w.paused w.rest caller msgValue chainId a m).map
     fun p => { w with vault := p.1, rest := p.2 }
 
+/-! ## The canonical vault model as the vault's hooks -/
+
+/-- The canonical per-token vault model (`Contracts.NativeTokenVaultBase`, `Specs/Resolution.lean`)
+as `vaultRefund`'s hooks, with the whole per-token state as the rest of the world: the tracker hook
+is the resolution hook `rh.fromChain` on the pre-mint token snapshot, and the mint is
+`BridgedStandardERC20.mint` with the vault as caller on the one tracked token.  Withdrawal and
+deployment fail: the canonical recovery covers only the registered bridged branch, where
+`vaultRefund` calls neither.  `VaultRefundRefinesResolution` links the two models through these
+hooks. -/
+def resolutionHooks {Accounting : Type} (rh : NativeTokenVaultBase.ResolutionHooks Accounting) :
+    Hooks (NativeTokenVaultBase.State Accounting) where
+  fromChain x c a amt := (rh.fromChain x.accounting x.token c a amt).map
+    fun acc => { x with accounting := acc }
+  withdraw _ _ _ _ _ := none
+  deploy _ _ _ _ := none
+  mint x _ rcv amt := (BridgedStandardERC20.mint x.token x.config.vault rcv amt).map
+    fun t => { x with token := t }
+
 /-! ## The router's refund -/
 
-/-- `L2AssetRouter.recoverAtomicCall(destChainId, callData)` called by `caller`
-(`L2AssetRouter.sol:281-296`): `none` is a revert, `some (w', b)` returns `b`.  It takes the
+/-- **`c67894b9` record.**  The pin's `L2AssetRouter.recoverAtomicCall(destChainId, callData)`
+called by `caller` (pin `L2AssetRouter.sol:281-296`): `none` is a revert, `some (w', b)` returns `b`.  It takes the
 world, router maps included, and never reads `w.router`. -/
 def recoverAtomicCall (enc : AssetIdOf) (cfg : Config) (hk : Hooks X) (w : World X)
     (caller : Address) (destChainId : Chain) (d : CallData) : Option (World X × Bool) :=
@@ -285,12 +291,12 @@ def recoverAtomicCall (enc : AssetIdOf) (cfg : Config) (hk : Hooks X) (w : World
   | .finalizeDeposit _ a m =>
     (ntvRecover enc cfg hk w cfg.router 0 destChainId a m).map fun w' => (w', true)
 
-/-- `_burn`'s choice of handler for asset `a` (`AssetRouterBase.sol:322-336`): the registered
+/-- `_burn`'s choice of handler for asset `a` (`AssetRouterBase.sol:312-321`): the registered
 handler, or the vault when none is registered. -/
 def burnHandler (cfg : Config) (R : Router) (a : AssetId) : Address :=
   if R.handler a = 0 then cfg.ntv else R.handler a
 
-/-- The outcome class `AttackVectors.RecoveryLimits` reasons about. -/
+/-- **`c67894b9` record.**  The outcome class `AttackVectors.RecoveryLimits` reasons about. -/
 def outcomeOf {W : Type} : Option (W × Bool) → Outcome
   | none => Outcome.reverts
   | some (_, true) => Outcome.recovered
@@ -298,7 +304,7 @@ def outcomeOf {W : Type} : Option (W × Bool) → Outcome
 
 /-! ## The manager's refund loop -/
 
-/-- One iteration of `_recoverBundle` (`AtomicFlowManager.sol:224-227`): the router's
+/-- **`c67894b9` record.**  One iteration of the pin's `_recoverBundle` (`AtomicFlowManager.sol:224-227`): the router's
 `recoverAtomicCall` if the call targets the router, otherwise whatever the target `other c.target`
 does, from the manager. -/
 def recoverCall (enc : AssetIdOf) (cfg : Config) (hk : Hooks X)
@@ -307,7 +313,7 @@ def recoverCall (enc : AssetIdOf) (cfg : Config) (hk : Hooks X)
   if c.target = cfg.router then recoverAtomicCall enc cfg hk w cfg.manager destChainId c.data
   else other c.target w destChainId c.data
 
-/-- `_recoverBundle`'s loop (`AtomicFlowManager.sol:219-230`): the calls in order, each on the
+/-- **`c67894b9` record.**  The pin's `_recoverBundle` loop (`AtomicFlowManager.sol:219-230`): the calls in order, each on the
 state the previous one left, no `try/catch`; `some (w, n)` counts the calls that returned
 `true`. -/
 def recoverBundle (step : World X → Call → Option (World X × Bool)) :
@@ -321,7 +327,7 @@ def recoverBundle (step : World X → Call → Option (World X × Bool)) :
       | none => none
       | some (w'', n) => some (w'', (if b then 1 else 0) + n)
 
-/-- `AtomicFlowManager.claimRefund` for one leg (`AtomicFlowManager.sol:165-180`): enabled only
+/-- **`c67894b9` record.**  The pin's `AtomicFlowManager.claimRefund` for one leg (`AtomicFlowManager.sol:165-180`): enabled only
 on a `Revertable` leg (`:169-170`); the leg is set `Reverted` before the loop (`:175`), and the
 loop must recover at least one call (`:229`).  `none` is a revert of the whole transaction, so
 the leg stays `Revertable` and nothing the loop did persists. -/
@@ -332,7 +338,7 @@ def claimRefund (step : World X → Call → Option (World X × Bool)) (s : LegS
   | none => none
   | some (w', n) => if n = 0 then none else some (LegState.Reverted, w')
 
-/-- The outcomes the loop produces, on the threaded state: it stops at the first revert. -/
+/-- **`c67894b9` record.**  The outcomes the pin loop produces, on the threaded state: it stops at the first revert. -/
 def outcomes (step : World X → Call → Option (World X × Bool)) :
     World X → List Call → List Outcome
   | _, [] => []

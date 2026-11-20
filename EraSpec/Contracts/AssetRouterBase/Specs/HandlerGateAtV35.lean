@@ -6,21 +6,16 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AllWriters
 
 Source: era-contracts branch `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.
 Paths are relative to `l1-contracts/contracts/`; `bridge/asset-router/` is shortened to `AR/`.
-The model was first written against `d9f678900e1bc8286412b78f56d4a9f443983c29`, the earlier
-head of that branch.  `bridge/`, `core/`, `common/libraries/` and
-`governance/PermanentRestriction.sol` are identical at the two commits, so every contract line
-cited here holds at both.
 
 **This file is definitions only.**  The results are in
 `EraSpec.Contracts.AssetRouterBase.Properties.HandlerGateAtV35` and are proved in
-`EraSpec.Contracts.AssetRouterBase.Proofs.HandlerGateAtV35`.  It changes nothing in the pin
-models.  It reuses `AllWriters`' configuration (`Cfg`), writes (`setHandler`, `pointAt`,
+`EraSpec.Contracts.AssetRouterBase.Proofs.HandlerGateAtV35`.  It changes nothing in
+`AllWriters`.  It reuses `AllWriters`' configuration (`Cfg`), writes (`setHandler`, `pointAt`,
 `recordTracker`) and operations (`Op`), for an L1 configuration (`side = .l1`).
 
 ## The check v35 adds to the L1 router
 
-`_checkAssetHandlerAllowed` is new at v35: `L1AssetRouter.sol` has no such function at the
-`AllWriters` pin (`c67894b9`), on `main` (`3605e82`, `70096e2`) or at `e561b9cc2`.
+`_checkAssetHandlerAllowed` is new at v35.
 
     // AR/L1AssetRouter.sol:276-288
     function _checkAssetHandlerAllowed(uint256 _chainId, bytes32 _assetId) internal view {
@@ -46,10 +41,8 @@ The chain the gate checks is a deposit's destination, a withdrawal's source (`re
 requires `_sourceChainId` to be the proven sender's chain, `AR/AssetRouterBase.sol:235-239`),
 or a failed deposit's destination.
 
-The router's other changes against the pin are not part of this model: the Era-specific
-immutables and the Era caller of `bridgehubDepositBaseToken` are gone (`onlyBridgehub`), and
-`_setAssetHandlerAddressOnCounterpart` now requires a nonzero tracker (`:164`).  None of them
-writes the router's maps.  `AssetRouterBase.sol` changes only in internal function names.
+The router's other entry points are not part of this model; none of them writes the router's
+maps (`AllWriters` lists the writers).
 
 Not gated, and moving no asset: `setAssetHandlerAddressThisChain`
 (`AR/L1AssetRouter.sol:145-150`), `setAssetDeploymentTracker` (`:135-142`),
@@ -112,12 +105,11 @@ and the handler-set check only.
 
 ## Writers at v35
 
-A grep of `_setAssetHandler(` and `assetDeploymentTracker[` over the whole v35 tree finds the
-pin's writers at new lines and nothing else outside the tests (no contract inherits either
+A grep of `_setAssetHandler(` and `assetDeploymentTracker[` over the whole v35 tree finds
+`AllWriters`' writers and nothing else outside the tests (no contract inherits either
 router): `AR/AssetRouterBase.sol:74-75` (`register`), `:278` (`finalize`),
 `AR/L1AssetRouter.sol:120` (`seed`), `:140` (`setTracker`), `AR/L2AssetRouter.sol:162` (L2
-`seed`), `:203` (L2 `counterpartSet`).  The L1 writing statements and their guards are the
-pin's.  `AllWriters`' L1 operations are therefore still complete at v35, and every v35 run
+`seed`), `:203` (L2 `counterpartSet`).  `AllWriters`' L1 operations are therefore complete at v35, and every v35 run
 projects onto an `AllWriters` L1 run (`Properties.RunProjectsToAllWriters`).
 
 ## Boundaries

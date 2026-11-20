@@ -1,6 +1,7 @@
 import EraSpec.Contracts.DataEncoding.History.Properties.AssetIdRecovery
 import EraSpec.Contracts.DataEncoding.Proofs.AssetIdRuns
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecovery
 
 /-! **History: a record of the interop pin `c67894b9`, not a claim about era-contracts `b17415d20`.**
 This topic instantiates the router's atomic-recovery model (`AssetRouterBase` `AtomicRecovery`),
@@ -112,7 +113,7 @@ theorem FailsAssetIdCheckIsLibraryRevertWitness :
 theorem CustomAssetRecoveryRevertsOrKeccakCollision :
     Properties.CustomAssetRecoveryRevertsOrKeccakCollision := by
   intro X keccak cfg hk w dest src c₀ s d m hs hun
-  rcases AssetRouter.AtomicRecovery.CustomAssetRecoveryRevertsOrCollision X (routerEnc keccak) cfg
+  rcases AssetRouter.AtomicRecovery.History.CustomAssetRecoveryRevertsOrCollision X (routerEnc keccak) cfg
     hk w dest src c₀ s d m hun with h | ⟨md, c, hm, hc, heq⟩
   · exact Or.inl h
   · exact Or.inr ⟨md, c, hm, hc, assetIdRuns_router_clash hs heq⟩
@@ -158,7 +159,7 @@ theorem CustomAssetRecoveryRevertsOrKeccakCollisionWitness :
 theorem KeccakCollisionLetsVaultMintCustomAsset :
     Properties.KeccakCollisionLetsVaultMintCustomAsset := by
   obtain ⟨X, enc, cfg, hk, w, dest, src, c₀, s, d, md, hs, hun, hrec⟩ :=
-    AssetRouter.AtomicRecovery.CollisionLetsVaultMintCustomAsset
+    AssetRouter.AtomicRecovery.History.CollisionLetsVaultMintCustomAsset
   obtain ⟨keccak, rfl⟩ := RouterEncodingsAreKeccakInstances enc
   refine ⟨X, keccak, cfg, hk, w, dest, src, c₀, s, d, md, hs, hun, hrec, ?_⟩
   rcases CustomAssetRecoveryRevertsOrKeccakCollision X keccak cfg hk w dest src c₀ s d (some md)
@@ -176,7 +177,7 @@ theorem CustomHandlerDepositRefundRevertsOrKeccakCollision :
   · by_cases h2 : ∀ md, m = some md → ∀ c, cfg.tokenOrigin md.metadata = some c →
         AssetRouter.IdInjOn (routerEnc keccak)
           {(c₀, s, d), (c, cfg.ntv, NativeTokenVaultBase.widen md.originToken)}
-    · exact Or.inl (AssetRouter.AtomicRecovery.CustomHandlerDepositRefundReverts X
+    · exact Or.inl (AssetRouter.AtomicRecovery.History.CustomHandlerDepositRefundReverts X
         (routerEnc keccak) cfg hk w log audit dest src c₀ s d m h0 hs hh0 hhn hrun h1 h2)
     · push Not at h2
       obtain ⟨md, hm, c, hc, hni⟩ := h2

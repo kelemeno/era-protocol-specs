@@ -1,8 +1,14 @@
-import EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecoveryFaithful
+import EraSpec.Contracts.AssetRouterBase.History.Properties.AtomicRecoveryFaithful
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecovery
 
 /-!
 # Proofs: the router-produced call by destination, and the stranded L2→L1 atomic leg
+
+**History.**  This topic is the record of the pin `c67894b9`, not a claim about `b17415d20`.  At
+`b17415d20` an atomic bundle to L1 is rejected at send (`interop/InteropCenter.sol:552-553`) and
+`L2AssetRouter.recoverAtomicCall` rejects an L1 destination (`bridge/asset-router/L2AssetRouter.sol:275`).
+Line numbers below are the pin's.
 
 `routerCallTo` agrees with `AtomicRecovery.routerCall` off L1 (`routerCallTo_of_ne`), so the L2
 results are the `AtomicRecovery` certificates after one rewrite.  On L1, the call's target is not
@@ -15,7 +21,7 @@ call formed from the router's starter differs from `routerCallTo` in its sender 
 address.  The concrete headline (d) is headline (d) applied to the witness.
 -/
 
-namespace Contracts.AssetRouter.AtomicRecoveryFaithful
+namespace Contracts.AssetRouter.AtomicRecoveryFaithful.History
 
 open Contracts.AssetRouter.AtomicRecovery
 open AttackVectors.RecoveryLimits (Outcome LegState)
@@ -194,7 +200,7 @@ theorem L1LegNeverRefunded : Properties.L1LegNeverRefunded :=
 theorem PreparedBurnRefundsDepositorToL2 : Properties.PreparedBurnRefundsDepositorToL2 := by
   intro Acc prepHooks s r out hw hprep X enc cfg hk other dest w x₁ hd hp hn ht hf
   rw [routerCallTo_of_ne hd]
-  exact Contracts.AssetRouter.AtomicRecovery.PreparedBurnRefundsDepositor Acc prepHooks s r out hw
+  exact Contracts.AssetRouter.AtomicRecovery.History.PreparedBurnRefundsDepositor Acc prepHooks s r out hw
     hprep X enc cfg.base hk other dest w x₁ hp hn ht hf
 
 theorem PreparedBurnRefundByDestination : Properties.PreparedBurnRefundByDestination := by
@@ -415,7 +421,7 @@ theorem PreparedBurnRefundFailsToL1 : Properties.PreparedBurnRefundFailsToL1 := 
     okHooks, codelessOther, fWorld, (), (), fPrep_wellFormed, hout, hchain, hvault, hrouter,
     hcaller, (fWorld_same_asset 1).1, (fWorld_same_asset 1).2, hother, hdest, fCfg_l1Router_ne,
     codelessOther_at, rfl, fWorld_known.1, fWorld_known.2, rfl, rfl, ?_, ?_⟩
-  · rw [Contracts.AssetRouter.AtomicRecovery.PreparedBurnRefundsDepositor Unit
+  · rw [Contracts.AssetRouter.AtomicRecovery.History.PreparedBurnRefundsDepositor Unit
       NativeTokenVaultBase.witnessPrepHooks fPrepState (fBurn 1) out fPrep_wellFormed hout Unit wEnc
       fCfg.base okHooks codelessOther (fBurn 1).destinationChain fWorld () rfl fWorld_known.1
       fWorld_known.2 rfl]
@@ -465,11 +471,11 @@ theorem CustomHandlerBundleIsStrandedToL2 : Properties.CustomHandlerBundleIsStra
   · rw [routerCallTo_of_ne hd]
     show (claimRefund (recoverCall wEnc wCfg okHooks declineOther 8) LegState.Revertable wWorld
       [routerCall wCfg 1 wMd]).isSome
-    rw [wVaultCall_refunded]
+    rw [AtomicRecovery.History.wVaultCall_refunded]
     rfl
   · intro w' hr
     rw [routerCallTo_of_ne hd, routerCallTo_of_ne hd]
-    exact LegNeverRefunded Unit wEnc wCfg okHooks declineOther 8 wWorld w' _ 2 wVault_unaware_two
+    exact AtomicRecovery.History.LegNeverRefunded Unit wEnc wCfg okHooks declineOther 8 wWorld w' _ 2 wVault_unaware_two
       (declineOther_leaves 2) wBundleHas wBundleFails hr
 
 theorem L1LegForeignTrueClosesWithoutRefund : Properties.L1LegForeignTrueClosesWithoutRefund :=
@@ -494,4 +500,4 @@ theorem PreparedBurnRefundToL2Satisfiable : Properties.PreparedBurnRefundToL2Sat
     (fBurn 8).destinationChain fWorld () hd rfl fWorld_known.1 fWorld_known.2 rfl]
   rfl
 
-end Contracts.AssetRouter.AtomicRecoveryFaithful
+end Contracts.AssetRouter.AtomicRecoveryFaithful.History

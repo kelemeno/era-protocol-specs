@@ -1,5 +1,6 @@
 import EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecoveryAtHead
 import EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecovery
+import EraSpec.Contracts.AssetRouterBase.History.Proofs.AtomicRecovery
 import EraSpec.Contracts.AssetRouterBase.Proofs.AllWriters
 
 /-!
@@ -841,7 +842,7 @@ theorem head_vault_alone (code : HandlerCode Unit) :
 /-! ## Certificates: concrete instances and countermodels -/
 
 theorem PinUnbackedMintRejectedAtHead : Properties.PinUnbackedMintRejectedAtHead := by
-  obtain ⟨-, hclaim⟩ := AtomicRecovery.DirectCallIsRefunded (Addr160 → ℕ) AtomicRecovery.wEnc
+  obtain ⟨-, hclaim⟩ := AtomicRecovery.History.DirectCallIsRefunded (Addr160 → ℕ) AtomicRecovery.wEnc
     AtomicRecovery.wCfg AtomicRecovery.ledgerHooks AtomicRecovery.declineOther 8 0
     AtomicRecovery.ledgerWorld 13 1 AtomicRecovery.wMd (fun _ => 0)
     (Function.update (fun _ => 0) AtomicRecovery.wMd.originalCaller
@@ -891,7 +892,7 @@ theorem PinStrandedBundleRefundedAtHead : Properties.PinStrandedBundleRefundedAt
   · show AtomicRecovery.burnHandler AtomicRecovery.wCfg AtomicRecovery.wRouter 2 ≠ 4
     rw [head_burnHandler_two]
     decide
-  · exact AtomicRecovery.LegNeverRefunded Unit AtomicRecovery.wEnc AtomicRecovery.wCfg
+  · exact AtomicRecovery.History.LegNeverRefunded Unit AtomicRecovery.wEnc AtomicRecovery.wCfg
       AtomicRecovery.okHooks AtomicRecovery.declineOther 8 AtomicRecovery.wWorld AtomicRecovery.wWorld
       _ 2 AtomicRecovery.wVault_unaware_two (AtomicRecovery.declineOther_leaves 2)
       AtomicRecovery.wBundleHas AtomicRecovery.wBundleFails Relation.ReflTransGen.refl

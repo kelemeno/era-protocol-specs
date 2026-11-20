@@ -488,34 +488,12 @@ theorem BurnUsesRegisteredHandler : Properties.BurnUsesRegisteredHandler := by
   unfold burnHandler
   rw [ite_eq_right h]
 
-theorem RecoveryCallsTheVault : Properties.RecoveryCallsTheVault :=
-  fun _ enc cfg hk w dest src a m => recoverAtomicCall_finalize enc cfg hk w dest src a m
-
-theorem RecoveryIgnoresHandler : Properties.RecoveryIgnoresHandler :=
-  fun _ enc cfg hk w R caller dest d => recoverAtomicCall_router enc cfg hk w R caller dest d
-
 theorem VaultRejectsUnknownAsset : Properties.VaultRejectsUnknownAsset :=
   fun _ _ _ _ _ _ _ _ _ _ hU hF => ntvRecover_unaware hU hF
-
-theorem UnknownAssetRecoveryReverts : Properties.UnknownAssetRecoveryReverts := by
-  intro X enc cfg hk w dest src a m hU hF
-  rw [recoverAtomicCall_unaware hU hF]
-  exact ⟨rfl, rfl⟩
 
 theorem CustomIdFailsAssetIdCheckOn : Properties.CustomIdFailsAssetIdCheckOn := by
   intro enc cfg c₀ s d m hs hinj md hm c hc
   exact custom_ne_ntv hs (hinj md hm c hc)
-
-theorem CustomAssetRecoveryRevertsOrCollision :
-    Properties.CustomAssetRecoveryRevertsOrCollision := by
-  intro X enc cfg hk w dest src c₀ s d m hU
-  by_cases hF : FailsAssetIdCheck enc cfg (enc c₀ s d) m
-  · exact Or.inl (recoverAtomicCall_unaware hU hF)
-  · right
-    unfold FailsAssetIdCheck at hF
-    push Not at hF
-    obtain ⟨md, hm, c, hc, he⟩ := hF
-    exact ⟨md, c, hm, hc, he⟩
 
 theorem VaultStepLeavesAlone : Properties.VaultStepLeavesAlone :=
   fun _ _ _ _ _ _ hs hp => vaultStep_leavesAlone hs hp
@@ -523,115 +501,41 @@ theorem VaultStepLeavesAlone : Properties.VaultStepLeavesAlone :=
 theorem CustomIdUnknownAlongLoggedRunsOn : Properties.CustomIdUnknownAlongLoggedRunsOn :=
   fun _ _ _ _ _ _ _ hc hs hr hinj => customId_unknown_along hc hs hr hinj
 
-theorem CustomHandlerDepositRefundReverts : Properties.CustomHandlerDepositRefundReverts := by
-  intro X enc cfg hk w log audit dest src c₀ s d m hc hs hh0 hhn hr hlog hdec
-  refine ⟨?_, ?_⟩
-  · unfold burnHandler
-    rw [ite_eq_right hh0]
-    exact hhn
-  · exact recoverAtomicCall_unaware (customId_unknown_along hc hs hr hlog)
-      (CustomIdFailsAssetIdCheckOn enc cfg c₀ s d m hs hdec)
-
-theorem UnknownAssetOutcomeBlocksClaim : Properties.UnknownAssetOutcomeBlocksClaim := by
-  intro X enc cfg hk w dest src a m pre post hU hF
-  rw [recoverAtomicCall_unaware hU hF]
-  exact AttackVectors.RecoveryLimits.revert_anywhere_blocks pre post
-
-theorem ClaimRevertsWithUnknownAssetCall : Properties.ClaimRevertsWithUnknownAssetCall :=
-  fun _ _ _ _ _ _ _ _ _ _ hU ho hhas hfail => claimRevertsWithUnknownAssetCall hU ho hhas hfail
-
-theorem RefundOfOtherAssetLeavesAlone : Properties.RefundOfOtherAssetLeavesAlone :=
-  fun _ _ _ _ _ _ _ _ _ _ _ hd h => recoverAtomicCall_frame hd h
-
-theorem OtherClaimLeavesAlone : Properties.OtherClaimLeavesAlone := by
-  intro X enc cfg hk other dest w w' st st' calls a ho hnot h
-  unfold claimRefund at h
-  by_cases hst : st ≠ LegState.Revertable
-  · rw [ite_eq_left hst] at h; cases h
-  rw [ite_eq_right hst] at h
-  rcases hr : recoverBundle (recoverCall enc cfg hk other dest) w calls with _ | ⟨w₁, n⟩ <;>
-    rw [hr] at h
-  · cases h
-  dsimp only at h
-  by_cases hn : n = 0
-  · rw [ite_eq_left hn] at h; cases h
-  rw [ite_eq_right hn] at h
-  have hw : w₁ = w' := (Prod.mk.inj (Option.some.inj h)).2
-  rw [← hw]
-  refine recoverBundle_leavesAlone calls w w₁ n ?_ hr
-  intro c hc u u' b hs
-  refine recoverCall_frame ho ?_ hs
-  intro ht src m hd
-  exact hnot ⟨c, hc, ht, src, m, hd⟩
-
-theorem LegNeverRefunded : Properties.LegNeverRefunded := by
-  intro X enc cfg hk other dest w w' calls a hU ho hhas hfail hreach
-  have hU' : VaultUnaware cfg w'.vault a := by
-    induction hreach with
-    | refl => exact hU
-    | tail _ hstep ih => exact leavesAlone_unaware ih hstep
-  exact claimRevertsWithUnknownAssetCall hU' ho hhas hfail
-
-theorem CustomHandlerBundleNeverRefunded : Properties.CustomHandlerBundleNeverRefunded := by
-  intro X enc cfg hk other dest w log audit calls c₀ s d hc hs hr hlog ho hhas hdec
-  refine claimRevertsWithUnknownAssetCall (customId_unknown_along hc hs hr hlog) ho hhas ?_
-  intro c hcm ht src m hd
-  exact CustomIdFailsAssetIdCheckOn enc cfg c₀ s d m hs (hdec c hcm ht src m hd)
-
-theorem RecoveryOnlyByManager : Properties.RecoveryOnlyByManager := by
-  intro X enc cfg hk w caller dest d h
-  unfold recoverAtomicCall
-  rw [ite_eq_left h]
-
 theorem VaultRefundOnlyByRouter : Properties.VaultRefundOnlyByRouter := by
   intro X enc cfg hk w caller v chainId a m h
   unfold ntvRecover
   rw [vaultRefund_guard (Or.inr (Or.inl h))]
   rfl
 
-theorem ClaimSucceedsIffAccepted : Properties.ClaimSucceedsIffAccepted :=
-  fun _ step w calls => claimSucceedsIffAccepted step w calls
-
-theorem KnownBridgedAssetRefundsOriginalCaller :
-    Properties.KnownBridgedAssetRefundsOriginalCaller :=
-  fun _ _ _ _ _ _ _ _ _ _ hp hn ht hf => recoverAtomicCall_known hp hn ht hf
-
-theorem NativeAssetRefundsOriginalCaller : Properties.NativeAssetRefundsOriginalCaller :=
-  fun _ _ _ _ _ _ _ _ _ _ hp hn hf => recoverAtomicCall_native hp hn hf
-
-theorem RefundIgnoresRemoteReceiver : Properties.RefundIgnoresRemoteReceiver :=
-  fun _ _ _ _ _ _ _ _ _ _ _ => rfl
-
-theorem PreparedBurnRefundsDepositor : Properties.PreparedBurnRefundsDepositor := by
-  intro Acc prepHooks s r out hw hprep X enc cfg hk other dest w x₁ hp hn ht hf
-  obtain ⟨hoc, -, -, hamt, -, -⟩ := NativeTokenVaultBase.preparation_payload hw hprep
-  unfold recoverCall routerCall
-  dsimp only
-  rw [ite_eq_left rfl]
-  rw [← hamt] at hf
-  rw [recoverAtomicCall_known hp hn ht hf, hoc, hamt]
-
-theorem RefundIgnoresCallSender : Properties.RefundIgnoresCallSender :=
-  fun _ _ _ _ _ _ _ _ _ _ => rfl
-
-theorem DirectCallIsRefunded : Properties.DirectCallIsRefunded := by
-  intro X enc cfg hk other dest src w sender a md x₁ x₂ hp hn ht hf hm
-  refine ⟨?_, ?_⟩
-  · intro c hc
-    rw [List.mem_singleton] at hc
-    subst hc
-    rfl
-  · have hcall : recoverCall enc cfg hk other dest w
-        (directCall cfg.router sender (.finalizeDeposit src a (some md)))
-        = some ({ w with rest := x₂ }, true) := by
-      unfold recoverCall directCall
-      dsimp only
-      rw [ite_eq_left rfl, recoverAtomicCall_known hp hn ht hf, hm]
-      rfl
-    unfold claimRefund
-    rw [ite_eq_right (by simp)]
-    unfold recoverBundle
-    rw [hcall]
+theorem VaultRefundRefinesResolution : Properties.VaultRefundRefinesResolution := by
+  intro Accounting enc cfg rh s V c hR hC hO hT hReg
+  obtain ⟨_, _, hne, _, htok⟩ := hReg
+  have hguard : (c.msgValue ≠ 0 ∨ NativeTokenVaultBase.widen c.caller ≠ cfg.router ∨
+      s.paused = true) ↔ ¬ NativeTokenVaultBase.ResolveEntryAllowed s c := by
+    unfold NativeTokenVaultBase.ResolveEntryAllowed
+    rw [hR]
+    have hw : NativeTokenVaultBase.widen c.caller ≠ NativeTokenVaultBase.widen s.config.router ↔
+        c.caller ≠ s.config.router := by rw [Ne, NativeTokenVaultBase.widen_inj]
+    rw [hw]
+    cases s.paused <;> simp
+    tauto
+  unfold vaultRefund NativeTokenVaultBase.bridgeRecoverFailedTransfer
+  by_cases hE : NativeTokenVaultBase.ResolveEntryAllowed s c
+  · have hng : ¬ (c.msgValue ≠ 0 ∨ NativeTokenVaultBase.widen c.caller ≠ cfg.router ∨
+        s.paused = true) := fun h => (hguard.mp h) hE
+    have hnat : ¬ V.originChain c.assetId = cfg.thisChain := by rw [hO, hC]; exact hne
+    have htk : V.token c.assetId ≠ 0 := by
+      rw [hT, Ne, NativeTokenVaultBase.widen_eq_zero]; exact htok
+    rw [ite_eq_right hng, ite_eq_left ⟨hE, ⟨‹_›, ‹_›, hne, ‹_›, htok⟩⟩]
+    simp only [resolutionHooks, NativeTokenVaultBase.hookThenMint]
+    rcases h1 : rh.fromChain s.accounting s.token c.chain c.assetId c.data.amount with _ | acc
+    · simp
+    · simp only [Option.map_some, ite_eq_right hnat, ite_eq_left htk]
+      rcases h2 : BridgedStandardERC20.mint s.token s.config.vault c.data.originalCaller
+          c.data.amount with _ | t
+      · simp
+      · simp
+  · rw [ite_eq_left (hguard.mpr hE), ite_eq_right (fun h => hE h.1)]
     rfl
 
 /-! ## Concrete instances
@@ -675,6 +579,7 @@ theorem wEnc_injOn (c₀ c : Chain) (d t : AssetData) :
   idInjOn_pair (wEnc_custom_ne_vault c₀ c d t)
 
 theorem wVault_token_one : wVault.token 1 = 6 := NativeTokenVault.sn_token_self _ _ _ _ _
+
 theorem wVault_origin_one : wVault.originChain 1 = 1 := NativeTokenVault.sn_originChain_self _ _ _ _ _
 
 theorem wVault_origin_two : wVault.originChain 2 = 0 :=
@@ -713,149 +618,16 @@ theorem declineOther_leaves (a : AssetId) {X : Type} :
 
 theorem wEnc_custom : wEnc 0 9 0 = 2 := by unfold wEnc; decide
 
-theorem wVaultCall_refunded :
-    claimRefund (recoverCall wEnc wCfg okHooks declineOther 8) LegState.Revertable wWorld
-      [routerCall wCfg 1 wMd] = some (LegState.Reverted, { wWorld with rest := () }) :=
-  (DirectCallIsRefunded Unit wEnc wCfg okHooks declineOther 8 wCfg.thisChain wWorld wCfg.router 1 wMd
-    () () rfl wVault_known_one.1 wVault_known_one.2 rfl rfl).2
-
-theorem VaultRejectsUnknownAssetSatisfiable : Properties.VaultRejectsUnknownAssetSatisfiable :=
-  ⟨Unit, wEnc, wCfg, okHooks, wWorld, 8, 2, wMd, 1, wVault_unaware_two, wFails _, rfl, rfl,
-    by decide, fun _ _ _ _ => Option.some_ne_none _, fun _ _ _ _ => Option.some_ne_none _,
-    fun _ _ _ _ => Option.some_ne_none _, recoverAtomicCall_unaware wVault_unaware_two (wFails _)⟩
-
-theorem CustomHandlerDepositRefundRevertsSatisfiable :
-    Properties.CustomHandlerDepositRefundRevertsSatisfiable := by
-  refine ⟨Unit, wEnc, wCfg, okHooks, wWorld, [wOp], NativeTokenVault.empty.audit, 0, 9, 0, wMd,
-    by decide, by decide, ?_, ?_, wReach, ?_, fun p _ => wEnc_injOn _ _ _ _,
-    fun _ _ => wEnc_injOn _ _ _ _, ⟨1, rfl⟩, rfl, fun _ _ _ _ => Option.some_ne_none _,
-    fun _ _ _ _ => Option.some_ne_none _, fun _ _ _ _ => Option.some_ne_none _⟩
-  · show wRouter.handler (wEnc 0 9 0) ≠ 0
-    unfold wRouter wEnc; decide
-  · show wRouter.handler (wEnc 0 9 0) ≠ 4
-    unfold wRouter wEnc; decide
-  · exact ⟨(1, 9), (NativeTokenVault.MemRegisteredPairs _ _ _).mpr ⟨wOp, List.mem_cons_self, rfl⟩⟩
-
-theorem FramePremisesSatisfiable : Properties.FramePremisesSatisfiable := by
-  have hg : NativeTokenVault.RegisterBridgedGuard (ntvId wEnc wCfg) wCfg.thisChain
-      NativeTokenVault.empty.vault 1 6 9 1 :=
-    ⟨by decide, by decide, by unfold ntvId wEnc; decide, by decide, rfl, fun h => h rfl⟩
-  refine ⟨Unit, wEnc, wCfg, okHooks, declineOther, 8, wWorld, 2, wOp, NativeTokenVault.empty, _,
-    .finalizeDeposit 7 1 (some wMd), { wWorld with rest := () }, true, [routerCall wCfg 1 wMd],
-    LegState.Reverted, { wWorld with rest := () },
-    ⟨NativeTokenVault.StepOp.registerBridged hg, ⟨(1, 9), rfl⟩, ?_⟩, ⟨?_, ?_⟩,
-    ⟨declineOther_leaves 2, ?_, wVaultCall_refunded⟩⟩
-  · intro p hp
-    cases hp
-    show wEnc 1 4 9 ≠ 2
-    unfold wEnc; decide
-  · intro src m h
-    injection h with _ h2
-    exact absurd h2 (by decide)
-  · rw [recoverAtomicCall_known rfl wVault_known_one.1 wVault_known_one.2 rfl]
-    rfl
-  · rintro ⟨c, hc, _, src, m, hd⟩
-    rw [List.mem_singleton] at hc
-    subst hc
-    injection hd with _ h2
-    exact absurd h2 (by decide)
-
 /-- An encoding under which every id is `2`. -/
 def cEnc : AssetIdOf := fun _ _ _ => 2
-
-theorem CollisionLetsVaultMintCustomAsset : Properties.CollisionLetsVaultMintCustomAsset := by
-  refine ⟨Unit, cEnc, wCfg, okHooks, ⟨wRouter, NativeTokenVault.empty.vault, false, ()⟩, 8, 7,
-    0, 9, 0, wMd, by decide, ⟨rfl, by decide⟩, ?_⟩
-  rfl
-
-theorem CustomCollisionNotTautology : Properties.CustomCollisionNotTautology :=
-  ⟨wEnc, wCfg, 0, 9, 0, wMd, 1, by decide, rfl, wEnc_custom_ne_vault _ _ _ _⟩
-
-theorem KnownAssetRefundSatisfiable : Properties.KnownAssetRefundSatisfiable := by
-  refine ⟨Unit, wEnc, wCfg, okHooks, wWorld, 8, 7, 1, wMd, (), rfl, wVault_known_one.1,
-    wVault_known_one.2, rfl, ?_⟩
-  rw [recoverAtomicCall_known rfl wVault_known_one.1 wVault_known_one.2 rfl]
-  rfl
 
 /-- The vault with token `6` registered as native. -/
 def nVault : NativeTokenVault.Vault :=
   NativeTokenVault.registerNative (ntvId wEnc wCfg) 7 NativeTokenVault.empty.vault 6
 
-theorem NativeAssetRefundSatisfiable : Properties.NativeAssetRefundSatisfiable := by
-  have hn : nVault.originChain (ntvId wEnc wCfg 7 6) = wCfg.thisChain :=
-    NativeTokenVault.sn_originChain_self _ _ _ _ _
-  refine ⟨Unit, wEnc, wCfg, okHooks, ⟨wRouter, nVault, false, ()⟩, 8, 7, ntvId wEnc wCfg 7 6, wMd,
-    (), rfl, hn, rfl, ?_⟩
-  rw [recoverAtomicCall_native (w := ⟨wRouter, nVault, false, ()⟩) rfl hn rfl]
-  rfl
-
 /-- The vault with asset `2 + 1` bridged (local token `6`, origin token `9`, origin chain `1`). -/
 def pVault : NativeTokenVault.Vault :=
   NativeTokenVault.setNewTokenStorage NativeTokenVault.empty.vault (2 + 1) 6 9 1
-
-theorem PreparedBurnRefundSatisfiable : Properties.PreparedBurnRefundSatisfiable := by
-  open NativeTokenVaultBase in
-  have hw : WellFormed witnessPrepState := ⟨witnessToken_ledger, witnessPrep_rc⟩
-  have htok : witnessPrepState.registry.tokenForAsset (2 + 1) = 5 := witnessPrep_token
-  have hs : InScope witnessPrepState witnessRequest := by
-    refine ⟨by decide, by decide, by decide, by decide, ?_⟩
-    show (if (0 : NativeTokenVaultBase.Address) = 0 then
-      witnessPrepState.registry.tokenForAsset (2 + 1) else 0) = 5
-    rw [ite_eq_left rfl, htok]
-  have hsel : selectedToken witnessPrepState witnessRequest = 5 := hs.2.2.2.2
-  have he : EntryAllowed witnessPrepState witnessRequest := by
-    refine ⟨rfl, rfl, rfl, ?_, ?_, by decide⟩
-    · rw [hsel]; decide
-    · rw [hsel]; exact witnessPrep_asset
-  have hb : witnessRequest.data.amount.val ≤ witnessPrepState.token.balances 11 := by
-    show (1 : UInt256).val ≤ Function.update (fun _ => 0) (11 : NativeTokenVaultBase.Address)
-      (0 + (1 : UInt256).val) 11
-    rw [Function.update_self]
-    decide
-  obtain ⟨out, hout⟩ := preparation_enabled (hooks := witnessPrepHooks) (accounted := ())
-    (metadata := []) hw hs he rfl (by decide) hb (by decide) (by decide) rfl rfl
-  have ho : pVault.originChain (2 + 1) = 1 := NativeTokenVault.sn_originChain_self _ _ _ _ _
-  have htk : pVault.token (2 + 1) = 6 := NativeTokenVault.sn_token_self _ _ _ _ _
-  have hn : pVault.originChain (2 + 1) ≠ wCfg.thisChain := by rw [ho]; decide
-  have ht : pVault.token (2 + 1) ≠ 0 := by rw [htk]; decide
-  refine ⟨Unit, witnessPrepHooks, witnessPrepState, witnessRequest, out, Unit, wEnc, wCfg,
-    okHooks, declineOther, 8, ⟨wRouter, pVault, false, ()⟩, (), hw, hout, by decide, rfl, hn, ht, rfl, ?_⟩
-  rw [PreparedBurnRefundsDepositor Unit witnessPrepHooks witnessPrepState witnessRequest out hw hout
-    Unit wEnc wCfg okHooks declineOther 8 ⟨wRouter, pVault, false, ()⟩ () rfl hn ht rfl]
-  rfl
-
-theorem ClaimRevertsWithUnknownAssetCallSatisfiable :
-    Properties.ClaimRevertsWithUnknownAssetCallSatisfiable :=
-  ⟨Unit, wEnc, wCfg, okHooks, declineOther, 8, wWorld, [routerCall wCfg 2 wMd, routerCall wCfg 1 wMd],
-    2, wVault_unaware_two, declineOther_leaves 2, wBundleHas, wBundleFails, rfl,
-    ⟨routerCall wCfg 1 wMd, List.mem_cons_of_mem _ List.mem_cons_self,
-      by rw [wVaultCall_refunded]; rfl⟩⟩
-
-theorem CustomHandlerBundleIsStranded : Properties.CustomHandlerBundleIsStranded := by
-  refine ⟨Unit, wEnc, wCfg, okHooks, declineOther, 8, wWorld, 2, 1, wMd, wMd, ?_, ?_, ?_, ?_, ?_⟩
-  · intro c hc
-    rcases List.mem_cons.mp hc with rfl | hc
-    · rfl
-    · rw [List.mem_singleton] at hc; subst hc; rfl
-  · show (if wRouter.handler 2 = 0 then (4 : Address) else wRouter.handler 2) ≠ 4
-    unfold wRouter; decide
-  · show (if wRouter.handler 1 = 0 then (4 : Address) else wRouter.handler 1) = 4
-    unfold wRouter; decide
-  · rw [wVaultCall_refunded]; rfl
-  · intro w' hr
-    exact LegNeverRefunded Unit wEnc wCfg okHooks declineOther 8 wWorld w' _ 2 wVault_unaware_two
-      (declineOther_leaves 2) wBundleHas wBundleFails hr
-
-theorem CustomHandlerBundleNeverRefundedSatisfiable :
-    Properties.CustomHandlerBundleNeverRefundedSatisfiable := by
-  refine ⟨Unit, wEnc, wCfg, okHooks, declineOther, 8, wWorld, [wOp], NativeTokenVault.empty.audit,
-    [routerCall wCfg 2 wMd, routerCall wCfg 1 wMd], 0, 9, 0, by decide, by decide, wReach, ?_,
-    fun _ _ => wEnc_injOn _ _ _ _, declineOther_leaves _, fun _ u _ _ => ⟨(u, false), rfl⟩, ?_,
-    fun _ _ _ _ _ _ _ _ _ _ => wEnc_injOn _ _ _ _, ?_⟩
-  · exact ⟨(1, 9), (NativeTokenVault.MemRegisteredPairs _ _ _).mpr ⟨wOp, List.mem_cons_self, rfl⟩⟩
-  · rw [wEnc_custom]; exact wBundleHas
-  · exact ⟨routerCall wCfg 1 wMd, List.mem_cons_of_mem _ List.mem_cons_self,
-      by rw [wVaultCall_refunded]; rfl⟩
 
 /-- The bridged token's ledger: the mint hook credits the receiver. -/
 def ledgerHooks : Hooks (Addr160 → ℕ) :=
@@ -863,16 +635,5 @@ def ledgerHooks : Hooks (Addr160 → ℕ) :=
     fun bal _ rcv amt => some (Function.update bal rcv (bal rcv + amt.val))⟩
 
 def ledgerWorld : World (Addr160 → ℕ) := ⟨wRouter, wVault, false, fun _ => 0⟩
-
-theorem DirectCallMintsUnbacked : Properties.DirectCallMintsUnbacked := by
-  obtain ⟨hvalid, hclaim⟩ := DirectCallIsRefunded (Addr160 → ℕ) wEnc wCfg ledgerHooks declineOther 8 0
-    ledgerWorld 13 1 wMd (fun _ => 0)
-    (Function.update (fun _ => 0) wMd.originalCaller (0 + wMd.amount.val)) rfl
-    wVault_known_one.1 wVault_known_one.2 rfl rfl
-  refine ⟨wEnc, wCfg, ledgerHooks, declineOther, 8, 0, ledgerWorld, 13, 1, wMd, _, by decide, hvalid,
-    hclaim, rfl, ?_⟩
-  show 0 < Function.update (fun _ => 0) wMd.originalCaller (0 + wMd.amount.val) wMd.originalCaller
-  rw [Function.update_self]
-  decide
 
 end Contracts.AssetRouter.AtomicRecovery

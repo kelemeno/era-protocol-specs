@@ -5,25 +5,15 @@ import EraSpec.Contracts.AssetRouterBase.Specs.AllWriters
 # Model at head: atomic recovery dispatches on `InteropCall.from` and routes to the asset's handler
 
 Source: era-contracts `draft/v0.35.0` at `b17415d2068065a4a3e3f0e7a14a2e96f54212e5`.  Paths are
-relative to `l1-contracts/contracts/`; `protocol-docs/` is at the repository root.  Every line cited
-below is the same at the earlier v35 pin `d9f678900e1bc8286412b78f56d4a9f443983c29` (no cited file
-changed between the two).  The modelled functions are also the same at `main`
-`70096e2ea6eeb5373992e178064c4b26dcf6436a` (and at `3605e82db`, against which this topic was first
-written; no cited file changed between those two), up to line shifts and renames
-(`main` name → v35 name: `_nativeTokenVaultAddr` → `_getNativeTokenVaultAddr`,
-`_atomicFlowManagerAddr` → `_getAtomicFlowManagerAddr`); the vault's token deployment differs (system `ContractDeployer` at
-`main`, `CREATE2` at v35) but is the abstract `deploy` hook here.  Main lines of the central
-functions: `AtomicFlowManager.sol` `claimRefund` `:247-262`, `_recoverBundle` `:289-322`;
-`L2AssetRouter.sol` `recoverAtomicCall` `:275-309`, `bridgehubRecoverBaseToken` `:320-334`;
-`L2NativeTokenVault.sol` `_disburseFailedTransfer` `:235-258`; `InteropCenter.sol`
-`_processCallStarter` `:767-824`.
+relative to `l1-contracts/contracts/`; `protocol-docs/` is at the repository root.
 
 **This file is definitions only.**  The results are in
 `EraSpec.Contracts.AssetRouterBase.Properties.AtomicRecoveryAtHead` and proved in
 `EraSpec.Contracts.AssetRouterBase.Proofs.AtomicRecoveryAtHead`.
 
-The pin model `EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery` (`c67894b9`) is unchanged and
-still describes the pin.  This file models the code that replaced its two halves upstream: the
+`EraSpec.Contracts.AssetRouterBase.Specs.AtomicRecovery` holds the vault refund this file reuses and
+the `c67894b9` record of the refund it replaced.  This file models the code that replaced the pin's
+two halves: the
 handler-routed `recoverAtomicCall` and the manager's dispatch on the call's local sender, together
 with the removal of the `recovered == 0` rejection.
 
@@ -138,7 +128,7 @@ no contract under `bridge/` calls either at `b17415d20`).  That proviso is the p
   world; it may write anything, router maps included.  Results that need it to leave something alone
   say so as a premise.
 * Router-map writes between the burn and the claim are the steps of `AllWriters` (`AStep`, `ARun`).
-  That model is at the pin; the writers of `assetHandlerAddress` are the same at head
+  Its writers of `assetHandlerAddress` are the `b17415d20` writers
   (`AssetRouterBase.sol:65-77, 267-283, 289-292`; `L2AssetRouter.sol:154-163, 198-204, 209-214`), and
   no contract inherits either router.
 * Configuration identified across contracts (`OPS-CONFIG`): one value `HeadConfig.l1Chain` stands

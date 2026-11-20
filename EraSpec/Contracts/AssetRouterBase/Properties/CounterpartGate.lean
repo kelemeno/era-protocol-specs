@@ -1,3 +1,4 @@
+import EraSpec.Core.Headline
 import EraSpec.Contracts.AssetRouterBase.Specs.CounterpartGate
 
 /-!
@@ -103,8 +104,20 @@ that address.  The L1 trackers behave as `VaultApprovals` says.  Fix a vault tri
 Suppose every counterpart write to `enc q` in an L2 run was sent by the L1 router from a
 state its run reached from fresh storage, with the encoding injective on that L1 run's
 logged triples plus `q`.  Then on L2 the route of `enc q` is always unset, tracked, or
-pointed at the L2 vault. -/
-def Properties.CounterpartCannotMisrouteVaultTriple : Prop :=
+pointed at the L2 vault.
+
+Premises: as stated above, in full: the L1 and L2 routers share the encoding and
+`L2_NATIVE_TOKEN_VAULT_ADDR`, and the L2 vault is at that address; the L1 trackers behave as
+`VaultApprovals` (the L1 vault approves only `L2_NATIVE_TOKEN_VAULT_ADDR`, and nothing at that address
+on L1 approves another handler); `q` is a vault triple; the L2 run starts from fresh router storage;
+every counterpart write to `enc q` was sent by the L1 router from a state its own run reached from
+fresh storage (message provenance, `PROTO-EVIDENCE`), with `encodeAssetId` injective on that L1
+run's logged triples and `q`. Model boundary (`MODEL-ROUTER-WRITERS`): a run is a sequence of successful calls of the router's
+map writers (`AllWriters.Op`: registration, the `_finalizeDeposit` fallback, the seed, the L2
+counterpart write, the L1 owner tracker write) with the router's configuration `Cfg` (encoding,
+`block.chainid`, vault address, seeded id) fixed for the whole run and no router upgrade;
+`finalize` admits every caller and the initializers are repeatable, which only adds runs. -/
+@[headline] def Properties.CounterpartCannotMisrouteVaultTriple : Prop :=
   ∀ (K1 K2 : Cfg) (approves : Approvals), K1.side = .l1 → K2.side = .l2 →
     K2.enc = K1.enc → K2.ntvAddr = K1.ntvAddr → K2.ntv = K2.ntvAddr →
     VaultApprovals K1 approves →
@@ -120,7 +133,7 @@ def Properties.CounterpartCannotMisrouteVaultTriple : Prop :=
 LIVE ROUTE.**  The L2 run is one counterpart write to a vault triple's id.  It was sent by
 the L1 router after the L1 vault registered that token, and the route is live at the
 end. -/
-def Properties.CounterpartCannotMisrouteVaultTripleWitness : Prop :=
+@[witness] def Properties.CounterpartCannotMisrouteVaultTripleWitness : Prop :=
   ∃ (K1 K2 : Cfg) (approves : Approvals) (q : Chain × Address × AssetData) (ops : List Op)
     (R : Router),
     K1.side = .l1 ∧ K2.side = .l2 ∧ K2.enc = K1.enc ∧ K2.ntvAddr = K1.ntvAddr ∧
