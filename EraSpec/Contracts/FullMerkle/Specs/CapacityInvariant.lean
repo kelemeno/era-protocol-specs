@@ -26,8 +26,9 @@ import Mathlib.Tactic
   `index = _leafNumber++` (:43) and the growth branch `index == 1 << _height` (:45-52).  The
   statement-by-statement transcription of `pushNewLeaf` (topic `CachedNodes`) moves
   `(_leafNumber, _height)` by `push` below (`Properties.PushNewLeafComputesRoot`).  What is not
-  proved is that compiled code executes that transcription, and the `uint256` wrap of
-  `1 << _height` (more than `2^255` leaves).  Axiom-free.
+  proved is that compiled code executes that transcription.  The `uint256` wrap of
+  `1 << _height` (from `_height = 256`, more than `2^255` leaves) does not change the growth
+  test's outcome (`CachedNodes`'s model boundary).  Axiom-free.
 -/
 
 namespace AttackVectors.CapacityInvariant

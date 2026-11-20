@@ -7,10 +7,12 @@ fold. Verification soundness and root binding are in `../Merkle/`.
 
 ## Headline guarantees
 
-All three are about the transcription (`MODEL-FULLMERKLE` in `ASSUMPTIONS.md`): any node hash
-(`Merkle.efficientHash`) and zero value, no hash premise. Scope: fewer than `2^255` leaves (the
-`uint256` wraps of `1 << _height` and `_leafNumber++` are not modelled); that compiled code executes
-the transcription is not proved.
+All four are about the transcription (`MODEL-FULLMERKLE` in `ASSUMPTIONS.md`): any node hash
+(`Merkle.efficientHash`) and zero value, no hash premise. Counters are `ℕ`; no leaf-count bound is
+needed except where stated: the source's `1 << _height` wraps only from `_height = 256`, where the
+growth test `index == 1 << _height` is false both in the source and in `ℕ`, and `_leafNumber++`
+reverts on overflow, so the source's successful runs are runs of the model (model boundary of
+`Specs/CachedNodes.lean`). That compiled code executes the transcription is not proved.
 
 - `Contracts.FullMerkle.Properties.ReachableRootIsFold`: on every storage reached from fresh storage
   by `setup(z0)` and successful `pushNewLeaf`/`updateLeaf` calls, `root()` is the fold of the leaves
@@ -19,7 +21,12 @@ the transcription is not proved.
 - `Contracts.FullMerkle.Properties.ContractPathVerifies`: for an occupied index, `merklePath(i)` is a
   path of length `_height` with `i < 2^length`, and walking it from leaf `i` gives `root()`.
   Premises: the storage represents its leaves (every reachable one does, `ReachableRepresents`); the
-  index is occupied.
+  index is occupied. `Merkle.calculateRoot`'s own `length < 256` check is not part of this one.
+- `Contracts.FullMerkle.Properties.ContractPathVerifiesInRange`: on reachable storage, for an
+  occupied index, `Merkle.calculateRoot` accepts `merklePath(i)` (length `_height < 256`,
+  `i < 2^length`) and walking it from leaf `i` gives `root()`. Premises: the storage is reached from
+  fresh storage by `setup(z0)` and successful calls; it holds at most `2^255` leaves (with more, the
+  contract's paths have length 256 and `calculateRoot` rejects them); the index is occupied.
 - `Contracts.FullMerkle.Properties.MerklePathOutOfRangeReverts`: `merklePath(i)` reverts for every
   index at or above `_leafNumber`. Premises: none (any storage).
 

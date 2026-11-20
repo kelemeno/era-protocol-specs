@@ -159,7 +159,7 @@ represents `L` at `dimHeight |L| = Nat.clog 2 |L|`, its `height()` is that, and 
 `H` with `|L| ≤ 2^H`.
 
 Premises, in plain words: as for `RunRootIsFold`: any node hash and zero value; storage reached by
-`setup(z)` on fresh storage and `push`es of `L` (`MODEL-DIM`), with fewer than `2^255` leaves. -/
+`setup(z)` on fresh storage and `push`es of `L` (`MODEL-DIM`). -/
 @[headline] def Properties.ReachableHeightMinimal : Prop :=
   ∀ (h : Hash) (z : UInt256) (L : List UInt256) (S : PushTree), Run h z L S →
     Represents h z L (dimHeight L.length) S ∧ height S = some (dimHeight L.length)
@@ -181,8 +181,8 @@ def Properties.RootIsFold : Prop :=
 
 Premises, in plain words: any node hash `h` (`Merkle.efficientHash`) and zero value `z`; the
 storage is reached from fresh storage by `setup(z)` and successful `push`es of the leaves `L` (the
-transcription of `DynamicIncrementalMerkle.sol`, `MODEL-DIM`). Scope: fewer than `2^255` leaves
-(the `uint256` wraps are not modelled); storage written directly, as
+transcription of `DynamicIncrementalMerkle.sol`, `MODEL-DIM`; no leaf-count bound is needed, see
+the model boundary of `Specs/Model.lean`); storage written directly, as
 `PriorityTree.initFromCommitment` does, is not a run. -/
 @[headline] def Properties.RunRootIsFold : Prop :=
   ∀ (h : Hash) (z : UInt256) (L : List UInt256) (S : PushTree), Run h z L S →

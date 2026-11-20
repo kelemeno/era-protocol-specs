@@ -104,7 +104,7 @@ def Properties.TreeRootBreakIsKeccakCollisionAtPin : Prop :=
     TreeRootBreak (efficientHash keccak) (imtPadding keccak) (hashLeaf keccak) T height sibs k idx ℓ →
       (T.leafCount ≤ idx ∧ ℓ = ⟨0, 0, 0⟩) ∨ ImtKeccakBreak keccak pinPaddingPre T height sibs k idx ℓ
 
-/-- **HEADLINE (pin): IMT PROOFS ARE EXCLUSIVE, OR KECCAK COLLIDES ON NAMED BYTES, OR THE ABSENCE PROOF
+/-- **RECORD (pin): IMT PROOFS ARE EXCLUSIVE, OR KECCAK COLLIDES ON NAMED BYTES, OR THE ABSENCE PROOF
 IS THE PADDING FORGERY.** `ProofsExclusiveOrBreak` with the abstract hashes instantiated by keccak as
 at the pin. If a value has an accepted inclusion proof and an accepted non-inclusion proof against a
 valid tree's root, then one of:

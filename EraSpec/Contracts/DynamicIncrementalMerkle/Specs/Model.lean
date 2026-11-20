@@ -75,9 +75,14 @@ return `bytes32(0)`, so `reset` below models both.  Every other cited line is th
 
 ## Model boundary
 
-* `uint256` wrap is out of scope: `1 << levels` is `0` in the source once `levels ≥ 256`, and
-  `_nextLeafIndex++` reverts at `2^256 - 1`; both need more than `2^255` leaves.  The loop counter
-  `uint32 i` would overflow only past `2^32` levels.
+* `uint256` wrap: `1 << levels` is `0` in the source once `levels ≥ 256`, and
+  `_nextLeafIndex++` reverts at `2^256 - 1`; neither is modelled, and neither changes a
+  successful run.  `index` is below `2^256`, so for `levels < 256` the shift is exact;
+  `levels` reaches `256` only at `index = 2^255`, after which every `index` is positive and
+  the growth test `index == 1 << levels` is false both in the source (`0`) and in `ℕ`
+  (`2^levels > index`).  The overflow revert only removes source runs the model keeps.  So
+  statements about runs need no leaf-count bound.  The loop counter `uint32 i` would
+  overflow only past `2^32` levels.
 * `Run` starts from `setup` on fresh storage.  `PriorityTree.initFromCommitment`
   (PriorityTree.sol:116-132) writes `_nextLeafIndex`, `_sides` and
   `_zeros` directly from a commitment.  `Run` does not cover storage written that way; whether it

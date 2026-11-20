@@ -31,10 +31,10 @@ Groups, in order:
   pin's padding `hashLeaf({0,0,0})`, where the forged-absence bug is the only keccak-free break,
   are History (`../History/Properties/DomainSeparationPinned.lean`);
 * (d) `Verifier.accept_forces_height`'s domain hypotheses and `LastLeaf.EntriesNotEmpty`, for the
-  logs, chain, shared and IMT trees, with the headlines `AcceptOpensPreimageOrKeccakBreak` (any
-  tree), `ChainTreeProofOpensBatchOrKeccakBreak`, `SharedTreeProofOpensChainOrKeccakBreak`,
-  `AcceptedLastBatchOrKeccakBreak` (a path of the tree's height from an occupied index) and
-  `DeployedLastBatchCheckOrKeccakBreak` (the prover's length and index, as deployed);
+  logs, chain, shared and IMT trees, with the main results `AcceptOpensPreimageOrKeccakBreak` (any
+  tree), `ChainTreeProofOpensBatchOrKeccakBreak`, `SharedTreeProofOpensChainOrKeccakBreak` and
+  `AcceptedLastBatchOrKeccakBreak` (a path of the tree's height from an occupied index), and the
+  headline `DeployedLastBatchCheckOrKeccakBreak` (the prover's length and index, as deployed);
 * (e) the node-collision lift: `PathCollision`, `PinnedBreak.nodeCollision`, `LevelCollision`,
   `TreeCollision` and `WalkCollision` each are 64-byte keccak collisions.
 
@@ -496,7 +496,7 @@ def Properties.AcceptForcesHeightOrKeccakBreak : Prop :=
         = rootOf (efficientHash keccak) (keccak zPre) (leafList keccak pre n) height →
       k = height ∨ HeightKeccakBreak keccak pre n zPre sibs k height j xPre
 
-/-- **HEADLINE (any tree): AN ACCEPTED PATH OPENS THE CLAIMED PREIMAGE, OR KECCAK COLLIDES ON NAMED
+/-- **MAIN RESULT (any tree): AN ACCEPTED PATH OPENS THE CLAIMED PREIMAGE, OR KECCAK COLLIDES ON NAMED
 BYTES.** `accept_pins_entry_any_length` without any hash premise, and down to bytes. For a tree over
 `leafList keccak pre n` with padding `keccak zPre`, under `LeafDomain`, a walk accepted against the
 root presenting `keccak xPre` has the tree's height and, at its index, the level-0 preimage IS `xPre`
@@ -601,7 +601,7 @@ def Properties.AcceptOpensOccupiedPreimageOrKeccakBreak : Prop :=
             (keccak xPre))
         ∨ HeightKeccakBreak keccak pre n zPre sibs k height j xPre
 
-/-- **HEADLINE (chain tree): AN ACCEPTED BATCH-LEAF PATH OPENS THAT BATCH, OR KECCAK COLLIDES ON NAMED
+/-- **MAIN RESULT (chain tree): AN ACCEPTED BATCH-LEAF PATH OPENS THAT BATCH, OR KECCAK COLLIDES ON NAMED
 BYTES.** A path accepted against a chain root (the `rootOf` fold of the pushed batch leaves with
 empty entry `keccak(new bytes(96))`; any path length `k`, any index below `2^k`), presenting the
 batch leaf `batchLeafHash(batchRoot, batchNumber, l1Timestamp)`, has the chain tree's height and
@@ -626,7 +626,7 @@ def Properties.ChainTreeProofOpensBatchOrKeccakBreak : Prop :=
         ∨ HeightKeccakBreak keccak (chainTreePre padB B) n emptyPre sibs k height j
             (batchPre padB b.batchRoot b.batchNumber b.l1Timestamp)
 
-/-- **HEADLINE (shared tree): AN ACCEPTED CHAIN-ID-LEAF PATH OPENS THAT CHAIN'S LEAF, OR KECCAK
+/-- **MAIN RESULT (shared tree): AN ACCEPTED CHAIN-ID-LEAF PATH OPENS THAT CHAIN'S LEAF, OR KECCAK
 COLLIDES ON NAMED BYTES.** As for the chain tree, against a shared root with empty entry
 `SHARED_ROOT_TREE_EMPTY_HASH`, read as `keccak(new bytes(96))`: the path has the shared tree's
 height and the opened position is occupied by exactly the presented `(chainIdRoot, chainId)`, or
@@ -648,7 +648,7 @@ def Properties.SharedTreeProofOpensChainOrKeccakBreak : Prop :=
         ∨ HeightKeccakBreak keccak (sharedTreePre padC C) n emptyPre sibs k height j
             (chainIdPre padC c.chainIdRoot c.chainId)
 
-/-- **THE TWO TREE HEADLINES' PREMISES ARE MET, WITH THE FIRST DISJUNCT THE ONE THAT HOLDS.** For
+/-- **THE TWO TREE RESULTS' PREMISES ARE MET, WITH THE FIRST DISJUNCT THE ONE THAT HOLDS.** For
 every keccak, every batch padding tag, and the deployed `CHAIN_ID_LEAF_PADDING` value
 (`chainIdLeafPaddingValue`, computed outside Lean): the honest proof of entry 1 of a two-entry chain
 tree, and of a two-entry shared tree, at height 1, meets every premise (`1 < 2^1`, the tag nonzero,
@@ -726,7 +726,7 @@ def Properties.AcceptedLastLeafOrKeccakBreak : Prop :=
       j + 1 = n ∨ PinnedKeccakBreak keccak pre n zPre j
         ∨ PathKeccakCollision keccak (keccak zPre) (leafList keccak pre n) sibs 0 height j x
 
-/-- **HEADLINE (chain tree): `_verifyLastBatchInRoot` IDENTIFIES THE LAST BATCH, OR KECCAK COLLIDES ON
+/-- **MAIN RESULT (chain tree): `_verifyLastBatchInRoot` IDENTIFIES THE LAST BATCH, OR KECCAK COLLIDES ON
 NAMED BYTES.** The chain tree's entries are the batch leaves (`MessageRootBase.sol:207-209`), its
 empty entry `CHAIN_TREE_EMPTY_ENTRY_HASH`, read as `keccak(new bytes(96))` (equal to the literal under
 `KeccakOfEmptyIsDocumented`), its zero cascade the one `AtomicInteropProof.sol:130-143` checks

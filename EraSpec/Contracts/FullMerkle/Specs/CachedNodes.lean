@@ -56,15 +56,21 @@ the interop pin `c67894b9`, with the same lines).
 ## Model boundary
 
 * `_height`, `_leafNumber` and all indices are `ℕ`.  In the source `1 << self._height`
-  (:45) is a `uint256` shift, which is `0` once `_height ≥ 256`.  `self._leafNumber++`
-  (:43) reverts at `2^256 - 1`.  Both need more than `2^255` leaves and are not modelled
-  (as in `L2InteropCommitmentTree/Specs/RunHeight.lean`).  No other arithmetic step can
+  (:45) is a `uint256` shift, which is `0` once `_height ≥ 256`.  The growth test still
+  takes the `ℕ` branch: `index` is a `uint256`, below `2^256`, so for `_height < 256` the
+  shift is exact, and `_height` reaches `256` only at `index = 2^255`, after which every
+  `index` is positive, so both `index == 0` (source) and `index == 2^_height` (`ℕ`) are
+  false.  `self._leafNumber++` (:43) reverts at `2^256 - 1` (checked arithmetic); the model
+  pushes on, so it has more successful runs than the source, never fewer.  Statements about
+  successful runs therefore need no leaf-count bound; a "never reverts" conclusion is about
+  the model and fails in the source only at `2^256 - 1` leaves.  No other arithmetic step can
   wrap or underflow on the paths that reach it: the halvings; `_index + 1` and `i + 1`
   on values below `_leafNumber` and `_height`; and `_index - 1`, `newHeight - 1` and
   `index - 1`, each taken only when the value is positive.
 * `Merkle.calculateRoot` also rejects a path of length `≥ 256` (Merkle.sol:133-140).  A
-  path from `merklePath` has length `_height`, and `_height < 256` holds below `2^255`
-  leaves, so that check is not modelled either.
+  path from `merklePath` has length `_height`; `Properties.ContractPathVerifiesInRange`
+  proves `_height < 256` on reachable storage with at most `2^255` leaves (with more,
+  `_height` is `256` and the check rejects).
 * `setup` has no guard; called on storage that is not fresh it pushes a second zero.
   Runs here (`Reachable`) start with `setup` on `FullTree.empty`, the fresh storage;
   the other results assume `Represents`, which a second `setup` breaks.

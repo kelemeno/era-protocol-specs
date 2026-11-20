@@ -22,7 +22,8 @@ fit `2 ^ _height`, `_zeros[i] = zeros h z0 i`, and `_nodes[i]` is the abstract l
 * **Reading the storage.**  `root()` is `rootOf h z0 leaves _height`, and
   `merklePath(i)` for an occupied `i` is `honestSibs h z0 leaves i` at the levels below
   `_height`: the sibling stream `InclusionComplete` and `HonestProofNoBreak` are stated
-  for.  `Merkle.calculateRoot(merklePath(i), i, leaf_i)` is `root()`.
+  for.  `Merkle.calculateRoot(merklePath(i), i, leaf_i)` is `root()` (with its `< 256`
+  length check, on reachable storage with at most `2^255` leaves).
 * **Along runs.**  Every storage reachable from fresh storage by `setup(z0)` and
   successful calls represents the leaves it holds, its `_height` is the one
   `CapacityInvariant.push` reaches at its leaf count, and every successful call returns
@@ -107,8 +108,10 @@ transcription of `FullMerkle.sol` (`MODEL-FULLMERKLE`). -/
 /-- **THE CONTRACT'S OWN PATH VERIFIES AGAINST ITS OWN ROOT.**  On storage caching the
 tree over `leaves`, for an occupied `i`: `merklePath(i)` returns a path `p` of length
 `_height` with `i < 2 ^ p.length` (the `MerkleIndexOutOfBounds` check of
-`calculateRoot`), and walking it from leaf `i` (`Merkle.calculateRoot(p, i, leaf_i)`)
-gives `root()`.
+`calculateRoot`), and walking it from leaf `i` (the fold `Merkle.calculateRoot(p, i, leaf_i)`
+computes) gives `root()`.  `calculateRoot` also reverts on a path of length `≥ 256`
+(`MerklePathOutOfBounds`, Merkle.sol:134-136), which this statement does not exclude; on reachable
+storage with at most `2^255` leaves `ContractPathVerifiesInRange` does.
 
 Premises, in plain words: any node hash and zero value; the storage represents `leaves` (every
 reachable storage does, `ReachableRepresents`); the index `i` is occupied. Scope: the
@@ -149,11 +152,29 @@ def Properties.ReachableRepresents : Prop :=
 
 Premises, in plain words: any node hash `h` (`Merkle.efficientHash`) and zero value `z0`; the
 storage is reached from fresh storage by `setup(z0)` and successful `pushNewLeaf`/`updateLeaf`
-calls (the transcription of `FullMerkle.sol`, `MODEL-FULLMERKLE`). Scope: fewer than `2^255`
-leaves (the `uint256` wraps are not modelled); a second `setup` on used storage is not a run. -/
+calls (the transcription of `FullMerkle.sol`, `MODEL-FULLMERKLE`); a second `setup` on used
+storage is not a run.  No leaf-count bound is needed: the `ℕ` counters take the source's branches
+(see the model boundary of `Specs/CachedNodes.lean`). -/
 @[headline] def Properties.ReachableRootIsFold : Prop :=
   ∀ (h : Hash) (z0 : UInt256) (S : FullTree), Reachable h z0 S →
     root S = some (rootOf h z0 (leavesOf S) S.height)
+
+/-- **ON REACHABLE STORAGE WITH AT MOST `2^255` LEAVES, `Merkle.calculateRoot` ACCEPTS THE
+CONTRACT'S OWN PATH AND RETURNS `root()`.**  For an occupied `i`, `merklePath(i)` returns a path
+`p` of length `_height`, and both checks of `_validatePathLengthForSingleProof` pass
+(`p.length < 256`, `i < 2 ^ p.length`; Merkle.sol:133-140), and walking `p` from leaf `i` gives
+`root()`.
+
+Premises, in plain words: any node hash and zero value; the storage is reached from fresh storage
+by `setup(z0)` and successful `pushNewLeaf`/`updateLeaf` calls (the transcription of
+`FullMerkle.sol`, `MODEL-FULLMERKLE`); it holds at most `2^255` leaves (with more, `_height` is
+`256` and `calculateRoot` rejects every path the contract returns); the index `i` is occupied. -/
+@[headline] def Properties.ContractPathVerifiesInRange : Prop :=
+  ∀ (h : Hash) (z0 : UInt256) (S : FullTree) (i : ℕ),
+    Reachable h z0 S → S.leafNumber ≤ 2 ^ 255 → i < S.leafNumber →
+    ∃ (p : List UInt256) (R : UInt256), merklePath S i = some p ∧ root S = some R
+      ∧ p.length = S.height ∧ p.length < 256 ∧ i < 2 ^ p.length
+      ∧ walkPure h (pathSibs p) 0 p.length i ((leavesOf S).getD i z0) = R
 
 /-- **EVERY SUCCESSFUL CALL RETURNS THE STORED ROOT.**  From reachable storage, the value
 a successful `pushNewLeaf` or `updateLeaf` returns is what `root()` reads afterwards. -/
@@ -168,7 +189,8 @@ def Properties.CallsReturnTheStoredRoot : Prop :=
 padding, three pushes from fresh storage succeed and reach storage that represents
 `[a, b, c]` at height 2 (both later pushes take the growth branch).  Indices 0, 1 and 2
 are occupied, so this meets the premises of `UpdateLeafComputesRoot`,
-`MerklePathIsHonest`, `ContractPathVerifies` and `CacheEntries`; a further
+`MerklePathIsHonest`, `ContractPathVerifies`, `ContractPathVerifiesInRange` and
+`CacheEntries`; a further
 `updateLeaf(0, c)` from it succeeds, which meets the premise of
 `CallsReturnTheStoredRoot`. -/
 @[witness] def Properties.ThreePushesWitness : Prop :=

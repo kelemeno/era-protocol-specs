@@ -9,10 +9,12 @@ the storage library to `Model`.
 ## Headline guarantees
 
 All are about the transcriptions (`MODEL-DIM` in `ASSUMPTIONS.md`): any node hash
-(`Merkle.efficientHash`) and zero value, no hash premise. Scope: fewer than `2^255` leaves (the
-`uint256` wraps of `1 << levels` and `_nextLeafIndex++` are not modelled); storage written directly
-(`PriorityTree.initFromCommitment`) is not a run; that compiled code executes the transcriptions is
-not proved.
+(`Merkle.efficientHash`) and zero value, no hash premise. Counters are `ℕ` and no leaf-count bound
+is needed: the source's `1 << levels` wraps only from `levels = 256`, where the growth test
+`index == 1 << levels` is false both in the source and in `ℕ`, and `_nextLeafIndex++` reverts on
+overflow, so the source's successful runs are runs of the model (model boundary of
+`Specs/Model.lean`). Storage written directly (`PriorityTree.initFromCommitment`) is not a run; that
+compiled code executes the transcriptions is not proved.
 
 - `Contracts.DynamicIncrementalMerkle.Properties.RunRootIsFold`: along every run, `root()` is
   `bytes32(0)` while the tree is empty and otherwise the `FullMerkle` fold of the pushed leaves at
@@ -100,7 +102,7 @@ do not read storage.
 
 No hash premise except the bounded one of `ContractPathLastIff`. Not covered: that compiled
 code executes the transcriptions; the `uint256` wrap of `1 << levels` and `_nextLeafIndex++`
-(more than 2^255 leaves); storage written directly (`PriorityTree.initFromCommitment`); that
+(more than 2^255 leaves; neither changes a successful run, see `Specs/Model.lean`); storage written directly (`PriorityTree.initFromCommitment`); that
 the `MessageRoot`'s writes produce runs (read from the source); chains with an empty tree, or
 none (`RootBacking` needs a leaf for every chain id); the batch-leaf encoding and which batches
 are pushed (`PROTO-CONTIGUOUS-PUSH`). `MODEL-DIM` in [ASSUMPTIONS.md](../../../ASSUMPTIONS.md)

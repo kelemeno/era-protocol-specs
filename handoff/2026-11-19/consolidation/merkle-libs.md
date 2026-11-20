@@ -142,7 +142,7 @@ the same at `b17415d20`.
   `setup`/`root` agree (`PriorityTreePushIsDimPush`, `PriorityTreeSetupIsDimSetup`,
   `PriorityTreeRootIsDimRoot`, witness `PriorityTreePushIsDimPushWitness`; untagged model bridges).
   No other duplicate transcription exists; no model was deleted.
-* **Headlines.** Merkle 7, FullMerkle 3, DynamicIncrementalMerkle 3, each docstring with a
+* **Headlines.** Merkle 7, FullMerkle 4, DynamicIncrementalMerkle 3, each docstring with a
   "Premises, in plain words" paragraph and listed first in the README; witnesses
   (`HonestWalkRoot`, `HonestWalkNoCollision`, `RootPinsEntryOrCollisionSatisfiable`,
   `RootPathsHonestWitness`, `ProofsExclusiveOrKeccakBreakSatisfiable`,
@@ -158,9 +158,35 @@ the same at `b17415d20`.
 
 ## Not done
 
-* The scope premises of the storage headlines (fewer than `2^255` leaves; the transcription is
-  executed by the compiled code) are stated in the docstrings and READMEs, not as Lean hypotheses:
-  adding them would weaken the statements, and the models keep the counters in `ℕ`.
+* That the compiled code executes the transcriptions stays a prose premise (`MODEL-FULLMERKLE`,
+  `MODEL-DIM`), as everywhere.
 * `ChainTreeBacking` still builds on `Protocol/InteropAtomicity`'s `Timeout.RootBacking` (a
   `c67894b9` Protocol model, the later Protocol unit's).
 * The `global-hinj` results and the `L2Log` copy, as above.
+
+## Review fixes (verdict "fix")
+
+* **Untagged statements called headlines.** `DomainSeparation`'s header item (d) now calls
+  `AcceptOpensPreimageOrKeccakBreak`, `ChainTreeProofOpensBatchOrKeccakBreak`,
+  `SharedTreeProofOpensChainOrKeccakBreak` and `AcceptedLastBatchOrKeccakBreak` main results and
+  only `DeployedLastBatchCheckOrKeccakBreak` the headline; their docstrings open with "MAIN RESULT",
+  and the joint witness says "THE TWO TREE RESULTS' PREMISES". The History
+  `ProofsExclusiveOrKeccakBreakAtPin` opens with "RECORD (pin)". Wording only; no tag or statement
+  changed.
+* **The `2^255` scope premise.** Dropped from the run headlines (`FullMerkle` `ReachableRootIsFold`;
+  DIM `RunRootIsFold`, `ReachableHeightMinimal`; `MemoryMatchesStorage` never had it), with the
+  argument now in the Specs model boundaries and READMEs: `index` is a `uint256`, so the growth test
+  `index == 1 << height` is exact below height 256, height reaches 256 only at `index = 2^255`, and
+  after that the test is false both in the source (shift `0`, `index > 0`) and in `ℕ`
+  (`2^height > index`); the counter's `++` reverts on overflow in checked arithmetic, so the source's
+  successful runs are model runs. It does not hold for `ContractPathVerifies` read as a
+  `Merkle.calculateRoot` call: from 2^255 + 1 leaves `_height` is 256 and `calculateRoot` reverts
+  with `MerklePathOutOfBounds` (`Merkle.sol:134-136`). That statement is about the walk and is
+  unchanged; its docstring now says the length check is not part of it. New headline
+  `FullMerkle.Properties.ContractPathVerifiesInRange` carries the bound as a hypothesis
+  (`Reachable`, `_leafNumber ≤ 2^255`, `i` occupied) and adds `p.length < 256` to the conclusion,
+  via a new `_height` upper bound along `CapacityInvariant.push` (`reachable_height_lt`). Witness:
+  `ThreePushesWitness`. FullMerkle headlines 3 → 4. No Properties def removed or renamed, so
+  `renames/merkle-libs.json` is unchanged.
+* `ASSUMPTIONS.md` unchanged: `MODEL-FULLMERKLE` and `MODEL-DIM` still say the wraps and the
+  `calculateRoot` length check are not modelled, which stays true.

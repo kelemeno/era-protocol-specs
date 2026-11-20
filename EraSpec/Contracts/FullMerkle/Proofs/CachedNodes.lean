@@ -748,6 +748,52 @@ theorem reachable_root_is_fold (h : Hash) (z0 : UInt256) (S : FullTree)
     (hS : Reachable h z0 S) : root S = some (rootOf h z0 (leavesOf S) S.height) :=
   root_is_fold h z0 _ S (reachable_represents h z0 S hS).1
 
+/-- After `n` pushes from `⟨0, 0⟩` the height is `0` or below `log₂ (2n)`: it grows only when
+the count reaches the capacity. -/
+private lemma iterate_push_height_tight : ∀ n : ℕ,
+    (push^[n] (⟨0, 0⟩ : TreeDims)).height = 0 ∨ 2 ^ (push^[n] (⟨0, 0⟩ : TreeDims)).height < 2 * n
+  | 0 => Or.inl rfl
+  | n + 1 => by
+    rw [Function.iterate_succ_apply']
+    have hc : (push^[n] (⟨0, 0⟩ : TreeDims)).count = n := count_after n
+    have ih := iterate_push_height_tight n
+    generalize push^[n] (⟨0, 0⟩ : TreeDims) = d at hc ih ⊢
+    obtain ⟨c, H⟩ := d
+    simp only at hc ih
+    subst hc
+    unfold push
+    by_cases hfull : c = 2 ^ H
+    · rw [if_pos hfull]
+      right
+      simp only
+      rw [pow_succ]
+      omega
+    · rw [if_neg hfull]
+      simp only
+      omega
+
+/-- Reachable storage with at most `2^255` leaves has `_height < 256`. -/
+theorem reachable_height_lt (h : Hash) (z0 : UInt256) (S : FullTree) (hS : Reachable h z0 S)
+    (hn : S.leafNumber ≤ 2 ^ 255) : S.height < 256 := by
+  have hH := (reachable_represents h z0 S hS).2
+  rcases iterate_push_height_tight S.leafNumber with h0 | hlt
+  · rw [hH, h0]; norm_num
+  · rw [← hH] at hlt
+    by_contra hge
+    have hpow : 2 ^ 256 ≤ 2 ^ S.height := Nat.pow_le_pow_right (by norm_num) (by omega)
+    have h256 : (2 : ℕ) ^ 256 = 2 * 2 ^ 255 := by norm_num
+    omega
+
+theorem contract_path_verifies_in_range (h : Hash) (z0 : UInt256) (S : FullTree) (i : ℕ)
+    (hS : Reachable h z0 S) (hn : S.leafNumber ≤ 2 ^ 255) (hi : i < S.leafNumber) :
+    ∃ (p : List UInt256) (R : UInt256), merklePath S i = some p ∧ root S = some R
+      ∧ p.length = S.height ∧ p.length < 256 ∧ i < 2 ^ p.length
+      ∧ walkPure h (pathSibs p) 0 p.length i ((leavesOf S).getD i z0) = R := by
+  have hR := (reachable_represents h z0 S hS).1
+  obtain ⟨p, R, hp, hr, hlen, hi2, hw⟩ :=
+    contract_path_verifies h z0 _ S i hR (by rw [← hR.leafNumber_eq]; exact hi)
+  exact ⟨p, R, hp, hr, hlen, by rw [hlen]; exact reachable_height_lt h z0 S hS hn, hi2, hw⟩
+
 theorem calls_return_the_stored_root (h : Hash) (z0 : UInt256) (S S' : FullTree) (r : UInt256)
     (hS : Reachable h z0 S)
     (hcall : (∃ x, pushNewLeaf h S x = some (S', r)) ∨ (∃ i x, updateLeaf h S i x = some (S', r))) :
@@ -812,6 +858,8 @@ theorem RepresentsLeaves : Properties.RepresentsLeaves := represents_leaves
 theorem CacheEntries : Properties.CacheEntries := cache_entries
 theorem ReachableRepresents : Properties.ReachableRepresents := reachable_represents
 theorem ReachableRootIsFold : Properties.ReachableRootIsFold := reachable_root_is_fold
+theorem ContractPathVerifiesInRange : Properties.ContractPathVerifiesInRange :=
+  contract_path_verifies_in_range
 theorem CallsReturnTheStoredRoot : Properties.CallsReturnTheStoredRoot :=
   calls_return_the_stored_root
 theorem ThreePushesWitness : Properties.ThreePushesWitness := three_pushes_witness
